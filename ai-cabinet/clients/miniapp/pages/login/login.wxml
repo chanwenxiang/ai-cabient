@@ -1,0 +1,13 @@
+<view class="container">
+  <view class="title">AI开门柜</view>
+  <input class="input" placeholder="手机号" value="{{phone}}" bindinput="onPhoneInput" />
+  <view class="row">
+    <input class="input code" placeholder="验证码" value="{{code}}" bindinput="onCodeInput" />
+    <button size="mini" bindtap="onSendCode" disabled="{{sending || codeCooldown > 0}}">
+      {{codeCooldown > 0 ? codeCooldown + 's' : '获取验证码'}}
+    </button>
+  </view>
+  <button type="primary" bindtap="onLogin" loading="{{logging}}" disabled="{{logging}}">手机号登录</button>
+  <button bindtap="onWxLogin">微信一键登录</button>
+  <view class="hint" wx:if="{{showDevHint}}">开发环境：消费者 13800138000 / 验证码 123456</view>
+</view>

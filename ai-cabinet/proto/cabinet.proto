@@ -1,0 +1,149 @@
+syntax = "proto3";
+
+package aicabinet;
+
+option java_package = "com.aicabinet.proto";
+option java_multiple_files = true;
+
+// ── 枚举 ──────────────────────────────────────────
+
+enum DoorState {
+  DOOR_UNKNOWN = 0;
+  DOOR_OPEN = 1;
+  DOOR_CLOSED = 2;
+  DOOR_OPENING = 3;
+}
+
+enum SessionState {
+  SESSION_CREATED = 0;
+  SESSION_OPENING = 1;
+  SESSION_SHOPPING = 2;
+  SESSION_RECOGNIZING = 3;
+  SESSION_WAITING_UPLOAD = 4;
+  SESSION_SETTLING = 5;
+  SESSION_COMPLETED = 6;
+  SESSION_DISPUTED = 7;
+  SESSION_FAILED = 8;
+}
+
+enum UploadStatus {
+  UPLOAD_NONE = 0;
+  UPLOAD_LOCAL_QUEUED = 1;
+  UPLOAD_UPLOADING = 2;
+  UPLOAD_UPLOADED = 3;
+  UPLOAD_FAILED = 4;
+}
+
+enum CameraFusionMode {
+  FUSION_SINGLE = 0;
+  FUSION_MULTI = 1;
+}
+
+enum RecognitionSource {
+  SOURCE_VISION = 0;
+  SOURCE_WEIGHT = 1;
+  SOURCE_FUSION = 2;
+}
+
+// ── 下行指令（云端 → 设备）────────────────────────
+
+message OpenDoorCommand {
+  string session_id = 1;
+  string user_id = 2;
+  int64 expire_at = 3;
+  bool operator_mode = 4;
+}
+
+message ForceCloseCommand {
+  string session_id = 1;
+  string reason = 2;
+}
+
+message OtaUpgradeCommand {
+  string target_version = 1;
+  string download_url = 2;
+  string checksum_sha256 = 3;
+  bool mandatory = 4;
+}
+
+message DeviceCommand {
+  string command_id = 1;
+  int64 timestamp = 3;
+  oneof payload {
+    OpenDoorCommand open_door = 10;
+    ForceCloseCommand force_close = 11;
+    OtaUpgradeCommand ota_upgrade = 12;
+  }
+}
+
+// ── 上行事件（设备 → 云端）────────────────────────
+
+message VideoClip {
+  string camera = 1;       // TOP / SIDE
+  string video_uri = 2;
+  int64 captured_at = 3;
+}
+
+message DoorEvent {
+  string session_id = 1;
+  DoorState state = 2;
+  int64 timestamp = 3;
+  string video_uri = 4;
+  UploadStatus upload_status = 5;
+  repeated VideoClip video_clips = 6;
+  CameraFusionMode camera_fusion_mode = 7;
+}
+
+message CommandAck {
+  string command_id = 1;
+  bool success = 2;
+  string error_message = 3;
+  int64 timestamp = 4;
+}
+
+message Heartbeat {
+  string device_id = 1;
+  int64 timestamp = 2;
+  string firmware_version = 3;
+  string app_version = 4;
+  map<string, string> metrics = 5;
+}
+
+message VideoChunkMeta {
+  string session_id = 1;
+  string chunk_id = 2;
+  int32 sequence = 3;
+  int32 total_chunks = 4;
+  string storage_uri = 5;
+  int64 duration_ms = 6;
+}
+
+message DeviceEvent {
+  string device_id = 1;
+  int64 timestamp = 2;
+  oneof payload {
+    DoorEvent door = 10;
+    CommandAck ack = 11;
+    Heartbeat heartbeat = 12;
+    VideoChunkMeta video_chunk = 13;
+  }
+}
+
+// ── 识别结果 ──────────────────────────────────────
+
+message LineItem {
+  string sku_id = 1;
+  int32 quantity = 2;
+  float confidence = 3;
+  RecognitionSource source = 4;
+}
+
+message RecognitionResult {
+  string task_id = 1;
+  string session_id = 2;
+  repeated LineItem items = 3;
+  float overall_confidence = 4;
+  string model_version = 5;
+  bool need_review = 6;
+  CameraFusionMode fusion_mode = 7;
+}

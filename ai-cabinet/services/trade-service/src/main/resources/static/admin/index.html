@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI开门柜 · 运营管理系统</title>
+  <script type="module" crossorigin src="./assets/index-0d2fc056.js"></script>
+  <link rel="stylesheet" href="./assets/index-93098ac6.css">
+</head>
+<body>
+
+<div id="loginView" class="login-wrap">
+  <form id="loginForm" class="login-card" autocomplete="on">
+    <h1>AI开门柜 · 运营管理系统</h1>
+    <p class="sub">设备监控 · 订单管理 · 商品维护 · 用户管理 · 争议审核</p>
+    <label for="phone">手机号</label>
+    <input id="phone" name="phone" type="tel" inputmode="numeric" placeholder="手机号" autocomplete="username">
+    <label for="code">验证码</label>
+    <div class="filters">
+      <div style="flex:2"><input id="code" name="code" type="text" inputmode="numeric" placeholder="短信验证码" autocomplete="one-time-code"></div>
+      <div><button type="button" id="sendCodeBtn" class="btn-ghost" onclick="sendCode()">获取验证码</button></div>
+    </div>
+    <button type="submit" id="loginBtn" class="btn-primary btn-block">登录</button>
+    <div id="loginErr" class="err hidden"></div>
+  </form>
+</div>
+
+<div id="appView" class="app hidden">
+  <nav class="sidebar">
+    <div class="brand">AI开门柜 OPS</div>
+
+    <div class="nav-section">
+      <div class="nav-section-title">概览</div>
+      <a class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">数据概览</a>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-title">业务</div>
+      <a class="nav-item" data-page="devices" onclick="navigate('devices')">设备</a>
+      <a class="nav-item" data-page="sessions" onclick="navigate('sessions')">会话</a>
+      <a class="nav-item" data-page="orders" onclick="navigate('orders')">订单</a>
+      <a class="nav-item" data-page="recharges" onclick="navigate('recharges')">充值</a>
+      <a class="nav-item" data-page="skus" onclick="navigate('skus')">商品</a>
+      <a class="nav-item" data-page="users" onclick="navigate('users')">用户</a>
+      <a class="nav-item" data-page="disputes" onclick="navigate('disputes')">争议审核</a>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-title">报表</div>
+      <a class="nav-item" data-page="reports" onclick="navigate('reports')">设备报表</a>
+      <a class="nav-item" data-page="audit" onclick="navigate('audit')">操作日志</a>
+      <a class="nav-item" data-page="sla" onclick="navigate('sla')">SLA 监控</a>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-title">运营</div>
+      <a class="nav-item" data-page="ota" onclick="navigate('ota')">设备 OTA</a>
+      <a class="nav-item" data-page="risk" onclick="navigate('risk')">风控</a>
+      <a class="nav-item" data-page="reconciliation" onclick="navigate('reconciliation')">对账</a>
+      <a class="nav-item" data-page="replenishment" onclick="navigate('replenishment')">补货</a>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-title">系统</div>
+      <a class="nav-item" data-page="rbac" onclick="navigate('rbac')">权限管理</a>
+    </div>
+  </nav>
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-left">
+        <button type="button" id="navBackBtn" class="btn-ghost btn-sm nav-back" onclick="navigateBack()" title="返回上一页">← 返回</button>
+        <h2 id="pageTitle">概览</h2>
+      </div>
+      <div class="topbar-actions">
+        <div class="topbar-user" id="userInfo">
+          <span class="user-name">运营账号</span>
+          <span class="user-detail">加载中…</span>
+        </div>
+        <button class="btn-ghost btn-sm" onclick="logout()">退出</button>
+      </div>
+    </div>
+    <div id="tagsView" class="tags-view" aria-label="最近访问"></div>
+    <div id="pageContent"></div>
+  </main>
+</div>
+
+<div id="modalRoot" class="hidden"></div>
+<div id="toastRoot" class="toast-root"></div>
+
+
+</body>
+</html>

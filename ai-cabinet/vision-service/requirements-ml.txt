@@ -1,0 +1,6 @@
+# 本地 YOLO（RECOGNIZER_BACKEND=yolo|hybrid）
+ultralytics>=8.1.0
+opencv-python-headless>=4.9.0
+# 阿里云商品理解（RECOGNIZER_BACKEND=aliyun|hybrid）
+alibabacloud_goodstech20191230>=2.0.0
+alibabacloud_tea_openapi>=0.3.0

@@ -1,0 +1,30 @@
+<view class="container">
+  <view class="empty" wx:if="{{!loading && !orders.length}}">
+    <text>暂无购物订单</text>
+    <text class="empty-hint">完成一次开门购物后订单会出现在这里</text>
+    <button size="mini" bindtap="onRefresh">刷新</button>
+    <button size="mini" bindtap="goHome">去开门</button>
+  </view>
+
+  <view class="order-card" wx:for="{{orders}}" wx:key="orderId" bindtap="onOpenOrder" data-id="{{item.orderId}}" data-session="{{item.sessionId}}">
+    <view class="row top">
+      <text class="device">{{item.deviceId}}</text>
+      <text class="amount">¥{{item.amountYuan}}</text>
+    </view>
+    <view class="row sub">
+      <text>{{item.createdAtText}}</text>
+      <text class="status">{{item.statusLabel || item.status}}</text>
+    </view>
+    <view class="row sub">
+      <text class="mono">{{item.orderId}}</text>
+      <text>{{item.lineCount}} 件商品</text>
+    </view>
+  </view>
+
+  <view class="footer" wx:if="{{loading || loadingMore}}">
+    <text>加载中…</text>
+  </view>
+  <view class="footer" wx:elif="{{orders.length && !hasMore}}">
+    <text>已加载全部 {{total}} 条</text>
+  </view>
+</view>

@@ -1,0 +1,5 @@
+.container { padding: 40rpx; }
+.title { font-size: 36rpx; margin-bottom: 12rpx; }
+.meta { font-size: 24rpx; color: #999; margin-bottom: 20rpx; }
+.amount { font-size: 56rpx; color: #1677ff; font-weight: bold; margin-bottom: 40rpx; }
+.loading, .empty { text-align: center; color: #999; padding: 80rpx 0; font-size: 28rpx; }

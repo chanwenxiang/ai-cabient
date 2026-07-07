@@ -1,0 +1,29 @@
+<view class="container">
+
+  <view class="header">
+    <view class="title">扫码开门</view>
+    <view class="balance" wx:if="{{balance}}">余额 ¥{{balance}}</view>
+  </view>
+
+  <input class="input" placeholder="设备 ID，如 CAB-001" value="{{deviceId}}" bindinput="onDeviceInput" />
+
+  <view class="device-hint {{deviceOnline === false ? 'warn' : (deviceOnline ? 'ok' : '')}}" wx:if="{{deviceStatusText}}">
+    {{deviceStatusText}}
+  </view>
+
+  <button type="primary" bindtap="onScanOpen" loading="{{opening}}" disabled="{{opening || polling}}">开门购物</button>
+
+  <button bindtap="onScan" disabled="{{opening || polling}}">扫一扫</button>
+
+  <view class="status card tone-{{stateTone}}" wx:if="{{sessionId}}">
+    <text class="status-title">当前会话</text>
+    <text class="mono">{{sessionId}}</text>
+    <text class="state">{{stateLabel || state}}</text>
+    <text class="hint" wx:if="{{stateHint}}">{{stateHint}}</text>
+    <view class="progress" wx:if="{{polling}}">
+      <view class="progress-bar"></view>
+    </view>
+  </view>
+
+</view>
+

@@ -1,0 +1,19 @@
+<view class="container">
+  <view class="empty" wx:if="{{!loading && !records.length}}">
+    <text>暂无充值记录</text>
+    <button size="mini" bindtap="onRefresh">刷新</button>
+  </view>
+
+  <view class="record-card" wx:for="{{records}}" wx:key="orderId">
+    <view class="row top">
+      <text class="amount">+¥{{item.amountYuan}}</text>
+      <text class="status status-{{item.status}}">{{item.statusLabel}}</text>
+    </view>
+    <view class="row sub">{{item.createdAtText}}</view>
+    <view class="row sub" wx:if="{{item.paidAt}}">支付时间 {{item.paidAtText}}</view>
+    <view class="row sub mono">{{item.orderId}}</view>
+  </view>
+
+  <view class="footer" wx:if="{{loading || loadingMore}}"><text>加载中…</text></view>
+  <view class="footer" wx:elif="{{records.length && !hasMore}}"><text>共 {{total}} 条</text></view>
+</view>

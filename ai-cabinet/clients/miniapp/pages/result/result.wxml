@@ -1,0 +1,20 @@
+<view class="container" wx:if="{{loading}}">
+  <view class="loading">加载账单中…</view>
+</view>
+
+<view class="container" wx:elif="{{order}}">
+  <view class="title">购物完成</view>
+  <view class="meta" wx:if="{{createdAtText}}">{{createdAtText}} · {{order.deviceId}}</view>
+  <view class="amount">¥{{order.totalAmountCents / 100}}</view>
+  <view class="line" wx:for="{{order.lines}}" wx:key="skuId">
+    <text>{{item.skuName}} x{{item.quantity}}</text>
+    <text>¥{{item.lineAmountCents / 100}}</text>
+  </view>
+  <button type="primary" bindtap="goHome" style="margin-top: 40rpx;">返回首页</button>
+  <button bindtap="goOrders" style="margin-top: 16rpx;">查看全部订单</button>
+</view>
+
+<view class="container" wx:else>
+  <view class="empty">{{loadError || '暂无账单'}}</view>
+  <button type="primary" bindtap="goHome" style="margin-top: 40rpx;">返回首页</button>
+</view>

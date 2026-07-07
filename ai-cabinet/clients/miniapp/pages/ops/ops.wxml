@@ -1,0 +1,6 @@
+<view class="container">
+  <view class="title">运营补货</view>
+  <view class="hint">需运营账号登录（userId ≥ 100000000）</view>
+  <input class="input" value="{{deviceId}}" bindinput="onDeviceInput" placeholder="设备ID" />
+  <button type="warn" bindtap="onOpsOpen">补货开门</button>
+</view>

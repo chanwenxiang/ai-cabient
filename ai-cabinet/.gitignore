@@ -1,0 +1,27 @@
+# .gitignore
+
+target/
+*.class
+*.jar
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Python
+__pycache__/
+.venv/
+venv/
+*.egg-info/
+
+# Local env
+.env
+*.log
+
+# Node (admin frontend)
+clients/admin/node_modules/
+clients/admin/dist/
+
+# Eclipse Paho MQTT file persistence (legacy)
+sim-*-tcplocalhost*/
+device-service-*-tcplocalhost*/

@@ -1,0 +1,65 @@
+.hint {
+  text-align: center;
+  padding: 48rpx 32rpx;
+}
+
+.empty-title {
+  display: block;
+  font-size: 32rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+}
+
+.empty-desc {
+  display: block;
+  color: #666;
+  font-size: 26rpx;
+  line-height: 1.6;
+}
+
+.ticket {
+  margin-bottom: 24rpx;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24rpx;
+  margin-bottom: 12rpx;
+  font-size: 28rpx;
+}
+
+.label {
+  color: #888;
+  flex-shrink: 0;
+}
+
+.mono {
+  font-family: monospace;
+  word-break: break-all;
+  text-align: right;
+}
+
+.status {
+  font-weight: 600;
+}
+
+.status.open {
+  color: #fa8c16;
+}
+
+.status.resolved {
+  color: #52c41a;
+}
+
+.items {
+  margin-top: 16rpx;
+  padding-top: 16rpx;
+  border-top: 1px solid #f0f0f0;
+}
+
+.item {
+  font-size: 26rpx;
+  color: #333;
+  margin-top: 8rpx;
+}
