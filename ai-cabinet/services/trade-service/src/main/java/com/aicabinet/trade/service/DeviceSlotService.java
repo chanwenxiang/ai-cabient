@@ -645,7 +645,7 @@ public class DeviceSlotService {
                 .map(Merchant::getMerchantName).orElse(null);
         return new AdminDeviceDto(
                 d.getDeviceId(), d.getDeviceName(), d.getDeviceType(), d.getOnlineStatus(),
-                d.getMerchantId(), merchantName, null, null, d.getUpdatedAt()
+                d.getMerchantId(), merchantName, null, null, d.getUpdatedAt(), false
         );
     }
 

@@ -73,6 +73,8 @@ PROFIT_SHARING_RETRY_BATCH_SIZE=20
 # 免密购物扣款：未接入真实支付分/支付宝代扣前保持 false
 PAYSCORE_ENABLED=false
 PAYSCORE_LIVE_CHARGE_ENABLED=false
+PAYSCORE_CHARGE_GATEWAY_URL=https://pay-gateway.example.com
+PAYSCORE_CHARGE_GATEWAY_API_KEY=<随机32+字符>
 ```
 
 ### device-service
@@ -82,6 +84,10 @@ SPRING_PROFILES_ACTIVE=prod
 INTERNAL_API_KEY=<与 trade-service 相同>
 AICABINET_TRADE_SERVICE_URL=http://trade-service:8080
 MQTT_BROKER=ssl://emqx:8883
+MQTT_CLIENT_ID=device-service-prod-<city-or-cluster>
+MQTT_USERNAME=<emqx user>
+MQTT_PASSWORD=<随机16+字符>
+MQTT_PERSISTENCE_DIR=/data/aicabinet/mqtt-paho
 ```
 
 ### vision-service

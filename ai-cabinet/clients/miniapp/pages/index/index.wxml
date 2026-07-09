@@ -22,8 +22,12 @@
     <view class="device-card {{deviceStatusClass}}" wx:if="{{deviceStatusText}}">
       <view class="device-dot"></view>
       <view class="device-info">
-        <text class="device-title">{{deviceName || deviceId}}</text>
+        <view class="device-title-row">
+          <text class="device-title">{{deviceName || deviceId}}</text>
+          <text class="device-chip chip-{{deviceStatusClass}}">{{deviceStatusChip}}</text>
+        </view>
         <text class="device-desc">{{deviceStatusText}}</text>
+        <text class="device-sub" wx:if="{{deviceStatusSub}}">{{deviceStatusSub}}</text>
       </view>
     </view>
     <view class="scan-hint" wx:if="{{scanHint}}">{{scanHint}}</view>

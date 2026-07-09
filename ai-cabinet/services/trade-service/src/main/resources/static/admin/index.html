@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>AI开门柜 · 运营管理系统</title>
-  <script type="module" crossorigin src="./assets/index-13010684.js"></script>
-  <link rel="stylesheet" href="./assets/index-b25e7bf9.css">
+  <script type="module" crossorigin src="./assets/index-da3dfa90.js"></script>
+  <link rel="stylesheet" href="./assets/index-69e4d97b.css">
 </head>
 <body>
 
@@ -18,7 +18,6 @@
       <button type="button" class="login-tab" data-mode="sms" onclick="switchLoginMode('sms')">验证码登录</button>
     </div>
     <form id="loginForm" autocomplete="on">
-      <p id="loginDevHint" class="login-hint hidden">本地测试：运营账号 13900000001，密码 123456（须已在数据库中）</p>
       <label for="phone">手机号</label>
       <input id="phone" name="phone" type="tel" inputmode="numeric" maxlength="11" placeholder="11位手机号" autocomplete="username">
       <div id="loginPasswordBlock">
@@ -58,12 +57,12 @@
       </button>
       <div class="nav-section-body">
         <a class="nav-item" data-page="devices" onclick="navigate('devices')">设备</a>
-        <a class="nav-item" data-page="sessions" onclick="navigate('sessions')">会话</a>
-        <a class="nav-item" data-page="upload-queue" onclick="navigate('upload-queue')">上传队列</a>
+        <a class="nav-item" data-page="sessions" onclick="navigate('sessions')">开门记录</a>
+        <a class="nav-item" data-page="upload-queue" onclick="navigate('upload-queue')">录像上传</a>
         <a class="nav-item" data-page="orders" onclick="navigate('orders')">订单</a>
         <a class="nav-item" data-page="recharges" onclick="navigate('recharges')">充值</a>
         <a class="nav-item" data-page="skus" onclick="navigate('skus')">商品</a>
-        <a class="nav-item" data-page="vision-mappings" onclick="navigate('vision-mappings')">视觉映射</a>
+        <a class="nav-item" data-page="vision-mappings" onclick="navigate('vision-mappings')">识别配置</a>
         <a class="nav-item" data-page="users" onclick="navigate('users')">用户</a>
         <a class="nav-item" data-page="disputes" onclick="navigate('disputes')">争议审核</a>
       </div>
@@ -76,7 +75,7 @@
       <div class="nav-section-body">
         <a class="nav-item" data-page="reports" onclick="navigate('reports')">设备报表</a>
         <a class="nav-item" data-page="audit" onclick="navigate('audit')">操作日志</a>
-        <a class="nav-item" data-page="sla" onclick="navigate('sla')">SLA 监控</a>
+        <a class="nav-item" data-page="sla" onclick="navigate('sla')">服务时效</a>
       </div>
     </div>
 
@@ -85,11 +84,12 @@
         <span>运营</span><span class="nav-chevron" aria-hidden="true">▾</span>
       </button>
       <div class="nav-section-body">
-        <a class="nav-item" data-page="ota" onclick="navigate('ota')">设备 OTA</a>
+        <a class="nav-item" data-page="ota" onclick="navigate('ota')">固件升级</a>
         <a class="nav-item" data-page="risk" onclick="navigate('risk')">风控</a>
         <a class="nav-item" data-page="reconciliation" onclick="navigate('reconciliation')">对账</a>
         <a class="nav-item" data-page="replenishment" onclick="navigate('replenishment')">补货</a>
         <a class="nav-item" data-page="warehouse" onclick="navigate('warehouse')">仓库</a>
+        <a class="nav-item" data-page="finance" onclick="navigate('finance')">财务毛利</a>
         <a class="nav-item" data-page="merchants" onclick="navigate('merchants')">商户分账</a>
       </div>
     </div>

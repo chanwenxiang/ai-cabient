@@ -28,6 +28,10 @@ public class WarehouseOutbound {
     private Instant createdAt;
 
     private Instant shippedAt;
+    @Column(nullable = false, length = 16)
+    private String handoverStatus = "PENDING";
+    private Long handoverOperatorId;
+    private Instant handedOverAt;
 
     @PrePersist
     void prePersist() {
@@ -48,4 +52,10 @@ public class WarehouseOutbound {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getShippedAt() { return shippedAt; }
     public void setShippedAt(Instant shippedAt) { this.shippedAt = shippedAt; }
+    public String getHandoverStatus() { return handoverStatus; }
+    public void setHandoverStatus(String handoverStatus) { this.handoverStatus = handoverStatus; }
+    public Long getHandoverOperatorId() { return handoverOperatorId; }
+    public void setHandoverOperatorId(Long handoverOperatorId) { this.handoverOperatorId = handoverOperatorId; }
+    public Instant getHandedOverAt() { return handedOverAt; }
+    public void setHandedOverAt(Instant handedOverAt) { this.handedOverAt = handedOverAt; }
 }

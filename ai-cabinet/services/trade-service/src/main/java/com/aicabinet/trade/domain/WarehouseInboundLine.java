@@ -28,6 +28,9 @@ public class WarehouseInboundLine {
     @Column(nullable = false)
     private int quantity;
 
+    @Column(nullable = false)
+    private int unitCostCents;
+
     public Long getLineId() { return lineId; }
     public Long getInboundId() { return inboundId; }
     public void setInboundId(Long inboundId) { this.inboundId = inboundId; }
@@ -41,4 +44,6 @@ public class WarehouseInboundLine {
     public void setExpiryDate(LocalDate expiryDate) { this.expiryDate = expiryDate; }
     public int getQuantity() { return quantity; }
     public void setQuantity(int quantity) { this.quantity = quantity; }
+    public int getUnitCostCents() { return unitCostCents; }
+    public void setUnitCostCents(int unitCostCents) { this.unitCostCents = unitCostCents; }
 }

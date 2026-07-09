@@ -5,10 +5,12 @@ import com.aicabinet.common.constants.PayChannels;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.domain.PaymentOperation;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.WeChatPayClient;
+import com.aicabinet.trade.repository.PaymentOperationRepository;
 import com.aicabinet.trade.repository.UserAccountRepository;
 import com.aicabinet.trade.repository.UserInfoRepository;
 import com.aicabinet.trade.support.ApiMessages;
@@ -34,6 +36,7 @@ public class OrderPaymentService {
     private final AlipayPayClient alipayPayClient;
     private final WeChatPayProperties weChatPayProperties;
     private final SecurityProperties securityProperties;
+    private final PaymentOperationRepository paymentOperationRepository;
 
     public OrderPaymentService(UserInfoRepository userInfoRepository,
                                UserAccountRepository userAccountRepository,
@@ -41,7 +44,8 @@ public class OrderPaymentService {
                                WeChatPayClient weChatPayClient,
                                AlipayPayClient alipayPayClient,
                                WeChatPayProperties weChatPayProperties,
-                               SecurityProperties securityProperties) {
+                               SecurityProperties securityProperties,
+                               PaymentOperationRepository paymentOperationRepository) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.payScoreService = payScoreService;
@@ -49,12 +53,19 @@ public class OrderPaymentService {
         this.alipayPayClient = alipayPayClient;
         this.weChatPayProperties = weChatPayProperties;
         this.securityProperties = securityProperties;
+        this.paymentOperationRepository = paymentOperationRepository;
     }
 
     @Transactional
     public void chargeOrder(CabinetOrder order) {
         if (order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
             order.setPayChannel(PayChannels.BALANCE);
+            return;
+        }
+        String idemKey = "CHARGE:" + order.getOrderId() + ":" + order.getTotalAmountCents();
+        if (isCompleted(idemKey)) {
+            order.setPayChannel(paymentOperationRepository.findByIdempotencyKey(idemKey)
+                    .map(PaymentOperation::getChannel).orElse(PayChannels.BALANCE));
             return;
         }
         UserInfo user = userInfoRepository.findById(order.getUserId())
@@ -65,12 +76,16 @@ public class OrderPaymentService {
         if (!PayChannels.BALANCE.equals(charge.channel())) {
             order.setPayChannel(charge.channel());
             order.setPayTradeNo(charge.tradeNo());
+            recordOperation(order, "CHARGE", order.getTotalAmountCents(), charge.channel(), idemKey,
+                    charge.tradeNo(), "order charge");
             log.info("order charged channel={} order={} tradeNo={}", charge.channel(), order.getOrderId(), charge.tradeNo());
             return;
         }
 
         deductBalance(order.getUserId(), order.getTotalAmountCents());
         order.setPayChannel(PayChannels.BALANCE);
+        recordOperation(order, "CHARGE", order.getTotalAmountCents(), PayChannels.BALANCE, idemKey,
+                null, "order charge");
     }
 
     @Transactional
@@ -95,57 +110,76 @@ public class OrderPaymentService {
     }
 
     private void chargeDelta(CabinetOrder order, int deltaCents) {
+        String idemKey = "ADJUST_CHARGE:" + order.getOrderId() + ":" + deltaCents;
+        if (isCompleted(idemKey)) {
+            return;
+        }
         String channel = order.getPayChannel() != null ? order.getPayChannel() : PayChannels.BALANCE;
         if (PayChannels.WECHAT.equalsIgnoreCase(channel) || PayChannels.ALIPAY.equalsIgnoreCase(channel)) {
             UserInfo user = userInfoRepository.findById(order.getUserId()).orElseThrow();
             PayScoreService.ChargeResult charge = payScoreService.charge(user, order.getOrderId() + "-ADJ", deltaCents, reasonOrDefault(null));
             if (!PayChannels.BALANCE.equals(charge.channel())) {
+                recordOperation(order, "ADJUST_CHARGE", deltaCents, charge.channel(), idemKey,
+                        charge.tradeNo(), "dispute adjust charge");
                 log.info("order adjust charge channel={} order={} delta={}", charge.channel(), order.getOrderId(), deltaCents);
                 return;
             }
         }
         deductBalance(order.getUserId(), deltaCents);
+        recordOperation(order, "ADJUST_CHARGE", deltaCents, PayChannels.BALANCE, idemKey,
+                null, "dispute adjust charge");
     }
 
     private void refundAmount(CabinetOrder order, int amountCents, String reason) {
+        String idemKey = "REFUND:" + order.getOrderId() + ":" + amountCents + ":" + reasonKey(reason);
+        if (isCompleted(idemKey)) {
+            return;
+        }
         String channel = order.getPayChannel() != null ? order.getPayChannel() : PayChannels.BALANCE;
         if (PayChannels.WECHAT.equalsIgnoreCase(channel)) {
-            refundWeChat(order, amountCents, reason);
+            refundWeChat(order, amountCents, reason, idemKey);
             return;
         }
         if (PayChannels.ALIPAY.equalsIgnoreCase(channel)) {
-            refundAlipay(order, amountCents, reason);
+            refundAlipay(order, amountCents, reason, idemKey);
             return;
         }
         creditBalance(order.getUserId(), amountCents);
+        recordOperation(order, "REFUND", amountCents, PayChannels.BALANCE, idemKey, null, reason);
     }
 
-    private void refundWeChat(CabinetOrder order, int amountCents, String reason) {
+    private void refundWeChat(CabinetOrder order, int amountCents, String reason, String idemKey) {
         if (weChatPayProperties.isConfigured() && order.getPayTradeNo() != null) {
-            String outRefundNo = "RF" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase();
+            String outRefundNo = deterministicRefundNo(idemKey);
             weChatPayClient.createRefund(order.getOrderId(), outRefundNo, amountCents, order.getTotalAmountCents(), reasonOrDefault(reason));
+            recordOperation(order, "REFUND", amountCents, PayChannels.WECHAT, idemKey, outRefundNo, reason);
             log.info("wechat order refund order={} amount={} (原路退回零钱)", order.getOrderId(), amountCents);
             return;
         }
         if (securityProperties.mockEnabled()) {
+            recordOperation(order, "REFUND", amountCents, PayChannels.WECHAT, idemKey, null, reason);
             log.info("wechat mock order refund order={} amount={} (原路退回零钱)", order.getOrderId(), amountCents);
             return;
         }
         creditBalance(order.getUserId(), amountCents);
+        recordOperation(order, "REFUND", amountCents, PayChannels.BALANCE, idemKey, null, reason);
     }
 
-    private void refundAlipay(CabinetOrder order, int amountCents, String reason) {
+    private void refundAlipay(CabinetOrder order, int amountCents, String reason, String idemKey) {
         if (alipayPayClient.isConfigured()) {
-            String outRefundNo = "RF" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase();
+            String outRefundNo = deterministicRefundNo(idemKey);
             alipayPayClient.refund(order.getOrderId(), outRefundNo, amountCents, reasonOrDefault(reason));
+            recordOperation(order, "REFUND", amountCents, PayChannels.ALIPAY, idemKey, outRefundNo, reason);
             log.info("alipay order refund order={} amount={}", order.getOrderId(), amountCents);
             return;
         }
         if (securityProperties.mockEnabled()) {
+            recordOperation(order, "REFUND", amountCents, PayChannels.ALIPAY, idemKey, null, reason);
             log.info("alipay mock order refund order={} amount={}", order.getOrderId(), amountCents);
             return;
         }
         creditBalance(order.getUserId(), amountCents);
+        recordOperation(order, "REFUND", amountCents, PayChannels.BALANCE, idemKey, null, reason);
     }
 
     private void deductBalance(Long userId, int amountCents) {
@@ -167,5 +201,41 @@ public class OrderPaymentService {
 
     private static String reasonOrDefault(String reason) {
         return reason != null && !reason.isBlank() ? reason : "AI开门柜退款";
+    }
+
+    private boolean isCompleted(String idempotencyKey) {
+        return paymentOperationRepository.findByIdempotencyKey(idempotencyKey)
+                .map(op -> "COMPLETED".equals(op.getStatus()))
+                .orElse(false);
+    }
+
+    private void recordOperation(CabinetOrder order, String type, int amountCents, String channel,
+                                 String idempotencyKey, String gatewayTradeNo, String reason) {
+        if (paymentOperationRepository.findByIdempotencyKey(idempotencyKey).isPresent()) {
+            return;
+        }
+        PaymentOperation op = new PaymentOperation();
+        op.setOperationId(type + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase());
+        op.setOrderId(order.getOrderId());
+        op.setOperationType(type);
+        op.setAmountCents(amountCents);
+        op.setChannel(channel);
+        op.setStatus("COMPLETED");
+        op.setIdempotencyKey(idempotencyKey);
+        op.setGatewayTradeNo(gatewayTradeNo);
+        op.setReason(reason != null && reason.length() > 128 ? reason.substring(0, 128) : reason);
+        paymentOperationRepository.save(op);
+    }
+
+    private static String deterministicRefundNo(String idempotencyKey) {
+        String suffix = Integer.toUnsignedString(idempotencyKey.hashCode(), 36).toUpperCase();
+        return ("RF" + suffix + "00000000000000").substring(0, 16);
+    }
+
+    private static String reasonKey(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return "DEFAULT";
+        }
+        return Integer.toUnsignedString(reason.hashCode(), 36).toUpperCase();
     }
 }

@@ -11,5 +11,6 @@ public record AdminDeviceDto(
         String merchantName,
         String activeSessionId,
         String activeSessionState,
-        Instant updatedAt
+        Instant updatedAt,
+        boolean replenishmentInProgress
 ) {}

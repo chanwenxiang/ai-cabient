@@ -16,9 +16,63 @@ import java.util.List;
 public class OpsCommercialController {
 
     private final OpsCommercialFacade facade;
+    private final com.aicabinet.trade.service.CommercialFlowService commercialFlowService;
+    private final com.aicabinet.trade.service.ProcurementService procurementService;
 
-    public OpsCommercialController(OpsCommercialFacade facade) {
+    public OpsCommercialController(OpsCommercialFacade facade,
+                                   com.aicabinet.trade.service.CommercialFlowService commercialFlowService,
+                                   com.aicabinet.trade.service.ProcurementService procurementService) {
         this.facade = facade;
+        this.commercialFlowService = commercialFlowService;
+        this.procurementService = procurementService;
+    }
+
+    @PostMapping("/commercial-flow/run")
+    public ApiResponse<CommercialFlowRunResult> runCommercialFlow(
+            HttpServletRequest request,
+            @RequestBody(required = false) CommercialFlowRunRequest body) {
+        return ApiResponse.ok(commercialFlowService.runFullFlow(operatorId(request), body));
+    }
+
+    @GetMapping("/suppliers")
+    public ApiResponse<List<SupplierDto>> suppliers(HttpServletRequest request) {
+        return ApiResponse.ok(procurementService.listSuppliers(operatorId(request)));
+    }
+
+    @PutMapping("/suppliers/{supplierId}")
+    public ApiResponse<SupplierDto> upsertSupplier(
+            HttpServletRequest request,
+            @PathVariable String supplierId,
+            @RequestBody SupplierDto body) {
+        SupplierDto merged = new SupplierDto(
+                supplierId,
+                body.supplierName(),
+                body.contactName(),
+                body.contactPhone(),
+                body.status(),
+                body.createdAt()
+        );
+        return ApiResponse.ok(procurementService.upsertSupplier(operatorId(request), merged));
+    }
+
+    @GetMapping("/purchase-orders")
+    public ApiResponse<List<PurchaseOrderDto>> purchaseOrders(HttpServletRequest request) {
+        return ApiResponse.ok(procurementService.listPurchaseOrders(operatorId(request)));
+    }
+
+    @PostMapping("/purchase-orders")
+    public ApiResponse<PurchaseOrderDto> createPurchaseOrder(
+            HttpServletRequest request,
+            @Valid @RequestBody CreatePurchaseOrderRequest body) {
+        return ApiResponse.ok(procurementService.createPurchaseOrder(operatorId(request), body));
+    }
+
+    @PostMapping("/purchase-orders/{purchaseOrderId}/receive")
+    public ApiResponse<PurchaseOrderDto> receivePurchaseOrder(
+            HttpServletRequest request,
+            @PathVariable Long purchaseOrderId,
+            @Valid @RequestBody ReceivePurchaseOrderRequest body) {
+        return ApiResponse.ok(procurementService.receivePurchaseOrder(operatorId(request), purchaseOrderId, body));
     }
 
     // --- OTA ---
@@ -256,6 +310,13 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @RequestParam(required = false) String warehouseId) {
         return ApiResponse.ok(facade.warehouseInventory(operatorId(request), warehouseId));
+    }
+
+    @GetMapping("/warehouse/movements")
+    public ApiResponse<List<WarehouseMovementDto>> warehouseMovements(
+            HttpServletRequest request,
+            @RequestParam(required = false) String warehouseId) {
+        return ApiResponse.ok(facade.warehouseMovements(operatorId(request), warehouseId));
     }
 
     @PostMapping("/warehouse/inbound")

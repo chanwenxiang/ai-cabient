@@ -5,6 +5,8 @@ import com.aicabinet.common.dto.FileDisputeRequest;
 import com.aicabinet.common.dto.OrderDto;
 import com.aicabinet.common.dto.OrderLineDto;
 import com.aicabinet.common.dto.PageResult;
+import com.aicabinet.common.dto.CloseDisputeRequest;
+import com.aicabinet.common.dto.ReopenDisputeRequest;
 import com.aicabinet.common.dto.ResolveDisputeRequest;
 import com.aicabinet.common.dto.ResolveDisputeResultDto;
 import com.aicabinet.common.enums.SessionState;
@@ -87,7 +89,7 @@ public class DisputeService {
         return disputeRepository.findBySessionId(session.getSessionId())
                 .map(this::toDto)
                 .orElseGet(() -> saveOpenTicket(session.getUserId(), session.getSessionId(), reason,
-                        toJson(recognition.items())));
+                        toJson(recognition.items()), "RECOGNITION", priorityForRecognition(recognition)));
     }
 
     @Transactional
@@ -103,15 +105,19 @@ public class DisputeService {
         if (disputeRepository.findBySessionId(session.getSessionId()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DISPUTE_ALREADY_EXISTS);
         }
-        return saveOpenTicket(userId, session.getSessionId(), request.reason().trim(), "[]");
+        return saveOpenTicket(userId, session.getSessionId(), request.reason().trim(), "[]",
+                normalizeCategory(request.category()), normalizePriority(request.priority()));
     }
 
-    private DisputeTicketDto saveOpenTicket(Long userId, String sessionId, String reason, String itemsJson) {
+    private DisputeTicketDto saveOpenTicket(Long userId, String sessionId, String reason, String itemsJson,
+                                            String category, String priority) {
         DisputeTicket ticket = new DisputeTicket();
         ticket.setTicketId(newTicketId());
         ticket.setSessionId(sessionId);
         ticket.setReason(reason);
         ticket.setStatus("OPEN");
+        ticket.setCategory(category);
+        ticket.setPriority(priority);
         ticket.setItems(itemsJson);
         Instant now = Instant.now();
         ticket.setSlaDueAt(now.plus(disputeSlaProperties.hours(), ChronoUnit.HOURS));
@@ -183,6 +189,53 @@ public class DisputeService {
         session.setState(SessionState.COMPLETED);
         sessionRepository.save(session);
         return result;
+    }
+
+    @Transactional
+    public DisputeTicketDto closeTicket(Long operatorId, String ticketId, CloseDisputeRequest request) {
+        permissionService.requirePermission(operatorId, "ops:dispute");
+        DisputeTicket ticket = disputeRepository.findById(ticketId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
+        ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
+        if (!"RESOLVED".equals(ticket.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only resolved disputes can be closed");
+        }
+        ticket.setStatus("CLOSED");
+        ticket.setClosedAt(Instant.now());
+        ticket.setOperatorNote(trimToNull(request != null ? request.note() : null));
+        disputeRepository.save(ticket);
+        auditService.record(operatorId, "DISPUTE_CLOSE", "DISPUTE", ticketId,
+                "session=" + ticket.getSessionId());
+        return toDto(ticket);
+    }
+
+    @Transactional
+    public DisputeTicketDto reopenTicket(Long operatorId, String ticketId, ReopenDisputeRequest request) {
+        permissionService.requirePermission(operatorId, "ops:dispute");
+        DisputeTicket ticket = disputeRepository.findById(ticketId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
+        ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
+        if ("OPEN".equals(ticket.getStatus())) {
+            return toDto(ticket);
+        }
+        ticket.setStatus("OPEN");
+        ticket.setPriority(normalizePriority(request != null ? request.priority() : ticket.getPriority()));
+        ticket.setOperatorNote(trimToNull(request != null ? request.note() : null));
+        ticket.setClosedAt(null);
+        ticket.setReopenedAt(Instant.now());
+        if (ticket.getSlaDueAt() == null || !ticket.getSlaDueAt().isAfter(Instant.now())) {
+            ticket.setSlaDueAt(Instant.now().plus(disputeSlaProperties.hours(), ChronoUnit.HOURS));
+        }
+        session.setState(SessionState.DISPUTED);
+        sessionRepository.save(session);
+        disputeRepository.save(ticket);
+        auditService.record(operatorId, "DISPUTE_REOPEN", "DISPUTE", ticketId,
+                "session=" + ticket.getSessionId());
+        return toDto(ticket);
     }
 
     private ResolveDisputeResultDto resolveWaive(Long operatorId, DisputeTicket ticket, ShoppingSession session) {
@@ -281,7 +334,9 @@ public class DisputeService {
                 ticket.getTicketId(), ticket.getSessionId(), deviceId, ticket.getReason(),
                 ticket.getStatus(), suggested, resolved, ticket.getCreatedAt(), ticket.getResolvedAt(),
                 videoUri, previewUrl, sessionState, orderId, billedAmountCents,
-                ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining);
+                ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining,
+                ticket.getCategory(), ticket.getPriority(), ticket.getOperatorNote(),
+                ticket.getClosedAt(), ticket.getReopenedAt());
     }
 
     private List<OrderLineDto> parseItems(String json) {
@@ -338,5 +393,44 @@ public class DisputeService {
             return null;
         }
         return value.trim();
+    }
+
+    private static String normalizeCategory(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "USER_APPEAL";
+        }
+        return switch (raw.trim().toUpperCase()) {
+            case "USER_APPEAL", "RECOGNITION", "VIDEO_MISSING", "PAYMENT", "INVENTORY", "OTHER" ->
+                    raw.trim().toUpperCase();
+            default -> "OTHER";
+        };
+    }
+
+    private static String normalizePriority(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "NORMAL";
+        }
+        return switch (raw.trim().toUpperCase()) {
+            case "LOW", "NORMAL", "HIGH", "URGENT" -> raw.trim().toUpperCase();
+            default -> "NORMAL";
+        };
+    }
+
+    private static String priorityForRecognition(VisionServiceClient.RecognitionResult recognition) {
+        if (recognition == null) {
+            return "HIGH";
+        }
+        if (recognition.items() == null || recognition.items().isEmpty()) {
+            return "HIGH";
+        }
+        return recognition.overallConfidence() < 0.6f ? "HIGH" : "NORMAL";
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

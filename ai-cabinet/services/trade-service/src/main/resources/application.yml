@@ -103,6 +103,8 @@ aicabinet:
     mock-enabled: ${PAYSCORE_MOCK_ENABLED:true}
     min-score: ${PAYSCORE_MIN_SCORE:550}
     live-charge-enabled: ${PAYSCORE_LIVE_CHARGE_ENABLED:false}
+    charge-gateway-url: ${PAYSCORE_CHARGE_GATEWAY_URL:}
+    charge-gateway-api-key: ${PAYSCORE_CHARGE_GATEWAY_API_KEY:}
   dispute-sla:
     hours: ${DISPUTE_SLA_HOURS:48}
     reminder-hours-before: ${DISPUTE_SLA_REMINDER_HOURS:12}

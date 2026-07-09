@@ -24,6 +24,8 @@ public interface ShoppingSessionRepository extends JpaRepository<ShoppingSession
 
     Page<ShoppingSession> findByStateOrderByCreatedAtDesc(SessionState state, Pageable pageable);
 
+    List<ShoppingSession> findTop10ByStateOrderByUpdatedAtAsc(SessionState state);
+
     Page<ShoppingSession> findByDeviceIdAndStateOrderByCreatedAtDesc(String deviceId, SessionState state, Pageable pageable);
 
     long countByStateIn(List<SessionState> states);

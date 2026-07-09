@@ -19,6 +19,8 @@ Page({
     deviceOnline: null,
     deviceAvailable: true,
     deviceStatusText: '',
+    deviceStatusSub: '',
+    deviceStatusChip: '',
     deviceStatusClass: '',
     products: [],
     productGroups: [],
@@ -266,7 +268,7 @@ Page({
     if (this.data.opening || this.data.polling) return;
     const id = (deviceId || this.data.deviceId || '').trim();
     if (!id) {
-      wx.showToast({ title: '请输入设备 ID', icon: 'none' });
+      wx.showToast({ title: '请输入设备编号', icon: 'none' });
       return;
     }
     this.setData({ deviceId: id, scanHint: sourceLabel ? `${sourceLabel} · ${id}` : '' });
@@ -448,7 +450,7 @@ Page({
 
   onDeviceInput(e) {
     const deviceId = e.detail.value.trim();
-    this.setData({ deviceId, deviceOnline: null, deviceStatusText: '', deviceStatusClass: '', deviceName: '', products: [] });
+    this.setData({ deviceId, deviceOnline: null, deviceStatusText: '', deviceStatusSub: '', deviceStatusChip: '', deviceStatusClass: '', deviceName: '', products: [] });
     if (deviceId.length >= 3) {
       this.refreshDeviceStatus(deviceId);
       this.loadProducts(deviceId);
@@ -460,15 +462,33 @@ Page({
     const available = status.available !== false;
     const name = status.deviceName || status.deviceId || '';
     let text = '';
+    let sub = '';
+    let chip = '';
     let cls = '';
     if (!online) {
-      text = `${name} 当前离线，开门可能失败`;
+      chip = '离线';
+      text = `${name} 当前离线`;
+      sub = '设备未联网，开门可能失败，请更换柜机或联系运营';
       cls = 'warn';
     } else if (!available) {
-      text = `${name} 使用中，请稍后再试`;
       cls = 'busy';
+      if (status.busyReason === 'REPLENISHMENT') {
+        chip = '补货中';
+        text = `${name} 正在补货`;
+        sub = '运营人员补货中，请稍后再试或换一台柜机';
+      } else if (status.activeSessionState) {
+        chip = sessionStateLabel(status.activeSessionState);
+        text = `${name} ${sessionStateLabel(status.activeSessionState)}`;
+        sub = '其他用户正在使用，请等待完成或稍后再试';
+      } else {
+        chip = '占用';
+        text = `${name} 使用中`;
+        sub = '柜机被占用，请稍后再试';
+      }
     } else {
-      text = `${name} 在线，可以开门购物`;
+      chip = '空闲';
+      text = `${name} 在线可购物`;
+      sub = '选好商品后点击开门取货，关门后自动结算';
       cls = 'ok';
     }
     return {
@@ -476,6 +496,8 @@ Page({
       deviceOnline: online,
       deviceAvailable: available,
       deviceStatusText: text,
+      deviceStatusSub: sub,
+      deviceStatusChip: chip,
       deviceStatusClass: cls
     };
   },
@@ -490,7 +512,9 @@ Page({
       this.setData({
         deviceOnline: null,
         deviceAvailable: true,
-        deviceStatusText: '无法获取设备状态，请检查网络或设备 ID',
+        deviceStatusText: '无法获取设备状态',
+        deviceStatusSub: '请检查网络或设备编号是否正确',
+        deviceStatusChip: '未知',
         deviceStatusClass: 'unknown',
         deviceName: ''
       });
@@ -501,7 +525,7 @@ Page({
     if (this.data.opening || this.data.polling) return;
     const deviceId = this.data.deviceId.trim();
     if (!deviceId) {
-      wx.showToast({ title: '请输入设备 ID', icon: 'none' });
+      wx.showToast({ title: '请输入设备编号', icon: 'none' });
       return;
     }
     if (!(await this.ensureCanOpenDoor())) return;
@@ -524,9 +548,14 @@ Page({
         this.setData({ opening: true });
       } else if (!status.available) {
         this.setData({ opening: false });
+        const busyHint = status.busyReason === 'REPLENISHMENT'
+          ? '该柜机正在补货，请稍后再试或换一台柜机。'
+          : (status.activeSessionState
+            ? `该柜机当前${sessionStateLabel(status.activeSessionState)}，请稍后再试。`
+            : '该柜机正在使用中，请稍后再试。');
         wx.showModal({
-          title: '设备使用中',
-          content: '该柜机正在使用中，请稍后再试。',
+          title: '设备暂不可用',
+          content: busyHint,
           showCancel: false
         });
         return;
@@ -649,7 +678,7 @@ Page({
     });
     wx.showModal({
       title: '开门超时',
-      content: '柜门未响应。请确认 device-service（8081）和 DeviceSimulator 已在点击开门前启动，然后重新开门。',
+      content: '柜门长时间未响应，请检查设备是否在线，或稍后重试。如仍无法开门，请联系现场运营人员。',
       confirmText: '知道了',
       showCancel: false
     });
@@ -791,13 +820,13 @@ Page({
       account = null;
     }
 
-    const devHint = account && account.operator
-      ? '当前为运营账号：首页开门是补货流程，不会产生消费账单。请用消费者账号 13800138000 测试购物。'
-      : '识别或结算未完成。请确认 DeviceSimulator、device-service(8081)、vision-service(8082) 均已启动，然后重新开门。';
+    const hint = account && account.operator
+      ? '未识别到您取走的商品。运营账号用于补货，不会产生消费账单；如需测试购物请使用消费者账号。'
+      : '未识别到您取走的商品。如确实取货，请稍后在「我的争议」提交说明，或联系客服处理。';
 
     wx.showModal({
       title: '未识别到商品',
-      content: devHint,
+      content: hint,
       confirmText: '知道了',
       showCancel: false,
       success: () => {

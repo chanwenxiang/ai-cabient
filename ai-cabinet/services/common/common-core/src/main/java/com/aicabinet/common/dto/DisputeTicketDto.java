@@ -42,7 +42,17 @@ public record DisputeTicketDto(
 
         boolean slaOverdue,
 
-        Long slaHoursRemaining
+        Long slaHoursRemaining,
+
+        String category,
+
+        String priority,
+
+        String operatorNote,
+
+        Instant closedAt,
+
+        Instant reopenedAt
 
 ) {}
 

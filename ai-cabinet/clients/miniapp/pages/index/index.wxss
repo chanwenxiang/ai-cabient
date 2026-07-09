@@ -28,7 +28,23 @@
 .device-card.busy .device-dot { background: #ff4d4f; }
 .device-info { flex: 1; }
 .device-title { display: block; font-size: 28rpx; font-weight: 600; color: #333; }
-.device-desc { display: block; font-size: 24rpx; color: #666; margin-top: 4rpx; }
+.device-desc { display: block; font-size: 24rpx; color: #666; margin-top: 6rpx; }
+.device-card.unknown { background: #fafafa; border-color: #d9d9d9; }
+.device-card.unknown .device-dot { background: #bfbfbf; }
+.device-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
+.device-chip {
+  flex-shrink: 0;
+  font-size: 20rpx;
+  font-weight: 600;
+  padding: 4rpx 14rpx;
+  border-radius: 999rpx;
+  line-height: 1.4;
+}
+.device-chip.chip-ok { background: #d9f7be; color: #389e0d; }
+.device-chip.chip-busy { background: #ffd8bf; color: #d4380d; }
+.device-chip.chip-warn { background: #ffe7ba; color: #d46b08; }
+.device-chip.chip-unknown { background: #f0f0f0; color: #8c8c8c; }
+.device-sub { display: block; font-size: 22rpx; color: #8c8c8c; margin-top: 8rpx; line-height: 1.5; }
 .scan-hint { font-size: 22rpx; color: #1677ff; margin-top: 8rpx; }
 
 .section-head { display: flex; align-items: baseline; gap: 12rpx; margin-bottom: 16rpx; }

@@ -7,8 +7,8 @@ import com.aicabinet.edge.status.DeviceStatusHub
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.eclipse.paho.client.mqttv3.*
-import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
-import java.util.UUID
+import org.eclipse.paho.client.mqttv3.persist.MqttDefaultFilePersistence
+import java.io.File
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -17,27 +17,31 @@ class MqttDeviceClient(
     private val deviceId: String = EdgeRuntimeConfig.deviceId(context),
     private val broker: String = EdgeRuntimeConfig.mqttBroker(context),
     private val onOpenDoor: (OpenDoorCommand) -> Unit
-) : MqttCallback {
+) : MqttCallbackExtended {
 
+    private val appContext = context.applicationContext
     private val mapper = jacksonObjectMapper()
-    private val clientId = "edge-$deviceId-${UUID.randomUUID().toString().take(6)}"
+    private val clientId = "edge-$deviceId"
+    private val outboundQueue = OutboundMqttQueue(appContext)
     private lateinit var client: MqttClient
     private val heartbeatExecutor = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "mqtt-heartbeat-$deviceId").apply { isDaemon = true }
     }
 
     fun connect() {
-        client = MqttClient(broker, clientId, MemoryPersistence())
+        val persistenceDir = File(appContext.filesDir, "mqtt-paho/$deviceId").apply { mkdirs() }
+        client = MqttClient(broker, clientId, MqttDefaultFilePersistence(persistenceDir.absolutePath))
         val options = MqttConnectOptions().apply {
             isAutomaticReconnect = true
-            isCleanSession = true
+            isCleanSession = false
             connectionTimeout = 10
             keepAliveInterval = 30
         }
         client.setCallback(this)
         client.connect(options)
-        client.subscribe("cabinet/$deviceId/cmd", 1)
+        subscribeCommands()
         publishHeartbeat()
+        flushOutbound()
         startHeartbeatLoop()
         DeviceStatusHub.setMqttConnected(true)
         Log.i(TAG, "connected broker=$broker device=$deviceId")
@@ -104,9 +108,49 @@ class MqttDeviceClient(
     }
 
     private fun publish(topic: String, payload: ByteArray) {
-        if (!::client.isInitialized || !client.isConnected) return
+        if (!::client.isInitialized || !client.isConnected) {
+            outboundQueue.enqueue(topic, payload, 1)
+            DeviceStatusHub.setMqttConnected(false)
+            return
+        }
+        if (!publishNow(topic, payload, 1)) {
+            outboundQueue.enqueue(topic, payload, 1)
+        }
+    }
+
+    private fun publishNow(topic: String, payload: ByteArray, qos: Int): Boolean {
+        if (!::client.isInitialized || !client.isConnected) return false
         val msg = MqttMessage(payload).apply { qos = 1 }
-        client.publish(topic, msg)
+        return runCatching {
+            msg.qos = qos
+            client.publish(topic, msg)
+            true
+        }.getOrElse {
+            Log.w(TAG, "publish failed topic=$topic: ${it.message}")
+            false
+        }
+    }
+
+    private fun flushOutbound() {
+        if (!::client.isInitialized || !client.isConnected) return
+        val pending = outboundQueue.size()
+        if (pending > 0) {
+            Log.i(TAG, "flushing mqtt queue size=$pending")
+        }
+        outboundQueue.drain { message ->
+            publishNow(message.topic, message.payload.toByteArray(Charsets.UTF_8), message.qos)
+        }
+    }
+
+    private fun subscribeCommands() {
+        client.subscribe("cabinet/$deviceId/cmd", 1)
+    }
+
+    override fun connectComplete(reconnect: Boolean, serverURI: String?) {
+        DeviceStatusHub.setMqttConnected(true)
+        runCatching { subscribeCommands() }
+            .onFailure { Log.w(TAG, "subscribe after reconnect failed: ${it.message}") }
+        flushOutbound()
     }
 
     override fun connectionLost(cause: Throwable?) {

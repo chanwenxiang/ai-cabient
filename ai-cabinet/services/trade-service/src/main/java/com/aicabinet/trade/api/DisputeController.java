@@ -3,10 +3,12 @@ package com.aicabinet.trade.api;
 
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.CloseDisputeRequest;
 
 import com.aicabinet.common.dto.DisputeTicketDto;
 
 import com.aicabinet.common.dto.PageResult;
+import com.aicabinet.common.dto.ReopenDisputeRequest;
 
 import com.aicabinet.common.dto.ResolveDisputeRequest;
 
@@ -84,5 +86,22 @@ public class DisputeController {
 
     }
 
-}
+    @PostMapping("/{ticketId}/close")
+    public ApiResponse<DisputeTicketDto> close(
+            HttpServletRequest request,
+            @PathVariable("ticketId") String ticketId,
+            @Valid @RequestBody(required = false) CloseDisputeRequest body) {
+        Long operatorId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(disputeService.closeTicket(operatorId, ticketId, body));
+    }
 
+    @PostMapping("/{ticketId}/reopen")
+    public ApiResponse<DisputeTicketDto> reopen(
+            HttpServletRequest request,
+            @PathVariable("ticketId") String ticketId,
+            @Valid @RequestBody(required = false) ReopenDisputeRequest body) {
+        Long operatorId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(disputeService.reopenTicket(operatorId, ticketId, body));
+    }
+
+}

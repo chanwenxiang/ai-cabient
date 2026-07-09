@@ -29,6 +29,11 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.stats(operatorId(request)));
     }
 
+    @GetMapping("/workbench")
+    public ApiResponse<OpsWorkbenchDto> workbench(HttpServletRequest request) {
+        return ApiResponse.ok(adminService.workbench(operatorId(request)));
+    }
+
     @GetMapping("/trend")
     public ApiResponse<AdminTrendDto> trend(HttpServletRequest request) {
         return ApiResponse.ok(adminService.orderTrend(operatorId(request)));
@@ -122,8 +127,11 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size,
-            @RequestParam(name = "phone", required = false) String phone) {
-        return ApiResponse.ok(adminService.listUsers(operatorId(request), page, size, phone));
+            @RequestParam(name = "phone", required = false) String phone,
+            @RequestParam(name = "name", required = false) String name,
+            @RequestParam(name = "role", required = false) String role,
+            @RequestParam(name = "verified", required = false) Boolean verified) {
+        return ApiResponse.ok(adminService.listUsers(operatorId(request), page, size, phone, name, role, verified));
     }
 
     @PostMapping("/users/{userId}/balance")

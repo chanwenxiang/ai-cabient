@@ -222,6 +222,11 @@ public class OpsCommercialFacade {
         return warehouseService.listInventory(warehouseId);
     }
 
+    public List<WarehouseMovementDto> warehouseMovements(Long operatorId, String warehouseId) {
+        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        return warehouseService.listMovements(warehouseId);
+    }
+
     public WarehouseInboundRequest warehouseInbound(Long operatorId, WarehouseInboundRequest body) {
         permissionService.requirePermission(operatorId, "ops:replenishment:edit");
         return warehouseService.inbound(operatorId, body);

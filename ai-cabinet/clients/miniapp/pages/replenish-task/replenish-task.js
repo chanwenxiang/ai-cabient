@@ -318,8 +318,8 @@ Page({
       fail: async () => {
         try {
           await api.checkInReplenishmentTask(this._taskId, 31.2304, 121.4737);
-          this.setData({ checkedIn: true, checkInTime: '演示', statusLabel: '进行中' });
-          wx.showToast({ title: '演示签到 OK', icon: 'none' });
+          this.setData({ checkedIn: true, checkInTime: '已签到', statusLabel: '进行中' });
+          wx.showToast({ title: '签到成功', icon: 'success' });
         } catch (e) {
           showError('签到失败', e);
         } finally {

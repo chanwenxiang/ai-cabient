@@ -58,7 +58,7 @@ public class MqttCommandPublisher {
         }
     }
 
-    public void publishOpenDoor(String deviceId, String sessionId, Long userId, boolean operatorMode) {
+    public String publishOpenDoor(String deviceId, String sessionId, Long userId, boolean operatorMode) {
         try {
             ensureConnected();
             String commandId = UUID.randomUUID().toString();
@@ -75,6 +75,7 @@ public class MqttCommandPublisher {
             message.setQos(1);
             client.publish(MqttTopics.command(deviceId), message);
             log.info("published OPEN_DOOR to {} commandId={}", deviceId, commandId);
+            return commandId;
         } catch (Exception e) {
             throw new RuntimeException("failed to publish open door command", e);
         }

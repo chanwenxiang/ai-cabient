@@ -4,6 +4,7 @@ public record AdminStatsDto(
         long deviceTotal,
         long deviceOnline,
         long sessionActive,
+        long deviceOccupied,
         long sessionToday,
         long orderToday,
         long revenueTodayCents,

@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -64,6 +65,8 @@ public class RevenueSplitService {
         split.setGrossCents(gross);
         split.setPlatformCents(platform);
         split.setMerchantCents(merchantShare);
+        split.setSettleAfter(LocalDate.now().plusDays(1));
+        split.setSettlementBatchNo("MS-" + LocalDate.now() + "-" + merchant.getMerchantId());
         if (merchant.getWechatReceiverId() == null || merchant.getWechatReceiverId().isBlank()) {
             split.setStatus("LEDGER_ONLY");
         } else if (!profitSharingService.isApiReady()) {

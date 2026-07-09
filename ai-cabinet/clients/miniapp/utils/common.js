@@ -61,7 +61,7 @@ function formatError(err) {
   if (!err) return '未知错误';
   if (typeof err === 'string') return err;
   if (err.status === 429) {
-    return '开门过于频繁，请稍后再试（开发环境可重启 trade-service 或等待 1 小时）';
+    return '开门过于频繁，请稍后再试';
   }
   if (err.message) {
     const msg = String(err.message);

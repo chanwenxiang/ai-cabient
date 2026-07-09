@@ -534,6 +534,7 @@ public class ReplenishmentService {
         task.setCompletedAt(Instant.now());
 
         inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
+        warehouseService.markDeviceHandoverReceived(task.getOutboundId(), task.getDeviceId());
 
         return toTaskDto(taskRepository.save(task));
 
@@ -690,4 +691,3 @@ public class ReplenishmentService {
     }
 
 }
-

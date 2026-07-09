@@ -5,7 +5,9 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.DisputeTicket;
 import com.aicabinet.trade.domain.RechargeOrder;
+import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.domain.UserAccount;
@@ -30,6 +32,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -41,7 +44,7 @@ public class AdminDashboardService {
     private static final int EXPORT_LIMIT = 5000;
     private static final List<SessionState> ACTIVE_STATES = List.of(
             SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
-            SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD
+            SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD, SessionState.SETTLING
     );
 
     private static final List<SessionState> CLOSED_STATES = List.of(
@@ -73,6 +76,7 @@ public class AdminDashboardService {
     private final DisputeSlaService disputeSlaService;
     private final InventoryLotService inventoryLotService;
     private final DeviceSlotService deviceSlotService;
+    private final ReplenishmentTaskRepository replenishmentTaskRepository;
 
     public AdminDashboardService(DeviceInfoRepository deviceRepository,
                                  ShoppingSessionRepository sessionRepository,
@@ -95,7 +99,8 @@ public class AdminDashboardService {
                                  OrderRevenueSplitRepository splitRepository,
                                  DisputeSlaService disputeSlaService,
                                  InventoryLotService inventoryLotService,
-                                 DeviceSlotService deviceSlotService) {
+                                 DeviceSlotService deviceSlotService,
+                                 ReplenishmentTaskRepository replenishmentTaskRepository) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -118,6 +123,7 @@ public class AdminDashboardService {
         this.disputeSlaService = disputeSlaService;
         this.inventoryLotService = inventoryLotService;
         this.deviceSlotService = deviceSlotService;
+        this.replenishmentTaskRepository = replenishmentTaskRepository;
     }
 
     public AdminStatsDto stats(Long operatorId) {
@@ -145,10 +151,13 @@ public class AdminDashboardService {
         double recognitionAutoRate = closed24h > 0 ? (double) completed24h / closed24h : 1.0;
         double disputeRate = closed24h > 0 ? (double) disputed24h / closed24h : 0.0;
         var slaRealtime = slaMetricsService.realtimeMetrics(operatorId);
+        long sessionActive = sessionRepository.countByDeviceIdInAndStateIn(scopedDevices, ACTIVE_STATES);
+        long deviceOccupied = countOccupiedDevices(scopedDevices);
         return new AdminStatsDto(
                 deviceTotal,
                 deviceOnline,
-                sessionRepository.countByDeviceIdInAndStateIn(scopedDevices, ACTIVE_STATES),
+                sessionActive,
+                deviceOccupied,
                 sessionRepository.countByDeviceIdInAndCreatedAtAfter(scopedDevices, todayStart),
                 orderRepository.countByDeviceIdInAndCreatedAtAfter(scopedDevices, todayStart),
                 orderRepository.sumTotalAmountByDeviceIdInSince(scopedDevices, todayStart),
@@ -170,6 +179,114 @@ public class AdminDashboardService {
         );
     }
 
+    @Transactional(readOnly = true)
+    public OpsWorkbenchDto workbench(Long operatorId) {
+        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        Set<String> scopedDevices = merchantScopeService.allowedDeviceIds(operatorId);
+        List<OpsActionItemDto> items = new java.util.ArrayList<>();
+
+        List<DisputeTicket> openDisputes = disputeRepository
+                .findTop10ByStatusOrderBySlaDueAtAscCreatedAtAsc("OPEN").stream()
+                .filter(d -> inDeviceScope(scopedDevices, sessionDeviceId(d.getSessionId())))
+                .toList();
+        openDisputes.forEach(d -> items.add(new OpsActionItemDto(
+                "DISPUTE",
+                disputeSeverity(d),
+                "Dispute requires review",
+                d.getReason(),
+                sessionDeviceId(d.getSessionId()),
+                d.getSessionId(),
+                d.getTicketId(),
+                null,
+                null,
+                d.getCreatedAt(),
+                d.getSlaDueAt()
+        )));
+
+        List<ShoppingSession> waitingUploads = sessionRepository
+                .findTop10ByStateOrderByUpdatedAtAsc(SessionState.WAITING_UPLOAD).stream()
+                .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
+                .toList();
+        waitingUploads.forEach(s -> items.add(new OpsActionItemDto(
+                "UPLOAD_STUCK",
+                uploadSeverity(s),
+                "Video upload is waiting",
+                "uploadStatus=" + s.getUploadStatus(),
+                s.getDeviceId(),
+                s.getSessionId(),
+                null,
+                null,
+                null,
+                s.getCreatedAt(),
+                s.getUpdatedAt().plus(30, ChronoUnit.MINUTES)
+        )));
+
+        List<DeviceInfo> offlineDevices = deviceRepository
+                .findTop10ByOnlineStatusNotOrderByUpdatedAtAsc("ONLINE").stream()
+                .filter(d -> inDeviceScope(scopedDevices, d.getDeviceId()))
+                .toList();
+        offlineDevices.forEach(d -> items.add(new OpsActionItemDto(
+                "DEVICE_OFFLINE",
+                offlineSeverity(d),
+                "Device offline",
+                d.getDeviceName(),
+                d.getDeviceId(),
+                null,
+                null,
+                null,
+                null,
+                d.getUpdatedAt(),
+                null
+        )));
+
+        inventoryRepository.findLowStock().stream()
+                .filter(i -> inDeviceScope(scopedDevices, i.getId().getDeviceId()))
+                .limit(10)
+                .forEach(i -> items.add(new OpsActionItemDto(
+                        "LOW_STOCK",
+                        "MEDIUM",
+                        "Low stock",
+                        "quantity=" + i.getQuantity() + ", threshold=" + i.getLowThreshold(),
+                        i.getId().getDeviceId(),
+                        null,
+                        null,
+                        i.getId().getSkuId(),
+                        null,
+                        i.getUpdatedAt(),
+                        null
+                )));
+
+        replenishmentTaskRepository.findTop10ByStatusInOrderByCreatedAtAsc(List.of("PENDING", "IN_PROGRESS")).stream()
+                .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
+                .forEach(t -> items.add(new OpsActionItemDto(
+                        "REPLENISHMENT",
+                        "MEDIUM",
+                        "Replenishment task pending",
+                        "status=" + t.getStatus(),
+                        t.getDeviceId(),
+                        null,
+                        null,
+                        null,
+                        t.getTaskId(),
+                        t.getCreatedAt(),
+                        null
+                )));
+
+        items.sort(java.util.Comparator
+                .comparingInt((OpsActionItemDto item) -> severityRank(item.severity()))
+                .thenComparing(item -> item.dueAt() != null ? item.dueAt() : Instant.MAX));
+
+        return new OpsWorkbenchDto(
+                countOpenDisputes(scopedDevices),
+                disputeSlaService.countOverdue(),
+                countOfflineDevices(scopedDevices),
+                countWaitingUploads(scopedDevices),
+                countLowStock(scopedDevices),
+                countPendingReplenishments(scopedDevices),
+                items.stream().limit(30).toList()
+        );
+    }
+
     private AdminStatsDto globalStats(Instant todayStart, Instant since24h, Long operatorId) {
         long completed24h = sessionRepository.countByStateAndUpdatedAtAfter(SessionState.COMPLETED, since24h);
         long disputed24h = sessionRepository.countByStateAndUpdatedAtAfter(SessionState.DISPUTED, since24h);
@@ -177,12 +294,15 @@ public class AdminDashboardService {
         double recognitionAutoRate = closed24h > 0 ? (double) completed24h / closed24h : 1.0;
         double disputeRate = closed24h > 0 ? (double) disputed24h / closed24h : 0.0;
         var slaRealtime = slaMetricsService.realtimeMetrics(operatorId);
+        long sessionActive = sessionRepository.countByStateIn(ACTIVE_STATES);
+        long deviceOccupied = countOccupiedDevices(null);
         return new AdminStatsDto(
                 deviceRepository.count(),
                 deviceRepository.findAll().stream()
                         .filter(d -> "ONLINE".equalsIgnoreCase(d.getOnlineStatus()))
                         .count(),
-                sessionRepository.countByStateIn(ACTIVE_STATES),
+                sessionActive,
+                deviceOccupied,
                 sessionRepository.countByCreatedAtAfter(todayStart),
                 orderRepository.countByCreatedAtAfter(todayStart),
                 orderRepository.sumTotalAmountSince(todayStart),
@@ -205,12 +325,118 @@ public class AdminDashboardService {
     }
 
     private static AdminStatsDto emptyStats() {
-        return new AdminStatsDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0, 0.0, 1.0, 0, 0, 0, 0, 0, 0);
+        return new AdminStatsDto(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0, 0.0, 1.0, 0, 0, 0, 0, 0, 0);
+    }
+
+    private long countOccupiedDevices(Set<String> scopedDevices) {
+        Set<String> occupied = new HashSet<>();
+        sessionRepository.findAll().stream()
+                .filter(s -> ACTIVE_STATES.contains(s.getState()))
+                .filter(s -> scopedDevices == null || scopedDevices.contains(s.getDeviceId()))
+                .forEach(s -> occupied.add(s.getDeviceId()));
+        replenishmentTaskRepository.findByStatusIn(List.of("IN_PROGRESS")).stream()
+                .map(ReplenishmentTask::getDeviceId)
+                .filter(deviceId -> scopedDevices == null || scopedDevices.contains(deviceId))
+                .forEach(occupied::add);
+        return occupied.size();
+    }
+
+    private long countOpenDisputes(Set<String> scopedDevices) {
+        if (scopedDevices == null) {
+            return disputeRepository.countByStatus("OPEN");
+        }
+        return disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN").stream()
+                .filter(d -> inDeviceScope(scopedDevices, sessionDeviceId(d.getSessionId())))
+                .count();
+    }
+
+    private long countOfflineDevices(Set<String> scopedDevices) {
+        if (scopedDevices == null) {
+            return deviceRepository.countByOnlineStatusNot("ONLINE");
+        }
+        return deviceRepository.findAll().stream()
+                .filter(d -> scopedDevices.contains(d.getDeviceId()))
+                .filter(d -> !"ONLINE".equalsIgnoreCase(d.getOnlineStatus()))
+                .count();
+    }
+
+    private long countWaitingUploads(Set<String> scopedDevices) {
+        if (scopedDevices == null) {
+            return sessionRepository.countByState(SessionState.WAITING_UPLOAD);
+        }
+        return sessionRepository.countByDeviceIdInAndState(scopedDevices, SessionState.WAITING_UPLOAD);
+    }
+
+    private long countLowStock(Set<String> scopedDevices) {
+        if (scopedDevices == null) {
+            return inventoryRepository.countLowStock();
+        }
+        return inventoryRepository.findLowStock().stream()
+                .filter(i -> scopedDevices.contains(i.getId().getDeviceId()))
+                .count();
+    }
+
+    private long countPendingReplenishments(Set<String> scopedDevices) {
+        List<String> statuses = List.of("PENDING", "IN_PROGRESS");
+        if (scopedDevices == null) {
+            return replenishmentTaskRepository.countByStatusIn(statuses);
+        }
+        return replenishmentTaskRepository.findByStatusIn(statuses).stream()
+                .filter(t -> scopedDevices.contains(t.getDeviceId()))
+                .count();
+    }
+
+    private String sessionDeviceId(String sessionId) {
+        return sessionRepository.findById(sessionId).map(ShoppingSession::getDeviceId).orElse(null);
+    }
+
+    private static boolean inDeviceScope(Set<String> scopedDevices, String deviceId) {
+        return scopedDevices == null || (deviceId != null && scopedDevices.contains(deviceId));
+    }
+
+    private static String disputeSeverity(DisputeTicket ticket) {
+        if (ticket.getSlaDueAt() != null && !ticket.getSlaDueAt().isAfter(Instant.now())) {
+            return "CRITICAL";
+        }
+        if ("URGENT".equalsIgnoreCase(ticket.getPriority())) {
+            return "CRITICAL";
+        }
+        if ("HIGH".equalsIgnoreCase(ticket.getPriority())) {
+            return "HIGH";
+        }
+        return "MEDIUM";
+    }
+
+    private static String uploadSeverity(ShoppingSession session) {
+        return session.getUpdatedAt().isBefore(Instant.now().minus(30, ChronoUnit.MINUTES))
+                ? "HIGH" : "MEDIUM";
+    }
+
+    private static String offlineSeverity(DeviceInfo device) {
+        Instant updated = device.getUpdatedAt();
+        return updated != null && updated.isBefore(Instant.now().minus(2, ChronoUnit.HOURS))
+                ? "HIGH" : "MEDIUM";
+    }
+
+    private static int severityRank(String severity) {
+        return switch (String.valueOf(severity).toUpperCase()) {
+            case "CRITICAL" -> 0;
+            case "HIGH" -> 1;
+            case "MEDIUM" -> 2;
+            default -> 3;
+        };
+    }
+
+    private Set<String> replenishingDeviceIds() {
+        return replenishmentTaskRepository.findByStatusIn(List.of("IN_PROGRESS")).stream()
+                .map(ReplenishmentTask::getDeviceId)
+                .collect(Collectors.toSet());
     }
 
     public List<AdminDeviceDto> listDevices(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:device:list");
         List<DeviceInfo> devices = merchantScopeService.allowedDevices(operatorId);
+        Set<String> replenishing = replenishingDeviceIds();
         Map<String, ShoppingSession> activeByDevice = sessionRepository
                 .findAll().stream()
                 .filter(s -> ACTIVE_STATES.contains(s.getState()))
@@ -221,7 +447,7 @@ public class AdminDashboardService {
                 ));
 
         return devices.stream()
-                .map(d -> toDeviceDto(d, activeByDevice.get(d.getDeviceId())))
+                .map(d -> toDeviceDto(d, activeByDevice.get(d.getDeviceId()), replenishing.contains(d.getDeviceId())))
                 .toList();
     }
 
@@ -360,12 +586,26 @@ public class AdminDashboardService {
                 .toList();
     }
 
-    public PageResult<AdminUserDto> listUsers(Long operatorId, int page, int size, String phone) {
+    public PageResult<AdminUserDto> listUsers(Long operatorId, int page, int size, String phone,
+                                              String name, String role, Boolean verified) {
         permissionService.requirePermission(operatorId, "ops:user:list");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
-        Page<UserInfo> result = (phone == null || phone.isBlank())
-                ? userInfoRepository.findAllByOrderByUserIdDesc(pageable)
-                : userInfoRepository.findByPhoneNumberContainingOrderByUserIdDesc(phone.trim(), pageable);
+        Long minUserId = null;
+        Long maxUserId = null;
+        if (role != null && !role.isBlank()) {
+            if ("OPERATOR".equalsIgnoreCase(role.trim())) {
+                minUserId = CabinetConstants.OPERATOR_USER_ID_START;
+            } else if ("CONSUMER".equalsIgnoreCase(role.trim())) {
+                maxUserId = CabinetConstants.OPERATOR_USER_ID_START - 1;
+            }
+        }
+        Page<UserInfo> result = userInfoRepository.searchForAdmin(
+                trimToNull(phone),
+                trimToNull(name),
+                verified,
+                minUserId,
+                maxUserId,
+                pageable);
         return new PageResult<>(
                 result.getContent().stream().map(this::toUserDto).toList(),
                 result.getNumber(),
@@ -456,7 +696,7 @@ public class AdminDashboardService {
         deviceRepository.save(device);
         deviceSlotService.ensureDefaultSlots(deviceId, device.getDeviceType());
         auditService.record(operatorId, "DEVICE_CREATE", "DEVICE", deviceId, device.getDeviceName());
-        return toDeviceDto(device, null);
+        return toDeviceDto(device, null, false);
     }
 
     @Transactional
@@ -484,7 +724,7 @@ public class AdminDashboardService {
         deviceRepository.save(device);
         auditService.record(operatorId, "DEVICE_UPDATE", "DEVICE", deviceId, device.getDeviceName());
         ShoppingSession active = findActiveSession(deviceId);
-        return toDeviceDto(device, active);
+        return toDeviceDto(device, active, replenishingDeviceIds().contains(device.getDeviceId()));
     }
 
     @Transactional(readOnly = true)
@@ -769,7 +1009,7 @@ public class AdminDashboardService {
         return orderRepository.findByDeviceIdInAndCreatedAtAfter(scopedDevices, since);
     }
 
-    private AdminDeviceDto toDeviceDto(DeviceInfo d, ShoppingSession active) {
+    private AdminDeviceDto toDeviceDto(DeviceInfo d, ShoppingSession active, boolean replenishmentInProgress) {
         String merchantName = null;
         if (d.getMerchantId() != null) {
             merchantName = merchantRepository.findById(d.getMerchantId())
@@ -785,7 +1025,8 @@ public class AdminDashboardService {
                 merchantName,
                 active != null ? active.getSessionId() : null,
                 active != null ? active.getState().name() : null,
-                d.getUpdatedAt()
+                d.getUpdatedAt(),
+                replenishmentInProgress
         );
     }
 

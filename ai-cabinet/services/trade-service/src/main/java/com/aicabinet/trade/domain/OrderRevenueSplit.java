@@ -7,6 +7,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "order_revenue_split")
@@ -45,6 +46,10 @@ public class OrderRevenueSplit {
 
     @Column(length = 512)
     private String failureReason;
+    @Column(length = 64)
+    private String settlementBatchNo;
+    private LocalDate settleAfter;
+    private Instant settledAt;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -76,5 +81,11 @@ public class OrderRevenueSplit {
     public void setWechatTransactionId(String wechatTransactionId) { this.wechatTransactionId = wechatTransactionId; }
     public String getFailureReason() { return failureReason; }
     public void setFailureReason(String failureReason) { this.failureReason = failureReason; }
+    public String getSettlementBatchNo() { return settlementBatchNo; }
+    public void setSettlementBatchNo(String settlementBatchNo) { this.settlementBatchNo = settlementBatchNo; }
+    public LocalDate getSettleAfter() { return settleAfter; }
+    public void setSettleAfter(LocalDate settleAfter) { this.settleAfter = settleAfter; }
+    public Instant getSettledAt() { return settledAt; }
+    public void setSettledAt(Instant settledAt) { this.settledAt = settledAt; }
     public Instant getCreatedAt() { return createdAt; }
 }

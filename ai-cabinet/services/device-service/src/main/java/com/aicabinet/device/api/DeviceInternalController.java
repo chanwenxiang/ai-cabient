@@ -14,11 +14,13 @@ public class DeviceInternalController {
     }
 
     @PostMapping("/{deviceId}/open-door")
-    public void openDoor(
+    public OpenDoorResponse openDoor(
             @PathVariable("deviceId") String deviceId,
             @RequestBody OpenDoorRequest request) {
-        commandService.openDoor(deviceId, request.sessionId(), request.userId(), request.operatorMode());
+        String commandId = commandService.openDoor(deviceId, request.sessionId(), request.userId(), request.operatorMode());
+        return new OpenDoorResponse(commandId);
     }
 
     record OpenDoorRequest(String sessionId, Long userId, boolean operatorMode) {}
+    record OpenDoorResponse(String commandId) {}
 }

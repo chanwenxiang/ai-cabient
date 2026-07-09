@@ -5,5 +5,7 @@ import jakarta.validation.constraints.Size;
 
 public record FileDisputeRequest(
         @NotBlank String sessionId,
-        @NotBlank @Size(max = 256) String reason
+        @NotBlank @Size(max = 256) String reason,
+        String category,
+        String priority
 ) {}

@@ -136,7 +136,7 @@ Page({
           wx.showLoading({ title: '签到中' });
           await api.checkInReplenishmentTask(taskId, 31.2304, 121.4737);
           wx.hideLoading();
-          wx.showToast({ title: '演示签到 OK', icon: 'none' });
+          wx.showToast({ title: '签到成功', icon: 'success' });
           this.loadTasks();
         } catch (err) {
           wx.hideLoading();

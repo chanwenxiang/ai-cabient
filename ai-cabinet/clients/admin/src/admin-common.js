@@ -74,8 +74,8 @@ const SESSION_STATE_LABEL = {
   CREATED: '已创建',
   OPENING: '开门中',
   SHOPPING: '购物中',
-  RECOGNIZING: '识别中',
-  WAITING_UPLOAD: '等待上传',
+  RECOGNIZING: '识别商品中',
+  WAITING_UPLOAD: '录像上传中',
   SETTLING: '结算中',
   COMPLETED: '已完成',
   DISPUTED: '待审核',
@@ -97,7 +97,7 @@ function sessionStateBadge(state) {
 
 const UPLOAD_STATUS_LABEL = {
   NONE: '无需上传',
-  LOCAL_QUEUED: '本地排队',
+  LOCAL_QUEUED: '待上传',
   UPLOADING: '上传中',
   UPLOADED: '已上传',
   FAILED: '上传失败'
@@ -121,6 +121,68 @@ function onlineStatusLabel(status) {
   return '未知';
 }
 
+function deviceRunStatusMeta(device) {
+  const online = String(device?.onlineStatus || '').toUpperCase() === 'ONLINE';
+  if (!online) {
+    return { tone: 'offline', title: '离线', hint: '设备暂未联网，顾客可能无法开门购物' };
+  }
+  if (device?.activeSessionId) {
+    const phase = sessionStateLabel(device.activeSessionState);
+    return {
+      tone: 'busy',
+      title: phase,
+      hint: `有顾客正在${phase}，暂不可开门购物`
+    };
+  }
+  if (device?.replenishmentInProgress) {
+    return { tone: 'busy', title: '补货中', hint: '运营补货进行中，暂不可开门购物' };
+  }
+  return { tone: 'idle', title: '空闲', hint: '可正常开门购物' };
+}
+
+function deviceRunStatusBadge(device) {
+  const meta = deviceRunStatusMeta(device);
+  return `<span class="device-run-badge ${meta.tone}"><span class="dot" aria-hidden="true"></span>${esc(meta.title)}</span>`;
+}
+
+function renderDeviceLivePanel(devices, options = {}) {
+  const fmtTimeFn = options.fmtTime || ((v) => v || '-');
+  const cards = (devices || []).map((d) => {
+    const meta = deviceRunStatusMeta(d);
+    const id = escAttr(d.deviceId);
+    return `<button type="button" class="device-live-card ${meta.tone}" onclick="viewDeviceDetail('${id}')" title="${escAttr(meta.hint)}">
+      <div class="device-live-top">
+        <span class="device-live-dot" aria-hidden="true"></span>
+        <span class="device-live-state">${esc(meta.title)}</span>
+      </div>
+      <div class="device-live-name">${esc(d.deviceName || d.deviceId)}</div>
+      <code class="device-live-id">${esc(d.deviceId)}</code>
+      <div class="device-live-hint">${esc(meta.hint)}</div>
+      <div class="device-live-meta">最近在线 ${esc(fmtTimeFn(d.updatedAt))}</div>
+    </button>`;
+  }).join('');
+  const summary = (devices || []).reduce((acc, d) => {
+    const meta = deviceRunStatusMeta(d);
+    acc[meta.tone] = (acc[meta.tone] || 0) + 1;
+    return acc;
+  }, { idle: 0, busy: 0, offline: 0 });
+  return `<div class="card device-live-panel" id="deviceLivePanel">
+    <div class="pane-head">
+      <div>
+        <h3 class="pane-title" style="margin:0">柜机实时状态</h3>
+        <p class="sub" style="margin:4px 0 0">空闲 ${summary.idle || 0} · 占用 ${summary.busy || 0} · 离线 ${summary.offline || 0}</p>
+      </div>
+      <div class="filters" style="margin:0">
+        <button type="button" class="btn-ghost btn-sm" onclick="navigate('devices')">设备管理</button>
+        ${refreshButton(options.refreshFn || 'refreshDashboardDevicePanel()', '刷新')}
+      </div>
+    </div>
+    ${cards
+      ? `<div class="device-live-grid">${cards}</div>`
+      : `<div class="device-live-empty">${emptyStateHtml('暂无设备', '请先在设备页注册柜机', "navigate('devices')")}</div>`}
+  </div>`;
+}
+
 const DISPUTE_STATUS_LABEL = {
   OPEN: '待审核',
   RESOLVED: '已结案',
@@ -139,7 +201,7 @@ function disputeStatusBadge(status) {
   return `<span class="badge ${cls}">${esc(label)}</span>`;
 }
 
-const PAY_CHANNEL_LABEL = { WECHAT: '微信', ALIPAY: '支付宝', MOCK: '模拟支付' };
+const PAY_CHANNEL_LABEL = { WECHAT: '微信', ALIPAY: '支付宝', MOCK: '其他' };
 const OTA_STATUS_LABEL = { PUBLISHED: '已发布', DRAFT: '草稿', REVOKED: '已撤回' };
 const OTA_CHANNEL_LABEL = { STABLE: '稳定版', BETA: '测试版', GRAY: '灰度' };
 const RECON_STATUS_LABEL = { PENDING: '待执行', RUNNING: '进行中', COMPLETED: '已完成', FAILED: '失败', MATCHED: '已对平', UNMATCHED: '有差异' };
@@ -343,7 +405,32 @@ function showTableLoading(el, cols, rows) {
 function refreshButton(onclick, label) {
   const action = escAttr(onclick);
   const text = esc(label || '刷新');
-  return `<button type="button" class="btn-ghost btn-sm" onclick="${action}">${text}</button>`;
+  return `<button type="button" class="btn-ghost btn-sm btn-refresh" data-refresh-action="${action}" onclick="handleRefreshClick(event)"><span class="btn-refresh-icon" aria-hidden="true">↻</span><span class="btn-refresh-label">${text}</span></button>`;
+}
+
+async function handleRefreshClick(event) {
+  const btn = event?.currentTarget;
+  if (!btn || btn.classList.contains('is-loading')) return;
+  const action = (btn.dataset.refreshAction || '').trim();
+  const match = action.match(/^([a-zA-Z0-9_$]+)\(\)$/);
+  if (!match) return;
+  const fn = window[match[1]];
+  if (typeof fn !== 'function') return;
+  btn.classList.add('is-loading');
+  btn.disabled = true;
+  const labelEl = btn.querySelector('.btn-refresh-label');
+  const prevLabel = labelEl ? labelEl.textContent : '';
+  if (labelEl) labelEl.textContent = '刷新中…';
+  try {
+    await fn();
+    toast('已刷新', 'ok');
+  } catch (e) {
+    if (!handleAuthFailure(e)) toast('刷新失败: ' + formatApiError(e), 'err');
+  } finally {
+    btn.classList.remove('is-loading');
+    btn.disabled = false;
+    if (labelEl) labelEl.textContent = prevLabel || '刷新';
+  }
 }
 
 /** 表格/页面空状态（可选刷新） */
@@ -631,7 +718,7 @@ function buildPaginationHtml(data, type) {
     `<option value="${s}" ${data.size === s ? 'selected' : ''}>${s} 条/页</option>`
   ).join('');
   return `<div class="pagination">
-    <span class="pagination-meta">共 ${data.total} 条，第 ${page}/${totalPages} 页</span>
+    <span class="pagination-meta">共 ${data.total} 条 · 第 ${page}/${totalPages} 页</span>
     <div class="pagination-controls">
       <button type="button" class="btn-ghost btn-sm" ${data.page <= 0 ? 'disabled' : ''} onclick="changePage('${escAttr(type)}', 0)">首页</button>
       <button type="button" class="btn-ghost btn-sm" ${data.page <= 0 ? 'disabled' : ''} onclick="changePage('${escAttr(type)}', ${data.page - 1})">上一页</button>
@@ -640,7 +727,9 @@ function buildPaginationHtml(data, type) {
         <button type="button" class="btn-ghost btn-sm" onclick="jumpToPage('${escAttr(type)}', this.previousElementSibling.value)">跳转</button></span>
       <button type="button" class="btn-ghost btn-sm" ${page >= totalPages ? 'disabled' : ''} onclick="changePage('${escAttr(type)}', ${data.page + 1})">下一页</button>
       <button type="button" class="btn-ghost btn-sm" ${page >= totalPages ? 'disabled' : ''} onclick="changePage('${escAttr(type)}', ${totalPages - 1})">末页</button>
-      <select class="page-size-select" onchange="changePageSize('${escAttr(type)}', this.value)">${sizeOptions}</select>
+      <label class="page-size-label"><span class="sr-only">每页条数</span>
+        <select class="page-size-select" onchange="changePageSize('${escAttr(type)}', this.value)">${sizeOptions}</select>
+      </label>
     </div>
   </div>`;
 }
@@ -658,8 +747,41 @@ function sortItems(items, field, dir) {
   });
 }
 
-function sortableHeader(scope, field, label) {
-  return `<th class="sortable-th" onclick="toggleTableSort('${escAttr(scope)}', '${escAttr(field)}')">${esc(label)}<span class="sort-indicator" data-sort-ind="${escAttr(scope)}-${escAttr(field)}"></span></th>`;
+function sortableHeader(scope, field, label, sortState) {
+  const active = sortState?.field === field;
+  const dir = active ? sortState.dir : '';
+  return `<th class="col-sortable">
+    <div class="th-sort-wrap">
+      <span class="th-sort-label">${esc(label)}</span>
+      <span class="sort-dir-btns" role="group" aria-label="${esc(label)}排序">
+        <button type="button" class="sort-dir-btn${active && dir === 'asc' ? ' active' : ''}" onclick="event.stopPropagation();setTableSort('${escAttr(scope)}','${escAttr(field)}','asc')" title="升序">↑</button>
+        <button type="button" class="sort-dir-btn${active && dir === 'desc' ? ' active' : ''}" onclick="event.stopPropagation();setTableSort('${escAttr(scope)}','${escAttr(field)}','desc')" title="降序">↓</button>
+      </span>
+    </div>
+  </th>`;
+}
+
+/** 列表页统一筛选栏：左侧条件 + 右侧查询/重置/刷新 */
+function listFilterBar(options = {}) {
+  const fieldsHtml = options.fieldsHtml || '';
+  const onSearch = options.onSearch || '';
+  const onReset = options.onReset || '';
+  const refreshFn = options.refreshFn || '';
+  const extraHtml = options.extraHtml || '';
+  const refresh = refreshFn ? refreshButton(refreshFn) : '';
+  return `<div class="list-filter-bar">
+    <div class="list-filter-fields">${fieldsHtml}</div>
+    <div class="list-filter-actions">
+      ${onSearch ? `<button type="button" class="btn-primary btn-sm" onclick="${onSearch}">查询</button>` : ''}
+      ${onReset ? `<button type="button" class="btn-ghost btn-sm" onclick="${onReset}">重置</button>` : ''}
+      ${refresh}
+      ${extraHtml}
+    </div>
+  </div>`;
+}
+
+function filterField(label, inputHtml) {
+  return `<div class="list-filter-field"><label>${esc(label)}</label>${inputHtml}</div>`;
 }
 
 function forbiddenPageHtml(pageTitle) {
@@ -682,6 +804,20 @@ function rechargeStatusLabel(status) {
   return RECHARGE_STATUS_LABEL[status] || status || '-';
 }
 
+/** 带标题的数据表格区块 */
+function tableSection(title, tableHtml, emptyHtml, extraHeadHtml) {
+  const body = tableHtml
+    ? `<div class="table-wrap">${tableHtml}</div>`
+    : `<div class="table-empty">${emptyHtml || emptyStateHtml('暂无数据')}</div>`;
+  return `<section class="table-block">
+    <div class="table-block-head">
+      <h3>${esc(title)}</h3>
+      ${extraHeadHtml || ''}
+    </div>
+    ${body}
+  </section>`;
+}
+
 export {
   esc,
   escAttr,
@@ -697,6 +833,9 @@ export {
   uploadStatusLabel,
   onlineStatusBadge,
   onlineStatusLabel,
+  deviceRunStatusMeta,
+  deviceRunStatusBadge,
+  renderDeviceLivePanel,
   disputeStatusLabel,
   disputeStatusBadge,
   payChannelLabel,
@@ -716,6 +855,8 @@ export {
   beginPageLoad,
   showTableLoading,
   refreshButton,
+  handleRefreshClick,
+  tableSection,
   emptyStateHtml,
   trackModalBlobUrl,
   revokeModalBlobUrl,
@@ -743,6 +884,8 @@ export {
   buildPaginationHtml,
   sortItems,
   sortableHeader,
+  listFilterBar,
+  filterField,
   forbiddenPageHtml,
   rechargeStatusLabel
 };

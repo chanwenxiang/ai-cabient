@@ -35,6 +35,7 @@ public final class ApiMessages {
     // 设备/会话
     public static final String DEVICE_NOT_FOUND = "设备不存在，请检查设备编号";
     public static final String DEVICE_BUSY = "设备使用中，请稍后再试";
+    public static final String DEVICE_OFFLINE = "设备离线，暂不可开门";
     public static final String REPLENISHMENT_IN_PROGRESS = "设备补货中，暂不能购物或结算";
     public static final String REPLENISHMENT_TASK_NOT_FOUND = "补货任务不存在";
     public static final String REPLENISHMENT_TASK_MISMATCH = "补货任务与设备不匹配";

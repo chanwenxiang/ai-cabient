@@ -23,6 +23,12 @@ public class DisputeTicket {
     @Column(nullable = false, length = 16)
     private String status;
 
+    @Column(nullable = false, length = 32)
+    private String category = "RECOGNITION";
+
+    @Column(nullable = false, length = 16)
+    private String priority = "NORMAL";
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private String items;
@@ -42,6 +48,13 @@ public class DisputeTicket {
 
     private Instant slaAlertedAt;
 
+    @Column(length = 512)
+    private String operatorNote;
+
+    private Instant closedAt;
+
+    private Instant reopenedAt;
+
     @PrePersist
     void prePersist() {
         Instant now = Instant.now();
@@ -59,6 +72,10 @@ public class DisputeTicket {
     public void setReason(String reason) { this.reason = reason; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
+    public String getPriority() { return priority; }
+    public void setPriority(String priority) { this.priority = priority; }
     public String getItems() { return items; }
     public void setItems(String items) { this.items = items; }
     public String getResolutionItems() { return resolutionItems; }
@@ -72,4 +89,10 @@ public class DisputeTicket {
     public void setSlaReminderAt(Instant slaReminderAt) { this.slaReminderAt = slaReminderAt; }
     public Instant getSlaAlertedAt() { return slaAlertedAt; }
     public void setSlaAlertedAt(Instant slaAlertedAt) { this.slaAlertedAt = slaAlertedAt; }
+    public String getOperatorNote() { return operatorNote; }
+    public void setOperatorNote(String operatorNote) { this.operatorNote = operatorNote; }
+    public Instant getClosedAt() { return closedAt; }
+    public void setClosedAt(Instant closedAt) { this.closedAt = closedAt; }
+    public Instant getReopenedAt() { return reopenedAt; }
+    public void setReopenedAt(Instant reopenedAt) { this.reopenedAt = reopenedAt; }
 }

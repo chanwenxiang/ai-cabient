@@ -30,6 +30,8 @@ public class WarehouseOutboundLine {
 
     @Column(nullable = false)
     private boolean picked;
+    @Column(nullable = false, length = 16)
+    private String handoverStatus = "PENDING";
 
     public Long getLineId() { return lineId; }
     public Long getOutboundId() { return outboundId; }
@@ -46,4 +48,6 @@ public class WarehouseOutboundLine {
     public void setQuantity(int quantity) { this.quantity = quantity; }
     public boolean isPicked() { return picked; }
     public void setPicked(boolean picked) { this.picked = picked; }
+    public String getHandoverStatus() { return handoverStatus; }
+    public void setHandoverStatus(String handoverStatus) { this.handoverStatus = handoverStatus; }
 }

@@ -2,7 +2,6 @@ package com.aicabinet.trade.domain;
 
 import jakarta.persistence.*;
 import java.time.Instant;
-import java.time.LocalDate;
 
 @Entity
 @Table(name = "warehouse_inbound")
@@ -20,6 +19,8 @@ public class WarehouseInbound {
 
     @Column(nullable = false, length = 16)
     private String status = "COMPLETED";
+
+    private Long purchaseOrderId;
 
     private Long operatorId;
 
@@ -40,6 +41,8 @@ public class WarehouseInbound {
     public String getRefNo() { return refNo; }
     public void setRefNo(String refNo) { this.refNo = refNo; }
     public String getStatus() { return status; }
+    public Long getPurchaseOrderId() { return purchaseOrderId; }
+    public void setPurchaseOrderId(Long purchaseOrderId) { this.purchaseOrderId = purchaseOrderId; }
     public Long getOperatorId() { return operatorId; }
     public void setOperatorId(Long operatorId) { this.operatorId = operatorId; }
     public String getNotes() { return notes; }

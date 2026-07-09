@@ -17,6 +17,7 @@ public record MqttProperties(
     }
 
     public boolean hasCredentials() {
-        return username != null && !username.isBlank();
+        return username != null && !username.isBlank()
+                && password != null && !password.isBlank();
     }
 }

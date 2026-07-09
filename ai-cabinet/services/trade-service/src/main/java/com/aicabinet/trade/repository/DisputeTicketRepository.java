@@ -18,6 +18,8 @@ public interface DisputeTicketRepository extends JpaRepository<DisputeTicket, St
 
     List<DisputeTicket> findByStatusOrderByCreatedAtDesc(String status);
 
+    List<DisputeTicket> findTop10ByStatusOrderBySlaDueAtAscCreatedAtAsc(String status);
+
     long countByStatus(String status);
 
     long countByCreatedAtAfter(Instant since);

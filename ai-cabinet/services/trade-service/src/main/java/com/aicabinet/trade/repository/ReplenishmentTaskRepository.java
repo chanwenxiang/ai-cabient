@@ -18,6 +18,12 @@ public interface ReplenishmentTaskRepository extends JpaRepository<Replenishment
 
     List<ReplenishmentTask> findByAssigneeUserIdAndStatusIn(Long assigneeUserId, List<String> statuses);
 
+    List<ReplenishmentTask> findByStatusIn(List<String> statuses);
+
+    long countByStatusIn(List<String> statuses);
+
+    List<ReplenishmentTask> findTop10ByStatusInOrderByCreatedAtAsc(List<String> statuses);
+
     @Query("""
             SELECT MAX(t.completedAt) FROM ReplenishmentTask t
             WHERE t.deviceId = :deviceId AND t.status = 'COMPLETED'

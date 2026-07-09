@@ -40,7 +40,10 @@ import {
   withSaveGuard,
   buildPaginationHtml,
   debounce,
-  enhanceOpenedModal
+  enhanceOpenedModal,
+  tableSection,
+  listFilterBar,
+  filterField
 } from './admin-common.js';
 import { permButton, applyNavPermissions, hasPerm } from './permissions.js';
 import { adminRuntime } from './admin-runtime.js';
@@ -70,22 +73,24 @@ async function loadSlaPage() {
     if (!isCurrentPage(page)) return;
     const rt = d.realtime || {};
     el.innerHTML = `
-      <div class="card"><div class="filters">${refreshButton('loadSlaPage()')}</div></div>
+      <div class="card list-page-card">
+        ${listFilterBar({ refreshFn: 'loadSlaPage()', fieldsHtml: '' })}
+      </div>
       <div class="cards">
         <div class="card"><div class="card-label">24h 开门成功率</div><div class="card-value">${pct(rt.doorSuccessRate24h)}</div></div>
-        <div class="card"><div class="card-label">24h 平均识别耗时</div><div class="card-value">${esc(rt.avgRecognizeMs24h || 0)} ms</div></div>
+        <div class="card"><div class="card-label">24h 平均识别耗时</div><div class="card-value">${((rt.avgRecognizeMs24h || 0) / 1000).toFixed(1)} 秒</div></div>
         <div class="card"><div class="card-label">当前设备在线率</div><div class="card-value">${pct(rt.deviceOnlineRateNow)}</div></div>
         <div class="card"><div class="card-label">待审争议</div><div class="card-value">${esc(rt.disputeOpen ?? 0)}</div></div>
-        <div class="card"><div class="card-label">SLA 超时争议</div><div class="card-value ${rt.disputeOverdue > 0 ? 'warn' : ''}">${esc(rt.disputeOverdue ?? 0)}</div></div>
+        <div class="card"><div class="card-label">超时未处理争议</div><div class="card-value ${rt.disputeOverdue > 0 ? 'warn' : ''}">${esc(rt.disputeOverdue ?? 0)}</div></div>
         <div class="card"><div class="card-label">24h 争议结案</div><div class="card-value">${esc(rt.disputeResolved24h ?? 0)}</div></div>
-        <div class="card"><div class="card-label">24h SLA 达标率</div><div class="card-value">${pct(rt.disputeSlaCompliance24h ?? 1)}</div></div>
+        <div class="card"><div class="card-label">24h 争议及时处理率</div><div class="card-value">${pct(rt.disputeSlaCompliance24h ?? 1)}</div></div>
       </div>
       <h3>日快照 ${esc(d.snapshotDate || '-')}</h3>
-      <table class="table"><thead><tr>
-        <th>开门尝试</th><th>成功</th><th>成功率</th><th>识别均耗</th><th>P95</th><th>设备数</th><th>在线峰值</th>
+      <table class="data-table"><thead><tr>
+        <th>开门尝试</th><th>成功</th><th>成功率</th><th>识别均耗(秒)</th><th>P95(秒)</th><th>设备数</th><th>在线峰值</th>
       </tr></thead><tbody><tr>
         <td>${esc(d.doorOpenAttempts ?? 0)}</td><td>${esc(d.doorOpenSuccess ?? 0)}</td><td>${pct(d.doorSuccessRate)}</td>
-        <td>${esc(d.avgRecognizeMs ?? 0)} ms</td><td>${esc(d.p95RecognizeMs ?? 0)} ms</td>
+        <td>${((d.avgRecognizeMs ?? 0) / 1000).toFixed(1)}</td><td>${((d.p95RecognizeMs ?? 0) / 1000).toFixed(1)}</td>
         <td>${esc(d.deviceTotal ?? 0)}</td><td>${esc(d.deviceOnlinePeak ?? 0)}</td>
       </tr></tbody></table>`;
   } catch (e) {
@@ -106,28 +111,30 @@ async function loadOtaPage() {
       ${selCheckCell('ota', r.releaseId)}
       <td>${esc(r.appVersion)}</td><td>${esc(otaChannelLabel(r.channel))}</td><td>${r.mandatory ? '是' : '否'}</td>
       <td>${esc(r.grayPercent ?? 100)}%</td><td>${esc(otaStatusLabel(r.status))}</td><td>${fmtTime(r.publishedAt)}</td>
-      <td onclick="event.stopPropagation()">${r.downloadUrl
-        ? `<a href="${escAttr(r.downloadUrl)}" target="_blank" rel="noopener">下载</a>`
-        : esc(r.objectStorageUri || '-')}</td>
+      <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions">${r.downloadUrl
+        ? `<a class="btn-ghost btn-sm" href="${escAttr(r.downloadUrl)}" target="_blank" rel="noopener">下载</a>`
+        : `<span class="meta">${esc(r.objectStorageUri || '-')}</span>`}</div></td>
     </tr>`).join('');
     el.innerHTML = `
-      <div class="filters">
-        ${permButton('ota.publish', '发布新版本', 'showOtaPublishForm()', 'btn-primary btn-sm')}
-        ${selBar('ota')}
-        ${refreshButton('loadOtaPage()')}
+      <div class="card list-page-card">
+        ${listFilterBar({
+          refreshFn: 'loadOtaPage()',
+          extraHtml: `${permButton('ota.publish', '发布新版本', 'showOtaPublishForm()', 'btn-primary btn-sm')}${selBar('ota')}`,
+          fieldsHtml: ''
+        })}
       </div>
       <div id="otaPublishForm" class="hidden card" style="margin:12px 0;padding:12px">
         <label>版本号</label><input id="otaVersion" placeholder="1.2.0">
         <label>渠道</label><input id="otaChannel" value="STABLE">
         <label>灰度比例 (0-100)</label><input id="otaGray" type="number" value="100" min="0" max="100">
-        <label>对象存储 URI (MinIO/OSS)</label><input id="otaUri" placeholder="s3://cabinet-videos/ota/app-1.2.0.apk">
+        <label>固件包地址</label><input id="otaUri" placeholder="填写固件下载地址">
         <label>下载 URL（可选，无 URI 时填写）</label><input id="otaUrl" placeholder="https://...">
         <label><input type="checkbox" id="otaMandatory"> 强制升级</label>
         <button type="button" class="btn-primary btn-sm" onclick="publishOta(event)">提交发布</button>
       </div>
-      ${(list && list.length) ? selWrap('ota', `<table class="table"><thead><tr>
+      ${(list && list.length) ? selWrap('ota', `<table class="data-table"><thead><tr>
         ${selHeaderCell('ota')}
-        <th>版本</th><th>渠道</th><th>强制</th><th>灰度</th><th>状态</th><th>发布时间</th><th>包</th>
+        <th>版本</th><th>渠道</th><th>强制</th><th>灰度</th><th>状态</th><th>发布时间</th><th class="col-actions">包</th>
       </tr></thead><tbody>${rows}</tbody></table>`) : emptyStateHtml('暂无 OTA 发布', '发布柜机 APK 后设备可检查更新', 'loadOtaPage()')}
       <p class="sub">柜机检查更新：GET /internal/v1/devices/{id}/ota/check?currentVersion=…</p>`;
     selSync('ota');
@@ -185,27 +192,28 @@ async function loadRiskPage() {
       ${selRowOpen('blacklist', b.userId)}
       ${selCheckCell('blacklist', b.userId)}
       <td>${esc(b.userId)}</td><td>${esc(b.reason)}</td><td>${esc(b.source)}</td><td>${fmtTime(b.expiresAt)}</td>
-      <td onclick="event.stopPropagation()">${hasPerm('ops:risk:blacklist') ? `<button class="btn-ghost btn-sm btn-danger" onclick="removeBlacklist(${b.userId})">解除</button>` : '-'}</td>
+      <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions">${hasPerm('ops:risk:blacklist') ? `<button type="button" class="btn-ghost btn-sm btn-danger" onclick="removeBlacklist(${b.userId})">解除</button>` : '<span class="meta">-</span>'}</div></td>
     </tr>`).join('');
     el.innerHTML = `
-      <div class="card">
-        <div class="filters">
-          ${refreshButton('loadRiskPage()')}
-          ${permButton('risk.blacklist', '添加黑名单', 'showBlacklistForm()', 'btn-primary btn-sm')}
-        </div>
+      <div class="card list-page-card">
+        ${listFilterBar({
+          refreshFn: 'loadRiskPage()',
+          extraHtml: `${permButton('risk.blacklist', '添加黑名单', 'showBlacklistForm()', 'btn-primary btn-sm')}${selBar('riskEvents')}`,
+          fieldsHtml: ''
+        })}
       </div>
-      <h3>风控事件 ${selBar('riskEvents')}</h3>
+      <h3>风控事件</h3>
       ${(events.items || []).length
-        ? selWrap('riskEvents', `<table class="table"><thead><tr>
+        ? selWrap('riskEvents', `<table class="data-table"><thead><tr>
           ${selHeaderCell('riskEvents')}
           <th>时间</th><th>类型</th><th>级别</th><th>用户</th><th>设备</th><th>详情</th>
         </tr></thead><tbody>${evRows}</tbody></table>`)
         : emptyStateHtml('暂无风控事件', '触发风控规则后会在此展示', 'loadRiskPage()')}
       <h3>黑名单 ${selBar('blacklist')}</h3>
       ${(blacklist || []).length
-        ? selWrap('blacklist', `<table class="table"><thead><tr>
+        ? selWrap('blacklist', `<table class="data-table"><thead><tr>
           ${selHeaderCell('blacklist')}
-          <th>用户</th><th>原因</th><th>来源</th><th>过期</th><th>操作</th>
+          <th>用户</th><th>原因</th><th>来源</th><th>过期</th><th class="col-actions">操作</th>
         </tr></thead><tbody>${blRows}</tbody></table>`)
         : emptyStateHtml('暂无黑名单用户', '手动拉黑或自动风控命中后会出现在此', 'loadRiskPage()')}`;
     selSync('riskEvents');
@@ -272,35 +280,56 @@ async function loadReconciliationPage() {
   const el = document.getElementById('pageContent');
   const today = new Date().toISOString().slice(0, 10);
   const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  if (!reconFilters.from) reconFilters.from = monthAgo;
+  if (!reconFilters.to) reconFilters.to = today;
   selClear('reconciliation');
   el.innerHTML = `
-    <div class="filters">
-      <div><label>开始</label><input id="reconFrom" type="date" value="${monthAgo}"></div>
-      <div><label>结束</label><input id="reconTo" type="date" value="${today}"></div>
-      <div><label>渠道</label>
-        <select id="reconChannel"><option value="WECHAT">微信</option><option value="ALIPAY">支付宝</option><option value="MOCK">Mock</option></select>
-      </div>
-      <div><button class="btn-ghost btn-sm" onclick="fetchReconciliationList()">查询</button></div>
-      <div>${refreshButton('fetchReconciliationList()')}</div>
-      ${selBar('reconciliation')}
-      ${permButton('recon.run', '执行对账', 'runReconToday(event)', 'btn-primary btn-sm')}
-    </div>
-    <div id="reconTable"></div>`;
+    <div class="card list-page-card">
+      ${listFilterBar({
+        onSearch: 'fetchReconciliationList()',
+        onReset: 'resetReconciliationFilters()',
+        refreshFn: 'fetchReconciliationList()',
+        extraHtml: `${selBar('reconciliation')}${permButton('recon.run', '执行对账', 'runReconToday(event)', 'btn-primary btn-sm')}`,
+        fieldsHtml: `
+          ${filterField('开始日期', `<input id="reconFrom" type="date" value="${escAttr(reconFilters.from)}">`)}
+          ${filterField('结束日期', `<input id="reconTo" type="date" value="${escAttr(reconFilters.to)}">`)}
+          ${filterField('渠道', `<select id="reconChannel">
+            <option value="WECHAT" ${reconFilters.channel === 'WECHAT' ? 'selected' : ''}>微信</option>
+            <option value="ALIPAY" ${reconFilters.channel === 'ALIPAY' ? 'selected' : ''}>支付宝</option>
+            <option value="MOCK" ${reconFilters.channel === 'MOCK' ? 'selected' : ''}>Mock</option>
+          </select>`)}`
+      })}
+      <div id="reconTable"></div>
+    </div>`;
   applyNavPermissions();
   showTableLoading(document.getElementById('reconTable'), 8, 6);
   fetchReconciliationList();
 }
 
+function readReconFiltersFromDom() {
+  reconFilters.from = document.getElementById('reconFrom')?.value || '';
+  reconFilters.to = document.getElementById('reconTo')?.value || '';
+  reconFilters.channel = document.getElementById('reconChannel')?.value || 'WECHAT';
+}
+
+function resetReconciliationFilters() {
+  const today = new Date().toISOString().slice(0, 10);
+  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  reconFilters.from = monthAgo;
+  reconFilters.to = today;
+  reconFilters.channel = 'WECHAT';
+  loadReconciliationPage();
+}
+
 async function fetchReconciliationList() {
   const table = document.getElementById('reconTable');
   if (!table) return;
+  readReconFiltersFromDom();
   showTableLoading(table, 8, 6);
   try {
-    const from = document.getElementById('reconFrom')?.value;
-    const to = document.getElementById('reconTo')?.value;
     const q = new URLSearchParams();
-    if (from) q.set('from', from);
-    if (to) q.set('to', to);
+    if (reconFilters.from) q.set('from', reconFilters.from);
+    if (reconFilters.to) q.set('to', reconFilters.to);
     const list = await api('/api/v2/ops/admin/reconciliation?' + q, 'GET');
     if (!list || !list.length) {
       table.innerHTML = emptyStateHtml('暂无对账记录', '选择日期范围后查询，或执行对账任务', 'fetchReconciliationList()');
@@ -314,13 +343,13 @@ async function fetchReconciliationList() {
       <td>${fmtMoney(r.diffCents)}</td>
       <td>${esc(r.matchedCount ?? 0)}/${esc(r.unmatchedCount ?? 0)}</td>
       <td>${esc(reconStatusLabel(r.status))}</td><td>${fmtTime(r.completedAt)}</td>
-      <td onclick="event.stopPropagation()"><button type="button" class="btn-ghost btn-sm" onclick="showReconDetail(${esc(r.reconId)})">明细</button></td>
+      <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions"><button type="button" class="btn-ghost btn-sm" onclick="showReconDetail(${esc(r.reconId)})">明细</button></div></td>
     </tr>`).join('');
     table.innerHTML = selWrap('reconciliation', `
-      <table class="table"><thead><tr>
+      <table class="data-table"><thead><tr>
         ${selHeaderCell('reconciliation')}
         <th>日期</th><th>渠道</th><th>平台总额</th><th>账本总额</th><th>差额</th>
-        <th>匹配/未匹配</th><th>状态</th><th>完成时间</th><th>操作</th>
+        <th>匹配/未匹配</th><th>状态</th><th>完成时间</th><th class="col-actions">操作</th>
       </tr></thead><tbody>${rows || '<tr><td colspan="10">暂无记录</td></tr>'}</tbody></table>`);
     selSync('reconciliation');
   } catch (e) {
@@ -423,42 +452,46 @@ async function loadReplenishmentPage() {
       <td>${esc(i.deviceId)}</td><td>${skuLabel(i.skuId)}</td>
       <td>${esc(i.quantity)}/${esc(i.capacity)}${low ? ' <span class="badge badge-active">低库存</span>' : ''}</td>
       <td>${esc(i.lowThreshold)}</td>
-      <td onclick="event.stopPropagation()">
+      <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions">
         ${hasPerm('ops:replenishment:edit')
-          ? `<button class="btn-ghost btn-sm" onclick='showInventoryForm(${JSON.stringify(i)})'>编辑</button>` : ''}
-        <button class="btn-ghost btn-sm" onclick="viewDeviceLots('${escAttr(i.deviceId)}')">批次</button>
-      </td>
+          ? `<button type="button" class="btn-ghost btn-sm" onclick='showInventoryForm(${JSON.stringify(i)})'>编辑</button>` : ''}
+        <button type="button" class="btn-ghost btn-sm" onclick="viewDeviceLots('${escAttr(i.deviceId)}')">批次</button>
+      </div></td>
     </tr>`;
     }).join('');
     el.innerHTML = `
-      <div class="filters">
-        ${permButton('replenish.plan', '规划路线', 'showReplenishmentPlanForm()', 'btn-primary btn-sm')}
-        ${permButton('replenish.edit', '录入库存', 'showInventoryForm()', 'btn-ghost btn-sm')}
-        ${permButton('replenish.edit', 'SKU 盘点', 'showSkuStocktakeForm()', 'btn-ghost btn-sm')}
-        ${permButton('replenish.edit', '报损', 'showWriteOffForm()', 'btn-ghost btn-sm')}
-        ${lowCount > 0 && hasPerm('ops:replenishment:edit')
-          ? `<button type="button" class="btn-ok btn-sm" onclick="planRouteFromLowStock()">从低库存生成路线 (${lowCount})</button>` : ''}
-        <label class="filter-check"><input type="checkbox" id="replLowOnly" ${lowOnly ? 'checked' : ''} onchange="toggleReplenishmentLowStock()"> 仅低库存</label>
-        ${selBar('replenInventory')}
-        ${refreshButton('loadReplenishmentPage()')}
+      <div class="card list-page-card">
+        ${listFilterBar({
+          refreshFn: 'loadReplenishmentPage()',
+          extraHtml: `
+            ${permButton('replenish.plan', '规划路线', 'showReplenishmentPlanForm()', 'btn-primary btn-sm')}
+            ${permButton('replenish.edit', '录入库存', 'showInventoryForm()', 'btn-ghost btn-sm')}
+            ${permButton('replenish.edit', '商品盘点', 'showSkuStocktakeForm()', 'btn-ghost btn-sm')}
+            ${permButton('replenish.edit', '报损', 'showWriteOffForm()', 'btn-ghost btn-sm')}
+            ${lowCount > 0 && hasPerm('ops:replenishment:edit')
+              ? `<button type="button" class="btn-ok btn-sm" onclick="planRouteFromLowStock()">从低库存生成路线 (${lowCount})</button>` : ''}
+            <label class="filter-check"><input type="checkbox" id="replLowOnly" ${lowOnly ? 'checked' : ''} onchange="toggleReplenishmentLowStock()"> 仅低库存</label>
+            ${selBar('replenInventory')}`,
+          fieldsHtml: ''
+        })}
       </div>
       <p class="meta">${lowOnly ? `当前显示 ${inventory.length} 条低库存记录` : `共 ${inventory.length} 条库存，其中 ${lowCount} 条低库存`}</p>
       <h3>效期告警 / 待下架</h3>
       ${(alerts || []).length
-        ? `<table class="table"><thead><tr><th>设备</th><th>商品</th><th>批次</th><th>数量</th><th>原因</th><th>创建时间</th></tr></thead><tbody>${alertRows}</tbody></table>`
+        ? `<table class="data-table"><thead><tr><th>设备</th><th>商品</th><th>批次</th><th>数量</th><th>原因</th><th>创建时间</th></tr></thead><tbody>${alertRows}</tbody></table>`
         : '<p class="meta">暂无待下架任务</p>'}
       <h3>补货路线</h3>
       ${(routes || []).length
-        ? `<table class="table"><tbody>${routeRows}</tbody></table>`
+        ? `<table class="data-table"><tbody>${routeRows}</tbody></table>`
         : emptyStateHtml('暂无补货路线', '点击「规划路线」创建补货任务', 'loadReplenishmentPage()')}
       <h3>柜内库存</h3>
-      ${deviceIds.length ? `<p class="meta">设备：${deviceIds.map(d => `<button class="btn-ghost btn-sm" onclick="viewDeviceLots('${escAttr(d)}')">${esc(d)} 批次</button>`).join(' ')}</p>` : ''}
+      ${deviceIds.length ? `<p class="meta">设备：${deviceIds.map(d => `<button type="button" class="btn-ghost btn-sm" onclick="viewDeviceLots('${escAttr(d)}')">${esc(d)} 批次</button>`).join(' ')}</p>` : ''}
       ${(inventory || []).length
-        ? selWrap('replenInventory', `<table class="table"><thead><tr>
+        ? selWrap('replenInventory', `<table class="data-table"><thead><tr>
           ${selHeaderCell('replenInventory')}
-          <th>设备</th><th>商品</th><th>库存/容量</th><th>低库存阈值</th><th>操作</th>
+          <th>设备</th><th>商品</th><th>库存/容量</th><th>低库存阈值</th><th class="col-actions">操作</th>
         </tr></thead><tbody>${invRows}</tbody></table>`)
-        : emptyStateHtml(lowOnly ? '暂无低库存 SKU' : '暂无库存数据', lowOnly ? '所有 SKU 库存充足' : '点击「录入库存」添加柜内 SKU 数量', 'loadReplenishmentPage()')}`;
+        : emptyStateHtml(lowOnly ? '暂无低库存商品' : '暂无库存数据', lowOnly ? '所有商品库存充足' : '点击「录入库存」添加柜内商品数量', 'loadReplenishmentPage()')}`;
     selSync('replenInventory');
     applyNavPermissions();
   } catch (e) {
@@ -479,7 +512,7 @@ async function planRouteFromLowStock() {
     const inventory = await api('/api/v2/ops/admin/inventory?lowStockOnly=true', 'GET');
     const lowItems = inventory || [];
     if (!lowItems.length) {
-      toast('暂无低库存 SKU', 'err');
+      toast('暂无低库存商品', 'err');
       return;
     }
     const deviceIds = [...new Set(lowItems.map(i => i.deviceId))];
@@ -488,7 +521,7 @@ async function planRouteFromLowStock() {
     lowItems.forEach(i => {
       notesByDevice[i.deviceId] = (notesByDevice[i.deviceId] || []).concat(`${i.skuId}×${i.quantity}`);
     });
-    if (!await showConfirm(`将为 ${deviceIds.length} 台设备创建补货路线，涉及 ${lowItems.length} 个低库存 SKU？`, { title: '创建补货路线' })) return;
+    if (!await showConfirm(`将为 ${deviceIds.length} 台设备创建补货路线，涉及 ${lowItems.length} 个低库存商品？`, { title: '创建补货路线' })) return;
     await api('/api/v2/ops/admin/replenishment/routes', 'POST', {
       routeName: `低库存补货-${today}`,
       plannedDate: today,
@@ -514,7 +547,7 @@ function showInventoryForm(item) {
         <h3>${isEdit ? '编辑库存' : '录入库存'}</h3>
         <label>设备 ID</label>
         <input id="invDevice" value="${isEdit ? escAttr(item.deviceId) : 'CAB-001'}" ${isEdit ? 'disabled' : ''}>
-        <label>SKU ID</label>
+        <label>商品编号</label>
         <input id="invSku" value="${isEdit ? escAttr(item.skuId) : 'SKU-DEMO-001'}" ${isEdit ? 'disabled' : ''}>
         <div class="filters">
           <div><label>当前数量</label><input id="invQty" type="number" min="0" value="${isEdit ? item.quantity : 0}"></div>
@@ -559,11 +592,11 @@ function showSkuStocktakeForm(item) {
   openOpsModal(`
     <div class="modal-backdrop" onclick="closeModal(event)">
       <div class="modal" onclick="event.stopPropagation()">
-        <h3>SKU 盘点调整</h3>
-        <p class="meta">按 SKU 汇总账面与实盘差异，写入批次流水（FEFO 缩账或补录）。</p>
+        <h3>商品盘点调整</h3>
+        <p class="meta">按商品汇总账面与实盘差异，并写入批次流水（优先扣减临期批次）。</p>
         <label>设备 ID</label>
         <input id="stkDevice" value="${isEdit ? escAttr(item.deviceId) : 'CAB-001'}">
-        <label>SKU ID</label>
+        <label>商品编号</label>
         <input id="stkSku" value="${isEdit ? escAttr(item.skuId) : 'SKU-DEMO-001'}">
         <label>实盘数量</label>
         <input id="stkQty" type="number" min="0" value="${isEdit ? item.quantity : 0}">
@@ -606,9 +639,9 @@ function showWriteOffForm(prefill) {
         <h3>库存报损</h3>
         <label>设备 ID</label>
         <input id="woDevice" value="${escAttr(p.deviceId || 'CAB-001')}">
-        <label>SKU ID</label>
+        <label>商品编号</label>
         <input id="woSku" value="${escAttr(p.skuId || 'SKU-DEMO-001')}">
-        <label>批次号（可选，空则 FEFO）</label>
+        <label>批次号（可选，留空则按先到期先出规则）</label>
         <input id="woBatch" value="${escAttr(p.batchNo || '')}">
         <label>数量</label>
         <input id="woQty" type="number" min="1" value="${p.quantity || 1}">
@@ -915,17 +948,24 @@ async function loadRbacPage() {
     };
     window._rbacRoles = roles || [];
     const roleNames = (me?.roleNames || []).join('、') || '未分配';
+    const displayName = me?.name || me?.phoneNumber || '运营账号';
+    const initial = displayName.trim().charAt(0).toUpperCase();
     el.innerHTML = `
       <div class="card rbac-profile">
         <div class="rbac-profile-main">
-          <strong>${esc(me?.name || me?.phoneNumber || '运营账号')}</strong>
-          <span class="sub">${esc(me?.phoneNumber || '')}</span>
+          <span class="rbac-profile-avatar" aria-hidden="true">${esc(initial)}</span>
+          <div class="rbac-profile-text">
+            <strong>${esc(displayName)}</strong>
+            <span class="sub">${esc(me?.phoneNumber || '')}</span>
+          </div>
         </div>
         <div class="rbac-profile-meta">
           <span>角色：${esc(roleNames)}</span>
           <span>权限项：${esc(me?.permissionCount ?? 0)}</span>
         </div>
-        <div class="filters">${refreshButton('loadRbacPage()')}</div>
+        <div class="list-filter-actions" style="margin-left:auto;padding-bottom:0">
+          ${refreshButton('loadRbacPage()')}
+        </div>
       </div>
       <div class="tabs rbac-tabs">
         <button type="button" class="tab ${window._rbacState.tab === 'roles' ? 'active' : ''}" onclick="switchRbacTab('roles')">角色权限</button>
@@ -960,7 +1000,7 @@ async function renderRbacPanel() {
       <div class="rbac-split">
         <div class="card rbac-pane">
           <h3 class="pane-title">角色列表 ${selBar('rbacRoles')}</h3>
-          ${selWrap('rbacRoles', `<table class="table rbac-role-table">
+          ${selWrap('rbacRoles', `<table class="data-table rbac-role-table">
             <thead><tr>
               ${selHeaderCell('rbacRoles')}
               <th>角色</th><th>标识</th><th>权限</th>
@@ -985,14 +1025,15 @@ async function renderRbacPanel() {
   } else if (tab === 'users') {
     panel.innerHTML = `
       <div class="rbac-split">
-        <div class="card rbac-pane">
+        <div class="card rbac-pane list-page-card">
           <h3 class="pane-title">运营账号</h3>
-          <div class="filters">
-            <div><label>手机号</label>
-              <input id="rbacOpPhone" placeholder="搜索手机号" value="${escAttr(window._rbacState.operatorFilters.phone)}" oninput="debouncedSearchRbacOperators()"></div>
-            <button class="btn-primary btn-sm" onclick="searchRbacOperators()">搜索</button>
-            ${selBar('rbacOperators')}
-          </div>
+          ${listFilterBar({
+            onSearch: 'searchRbacOperators()',
+            onReset: 'resetRbacOperatorFilters()',
+            refreshFn: 'fetchRbacOperators()',
+            extraHtml: selBar('rbacOperators'),
+            fieldsHtml: filterField('手机号', `<input id="rbacOpPhone" placeholder="支持模糊搜索" value="${escAttr(window._rbacState.operatorFilters.phone)}">`)
+          })}
           <div id="rbacOperatorList"></div>
         </div>
         <div class="card rbac-pane" id="rbacUserRolePane">
@@ -1121,6 +1162,13 @@ async function saveRolePermissions(ev) {
   });
 }
 
+function resetRbacOperatorFilters() {
+  if (!window._rbacState) return;
+  window._rbacState.operatorFilters.phone = '';
+  window._rbacState.operatorFilters.page = 0;
+  renderRbacPanel();
+}
+
 function searchRbacOperators() {
   window._rbacState.operatorFilters.phone = (document.getElementById('rbacOpPhone')?.value || '').trim();
   window._rbacState.operatorFilters.page = 0;
@@ -1141,7 +1189,7 @@ async function fetchRbacOperators() {
       return;
     }
     list.innerHTML = selWrap('rbacOperators', `
-      <table class="table">
+      <table class="data-table">
         <thead><tr>
           ${selHeaderCell('rbacOperators')}
           <th>手机号</th><th>姓名</th><th>当前角色</th>
@@ -1274,7 +1322,7 @@ function renderAuditTableHtml(items, scope = 'audit') {
     return emptyStateHtml('暂无操作记录', '运营后台的敏感操作会记录在此');
   }
   return selWrap(scope, `
-    <table class="table">
+    <table class="data-table">
       <thead><tr>
         ${selHeaderCell(scope)}
         <th>时间</th><th>操作人</th><th>动作</th><th>对象</th><th>详情</th>
@@ -1305,6 +1353,7 @@ function pct(v) {
 
 const uploadQueueFilters = { page: 0, size: 20, deviceId: '' };
 const replenishmentFilters = { lowStockOnly: false };
+const reconFilters = { from: '', to: '', channel: 'WECHAT' };
 const UPLOAD_OVERDUE_HOURS = 2;
 
 function waitAgeLabel(sinceIso) {
@@ -1347,7 +1396,7 @@ async function loadVisionMappingsPage() {
       <td><code>${esc(m.className)}</code></td>
       <td>${skuLabel(m.skuId)}</td>
       <td>${esc(m.minConfidence)}</td>
-      <td onclick="event.stopPropagation()">${hasPerm('ops:vision:edit') ? `<button class="btn-danger btn-sm" onclick="deleteYoloMapping('${escAttr(m.className)}')">删除</button>` : '-'}</td>
+      <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions">${hasPerm('ops:vision:edit') ? `<button type="button" class="btn-danger btn-sm" onclick="deleteYoloMapping('${escAttr(m.className)}')">删除</button>` : '<span class="meta">-</span>'}</div></td>
     </tr>`).join('');
     const aliyunRows = (mappings.aliyun || []).map(m => `
       ${selRowOpen('visionAliyun', m.categoryId)}
@@ -1356,40 +1405,42 @@ async function loadVisionMappingsPage() {
       <td>${esc(m.categoryName || '-')}</td>
       <td>${skuLabel(m.skuId)}</td>
       <td>${esc(m.minConfidence)}</td>
-      <td onclick="event.stopPropagation()">${hasPerm('ops:vision:edit') ? `<button class="btn-danger btn-sm" onclick="deleteAliyunMapping('${escAttr(m.categoryId)}')">删除</button>` : '-'}</td>
+      <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions">${hasPerm('ops:vision:edit') ? `<button type="button" class="btn-danger btn-sm" onclick="deleteAliyunMapping('${escAttr(m.categoryId)}')">删除</button>` : '<span class="meta">-</span>'}</div></td>
     </tr>`).join('');
     el.innerHTML = `
-      <div class="card"><div class="filters">${refreshButton('loadVisionMappingsPage()')}</div></div>
-      <div class="card">
-        <h3 style="margin-top:0">YOLO 类名 → SKU（本地联调） ${selBar('visionYolo')}</h3>
-        ${hasPerm('ops:vision:edit') ? `
-        <div class="filters">
-          <div><label>类名</label><input id="ymClass" placeholder="bottle"></div>
-          <div><label>SKU</label><select id="ymSku">${skuOpts}</select></div>
-          <div><label>最低置信度</label><input id="ymConf" type="number" step="0.01" min="0" max="1" value="0.5"></div>
-          <div><button type="button" class="btn-primary btn-sm" onclick="saveYoloMapping(event)">保存</button></div>
-        </div>` : ''}
-        ${yoloRows ? selWrap('visionYolo', `<table class="table"><thead><tr>
-          ${selHeaderCell('visionYolo')}
-          <th>类名</th><th>SKU</th><th>置信度</th><th>操作</th>
-        </tr></thead><tbody>${yoloRows}</tbody></table>`)
-          : emptyStateHtml('暂无 YOLO 映射', '添加 COCO 类名与商品 SKU 的对应关系', 'loadVisionMappingsPage()')}
+      <div class="card list-page-card">
+        ${listFilterBar({ refreshFn: 'loadVisionMappingsPage()', fieldsHtml: '' })}
       </div>
-      <div class="card">
-        <h3 style="margin-top:0">阿里云类目 → SKU（生产） ${selBar('visionAliyun')}</h3>
-        ${hasPerm('ops:vision:edit') ? `
-        <div class="filters">
-          <div><label>类目 ID</label><input id="amCatId" placeholder="201234567"></div>
-          <div><label>类目名称</label><input id="amCatName" placeholder="碳酸饮料"></div>
-          <div><label>SKU</label><select id="amSku">${skuOpts}</select></div>
-          <div><label>最低置信度</label><input id="amConf" type="number" step="0.01" min="0" max="1" value="0.7"></div>
-          <div><button type="button" class="btn-primary btn-sm" onclick="saveAliyunMapping(event)">保存</button></div>
-        </div>` : ''}
-        ${aliyunRows ? selWrap('visionAliyun', `<table class="table"><thead><tr>
+      <div class="card list-page-card">
+        <h3 style="margin-top:0">视觉识别类名 → 商品 ${selBar('visionYolo')}</h3>
+        ${hasPerm('ops:vision:edit') ? listFilterBar({
+          fieldsHtml: `
+            ${filterField('类名', `<input id="ymClass" placeholder="bottle">`)}
+            ${filterField('商品', `<select id="ymSku">${skuOpts}</select>`)}
+            ${filterField('最低置信度', `<input id="ymConf" type="number" step="0.01" min="0" max="1" value="0.5">`)}`,
+          extraHtml: '<button type="button" class="btn-primary btn-sm" onclick="saveYoloMapping(event)">保存</button>'
+        }) : ''}
+        ${yoloRows ? selWrap('visionYolo', `<table class="data-table"><thead><tr>
+          ${selHeaderCell('visionYolo')}
+          <th>识别类名</th><th>商品</th><th>置信度</th><th class="col-actions">操作</th>
+        </tr></thead><tbody>${yoloRows}</tbody></table>`)
+          : emptyStateHtml('暂无识别映射', '添加视觉识别类名与商品的对应关系', 'loadVisionMappingsPage()')}
+      </div>
+      <div class="card list-page-card">
+        <h3 style="margin-top:0">云端类目 → 商品 ${selBar('visionAliyun')}</h3>
+        ${hasPerm('ops:vision:edit') ? listFilterBar({
+          fieldsHtml: `
+            ${filterField('类目编号', `<input id="amCatId" placeholder="201234567">`)}
+            ${filterField('类目名称', `<input id="amCatName" placeholder="碳酸饮料">`)}
+            ${filterField('商品', `<select id="amSku">${skuOpts}</select>`)}
+            ${filterField('最低置信度', `<input id="amConf" type="number" step="0.01" min="0" max="1" value="0.7">`)}`,
+          extraHtml: '<button type="button" class="btn-primary btn-sm" onclick="saveAliyunMapping(event)">保存</button>'
+        }) : ''}
+        ${aliyunRows ? selWrap('visionAliyun', `<table class="data-table"><thead><tr>
           ${selHeaderCell('visionAliyun')}
-          <th>类目ID</th><th>名称</th><th>SKU</th><th>置信度</th><th>操作</th>
+          <th>类目编号</th><th>名称</th><th>商品</th><th>置信度</th><th class="col-actions">操作</th>
         </tr></thead><tbody>${aliyunRows}</tbody></table>`)
-          : emptyStateHtml('暂无阿里云映射', '对接商品理解 API 后在此维护类目与 SKU', 'loadVisionMappingsPage()')}
+          : emptyStateHtml('暂无云端映射', '对接商品识别服务后，在此维护类目与商品的对应关系', 'loadVisionMappingsPage()')}
       </div>`;
     selSync('visionYolo');
     selSync('visionAliyun');
@@ -1420,7 +1471,7 @@ async function saveYoloMapping(ev) {
 }
 
 async function deleteYoloMapping(className) {
-  if (!await showConfirm(`删除 YOLO 映射 ${className}？`, { title: '删除映射', danger: true })) return;
+  if (!await showConfirm(`删除识别映射 ${className}？`, { title: '删除映射', danger: true })) return;
   try {
     await api('/api/v2/ops/admin/vision-mappings/yolo/' + encodeURIComponent(className), 'DELETE');
     toast('已删除', 'ok');
@@ -1467,17 +1518,24 @@ async function loadUploadQueuePage() {
   const page = 'upload-queue';
   selClear('uploadQueue');
   el.innerHTML = `
-    <div class="card">
-      <div class="filters">
-        <div><label>设备ID</label><input id="uqDevice" value="${escAttr(uploadQueueFilters.deviceId)}" placeholder="可选"></div>
-        <div><button class="btn-primary" onclick="searchUploadQueue()">查询</button></div>
-        <div>${refreshButton('fetchUploadQueue()')}</div>
-        ${selBar('uploadQueue')}
-      </div>
+    <div class="card list-page-card">
+      ${listFilterBar({
+        onSearch: 'searchUploadQueue()',
+        onReset: 'resetUploadQueueFilters()',
+        refreshFn: 'fetchUploadQueue()',
+        extraHtml: selBar('uploadQueue'),
+        fieldsHtml: filterField('设备编号', `<input id="uqDevice" value="${escAttr(uploadQueueFilters.deviceId)}" placeholder="留空=全部">`)
+      })}
       <div id="uploadQueueTable"></div>
     </div>`;
   showTableLoading(document.getElementById('uploadQueueTable'), 8, 6);
   fetchUploadQueue();
+}
+
+function resetUploadQueueFilters() {
+  uploadQueueFilters.deviceId = '';
+  uploadQueueFilters.page = 0;
+  loadUploadQueuePage();
 }
 
 function searchUploadQueue() {
@@ -1509,10 +1567,10 @@ async function fetchUploadQueue() {
       <div class="stat"><div class="label">合计</div><div class="value">${data.total}</div></div>
     </div>`;
     table.innerHTML = summaryHtml + selWrap('uploadQueue', `
-      <table>
+      <table class="data-table">
         <thead><tr>
           ${selHeaderCell('uploadQueue')}
-          <th>会话ID</th><th>用户</th><th>设备</th><th>上传状态</th><th>等待时长</th><th>融合模式</th><th>视频</th><th>关门时间</th><th>更新时间</th>
+          <th>记录编号</th><th>用户</th><th>设备</th><th>上传状态</th><th>等待时长</th><th>融合模式</th><th>视频</th><th>关门时间</th><th>更新时间</th>
         </tr></thead>
         <tbody>${data.items.map(s => {
           const since = s.closeTime || s.updatedAt;
@@ -1526,9 +1584,9 @@ async function fetchUploadQueue() {
           <td>${esc(uploadStatusLabel(s.uploadStatus))}</td>
           <td>${esc(waitAgeLabel(since))}</td>
           <td>${esc(fusionModeLabel(s.cameraFusionMode))}</td>
-          <td onclick="event.stopPropagation()">${s.videoUri || s.videoPreviewUrl
+          <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions">${s.videoUri || s.videoPreviewUrl
             ? `<button type="button" class="btn-ghost btn-sm" onclick="showSessionVideo('${escAttr(s.sessionId)}', '${escAttr(s.videoUri || '')}')">${mediaActionLabel(s.videoUri)}</button>`
-            : esc(s.videoUri || '-')}</td>
+            : '<span class="meta">-</span>'}</div></td>
           <td>${fmtTime(s.closeTime)}</td>
           <td>${fmtTime(s.updatedAt)}</td>
         </tr>`;
@@ -1575,20 +1633,27 @@ async function loadMerchantsPage() {
   }
   el.innerHTML = `
     ${psBanner}
-    <div class="card">
-      <div class="filters">
-        <button class="btn-primary btn-sm" data-perm="ops:merchant:edit" onclick="showMerchantForm()">新增商户</button>
-        ${selBar('merchants')}
-        ${refreshButton('loadMerchantsPage()')}
+    <div class="card list-page-card">
+      <div class="list-filter-bar">
+        <div class="list-filter-fields"></div>
+        <div class="list-filter-actions">
+          <button type="button" class="btn-primary btn-sm" data-perm="ops:merchant:edit" onclick="showMerchantForm()">新增商户</button>
+          ${refreshButton('loadMerchantsPage()')}
+          ${selBar('merchants')}
+        </div>
       </div>
       <div id="merchantTable" class="sub">加载中…</div>
     </div>
-    <div class="card">
+    <div class="card list-page-card">
       <h3 style="margin-top:0">分账明细</h3>
-      <div class="filters">
-        <div><label>商户ID</label><input id="msMerchant" value="${escAttr(merchantSplitFilters.merchantId)}" placeholder="可选"></div>
-        <div><label>状态</label>
-          <select id="msStatus">
+      ${listFilterBar({
+        onSearch: 'searchMerchantSplits()',
+        onReset: 'resetMerchantSplitFilters()',
+        refreshFn: 'fetchMerchantSplits()',
+        extraHtml: `${selBar('merchantSplits')}<button type="button" class="btn-ghost btn-sm" onclick="exportMerchantSplits()">导出 CSV</button>${hasPerm('ops:merchant:split') ? `<button type="button" class="btn-ok btn-sm" id="batchSplitBtn" onclick="batchSubmitProfitSharing()" disabled>批量提交微信分账</button>` : ''}`,
+        fieldsHtml: `
+          ${filterField('商户编号', `<input id="msMerchant" value="${escAttr(merchantSplitFilters.merchantId)}" placeholder="留空=全部">`)}
+          ${filterField('状态', `<select id="msStatus">
             <option value="">全部</option>
             <option value="PENDING" ${merchantSplitFilters.status === 'PENDING' ? 'selected' : ''}>待处理</option>
             <option value="ACCRUED" ${merchantSplitFilters.status === 'ACCRUED' ? 'selected' : ''}>待分账</option>
@@ -1598,14 +1663,8 @@ async function loadMerchantsPage() {
             <option value="SUBMITTED" ${merchantSplitFilters.status === 'SUBMITTED' ? 'selected' : ''}>已提交(旧)</option>
             <option value="SUCCESS" ${merchantSplitFilters.status === 'SUCCESS' ? 'selected' : ''}>成功</option>
             <option value="FAILED" ${merchantSplitFilters.status === 'FAILED' ? 'selected' : ''}>失败(旧)</option>
-          </select>
-        </div>
-        <div><button class="btn-primary btn-sm" onclick="searchMerchantSplits()">查询</button></div>
-        <div>${refreshButton('fetchMerchantSplits()')}</div>
-        ${selBar('merchantSplits')}
-        <div><button class="btn-ghost btn-sm" onclick="exportMerchantSplits()">导出 CSV</button></div>
-        ${hasPerm('ops:merchant:split') ? `<div><button class="btn-ok btn-sm" id="batchSplitBtn" onclick="batchSubmitProfitSharing()" disabled>批量提交微信分账</button></div>` : ''}
-      </div>
+          </select>`)}`
+      })}
       <div id="merchantSplitTable"></div>
     </div>`;
   applyNavPermissions();
@@ -1622,9 +1681,9 @@ async function fetchMerchantsTable() {
       table.innerHTML = emptyStateHtml('暂无商户', '点击「新增商户」创建加盟商/直营主体', 'loadMerchantsPage()');
       return;
     }
-    table.innerHTML = selWrap('merchants', `<table class="table"><thead><tr>
+    table.innerHTML = selWrap('merchants', `<table class="data-table"><thead><tr>
       ${selHeaderCell('merchants')}
-      <th>商户ID</th><th>名称</th><th>平台抽成</th><th>设备数</th><th>状态</th><th>操作</th>
+      <th>商户编号</th><th>名称</th><th>平台抽成</th><th>设备数</th><th>状态</th><th class="col-actions">操作</th>
     </tr></thead><tbody>${list.map(m => `
       ${selRowOpen('merchants', m.merchantId)}
       ${selCheckCell('merchants', m.merchantId)}
@@ -1633,7 +1692,7 @@ async function fetchMerchantsTable() {
       <td>${(m.platformRateBps / 100).toFixed(1)}%</td>
       <td>${esc(m.deviceCount)}</td>
       <td>${esc(merchantStatusLabel(m.status))}</td>
-      <td onclick="event.stopPropagation()">${hasPerm('ops:merchant:edit') ? `<button class="btn-ghost btn-sm" onclick='showMerchantForm(${JSON.stringify(m)})'>编辑</button>` : '-'}</td>
+      <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions">${hasPerm('ops:merchant:edit') ? `<button type="button" class="btn-ghost btn-sm" onclick='showMerchantForm(${JSON.stringify(m)})'>编辑</button>` : '<span class="meta">-</span>'}</div></td>
     </tr>`).join('')}</tbody></table>`);
     selSync('merchants');
   } catch (e) {
@@ -1693,6 +1752,14 @@ async function saveMerchant(ev, isEdit) {
   });
 }
 
+function resetMerchantSplitFilters() {
+  merchantSplitFilters.merchantId = '';
+  merchantSplitFilters.status = 'PENDING';
+  merchantSplitFilters.page = 0;
+  selClear('merchantSplits');
+  loadMerchantsPage();
+}
+
 function searchMerchantSplits() {
   merchantSplitFilters.merchantId = document.getElementById('msMerchant').value.trim();
   merchantSplitFilters.status = document.getElementById('msStatus').value;
@@ -1728,12 +1795,16 @@ async function fetchMerchantSplits() {
       updateBatchSplitButton();
       return;
     }
-    table.innerHTML = selWrap('merchantSplits', `<table><thead><tr>
+    table.innerHTML = selWrap('merchantSplits', `<table class="data-table"><thead><tr>
       ${selHeaderCell('merchantSplits')}
-      <th>分账ID</th><th>订单</th><th>商户</th><th>设备</th><th>总额</th><th>平台</th><th>商户收入</th><th>状态</th><th>时间</th><th>操作</th>
+      <th>分账编号</th><th>订单</th><th>商户</th><th>设备</th><th>总额</th><th>平台</th><th>商户收入</th><th>状态</th><th>时间</th><th class="col-actions">操作</th>
     </tr></thead><tbody>${data.items.map(s => {
       const submittable = canSubmitProfitSharing(s);
       const refreshable = canRefreshProfitSharing(s);
+      const actions = [
+        submittable ? `<button type="button" class="btn-ghost btn-sm" onclick="showWeChatSubmitForm('${escAttr(s.splitId)}', '${escAttr(s.wechatTransactionId || '')}')">提交</button>` : '',
+        refreshable ? `<button type="button" class="btn-ghost btn-sm" onclick="refreshWeChatProfitSharing('${escAttr(s.splitId)}')">刷新</button>` : ''
+      ].filter(Boolean);
       return `
       ${selRowOpen('merchantSplits', s.splitId)}
       ${selCheckCell('merchantSplits', s.splitId)}
@@ -1746,10 +1817,7 @@ async function fetchMerchantSplits() {
       <td>${fmtMoney(s.merchantCents)}</td>
       <td>${splitStatusBadge(s.status)}${s.failureReason ? ` <span class="meta" title="${escAttr(s.failureReason)}">!</span>` : ''}</td>
       <td>${fmtTime(s.createdAt)}</td>
-      <td onclick="event.stopPropagation()">${[
-        submittable ? `<button type="button" class="btn-ghost btn-sm" onclick="showWeChatSubmitForm('${escAttr(s.splitId)}', '${escAttr(s.wechatTransactionId || '')}')">提交</button>` : '',
-        refreshable ? `<button type="button" class="btn-ghost btn-sm" onclick="refreshWeChatProfitSharing('${escAttr(s.splitId)}')">刷新</button>` : ''
-      ].filter(Boolean).join(' ') || '-'}</td>
+      <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions">${actions.length ? actions.join('') : '<span class="meta">-</span>'}</div></td>
     </tr>`;
     }).join('')}</tbody></table>`)
     + renderMerchantSplitPagination(data);
@@ -1889,7 +1957,7 @@ async function loadWarehousePage() {
     const invRows = (inventory || []).map(i => `<tr>
       <td><code>${esc(i.batchNo)}</code></td>
       <td>${esc(skuLabel(i.skuId))}</td>
-      <td>${esc(i.quantity)}</td>
+      <td class="col-num">${esc(i.quantity)}</td>
       <td>${esc(i.expiryDate || '-')}</td>
     </tr>`).join('');
     const outRows = (outbounds || []).slice(0, 10).map(o => {
@@ -1898,9 +1966,9 @@ async function loadWarehousePage() {
       return `<tr>
         <td>#${o.outboundId}</td><td>${esc(o.status)}</td><td>${o.routeId || '-'}</td>
         <td>${lineSummary || '-'}</td>
-        <td onclick="event.stopPropagation()">${hasPerm('ops:replenishment:edit') && o.status !== 'SHIPPED'
-          ? `<button class="btn-ghost btn-sm" onclick="pickWarehouseOutbound(${o.outboundId})">拣货</button>
-             <button class="btn-ok btn-sm" onclick="shipWarehouseOutbound(${o.outboundId})">出库</button>` : '-'}</td>
+        <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions">${hasPerm('ops:replenishment:edit') && o.status !== 'SHIPPED'
+          ? `<button type="button" class="btn-ghost btn-sm" onclick="pickWarehouseOutbound(${o.outboundId})">拣货</button>
+             <button type="button" class="btn-ok btn-sm" onclick="shipWarehouseOutbound(${o.outboundId})">出库</button>` : '<span class="meta">-</span>'}</div></td>
       </tr>`;
     }).join('');
     const now = Date.now();
@@ -1911,33 +1979,39 @@ async function loadWarehousePage() {
         <td><code>${esc(t.deviceId)}</code></td>
         <td>${esc(skuLabel(t.skuId))}</td>
         <td><code>${esc(t.batchNo)}</code></td>
-        <td>${t.quantity}</td>
+        <td class="col-num">${t.quantity}</td>
         <td>#${t.outboundId}</td>
         <td>${fmtTime(t.createdAt)}${overdue ? ' <span class="warn-text">超24h</span>' : ''}</td>
       </tr>`;
     }).join('');
     el.innerHTML = `
-      <div class="filters">
-        ${permButton('replenish.edit', '仓库入库', 'showWarehouseInboundForm()', 'btn-primary btn-sm')}
-        ${refreshButton('loadWarehousePage()')}
+      <div class="card list-page-card">
+        ${listFilterBar({
+          refreshFn: 'loadWarehousePage()',
+          extraHtml: permButton('replenish.edit', '仓库入库', 'showWarehouseInboundForm()', 'btn-primary btn-sm'),
+          fieldsHtml: `<p class="meta" style="margin:0;padding-bottom:2px">${wh ? ('当前仓库：' + esc(wh.warehouseName) + ' (' + esc(wh.warehouseId) + ')') : '暂无仓库'}</p>`
+        })}
       </div>
-      <p class="meta">${wh ? `当前仓库：${esc(wh.warehouseName)} (${esc(wh.warehouseId)})` : '暂无仓库'}</p>
-      <h3>仓库批次库存</h3>
-      ${(inventory || []).length
-        ? `<table class="table"><thead><tr><th>批次</th><th>商品</th><th>数量</th><th>到期</th></tr></thead><tbody>${invRows}</tbody></table>`
-        : emptyStateHtml('仓库无库存', '点击「仓库入库」添加批次', 'loadWarehousePage()')}
-      <h3>出库单（FEFO 拣货）</h3>
-      ${(outbounds || []).length
-        ? `<table class="table"><thead><tr><th>ID</th><th>状态</th><th>路线</th><th>明细</th><th>操作</th></tr></thead><tbody>${outRows}</tbody></table>`
-        : '<p class="meta">规划补货路线后自动生成出库单</p>'}
-      <h3 style="margin-top:24px">在途库存（发往柜机，未签收）</h3>
-      <div class="filters">
-        <div><label>柜机筛选</label><input id="transitDeviceFilter" value="${escAttr(transitDevice)}" placeholder="留空=全部"></div>
-        <button type="button" class="btn-ghost btn-sm" onclick="filterInTransit()">查询</button>
-      </div>
-      ${(inTransit || []).length
-        ? `<table class="table"><thead><tr><th>柜机</th><th>SKU</th><th>批次</th><th>数量</th><th>出库单</th><th>发运时间</th></tr></thead><tbody>${transitRows}</tbody></table>`
-        : emptyStateHtml('无在途库存', '出库发运后、补货签收前会显示在此', 'loadWarehousePage()')}`;
+      ${tableSection('仓库批次库存',
+        (inventory || []).length
+          ? `<table class="data-table"><thead><tr><th>批次</th><th>商品</th><th class="col-num">数量</th><th>到期</th></tr></thead><tbody>${invRows}</tbody></table>`
+          : '',
+        emptyStateHtml('仓库无库存', '点击「仓库入库」添加批次'))}
+      ${tableSection('出库单（先到期先出拣货）',
+        (outbounds || []).length
+          ? `<table class="data-table"><thead><tr><th>编号</th><th>状态</th><th>路线</th><th>明细</th><th class="col-actions">操作</th></tr></thead><tbody>${outRows}</tbody></table>`
+          : '',
+        '<p class="meta" style="padding:0 4px">规划补货路线后自动生成出库单</p>')}
+      ${tableSection('在途库存（发往柜机，未签收）',
+        (inTransit || []).length
+          ? `<table class="data-table"><thead><tr><th>柜机</th><th>商品</th><th>批次</th><th class="col-num">数量</th><th>出库单</th><th>发运时间</th></tr></thead><tbody>${transitRows}</tbody></table>`
+          : '',
+        emptyStateHtml('无在途库存', '出库发运后、补货签收前会显示在此'),
+        listFilterBar({
+          onSearch: 'filterInTransit()',
+          onReset: 'resetInTransitFilter()',
+          fieldsHtml: filterField('柜机筛选', `<input id="transitDeviceFilter" value="${escAttr(transitDevice)}" placeholder="留空=全部">`)
+        }))}`;
     applyNavPermissions();
   } catch (e) {
     if (!isCurrentPage(page)) return;
@@ -1947,6 +2021,11 @@ async function loadWarehousePage() {
 
 function filterInTransit() {
   window._transitDeviceFilter = document.getElementById('transitDeviceFilter')?.value?.trim() || '';
+  loadWarehousePage();
+}
+
+function resetInTransitFilter() {
+  window._transitDeviceFilter = '';
   loadWarehousePage();
 }
 
@@ -2051,6 +2130,7 @@ Object.assign(window, {
   showOtaPublishForm,
   publishOta,
   fetchReconciliationList,
+  resetReconciliationFilters,
   runReconToday,
   showReconDetail,
   showReplenishmentPlanForm,
@@ -2061,6 +2141,7 @@ Object.assign(window, {
   selectRbacRole,
   saveRolePermissions,
   searchRbacOperators,
+  resetRbacOperatorFilters,
   debouncedSearchRbacOperators,
   selectRbacUser,
   saveUserRoles,
@@ -2078,18 +2159,22 @@ Object.assign(window, {
   deleteAliyunMapping,
   loadUploadQueuePage,
   searchUploadQueue,
+  resetUploadQueueFilters,
   fetchUploadQueue,
   loadMerchantsPage,
   showMerchantForm,
   saveMerchant,
   searchMerchantSplits,
+  resetMerchantSplitFilters,
   fetchMerchantSplits,
   exportMerchantSplits,
   showWeChatSubmitForm,
   submitWeChatProfitSharing,
   batchSubmitProfitSharing,
   toggleReplenishmentLowStock,
-  planRouteFromLowStock
+  planRouteFromLowStock,
+  filterInTransit,
+  resetInTransitFilter
 });
 
 document.addEventListener('selchange', (e) => {

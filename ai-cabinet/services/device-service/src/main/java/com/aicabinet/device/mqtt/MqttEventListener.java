@@ -6,6 +6,7 @@ import com.aicabinet.common.mqtt.MqttTopics;
 import com.aicabinet.device.client.TradeServiceClient;
 import com.aicabinet.device.config.MqttProperties;
 import com.aicabinet.device.metrics.DeviceMqttMetrics;
+import com.aicabinet.device.service.DeviceCommandTracker;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.eclipse.paho.client.mqttv3.*;
@@ -33,6 +34,7 @@ public class MqttEventListener implements MqttCallbackExtended {
     private final MqttConnectionRegistry connectionRegistry;
     private final DeviceMqttMetrics metrics;
     private final DoorEventDeduplicator deduplicator;
+    private final DeviceCommandTracker commandTracker;
     private final String clientId;
 
     private MqttClient client;
@@ -44,7 +46,8 @@ public class MqttEventListener implements MqttCallbackExtended {
             MqttConnectOptionsFactory connectOptionsFactory,
             MqttConnectionRegistry connectionRegistry,
             DeviceMqttMetrics metrics,
-            DoorEventDeduplicator deduplicator) {
+            DoorEventDeduplicator deduplicator,
+            DeviceCommandTracker commandTracker) {
         this.objectMapper = objectMapper;
         this.tradeServiceClient = tradeServiceClient;
         this.mqttProperties = mqttProperties;
@@ -52,6 +55,7 @@ public class MqttEventListener implements MqttCallbackExtended {
         this.connectionRegistry = connectionRegistry;
         this.metrics = metrics;
         this.deduplicator = deduplicator;
+        this.commandTracker = commandTracker;
         this.clientId = mqttProperties.clientId() + "-evt-" + UUID.randomUUID().toString().substring(0, 8);
     }
 
@@ -113,8 +117,12 @@ public class MqttEventListener implements MqttCallbackExtended {
 
     private void handleAck(JsonNode node) {
         metrics.recordAck();
+        String commandId = node.path("commandId").asText("");
+        if (!commandId.isBlank()) {
+            commandTracker.recordAck(commandId, node.path("success").asBoolean(false));
+        }
         log.debug("device ACK commandId={} success={}",
-                node.path("commandId").asText(""), node.path("success").asBoolean(false));
+                commandId, node.path("success").asBoolean(false));
     }
 
     private void handleHeartbeat(String topic, JsonNode node) {

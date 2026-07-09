@@ -36,9 +36,5 @@
       <button type="primary" bindtap="onSubmit" loading="{{loading}}" disabled="{{loading}}">提交认证</button>
     </view>
 
-    <view class="dev card" wx:if="{{isDev}}">
-      <text class="dev-title">开发环境提示</text>
-      <text class="dev-text">本地联调填写任意姓名与 4 位数字即可通过，无需真实证件。</text>
-    </view>
   </block>
 </view>

@@ -6,6 +6,7 @@ import com.aicabinet.trade.config.PayScoreProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.payment.AgreementChargeClient;
 import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.WeChatPayClient;
 import com.aicabinet.trade.repository.UserInfoRepository;
@@ -26,19 +27,22 @@ public class PayScoreService {
     private final UserInfoRepository userInfoRepository;
     private final WeChatPayClient weChatPayClient;
     private final AlipayPayClient alipayPayClient;
+    private final AgreementChargeClient agreementChargeClient;
 
     public PayScoreService(PayScoreProperties payScoreProperties,
                            SecurityProperties securityProperties,
                            WeChatPayProperties weChatPayProperties,
                            UserInfoRepository userInfoRepository,
                            WeChatPayClient weChatPayClient,
-                           AlipayPayClient alipayPayClient) {
+                           AlipayPayClient alipayPayClient,
+                           AgreementChargeClient agreementChargeClient) {
         this.payScoreProperties = payScoreProperties;
         this.securityProperties = securityProperties;
         this.weChatPayProperties = weChatPayProperties;
         this.userInfoRepository = userInfoRepository;
         this.weChatPayClient = weChatPayClient;
         this.alipayPayClient = alipayPayClient;
+        this.agreementChargeClient = agreementChargeClient;
     }
 
     public boolean isPasswordFreeReady(UserInfo user) {
@@ -104,7 +108,14 @@ public class PayScoreService {
 
     private ChargeResult chargeWeChatPayScore(UserInfo user, String orderId, int amountCents, String description) {
         if (weChatPayProperties.isConfigured() && payScoreProperties.enabled() && payScoreProperties.liveChargeEnabled()) {
-            String tradeNo = "PS-" + orderId;
+            String tradeNo = agreementChargeClient.charge(new AgreementChargeClient.ChargeRequest(
+                    PayChannels.WECHAT,
+                    user.getUserId(),
+                    orderId,
+                    user.getPayscoreContractId(),
+                    amountCents,
+                    description
+            )).tradeNo();
             log.info("payscore live charge user={} order={} amount={}", user.getUserId(), orderId, amountCents);
             return new ChargeResult(PayChannels.WECHAT, tradeNo);
         }
@@ -123,7 +134,14 @@ public class PayScoreService {
 
     private ChargeResult chargeAlipayAgreement(UserInfo user, String orderId, int amountCents, String description) {
         if (alipayPayClient.isConfigured() && payScoreProperties.liveChargeEnabled()) {
-            String tradeNo = "ALI-" + orderId;
+            String tradeNo = agreementChargeClient.charge(new AgreementChargeClient.ChargeRequest(
+                    PayChannels.ALIPAY,
+                    user.getUserId(),
+                    orderId,
+                    user.getAlipayAgreementId(),
+                    amountCents,
+                    description
+            )).tradeNo();
             log.info("alipay agreement live charge user={} order={} amount={}", user.getUserId(), orderId, amountCents);
             return new ChargeResult(PayChannels.ALIPAY, tradeNo);
         }

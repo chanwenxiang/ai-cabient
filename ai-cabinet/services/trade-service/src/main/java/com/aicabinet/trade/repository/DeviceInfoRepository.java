@@ -10,5 +10,9 @@ public interface DeviceInfoRepository extends JpaRepository<DeviceInfo, String> 
 
     long countByMerchantId(String merchantId);
 
+    long countByOnlineStatusNot(String onlineStatus);
+
+    List<DeviceInfo> findTop10ByOnlineStatusNotOrderByUpdatedAtAsc(String onlineStatus);
+
     List<DeviceInfo> findByMerchantIdIn(Collection<String> merchantIds);
 }

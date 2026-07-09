@@ -24,7 +24,8 @@ public class DeviceValidationService {
     );
 
     private static final List<SessionState> ACTIVE_SESSION_STATES = List.of(
-            SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING, SessionState.RECOGNIZING
+            SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING, SessionState.RECOGNIZING,
+            SessionState.WAITING_UPLOAD, SessionState.SETTLING
     );
 
     private final DeviceInfoRepository deviceInfoRepository;
@@ -48,14 +49,23 @@ public class DeviceValidationService {
         DeviceInfo device = requireDevice(deviceId);
         var active = sessionRepository.findByDeviceIdAndStateIn(deviceId, ACTIVE_SESSION_STATES);
         String activeSessionId = active.isEmpty() ? null : active.get(0).getSessionId();
+        String activeSessionState = active.isEmpty() ? null : active.get(0).getState().name();
+        boolean replenishment = hasInProgressReplenishmentTask(deviceId);
+        boolean available = active.isEmpty() && !replenishment;
+        String busyReason = "NONE";
+        if (!available) {
+            busyReason = !active.isEmpty() ? "SESSION" : "REPLENISHMENT";
+        }
         boolean online = "ONLINE".equalsIgnoreCase(device.getOnlineStatus());
         return new DeviceStatusDto(
                 device.getDeviceId(),
                 device.getDeviceName(),
                 device.getOnlineStatus(),
                 online,
-                active.isEmpty() && !hasInProgressReplenishmentTask(deviceId),
-                activeSessionId
+                available,
+                activeSessionId,
+                activeSessionState,
+                busyReason
         );
     }
 
@@ -65,6 +75,7 @@ public class DeviceValidationService {
     }
 
     public void ensureConsumerShoppingAllowed(String deviceId) {
+        ensureDeviceOnline(deviceId);
         ensureNoBlockingSession(deviceId);
         if (hasInProgressReplenishmentTask(deviceId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DEVICE_BUSY);
@@ -88,6 +99,7 @@ public class DeviceValidationService {
         if (task.getCheckInAt() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_CHECK_IN_REQUIRED);
         }
+        ensureDeviceOnline(deviceId);
         ensureNoBlockingSession(deviceId);
         var otherTasks = replenishmentTaskRepository.findByDeviceIdAndStatusIn(deviceId, List.of("IN_PROGRESS"));
         if (otherTasks.stream().anyMatch(t -> !t.getTaskId().equals(taskId))) {
@@ -111,6 +123,13 @@ public class DeviceValidationService {
         var active = sessionRepository.findByDeviceIdAndStateIn(deviceId, BLOCKING_SESSION_STATES);
         if (!active.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DEVICE_BUSY);
+        }
+    }
+
+    private void ensureDeviceOnline(String deviceId) {
+        DeviceInfo device = requireDevice(deviceId);
+        if (!"ONLINE".equalsIgnoreCase(device.getOnlineStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DEVICE_OFFLINE);
         }
     }
 

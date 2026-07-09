@@ -108,3 +108,8 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml \
 | `deploy-production.ps1` | 生产 env 校验 + 人工清单 |
 | `verify-full.ps1` | 本地 Maven + Docker 全量 |
 | `init-staging-env.ps1` | 初始化 staging env 文件 |
+### Production hard gates
+
+- [ ] If `PAYSCORE_LIVE_CHARGE_ENABLED=true`, configure a real `PAYSCORE_CHARGE_GATEWAY_URL` and `PAYSCORE_CHARGE_GATEWAY_API_KEY`.
+- [ ] `MQTT_CLIENT_ID` is unique per environment, and `MQTT_USERNAME` / `MQTT_PASSWORD` are non-empty with a password length of at least 16 characters.
+- [ ] Prometheus scrapes `device.command` metrics and shows published / ack_success / ack_failure / ack_timeout.

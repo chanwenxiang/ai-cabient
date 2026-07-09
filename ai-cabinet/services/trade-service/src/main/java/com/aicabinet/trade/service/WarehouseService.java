@@ -25,6 +25,7 @@ public class WarehouseService {
     private final WarehouseInboundLineRepository inboundLineRepository;
     private final WarehouseOutboundRepository outboundRepository;
     private final WarehouseOutboundLineRepository outboundLineRepository;
+    private final WarehouseMovementRepository movementRepository;
     private final DeviceSkuInventoryRepository deviceInventoryRepository;
     private final ReplenishmentTaskRepository taskRepository;
     private final SkuCatalogRepository skuCatalogRepository;
@@ -38,6 +39,7 @@ public class WarehouseService {
                             WarehouseInboundLineRepository inboundLineRepository,
                             WarehouseOutboundRepository outboundRepository,
                             WarehouseOutboundLineRepository outboundLineRepository,
+                            WarehouseMovementRepository movementRepository,
                             DeviceSkuInventoryRepository deviceInventoryRepository,
                             ReplenishmentTaskRepository taskRepository,
                             SkuCatalogRepository skuCatalogRepository,
@@ -50,6 +52,7 @@ public class WarehouseService {
         this.inboundLineRepository = inboundLineRepository;
         this.outboundRepository = outboundRepository;
         this.outboundLineRepository = outboundLineRepository;
+        this.movementRepository = movementRepository;
         this.deviceInventoryRepository = deviceInventoryRepository;
         this.taskRepository = taskRepository;
         this.skuCatalogRepository = skuCatalogRepository;
@@ -69,6 +72,14 @@ public class WarehouseService {
         return inventoryRepository.findByWarehouseIdOrderByExpiryDateAsc(wh).stream()
                 .filter(i -> i.getQuantity() > 0)
                 .map(this::toInventoryDto)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<WarehouseMovementDto> listMovements(String warehouseId) {
+        String wh = resolveWarehouseId(warehouseId);
+        return movementRepository.findTop100ByWarehouseIdOrderByCreatedAtDesc(wh).stream()
+                .map(this::toMovementDto)
                 .toList();
     }
 
@@ -97,8 +108,44 @@ public class WarehouseService {
             line.setQuantity(dto.quantity());
             inboundLineRepository.save(line);
             addWarehouseStock(wh, dto.skuId(), dto.batchNo(), dto.productionDate(), dto.expiryDate(), dto.quantity());
+            recordWarehouseMovement(wh, dto.skuId(), dto.batchNo(), "INBOUND_MANUAL",
+                    dto.quantity(), "WAREHOUSE_INBOUND", String.valueOf(inbound.getInboundId()), operatorId);
         }
         return request;
+    }
+
+    @Transactional
+    public void receivePurchaseStock(String warehouseId, String skuId, String batchNo,
+                                     LocalDate productionDate, LocalDate expiryDate,
+                                     int qty, int unitCostCents, Long operatorId,
+                                     String refType, String refId) {
+        if (qty <= 0) {
+            throw badRequest("quantity must be positive");
+        }
+        String wh = resolveWarehouseId(warehouseId);
+        warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
+        WarehouseInbound inbound = new WarehouseInbound();
+        inbound.setWarehouseId(wh);
+        inbound.setRefNo(refType + "-" + refId);
+        inbound.setNotes("purchase receive");
+        inbound.setOperatorId(operatorId);
+        if ("PURCHASE_ORDER".equals(refType)) {
+            inbound.setPurchaseOrderId(parseLongOrNull(refId));
+        }
+        inbound = inboundRepository.save(inbound);
+
+        WarehouseInboundLine line = new WarehouseInboundLine();
+        line.setInboundId(inbound.getInboundId());
+        line.setSkuId(skuId);
+        line.setBatchNo(batchNo);
+        line.setProductionDate(productionDate);
+        line.setExpiryDate(expiryDate);
+        line.setQuantity(qty);
+        line.setUnitCostCents(unitCostCents);
+        inboundLineRepository.save(line);
+
+        addWarehouseStock(wh, skuId, batchNo, productionDate, expiryDate, qty);
+        recordWarehouseMovement(wh, skuId, batchNo, "PURCHASE_RECEIVE", qty, refType, refId, operatorId);
     }
 
     @Transactional(readOnly = true)
@@ -250,9 +297,11 @@ public class WarehouseService {
         outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId)
                 .forEach(line -> {
                     line.setPicked(true);
+                    line.setHandoverStatus("READY");
                     outboundLineRepository.save(line);
                 });
         outbound.setStatus("PICKED");
+        outbound.setHandoverStatus("READY");
         outboundRepository.save(outbound);
         return getOutbound(outboundId);
     }
@@ -268,16 +317,49 @@ public class WarehouseService {
         if (lines.isEmpty()) {
             throw badRequest("outbound has no lines");
         }
+        if (lines.stream().anyMatch(line -> !line.isPicked())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "outbound must be picked before ship");
+        }
         for (WarehouseOutboundLine line : lines) {
             deductWarehouseStock(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(), line.getQuantity());
-            line.setPicked(true);
+            recordWarehouseMovement(outbound.getWarehouseId(), line.getSkuId(), line.getBatchNo(),
+                    "OUTBOUND_SHIP", -line.getQuantity(), "WAREHOUSE_OUTBOUND",
+                    String.valueOf(outboundId), operatorId);
+            line.setHandoverStatus("IN_TRANSIT");
             outboundLineRepository.save(line);
         }
         outbound.setStatus("SHIPPED");
         outbound.setShippedAt(Instant.now());
+        outbound.setHandoverStatus("IN_TRANSIT");
+        outbound.setHandoverOperatorId(operatorId);
+        outbound.setHandedOverAt(Instant.now());
         outboundRepository.save(outbound);
         inTransitService.recordFromOutbound(outboundId, lines);
         return getOutbound(outboundId);
+    }
+
+    @Transactional
+    public void markDeviceHandoverReceived(Long outboundId, String deviceId) {
+        if (outboundId == null || deviceId == null || deviceId.isBlank()) {
+            return;
+        }
+        List<WarehouseOutboundLine> deviceLines =
+                outboundLineRepository.findByOutboundIdAndDeviceIdOrderByLineIdAsc(outboundId, deviceId.trim());
+        if (deviceLines.isEmpty()) {
+            return;
+        }
+        for (WarehouseOutboundLine line : deviceLines) {
+            line.setHandoverStatus("RECEIVED");
+            outboundLineRepository.save(line);
+        }
+        WarehouseOutbound outbound = outboundRepository.findById(outboundId).orElse(null);
+        if (outbound == null) {
+            return;
+        }
+        boolean allReceived = outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId).stream()
+                .allMatch(line -> "RECEIVED".equals(line.getHandoverStatus()));
+        outbound.setHandoverStatus(allReceived ? "RECEIVED" : "PARTIAL");
+        outboundRepository.save(outbound);
     }
 
     private void allocateFefoToOutbound(Long outboundId, String warehouseId, String deviceId,
@@ -288,7 +370,10 @@ public class WarehouseService {
         for (WarehouseInventory lot : lots) {
             if (remaining <= 0) break;
             if (lot.getQuantity() <= 0 || lot.getExpiryDate().isBefore(LocalDate.now())) continue;
-            int take = Math.min(lot.getQuantity(), remaining);
+            int allocated = outboundLineRepository.sumAllocatedQty(warehouseId, skuId, lot.getBatchNo());
+            int available = Math.max(0, lot.getQuantity() - allocated);
+            if (available <= 0) continue;
+            int take = Math.min(available, remaining);
             WarehouseOutboundLine line = new WarehouseOutboundLine();
             line.setOutboundId(outboundId);
             line.setDeviceId(deviceId);
@@ -334,6 +419,21 @@ public class WarehouseService {
         inventoryRepository.save(inv);
     }
 
+    private void recordWarehouseMovement(String warehouseId, String skuId, String batchNo,
+                                         String movementType, int deltaQty,
+                                         String refType, String refId, Long operatorId) {
+        WarehouseMovement movement = new WarehouseMovement();
+        movement.setWarehouseId(warehouseId);
+        movement.setSkuId(skuId);
+        movement.setBatchNo(batchNo);
+        movement.setMovementType(movementType);
+        movement.setDeltaQty(deltaQty);
+        movement.setRefType(refType);
+        movement.setRefId(refId);
+        movement.setOperatorId(operatorId);
+        movementRepository.save(movement);
+    }
+
     private void validateInboundLine(WarehouseInboundLineDto dto) {
         if (dto.skuId() == null || dto.skuId().isBlank()) throw badRequest("skuId required");
         if (dto.batchNo() == null || dto.batchNo().isBlank()) throw badRequest("batchNo required");
@@ -367,11 +467,35 @@ public class WarehouseService {
         );
     }
 
+    private WarehouseMovementDto toMovementDto(WarehouseMovement movement) {
+        return new WarehouseMovementDto(
+                movement.getMovementId(),
+                movement.getWarehouseId(),
+                movement.getSkuId(),
+                movement.getBatchNo(),
+                movement.getMovementType(),
+                movement.getDeltaQty(),
+                movement.getRefType(),
+                movement.getRefId(),
+                movement.getOperatorId(),
+                movement.getCreatedAt()
+        );
+    }
+
     private static ResponseStatusException notFound(String what) {
         return new ResponseStatusException(HttpStatus.NOT_FOUND, what + " not found");
     }
 
     private static ResponseStatusException badRequest(String msg) {
         return new ResponseStatusException(HttpStatus.BAD_REQUEST, msg);
+    }
+
+    private static Long parseLongOrNull(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return Long.parseLong(value);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 }

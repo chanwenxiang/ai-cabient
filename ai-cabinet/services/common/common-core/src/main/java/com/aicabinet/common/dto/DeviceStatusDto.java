@@ -6,5 +6,8 @@ public record DeviceStatusDto(
         String onlineStatus,
         boolean online,
         boolean available,
-        String activeSessionId
+        String activeSessionId,
+        String activeSessionState,
+        /** NONE | SESSION | REPLENISHMENT */
+        String busyReason
 ) {}

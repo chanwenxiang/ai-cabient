@@ -20,10 +20,13 @@ FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 
 RUN apk add --no-cache wget
-RUN addgroup -S app && adduser -S app -G app
-USER app
+RUN addgroup -S app && adduser -S app -G app \
+    && mkdir -p /app/data/mqtt-paho \
+    && chown -R app:app /app
 
-COPY --from=build /build/services/device-service/target/device-service-*.jar app.jar
+COPY --from=build --chown=app:app /build/services/device-service/target/device-service-*.jar app.jar
+
+USER app
 
 EXPOSE 8081
 ENTRYPOINT ["java", "-jar", "app.jar"]

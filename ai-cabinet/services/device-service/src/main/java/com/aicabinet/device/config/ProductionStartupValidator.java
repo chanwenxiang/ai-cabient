@@ -41,6 +41,12 @@ public class ProductionStartupValidator {
         if (!mqttProperties.hasCredentials()) {
             throw new IllegalStateException("Production requires MQTT username/password");
         }
+        if ("device-service".equals(mqttProperties.clientId())) {
+            throw new IllegalStateException("Production requires a unique MQTT_CLIENT_ID per deployment");
+        }
+        if (mqttProperties.password().length() < 16) {
+            throw new IllegalStateException("MQTT_PASSWORD must be at least 16 characters in production");
+        }
         log.info("device-service production configuration validated");
     }
 

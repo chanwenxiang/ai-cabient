@@ -42,11 +42,17 @@ import {
   buildPaginationHtml,
   sortItems,
   sortableHeader,
+  listFilterBar,
+  filterField,
   forbiddenPageHtml,
   rechargeStatusLabel,
   disputeStatusBadge,
   payChannelLabel,
-  deviceTypeLabel
+  deviceTypeLabel,
+  deviceRunStatusBadge,
+  deviceRunStatusMeta,
+  renderDeviceLivePanel,
+  handleRefreshClick
 } from './admin-common.js';
 import { toggleTheme } from './theme.js';
 import { renderDashboardAnalytics } from './dashboard-charts.js';
@@ -60,11 +66,13 @@ let currentPage = '';
 const sessionFilters = { page: 0, size: 20, deviceId: '', state: '' };
 const orderFilters = { page: 0, size: 20, deviceId: '' };
 const rechargeFilters = { page: 0, size: 20, status: '', userId: '' };
+const skuFilters = { name: '', status: '' };
+const deviceFilters = { keyword: '' };
 
 const PAGE_TITLES = {
   dashboard: '数据概览',
   devices: '设备管理',
-  sessions: '购物会话',
+  sessions: '开门记录',
   orders: '订单管理',
   recharges: '充值管理',
   skus: '商品管理',
@@ -73,19 +81,19 @@ const PAGE_TITLES = {
   audit: '操作日志',
   recent: '最近操作',
   disputes: '争议审核',
-  'vision-mappings': '视觉映射',
-  'upload-queue': '上传队列',
-  sla: 'SLA 监控',
-  ota: '设备 OTA',
+  'vision-mappings': '识别配置',
+  'upload-queue': '录像上传',
+  sla: '服务时效',
+  ota: '固件升级',
   risk: '风控',
   reconciliation: '对账',
   replenishment: '补货',
   warehouse: '仓库',
-  finance: '财务 COGS',
+  finance: '财务毛利',
   merchants: '商户分账',
   rbac: '权限管理'
 };
-const userFilters = { page: 0, size: 20, phone: '' };
+const userFilters = { page: 0, size: 20, phone: '', name: '', role: '', verified: '' };
 const auditFilters = { page: 0, size: 20 };
 const recentFilters = { size: 20, mine: false };
 const disputeFilters = { page: 0, size: 20, status: 'OPEN', sessionId: '', deviceId: '' };
@@ -380,19 +388,7 @@ async function tryRestoreSession() {
 }
 
 function initLoginHints() {
-  const isLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
   const phone = document.getElementById('phone');
-  const code = document.getElementById('code');
-  const password = document.getElementById('password');
-  const hint = document.getElementById('loginDevHint');
-  if (isLocal) {
-    if (phone && !phone.value) {
-      phone.value = localStorage.getItem('admin_phone') || '13900000001';
-    }
-    if (code && !code.value) code.placeholder = '本地固定 123456';
-    if (password && !password.value) password.placeholder = '本地默认 123456';
-    if (hint) hint.classList.remove('hidden');
-  }
   if (phone && !phone.value && localStorage.getItem('admin_phone')) {
     phone.value = localStorage.getItem('admin_phone');
   }
@@ -497,9 +493,7 @@ async function sendCode() {
   try {
     await api(`/api/v2/auth/sms-code?phoneNumber=${encodeURIComponent(phone)}`, 'POST', null, false);
     startCodeCountdown(60);
-    const devHint = location.hostname === 'localhost' || location.hostname === '127.0.0.1'
-      ? '（本地 dev 固定 123456，可直接登录）' : '';
-    toast('验证码已发送' + devHint, 'ok');
+    toast('验证码已发送', 'ok');
     document.getElementById('code')?.focus();
   } catch (e) {
     showErr('loginErr', e.message);
@@ -589,13 +583,22 @@ function logout() {
   document.getElementById('phone')?.focus();
 }
 
+function renderUserInfo(el, displayName, detailHtml) {
+  const initial = (displayName || '运').trim().charAt(0).toUpperCase();
+  el.innerHTML = `<div class="user-pill" title="${escAttr(displayName)}">
+    <span class="user-avatar" aria-hidden="true">${esc(initial)}</span>
+    <span class="user-text">
+      <span class="user-name">${esc(displayName)}</span>
+      <span class="user-detail">${detailHtml}</span>
+    </span>
+  </div>`;
+}
+
 function setUserInfoPlaceholder() {
   const el = document.getElementById('userInfo');
   if (!el) return;
   const phone = localStorage.getItem('admin_phone') || '';
-  el.innerHTML = phone
-    ? `<span class="user-name">运营账号</span><span class="user-detail">${esc(phone)} · 加载角色…</span>`
-    : `<span class="user-name">运营账号</span><span class="user-detail">加载中…</span>`;
+  renderUserInfo(el, '运营账号', phone ? `${esc(phone)} · 加载角色…` : '加载中…');
 }
 
 async function refreshUserInfo() {
@@ -610,8 +613,7 @@ async function refreshUserInfo() {
       ? me.roleNames.join('、')
       : '未分配角色';
     const permHint = me.permissionCount > 0 ? ` · ${me.permissionCount} 项权限` : '';
-    el.innerHTML = `<span class="user-name">${esc(displayName)}</span>`
-      + `<span class="user-detail">${esc(me.phoneNumber || '-')} · ${esc(roles)}${esc(permHint)}</span>`;
+    renderUserInfo(el, displayName, `${esc(me.phoneNumber || '-')} · ${esc(roles)}${esc(permHint)}`);
   } catch (e) {
     if (!handleAuthFailure(e)) setUserInfoPlaceholder();
   }
@@ -782,26 +784,16 @@ function initNavSections(activePage) {
   });
 }
 
-function updateSortIndicators(scope) {
-  const s = tableSort[scope];
-  if (!s) return;
-  document.querySelectorAll(`[data-sort-ind^="${scope}-"]`).forEach((el) => {
-    el.textContent = '';
-  });
-  const ind = document.querySelector(`[data-sort-ind="${scope}-${s.field}"]`);
-  if (ind) ind.textContent = s.dir === 'asc' ? ' ↑' : ' ↓';
+function setTableSort(scope, field, dir) {
+  tableSort[scope] = { field, dir };
+  if (scope === 'sessions') fetchSessions();
+  else if (scope === 'orders') fetchOrders();
+  else if (scope === 'users') fetchUsers();
 }
 
 function toggleTableSort(scope, field) {
   const cur = tableSort[scope] || { field, dir: 'desc' };
-  if (cur.field === field) {
-    tableSort[scope] = { field, dir: cur.dir === 'asc' ? 'desc' : 'asc' };
-  } else {
-    tableSort[scope] = { field, dir: 'desc' };
-  }
-  if (scope === 'sessions') fetchSessions();
-  else if (scope === 'orders') fetchOrders();
-  else if (scope === 'users') fetchUsers();
+  setTableSort(scope, field, cur.field === field && cur.dir === 'desc' ? 'asc' : 'desc');
 }
 
 function navigate(page, options = {}) {
@@ -844,7 +836,7 @@ function navigate(page, options = {}) {
 
   currentPage = page;
   toggleSidebar(false);
-  if (page !== 'devices') stopDevicesAutoRefresh();
+  if (page !== 'devices' && page !== 'dashboard') stopDevicesAutoRefresh();
   document.getElementById('pageTitle').textContent = PAGE_TITLES[page] || page;
   document.querySelectorAll('.nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.page === page);
@@ -895,30 +887,79 @@ function dashboardOfflineAlert(allOffline) {
     <div class="dash-alert">
       <div class="dash-alert-main">
         <span class="dash-alert-dot" aria-hidden="true"></span>
-        <span>当前无在线设备，通常是因为未启动设备模拟器或心跳链路未连通</span>
-        <button type="button" class="dash-alert-toggle" onclick="this.closest('.dash-alert').classList.toggle('expanded')">查看排查步骤</button>
+        <span>当前没有在线设备，顾客可能无法正常开门购物</span>
+        <button type="button" class="dash-alert-toggle" onclick="this.closest('.dash-alert').classList.toggle('expanded')">查看常见原因</button>
       </div>
       <div class="dash-alert-detail">
-        <ol>
-          <li>启动 Docker 基础设施（EMQX 端口 <code>11883</code>）</li>
-          <li>运行 <code>trade-service</code>（8080）与 <code>device-service</code>（8081）</li>
-          <li>运行设备模拟器，启动类 <code>DeviceSimulator</code>，程序参数 <code>CAB-001</code></li>
-        </ol>
-        <p class="meta" style="margin:0">代码文件：<code>edge/device-simulator/src/main/java/com/aicabinet/simulator/DeviceSimulator.java</code> · 每 30 秒上报心跳，2 分钟无心跳标记离线</p>
+        <ul style="margin:0;padding-left:1.2em">
+          <li>柜机断电或网络断开</li>
+          <li>设备长时间未联网（超过 2 分钟会显示离线）</li>
+          <li>现场设备故障，需运维人员检修</li>
+        </ul>
+        <p class="meta" style="margin:8px 0 0">建议前往「设备管理」查看各柜机最近在线时间，并联系现场人员排查。</p>
       </div>
     </div>`;
+}
+
+function workbenchTarget(item) {
+  const type = String(item?.type || '').toUpperCase();
+  if (type === 'DISPUTE') return "navigate('disputes')";
+  if (type === 'UPLOAD_STUCK') return "navigate('upload-queue')";
+  if (type === 'DEVICE_OFFLINE') return "navigate('devices')";
+  if (type === 'LOW_STOCK' || type === 'REPLENISHMENT') return "navigate('replenishment')";
+  return "navigate('dashboard')";
+}
+
+function renderOpsWorkbench(workbench) {
+  if (!workbench) return '';
+  const items = workbench.actionItems || [];
+  const summary = [
+    ['Open disputes', workbench.openDisputes],
+    ['Overdue', workbench.overdueDisputes],
+    ['Offline devices', workbench.offlineDevices],
+    ['Waiting upload', workbench.waitingUploads],
+    ['Low stock', workbench.lowStockItems],
+    ['Replenishment', workbench.pendingReplenishments]
+  ].map(([label, value]) =>
+    `<div class="workbench-pill"><span>${esc(label)}</span><strong>${esc(value ?? 0)}</strong></div>`
+  ).join('');
+  const rows = items.slice(0, 8).map((item) => {
+    const sev = String(item.severity || 'LOW').toLowerCase();
+    const meta = [item.deviceId, item.sessionId, item.skuId].filter(Boolean).join(' · ');
+    return `<button type="button" class="workbench-item sev-${escAttr(sev)}" onclick="${workbenchTarget(item)}">
+      <span class="workbench-sev">${esc(item.severity || 'LOW')}</span>
+      <span class="workbench-main">
+        <strong>${esc(item.title || item.type || '-')}</strong>
+        <small>${esc(item.detail || meta || '-')}</small>
+      </span>
+      <span class="workbench-meta">${esc(meta)}</span>
+    </button>`;
+  }).join('');
+  return `<section class="card workbench-card">
+    <div class="pane-head">
+      <div>
+        <h3 style="margin:0;font-size:1rem;color:var(--text)">Operations workbench</h3>
+        <p class="sub" style="margin:4px 0 0">Prioritized issues that affect checkout, replenishment, and SLA.</p>
+      </div>
+      <button type="button" class="btn-ghost btn-sm" onclick="navigate('disputes')">Review</button>
+    </div>
+    <div class="workbench-summary">${summary}</div>
+    ${rows ? `<div class="workbench-list">${rows}</div>` : `<div class="empty-state"><div class="empty-title">No urgent action</div></div>`}
+  </section>`;
 }
 
 async function loadDashboard() {
   const el = document.getElementById('pageContent');
   const page = 'dashboard';
   try {
-    const [s, trend, opsTrend, recent, fin] = await Promise.all([
+    const [s, trend, opsTrend, recent, fin, devices, workbench] = await Promise.all([
       api('/api/v2/ops/admin/stats', 'GET'),
       api('/api/v2/ops/admin/trend', 'GET'),
       api('/api/v2/ops/admin/trend/ops', 'GET'),
       api('/api/v2/ops/admin/audit-logs/recent?size=5&mine=false', 'GET').catch(() => []),
-      api('/api/v2/ops/admin/finance/stats', 'GET').catch(() => null)
+      api('/api/v2/ops/admin/finance/stats', 'GET').catch(() => null),
+      api('/api/v2/ops/admin/devices', 'GET').catch(() => []),
+      api('/api/v2/ops/admin/workbench', 'GET').catch(() => null)
     ]);
     if (currentPage !== page) return;
     const statLink = (label, value, cls, pageTarget, hint) => {
@@ -938,7 +979,7 @@ async function loadDashboard() {
       <div class="dashboard-head">
         <div>
           <h3 class="dashboard-head-title">核心指标</h3>
-          <p class="dashboard-head-sub">今日运营数据 · 设备每 30 秒上报心跳</p>
+          <p class="dashboard-head-sub">今日运营数据 · 设备约每 30 秒更新在线状态</p>
         </div>
         ${refreshButton('loadDashboard()', '刷新')}
       </div>
@@ -946,18 +987,23 @@ async function loadDashboard() {
       <div class="stats">
         <div class="stat"><div class="label">设备总数</div><div class="value">${s.deviceTotal}</div></div>
         <div class="stat"><div class="label">在线设备</div><div class="value ${s.deviceOnline === 0 ? 'warn' : 'ok'}">${s.deviceOnline}</div></div>
-        <div class="stat"><div class="label">进行中会话</div><div class="value warn">${s.sessionActive}</div></div>
+        <div class="stat stat-click" role="button" tabindex="0" onclick="navigate('devices')" title="有活跃会话或补货任务的设备数">
+          <div class="label">占用设备</div><div class="value ${s.deviceOccupied > 0 ? 'warn' : ''}">${s.deviceOccupied ?? 0}</div>
+        </div>
+        <div class="stat stat-click" role="button" tabindex="0" onclick="navigate('sessions')" title="进行中的购物/识别/结算会话数">
+          <div class="label">进行中会话</div><div class="value warn">${s.sessionActive}</div>
+        </div>
         <div class="stat"><div class="label">今日会话</div><div class="value">${s.sessionToday}</div></div>
         <div class="stat"><div class="label">今日订单</div><div class="value">${s.orderToday}</div></div>
         <div class="stat"><div class="label">今日营收</div><div class="value ok">${fmtMoney(s.revenueTodayCents)}</div></div>
-        ${fin ? `<div class="stat stat-click" role="button" tabindex="0" onclick="navigate('finance')" title="点击查看 COGS 报表"><div class="label">今日毛利</div><div class="value ok">${fmtMoney(fin.grossMarginTodayCents)}</div></div>` : ''}
-        ${fin ? `<div class="stat stat-click" role="button" tabindex="0" onclick="navigate('finance')"><div class="label">今日 COGS</div><div class="value">${fmtMoney(fin.cogsTodayCents)}</div></div>` : ''}
+        ${fin ? `<div class="stat stat-click" role="button" tabindex="0" onclick="navigate('finance')" title="点击查看毛利报表"><div class="label">今日毛利</div><div class="value ok">${fmtMoney(fin.grossMarginTodayCents)}</div></div>` : ''}
+        ${fin ? `<div class="stat stat-click" role="button" tabindex="0" onclick="navigate('finance')"><div class="label">今日销售成本</div><div class="value">${fmtMoney(fin.cogsTodayCents)}</div></div>` : ''}
         ${fin ? `<div class="stat"><div class="label">今日报损</div><div class="value ${fin.writeOffTodayCents > 0 ? 'warn' : ''}">${fmtMoney(fin.writeOffTodayCents)}</div></div>` : ''}
         ${statLink('待审争议', s.disputeOpen, 'warn', 'disputes')}
-        ${statLink('SLA超时争议', s.disputeOverdue ?? 0, (s.disputeOverdue > 0 ? 'warn' : ''), 'disputes')}
-        ${statLink('SLA临期争议', s.disputeNearSla ?? 0, (s.disputeNearSla > 0 ? 'warn' : ''), 'disputes')}
+        ${statLink('超时未处理争议', s.disputeOverdue ?? 0, (s.disputeOverdue > 0 ? 'warn' : ''), 'disputes')}
+        ${statLink('即将超时争议', s.disputeNearSla ?? 0, (s.disputeNearSla > 0 ? 'warn' : ''), 'disputes')}
         ${statLink('待上传会话', s.sessionWaitingUpload ?? 0, 'warn', 'upload-queue')}
-        ${statLink('低库存 SKU', s.lowStockSkuCount ?? 0, (s.lowStockSkuCount > 0 ? 'warn' : ''), 'replenishment', 'lowStock')}
+        ${statLink('低库存商品', s.lowStockSkuCount ?? 0, (s.lowStockSkuCount > 0 ? 'warn' : ''), 'replenishment', 'lowStock')}
         ${statLink('临期批次', s.nearExpiryLotCount ?? 0, (s.nearExpiryLotCount > 0 ? 'warn' : ''), 'replenishment')}
         ${statLink('过期库存', s.expiredLotCount ?? 0, (s.expiredLotCount > 0 ? 'warn' : ''), 'replenishment')}
         ${statLink('待下架', s.pullOffOpenCount ?? 0, (s.pullOffOpenCount > 0 ? 'warn' : ''), 'replenishment')}
@@ -967,6 +1013,8 @@ async function loadDashboard() {
         ${statLink('24h 争议率', pctRate(s.disputeRate24h), '', 'disputes')}
         <div class="stat"><div class="label">24h 自动识别率</div><div class="value ok">${pctRate(s.recognitionAutoRate24h)}</div></div>
       </div>
+      ${renderOpsWorkbench(workbench)}
+      ${renderDeviceLivePanel(devices, { fmtTime, refreshFn: 'refreshDashboardDevicePanel()' })}
       ${renderDashboardAnalytics(s, trend, opsTrend)}
       ${recent && recent.length ? `
       <div class="card">
@@ -976,9 +1024,26 @@ async function loadDashboard() {
         </div>
         ${typeof renderAuditTableHtml === 'function' ? renderAuditTableHtml(recent) : ''}
       </div>` : ''}`;
+    startDevicesAutoRefresh();
   } catch (e) {
     if (currentPage !== page) return;
     pageRenderError(el, e);
+  }
+}
+
+async function refreshDashboardDevicePanel() {
+  if (currentPage !== 'dashboard') return;
+  const panel = document.getElementById('deviceLivePanel');
+  if (!panel) {
+    loadDashboard();
+    return;
+  }
+  try {
+    const devices = await api('/api/v2/ops/admin/devices', 'GET');
+    if (currentPage !== 'dashboard') return;
+    panel.outerHTML = renderDeviceLivePanel(devices, { fmtTime, refreshFn: 'refreshDashboardDevicePanel()' });
+  } catch (e) {
+    if (!handleAuthFailure(e)) toast('刷新柜机状态失败: ' + formatApiError(e), 'err');
   }
 }
 
@@ -1009,32 +1074,32 @@ async function loadFinancePage() {
     el.innerHTML = `
       <div class="dashboard-head">
         <div>
-          <h3 class="dashboard-head-title">财务 / COGS</h3>
-          <p class="dashboard-head-sub">基于订单行 unitCostCents（SKU 采购成本 purchase_cost_cents）· 近 7 日明细</p>
+          <h3 class="dashboard-head-title">财务毛利</h3>
+          <p class="dashboard-head-sub">营收减去商品采购成本 · 近 7 日明细</p>
         </div>
         ${refreshButton('loadFinancePage()')}
       </div>
       <div class="stats">
         <div class="stat"><div class="label">今日营收</div><div class="value ok">${fmtMoney(s.revenueTodayCents)}</div></div>
-        <div class="stat"><div class="label">今日 COGS</div><div class="value">${fmtMoney(s.cogsTodayCents)}</div></div>
+        <div class="stat"><div class="label">今日销售成本</div><div class="value">${fmtMoney(s.cogsTodayCents)}</div></div>
         <div class="stat"><div class="label">今日毛利</div><div class="value ok">${fmtMoney(s.grossMarginTodayCents)}</div></div>
         <div class="stat"><div class="label">今日报损</div><div class="value ${s.writeOffTodayCents > 0 ? 'warn' : ''}">${fmtMoney(s.writeOffTodayCents)}</div></div>
         <div class="stat"><div class="label">累计营收</div><div class="value">${fmtMoney(s.revenueTotalCents)}</div></div>
-        <div class="stat"><div class="label">累计 COGS</div><div class="value">${fmtMoney(s.cogsTotalCents)}</div></div>
+        <div class="stat"><div class="label">累计销售成本</div><div class="value">${fmtMoney(s.cogsTotalCents)}</div></div>
         <div class="stat"><div class="label">累计毛利</div><div class="value ok">${fmtMoney(s.grossMarginTotalCents)}</div></div>
       </div>
       <div class="card">
         <h3 style="margin-top:0">近 7 日趋势</h3>
-        <table class="table">
-          <thead><tr><th>日期</th><th>营收</th><th>COGS</th><th>毛利</th><th>报损</th></tr></thead>
+        <table class="data-table">
+          <thead><tr><th>日期</th><th>营收</th><th>销售成本</th><th>毛利</th><th>报损</th></tr></thead>
           <tbody>${dailyRows || '<tr><td colspan="5" class="meta">暂无数据</td></tr>'}</tbody>
         </table>
       </div>
       <div class="card">
-        <h3 style="margin-top:0">SKU 毛利 Top 20（近 7 日）</h3>
-        <p class="meta">请在「商品管理」维护采购成本（purchase_cost_cents），新订单结算时自动写入 COGS</p>
-        <table class="table">
-          <thead><tr><th>商品</th><th>SKU</th><th>销量</th><th>营收</th><th>COGS</th><th>毛利</th></tr></thead>
+        <h3 style="margin-top:0">商品毛利排行（近 7 日 Top 20）</h3>
+        <p class="meta">请在「商品管理」填写各商品的采购成本，系统会在订单结算时自动计算毛利</p>
+        <table class="data-table">
+          <thead><tr><th>商品</th><th>商品编号</th><th>销量</th><th>营收</th><th>销售成本</th><th>毛利</th></tr></thead>
           <tbody>${skuRows || '<tr><td colspan="6" class="meta">暂无销售</td></tr>'}</tbody>
         </table>
       </div>`;
@@ -1068,32 +1133,34 @@ async function loadDevices() {
     const devices = await api('/api/v2/ops/admin/devices', 'GET');
     if (currentPage !== page) return;
     el.innerHTML = `
-      <div class="card">
-        <div class="filters">
-          ${permButton('device.create', '注册新设备', 'showDeviceForm()', 'btn-primary')}
-          ${selBar('devices')}
-          ${refreshButton('loadDevices()')}
-        </div>
+      <div class="card list-page-card">
+        ${listFilterBar({
+          onSearch: 'searchDevices()',
+          onReset: 'resetDeviceFilters()',
+          refreshFn: 'loadDevices()',
+          extraHtml: `${permButton('device.create', '注册新设备', 'showDeviceForm()', 'btn-primary btn-sm')}${selBar('devices')}`,
+          fieldsHtml: filterField('关键词', `<input id="devKeyword" value="${escAttr(deviceFilters.keyword)}" placeholder="设备编号 / 名称 / 商户">`)
+        })}
       </div>
       ${devices.length ? `
-      <div class="card" style="padding:0;overflow:hidden">
-        ${selWrap('devices', `<table>
+      <div class="card list-page-card" style="padding-top:0">
+        ${selWrap('devices', `<table class="data-table">
           <thead><tr>
             ${selHeaderCell('devices')}
-            <th>设备ID</th><th>名称</th><th>商户</th><th>类型</th><th>状态</th><th>活跃会话</th><th>最后心跳</th><th>操作</th>
+            <th>设备编号</th><th>名称</th><th>运行状态</th><th>当前开门</th><th>最近在线</th><th>商户</th><th>类型</th><th class="col-actions">操作</th>
           </tr></thead>
-          <tbody>${devices.map(d => `
+          <tbody>${filterDeviceList(devices).map(d => `
             ${selRowOpen('devices', d.deviceId)}
             ${selCheckCell('devices', d.deviceId)}
             <td><code>${esc(d.deviceId)}</code></td>
             <td>${esc(d.deviceName || '-')}</td>
+            <td title="${escAttr(deviceRunStatusMeta(d).hint)}">${deviceRunStatusBadge(d)}</td>
+            <td>${d.activeSessionId ? `${stateBadge(d.activeSessionState)}` : '<span class="meta">无</span>'}</td>
+            <td>${fmtTime(d.updatedAt)}</td>
             <td>${esc(d.merchantName || d.merchantId || '-')}</td>
             <td>${esc(deviceTypeLabel(d.deviceType))}</td>
-            <td>${onlineBadge(d.onlineStatus)}</td>
-            <td>${d.activeSessionId ? `${esc(d.activeSessionId)}<br>${stateBadge(d.activeSessionState)}` : '-'}</td>
-            <td>${fmtTime(d.updatedAt)}</td>
-            <td onclick="event.stopPropagation()">${hasPerm('ops:device:edit') ? `<button class="btn-ghost btn-sm" onclick='showDeviceForm(${JSON.stringify(d)})'>编辑</button>` : ''}
-              <button class="btn-ghost btn-sm" onclick="viewDeviceDetail('${escAttr(d.deviceId)}')">详情</button></td>
+            <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions">${hasPerm('ops:device:edit') ? `<button type="button" class="btn-ghost btn-sm" onclick='showDeviceForm(${JSON.stringify(d)})'>编辑</button>` : ''}
+              <button type="button" class="btn-ghost btn-sm" onclick="viewDeviceDetail('${escAttr(d.deviceId)}')">详情</button></div></td>
           </tr>`).join('')}</tbody>
         </table>`)}
       </div>` : `<div class="card">${emptyStateHtml('暂无设备', '点击「注册新设备」添加第一台柜机', 'loadDevices()')}</div>`}`;
@@ -1104,6 +1171,23 @@ async function loadDevices() {
     if (currentPage !== page) return;
     pageRenderError(el, e);
   }
+}
+
+function filterDeviceList(devices) {
+  const kw = (deviceFilters.keyword || '').trim().toLowerCase();
+  if (!kw) return devices;
+  return devices.filter(d => [d.deviceId, d.deviceName, d.merchantName, d.merchantId]
+    .some(v => String(v || '').toLowerCase().includes(kw)));
+}
+
+function searchDevices() {
+  deviceFilters.keyword = document.getElementById('devKeyword')?.value.trim() || '';
+  loadDevices();
+}
+
+function resetDeviceFilters() {
+  deviceFilters.keyword = '';
+  loadDevices();
 }
 
 async function showDeviceForm(device) {
@@ -1119,7 +1203,7 @@ async function showDeviceForm(device) {
     <div class="modal-backdrop" onclick="closeModal(event)">
       <div class="modal" onclick="event.stopPropagation()">
         <h3>${isEdit ? '编辑设备' : '注册新设备'}</h3>
-        <label>设备ID</label>
+        <label>设备编号</label>
         <input id="dfId" value="${isEdit ? escAttr(device.deviceId) : ''}" ${isEdit ? 'disabled' : ''} placeholder="CAB-002">
         <label>设备名称</label>
         <input id="dfName" value="${isEdit ? escAttr(device.deviceName || '') : ''}" placeholder="1号柜">
@@ -1218,7 +1302,7 @@ async function viewDeviceDetail(deviceId) {
           <div class="device-detail-head">
             <div>
               <h3>${esc(detail.device?.deviceName || deviceId)}</h3>
-              <p class="meta"><code>${esc(deviceId)}</code> · ${onlineBadge(detail.device?.onlineStatus)} · 心跳 ${fmtTime(detail.device?.updatedAt)}</p>
+              <p class="meta"><code>${esc(deviceId)}</code> · ${onlineBadge(detail.device?.onlineStatus)} · 最近在线 ${fmtTime(detail.device?.updatedAt)}</p>
             </div>
             <button type="button" class="btn-ghost btn-sm" data-modal-cancel onclick="closeModal()">关闭</button>
           </div>
@@ -1241,12 +1325,12 @@ async function viewDeviceDetail(deviceId) {
           <div class="slot-grid">${slotGrid.length ? slotGrid.join('') : '<p class="meta">暂无货道配置</p>'}</div>
           ${discRows ? `
           <h4 style="margin-top:16px;color:var(--warn)">账实差异告警 (${discrepancies.length})</h4>
-          <table class="table"><thead><tr><th>货道</th><th>SKU</th><th>账面</th><th>实测</th><th>差异</th><th>盘点时间</th><th>操作</th></tr></thead><tbody>${discRows}</tbody></table>` : ''}
-          <h4 style="margin-top:16px">SKU 汇总库存</h4>
-          ${skuRows ? `<table class="table"><thead><tr><th>SKU</th><th>数量/容量</th><th>低库存线</th></tr></thead><tbody>${skuRows}</tbody></table>` : '<p class="meta">暂无</p>'}
+          <table class="table"><thead><tr><th>货道</th><th>商品</th><th>账面</th><th>实测</th><th>差异</th><th>盘点时间</th><th>操作</th></tr></thead><tbody>${discRows}</tbody></table>` : ''}
+          <h4 style="margin-top:16px">商品库存汇总</h4>
+          ${skuRows ? `<table class="table"><thead><tr><th>商品</th><th>数量/容量</th><th>低库存线</th></tr></thead><tbody>${skuRows}</tbody></table>` : '<p class="meta">暂无</p>'}
           ${(suggests || []).length ? `
           <h4 style="margin-top:16px">动销 ROP 补货建议</h4>
-          <table class="table"><thead><tr><th>SKU</th><th>账面</th><th>在途</th><th>建议量</th><th>7日销量</th><th>ROP点</th><th>策略</th></tr></thead><tbody>${suggestRows}</tbody></table>` : ''}
+          <table class="table"><thead><tr><th>商品</th><th>账面</th><th>在途</th><th>建议量</th><th>7日销量</th><th>补货点</th><th>策略</th></tr></thead><tbody>${suggestRows}</tbody></table>` : ''}
           <div class="filters" style="margin-top:12px">
             ${canStocktake ? `<button type="button" class="btn-ghost btn-sm" onclick="promptSlotStocktake('${escAttr(deviceId)}')">通道盘点</button>` : ''}
             ${canStocktake ? `<button type="button" class="btn-ghost btn-sm" onclick="closeModal();navigate('replenishment')">去补货管理</button>` : ''}
@@ -1319,7 +1403,7 @@ async function showSlotEditor(deviceId, slotCode) {
               <option value="HOOK" ${slot?.slotType === 'HOOK' ? 'selected' : ''}>挂钩 HOOK</option>
               <option value="BASKET" ${slot?.slotType === 'BASKET' ? 'selected' : ''}>篮筐 BASKET</option>
             </select></div>
-          <div style="grid-column:1/-1"><label>绑定 SKU</label><select id="seSku">${skuOptions}</select></div>
+          <div style="grid-column:1/-1"><label>绑定商品</label><select id="seSku">${skuOptions}</select></div>
           <div><label>标准容量 (PAR)</label><input id="sePar" type="number" min="0" value="${slot?.parLevel ?? 8}"></div>
           <div><label>补货线 (MIN)</label><input id="seMin" type="number" min="0" value="${slot?.minLevel ?? 2}"></div>
           <div><label>最大容量</label><input id="seMax" type="number" min="0" value="${slot?.maxLevel ?? slot?.parLevel ?? 8}"></div>
@@ -1447,25 +1531,31 @@ async function saveDevice(ev, isEdit) {
 function loadSessionsPage() {
   selClear('sessions');
   document.getElementById('pageContent').innerHTML = `
-    <div class="card">
-      <div class="filters">
-        <div><label>设备ID</label><input id="sfDevice" value="${sessionFilters.deviceId}" placeholder="CAB-001" oninput="debouncedSearchSessions()"></div>
-        <div><label>状态</label>
-          <select id="sfState">
+    <div class="card list-page-card">
+      ${listFilterBar({
+        onSearch: 'searchSessions()',
+        onReset: 'resetSessionFilters()',
+        refreshFn: 'fetchSessions()',
+        extraHtml: `<button type="button" class="btn-ghost btn-sm" onclick="exportSessionsCsv()">导出 CSV</button>${selBar('sessions', '<button type="button" class="btn-ghost btn-sm" onclick="selClear(\'sessions\')">清除选择</button>')}`,
+        fieldsHtml: `
+          ${filterField('设备编号', `<input id="sfDevice" value="${escAttr(sessionFilters.deviceId)}" placeholder="CAB-001">`)}
+          ${filterField('状态', `<select id="sfState">
             <option value="">全部</option>
             ${['CREATED','OPENING','SHOPPING','RECOGNIZING','WAITING_UPLOAD','SETTLING','COMPLETED','DISPUTED','FAILED','CANCELLED']
               .map(s => `<option value="${s}" ${sessionFilters.state === s ? 'selected' : ''}>${esc(sessionStateLabel(s))}</option>`).join('')}
-          </select>
-        </div>
-        <div><button class="btn-primary" onclick="searchSessions()">查询</button></div>
-        <div>${refreshButton('fetchSessions()')}</div>
-        <div><button class="btn-ghost" onclick="exportSessionsCsv()">导出 CSV</button></div>
-        ${selBar('sessions', '<button type="button" class="btn-ghost btn-sm" onclick="selClear(\'sessions\')">清除选择</button>')}
-      </div>
+          </select>`)}`
+      })}
       <div id="sessionTable"></div>
     </div>`;
   showTableLoading(document.getElementById('sessionTable'), 7, 6);
   fetchSessions();
+}
+
+function resetSessionFilters() {
+  sessionFilters.deviceId = '';
+  sessionFilters.state = '';
+  sessionFilters.page = 0;
+  loadSessionsPage();
 }
 
 async function searchSessions() {
@@ -1514,11 +1604,11 @@ async function fetchSessions() {
     const canCancel = s => !['COMPLETED', 'CANCELLED'].includes(s.state);
     const items = sortItems(data.items, tableSort.sessions.field, tableSort.sessions.dir);
     table.innerHTML = selWrap('sessions', `
-      <table class="table-sessions">
+      <table class="data-table table-sessions">
         <thead><tr>
           ${selHeaderCell('sessions')}
-          <th>会话ID</th><th>用户</th><th>设备</th><th>状态</th><th>上传</th><th>订单</th><th>视频</th>
-          ${sortableHeader('sessions', 'createdAt', '创建时间')}<th class="col-actions">操作</th>
+          <th>记录编号</th><th>用户</th><th>设备</th><th>状态</th><th>录像</th><th>订单</th><th>视频</th>
+          ${sortableHeader('sessions', 'createdAt', '创建时间', tableSort.sessions)}<th class="col-actions">操作</th>
         </tr></thead>
         <tbody>${items.map(s => `
           ${selRowOpen('sessions', s.sessionId)}
@@ -1538,7 +1628,6 @@ async function fetchSessions() {
       </table>`)
       + renderPagination(data, 'session');
     selSync('sessions');
-    updateSortIndicators('sessions');
   } catch (e) {
     pageRenderError(table, e, false);
   }
@@ -1571,18 +1660,24 @@ async function cancelSession(sessionId) {
 function loadOrdersPage() {
   selClear('orders');
   document.getElementById('pageContent').innerHTML = `
-    <div class="card">
-      <div class="filters">
-        <div><label>设备ID</label><input id="ofDevice" value="${orderFilters.deviceId}" placeholder="可选" oninput="debouncedSearchOrders()"></div>
-        <div><button class="btn-primary" onclick="searchOrders()">查询</button></div>
-        <div>${refreshButton('fetchOrders()')}</div>
-        <div><button class="btn-ghost" onclick="exportOrdersCsv()">导出 CSV</button></div>
-        ${selBar('orders')}
-      </div>
+    <div class="card list-page-card">
+      ${listFilterBar({
+        onSearch: 'searchOrders()',
+        onReset: 'resetOrderFilters()',
+        refreshFn: 'fetchOrders()',
+        extraHtml: `<button type="button" class="btn-ghost btn-sm" onclick="exportOrdersCsv()">导出 CSV</button>${selBar('orders')}`,
+        fieldsHtml: filterField('设备编号', `<input id="ofDevice" value="${escAttr(orderFilters.deviceId)}" placeholder="留空=全部">`)
+      })}
       <div id="orderTable"></div>
     </div>`;
   showTableLoading(document.getElementById('orderTable'), 8, 6);
   fetchOrders();
+}
+
+function resetOrderFilters() {
+  orderFilters.deviceId = '';
+  orderFilters.page = 0;
+  loadOrdersPage();
 }
 
 function searchOrders() {
@@ -1617,12 +1712,12 @@ async function fetchOrders() {
     }
     const items = sortItems(data.items, tableSort.orders.field, tableSort.orders.dir);
     table.innerHTML = selWrap('orders', `
-      <table>
+      <table class="data-table">
         <thead><tr>
           ${selHeaderCell('orders')}
-          <th>订单ID</th><th>会话</th>${sortableHeader('orders', 'userId', '用户')}<th>设备</th>
-          ${sortableHeader('orders', 'totalAmountCents', '金额')}<th>商品行</th>
-          ${sortableHeader('orders', 'createdAt', '时间')}<th>操作</th>
+          <th>订单号</th><th>开门记录</th>${sortableHeader('orders', 'userId', '用户', tableSort.orders)}<th>设备</th>
+          ${sortableHeader('orders', 'totalAmountCents', '金额', tableSort.orders)}<th>商品行</th>
+          ${sortableHeader('orders', 'createdAt', '时间', tableSort.orders)}<th class="col-actions">操作</th>
         </tr></thead>
         <tbody>${items.map(o => `
           ${selRowOpen('orders', o.orderId)}
@@ -1634,12 +1729,11 @@ async function fetchOrders() {
           <td>${fmtMoney(o.totalAmountCents)}</td>
           <td>${esc(o.lineCount)}</td>
           <td>${fmtTime(o.createdAt)}</td>
-          <td onclick="event.stopPropagation()"><button class="btn-ghost btn-sm" onclick="showOrderDetail('${escAttr(o.orderId)}')">详情</button></td>
+          <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions"><button class="btn-ghost btn-sm" onclick="showOrderDetail('${escAttr(o.orderId)}')">详情</button></div></td>
         </tr>`).join('')}</tbody>
       </table>`)
       + renderPagination(data, 'order');
     selSync('orders');
-    updateSortIndicators('orders');
   } catch (e) {
     pageRenderError(table, e, false);
   }
@@ -1744,24 +1838,53 @@ async function loadSkus() {
   try {
     skus = sortSkuList(await api('/api/v2/ops/admin/skus', 'GET'));
   } catch (e) {
-    skus = [{ skuId: 'SKU-DEMO-001', skuName: '演示商品', priceCents: 350, status: 'ACTIVE', visionEnabled: true }];
+    skus = [{ skuId: 'SKU-DEMO-001', skuName: '示例商品', priceCents: 350, status: 'ACTIVE', visionEnabled: true }];
   }
 }
 
 function loadSkusPage() {
   selClear('skus');
   document.getElementById('pageContent').innerHTML = `
-    <div class="card">
-      <div class="filters">
-        ${permButton('sku.edit', '新增商品', 'showSkuForm()', 'btn-primary')}
-        ${permButton('sku.edit', '编辑所选', 'editSelectedSku()', 'btn-ghost btn-sm')}
-        ${selBar('skus')}
-        ${refreshButton('loadSkusPage()')}
-      </div>
+    <div class="card list-page-card">
+      ${listFilterBar({
+        onSearch: 'searchSkus()',
+        onReset: 'resetSkuFilters()',
+        refreshFn: 'fetchSkusTable()',
+        extraHtml: `${permButton('sku.edit', '新增商品', 'showSkuForm()', 'btn-primary btn-sm')}${permButton('sku.edit', '编辑所选', 'editSelectedSku()', 'btn-ghost btn-sm')}${selBar('skus')}`,
+        fieldsHtml: `
+          ${filterField('商品名称', `<input id="skuFilterName" value="${escAttr(skuFilters.name)}" placeholder="支持模糊搜索">`)}
+          ${filterField('状态', `<select id="skuFilterStatus">
+            <option value="">全部</option>
+            <option value="ACTIVE" ${skuFilters.status === 'ACTIVE' ? 'selected' : ''}>上架</option>
+            <option value="INACTIVE" ${skuFilters.status === 'INACTIVE' ? 'selected' : ''}>下架</option>
+          </select>`)}`
+      })}
       <div id="skuTable"></div>
     </div>`;
   showTableLoading(document.getElementById('skuTable'), 10, 5);
   fetchSkusTable();
+}
+
+function searchSkus() {
+  skuFilters.name = document.getElementById('skuFilterName')?.value.trim() || '';
+  skuFilters.status = document.getElementById('skuFilterStatus')?.value || '';
+  fetchSkusTable();
+}
+
+function resetSkuFilters() {
+  skuFilters.name = '';
+  skuFilters.status = '';
+  loadSkusPage();
+}
+
+function filterSkuList(list) {
+  const name = (skuFilters.name || '').trim().toLowerCase();
+  const status = skuFilters.status || '';
+  return (list || []).filter(s => {
+    if (status && s.status !== status) return false;
+    if (name && !String(s.skuName || '').toLowerCase().includes(name) && !String(s.skuId || '').toLowerCase().includes(name)) return false;
+    return true;
+  });
 }
 
 function editSelectedSku() {
@@ -1802,19 +1925,19 @@ async function fetchSkusTable() {
   if (!table) return;
   showTableLoading(table, 9, 5);
   try {
-    const list = sortSkuList(await api('/api/v2/ops/admin/skus', 'GET'));
-    skus = list;
-    if (!list.length) {
-      table.innerHTML = emptyStateHtml('暂无商品', '添加 SKU 后可在争议审核中选择商品', 'fetchSkusTable()');
+    skus = await api('/api/v2/ops/admin/skus', 'GET');
+    const filtered = sortSkuList(filterSkuList(skus));
+    if (!filtered.length) {
+      table.innerHTML = emptyStateHtml('暂无商品', skuFilters.name || skuFilters.status ? '调整筛选条件后重试' : '添加商品后可在争议审核中选择', 'fetchSkusTable()');
       return;
     }
     table.innerHTML = selWrap('skus', `
-      <table class="table-sku">
+      <table class="data-table table-sku">
         <thead><tr>
           ${selHeaderCell('skus')}
-          <th>SKU ID</th><th>名称</th><th>分类</th><th>价格</th><th>重量(g)</th><th>条码</th><th>状态</th><th>图片</th><th>操作</th>
+          <th>商品编号</th><th>名称</th><th>分类</th><th>价格</th><th>重量(g)</th><th>条码</th><th>状态</th><th>图片</th><th class="col-actions">操作</th>
         </tr></thead>
-        <tbody>${list.map(s => `
+        <tbody>${filtered.map(s => `
           ${selRowOpen('skus', s.skuId)}
           ${selCheckCell('skus', s.skuId)}
           <td><code>${esc(s.skuId)}</code></td>
@@ -1825,8 +1948,8 @@ async function fetchSkusTable() {
           <td>${esc(s.barcode || '-')}</td>
           <td>${skuStatusLabel(s.status)}${s.visionEnabled === false ? ' · 无视觉' : ''}</td>
           <td>${skuImageCell(s.imageUrl, s.skuName)}</td>
-          <td onclick="event.stopPropagation()">${hasPerm('ops:sku:edit')
-            ? `<button type="button" class="btn-ghost btn-sm" onclick="showSkuFormById('${escAttr(s.skuId)}')">编辑</button>` : '-'}</td>
+          <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions">${hasPerm('ops:sku:edit')
+            ? `<button type="button" class="btn-ghost btn-sm" onclick="showSkuFormById('${escAttr(s.skuId)}')">编辑</button>` : '<span class="meta">-</span>'}</div></td>
         </tr>`).join('')}</tbody>
       </table>`);
     selSync('skus');
@@ -1841,18 +1964,18 @@ function showSkuForm(sku) {
     <div class="modal-backdrop" onclick="closeModal(event)">
       <div class="modal" style="max-width:640px" onclick="event.stopPropagation()">
         <h3>${isEdit ? '编辑商品' : '新增商品'}</h3>
-        <label>SKU ID</label>
-        <input id="skuId" value="${isEdit ? escAttr(sku.skuId) : ''}" ${isEdit ? 'disabled' : ''} placeholder="SKU-XXX-001">
+        <label>商品编号</label>
+        <input id="skuId" value="${isEdit ? escAttr(sku.skuId) : ''}" ${isEdit ? 'disabled' : ''} placeholder="例如 SKU-COLA-001">
         <label>商品名称</label>
         <input id="skuName" value="${isEdit ? escAttr(sku.skuName) : ''}" placeholder="可乐 330ml">
         <div class="filters form-grid">
           <div><label>分类</label><input id="skuCategory" value="${isEdit ? escAttr(sku.category || '') : ''}" placeholder="饮料"></div>
           <div><label>条码</label><input id="skuBarcode" value="${isEdit ? escAttr(sku.barcode || '') : ''}" placeholder="6901234567890"></div>
-          <div><label>价格（分）</label><input id="skuPrice" type="number" min="1" value="${isEdit ? sku.priceCents : 350}"></div>
-          <div><label>采购成本（分）</label><input id="skuCost" type="number" min="0" value="${isEdit && sku.purchaseCostCents != null ? sku.purchaseCostCents : ''}" placeholder="280"></div>
+          <div><label>销售价（元）</label><input id="skuPrice" type="number" min="0.01" step="0.01" value="${isEdit ? (sku.priceCents / 100).toFixed(2) : '3.50'}"></div>
+          <div><label>采购成本（元）</label><input id="skuCost" type="number" min="0" step="0.01" value="${isEdit && sku.purchaseCostCents != null ? (sku.purchaseCostCents / 100).toFixed(2) : ''}" placeholder="2.80"></div>
           <div><label>重量（克）</label><input id="skuWeight" type="number" min="0" value="${isEdit && sku.weightGrams != null ? sku.weightGrams : ''}" placeholder="330"></div>
         </div>
-        <p class="meta">价格/成本单位：分（350 = ¥3.50，成本用于 COGS 毛利报表）</p>
+        <p class="meta">价格与成本以元为单位填写，用于售价展示与毛利计算</p>
         <label>商品描述</label>
         <textarea id="skuDescription" rows="3" placeholder="规格、口味、包装说明等">${isEdit ? esc(sku.description || '') : ''}</textarea>
         <div class="filters">
@@ -1914,9 +2037,10 @@ async function saveSku(ev, isEdit) {
   await withSaveGuard(ev, async () => {
   const skuId = document.getElementById('skuId').value.trim();
   const skuName = document.getElementById('skuName').value.trim();
-  const priceCents = parseInt(document.getElementById('skuPrice').value, 10);
+  const priceYuan = parseFloat(document.getElementById('skuPrice').value);
   const costRaw = document.getElementById('skuCost').value.trim();
-  const purchaseCostCents = costRaw ? parseInt(costRaw, 10) : null;
+  const priceCents = Math.round(priceYuan * 100);
+  const purchaseCostCents = costRaw ? Math.round(parseFloat(costRaw) * 100) : null;
   const weightRaw = document.getElementById('skuWeight').value.trim();
   const weightGrams = weightRaw ? parseInt(weightRaw, 10) : null;
   const imageUrl = document.getElementById('skuImageUrl').value.trim();
@@ -1930,7 +2054,7 @@ async function saveSku(ev, isEdit) {
   const nearExpiryDays = parseInt(document.getElementById('skuNearExpiry').value, 10) || 7;
   const blockSaleDaysBeforeExpiry = parseInt(document.getElementById('skuBlockSale').value, 10) || 0;
   const storageType = document.getElementById('skuStorageType').value || 'AMBIENT';
-  if (!skuId || !skuName || !priceCents) { toast('请填写 SKU、名称和价格', 'err'); return; }
+  if (!skuId || !skuName || !priceCents || Number.isNaN(priceYuan) || priceYuan <= 0) { toast('请填写商品编号、名称和有效售价', 'err'); return; }
   try {
     const body = {
       skuId, skuName, priceCents, status, visionEnabled,
@@ -1960,21 +2084,50 @@ async function saveSku(ev, isEdit) {
 function loadUsersPage() {
   selClear('users');
   document.getElementById('pageContent').innerHTML = `
-    <div class="card">
-      <div class="filters">
-        <div><label>手机号</label><input id="ufPhone" value="${userFilters.phone}" placeholder="138" oninput="debouncedSearchUsers()"></div>
-        <div><button class="btn-primary" onclick="searchUsers()">查询</button></div>
-        <div>${refreshButton('fetchUsers()')}</div>
-        ${selBar('users')}
-      </div>
+    <div class="card list-page-card">
+      ${listFilterBar({
+        onSearch: 'searchUsers()',
+        onReset: 'resetUserFilters()',
+        refreshFn: 'fetchUsers()',
+        extraHtml: selBar('users'),
+        fieldsHtml: `
+          ${filterField('手机号', `<input id="ufPhone" value="${escAttr(userFilters.phone)}" placeholder="支持模糊搜索">`)}
+          ${filterField('姓名', `<input id="ufName" value="${escAttr(userFilters.name)}" placeholder="支持模糊搜索">`)}
+          ${filterField('角色', `<select id="ufRole">
+            <option value="">全部</option>
+            <option value="CONSUMER" ${userFilters.role === 'CONSUMER' ? 'selected' : ''}>消费者</option>
+            <option value="OPERATOR" ${userFilters.role === 'OPERATOR' ? 'selected' : ''}>运营</option>
+          </select>`)}
+          ${filterField('实名状态', `<select id="ufVerified">
+            <option value="">全部</option>
+            <option value="true" ${userFilters.verified === 'true' ? 'selected' : ''}>已实名</option>
+            <option value="false" ${userFilters.verified === 'false' ? 'selected' : ''}>未实名</option>
+          </select>`)}`
+      })}
       <div id="userTable"></div>
     </div>`;
   showTableLoading(document.getElementById('userTable'), 8, 6);
   fetchUsers();
 }
 
+function readUserFiltersFromDom() {
+  userFilters.phone = document.getElementById('ufPhone')?.value.trim() || '';
+  userFilters.name = document.getElementById('ufName')?.value.trim() || '';
+  userFilters.role = document.getElementById('ufRole')?.value || '';
+  userFilters.verified = document.getElementById('ufVerified')?.value || '';
+}
+
+function resetUserFilters() {
+  userFilters.phone = '';
+  userFilters.name = '';
+  userFilters.role = '';
+  userFilters.verified = '';
+  userFilters.page = 0;
+  loadUsersPage();
+}
+
 function searchUsers() {
-  userFilters.phone = document.getElementById('ufPhone').value.trim();
+  readUserFiltersFromDom();
   userFilters.page = 0;
   fetchUsers();
 }
@@ -1987,7 +2140,10 @@ async function fetchUsers() {
     const q = new URLSearchParams({
       page: userFilters.page,
       size: userFilters.size,
-      ...(userFilters.phone ? { phone: userFilters.phone } : {})
+      ...(userFilters.phone ? { phone: userFilters.phone } : {}),
+      ...(userFilters.name ? { name: userFilters.name } : {}),
+      ...(userFilters.role ? { role: userFilters.role } : {}),
+      ...(userFilters.verified !== '' ? { verified: userFilters.verified } : {})
     });
     const data = await api('/api/v2/ops/admin/users?' + q, 'GET');
     if (!data.items.length) {
@@ -1996,11 +2152,14 @@ async function fetchUsers() {
     }
     const items = sortItems(data.items, tableSort.users.field, tableSort.users.dir);
     table.innerHTML = selWrap('users', `
-      <table>
+      <table class="data-table">
         <thead><tr>
           ${selHeaderCell('users')}
-          ${sortableHeader('users', 'userId', 'userId')}<th>手机号</th><th>姓名</th><th>角色</th><th>实名</th>
-          ${sortableHeader('users', 'balanceCents', '余额')}${sortableHeader('users', 'createdAt', '注册时间')}<th>操作</th>
+          ${sortableHeader('users', 'userId', '用户编号', tableSort.users)}
+          <th>手机号</th><th>姓名</th><th>角色</th><th>实名</th>
+          ${sortableHeader('users', 'balanceCents', '余额', tableSort.users)}
+          ${sortableHeader('users', 'createdAt', '注册时间', tableSort.users)}
+          <th class="col-actions">操作</th>
         </tr></thead>
         <tbody>${items.map(u => `
           ${selRowOpen('users', u.userId)}
@@ -2008,23 +2167,20 @@ async function fetchUsers() {
           <td>${esc(u.userId)}</td>
           <td>${esc(u.phoneNumber)}</td>
           <td>${esc(u.name || '-')}</td>
-          <td>${u.role === 'OPERATOR' ? '<span class="badge badge-active">运营</span>' : '消费者'}</td>
-          <td>${u.verified ? '是' : '否'}</td>
+          <td>${u.role === 'OPERATOR' ? '<span class="badge badge-active">运营</span>' : '<span class="badge badge-done">消费者</span>'}</td>
+          <td>${u.verified ? '<span class="badge badge-done">已实名</span>' : '<span class="meta">未实名</span>'}</td>
           <td>${fmtMoney(u.balanceCents)}</td>
           <td>${fmtTime(u.createdAt)}</td>
-          <td onclick="event.stopPropagation()">${u.role === 'OPERATOR'
-            ? (hasPerm('ops:rbac:assign') ? `<button class="btn-ghost btn-sm" onclick="showRbacAssignForUser(${u.userId})">分配角色</button>` : '-')
-            : `<span class="filters" style="gap:4px">
-                ${hasPerm('ops:user:balance') ? `<button class="btn-ghost btn-sm" onclick="showBalanceForm(${u.userId}, ${u.balanceCents})">调余额</button>` : ''}
+          <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions">${u.role === 'OPERATOR'
+            ? (hasPerm('ops:rbac:assign') ? `<button class="btn-ghost btn-sm" onclick="showRbacAssignForUser(${u.userId})">分配角色</button>` : '<span class="meta">-</span>')
+            : `${hasPerm('ops:user:balance') ? `<button class="btn-ghost btn-sm" onclick="showBalanceForm(${u.userId}, ${u.balanceCents})">调余额</button>` : ''}
                 ${hasPerm('ops:user:list') ? (u.verified
                   ? `<button class="btn-ghost btn-sm" onclick="showVerifyUserForm(${u.userId}, false, '${escAttr(u.name || '')}')">取消实名</button>`
-                  : `<button class="btn-ghost btn-sm" onclick="showVerifyUserForm(${u.userId}, true, '')">标记实名</button>`) : ''}
-              </span>`}</td>
+                  : `<button class="btn-ghost btn-sm" onclick="showVerifyUserForm(${u.userId}, true, '')">标记实名</button>`) : ''}`}</div></td>
         </tr>`).join('')}</tbody>
       </table>`)
       + renderPagination(data, 'user');
     selSync('users');
-    updateSortIndicators('users');
   } catch (e) {
     pageRenderError(table, e, false);
   }
@@ -2034,11 +2190,11 @@ function showBalanceForm(userId, balanceCents) {
   openModalHtml(`
     <div class="modal-backdrop" onclick="closeModal(event)">
       <div class="modal" onclick="event.stopPropagation()">
-        <h3>调整余额 · userId ${userId}</h3>
+        <h3>调整余额</h3>
         <p class="meta">当前余额 ${fmtMoney(balanceCents)}</p>
-        <label>变动金额（分，正数充值/负数扣减）</label>
-        <input id="deltaCents" type="number" value="1000" placeholder="1000 = 加10元">
-        <p class="meta">例：1000 表示加 ¥10.00；-350 表示扣 ¥3.50</p>
+        <label>调整金额（元，正数充值 / 负数扣减）</label>
+        <input id="deltaYuan" type="number" step="0.01" value="10.00" placeholder="10.00">
+        <p class="meta">例：10 表示加 ¥10.00；-3.5 表示扣 ¥3.50</p>
         <div class="filters" style="margin-top:12px">
           <button type="button" class="btn-primary" onclick="saveBalance(event, ${userId})">确认</button>
           <button type="button" class="btn-ghost" data-modal-cancel onclick="closeModal()">取消</button>
@@ -2049,8 +2205,9 @@ function showBalanceForm(userId, balanceCents) {
 
 async function saveBalance(ev, userId) {
   await withSaveGuard(ev, async () => {
-  const deltaCents = parseInt(document.getElementById('deltaCents').value, 10);
-  if (isNaN(deltaCents) || deltaCents === 0) { toast('请输入有效金额', 'err'); return; }
+  const deltaYuan = parseFloat(document.getElementById('deltaYuan').value);
+  const deltaCents = Math.round(deltaYuan * 100);
+  if (isNaN(deltaYuan) || deltaCents === 0) { toast('请输入有效金额', 'err'); return; }
   try {
     await api('/api/v2/ops/admin/users/' + userId + '/balance', 'POST', { deltaCents });
     closeModal();
@@ -2119,16 +2276,20 @@ async function loadReportsPage() {
     const reports = await api('/api/v2/ops/admin/reports/devices', 'GET');
     if (currentPage !== page) return;
     el.innerHTML = `
-      <div class="card">
-        <div class="filters">${selBar('reports')}${refreshButton('loadReportsPage()')}</div>
+      <div class="card list-page-card">
+        ${listFilterBar({
+          refreshFn: 'loadReportsPage()',
+          extraHtml: selBar('reports'),
+          fieldsHtml: ''
+        })}
       </div>`;
     if (!reports.length) {
       el.innerHTML += `<div class="card">${emptyStateHtml('暂无设备报表', '注册设备并产生订单后自动生成统计', 'loadReportsPage()')}</div>`;
       return;
     }
     el.innerHTML += `
-      <div class="card" style="padding:0;overflow:hidden">
-        ${selWrap('reports', `<table>
+      <div class="card list-page-card" style="padding-top:0">
+        ${selWrap('reports', `<table class="data-table">
           <thead><tr>
             ${selHeaderCell('reports')}
             <th>设备</th><th>状态</th><th>累计订单</th><th>累计营收</th>
@@ -2158,11 +2319,12 @@ async function loadReportsPage() {
 function loadAuditPage() {
   selClear('audit');
   document.getElementById('pageContent').innerHTML = `
-    <div class="card">
-      <div class="filters">
-        ${selBar('audit')}
-        ${refreshButton('fetchAuditLogs()')}
-      </div>
+    <div class="card list-page-card">
+      ${listFilterBar({
+        refreshFn: 'fetchAuditLogs()',
+        extraHtml: selBar('audit'),
+        fieldsHtml: ''
+      })}
       <div id="auditTable"></div>
     </div>`;
   showTableLoading(document.getElementById('auditTable'), 5, 6);
@@ -2192,13 +2354,17 @@ async function fetchAuditLogs() {
 function loadRecentPage() {
   selClear('recentAudit');
   document.getElementById('pageContent').innerHTML = `
-    <div class="card">
-      <div class="filters">
-        <button class="btn-ghost btn-sm ${!recentFilters.mine ? 'active-tab' : ''}" onclick="setRecentScope(false)">全部操作</button>
-        <button class="btn-ghost btn-sm ${recentFilters.mine ? 'active-tab' : ''}" onclick="setRecentScope(true)">我的操作</button>
-        ${selBar('recentAudit')}
-        ${refreshButton('fetchRecentLogs()')}
-        <button class="btn-ghost btn-sm" onclick="navigate('audit')">完整操作日志</button>
+    <div class="card list-page-card">
+      <div class="list-filter-bar">
+        <div class="list-filter-fields">
+          <button type="button" class="btn-ghost btn-sm ${!recentFilters.mine ? 'active-tab' : ''}" onclick="setRecentScope(false)">全部操作</button>
+          <button type="button" class="btn-ghost btn-sm ${recentFilters.mine ? 'active-tab' : ''}" onclick="setRecentScope(true)">我的操作</button>
+        </div>
+        <div class="list-filter-actions">
+          ${refreshButton('fetchRecentLogs()')}
+          ${selBar('recentAudit')}
+          <button type="button" class="btn-ghost btn-sm" onclick="navigate('audit')">完整操作日志</button>
+        </div>
       </div>
       <div id="recentTable"></div>
     </div>`;
@@ -2233,26 +2399,33 @@ async function loadDisputes() {
   await loadSkus();
   if (currentPage !== page) return;
   el.innerHTML = `
-    <div class="card">
-      <div class="filters">
-        <div><label>状态</label>
-          <select id="dfStatus">
+    <div class="card list-page-card">
+      ${listFilterBar({
+        onSearch: 'searchDisputes()',
+        onReset: 'resetDisputeFilters()',
+        refreshFn: 'fetchDisputes()',
+        extraHtml: `${selBar('disputes')}<label class="filter-check"><input type="checkbox" title="全选" onchange="selToggleAll('disputes', this.checked)"> 全选</label>`,
+        fieldsHtml: `
+          ${filterField('状态', `<select id="dfStatus">
             <option value="OPEN" ${disputeFilters.status === 'OPEN' ? 'selected' : ''}>待审核</option>
             <option value="RESOLVED" ${disputeFilters.status === 'RESOLVED' ? 'selected' : ''}>已结案</option>
             <option value="" ${!disputeFilters.status ? 'selected' : ''}>全部</option>
-          </select>
-        </div>
-        <div><label>会话ID</label><input id="dfSession" value="${escAttr(disputeFilters.sessionId)}" placeholder="可选"></div>
-        <div><label>设备ID</label><input id="dfDevice" value="${escAttr(disputeFilters.deviceId)}" placeholder="CAB-001"></div>
-        <div><button class="btn-primary" onclick="searchDisputes()">查询</button></div>
-        <div>${refreshButton('fetchDisputes()')}</div>
-        ${selBar('disputes')}
-        <label class="filter-check"><input type="checkbox" title="全选" onchange="selToggleAll('disputes', this.checked)"> 全选</label>
-      </div>
+          </select>`)}
+          ${filterField('开门记录', `<input id="dfSession" value="${escAttr(disputeFilters.sessionId)}" placeholder="可选">`)}
+          ${filterField('设备编号', `<input id="dfDevice" value="${escAttr(disputeFilters.deviceId)}" placeholder="CAB-001">`)}`
+      })}
       <div id="disputeList"></div>
     </div>`;
   showTableLoading(document.getElementById('disputeList'), 1, 4);
   fetchDisputes();
+}
+
+function resetDisputeFilters() {
+  disputeFilters.status = 'OPEN';
+  disputeFilters.sessionId = '';
+  disputeFilters.deviceId = '';
+  disputeFilters.page = 0;
+  loadDisputes();
 }
 
 function searchDisputes() {
@@ -2361,7 +2534,7 @@ function renderTicket(t) {
   const age = disputeAgeLabel(t.createdAt);
   const ageWarn = isOpen && (t.slaOverdue || (Date.now() - new Date(t.createdAt).getTime()) > 48 * 3600000);
   const slaMeta = isOpen && t.slaDueAt
-    ? `<div class="meta">SLA 截止 ${fmtTime(t.slaDueAt)}${t.slaHoursRemaining != null ? ` · 剩余 ${t.slaHoursRemaining}h` : ''}</div>`
+    ? `<div class="meta">处理截止 ${fmtTime(t.slaDueAt)}${t.slaHoursRemaining != null ? ` · 剩余 ${t.slaHoursRemaining} 小时` : ''}</div>`
     : '';
   const videoBtn = t.sessionId && (t.videoUri || t.videoPreviewUrl)
     ? `<button type="button" class="btn-ghost btn-sm" onclick="showSessionVideo('${escAttr(t.sessionId)}', '${escAttr(t.videoUri || '')}')">${mediaActionLabel(t.videoUri)}</button>`
@@ -2405,7 +2578,7 @@ function renderVideoModalHtml(title, subtitle) {
         <div id="sessionMediaHost" class="session-media-host">
           <video id="sessionVideoPlayer" controls autoplay muted playsinline preload="auto" class="session-media-video hidden"></video>
         </div>
-        <p class="meta">若无法播放，请确认该会话已上传录像且 MinIO 服务正常（端口 9000）。</p>
+        <p class="meta">若无法播放，请确认该开门记录已上传购物录像，或稍后重试。</p>
         <div class="modal-actions"><button type="button" class="btn-ghost" onclick="closeModal()">关闭</button></div>
       </div>
     </div>`;
@@ -2452,7 +2625,7 @@ async function showSessionVideo(sessionId, videoUri) {
     }
   } catch (e) {
     hint.className = 'err video-err';
-    hint.textContent = formatApiError(e) || '加载失败：该会话可能没有录像，或 MinIO 中文件不存在。可运行 .\\scripts\\e2e-shopping.ps1 生成测试视频。';
+    hint.textContent = formatApiError(e) || '加载失败：该记录可能没有录像，或录像尚未上传完成。';
   }
 }
 
@@ -2504,24 +2677,31 @@ async function resolveTicket(ticketId, btn, resolutionType = 'CONFIRM') {
 function loadRechargesPage() {
   selClear('recharges');
   document.getElementById('pageContent').innerHTML = `
-    <div class="card">
-      <div class="filters">
-        <div><label>状态</label>
-          <select id="rfStatus">
+    <div class="card list-page-card">
+      ${listFilterBar({
+        onSearch: 'searchRecharges()',
+        onReset: 'resetRechargeFilters()',
+        refreshFn: 'fetchRecharges()',
+        extraHtml: selBar('recharges'),
+        fieldsHtml: `
+          ${filterField('状态', `<select id="rfStatus">
             <option value="">全部</option>
             ${['PENDING', 'PAID', 'REFUNDED', 'CANCELLED'].map(s =>
               `<option value="${s}" ${rechargeFilters.status === s ? 'selected' : ''}>${rechargeStatusLabel(s)}</option>`).join('')}
-          </select>
-        </div>
-        <div><label>用户ID</label><input id="rfUserId" value="${escAttr(rechargeFilters.userId)}" placeholder="可选"></div>
-        <div><button class="btn-primary" onclick="searchRecharges()">查询</button></div>
-        <div>${refreshButton('fetchRecharges()')}</div>
-        ${selBar('recharges')}
-      </div>
+          </select>`)}
+          ${filterField('用户编号', `<input id="rfUserId" value="${escAttr(rechargeFilters.userId)}" placeholder="留空=全部">`)}`
+      })}
       <div id="rechargeTable"></div>
     </div>`;
   showTableLoading(document.getElementById('rechargeTable'), 10, 6);
   fetchRecharges();
+}
+
+function resetRechargeFilters() {
+  rechargeFilters.status = '';
+  rechargeFilters.userId = '';
+  rechargeFilters.page = 0;
+  loadRechargesPage();
 }
 
 function searchRecharges() {
@@ -2549,11 +2729,11 @@ async function fetchRecharges() {
     }
     const canRefund = hasPerm('ops:user:balance');
     table.innerHTML = selWrap('recharges', `
-      <table>
+      <table class="data-table">
         <thead><tr>
           ${selHeaderCell('recharges')}
           <th>订单号</th><th>用户</th><th>金额</th><th>渠道</th><th>状态</th>
-          <th>微信单号</th><th>创建</th><th>支付</th><th>退款</th><th>操作</th>
+          <th>微信单号</th><th>创建</th><th>支付</th><th>退款</th><th class="col-actions">操作</th>
         </tr></thead>
         <tbody>${data.items.map(r => `
           ${selRowOpen('recharges', r.orderId)}
@@ -2567,9 +2747,9 @@ async function fetchRecharges() {
           <td>${fmtTime(r.createdAt)}</td>
           <td>${fmtTime(r.paidAt)}</td>
           <td>${fmtTime(r.refundedAt)}</td>
-          <td onclick="event.stopPropagation()">${r.status === 'PAID' && canRefund
+          <td class="col-actions" onclick="event.stopPropagation()"><div class="row-actions">${r.status === 'PAID' && canRefund
             ? `<button class="btn-danger btn-sm" onclick="refundRecharge('${escAttr(r.orderId)}', ${r.amountCents})">退款</button>`
-            : '-'}</td>
+            : '<span class="meta">-</span>'}</div></td>
         </tr>`).join('')}</tbody>
       </table>`)
       + renderPagination(data, 'recharge');
@@ -2640,6 +2820,7 @@ function startDevicesAutoRefresh() {
   stopDevicesAutoRefresh();
   devicesRefreshTimer = setInterval(() => {
     if (currentPage === 'devices') loadDevices();
+    else if (currentPage === 'dashboard') refreshDashboardDevicePanel();
   }, 30000);
 }
 
@@ -2660,7 +2841,9 @@ Object.assign(window, {
   navigate,
   navigateBack,
   closeVisitedTab,
+  handleRefreshClick,
   loadDashboard,
+  refreshDashboardDevicePanel,
   showDeviceForm,
   saveDevice,
   viewDeviceDetail,
@@ -2686,9 +2869,20 @@ Object.assign(window, {
   toggleNavSection,
   toggleTheme,
   toggleTableSort,
+  setTableSort,
   debouncedSearchSessions,
   debouncedSearchOrders,
   debouncedSearchUsers,
+  resetUserFilters,
+  resetSessionFilters,
+  resetOrderFilters,
+  resetRechargeFilters,
+  resetDisputeFilters,
+  searchUsers,
+  searchDevices,
+  resetDeviceFilters,
+  searchSkus,
+  resetSkuFilters,
   closeModal,
   loadSkusPage,
   showSkuForm,
@@ -2701,7 +2895,6 @@ Object.assign(window, {
   selRowClick,
   selClear,
   selSync,
-  searchUsers,
   showBalanceForm,
   saveBalance,
   setUserVerified,

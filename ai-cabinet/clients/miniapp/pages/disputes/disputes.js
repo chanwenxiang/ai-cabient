@@ -57,7 +57,7 @@ Page({
     const sessionId = e.currentTarget.dataset.session;
     wx.showModal({
       title: '人工审核',
-      content: `确认会话 ${sessionId} 购买 1 件演示商品并扣款？`,
+      content: `确认该开门记录购买了 1 件商品并扣款？`,
       success: async (res) => {
         if (!res.confirm) return;
         try {

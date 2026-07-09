@@ -103,6 +103,10 @@ public class ProductionStartupValidator {
             throw new IllegalStateException(
                     "PAYSCORE_ENABLED=true requires PAYSCORE_LIVE_CHARGE_ENABLED=true and a real charge implementation");
         }
+        if (!payScoreProperties.hasChargeGateway()) {
+            throw new IllegalStateException(
+                    "PAYSCORE_LIVE_CHARGE_ENABLED=true requires PAYSCORE_CHARGE_GATEWAY_URL and PAYSCORE_CHARGE_GATEWAY_API_KEY");
+        }
     }
 
     private void validateProfitSharingConfig() {
