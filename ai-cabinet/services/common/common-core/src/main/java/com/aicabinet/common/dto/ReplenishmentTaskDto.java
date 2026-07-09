@@ -9,5 +9,8 @@ public record ReplenishmentTaskDto(
         Long assigneeUserId,
         String status,
         String notes,
-        Instant completedAt
+        Instant completedAt,
+        Instant checkInAt,
+        Double checkInLat,
+        Double checkInLng
 ) {}

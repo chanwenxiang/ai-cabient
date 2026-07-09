@@ -15,6 +15,9 @@ public final class ApiMessages {
     public static final String INVALID_TOKEN = "登录已失效，请重新登录";
     public static final String INVALID_PHONE = "手机号格式不正确";
     public static final String INVALID_CODE = "验证码错误或已过期";
+    public static final String INVALID_PASSWORD = "密码错误";
+    public static final String PASSWORD_NOT_SET = "该账号未设置密码，请使用验证码或联系管理员";
+    public static final String WX_NOT_BOUND = "微信未绑定账号，请先使用手机号登录后再绑定";
     public static final String USER_NOT_VERIFIED = "请先完成实名认证";
     public static final String OPERATOR_REQUIRED = "需要运营账号权限";
     public static final String PERMISSION_DENIED = "无权限执行此操作";
@@ -32,6 +35,12 @@ public final class ApiMessages {
     // 设备/会话
     public static final String DEVICE_NOT_FOUND = "设备不存在，请检查设备编号";
     public static final String DEVICE_BUSY = "设备使用中，请稍后再试";
+    public static final String REPLENISHMENT_IN_PROGRESS = "设备补货中，暂不能购物或结算";
+    public static final String REPLENISHMENT_TASK_NOT_FOUND = "补货任务不存在";
+    public static final String REPLENISHMENT_TASK_MISMATCH = "补货任务与设备不匹配";
+    public static final String REPLENISHMENT_TASK_FINISHED = "补货任务已结束";
+    public static final String REPLENISHMENT_TASK_ASSIGNEE = "仅任务负责人可执行此补货操作";
+    public static final String REPLENISHMENT_CHECK_IN_REQUIRED = "请先到店签到后再补货开门";
     public static final String DEVICE_MISMATCH = "设备与会话不匹配";
     public static final String SESSION_NOT_FOUND = "购物会话不存在";
     public static final String SESSION_FINISHED = "会话已结束，无法取消";
@@ -50,9 +59,13 @@ public final class ApiMessages {
     public static final String INSUFFICIENT_BALANCE = "余额不足";
     public static final String INSUFFICIENT_REFUND = "余额不足，无法退款";
     public static final String WECHAT_PAY_NOT_CONFIGURED = "微信支付未配置";
+    public static final String ALIPAY_PAY_NOT_CONFIGURED = "支付宝未配置";
     public static final String WX_OPENID_NOT_BOUND = "请先绑定微信后再支付";
     public static final String TICKET_NOT_FOUND = "争议工单不存在";
     public static final String TICKET_ALREADY_RESOLVED = "工单已处理";
+    public static final String DISPUTE_ALREADY_EXISTS = "该会话已有申诉工单";
+    public static final String DISPUTE_ITEMS_REQUIRED = "请至少选择一件商品";
+    public static final String ORDER_ALREADY_REFUNDED = "订单已退款";
 
     // 商品/运营
     public static final String SKU_NOT_FOUND = "商品不存在";
@@ -68,6 +81,7 @@ public final class ApiMessages {
     public static final String MISSING_OUT_TRADE_NO = "缺少商户订单号";
     public static final String UNSUPPORTED_CHANNEL = "不支持的支付渠道";
     public static final String INVALID_WECHAT_NOTIFY = "微信支付回调签名校验失败";
+    public static final String INVALID_ALIPAY_NOTIFY = "支付宝回调签名校验失败";
 
     // 通用
     public static final String INTERNAL_ERROR = "系统繁忙，请稍后重试";

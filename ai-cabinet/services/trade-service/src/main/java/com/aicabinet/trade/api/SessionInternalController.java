@@ -2,6 +2,7 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.DoorEventRequest;
+import com.aicabinet.common.dto.GravityDeltaRequest;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.dto.VideoAttachRequest;
 import com.aicabinet.trade.service.SessionService;
@@ -26,5 +27,11 @@ public class SessionInternalController {
     @PostMapping("/video")
     public ApiResponse<SessionDto> attachVideo(@Valid @RequestBody VideoAttachRequest request) {
         return ApiResponse.ok(sessionService.attachVideo(request));
+    }
+
+    /** 重力柜实时重量变化（负 delta 表示取走） */
+    @PostMapping("/gravity-deltas")
+    public ApiResponse<SessionDto> gravityDeltas(@Valid @RequestBody GravityDeltaRequest request) {
+        return ApiResponse.ok(sessionService.attachGravityDeltas(request));
     }
 }

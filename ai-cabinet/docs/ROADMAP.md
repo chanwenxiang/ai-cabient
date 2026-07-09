@@ -155,6 +155,15 @@ Compose 真实 YOLO（`infra/.env` 设 `VISION_INSTALL_ML=true`、`VISION_MOCK_E
 
 包括：强密钥、微信 V3、SMS、EMQX TLS、OSS、对账 API 等。
 
+一键验证：
+
+```powershell
+.\scripts\verify-step5.ps1 -CheckEnv          # 检查 infra/.env 生产必填项
+.\scripts\verify-step5.ps1 -Staging           # 预发 compose + SMS webhook 实链路
+```
+
+预发模板：`infra/.env.staging.example` + `docker-compose.staging.yml`（含 `sms-webhook-mock`）。
+
 ---
 
 ## Step 6：Android 真机（硬件确定后）
@@ -175,7 +184,9 @@ Compose 真实 YOLO（`infra/.env` 设 `VISION_INSTALL_ML=true`、`VISION_MOCK_E
 - [x] **Step 2：IDEA 本地联调（脚本 E2E + 运营后台）**
 - [x] **Step 3：小程序 tabBar + 会话状态体验**
 - [x] **Step 4：视觉实链路（YOLO + MinIO + 多摄融合）**
-- [ ] Step 5～6
+- [x] **Step 5：预发验证脚本 + staging profile + SMS mock**（正式上线仍需 WECHAT_* / OSS / EMQX TLS）
+- [x] **微信分账 API 骨架**（`WeChatProfitSharingService` + 运营手动提交接口）
+- [ ] Step 6
 
 ---
 

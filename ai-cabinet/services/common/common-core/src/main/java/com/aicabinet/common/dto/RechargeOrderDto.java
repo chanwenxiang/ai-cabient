@@ -10,6 +10,7 @@ public record RechargeOrderDto(
         String status,
         String wxPrepayId,
         String wxTransactionId,
+        String alipayTradeNo,
         Instant createdAt,
         Instant paidAt,
         Instant refundedAt

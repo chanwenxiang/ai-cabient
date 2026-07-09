@@ -32,6 +32,9 @@ public class DeviceInfo {
     @Column(length = 256)
     private String address;
 
+    @Column(length = 32)
+    private String merchantId;
+
     private Instant updatedAt;
 
     @PrePersist
@@ -58,5 +61,7 @@ public class DeviceInfo {
     public void setLongitude(Double longitude) { this.longitude = longitude; }
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
+    public String getMerchantId() { return merchantId; }
+    public void setMerchantId(String merchantId) { this.merchantId = merchantId; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

@@ -16,7 +16,7 @@ public enum SessionState {
         return switch (this) {
             case CREATED -> target == OPENING || target == CANCELLED || target == FAILED;
             case OPENING -> target == SHOPPING || target == FAILED || target == CANCELLED;
-            case SHOPPING -> target == RECOGNIZING || target == WAITING_UPLOAD || target == FAILED || target == CANCELLED;
+            case SHOPPING -> target == RECOGNIZING || target == WAITING_UPLOAD || target == COMPLETED || target == FAILED || target == CANCELLED;
             case WAITING_UPLOAD -> target == RECOGNIZING || target == FAILED || target == CANCELLED;
             case RECOGNIZING -> target == SETTLING || target == DISPUTED || target == FAILED;
             case SETTLING -> target == COMPLETED || target == DISPUTED || target == FAILED;

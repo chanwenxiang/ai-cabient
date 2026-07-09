@@ -1,6 +1,11 @@
 .container { padding: 60rpx 40rpx; }
-.title { font-size: 48rpx; font-weight: bold; margin-bottom: 60rpx; text-align: center; }
+.title { font-size: 48rpx; font-weight: bold; margin-bottom: 40rpx; text-align: center; }
+.tabs { display: flex; gap: 16rpx; margin-bottom: 32rpx; }
+.tab { flex: 1; text-align: center; padding: 16rpx 0; border: 1px solid #ddd; border-radius: 8rpx; color: #666; font-size: 28rpx; }
+.tab.active { border-color: #1677ff; color: #1677ff; background: rgba(22, 119, 255, 0.08); font-weight: 600; }
 .input { border: 1px solid #ddd; padding: 24rpx; margin-bottom: 24rpx; border-radius: 8rpx; }
 .row { display: flex; gap: 16rpx; align-items: center; margin-bottom: 24rpx; }
 .code { flex: 1; margin-bottom: 0; }
-.hint { margin-top: 40rpx; color: #999; font-size: 24rpx; text-align: center; }
+.wx-btn { margin-top: 24rpx; }
+.hint { margin-top: 40rpx; color: #999; font-size: 24rpx; text-align: center; line-height: 1.5; }
+.sub-hint { margin-top: 16rpx; font-size: 22rpx; color: #bbb; }

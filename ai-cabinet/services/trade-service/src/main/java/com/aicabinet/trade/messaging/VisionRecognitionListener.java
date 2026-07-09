@@ -49,7 +49,7 @@ public class VisionRecognitionListener {
             }
 
             VisionServiceClient.RecognitionResult result =
-                    new VisionServiceClient.RecognitionResult(taskId, items, overall, needReview);
+                    new VisionServiceClient.RecognitionResult(taskId, items, overall, needReview, null, List.of());
             sessionService.completeAsyncRecognition(sessionId, result);
             log.info("processed async vision result session={}", sessionId);
         } catch (Exception e) {

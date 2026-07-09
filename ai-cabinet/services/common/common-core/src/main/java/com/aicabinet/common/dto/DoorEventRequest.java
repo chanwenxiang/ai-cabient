@@ -12,13 +12,19 @@ public record DoorEventRequest(
         String videoUri,
         String uploadStatus,
         String videoClipsJson,
-        String cameraFusionMode
+        String cameraFusionMode,
+        String gravityDeltasJson
 ) {
     public DoorEventRequest(String sessionId, String deviceId, DoorState doorState, Long timestamp) {
-        this(sessionId, deviceId, doorState, timestamp, null, null, null, null);
+        this(sessionId, deviceId, doorState, timestamp, null, null, null, null, null);
     }
 
     public DoorEventRequest(String sessionId, String deviceId, DoorState doorState, Long timestamp, String videoUri) {
-        this(sessionId, deviceId, doorState, timestamp, videoUri, null, null, null);
+        this(sessionId, deviceId, doorState, timestamp, videoUri, null, null, null, null);
+    }
+
+    public DoorEventRequest(String sessionId, String deviceId, DoorState doorState, Long timestamp,
+                            String videoUri, String uploadStatus, String videoClipsJson, String cameraFusionMode) {
+        this(sessionId, deviceId, doorState, timestamp, videoUri, uploadStatus, videoClipsJson, cameraFusionMode, null);
     }
 }

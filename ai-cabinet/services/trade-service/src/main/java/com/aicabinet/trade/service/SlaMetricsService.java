@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.SlaDailySnapshot;
 import com.aicabinet.trade.repository.DeviceInfoRepository;
+import com.aicabinet.trade.repository.DisputeTicketRepository;
 import com.aicabinet.trade.repository.ShoppingSessionRepository;
 import com.aicabinet.trade.repository.SlaDailySnapshotRepository;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -18,6 +19,7 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class SlaMetricsService {
@@ -25,18 +27,27 @@ public class SlaMetricsService {
     private final ShoppingSessionRepository sessionRepository;
     private final DeviceInfoRepository deviceRepository;
     private final SlaDailySnapshotRepository snapshotRepository;
+    private final MerchantScopeService merchantScopeService;
+    private final DisputeTicketRepository disputeRepository;
+    private final DisputeSlaService disputeSlaService;
 
     public SlaMetricsService(ShoppingSessionRepository sessionRepository,
                              DeviceInfoRepository deviceRepository,
-                             SlaDailySnapshotRepository snapshotRepository) {
+                             SlaDailySnapshotRepository snapshotRepository,
+                             MerchantScopeService merchantScopeService,
+                             DisputeTicketRepository disputeRepository,
+                             DisputeSlaService disputeSlaService) {
         this.sessionRepository = sessionRepository;
         this.deviceRepository = deviceRepository;
         this.snapshotRepository = snapshotRepository;
+        this.merchantScopeService = merchantScopeService;
+        this.disputeRepository = disputeRepository;
+        this.disputeSlaService = disputeSlaService;
     }
 
     @Transactional(readOnly = true)
     public SlaMetricsDto current(Long operatorId) {
-        SlaRealtimeDto realtime = computeRealtime();
+        SlaRealtimeDto realtime = realtimeMetrics(operatorId);
         return snapshotRepository.findFirstByOrderBySnapshotDateDesc()
                 .map(s -> new SlaMetricsDto(
                         s.getSnapshotDate(),
@@ -110,27 +121,53 @@ public class SlaMetricsService {
         return snap;
     }
 
-    private SlaRealtimeDto computeRealtime() {
+    @Transactional(readOnly = true)
+    public SlaRealtimeDto realtimeMetrics() {
+        return computeRealtime(null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public SlaRealtimeDto realtimeMetrics(Long operatorId) {
+        Set<String> scopedDevices = merchantScopeService.allowedDeviceIds(operatorId);
+        if (scopedDevices != null && scopedDevices.isEmpty()) {
+            return new SlaRealtimeDto(1.0, 0, 0, 0, 0, 0, 1.0);
+        }
+        List<DeviceInfo> devices = scopedDevices == null
+                ? deviceRepository.findAll()
+                : merchantScopeService.allowedDevices(operatorId);
+        return computeRealtime(scopedDevices, devices);
+    }
+
+    private SlaRealtimeDto computeRealtime(Set<String> scopedDevices, List<DeviceInfo> scopedDeviceList) {
         Instant since24h = Instant.now().minus(24, ChronoUnit.HOURS);
-        long attempts = sessionRepository.countByCreatedAtAfter(since24h);
-        long success = sessionRepository.findAll().stream()
+        List<ShoppingSession> recentSessions = sessionRepository.findAll().stream()
                 .filter(s -> s.getCreatedAt() != null && s.getCreatedAt().isAfter(since24h))
+                .filter(s -> scopedDevices == null || scopedDevices.contains(s.getDeviceId()))
+                .toList();
+
+        long attempts = recentSessions.size();
+        long success = recentSessions.stream()
                 .filter(s -> s.getState() == SessionState.COMPLETED || s.getState() == SessionState.DISPUTED)
                 .count();
 
         double doorRate = attempts > 0 ? (double) success / attempts : 1.0;
 
-        List<Long> ms = sessionRepository.findAll().stream()
-                .filter(s -> s.getCreatedAt() != null && s.getCreatedAt().isAfter(since24h))
+        List<Long> ms = recentSessions.stream()
                 .filter(s -> s.getOpenTime() != null && s.getCloseTime() != null)
                 .map(s -> ChronoUnit.MILLIS.between(s.getOpenTime(), s.getCloseTime()))
                 .toList();
         long avg = ms.isEmpty() ? 0 : ms.stream().mapToLong(Long::longValue).sum() / ms.size();
 
-        List<DeviceInfo> devices = deviceRepository.findAll();
+        List<DeviceInfo> devices = scopedDeviceList != null ? scopedDeviceList : deviceRepository.findAll();
         long online = devices.stream().filter(d -> "ONLINE".equalsIgnoreCase(d.getOnlineStatus())).count();
         double onlineRate = devices.isEmpty() ? 0 : (double) online / devices.size();
 
-        return new SlaRealtimeDto(doorRate, avg, onlineRate);
+        long disputeOpen = disputeRepository.countByStatus("OPEN");
+        long disputeOverdue = disputeSlaService.countOverdue();
+        long disputeResolved24h = disputeRepository.countResolvedSince(since24h);
+        double disputeSlaCompliance = disputeSlaService.slaComplianceRate24h();
+
+        return new SlaRealtimeDto(doorRate, avg, onlineRate, disputeOpen, disputeOverdue,
+                disputeResolved24h, disputeSlaCompliance);
     }
 }

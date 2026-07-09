@@ -46,6 +46,7 @@ public class DeviceSimulator implements MqttCallback {
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
     private MqttClient client;
+    private boolean lastOperatorMode;
 
     public DeviceSimulator(String deviceId) {
         this.deviceId = deviceId;
@@ -146,16 +147,18 @@ public class DeviceSimulator implements MqttCallback {
         }
 
         String sessionId = node.path("sessionId").asText();
-        System.out.println("[simulator] OPEN_DOOR received session=" + sessionId);
+        lastOperatorMode = node.path("operatorMode").asBoolean(false);
+        System.out.println("[simulator] OPEN_DOOR received session=" + sessionId
+                + " operatorMode=" + lastOperatorMode);
 
         publishAck(node.path("commandId").asText());
         Thread.sleep(500);
-        publishDoorEvent(sessionId, DoorState.OPEN, null, null, null, null);
+        publishDoorEvent(sessionId, DoorState.OPEN, null, null, null, null, null);
         System.out.println("[simulator] door OPEN, shopping 3s...");
         Thread.sleep(3000);
 
         if (offlineUploadEnabled()) {
-            publishDoorEvent(sessionId, DoorState.CLOSED, null, "LOCAL_QUEUED", null, null);
+            publishDoorEvent(sessionId, DoorState.CLOSED, null, "LOCAL_QUEUED", null, null, resolveGravityJson());
             System.out.println("[simulator] door CLOSED offline, queued local upload");
             scheduleDeferredUpload(sessionId);
             return;
@@ -164,13 +167,13 @@ public class DeviceSimulator implements MqttCallback {
         if (multiCameraEnabled()) {
             VideoPayload payload = resolveMultiCameraPayload(sessionId);
             publishDoorEvent(sessionId, DoorState.CLOSED, payload.primaryUri(), "UPLOADED",
-                    payload.clipsJson(), "MULTI");
+                    payload.clipsJson(), "MULTI", resolveGravityJson());
             System.out.println("[simulator] door CLOSED multi-camera primary=" + payload.primaryUri());
             return;
         }
 
         String videoUri = resolveVideoUri(sessionId, null);
-        publishDoorEvent(sessionId, DoorState.CLOSED, videoUri, "UPLOADED", null, "SINGLE");
+        publishDoorEvent(sessionId, DoorState.CLOSED, videoUri, "UPLOADED", null, "SINGLE", resolveGravityJson());
         System.out.println("[simulator] door CLOSED video=" + videoUri);
     }
 
@@ -311,7 +314,8 @@ public class DeviceSimulator implements MqttCallback {
                                   String videoUri,
                                   String uploadStatus,
                                   String videoClipsJson,
-                                  String cameraFusionMode) throws Exception {
+                                  String cameraFusionMode,
+                                  String gravityDeltasJson) throws Exception {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("type", CabinetConstants.MQTT_EVENT_TYPE_DOOR);
         data.put("sessionId", sessionId);
@@ -321,10 +325,30 @@ public class DeviceSimulator implements MqttCallback {
         if (uploadStatus != null) data.put("uploadStatus", uploadStatus);
         if (videoClipsJson != null) data.put("videoClipsJson", videoClipsJson);
         if (cameraFusionMode != null) data.put("cameraFusionMode", cameraFusionMode);
+        if (gravityDeltasJson != null) data.put("gravityDeltasJson", gravityDeltasJson);
 
         MqttMessage msg = new MqttMessage(mapper.writeValueAsBytes(data));
         msg.setQos(1);
         client.publish(MqttTopics.event(deviceId), msg);
+    }
+
+    /** 关门重力：优先环境变量；消费者默认 -1@A1；补货默认不发（E2E 可走 internal API）。 */
+    private String resolveGravityJson() {
+        String configured = env("AICABINET_SIM_GRAVITY_JSON", null);
+        if (configured != null) {
+            return configured;
+        }
+        if (lastOperatorMode) {
+            return null;
+        }
+        try {
+            return mapper.writeValueAsString(List.of(
+                    Map.of("skuId", env("AICABINET_SIM_GRAVITY_SKU", "SKU-DEMO-001"),
+                            "delta", -1,
+                            "slotId", env("AICABINET_SIM_GRAVITY_SLOT", "A1"))));
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private static boolean offlineUploadEnabled() {

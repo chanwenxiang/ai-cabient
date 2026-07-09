@@ -10,8 +10,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 
 import java.util.List;
@@ -39,26 +42,45 @@ public class VisionServiceClient {
         String fusionMode = session.getCameraFusionMode();
         String clipsJson = session.getVideoClips();
         if ("MULTI".equalsIgnoreCase(fusionMode) && clipsJson != null && !clipsJson.isBlank()) {
-            return recognizeMulti(session.getSessionId(), session.getVideoUri(), clipsJson, fusionMode);
+            return recognizeMulti(session.getSessionId(), session.getVideoUri(), clipsJson, fusionMode, null);
         }
-        return recognize(session.getSessionId(), session.getVideoUri());
+        return recognize(session.getSessionId(), session.getVideoUri(), session.getDeviceId(), null);
+    }
+
+    public RecognitionResult recognizeInventorySnapshot(ShoppingSession session) {
+        String fusionMode = session.getCameraFusionMode();
+        String clipsJson = session.getVideoClips();
+        String mode = "INVENTORY_SNAPSHOT";
+        if ("MULTI".equalsIgnoreCase(fusionMode) && clipsJson != null && !clipsJson.isBlank()) {
+            return recognizeMulti(session.getSessionId(), session.getVideoUri(), clipsJson, fusionMode, mode);
+        }
+        return recognize(session.getSessionId(), session.getVideoUri(), session.getDeviceId(), mode);
     }
 
     public RecognitionResult recognize(String sessionId, String videoUri) {
-        log.info("request vision recognize session={}", sessionId);
+        return recognize(sessionId, videoUri, null, null);
+    }
+
+    public RecognitionResult recognize(String sessionId, String videoUri, String deviceId) {
+        return recognize(sessionId, videoUri, deviceId, null);
+    }
+
+    public RecognitionResult recognize(String sessionId, String videoUri, String deviceId, String recognitionMode) {
+        log.info("request vision recognize session={} mode={}", sessionId, recognitionMode);
         VisionRecognizeResponse body = restClient.post()
                 .uri("/api/v2/vision/recognize")
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .header(InternalApiConstants.API_KEY_HEADER, visionApiProperties.key())
-                .body(new RecognizeRequest(sessionId, videoUri != null ? videoUri : "", null, null))
+                .body(new RecognizeRequest(sessionId, videoUri != null ? videoUri : "", null, null, deviceId, recognitionMode))
                 .retrieve()
                 .body(VisionRecognizeResponse.class);
 
         return toRecognitionResult(sessionId, body);
     }
 
-    private RecognitionResult recognizeMulti(String sessionId, String videoUri, String clipsJson, String fusionMode) {
+    private RecognitionResult recognizeMulti(String sessionId, String videoUri, String clipsJson, String fusionMode,
+                                             String recognitionMode) {
         log.info("request vision multi-camera session={} fusion={}", sessionId, fusionMode);
         try {
             List<Map<String, Object>> clips = objectMapper.readValue(clipsJson, CLIP_LIST_TYPE);
@@ -67,14 +89,37 @@ public class VisionServiceClient {
                     .contentType(MediaType.APPLICATION_JSON)
                     .accept(MediaType.APPLICATION_JSON)
                     .header(InternalApiConstants.API_KEY_HEADER, visionApiProperties.key())
-                    .body(new RecognizeRequest(sessionId, videoUri, clips, fusionMode))
+                    .body(new RecognizeRequest(sessionId, videoUri, clips, fusionMode, null, recognitionMode))
                     .retrieve()
                     .body(VisionRecognizeResponse.class);
             return toRecognitionResult(sessionId, body);
         } catch (Exception e) {
             log.warn("multi-camera parse failed session={}, fallback single uri", sessionId, e);
-            return recognize(sessionId, videoUri);
+            return recognize(sessionId, videoUri, null, recognitionMode);
         }
+    }
+
+    public RecognitionResult recognizeUpload(String sessionId, byte[] data, String filename) {
+        log.info("request vision upload recognize session={} file={}", sessionId, filename);
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("session_id", sessionId);
+        body.add("file", new ByteArrayResource(data) {
+            @Override
+            public String getFilename() {
+                return filename != null && !filename.isBlank() ? filename : "upload.jpg";
+            }
+        });
+
+        VisionRecognizeResponse response = restClient.post()
+                .uri("/api/v2/vision/recognize/upload")
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .accept(MediaType.APPLICATION_JSON)
+                .header(InternalApiConstants.API_KEY_HEADER, visionApiProperties.key())
+                .body(body)
+                .retrieve()
+                .body(VisionRecognizeResponse.class);
+
+        return toRecognitionResult(sessionId, response);
     }
 
     private RecognitionResult toRecognitionResult(String sessionId, VisionRecognizeResponse body) {
@@ -95,7 +140,9 @@ public class VisionServiceClient {
                                 i.confidence() != null ? i.confidence() : 0f))
                         .toList(),
                 body.overallConfidence() != null ? body.overallConfidence() : 0f,
-                needReview
+                needReview,
+                body.modelVersion(),
+                body.detectedClasses() != null ? body.detectedClasses() : List.of()
         );
     }
 
@@ -103,7 +150,9 @@ public class VisionServiceClient {
             @JsonProperty("session_id") String sessionId,
             @JsonProperty("video_uri") String videoUri,
             @JsonProperty("video_clips") List<Map<String, Object>> videoClips,
-            @JsonProperty("camera_fusion_mode") String cameraFusionMode
+            @JsonProperty("camera_fusion_mode") String cameraFusionMode,
+            @JsonProperty("device_id") String deviceId,
+            @JsonProperty("recognition_mode") String recognitionMode
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -111,7 +160,9 @@ public class VisionServiceClient {
             @JsonProperty("task_id") String taskId,
             @JsonProperty("items") List<VisionItemResponse> items,
             @JsonProperty("overall_confidence") Float overallConfidence,
-            @JsonProperty("need_review") Boolean needReview
+            @JsonProperty("need_review") Boolean needReview,
+            @JsonProperty("model_version") String modelVersion,
+            @JsonProperty("detected_classes") List<String> detectedClasses
     ) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
@@ -127,6 +178,8 @@ public class VisionServiceClient {
             String taskId,
             List<RecognizedItem> items,
             float overallConfidence,
-            boolean needReview
+            boolean needReview,
+            String modelVersion,
+            List<String> detectedClasses
     ) {}
 }

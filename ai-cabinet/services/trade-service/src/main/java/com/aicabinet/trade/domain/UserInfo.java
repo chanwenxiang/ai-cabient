@@ -22,6 +22,21 @@ public class UserInfo {
     @Column(name = "wx_open_id", length = 64)
     private String wxOpenId;
 
+    @Column(name = "password_hash", length = 100)
+    private String passwordHash;
+
+    @Column(name = "payscore_enabled", nullable = false)
+    private boolean payscoreEnabled;
+
+    @Column(name = "payscore_contract_id", length = 64)
+    private String payscoreContractId;
+
+    @Column(name = "alipay_agreement_id", length = 64)
+    private String alipayAgreementId;
+
+    @Column(name = "pay_preferred_channel", nullable = false, length = 16)
+    private String payPreferredChannel = "BALANCE";
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -40,5 +55,15 @@ public class UserInfo {
     public void setVerified(boolean verified) { this.verified = verified; }
     public String getWxOpenId() { return wxOpenId; }
     public void setWxOpenId(String wxOpenId) { this.wxOpenId = wxOpenId; }
+    public String getPasswordHash() { return passwordHash; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public boolean isPayscoreEnabled() { return payscoreEnabled; }
+    public void setPayscoreEnabled(boolean payscoreEnabled) { this.payscoreEnabled = payscoreEnabled; }
+    public String getPayscoreContractId() { return payscoreContractId; }
+    public void setPayscoreContractId(String payscoreContractId) { this.payscoreContractId = payscoreContractId; }
+    public String getAlipayAgreementId() { return alipayAgreementId; }
+    public void setAlipayAgreementId(String alipayAgreementId) { this.alipayAgreementId = alipayAgreementId; }
+    public String getPayPreferredChannel() { return payPreferredChannel; }
+    public void setPayPreferredChannel(String payPreferredChannel) { this.payPreferredChannel = payPreferredChannel; }
     public Instant getCreatedAt() { return createdAt; }
 }

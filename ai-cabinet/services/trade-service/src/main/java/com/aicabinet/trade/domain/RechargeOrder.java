@@ -29,6 +29,9 @@ public class RechargeOrder {
     @Column(length = 64)
     private String wxTransactionId;
 
+    @Column(length = 64)
+    private String alipayTradeNo;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -54,6 +57,8 @@ public class RechargeOrder {
     public void setWxPrepayId(String wxPrepayId) { this.wxPrepayId = wxPrepayId; }
     public String getWxTransactionId() { return wxTransactionId; }
     public void setWxTransactionId(String wxTransactionId) { this.wxTransactionId = wxTransactionId; }
+    public String getAlipayTradeNo() { return alipayTradeNo; }
+    public void setAlipayTradeNo(String alipayTradeNo) { this.alipayTradeNo = alipayTradeNo; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getPaidAt() { return paidAt; }
     public void setPaidAt(Instant paidAt) { this.paidAt = paidAt; }

@@ -8,10 +8,12 @@ public record AlipayProperties(
         String appId,
         String privateKey,
         String alipayPublicKey,
-        String gatewayUrl
+        String gatewayUrl,
+        String notifyUrl
 ) {
     public boolean isConfigured() {
         return enabled && appId != null && !appId.isBlank()
-                && privateKey != null && !privateKey.isBlank();
+                && privateKey != null && !privateKey.isBlank()
+                && alipayPublicKey != null && !alipayPublicKey.isBlank();
     }
 }

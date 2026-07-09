@@ -6,9 +6,11 @@ import com.aicabinet.common.dto.ApiResponse;
 
 import com.aicabinet.common.dto.DisputeTicketDto;
 
-import com.aicabinet.common.dto.OrderDto;
+import com.aicabinet.common.dto.PageResult;
 
 import com.aicabinet.common.dto.ResolveDisputeRequest;
+
+import com.aicabinet.common.dto.ResolveDisputeResultDto;
 
 import com.aicabinet.trade.auth.AuthInterceptor;
 
@@ -19,10 +21,6 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 import org.springframework.web.bind.annotation.*;
-
-
-
-import java.util.List;
 
 
 
@@ -48,11 +46,23 @@ public class DisputeController {
 
     @GetMapping
 
-    public ApiResponse<List<DisputeTicketDto>> listOpen(HttpServletRequest request) {
+    public ApiResponse<PageResult<DisputeTicketDto>> list(
+
+            HttpServletRequest request,
+
+            @RequestParam(name = "page", defaultValue = "0") int page,
+
+            @RequestParam(name = "size", defaultValue = "20") int size,
+
+            @RequestParam(name = "status", required = false) String status,
+
+            @RequestParam(name = "sessionId", required = false) String sessionId,
+
+            @RequestParam(name = "deviceId", required = false) String deviceId) {
 
         Long operatorId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
 
-        return ApiResponse.ok(disputeService.listOpenTickets(operatorId));
+        return ApiResponse.ok(disputeService.listTickets(operatorId, page, size, status, sessionId, deviceId));
 
     }
 
@@ -60,7 +70,7 @@ public class DisputeController {
 
     @PostMapping("/{ticketId}/resolve")
 
-    public ApiResponse<OrderDto> resolve(
+    public ApiResponse<ResolveDisputeResultDto> resolve(
 
             HttpServletRequest request,
 
@@ -75,5 +85,4 @@ public class DisputeController {
     }
 
 }
-
 

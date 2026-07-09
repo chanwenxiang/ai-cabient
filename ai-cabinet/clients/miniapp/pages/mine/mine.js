@@ -6,7 +6,13 @@ Page({
     account: null,
     balanceYuan: '',
     phoneMasked: '',
-    loading: false
+    loading: false,
+    openDisputeCount: 0,
+    supportPhone: ''
+  },
+
+  onLoad() {
+    this.setData({ supportPhone: api.SUPPORT_PHONE || '400-888-0001' });
   },
 
   onShow() {
@@ -14,15 +20,31 @@ Page({
       wx.reLaunch({ url: '/pages/login/login' });
       return;
     }
-    this.loadAccount();
+    this.loadAccount(true);
+    this.loadDisputeBadge(true);
   },
 
   onPullDownRefresh() {
-    this.loadAccount().finally(() => wx.stopPullDownRefresh());
+    Promise.all([this.loadAccount(true), this.loadDisputeBadge(true)])
+      .finally(() => wx.stopPullDownRefresh());
   },
 
-  async loadAccount() {
-    if (this.data.loading) return;
+  async loadDisputeBadge(force) {
+    if (!force && this._disputeLoading) return;
+    this._disputeLoading = true;
+    try {
+      const tickets = await api.listMyDisputes();
+      const openDisputeCount = (tickets || []).filter((t) => t.status === 'OPEN').length;
+      this.setData({ openDisputeCount });
+    } catch (e) {
+      /* 非关键 */
+    } finally {
+      this._disputeLoading = false;
+    }
+  },
+
+  async loadAccount(force) {
+    if (!force && this.data.loading) return;
     this.setData({ loading: true });
     try {
       const account = await api.getAccount();
@@ -40,6 +62,30 @@ Page({
 
   goRecharge() {
     wx.navigateTo({ url: '/pages/recharge/recharge' });
+  },
+
+  onSignPayScore() {
+    wx.showActionSheet({
+      itemList: ['微信支付分免密', '支付宝免密代扣'],
+      success: async (res) => {
+        try {
+          wx.showLoading({ title: '开通中…' });
+          const result = res.tapIndex === 1
+            ? await api.signAlipayAgreement()
+            : await api.signPayScore();
+          wx.hideLoading();
+          wx.showToast({ title: result.message || '已开通', icon: 'success' });
+          this.loadAccount(true);
+        } catch (e) {
+          wx.hideLoading();
+          showError('开通失败', e);
+        }
+      }
+    });
+  },
+
+  goVerify() {
+    wx.navigateTo({ url: '/pages/verify/verify' });
   },
 
   goOrders() {
@@ -68,6 +114,18 @@ Page({
       content: '确定要退出当前账号吗？',
       success: (res) => {
         if (res.confirm) clearAuth();
+      }
+    });
+  },
+
+  onCallSupport() {
+    const phone = this.data.supportPhone || api.SUPPORT_PHONE;
+    wx.showModal({
+      title: '联系客服',
+      content: `客服电话：${phone}\n（工作时间 9:00-18:00）`,
+      confirmText: '拨打',
+      success: (res) => {
+        if (res.confirm) wx.makePhoneCall({ phoneNumber: phone.replace(/-/g, '') });
       }
     });
   }

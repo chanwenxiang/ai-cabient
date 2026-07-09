@@ -64,7 +64,7 @@ Write-Host "  Local verification passed"
 Write-Host "========================================"
 Write-Host ""
 Write-Host "Manual checks:"
-Write-Host "  Admin:  $BaseUrl/admin/index.html  (13900000001 / 123456)"
+Write-Host "  Admin:  $BaseUrl/admin/index.html  (13900000001 / 密码或验证码 123456)"
 Write-Host "  Miniapp: import clients/miniapp, BASE_URL=$BaseUrl"
 Write-Host "  Simulator: DeviceSimulator CAB-001 for device ONLINE"
 exit 0

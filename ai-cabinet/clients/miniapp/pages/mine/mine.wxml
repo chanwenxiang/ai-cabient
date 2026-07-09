@@ -1,17 +1,38 @@
 <view class="container">
+  <view class="loading-wrap" wx:if="{{loading && !account}}">
+    <text>加载中…</text>
+  </view>
+
+  <block wx:else>
   <view class="profile card">
     <view class="phone">{{phoneMasked}}</view>
     <view class="balance">¥{{balanceYuan}}</view>
     <view class="tags">
       <text class="tag" wx:if="{{account.verified}}">已实名</text>
       <text class="tag warn" wx:else>未实名</text>
+      <text class="tag" wx:if="{{account.passwordFreeReady}}">免密支付</text>
       <text class="tag ops" wx:if="{{account.operator}}">运营账号</text>
     </view>
   </view>
 
   <view class="menu card">
+    <view class="menu-item" bindtap="goVerify" wx:if="{{account && !account.verified && !account.operator}}">
+      <view class="menu-left">
+        <text>实名认证</text>
+        <text class="menu-sub">开门购物前需完成</text>
+      </view>
+      <text class="tag-warn">未认证</text>
+      <text class="arrow">›</text>
+    </view>
     <view class="menu-item" bindtap="goRecharge">
       <text>余额充值</text>
+      <text class="arrow">›</text>
+    </view>
+    <view class="menu-item" bindtap="onSignPayScore" wx:if="{{account && !account.operator && !account.passwordFreeReady}}">
+      <view class="menu-left">
+        <text>开通免密支付</text>
+        <text class="menu-sub">微信支付分 / 支付宝代扣</text>
+      </view>
       <text class="arrow">›</text>
     </view>
     <view class="menu-item" bindtap="goOrders">
@@ -24,6 +45,7 @@
     </view>
     <view class="menu-item" bindtap="goDisputeMine">
       <text>申诉进度</text>
+      <text class="badge" wx:if="{{openDisputeCount > 0}}">{{openDisputeCount}}</text>
       <text class="arrow">›</text>
     </view>
   </view>
@@ -31,7 +53,7 @@
   <view class="menu card" wx:if="{{account.operator}}">
     <view class="section-title">运营工具</view>
     <view class="menu-item" bindtap="goOps">
-      <text>补货开门</text>
+      <text>补货 · 识别</text>
       <text class="arrow">›</text>
     </view>
     <view class="menu-item" bindtap="goDisputes">
@@ -40,5 +62,14 @@
     </view>
   </view>
 
+  <view class="menu card">
+    <view class="menu-item" bindtap="onCallSupport">
+      <text>联系客服</text>
+      <text class="menu-sub">{{supportPhone}}</text>
+      <text class="arrow">›</text>
+    </view>
+  </view>
+
   <button class="logout" bindtap="onLogout">退出登录</button>
+  </block>
 </view>

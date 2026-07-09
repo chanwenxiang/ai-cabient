@@ -28,6 +28,9 @@ public class ShoppingSession {
     @Column(length = 32)
     private String orderId;
 
+    @Column(length = 256)
+    private String failReason;
+
     @Column(length = 64)
     private String recognitionTaskId;
 
@@ -46,6 +49,12 @@ public class ShoppingSession {
 
     @Column(unique = true, length = 64)
     private String idempotencyKey;
+
+    private Long replenishmentTaskId;
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "gravity_deltas", columnDefinition = "jsonb")
+    private String gravityDeltas;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -79,6 +88,8 @@ public class ShoppingSession {
     public void setCloseTime(Instant closeTime) { this.closeTime = closeTime; }
     public String getOrderId() { return orderId; }
     public void setOrderId(String orderId) { this.orderId = orderId; }
+    public String getFailReason() { return failReason; }
+    public void setFailReason(String failReason) { this.failReason = failReason; }
     public String getRecognitionTaskId() { return recognitionTaskId; }
     public void setRecognitionTaskId(String recognitionTaskId) { this.recognitionTaskId = recognitionTaskId; }
     public String getVideoUri() { return videoUri; }
@@ -91,6 +102,10 @@ public class ShoppingSession {
     public void setCameraFusionMode(String cameraFusionMode) { this.cameraFusionMode = cameraFusionMode; }
     public String getIdempotencyKey() { return idempotencyKey; }
     public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+    public Long getReplenishmentTaskId() { return replenishmentTaskId; }
+    public void setReplenishmentTaskId(Long replenishmentTaskId) { this.replenishmentTaskId = replenishmentTaskId; }
+    public String getGravityDeltas() { return gravityDeltas; }
+    public void setGravityDeltas(String gravityDeltas) { this.gravityDeltas = gravityDeltas; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

@@ -14,10 +14,14 @@ public class DoorEventDeduplicator {
     private final ConcurrentHashMap<String, Long> recent = new ConcurrentHashMap<>();
 
     public boolean isDuplicate(String sessionId, String doorState) {
+        return isDuplicate(sessionId, doorState, "");
+    }
+
+    public boolean isDuplicate(String sessionId, String doorState, String fingerprint) {
         if (sessionId == null || doorState == null) {
             return false;
         }
-        String key = sessionId + ":" + doorState;
+        String key = sessionId + ":" + doorState + ":" + (fingerprint != null ? fingerprint : "");
         long now = System.currentTimeMillis();
         Long previous = recent.put(key, now);
         evictExpired(now);

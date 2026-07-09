@@ -17,6 +17,7 @@ aicabinet:
     password: ${MQTT_PASSWORD:}
     trust-store-path: ${MQTT_TRUST_STORE:}
     trust-store-password: ${MQTT_TRUST_STORE_PASSWORD:}
+    persistence-dir: ${MQTT_PERSISTENCE_DIR:data/mqtt-paho}
   trade-service:
     url: ${AICABINET_TRADE_SERVICE_URL:http://localhost:8080}
 

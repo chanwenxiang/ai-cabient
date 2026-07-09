@@ -5,5 +5,9 @@ public record AccountDto(
         String phoneNumber,
         int balanceCents,
         boolean verified,
-        boolean operator
+        boolean operator,
+        String payPreferredChannel,
+        boolean payscoreEnabled,
+        boolean alipayAgreementEnabled,
+        boolean passwordFreeReady
 ) {}

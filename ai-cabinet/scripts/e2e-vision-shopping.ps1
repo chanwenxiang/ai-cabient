@@ -73,12 +73,29 @@ client = Minio(host, access_key='minioadmin', secret_key='minioadmin', secure=se
 if not client.bucket_exists(bucket):
     client.make_bucket(bucket)
 ext = local.suffix.lower()
-ctype = {'.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png'}.get(ext,'application/octet-stream')
+ctype = {
+    '.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png',
+    '.mp4':'video/mp4','.webm':'video/webm','.mov':'video/quicktime'
+}.get(ext,'application/octet-stream')
 client.fput_object(bucket, key, str(local), content_type=ctype)
 print(f'minio://{bucket}/{key}')
 "@
     & $Python -c $code $MinioEndpoint $MinioBucket $ObjectKey $LocalPath
     if ($LASTEXITCODE -ne 0) { throw "MinIO upload failed" }
+}
+
+function Convert-ImageToMp4 {
+    param([string]$ImagePath, [string]$OutputPath)
+    $imgDir = Split-Path -Parent $ImagePath
+    $imgName = Split-Path -Leaf $ImagePath
+    $outDir = Split-Path -Parent $OutputPath
+    $outName = Split-Path -Leaf $OutputPath
+    docker run --rm `
+        -v "${imgDir}:/in:ro" `
+        -v "${outDir}:/out" `
+        jrottenberg/ffmpeg:4.1-alpine `
+        -y -loop 1 -i "/in/$imgName" -c:v libx264 -pix_fmt yuv420p -movflags +faststart -t 3 "/out/$outName" | Out-Null
+    if (-not (Test-Path $OutputPath)) { throw "Failed to convert image to mp4: $OutputPath" }
 }
 
 Write-Host "==> 1. Login"
@@ -98,9 +115,12 @@ $sessionId = $session.sessionId
 Write-Host "    sessionId=$sessionId state=$($session.state)"
 
 $sample = Resolve-SampleImage
-Write-Host "==> 3. Upload sample to MinIO ($sample)"
-$objectKey = "sim/$sessionId.jpg"
-$videoUri = (Upload-MinioObject -LocalPath $sample -ObjectKey $objectKey).Trim()
+Write-Host "==> 3. Convert sample to MP4 and upload to MinIO ($sample)"
+$mp4Path = Join-Path $env:TEMP "aicabinet-$sessionId.mp4"
+Convert-ImageToMp4 -ImagePath $sample -OutputPath $mp4Path
+$objectKey = "sim/$sessionId.mp4"
+$videoUri = (Upload-MinioObject -LocalPath $mp4Path -ObjectKey $objectKey).Trim()
+Remove-Item $mp4Path -Force -ErrorAction SilentlyContinue
 Write-Host "    videoUri=$videoUri"
 
 Write-Host "==> 4. Simulate door open"

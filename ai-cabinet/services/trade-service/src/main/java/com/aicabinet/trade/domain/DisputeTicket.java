@@ -36,9 +36,19 @@ public class DisputeTicket {
 
     private Instant resolvedAt;
 
+    private Instant slaDueAt;
+
+    private Instant slaReminderAt;
+
+    private Instant slaAlertedAt;
+
     @PrePersist
     void prePersist() {
-        createdAt = Instant.now();
+        Instant now = Instant.now();
+        createdAt = now;
+        if (slaDueAt == null) {
+            slaDueAt = now.plusSeconds(48 * 3600L);
+        }
     }
 
     public String getTicketId() { return ticketId; }
@@ -56,4 +66,10 @@ public class DisputeTicket {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getResolvedAt() { return resolvedAt; }
     public void setResolvedAt(Instant resolvedAt) { this.resolvedAt = resolvedAt; }
+    public Instant getSlaDueAt() { return slaDueAt; }
+    public void setSlaDueAt(Instant slaDueAt) { this.slaDueAt = slaDueAt; }
+    public Instant getSlaReminderAt() { return slaReminderAt; }
+    public void setSlaReminderAt(Instant slaReminderAt) { this.slaReminderAt = slaReminderAt; }
+    public Instant getSlaAlertedAt() { return slaAlertedAt; }
+    public void setSlaAlertedAt(Instant slaAlertedAt) { this.slaAlertedAt = slaAlertedAt; }
 }

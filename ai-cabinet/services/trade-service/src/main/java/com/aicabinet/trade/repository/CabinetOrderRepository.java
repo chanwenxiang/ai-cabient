@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface CabinetOrderRepository extends JpaRepository<CabinetOrder, String> {
@@ -48,4 +50,20 @@ public interface CabinetOrderRepository extends JpaRepository<CabinetOrder, Stri
 
     @Query("SELECT o FROM CabinetOrder o WHERE o.createdAt >= :start AND o.createdAt < :end")
     java.util.List<CabinetOrder> findByCreatedAtBetween(@Param("start") Instant start, @Param("end") Instant end);
+
+    Page<CabinetOrder> findByDeviceIdInOrderByCreatedAtDesc(Collection<String> deviceIds, Pageable pageable);
+
+    long countByDeviceIdIn(Collection<String> deviceIds);
+
+    long countByDeviceIdInAndCreatedAtAfter(Collection<String> deviceIds, Instant since);
+
+    List<CabinetOrder> findByDeviceIdInAndCreatedAtAfter(Collection<String> deviceIds, Instant since);
+
+    @Query("SELECT COALESCE(SUM(o.totalAmountCents), 0) FROM CabinetOrder o WHERE o.deviceId IN :deviceIds")
+    long sumTotalAmountByDeviceIdIn(@Param("deviceIds") Collection<String> deviceIds);
+
+    @Query("SELECT COALESCE(SUM(o.totalAmountCents), 0) FROM CabinetOrder o "
+            + "WHERE o.deviceId IN :deviceIds AND o.createdAt >= :since")
+    long sumTotalAmountByDeviceIdInSince(
+            @Param("deviceIds") Collection<String> deviceIds, @Param("since") Instant since);
 }

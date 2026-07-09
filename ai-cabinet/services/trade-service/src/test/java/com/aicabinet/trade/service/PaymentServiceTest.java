@@ -1,9 +1,12 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.trade.config.AlipayProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.RechargeOrder;
 import com.aicabinet.trade.domain.UserAccount;
+import com.aicabinet.trade.payment.AlipayNotifyService;
+import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.WeChatPayClient;
 import com.aicabinet.trade.payment.WeChatPayNotifyService;
 import com.aicabinet.trade.payment.WeChatPayV3Signer;
@@ -21,7 +24,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,19 +35,24 @@ class PaymentServiceTest {
     @Mock private WeChatPayClient weChatPayClient;
     @Mock private WeChatPayV3Signer v3Signer;
     @Mock private WeChatPayNotifyService notifyService;
+    @Mock private AlipayPayClient alipayPayClient;
+    @Mock private AlipayNotifyService alipayNotifyService;
 
     private PaymentService paymentService;
     private WeChatPayProperties weChatPayProperties;
+    private AlipayProperties alipayProperties;
     private SecurityProperties securityProperties;
 
     @BeforeEach
     void setUp() {
         weChatPayProperties = new WeChatPayProperties(
                 false, "", "", "", "", "", "", "", true);
+        alipayProperties = new AlipayProperties(false, "", "", "", "", "");
         securityProperties = new SecurityProperties(true);
         paymentService = new PaymentService(
                 rechargeOrderRepository, userInfoRepository, userAccountRepository,
-                weChatPayProperties, securityProperties, weChatPayClient, v3Signer, notifyService);
+                weChatPayProperties, alipayProperties, securityProperties,
+                weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService);
     }
 
     @Test

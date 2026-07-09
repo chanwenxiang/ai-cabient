@@ -3,13 +3,61 @@
 </view>
 
 <view class="container" wx:elif="{{order}}">
-  <view class="title">购物完成</view>
-  <view class="meta" wx:if="{{createdAtText}}">{{createdAtText}} · {{order.deviceId}}</view>
-  <view class="amount">¥{{order.totalAmountCents / 100}}</view>
-  <view class="line" wx:for="{{order.lines}}" wx:key="skuId">
-    <text>{{item.skuName}} x{{item.quantity}}</text>
-    <text>¥{{item.lineAmountCents / 100}}</text>
+  <view class="hero">
+    <text class="title">购物完成</text>
+    <view class="amount">¥{{order.totalAmountCents / 100}}</view>
+    <view class="pay-meta">
+      <text class="pay-tag status-{{statusTone}}">{{statusLabel}}</text>
+      <text class="pay-tag method">{{payMethodLabel}}</text>
+    </view>
+    <text class="meta" wx:if="{{createdAtText}}">{{createdAtText}} · {{order.deviceId}}</text>
   </view>
+
+  <view class="compare-card" wx:if="{{compare}}">
+    <view class="compare-head">
+      <text class="compare-title">预估 vs 实际</text>
+      <text class="compare-badge tone-{{compare.diffTone}}">{{compare.diffLabel}}</text>
+    </view>
+    <view class="compare-row">
+      <view class="compare-col">
+        <text class="compare-label">购物车预估</text>
+        <text class="compare-value">¥{{compare.estimateYuan}}</text>
+      </view>
+      <view class="compare-arrow">→</view>
+      <view class="compare-col">
+        <text class="compare-label">识别结算</text>
+        <text class="compare-value actual">¥{{compare.actualYuan}}</text>
+      </view>
+    </view>
+    <view class="compare-items">
+      <text class="compare-sub">预估明细</text>
+      <view class="compare-line" wx:for="{{compare.items}}" wx:key="skuId">
+        <text>{{item.skuName}} ×{{item.qty}}</text>
+        <text>¥{{item.priceYuan}}</text>
+      </view>
+    </view>
+    <text class="compare-tip">实际扣款以视觉识别为准；如有差异可在「我的 → 申诉进度」发起争议</text>
+  </view>
+
+  <view class="bill-card">
+    <text class="bill-title">账单明细</text>
+    <view class="line" wx:for="{{order.lines}}" wx:key="skuId">
+      <view class="line-main">
+        <text>{{item.skuName}} x{{item.quantity}}</text>
+        <text class="batch" wx:if="{{item.batchNo}}">批次 {{item.batchNo}}</text>
+      </view>
+      <text>¥{{item.lineAmountCents / 100}}</text>
+    </view>
+  </view>
+
+  <button type="primary" bindtap="goHome" style="margin-top: 40rpx;">返回首页</button>
+  <button bindtap="goOrders" style="margin-top: 16rpx;">查看全部订单</button>
+</view>
+
+<view class="container" wx:elif="{{noOrder}}">
+  <view class="title">购物完成</view>
+  <view class="meta">设备 {{sessionSummary.deviceId}}</view>
+  <view class="empty-hint">本次未识别到商品，未生成账单</view>
   <button type="primary" bindtap="goHome" style="margin-top: 40rpx;">返回首页</button>
   <button bindtap="goOrders" style="margin-top: 16rpx;">查看全部订单</button>
 </view>

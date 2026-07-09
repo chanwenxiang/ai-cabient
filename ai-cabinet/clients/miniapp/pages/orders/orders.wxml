@@ -1,8 +1,13 @@
 <view class="container">
+  <view class="page-head">
+    <text class="summary">{{total ? '共 ' + total + ' 条订单' : '购物订单'}}</text>
+    <button class="refresh-btn" size="mini" bindtap="onRefresh" loading="{{refreshing}}">刷新</button>
+  </view>
+
   <view class="empty" wx:if="{{!loading && !orders.length}}">
     <text>暂无购物订单</text>
     <text class="empty-hint">完成一次开门购物后订单会出现在这里</text>
-    <button size="mini" bindtap="onRefresh">刷新</button>
+    <button size="mini" bindtap="onRefresh" loading="{{refreshing}}">刷新</button>
     <button size="mini" bindtap="goHome">去开门</button>
   </view>
 
@@ -11,13 +16,26 @@
       <text class="device">{{item.deviceId}}</text>
       <text class="amount">¥{{item.amountYuan}}</text>
     </view>
-    <view class="row sub">
-      <text>{{item.createdAtText}}</text>
-      <text class="status">{{item.statusLabel || item.status}}</text>
+    <view class="row sub">{{item.createdAtText}}</view>
+    <view class="meta-row">
+      <text class="label">支付状态</text>
+      <text class="status-badge status-{{item.statusTone}}">{{item.statusLabel}}</text>
+    </view>
+    <view class="meta-row">
+      <text class="label">支付方式</text>
+      <text class="value">{{item.payMethodLabel}}</text>
+    </view>
+    <view class="meta-row" wx:if="{{item.lineSummary}}">
+      <text class="label">商品</text>
+      <text class="value line-summary">{{item.lineSummary}}</text>
     </view>
     <view class="row sub">
       <text class="mono">{{item.orderId}}</text>
-      <text>{{item.lineCount}} 件商品</text>
+      <text>{{item.lineCount}} 件</text>
+    </view>
+    <view class="row sub actions" catchtap="noop">
+      <text class="dispute-tag" wx:if="{{item.disputeLabel}}">{{item.disputeLabel}}</text>
+      <button size="mini" wx:if="{{!item.disputeStatus || item.disputeStatus === 'CLOSED'}}" data-session="{{item.sessionId}}" bindtap="onDispute">申诉</button>
     </view>
   </view>
 

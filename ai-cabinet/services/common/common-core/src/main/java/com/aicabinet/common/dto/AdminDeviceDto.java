@@ -7,6 +7,8 @@ public record AdminDeviceDto(
         String deviceName,
         String deviceType,
         String onlineStatus,
+        String merchantId,
+        String merchantName,
         String activeSessionId,
         String activeSessionState,
         Instant updatedAt

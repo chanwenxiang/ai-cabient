@@ -9,18 +9,20 @@ import com.aicabinet.device.metrics.DeviceMqttMetrics;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.eclipse.paho.client.mqttv3.*;
-import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
+import org.eclipse.paho.client.mqttv3.persist.MqttDefaultFilePersistence;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
 
 @Component
-public class MqttEventListener implements MqttCallback {
+public class MqttEventListener implements MqttCallbackExtended {
 
     private static final Logger log = LoggerFactory.getLogger(MqttEventListener.class);
 
@@ -55,10 +57,10 @@ public class MqttEventListener implements MqttCallback {
 
     @PostConstruct
     public void connect() throws MqttException {
-        client = new MqttClient(mqttProperties.broker(), clientId, new MemoryPersistence());
+        client = new MqttClient(mqttProperties.broker(), clientId, filePersistence("listener"));
         client.setCallback(this);
         client.connect(connectOptionsFactory.create());
-        client.subscribe(MqttTopics.ALL_EVENTS, 1);
+        subscribeEvents();
         connectionRegistry.setListenerConnected(true);
         log.info("MQTT event listener connected, subscribed {}", MqttTopics.ALL_EVENTS);
     }
@@ -75,6 +77,19 @@ public class MqttEventListener implements MqttCallback {
     public void connectionLost(Throwable cause) {
         connectionRegistry.setListenerConnected(false);
         log.warn("MQTT event connection lost", cause);
+    }
+
+    @Override
+    public void connectComplete(boolean reconnect, String serverURI) {
+        connectionRegistry.setListenerConnected(true);
+        try {
+            subscribeEvents();
+            log.info("MQTT event listener {}connected to {}, subscribed {}",
+                    reconnect ? "re" : "", serverURI, MqttTopics.ALL_EVENTS);
+        } catch (MqttException e) {
+            connectionRegistry.setListenerConnected(false);
+            log.error("failed to resubscribe MQTT events after reconnect", e);
+        }
     }
 
     @Override
@@ -138,12 +153,6 @@ public class MqttEventListener implements MqttCallback {
             log.warn("invalid door event: {}", node);
             return;
         }
-        if (deduplicator.isDuplicate(sessionId, doorStateStr)) {
-            metrics.recordDoorDeduped();
-            log.info("duplicate door event ignored session={} state={}", sessionId, doorStateStr);
-            return;
-        }
-        DoorState doorState = DoorState.valueOf(doorStateStr);
         String videoUri = textOrNull(node, "videoUri");
         String uploadStatus = textOrNull(node, "uploadStatus");
         String videoClipsJson = textOrNull(node, "videoClipsJson");
@@ -154,9 +163,29 @@ public class MqttEventListener implements MqttCallback {
         if (cameraFusionMode == null) {
             cameraFusionMode = textOrNull(node, "camera_fusion_mode");
         }
+        String gravityDeltasJson = textOrNull(node, "gravityDeltasJson");
+        if (gravityDeltasJson == null) {
+            gravityDeltasJson = textOrNull(node, "gravity_deltas");
+        }
+        String fingerprint = String.join("|",
+                nonNull(videoUri), nonNull(uploadStatus), nonNull(videoClipsJson),
+                nonNull(cameraFusionMode), nonNull(gravityDeltasJson));
+        if (deduplicator.isDuplicate(sessionId, doorStateStr, fingerprint)) {
+            metrics.recordDoorDeduped();
+            log.info("duplicate door event ignored session={} state={}", sessionId, doorStateStr);
+            return;
+        }
+        DoorState doorState;
+        try {
+            doorState = DoorState.valueOf(doorStateStr);
+        } catch (IllegalArgumentException e) {
+            log.warn("invalid doorState={} session={} topic={}", doorStateStr, sessionId, topic);
+            return;
+        }
         try {
             tradeServiceClient.notifyDoorEvent(
-                    sessionId, deviceId, doorState, videoUri, uploadStatus, videoClipsJson, cameraFusionMode);
+                    sessionId, deviceId, doorState, videoUri, uploadStatus, videoClipsJson, cameraFusionMode,
+                    gravityDeltasJson);
             metrics.recordDoorForwarded();
         } catch (Exception e) {
             metrics.recordTradeFailure();
@@ -172,6 +201,10 @@ public class MqttEventListener implements MqttCallback {
         return value != null && !value.isBlank() ? value : null;
     }
 
+    private static String nonNull(String value) {
+        return value != null ? value : "";
+    }
+
     private String extractDeviceId(String topic) {
         String[] parts = topic.split("/");
         return parts.length >= 2 ? parts[1] : "unknown";
@@ -180,5 +213,25 @@ public class MqttEventListener implements MqttCallback {
     @Override
     public void deliveryComplete(IMqttDeliveryToken token) {
         // no-op
+    }
+
+    private void subscribeEvents() throws MqttException {
+        if (client != null && client.isConnected()) {
+            client.subscribe(MqttTopics.ALL_EVENTS, 1);
+        }
+    }
+
+    private MqttDefaultFilePersistence filePersistence(String name) {
+        String root = mqttProperties.persistenceDir();
+        if (root == null || root.isBlank()) {
+            root = "data/mqtt-paho";
+        }
+        Path dir = Path.of(root, name);
+        try {
+            Files.createDirectories(dir);
+        } catch (Exception e) {
+            throw new IllegalStateException("failed to create MQTT persistence dir " + dir, e);
+        }
+        return new MqttDefaultFilePersistence(dir.toString());
     }
 }

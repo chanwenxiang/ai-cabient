@@ -14,7 +14,7 @@ const SESSION_STATE_LABEL = {
 };
 
 function sessionStateLabel(state) {
-  return SESSION_STATE_LABEL[state] || state || '-';
+  return SESSION_STATE_LABEL[state] || '-';
 }
 
 const SESSION_STATE_HINT = {
@@ -26,7 +26,7 @@ const SESSION_STATE_HINT = {
   SETTLING: '正在计算账单并扣款',
   COMPLETED: '购物已完成，可查看账单',
   DISPUTED: '识别结果需人工确认，请稍后再查或联系客服',
-  FAILED: '本次购物未完成，请检查余额或联系运营',
+  FAILED: '购物未完成，请检查余额或稍后重试',
   CANCELLED: '会话已取消'
 };
 
@@ -44,6 +44,19 @@ function sessionStateTone(state) {
   return 'idle';
 }
 
+/** 中国大陆手机号：11 位，1 开头 */
+function normalizePhone(v) {
+  return (v || '').replace(/\D/g, '').slice(0, 11);
+}
+
+function isValidPhone(v) {
+  return /^1\d{10}$/.test(normalizePhone(v));
+}
+
+function invalidPhoneMessage() {
+  return '请输入11位有效手机号';
+}
+
 function formatError(err) {
   if (!err) return '未知错误';
   if (typeof err === 'string') return err;
@@ -55,10 +68,17 @@ function formatError(err) {
     if (/too many door open/i.test(msg)) {
       return '开门过于频繁，请稍后再试';
     }
+    if (/申诉|dispute already/i.test(msg)) {
+      return '该订单已提交过申诉';
+    }
     if (/blacklisted/i.test(msg)) return '账号受限，请联系客服';
     if (/余额|balance/i.test(msg)) return '余额不足，请先充值';
+    if (/订单不存在|order not found/i.test(msg)) return '订单不存在或尚未生成';
     if (/occupied|busy|占用/i.test(msg)) return '设备使用中，请稍后再试';
-    return msg;
+    if (/device not found/i.test(msg)) return '设备不存在，请检查设备编号';
+    if (/session_state|session state/i.test(msg)) return '会话状态异常，请稍后重试';
+    if (/[\u4e00-\u9fff]/.test(msg)) return msg;
+    return '操作失败，请稍后重试';
   }
   if (err.errMsg) return String(err.errMsg);
   return '请求失败';
@@ -74,6 +94,8 @@ function isAuthError(err) {
 function clearAuth() {
   wx.removeStorageSync('token');
   wx.removeStorageSync('userId');
+  wx.removeStorageSync('server_boot');
+  wx.removeStorageSync('token_expires');
   wx.reLaunch({ url: '/pages/login/login' });
 }
 
@@ -103,12 +125,32 @@ const ORDER_STATUS_LABEL = {
   CANCELLED: '已取消'
 };
 
+const PAY_CHANNEL_LABEL = {
+  BALANCE: '账户余额',
+  WECHAT: '微信支付',
+  ALIPAY: '支付宝'
+};
+
 function orderStatusLabel(status) {
-  return ORDER_STATUS_LABEL[status] || status || '-';
+  return ORDER_STATUS_LABEL[(status || '').toUpperCase()] || status || '-';
+}
+
+function payChannelLabel(channel) {
+  const key = (channel || 'BALANCE').toUpperCase();
+  return PAY_CHANNEL_LABEL[key] || channel || '账户余额';
+}
+
+function orderStatusTone(status) {
+  const s = (status || '').toUpperCase();
+  if (s === 'PAID') return 'paid';
+  if (s === 'PENDING') return 'pending';
+  if (s === 'REFUNDED') return 'refunded';
+  if (s === 'CANCELLED') return 'cancelled';
+  return 'default';
 }
 
 function rechargeStatusLabel(status) {
-  return RECHARGE_STATUS_LABEL[status] || status || '-';
+  return RECHARGE_STATUS_LABEL[status] || '-';
 }
 
 function formatYuan(cents) {
@@ -124,6 +166,48 @@ function formatDateTime(iso) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function formatRelativeTime(iso) {
+  if (!iso) return '-';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 0) return '刚刚';
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 1) return '刚刚';
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days} 天前`;
+  return formatDateTime(iso);
+}
+
+const DISPUTE_STATUS_LABEL = {
+  OPEN: '审核中',
+  RESOLVED: '已处理',
+  CLOSED: '已处理'
+};
+
+function disputeStatusLabel(status) {
+  return DISPUTE_STATUS_LABEL[status] || '-';
+}
+
+function formatLineItem(item) {
+  if (!item) return '';
+  const name = item.skuName || item.skuId || '-';
+  const batch = item.batchNo ? ` @${item.batchNo}` : '';
+  return `${name} × ${item.quantity}${batch}`;
+}
+
+function formatLineItems(items) {
+  if (!items || !items.length) return '';
+  return items.map(formatLineItem).join('；');
+}
+
+function orderDisputeTag(status) {
+  if (!status) return '';
+  const map = { OPEN: '申诉中', CLOSED: '申诉已处理', RESOLVED: '申诉已处理' };
+  return map[status] || status;
+}
+
 module.exports = {
   SESSION_STATE_LABEL,
   sessionStateLabel,
@@ -132,8 +216,18 @@ module.exports = {
   formatError,
   formatYuan,
   formatDateTime,
+  formatRelativeTime,
+  disputeStatusLabel,
+  orderDisputeTag,
+  formatLineItem,
+  formatLineItems,
   rechargeStatusLabel,
   orderStatusLabel,
+  payChannelLabel,
+  orderStatusTone,
+  normalizePhone,
+  isValidPhone,
+  invalidPhoneMessage,
   isAuthError,
   clearAuth,
   handleAuthError,

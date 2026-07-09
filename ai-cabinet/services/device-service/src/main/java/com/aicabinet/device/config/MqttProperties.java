@@ -9,7 +9,8 @@ public record MqttProperties(
         String username,
         String password,
         String trustStorePath,
-        String trustStorePassword
+        String trustStorePassword,
+        String persistenceDir
 ) {
     public boolean isSsl() {
         return broker != null && broker.startsWith("ssl://");

@@ -36,11 +36,11 @@ class PermissionServiceTest {
     }
 
     @Test
-    void noRoles_grantsFullAccessForBackwardCompat() {
+    void noRoles_deniesByDefault() {
         when(userRoleRepository.findByIdUserId(OPERATOR_ID)).thenReturn(List.of());
 
-        assertTrue(permissionService.hasPermission(OPERATOR_ID, "ops:device:list"));
-        assertTrue(permissionService.hasPermission(OPERATOR_ID, "ops:sku:edit"));
+        assertFalse(permissionService.hasPermission(OPERATOR_ID, "ops:device:list"));
+        assertFalse(permissionService.hasPermission(OPERATOR_ID, "ops:sku:edit"));
     }
 
     @Test

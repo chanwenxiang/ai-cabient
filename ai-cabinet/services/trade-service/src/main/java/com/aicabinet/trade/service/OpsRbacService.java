@@ -3,12 +3,15 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.OpsRolePermission;
+import com.aicabinet.trade.domain.OpsUserMerchant;
 import com.aicabinet.trade.domain.OpsUserRole;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.repository.OpsPermissionRepository;
 import com.aicabinet.trade.repository.OpsRolePermissionRepository;
 import com.aicabinet.trade.repository.OpsRoleRepository;
+import com.aicabinet.trade.repository.OpsUserMerchantRepository;
 import com.aicabinet.trade.repository.OpsUserRoleRepository;
+import com.aicabinet.trade.repository.MerchantRepository;
 import com.aicabinet.trade.repository.UserInfoRepository;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.data.domain.Page;
@@ -28,20 +31,29 @@ public class OpsRbacService {
     private final OpsPermissionRepository permissionRepository;
     private final OpsRolePermissionRepository rolePermissionRepository;
     private final OpsUserRoleRepository userRoleRepository;
+    private final OpsUserMerchantRepository userMerchantRepository;
+    private final MerchantRepository merchantRepository;
     private final PermissionService permissionService;
+    private final MerchantScopeService merchantScopeService;
     private final UserInfoRepository userInfoRepository;
 
     public OpsRbacService(OpsRoleRepository roleRepository,
                           OpsPermissionRepository permissionRepository,
                           OpsRolePermissionRepository rolePermissionRepository,
                           OpsUserRoleRepository userRoleRepository,
+                          OpsUserMerchantRepository userMerchantRepository,
+                          MerchantRepository merchantRepository,
                           PermissionService permissionService,
+                          MerchantScopeService merchantScopeService,
                           UserInfoRepository userInfoRepository) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
         this.rolePermissionRepository = rolePermissionRepository;
         this.userRoleRepository = userRoleRepository;
+        this.userMerchantRepository = userMerchantRepository;
+        this.merchantRepository = merchantRepository;
         this.permissionService = permissionService;
+        this.merchantScopeService = merchantScopeService;
         this.userInfoRepository = userInfoRepository;
     }
 
@@ -139,6 +151,41 @@ public class OpsRbacService {
             }
         }
         return getUserRoles(operatorId, userId);
+    }
+
+    @Transactional(readOnly = true)
+    public OpsUserMerchantsDto getUserMerchants(Long operatorId, Long userId) {
+        permissionService.requirePermission(operatorId, "ops:rbac:assign");
+        ensureOperatorAccount(userId);
+        List<String> merchantIds = userMerchantRepository.findByIdUserId(userId).stream()
+                .map(m -> m.getId().getMerchantId())
+                .toList();
+        return new OpsUserMerchantsDto(userId, merchantIds);
+    }
+
+    @Transactional
+    public OpsUserMerchantsDto assignMerchants(Long operatorId, Long userId, List<String> merchantIds) {
+        permissionService.requirePermission(operatorId, "ops:rbac:assign");
+        ensureOperatorAccount(userId);
+        Set<String> allowed = merchantScopeService.allowedMerchantIds(operatorId);
+        userMerchantRepository.deleteByIdUserId(userId);
+        if (merchantIds != null) {
+            for (String merchantId : merchantIds) {
+                if (merchantId == null || merchantId.isBlank()) {
+                    continue;
+                }
+                String id = merchantId.trim();
+                if (!merchantRepository.existsById(id)) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            ApiMessages.INVALID_REQUEST + "：merchantId=" + id);
+                }
+                if (allowed != null && !allowed.contains(id)) {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);
+                }
+                userMerchantRepository.save(new OpsUserMerchant(userId, id));
+            }
+        }
+        return getUserMerchants(operatorId, userId);
     }
 
     @Transactional(readOnly = true)

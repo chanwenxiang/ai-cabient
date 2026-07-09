@@ -4,7 +4,7 @@ import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.RechargeRequest;
 import com.aicabinet.common.dto.RechargeOrderDto;
-import com.aicabinet.common.dto.WxPayParams;
+import com.aicabinet.common.dto.RechargePrepayResponse;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.service.PaymentService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,7 +22,7 @@ public class PaymentController {
     }
 
     @PostMapping("/recharge/prepay")
-    public ApiResponse<WxPayParams> rechargePrepay(
+    public ApiResponse<RechargePrepayResponse> rechargePrepay(
             HttpServletRequest request,
             @Valid @RequestBody RechargeRequest body) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);

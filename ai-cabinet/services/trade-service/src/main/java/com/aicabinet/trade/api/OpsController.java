@@ -5,6 +5,7 @@ import com.aicabinet.common.dto.OpsOpenDoorRequest;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.dto.SkuCatalogDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
+import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.repository.SkuCatalogRepository;
 import com.aicabinet.trade.service.OpsService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -29,7 +30,7 @@ public class OpsController {
     @GetMapping("/skus")
     public ApiResponse<List<SkuCatalogDto>> listSkus() {
         List<SkuCatalogDto> list = skuCatalogRepository.findAll().stream()
-                .map(s -> new SkuCatalogDto(s.getSkuId(), s.getSkuName(), s.getPriceCents()))
+                .map(SkuCatalog::toDto)
                 .toList();
         return ApiResponse.ok(list);
     }

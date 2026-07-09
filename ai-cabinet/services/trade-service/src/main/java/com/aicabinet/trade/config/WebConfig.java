@@ -38,7 +38,8 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/v2/ops/**")
                 .excludePathPatterns(
                         "/api/v2/auth/**",
-                        "/api/v2/payment/wechat/**");
+                        "/api/v2/payment/wechat/**",
+                        "/api/v2/payment/alipay/**");
     }
 
     @Override

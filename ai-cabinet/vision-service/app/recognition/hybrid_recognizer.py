@@ -28,13 +28,18 @@ class HybridRecognizer:
             return getattr(self._primary, "load_error", None)
         return getattr(self._fallback, "load_error", None)
 
-    def recognize(self, session_id: str, video_uri: str | None) -> RecognitionOutput:
+    def recognize(self, session_id: str, video_uri: str | None, device_id: str | None = None,
+                  recognition_mode: str | None = None) -> RecognitionOutput:
+        if (recognition_mode or "").upper() == "INVENTORY_SNAPSHOT":
+            return self._fallback.recognize(
+                session_id, video_uri, device_id=device_id, recognition_mode=recognition_mode
+            )
         if self._primary.available:
             out = self._primary.recognize(session_id, video_uri)
             if out.items and not out.need_review:
                 return out
             log.info("primary recognizer need fallback session=%s", session_id)
-        return self._fallback.recognize(session_id, video_uri)
+        return self._fallback.recognize(session_id, video_uri, device_id=device_id, recognition_mode=recognition_mode)
 
     def recognize_upload(self, session_id: str, data: bytes, filename: str) -> RecognitionOutput:
         if self._primary.available:

@@ -9,6 +9,8 @@ public record OrderSummaryDto(
         String deviceId,
         int totalAmountCents,
         String status,
+        String payChannel,
         int lineCount,
+        String lineSummary,
         Instant createdAt
 ) {}

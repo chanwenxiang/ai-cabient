@@ -26,6 +26,14 @@ public class ReplenishmentTask {
 
     private Instant completedAt;
 
+    private Long outboundId;
+
+    private Instant checkInAt;
+
+    private Double checkInLat;
+
+    private Double checkInLng;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -48,5 +56,13 @@ public class ReplenishmentTask {
     public void setNotes(String notes) { this.notes = notes; }
     public Instant getCompletedAt() { return completedAt; }
     public void setCompletedAt(Instant completedAt) { this.completedAt = completedAt; }
+    public Long getOutboundId() { return outboundId; }
+    public void setOutboundId(Long outboundId) { this.outboundId = outboundId; }
+    public Instant getCheckInAt() { return checkInAt; }
+    public void setCheckInAt(Instant checkInAt) { this.checkInAt = checkInAt; }
+    public Double getCheckInLat() { return checkInLat; }
+    public void setCheckInLat(Double checkInLat) { this.checkInLat = checkInLat; }
+    public Double getCheckInLng() { return checkInLng; }
+    public void setCheckInLng(Double checkInLng) { this.checkInLng = checkInLng; }
     public Instant getCreatedAt() { return createdAt; }
 }

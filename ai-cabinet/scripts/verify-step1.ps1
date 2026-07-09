@@ -88,20 +88,32 @@ if ($SkipE2e) {
     Write-Host "Skipped E2E (-SkipE2e). Run manually:"
     Write-Host "  .\scripts\e2e-recharge.ps1"
     Write-Host "  .\scripts\e2e-shopping.ps1"
+    Write-Host "  (shopping E2E uses MQTT by default; -UseInternalDoor for legacy)"
     exit 0
 }
 
 Set-Location $Root
+& (Join-Path $Root "scripts\e2e-cleanup-device.ps1")
 Write-Host ""
 Write-Host "==> E2E recharge..."
 & (Join-Path $Root "scripts\e2e-recharge.ps1")
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host ""
-Write-Host "==> E2E shopping..."
+Write-Host "==> E2E shopping (MQTT open-door)..."
 & (Join-Path $Root "scripts\e2e-shopping.ps1")
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Write-Host "==> E2E inventory Phase A..."
+& (Join-Path $Root "scripts\e2e-inventory-phase-a.ps1")
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+Write-Host ""
+Write-Host "==> E2E warehouse Phase B..."
+& (Join-Path $Root "scripts\e2e-warehouse-phase-b.ps1")
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host ""
 Write-Host "Step 1 complete. Admin: http://localhost/admin/index.html"
+Write-Host "Optional: .\scripts\run-extended-e2e.ps1  .\scripts\run-miniapp-api-smoke.ps1"
 Write-Host "Next: docs/ROADMAP.md (Step 2 or Step 3)"

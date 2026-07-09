@@ -64,6 +64,15 @@ AICABINET_VISION_SERVICE_URL=http://vision-service:8082
 
 # CORS（运营后台域名）
 CORS_ORIGIN=https://ops.your-domain.com
+
+# 微信分账（需微信支付 V3 已配置；余额购物订单提交时需填 wxTransactionId）
+PROFIT_SHARING_ENABLED=true
+PROFIT_SHARING_RETRY_ENABLED=true
+PROFIT_SHARING_RETRY_BATCH_SIZE=20
+
+# 免密购物扣款：未接入真实支付分/支付宝代扣前保持 false
+PAYSCORE_ENABLED=false
+PAYSCORE_LIVE_CHARGE_ENABLED=false
 ```
 
 ### device-service
@@ -162,6 +171,26 @@ Content-Type: application/json
 
 ---
 
+## 5.1 微信分账生产配置
+
+| 变量 | 说明 |
+|------|------|
+| `PROFIT_SHARING_ENABLED` | `true` 启用分账 API（prod 下若开启则要求微信支付 V3 完整配置） |
+| `PROFIT_SHARING_RETRY_ENABLED` | 失败单自动重试（默认 `true`，每 15 分钟） |
+| `PROFIT_SHARING_RETRY_BATCH_SIZE` | 单次重试批大小（默认 20） |
+
+**上线步骤：**
+
+1. 商户后台添加分账接收方，将 `wechatReceiverId` 写入运营后台「商户分账」  
+2. 确认 `WECHAT_*` 支付证书与 `WECHAT_PLATFORM_CERT_AUTO_FETCH=true`  
+3. 设置 `PROFIT_SHARING_ENABLED=true` 并重启 trade-service  
+4. 运营后台「商户分账」页查看 **分账状态** 面板应为「API 就绪」  
+5. 购物订单当前为**余额扣款**：分账需在列表点「提交」并填写对应 `wxTransactionId`（充值/支付流水号）
+
+Admin API：`GET /api/v2/ops/admin/merchants/profit-sharing/status`
+
+---
+
 ## 6. Docker Compose 部署
 
 本项目使用 **Docker Compose** 部署（不使用 Kubernetes）。详见 [`infra/README.md`](../infra/README.md)。
@@ -210,6 +239,25 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 .\scripts\e2e-recharge.ps1
 .\scripts\e2e-shopping.ps1
 ```
+
+### Step 5 预发/上线前验证
+
+```powershell
+# 检查生产 .env 必填项（不启动服务）
+.\scripts\verify-step5.ps1 -CheckEnv
+
+# 预发 smoke：staging profile + SMS webhook mock + E2E
+copy infra\.env.staging.example infra\.env.staging
+.\scripts\verify-step5.ps1 -Staging
+```
+
+| 文件 | 说明 |
+|------|------|
+| `infra/.env.staging.example` | 预发环境变量模板（mock 关闭、微信可留空） |
+| `infra/docker-compose.staging.yml` | 叠加 sms-webhook-mock + `SPRING_PROFILES_ACTIVE=staging` |
+| `scripts/sms-webhook-mock.py` | 本地/容器 SMS 接收器，供 webhook 联调 |
+
+正式上线：将 `SPRING_PROFILES_ACTIVE=prod`，填写全部 `WECHAT_*`，`MQTT_BROKER=ssl://...`，`VISION_MOCK_ENABLED=false`。
 
 ---
 

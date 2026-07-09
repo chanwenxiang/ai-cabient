@@ -24,6 +24,7 @@ enum SessionState {
   SESSION_COMPLETED = 6;
   SESSION_DISPUTED = 7;
   SESSION_FAILED = 8;
+  SESSION_CANCELLED = 9;
 }
 
 enum UploadStatus {

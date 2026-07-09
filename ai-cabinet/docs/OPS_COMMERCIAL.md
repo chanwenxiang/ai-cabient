@@ -144,7 +144,7 @@ POST /api/v2/ops/admin/reconciliation/run?date=2026-07-06&channel=WECHAT
 
 本地测试运营号 `13900000001`（userId `100000001`）默认绑定 **admin** 角色。
 
-未配置角色的运营账号：向后兼容，视为拥有全部权限（`PermissionService.hasPermission` 空集返回 true）。
+未配置角色的运营账号：生产安全默认，视为无任何运营权限。初始化管理员必须显式绑定 **admin** 角色。
 
 ### API
 

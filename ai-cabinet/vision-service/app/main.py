@@ -18,6 +18,19 @@ app = FastAPI(title="AI Cabinet Vision Service", version="0.8.0")
 recognizer = get_recognizer()
 start_kafka_worker(recognizer)
 
+MOCK_ENABLED = os.getenv("MOCK_ENABLED", "true").lower() == "true"
+DEV_VISION_KEY = "dev-vision-key-change-me"
+if VISION_API_KEY == DEV_VISION_KEY and not MOCK_ENABLED:
+    raise RuntimeError("MOCK_ENABLED=false requires a strong VISION_API_KEY (not dev default)")
+if not MOCK_ENABLED and RECOGNIZER_BACKEND in ("aliyun", "hybrid"):
+    if not os.getenv("ALIBABA_CLOUD_ACCESS_KEY_ID") or not os.getenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET"):
+        raise RuntimeError(
+            "MOCK_ENABLED=false with aliyun/hybrid requires ALIBABA_CLOUD_ACCESS_KEY_ID/SECRET"
+        )
+    if not getattr(recognizer, "available", False):
+        err = getattr(recognizer, "load_error", "recognizer unavailable")
+        raise RuntimeError(f"Production recognizer not ready: {err}")
+
 print("=" * 60)
 print("vision-service started")
 print(f"  backend       = {RECOGNIZER_BACKEND}")
@@ -51,6 +64,8 @@ class RecognizeRequest(BaseModel):
     video_uri: str | None = None
     video_clips: list[dict] | None = None
     camera_fusion_mode: str | None = None
+    device_id: str | None = None
+    recognition_mode: str | None = None
 
 
 class VideoClip(BaseModel):
@@ -106,6 +121,7 @@ def health():
 def recognize(req: RecognizeRequest):
     fusion_mode = (req.camera_fusion_mode or "SINGLE").upper()
     clips = req.video_clips or []
+    mode = (req.recognition_mode or "").upper()
 
     if fusion_mode == "MULTI" and len(clips) >= 2:
         from app.recognition.fusion import fuse_outputs
@@ -117,16 +133,22 @@ def recognize(req: RecognizeRequest):
                 continue
             cam = clip.get("camera", "?")
             sid = f"{req.session_id}:{cam}"
-            outputs.append(recognizer.recognize(sid, uri))
+            outputs.append(
+                recognizer.recognize(sid, uri, req.device_id, recognition_mode=mode or None)
+            )
         out = fuse_outputs(outputs, fusion_mode)
         return _to_response(req.session_id, req.video_uri, out)
 
     if fusion_mode == "MULTI" and len(clips) == 1:
         uri = clips[0].get("videoUri") or clips[0].get("video_uri")
-        out = recognizer.recognize(req.session_id, uri or req.video_uri)
+        out = recognizer.recognize(
+            req.session_id, uri or req.video_uri, req.device_id, recognition_mode=mode or None
+        )
         return _to_response(req.session_id, uri or req.video_uri, out)
 
-    out = recognizer.recognize(req.session_id, req.video_uri)
+    out = recognizer.recognize(
+        req.session_id, req.video_uri, req.device_id, recognition_mode=mode or None
+    )
     return _to_response(req.session_id, req.video_uri, out)
 
 

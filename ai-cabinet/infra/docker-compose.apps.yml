@@ -55,6 +55,7 @@ services:
       AICABINET_DEVICE_SERVICE_URL: http://device-service:8081
       AICABINET_VISION_SERVICE_URL: http://vision-service:8082
       MINIO_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-cabinet-videos}
@@ -123,10 +124,19 @@ services:
       - "8082:8082"
     environment:
       MOCK_ENABLED: ${VISION_MOCK_ENABLED:-true}
+      RECOGNIZER_BACKEND: ${RECOGNIZER_BACKEND:-yolo}
       VISION_API_KEY: ${VISION_API_KEY}
       MINIO_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-cabinet-videos}
+      OBJECT_STORAGE_SCHEME: ${OBJECT_STORAGE_SCHEME:-minio}
+      OSS_REGION: ${OSS_REGION:-cn-shanghai}
+      ALIBABA_CLOUD_ACCESS_KEY_ID: ${ALIBABA_CLOUD_ACCESS_KEY_ID:-}
+      ALIBABA_CLOUD_ACCESS_KEY_SECRET: ${ALIBABA_CLOUD_ACCESS_KEY_SECRET:-}
+      ALIYUN_GOODSTECH_ENDPOINT: ${ALIYUN_GOODSTECH_ENDPOINT:-goodstech.cn-shanghai.aliyuncs.com}
+      ALIYUN_REVIEW_CONF: ${ALIYUN_REVIEW_CONF:-0.7}
       TRADE_SERVICE_URL: http://trade-service:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       KAFKA_ENABLED: "false"

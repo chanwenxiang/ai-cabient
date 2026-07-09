@@ -5,5 +5,10 @@ public record OrderLineDto(
         String skuName,
         int quantity,
         int unitPriceCents,
-        int lineAmountCents
-) {}
+        int lineAmountCents,
+        String batchNo
+) {
+    public OrderLineDto(String skuId, String skuName, int quantity, int unitPriceCents, int lineAmountCents) {
+        this(skuId, skuName, quantity, unitPriceCents, lineAmountCents, null);
+    }
+}

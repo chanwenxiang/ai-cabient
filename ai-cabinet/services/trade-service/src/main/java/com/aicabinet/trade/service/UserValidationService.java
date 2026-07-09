@@ -16,13 +16,16 @@ public class UserValidationService {
     private final UserInfoRepository userInfoRepository;
     private final UserAccountRepository userAccountRepository;
     private final RiskControlService riskControlService;
+    private final PayScoreService payScoreService;
 
     public UserValidationService(UserInfoRepository userInfoRepository,
                                  UserAccountRepository userAccountRepository,
-                                 RiskControlService riskControlService) {
+                                 RiskControlService riskControlService,
+                                 PayScoreService payScoreService) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.riskControlService = riskControlService;
+        this.payScoreService = payScoreService;
     }
 
     /**
@@ -47,6 +50,10 @@ public class UserValidationService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
         if (!user.isVerified()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.USER_NOT_VERIFIED);
+        }
+
+        if (payScoreService.isPasswordFreeReady(user)) {
+            return;
         }
 
         UserAccount account = userAccountRepository.findById(userId)

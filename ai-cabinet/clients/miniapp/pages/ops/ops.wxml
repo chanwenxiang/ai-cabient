@@ -1,6 +1,56 @@
 <view class="container">
-  <view class="title">运营补货</view>
-  <view class="hint">需运营账号登录（userId ≥ 100000000）</view>
-  <input class="input" value="{{deviceId}}" bindinput="onDeviceInput" placeholder="设备ID" />
-  <button type="warn" bindtap="onOpsOpen">补货开门</button>
+  <view class="title">运营工具</view>
+  <view class="hint">补货须从下方任务发起开门；需运营账号登录</view>
+  <view class="demo-banner">补货明细可在任务中录入；完整运营请使用网页管理后台</view>
+  <input class="input" value="{{deviceId}}" bindinput="onDeviceInput" placeholder="设备编号（识别测试用）" />
+
+  <view class="section recognition-section">
+    <view class="section-title">商品识别测试</view>
+    <view class="section-desc">上传商品照片，查看 YOLO 能否识别到商品，不创建订单、不扣款。</view>
+    <button type="primary" bindtap="onRecognitionTest" loading="{{recognizing}}" disabled="{{recognizing}}">上传识别</button>
+    <view class="recognition-hint" wx:if="{{recognitionHint}}">{{recognitionHint}}</view>
+  </view>
+
+  <button type="default" bindtap="onOpsOpen" disabled="{{true}}" style="opacity:0.5">补货开门（请从任务发起）</button>
+  <view class="restock-status" wx:if="{{restockSessionId}}">
+    <text>当前会话：{{restockSessionId}}</text>
+    <text>{{restockStateLabel}}</text>
+  </view>
+
+  <view class="section" wx:if="{{inTransit.length}}">
+    <view class="section-title">在途库存（未签收）</view>
+    <view class="transit-card" wx:for="{{inTransit}}" wx:key="transitId">
+      <text class="transit-device">{{item.deviceId}}</text>
+      <text class="transit-line">{{item.skuId}} × {{item.quantity}} @{{item.batchNo}}</text>
+      <text class="transit-meta">出库 #{{item.outboundId}}</text>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-head-row">
+      <view class="section-title">我的补货任务</view>
+      <text class="refresh-link" bindtap="loadTasks">刷新</text>
+    </view>
+    <view class="loading-tasks" wx:if="{{loadingTasks}}">加载中…</view>
+    <view class="empty-tasks" wx:elif="{{!tasks.length}}">暂无待办任务</view>
+    <view class="task-card" wx:for="{{tasks}}" wx:key="taskId">
+      <view class="row">
+        <view>
+          <text class="task-device">{{item.deviceId}}</text>
+          <text class="task-id">#{{item.taskId}}</text>
+        </view>
+        <text class="status status-{{item.status}}">{{item.statusLabel}}</text>
+      </view>
+      <view class="task-notes" wx:if="{{item.notes}}">{{item.notes}}</view>
+      <view class="checkin-row" wx:if="{{item.status !== 'COMPLETED'}}">
+        <text class="checkin-tag {{item.checkedIn ? 'ok' : 'pending'}}">{{item.checkedIn ? '✓ 已签到' : '未签到'}}</text>
+        <button size="mini" wx:if="{{!item.checkedIn}}" data-id="{{item.taskId}}" bindtap="onCheckInTask">到店签到</button>
+      </view>
+      <view class="task-actions" wx:if="{{item.status !== 'COMPLETED'}}">
+        <button size="mini" type="warn" data-id="{{item.taskId}}" data-device="{{item.deviceId}}" data-checked-in="{{item.checkedIn ? 1 : 0}}" bindtap="onOpenTaskDoor" loading="{{opening}}">开门补货</button>
+        <button size="mini" type="primary" data-id="{{item.taskId}}" data-device="{{item.deviceId}}" data-status="{{item.status}}" data-checked-in="{{item.checkedIn ? 1 : 0}}" bindtap="onEditTask">录入明细</button>
+        <button size="mini" data-id="{{item.taskId}}" bindtap="onCompleteTask">直接完成</button>
+      </view>
+    </view>
+  </view>
 </view>

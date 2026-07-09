@@ -9,5 +9,17 @@ public record AdminStatsDto(
         long revenueTodayCents,
         long orderTotal,
         long revenueTotalCents,
-        long disputeOpen
+        long disputeOpen,
+        long disputeOverdue,
+        long disputeNearSla,
+        long sessionWaitingUpload,
+        double doorSuccessRate24h,
+        double disputeRate24h,
+        double recognitionAutoRate24h,
+        long lowStockSkuCount,
+        long pendingSplitCount,
+        long nearExpiryLotCount,
+        long expiredLotCount,
+        long pullOffOpenCount,
+        long slotDiscrepancyCount
 ) {}

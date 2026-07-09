@@ -4,8 +4,10 @@ import com.aicabinet.trade.config.AuthProperties;
 import com.aicabinet.trade.config.CorsProperties;
 import com.aicabinet.trade.config.InternalApiProperties;
 import com.aicabinet.trade.config.MinioProperties;
+import com.aicabinet.trade.config.ProfitSharingProperties;
 import com.aicabinet.trade.config.RiskControlProperties;
 import com.aicabinet.trade.config.SecurityProperties;
+import com.aicabinet.trade.config.StagingProperties;
 import com.aicabinet.trade.config.VisionApiProperties;
 import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.config.WeChatMiniAppProperties;
@@ -18,11 +20,15 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication
 @EnableScheduling
 @EnableConfigurationProperties({WeChatPayProperties.class, WeChatMiniAppProperties.class,
-        MinioProperties.class, VisionAsyncProperties.class, SecurityProperties.class,
+        MinioProperties.class, VisionAsyncProperties.class, SecurityProperties.class, StagingProperties.class,
         InternalApiProperties.class, AuthProperties.class, CorsProperties.class, VisionApiProperties.class,
         com.aicabinet.trade.config.ReconciliationProperties.class,
         com.aicabinet.trade.config.AlipayProperties.class,
-        RiskControlProperties.class})
+        ProfitSharingProperties.class,
+        RiskControlProperties.class,
+        com.aicabinet.trade.config.PayScoreProperties.class,
+        com.aicabinet.trade.config.DisputeSlaProperties.class,
+        com.aicabinet.trade.config.RopProperties.class})
 public class TradeServiceApplication {
 
     public static void main(String[] args) {

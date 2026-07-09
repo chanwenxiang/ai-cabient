@@ -22,6 +22,17 @@ venv/
 clients/admin/node_modules/
 clients/admin/dist/
 
+# Android/Gradle local build state
+edge/android-app/.gradle/
+edge/android-app/build/
+
+# Local generated media used during manual tests
+scripts/_test_video*.mp4
+testdata/*.mp4
+
+# MQTT file persistence
+data/mqtt-paho/
+
 # Eclipse Paho MQTT file persistence (legacy)
 sim-*-tcplocalhost*/
 device-service-*-tcplocalhost*/

@@ -54,8 +54,32 @@ public class OrderService {
                 order.getDeviceId(),
                 order.getTotalAmountCents(),
                 order.getStatus(),
+                "BALANCE",
                 order.getLines().size(),
+                buildLineSummary(order),
                 order.getCreatedAt()
         );
+    }
+
+    private static String buildLineSummary(CabinetOrder order) {
+        var lines = order.getLines();
+        if (lines == null || lines.isEmpty()) {
+            return "";
+        }
+        String preview = lines.stream()
+                .limit(2)
+                .map(l -> {
+                    String name = l.getSkuName() + " x" + l.getQuantity();
+                    if (l.getBatchNo() != null && !l.getBatchNo().isBlank()) {
+                        name += " @" + l.getBatchNo();
+                    }
+                    return name;
+                })
+                .reduce((a, b) -> a + "、" + b)
+                .orElse("");
+        if (lines.size() > 2) {
+            return preview + " 等" + lines.size() + "件";
+        }
+        return preview;
     }
 }

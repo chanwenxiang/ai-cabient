@@ -6,7 +6,7 @@ import logging
 import os
 from pathlib import Path
 
-from app.recognition.mapping_client import yolo_class_to_sku
+from app.recognition.mapping_client import fetch_default_sku, fetch_inventory_snapshot, yolo_class_to_sku
 from app.recognition.types import RecognizedItem, RecognitionOutput
 from app.storage import VIDEO_CACHE_DIR, resolve_video_path
 
@@ -14,7 +14,7 @@ log = logging.getLogger(__name__)
 
 SERVICE_ROOT = Path(__file__).resolve().parent.parent.parent
 
-MOCK_SKU = os.getenv("MOCK_SKU_ID", "SKU-DEMO-001")
+MOCK_SKU = os.getenv("MOCK_SKU_ID", "SKU-DEMO-001")  # trade 不可达时的最后兜底
 CONF_THRESHOLD = float(os.getenv("YOLO_CONF", "0.5"))
 REVIEW_CONF_THRESHOLD = float(os.getenv("YOLO_REVIEW_CONF", "0.7"))
 MOCK_ENABLED = os.getenv("MOCK_ENABLED", "true").lower() == "true"
@@ -82,14 +82,17 @@ class YoloRecognizer:
     def available(self) -> bool:
         return self._model is not None
 
-    def recognize(self, session_id: str, video_uri: str | None) -> RecognitionOutput:
+    def recognize(self, session_id: str, video_uri: str | None, device_id: str | None = None,
+                  recognition_mode: str | None = None) -> RecognitionOutput:
+        if (recognition_mode or "").upper() == "INVENTORY_SNAPSHOT":
+            return self._inventory_snapshot(session_id, video_uri, device_id)
         if self._model is None or not video_uri:
-            return self._mock(session_id, video_uri)
+            return self._mock(session_id, video_uri, device_id=device_id)
 
         local_path = resolve_video_path(video_uri)
         if local_path is None or not os.path.exists(local_path):
             log.warning("video not available session=%s uri=%s", session_id, video_uri)
-            return self._mock(session_id, video_uri, need_review=not MOCK_ENABLED)
+            return self._mock(session_id, video_uri, need_review=not MOCK_ENABLED, device_id=device_id)
 
         return self._infer(local_path)
 
@@ -103,7 +106,13 @@ class YoloRecognizer:
         local.write_bytes(data)
 
         if self._model is None:
-            return self._mock(session_id, f"file:///{local.as_posix()}", need_review=not MOCK_ENABLED)
+            return RecognitionOutput(
+                items=[],
+                overall_confidence=0.0,
+                model_version="yolov8-unavailable",
+                need_review=True,
+                detected_classes=[],
+            )
 
         return self._infer(str(local))
 
@@ -192,12 +201,43 @@ class YoloRecognizer:
             return False
         return overall < REVIEW_CONF_THRESHOLD
 
-    def _mock(self, session_id: str, video_uri: str | None, need_review: bool | None = None) -> RecognitionOutput:
-        if need_review is None:
-            need_review = not MOCK_ENABLED or not video_uri
-        conf = 0.92 if video_uri and not need_review else 0.75
+    def _inventory_snapshot(self, session_id: str, video_uri: str | None,
+                            device_id: str | None) -> RecognitionOutput:
+        """补货关门快照：有模型+视频时优先 YOLO 计数，否则回退账面库存 mock。"""
+        if self._model is not None and video_uri:
+            local_path = resolve_video_path(video_uri)
+            if local_path is not None and os.path.exists(local_path):
+                out = self._infer(local_path)
+                if out.items:
+                    out.model_version = "yolov8-inventory-snapshot"
+                    return out
+                log.info("inventory snapshot yolo empty session=%s fallback book", session_id)
+            else:
+                log.warning("inventory snapshot video missing session=%s uri=%s", session_id, video_uri)
+        return self._mock_inventory_snapshot(device_id)
+
+    def _mock_inventory_snapshot(self, device_id: str | None) -> RecognitionOutput:
+        rows = fetch_inventory_snapshot(device_id)
+        if not rows:
+            sku_id = fetch_default_sku(device_id)
+            rows = [(sku_id, 1)]
+        items = [RecognizedItem(sku_id=sku, quantity=qty, confidence=0.95) for sku, qty in rows]
         return RecognitionOutput(
-            items=[RecognizedItem(sku_id=MOCK_SKU, quantity=1, confidence=conf)],
+            items=items,
+            overall_confidence=0.95,
+            model_version="inventory-snapshot-mock",
+            need_review=False,
+        )
+
+    def _mock(self, session_id: str, video_uri: str | None, need_review: bool | None = None,
+              device_id: str | None = None) -> RecognitionOutput:
+        if need_review is None:
+            # 开发 mock 始终返回可结算结果，避免无视频 URI 时误进人工审核
+            need_review = False if MOCK_ENABLED else not video_uri
+        conf = 0.92 if video_uri and not need_review else 0.75
+        sku_id = fetch_default_sku(device_id) if MOCK_ENABLED else MOCK_SKU
+        return RecognitionOutput(
+            items=[RecognizedItem(sku_id=sku_id, quantity=1, confidence=conf)],
             overall_confidence=conf,
             model_version="mock-v1" if self._model is None else "yolov8-fallback",
             need_review=need_review,

@@ -6,6 +6,10 @@ spring:
     name: trade-service
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 12MB
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:15433/aicabinet}
     username: ${SPRING_DATASOURCE_USERNAME:aicabinet}
@@ -32,6 +36,7 @@ spring:
 aicabinet:
   security:
     mock-enabled: true
+  staging-mode: ${AICABINET_STAGING_MODE:false}
   internal-api:
     key: ${INTERNAL_API_KEY:dev-internal-key-change-me}
   device-service:
@@ -40,7 +45,7 @@ aicabinet:
     url: ${AICABINET_VISION_SERVICE_URL:http://localhost:8082}
   auth:
     jwt-secret: ${JWT_SECRET:ai-cabinet-dev-secret-key-32bytes!!}
-    expiration-seconds: ${JWT_EXPIRATION_SECONDS:604800}
+    expiration-seconds: ${JWT_EXPIRATION_SECONDS:1800}
     sms:
       mock-code: "123456"
       ttl-seconds: 300
@@ -64,6 +69,7 @@ aicabinet:
     app-secret: ${WECHAT_MINIAPP_SECRET:}
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    public-endpoint: ${MINIO_PUBLIC_ENDPOINT:}
     access-key: ${MINIO_ACCESS_KEY:minioadmin}
     secret-key: ${MINIO_SECRET_KEY:minioadmin}
     bucket: ${MINIO_BUCKET:cabinet-videos}
@@ -81,12 +87,27 @@ aicabinet:
     enabled: ${RISK_CONTROL_ENABLED:true}
     max-opens-per-hour: ${RISK_MAX_OPENS_PER_HOUR:5}
     max-disputes-per-7-days: ${RISK_MAX_DISPUTES_PER_7_DAYS:3}
+  profit-sharing:
+    enabled: ${PROFIT_SHARING_ENABLED:false}
+    retry-enabled: ${PROFIT_SHARING_RETRY_ENABLED:true}
+    retry-batch-size: ${PROFIT_SHARING_RETRY_BATCH_SIZE:20}
   alipay:
     enabled: false
     app-id: ${ALIPAY_APP_ID:}
     private-key: ${ALIPAY_PRIVATE_KEY:}
     alipay-public-key: ${ALIPAY_PUBLIC_KEY:}
     gateway-url: ${ALIPAY_GATEWAY:https://openapi.alipay.com/gateway.do}
+    notify-url: ${ALIPAY_NOTIFY_URL:}
+  payscore:
+    enabled: ${PAYSCORE_ENABLED:false}
+    mock-enabled: ${PAYSCORE_MOCK_ENABLED:true}
+    min-score: ${PAYSCORE_MIN_SCORE:550}
+    live-charge-enabled: ${PAYSCORE_LIVE_CHARGE_ENABLED:false}
+  dispute-sla:
+    hours: ${DISPUTE_SLA_HOURS:48}
+    reminder-hours-before: ${DISPUTE_SLA_REMINDER_HOURS:12}
+    alert-webhook-url: ${DISPUTE_SLA_WEBHOOK:}
+    scheduler-enabled: ${DISPUTE_SLA_SCHEDULER:true}
 
 management:
   endpoints:

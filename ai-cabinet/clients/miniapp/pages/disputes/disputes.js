@@ -62,7 +62,10 @@ Page({
         if (!res.confirm) return;
         try {
           wx.showLoading({ title: '处理中' });
-          await api.resolveDispute(ticketId, [{ skuId: 'SKU-DEMO-001', quantity: 1 }]);
+          await api.resolveDispute(ticketId, {
+            items: [{ skuId: 'SKU-DEMO-001', quantity: 1 }],
+            resolutionType: 'CONFIRM'
+          });
           wx.hideLoading();
           wx.showToast({ title: '已结案', icon: 'success' });
           this.loadTickets();

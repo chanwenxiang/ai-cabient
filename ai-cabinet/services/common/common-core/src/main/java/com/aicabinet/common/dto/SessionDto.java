@@ -12,5 +12,7 @@ public record SessionDto(
         Instant openTime,
         Instant closeTime,
         String orderId,
-        Instant createdAt
+        Instant createdAt,
+        String failReason,
+        String payChannel
 ) {}

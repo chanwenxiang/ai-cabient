@@ -13,6 +13,9 @@ public record AdminSessionDto(
         Instant closeTime,
         String orderId,
         String videoUri,
+        String uploadStatus,
+        String cameraFusionMode,
+        String videoPreviewUrl,
         Instant createdAt,
         Instant updatedAt
 ) {}

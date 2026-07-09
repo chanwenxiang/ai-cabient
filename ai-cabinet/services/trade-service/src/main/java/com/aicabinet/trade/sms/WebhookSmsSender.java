@@ -1,11 +1,14 @@
 package com.aicabinet.trade.sms;
 
 import com.aicabinet.trade.config.AuthProperties;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
 import java.util.Map;
 
 @Component
@@ -14,11 +17,11 @@ public class WebhookSmsSender implements SmsSender {
     private static final Logger log = LoggerFactory.getLogger(WebhookSmsSender.class);
 
     private final AuthProperties authProperties;
-    private final RestClient restClient;
+    private final ObjectMapper objectMapper;
 
-    public WebhookSmsSender(AuthProperties authProperties) {
+    public WebhookSmsSender(AuthProperties authProperties, ObjectMapper objectMapper) {
         this.authProperties = authProperties;
-        this.restClient = RestClient.create();
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -27,12 +30,26 @@ public class WebhookSmsSender implements SmsSender {
         if (url == null || url.isBlank()) {
             throw new IllegalStateException("SMS webhook URL not configured");
         }
-        restClient.post()
-                .uri(url)
-                .body(Map.of("phoneNumber", phoneNumber, "code", code))
-                .retrieve()
-                .toBodilessEntity();
-        log.info("SMS dispatched via webhook phone={}", maskPhone(phoneNumber));
+        try {
+            byte[] body = objectMapper.writeValueAsBytes(Map.of("phoneNumber", phoneNumber, "code", code));
+            HttpURLConnection conn = (HttpURLConnection) URI.create(url).toURL().openConnection();
+            conn.setRequestMethod("POST");
+            conn.setConnectTimeout(10_000);
+            conn.setReadTimeout(10_000);
+            conn.setDoOutput(true);
+            conn.setRequestProperty("Content-Type", "application/json");
+            conn.setFixedLengthStreamingMode(body.length);
+            try (OutputStream out = conn.getOutputStream()) {
+                out.write(body);
+            }
+            int status = conn.getResponseCode();
+            if (status >= 400) {
+                throw new IllegalStateException("SMS webhook returned HTTP " + status);
+            }
+            log.info("SMS dispatched via webhook phone={}", maskPhone(phoneNumber));
+        } catch (Exception e) {
+            throw new IllegalStateException("SMS webhook dispatch failed", e);
+        }
     }
 
     private static String maskPhone(String phone) {

@@ -23,12 +23,20 @@ public class AuthInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         String auth = request.getHeader("Authorization");
         if (auth == null || !auth.startsWith("Bearer ")) {
+            String queryToken = request.getParameter("access_token");
+            if (queryToken != null && !queryToken.isBlank()) {
+                auth = "Bearer " + queryToken.trim();
+            }
+        }
+        if (auth == null || !auth.startsWith("Bearer ")) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.MISSING_TOKEN);
         }
         try {
-            Long userId = jwtService.parseUserId(auth.substring(7));
+            Long userId = jwtService.validateAndGetUserId(auth.substring(7));
             request.setAttribute(ATTR_USER_ID, userId);
             return true;
+        } catch (JwtService.InvalidSessionTokenException e) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.INVALID_TOKEN);
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.INVALID_TOKEN);
         }

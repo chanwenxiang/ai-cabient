@@ -27,10 +27,14 @@ public class ProductionStartupValidator {
 
     @EventListener(ApplicationReadyEvent.class)
     public void validateProductionConfig() {
-        if (!isProdProfile()) {
+        if (!isStrictProfile()) {
             return;
         }
         requireSecret(internalApiProperties.key(), DEV_INTERNAL_KEY, "INTERNAL_API_KEY");
+        if (isStagingProfile()) {
+            log.warn("device-service staging mode — MQTT TLS check skipped");
+            return;
+        }
         if (mqttProperties.broker() != null && mqttProperties.broker().startsWith("tcp://")) {
             throw new IllegalStateException("Production MQTT must use ssl:// broker URL");
         }
@@ -38,6 +42,10 @@ public class ProductionStartupValidator {
             throw new IllegalStateException("Production requires MQTT username/password");
         }
         log.info("device-service production configuration validated");
+    }
+
+    private boolean isStrictProfile() {
+        return isProdProfile() || isStagingProfile();
     }
 
     private boolean isProdProfile() {
@@ -49,9 +57,18 @@ public class ProductionStartupValidator {
         return false;
     }
 
+    private boolean isStagingProfile() {
+        for (String profile : environment.getActiveProfiles()) {
+            if ("staging".equalsIgnoreCase(profile)) {
+                return true;
+            }
+        }
+        return "true".equalsIgnoreCase(System.getenv("AICABINET_STAGING_MODE"));
+    }
+
     private static void requireSecret(String actual, String forbiddenDefault, String name) {
         if (actual == null || actual.isBlank() || forbiddenDefault.equals(actual)) {
-            throw new IllegalStateException("Production requires a strong " + name);
+            throw new IllegalStateException("Production/staging requires a strong " + name);
         }
         if (actual.length() < 32) {
             throw new IllegalStateException(name + " must be at least 32 characters");

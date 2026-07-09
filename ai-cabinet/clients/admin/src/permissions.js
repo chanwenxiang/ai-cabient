@@ -1,5 +1,6 @@
 /** 运营后台按钮级权限（借鉴 RuoYi v-permission） */
 let userPermissions = new Set();
+let permissionsLoadFailed = false;
 
 const PAGE_PERM = {
   dashboard: 'ops:dashboard:view',
@@ -13,11 +14,16 @@ const PAGE_PERM = {
   audit: 'ops:audit:list',
   recent: 'ops:audit:recent',
   disputes: 'ops:dispute',
+  'vision-mappings': 'ops:vision:list',
+  'upload-queue': 'ops:session:upload',
   sla: 'ops:sla',
   ota: 'ops:ota:list',
   risk: 'ops:risk:list',
   reconciliation: 'ops:reconciliation:list',
   replenishment: 'ops:replenishment:list',
+  warehouse: 'ops:replenishment:list',
+  finance: 'ops:replenishment:list',
+  merchants: 'ops:merchant:list',
   rbac: 'ops:rbac:role'
 };
 
@@ -34,10 +40,15 @@ const ACTION_PERM = {
   'replenish.edit': 'ops:replenishment:edit',
   'replenish.plan': 'ops:replenishment:edit',
   'rbac.assign': 'ops:rbac:assign',
-  'rbac.role.save': 'ops:rbac:role'
+  'rbac.role.save': 'ops:rbac:role',
+  'vision.edit': 'ops:vision:edit',
+  'merchant.edit': 'ops:merchant:edit',
+  'merchant.split': 'ops:merchant:split',
+  'user.verify': 'ops:user:list'
 };
 
 async function loadPermissions(api) {
+  permissionsLoadFailed = false;
   try {
     const perms = await api('/api/v2/ops/admin/rbac/me/permissions', 'GET');
     userPermissions = new Set(perms || []);
@@ -47,8 +58,14 @@ async function loadPermissions(api) {
   } catch (e) {
     console.warn('load permissions failed, no permissions granted', e);
     userPermissions = new Set();
+    permissionsLoadFailed = true;
   }
   applyNavPermissions();
+  return !permissionsLoadFailed;
+}
+
+function didPermissionsLoadFail() {
+  return permissionsLoadFailed;
 }
 
 function hasPerm(code) {
@@ -97,4 +114,4 @@ function permButton(actionKey, label, onclick, extraClass) {
   return `<button class="${cls}" data-perm="${perm || ''}" onclick="${onclick}">${label}</button>`;
 }
 
-export { loadPermissions, hasPerm, permButton, applyNavPermissions, PAGE_PERM, ACTION_PERM };
+export { loadPermissions, hasPerm, hasPagePerm, didPermissionsLoadFail, permButton, applyNavPermissions, PAGE_PERM, ACTION_PERM };

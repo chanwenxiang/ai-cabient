@@ -1,0 +1,17 @@
+.page { min-height: 100vh; background: #f5f7fa; padding: 24rpx; padding-bottom: calc(40rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
+.loading { text-align: center; color: #999; padding: 120rpx 0; }
+.task-head { background: #fff; border-radius: 20rpx; padding: 28rpx; margin-bottom: 24rpx; box-shadow: 0 4rpx 20rpx rgba(0,0,0,0.04); }
+.task-title { display: block; font-size: 34rpx; font-weight: 700; color: #1a1a2e; }
+.task-meta { display: block; font-size: 26rpx; color: #666; margin-top: 8rpx; }
+.task-tip { display: block; font-size: 22rpx; color: #999; line-height: 1.5; margin-top: 12rpx; }
+.line-card { background: #fff; border-radius: 20rpx; padding: 24rpx; margin-bottom: 20rpx; box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.04); }
+.line-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
+.picker-chip { background: #e6f4ff; color: #1677ff; font-size: 24rpx; padding: 8rpx 20rpx; border-radius: 999rpx; font-weight: 600; }
+.line-del { font-size: 24rpx; color: #ff4d4f; }
+.field { margin-bottom: 16rpx; }
+.field-row { display: flex; gap: 16rpx; }
+.field.half { flex: 1; }
+.label { display: block; font-size: 22rpx; color: #999; margin-bottom: 8rpx; }
+.picker-value, input { border: 1px solid #eee; border-radius: 12rpx; padding: 16rpx 20rpx; font-size: 28rpx; background: #fafafa; }
+.add-line-btn { background: #fff; color: #1677ff; border: 1px dashed #91caff; border-radius: 16rpx; margin-bottom: 24rpx; }
+.foot-actions { display: flex; flex-direction: column; gap: 16rpx; }

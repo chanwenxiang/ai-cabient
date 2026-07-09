@@ -47,9 +47,10 @@ public class PermissionService {
         if (userId == null || userId < CabinetConstants.OPERATOR_USER_ID_START) {
             return false;
         }
-        // 未分配角色的运营账号保持向后兼容：视为拥有全部运营权限
+        // 生产安全默认：未分配角色的运营账号没有任何权限。
+        // 初始化管理员必须显式绑定 admin 角色，避免新建运营号默认越权。
         if (!hasAnyRole(userId)) {
-            return true;
+            return false;
         }
         Set<String> perms = permissionRepository.findPermCodesByUserId(userId);
         if (perms.isEmpty()) {

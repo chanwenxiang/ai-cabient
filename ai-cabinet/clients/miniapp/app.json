@@ -8,7 +8,9 @@
     "pages/orders/orders",
     "pages/recharges/recharges",
     "pages/dispute-mine/dispute-mine",
+    "pages/verify/verify",
     "pages/ops/ops",
+    "pages/replenish-task/replenish-task",
     "pages/disputes/disputes"
   ],
   "window": {

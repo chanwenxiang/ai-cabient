@@ -34,13 +34,15 @@ public class TradeServiceClient {
                                 String videoUri,
                                 String uploadStatus,
                                 String videoClipsJson,
-                                String cameraFusionMode) {
-        log.info("notify door event session={} device={} state={} video={} upload={}",
-                sessionId, deviceId, doorState, videoUri, uploadStatus);
+                                String cameraFusionMode,
+                                String gravityDeltasJson) {
+        log.info("notify door event session={} device={} state={} video={} upload={} gravity={}",
+                sessionId, deviceId, doorState, videoUri, uploadStatus,
+                gravityDeltasJson != null ? "yes" : "no");
 
         DoorEventRequest request = new DoorEventRequest(
                 sessionId, deviceId, doorState, System.currentTimeMillis(),
-                videoUri, uploadStatus, videoClipsJson, cameraFusionMode);
+                videoUri, uploadStatus, videoClipsJson, cameraFusionMode, gravityDeltasJson);
 
         restClient.post()
                 .uri("/internal/v1/sessions/door-event")
@@ -51,7 +53,7 @@ public class TradeServiceClient {
     }
 
     public void notifyDoorEvent(String sessionId, String deviceId, DoorState doorState, String videoUri) {
-        notifyDoorEvent(sessionId, deviceId, doorState, videoUri, null, null, null);
+        notifyDoorEvent(sessionId, deviceId, doorState, videoUri, null, null, null, null);
     }
 
     public void notifyHeartbeat(String deviceId, String appVersion, String firmwareVersion) {

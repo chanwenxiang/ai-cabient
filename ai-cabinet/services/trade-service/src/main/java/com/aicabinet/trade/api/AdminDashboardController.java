@@ -34,6 +34,11 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.orderTrend(operatorId(request)));
     }
 
+    @GetMapping("/trend/ops")
+    public ApiResponse<AdminOpsTrendDto> opsTrend(HttpServletRequest request) {
+        return ApiResponse.ok(adminService.opsTrend(operatorId(request)));
+    }
+
     @GetMapping("/devices")
     public ApiResponse<List<AdminDeviceDto>> devices(HttpServletRequest request) {
         return ApiResponse.ok(adminService.listDevices(operatorId(request)));
@@ -80,6 +85,14 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.cancelSession(operatorId(request), sessionId));
     }
 
+    @GetMapping(value = "/sessions/{sessionId}/video", produces = {MediaType.APPLICATION_OCTET_STREAM_VALUE, "video/mp4", "video/webm"})
+    public void sessionVideo(
+            HttpServletRequest request,
+            @PathVariable("sessionId") String sessionId,
+            jakarta.servlet.http.HttpServletResponse response) {
+        adminService.streamSessionVideo(operatorId(request), sessionId, request, response);
+    }
+
     @GetMapping("/orders")
     public ApiResponse<PageResult<AdminOrderSummaryDto>> orders(
             HttpServletRequest request,
@@ -119,6 +132,14 @@ public class AdminDashboardController {
             @PathVariable("userId") Long userId,
             @Valid @RequestBody AdjustBalanceRequest body) {
         return ApiResponse.ok(adminService.adjustBalance(operatorId(request), userId, body));
+    }
+
+    @PostMapping("/users/{userId}/verify")
+    public ApiResponse<AdminUserDto> verifyUser(
+            HttpServletRequest request,
+            @PathVariable("userId") Long userId,
+            @Valid @RequestBody VerifyUserRequest body) {
+        return ApiResponse.ok(adminService.setUserVerified(operatorId(request), userId, body));
     }
 
     @GetMapping("/recharges")

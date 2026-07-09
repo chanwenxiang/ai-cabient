@@ -9,6 +9,7 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
@@ -37,19 +38,7 @@ public class AlipayOpenApiClient {
         if (!properties.isConfigured()) {
             throw new IllegalStateException("alipay not configured");
         }
-        Map<String, String> params = new TreeMap<>();
-        params.put("app_id", properties.appId());
-        params.put("method", method);
-        params.put("format", "json");
-        params.put("charset", "utf-8");
-        params.put("sign_type", "RSA2");
-        params.put("timestamp", LocalDateTime.now().format(TIMESTAMP));
-        params.put("version", "1.0");
-        try {
-            params.put("biz_content", objectMapper.writeValueAsString(bizContent));
-        } catch (Exception e) {
-            throw new IllegalStateException("alipay biz_content serialize failed", e);
-        }
+        Map<String, String> params = buildCommonParams(method, bizContent);
         params.put("sign", signUtil.signRsa2(params, properties.privateKey()));
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
@@ -83,5 +72,42 @@ public class AlipayOpenApiClient {
                 .retrieve()
                 .body(byte[].class);
         return data != null ? data : new byte[0];
+    }
+
+    /** 构建 WAP/页面支付跳转 URL（GET 方式） */
+    public String buildPagePayUrl(String method, Map<String, Object> bizContent) {
+        if (!properties.isConfigured()) {
+            throw new IllegalStateException("alipay not configured");
+        }
+        Map<String, String> params = buildCommonParams(method, bizContent);
+        params.put("sign", signUtil.signRsa2(params, properties.privateKey()));
+        String query = params.entrySet().stream()
+                .map(e -> e.getKey() + "=" + urlEncode(e.getValue()))
+                .collect(java.util.stream.Collectors.joining("&"));
+        return properties.gatewayUrl() + "?" + query;
+    }
+
+    private Map<String, String> buildCommonParams(String method, Map<String, Object> bizContent) {
+        Map<String, String> params = new TreeMap<>();
+        params.put("app_id", properties.appId());
+        params.put("method", method);
+        params.put("format", "json");
+        params.put("charset", "utf-8");
+        params.put("sign_type", "RSA2");
+        params.put("timestamp", LocalDateTime.now().format(TIMESTAMP));
+        params.put("version", "1.0");
+        try {
+            params.put("biz_content", objectMapper.writeValueAsString(bizContent));
+        } catch (Exception e) {
+            throw new IllegalStateException("alipay biz_content serialize failed", e);
+        }
+        if (properties.notifyUrl() != null && !properties.notifyUrl().isBlank()) {
+            params.put("notify_url", properties.notifyUrl());
+        }
+        return params;
+    }
+
+    private static String urlEncode(String value) {
+        return java.net.URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 }

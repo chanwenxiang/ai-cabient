@@ -69,10 +69,10 @@ WECHAT_NOTIFY_URL=https://your-domain/api/v2/payment/wechat/notify
 ```
 POST /api/v2/ops/restock/open-door
 Authorization: Bearer <operator-token>
-{"deviceId":"CAB-001"}
+{"deviceId":"CAB-001","taskId":123}
 ```
 
-设备收到 `operatorMode=true`，只开门不自动结算。
+`taskId` 为必填，须对应分配给当前运营人员的补货任务。开门后任务变为 `IN_PROGRESS`，并冻结该设备的消费者开门与结算。
 
 ## MinIO
 

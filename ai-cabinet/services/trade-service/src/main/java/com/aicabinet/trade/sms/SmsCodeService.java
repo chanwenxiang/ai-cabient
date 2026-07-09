@@ -2,14 +2,16 @@ package com.aicabinet.trade.sms;
 
 import com.aicabinet.trade.config.AuthProperties;
 import com.aicabinet.trade.config.SecurityProperties;
+import com.aicabinet.trade.domain.SmsVerificationCode;
+import com.aicabinet.trade.repository.SmsVerificationCodeRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
 import java.time.Instant;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Optional;
 
 @Component
 public class SmsCodeService {
@@ -17,47 +19,86 @@ public class SmsCodeService {
     private static final Logger log = LoggerFactory.getLogger(SmsCodeService.class);
     private static final SecureRandom RANDOM = new SecureRandom();
 
-    private final Map<String, CodeEntry> codes = new ConcurrentHashMap<>();
     private final AuthProperties authProperties;
     private final SecurityProperties securityProperties;
     private final WebhookSmsSender webhookSmsSender;
+    private final SmsVerificationCodeRepository codeRepository;
 
     public SmsCodeService(AuthProperties authProperties,
                           SecurityProperties securityProperties,
-                          WebhookSmsSender webhookSmsSender) {
+                          WebhookSmsSender webhookSmsSender,
+                          SmsVerificationCodeRepository codeRepository) {
         this.authProperties = authProperties;
         this.securityProperties = securityProperties;
         this.webhookSmsSender = webhookSmsSender;
+        this.codeRepository = codeRepository;
     }
 
+    @Transactional
     public void sendCode(String phoneNumber) {
+        String normalized = normalizePhone(phoneNumber);
         String code = generateCode();
         Instant expiresAt = Instant.now().plusSeconds(authProperties.sms().ttlSeconds());
-        codes.put(phoneNumber, new CodeEntry(code, expiresAt));
+        persistCode(normalized, code, expiresAt);
+
         if (securityProperties.mockEnabled()) {
-            log.info("DEV SMS code for {}: {}", maskPhone(phoneNumber), code);
+            log.info("DEV SMS code for {}: {} (stored in DB)", maskPhone(normalized), code);
             return;
         }
-        webhookSmsSender.send(phoneNumber, code);
+        webhookSmsSender.send(normalized, code);
     }
 
+    @Transactional
     public boolean verifyCode(String phoneNumber, String code) {
-        // dev：允许直接使用配置的 mock 验证码，便于本地联调（prod 走严格校验）
+        String normalized = normalizePhone(phoneNumber);
+        // dev：允许配置的万能码，便于旧脚本联调
         if (securityProperties.mockEnabled()
                 && authProperties.sms().mockCode().equals(code)) {
-            codes.remove(phoneNumber);
+            markLatestUsed(normalized);
             return true;
         }
-        CodeEntry entry = codes.get(phoneNumber);
-        if (entry == null || entry.expiresAt().isBefore(Instant.now())) {
-            codes.remove(phoneNumber);
+
+        Optional<SmsVerificationCode> latest = codeRepository
+                .findTopByPhoneNumberAndUsedAtIsNullOrderByCreatedAtDesc(normalized);
+        if (latest.isEmpty()) {
             return false;
         }
-        if (!entry.code().equals(code)) {
+        SmsVerificationCode entry = latest.get();
+        if (entry.getExpiresAt().isBefore(Instant.now())) {
+            entry.setUsedAt(Instant.now());
+            codeRepository.save(entry);
             return false;
         }
-        codes.remove(phoneNumber);
+        if (!entry.getCode().equals(code)) {
+            return false;
+        }
+        entry.setUsedAt(Instant.now());
+        codeRepository.save(entry);
         return true;
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<SmsCodeSnapshot> latestActiveCode(String phoneNumber) {
+        String normalized = normalizePhone(phoneNumber);
+        return codeRepository.findTopByPhoneNumberAndUsedAtIsNullOrderByCreatedAtDesc(normalized)
+                .filter(e -> e.getExpiresAt().isAfter(Instant.now()))
+                .map(e -> new SmsCodeSnapshot(e.getPhoneNumber(), e.getCode(), e.getExpiresAt()));
+    }
+
+    private void persistCode(String phoneNumber, String code, Instant expiresAt) {
+        SmsVerificationCode row = new SmsVerificationCode();
+        row.setPhoneNumber(phoneNumber);
+        row.setCode(code);
+        row.setExpiresAt(expiresAt);
+        codeRepository.save(row);
+    }
+
+    private void markLatestUsed(String phoneNumber) {
+        codeRepository.findTopByPhoneNumberAndUsedAtIsNullOrderByCreatedAtDesc(phoneNumber)
+                .ifPresent(entry -> {
+                    entry.setUsedAt(Instant.now());
+                    codeRepository.save(entry);
+                });
     }
 
     private String generateCode() {
@@ -67,6 +108,10 @@ public class SmsCodeService {
         return String.format("%06d", RANDOM.nextInt(1_000_000));
     }
 
+    private static String normalizePhone(String phoneNumber) {
+        return phoneNumber != null ? phoneNumber.trim() : "";
+    }
+
     private static String maskPhone(String phone) {
         if (phone == null || phone.length() < 7) {
             return "***";
@@ -74,5 +119,5 @@ public class SmsCodeService {
         return phone.substring(0, 3) + "****" + phone.substring(phone.length() - 4);
     }
 
-    private record CodeEntry(String code, Instant expiresAt) {}
+    public record SmsCodeSnapshot(String phoneNumber, String code, Instant expiresAt) {}
 }

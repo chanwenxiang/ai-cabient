@@ -11,5 +11,6 @@ public record OrderDto(
         int totalAmountCents,
         List<OrderLineDto> lines,
         String status,
+        String payChannel,
         Instant createdAt
 ) {}
