@@ -53,6 +53,8 @@ aicabinet:
   cors:
     allowed-origins:
       - ${CORS_ORIGIN:http://localhost:8080}
+      - http://localhost:5173
+      - http://127.0.0.1:5173
   wechat-pay:
     enabled: false
     app-id: ${WECHAT_APP_ID:}
@@ -67,6 +69,8 @@ aicabinet:
     enabled: false
     app-id: ${WECHAT_MINIAPP_ID:}
     app-secret: ${WECHAT_MINIAPP_SECRET:}
+    subscribe-template-id: ${WECHAT_MERCHANT_SUBSCRIBE_TEMPLATE:}
+    notify-page: pages/alerts/alerts
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
     public-endpoint: ${MINIO_PUBLIC_ENDPOINT:}
@@ -110,6 +114,10 @@ aicabinet:
     reminder-hours-before: ${DISPUTE_SLA_REMINDER_HOURS:12}
     alert-webhook-url: ${DISPUTE_SLA_WEBHOOK:}
     scheduler-enabled: ${DISPUTE_SLA_SCHEDULER:true}
+  merchant-ai:
+    enabled: ${MERCHANT_AI_ENABLED:true}
+    base-url: ${MERCHANT_AI_BASE_URL:http://localhost:11434}
+    model: ${MERCHANT_AI_MODEL:qwen2.5:1.5b}
 
 management:
   endpoints:

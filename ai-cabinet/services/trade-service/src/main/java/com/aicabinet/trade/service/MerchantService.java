@@ -95,6 +95,12 @@ public class MerchantService {
         merchant.setStatus(request.status() != null && !request.status().isBlank()
                 ? request.status().trim() : "ACTIVE");
         merchant.setRemark(blankToNull(request.remark()));
+        if (request.allowMerchantPlanogramEdit() != null) {
+            merchant.setAllowMerchantPlanogramEdit(request.allowMerchantPlanogramEdit());
+        }
+        if (request.allowMerchantPricingEdit() != null) {
+            merchant.setAllowMerchantPricingEdit(request.allowMerchantPricingEdit());
+        }
         merchantRepository.save(merchant);
         auditService.record(operatorId, isNew ? "MERCHANT_CREATE" : "MERCHANT_UPDATE",
                 "MERCHANT", merchantId, merchant.getMerchantName());
@@ -222,8 +228,11 @@ public class MerchantService {
     private MerchantDto toDto(Merchant m, long deviceCount) {
         return new MerchantDto(
                 m.getMerchantId(), m.getMerchantName(), m.getContactPhone(),
+                m.getAlertContactName(), m.getAlertContactPhone(),
                 m.getPlatformRateBps(), m.getWechatReceiverId(), m.getStatus(),
-                m.getRemark(), deviceCount, m.getCreatedAt(), m.getUpdatedAt());
+                m.getRemark(), deviceCount,
+                m.isAllowMerchantPlanogramEdit(), m.isAllowMerchantPricingEdit(),
+                m.getCreatedAt(), m.getUpdatedAt());
     }
 
     private RevenueSplitDto toSplitDto(OrderRevenueSplit s, String merchantName) {
@@ -231,7 +240,8 @@ public class MerchantService {
                 s.getSplitId(), s.getOrderId(), s.getMerchantId(), merchantName,
                 s.getDeviceId(), s.getGrossCents(), s.getPlatformCents(),
                 s.getMerchantCents(), s.getStatus(), s.getWechatOutOrderNo(),
-                s.getWechatTransactionId(), s.getFailureReason(), s.getCreatedAt());
+                s.getWechatTransactionId(), s.getFailureReason(), s.getCreatedAt(),
+                s.getSettlementBatchNo(), s.getSettleAfter(), s.getSettledAt());
     }
 
     private Page<OrderRevenueSplit> querySplits(Set<String> allowed, String merchantId,

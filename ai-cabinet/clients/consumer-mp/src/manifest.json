@@ -1,0 +1,14 @@
+{
+  "name": "AI开门柜-消费者",
+  "appid": "__UNI__AICABINET_CONSUMER",
+  "description": "AI开门柜 消费者微信小程序",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "mp-weixin": {
+    "appid": "",
+    "libVersion": "3.3.5",
+    "setting": { "urlCheck": false, "es6": true, "enhance": false },
+    "usingComponents": true
+  }
+}

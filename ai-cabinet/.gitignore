@@ -13,14 +13,25 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+vision-service/cache/
+vision-service/*.pt
+vision-service/models/*.pt
 
 # Local env
 .env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.*.local
 *.log
 
-# Node (admin frontend)
-clients/admin/node_modules/
-clients/admin/dist/
+# Node (frontends)
+node_modules/
+clients/*/node_modules/
+clients/*/dist/
+.pnpm-store/
+project.private.config.json
 
 # Android/Gradle local build state
 edge/android-app/.gradle/

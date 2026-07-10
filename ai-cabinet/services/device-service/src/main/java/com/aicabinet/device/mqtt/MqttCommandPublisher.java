@@ -70,15 +70,38 @@ public class MqttCommandPublisher {
                     "operatorMode", operatorMode,
                     "expireAt", System.currentTimeMillis() + 60_000
             );
-            byte[] bytes = objectMapper.writeValueAsBytes(payload);
-            MqttMessage message = new MqttMessage(bytes);
-            message.setQos(1);
-            client.publish(MqttTopics.command(deviceId), message);
+            publish(deviceId, payload);
             log.info("published OPEN_DOOR to {} commandId={}", deviceId, commandId);
             return commandId;
         } catch (Exception e) {
             throw new RuntimeException("failed to publish open door command", e);
         }
+    }
+
+    public String publishSetTargetTemp(String deviceId, int targetTempC) {
+        try {
+            ensureConnected();
+            String commandId = UUID.randomUUID().toString();
+            Map<String, Object> payload = Map.of(
+                    "commandId", commandId,
+                    "type", CabinetConstants.MQTT_CMD_SET_TARGET_TEMP,
+                    "targetTempC", targetTempC,
+                    "expireAt", System.currentTimeMillis() + 60_000
+            );
+            publish(deviceId, payload);
+            log.info("published SET_TARGET_TEMP to {} commandId={} target={}", deviceId, commandId, targetTempC);
+            return commandId;
+        } catch (Exception e) {
+            throw new RuntimeException("failed to publish set target temp command", e);
+        }
+    }
+
+    private void publish(String deviceId, Map<String, Object> payload) throws Exception {
+        ensureConnected();
+        byte[] bytes = objectMapper.writeValueAsBytes(payload);
+        MqttMessage message = new MqttMessage(bytes);
+        message.setQos(1);
+        client.publish(MqttTopics.command(deviceId), message);
     }
 
     private synchronized void ensureConnected() throws MqttException {

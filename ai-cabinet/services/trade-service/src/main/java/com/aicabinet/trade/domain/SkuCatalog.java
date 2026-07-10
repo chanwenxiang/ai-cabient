@@ -61,6 +61,9 @@ public class SkuCatalog {
     @Column(name = "near_expiry_price_cents")
     private Integer nearExpiryPriceCents;
 
+    @Column(name = "max_price_cents")
+    private Integer maxPriceCents;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -92,6 +95,7 @@ public class SkuCatalog {
                 storageType,
                 purchaseCostCents,
                 nearExpiryPriceCents,
+                maxPriceCents,
                 createdAt
         );
     }
@@ -135,4 +139,6 @@ public class SkuCatalog {
     public void setPurchaseCostCents(Integer purchaseCostCents) { this.purchaseCostCents = purchaseCostCents; }
     public Integer getNearExpiryPriceCents() { return nearExpiryPriceCents; }
     public void setNearExpiryPriceCents(Integer nearExpiryPriceCents) { this.nearExpiryPriceCents = nearExpiryPriceCents; }
+    public Integer getMaxPriceCents() { return maxPriceCents; }
+    public void setMaxPriceCents(Integer maxPriceCents) { this.maxPriceCents = maxPriceCents; }
 }

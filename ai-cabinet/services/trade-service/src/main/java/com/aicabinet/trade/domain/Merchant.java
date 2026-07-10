@@ -35,6 +35,18 @@ public class Merchant {
     @Column(length = 256)
     private String remark;
 
+    @Column(length = 64, name = "alert_contact_name")
+    private String alertContactName;
+
+    @Column(length = 32, name = "alert_contact_phone")
+    private String alertContactPhone;
+
+    @Column(nullable = false, name = "allow_merchant_planogram_edit")
+    private boolean allowMerchantPlanogramEdit = false;
+
+    @Column(nullable = false, name = "allow_merchant_pricing_edit")
+    private boolean allowMerchantPricingEdit = false;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -67,6 +79,14 @@ public class Merchant {
     public void setStatus(String status) { this.status = status; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
+    public String getAlertContactName() { return alertContactName; }
+    public void setAlertContactName(String alertContactName) { this.alertContactName = alertContactName; }
+    public String getAlertContactPhone() { return alertContactPhone; }
+    public void setAlertContactPhone(String alertContactPhone) { this.alertContactPhone = alertContactPhone; }
+    public boolean isAllowMerchantPlanogramEdit() { return allowMerchantPlanogramEdit; }
+    public void setAllowMerchantPlanogramEdit(boolean allowMerchantPlanogramEdit) { this.allowMerchantPlanogramEdit = allowMerchantPlanogramEdit; }
+    public boolean isAllowMerchantPricingEdit() { return allowMerchantPricingEdit; }
+    public void setAllowMerchantPricingEdit(boolean allowMerchantPricingEdit) { this.allowMerchantPricingEdit = allowMerchantPricingEdit; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

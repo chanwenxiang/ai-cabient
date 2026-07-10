@@ -37,5 +37,18 @@ public class DeviceServiceClient {
         requestOpenDoor(sessionId, deviceId, userId, true);
     }
 
+    public String requestSetTargetTemp(String deviceId, int targetTempC) {
+        log.info("request set target temp: device={}, target={}", deviceId, targetTempC);
+        return restClient.post()
+                .uri("/internal/v1/devices/{deviceId}/set-target-temp", deviceId)
+                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
+                .body(new SetTargetTempRequest(targetTempC))
+                .retrieve()
+                .body(SetTargetTempResponse.class)
+                .commandId();
+    }
+
     record OpenDoorRequest(String sessionId, Long userId, boolean operatorMode) {}
+    record SetTargetTempRequest(int targetTempC) {}
+    record SetTargetTempResponse(String commandId) {}
 }

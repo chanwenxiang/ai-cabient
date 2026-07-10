@@ -35,6 +35,23 @@ public class DeviceInfo {
     @Column(length = 32)
     private String merchantId;
 
+    @Column(length = 64, name = "alert_contact_name")
+    private String alertContactName;
+
+    @Column(length = 32, name = "alert_contact_phone")
+    private String alertContactPhone;
+
+    @Column(name = "target_temp_c")
+    private Integer targetTempC;
+
+    @Column(name = "current_temp_c")
+    private Integer currentTempC;
+
+    private Instant tempReportedAt;
+
+    @Column(length = 256, name = "ops_remark")
+    private String opsRemark;
+
     private Instant updatedAt;
 
     @PrePersist
@@ -63,5 +80,17 @@ public class DeviceInfo {
     public void setAddress(String address) { this.address = address; }
     public String getMerchantId() { return merchantId; }
     public void setMerchantId(String merchantId) { this.merchantId = merchantId; }
+    public String getAlertContactName() { return alertContactName; }
+    public void setAlertContactName(String alertContactName) { this.alertContactName = alertContactName; }
+    public String getAlertContactPhone() { return alertContactPhone; }
+    public void setAlertContactPhone(String alertContactPhone) { this.alertContactPhone = alertContactPhone; }
+    public Integer getTargetTempC() { return targetTempC; }
+    public void setTargetTempC(Integer targetTempC) { this.targetTempC = targetTempC; }
+    public Integer getCurrentTempC() { return currentTempC; }
+    public void setCurrentTempC(Integer currentTempC) { this.currentTempC = currentTempC; }
+    public Instant getTempReportedAt() { return tempReportedAt; }
+    public void setTempReportedAt(Instant tempReportedAt) { this.tempReportedAt = tempReportedAt; }
+    public String getOpsRemark() { return opsRemark; }
+    public void setOpsRemark(String opsRemark) { this.opsRemark = opsRemark; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

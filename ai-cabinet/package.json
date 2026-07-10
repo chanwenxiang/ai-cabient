@@ -1,0 +1,16 @@
+{
+  "name": "ai-cabinet-frontend",
+  "private": true,
+  "scripts": {
+    "dev:admin": "pnpm --filter @aicabinet/admin-vue dev",
+    "build:admin": "pnpm --filter @aicabinet/admin-vue build",
+    "dev:consumer-mp": "pnpm --filter @aicabinet/consumer-mp dev:mp-weixin",
+    "build:consumer-mp": "pnpm --filter @aicabinet/consumer-mp build:mp-weixin",
+    "dev:merchant-mp": "pnpm --filter @aicabinet/merchant-mp dev:mp-weixin",
+    "build:merchant-mp": "pnpm --filter @aicabinet/merchant-mp build:mp-weixin",
+    "build:packages": "pnpm -r --filter './packages/*' build"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

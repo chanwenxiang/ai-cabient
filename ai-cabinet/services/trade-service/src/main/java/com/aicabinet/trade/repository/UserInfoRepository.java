@@ -42,4 +42,14 @@ public interface UserInfoRepository extends JpaRepository<UserInfo, Long> {
             Long userId, String phoneNumber, Pageable pageable);
 
     List<UserInfo> findByUserIdIn(List<Long> userIds);
+
+    @Query(value = "SELECT nextval('operator_user_id_seq')", nativeQuery = true)
+    Long nextOperatorUserId();
+
+    @Query(value = """
+            SELECT COALESCE(MAX(user_id), 10000) + 1
+            FROM user_info
+            WHERE user_id < :operatorStart
+            """, nativeQuery = true)
+    Long nextConsumerUserId(@Param("operatorStart") long operatorStart);
 }

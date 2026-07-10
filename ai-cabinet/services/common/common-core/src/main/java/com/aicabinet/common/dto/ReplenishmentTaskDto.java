@@ -12,5 +12,7 @@ public record ReplenishmentTaskDto(
         Instant completedAt,
         Instant checkInAt,
         Double checkInLat,
-        Double checkInLng
+        Double checkInLng,
+        Long requestId,
+        Instant createdAt
 ) {}

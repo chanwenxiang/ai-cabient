@@ -15,16 +15,18 @@ $env:MOCK_ENABLED = "false"
 cd vision-service
 .\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8082
 
-# Step 4 验证
-cd ..
-.\scripts\verify-step4.ps1 -SampleImage testdata\bottle.jpg -WithE2e
+# 上传识别（见 docs/VISION_YOLO_TEST.md）
+curl.exe -X POST "http://localhost:8082/api/v2/vision/recognize/upload" `
+  -H "X-Internal-Api-Key: dev-vision-key-change-me" `
+  -F "session_id=TEST-BOTTLE" `
+  -F "file=@testdata\bottle.jpg"
 ```
 
-## 仅测 MinIO + YOLO 链路
-
-用默认 `bus.jpg` 即可（会话通常会进入 **争议审核**，说明真实 YOLO 已跑通）：
+## 端到端
 
 ```powershell
-.\scripts\verify-step4.ps1
-.\scripts\verify-step4.ps1 -WithE2e
+.\scripts\verify-local.ps1 -WithVision
+.\scripts\e2e-shopping.ps1
 ```
+
+用默认 `bus.jpg` 做关门视频时，会话通常会进入 **争议审核**，说明真实 YOLO 已跑通。

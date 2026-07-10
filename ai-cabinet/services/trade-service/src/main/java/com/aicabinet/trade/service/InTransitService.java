@@ -64,6 +64,15 @@ public class InTransitService {
     }
 
     @Transactional(readOnly = true)
+    public boolean hasOpenForDevice(Long outboundId, String deviceId) {
+        if (outboundId == null || deviceId == null || deviceId.isBlank()) {
+            return false;
+        }
+        return transitRepository.existsByOutboundIdAndDeviceIdAndStatus(
+                outboundId, deviceId.trim(), STATUS_IN_TRANSIT);
+    }
+
+    @Transactional(readOnly = true)
     public Map<String, Integer> qtyBySkuForDevice(String deviceId) {
         Map<String, Integer> bySku = new HashMap<>();
         if (deviceId == null || deviceId.isBlank()) {

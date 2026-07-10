@@ -119,8 +119,9 @@ public class OpsCommercialController {
     public ApiResponse<List<PaymentReconciliationDto>> reconciliation(
             HttpServletRequest request,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
-        return ApiResponse.ok(facade.listReconciliation(operatorId(request), from, to));
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String channel) {
+        return ApiResponse.ok(facade.listReconciliation(operatorId(request), from, to, channel));
     }
 
     @PostMapping("/reconciliation/run")
@@ -265,6 +266,27 @@ public class OpsCommercialController {
             @PathVariable Long taskId,
             @RequestBody(required = false) ReplenishmentCheckInRequest body) {
         return ApiResponse.ok(facade.checkInTask(operatorId(request), taskId, body));
+    }
+
+    @GetMapping("/replenishment/requests")
+    public ApiResponse<List<MerchantReplenishmentRequestDto>> merchantReplenishmentRequests(
+            HttpServletRequest request,
+            @RequestParam(name = "status", required = false) String status) {
+        return ApiResponse.ok(facade.listMerchantReplenishmentRequests(operatorId(request), status));
+    }
+
+    @PostMapping("/replenishment/requests/{requestId}/accept")
+    public ApiResponse<MerchantReplenishmentRequestDto> acceptMerchantReplenishmentRequest(
+            HttpServletRequest request, @PathVariable Long requestId) {
+        return ApiResponse.ok(facade.acceptMerchantReplenishmentRequest(operatorId(request), requestId));
+    }
+
+    @PostMapping("/replenishment/requests/{requestId}/reject")
+    public ApiResponse<MerchantReplenishmentRequestDto> rejectMerchantReplenishmentRequest(
+            HttpServletRequest request,
+            @PathVariable Long requestId,
+            @RequestBody(required = false) RejectMerchantReplenishmentRequest body) {
+        return ApiResponse.ok(facade.rejectMerchantReplenishmentRequest(operatorId(request), requestId, body));
     }
 
     @GetMapping("/finance/stats")

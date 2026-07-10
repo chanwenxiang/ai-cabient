@@ -66,4 +66,11 @@ public interface CabinetOrderRepository extends JpaRepository<CabinetOrder, Stri
             + "WHERE o.deviceId IN :deviceIds AND o.createdAt >= :since")
     long sumTotalAmountByDeviceIdInSince(
             @Param("deviceIds") Collection<String> deviceIds, @Param("since") Instant since);
+
+    @Query("SELECT COALESCE(SUM(o.totalAmountCents), 0) FROM CabinetOrder o "
+            + "WHERE o.deviceId IN :deviceIds AND o.createdAt >= :start AND o.createdAt < :end")
+    long sumTotalAmountByDeviceIdInBetween(
+            @Param("deviceIds") Collection<String> deviceIds,
+            @Param("start") Instant start,
+            @Param("end") Instant end);
 }

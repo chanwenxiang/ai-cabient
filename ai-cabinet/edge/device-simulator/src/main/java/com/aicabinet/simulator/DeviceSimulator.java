@@ -154,8 +154,9 @@ public class DeviceSimulator implements MqttCallback {
         publishAck(node.path("commandId").asText());
         Thread.sleep(500);
         publishDoorEvent(sessionId, DoorState.OPEN, null, null, null, null, null);
-        System.out.println("[simulator] door OPEN, shopping 3s...");
-        Thread.sleep(3000);
+        long shoppingMs = shoppingDelayMs();
+        System.out.println("[simulator] door OPEN, shopping " + (shoppingMs / 1000) + "s...");
+        Thread.sleep(shoppingMs);
 
         if (offlineUploadEnabled()) {
             publishDoorEvent(sessionId, DoorState.CLOSED, null, "LOCAL_QUEUED", null, null, resolveGravityJson());
@@ -332,7 +333,7 @@ public class DeviceSimulator implements MqttCallback {
         client.publish(MqttTopics.event(deviceId), msg);
     }
 
-    /** 关门重力：优先环境变量；消费者默认 -1@A1；补货默认不发（E2E 可走 internal API）。 */
+    /** 关门重力：仅当显式配置时才注入，避免演示时未取货却被扣款。 */
     private String resolveGravityJson() {
         String configured = env("AICABINET_SIM_GRAVITY_JSON", null);
         if (configured != null) {
@@ -341,14 +342,22 @@ public class DeviceSimulator implements MqttCallback {
         if (lastOperatorMode) {
             return null;
         }
+        String sku = env("AICABINET_SIM_GRAVITY_SKU", null);
+        if (sku == null || sku.isBlank()) {
+            return null;
+        }
         try {
             return mapper.writeValueAsString(List.of(
-                    Map.of("skuId", env("AICABINET_SIM_GRAVITY_SKU", "SKU-DEMO-001"),
+                    Map.of("skuId", sku.trim(),
                             "delta", -1,
                             "slotId", env("AICABINET_SIM_GRAVITY_SLOT", "A1"))));
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private static long shoppingDelayMs() {
+        return Long.parseLong(env("AICABINET_SIM_SHOPPING_MS", "30000"));
     }
 
     private static boolean offlineUploadEnabled() {

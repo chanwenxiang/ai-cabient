@@ -5,6 +5,7 @@ import com.aicabinet.trade.repository.DeviceInfoRepository;
 import com.aicabinet.trade.repository.OpsRoleRepository;
 import com.aicabinet.trade.repository.OpsUserMerchantRepository;
 import com.aicabinet.trade.repository.OpsUserRoleRepository;
+import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -28,15 +29,18 @@ public class MerchantScopeService {
     private final OpsUserRoleRepository userRoleRepository;
     private final OpsRoleRepository roleRepository;
     private final DeviceInfoRepository deviceRepository;
+    private final CabinetMetrics cabinetMetrics;
 
     public MerchantScopeService(OpsUserMerchantRepository userMerchantRepository,
                                 OpsUserRoleRepository userRoleRepository,
                                 OpsRoleRepository roleRepository,
-                                DeviceInfoRepository deviceRepository) {
+                                DeviceInfoRepository deviceRepository,
+                                CabinetMetrics cabinetMetrics) {
         this.userMerchantRepository = userMerchantRepository;
         this.userRoleRepository = userRoleRepository;
         this.roleRepository = roleRepository;
         this.deviceRepository = deviceRepository;
+        this.cabinetMetrics = cabinetMetrics;
     }
 
     @Transactional(readOnly = true)
@@ -90,6 +94,7 @@ public class MerchantScopeService {
             return;
         }
         if (merchantId == null || !allowed.contains(merchantId)) {
+            cabinetMetrics.recordMerchantScopeDenied("merchant");
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);
         }
     }
@@ -100,6 +105,7 @@ public class MerchantScopeService {
             return;
         }
         if (deviceId == null || !allowedDevices.contains(deviceId)) {
+            cabinetMetrics.recordMerchantScopeDenied("device");
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);
         }
     }

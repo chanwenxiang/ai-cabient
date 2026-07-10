@@ -1,8 +1,10 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.DeviceTemperatureReading;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.repository.DeviceInfoRepository;
+import com.aicabinet.trade.repository.DeviceTemperatureReadingRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -19,10 +21,14 @@ public class DevicePresenceService {
     private static final long OFFLINE_AFTER_MINUTES = 2;
 
     private final DeviceInfoRepository deviceRepository;
+    private final DeviceTemperatureReadingRepository temperatureReadingRepository;
     private final CabinetMetrics cabinetMetrics;
 
-    public DevicePresenceService(DeviceInfoRepository deviceRepository, CabinetMetrics cabinetMetrics) {
+    public DevicePresenceService(DeviceInfoRepository deviceRepository,
+                                 DeviceTemperatureReadingRepository temperatureReadingRepository,
+                                 CabinetMetrics cabinetMetrics) {
         this.deviceRepository = deviceRepository;
+        this.temperatureReadingRepository = temperatureReadingRepository;
         this.cabinetMetrics = cabinetMetrics;
     }
 
@@ -33,6 +39,11 @@ public class DevicePresenceService {
 
     @Transactional
     public void heartbeat(String deviceId, String appVersion, String firmwareVersion) {
+        heartbeat(deviceId, appVersion, firmwareVersion, null);
+    }
+
+    @Transactional
+    public void heartbeat(String deviceId, String appVersion, String firmwareVersion, Integer currentTempC) {
         DeviceInfo device = deviceRepository.findById(deviceId).orElseGet(() -> registerUnknown(deviceId));
         device.setOnlineStatus("ONLINE");
         if (appVersion != null && !appVersion.isBlank()) {
@@ -41,9 +52,18 @@ public class DevicePresenceService {
         if (firmwareVersion != null && !firmwareVersion.isBlank()) {
             device.setFirmwareVersion(firmwareVersion);
         }
+        if (currentTempC != null) {
+            device.setCurrentTempC(currentTempC);
+            device.setTempReportedAt(Instant.now());
+            DeviceTemperatureReading reading = new DeviceTemperatureReading();
+            reading.setDeviceId(deviceId);
+            reading.setTempC(currentTempC);
+            reading.setReportedAt(Instant.now());
+            temperatureReadingRepository.save(reading);
+        }
         deviceRepository.save(device);
         cabinetMetrics.refreshDeviceGauges(deviceRepository);
-        log.debug("device heartbeat device={} app={}", deviceId, appVersion);
+        log.debug("device heartbeat device={} app={} temp={}", deviceId, appVersion, currentTempC);
     }
 
     @Scheduled(fixedRate = 60_000)

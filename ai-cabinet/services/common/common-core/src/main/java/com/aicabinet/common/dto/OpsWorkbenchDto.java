@@ -9,5 +9,9 @@ public record OpsWorkbenchDto(
         long waitingUploads,
         long lowStockItems,
         long pendingReplenishments,
+        long staleSessions,
+        long reconciliationMismatches,
+        long splitExceptions,
+        long inTransitOverdue,
         List<OpsActionItemDto> actionItems
 ) {}

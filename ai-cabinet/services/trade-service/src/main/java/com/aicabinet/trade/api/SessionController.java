@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.CreateSessionRequest;
 import com.aicabinet.common.dto.OrderDto;
+import com.aicabinet.common.dto.SessionCartRequest;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.service.SessionService;
@@ -35,6 +36,15 @@ public class SessionController {
             @PathVariable("sessionId") String sessionId) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return ApiResponse.ok(sessionService.getSession(userId, sessionId));
+    }
+
+    @PutMapping("/{sessionId}/cart")
+    public ApiResponse<SessionDto> updateCart(
+            HttpServletRequest request,
+            @PathVariable("sessionId") String sessionId,
+            @Valid @RequestBody SessionCartRequest body) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(sessionService.updateSessionCart(userId, sessionId, body));
     }
 
     @GetMapping("/{sessionId}/order")

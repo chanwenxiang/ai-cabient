@@ -60,10 +60,12 @@ public class ReconciliationService {
     }
 
     @Transactional(readOnly = true)
-    public List<PaymentReconciliationDto> list(Long operatorId, LocalDate from, LocalDate to) {
+    public List<PaymentReconciliationDto> list(Long operatorId, LocalDate from, LocalDate to, String channel) {
         LocalDate end = to != null ? to : LocalDate.now();
         LocalDate start = from != null ? from : end.minusDays(30);
+        String ch = channel != null && !channel.isBlank() ? channel.trim().toUpperCase() : null;
         return reconRepository.findByReconDateBetweenOrderByReconDateDesc(start, end).stream()
+                .filter(r -> ch == null || ch.equalsIgnoreCase(r.getChannel()))
                 .map(this::toDto)
                 .toList();
     }
@@ -82,9 +84,12 @@ public class ReconciliationService {
     @Transactional
     public PaymentReconciliationDto runDaily(Long operatorId, LocalDate date, String channel) {
         String ch = channel != null ? channel.toUpperCase() : "WECHAT";
-        return reconRepository.findByReconDateAndChannel(date, ch)
-                .map(this::toDto)
-                .orElseGet(() -> toDto(doReconcile(date, ch)));
+        reconRepository.findByReconDateAndChannel(date, ch).ifPresent(existing -> {
+            billLineRepository.deleteByReconId(existing.getReconId());
+            reconRepository.delete(existing);
+            reconRepository.flush();
+        });
+        return toDto(doReconcile(date, ch));
     }
 
     private PaymentReconciliation doReconcile(LocalDate date, String channel) {
@@ -97,6 +102,7 @@ public class ReconciliationService {
         long platformTotal = platformLines.stream().mapToLong(PlatformBillLine::amountCents).sum();
 
         Set<String> ledgerOrderIds = collectLedgerOrderIds(start, end, channel);
+        Set<String> platformOrderIds = new HashSet<>();
         int matched = 0;
         int unmatched = 0;
 
@@ -111,6 +117,9 @@ public class ReconciliationService {
         for (PlatformBillLine line : platformLines) {
             boolean isMatched = line.merchantOrderNo() != null
                     && ledgerOrderIds.contains(line.merchantOrderNo());
+            if (line.merchantOrderNo() != null && !line.merchantOrderNo().isBlank()) {
+                platformOrderIds.add(line.merchantOrderNo());
+            }
             if (isMatched) {
                 matched++;
             } else {
@@ -129,9 +138,13 @@ public class ReconciliationService {
             billLineRepository.save(entity);
         }
 
+        Set<String> ledgerOnlyOrderIds = new HashSet<>(ledgerOrderIds);
+        ledgerOnlyOrderIds.removeAll(platformOrderIds);
+        Map<String, Object> categories = classifyMismatch(recon.getDiffCents(), unmatched, ledgerOnlyOrderIds.size());
         recon.setMatchedCount(matched);
         recon.setUnmatchedCount(unmatched);
-        recon.setStatus(recon.getDiffCents() == 0 && unmatched == 0 ? "MATCHED" : "MISMATCH");
+        recon.setStatus(recon.getDiffCents() == 0 && unmatched == 0 && ledgerOnlyOrderIds.isEmpty()
+                ? "MATCHED" : "MISMATCH");
         if ("MISMATCH".equals(recon.getStatus())) {
             cabinetMetrics.recordReconciliationMismatch();
         }
@@ -140,6 +153,13 @@ public class ReconciliationService {
             Map<String, Object> detail = new HashMap<>();
             detail.put("platformLineCount", platformLines.size());
             detail.put("ledgerOrderCount", ledgerOrderIds.size());
+            detail.put("platformUnmatchedCount", unmatched);
+            detail.put("ledgerOnlyCount", ledgerOnlyOrderIds.size());
+            detail.put("ledgerOnlyOrderIds", ledgerOnlyOrderIds.stream().sorted().limit(50).toList());
+            detail.put("mismatchCategories", categories);
+            detail.put("reviewAction", categories.isEmpty()
+                    ? "NONE"
+                    : "FILTER_DETAIL_AND_RERUN_AFTER_GATEWAY_OR_LEDGER_FIX");
             recon.setDetail(objectMapper.writeValueAsString(detail));
         } catch (Exception e) {
             log.warn("recon detail json failed", e);
@@ -147,6 +167,20 @@ public class ReconciliationService {
         log.info("reconciliation date={} channel={} platform={} ledger={} diff={} matched={} unmatched={}",
                 date, channel, platformTotal, ledgerTotal, recon.getDiffCents(), matched, unmatched);
         return reconRepository.save(recon);
+    }
+
+    private Map<String, Object> classifyMismatch(long diffCents, int platformUnmatched, int ledgerOnly) {
+        Map<String, Object> categories = new HashMap<>();
+        if (platformUnmatched > 0) {
+            categories.put("PLATFORM_ONLY", platformUnmatched);
+        }
+        if (ledgerOnly > 0) {
+            categories.put("LEDGER_ONLY", ledgerOnly);
+        }
+        if (diffCents != 0) {
+            categories.put(diffCents > 0 ? "PLATFORM_AMOUNT_GREATER" : "LEDGER_AMOUNT_GREATER", diffCents);
+        }
+        return categories;
     }
 
     private long sumLedger(Instant start, Instant end, String channel) {

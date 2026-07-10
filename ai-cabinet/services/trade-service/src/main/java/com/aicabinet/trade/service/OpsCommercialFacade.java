@@ -28,6 +28,7 @@ public class OpsCommercialFacade {
     private final InventoryOpsService inventoryOpsService;
     private final DeviceSlotService deviceSlotService;
     private final InTransitService inTransitService;
+    private final MerchantReplenishmentService merchantReplenishmentService;
 
     public OpsCommercialFacade(PermissionService permissionService,
                                OtaService otaService,
@@ -42,7 +43,8 @@ public class OpsCommercialFacade {
                                FinanceReportService financeReportService,
                                InventoryOpsService inventoryOpsService,
                                DeviceSlotService deviceSlotService,
-                               InTransitService inTransitService) {
+                               InTransitService inTransitService,
+                               MerchantReplenishmentService merchantReplenishmentService) {
         this.permissionService = permissionService;
         this.otaService = otaService;
         this.riskControlService = riskControlService;
@@ -57,6 +59,7 @@ public class OpsCommercialFacade {
         this.inventoryOpsService = inventoryOpsService;
         this.deviceSlotService = deviceSlotService;
         this.inTransitService = inTransitService;
+        this.merchantReplenishmentService = merchantReplenishmentService;
     }
 
     public List<OtaReleaseDto> listOta(Long operatorId) {
@@ -93,9 +96,10 @@ public class OpsCommercialFacade {
         riskControlService.removeBlacklist(userId);
     }
 
-    public List<PaymentReconciliationDto> listReconciliation(Long operatorId, java.time.LocalDate from, java.time.LocalDate to) {
+    public List<PaymentReconciliationDto> listReconciliation(Long operatorId, java.time.LocalDate from,
+                                                            java.time.LocalDate to, String channel) {
         permissionService.requirePermission(operatorId, "ops:reconciliation:list");
-        return reconciliationService.list(operatorId, from, to);
+        return reconciliationService.list(operatorId, from, to, channel);
     }
 
     public PaymentReconciliationDto runReconciliation(Long operatorId, java.time.LocalDate date, String channel) {
@@ -179,14 +183,27 @@ public class OpsCommercialFacade {
         return replenishmentService.checkInTask(operatorId, taskId, body);
     }
 
+    public List<MerchantReplenishmentRequestDto> listMerchantReplenishmentRequests(Long operatorId, String status) {
+        return merchantReplenishmentService.listRequestsForOps(operatorId, status);
+    }
+
+    public MerchantReplenishmentRequestDto acceptMerchantReplenishmentRequest(Long operatorId, Long requestId) {
+        return merchantReplenishmentService.acceptRequest(operatorId, requestId);
+    }
+
+    public MerchantReplenishmentRequestDto rejectMerchantReplenishmentRequest(Long operatorId, Long requestId,
+                                                                              RejectMerchantReplenishmentRequest body) {
+        return merchantReplenishmentService.rejectRequest(operatorId, requestId, body);
+    }
+
     public FinanceStatsDto financeStats(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
-        return financeReportService.stats();
+        permissionService.requirePermission(operatorId, "ops:finance:view");
+        return financeReportService.stats(operatorId);
     }
 
     public FinanceReportDto financeReport(Long operatorId, int days) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
-        return financeReportService.report(days);
+        permissionService.requirePermission(operatorId, "ops:finance:view");
+        return financeReportService.report(operatorId, days);
     }
 
     public int applyPlanogramTemplate(Long operatorId, String deviceId) {

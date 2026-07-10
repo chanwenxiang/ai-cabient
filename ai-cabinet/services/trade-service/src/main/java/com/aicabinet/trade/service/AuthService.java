@@ -6,7 +6,9 @@ import com.aicabinet.common.dto.LoginResponse;
 import com.aicabinet.common.dto.PasswordLoginRequest;
 import com.aicabinet.common.dto.WxLoginRequest;
 import com.aicabinet.trade.auth.JwtService;
+import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.repository.UserAccountRepository;
 import com.aicabinet.trade.repository.UserInfoRepository;
 import com.aicabinet.trade.sms.SmsCodeService;
 import com.aicabinet.trade.support.ApiMessages;
@@ -22,6 +24,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class AuthService {
 
     private final UserInfoRepository userInfoRepository;
+    private final UserAccountRepository userAccountRepository;
     private final JwtService jwtService;
     private final WeChatMiniAppClient weChatMiniAppClient;
     private final SmsCodeService smsCodeService;
@@ -29,12 +32,14 @@ public class AuthService {
     private final ServerBootMarker serverBootMarker;
 
     public AuthService(UserInfoRepository userInfoRepository,
+                       UserAccountRepository userAccountRepository,
                        JwtService jwtService,
                        WeChatMiniAppClient weChatMiniAppClient,
                        SmsCodeService smsCodeService,
                        PasswordEncoder passwordEncoder,
                        ServerBootMarker serverBootMarker) {
         this.userInfoRepository = userInfoRepository;
+        this.userAccountRepository = userAccountRepository;
         this.jwtService = jwtService;
         this.weChatMiniAppClient = weChatMiniAppClient;
         this.smsCodeService = smsCodeService;
@@ -91,7 +96,7 @@ public class AuthService {
         return response;
     }
 
-    /** 微信小程序 wx.login code 换 openId 并登录（须为已存在用户） */
+    /** 微信小程序 wx.login：已绑定 openId 直接登录；否则自动建档（竞品扫码免注册） */
     @Transactional
     public LoginResponse wxLogin(WxLoginRequest request) {
         var session = weChatMiniAppClient.code2Session(request.code());
@@ -100,16 +105,33 @@ public class AuthService {
             return tokenFor(byOpenId.get());
         }
         String phone = request.phoneNumber() != null ? normalizePhone(request.phoneNumber()) : "";
-        if (phone.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.WX_NOT_BOUND);
+        if (!phone.isBlank()) {
+            if (!phone.matches("1\\d{10}")) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
+            }
+            UserInfo user = requireExistingUser(phone);
+            user.setWxOpenId(session.openId());
+            userInfoRepository.save(user);
+            return tokenFor(user);
         }
-        if (!phone.matches("1\\d{10}")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
-        }
-        UserInfo user = requireExistingUser(phone);
-        user.setWxOpenId(session.openId());
+        return tokenFor(createWxConsumer(session.openId()));
+    }
+
+    private UserInfo createWxConsumer(String openId) {
+        Long userId = userInfoRepository.nextConsumerUserId(CabinetConstants.OPERATOR_USER_ID_START);
+        UserInfo user = new UserInfo();
+        user.setUserId(userId);
+        user.setPhoneNumber("wx" + userId);
+        user.setName("微信用户");
+        user.setVerified(false);
+        user.setWxOpenId(openId);
         userInfoRepository.save(user);
-        return tokenFor(user);
+
+        UserAccount account = new UserAccount();
+        account.setUserId(userId);
+        account.setBalanceCents(0);
+        userAccountRepository.save(account);
+        return user;
     }
 
     private UserInfo requireExistingUser(String phone) {

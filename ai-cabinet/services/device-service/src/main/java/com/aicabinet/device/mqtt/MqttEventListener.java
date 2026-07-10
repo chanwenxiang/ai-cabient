@@ -138,13 +138,23 @@ public class MqttEventListener implements MqttCallbackExtended {
         if (firmwareVersion == null) {
             firmwareVersion = textOrNull(node, "firmware_version");
         }
-        forwardHeartbeat(deviceId, appVersion, firmwareVersion);
+        forwardHeartbeat(deviceId, appVersion, firmwareVersion, parseTemp(node));
+    }
+
+    private static Integer parseTemp(JsonNode node) {
+        if (node.has("currentTempC") && !node.get("currentTempC").isNull()) {
+            return node.path("currentTempC").asInt();
+        }
+        if (node.has("current_temp_c") && !node.get("current_temp_c").isNull()) {
+            return node.path("current_temp_c").asInt();
+        }
+        return null;
     }
 
     /** 心跳仅用于运营后台在线状态，trade 短暂不可达时不影响开门购物流程。 */
-    private void forwardHeartbeat(String deviceId, String appVersion, String firmwareVersion) {
+    private void forwardHeartbeat(String deviceId, String appVersion, String firmwareVersion, Integer currentTempC) {
         try {
-            tradeServiceClient.notifyHeartbeat(deviceId, appVersion, firmwareVersion);
+            tradeServiceClient.notifyHeartbeat(deviceId, appVersion, firmwareVersion, currentTempC);
             metrics.recordHeartbeatForwarded();
         } catch (Exception e) {
             metrics.recordHeartbeatDropped();

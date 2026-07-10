@@ -20,11 +20,11 @@ if (-not (Test-Path $envProd)) {
     }
 }
 
-& (Join-Path $Root "scripts\verify-step5.ps1") -CheckEnv -Prod
+& (Join-Path $Root "scripts\check-env.ps1") -CheckEnv -Prod
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host ""
-Write-Host "Manual steps (see docs/DEPLOYMENT_CHECKLIST.md):"
+Write-Host "Manual steps (see docs/PRODUCTION.md):"
 Write-Host "  [ ] TLS / 域名 / 微信小程序 downloadFile 白名单"
 Write-Host "  [ ] PostgreSQL 备份与迁移 (Flyway V25/V26)"
 Write-Host "  [ ] WECHAT_* 商户与小程序密钥"

@@ -7,4 +7,6 @@ import java.util.List;
 
 public interface PaymentPlatformBillLineRepository extends JpaRepository<PaymentPlatformBillLine, Long> {
     List<PaymentPlatformBillLine> findByReconId(Long reconId);
+
+    void deleteByReconId(Long reconId);
 }

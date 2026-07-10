@@ -10,4 +10,6 @@ import java.util.Optional;
 public interface PaymentReconciliationRepository extends JpaRepository<PaymentReconciliation, Long> {
     List<PaymentReconciliation> findByReconDateBetweenOrderByReconDateDesc(LocalDate from, LocalDate to);
     Optional<PaymentReconciliation> findByReconDateAndChannel(LocalDate reconDate, String channel);
+    List<PaymentReconciliation> findTop10ByStatusOrderByCompletedAtDesc(String status);
+    long countByStatus(String status);
 }

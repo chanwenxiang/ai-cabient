@@ -1,5 +1,4 @@
-# Shopping E2E — MQTT open-door (default) with DB-backed demo context
-# Legacy internal door-event: -UseInternalDoor
+# Shopping E2E — MQTT open-door with DB-backed demo context
 
 param(
     [string]$BaseUrl = "http://localhost:8080",
@@ -8,17 +7,16 @@ param(
     [string]$DeviceId = "",
     [string]$InternalApiKey = "dev-internal-key-change-me",
     [string]$MqttBroker = "tcp://localhost:11883",
-    [switch]$UseInternalDoor,
     [switch]$SkipSimulatorStart,
     [switch]$KeepSimulator
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
-. "$PSScriptRoot\e2e-door-flow.ps1"
+. (Join-Path $PSScriptRoot "e2e-lib.ps1")
 
 if (-not $Phone -or -not $DeviceId) {
-    $demoCtx = & "$PSScriptRoot\seed-demo-data.ps1" -BaseUrl $BaseUrl -InternalApiKey $InternalApiKey -Ensure
+    $demoCtx = & (Join-Path $PSScriptRoot "seed-demo-data.ps1") -BaseUrl $BaseUrl -InternalApiKey $InternalApiKey -Ensure
     if (-not $Phone) { $Phone = $demoCtx.consumerPhone }
     if (-not $DeviceId) { $DeviceId = $demoCtx.deviceId }
     Write-Host "==> Demo context from DB: device=$DeviceId phone=$Phone fallbackSku=$($demoCtx.fallbackSkuId)"
@@ -28,7 +26,7 @@ $simProc = $null
 $startedSimulator = $false
 
 try {
-    & (Join-Path $PSScriptRoot "e2e-cleanup-device.ps1") -DeviceId $DeviceId | Out-Null
+    Clear-E2eDeviceBlockingSessions -DeviceId $DeviceId | Out-Null
 
     Write-Host "==> 1. Login"
     Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/auth/sms-code?phoneNumber=$Phone" | Out-Null
@@ -43,24 +41,13 @@ try {
     $before = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/account" -Headers $auth
     Write-Host "    balanceCents=$($before.balanceCents) passwordFree=$($before.passwordFreeReady)"
 
-    if ($UseInternalDoor) {
-        Write-Host "==> 3. Create session (internal door-event path)"
-        $session = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/sessions" -Headers $auth -Body @{
-            deviceId = $DeviceId
-        }
-        $sessionId = $session.sessionId
-        Write-Host "    sessionId=$sessionId state=$($session.state)"
-        Invoke-E2eInternalDoorShopping -BaseUrl $BaseUrl -DeviceId $DeviceId -SessionId $sessionId `
-            -InternalApiKey $InternalApiKey -ScriptsDir $PSScriptRoot
-    } else {
-        Write-Host "==> 3. MQTT shopping flow"
-        $mqtt = Invoke-E2eMqttShopping -BaseUrl $BaseUrl -DeviceId $DeviceId -Auth $auth `
-            -RepoRoot $Root -MqttBroker $MqttBroker -InternalApiKey $InternalApiKey `
-            -SkipSimulatorStart:$SkipSimulatorStart -KeepSimulator:$KeepSimulator
-        $sessionId = $mqtt.SessionId
-        $startedSimulator = $mqtt.SimulatorStarted
-        $simProc = $mqtt.SimulatorProcess
-    }
+    Write-Host "==> 3. MQTT shopping flow"
+    $mqtt = Invoke-E2eMqttShopping -BaseUrl $BaseUrl -DeviceId $DeviceId -Auth $auth `
+        -RepoRoot $Root -MqttBroker $MqttBroker -InternalApiKey $InternalApiKey `
+        -SkipSimulatorStart:$SkipSimulatorStart -KeepSimulator:$KeepSimulator
+    $sessionId = $mqtt.SessionId
+    $startedSimulator = $mqtt.SimulatorStarted
+    $simProc = $mqtt.SimulatorProcess
 
     Write-Host "==> 4. Wait for order"
     $order = Wait-E2eSessionOrder -BaseUrl $BaseUrl -SessionId $sessionId -Auth $auth
@@ -96,7 +83,7 @@ try {
     }
 
     Write-Host ""
-    Write-Host "OK shopping E2E passed (door=$(if ($UseInternalDoor) { 'internal' } else { 'mqtt' }))"
+    Write-Host "OK shopping E2E passed (door=mqtt)"
 } finally {
     if ($startedSimulator -and -not $KeepSimulator) {
         Write-Host "==> Stopping DeviceSimulator..."

@@ -1,4 +1,4 @@
-# 预发/试点 Compose 叠加层 — 配合 verify-step5.ps1 -Staging
+# 预发/试点 Compose 叠加层 — 配合 deploy-staging.ps1
 # 用法：docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.staging.yml --profile apps up -d
 
 services:

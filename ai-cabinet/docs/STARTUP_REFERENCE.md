@@ -13,8 +13,9 @@
 | 3 | trade-service | IDEA Run `TradeServiceApplication`（:8080） |
 | 4 | device-service | IDEA Run `DeviceServiceApplication`（:8081） |
 | 5 | 设备模拟器 | IDEA Run `DeviceSimulator`，参数 `CAB-001` |
-| 6 | 微信小程序 | 微信开发者工具打开 `clients/miniapp` |
-| 7 | 运营后台 | 浏览器打开 http://localhost:8080/admin/index.html |
+| 6 | 消费者小程序 | `clients/consumer-mp` → `npm run dev:mp-weixin`，微信开发者工具导入 |
+| 7 | 商户小程序 | `clients/merchant-mp` → `npm run dev:mp-weixin`，微信开发者工具导入 |
+| 8 | 运营控制台 | 浏览器 http://localhost:8080/admin/index.html |
 
 ---
 
@@ -46,23 +47,23 @@
 
 | 入口 | URL |
 |------|-----|
-| 运营后台 | http://localhost:8080/admin/index.html |
-| 小程序 API | http://localhost:8080（`clients/miniapp/utils/api.js`） |
+| 运营控制台 | http://localhost:8080/admin/index.html |
+| 小程序 API | 开发环境由各客户端 `VITE_API_BASE_URL` 配置 |
 | API Gateway | http://localhost/api/v2/（需 gateway 容器 + trade 在宿主机） |
 
 ---
 
 ## 三、账号与密码
 
-### 业务测试账号（小程序 / 运营后台登录）
+### 业务测试账号
 
 | 角色 | 手机号 | 验证码 | userId | 说明 |
 |------|--------|--------|--------|------|
-| **消费者** | `13800138000` | `123456` | 10001 | 余额 100 元，用于开门购物 |
-| **运营员** | `13900000001` | `123456` | 100000001 | 补货、运营后台、争议审核 |
+| **消费者** | `13800138000` | `123456` | 10001 | 余额 100 元，开门购物 |
+| **运营员** | `13900000001` | `123456` | 100000001 | 运营控制台、争议审核 |
+| **商户管理员** | `13800138001` | `123456` | 100000002 | 商户小程序 |
 
-- 登录接口：`POST /api/v2/auth/login`，body：`{"phoneNumber":"13800138000","code":"123456"}`
-- dev 环境可直接输入 `123456`，不必先点「获取验证码」
+- 登录接口：`POST /api/v2/auth/login`
 
 ### 设备
 
@@ -85,23 +86,7 @@
 |------|------|--------|------|
 | **PostgreSQL** | localhost:**15433** / 库 `aicabinet` | `aicabinet` | `aicabinet` |
 | **MinIO 控制台** | http://localhost:9001 | `minioadmin` | `minioadmin` |
-| **MinIO API** | http://localhost:9000 | `minioadmin` | `minioadmin` |
 | **EMQX 控制台** | http://localhost:28083 | `admin` | `public` |
-| **Redis** | localhost:6379 | — | 无密码 |
-
-MinIO 建议创建 bucket：`cabinet-videos`
-
----
-
-### 开发环境内部密钥（一般不用改）
-
-| 用途 | 配置项 | 默认值 |
-|------|--------|--------|
-| 服务间内部 API | `INTERNAL_API_KEY` / `X-Internal-Api-Key` | `dev-internal-key-change-me` |
-| vision-service | `VISION_API_KEY` | `dev-vision-key-change-me` |
-| JWT | `JWT_SECRET` | `ai-cabinet-dev-secret-key-32bytes!!` |
-
-trade-service、device-service、vision-service 本地默认已对齐，无需手动配置。
 
 ---
 
@@ -113,9 +98,11 @@ trade-service、device-service、vision-service 本地默认已对齐，无需�
 ✓ :8081/actuator/health      → device-service UP
 ✓ :8082/health               → vision-service UP
 ✓ DeviceSimulator CAB-001    → 控制台有心跳日志
-✓ 小程序 13800138000/123456  → 开门 CAB-001
-✓ 后台 13900000001/123456    → 运营后台登录
+✓ uni-app 13800138000/123456 → 开门 CAB-001
+✓ 运营控制台 13900000001     → 登录
 ```
+
+一键脚本：`.\scripts\verify-local.ps1`
 
 ---
 
@@ -123,5 +110,6 @@ trade-service、device-service、vision-service 本地默认已对齐，无需�
 
 | 文档 | 内容 |
 |------|------|
+| [MODULES.md](MODULES.md) | 模块索引 |
 | [LOCAL_SETUP.md](LOCAL_SETUP.md) | 完整本地联调步骤 |
 | [PRODUCTION.md](PRODUCTION.md) | 上生产环境变量与安全清单 |

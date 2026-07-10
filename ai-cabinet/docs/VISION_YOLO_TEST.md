@@ -47,13 +47,12 @@ http://localhost:8082/health
 
 ## 4. 测试方式
 
-### 一键 Step 4 验证（推荐）
+### 一键验证（推荐）
 
 ```powershell
 cd ai-cabinet
-.\scripts\verify-step4.ps1              # upload + minio:// + 多摄融合 API
-.\scripts\verify-step4.ps1 -WithE2e     # 再加 trade 实链路（bus.jpg 通常 DISPUTED）
-.\scripts\verify-step4.ps1 -WithE2e -SampleImage testdata\bottle.jpg
+.\scripts\verify-local.ps1 -WithVision
+.\scripts\e2e-shopping.ps1
 ```
 
 测试素材说明见 `testdata/README.md`。

@@ -6,11 +6,15 @@ public record MerchantDto(
         String merchantId,
         String merchantName,
         String contactPhone,
+        String alertContactName,
+        String alertContactPhone,
         int platformRateBps,
         String wechatReceiverId,
         String status,
         String remark,
         long deviceCount,
+        boolean allowMerchantPlanogramEdit,
+        boolean allowMerchantPricingEdit,
         Instant createdAt,
         Instant updatedAt
 ) {}

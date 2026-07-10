@@ -11,5 +11,7 @@ public record UpsertMerchantRequest(
         @Min(0) @Max(10000) Integer platformRateBps,
         String wechatReceiverId,
         String status,
-        String remark
+        String remark,
+        Boolean allowMerchantPlanogramEdit,
+        Boolean allowMerchantPricingEdit
 ) {}

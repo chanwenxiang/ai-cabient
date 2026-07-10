@@ -1,0 +1,11 @@
+{
+  "name": "@aicabinet/shared-uni",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./qrcode": "./src/qrcode.ts",
+    "./format": "./src/format.ts",
+    "./session-labels": "./src/session-labels.ts"
+  }
+}

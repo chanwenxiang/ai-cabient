@@ -14,6 +14,10 @@
     <artifactId>trade-service</artifactId>
     <name>trade-service</name>
 
+    <properties>
+        <skip.admin.build>false</skip.admin.build>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.aicabinet</groupId>
@@ -103,7 +107,7 @@
                 <groupId>com.github.eirslett</groupId>
                 <artifactId>frontend-maven-plugin</artifactId>
                 <configuration>
-                    <workingDirectory>${project.basedir}/../../clients/admin</workingDirectory>
+                    <workingDirectory>${project.basedir}/../../clients/admin-vue</workingDirectory>
                     <installDirectory>${project.build.directory}/frontend</installDirectory>
                     <skip>${skip.admin.build}</skip>
                 </configuration>
@@ -124,7 +128,9 @@
                             <goal>npm</goal>
                         </goals>
                         <configuration>
+                            <workingDirectory>${project.basedir}/../../clients/admin-vue</workingDirectory>
                             <arguments>install --no-audit --no-fund</arguments>
+                            <skip>${skip.admin.build}</skip>
                         </configuration>
                     </execution>
                     <execution>
@@ -134,7 +140,9 @@
                         </goals>
                         <phase>generate-resources</phase>
                         <configuration>
+                            <workingDirectory>${project.basedir}/../../clients/admin-vue</workingDirectory>
                             <arguments>run build</arguments>
+                            <skip>${skip.admin.build}</skip>
                         </configuration>
                     </execution>
                 </executions>

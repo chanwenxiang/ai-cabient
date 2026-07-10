@@ -42,6 +42,7 @@ public class SettlementService {
     private final GravitySettlementHelper gravityHelper;
     private final DemoDataService demoDataService;
     private final DeviceValidationService deviceValidationService;
+    private final MerchantSkuPricingService skuPricingService;
 
     public SettlementService(ShoppingSessionRepository sessionRepository,
                              SkuCatalogRepository skuCatalogRepository,
@@ -57,7 +58,8 @@ public class SettlementService {
                              SettlementConfidenceService confidenceService,
                              GravitySettlementHelper gravityHelper,
                              DemoDataService demoDataService,
-                             DeviceValidationService deviceValidationService) {
+                             DeviceValidationService deviceValidationService,
+                             MerchantSkuPricingService skuPricingService) {
         this.sessionRepository = sessionRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.orderRepository = orderRepository;
@@ -73,6 +75,7 @@ public class SettlementService {
         this.gravityHelper = gravityHelper;
         this.demoDataService = demoDataService;
         this.deviceValidationService = deviceValidationService;
+        this.skuPricingService = skuPricingService;
     }
 
     /** 人工审核后确认清单：无订单则首次扣款；有订单则按差额退/补。 */
@@ -96,8 +99,14 @@ public class SettlementService {
             return processRecognitionResult(session, recognition);
         } catch (RestClientException | IllegalStateException e) {
             if (securityProperties.mockEnabled()) {
-                log.warn("vision unavailable in dev, fallback mock SKU session={}", session.getSessionId(), e);
-                return finalizeOrder(session, devFallbackItems(session.getDeviceId()));
+                List<VisionServiceClient.RecognizedItem> gravityItems =
+                        gravityHelper.toRecognizedItems(session.getGravityDeltas());
+                if (!gravityItems.isEmpty()) {
+                    log.warn("vision unavailable in dev, gravity settle session={}", session.getSessionId(), e);
+                    return finalizeOrder(session, gravityItems);
+                }
+                log.warn("vision unavailable in dev, zero-settle session={}", session.getSessionId(), e);
+                return finalizeOrder(session, List.of());
             }
             throw e;
         }
@@ -127,6 +136,13 @@ public class SettlementService {
 
         recognition = withGravityFallback(session, recognition);
 
+        if (allowDevFallback && securityProperties.mockEnabled()) {
+            List<VisionServiceClient.RecognizedItem> cartItems =
+                    gravityHelper.toRecognizedItems(session.getGravityDeltas());
+            log.info("dev mock settle session={} cartItems={}", session.getSessionId(), cartItems.size());
+            return finalizeOrder(session, cartItems);
+        }
+
         if (recognition.needReview()) {
             if (allowDevFallback && securityProperties.mockEnabled() && !recognition.items().isEmpty()) {
                 log.warn("dev mock: skip manual review session={}", session.getSessionId());
@@ -145,8 +161,8 @@ public class SettlementService {
                 return stagingOrder;
             }
             if (allowDevFallback && securityProperties.mockEnabled()) {
-                log.warn("dev mock: empty recognition, fallback SKU session={}", session.getSessionId());
-                return finalizeOrder(session, devFallbackItems(session.getDeviceId()));
+                log.warn("dev mock: empty recognition, zero-settle session={}", session.getSessionId());
+                return finalizeOrder(session, List.of());
             }
             escalateToDispute(session, recognition, "未识别到商品，需人工审核");
         }
@@ -329,14 +345,15 @@ public class SettlementService {
             SkuCatalog sku = skuCatalogRepository.findById(item.skuId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                             ApiMessages.SKU_NOT_FOUND + "：" + item.skuId()));
-            int lineAmount = sku.getPriceCents() * item.quantity();
+            int unitPrice = skuPricingService.resolveUnitPriceCents(order.getDeviceId(), sku);
+            int lineAmount = unitPrice * item.quantity();
             total += lineAmount;
 
             CabinetOrderLine line = new CabinetOrderLine();
             line.setSkuId(sku.getSkuId());
             line.setSkuName(sku.getSkuName());
             line.setQuantity(item.quantity());
-            line.setUnitPriceCents(sku.getPriceCents());
+            line.setUnitPriceCents(unitPrice);
             line.setLineAmountCents(lineAmount);
             line.setUnitCostCents(sku.getPurchaseCostCents());
             line.setConfidence(item.confidence());

@@ -20,4 +20,14 @@ public class DeviceCommandService {
         commandTracker.recordPublished(commandId, deviceId, sessionId);
         return commandId;
     }
+
+    public String setTargetTemp(String deviceId, int targetTempC) {
+        String commandId = mqttPublisher.publishSetTargetTemp(deviceId, targetTempC);
+        commandTracker.recordPublished(commandId, deviceId, null);
+        return commandId;
+    }
+
+    public DeviceCommandTracker.CommandStatus getCommandStatus(String commandId) {
+        return commandTracker.getStatus(commandId);
+    }
 }

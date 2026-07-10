@@ -19,5 +19,6 @@ public record SkuCatalogDto(
         String storageType,
         Integer purchaseCostCents,
         Integer nearExpiryPriceCents,
+        Integer maxPriceCents,
         Instant createdAt
 ) {}

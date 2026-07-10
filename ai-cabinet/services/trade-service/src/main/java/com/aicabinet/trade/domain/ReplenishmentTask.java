@@ -28,6 +28,8 @@ public class ReplenishmentTask {
 
     private Long outboundId;
 
+    private Long requestId;
+
     private Instant checkInAt;
 
     private Double checkInLat;
@@ -58,6 +60,8 @@ public class ReplenishmentTask {
     public void setCompletedAt(Instant completedAt) { this.completedAt = completedAt; }
     public Long getOutboundId() { return outboundId; }
     public void setOutboundId(Long outboundId) { this.outboundId = outboundId; }
+    public Long getRequestId() { return requestId; }
+    public void setRequestId(Long requestId) { this.requestId = requestId; }
     public Instant getCheckInAt() { return checkInAt; }
     public void setCheckInAt(Instant checkInAt) { this.checkInAt = checkInAt; }
     public Double getCheckInLat() { return checkInLat; }

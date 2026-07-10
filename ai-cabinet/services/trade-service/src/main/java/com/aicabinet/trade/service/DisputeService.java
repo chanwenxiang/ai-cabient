@@ -1,7 +1,10 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.DisputeMessageDto;
 import com.aicabinet.common.dto.DisputeTicketDto;
 import com.aicabinet.common.dto.FileDisputeRequest;
+import com.aicabinet.common.dto.MerchantDisputeDetailDto;
+import com.aicabinet.common.dto.MerchantReplyDisputeRequest;
 import com.aicabinet.common.dto.OrderDto;
 import com.aicabinet.common.dto.OrderLineDto;
 import com.aicabinet.common.dto.PageResult;
@@ -13,14 +16,18 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.domain.DisputeMessage;
 import com.aicabinet.trade.domain.DisputeTicket;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.repository.CabinetOrderRepository;
 import com.aicabinet.trade.storage.MinioVideoService;
+import com.aicabinet.trade.repository.DisputeMessageRepository;
 import com.aicabinet.trade.repository.DisputeTicketRepository;
 import com.aicabinet.trade.repository.ShoppingSessionRepository;
 import com.aicabinet.trade.repository.SkuCatalogRepository;
+import com.aicabinet.trade.repository.UserInfoRepository;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
@@ -37,6 +44,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -44,6 +52,7 @@ import java.util.stream.Collectors;
 public class DisputeService {
 
     private final DisputeTicketRepository disputeRepository;
+    private final DisputeMessageRepository disputeMessageRepository;
     private final ShoppingSessionRepository sessionRepository;
     private final CabinetOrderRepository orderRepository;
     private final SettlementService settlementService;
@@ -53,10 +62,13 @@ public class DisputeService {
     private final RiskControlService riskControlService;
     private final PermissionService permissionService;
     private final MerchantScopeService merchantScopeService;
+    private final MerchantPortalGuard merchantPortalGuard;
     private final SkuCatalogRepository skuCatalogRepository;
     private final DisputeSlaProperties disputeSlaProperties;
+    private final UserInfoRepository userInfoRepository;
 
     public DisputeService(DisputeTicketRepository disputeRepository,
+                          DisputeMessageRepository disputeMessageRepository,
                           ShoppingSessionRepository sessionRepository,
                           CabinetOrderRepository orderRepository,
                           SettlementService settlementService,
@@ -66,9 +78,12 @@ public class DisputeService {
                           RiskControlService riskControlService,
                           PermissionService permissionService,
                           MerchantScopeService merchantScopeService,
+                          MerchantPortalGuard merchantPortalGuard,
                           SkuCatalogRepository skuCatalogRepository,
-                          DisputeSlaProperties disputeSlaProperties) {
+                          DisputeSlaProperties disputeSlaProperties,
+                          UserInfoRepository userInfoRepository) {
         this.disputeRepository = disputeRepository;
+        this.disputeMessageRepository = disputeMessageRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
         this.settlementService = settlementService;
@@ -78,8 +93,10 @@ public class DisputeService {
         this.riskControlService = riskControlService;
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
+        this.merchantPortalGuard = merchantPortalGuard;
         this.skuCatalogRepository = skuCatalogRepository;
         this.disputeSlaProperties = disputeSlaProperties;
+        this.userInfoRepository = userInfoRepository;
     }
 
     @Transactional
@@ -336,7 +353,126 @@ public class DisputeService {
                 videoUri, previewUrl, sessionState, orderId, billedAmountCents,
                 ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining,
                 ticket.getCategory(), ticket.getPriority(), ticket.getOperatorNote(),
-                ticket.getClosedAt(), ticket.getReopenedAt());
+                ticket.getClosedAt(), ticket.getReopenedAt(), loadMessages(ticket.getTicketId()));
+    }
+
+    @Transactional(readOnly = true)
+    public MerchantDisputeDetailDto getMerchantDetail(Long userId, String ticketId) {
+        permissionService.requirePermission(userId, "merchant:disputes:list");
+        merchantPortalGuard.requireAccess(userId);
+        DisputeTicket ticket = requireTicket(ticketId);
+        requireTicketDeviceAccess(userId, ticket);
+        DisputeTicketDto dto = toMerchantDto(ticket);
+        List<DisputeMessageDto> messages = loadMessages(ticket.getTicketId());
+        boolean canReply = "OPEN".equals(ticket.getStatus())
+                && permissionService.hasPermission(userId, "merchant:disputes:reply");
+        return new MerchantDisputeDetailDto(dto, messages, canReply);
+    }
+
+    @Transactional
+    public MerchantDisputeDetailDto replyAsMerchant(Long userId, String ticketId,
+                                                    MerchantReplyDisputeRequest request) {
+        permissionService.requirePermission(userId, "merchant:disputes:reply");
+        merchantPortalGuard.requireAccess(userId);
+        DisputeTicket ticket = requireTicket(ticketId);
+        requireTicketDeviceAccess(userId, ticket);
+        if (!"OPEN".equals(ticket.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待处理工单可回复");
+        }
+        String body = request != null && request.body() != null ? request.body().trim() : "";
+        if (body.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "回复内容不能为空");
+        }
+        if (body.length() > 1024) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "回复内容不能超过 1024 字");
+        }
+        DisputeMessage message = new DisputeMessage();
+        message.setTicketId(ticket.getTicketId());
+        message.setAuthorType("MERCHANT");
+        message.setAuthorId(userId);
+        message.setBody(body);
+        disputeMessageRepository.save(message);
+        auditService.record(userId, "MERCHANT_DISPUTE_REPLY", "DISPUTE", ticket.getTicketId(), body);
+        return getMerchantDetail(userId, ticketId);
+    }
+
+    private DisputeTicketDto toMerchantDto(DisputeTicket ticket) {
+        List<OrderLineDto> suggested = enrichLines(parseItems(ticket.getItems()));
+        List<OrderLineDto> resolved = enrichLines(parseItems(ticket.getResolutionItems()));
+        ShoppingSession session = sessionRepository.findById(ticket.getSessionId()).orElse(null);
+        String deviceId = session != null ? session.getDeviceId() : null;
+        String sessionState = session != null ? session.getState().name() : null;
+        String orderId = session != null ? session.getOrderId() : null;
+        Integer billedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
+                .filter(o -> !"REFUNDED".equals(o.getStatus()))
+                .map(CabinetOrder::getTotalAmountCents)
+                .orElse(null);
+        Instant now = Instant.now();
+        boolean slaOverdue = "OPEN".equals(ticket.getStatus())
+                && ticket.getSlaDueAt() != null
+                && !ticket.getSlaDueAt().isAfter(now);
+        Long slaHoursRemaining = null;
+        if ("OPEN".equals(ticket.getStatus()) && ticket.getSlaDueAt() != null && !slaOverdue) {
+            slaHoursRemaining = ChronoUnit.HOURS.between(now, ticket.getSlaDueAt());
+        }
+        return new DisputeTicketDto(
+                ticket.getTicketId(), ticket.getSessionId(), deviceId, ticket.getReason(),
+                ticket.getStatus(), suggested, resolved, ticket.getCreatedAt(), ticket.getResolvedAt(),
+                null, null, sessionState, orderId, billedAmountCents,
+                ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining,
+                ticket.getCategory(), null, null,
+                ticket.getClosedAt(), ticket.getReopenedAt(), List.of());
+    }
+
+    private DisputeTicket requireTicket(String ticketId) {
+        return disputeRepository.findById(ticketId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "争议工单不存在"));
+    }
+
+    private void requireTicketDeviceAccess(Long userId, DisputeTicket ticket) {
+        ShoppingSession session = sessionRepository.findById(ticket.getSessionId()).orElse(null);
+        if (session == null || session.getDeviceId() == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND);
+        }
+        merchantScopeService.requireDeviceAccess(userId, session.getDeviceId());
+    }
+
+    private List<DisputeMessageDto> loadMessages(String ticketId) {
+        List<DisputeMessage> rows = disputeMessageRepository.findByTicketIdOrderByCreatedAtAsc(ticketId);
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> authorIds = rows.stream()
+                .map(DisputeMessage::getAuthorId)
+                .filter(id -> id != null && id > 0)
+                .collect(Collectors.toSet());
+        Map<Long, String> names = userInfoRepository.findAllById(authorIds).stream()
+                .collect(Collectors.toMap(
+                        com.aicabinet.trade.domain.UserInfo::getUserId,
+                        u -> u.getName() != null && !u.getName().isBlank()
+                                ? u.getName() : u.getPhoneNumber(),
+                        (a, b) -> a));
+        return rows.stream()
+                .map(m -> new DisputeMessageDto(
+                        m.getMessageId(),
+                        m.getAuthorType(),
+                        m.getAuthorId(),
+                        resolveAuthorName(m, names),
+                        m.getBody(),
+                        m.getCreatedAt()))
+                .toList();
+    }
+
+    private static String resolveAuthorName(DisputeMessage message, Map<Long, String> names) {
+        if (message.getAuthorId() != null && names.containsKey(message.getAuthorId())) {
+            return names.get(message.getAuthorId());
+        }
+        return switch (message.getAuthorType() != null ? message.getAuthorType() : "") {
+            case "MERCHANT" -> "商户";
+            case "OPERATOR" -> "平台运营";
+            case "SYSTEM" -> "系统";
+            default -> message.getAuthorType();
+        };
     }
 
     private List<OrderLineDto> parseItems(String json) {

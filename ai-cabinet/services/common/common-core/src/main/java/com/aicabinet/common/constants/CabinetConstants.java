@@ -15,4 +15,5 @@ public final class CabinetConstants {
     public static final String MQTT_EVENT_TYPE_ACK = "ACK";
 
     public static final String MQTT_CMD_OPEN_DOOR = "OPEN_DOOR";
+    public static final String MQTT_CMD_SET_TARGET_TEMP = "SET_TARGET_TEMP";
 }

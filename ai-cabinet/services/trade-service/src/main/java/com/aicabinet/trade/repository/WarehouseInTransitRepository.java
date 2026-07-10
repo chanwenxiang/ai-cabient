@@ -12,4 +12,6 @@ public interface WarehouseInTransitRepository extends JpaRepository<WarehouseInT
     List<WarehouseInTransit> findByOutboundIdAndDeviceIdAndStatus(Long outboundId, String deviceId, String status);
 
     List<WarehouseInTransit> findByStatusOrderByCreatedAtAsc(String status);
+
+    boolean existsByOutboundIdAndDeviceIdAndStatus(Long outboundId, String deviceId, String status);
 }

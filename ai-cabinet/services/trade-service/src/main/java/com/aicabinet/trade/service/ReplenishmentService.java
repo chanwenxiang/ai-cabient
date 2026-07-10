@@ -513,6 +513,13 @@ public class ReplenishmentService {
 
         List<ReplenishmentTaskLine> pending = taskLineRepository.findByTaskIdAndAppliedFalse(taskId);
 
+        if (!pending.isEmpty()
+                && task.getOutboundId() != null
+                && !inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "outbound is not in transit or has already been received for this device");
+        }
+
         String refId = String.valueOf(taskId);
 
         for (ReplenishmentTaskLine line : pending) {
@@ -637,7 +644,8 @@ public class ReplenishmentService {
         return new ReplenishmentTaskDto(
                 t.getTaskId(), t.getRouteId(), t.getDeviceId(), t.getAssigneeUserId(),
                 t.getStatus(), t.getNotes(), t.getCompletedAt(),
-                t.getCheckInAt(), t.getCheckInLat(), t.getCheckInLng()
+                t.getCheckInAt(), t.getCheckInLat(), t.getCheckInLng(),
+                t.getRequestId(), t.getCreatedAt()
         );
 
     }

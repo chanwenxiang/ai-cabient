@@ -57,10 +57,14 @@ public class TradeServiceClient {
     }
 
     public void notifyHeartbeat(String deviceId, String appVersion, String firmwareVersion) {
+        notifyHeartbeat(deviceId, appVersion, firmwareVersion, null);
+    }
+
+    public void notifyHeartbeat(String deviceId, String appVersion, String firmwareVersion, Integer currentTempC) {
         restClient.post()
                 .uri("/internal/v1/devices/{deviceId}/heartbeat", deviceId)
                 .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
-                .body(new HeartbeatBody(appVersion, firmwareVersion))
+                .body(new HeartbeatBody(appVersion, firmwareVersion, currentTempC))
                 .retrieve()
                 .toBodilessEntity();
     }
@@ -88,5 +92,5 @@ public class TradeServiceClient {
         attachVideo(sessionId, deviceId, videoUri, "UPLOADED", null, null);
     }
 
-    record HeartbeatBody(String appVersion, String firmwareVersion) {}
+    record HeartbeatBody(String appVersion, String firmwareVersion, Integer currentTempC) {}
 }

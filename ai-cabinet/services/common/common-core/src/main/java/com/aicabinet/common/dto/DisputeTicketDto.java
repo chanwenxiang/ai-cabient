@@ -52,7 +52,9 @@ public record DisputeTicketDto(
 
         Instant closedAt,
 
-        Instant reopenedAt
+        Instant reopenedAt,
+
+        List<DisputeMessageDto> messages
 
 ) {}
 

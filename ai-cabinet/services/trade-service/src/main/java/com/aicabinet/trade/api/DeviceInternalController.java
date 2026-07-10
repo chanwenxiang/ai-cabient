@@ -32,7 +32,8 @@ public class DeviceInternalController {
             @RequestBody(required = false) HeartbeatRequest body) {
         String appVersion = body != null ? body.appVersion() : null;
         String firmwareVersion = body != null ? body.firmwareVersion() : null;
-        presenceService.heartbeat(deviceId, appVersion, firmwareVersion);
+        Integer currentTempC = body != null ? body.currentTempC() : null;
+        presenceService.heartbeat(deviceId, appVersion, firmwareVersion, currentTempC);
         return ApiResponse.ok(null);
     }
 
@@ -51,5 +52,5 @@ public class DeviceInternalController {
         return ApiResponse.ok(deviceSlotService.inventorySnapshot(deviceId));
     }
 
-    record HeartbeatRequest(String appVersion, String firmwareVersion) {}
+    record HeartbeatRequest(String appVersion, String firmwareVersion, Integer currentTempC) {}
 }

@@ -1,0 +1,108 @@
+:root,
+[data-theme='light'] {
+  --app-primary: #0f766e;
+  --layout-bg: #f5f7fa;
+  --layout-topbar: #ffffff;
+  --layout-sidebar: #1e293b;
+  --layout-border: #ebeef5;
+  --layout-text: #1e293b;
+  --layout-muted: #64748b;
+  --layout-hover: rgba(15, 23, 42, 0.04);
+  --layout-card: #ffffff;
+}
+
+[data-theme='dark'] {
+  --layout-bg: #0b1220;
+  --layout-topbar: #111827;
+  --layout-sidebar: #111827;
+  --layout-border: #2a3544;
+  --layout-text: #e7ecf3;
+  --layout-muted: #8b98a8;
+  --layout-hover: rgba(255, 255, 255, 0.06);
+  --layout-card: #1a2332;
+  color-scheme: dark;
+}
+
+[data-font-size='sm'] { font-size: 13px; }
+[data-font-size='md'] { font-size: 14px; }
+[data-font-size='lg'] { font-size: 16px; }
+
+html, body, #app {
+  margin: 0;
+  height: 100%;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  color: var(--layout-text);
+  background: var(--layout-bg);
+}
+
+* { box-sizing: border-box; }
+button, input, textarea, select { font: inherit; }
+
+:root {
+  --sidebar-width: 220px;
+  --header-height: 56px;
+}
+
+.layout-main {
+  min-height: 100vh;
+  background: var(--layout-bg);
+}
+
+.el-main {
+  background: var(--layout-bg);
+  color: var(--layout-text);
+}
+
+.el-card {
+  --el-card-bg-color: var(--layout-card);
+  --el-card-border-color: var(--layout-border);
+  color: var(--layout-text);
+}
+
+.el-header.topbar {
+  color: var(--layout-text);
+}
+
+.cell-id {
+  font-variant-numeric: tabular-nums;
+  background: color-mix(in srgb, var(--el-fill-color) 80%, transparent);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.page-card {
+  margin-bottom: 16px;
+}
+
+@media (max-width: 768px) {
+  .el-main { padding: 12px !important; }
+  .page-heading { gap: 12px; }
+  .page-heading p { display: none; }
+  .stats-row .el-col { margin-bottom: 12px; }
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+}
+
+.filter-bar .el-form-item {
+  margin-bottom: 0;
+}
+
+[data-theme='dark'] .el-table {
+  --el-table-bg-color: var(--layout-card);
+  --el-table-tr-bg-color: var(--layout-card);
+  --el-table-header-bg-color: #151f2e;
+  --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.04);
+  --el-table-border-color: var(--layout-border);
+  --el-table-text-color: var(--layout-text);
+}
+
+[data-theme='dark'] .el-input__wrapper,
+[data-theme='dark'] .el-select__wrapper {
+  background-color: #0f172a;
+}

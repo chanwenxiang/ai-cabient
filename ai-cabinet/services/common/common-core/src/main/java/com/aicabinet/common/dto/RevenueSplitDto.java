@@ -15,5 +15,8 @@ public record RevenueSplitDto(
         String wechatOutOrderNo,
         String wechatTransactionId,
         String failureReason,
-        Instant createdAt
+        Instant createdAt,
+        String settlementBatchNo,
+        java.time.LocalDate settleAfter,
+        Instant settledAt
 ) {}

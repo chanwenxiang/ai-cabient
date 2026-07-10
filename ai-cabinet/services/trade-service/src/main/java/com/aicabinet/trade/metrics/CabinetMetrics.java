@@ -18,6 +18,7 @@ public class CabinetMetrics {
     private final Counter sessionCompleted;
     private final Counter sessionDisputed;
     private final Counter reconciliationMismatch;
+    private final MeterRegistry meterRegistry;
     private final Timer recognizeTimer;
     private final AtomicLong devicesOnline = new AtomicLong();
     private final AtomicLong devicesTotal = new AtomicLong();
@@ -28,6 +29,7 @@ public class CabinetMetrics {
         this.sessionCompleted = registry.counter("cabinet.session.transition", "state", "COMPLETED");
         this.sessionDisputed = registry.counter("cabinet.session.transition", "state", "DISPUTED");
         this.reconciliationMismatch = registry.counter("cabinet.reconciliation", "status", "MISMATCH");
+        this.meterRegistry = registry;
         this.recognizeTimer = registry.timer("cabinet.recognize.duration");
         registry.gauge("cabinet.devices.online", devicesOnline);
         registry.gauge("cabinet.devices.total", devicesTotal);
@@ -63,5 +65,10 @@ public class CabinetMetrics {
 
     public void recordRecognizeMs(long millis) {
         recognizeTimer.record(millis, TimeUnit.MILLISECONDS);
+    }
+
+    public void recordMerchantScopeDenied(String reason) {
+        String tag = reason != null && !reason.isBlank() ? reason : "unknown";
+        meterRegistry.counter("cabinet.merchant.scope_denied", "reason", tag).increment();
     }
 }

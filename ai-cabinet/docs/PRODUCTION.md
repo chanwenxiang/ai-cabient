@@ -114,7 +114,7 @@ KAFKA_ENABLED=true
 KAFKA_BOOTSTRAP=redpanda:9092
 ```
 
-详见 [COMMERCIAL_ARCHITECTURE.md](COMMERCIAL_ARCHITECTURE.md)。
+详见 [ARCHITECTURE.md](ARCHITECTURE.md) 商业落地一节。
 
 ---
 
@@ -237,24 +237,24 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 
 见 [`infra/docker/README.md`](../infra/docker/README.md)。
 
-`trade-service` 镜像构建时会通过 Maven **自动打包运营后台**（`clients/admin` → Vite → `static/admin`），无需单独构建前端镜像；Compose `--build` 即可得到含 `/admin/index.html` 的完整服务。
+`trade-service` 镜像构建时会通过 Maven **自动打包运营控制台**（`clients/admin-vue` → Vite → `static/admin`），无需单独构建前端镜像；Compose `--build` 即可得到含 `/admin/index.html` 的完整服务。
 
 ### E2E 验证
 
 ```powershell
-.\scripts\e2e-recharge.ps1
 .\scripts\e2e-shopping.ps1
+.\scripts\verify-local.ps1
 ```
 
-### Step 5 预发/上线前验证
+### 预发 / 上线前验证
 
 ```powershell
 # 检查生产 .env 必填项（不启动服务）
-.\scripts\verify-step5.ps1 -CheckEnv
+.\scripts\check-env.ps1 -CheckEnv -Prod
 
-# 预发 smoke：staging profile + SMS webhook mock + E2E
+# 预发：compose + env 检查 + 购物 E2E
 copy infra\.env.staging.example infra\.env.staging
-.\scripts\verify-step5.ps1 -Staging
+.\scripts\deploy-staging.ps1
 ```
 
 | 文件 | 说明 |
@@ -272,7 +272,7 @@ copy infra\.env.staging.example infra\.env.staging
 | 能力 | 说明 |
 |------|------|
 | 分环境配置 | `application-dev.yml` / `application-prod.yml` |
-| 商业架构（OSS + 阿里云识别） | [COMMERCIAL_ARCHITECTURE.md](COMMERCIAL_ARCHITECTURE.md) |
+| 商业架构（OSS + 阿里云识别） | [ARCHITECTURE.md](ARCHITECTURE.md) 商业落地一节 |
 | 内部 API 鉴权 | trade + device `/internal/**` |
 | 会话 IDOR 防护 | 用户只能查自己的 session/order |
 | 争议/运营 API | 需 operator 账号 (userId ≥ 100000000) |

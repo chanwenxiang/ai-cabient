@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -30,6 +31,8 @@ class ReplenishmentServiceOutboundTest {
     private WarehouseService warehouseService;
     @Mock
     private DeviceSlotService deviceSlotService;
+    @Mock
+    private InTransitService inTransitService;
 
     private ReplenishmentService replenishmentService;
 
@@ -37,7 +40,7 @@ class ReplenishmentServiceOutboundTest {
     void setUp() {
         replenishmentService = new ReplenishmentService(
                 null, null, taskRepository, taskLineRepository, null, null, null, null,
-                new ObjectMapper(), warehouseService, null, deviceSlotService, null);
+                new ObjectMapper(), warehouseService, null, deviceSlotService, inTransitService);
     }
 
     @Test
@@ -122,5 +125,30 @@ class ReplenishmentServiceOutboundTest {
 
         verify(taskLineRepository, never()).save(any());
         verify(warehouseService, never()).outboundLinesForDevice(anyLong(), anyString());
+    }
+
+    @Test
+    void completeTask_rejectsOutboundTaskWhenNotInTransit() {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(20L);
+        task.setDeviceId("CAB-001");
+        task.setOutboundId(200L);
+        task.setStatus("IN_PROGRESS");
+
+        ReplenishmentTaskLine line = new ReplenishmentTaskLine();
+        line.setTaskId(20L);
+        line.setLineType("RESTOCK");
+        line.setSkuId("SKU-DEMO-001");
+        line.setQuantity(2);
+
+        when(taskRepository.findById(20L)).thenReturn(java.util.Optional.of(task));
+        when(taskLineRepository.findByTaskIdAndAppliedFalse(20L)).thenReturn(List.of(line));
+        when(inTransitService.hasOpenForDevice(200L, "CAB-001")).thenReturn(false);
+
+        assertThrows(ResponseStatusException.class,
+                () -> replenishmentService.completeTask(100000001L, 20L));
+
+        verify(taskLineRepository, never()).save(any());
+        verify(warehouseService, never()).markDeviceHandoverReceived(anyLong(), anyString());
     }
 }

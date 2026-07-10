@@ -98,4 +98,55 @@ class ReconciliationServiceTest {
         verify(cabinetMetrics).recordReconciliationMismatch();
         verify(billLineRepository).save(argThat(line -> !line.isMatched()));
     }
+
+    @Test
+    void runDaily_flagsLedgerOnlyOrdersAsMismatch() {
+        LocalDate date = LocalDate.now();
+        when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.empty());
+        when(orderRepository.sumTotalAmountBetween(any(), any())).thenReturn(100L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
+        when(orderRepository.findOrderIdsBetween(any(), any())).thenReturn(List.of("ORD-LEDGER-ONLY"));
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of());
+        when(reconRepository.save(any())).thenAnswer(inv -> {
+            var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
+            if (r.getReconId() == null) r.setReconId(3L);
+            return r;
+        });
+
+        var result = service.runDaily(100000001L, date, "MOCK");
+
+        assertEquals("MISMATCH", result.status());
+        assertEquals(-100, result.diffCents());
+        verify(cabinetMetrics).recordReconciliationMismatch();
+        verify(reconRepository, atLeastOnce()).save(argThat(r ->
+                r.getDetail() != null && r.getDetail().contains("ORD-LEDGER-ONLY")));
+    }
+
+    @Test
+    void runDaily_recomputesExistingReconciliation() {
+        LocalDate date = LocalDate.now();
+        var existing = new com.aicabinet.trade.domain.PaymentReconciliation();
+        existing.setReconId(9L);
+        existing.setReconDate(date);
+        existing.setChannel("MOCK");
+        when(reconRepository.findByReconDateAndChannel(date, "MOCK")).thenReturn(Optional.of(existing));
+        when(orderRepository.sumTotalAmountBetween(any(), any())).thenReturn(0L);
+        when(rechargeRepository.sumPaidAmountBetween(any(), any())).thenReturn(0L);
+        when(orderRepository.findOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(rechargeRepository.findPaidOrderIdsBetween(any(), any())).thenReturn(List.of());
+        when(billProviderRegistry.fetchBill("MOCK", date)).thenReturn(List.of());
+        when(reconRepository.save(any())).thenAnswer(inv -> {
+            var r = inv.getArgument(0, com.aicabinet.trade.domain.PaymentReconciliation.class);
+            if (r.getReconId() == null) r.setReconId(10L);
+            return r;
+        });
+
+        var result = service.runDaily(100000001L, date, "MOCK");
+
+        assertEquals("MATCHED", result.status());
+        verify(billLineRepository).deleteByReconId(9L);
+        verify(reconRepository).delete(existing);
+        verify(reconRepository).flush();
+    }
 }

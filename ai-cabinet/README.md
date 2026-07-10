@@ -5,7 +5,7 @@
 ## 架构概览
 
 ```
-用户端 (小程序/App)
+消费者小程序 (consumer-mp) / 商户小程序 (merchant-mp) / 运营控制台 (admin-vue)
        │
        ▼
   trade-service  ←→  device-service  ←→  EMQX (MQTT)
@@ -14,41 +14,41 @@
   vision-service         edge/android-app
 ```
 
-## 目录结构
+## 模块一览
 
-| 路径 | 说明 |
-|------|------|
-| `services/trade-service` | 购物会话、订单、结算 |
-| `services/device-service` | 设备注册、指令下发、状态同步 |
-| `services/common/common-core` | 共享 DTO、枚举、工具 |
-| `vision-service` | AI 视觉识别 (Python FastAPI) |
-| `proto/` | MQTT / 内部通信 Protobuf 定义 |
-| `infra/` | Docker Compose 本地开发环境 |
-| `migration/` | 从旧 ego-automat 迁移脚本（参考用） |
-| `clients/miniapp` | 微信小程序用户端（新建） |
-| `edge/device-simulator` | 桌面设备模拟器（联调） |
-| `docs/` | 设计文档 |
+| 路径 | 中文名 | 说明 |
+|------|--------|------|
+| `clients/admin-vue` | 运营控制台 | Vue3 + Element Plus，构建到 `/admin` |
+| `clients/consumer-mp` | 消费者小程序 | 独立 uni-app 微信小程序 |
+| `clients/merchant-mp` | 商户小程序 | 独立 uni-app 微信小程序 |
+| `packages/shared-*` | 共享前端包 | types / api / dict / uni |
+| `services/trade-service` | 交易服务 | 会话、订单、结算、运营 API |
+| `services/device-service` | 设备服务 | MQTT、设备状态 |
+| `services/common/common-core` | 公共核心库 | DTO、枚举 |
+| `vision-service` | 视觉识别服务 | FastAPI + YOLO |
+| `edge/device-simulator` | 设备模拟器 | 本地联调 |
+| `edge/android-app` | 柜机端 App | Android |
+| `infra/` | 基础设施 | Docker / K8s / 网关 |
+
+完整模块说明见 **[docs/MODULES.md](docs/MODULES.md)**。
 
 ## 快速开始
 
-> **本地完整联调**请直接阅读 **[docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md)**（含后端、小程序、模拟器、运营后台）。
+> **本地完整联调**：[docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md)
 
-> **启动速查**（服务、端口、账号密码）见 **[docs/STARTUP_REFERENCE.md](docs/STARTUP_REFERENCE.md)**。
+> **启动速查**（端口、账号）：[docs/STARTUP_REFERENCE.md](docs/STARTUP_REFERENCE.md)
 
-> **YOLO 图片识别测试**见 **[docs/VISION_YOLO_TEST.md](docs/VISION_YOLO_TEST.md)**。
+> **YOLO 识别测试**：[docs/VISION_YOLO_TEST.md](docs/VISION_YOLO_TEST.md)
 
-> **生产部署**请阅读 **[docs/PRODUCTION.md](docs/PRODUCTION.md)**（环境变量、安全清单、上线检查表）。
+> **生产部署**：[docs/PRODUCTION.md](docs/PRODUCTION.md)
 
-> **分步推进（时间充裕时推荐）**见 **[docs/ROADMAP.md](docs/ROADMAP.md)**（Step 1 全栈 Docker → 小程序 → vision → 生产）。
+> **前端产品决策**：[docs/FRONTEND_PRODUCT_DECISIONS.md](docs/FRONTEND_PRODUCT_DECISIONS.md)
 
-> **商业落地架构**见 **[docs/COMMERCIAL_ARCHITECTURE.md](docs/COMMERCIAL_ARCHITECTURE.md)**（OSS + 阿里云商品理解）。
+> **商户平台 API**：[docs/MERCHANT_PLATFORM.md](docs/MERCHANT_PLATFORM.md)
 
-> **运营模块（OTA / 风控 / 对账 / 补货 / SLA / RBAC）**见 **[docs/OPS_COMMERCIAL.md](docs/OPS_COMMERCIAL.md)**。
+> **开发原则**：代码按生产标准编写（鉴权、内部 API、权限隔离），本地默认 `dev` profile 自动 mock。
 
-> **开发原则**：代码按生产标准编写（鉴权、内部 API、权限隔离），本地默认 `dev` profile 自动 mock，联调流程与线上一致。
-
-> **环境要求**：JDK 17+、Docker、Maven 3.9+、Python 3.10+。若默认 Java 为 8，请先设置 `JAVA_HOME` 指向 JDK 17，例如：
-> `set JAVA_HOME=C:\Program Files\Java\jdk-17`
+> **环境要求**：JDK 17+、Docker、Maven 3.9+、Node 18+、Python 3.10+。若默认 Java 为 8，请设置 `JAVA_HOME` 指向 JDK 17。
 
 ### 1. 启动基础设施
 
@@ -57,13 +57,10 @@ cd infra
 docker compose up -d
 ```
 
-启动：PostgreSQL、Redis、EMQX、MinIO。
-
 ### 2. 启动后端服务
 
 ```bash
-# 在项目根目录
-mvn clean install -DskipTests
+mvn clean install -DskipTests "-Dskip.admin.build=true"
 
 cd services/trade-service && mvn spring-boot:run
 cd services/device-service && mvn spring-boot:run
@@ -73,19 +70,26 @@ cd services/device-service && mvn spring-boot:run
 
 ```bash
 cd vision-service
-pip install -r requirements.txt
+pip install -r requirements-base.txt
 uvicorn app.main:app --reload --port 8082
 ```
 
-### 4. 创建购物会话（需先登录拿 token，见 LOCAL_SETUP.md）
+### 4. 运营控制台（可选本地开发）
 
 ```bash
-# 登录
+cd clients/admin-vue
+npm install && npm run dev
+```
+
+生产静态资源构建：`npm run build`，产物复制到 `services/trade-service/.../static/admin/`。
+
+### 5. 创建购物会话
+
+```bash
 curl -X POST http://localhost:8080/api/v2/auth/login \
   -H "Content-Type: application/json" \
   -d '{"phoneNumber":"13800138000","code":"123456"}'
 
-# 创建会话（替换 <token>）
 curl -X POST http://localhost:8080/api/v2/sessions \
   -H "Authorization: Bearer <token>" \
   -H "Content-Type: application/json" \
@@ -102,35 +106,37 @@ curl -X POST http://localhost:8080/api/v2/sessions \
 | EMQX MQTT | 11883 |
 | EMQX Dashboard | 28083 |
 | API Gateway | 80 |
-| Redpanda/Kafka | 9092 |
-| PostgreSQL | **15433**（Docker 映射，避开 Windows 保留端口段） |
+| PostgreSQL | **15433** |
 | Redis | 6379 |
 | MinIO | 9000 |
+
+## 验证
+
+```powershell
+.\scripts\verify-local.ps1          # 服务健康 + 购物 E2E
+.\scripts\verify-full.ps1           # 编译 + admin-vue 构建 + E2E
+.\scripts\verify-production-readiness.ps1 -SkipRuntime
+```
+
+## 入口
+
+| 入口 | URL |
+|------|-----|
+| API Gateway | http://localhost/api/v2/ |
+| 运营控制台 | http://localhost:8080/admin/index.html |
+| 直连 trade | http://localhost:8080 |
+
+Docker 镜像构建见 [`infra/docker/README.md`](infra/docker/README.md)。
+
+## 后续规划
+
+- 消费者 uni-app 页面对齐完整开门购物流程
+- 生产 OSS + 阿里云商品理解（可选识别后端）
+- K8s 多副本与可观测性增强
 
 ## 与旧系统关系
 
 - **不修改** `easygo/ego-automat`、`ego-automat-android`
 - 业务规则参考：实名、余额/信用校验、补货开门不结算
 - 硬件协议参考：`ChzhDevice8` 串口门锁（edge 层实现）
-- 数据迁移见 `migration/README.md`
-
-## 开发阶段
-
-- [x] Phase 0：项目骨架
-- [x] Phase 1：会话状态机 + MQTT 开门
-- [x] Phase 2：JWT 登录 + Android + 小程序
-- [x] Phase 3：微信支付 + 视频链路 + 运营补货
-- [x] Phase 4：CameraX + YOLO + wx-login + 争议工单
-- [x] Phase 5：MinIO 视频下载 + 运营 Web 后台 + 数据迁移脚本
-- [x] Phase 6：API Gateway + Kafka 异步识别 + K8s + 视频预览
-- [x] Phase 7：JDK 17 + Docker 生产镜像
-
-详细联调见 `docs/PHASE1.md` ~ `docs/PHASE7.md`。
-
-| 入口 | URL |
-|------|-----|
-| API Gateway | http://localhost/api/v2/ |
-| 运营后台 | http://localhost/admin/index.html |
-| 直连 trade | http://localhost:8080 |
-
-Docker 镜像构建见 [`infra/docker/README.md`](infra/docker/README.md)。
+- 数据库由 Flyway 自动迁移，无需手工 ETL

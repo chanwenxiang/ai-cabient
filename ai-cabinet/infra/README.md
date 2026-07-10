@@ -94,7 +94,7 @@ docker build -f infra/docker/trade-service.Dockerfile -t ai-cabinet/trade-servic
 
 `trade-service` 镜像在 **Maven `package` 阶段** 自动构建运营后台，**不要**加 `-Dskip.admin.build`：
 
-1. Dockerfile 拷贝 `clients/admin/` 源码
+1. Dockerfile 拷贝 `clients/admin-vue/` 与 `packages/shared-*`
 2. `frontend-maven-plugin` 在容器内安装 Node 18 → `npm install` → `npm run build`
 3. 产物写入 `static/admin/` 并打进 Spring Boot JAR
 4. 运行时与 API 同域：`/admin/index.html`
@@ -117,7 +117,7 @@ docker build -f infra/docker/trade-service.Dockerfile -t ai-cabinet/trade-servic
 |------|------|
 | IDEA 本地跑 Java、不改前端 | `mvn package -Pskip-admin-ui` 加快编译 |
 | 打 Docker 镜像 | **必须**完整 `mvn package`（Dockerfile 已配置） |
-| 只改运营后台 | `cd clients/admin && npm run build`，或重建 trade 镜像 |
+| 只改运营控制台 | `cd clients/admin-vue && npm run build`，或重建 trade 镜像 |
 
 ---
 
@@ -220,7 +220,7 @@ docker compose up -d
 
 然后在 IDEA 启动 trade (8080)、device (8081)、vision (8082)。Gateway 通过 `host.docker.internal:8080` 转发（`gateway/nginx.conf`）。
 
-此模式下 **不构建** 应用镜像，运营后台使用 IDEA 内 `trade-service` 静态资源或 `clients/admin` 本地 `npm run dev`。
+此模式下 **不构建** 应用镜像，运营控制台使用 IDEA 内 `trade-service` 静态资源或 `clients/admin-vue` 本地 `npm run dev`。
 
 ---
 
@@ -230,7 +230,8 @@ docker compose up -d
 
 ```powershell
 # 充值链路
-.\scripts\e2e-recharge.ps1
+.\scripts\e2e-shopping.ps1
+.\scripts\verify-local.ps1 -WithVision
 
 # 购物链路（登录 → 开门 → 关门 → 识别 → 扣款）
 .\scripts\e2e-shopping.ps1
@@ -311,3 +312,24 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 # 仅拉基础设施
 docker compose up -d
 ```
+## Step 4 one-command runtime smoke
+
+From the repository root:
+
+```powershell
+.\scripts\start-docker-step4.ps1 -Build
+```
+
+Or from `infra/`:
+
+```powershell
+.\up.ps1 -Build -Smoke
+```
+
+This command starts the full Docker stack, waits for `trade-service`, `device-service`, and `vision-service` healthchecks, then runs:
+
+- `scripts/verify-production-readiness.ps1 -SkipBuild -SkipTests -SkipAdminBuild`
+- `scripts/run-api-tests.ps1`
+- `scripts/e2e-shopping.ps1`
+
+`INTERNAL_API_KEY` is read from the current shell first, then from `infra/.env`.

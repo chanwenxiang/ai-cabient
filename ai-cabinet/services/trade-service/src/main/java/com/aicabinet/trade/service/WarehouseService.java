@@ -5,6 +5,7 @@ import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.repository.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -229,6 +230,29 @@ public class WarehouseService {
                 })
                 .filter(java.util.Objects::nonNull)
                 .toList();
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public WarehouseOutboundDto createOutboundFromLines(Long routeId, String deviceId, Long assigneeUserId,
+                                                        java.util.Map<String, Integer> skuQty, String warehouseId) {
+        if (skuQty == null || skuQty.isEmpty()) {
+            throw badRequest("outbound lines required");
+        }
+        String wh = resolveWarehouseId(warehouseId);
+        WarehouseOutbound outbound = new WarehouseOutbound();
+        outbound.setWarehouseId(wh);
+        outbound.setRouteId(routeId);
+        outbound.setAssigneeUserId(assigneeUserId);
+        outbound.setStatus("DRAFT");
+        outbound.setNotes("merchant replenishment request");
+        outbound = outboundRepository.save(outbound);
+        for (var entry : skuQty.entrySet()) {
+            if (entry.getValue() == null || entry.getValue() <= 0) {
+                continue;
+            }
+            allocateFefoToOutbound(outbound.getOutboundId(), wh, deviceId, entry.getKey(), entry.getValue());
+        }
+        return getOutbound(outbound.getOutboundId());
     }
 
     @Transactional

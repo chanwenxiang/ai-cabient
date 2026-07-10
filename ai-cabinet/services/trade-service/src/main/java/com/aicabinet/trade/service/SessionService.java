@@ -5,6 +5,7 @@ import com.aicabinet.common.dto.CreateSessionRequest;
 import com.aicabinet.common.dto.DoorEventRequest;
 import com.aicabinet.common.dto.GravityDeltaRequest;
 import com.aicabinet.common.dto.OrderDto;
+import com.aicabinet.common.dto.SessionCartRequest;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.dto.VideoAttachRequest;
 import com.aicabinet.common.enums.DoorState;
@@ -29,6 +30,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -296,6 +299,26 @@ public class SessionService {
         session.setGravityDeltas(gravityHelper.mergeGravityJson(session.getGravityDeltas(), merged));
         repository.save(session);
         log.info("gravity deltas attached session={} device={}", session.getSessionId(), session.getDeviceId());
+        return toDto(session);
+    }
+
+    /** 演示/开发：消费者点选商品同步到会话，关门 mock 结算时按此列表扣款。 */
+    @Transactional
+    public SessionDto updateSessionCart(Long userId, String sessionId, SessionCartRequest request) {
+        ShoppingSession session = repository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        requireSessionOwner(userId, session);
+        if (!EnumSet.of(SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING).contains(session.getState())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_STATE_INVALID);
+        }
+        List<GravityDeltaRequest.GravityDeltaItem> deltas = (request.items() == null ? List.<SessionCartRequest.CartItem>of() : request.items())
+                .stream()
+                .filter(item -> item.qty() > 0)
+                .map(item -> new GravityDeltaRequest.GravityDeltaItem(item.skuId(), -item.qty(), null))
+                .toList();
+        session.setGravityDeltas(deltas.isEmpty() ? null : gravityHelper.fromRequestItems(deltas));
+        repository.save(session);
+        log.info("session cart updated session={} items={}", sessionId, deltas.size());
         return toDto(session);
     }
 

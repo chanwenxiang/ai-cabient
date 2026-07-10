@@ -168,14 +168,7 @@ docker exec -it infra-postgres-1 psql -U aicabinet -d aicabinet -c "\dt"
 
 应能看到 `shopping_session`、`user_info`、`sku_catalog` 等表，以及测试用户 `10001`。
 
-> **重要：仅用 IDEA 连接数据库不会建表。** 必须 **Run 一次 `TradeServiceApplication`**，Flyway 才会自动执行 V1–V5 脚本并写入种子数据。启动日志中应出现 `Successfully applied 5 migrations`。之后在 Database 窗口 **Refresh** 即可看到表。
-
-**与 `migration/scripts/` 的区别：**
-
-| 目录 | 用途 | 本地要不要跑 |
-|------|------|--------------|
-| `services/trade-service/.../db/migration/` | 新系统建表 + 种子数据 | ❌ 不用，Flyway 自动 |
-| `migration/scripts/` | 从旧系统 **ego-automat** 迁用户/设备/SKU | ❌ 本地联调不用，上线切库时才用 |
+> **重要：仅用 IDEA 连接数据库不会建表。** 必须 **Run 一次 `TradeServiceApplication`**，Flyway 才会自动执行迁移脚本并写入种子数据。
 
 **重置数据库（可选）：** 想清空重来时：
 
@@ -312,30 +305,28 @@ buildConfigField("String", "MINIO_ENDPOINT", "\"http://10.0.2.2:9000\"")
 
 ## 六、启动微信小程序
 
-### 1. 导入项目
+### 1. 安装与开发
 
-1. 打开 **微信开发者工具**
-2. 导入目录：`ai-cabinet/clients/miniapp`
-3. AppID：选「测试号」或自己的小程序 AppID
+```powershell
+cd clients/consumer-mp
+npm run dev:mp-weixin
+
+cd ../merchant-mp
+npm run dev:mp-weixin
+```
+
+微信开发者工具分别导入两个客户端的 `dist/dev/mp-weixin` 目录。
 
 ### 2. 配置 API 地址
 
-编辑 `clients/miniapp/utils/api.js`：
-
-```javascript
-// 开发者工具模拟器（本机）
-const BASE_URL = 'http://localhost:8080';
-
-// 真机预览时改为电脑局域网 IP，例如：
-// const BASE_URL = 'http://192.168.1.100:8080';
-```
+消费者端开发命令会自动探测电脑局域网 IP；商户端通过 `.env.development` 或
+`VITE_API_BASE_URL` 配置 API。生产构建必须使用真实 HTTPS 合法域名。
 
 ### 3. 开发者工具设置
 
 右上角 **详情 → 本地设置**：
 
 - ✅ 不校验合法域名、web-view、TLS 版本以及 HTTPS 证书
-- ✅ 不校验安全域名（开发阶段必勾）
 
 ### 4. 测试账号
 
@@ -343,16 +334,17 @@ const BASE_URL = 'http://localhost:8080';
 |------|--------|--------|--------|
 | 消费者 | 13800138000 | 123456 | 10001 |
 | 运营员 | 13900000001 | 123456 | 100000001 |
+| 商户管理员 | 13800138001 | 123456 | 100000002 |
 
 余额：消费者种子账户 **100 元**（10000 分）。
 
-### 5. 小程序操作流程
+### 5. 操作流程
 
-1. 打开 → 自动跳转登录页
-2. 输入手机号 + 验证码 `123456` → 登录
-3. 首页设备 ID 保持 `CAB-001` → 点击「扫码开门」或「开门」
-4. 等待状态：`OPENING` → `SHOPPING` → `COMPLETED`
-5. 自动跳转账单页；可测试充值、运营补货、争议审核
+1. 消费者端登录 → 设备 ID `CAB-001` → 开门购物
+2. 商户端登录 → 查看柜机 / 待办 / 定价（受平台开关控制）
+
+详见 [`clients/consumer-mp/README.md`](../clients/consumer-mp/README.md) 与
+[`clients/merchant-mp/README.md`](../clients/merchant-mp/README.md)。
 
 ---
 
@@ -561,7 +553,7 @@ Gateway 转发到 `host.docker.internal:8080`，需宿主机上 trade-service �
 | 4 | Run `DeviceServiceApplication` |
 | 5 | Run vision-service（`.venv\Scripts\python.exe -m uvicorn app.main:app --port 8082`） |
 | 6 | Run `DeviceSimulator`，Program args：`CAB-001` |
-| 7 | 微信开发者工具打开 `clients/miniapp`，登录 `13800138000` / `123456`，开门 |
+| 7 | 微信小程序 | 分别启动 `clients/consumer-mp` 与 `clients/merchant-mp` |
 
 运营后台：http://localhost:8080/admin/index.html
 
@@ -577,12 +569,7 @@ Gateway 转发到 `host.docker.internal:8080`，需宿主机上 trade-service �
 
 | 文档 | 内容 |
 |------|------|
-| [PHASE1.md](PHASE1.md) | 会话状态机与 MQTT 链路 |
-| [PHASE2.md](PHASE2.md) | 登录鉴权、Android、小程序 |
-| [PHASE3.md](PHASE3.md) | 微信支付、视频、运营补货 |
-| [PHASE4.md](PHASE4.md) | CameraX、YOLO、争议工单 |
-| [PHASE5.md](PHASE5.md) | MinIO、运营后台、迁移 |
-| [PHASE6.md](PHASE6.md) | Gateway、Kafka 异步 |
-| [PHASE7.md](PHASE7.md) | Docker 镜像 |
+| [MODULES.md](MODULES.md) | 模块路径与职责 |
 | [PRODUCTION.md](PRODUCTION.md) | **生产部署**、环境变量、安全清单 |
 | [VISION_YOLO_TEST.md](VISION_YOLO_TEST.md) | **真实 YOLO 图片识别**测试 |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 架构速查 |

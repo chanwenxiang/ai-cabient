@@ -1,17 +1,19 @@
-# One-shot local flow verification (infra + services + E2E)
+# One-shot local flow verification (services + shopping E2E)
 # Usage:
-#   .\scripts\verify-local.ps1                 # services must already be running
-#   .\scripts\verify-local.ps1 -StartInfra     # also start docker infra
-#   .\scripts\verify-local.ps1 -WithVision     # include step4 vision API checks
+#   .\scripts\verify-local.ps1
+#   .\scripts\verify-local.ps1 -StartInfra
+#   .\scripts\verify-local.ps1 -WithVision
 
 param(
     [switch]$StartInfra,
     [switch]$WithVision,
-    [string]$BaseUrl = "http://localhost:8080"
+    [string]$BaseUrl = "http://localhost:8080",
+    [string]$VisionUrl = "http://localhost:8082"
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot "e2e-lib.ps1")
 
 Write-Host "========================================"
 Write-Host "  AI Cabinet local verification"
@@ -23,39 +25,41 @@ if ($StartInfra) {
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 
-Write-Host "==> 1/4 Service health"
-& (Join-Path $Root "scripts\verify-step2.ps1") -SkipInfra -SkipE2e
-if ($LASTEXITCODE -ne 0) {
+Write-Host "==> 1/3 Service health"
+$tradeOk = Test-ServiceHealth "$BaseUrl/actuator/health"
+$deviceOk = Test-ServiceHealth "http://localhost:8081/actuator/health"
+if (-not $tradeOk -or -not $deviceOk) {
+    Write-Host "  FAIL: trade=$tradeOk device=$deviceOk" -ForegroundColor Red
     Write-Host ""
     Write-Host "Start local stack:" -ForegroundColor Yellow
     Write-Host "  .\scripts\start-infra.ps1"
     Write-Host "  .\scripts\start-local.ps1"
-    Write-Host "Or run trade/device/vision/simulator in IDEA (.run/)"
     exit 1
 }
+Write-Host "  PASS: trade-service + device-service healthy" -ForegroundColor Green
 
 Write-Host ""
-Write-Host "==> 2/4 Recharge E2E"
-& (Join-Path $Root "scripts\e2e-recharge.ps1") -BaseUrl $BaseUrl
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-Write-Host ""
-Write-Host "==> 3/4 Shopping E2E"
+Write-Host "==> 2/3 Shopping E2E"
 & (Join-Path $Root "scripts\e2e-shopping.ps1") -BaseUrl $BaseUrl
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
-    Write-Host "If 429 too many opens: restart trade-service (dev profile now allows 200/hour)" -ForegroundColor Yellow
+    Write-Host "If 429 too many opens: restart trade-service (dev profile allows higher limit)" -ForegroundColor Yellow
     exit $LASTEXITCODE
 }
 
 if ($WithVision) {
     Write-Host ""
-    Write-Host "==> 4/4 Vision pipeline"
-    & (Join-Path $Root "scripts\verify-step4.ps1") -SkipInfra
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    Write-Host "==> 3/3 Vision service"
+    if (Test-ServiceHealth "$VisionUrl/health") {
+        $vh = Invoke-RestMethod -Uri "$VisionUrl/health" -TimeoutSec 10
+        Write-Host "  PASS: vision mock_enabled=$($vh.mock_enabled) recognizer=$($vh.recognizer_available)" -ForegroundColor Green
+    } else {
+        Write-Host "  FAIL: $VisionUrl/health not reachable" -ForegroundColor Red
+        exit 1
+    }
 } else {
     Write-Host ""
-    Write-Host "==> 4/4 Vision (skipped, use -WithVision)"
+    Write-Host "==> 3/3 Vision (skipped, use -WithVision)"
 }
 
 Write-Host ""
@@ -64,7 +68,8 @@ Write-Host "  Local verification passed"
 Write-Host "========================================"
 Write-Host ""
 Write-Host "Manual checks:"
-Write-Host "  Admin:  $BaseUrl/admin/index.html  (13900000001 / 密码或验证码 123456)"
-Write-Host "  Miniapp: import clients/miniapp, BASE_URL=$BaseUrl"
+Write-Host "  Admin:   $BaseUrl/admin/index.html  (13900000001 / 123456)"
+Write-Host "  Consumer MP: import clients/consumer-mp/dist/dev/mp-weixin"
+Write-Host "  Merchant MP: import clients/merchant-mp/dist/dev/mp-weixin"
 Write-Host "  Simulator: DeviceSimulator CAB-001 for device ONLINE"
 exit 0

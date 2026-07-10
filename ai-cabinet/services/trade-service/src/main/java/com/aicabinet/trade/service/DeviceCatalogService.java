@@ -20,11 +20,14 @@ public class DeviceCatalogService {
 
     private final DeviceSkuInventoryRepository inventoryRepository;
     private final SkuCatalogRepository skuCatalogRepository;
+    private final MerchantSkuPricingService skuPricingService;
 
     public DeviceCatalogService(DeviceSkuInventoryRepository inventoryRepository,
-                                SkuCatalogRepository skuCatalogRepository) {
+                                SkuCatalogRepository skuCatalogRepository,
+                                MerchantSkuPricingService skuPricingService) {
         this.inventoryRepository = inventoryRepository;
         this.skuCatalogRepository = skuCatalogRepository;
+        this.skuPricingService = skuPricingService;
     }
 
     @Transactional(readOnly = true)
@@ -59,7 +62,7 @@ public class DeviceCatalogService {
             result.add(new DeviceProductDto(
                     sku.getSkuId(),
                     sku.getSkuName(),
-                    sku.getPriceCents(),
+                    skuPricingService.resolveUnitPriceCents(dev, sku),
                     row.getQuantity(),
                     sku.getImageUrl(),
                     sku.getCategory(),

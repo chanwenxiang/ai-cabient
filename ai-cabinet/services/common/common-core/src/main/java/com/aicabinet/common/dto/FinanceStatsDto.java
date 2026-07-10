@@ -6,6 +6,9 @@ public record FinanceStatsDto(
         long grossMarginTodayCents,
         long writeOffTodayCents,
         long writeOffTodayQty,
+        long orderToday,
+        long averageOrderValueTodayCents,
+        double grossMarginRateToday,
         long revenueTotalCents,
         long cogsTotalCents,
         long grossMarginTotalCents

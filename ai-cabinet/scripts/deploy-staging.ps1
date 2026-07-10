@@ -29,11 +29,11 @@ while ((Get-Date) -lt $deadline) {
 }
 
 Set-Location $Root
-& (Join-Path $Root "scripts\verify-step5.ps1") -CheckEnv -EnvFile "infra\.env.staging"
+& (Join-Path $Root "scripts\check-env.ps1") -CheckEnv -EnvFile "infra\.env.staging"
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 if (-not $SkipE2e) {
-    & (Join-Path $Root "scripts\verify-step5.ps1") -Staging
+    & (Join-Path $Root "scripts\e2e-shopping.ps1") -BaseUrl "http://localhost:8080"
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 

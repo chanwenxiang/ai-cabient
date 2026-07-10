@@ -6,12 +6,15 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DisputeTicket;
+import com.aicabinet.trade.domain.OrderRevenueSplit;
+import com.aicabinet.trade.domain.PaymentReconciliation;
 import com.aicabinet.trade.domain.RechargeOrder;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.domain.WarehouseInTransit;
 import com.aicabinet.trade.repository.*;
 import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
@@ -51,8 +54,11 @@ public class AdminDashboardService {
             SessionState.COMPLETED, SessionState.DISPUTED
     );
     private static final List<String> PENDING_SPLIT_STATUSES = List.of(
-            "ACCRUED", "LEDGER_ONLY", "FAILED"
+            "ACCRUED", "LEDGER_ONLY", "FAILED", "WECHAT_FAILED"
     );
+    private static final List<String> SPLIT_EXCEPTION_STATUSES = List.of("FAILED", "WECHAT_FAILED", "LEDGER_ONLY");
+    private static final long STALE_SESSION_MINUTES = 30;
+    private static final long IN_TRANSIT_OVERDUE_HOURS = 24;
 
     private final DeviceInfoRepository deviceRepository;
     private final ShoppingSessionRepository sessionRepository;
@@ -77,6 +83,8 @@ public class AdminDashboardService {
     private final InventoryLotService inventoryLotService;
     private final DeviceSlotService deviceSlotService;
     private final ReplenishmentTaskRepository replenishmentTaskRepository;
+    private final PaymentReconciliationRepository reconciliationRepository;
+    private final WarehouseInTransitRepository inTransitRepository;
 
     public AdminDashboardService(DeviceInfoRepository deviceRepository,
                                  ShoppingSessionRepository sessionRepository,
@@ -100,7 +108,9 @@ public class AdminDashboardService {
                                  DisputeSlaService disputeSlaService,
                                  InventoryLotService inventoryLotService,
                                  DeviceSlotService deviceSlotService,
-                                 ReplenishmentTaskRepository replenishmentTaskRepository) {
+                                 ReplenishmentTaskRepository replenishmentTaskRepository,
+                                 PaymentReconciliationRepository reconciliationRepository,
+                                 WarehouseInTransitRepository inTransitRepository) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -124,6 +134,8 @@ public class AdminDashboardService {
         this.inventoryLotService = inventoryLotService;
         this.deviceSlotService = deviceSlotService;
         this.replenishmentTaskRepository = replenishmentTaskRepository;
+        this.reconciliationRepository = reconciliationRepository;
+        this.inTransitRepository = inTransitRepository;
     }
 
     public AdminStatsDto stats(Long operatorId) {
@@ -192,8 +204,8 @@ public class AdminDashboardService {
         openDisputes.forEach(d -> items.add(new OpsActionItemDto(
                 "DISPUTE",
                 disputeSeverity(d),
-                "Dispute requires review",
-                d.getReason(),
+                "待审核争议",
+                formatDisputeReasonText(d.getReason()),
                 sessionDeviceId(d.getSessionId()),
                 d.getSessionId(),
                 d.getTicketId(),
@@ -210,8 +222,8 @@ public class AdminDashboardService {
         waitingUploads.forEach(s -> items.add(new OpsActionItemDto(
                 "UPLOAD_STUCK",
                 uploadSeverity(s),
-                "Video upload is waiting",
-                "uploadStatus=" + s.getUploadStatus(),
+                "视频待上传",
+                "上传状态：" + uploadStatusLabel(s.getUploadStatus()),
                 s.getDeviceId(),
                 s.getSessionId(),
                 null,
@@ -228,8 +240,9 @@ public class AdminDashboardService {
         offlineDevices.forEach(d -> items.add(new OpsActionItemDto(
                 "DEVICE_OFFLINE",
                 offlineSeverity(d),
-                "Device offline",
-                d.getDeviceName(),
+                "设备离线",
+                d.getDeviceName() != null && !d.getDeviceName().isBlank()
+                        ? d.getDeviceName() : d.getDeviceId(),
                 d.getDeviceId(),
                 null,
                 null,
@@ -245,8 +258,8 @@ public class AdminDashboardService {
                 .forEach(i -> items.add(new OpsActionItemDto(
                         "LOW_STOCK",
                         "MEDIUM",
-                        "Low stock",
-                        "quantity=" + i.getQuantity() + ", threshold=" + i.getLowThreshold(),
+                        "库存偏低",
+                        "当前库存 " + i.getQuantity() + "，预警阈值 " + i.getLowThreshold(),
                         i.getId().getDeviceId(),
                         null,
                         null,
@@ -261,8 +274,8 @@ public class AdminDashboardService {
                 .forEach(t -> items.add(new OpsActionItemDto(
                         "REPLENISHMENT",
                         "MEDIUM",
-                        "Replenishment task pending",
-                        "status=" + t.getStatus(),
+                        "补货任务待处理",
+                        "状态：" + replenishStatusLabel(t.getStatus()),
                         t.getDeviceId(),
                         null,
                         null,
@@ -272,10 +285,88 @@ public class AdminDashboardService {
                         null
                 )));
 
+        findStaleSessions(scopedDevices).forEach(s -> items.add(new OpsActionItemDto(
+                "SESSION_STALE",
+                staleSessionSeverity(s),
+                "购物会话可能超时",
+                "状态 " + s.getState() + "，上传 " + uploadStatusLabel(s.getUploadStatus()),
+                s.getDeviceId(),
+                s.getSessionId(),
+                null,
+                null,
+                null,
+                s.getCreatedAt(),
+                s.getUpdatedAt().plus(STALE_SESSION_MINUTES, ChronoUnit.MINUTES)
+        )));
+
+        reconciliationRepository.findTop10ByStatusOrderByCompletedAtDesc("MISMATCH")
+                .forEach(r -> items.add(new OpsActionItemDto(
+                        "RECON_MISMATCH",
+                        Math.abs(r.getDiffCents()) > 0 ? "HIGH" : "MEDIUM",
+                        "对账存在差异",
+                        "日期 " + r.getReconDate() + " · 渠道 " + payChannelLabel(r.getChannel())
+                                + " · 差额 ¥" + String.format("%.2f", r.getDiffCents() / 100.0)
+                                + " · 未匹配 " + r.getUnmatchedCount() + " 笔",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        r.getCompletedAt() != null ? r.getCompletedAt() : r.getCreatedAt(),
+                        null
+                )));
+
+        SPLIT_EXCEPTION_STATUSES.forEach(status ->
+                splitRepository.findTop20ByStatusOrderByCreatedAtAsc(status).stream()
+                        .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
+                        .limit(5)
+                        .forEach(s -> items.add(new OpsActionItemDto(
+                                "SPLIT_EXCEPTION",
+                                "FAILED".equalsIgnoreCase(s.getStatus()) || "WECHAT_FAILED".equalsIgnoreCase(s.getStatus())
+                                        ? "HIGH" : "MEDIUM",
+                                "分账待跟进",
+                                "订单 " + s.getOrderId() + " · 状态 " + splitStatusLabel(s.getStatus())
+                                        + (s.getFailureReason() != null && !s.getFailureReason().isBlank()
+                                        ? " · 原因 " + s.getFailureReason() : ""),
+                                s.getDeviceId(),
+                                null,
+                                null,
+                                null,
+                                null,
+                                s.getCreatedAt(),
+                                s.getSettleAfter() != null
+                                        ? s.getSettleAfter().atStartOfDay(ZoneId.systemDefault()).toInstant()
+                                        : null
+                        )))
+        );
+
+        Instant transitCutoff = Instant.now().minus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS);
+        inTransitRepository.findByStatusOrderByCreatedAtAsc("IN_TRANSIT").stream()
+                .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
+                .filter(t -> t.getCreatedAt() != null && t.getCreatedAt().isBefore(transitCutoff))
+                .limit(10)
+                .forEach(t -> items.add(new OpsActionItemDto(
+                        "IN_TRANSIT_OVERDUE",
+                        "HIGH",
+                        "补货签收超时",
+                        "出库单 " + t.getOutboundId() + " · 商品 " + t.getSkuId()
+                                + " · 批次 " + t.getBatchNo() + " · 数量 " + t.getQuantity(),
+                        t.getDeviceId(),
+                        null,
+                        null,
+                        t.getSkuId(),
+                        null,
+                        t.getCreatedAt(),
+                        t.getCreatedAt().plus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS)
+                )));
+
         items.sort(java.util.Comparator
                 .comparingInt((OpsActionItemDto item) -> severityRank(item.severity()))
                 .thenComparing(item -> item.dueAt() != null ? item.dueAt() : Instant.MAX));
 
+        long staleSessions = countStaleSessions(scopedDevices);
+        long splitExceptions = countSplitExceptions(scopedDevices);
+        long inTransitOverdue = countInTransitOverdue(scopedDevices);
         return new OpsWorkbenchDto(
                 countOpenDisputes(scopedDevices),
                 disputeSlaService.countOverdue(),
@@ -283,6 +374,10 @@ public class AdminDashboardService {
                 countWaitingUploads(scopedDevices),
                 countLowStock(scopedDevices),
                 countPendingReplenishments(scopedDevices),
+                staleSessions,
+                reconciliationRepository.countByStatus("MISMATCH"),
+                splitExceptions,
+                inTransitOverdue,
                 items.stream().limit(30).toList()
         );
     }
@@ -386,8 +481,52 @@ public class AdminDashboardService {
                 .count();
     }
 
+    private List<ShoppingSession> findStaleSessions(Set<String> scopedDevices) {
+        Instant cutoff = Instant.now().minus(STALE_SESSION_MINUTES, ChronoUnit.MINUTES);
+        return sessionRepository.findAll().stream()
+                .filter(s -> ACTIVE_STATES.contains(s.getState()))
+                .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
+                .filter(s -> s.getUpdatedAt() != null && s.getUpdatedAt().isBefore(cutoff))
+                .limit(10)
+                .toList();
+    }
+
+    private long countStaleSessions(Set<String> scopedDevices) {
+        Instant cutoff = Instant.now().minus(STALE_SESSION_MINUTES, ChronoUnit.MINUTES);
+        return sessionRepository.findAll().stream()
+                .filter(s -> ACTIVE_STATES.contains(s.getState()))
+                .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
+                .filter(s -> s.getUpdatedAt() != null && s.getUpdatedAt().isBefore(cutoff))
+                .count();
+    }
+
+    private long countSplitExceptions(Set<String> scopedDevices) {
+        return splitRepository.findAll().stream()
+                .filter(s -> SPLIT_EXCEPTION_STATUSES.contains(s.getStatus()))
+                .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
+                .count();
+    }
+
+    private long countInTransitOverdue(Set<String> scopedDevices) {
+        Instant cutoff = Instant.now().minus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS);
+        return inTransitRepository.findByStatusOrderByCreatedAtAsc("IN_TRANSIT").stream()
+                .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
+                .filter(t -> t.getCreatedAt() != null && t.getCreatedAt().isBefore(cutoff))
+                .count();
+    }
+
     private String sessionDeviceId(String sessionId) {
         return sessionRepository.findById(sessionId).map(ShoppingSession::getDeviceId).orElse(null);
+    }
+
+    private static String staleSessionSeverity(ShoppingSession session) {
+        if (session.getState() == SessionState.WAITING_UPLOAD) {
+            return "HIGH";
+        }
+        if (session.getState() == SessionState.OPENING || session.getState() == SessionState.SETTLING) {
+            return "HIGH";
+        }
+        return "MEDIUM";
     }
 
     private static boolean inDeviceScope(Set<String> scopedDevices, String deviceId) {
@@ -1051,5 +1190,74 @@ public class AdminDashboardService {
                 o.getOrderId(), o.getSessionId(), o.getUserId(), o.getDeviceId(),
                 o.getTotalAmountCents(), o.getStatus(), o.getLines().size(), o.getCreatedAt()
         );
+    }
+
+    private static String formatDisputeReasonText(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return "识别结果需人工审核";
+        }
+        String trimmed = reason.trim();
+        if (trimmed.chars().anyMatch(c -> c >= 0x4E00 && c <= 0x9FFF)) {
+            return trimmed;
+        }
+        String lower = trimmed.toLowerCase();
+        if (lower.contains("recognition needs manual review") || lower.contains("manual review")) {
+            return "识别结果需人工审核";
+        }
+        if (lower.contains("no items") || lower.contains("not recognized")) {
+            return "未识别到商品，需人工审核";
+        }
+        return trimmed;
+    }
+
+    private static String uploadStatusLabel(String status) {
+        if (status == null || status.isBlank()) {
+            return "未上传";
+        }
+        return switch (status.toUpperCase()) {
+            case "LOCAL_QUEUED" -> "本地排队";
+            case "UPLOADING" -> "上传中";
+            case "UPLOADED" -> "已上传";
+            case "FAILED" -> "上传失败";
+            default -> status;
+        };
+    }
+
+    private static String replenishStatusLabel(String status) {
+        if (status == null || status.isBlank()) {
+            return "未知";
+        }
+        return switch (status.toUpperCase()) {
+            case "PENDING" -> "待处理";
+            case "IN_PROGRESS" -> "进行中";
+            case "COMPLETED" -> "已完成";
+            case "CANCELLED" -> "已取消";
+            default -> status;
+        };
+    }
+
+    private static String payChannelLabel(String channel) {
+        if (channel == null || channel.isBlank()) {
+            return "未知";
+        }
+        return switch (channel.toUpperCase()) {
+            case "WECHAT" -> "微信";
+            case "ALIPAY" -> "支付宝";
+            case "MOCK" -> "Mock";
+            default -> channel;
+        };
+    }
+
+    private static String splitStatusLabel(String status) {
+        if (status == null || status.isBlank()) {
+            return "未知";
+        }
+        return switch (status.toUpperCase()) {
+            case "PENDING" -> "待分账";
+            case "SETTLED" -> "已分账";
+            case "FAILED", "WECHAT_FAILED" -> "分账失败";
+            case "LEDGER_ONLY" -> "仅记账";
+            default -> status;
+        };
     }
 }

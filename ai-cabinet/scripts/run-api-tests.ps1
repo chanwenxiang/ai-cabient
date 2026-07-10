@@ -1,7 +1,8 @@
-# API-level tests mapped to TEST_CASES.md (v1.1)
+# API-level smoke tests for local / staging stacks
 param([string]$BaseUrl = "http://localhost:8080")
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "e2e-lib.ps1")
 $InternalKey = "dev-internal-key-change-me"
 $passed = 0
 $failed = 0
@@ -28,7 +29,7 @@ function Login([string]$phone = "13800138000") {
 }
 
 Write-Host "==> API tests against $BaseUrl"
-& (Join-Path $PSScriptRoot "e2e-cleanup-device.ps1") -DeviceId "CAB-001"
+Clear-E2eDeviceBlockingSessions -DeviceId "CAB-001" | Out-Null
 Write-Host ""
 
 try {
