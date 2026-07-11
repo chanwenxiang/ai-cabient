@@ -74,6 +74,43 @@ public class MerchantReplenishmentService {
         return replenishmentService.suggestForDevice(deviceId.trim());
     }
 
+    @Transactional
+    public ReplenishmentTaskDto checkInTask(Long userId, Long taskId, ReplenishmentCheckInRequest body) {
+        ReplenishmentTask task = requireScopedTask(userId, taskId);
+        ReplenishmentTaskDto result = replenishmentService.checkInTask(userId, taskId, body);
+        auditService.record(userId, "MERCHANT_REPLENISHMENT_CHECK_IN", "REPLENISHMENT_TASK",
+                String.valueOf(taskId), "deviceId=" + task.getDeviceId());
+        return result;
+    }
+
+    @Transactional
+    public List<ReplenishmentTaskLineDto> confirmTaskLines(Long userId, Long taskId,
+                                                           SubmitReplenishmentLinesRequest body) {
+        ReplenishmentTask task = requireScopedTask(userId, taskId);
+        List<ReplenishmentTaskLineDto> result = replenishmentService.submitTaskLines(userId, taskId, body);
+        auditService.record(userId, "MERCHANT_REPLENISHMENT_CONFIRM_LINES", "REPLENISHMENT_TASK",
+                String.valueOf(taskId), "deviceId=" + task.getDeviceId() + ",lines=" + result.size());
+        return result;
+    }
+
+    @Transactional
+    public ReplenishmentTaskDto completeTask(Long userId, Long taskId) {
+        ReplenishmentTask task = requireScopedTask(userId, taskId);
+        ReplenishmentTaskDto result = replenishmentService.completeTask(userId, taskId);
+        auditService.record(userId, "MERCHANT_REPLENISHMENT_COMPLETE", "REPLENISHMENT_TASK",
+                String.valueOf(taskId), "deviceId=" + task.getDeviceId());
+        return result;
+    }
+
+    private ReplenishmentTask requireScopedTask(Long userId, Long taskId) {
+        permissionService.requirePermission(userId, "merchant:replenishment:view");
+        merchantPortalGuard.requireAccess(userId);
+        ReplenishmentTask task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
+        merchantScopeService.requireDeviceAccess(userId, task.getDeviceId());
+        return task;
+    }
+
     @Transactional(readOnly = true)
     public List<MerchantReplenishmentRequestDto> listRequests(Long userId, String status, String deviceId) {
         permissionService.requirePermission(userId, "merchant:replenishment:view");

@@ -76,11 +76,11 @@ export class ApiClient {
   }
 
   loginByPassword(phone: string, password: string) {
-    return this.request<LoginResponse>('/api/v2/auth/admin-password-login', 'POST', { phone, password }, false);
+    return this.request<LoginResponse>('/api/v2/auth/admin-password-login', 'POST', { phoneNumber: phone, password }, false);
   }
 
   merchantLogin(phone: string, password: string) {
-    return this.request<LoginResponse>('/api/v2/auth/admin-password-login', 'POST', { phone, password }, false);
+    return this.request<LoginResponse>('/api/v2/auth/admin-password-login', 'POST', { phoneNumber: phone, password }, false);
   }
 }
 

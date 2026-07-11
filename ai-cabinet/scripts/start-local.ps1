@@ -32,14 +32,14 @@ function Start-LocalService {
 }
 
 Start-LocalService "trade-service :8080" `
-    "mvn -f services/trade-service/pom.xml spring-boot:run -DskipTests `"-Dskip.admin.build=true`"" `
+    "mvn.cmd --% -f services/trade-service/pom.xml spring-boot:run -DskipTests -Dskip.admin.build=true" `
     8080
 
 Start-Sleep -Seconds 3
 
 if (-not $TradeOnly) {
     Start-LocalService "device-service :8081" `
-        "mvn -f services/device-service/pom.xml spring-boot:run -DskipTests" `
+        "mvn.cmd --% -f services/device-service/pom.xml spring-boot:run -DskipTests" `
         8081
 
     Start-LocalService "vision-service :8082" `
@@ -49,13 +49,13 @@ if (-not $TradeOnly) {
     if (-not $NoSimulator) {
         Start-Sleep -Seconds 5
         Start-LocalService "DeviceSimulator CAB-001" `
-            "mvn -f edge/device-simulator/pom.xml exec:java -Dexec.mainClass=com.aicabinet.simulator.DeviceSimulator -Dexec.args=CAB-001"
+            "mvn.cmd --% -f edge/device-simulator/pom.xml exec:java -Dexec.mainClass=com.aicabinet.simulator.DeviceSimulator -Dexec.args=CAB-001"
     }
 }
 
 Write-Host ""
 Write-Host "Services starting in separate PowerShell windows."
 Write-Host "Tip: only one trade-service on :8080 (IDEA Run OR this script, not both)."
-Write-Host "First time? Run once: mvn install -pl services/common/common-core,services/trade-service,services/device-service,edge/device-simulator -am -DskipTests `"-Dskip.admin.build=true`""
+Write-Host "First time? Run once: mvn.cmd --% install -pl services/common/common-core,services/trade-service,services/device-service,edge/device-simulator -am -DskipTests -Dskip.admin.build=true"
 Write-Host "Wait ~30-60s then run: .\scripts\verify-local.ps1"
 Write-Host "Admin: http://localhost:8080/admin/index.html  (13900000001 / 密码或验证码 123456)"

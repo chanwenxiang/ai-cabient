@@ -16,7 +16,27 @@ function Invoke-E2eApi {
     }
     if ($Headers.Count -gt 0) { $params.Headers = $Headers }
     if ($null -ne $Body) { $params.Body = ($Body | ConvertTo-Json -Compress) }
-    $resp = Invoke-RestMethod @params
+    try {
+        $resp = Invoke-RestMethod @params
+    } catch {
+        $statusCode = $null
+        $responseBody = $null
+        $response = $_.Exception.Response
+        if ($null -ne $response) {
+            try { $statusCode = [int]$response.StatusCode } catch { }
+            try {
+                $stream = $response.GetResponseStream()
+                if ($null -ne $stream) {
+                    $reader = New-Object System.IO.StreamReader($stream)
+                    try { $responseBody = $reader.ReadToEnd() } finally { $reader.Dispose() }
+                }
+            } catch { }
+        }
+        if ([string]::IsNullOrWhiteSpace($responseBody)) {
+            $responseBody = $_.Exception.Message
+        }
+        throw "HTTP request failed: $Method $Path status=$statusCode response=$responseBody"
+    }
     if ($resp.code -ne 0) {
         throw "API error: $($resp.message) (path=$Path)"
     }
@@ -26,8 +46,27 @@ function Invoke-E2eApi {
 function Clear-E2eDeviceBlockingSessions {
     param(
         [string]$DeviceId = "CAB-001",
-        [string]$PostgresContainer = "infra-postgres-1"
+        [string]$PostgresContainer = ""
     )
+    if ([string]::IsNullOrWhiteSpace($PostgresContainer)) {
+        $PostgresContainer = docker ps `
+            --filter "label=com.docker.compose.service=postgres" `
+            --format "{{.Names}}" 2>$null | Select-Object -First 1
+    }
+    if ([string]::IsNullOrWhiteSpace($PostgresContainer)) {
+        foreach ($candidate in @("ai-cabinet-postgres-1", "infra-postgres-1")) {
+            $running = docker ps --filter "name=^/$candidate$" --format "{{.Names}}" 2>$null
+            if ($running -eq $candidate) {
+                $PostgresContainer = $candidate
+                break
+            }
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($PostgresContainer)) {
+        Write-Warning "Clear-E2eDeviceBlockingSessions: no running postgres container found"
+        return $false
+    }
+
     $states = @("CREATED", "OPENING", "SHOPPING", "RECOGNIZING", "WAITING_UPLOAD", "SETTLING")
     $inList = ($states | ForEach-Object { "'$_'" }) -join ","
     $sql = @"
@@ -40,10 +79,6 @@ UPDATE replenishment_task
 SET status = 'CANCELLED'
 WHERE device_id = '$DeviceId'
   AND status = 'IN_PROGRESS';
-
-UPDATE device_info
-SET online_status = 'OFFLINE'
-WHERE device_id = '$DeviceId';
 
 DELETE FROM user_blacklist
 WHERE user_id IN (SELECT user_id FROM user_info WHERE phone_number = '13800138000');
@@ -58,7 +93,7 @@ WHERE user_id IN (SELECT user_id FROM user_info WHERE phone_number = '1380013800
         Write-Warning "Clear-E2eDeviceBlockingSessions: postgres cleanup failed: $out"
         return $false
     }
-    Write-Host "==> Cleared blocking sessions on $DeviceId"
+    Write-Host "==> Cleared blocking sessions on $DeviceId via $PostgresContainer"
     return $true
 }
 
@@ -118,11 +153,13 @@ function Ensure-E2eDeviceOnline {
         [string]$InternalApiKey = "dev-internal-key-change-me",
         [switch]$SkipSimulatorStart
     )
-    if ($SkipSimulatorStart) {
-        if (-not (Test-E2eDeviceOnline -BaseUrl $BaseUrl -DeviceId $DeviceId -Auth $Auth)) {
-            throw "device $DeviceId offline; start DeviceSimulator or omit -SkipSimulatorStart"
-        }
+    if (Test-E2eDeviceOnline -BaseUrl $BaseUrl -DeviceId $DeviceId -Auth $Auth) {
+        Write-Host "==> DeviceSimulator already online ($DeviceId), reusing it"
         return @{ Started = $false; Process = $null }
+    }
+
+    if ($SkipSimulatorStart) {
+        throw "device $DeviceId offline; start DeviceSimulator or omit -SkipSimulatorStart"
     }
     Write-Host "==> Starting DeviceSimulator ($DeviceId)..."
     $proc = Start-E2eDeviceSimulator -RepoRoot $RepoRoot -BaseUrl $BaseUrl -DeviceId $DeviceId `
@@ -197,11 +234,13 @@ function Invoke-E2eMqttShopping {
     }
 
     Write-Host "==> Create session (MQTT unlock)"
+    $idempotencyKey = "e2e-session-$([guid]::NewGuid().ToString('N'))"
     $session = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/sessions" -Headers $Auth -Body @{
-        deviceId = $DeviceId
+        deviceId       = $DeviceId
+        idempotencyKey = $idempotencyKey
     }
     $sessionId = $session.sessionId
-    Write-Host "    sessionId=$sessionId state=$($session.state)"
+    Write-Host "    sessionId=$sessionId state=$($session.state) idempotencyKey=$idempotencyKey"
 
     $final = Wait-E2eSessionTerminal -BaseUrl $BaseUrl -SessionId $sessionId -Auth $Auth
     if ($final -notin @("COMPLETED", "DISPUTED")) {

@@ -2,14 +2,14 @@
   <div>
     <div class="page-heading"><div><h1>运营异常中心</h1><p>集中处理影响消费者、设备占用和资金一致性的异常。</p></div><el-button :loading="loading" @click="load">刷新</el-button></div>
     <el-card shadow="never">
-      <div class="filters"><el-select v-model="status" clearable placeholder="全部状态" @change="load"><el-option label="待处理" value="OPEN"/><el-option label="处理中" value="PROCESSING"/><el-option label="已解决" value="RESOLVED"/></el-select></div>
+      <div class="filters"><el-select v-model="status" clearable placeholder="全部状态" @change="load"><el-option v-for="item in dictOptions('exception_status')" :key="item.value" :label="item.label" :value="item.value"/></el-select></div>
       <el-table v-loading="loading" :data="items" stripe empty-text="暂无异常">
-        <el-table-column label="级别" width="90"><template #default="{row}"><el-tag :type="row.severity==='HIGH'?'danger':row.severity==='MEDIUM'?'warning':'info'">{{ row.severity }}</el-tag></template></el-table-column>
-        <el-table-column prop="exceptionType" label="类型" width="170"/>
+        <el-table-column label="级别" width="90"><template #default="{row}"><el-tag :type="dictTagType(row.severity)">{{ dictLabel('exception_severity', row.severity) }}</el-tag></template></el-table-column>
+        <el-table-column label="类型" width="170"><template #default="{row}">{{ dictLabel('exception_type', row.exceptionType) }}</template></el-table-column>
         <el-table-column prop="title" label="异常" min-width="180"/>
         <el-table-column prop="deviceId" label="设备" width="130"/>
         <el-table-column prop="sessionId" label="会话" width="180"/>
-        <el-table-column prop="status" label="状态" width="100"/>
+        <el-table-column label="状态" width="100"><template #default="{row}"><el-tag :type="dictTagType(row.status)">{{ dictLabel('exception_status', row.status) }}</el-tag></template></el-table-column>
         <el-table-column label="操作" width="240"><template #default="{row}"><el-button link @click="openDetail(row)">详情</el-button><el-button v-if="row.status==='OPEN'" link type="primary" @click="claim(row)">领取</el-button><el-button v-if="row.status!=='RESOLVED'" link type="success" @click="resolve(row)">解决</el-button></template></el-table-column>
       </el-table>
     </el-card>
@@ -59,6 +59,7 @@
 import { onMounted, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
 interface OpsException { exceptionId:string; exceptionType:string; severity:string; status:string; title:string; detail?:string; deviceId?:string; sessionId?:string; assigneeUserId?:number }
 interface OpsAction { actionId:number; operatorId:number; action:string; detail?:string; createdAt:string }
 interface OpsDetail { exception:OpsException; actions:OpsAction[] }

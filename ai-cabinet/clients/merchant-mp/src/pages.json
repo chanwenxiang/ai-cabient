@@ -5,6 +5,7 @@
     { "path": "pages/devices/devices", "style": { "navigationBarTitleText": "柜机", "enablePullDownRefresh": true } },
     { "path": "pages/device-detail/device-detail", "style": { "navigationBarTitleText": "柜机详情" } },
     { "path": "pages/pricing/pricing", "style": { "navigationBarTitleText": "点位定价" } },
+    { "path": "pages/replenishment/replenishment", "style": { "navigationBarTitleText": "补货任务", "enablePullDownRefresh": true } },
     { "path": "pages/business/business", "style": { "navigationBarTitleText": "经营分析", "enablePullDownRefresh": true } },
     { "path": "pages/alerts/alerts", "style": { "navigationBarTitleText": "待办", "enablePullDownRefresh": true } },
     { "path": "pages/mine/mine", "style": { "navigationBarTitleText": "我的" } }

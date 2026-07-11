@@ -98,16 +98,11 @@ public class SettlementService {
             recognition = withGravityFallback(session, recognition);
             return processRecognitionResult(session, recognition);
         } catch (RestClientException | IllegalStateException e) {
-            if (securityProperties.mockEnabled()) {
-                List<VisionServiceClient.RecognizedItem> gravityItems =
-                        gravityHelper.toRecognizedItems(session.getGravityDeltas());
-                if (!gravityItems.isEmpty()) {
-                    log.warn("vision unavailable in dev, gravity settle session={}", session.getSessionId(), e);
-                    return finalizeOrder(session, gravityItems);
-                }
-                log.warn("vision unavailable in dev, zero-settle session={}", session.getSessionId(), e);
-                return finalizeOrder(session, List.of());
-            }
+            log.warn("vision unavailable, hold charge and escalate session={}", session.getSessionId(), e);
+            VisionServiceClient.RecognitionResult unavailable = new VisionServiceClient.RecognitionResult(
+                    "UNAVAILABLE-" + session.getSessionId(), List.of(), 0f, true,
+                    "vision-unavailable", List.of());
+            escalateToDispute(session, unavailable, "识别服务暂时不可用，已转人工审核，本次暂未扣款");
             throw e;
         }
     }

@@ -23,6 +23,11 @@
         </view>
         <text class="menu-arrow">›</text>
       </view>
+      <view class="menu-cell" @click="goReplenishment">
+        <text class="menu-icon">📦</text>
+        <view class="menu-text"><text class="menu-title">补货任务</text><text class="menu-desc">签到、核对商品并确认上架</text></view>
+        <text class="menu-arrow">›</text>
+      </view>
       <view class="menu-cell danger-cell" @click="onLogout">
         <text class="menu-icon">🚪</text>
         <view class="menu-text">
@@ -59,6 +64,7 @@ function goPricing() {
   uni.navigateTo({ url: '/pages/pricing/pricing' });
 }
 function goBusiness() { uni.navigateTo({ url: '/pages/business/business' }); }
+function goReplenishment() { uni.navigateTo({ url: '/pages/replenishment/replenishment' }); }
 
 function onLogout() {
   clearSession();
@@ -73,7 +79,10 @@ function onLogout() {
 .hello { font-size: 36rpx; font-weight: 700; display: block; }
 .sub { font-size: 26rpx; opacity: 0.9; display: block; margin-top: 4rpx; }
 .phone { font-size: 24rpx; opacity: 0.75; display: block; margin-top: 4rpx; }
-.menu-list { margin: 12px; }
+.menu-list {
+  margin: 12px;
+  padding-bottom: calc(120rpx + env(safe-area-inset-bottom));
+}
 .menu-cell { background: #fff; border-radius: 16px; padding: 28rpx 24rpx; margin-bottom: 12rpx; display: flex; align-items: center; gap: 20rpx; box-shadow: 0 2px 12px rgba(15,118,110,0.06); }
 .menu-icon { font-size: 40rpx; }
 .menu-text { flex: 1; }

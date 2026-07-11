@@ -34,8 +34,75 @@ export const DICT = {
     FAILED: '失败'
   },
   merchant_status: { ACTIVE: '正常', INACTIVE: '停用', PENDING: '待审核' },
-  online_status: { ONLINE: '在线', OFFLINE: '离线', UNKNOWN: '未知' }
+  online_status: { ONLINE: '在线', OFFLINE: '离线', UNKNOWN: '未知' },
+  supplier_status: { ACTIVE: '启用', INACTIVE: '停用' },
+  purchase_order_status: {
+    CREATED: '待收货',
+    PARTIAL_RECEIVED: '部分收货',
+    RECEIVED: '已收货',
+    CANCELLED: '已取消'
+  },
+  warehouse_status: { ACTIVE: '正常', INACTIVE: '停用' },
+  warehouse_outbound_status: {
+    DRAFT: '待拣货',
+    PICKED: '已拣货',
+    SHIPPED: '已发运',
+    CANCELLED: '已取消'
+  },
+  handover_status: {
+    PENDING: '待备货',
+    READY: '待发运',
+    IN_TRANSIT: '在途',
+    PARTIAL: '部分签收',
+    RECEIVED: '已签收'
+  },
+  in_transit_status: { IN_TRANSIT: '在途', RECEIVED: '已签收', LOST: '丢失', DAMAGED: '破损' },
+  warehouse_movement_type: {
+    PURCHASE_RECEIVE: '采购收货',
+    MANUAL_INBOUND: '手工入库',
+    OUTBOUND: '出库',
+    OUTBOUND_SHIP: '发运',
+    RETURN: '退回',
+    ADJUSTMENT: '库存调整'
+  },
+  business_reference_type: {
+    PURCHASE_ORDER: '采购单',
+    OUTBOUND_ORDER: '出库单',
+    REPLENISHMENT_TASK: '补货任务',
+    INVENTORY_ADJUSTMENT: '库存调整',
+    MANUAL: '人工操作'
+  },
+  replenishment_route_status: { PLANNED: '待执行', IN_PROGRESS: '执行中', COMPLETED: '已完成', CANCELLED: '已取消' },
+  replenishment_task_status: { PENDING: '待处理', IN_PROGRESS: '进行中', COMPLETED: '已完成', CANCELLED: '已取消' },
+  replenishment_request_status: { SUBMITTED: '待审核', ACCEPTED: '已接单', REJECTED: '已驳回', COMPLETED: '已完成' },
+  inventory_lot_status: { ON_SALE: '在售', NEAR_EXPIRY: '临期', BLOCKED: '已冻结', DEPLETED: '已耗尽' },
+  exception_severity: { CRITICAL: '紧急', HIGH: '高', MEDIUM: '中', LOW: '低' },
+  exception_status: { OPEN: '待处理', PROCESSING: '处理中', RESOLVED: '已解决', CLOSED: '已关闭' },
+  exception_type: {
+    DISPUTE: '消费争议', LOW_STOCK: '低库存', EXPIRY: '临期商品', REPLENISHMENT_REQUIRED: '待补货',
+    DEVICE_OFFLINE: '设备离线', DEVICE_FAULT: '设备故障', DOOR_OPEN_TOO_LONG: '长时间未关门',
+    OPEN_TIMEOUT: '开门超时', UPLOAD_STUCK: '录像上传滞留', RECOGNITION_FAILED: '识别失败',
+    RECOGNITION_UNAVAILABLE: '识别服务不可用', BALANCE_INSUFFICIENT: '余额不足',
+    SETTLEMENT_FAILED: '结算失败', SETTLEMENT_STUCK: '结算滞留', INVENTORY_MISMATCH: '库存差异'
+  },
+  reconciliation_status: { MATCHED: '已平账', MISMATCH: '存在差异', PENDING: '待处理', FAILED: '失败' },
+  sku_status: { ACTIVE: '在售', INACTIVE: '停用', DISABLED: '禁售' },
+  order_status: {
+    PENDING: '待支付', PROCESSING: '处理中', PAID: '已支付', COMPLETED: '已完成',
+    DISPUTED: '争议中', REFUNDED: '已退款', FAILED: '处理失败', CANCELLED: '已取消'
+  }
 } as const;
+
+export type DictTagType = 'success' | 'warning' | 'danger' | 'info' | 'primary';
+
+const STATUS_TAGS: Record<string, DictTagType> = {
+  ACTIVE: 'success', ONLINE: 'success', COMPLETED: 'success', RECEIVED: 'success', SUCCESS: 'success', ON_SALE: 'success',
+  MATCHED: 'success', RESOLVED: 'success',
+  CREATED: 'info', DRAFT: 'info', PENDING: 'info', SUBMITTED: 'info',
+  LOW: 'info', MEDIUM: 'warning',
+  PARTIAL_RECEIVED: 'warning', PICKED: 'warning', IN_PROGRESS: 'warning', IN_TRANSIT: 'warning', NEAR_EXPIRY: 'warning', PARTIAL: 'warning', HIGH: 'warning',
+  INACTIVE: 'danger', OFFLINE: 'danger', FAILED: 'danger', REJECTED: 'danger', CANCELLED: 'danger', BLOCKED: 'danger', LOST: 'danger', DAMAGED: 'danger', CRITICAL: 'danger', MISMATCH: 'danger'
+};
 
 export function dictLabel(type: DictType, code: string | null | undefined): string {
   const map = DICT[type] as Record<string, string>;
@@ -47,4 +114,8 @@ export function dictLabel(type: DictType, code: string | null | undefined): stri
 export function dictOptions(type: DictType): { value: string; label: string }[] {
   const map = DICT[type] as Record<string, string>;
   return Object.entries(map || {}).map(([value, label]) => ({ value, label }));
+}
+
+export function dictTagType(code: string | null | undefined): DictTagType {
+  return STATUS_TAGS[String(code || '').toUpperCase()] || 'info';
 }

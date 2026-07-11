@@ -175,3 +175,6 @@ function goShop() {
 .done-title { font-size: 34rpx; font-weight: 600; color: #191919; display: block; }
 .done-desc { font-size: 26rpx; color: #888; margin: 12rpx 0 32rpx; display: block; }
 </style>
+<style scoped>
+.page{background:linear-gradient(180deg,#ecfdf5,#f5f7f8 340rpx)}.hero{margin:0 -24rpx;padding:42rpx 34rpx 78rpx;border-radius:0 0 38rpx 38rpx;color:#fff;background:linear-gradient(145deg,#064e3b,#059669 58%,#14b8a6)}.hero-title{color:#fff;font-size:44rpx}.hero-sub{color:rgba(255,255,255,.78)}.steps{position:relative;margin:-45rpx 0 22rpx;padding:24rpx 22rpx;border-radius:24rpx;background:#fff;box-shadow:0 14rpx 34rpx rgba(15,23,42,.09)}.step-dot{box-shadow:0 0 0 7rpx #f4f7f5}.step.done .step-dot{background:linear-gradient(135deg,#059669,#0d9488);box-shadow:0 0 0 7rpx #d1fae5}.card{padding:34rpx;border:1rpx solid #edf1ef;border-radius:26rpx;box-shadow:0 12rpx 34rpx rgba(15,23,42,.06)}.input{border:1rpx solid #e3eae6;border-radius:17rpx;background:#f8faf9}.btn-primary{border-radius:44rpx;background:linear-gradient(135deg,#059669,#0d9488);box-shadow:0 9rpx 24rpx rgba(5,150,105,.2)}.status-row{padding:20rpx 0}.done-icon{font-size:88rpx}
+</style>

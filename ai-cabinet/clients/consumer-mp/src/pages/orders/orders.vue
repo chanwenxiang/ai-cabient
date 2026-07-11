@@ -30,9 +30,9 @@
           <text class="order-id">订单 {{ shortId(o.orderId) }}</text>
           <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
         </view>
-        <text class="meta">{{ o.deviceId }}</text>
+        <view class="order-device"><text class="device-icon">▣</text><text>{{ deviceDisplay(o.deviceId) }}</text><text class="device-code">{{ o.deviceId }}</text></view>
         <view class="order-bottom">
-          <text class="order-time">{{ o.createdAt || '' }}</text>
+          <text class="order-time">{{ formatTime(o.createdAt) }}</text>
           <text class="amt">¥{{ ((o.totalAmountCents || 0) / 100).toFixed(2) }}</text>
         </view>
         <view v-if="o.status === 'DISPUTED'" class="order-actions" @click.stop="goDetail(o)">
@@ -74,6 +74,19 @@ function countBy(value: 'all' | 'paid' | 'pending' | 'issue') {
   return orders.value.filter((order) => matchesFilter(order, value)).length;
 }
 function shortId(id: string) { return id.length > 12 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id; }
+function deviceDisplay(deviceId?: string) {
+  if (!deviceId) return '智能柜';
+  const lastId = uni.getStorageSync('last_device_id');
+  const lastName = uni.getStorageSync('last_device_name');
+  if (lastId === deviceId && lastName) return lastName;
+  return deviceId === 'CAB-001' ? '测试柜-001' : '智能零售柜';
+}
+function formatTime(value?: string) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString('zh-CN', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false });
+}
 
 function statusLabel(status?: string) {
   return orderStatusLabel(status);
@@ -185,4 +198,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .order-action-text { font-size: 24rpx; color: #d48806; }
 .list-foot { padding: 32rpx; text-align: center; }
 .foot-link { font-size: 26rpx; color: #576b95; }
+</style>
+<style scoped>
+.page{background:linear-gradient(180deg,#eefbf5,#f5f7f8 260rpx)}.orders-main{padding-top:8rpx}.order-filters{padding:22rpx 24rpx 18rpx;background:transparent}.filter-chip{padding:13rpx 23rpx;border:1rpx solid #e7eeea;border-radius:999rpx;color:#68766e;background:rgba(255,255,255,.85);box-shadow:0 5rpx 16rpx rgba(15,23,42,.04)}.filter-chip.active{border-color:#059669;background:linear-gradient(135deg,#059669,#0d9488);box-shadow:0 8rpx 22rpx rgba(5,150,105,.2)}.order-card{position:relative;overflow:hidden;margin:0 24rpx 16rpx;padding:26rpx;border-radius:23rpx;box-shadow:0 10rpx 30rpx rgba(15,23,42,.06)}.order-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:6rpx;background:linear-gradient(#10b981,#0d9488)}.order-id{color:#26342d}.chip{padding:6rpx 14rpx;border-radius:999rpx;font-weight:650}.order-device{display:flex;align-items:center;gap:9rpx;margin-top:18rpx;color:#44534b;font-size:25rpx}.device-icon{display:flex;width:37rpx;height:37rpx;align-items:center;justify-content:center;border-radius:10rpx;color:#047857;background:#ecfdf5}.device-code{margin-left:auto;color:#a1aaa5;font-size:20rpx}.order-bottom{margin-top:20rpx;padding-top:16rpx;border-top:1rpx dashed #e3e9e6}.order-time{font-size:23rpx}.amt{color:#047857;font-size:36rpx}.list-foot{padding-bottom:50rpx}
 </style>

@@ -9,6 +9,7 @@ import com.aicabinet.trade.service.MerchantNotifyService;
 import com.aicabinet.trade.service.MerchantPortalService;
 import com.aicabinet.trade.service.MerchantReplenishmentService;
 import com.aicabinet.trade.service.MerchantSkuPricingService;
+import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -286,6 +287,28 @@ public class MerchantPortalController {
     public ApiResponse<List<ReplenishmentTaskLineDto>> replenishmentTaskLines(
             HttpServletRequest request, @PathVariable Long taskId) {
         return ApiResponse.ok(merchantPortalService.getReplenishmentTaskLines(userId(request), taskId));
+    }
+
+    @PostMapping("/replenishment/tasks/{taskId}/check-in")
+    public ApiResponse<ReplenishmentTaskDto> checkInReplenishmentTask(
+            HttpServletRequest request,
+            @PathVariable Long taskId,
+            @RequestBody(required = false) ReplenishmentCheckInRequest body) {
+        return ApiResponse.ok(merchantReplenishmentService.checkInTask(userId(request), taskId, body));
+    }
+
+    @PostMapping("/replenishment/tasks/{taskId}/lines")
+    public ApiResponse<List<ReplenishmentTaskLineDto>> confirmReplenishmentTaskLines(
+            HttpServletRequest request,
+            @PathVariable Long taskId,
+            @Valid @RequestBody SubmitReplenishmentLinesRequest body) {
+        return ApiResponse.ok(merchantReplenishmentService.confirmTaskLines(userId(request), taskId, body));
+    }
+
+    @PostMapping("/replenishment/tasks/{taskId}/complete")
+    public ApiResponse<ReplenishmentTaskDto> completeReplenishmentTask(
+            HttpServletRequest request, @PathVariable Long taskId) {
+        return ApiResponse.ok(merchantReplenishmentService.completeTask(userId(request), taskId));
     }
 
     @GetMapping("/replenishment/suggestions")

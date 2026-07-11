@@ -1,0 +1,42 @@
+package com.aicabinet.trade.service;
+
+import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.metrics.CabinetMetrics;
+import com.aicabinet.trade.repository.DeviceInfoRepository;
+import com.aicabinet.trade.repository.DeviceTemperatureReadingRepository;
+import org.junit.jupiter.api.Test;
+
+import java.time.Instant;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class DevicePresenceServiceTest {
+
+    @Test
+    void repeatedHeartbeatRefreshesLivenessEvenWhenStatusDoesNotChange() {
+        DeviceInfoRepository devices = mock(DeviceInfoRepository.class);
+        DeviceTemperatureReadingRepository temperatures = mock(DeviceTemperatureReadingRepository.class);
+        CabinetMetrics metrics = mock(CabinetMetrics.class);
+        OpsExceptionService exceptions = mock(OpsExceptionService.class);
+        DeviceInfo device = new DeviceInfo();
+        device.setDeviceId("CAB-001");
+        device.setDeviceName("Demo");
+        device.setDeviceType("AI_CABINET_V1");
+        device.setOnlineStatus("ONLINE");
+        Instant before = Instant.now();
+        when(devices.findById("CAB-001")).thenReturn(Optional.of(device));
+        when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        DevicePresenceService service = new DevicePresenceService(devices, temperatures, metrics, exceptions);
+        service.heartbeat("CAB-001", "0.9.0", null, null);
+
+        assertTrue(device.getUpdatedAt() != null && !device.getUpdatedAt().isBefore(before));
+        verify(devices).save(device);
+        verify(exceptions).resolveSystem("DEVICE_OFFLINE", "CAB-001", "设备心跳恢复，已自动上线");
+    }
+}

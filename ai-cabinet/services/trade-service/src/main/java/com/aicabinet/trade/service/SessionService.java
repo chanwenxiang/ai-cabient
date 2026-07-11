@@ -419,6 +419,9 @@ public class SessionService {
             log.info("session completed session={} order={}", session.getSessionId(), order.orderId());
         } catch (DisputeRequiredException e) {
             transition(session, SessionState.DISPUTED);
+            opsExceptionService.report("RECOGNITION_FAILED", "HIGH", session.getDeviceId(),
+                    session.getSessionId(), session.getOrderId(), session.getUserId(),
+                    "识别结果需人工审核", e.getMessage());
             log.warn("session disputed session={}", session.getSessionId());
             return toDto(session);
         } catch (ResponseStatusException e) {

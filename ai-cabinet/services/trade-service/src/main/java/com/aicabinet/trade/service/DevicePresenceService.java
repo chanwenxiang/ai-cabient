@@ -64,6 +64,9 @@ public class DevicePresenceService {
             reading.setReportedAt(Instant.now());
             temperatureReadingRepository.save(reading);
         }
+        // A heartbeat may carry the same status and versions as the previous one.
+        // Explicitly update its timestamp so JPA still persists liveness.
+        device.markHeartbeatReceived();
         deviceRepository.save(device);
         opsExceptionService.resolveSystem("DEVICE_OFFLINE", deviceId, "设备心跳恢复，已自动上线");
         cabinetMetrics.refreshDeviceGauges(deviceRepository);

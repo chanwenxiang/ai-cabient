@@ -31,9 +31,7 @@
         <el-form inline class="filter-bar">
           <el-form-item label="状态">
             <el-select v-model="status" clearable style="width:140px" @change="loadSplits">
-              <el-option label="待分账" value="ACCRUED" />
-              <el-option label="已提交" value="WECHAT_SUBMITTED" />
-              <el-option label="失败" value="WECHAT_FAILED" />
+              <el-option v-for="item in dictOptions('split_status')" :key="item.value" :label="item.label" :value="item.value" />
             </el-select>
           </el-form-item>
           <el-form-item><el-button type="primary" @click="loadSplits">查询</el-button></el-form-item>
@@ -54,7 +52,7 @@
 import { onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import type { MerchantDto, PageResult, RevenueSplit } from '@aicabinet/shared-types';
 

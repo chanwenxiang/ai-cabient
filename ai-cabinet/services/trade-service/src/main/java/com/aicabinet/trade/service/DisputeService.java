@@ -198,6 +198,7 @@ public class DisputeService {
 
         String resolutionType = normalizeResolutionType(request.resolutionType());
         ResolveDisputeResultDto result = switch (resolutionType) {
+            case "KEEP" -> resolveKeep(operatorId, ticket, session);
             case "WAIVE" -> resolveWaive(operatorId, ticket, session);
             case "ADJUST", "CONFIRM" -> resolveConfirm(operatorId, ticket, session, request, resolutionType);
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
@@ -269,6 +270,22 @@ public class DisputeService {
         return new ResolveDisputeResultDto(null, "WAIVE", refunded, 0, -refunded, message);
     }
 
+    private ResolveDisputeResultDto resolveKeep(Long operatorId, DisputeTicket ticket, ShoppingSession session) {
+        int originalAmount = orderRepository.findBySessionId(session.getSessionId())
+                .filter(order -> !"REFUNDED".equals(order.getStatus()))
+                .map(CabinetOrder::getTotalAmountCents)
+                .orElse(0);
+        ticket.setStatus("RESOLVED");
+        ticket.setResolutionItems(ticket.getItems() != null ? ticket.getItems() : "[]");
+        ticket.setResolvedAt(Instant.now());
+        disputeRepository.save(ticket);
+        auditService.record(operatorId, "DISPUTE_KEEP_BILL", "DISPUTE", ticket.getTicketId(),
+                "session=" + ticket.getSessionId() + " amount=" + originalAmount);
+        return new ResolveDisputeResultDto(
+                null,
+                "KEEP", originalAmount, originalAmount, 0, "已复核，维持原账单");
+    }
+
     private ResolveDisputeResultDto resolveConfirm(Long operatorId,
                                                  DisputeTicket ticket,
                                                  ShoppingSession session,
@@ -319,6 +336,7 @@ public class DisputeService {
             return "CONFIRM";
         }
         return switch (raw.trim().toUpperCase()) {
+            case "KEEP", "REJECT", "KEEP_BILL" -> "KEEP";
             case "WAIVE", "FREE", "REFUND_ALL" -> "WAIVE";
             case "ADJUST", "补差", "退差" -> "ADJUST";
             case "CONFIRM", "CHARGE" -> "CONFIRM";

@@ -48,3 +48,4 @@ data/mqtt-paho/
 # Eclipse Paho MQTT file persistence (legacy)
 sim-*-tcplocalhost*/
 device-service-*-tcplocalhost*/
+artifacts/

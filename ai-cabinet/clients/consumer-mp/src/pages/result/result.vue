@@ -262,3 +262,6 @@ function goHome() {
   padding: 12rpx;
 }
 </style>
+<style scoped>
+.success-header{position:relative;overflow:hidden;padding:54rpx 40rpx 64rpx;background:radial-gradient(circle at 82% 10%,rgba(255,255,255,.18),transparent 28%),linear-gradient(145deg,#064e3b,#059669 58%,#14b8a6);border-radius:0 0 38rpx 38rpx}.success-icon{width:92rpx;height:92rpx;border:2rpx solid rgba(255,255,255,.3);box-shadow:0 12rpx 28rpx rgba(0,0,0,.12)}.success-title{font-size:40rpx}.amount-card{margin:-32rpx 24rpx 18rpx;padding:34rpx;border-radius:28rpx;box-shadow:0 16rpx 42rpx rgba(15,23,42,.1)}.amount{font-size:66rpx;color:#047857;letter-spacing:-2rpx}.balance-card{border-radius:24rpx}.section-title{font-size:29rpx;color:#26342d}.line{padding:18rpx 0}.line-name{font-weight:600}.footer-actions{padding:20rpx 24rpx 38rpx}.action-btn{border-radius:44rpx;background:linear-gradient(135deg,#059669,#0d9488);font-weight:700;box-shadow:0 10rpx 26rpx rgba(5,150,105,.22)}.ghost-btn{border:1rpx solid #e4ebe7;border-radius:44rpx;color:#53645b}.ghost-btn.warn{background:#fffbeb}.dispute-panel{max-width:520px;left:50%;transform:translateX(-50%);border-radius:30rpx 30rpx 0 0}.dispute-input{border:1rpx solid #e4ebe7;background:#f8faf9}
+</style>

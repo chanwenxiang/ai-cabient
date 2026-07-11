@@ -3,8 +3,9 @@
     <!-- 落地页：仅 Tab 进入时展示，柜码直达不经过此页 -->
     <view v-if="showLanding" class="landing">
       <view class="landing-head">
+        <view class="brand-pill"><text class="brand-dot" />AI 智能零售</view>
         <text class="landing-title">扫码开门 取货即走</text>
-        <text class="landing-sub">关门前可随意取用，关门后自动结算</text>
+        <text class="landing-sub">无需排队 · 无需自助结账 · 关门自动扣款</text>
       </view>
 
       <view v-if="lastDeviceId" class="resume-card" @click="startShoppingFlow(lastDeviceId)">
@@ -12,8 +13,16 @@
         <text class="resume-sub">{{ lastDeviceName || lastDeviceId }}</text>
       </view>
 
+      <view v-if="landingError" class="landing-error">
+        <view class="error-icon">!</view>
+        <view class="error-copy"><text class="error-title">暂时无法开门</text><text class="error-detail">{{ landingError }}</text></view>
+        <text class="error-close" @click="landingError = ''">×</text>
+      </view>
+
       <view class="landing-body">
+        <text class="scan-kicker">扫描柜门二维码</text>
         <button class="scan-btn" hover-class="scan-btn-hover" :disabled="opening || enteringFlow" @click="onScan">
+          <view class="scan-ring ring-one" /><view class="scan-ring ring-two" />
           <view class="scan-icon-wrap">
             <view class="scan-corner tl" />
             <view class="scan-corner tr" />
@@ -22,6 +31,7 @@
             <view class="scan-line" />
           </view>
           <text class="scan-btn-text">扫码开门</text>
+          <text class="scan-helper">{{ opening ? '正在连接柜机…' : '点击识别柜机二维码' }}</text>
         </button>
 
         <view class="steps">
@@ -30,6 +40,11 @@
           <text class="step">② 开门取货</text>
           <text class="step-sep">·</text>
           <text class="step">③ 关门结算</text>
+        </view>
+        <view class="trust-grid">
+          <view><text class="trust-icon">⚡</text><text>秒级开门</text></view>
+          <view><text class="trust-icon">🛡</text><text>余额保护</text></view>
+          <view><text class="trust-icon">🧾</text><text>账单可查</text></view>
         </view>
       </view>
 
@@ -56,6 +71,19 @@
         <view class="device-actions">
           <text class="device-report" @click="goReport">报修</text>
           <text class="device-change" @click="resetDevice">换一台</text>
+        </view>
+      </view>
+
+      <view v-if="reviewSessionId" class="settlement-review-card">
+        <view class="review-icon">!</view>
+        <view class="review-copy">
+          <text class="review-title">本次账单正在人工审核</text>
+          <text class="review-detail">识别服务暂时不可用，本次暂未扣款。审核完成后会生成账单，请勿重复提交结算。</text>
+          <view class="review-actions">
+            <text class="review-link primary" @click="goOrders">稍后查看订单</text>
+            <text class="review-link" @click="contactOps">联系运营</text>
+            <text class="review-link subtle" @click="dismissReview">知道了</text>
+          </view>
         </view>
       </view>
 
@@ -169,6 +197,8 @@ const stateTone = ref('idle');
 const opening = ref(false);
 const cancelling = ref(false);
 const pollError = ref('');
+const landingError = ref('');
+const reviewSessionId = ref(String(uni.getStorageSync('last_disputed_session_id') || ''));
 const openingSeconds = ref(90);
 const brokenThumbs = ref<Record<string, boolean>>({});
 const lastDeviceId = ref('');
@@ -210,7 +240,10 @@ const flowOverlayTitle = computed(() => {
 });
 
 const flowOverlayHint = computed(() => {
-  if (state.value === 'OPENING' || state.value === 'CREATED') return `正在等待柜门响应，约 ${openingSeconds.value} 秒后可取消重试`;
+  if (state.value === 'OPENING' || state.value === 'CREATED') {
+    const elapsed = Math.max(0, 90 - openingSeconds.value);
+    return `已等待 ${elapsed} 秒，柜门无响应时可安全取消本次开门`;
+  }
   if (stateHint.value) return stateHint.value;
   if (opening.value) return '正在连接柜机并验证开门资格…';
   return '请稍候';
@@ -305,9 +338,10 @@ function resetDevice() {
 
 async function startShoppingFlow(id: string) {
   const cabinetId = id.trim().toUpperCase();
-  if (!cabinetId || opening.value) return;
+  if (!cabinetId || opening.value || enteringFlow.value) return;
 
   enteringFlow.value = true;
+    landingError.value = '';
 
   if (!(await requireConsumerAuth('扫码开门需先完成微信授权'))) {
     enteringFlow.value = false;
@@ -326,6 +360,9 @@ async function startShoppingFlow(id: string) {
     if (deviceOffline.value) {
       scanned.value = false;
       deviceId.value = '';
+      landingError.value = deviceStatusText.value && deviceStatusText.value !== '离线'
+        ? deviceStatusText.value
+        : '该柜机当前离线或编号无效，请确认柜号后重试，或更换其他柜机。';
       uni.showToast({ title: '柜机离线，请换一台或稍后再试', icon: 'none' });
       return;
     }
@@ -343,7 +380,8 @@ async function startShoppingFlow(id: string) {
     if (sessionResult.status !== 'fulfilled') {
       scanned.value = false;
       deviceId.value = '';
-      uni.showToast({ title: formatError(sessionResult.reason), icon: 'none' });
+      landingError.value = formatError(sessionResult.reason);
+      uni.showToast({ title: landingError.value, icon: 'none' });
       return;
     }
     const s = sessionResult.value;
@@ -356,6 +394,24 @@ async function startShoppingFlow(id: string) {
     opening.value = false;
     enteringFlow.value = false;
   }
+}
+
+function goOrders() {
+  uni.switchTab({ url: '/pages/orders/orders' });
+}
+
+function contactOps() {
+  uni.showModal({
+    title: '联系运营',
+    content: '请联系客服 400-888-0018，并提供审核编号：' + reviewSessionId.value,
+    showCancel: false,
+    confirmText: '我知道了'
+  });
+}
+
+function dismissReview() {
+  reviewSessionId.value = '';
+  uni.removeStorageSync('last_disputed_session_id');
 }
 
 function ensureCanOpenDoor(): Promise<boolean> {
@@ -404,6 +460,7 @@ function confirmDevice() {
   const parsed = parseCabinetScan(deviceInput.value);
   const id = parsed.deviceId || deviceInput.value.trim().toUpperCase();
   if (!id) {
+    landingError.value = '请输入柜机编号，例如 CAB-001。';
     uni.showToast({ title: '请输入柜机编号', icon: 'none' });
     return;
   }
@@ -429,13 +486,11 @@ async function refreshDeviceStatus() {
     deviceName.value = s.deviceName || deviceId.value;
     const online = (s.onlineStatus || '').toUpperCase() === 'ONLINE';
     deviceOffline.value = !online;
-    deviceStatusText.value = online
-      ? s.busy
-        ? '使用中'
-        : sessionActive.value
-          ? '门已开 · 购物中'
-          : '在线 · 可再次开门'
-      : '离线';
+    if (!online) deviceStatusText.value = '离线';
+    else if (state.value === 'SHOPPING') deviceStatusText.value = '门已开 · 购物中';
+    else if (state.value === 'CREATED' || state.value === 'OPENING') deviceStatusText.value = '正在开门';
+    else if (s.busy) deviceStatusText.value = '使用中';
+    else deviceStatusText.value = '在线 · 可再次开门';
   } catch (e) {
     deviceOffline.value = true;
     deviceStatusText.value = formatError(e);
@@ -517,7 +572,9 @@ async function finishSession(sessionState: string, sid: string) {
     } catch {
       /* 争议单可能尚未生成订单 */
     }
-    uni.showToast({ title: '结算处理中，请继续购物或稍后查看订单', icon: 'none' });
+    reviewSessionId.value = sid;
+    uni.setStorageSync('last_disputed_session_id', sid);
+    uni.showToast({ title: '本次暂未扣款，已转人工审核', icon: 'none' });
   }
 }
 
@@ -860,6 +917,14 @@ function stopDevicePoll() {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+
+/* #ifdef H5 */
+/* H5 的原生导航栏和 TabBar 都是 fixed，uni-page-body 的 100% 会把底部操作区
+   继续撑到 TabBar 下方。显式扣除两者高度，保证“再次开门”等关键按钮可点击。 */
+.page-root {
+  height: calc(100vh - 94px);
+}
+/* #endif */
 .product-price {
   font-size: 32rpx;
   color: #07c160;
@@ -891,6 +956,35 @@ function stopDevicePoll() {
   font-weight: 500;
 }
 .cart-cta::after { border: none; }
+.settlement-review-card {
+  display: flex;
+  gap: 18rpx;
+  margin: 14rpx 20rpx 0;
+  padding: 22rpx;
+  border: 1rpx solid #fed7aa;
+  border-radius: 20rpx;
+  background: linear-gradient(135deg, #fffaf0, #fff7ed);
+  box-shadow: 0 9rpx 26rpx rgba(194, 65, 12, .08);
+}
+.review-icon {
+  display: flex;
+  flex: 0 0 42rpx;
+  height: 42rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #f97316;
+  font-weight: 800;
+}
+.review-copy { min-width: 0; flex: 1; }
+.review-title, .review-detail { display: block; }
+.review-title { color: #9a3412; font-size: 26rpx; font-weight: 750; }
+.review-detail { margin-top: 7rpx; color: #9a5b39; font-size: 22rpx; line-height: 1.55; }
+.review-actions { display: flex; flex-wrap: wrap; gap: 22rpx; margin-top: 15rpx; }
+.review-link { color: #c2410c; font-size: 23rpx; font-weight: 600; }
+.review-link.primary { color: #047857; }
+.review-link.subtle { color: #9ca3af; }
 .cart-status-chip {
   padding: 0 32rpx;
   height: 80rpx;
@@ -970,4 +1064,14 @@ function stopDevicePoll() {
   font-size: 26rpx;
 }
 .flow-cancel::after { border: none; }
+</style>
+<style scoped>
+.page-root{background:radial-gradient(circle at 85% 8%,rgba(16,185,129,.11),transparent 25%),linear-gradient(180deg,#effcf6 0,#f7f9fa 55%,#f7f9fa 100%)}
+.landing{position:relative;padding:0 28rpx 12rpx}.landing-head{padding:38rpx 14rpx 8rpx;text-align:left}.brand-pill{display:flex;width:max-content;align-items:center;gap:10rpx;padding:8rpx 16rpx;border:1rpx solid rgba(5,150,105,.16);border-radius:999rpx;color:#047857;background:rgba(255,255,255,.72);font-size:21rpx;font-weight:700;letter-spacing:2rpx}.brand-dot{width:12rpx;height:12rpx;border-radius:50%;background:#10b981;box-shadow:0 0 0 8rpx rgba(16,185,129,.12)}.landing-title{margin-top:24rpx;font-size:52rpx;font-weight:800;letter-spacing:-2rpx;color:#10251d}.landing-sub{margin-top:12rpx;color:#607068;font-size:24rpx}
+.resume-card{position:relative;overflow:hidden;margin-top:24rpx;padding:25rpx 28rpx;border:1rpx solid rgba(5,150,105,.12);border-left:0;border-radius:22rpx;box-shadow:0 12rpx 34rpx rgba(15,118,110,.08)}.resume-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:7rpx;background:linear-gradient(#10b981,#0d9488)}.resume-title{color:#047857}.resume-sub{color:#738078}
+.landing-error{display:flex;align-items:flex-start;gap:18rpx;margin-top:20rpx;padding:22rpx;border:1rpx solid #fecaca;border-radius:20rpx;background:rgba(255,247,247,.94);box-shadow:0 9rpx 24rpx rgba(220,38,38,.07)}.error-icon{display:flex;flex:0 0 42rpx;height:42rpx;align-items:center;justify-content:center;border-radius:50%;color:#fff;background:#ef4444;font-weight:800}.error-copy{min-width:0;flex:1}.error-title,.error-detail{display:block}.error-title{color:#991b1b;font-size:25rpx;font-weight:700}.error-detail{margin-top:6rpx;color:#b45353;font-size:22rpx;line-height:1.5}.error-close{padding:0 5rpx;color:#b98b8b;font-size:34rpx;line-height:1}
+.landing-body{justify-content:flex-start;padding-top:55rpx}.scan-kicker{margin-bottom:28rpx;color:#64756c;font-size:23rpx;font-weight:600;letter-spacing:1rpx}.scan-btn{position:relative}.scan-ring{position:absolute;left:50%;top:100rpx;border:1rpx solid rgba(16,185,129,.16);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none}.ring-one{width:270rpx;height:270rpx}.ring-two{width:330rpx;height:330rpx;opacity:.55}.scan-icon-wrap{width:216rpx;height:216rpx;background:linear-gradient(145deg,#059669 0%,#10b981 60%,#2dd4bf 100%);box-shadow:0 22rpx 55rpx rgba(5,150,105,.32),inset 0 1rpx 0 rgba(255,255,255,.28)}.scan-btn-text{margin-top:34rpx;color:#047857;font-size:34rpx;font-weight:800}.scan-helper{display:block;margin-top:8rpx;color:#95a19b;font-size:22rpx;font-weight:400}.steps{margin-top:38rpx;padding:14rpx 22rpx;border-radius:999rpx;background:rgba(255,255,255,.76);box-shadow:0 6rpx 20rpx rgba(15,23,42,.04)}.step{color:#526159;font-size:22rpx}.step-sep{color:#b8c3bd}
+.trust-grid{display:grid;width:100%;grid-template-columns:repeat(3,1fr);gap:14rpx;margin-top:28rpx}.trust-grid>view{display:flex;align-items:center;justify-content:center;gap:7rpx;padding:17rpx 8rpx;border:1rpx solid #edf2ef;border-radius:17rpx;color:#627169;background:rgba(255,255,255,.82);font-size:21rpx}.trust-icon{font-size:24rpx}.landing-foot{padding-bottom:22rpx}.manual-link{color:#9aa69f}
+.device-bar{margin:18rpx 20rpx 0;padding:25rpx;border:1rpx solid #edf2ef;border-radius:22rpx;box-shadow:0 9rpx 28rpx rgba(15,23,42,.055)}.device-status{margin-top:7rpx;font-weight:600}.catalog-notice{margin:14rpx 20rpx 0;padding:18rpx 20rpx;border:1rpx solid #fde7a9;border-radius:15rpx;background:#fffbeb}.product-grid{padding:0 20rpx;gap:18rpx}.product-cell{width:calc(50% - 9rpx);padding:15rpx;border:1rpx solid #eef2f0;border-radius:22rpx;box-shadow:0 9rpx 26rpx rgba(15,23,42,.055)}.product-thumb{height:210rpx;border-radius:17rpx}.product-name{font-size:27rpx;font-weight:600;color:#26342d}.product-price{color:#047857;font-size:34rpx}.cart-bar{border-top:0;box-shadow:0 -10rpx 32rpx rgba(15,23,42,.08);padding:18rpx 24rpx}.cart-cta{background:linear-gradient(135deg,#059669,#0d9488);box-shadow:0 8rpx 22rpx rgba(5,150,105,.22)}
+.flow-overlay{background:radial-gradient(circle at 50% 35%,#ecfdf5,#fff 55%)}.flow-spinner{width:132rpx;height:132rpx;border-width:10rpx;box-shadow:0 16rpx 44rpx rgba(5,150,105,.13)}.flow-title{font-size:44rpx;color:#173026}.flow-device{padding:10rpx 18rpx;border-radius:999rpx;background:#ecfdf5;font-weight:600}
 </style>

@@ -511,6 +511,11 @@ public class ReplenishmentService {
 
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "task not found"));
 
+        if ("COMPLETED".equals(task.getStatus())) {
+            completeRouteIfReady(task.getRouteId());
+            return toTaskDto(task);
+        }
+
         List<ReplenishmentTaskLine> pending = taskLineRepository.findByTaskIdAndAppliedFalse(taskId);
 
         if (!pending.isEmpty()
@@ -543,8 +548,23 @@ public class ReplenishmentService {
         inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
         warehouseService.markDeviceHandoverReceived(task.getOutboundId(), task.getDeviceId());
 
-        return toTaskDto(taskRepository.save(task));
+        task = taskRepository.save(task);
+        completeRouteIfReady(task.getRouteId());
+        return toTaskDto(task);
 
+    }
+
+    private void completeRouteIfReady(Long routeId) {
+        if (routeId == null) {
+            return;
+        }
+        List<ReplenishmentTask> routeTasks = taskRepository.findByRouteId(routeId);
+        if (!routeTasks.isEmpty() && routeTasks.stream().allMatch(item -> "COMPLETED".equals(item.getStatus()))) {
+            routeRepository.findById(routeId).ifPresent(route -> {
+                route.setStatus("COMPLETED");
+                routeRepository.save(route);
+            });
+        }
     }
 
 

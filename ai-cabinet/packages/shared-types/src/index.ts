@@ -274,6 +274,11 @@ export interface DisputeTicketDto {
   reason?: string;
   status: string;
   createdAt?: string;
+  resolvedAt?: string;
+  orderId?: string;
+  billedAmountCents?: number;
+  category?: string;
+  priority?: string;
 }
 
 export interface SessionCartRequest {

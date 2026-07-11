@@ -11,7 +11,7 @@
       <el-table-column prop="skuName" label="名称" />
       <el-table-column label="基准价"><template #default="{ row }">¥{{ ((row.priceCents || 0) / 100).toFixed(2) }}</template></el-table-column>
       <el-table-column prop="category" label="分类" />
-      <el-table-column prop="status" label="状态" width="100" />
+      <el-table-column label="状态" width="100"><template #default="{ row }"><el-tag :type="dictTagType(row.status)">{{ dictLabel('sku_status', row.status) }}</el-tag></template></el-table-column>
     </el-table>
   </el-card>
 </template>
@@ -22,6 +22,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import type { SkuCatalog } from '@aicabinet/shared-types';
+import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
 
 const loading = ref(false);
 const items = ref<SkuCatalog[]>([]);

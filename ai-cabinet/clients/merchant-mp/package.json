@@ -10,6 +10,7 @@
     "build:h5": "uni build"
   },
   "dependencies": {
+    "@aicabinet/shared-dict": "workspace:*",
     "@dcloudio/uni-app": "3.0.0-4010520240507001",
     "@dcloudio/uni-app-plus": "3.0.0-4010520240507001",
     "@dcloudio/uni-components": "3.0.0-4010520240507001",

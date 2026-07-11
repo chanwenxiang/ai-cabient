@@ -89,6 +89,22 @@ class SessionServiceRecoveryTest {
         verify(repository, never()).save(existing);
     }
 
+    @Test
+    void recognitionDispute_createsHighPriorityOpsException() {
+        ShoppingSession existing = session("S-DISPUTED", 7L, "CAB-001", SessionState.RECOGNIZING);
+        when(repository.findById("S-DISPUTED")).thenReturn(Optional.of(existing));
+        when(visionAsyncProperties.enabled()).thenReturn(false);
+        when(settlementService.settle(existing))
+                .thenThrow(new DisputeRequiredException("识别服务暂时不可用，已转人工审核，本次暂未扣款"));
+
+        var result = service.settleAfterClose("S-DISPUTED");
+
+        assertEquals(SessionState.DISPUTED, result.state());
+        verify(opsExceptionService).report("RECOGNITION_FAILED", "HIGH", "CAB-001",
+                "S-DISPUTED", null, 7L, "识别结果需人工审核",
+                "识别服务暂时不可用，已转人工审核，本次暂未扣款");
+    }
+
     private ShoppingSession session(String id, Long userId, String deviceId, SessionState state) {
         ShoppingSession session = new ShoppingSession();
         session.setSessionId(id);

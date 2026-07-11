@@ -1,5 +1,9 @@
 # Docker Compose 部署
 
+## 一键启动完整系统
+
+在仓库根目录运行 `./docker-up.ps1`。命令会自动构建业务服务和设备模拟器镜像并启动全栈；仅复用现有镜像时可加 `-NoBuild`。停止使用 `./docker-down.ps1`。
+
 本项目使用 **Docker Compose** 部署，不使用 Kubernetes。
 
 ## 两种模式
@@ -34,7 +38,7 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 | 运营后台 | http://localhost/admin/index.html |
 | trade API（经 Gateway） | http://localhost/api/... |
 | trade 直连 | http://localhost:8080 |
-| Grafana | http://localhost:3000 (admin/admin) |
+| Grafana | http://localhost:13000 (admin/admin，可通过 GRAFANA_PORT 修改) |
 | Prometheus | http://localhost:9090 |
 | MinIO 控制台 | http://localhost:9001 (minioadmin/minioadmin) |
 | EMQX 控制台 | http://localhost:28083 |

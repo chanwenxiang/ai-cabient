@@ -93,4 +93,5 @@ public class DeviceInfo {
     public String getOpsRemark() { return opsRemark; }
     public void setOpsRemark(String opsRemark) { this.opsRemark = opsRemark; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public void markHeartbeatReceived() { updatedAt = Instant.now(); }
 }

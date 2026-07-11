@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.beans.factory.ObjectProvider;
 
 import java.util.List;
@@ -20,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -73,5 +75,22 @@ class SettlementDisputeTest {
 
         verify(disputeService).createTicket(eq(session), eq(recognition),
                 eq("未识别到商品，需人工审核"));
+    }
+
+    @Test
+    void visionUnavailable_inMockMode_escalatesWithoutCharging() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-VISION-DOWN");
+        session.setUserId(13800138000L);
+        session.setDeviceId("CAB-001");
+
+        when(orderRepository.findBySessionId("S-VISION-DOWN")).thenReturn(java.util.Optional.empty());
+        when(visionClient.recognize(session)).thenThrow(new ResourceAccessException("vision down"));
+
+        assertThrows(DisputeRequiredException.class, () -> settlementService.settle(session));
+
+        verify(disputeService).createTicket(eq(session), any(VisionServiceClient.RecognitionResult.class),
+                eq("识别服务暂时不可用，已转人工审核，本次暂未扣款"));
+        verifyNoInteractions(orderPaymentService, inventoryService, revenueSplitService);
     }
 }

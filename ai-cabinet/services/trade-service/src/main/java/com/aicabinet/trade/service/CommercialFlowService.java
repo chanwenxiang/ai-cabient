@@ -20,7 +20,6 @@ import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.repository.DeviceInfoRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -58,7 +57,6 @@ public class CommercialFlowService {
         this.deviceRepository = deviceRepository;
     }
 
-    @Transactional
     public CommercialFlowRunResult runFullFlow(Long operatorId, CommercialFlowRunRequest request) {
         permissionService.requireAnyPermission(operatorId, "ops:dashboard:view", "ops:replenishment:edit");
         List<CommercialFlowStepDto> steps = new ArrayList<>();
@@ -163,14 +161,11 @@ public class CommercialFlowService {
     }
 
     private WarehouseOutboundDto ensureOutbound(Long operatorId, Long routeId) {
-        try {
-            return warehouseService.createOutboundForRoute(routeId, DemoDataService.DEMO_WAREHOUSE_ID, operatorId);
-        } catch (RuntimeException ignored) {
-            return warehouseService.listOutbounds().stream()
-                    .filter(o -> routeId.equals(o.routeId()))
-                    .findFirst()
-                    .orElseThrow(() -> ignored);
-        }
+        return warehouseService.listOutbounds().stream()
+                .filter(o -> routeId.equals(o.routeId()))
+                .findFirst()
+                .orElseGet(() -> warehouseService.createOutboundForRoute(
+                        routeId, DemoDataService.DEMO_WAREHOUSE_ID, operatorId));
     }
 
     private static void mark(List<CommercialFlowStepDto> steps, String code, String status, String message) {

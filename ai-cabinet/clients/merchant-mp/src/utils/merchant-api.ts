@@ -1,4 +1,5 @@
 import { API_BASE_URL } from '@/config/api';
+import { dictLabel } from '@aicabinet/shared-dict';
 
 function getToken() {
   return uni.getStorageSync('merchant_token') || '';
@@ -85,7 +86,17 @@ export const merchantApi = {
   settlements: () => request<import('@aicabinet/shared-types').MerchantSettlementOverview>('/api/v2/merchant/settlements/overview'),
   skuSales: (days = 30) => request<import('@aicabinet/shared-types').MerchantSkuSales[]>(`/api/v2/merchant/analytics/sku-sales?days=${days}`),
   replenishmentSuggestions: (deviceId: string) =>
-    request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`)
+    request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`),
+  replenishmentTasks: (status?: string) =>
+    request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/tasks${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  replenishmentTaskLines: (taskId: number) =>
+    request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/tasks/${taskId}/lines`),
+  checkInReplenishmentTask: (taskId: number, body?: { latitude?: number; longitude?: number }) =>
+    request(`/api/v2/merchant/replenishment/tasks/${taskId}/check-in`, 'POST', body || {}),
+  confirmReplenishmentLines: (taskId: number, lines: Record<string, unknown>[]) =>
+    request(`/api/v2/merchant/replenishment/tasks/${taskId}/lines`, 'POST', { lines }),
+  completeReplenishmentTask: (taskId: number) =>
+    request(`/api/v2/merchant/replenishment/tasks/${taskId}/complete`, 'POST')
 };
 
 export function canEditPlanogram(me: import('@aicabinet/shared-types').MerchantMe | null) {
@@ -102,15 +113,6 @@ export function hasPerm(me: import('@aicabinet/shared-types').MerchantMe | null,
   return (me?.permissions || []).includes(code);
 }
 
-const ALERT_TYPE: Record<string, string> = {
-  DISPUTE: '争议',
-  DEVICE_OFFLINE: '离线',
-  LOW_STOCK: '低库存',
-  EXPIRY: '临期',
-  INVENTORY_MISMATCH: '库存差异',
-  REPLENISHMENT_REQUIRED: '待补货'
-};
-
 export function alertTypeLabel(type: string) {
-  return ALERT_TYPE[type] || type;
+  return dictLabel('exception_type', type);
 }

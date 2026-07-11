@@ -19,11 +19,11 @@
         </view>
         <view class="kpi-card">
           <text class="kpi-label">在线柜机</text>
-          <text class="kpi-value">{{ stats.onlineDevices ?? '-' }}</text>
+          <text class="kpi-value">{{ stats.deviceOnline ?? '-' }}</text>
         </view>
         <view class="kpi-card">
           <text class="kpi-label">总柜机</text>
-          <text class="kpi-value">{{ stats.totalDevices ?? '-' }}</text>
+          <text class="kpi-value">{{ stats.deviceTotal ?? '-' }}</text>
         </view>
       </view>
 
@@ -39,6 +39,10 @@
         <view class="action-card" @click="goPricing">
           <text class="action-icon">¥</text>
           <text class="action-label">点位定价</text>
+        </view>
+        <view class="action-card" @click="goReplenishment">
+          <text class="action-icon">📦</text>
+          <text class="action-label">补货任务</text>
         </view>
       </view>
 
@@ -85,6 +89,8 @@ function fmtMoney(cents?: number) {
   if (cents == null) return '-';
   return '¥' + (cents / 100).toFixed(2);
 }
+
+function goReplenishment() { uni.navigateTo({ url: '/pages/replenishment/replenishment' }); }
 
 async function load() {
   if (!uni.getStorageSync('merchant_token')) {

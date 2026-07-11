@@ -9,8 +9,8 @@
     <el-table v-loading="loading" :data="items" stripe>
       <el-table-column prop="reconId" label="对账ID" min-width="140" />
       <el-table-column prop="reconDate" label="日期" width="120" />
-      <el-table-column prop="channel" label="渠道" width="100" />
-      <el-table-column prop="status" label="状态" width="120" />
+      <el-table-column label="渠道" width="100"><template #default="{ row }">{{ dictLabel('pay_channel', row.channel) }}</template></el-table-column>
+      <el-table-column label="状态" width="120"><template #default="{ row }"><el-tag :type="dictTagType(row.status)">{{ dictLabel('reconciliation_status', row.status) }}</el-tag></template></el-table-column>
       <el-table-column label="差异笔数"><template #default="{ row }">{{ row.mismatchCount ?? 0 }}</template></el-table-column>
       <el-table-column prop="createdAt" label="创建时间" width="180" />
     </el-table>
@@ -22,6 +22,7 @@ import { onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
+import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
 
 const loading = ref(false);
 const items = ref<Record<string, unknown>[]>([]);

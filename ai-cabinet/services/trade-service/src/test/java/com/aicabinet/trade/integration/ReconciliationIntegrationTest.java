@@ -1,8 +1,11 @@
 package com.aicabinet.trade.integration;
 
 import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.repository.CabinetOrderRepository;
+import com.aicabinet.trade.repository.ShoppingSessionRepository;
 import com.aicabinet.trade.service.ReconciliationService;
+import com.aicabinet.common.enums.SessionState;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -42,13 +45,24 @@ class ReconciliationIntegrationTest {
     @Autowired
     private CabinetOrderRepository orderRepository;
 
+    @Autowired
+    private ShoppingSessionRepository sessionRepository;
+
     @Test
     void mockReconciliation_matchesInsertedOrder() {
         LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("IT-SES-1");
+        session.setUserId(10001L);
+        session.setDeviceId("CAB-001");
+        session.setState(SessionState.COMPLETED);
+        session.setIdempotencyKey("it-reconciliation-session");
+        sessionRepository.save(session);
+
         CabinetOrder order = new CabinetOrder();
         order.setOrderId("IT-ORD-" + System.currentTimeMillis());
         order.setSessionId("IT-SES-1");
-        order.setUserId(13800138000L);
+        order.setUserId(10001L);
         order.setDeviceId("CAB-001");
         order.setTotalAmountCents(350);
         order.setStatus("PAID");

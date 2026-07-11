@@ -34,6 +34,10 @@
           <text class="balance-val">¥{{ balanceYuan }}</text>
         </view>
         <text class="balance-warning">最低开门余额 ¥5.00，测试余额不代表真实充值资金</text>
+        <button class="btn-primary" hover-class="btn-hover" :loading="busy" :disabled="busy" @click="onMockRecharge">
+          {{ busy ? '发放中…' : '模拟充值 ¥20 测试余额' }}
+        </button>
+        <view class="support-link" @click="contactOps">联系现场运营人员</view>
       </view>
 
       <text v-if="err" class="err">{{ err }}</text>
@@ -101,6 +105,38 @@ async function onVerify() {
   } finally {
     busy.value = false;
   }
+}
+
+async function onMockRecharge() {
+  if (busy.value) return;
+  const confirmed = await new Promise<boolean>((resolve) => uni.showModal({
+    title: '确认模拟充值',
+    content: '将发放 ¥20.00 测试余额，不会从微信、支付宝或银行卡扣款。',
+    confirmText: '确认发放',
+    success: (result) => resolve(result.confirm),
+    fail: () => resolve(false)
+  }));
+  if (!confirmed) return;
+  busy.value = true;
+  err.value = '';
+  try {
+    const key = `prep-recharge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const order = await consumerApi.createMockRecharge(2000, key);
+    await consumerApi.confirmMockRecharge(order.orderId);
+    account.value = await consumerApi.account();
+    uni.showToast({ title: '测试余额已到账', icon: 'success' });
+  } catch (error) {
+    err.value = error instanceof Error ? error.message : '测试余额发放失败';
+  } finally { busy.value = false; }
+}
+
+function contactOps() {
+  uni.showModal({
+    title: '联系运营人员',
+    content: '请联系柜机所在点位的现场工作人员，并提供柜机编号。运营人员可在后台发放测试余额。',
+    showCancel: false,
+    confirmText: '我知道了'
+  });
 }
 
 function onCancel() {
@@ -230,6 +266,7 @@ function onCancel() {
   margin-top: 16rpx;
 }
 .balance-warning { display: block; padding: 20rpx; border-radius: 12rpx; background: #fff7e6; color: #ad6800; font-size: 25rpx; line-height: 1.5; }
+.balance-warning + .btn-primary{margin-top:22rpx}.support-link{padding:22rpx 0 4rpx;text-align:center;color:#64748b;font-size:25rpx}
 .err {
   color: #fa5151;
   font-size: 26rpx;
@@ -245,4 +282,7 @@ function onCancel() {
   margin-top: 24rpx;
   padding: 12rpx 0;
 }
+</style>
+<style scoped>
+.drawer-mask{justify-content:center}.drawer-panel{max-width:520px;padding:18rpx 32rpx calc(34rpx + env(safe-area-inset-bottom));border-radius:30rpx 30rpx 0 0;box-shadow:0 -18rpx 55rpx rgba(15,23,42,.2)}.drawer-handle{background:#cbd5e1}.drawer-title{font-size:36rpx;color:#1b3027}.prep-dot{box-shadow:0 0 0 6rpx #f4f7f5}.prep-step.done .prep-dot{background:linear-gradient(135deg,#059669,#0d9488);box-shadow:0 0 0 6rpx #d1fae5}.input{border:1rpx solid #e3eae6;border-radius:17rpx;background:#f8faf9}.btn-primary{border-radius:44rpx;background:linear-gradient(135deg,#059669,#0d9488);box-shadow:0 9rpx 24rpx rgba(5,150,105,.2)}
 </style>

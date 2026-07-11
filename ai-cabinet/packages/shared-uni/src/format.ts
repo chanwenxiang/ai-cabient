@@ -21,15 +21,6 @@ export function formatError(err: unknown): string {
 }
 
 export function orderStatusLabel(status?: string) {
-  const map: Record<string, string> = {
-    PAID: '已支付',
-    COMPLETED: '已完成',
-    PENDING: '待支付',
-    PROCESSING: '处理中',
-    FAILED: '处理失败',
-    REFUNDED: '已退款',
-    DISPUTED: '争议中',
-    CANCELLED: '已取消'
-  };
-  return (status && map[status]) || status || '-';
+  return dictLabel('order_status', status);
 }
+import { dictLabel } from '@aicabinet/shared-dict';

@@ -98,6 +98,7 @@ class WeChatNotifyIntegrationTest {
         order.setAmountCents(500);
         order.setChannel("WECHAT");
         order.setStatus("PENDING");
+        order.setIdempotencyKey("it-wechat-notify-" + orderId);
         order.setWxPrepayId("prepay-test");
         rechargeOrderRepository.save(order);
 

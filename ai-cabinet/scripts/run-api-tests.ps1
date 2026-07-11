@@ -77,7 +77,10 @@ try {
 }
 
 try {
-    $sess = Invoke-Api POST "/api/v2/sessions" $auth @{ deviceId = "CAB-001" }
+    $sess = Invoke-Api POST "/api/v2/sessions" $auth @{
+        deviceId = "CAB-001"
+        idempotencyKey = "api-smoke-open-$([guid]::NewGuid().ToString('N'))"
+    }
     $sid = $sess.sessionId
     Record "TC-PFREE-003" "Password-free open door" ($null -ne $sid) "session=$sid state=$($sess.state)"
     $headers = @{ "X-Internal-Api-Key" = $InternalKey }
