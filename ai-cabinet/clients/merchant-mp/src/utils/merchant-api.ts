@@ -78,6 +78,9 @@ export const merchantApi = {
   updatePricing: (skuId: string, body: { deviceId: string; priceCents: number | null }) =>
     request(`/api/v2/merchant/pricing/skus/${encodeURIComponent(skuId)}`, 'PATCH', body),
   workbench: () => request<import('@aicabinet/shared-types').MerchantWorkbench>('/api/v2/merchant/workbench'),
+  exceptions: (status = 'OPEN') => request<{ items: Array<{ exceptionId:string; exceptionType:string; title:string; detail?:string; deviceId?:string }> }>(`/api/v2/merchant/exceptions?status=${encodeURIComponent(status)}`),
+  resolveInventoryException: (id: string, resolution: string) =>
+    request(`/api/v2/merchant/exceptions/${encodeURIComponent(id)}/resolve`, 'POST', { resolution }),
   analytics: (days = 30) => request<import('@aicabinet/shared-types').MerchantAnalyticsOverview>(`/api/v2/merchant/analytics/overview?days=${days}`),
   settlements: () => request<import('@aicabinet/shared-types').MerchantSettlementOverview>('/api/v2/merchant/settlements/overview'),
   skuSales: (days = 30) => request<import('@aicabinet/shared-types').MerchantSkuSales[]>(`/api/v2/merchant/analytics/sku-sales?days=${days}`),
@@ -103,7 +106,9 @@ const ALERT_TYPE: Record<string, string> = {
   DISPUTE: '争议',
   DEVICE_OFFLINE: '离线',
   LOW_STOCK: '低库存',
-  EXPIRY: '临期'
+  EXPIRY: '临期',
+  INVENTORY_MISMATCH: '库存差异',
+  REPLENISHMENT_REQUIRED: '待补货'
 };
 
 export function alertTypeLabel(type: string) {

@@ -72,7 +72,7 @@ const fromOpen = ref(false);
 
 const balanceYuan = computed(() => ((account.value?.balanceCents || 0) / 100).toFixed(2));
 const payReady = computed(
-  () => !!account.value?.passwordFreeReady || (account.value?.balanceCents || 0) >= 500
+  () => (account.value?.balanceCents || 0) >= 500
 );
 
 onLoad((opts) => {

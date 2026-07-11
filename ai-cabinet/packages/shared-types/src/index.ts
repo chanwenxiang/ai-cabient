@@ -196,6 +196,34 @@ export interface AccountDto {
   realName?: string;
 }
 
+export interface BalanceTransactionDto {
+  transactionId: string;
+  userId: string | number;
+  businessType: string;
+  businessId: string;
+  amountCents: number;
+  balanceBeforeCents: number;
+  balanceAfterCents: number;
+  reason?: string;
+  createdAt: string;
+}
+
+export interface RechargePrepayResponse {
+  channel: string;
+  orderId: string;
+  debugInfo?: Record<string, string>;
+}
+
+export interface RechargeOrderDto {
+  orderId: string;
+  userId: string | number;
+  amountCents: number;
+  channel: string;
+  status: 'PENDING' | 'PAID' | 'CANCELLED' | 'REFUNDED';
+  createdAt?: string;
+  paidAt?: string;
+}
+
 export interface VerifyIdentityRequest {
   realName: string;
   idCardLast4: string;
@@ -276,6 +304,9 @@ export interface OrderDetailDto {
   deviceId?: string;
   status: string;
   payChannel?: string;
+  paymentOperationId?: string;
+  balanceBeforeCents?: number;
+  balanceAfterCents?: number;
   totalAmountCents: number;
   lines?: OrderLineDto[];
   createdAt?: string;

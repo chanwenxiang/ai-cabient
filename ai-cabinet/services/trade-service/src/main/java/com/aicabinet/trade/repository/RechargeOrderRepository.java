@@ -9,8 +9,11 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 public interface RechargeOrderRepository extends JpaRepository<RechargeOrder, String> {
+
+    Optional<RechargeOrder> findByIdempotencyKey(String idempotencyKey);
 
     @Query("SELECT COALESCE(SUM(r.amountCents), 0) FROM RechargeOrder r WHERE r.status = 'PAID' AND r.paidAt >= :start AND r.paidAt < :end")
     long sumPaidAmountBetween(@Param("start") Instant start, @Param("end") Instant end);

@@ -21,13 +21,22 @@ public class AccountService {
     private final UserInfoRepository userInfoRepository;
     private final UserAccountRepository userAccountRepository;
     private final PayScoreService payScoreService;
+    private final BalanceLedgerService balanceLedgerService;
 
     public AccountService(UserInfoRepository userInfoRepository,
                           UserAccountRepository userAccountRepository,
-                          PayScoreService payScoreService) {
+                          PayScoreService payScoreService,
+                          BalanceLedgerService balanceLedgerService) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.payScoreService = payScoreService;
+        this.balanceLedgerService = balanceLedgerService;
+    }
+
+    @Transactional(readOnly = true)
+    public com.aicabinet.common.dto.PageResult<com.aicabinet.common.dto.BalanceTransactionDto> transactions(
+            Long userId, int page, int size) {
+        return balanceLedgerService.list(userId, page, size);
     }
 
     @Transactional(readOnly = true)

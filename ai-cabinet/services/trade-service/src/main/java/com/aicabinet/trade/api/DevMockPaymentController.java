@@ -18,8 +18,9 @@ public class DevMockPaymentController {
     }
 
     @PostMapping("/notify/mock/{orderId}")
-    public ApiResponse<Void> mockNotify(@PathVariable("orderId") String orderId) {
-        paymentService.confirmRechargeMock(orderId);
+    public ApiResponse<Void> mockNotify(@PathVariable("orderId") String orderId,
+                                        @RequestParam("userId") Long userId) {
+        paymentService.confirmRechargeMock(userId, orderId);
         return ApiResponse.ok(null);
     }
 }

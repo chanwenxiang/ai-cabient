@@ -85,6 +85,7 @@ public class AdminDashboardService {
     private final ReplenishmentTaskRepository replenishmentTaskRepository;
     private final PaymentReconciliationRepository reconciliationRepository;
     private final WarehouseInTransitRepository inTransitRepository;
+    private final BalanceLedgerService balanceLedgerService;
 
     public AdminDashboardService(DeviceInfoRepository deviceRepository,
                                  ShoppingSessionRepository sessionRepository,
@@ -110,7 +111,8 @@ public class AdminDashboardService {
                                  DeviceSlotService deviceSlotService,
                                  ReplenishmentTaskRepository replenishmentTaskRepository,
                                  PaymentReconciliationRepository reconciliationRepository,
-                                 WarehouseInTransitRepository inTransitRepository) {
+                                 WarehouseInTransitRepository inTransitRepository,
+                                 BalanceLedgerService balanceLedgerService) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -136,6 +138,7 @@ public class AdminDashboardService {
         this.replenishmentTaskRepository = replenishmentTaskRepository;
         this.reconciliationRepository = reconciliationRepository;
         this.inTransitRepository = inTransitRepository;
+        this.balanceLedgerService = balanceLedgerService;
     }
 
     public AdminStatsDto stats(Long operatorId) {
@@ -989,19 +992,11 @@ public class AdminDashboardService {
         }
         UserInfo user = userInfoRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
-        UserAccount account = userAccountRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ACCOUNT_NOT_FOUND));
-        long next = (long) account.getBalanceCents() + request.deltaCents();
-        if (next < 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.BALANCE_NEGATIVE);
-        }
-        if (next > Integer.MAX_VALUE) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.BALANCE_TOO_LARGE);
-        }
-        account.setBalanceCents((int) next);
-        userAccountRepository.save(account);
+        var ledger = balanceLedgerService.change(userId, request.deltaCents(), "ADMIN_ADJUST",
+                "ADMIN-" + userId, "ADMIN:" + request.idempotencyKey().trim(), request.reason());
         auditService.record(operatorId, "BALANCE_ADJUST", "USER", String.valueOf(userId),
-                "delta=" + request.deltaCents() + " balance=" + next);
+                "delta=" + request.deltaCents() + " balance=" + ledger.getBalanceAfterCents()
+                        + " reason=" + request.reason().trim());
         return toUserDto(user);
     }
 

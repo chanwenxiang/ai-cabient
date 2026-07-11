@@ -41,6 +41,9 @@ public class SessionService {
     private static final Logger log = LoggerFactory.getLogger(SessionService.class);
 
     private static final long OPENING_EXPIRE_SECONDS = 90;
+    private static final EnumSet<SessionState> ACTIVE_STATES = EnumSet.of(
+            SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
+            SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING);
 
     private final ShoppingSessionRepository repository;
     private final DeviceServiceClient deviceClient;
@@ -53,6 +56,7 @@ public class SessionService {
     private final GravitySettlementHelper gravityHelper;
     private final RestockSnapshotService restockSnapshotService;
     private final SessionService self;
+    private final OpsExceptionService opsExceptionService;
 
     public SessionService(ShoppingSessionRepository repository,
                           DeviceServiceClient deviceClient,
@@ -64,7 +68,8 @@ public class SessionService {
                           DomainEventPublisher domainEventPublisher,
                           GravitySettlementHelper gravityHelper,
                           RestockSnapshotService restockSnapshotService,
-                          @Lazy SessionService self) {
+                          @Lazy SessionService self,
+                          OpsExceptionService opsExceptionService) {
         this.repository = repository;
         this.deviceClient = deviceClient;
         this.userValidationService = userValidationService;
@@ -76,13 +81,15 @@ public class SessionService {
         this.gravityHelper = gravityHelper;
         this.restockSnapshotService = restockSnapshotService;
         this.self = self;
+        this.opsExceptionService = opsExceptionService;
     }
 
     @Transactional
     public SessionDto createSession(Long userId, CreateSessionRequest request) {
-        if (request.idempotencyKey() != null) {
-            return repository.findByIdempotencyKey(request.idempotencyKey())
-                    .map(this::toDto)
+        String idempotencyKey = normalizeIdempotencyKey(request.idempotencyKey());
+        if (idempotencyKey != null) {
+            return repository.findByIdempotencyKey(idempotencyKey)
+                    .map(existing -> validateIdempotentReplay(userId, request.deviceId(), existing))
                     .orElseGet(() -> doCreateSession(userId, request));
         }
         return doCreateSession(userId, request);
@@ -98,8 +105,10 @@ public class SessionService {
         session.setUserId(userId);
         session.setDeviceId(request.deviceId());
         session.setState(SessionState.CREATED);
-        session.setIdempotencyKey(request.idempotencyKey());
-        repository.save(session);
+        session.setIdempotencyKey(normalizeIdempotencyKey(request.idempotencyKey()));
+        // 先强制写入唯一幂等键，再改变状态和下发开门命令。并发重复请求会在这里失败，
+        // 不会出现两个事务都先向同一台柜机发送开门命令、最后才在提交时发现冲突。
+        repository.saveAndFlush(session);
 
         transition(session, SessionState.OPENING);
         deviceClient.requestOpenDoor(session.getSessionId(), session.getDeviceId(), userId, false);
@@ -413,6 +422,14 @@ public class SessionService {
             log.warn("session disputed session={}", session.getSessionId());
             return toDto(session);
         } catch (ResponseStatusException e) {
+            if (e.getStatusCode() == HttpStatus.PRECONDITION_FAILED) {
+                session.setFailReason(e.getReason());
+                transition(session, SessionState.DISPUTED);
+                opsExceptionService.report("BALANCE_INSUFFICIENT", "HIGH", session.getDeviceId(),
+                        session.getSessionId(), session.getOrderId(), session.getUserId(),
+                        "结算余额不足", e.getReason());
+                return toDto(session);
+            }
             session.setFailReason(e.getReason());
             transition(session, SessionState.FAILED);
             repository.save(session);
@@ -420,10 +437,16 @@ public class SessionService {
             return toDto(session);
         } catch (RestClientException e) {
             log.error("vision/settle remote call failed session={}", session.getSessionId(), e);
+            opsExceptionService.report("RECOGNITION_UNAVAILABLE", "HIGH", session.getDeviceId(),
+                    session.getSessionId(), session.getOrderId(), session.getUserId(),
+                    "识别或结算服务不可用", e.getMessage());
             transition(session, SessionState.FAILED);
             return toDto(session);
         } catch (RuntimeException e) {
             log.error("settle failed session={}", session.getSessionId(), e);
+            opsExceptionService.report("SETTLEMENT_FAILED", "HIGH", session.getDeviceId(),
+                    session.getSessionId(), session.getOrderId(), session.getUserId(),
+                    "订单结算失败", e.getMessage());
             session.setFailReason(ApiMessages.INTERNAL_ERROR);
             if (session.getState().canTransitionTo(SessionState.FAILED)) {
                 transition(session, SessionState.FAILED);
@@ -501,6 +524,68 @@ public class SessionService {
     }
 
     @Transactional(readOnly = true)
+    public SessionDto getActiveSession(Long userId) {
+        return repository.findFirstByUserIdAndStateInOrderByCreatedAtDesc(userId, ACTIVE_STATES)
+                .map(this::toDto)
+                .orElse(null);
+    }
+
+    @Transactional
+    public SessionDto cancelSession(Long userId, String sessionId) {
+        ShoppingSession session = repository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        requireSessionOwner(userId, session);
+        if (session.getState() == SessionState.CANCELLED) {
+            return toDto(session);
+        }
+        if (session.getState() != SessionState.CREATED && session.getState() != SessionState.OPENING) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_STATE_INVALID);
+        }
+        transition(session, SessionState.CANCELLED);
+        log.info("consumer cancelled opening session={} device={}", sessionId, session.getDeviceId());
+        return toDto(session);
+    }
+
+    /** 运营兜底：终止异常活跃会话，使设备重新可用。调用方必须完成权限、二次确认和审计。 */
+    @Transactional
+    public SessionDto forceCancelForOperations(String sessionId, String reason) {
+        ShoppingSession session = repository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        if (!ACTIVE_STATES.contains(session.getState())) return toDto(session);
+        session.setFailReason(reason == null ? "运营终止会话" : reason.trim());
+        session.setState(SessionState.CANCELLED);
+        repository.save(session);
+        cabinetMetrics.recordSessionState(SessionState.CANCELLED);
+        domainEventPublisher.publish("SessionForceCancelled", sessionId,
+                Map.of("deviceId", session.getDeviceId(), "reason", session.getFailReason()));
+        log.warn("operations force cancelled session={} device={} reason={}",
+                sessionId, session.getDeviceId(), session.getFailReason());
+        return toDto(session);
+    }
+
+    /** 运营重试识别/结算。订单和扣款仍由 SettlementService 的会话幂等约束保护。 */
+    @Transactional
+    public SessionDto retryForOperations(String sessionId) {
+        ShoppingSession session = repository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        if (session.getState() == SessionState.COMPLETED) return toDto(session);
+        if (!EnumSet.of(SessionState.FAILED, SessionState.DISPUTED, SessionState.RECOGNIZING,
+                SessionState.SETTLING).contains(session.getState())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前会话状态不支持重新识别或结算");
+        }
+        boolean hasVideo = session.getVideoUri() != null && !session.getVideoUri().isBlank();
+        boolean hasGravity = session.getGravityDeltas() != null && !session.getGravityDeltas().isBlank();
+        if (!hasVideo && !hasGravity && session.getOrderId() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "会话缺少视频或重力数据，不能自动重试");
+        }
+        session.setFailReason(null);
+        session.setState(SessionState.RECOGNIZING);
+        repository.save(session);
+        cabinetMetrics.recordSessionState(SessionState.RECOGNIZING);
+        return settleSession(session);
+    }
+
+    @Transactional(readOnly = true)
     public OrderDto getSessionOrder(Long userId, String sessionId) {
         getSession(userId, sessionId);
         return settlementService.getOrderBySession(sessionId);
@@ -518,6 +603,8 @@ public class SessionService {
                     s.setState(SessionState.CANCELLED);
                     repository.save(s);
                     cabinetMetrics.recordSessionState(SessionState.CANCELLED);
+                    opsExceptionService.report("OPEN_TIMEOUT", "HIGH", s.getDeviceId(), s.getSessionId(),
+                            s.getOrderId(), s.getUserId(), "开门超时", "开门命令在90秒内未得到设备响应");
                     log.warn("opening session expired session={} device={}", s.getSessionId(), s.getDeviceId());
                 });
     }
@@ -526,6 +613,18 @@ public class SessionService {
         if (!session.getUserId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.ACCESS_DENIED);
         }
+    }
+
+    private SessionDto validateIdempotentReplay(Long userId, String deviceId, ShoppingSession session) {
+        if (!session.getUserId().equals(userId) || !session.getDeviceId().equalsIgnoreCase(deviceId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "幂等键已用于其他开门请求");
+        }
+        return toDto(session);
+    }
+
+    private String normalizeIdempotencyKey(String key) {
+        if (key == null || key.isBlank()) return null;
+        return key.trim();
     }
 
     void transition(ShoppingSession session, SessionState target) {

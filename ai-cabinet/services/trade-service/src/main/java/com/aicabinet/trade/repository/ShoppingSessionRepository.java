@@ -16,6 +16,9 @@ public interface ShoppingSessionRepository extends JpaRepository<ShoppingSession
 
     Optional<ShoppingSession> findByIdempotencyKey(String idempotencyKey);
 
+    Optional<ShoppingSession> findFirstByUserIdAndStateInOrderByCreatedAtDesc(
+            Long userId, Collection<SessionState> states);
+
     List<ShoppingSession> findByDeviceIdAndStateIn(String deviceId, List<SessionState> states);
 
     Page<ShoppingSession> findAllByOrderByCreatedAtDesc(Pageable pageable);

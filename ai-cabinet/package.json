@@ -8,7 +8,7 @@
     "build:consumer-mp": "pnpm --filter @aicabinet/consumer-mp build:mp-weixin",
     "dev:merchant-mp": "pnpm --filter @aicabinet/merchant-mp dev:mp-weixin",
     "build:merchant-mp": "pnpm --filter @aicabinet/merchant-mp build:mp-weixin",
-    "build:packages": "pnpm -r --filter './packages/*' build"
+    "build:packages": "pnpm -r --filter @aicabinet/shared-types --filter @aicabinet/shared-dict --filter @aicabinet/shared-api build"
   },
   "engines": {
     "node": ">=18"

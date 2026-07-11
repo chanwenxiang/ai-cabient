@@ -30,6 +30,7 @@ vision-service/models/*.pt
 node_modules/
 clients/*/node_modules/
 clients/*/dist/
+packages/*/dist/
 .pnpm-store/
 project.private.config.json
 

@@ -4,6 +4,7 @@ import com.aicabinet.trade.config.AlipayProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.RechargeOrder;
+import com.aicabinet.trade.domain.PaymentOperation;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.payment.AlipayNotifyService;
 import com.aicabinet.trade.payment.AlipayPayClient;
@@ -37,6 +38,7 @@ class PaymentServiceTest {
     @Mock private WeChatPayNotifyService notifyService;
     @Mock private AlipayPayClient alipayPayClient;
     @Mock private AlipayNotifyService alipayNotifyService;
+    @Mock private BalanceLedgerService balanceLedgerService;
 
     private PaymentService paymentService;
     private WeChatPayProperties weChatPayProperties;
@@ -52,7 +54,8 @@ class PaymentServiceTest {
         paymentService = new PaymentService(
                 rechargeOrderRepository, userInfoRepository, userAccountRepository,
                 weChatPayProperties, alipayProperties, securityProperties,
-                weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService);
+                weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
+                balanceLedgerService);
     }
 
     @Test
@@ -86,13 +89,35 @@ class PaymentServiceTest {
 
         when(rechargeOrderRepository.findById("R002")).thenReturn(Optional.of(order));
         when(userAccountRepository.findById(10001L)).thenReturn(Optional.of(account));
+        PaymentOperation operation = new PaymentOperation();
+        operation.setOperationId("BL-REFUND");
+        when(balanceLedgerService.change(10001L, -500, "RECHARGE_REFUND", "R002",
+                "recharge-refund:R002", "test refund")).thenReturn(operation);
 
         var dto = paymentService.refundRecharge("R002", "test refund");
 
         assertEquals("REFUNDED", dto.status());
-        assertEquals(500, account.getBalanceCents());
         verify(rechargeOrderRepository).save(order);
-        verify(userAccountRepository).save(account);
+        verify(balanceLedgerService).change(10001L, -500, "RECHARGE_REFUND", "R002",
+                "recharge-refund:R002", "test refund");
+    }
+
+    @Test
+    void confirmRechargeMock_isIdempotentAndUsesLedger() {
+        RechargeOrder order = pendingOrder("R003", 10001L);
+        PaymentOperation operation = new PaymentOperation();
+        operation.setOperationId("BL001");
+        when(rechargeOrderRepository.findById("R003")).thenReturn(Optional.of(order));
+        when(balanceLedgerService.change(10001L, 500, "RECHARGE", "R003",
+                "recharge-credit:R003", "充值到账（灰度环境测试余额）")).thenReturn(operation);
+
+        var first = paymentService.confirmRechargeMock(10001L, "R003");
+        var second = paymentService.confirmRechargeMock(10001L, "R003");
+
+        assertEquals("PAID", first.status());
+        assertEquals("PAID", second.status());
+        assertEquals("BL001", order.getPaymentOperationId());
+        verify(balanceLedgerService, times(1)).change(anyLong(), anyInt(), anyString(), anyString(), anyString(), anyString());
     }
 
     private static RechargeOrder pendingOrder(String id, Long userId) {
@@ -102,6 +127,7 @@ class PaymentServiceTest {
         order.setAmountCents(500);
         order.setChannel("WECHAT");
         order.setStatus("PENDING");
+        order.setIdempotencyKey("test:" + id);
         return order;
     }
 

@@ -23,6 +23,12 @@ public class RechargeOrder {
     @Column(nullable = false, length = 16)
     private String status;
 
+    @Column(nullable = false, length = 128, unique = true)
+    private String idempotencyKey;
+
+    @Column(length = 64)
+    private String paymentOperationId;
+
     @Column(length = 64)
     private String wxPrepayId;
 
@@ -53,6 +59,10 @@ public class RechargeOrder {
     public void setChannel(String channel) { this.channel = channel; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getIdempotencyKey() { return idempotencyKey; }
+    public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
+    public String getPaymentOperationId() { return paymentOperationId; }
+    public void setPaymentOperationId(String paymentOperationId) { this.paymentOperationId = paymentOperationId; }
     public String getWxPrepayId() { return wxPrepayId; }
     public void setWxPrepayId(String wxPrepayId) { this.wxPrepayId = wxPrepayId; }
     public String getWxTransactionId() { return wxTransactionId; }

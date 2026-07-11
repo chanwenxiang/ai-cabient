@@ -38,6 +38,20 @@ public class SessionController {
         return ApiResponse.ok(sessionService.getSession(userId, sessionId));
     }
 
+    @GetMapping("/active")
+    public ApiResponse<SessionDto> active(HttpServletRequest request) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(sessionService.getActiveSession(userId));
+    }
+
+    @PostMapping("/{sessionId}/cancel")
+    public ApiResponse<SessionDto> cancel(
+            HttpServletRequest request,
+            @PathVariable("sessionId") String sessionId) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(sessionService.cancelSession(userId, sessionId));
+    }
+
     @PutMapping("/{sessionId}/cart")
     public ApiResponse<SessionDto> updateCart(
             HttpServletRequest request,

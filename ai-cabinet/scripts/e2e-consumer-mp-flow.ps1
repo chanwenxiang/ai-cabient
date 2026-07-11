@@ -63,7 +63,7 @@ Write-Host ""
 
 Clear-E2eDeviceBlockingSessions -DeviceId $DeviceId | Out-Null
 
-Write-Host "==> Flow A: wx-login -> verify -> payscore -> session"
+Write-Host "==> Flow A: new wx user -> verify -> balance gate"
 $wxCode = "e2e_flow_" + [guid]::NewGuid().ToString("N")
 $wx = Api -Method POST -Path "/api/v2/auth/wx-login" -Body @{ code = $wxCode }
 $auth = @{ Authorization = "Bearer $($wx.token)" }
@@ -75,33 +75,53 @@ Assert "account" ($null -ne $acc.balanceCents) "verified=$($acc.verified) balanc
 $verified = Api -Method POST -Path "/api/v2/account/verify" -Headers $auth -Body @{ realName = "E2E User"; idCardLast4 = "1234" }
 Assert "verify identity" ($verified.verified -eq $true)
 
-if (-not $verified.passwordFreeReady -and $verified.balanceCents -lt 500) {
-    $null = Api -Method POST -Path "/api/v2/account/payscore/sign" -Headers $auth
-}
 $acc2 = Api -Method GET -Path "/api/v2/account" -Headers $auth
-Assert "payment ready" ($acc2.passwordFreeReady -or $acc2.balanceCents -ge 500) "pfree=$($acc2.passwordFreeReady)"
+Assert "new pilot user starts below opening threshold" ($acc2.balanceCents -lt 500) "balance=$($acc2.balanceCents)"
 
 $prods = Api -Method GET -Path "/api/v2/devices/$DeviceId/products" -Headers $auth
 Assert "products" ($prods.Count -gt 0) "count=$($prods.Count)"
 
+$balanceGateRejected = $false
 try {
-    $dev = Api -Method GET -Path "/api/v2/devices/$DeviceId/status" -Headers $auth
-    if (($dev.onlineStatus -as [string]).ToUpper() -ne "ONLINE") {
-        Assert "create session (device online)" $false "device offline - start DeviceSimulator"
-    } else {
-        $sess = Api -Method POST -Path "/api/v2/sessions" -Headers $auth -Body @{ deviceId = $DeviceId }
-        Assert "create session (open door)" ($sess.sessionId) $sess.sessionId
+    $null = Api -Method POST -Path "/api/v2/sessions" -Headers $auth -Body @{
+        deviceId = $DeviceId
+        idempotencyKey = "e2e-balance-gate-" + [guid]::NewGuid().ToString("N")
     }
 } catch {
-    Assert "create session (open door)" $false $_.Exception.Message
+    $balanceGateRejected = $true
 }
+Assert "insufficient balance blocks session" $balanceGateRejected
 Write-Host ""
 
-Write-Host "==> Flow B: demo login + orders"
+Write-Host "==> Flow B: funded demo user -> idempotent session + orders"
 Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/auth/sms-code?phoneNumber=13800138000" | Out-Null
 $demo = Api -Method POST -Path "/api/v2/auth/login" -Body @{ phoneNumber = "13800138000"; code = "123456" }
 $demoAuth = @{ Authorization = "Bearer $($demo.token)" }
 Assert "demo login" ($demo.userId -eq 10001)
+$demoAccount = Api -Method GET -Path "/api/v2/account" -Headers $demoAuth
+Assert "demo user has opening balance" ($demoAccount.balanceCents -ge 500) "balance=$($demoAccount.balanceCents)"
+
+try {
+    $dev = Api -Method GET -Path "/api/v2/devices/$DeviceId/status" -Headers $demoAuth
+    if (($dev.onlineStatus -as [string]).ToUpper() -ne "ONLINE") {
+        Assert "create session (device online)" $false "device offline - start DeviceSimulator"
+    } else {
+        $openKey = "e2e-open-" + [guid]::NewGuid().ToString("N")
+        $sess = Api -Method POST -Path "/api/v2/sessions" -Headers $demoAuth -Body @{
+            deviceId = $DeviceId
+            idempotencyKey = $openKey
+        }
+        Assert "create session (open door)" ($sess.sessionId) $sess.sessionId
+        $duplicate = Api -Method POST -Path "/api/v2/sessions" -Headers $demoAuth -Body @{
+            deviceId = $DeviceId
+            idempotencyKey = $openKey
+        }
+        Assert "session create is idempotent" ($duplicate.sessionId -eq $sess.sessionId) $duplicate.sessionId
+    }
+} catch {
+    Assert "create session (open door)" $false $_.Exception.Message
+}
+
 $ordersPath = "/api/v2/orders?page=0" + "&size=5"
 $orders = Api -Method GET -Path $ordersPath -Headers $demoAuth
 Assert "orders" ($null -ne $orders.items -or $null -ne $orders.content) "count=$($orders.items.Count)$($orders.content.Count)"

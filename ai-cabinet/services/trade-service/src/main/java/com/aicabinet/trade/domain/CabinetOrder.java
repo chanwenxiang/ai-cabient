@@ -34,6 +34,11 @@ public class CabinetOrder {
     @Column(length = 64)
     private String payTradeNo;
 
+    @Column(length = 64)
+    private String paymentOperationId;
+    private Integer balanceBeforeCents;
+    private Integer balanceAfterCents;
+
     @Column(nullable = false)
     private boolean inventoryDeducted;
 
@@ -66,6 +71,12 @@ public class CabinetOrder {
     public void setPayChannel(String payChannel) { this.payChannel = payChannel; }
     public String getPayTradeNo() { return payTradeNo; }
     public void setPayTradeNo(String payTradeNo) { this.payTradeNo = payTradeNo; }
+    public String getPaymentOperationId() { return paymentOperationId; }
+    public void setPaymentOperationId(String paymentOperationId) { this.paymentOperationId = paymentOperationId; }
+    public Integer getBalanceBeforeCents() { return balanceBeforeCents; }
+    public void setBalanceBeforeCents(Integer balanceBeforeCents) { this.balanceBeforeCents = balanceBeforeCents; }
+    public Integer getBalanceAfterCents() { return balanceAfterCents; }
+    public void setBalanceAfterCents(Integer balanceAfterCents) { this.balanceAfterCents = balanceAfterCents; }
     public boolean isInventoryDeducted() { return inventoryDeducted; }
     public void setInventoryDeducted(boolean inventoryDeducted) { this.inventoryDeducted = inventoryDeducted; }
     public Instant getRefundedAt() { return refundedAt; }

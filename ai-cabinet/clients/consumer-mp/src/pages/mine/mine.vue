@@ -55,6 +55,30 @@
         </view>
         <text class="menu-arrow">›</text>
       </view>
+      <view v-if="authed" class="menu-cell highlight" :class="{ disabled: rechargeLoading }" @click="onMockRecharge">
+        <text class="menu-icon">🧪</text>
+        <view class="menu-text">
+          <text class="menu-title">模拟充值测试余额</text>
+          <text class="menu-desc">灰度测试专用，不会收取微信或支付宝资金</text>
+        </view>
+        <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
+      </view>
+      <view v-if="authed" class="menu-cell" @click="showTransactions = !showTransactions">
+        <text class="menu-icon">💳</text>
+        <view class="menu-text">
+          <text class="menu-title">测试余额明细</text>
+          <text class="menu-desc">查看购物扣款、退款和运营发放记录</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view v-if="showTransactions" class="transaction-list">
+        <view v-if="transactionsLoading" class="transaction-empty">加载中…</view>
+        <view v-else-if="!transactions.length" class="transaction-empty">暂无余额流水</view>
+        <view v-for="item in transactions" :key="item.transactionId" class="transaction-row">
+          <view><text class="transaction-title">{{ transactionLabel(item.businessType) }}</text><text class="transaction-time">{{ item.createdAt?.slice(0, 16).replace('T', ' ') }}</text></view>
+          <view class="transaction-amount" :class="{ income: item.amountCents > 0 }">{{ item.amountCents > 0 ? '+' : '' }}¥{{ (item.amountCents / 100).toFixed(2) }}</view>
+        </view>
+      </view>
       <view class="menu-cell" @click="goReport">
         <text class="menu-icon">🔧</text>
         <view class="menu-text">
@@ -85,23 +109,27 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import type { AccountDto } from '@aicabinet/shared-types';
+import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
 import { clearConsumerSession, consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
 
 const balanceYuan = ref('-');
 const authed = ref(false);
 const account = ref<AccountDto | null>(null);
+const showTransactions = ref(false);
+const transactionsLoading = ref(false);
+const transactions = ref<BalanceTransactionDto[]>([]);
+const rechargeLoading = ref(false);
 
 const verified = computed(() => !!account.value?.verified);
 const payReady = computed(
-  () => !!account.value?.passwordFreeReady || (account.value?.balanceCents || 0) >= 500
+  () => (account.value?.balanceCents || 0) >= 500
 );
 const needsSetup = computed(() => !verified.value || !payReady.value);
 const displayName = computed(() => (verified.value ? '我的账户' : '我的账户（待实名）'));
 const avatarText = computed(() => account.value?.realName?.slice(0, 1) || '我');
 const setupHint = computed(() => {
   if (!verified.value) return '需先完成实名认证';
-  if (!payReady.value) return '需开通微信支付分或充值余额';
+  if (!payReady.value) return '测试余额不足，请联系运营人员发放';
   return '';
 });
 
@@ -116,11 +144,49 @@ onShow(async () => {
   try {
     account.value = await consumerApi.account();
     balanceYuan.value = ((account.value.balanceCents || 0) / 100).toFixed(2);
+    transactionsLoading.value = true;
+    consumerApi.balanceTransactions(0, 10).then((page) => { transactions.value = page.items || []; }).finally(() => { transactionsLoading.value = false; });
   } catch {
     balanceYuan.value = '-';
     account.value = null;
   }
 });
+
+function transactionLabel(type: string) {
+  if (type === 'CHARGE') return '购物扣款';
+  if (type === 'REFUND') return '订单退款';
+  if (type === 'ADMIN_ADJUST') return '运营调整';
+  if (type === 'ADJUST_CHARGE') return '订单补扣';
+  if (type === 'RECHARGE') return '模拟充值';
+  return '余额变动';
+}
+
+async function onMockRecharge() {
+  if (rechargeLoading.value) return;
+  const confirmed = await new Promise<boolean>((resolve) => uni.showModal({
+    title: '确认模拟充值',
+    content: '将向当前账户发放 ¥20.00 测试余额，不会发生真实扣款。',
+    confirmText: '确认发放',
+    success: (res) => resolve(res.confirm),
+    fail: () => resolve(false)
+  }));
+  if (!confirmed) return;
+  rechargeLoading.value = true;
+  try {
+    const key = `mock-recharge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const prepay = await consumerApi.createMockRecharge(2000, key);
+    await consumerApi.confirmMockRecharge(prepay.orderId);
+    account.value = await consumerApi.account();
+    balanceYuan.value = ((account.value.balanceCents || 0) / 100).toFixed(2);
+    const page = await consumerApi.balanceTransactions(0, 10);
+    transactions.value = page.items || [];
+    uni.showToast({ title: '测试余额已到账', icon: 'success' });
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '充值失败', icon: 'none' });
+  } finally {
+    rechargeLoading.value = false;
+  }
+}
 
 function goVerify() {
   uni.navigateTo({ url: '/pages/verify/verify' });
@@ -173,6 +239,7 @@ function onLogout() {
 .menu-list { margin: 12px; }
 .menu-cell { background: #fff; border-radius: 16px; padding: 28rpx 24rpx; margin-bottom: 12rpx; display: flex; align-items: center; gap: 20rpx; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
 .menu-cell.highlight { border: 1rpx solid #07c160; }
+.menu-cell.disabled { opacity: 0.6; pointer-events: none; }
 .menu-icon { font-size: 40rpx; }
 .menu-text { flex: 1; min-width: 0; }
 .menu-title { font-size: 30rpx; font-weight: 500; display: block; color: #191919; }
@@ -180,4 +247,11 @@ function onLogout() {
 .menu-badge { font-size: 22rpx; color: #fa5151; background: #fff1f0; padding: 4rpx 12rpx; border-radius: 8rpx; }
 .menu-arrow { color: #ccc; font-size: 36rpx; }
 .danger { color: #fa5151; }
+.transaction-list { background: #fff; border-radius: 16px; margin-bottom: 12rpx; padding: 0 24rpx; }
+.transaction-row { display: flex; justify-content: space-between; align-items: center; padding: 24rpx 0; border-bottom: 1rpx solid #eee; }
+.transaction-title { display: block; font-size: 28rpx; color: #191919; }
+.transaction-time { display: block; margin-top: 6rpx; font-size: 22rpx; color: #999; }
+.transaction-amount { font-size: 30rpx; font-weight: 600; color: #191919; }
+.transaction-amount.income { color: #07c160; }
+.transaction-empty { padding: 28rpx; text-align: center; color: #999; font-size: 25rpx; }
 </style>

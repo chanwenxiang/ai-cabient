@@ -4,6 +4,7 @@ import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.constants.PayChannels;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
+import com.aicabinet.trade.config.CheckoutProperties;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.PaymentOperation;
 import com.aicabinet.trade.domain.UserAccount;
@@ -31,6 +32,8 @@ public class OrderPaymentService {
 
     private final UserInfoRepository userInfoRepository;
     private final UserAccountRepository userAccountRepository;
+    private final BalanceLedgerService balanceLedgerService;
+    private final CheckoutProperties checkoutProperties;
     private final PayScoreService payScoreService;
     private final WeChatPayClient weChatPayClient;
     private final AlipayPayClient alipayPayClient;
@@ -45,7 +48,9 @@ public class OrderPaymentService {
                                AlipayPayClient alipayPayClient,
                                WeChatPayProperties weChatPayProperties,
                                SecurityProperties securityProperties,
-                               PaymentOperationRepository paymentOperationRepository) {
+                               PaymentOperationRepository paymentOperationRepository,
+                               BalanceLedgerService balanceLedgerService,
+                               CheckoutProperties checkoutProperties) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.payScoreService = payScoreService;
@@ -54,6 +59,8 @@ public class OrderPaymentService {
         this.weChatPayProperties = weChatPayProperties;
         this.securityProperties = securityProperties;
         this.paymentOperationRepository = paymentOperationRepository;
+        this.balanceLedgerService = balanceLedgerService;
+        this.checkoutProperties = checkoutProperties;
     }
 
     @Transactional
@@ -71,21 +78,25 @@ public class OrderPaymentService {
         UserInfo user = userInfoRepository.findById(order.getUserId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
 
-        PayScoreService.ChargeResult charge = payScoreService.charge(
-                user, order.getOrderId(), order.getTotalAmountCents(), "AI开门柜购物");
-        if (!PayChannels.BALANCE.equals(charge.channel())) {
-            order.setPayChannel(charge.channel());
-            order.setPayTradeNo(charge.tradeNo());
-            recordOperation(order, "CHARGE", order.getTotalAmountCents(), charge.channel(), idemKey,
-                    charge.tradeNo(), "order charge");
-            log.info("order charged channel={} order={} tradeNo={}", charge.channel(), order.getOrderId(), charge.tradeNo());
-            return;
+        if (!checkoutProperties.balanceOnly()) {
+            PayScoreService.ChargeResult charge = payScoreService.charge(
+                    user, order.getOrderId(), order.getTotalAmountCents(), "AI开门柜购物");
+            if (!PayChannels.BALANCE.equals(charge.channel())) {
+                order.setPayChannel(charge.channel());
+                order.setPayTradeNo(charge.tradeNo());
+                recordOperation(order, "CHARGE", order.getTotalAmountCents(), charge.channel(), idemKey,
+                        charge.tradeNo(), "order charge");
+                log.info("order charged channel={} order={} tradeNo={}", charge.channel(), order.getOrderId(), charge.tradeNo());
+                return;
+            }
         }
 
-        deductBalance(order.getUserId(), order.getTotalAmountCents());
+        var operation = balanceLedgerService.change(order.getUserId(), -order.getTotalAmountCents(), "CHARGE",
+                order.getOrderId(), idemKey, "order charge");
         order.setPayChannel(PayChannels.BALANCE);
-        recordOperation(order, "CHARGE", order.getTotalAmountCents(), PayChannels.BALANCE, idemKey,
-                null, "order charge");
+        order.setPaymentOperationId(operation.getOperationId());
+        order.setBalanceBeforeCents(operation.getBalanceBeforeCents());
+        order.setBalanceAfterCents(operation.getBalanceAfterCents());
     }
 
     @Transactional
@@ -125,9 +136,8 @@ public class OrderPaymentService {
                 return;
             }
         }
-        deductBalance(order.getUserId(), deltaCents);
-        recordOperation(order, "ADJUST_CHARGE", deltaCents, PayChannels.BALANCE, idemKey,
-                null, "dispute adjust charge");
+        balanceLedgerService.change(order.getUserId(), -deltaCents, "ADJUST_CHARGE",
+                order.getOrderId(), idemKey, "dispute adjust charge");
     }
 
     private void refundAmount(CabinetOrder order, int amountCents, String reason) {
@@ -144,8 +154,8 @@ public class OrderPaymentService {
             refundAlipay(order, amountCents, reason, idemKey);
             return;
         }
-        creditBalance(order.getUserId(), amountCents);
-        recordOperation(order, "REFUND", amountCents, PayChannels.BALANCE, idemKey, null, reason);
+        balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",
+                order.getOrderId(), idemKey, reason);
     }
 
     private void refundWeChat(CabinetOrder order, int amountCents, String reason, String idemKey) {
@@ -161,8 +171,8 @@ public class OrderPaymentService {
             log.info("wechat mock order refund order={} amount={} (原路退回零钱)", order.getOrderId(), amountCents);
             return;
         }
-        creditBalance(order.getUserId(), amountCents);
-        recordOperation(order, "REFUND", amountCents, PayChannels.BALANCE, idemKey, null, reason);
+        balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",
+                order.getOrderId(), idemKey, reason);
     }
 
     private void refundAlipay(CabinetOrder order, int amountCents, String reason, String idemKey) {
@@ -178,8 +188,8 @@ public class OrderPaymentService {
             log.info("alipay mock order refund order={} amount={}", order.getOrderId(), amountCents);
             return;
         }
-        creditBalance(order.getUserId(), amountCents);
-        recordOperation(order, "REFUND", amountCents, PayChannels.BALANCE, idemKey, null, reason);
+        balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",
+                order.getOrderId(), idemKey, reason);
     }
 
     private void deductBalance(Long userId, int amountCents) {

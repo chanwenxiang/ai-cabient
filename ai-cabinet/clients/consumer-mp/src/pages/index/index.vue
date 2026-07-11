@@ -13,7 +13,7 @@
       </view>
 
       <view class="landing-body">
-        <button class="scan-btn" hover-class="scan-btn-hover" @click="onScan">
+        <button class="scan-btn" hover-class="scan-btn-hover" :disabled="opening || enteringFlow" @click="onScan">
           <view class="scan-icon-wrap">
             <view class="scan-corner tl" />
             <view class="scan-corner tr" />
@@ -39,7 +39,7 @@
         </text>
         <view v-if="showManual" class="manual-form">
           <input v-model="deviceInput" class="input" placeholder="例如 CAB-001" />
-          <button class="btn-primary" hover-class="btn-hover" :loading="opening" @click="confirmDevice">
+          <button class="btn-primary" hover-class="btn-hover" :loading="opening" :disabled="opening" @click="confirmDevice">
             {{ opening ? '开门中…' : '确认并开门' }}
           </button>
         </view>
@@ -97,6 +97,7 @@
           class="cart-cta"
           hover-class="btn-hover"
           :loading="opening"
+          :disabled="opening"
           @click="reopenShop"
         >
           {{ opening ? '开门中…' : '再次开门' }}
@@ -111,6 +112,15 @@
       <text class="flow-hint">{{ flowOverlayHint }}</text>
       <text v-if="deviceId" class="flow-device">{{ deviceName || deviceId }}</text>
       <text v-if="pollError" class="flow-err">{{ pollError }}</text>
+      <button
+        v-if="state === 'CREATED' || state === 'OPENING'"
+        class="flow-cancel"
+        :loading="cancelling"
+        :disabled="cancelling"
+        @click="cancelOpening"
+      >
+        取消本次开门
+      </button>
     </view>
 
     <OpenPrepDrawer
@@ -126,7 +136,13 @@
 import { onHide, onLoad, onShow, onUnload } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import OpenPrepDrawer from '@/components/open-prep-drawer.vue';
-import { consumerApi, ensureConsumerAuth, getConsumerToken, requireConsumerAuth } from '@/utils/consumer-api';
+import {
+  clearOpenAttempt,
+  consumerApi,
+  ensureConsumerAuth,
+  getConsumerToken,
+  requireConsumerAuth
+} from '@/utils/consumer-api';
 import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrcode';
 import { sessionStateHint, sessionStateLabel, sessionStateTone } from '@aicabinet/shared-uni/session-labels';
 import { formatError } from '@aicabinet/shared-uni/format';
@@ -151,7 +167,9 @@ const stateLabel = ref('');
 const stateHint = ref('');
 const stateTone = ref('idle');
 const opening = ref(false);
+const cancelling = ref(false);
 const pollError = ref('');
+const openingSeconds = ref(90);
 const brokenThumbs = ref<Record<string, boolean>>({});
 const lastDeviceId = ref('');
 const lastDeviceName = ref('');
@@ -159,6 +177,7 @@ const showPrepDrawer = ref(false);
 const prepAccount = ref<AccountDto | null>(null);
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let devicePollTimer: ReturnType<typeof setInterval> | null = null;
+let countdownTimer: ReturnType<typeof setInterval> | null = null;
 let prepResolve: ((ok: boolean) => void) | null = null;
 
 const sessionActive = computed(() =>
@@ -191,6 +210,7 @@ const flowOverlayTitle = computed(() => {
 });
 
 const flowOverlayHint = computed(() => {
+  if (state.value === 'OPENING' || state.value === 'CREATED') return `正在等待柜门响应，约 ${openingSeconds.value} 秒后可取消重试`;
   if (stateHint.value) return stateHint.value;
   if (opening.value) return '正在连接柜机并验证开门资格…';
   return '请稍候';
@@ -211,7 +231,7 @@ const cartBarAction = computed(() => {
 });
 
 function payReady(acc: AccountDto) {
-  return !!acc.passwordFreeReady || (acc.balanceCents || 0) >= MIN_BALANCE_CENTS;
+  return (acc.balanceCents || 0) >= MIN_BALANCE_CENTS;
 }
 
 onLoad(async (opts) => {
@@ -242,6 +262,7 @@ onHide(() => stopDevicePoll());
 onUnload(() => {
   stopPoll();
   stopDevicePoll();
+  stopOpeningCountdown();
 });
 
 function thumbTone(p: DeviceProduct) {
@@ -426,6 +447,25 @@ async function reopenShop() {
   await startShoppingFlow(deviceId.value);
 }
 
+async function cancelOpening() {
+  if (!sessionId.value || cancelling.value) return;
+  cancelling.value = true;
+  try {
+    const s = await consumerApi.cancelSession(sessionId.value);
+    applySessionView(s);
+    stopPoll();
+    uni.removeStorageSync('active_session_id');
+    clearOpenAttempt();
+    clearSessionUi();
+    scanned.value = false;
+    uni.showToast({ title: '已取消本次开门', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: formatError(e), icon: 'none' });
+  } finally {
+    cancelling.value = false;
+  }
+}
+
 function goReport() {
   uni.navigateTo({
     url: `/pages/report/report?deviceId=${encodeURIComponent(deviceId.value || '')}`
@@ -442,6 +482,7 @@ function clearSessionUi() {
 
 async function finishSession(sessionState: string, sid: string) {
   uni.removeStorageSync('active_session_id');
+  clearOpenAttempt();
   if (sessionState === 'COMPLETED') {
     if (deviceId.value) {
       uni.setStorageSync('last_device_id', deviceId.value);
@@ -485,19 +526,38 @@ function applySessionView(s: SessionDto) {
   stateLabel.value = sessionStateLabel(s.state);
   stateHint.value = sessionStateHint(s.state);
   stateTone.value = sessionStateTone(s.state);
+  if (s.state === 'OPENING' || s.state === 'CREATED') startOpeningCountdown(s.createdAt);
+  else stopOpeningCountdown();
   if (s.deviceId && deviceId.value) refreshDeviceStatus();
+}
+
+function startOpeningCountdown(createdAt?: string) {
+  stopOpeningCountdown();
+  const started = createdAt ? new Date(createdAt).getTime() : Date.now();
+  const tick = () => { openingSeconds.value = Math.max(0, 90 - Math.floor((Date.now() - started) / 1000)); };
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+
+function stopOpeningCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = null;
+  openingSeconds.value = 90;
 }
 
 async function restoreActiveSession() {
   const saved = uni.getStorageSync('active_session_id');
-  if (!saved || sessionId.value) return;
+  if (sessionId.value) return;
   try {
-    const s = await consumerApi.getSession(saved);
+    const s = saved ? await consumerApi.getSession(saved) : await consumerApi.activeSession();
+    if (!s) return;
     if (['COMPLETED', 'FAILED', 'CANCELLED', 'DISPUTED'].includes(s.state)) {
       uni.removeStorageSync('active_session_id');
+      clearOpenAttempt();
       return;
     }
-    sessionId.value = saved;
+    sessionId.value = s.sessionId;
+    uni.setStorageSync('active_session_id', s.sessionId);
     if (s.deviceId) {
       deviceId.value = s.deviceId;
       scanned.value = true;
@@ -506,7 +566,7 @@ async function restoreActiveSession() {
     applySessionView(s);
     startPoll();
   } catch {
-    uni.removeStorageSync('active_session_id');
+    // 保留本地会话；弱网或服务短暂不可用时，下次 onShow 继续恢复。
   }
 }
 
@@ -525,6 +585,7 @@ function startPoll() {
       } else if (['FAILED', 'CANCELLED'].includes(s.state)) {
         stopPoll();
         uni.removeStorageSync('active_session_id');
+        clearOpenAttempt();
         clearSessionUi();
       }
     } catch (e) {
@@ -898,4 +959,15 @@ function stopDevicePoll() {
   margin-top: 16rpx;
   text-align: center;
 }
+.flow-cancel {
+  margin-top: 40rpx;
+  padding: 0 36rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  border-radius: 36rpx;
+  background: #f2f3f5;
+  color: #576b95;
+  font-size: 26rpx;
+}
+.flow-cancel::after { border: none; }
 </style>

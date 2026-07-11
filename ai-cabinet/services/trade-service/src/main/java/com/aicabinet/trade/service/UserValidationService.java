@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.config.CheckoutProperties;
 import com.aicabinet.trade.repository.UserAccountRepository;
 import com.aicabinet.trade.repository.UserInfoRepository;
 import com.aicabinet.trade.support.ApiMessages;
@@ -17,15 +18,18 @@ public class UserValidationService {
     private final UserAccountRepository userAccountRepository;
     private final RiskControlService riskControlService;
     private final PayScoreService payScoreService;
+    private final CheckoutProperties checkoutProperties;
 
     public UserValidationService(UserInfoRepository userInfoRepository,
                                  UserAccountRepository userAccountRepository,
                                  RiskControlService riskControlService,
-                                 PayScoreService payScoreService) {
+                                 PayScoreService payScoreService,
+                                 CheckoutProperties checkoutProperties) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.riskControlService = riskControlService;
         this.payScoreService = payScoreService;
+        this.checkoutProperties = checkoutProperties;
     }
 
     /**
@@ -52,7 +56,7 @@ public class UserValidationService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.USER_NOT_VERIFIED);
         }
 
-        if (payScoreService.isPasswordFreeReady(user)) {
+        if (!checkoutProperties.balanceOnly() && payScoreService.isPasswordFreeReady(user)) {
             return;
         }
 

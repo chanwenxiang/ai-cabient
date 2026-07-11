@@ -5,7 +5,6 @@ import com.aicabinet.common.dto.AlipayPayParams;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.RechargeOrderDto;
 import com.aicabinet.common.dto.RechargePrepayResponse;
-import com.aicabinet.common.dto.RechargeRequest;
 import com.aicabinet.common.dto.WxPayParams;
 import com.aicabinet.trade.config.AlipayProperties;
 import com.aicabinet.trade.config.SecurityProperties;
@@ -53,6 +52,7 @@ public class PaymentService {
     private final WeChatPayNotifyService notifyService;
     private final AlipayPayClient alipayPayClient;
     private final AlipayNotifyService alipayNotifyService;
+    private final BalanceLedgerService balanceLedgerService;
 
     public PaymentService(RechargeOrderRepository rechargeOrderRepository,
                           UserInfoRepository userInfoRepository,
@@ -64,7 +64,8 @@ public class PaymentService {
                           WeChatPayV3Signer v3Signer,
                           WeChatPayNotifyService notifyService,
                           AlipayPayClient alipayPayClient,
-                          AlipayNotifyService alipayNotifyService) {
+                          AlipayNotifyService alipayNotifyService,
+                          BalanceLedgerService balanceLedgerService) {
         this.rechargeOrderRepository = rechargeOrderRepository;
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
@@ -76,17 +77,31 @@ public class PaymentService {
         this.notifyService = notifyService;
         this.alipayPayClient = alipayPayClient;
         this.alipayNotifyService = alipayNotifyService;
+        this.balanceLedgerService = balanceLedgerService;
     }
 
     @Transactional
-    public RechargePrepayResponse createRechargePrepay(Long userId, RechargeRequest request, String clientIp) {
-        String channel = PayChannels.normalize(request.channel());
+    public RechargePrepayResponse createRechargePrepay(Long userId, String requestedChannel,
+                                                       int amountCents, String requestedIdempotencyKey,
+                                                       String clientIp) {
+        String channel = PayChannels.normalize(requestedChannel);
+        String idempotencyKey = requestedIdempotencyKey.trim();
+        RechargeOrder existing = rechargeOrderRepository.findByIdempotencyKey(idempotencyKey).orElse(null);
+        if (existing != null) {
+            if (!existing.getUserId().equals(userId)
+                    || existing.getAmountCents() != amountCents
+                    || !existing.getChannel().equals(channel)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.INVALID_REQUEST);
+            }
+            return toPrepayResponse(existing);
+        }
         RechargeOrder order = new RechargeOrder();
         order.setOrderId("R" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
         order.setUserId(userId);
-        order.setAmountCents(request.amountCents());
+        order.setAmountCents(amountCents);
         order.setChannel(channel);
         order.setStatus("PENDING");
+        order.setIdempotencyKey(idempotencyKey);
         rechargeOrderRepository.save(order);
 
         return switch (channel) {
@@ -94,6 +109,18 @@ public class PaymentService {
             case PayChannels.ALIPAY -> createAlipayPrepay(order);
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.UNSUPPORTED_CHANNEL);
         };
+    }
+
+    private RechargePrepayResponse toPrepayResponse(RechargeOrder order) {
+        Map<String, String> info = Map.of("orderId", order.getOrderId(), "mode", "mock");
+        if (PayChannels.ALIPAY.equals(order.getChannel())) {
+            return new RechargePrepayResponse(order.getChannel(), order.getOrderId(), null,
+                    new AlipayPayParams(order.getOrderId(), order.getAlipayTradeNo(), null), info);
+        }
+        WxPayParams wxPay = new WxPayParams(String.valueOf(Instant.now().getEpochSecond()),
+                UUID.randomUUID().toString().replace("-", "").substring(0, 16),
+                "prepay_id=" + order.getWxPrepayId(), "RSA", "MOCK_SIGN", null);
+        return new RechargePrepayResponse(order.getChannel(), order.getOrderId(), wxPay, null, info);
     }
 
     private RechargePrepayResponse createWeChatPrepay(RechargeOrder order, Long userId, String clientIp) {
@@ -179,10 +206,13 @@ public class PaymentService {
     }
 
     @Transactional
-    public void confirmRechargeMock(String orderId) {
-        RechargeOrder order = rechargeOrderRepository.findById(orderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+    public RechargeOrderDto confirmRechargeMock(Long userId, String orderId) {
+        if (!securityProperties.mockEnabled()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND);
+        }
+        RechargeOrder order = requireOwnedOrder(userId, orderId);
         creditRecharge(order);
+        return toDto(order);
     }
 
     @Transactional
@@ -297,8 +327,9 @@ public class PaymentService {
             refundWeChat(order, reason);
         }
 
-        account.setBalanceCents(account.getBalanceCents() - order.getAmountCents());
-        userAccountRepository.save(account);
+        balanceLedgerService.change(order.getUserId(), -order.getAmountCents(),
+                "RECHARGE_REFUND", order.getOrderId(), "recharge-refund:" + order.getOrderId(),
+                reason == null || reason.isBlank() ? "充值退款" : reason);
 
         order.setStatus("REFUNDED");
         order.setRefundedAt(Instant.now());
@@ -437,14 +468,17 @@ public class PaymentService {
     }
 
     private void creditRecharge(RechargeOrder order) {
+        if ("PAID".equals(order.getStatus())) return;
+        if (!"PENDING".equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PENDING);
+        }
+        var operation = balanceLedgerService.change(order.getUserId(), order.getAmountCents(),
+                "RECHARGE", order.getOrderId(), "recharge-credit:" + order.getOrderId(),
+                "充值到账（灰度环境测试余额）");
         order.setStatus("PAID");
         order.setPaidAt(Instant.now());
+        order.setPaymentOperationId(operation.getOperationId());
         rechargeOrderRepository.save(order);
-
-        UserAccount account = userAccountRepository.findById(order.getUserId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ACCOUNT_NOT_FOUND));
-        account.setBalanceCents(account.getBalanceCents() + order.getAmountCents());
-        userAccountRepository.save(account);
         log.info("recharge credited user={} amount={} channel={}",
                 order.getUserId(), order.getAmountCents(), order.getChannel());
     }

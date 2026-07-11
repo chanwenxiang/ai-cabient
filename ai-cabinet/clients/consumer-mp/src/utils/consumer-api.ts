@@ -13,6 +13,8 @@ function formatRequestError(errMsg: string | undefined, path: string) {
 const TOKEN_KEY = 'consumer_token';
 const USER_KEY = 'consumer_user_id';
 const EXPIRES_KEY = 'consumer_token_expires';
+const OPEN_ATTEMPT_KEY = 'consumer_open_attempt';
+const REQUEST_TIMEOUT_MS = 12_000;
 
 let refreshInFlight: Promise<boolean> | null = null;
 
@@ -26,6 +28,26 @@ export function clearConsumerSession() {
   uni.removeStorageSync(EXPIRES_KEY);
   uni.removeStorageSync('consumer_server_boot');
   uni.removeStorageSync('active_session_id');
+  uni.removeStorageSync(OPEN_ATTEMPT_KEY);
+}
+
+type OpenAttempt = { deviceId: string; idempotencyKey: string; createdAt: number };
+
+function randomId() {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
+}
+
+export function getOrCreateOpenAttempt(deviceId: string): OpenAttempt {
+  const normalized = deviceId.trim().toUpperCase();
+  const saved = uni.getStorageSync(OPEN_ATTEMPT_KEY) as OpenAttempt | '';
+  if (saved && saved.deviceId === normalized && saved.idempotencyKey) return saved;
+  const attempt = { deviceId: normalized, idempotencyKey: `consumer-open-${randomId()}`, createdAt: Date.now() };
+  uni.setStorageSync(OPEN_ATTEMPT_KEY, attempt);
+  return attempt;
+}
+
+export function clearOpenAttempt() {
+  uni.removeStorageSync(OPEN_ATTEMPT_KEY);
 }
 
 function applyTokenSession(data: LoginResponse) {
@@ -81,6 +103,7 @@ export function request<T>(
       method,
       data: data as UniApp.RequestOptions['data'],
       header,
+      timeout: REQUEST_TIMEOUT_MS,
       async success(res) {
         const body = res.data as { code?: number; message?: string; data?: T };
         if (res.statusCode === 401 && auth && !retried) {
@@ -216,6 +239,18 @@ export function sendSmsCode(phone: string) {
 
 export const consumerApi = {
   account: () => request<import('@aicabinet/shared-types').AccountDto>('/api/v2/account'),
+  createMockRecharge: (amountCents: number, idempotencyKey: string) =>
+    request<import('@aicabinet/shared-types').RechargePrepayResponse>('/api/v2/payment/recharge/prepay', 'POST', {
+      channel: 'WECHAT', amountCents, idempotencyKey
+    }),
+  confirmMockRecharge: (orderId: string) =>
+    request<import('@aicabinet/shared-types').RechargeOrderDto>(
+      `/api/v2/payment/recharge/${encodeURIComponent(orderId)}/mock-success`, 'POST'
+    ),
+  balanceTransactions: (page = 0, size = 20) =>
+    request<import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').BalanceTransactionDto>>(
+      `/api/v2/account/transactions?page=${page}&size=${size}`
+    ),
   verifyIdentity: (body: import('@aicabinet/shared-types').VerifyIdentityRequest) =>
     request<import('@aicabinet/shared-types').AccountDto>('/api/v2/account/verify', 'POST', body),
   signPayScore: () =>
@@ -228,10 +263,31 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').DeviceProduct[]>(
       `/api/v2/devices/${encodeURIComponent(deviceId)}/products`
     ),
-  createSession: (deviceId: string) =>
-    request<import('@aicabinet/shared-types').SessionDto>('/api/v2/sessions', 'POST', { deviceId }),
+  createSession: async (deviceId: string) => {
+    const attempt = getOrCreateOpenAttempt(deviceId);
+    try {
+      return await request<import('@aicabinet/shared-types').SessionDto>('/api/v2/sessions', 'POST', {
+        deviceId: attempt.deviceId,
+        idempotencyKey: attempt.idempotencyKey
+      });
+    } catch (firstError) {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      try {
+        return await request<import('@aicabinet/shared-types').SessionDto>('/api/v2/sessions', 'POST', {
+          deviceId: attempt.deviceId,
+          idempotencyKey: attempt.idempotencyKey
+        });
+      } catch {
+        throw firstError;
+      }
+    }
+  },
+  activeSession: () =>
+    request<import('@aicabinet/shared-types').SessionDto | null>('/api/v2/sessions/active'),
   getSession: (sessionId: string) =>
     request<import('@aicabinet/shared-types').SessionDto>(`/api/v2/sessions/${sessionId}`),
+  cancelSession: (sessionId: string) =>
+    request<import('@aicabinet/shared-types').SessionDto>(`/api/v2/sessions/${sessionId}/cancel`, 'POST'),
   updateSessionCart: (sessionId: string, body: import('@aicabinet/shared-types').SessionCartRequest) =>
     request<import('@aicabinet/shared-types').SessionDto>(`/api/v2/sessions/${sessionId}/cart`, 'PUT', body),
   getSessionOrder: (sessionId: string) =>

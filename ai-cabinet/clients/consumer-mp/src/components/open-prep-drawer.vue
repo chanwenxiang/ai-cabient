@@ -28,15 +28,12 @@
       </view>
 
       <view v-else-if="!payReady" class="drawer-body">
-        <text class="drawer-desc">开通微信支付分，关门后自动扣款（演示环境可一键开通）</text>
+        <text class="drawer-desc">灰度运营仅使用测试余额结算。余额不足时请联系现场运营人员发放测试余额。</text>
         <view class="balance-row">
           <text>当前余额</text>
           <text class="balance-val">¥{{ balanceYuan }}</text>
         </view>
-        <button class="btn-primary" hover-class="btn-hover" :loading="busy" @click="onSignPayScore">
-          {{ busy ? '开通中…' : '开通微信支付分' }}
-        </button>
-        <text class="hint">余额 ≥ ¥5 也可开门购物</text>
+        <text class="balance-warning">最低开门余额 ¥5.00，测试余额不代表真实充值资金</text>
       </view>
 
       <text v-if="err" class="err">{{ err }}</text>
@@ -74,7 +71,7 @@ watch(
 
 const balanceYuan = computed(() => ((account.value?.balanceCents || 0) / 100).toFixed(2));
 const payReady = computed(
-  () => !!account.value?.passwordFreeReady || (account.value?.balanceCents || 0) >= 500
+  () => (account.value?.balanceCents || 0) >= 500
 );
 
 watch(payReady, (ready) => {
@@ -101,20 +98,6 @@ async function onVerify() {
     if (payReady.value) emit('done');
   } catch (e) {
     err.value = e instanceof Error ? e.message : '认证失败';
-  } finally {
-    busy.value = false;
-  }
-}
-
-async function onSignPayScore() {
-  busy.value = true;
-  err.value = '';
-  try {
-    await consumerApi.signPayScore();
-    account.value = await consumerApi.account();
-    emit('done');
-  } catch (e) {
-    err.value = e instanceof Error ? e.message : '开通失败';
   } finally {
     busy.value = false;
   }
@@ -246,6 +229,7 @@ function onCancel() {
   text-align: center;
   margin-top: 16rpx;
 }
+.balance-warning { display: block; padding: 20rpx; border-radius: 12rpx; background: #fff7e6; color: #ad6800; font-size: 25rpx; line-height: 1.5; }
 .err {
   color: #fa5151;
   font-size: 26rpx;

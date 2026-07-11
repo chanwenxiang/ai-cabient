@@ -14,6 +14,12 @@
         <text class="amount">{{ fmtMoney(order.totalAmountCents) }}</text>
         <text v-if="order.totalAmountCents <= 0" class="zero-hint">本次未取走商品，未产生扣款</text>
       </view>
+      <view v-if="order.balanceBeforeCents != null && order.balanceAfterCents != null" class="card balance-card">
+        <view><text class="balance-caption">扣款前测试余额</text><text class="balance-number">{{ fmtMoney(order.balanceBeforeCents) }}</text></view>
+        <text class="balance-arrow">→</text>
+        <view><text class="balance-caption">扣款后测试余额</text><text class="balance-number strong">{{ fmtMoney(order.balanceAfterCents) }}</text></view>
+        <text class="trial-note">本页面余额为灰度测试余额，不代表微信或支付宝真实资金</text>
+      </view>
 
       <view class="card">
         <text class="section-title">商品明细</text>
@@ -29,7 +35,7 @@
       <view class="footer-actions">
         <button class="action-btn" hover-class="btn-hover" @click="continueShop">继续在本柜购物</button>
         <button class="ghost-btn" hover-class="btn-hover" @click="goOrders">查看订单</button>
-        <button v-if="sessionId && !disputeFiled" class="ghost-btn warn" hover-class="btn-hover" @click="openDispute">
+        <button v-if="sessionId && !disputeFiled" class="ghost-btn warn" hover-class="btn-hover" :disabled="disputeLoading" @click="openDispute">
           账单有疑问
         </button>
         <text v-else-if="disputeFiled" class="dispute-done">申诉已提交，请等待处理</text>
@@ -48,7 +54,7 @@
           maxlength="200"
           placeholder="例如：我没有拿这个商品 / 数量不对"
         />
-        <button class="action-btn" hover-class="btn-hover" :loading="disputeLoading" @click="submitDispute">
+        <button class="action-btn" hover-class="btn-hover" :loading="disputeLoading" :disabled="disputeLoading" @click="submitDispute">
           {{ disputeLoading ? '提交中…' : '提交申诉' }}
         </button>
         <text class="dispute-cancel" @click="closeDispute">取消</text>
@@ -182,6 +188,12 @@ function goHome() {
 .amount-label { font-size: 24rpx; color: #64748b; display: block; }
 .amount { font-size: 56rpx; font-weight: 800; color: #059669; display: block; margin-top: 4rpx; }
 .zero-hint { font-size: 24rpx; color: #888; display: block; margin-top: 12rpx; }
+.balance-card { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+.balance-caption { display: block; font-size: 23rpx; color: #888; }
+.balance-number { display: block; margin-top: 6rpx; font-size: 30rpx; color: #555; }
+.balance-number.strong { color: #07c160; font-weight: 700; }
+.balance-arrow { color: #bbb; }
+.trial-note { width: 100%; margin-top: 18rpx; padding-top: 14rpx; border-top: 1rpx solid #eee; font-size: 22rpx; color: #ad6800; }
 .section-title { font-weight: 600; display: block; margin-bottom: 12rpx; }
 .line { display: flex; justify-content: space-between; padding: 12rpx 0; border-bottom: 1px solid #f1f5f9; }
 .line-name { color: #1e293b; }

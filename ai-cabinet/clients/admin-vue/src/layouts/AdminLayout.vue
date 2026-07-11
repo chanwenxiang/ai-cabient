@@ -18,6 +18,7 @@
           <el-menu-item index="/orders"><el-icon><Document /></el-icon><span>订单管理</span></el-menu-item>
           <el-menu-item index="/skus"><el-icon><Goods /></el-icon><span>商品管理</span></el-menu-item>
           <el-menu-item index="/disputes"><el-icon><Warning /></el-icon><span>争议审核</span></el-menu-item>
+          <el-menu-item index="/exceptions"><el-icon><Warning /></el-icon><span>异常中心</span></el-menu-item>
         </el-menu-item-group>
         <el-menu-item-group title="运营">
           <el-menu-item index="/replenishment"><el-icon><Box /></el-icon><span>补货</span></el-menu-item>
@@ -25,6 +26,7 @@
           <el-menu-item index="/reconciliation"><el-icon><Coin /></el-icon><span>对账</span></el-menu-item>
           <el-menu-item index="/warehouse"><el-icon><House /></el-icon><span>仓库</span></el-menu-item>
           <el-menu-item index="/recharges"><el-icon><Wallet /></el-icon><span>充值管理</span></el-menu-item>
+          <el-menu-item index="/users"><el-icon><Wallet /></el-icon><span>灰度用户</span></el-menu-item>
           <el-menu-item index="/vision-mappings"><el-icon><View /></el-icon><span>识别配置</span></el-menu-item>
           <el-menu-item index="/risk"><el-icon><Lock /></el-icon><span>风控</span></el-menu-item>
         </el-menu-item-group>

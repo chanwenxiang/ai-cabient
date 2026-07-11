@@ -40,6 +40,12 @@ public class PaymentOperation {
     @Column(length = 128)
     private String reason;
 
+    private Long userId;
+
+    private Integer balanceBeforeCents;
+
+    private Integer balanceAfterCents;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -67,4 +73,10 @@ public class PaymentOperation {
     public String getReason() { return reason; }
     public void setReason(String reason) { this.reason = reason; }
     public Instant getCreatedAt() { return createdAt; }
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
+    public Integer getBalanceBeforeCents() { return balanceBeforeCents; }
+    public void setBalanceBeforeCents(Integer balanceBeforeCents) { this.balanceBeforeCents = balanceBeforeCents; }
+    public Integer getBalanceAfterCents() { return balanceAfterCents; }
+    public void setBalanceAfterCents(Integer balanceAfterCents) { this.balanceAfterCents = balanceAfterCents; }
 }

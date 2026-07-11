@@ -407,6 +407,7 @@ public class SettlementService {
                         .toList(),
                 order.getStatus(),
                 order.getPayChannel() != null ? order.getPayChannel() : "BALANCE",
+                order.getPaymentOperationId(), order.getBalanceBeforeCents(), order.getBalanceAfterCents(),
                 order.getCreatedAt()
         );
     }

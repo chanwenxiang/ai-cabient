@@ -31,6 +31,15 @@ public class AccountController {
         return ApiResponse.ok(accountService.getAccount(userId));
     }
 
+    @GetMapping("/transactions")
+    public ApiResponse<com.aicabinet.common.dto.PageResult<com.aicabinet.common.dto.BalanceTransactionDto>> transactions(
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(accountService.transactions(userId, page, size));
+    }
+
     @PostMapping("/verify")
     public ApiResponse<AccountDto> verifyIdentity(
             HttpServletRequest request,

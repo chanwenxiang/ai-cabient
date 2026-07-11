@@ -23,13 +23,16 @@ public class DevicePresenceService {
     private final DeviceInfoRepository deviceRepository;
     private final DeviceTemperatureReadingRepository temperatureReadingRepository;
     private final CabinetMetrics cabinetMetrics;
+    private final OpsExceptionService opsExceptionService;
 
     public DevicePresenceService(DeviceInfoRepository deviceRepository,
                                  DeviceTemperatureReadingRepository temperatureReadingRepository,
-                                 CabinetMetrics cabinetMetrics) {
+                                 CabinetMetrics cabinetMetrics,
+                                 OpsExceptionService opsExceptionService) {
         this.deviceRepository = deviceRepository;
         this.temperatureReadingRepository = temperatureReadingRepository;
         this.cabinetMetrics = cabinetMetrics;
+        this.opsExceptionService = opsExceptionService;
     }
 
     @Transactional
@@ -62,6 +65,7 @@ public class DevicePresenceService {
             temperatureReadingRepository.save(reading);
         }
         deviceRepository.save(device);
+        opsExceptionService.resolveSystem("DEVICE_OFFLINE", deviceId, "设备心跳恢复，已自动上线");
         cabinetMetrics.refreshDeviceGauges(deviceRepository);
         log.debug("device heartbeat device={} app={} temp={}", deviceId, appVersion, currentTempC);
     }
@@ -76,6 +80,8 @@ public class DevicePresenceService {
                 .forEach(d -> {
                     d.setOnlineStatus("OFFLINE");
                     deviceRepository.save(d);
+                    opsExceptionService.report("DEVICE_OFFLINE", "CRITICAL", d.getDeviceId(), null,
+                            null, null, "设备离线", "连续 " + OFFLINE_AFTER_MINUTES + " 分钟未收到心跳");
                     log.info("device marked offline device={}", d.getDeviceId());
                 });
         cabinetMetrics.refreshDeviceGauges(deviceRepository);
