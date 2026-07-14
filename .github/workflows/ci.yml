@@ -1,0 +1,54 @@
+﻿name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: aicabinet
+          POSTGRES_USER: aicabinet
+          POSTGRES_PASSWORD: aicabinet
+        ports:
+          - 15433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build & Test (trade-service)
+        run: mvn verify -DskipITs -pl services/trade-service -am
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:15433/aicabinet
+          SPRING_DATASOURCE_USERNAME: aicabinet
+          SPRING_DATASOURCE_PASSWORD: aicabinet
+
+      - name: Build (device-service)
+        run: mvn compile -pl services/device-service -am
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:15433/aicabinet
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: '**/target/surefire-reports/*.xml'

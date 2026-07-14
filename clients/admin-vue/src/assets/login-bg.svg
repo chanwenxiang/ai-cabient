@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" fill="none">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="1920" y2="1080" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0b1220"/>
+      <stop offset="45%" stop-color="#122a4a"/>
+      <stop offset="100%" stop-color="#1a3d66"/>
+    </linearGradient>
+    <radialGradient id="glowA" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(420 260) rotate(90) scale(520 420)">
+      <stop stop-color="#38bdf8" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(1540 780) rotate(90) scale(460 360)">
+      <stop stop-color="#22d3ee" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" stroke="#7dd3fc" stroke-opacity="0.08"/>
+    </pattern>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#sky)"/>
+  <rect width="1920" height="1080" fill="url(#grid)"/>
+  <rect width="1920" height="1080" fill="url(#glowA)"/>
+  <rect width="1920" height="1080" fill="url(#glowB)"/>
+  <g opacity="0.9">
+    <rect x="220" y="520" width="220" height="420" rx="18" fill="#0f172a" fill-opacity="0.55" stroke="#60a5fa" stroke-opacity="0.35"/>
+    <rect x="248" y="560" width="164" height="110" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-opacity="0.45"/>
+    <rect x="248" y="690" width="164" height="110" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-opacity="0.35"/>
+    <rect x="248" y="820" width="164" height="80" rx="10" fill="#1e293b" stroke="#38bdf8" stroke-opacity="0.25"/>
+    <circle cx="330" cy="615" r="22" fill="#22d3ee" fill-opacity="0.35"/>
+    <circle cx="330" cy="745" r="22" fill="#38bdf8" fill-opacity="0.35"/>
+    <rect x="1180" y="430" width="280" height="510" rx="22" fill="#0f172a" fill-opacity="0.5" stroke="#67e8f9" stroke-opacity="0.3"/>
+    <rect x="1210" y="470" width="220" height="130" rx="12" fill="#172554" stroke="#38bdf8" stroke-opacity="0.4"/>
+    <rect x="1210" y="620" width="220" height="130" rx="12" fill="#172554" stroke="#38bdf8" stroke-opacity="0.32"/>
+    <rect x="1210" y="770" width="220" height="130" rx="12" fill="#172554" stroke="#38bdf8" stroke-opacity="0.24"/>
+    <path d="M1320 535 L1360 505 L1400 535 L1360 565 Z" fill="#22d3ee" fill-opacity="0.45"/>
+  </g>
+  <g stroke="#93c5fd" stroke-opacity="0.18" stroke-width="2">
+    <path d="M520 300 C700 180 920 180 1100 300"/>
+    <path d="M760 860 C980 760 1180 760 1400 860"/>
+    <circle cx="520" cy="300" r="6" fill="#38bdf8" fill-opacity="0.5"/>
+    <circle cx="1100" cy="300" r="6" fill="#38bdf8" fill-opacity="0.5"/>
+    <circle cx="760" cy="860" r="6" fill="#22d3ee" fill-opacity="0.5"/>
+    <circle cx="1400" cy="860" r="6" fill="#22d3ee" fill-opacity="0.5"/>
+  </g>
+  <g fill="#e2e8f0" fill-opacity="0.12" font-family="Segoe UI, sans-serif" font-size="28" font-weight="700">
+    <text x="120" y="180">SMART RETAIL OPS</text>
+    <text x="1320" y="980" font-size="22" fill-opacity="0.1">AI CABINET PLATFORM</text>
+  </g>
+</svg>

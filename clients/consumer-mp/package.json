@@ -1,0 +1,33 @@
+{
+  "name": "@aicabinet/consumer-mp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev:mp-weixin": "node ../../scripts/sync-consumer-mp-api.mjs && uni -p mp-weixin",
+    "build:mp-weixin": "node ../../scripts/validate-miniapp-env.mjs && uni build -p mp-weixin",
+    "build:mp-weixin:dev": "node ../../scripts/sync-consumer-mp-api.mjs && uni build -p mp-weixin --mode development",
+    "build:mp-weixin:prod": "npm run build:mp-weixin",
+    "dev:h5": "uni",
+    "build:h5": "uni build"
+  },
+  "dependencies": {
+    "@aicabinet/shared-dict": "workspace:*",
+    "@aicabinet/shared-uni": "workspace:*",
+    "@dcloudio/uni-app": "3.0.0-4010520240507001",
+    "@dcloudio/uni-app-plus": "3.0.0-4010520240507001",
+    "@dcloudio/uni-components": "3.0.0-4010520240507001",
+    "@dcloudio/uni-h5": "3.0.0-4010520240507001",
+    "@dcloudio/uni-mp-weixin": "3.0.0-4010520240507001",
+    "vue": "^3.4.21",
+    "vue-i18n": "^9.1.9"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "^3.4.8",
+    "@dcloudio/uni-automator": "3.0.0-4010520240507001",
+    "@dcloudio/uni-cli-shared": "3.0.0-4010520240507001",
+    "@dcloudio/uni-stacktracey": "3.0.0-4010520240507001",
+    "@dcloudio/vite-plugin-uni": "3.0.0-4010520240507001",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.8"
+  }
+}

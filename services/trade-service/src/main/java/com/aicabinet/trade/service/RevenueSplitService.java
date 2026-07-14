@@ -1,0 +1,82 @@
+package com.aicabinet.trade.service;
+
+import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.Merchant;
+import com.aicabinet.trade.domain.OrderRevenueSplit;
+import com.aicabinet.trade.payment.WeChatProfitSharingService;
+import com.aicabinet.trade.repository.DeviceInfoRepository;
+import com.aicabinet.trade.repository.MerchantRepository;
+import com.aicabinet.trade.repository.OrderRevenueSplitRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+public class RevenueSplitService {
+
+    private static final Logger log = LoggerFactory.getLogger(RevenueSplitService.class);
+
+    private final OrderRevenueSplitRepository splitRepository;
+    private final DeviceInfoRepository deviceRepository;
+    private final MerchantRepository merchantRepository;
+    private final WeChatProfitSharingService profitSharingService;
+
+    public RevenueSplitService(OrderRevenueSplitRepository splitRepository,
+                               DeviceInfoRepository deviceRepository,
+                               MerchantRepository merchantRepository,
+                               WeChatProfitSharingService profitSharingService) {
+        this.splitRepository = splitRepository;
+        this.deviceRepository = deviceRepository;
+        this.merchantRepository = merchantRepository;
+        this.profitSharingService = profitSharingService;
+    }
+
+    @Transactional
+    public Optional<OrderRevenueSplit> recordSplit(CabinetOrder order) {
+        if (splitRepository.findByOrderId(order.getOrderId()).isPresent()) {
+            return splitRepository.findByOrderId(order.getOrderId());
+        }
+        DeviceInfo device = deviceRepository.findById(order.getDeviceId()).orElse(null);
+        if (device == null || device.getMerchantId() == null || device.getMerchantId().isBlank()) {
+            log.debug("skip revenue split: no merchant on device {}", order.getDeviceId());
+            return Optional.empty();
+        }
+        Merchant merchant = merchantRepository.findById(device.getMerchantId()).orElse(null);
+        if (merchant == null || !"ACTIVE".equalsIgnoreCase(merchant.getStatus())) {
+            log.warn("skip revenue split: merchant missing or inactive {}", device.getMerchantId());
+            return Optional.empty();
+        }
+
+        long gross = order.getTotalAmountCents();
+        long platform = gross * merchant.getPlatformRateBps() / 10_000L;
+        long merchantShare = gross - platform;
+
+        OrderRevenueSplit split = new OrderRevenueSplit();
+        split.setSplitId("S" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
+        split.setOrderId(order.getOrderId());
+        split.setMerchantId(merchant.getMerchantId());
+        split.setDeviceId(order.getDeviceId());
+        split.setGrossCents(gross);
+        split.setPlatformCents(platform);
+        split.setMerchantCents(merchantShare);
+        split.setSettleAfter(LocalDate.now().plusDays(1));
+        split.setSettlementBatchNo("MS-" + LocalDate.now() + "-" + merchant.getMerchantId());
+        if (merchant.getWechatReceiverId() == null || merchant.getWechatReceiverId().isBlank()) {
+            split.setStatus("LEDGER_ONLY");
+        } else if (!profitSharingService.isApiReady()) {
+            split.setStatus("ACCRUED");
+        } else {
+            split.setStatus("ACCRUED");
+        }
+        splitRepository.save(split);
+        log.info("revenue split order={} merchant={} gross={} platform={} merchantShare={}",
+                order.getOrderId(), merchant.getMerchantId(), gross, platform, merchantShare);
+        return Optional.of(split);
+    }
+}

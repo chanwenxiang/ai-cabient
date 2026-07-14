@@ -1,0 +1,13 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="trade-service" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <module name="trade-service" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.aicabinet.trade.TradeServiceApplication" />
+    <option name="ACTIVE_PROFILES" value="dev" />
+    <envs>
+      <env name="SPRING_PROFILES_ACTIVE" value="dev" />
+    </envs>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

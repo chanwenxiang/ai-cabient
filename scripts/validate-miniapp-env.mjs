@@ -1,0 +1,36 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+function readEnvFile(file) {
+  if (!existsSync(file)) return {};
+  const values = {};
+  for (const rawLine of readFileSync(file, 'utf8').split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const separator = line.indexOf('=');
+    if (separator < 1) continue;
+    values[line.slice(0, separator).trim()] = line.slice(separator + 1).trim().replace(/^['"]|['"]$/g, '');
+  }
+  return values;
+}
+
+const packageDir = process.cwd();
+const production = readEnvFile(join(packageDir, '.env.production'));
+const local = readEnvFile(join(packageDir, '.env.production.local'));
+const apiBaseUrl = process.env.VITE_API_BASE_URL || local.VITE_API_BASE_URL || production.VITE_API_BASE_URL || '';
+
+let parsed;
+try {
+  parsed = new URL(apiBaseUrl);
+} catch {
+  // Handled by the validation error below.
+}
+
+const invalidHost = !parsed || ['localhost', '127.0.0.1', 'your-production-host', 'api.example.com'].includes(parsed.hostname);
+if (!parsed || parsed.protocol !== 'https:' || invalidHost) {
+  console.error('Production mini-program build requires VITE_API_BASE_URL to be a real HTTPS API domain.');
+  console.error('Set it in .env.production.local or in the build environment. See .env.production.example.');
+  process.exit(1);
+}
+
+console.log(`mini-program production API => ${parsed.origin}`);

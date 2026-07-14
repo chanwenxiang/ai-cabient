@@ -1,0 +1,20 @@
+# 预发/试点：接近 prod 的安全与 SMS 实链路；视觉 mock 关闭，需 YOLO（VISION_INSTALL_ML=true）
+aicabinet:
+  security:
+    mock-enabled: false
+  staging-mode: true
+  auth:
+    sms:
+      mock-code: "000000"
+  wechat-pay:
+    enabled: false
+  wechat-miniapp:
+    enabled: false
+  reconciliation:
+    mock-enabled: false
+    scheduled-enabled: false
+
+logging:
+  level:
+    root: INFO
+    com.aicabinet: INFO

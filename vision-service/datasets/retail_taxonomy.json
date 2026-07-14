@@ -1,0 +1,277 @@
+{
+  "version": "cabinet-retail-v1",
+  "description": "智能货柜常见零售商品视觉类（开放词表 Tier-1）。运营后台 YOLO_SKU 映射到具体 sku_catalog。",
+  "categories": [
+    {
+      "id": "beverage_carbonated",
+      "name_zh": "碳酸饮料",
+      "classes": [
+        {
+          "class_name": "cola_c330",
+          "name_zh": "可乐 330ml",
+          "image_urls": [
+            "https://upload.wikimedia.org/wikipedia/commons/a/a0/222mL_Can_of_Coca-Cola_Y3000.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/e/e3/CocaCola_C2.jpg",
+            "https://upload.wikimedia.org/wikipedia/commons/d/dd/Coca-Cola_Japan_can_Plus_150ml.jpg"
+          ]
+        },
+        {
+          "class_name": "cola_diet_330",
+          "name_zh": "无糖可乐",
+          "image_urls": [
+            "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8a/Diet-Coke-Can.png/800px-Diet-Coke-Can.png"
+          ]
+        },
+        {
+          "class_name": "sprite_500",
+          "name_zh": "雪碧",
+          "image_urls": [
+            "https://upload.wikimedia.org/wikipedia/commons/9/9a/Sprite_logo.svg"
+          ]
+        },
+        {
+          "class_name": "fanta_orange",
+          "name_zh": "芬达橙",
+          "image_urls": []
+        },
+        {
+          "class_name": "pepsi_330",
+          "name_zh": "百事可乐",
+          "image_urls": [
+            "https://upload.wikimedia.org/wikipedia/commons/6/68/Pepsi_can.jpg"
+          ]
+        },
+        {
+          "class_name": "seven_up",
+          "name_zh": "七喜",
+          "image_urls": []
+        }
+      ]
+    },
+    {
+      "id": "beverage_water_tea",
+      "name_zh": "水与茶",
+      "classes": [
+        {
+          "class_name": "water_bottle_550",
+          "name_zh": "瓶装水 550ml",
+          "image_urls": [
+            "https://upload.wikimedia.org/wikipedia/commons/3/3f/Bottle_of_water.jpg"
+          ]
+        },
+        {
+          "class_name": "mineral_water",
+          "name_zh": "矿泉水",
+          "image_urls": []
+        },
+        {
+          "class_name": "green_tea",
+          "name_zh": "绿茶饮料",
+          "image_urls": []
+        },
+        {
+          "class_name": "black_tea",
+          "name_zh": "红茶/奶茶",
+          "image_urls": []
+        },
+        {
+          "class_name": "coffee_bottle",
+          "name_zh": "咖啡饮料",
+          "image_urls": []
+        },
+        {
+          "class_name": "energy_drink",
+          "name_zh": "功能饮料",
+          "image_urls": [
+            "https://upload.wikimedia.org/wikipedia/commons/3/3f/Red_Bull_can.png"
+          ]
+        },
+        {
+          "class_name": "juice_orange",
+          "name_zh": "橙汁",
+          "image_urls": []
+        },
+        {
+          "class_name": "juice_apple",
+          "name_zh": "苹果汁",
+          "image_urls": []
+        },
+        {
+          "class_name": "sports_drink",
+          "name_zh": "运动饮料",
+          "image_urls": []
+        },
+        {
+          "class_name": "soy_milk",
+          "name_zh": "豆奶",
+          "image_urls": []
+        }
+      ]
+    },
+    {
+      "id": "dairy",
+      "name_zh": "乳品",
+      "classes": [
+        {
+          "class_name": "milk_carton_250",
+          "name_zh": "盒装牛奶",
+          "image_urls": []
+        },
+        {
+          "class_name": "milk_bottle",
+          "name_zh": "瓶装牛奶",
+          "image_urls": []
+        },
+        {
+          "class_name": "yogurt_cup",
+          "name_zh": "酸奶杯",
+          "image_urls": []
+        },
+        {
+          "class_name": "yogurt_drink",
+          "name_zh": "乳饮料",
+          "image_urls": []
+        }
+      ]
+    },
+    {
+      "id": "snacks_chips",
+      "name_zh": "膨化零食",
+      "classes": [
+        {
+          "class_name": "chips_bag",
+          "name_zh": "薯片袋装",
+          "image_urls": [
+            "https://upload.wikimedia.org/wikipedia/commons/6/69/Potato-Chips.jpg"
+          ]
+        },
+        {
+          "class_name": "chips_can",
+          "name_zh": "薯片罐装",
+          "image_urls": []
+        },
+        {
+          "class_name": "popcorn",
+          "name_zh": "爆米花",
+          "image_urls": []
+        },
+        {
+          "class_name": "rice_cracker",
+          "name_zh": "米饼/雪饼",
+          "image_urls": []
+        }
+      ]
+    },
+    {
+      "id": "snacks_sweet",
+      "name_zh": "甜零食",
+      "classes": [
+        {
+          "class_name": "chocolate_bar",
+          "name_zh": "巧克力棒",
+          "image_urls": [
+            "https://upload.wikimedia.org/wikipedia/commons/7/70/Chocolate_bar_%28cropped%29.jpg"
+          ]
+        },
+        {
+          "class_name": "candy_bag",
+          "name_zh": "糖果袋",
+          "image_urls": []
+        },
+        {
+          "class_name": "cookie_pack",
+          "name_zh": "饼干",
+          "image_urls": [
+            "https://upload.wikimedia.org/wikipedia/commons/f/f1/Oreo-Two-Cookies.jpg"
+          ]
+        },
+        {
+          "class_name": "wafer",
+          "name_zh": "威化",
+          "image_urls": []
+        },
+        {
+          "class_name": "nuts_pack",
+          "name_zh": "坚果",
+          "image_urls": []
+        },
+        {
+          "class_name": "beef_jerky",
+          "name_zh": "肉干",
+          "image_urls": []
+        }
+      ]
+    },
+    {
+      "id": "instant_food",
+      "name_zh": "方便食品",
+      "classes": [
+        {
+          "class_name": "instant_noodle_cup",
+          "name_zh": "桶装方便面",
+          "image_urls": [
+            "https://upload.wikimedia.org/wikipedia/commons/6/6a/Nissin_Cup_Noodles.jpg"
+          ]
+        },
+        {
+          "class_name": "instant_noodle_bag",
+          "name_zh": "袋装方便面",
+          "image_urls": []
+        },
+        {
+          "class_name": "instant_rice",
+          "name_zh": "自热饭/饭团",
+          "image_urls": []
+        },
+        {
+          "class_name": "sausage_snack",
+          "name_zh": "火腿肠",
+          "image_urls": []
+        },
+        {
+          "class_name": "bread_pack",
+          "name_zh": "面包",
+          "image_urls": []
+        }
+      ]
+    },
+    {
+      "id": "legacy_demo",
+      "name_zh": "演示柜 SKU（兼容）",
+      "classes": [
+        {
+          "class_name": "cola_330ml",
+          "name_zh": "演示可乐",
+          "image_urls": [],
+          "local_paths": ["clients/consumer-mp/src/static/sku/cola.png", "testdata/cola.png", "testdata/bottle.jpg"]
+        },
+        {
+          "class_name": "sprite_500ml",
+          "name_zh": "演示雪碧",
+          "image_urls": [],
+          "local_paths": ["clients/consumer-mp/src/static/sku/sprite.png", "testdata/soda.jpg"]
+        },
+        {
+          "class_name": "water_550ml",
+          "name_zh": "演示矿泉水",
+          "local_paths": ["clients/consumer-mp/src/static/sku/water.png"]
+        },
+        {
+          "class_name": "chips_70g",
+          "name_zh": "演示薯片",
+          "local_paths": ["clients/consumer-mp/src/static/sku/chips.png"]
+        },
+        {
+          "class_name": "milk_250ml",
+          "name_zh": "演示牛奶",
+          "local_paths": ["clients/consumer-mp/src/static/sku/milk.png"]
+        },
+        {
+          "class_name": "noodle_bowl",
+          "name_zh": "演示泡面",
+          "local_paths": ["clients/consumer-mp/src/static/sku/noodle.png"]
+        }
+      ]
+    }
+  ]
+}
