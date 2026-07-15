@@ -35,8 +35,6 @@ class HybridRecognizer:
 
     @property
     def model_version(self) -> str:
-    @property
-    def model_version(self) -> str:
         return "hybrid-v1"
 
     def recognize(self, session_id: str, video_uri: str | None, device_id: str | None = None,

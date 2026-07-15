@@ -1,7 +1,6 @@
 package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.OpsUserMerchant;
-import com.aicabinet.trade.domain.OpsUserMerchantId;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.util.Collection;
 import java.util.List;
@@ -24,6 +23,5 @@ public interface OpsUserMerchantMapper extends BaseTradeMapper<OpsUserMerchant> 
     }
 
         List<OpsUserMerchant> findByMerchantIdIn(@Param("merchantIds") Collection<String> merchantIds);
-
 
 }

@@ -190,6 +190,8 @@ class YoloRecognizer:
 
     def _count_skus(self, infer_path: str) -> tuple[dict[str, tuple[int, float]], list[str]]:
         class_to_sku = yolo_class_to_sku()
+        if self._model is None:
+            return {}, []
         results = self._model.predict(infer_path, conf=CONF_THRESHOLD, verbose=False)
         counts: dict[str, tuple[int, float]] = {}
         conf_sum: dict[str, float] = {}

@@ -2,7 +2,6 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.SlaDailySnapshot;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import java.time.LocalDate;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
 

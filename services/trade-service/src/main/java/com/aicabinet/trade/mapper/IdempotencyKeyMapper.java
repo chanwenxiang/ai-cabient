@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.time.Instant;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
-import org.springframework.stereotype.Repository;
 
 @Mapper
 public interface IdempotencyKeyMapper extends BaseTradeMapper<IdempotencyKey> {

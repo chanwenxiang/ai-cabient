@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.DeviceSkuLotMapper">
+
+  <select id="sumSellableQuantity" resultType="int">
+    <![CDATA[
+    SELECT COALESCE(SUM(l.quantity), 0) FROM device_sku_lot l
+    WHERE l.device_id = #{deviceId} AND l.sku_id = #{skuId}
+      AND l.status IN ('ON_SALE', 'NEAR_EXPIRY')
+    ]]>
+  </select>
+
+  <select id="countNearExpiry" resultType="long">
+    <![CDATA[
+    SELECT COUNT(*) FROM device_sku_lot l
+    WHERE l.status IN ('ON_SALE', 'NEAR_EXPIRY')
+      AND l.quantity > 0
+      AND l.expiry_date <= #{nearDate}
+      AND l.expiry_date > #{today}
+    ]]>
+  </select>
+
+  <select id="countExpiredWithStock" resultType="long">
+    <![CDATA[
+    SELECT COUNT(*) FROM device_sku_lot l
+    WHERE l.status IN ('ON_SALE', 'NEAR_EXPIRY', 'BLOCKED')
+      AND l.quantity > 0
+      AND l.expiry_date < #{today}
+    ]]>
+  </select>
+
+  <select id="_sumBookQtyBySlot" resultType="java.util.LinkedHashMap">
+    <![CDATA[
+    SELECT l.slot_id AS c0, COALESCE(SUM(l.quantity), 0) AS c1
+    FROM device_sku_lot l
+    WHERE l.device_id = #{deviceId} AND l.slot_id IS NOT NULL AND l.slot_id <> ''
+      AND l.status IN ('ON_SALE', 'NEAR_EXPIRY') AND l.quantity > 0
+    GROUP BY l.slot_id
+    ]]>
+  </select>
+</mapper>

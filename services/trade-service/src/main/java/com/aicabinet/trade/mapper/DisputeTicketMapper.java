@@ -1,7 +1,6 @@
 package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.DisputeTicket;
-import com.aicabinet.trade.domain.ShoppingSession;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.time.Instant;
 import java.util.Collection;
@@ -50,7 +49,6 @@ public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
 
         List<DisputeTicket> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
 
-
     default Page<DisputeTicket> searchByDeviceIds( @Param("status") String status, @Param("sessionId") String sessionId, @Param("deviceIds") Collection<String> deviceIds, Pageable pageable) {
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<DisputeTicket>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
@@ -64,17 +62,12 @@ public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
 
         long countOpenByDeviceIds(@Param("deviceIds") Collection<String> deviceIds);
 
-
         long countOverdue(@Param("now") Instant now);
-
 
         long countNearSla(@Param("now") Instant now, @Param("threshold") Instant threshold);
 
-
         long countResolvedSince(@Param("since") Instant since);
 
-
         long countResolvedWithinSlaSince(@Param("since") Instant since);
-
 
 }

@@ -4,7 +4,6 @@ import com.aicabinet.trade.domain.TransactionStep;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
-import org.springframework.stereotype.Repository;
 
 @Mapper
 public interface TransactionStepMapper extends BaseTradeMapper<TransactionStep> {

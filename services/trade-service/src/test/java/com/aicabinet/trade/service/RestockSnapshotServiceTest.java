@@ -52,7 +52,6 @@ class RestockSnapshotServiceTest {
         int updated = restockSnapshotService.applySnapshot(session);
 
         assertEquals(1, updated);
-        @SuppressWarnings("unchecked")
         ArgumentCaptor<Map<String, Integer>> physicalCaptor = ArgumentCaptor.forClass(Map.class);
         verify(deviceSlotService).applyPhysicalSnapshot(
                 eq("CAB-001"), physicalCaptor.capture(), eq("GRAVITY_SLOT"), eq("S-RESTOCK-1"));

@@ -40,16 +40,16 @@ public class DataConsistencyService {
     public void logChange(String tableName, String recordId, String operation, 
                           Object oldValue, Object newValue, String changedBy) {
         try {
-            DataChangeLog log = new DataChangeLog();
-            log.setTableName(tableName);
-            log.setRecordId(recordId);
-            log.setOperation(operation);
-            log.setOldValue(oldValue != null ? objectMapper.writeValueAsString(oldValue) : null);
-            log.setNewValue(newValue != null ? objectMapper.writeValueAsString(newValue) : null);
-            log.setChangedBy(changedBy);
-            changeLogRepository.save(log);
+            DataChangeLog changeLog = new DataChangeLog();
+            changeLog.setTableName(tableName);
+            changeLog.setRecordId(recordId);
+            changeLog.setOperation(operation);
+            changeLog.setOldValue(oldValue != null ? objectMapper.writeValueAsString(oldValue) : null);
+            changeLog.setNewValue(newValue != null ? objectMapper.writeValueAsString(newValue) : null);
+            changeLog.setChangedBy(changedBy);
+            changeLogRepository.save(changeLog);
         } catch (Exception e) {
-            this.log.error("Failed to log data change", e);
+            log.error("Failed to log data change", e);
         }
     }
     

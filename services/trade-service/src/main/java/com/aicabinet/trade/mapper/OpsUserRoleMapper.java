@@ -1,7 +1,6 @@
 package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.OpsUserRole;
-import com.aicabinet.trade.domain.OpsUserRoleId;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;

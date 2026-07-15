@@ -1,6 +1,5 @@
 package com.aicabinet.trade.mapper;
 
-import com.aicabinet.trade.domain.WarehouseOutbound;
 import com.aicabinet.trade.domain.WarehouseOutboundLine;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.util.List;
@@ -19,6 +18,5 @@ public interface WarehouseOutboundLineMapper extends BaseTradeMapper<WarehouseOu
     }
 
         int sumAllocatedQty(@Param("warehouseId") String warehouseId, @Param("skuId") String skuId, @Param("batchNo") String batchNo);
-
 
 }

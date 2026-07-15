@@ -1,7 +1,6 @@
 package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.UserAccount;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;

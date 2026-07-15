@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -40,7 +39,6 @@ public class CacheService {
      * @param ttlMs 过期时间(毫秒)
      * @param loader 重新加载数据的函数
      */
-    @SuppressWarnings("unchecked")
     public <T> T get(String prefix, String key, long ttlMs, Supplier<T> loader) {
         String cacheKey = prefix + ":" + key;
         CacheEntry entry = cache.get(cacheKey);

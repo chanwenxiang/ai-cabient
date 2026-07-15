@@ -5,7 +5,6 @@ import com.aicabinet.common.dto.DisputeTicketDto;
 import com.aicabinet.common.dto.FileDisputeRequest;
 import com.aicabinet.common.dto.MerchantDisputeDetailDto;
 import com.aicabinet.common.dto.MerchantReplyDisputeRequest;
-import com.aicabinet.common.dto.OrderDto;
 import com.aicabinet.common.dto.OrderLineDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.CloseDisputeRequest;

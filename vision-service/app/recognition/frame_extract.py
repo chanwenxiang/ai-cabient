@@ -18,7 +18,7 @@ def is_video_path(path: str) -> bool:
 
 def extract_key_frames(local_path: str) -> dict[str, str | None]:
     """返回 open/mid/close 帧路径；非视频或失败时均为 None。"""
-    empty = {"open": None, "mid": None, "close": None}
+    empty: dict[str, str | None] = {"open": None, "mid": None, "close": None}
     if not is_video_path(local_path):
         return empty
 

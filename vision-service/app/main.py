@@ -170,19 +170,13 @@ async def recognize_upload(
     file: UploadFile = File(...),
 ):
     data = await file.read()
-    kwargs = {"session_id": session_id, "data": data, "filename": file.filename or "image.jpg"}
+    filename = file.filename or "image.jpg"
     # yolo_deepseek / deepseek 支持 device_id；纯 yolo 忽略多余参数
+    upload = recognizer.recognize_upload
     try:
-        out = recognizer.recognize_upload(  # type: ignore[call-arg]
-            kwargs["session_id"],
-            kwargs["data"],
-            kwargs["filename"],
-            device_id=device_id or None,
-        )
+        out = upload(session_id, data, filename, device_id=device_id or None)  # type: ignore[call-arg]
     except TypeError:
-        out = recognizer.recognize_upload(
-            kwargs["session_id"], kwargs["data"], kwargs["filename"]
-        )
+        out = upload(session_id, data, filename)
     return _to_response(session_id, f"upload://{file.filename}", out)
 
 

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.AdCampaignMapper">
+
+  <select id="findActiveCampaigns" resultType="com.aicabinet.trade.domain.AdCampaign">
+    <![CDATA[
+    SELECT c.* FROM ad_campaign c WHERE c.slot_id = #{slotId} AND c.status = 'ACTIVE' AND c.start_time <= #{now} AND (c.end_time IS NULL OR c.end_time > #{now}) ORDER BY c.priority DESC
+    ]]>
+  </select>
+</mapper>

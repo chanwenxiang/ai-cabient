@@ -1,7 +1,6 @@
 package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.DeviceSkuPrice;
-import com.aicabinet.trade.domain.DeviceSkuPriceId;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.util.Collection;
 import java.util.List;

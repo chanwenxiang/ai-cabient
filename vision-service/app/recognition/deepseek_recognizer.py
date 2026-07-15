@@ -287,7 +287,8 @@ class DeepSeekRecognizer:
         local = resolve_video_path(video_uri)
         if not local or not os.path.exists(local):
             return []
-        paths = extract_key_frames(local, max_frames=2)
+        frames = extract_key_frames(local)
+        paths = [p for p in (frames.get("open"), frames.get("mid"), frames.get("close")) if p]
         out: list[bytes] = []
         for p in paths:
             try:

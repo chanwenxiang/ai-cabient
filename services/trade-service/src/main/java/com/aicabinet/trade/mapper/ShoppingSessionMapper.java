@@ -3,7 +3,6 @@ package com.aicabinet.trade.mapper;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
-import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -139,6 +138,5 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
     }
 
         List<ShoppingSession> findByStateInAndUpdatedAtAfter( @Param("states") Collection<SessionState> states, @Param("since") java.time.Instant since);
-
 
 }

@@ -1,6 +1,5 @@
 package com.aicabinet.trade.config;
 
-import io.micrometer.tracing.Span;
 import io.micrometer.tracing.Tracer;
 import io.micrometer.tracing.handler.DefaultTracingObservationHandler;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;

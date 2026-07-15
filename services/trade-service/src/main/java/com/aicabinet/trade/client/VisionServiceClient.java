@@ -143,7 +143,6 @@ public class VisionServiceClient {
         if (skuName != null && !skuName.isBlank()) {
             body.add("sku_name", skuName);
         }
-        @SuppressWarnings("unchecked")
         Map<String, Object> result = restClient.post()
                 .uri("/api/v2/vision/suggest-class")
                 .contentType(MediaType.MULTIPART_FORM_DATA)

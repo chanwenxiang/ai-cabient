@@ -4,7 +4,6 @@ import com.aicabinet.trade.domain.ShareReward;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
-import org.springframework.stereotype.Repository;
 
 @Mapper
 public interface ShareRewardMapper extends BaseTradeMapper<ShareReward> {

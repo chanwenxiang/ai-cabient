@@ -1,2 +1,8 @@
 # 旧项目残留（OneDrive 可能从云端恢复，本地忽略）
 easygo/
+# 嵌套旧副本（与根目录正式工程重复，勿被 IDE/Java LS 扫描）
+/ai-cabinet/
+
+# Migration leftovers �� not source of truth; keep out of IDE indexing
+scripts/_repo_backup/
+scripts/*.java.bak

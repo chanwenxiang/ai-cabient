@@ -46,16 +46,24 @@ def start_kafka_worker(recognizer) -> threading.Thread | None:
             log.error("kafka-python not installed, worker disabled")
             return
 
+        def _decode(raw: bytes | None) -> str:
+            return raw.decode("utf-8") if raw else ""
+
+        def _encode(value: object) -> bytes:
+            if isinstance(value, bytes):
+                return value
+            return str(value).encode("utf-8")
+
         consumer = KafkaConsumer(
             REQUEST_TOPIC,
             bootstrap_servers=BOOTSTRAP,
             group_id="vision-service",
             auto_offset_reset="earliest",
-            value_deserializer=lambda m: m.decode("utf-8"),
+            value_deserializer=_decode,
         )
         producer = KafkaProducer(
             bootstrap_servers=BOOTSTRAP,
-            value_serializer=lambda m: m.encode("utf-8"),
+            value_serializer=_encode,
         )
         log.info("kafka worker started bootstrap=%s", BOOTSTRAP)
 

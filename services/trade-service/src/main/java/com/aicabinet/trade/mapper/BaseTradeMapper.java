@@ -56,7 +56,6 @@ public interface BaseTradeMapper<T> extends BaseMapper<T> {
         }
     }
 
-    @SuppressWarnings("unchecked")
     default T save(T entity) {
         Object id = extractId(entity);
         if (id == null) {

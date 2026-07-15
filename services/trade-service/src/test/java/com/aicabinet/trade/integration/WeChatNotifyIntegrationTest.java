@@ -44,6 +44,7 @@ class WeChatNotifyIntegrationTest {
     private static WeChatPayTestKeys.Material keys;
 
     @Container
+    @SuppressWarnings("resource") // lifecycle owned by Testcontainers JUnit extension
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
             .withDatabaseName("aicabinet_test")
             .withUsername("test")

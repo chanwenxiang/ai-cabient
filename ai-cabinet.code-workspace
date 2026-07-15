@@ -2,7 +2,7 @@
   "folders": [
     {
       "name": "AI Cabinet",
-      "path": "ai-cabinet"
+      "path": "."
     }
   ],
   "settings": {
@@ -13,14 +13,28 @@
         "name": "JavaSE-17",
         "path": "C:\\Program Files\\Java\\jdk-17.0.17",
         "default": true
+      },
+      {
+        "name": "JavaSE-21",
+        "path": "C:\\Program Files\\Java\\jdk-21.0.9"
       }
     ],
     "java.configuration.updateBuildConfiguration": "automatic",
     "java.import.maven.enabled": true,
     "java.import.gradle.enabled": false,
+    "java.gradle.buildServer.enabled": "off",
     "java.errors.incompleteClasspath.severity": "ignore",
+    "java.server.launchMode": "Standard",
     "files.exclude": {
-      "**/target": true
-    }
+      "**/target": true,
+      "**/scripts/_repo_backup": true
+    },
+    "java.import.exclusions": [
+      "**/node_modules/**",
+      "**/.git/**",
+      "**/edge/android-app/**",
+      "**/scripts/**",
+      "**/scripts"
+    ]
   }
 }

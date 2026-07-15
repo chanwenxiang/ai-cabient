@@ -44,6 +44,7 @@ def _refresh_if_needed() -> None:
                 float(row.get("minConfidence") or 0.5),
                 str(row.get("mappingSource") or "YOLO_COCO"),
             )
+        _yolo_cache = yolo
         _cache_at = time.time()
         log.info("vision mappings loaded yolo=%d items", len(_yolo_cache))
     except Exception as exc:

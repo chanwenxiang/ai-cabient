@@ -1,7 +1,6 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.PayChannels;
-import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.config.PayScoreProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;

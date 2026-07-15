@@ -6,21 +6,52 @@
       "name": "JavaSE-17",
       "path": "C:\\Program Files\\Java\\jdk-17.0.17",
       "default": true
+    },
+    {
+      "name": "JavaSE-21",
+      "path": "C:\\Program Files\\Java\\jdk-21.0.9"
     }
   ],
   "java.configuration.updateBuildConfiguration": "automatic",
   "java.import.maven.enabled": true,
   "java.import.gradle.enabled": false,
+  "java.gradle.buildServer.enabled": "off",
   "java.errors.incompleteClasspath.severity": "ignore",
   "java.project.importOnFirstTimeStartup": "automatic",
+  "java.server.launchMode": "Standard",
+  "java.autobuild.enabled": true,
   "files.exclude": {
     "**/target": true,
-    "easygo": true
+    "easygo": true,
+    "**/scripts/_repo_backup": true
   },
   "files.watcherExclude": {
-    "**/easygo/**": true
+    "**/easygo/**": true,
+    "**/edge/android-app/.gradle/**": true,
+    "**/edge/android-app/build/**": true,
+    "**/edge/android-app/**": true,
+    "**/scripts/_repo_backup/**": true,
+    "**/scripts/**/*.java.bak": true
   },
   "java.import.exclusions": [
-    "**/easygo/**"
+    "**/node_modules/**",
+    "**/.git/**",
+    "**/easygo/**",
+    "**/edge/android-app/**",
+    "**/scripts/**",
+    "**/scripts"
+  ],
+  "java.project.resourceFilters": [
+    "node_modules",
+    "\\.git",
+    "edge[/\\\\]android-app",
+    "scripts"
+  ],
+  "python.analysis.exclude": [
+    "**/node_modules/**",
+    "**/scripts/**",
+    "**/vision-service/scripts/**",
+    "**/vision-service/tests/**",
+    "**/vision-service/training/**"
   ]
 }

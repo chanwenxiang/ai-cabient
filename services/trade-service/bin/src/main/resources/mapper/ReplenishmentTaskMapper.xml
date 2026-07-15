@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.ReplenishmentTaskMapper">
+  <!-- resultType: concrete type only, no Java generics -->
+  <select id="_findLastCompletedAtByDeviceId" resultType="java.time.Instant">
+    <![CDATA[
+    SELECT MAX(t.completed_at) FROM replenishment_task t
+                        WHERE t.device_id = #{deviceId} AND t.status = 'COMPLETED'
+    ]]>
+  </select>
+</mapper>
