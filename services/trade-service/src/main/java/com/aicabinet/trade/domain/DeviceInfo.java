@@ -1,66 +1,48 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "device_info")
+@TableName("device_info")
 public class DeviceInfo {
 
-    @Id
-    @Column(length = 64)
+    @TableId(type = IdType.INPUT)
     private String deviceId;
 
-    @Column(length = 128)
     private String deviceName;
 
-    @Column(nullable = false, length = 32)
     private String deviceType;
 
-    @Column(nullable = false, length = 16)
     private String onlineStatus;
 
-    @Column(length = 32)
     private String appVersion;
 
-    @Column(length = 32)
     private String firmwareVersion;
 
     private Double latitude;
     private Double longitude;
 
-    @Column(length = 256)
     private String address;
 
-    @Column(length = 32)
     private String merchantId;
 
-    @Column(length = 64, name = "alert_contact_name")
     private String alertContactName;
 
-    @Column(length = 32, name = "alert_contact_phone")
     private String alertContactPhone;
 
-    @Column(name = "target_temp_c")
     private Integer targetTempC;
 
-    @Column(name = "current_temp_c")
     private Integer currentTempC;
 
     private Instant tempReportedAt;
 
-    @Column(length = 256, name = "ops_remark")
     private String opsRemark;
 
     private Instant updatedAt;
 
-    @PrePersist
-    @PreUpdate
-    void touch() {
-        updatedAt = Instant.now();
-    }
-
-    public String getDeviceId() { return deviceId; }
+public String getDeviceId() { return deviceId; }
     public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
     public String getDeviceName() { return deviceName; }
     public void setDeviceName(String deviceName) { this.deviceName = deviceName; }

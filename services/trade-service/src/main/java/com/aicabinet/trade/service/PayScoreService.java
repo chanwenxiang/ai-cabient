@@ -9,7 +9,7 @@ import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.payment.AgreementChargeClient;
 import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.WeChatPayClient;
-import com.aicabinet.trade.repository.UserInfoRepository;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -24,7 +24,7 @@ public class PayScoreService {
     private final PayScoreProperties payScoreProperties;
     private final SecurityProperties securityProperties;
     private final WeChatPayProperties weChatPayProperties;
-    private final UserInfoRepository userInfoRepository;
+    private final UserInfoMapper userInfoRepository;
     private final WeChatPayClient weChatPayClient;
     private final AlipayPayClient alipayPayClient;
     private final AgreementChargeClient agreementChargeClient;
@@ -32,7 +32,7 @@ public class PayScoreService {
     public PayScoreService(PayScoreProperties payScoreProperties,
                            SecurityProperties securityProperties,
                            WeChatPayProperties weChatPayProperties,
-                           UserInfoRepository userInfoRepository,
+                           UserInfoMapper userInfoRepository,
                            WeChatPayClient weChatPayClient,
                            AlipayPayClient alipayPayClient,
                            AgreementChargeClient agreementChargeClient) {

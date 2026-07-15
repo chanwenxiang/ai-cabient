@@ -5,9 +5,9 @@ import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.StagingProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.SkuCatalog;
-import com.aicabinet.trade.repository.CabinetOrderRepository;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
-import com.aicabinet.trade.repository.SkuCatalogRepository;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,9 +29,9 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class SettlementDisputeTest {
 
-    @Mock ShoppingSessionRepository sessionRepository;
-    @Mock SkuCatalogRepository skuCatalogRepository;
-    @Mock CabinetOrderRepository orderRepository;
+    @Mock ShoppingSessionMapper sessionRepository;
+    @Mock SkuCatalogMapper skuCatalogRepository;
+    @Mock CabinetOrderMapper orderRepository;
     @Mock VisionServiceClient visionClient;
     @Mock DisputeService disputeService;
     @Mock ObjectProvider<com.aicabinet.trade.messaging.VisionRecognitionProducer> visionRecognitionProducer;

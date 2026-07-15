@@ -1,0 +1,17 @@
+
+.picker.data-v-1dd96812 { padding: 8px 0; font-weight: 600;
+}
+.warn.data-v-1dd96812 { color: #d97706; display: block; margin-top: 8rpx;
+}
+.row.data-v-1dd96812 { display: flex; justify-content: space-between; align-items: center;
+}
+.name.data-v-1dd96812 { font-weight: 600; display: block;
+}
+.effective.data-v-1dd96812 { font-size: 32rpx; font-weight: 700; color: #0f766e;
+}
+.price-col.data-v-1dd96812 { text-align: right; min-width: 160rpx;
+}
+.input.data-v-1dd96812 { width: 140rpx; text-align: right; border: 1px solid #e2e8f0; border-radius: 6px; padding: 6px; margin-top: 6rpx;
+}
+.err.data-v-1dd96812 { color: #ef4444;
+}

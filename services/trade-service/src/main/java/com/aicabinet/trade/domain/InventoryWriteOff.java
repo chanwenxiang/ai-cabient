@@ -1,46 +1,33 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "inventory_write_off")
+@TableName("inventory_write_off")
 public class InventoryWriteOff {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long writeOffId;
 
-    @Column(nullable = false, length = 64)
     private String deviceId;
 
-    @Column(nullable = false, length = 64)
     private String skuId;
 
-    @Column(length = 64)
     private String batchNo;
 
-    @Column(nullable = false)
     private int quantity;
 
-    @Column(nullable = false, length = 32)
     private String reason;
 
     private Integer costCents;
 
     private Long operatorId;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        if (createdAt == null) {
-            createdAt = Instant.now();
-        }
-    }
-
-    public Long getWriteOffId() { return writeOffId; }
+public Long getWriteOffId() { return writeOffId; }
     public String getDeviceId() { return deviceId; }
     public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
     public String getSkuId() { return skuId; }

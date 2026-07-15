@@ -3,8 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DeviceTemperatureReading;
 import com.aicabinet.trade.metrics.CabinetMetrics;
-import com.aicabinet.trade.repository.DeviceInfoRepository;
-import com.aicabinet.trade.repository.DeviceTemperatureReadingRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.DeviceTemperatureReadingMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -20,13 +20,13 @@ public class DevicePresenceService {
     private static final Logger log = LoggerFactory.getLogger(DevicePresenceService.class);
     private static final long OFFLINE_AFTER_MINUTES = 2;
 
-    private final DeviceInfoRepository deviceRepository;
-    private final DeviceTemperatureReadingRepository temperatureReadingRepository;
+    private final DeviceInfoMapper deviceRepository;
+    private final DeviceTemperatureReadingMapper temperatureReadingRepository;
     private final CabinetMetrics cabinetMetrics;
     private final OpsExceptionService opsExceptionService;
 
-    public DevicePresenceService(DeviceInfoRepository deviceRepository,
-                                 DeviceTemperatureReadingRepository temperatureReadingRepository,
+    public DevicePresenceService(DeviceInfoMapper deviceRepository,
+                                 DeviceTemperatureReadingMapper temperatureReadingRepository,
                                  CabinetMetrics cabinetMetrics,
                                  OpsExceptionService opsExceptionService) {
         this.deviceRepository = deviceRepository;

@@ -1,59 +1,38 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 import java.time.LocalDate;
 
-@Entity
-@Table(name = "device_sku_lot")
+@TableName("device_sku_lot")
 public class DeviceSkuLot {
 
-    @Id
-    @Column(length = 32)
+    @TableId(type = IdType.INPUT)
     private String lotId;
 
-    @Column(nullable = false, length = 64)
     private String deviceId;
 
-    @Column(nullable = false, length = 64)
     private String skuId;
 
-    @Column(nullable = false, length = 64)
     private String batchNo;
 
     private LocalDate productionDate;
 
-    @Column(nullable = false)
     private LocalDate expiryDate;
 
-    @Column(nullable = false)
     private int quantity;
 
-    @Column(length = 32)
     private String slotId;
 
-    @Column(nullable = false, length = 16)
     private String status = "ON_SALE";
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @Column(nullable = false)
     private Instant updatedAt;
 
-    @PrePersist
-    void prePersist() {
-        Instant now = Instant.now();
-        createdAt = now;
-        updatedAt = now;
-    }
-
-    @PreUpdate
-    void preUpdate() {
-        updatedAt = Instant.now();
-    }
-
-    public String getLotId() { return lotId; }
+public String getLotId() { return lotId; }
     public void setLotId(String lotId) { this.lotId = lotId; }
     public String getDeviceId() { return deviceId; }
     public void setDeviceId(String deviceId) { this.deviceId = deviceId; }

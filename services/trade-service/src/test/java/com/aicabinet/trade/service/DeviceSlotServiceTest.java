@@ -2,7 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.DeviceSlot;
 import com.aicabinet.trade.domain.DeviceSlotId;
-import com.aicabinet.trade.repository.*;
+import com.aicabinet.trade.mapper.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,9 +23,9 @@ class DeviceSlotServiceTest {
     private static final String DEVICE_ID = "CAB-001";
 
     @Mock
-    private DeviceSlotRepository slotRepository;
+    private DeviceSlotMapper slotRepository;
     @Mock
-    private DeviceSkuLotRepository lotRepository;
+    private DeviceSkuLotMapper lotRepository;
     @Mock
     private SalesVelocityService salesVelocityService;
 

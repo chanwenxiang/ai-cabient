@@ -1,34 +1,28 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "edge_model_version")
+@TableName("edge_model_version")
 public class EdgeModelVersion {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long versionId;
+
     
-    @Column(length = 64, nullable = false)
     private String modelName;
     
-    @Column(length = 32, nullable = false)
     private String version;
     
-    @Column(length = 200)
     private String downloadUrl;
     
-    @Column(length = 64)
     private String checksum;
     
-    @Column(nullable = false)
     private Long sizeBytes;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     private Instant releasedAt;

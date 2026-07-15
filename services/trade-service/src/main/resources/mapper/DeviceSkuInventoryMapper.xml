@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.DeviceSkuInventoryMapper">
+
+  <select id="countLowStock" resultType="long">
+    <![CDATA[
+    SELECT COUNT(*) FROM device_sku_inventory i WHERE i.quantity <= i.low_threshold
+    ]]>
+  </select>
+
+  <select id="findLowStock" resultType="com.aicabinet.trade.domain.DeviceSkuInventory">
+    <![CDATA[
+    SELECT i.* FROM device_sku_inventory i WHERE i.quantity <= i.low_threshold ORDER BY i.device_id, i.sku_id
+    ]]>
+  </select>
+</mapper>

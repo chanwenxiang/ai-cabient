@@ -1,44 +1,36 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 
-@Entity
-@Table(name = "cabinet_order_line")
+@TableName("cabinet_order_line")
 public class CabinetOrderLine {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "order_id", nullable = false)
-    private CabinetOrder order;
-
-    @Column(nullable = false, length = 64)
+    @TableField("order_id")
+    private String orderId;
     private String skuId;
 
-    @Column(length = 128)
     private String skuName;
 
-    @Column(nullable = false)
     private int quantity;
 
-    @Column(nullable = false)
     private int unitPriceCents;
 
-    @Column(nullable = false)
     private int lineAmountCents;
 
     private Float confidence;
 
-    @Column(length = 64)
     private String batchNo;
 
     private Integer unitCostCents;
 
     public Long getId() { return id; }
-    public void setOrder(CabinetOrder order) { this.order = order; }
-    public String getSkuId() { return skuId; }
+public String getSkuId() { return skuId; }
     public void setSkuId(String skuId) { this.skuId = skuId; }
     public String getSkuName() { return skuName; }
     public void setSkuName(String skuName) { this.skuName = skuName; }
@@ -54,4 +46,6 @@ public class CabinetOrderLine {
     public void setBatchNo(String batchNo) { this.batchNo = batchNo; }
     public Integer getUnitCostCents() { return unitCostCents; }
     public void setUnitCostCents(Integer unitCostCents) { this.unitCostCents = unitCostCents; }
+    public String getOrderId() { return orderId; }
+    public void setOrderId(String orderId) { this.orderId = orderId; }
 }

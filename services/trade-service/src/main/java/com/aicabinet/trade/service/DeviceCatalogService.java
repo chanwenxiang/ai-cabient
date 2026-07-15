@@ -3,8 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.DeviceProductDto;
 import com.aicabinet.trade.domain.DeviceSkuInventory;
 import com.aicabinet.trade.domain.SkuCatalog;
-import com.aicabinet.trade.repository.DeviceSkuInventoryRepository;
-import com.aicabinet.trade.repository.SkuCatalogRepository;
+import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,12 +18,12 @@ import java.util.stream.Collectors;
 @Service
 public class DeviceCatalogService {
 
-    private final DeviceSkuInventoryRepository inventoryRepository;
-    private final SkuCatalogRepository skuCatalogRepository;
+    private final DeviceSkuInventoryMapper inventoryRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
     private final MerchantSkuPricingService skuPricingService;
 
-    public DeviceCatalogService(DeviceSkuInventoryRepository inventoryRepository,
-                                SkuCatalogRepository skuCatalogRepository,
+    public DeviceCatalogService(DeviceSkuInventoryMapper inventoryRepository,
+                                SkuCatalogMapper skuCatalogRepository,
                                 MerchantSkuPricingService skuPricingService) {
         this.inventoryRepository = inventoryRepository;
         this.skuCatalogRepository = skuCatalogRepository;

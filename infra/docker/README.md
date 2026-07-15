@@ -6,7 +6,7 @@
 
 `trade-service` 镜像在构建阶段执行 **Maven 全量 `package`**（不要加 `-Dskip.admin.build`）：
 
-1. `frontend-maven-plugin` 在容器内安装 Node 18，执行 `npm install` + `npm run build`
+1. `frontend-maven-plugin` 在容器内安装 Node 24.18，执行 `npm install` + `npm run build`
 2. 产物写入 `static/admin/` 并打进 Spring Boot JAR
 3. 运行时访问 `http://<host>/admin/index.html`，与后端同域、版本一致
 

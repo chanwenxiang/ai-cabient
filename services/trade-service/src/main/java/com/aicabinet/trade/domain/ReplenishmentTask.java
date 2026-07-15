@@ -1,27 +1,24 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "replenishment_task")
+@TableName("replenishment_task")
 public class ReplenishmentTask {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long taskId;
 
     private Long routeId;
 
-    @Column(nullable = false, length = 64)
     private String deviceId;
 
     private Long assigneeUserId;
 
-    @Column(nullable = false, length = 16)
     private String status = "PENDING";
 
-    @Column(length = 256)
     private String notes;
 
     private Instant completedAt;
@@ -36,15 +33,9 @@ public class ReplenishmentTask {
 
     private Double checkInLng;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public Long getTaskId() { return taskId; }
+public Long getTaskId() { return taskId; }
     public void setTaskId(Long taskId) { this.taskId = taskId; }
     public Long getRouteId() { return routeId; }
     public void setRouteId(Long routeId) { this.routeId = routeId; }

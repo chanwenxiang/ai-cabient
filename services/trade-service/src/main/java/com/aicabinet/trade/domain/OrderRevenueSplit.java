@@ -1,65 +1,43 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
-
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 import java.time.LocalDate;
 
-@Entity
-@Table(name = "order_revenue_split")
+@TableName("order_revenue_split")
 public class OrderRevenueSplit {
 
-    @Id
-    @Column(length = 32)
+    @TableId(type = IdType.INPUT)
     private String splitId;
 
-    @Column(nullable = false, length = 32)
     private String orderId;
 
-    @Column(nullable = false, length = 32)
     private String merchantId;
 
-    @Column(nullable = false, length = 64)
     private String deviceId;
 
-    @Column(nullable = false)
     private long grossCents;
 
-    @Column(nullable = false)
     private long platformCents;
 
-    @Column(nullable = false)
     private long merchantCents;
 
-    @Column(nullable = false, length = 16)
     private String status = "ACCRUED";
 
-    @Column(length = 64)
     private String wechatOutOrderNo;
 
-    @Column(length = 64)
     private String wechatTransactionId;
 
-    @Column(length = 512)
     private String failureReason;
-    @Column(length = 64)
     private String settlementBatchNo;
     private LocalDate settleAfter;
     private Instant settledAt;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public String getSplitId() { return splitId; }
+public String getSplitId() { return splitId; }
     public void setSplitId(String splitId) { this.splitId = splitId; }
     public String getOrderId() { return orderId; }
     public void setOrderId(String orderId) { this.orderId = orderId; }

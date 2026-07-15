@@ -8,8 +8,8 @@ import com.aicabinet.common.dto.WxLoginRequest;
 import com.aicabinet.trade.auth.JwtService;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
-import com.aicabinet.trade.repository.UserAccountRepository;
-import com.aicabinet.trade.repository.UserInfoRepository;
+import com.aicabinet.trade.mapper.UserAccountMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.sms.SmsCodeService;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.ServerBootMarker;
@@ -23,16 +23,16 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class AuthService {
 
-    private final UserInfoRepository userInfoRepository;
-    private final UserAccountRepository userAccountRepository;
+    private final UserInfoMapper userInfoRepository;
+    private final UserAccountMapper userAccountRepository;
     private final JwtService jwtService;
     private final WeChatMiniAppClient weChatMiniAppClient;
     private final SmsCodeService smsCodeService;
     private final PasswordEncoder passwordEncoder;
     private final ServerBootMarker serverBootMarker;
 
-    public AuthService(UserInfoRepository userInfoRepository,
-                       UserAccountRepository userAccountRepository,
+    public AuthService(UserInfoMapper userInfoRepository,
+                       UserAccountMapper userAccountRepository,
                        JwtService jwtService,
                        WeChatMiniAppClient weChatMiniAppClient,
                        SmsCodeService smsCodeService,

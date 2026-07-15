@@ -1,34 +1,28 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "data_change_log")
+@TableName("data_change_log")
 public class DataChangeLog {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
+
     
-    @Column(length = 64, nullable = false)
     private String tableName;
     
-    @Column(length = 64, nullable = false)
     private String recordId;
     
-    @Column(length = 16, nullable = false)
     private String operation;
     
-    @Column(columnDefinition = "jsonb")
     private String oldValue;
     
-    @Column(columnDefinition = "jsonb")
     private String newValue;
     
-    @Column(length = 64)
     private String changedBy;
     
-    @Column(nullable = false)
     private Instant changedAt = Instant.now();
     
     private Boolean verified = false;

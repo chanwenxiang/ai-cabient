@@ -7,7 +7,7 @@ import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.StagingProperties;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.messaging.VisionRecognitionProducer;
-import com.aicabinet.trade.repository.*;
+import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,9 +27,9 @@ public class SettlementService {
 
     private static final Logger log = LoggerFactory.getLogger(SettlementService.class);
 
-    private final ShoppingSessionRepository sessionRepository;
-    private final SkuCatalogRepository skuCatalogRepository;
-    private final CabinetOrderRepository orderRepository;
+    private final ShoppingSessionMapper sessionRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
+    private final CabinetOrderMapper orderRepository;
     private final VisionServiceClient visionClient;
     private final DisputeService disputeService;
     private final ObjectProvider<VisionRecognitionProducer> visionRecognitionProducer;
@@ -47,9 +47,9 @@ public class SettlementService {
     private final VideoArchiveService videoArchiveService;
     private final SkuVisionEnrollmentService skuVisionEnrollmentService;
 
-    public SettlementService(ShoppingSessionRepository sessionRepository,
-                             SkuCatalogRepository skuCatalogRepository,
-                             CabinetOrderRepository orderRepository,
+    public SettlementService(ShoppingSessionMapper sessionRepository,
+                             SkuCatalogMapper skuCatalogRepository,
+                             CabinetOrderMapper orderRepository,
                              VisionServiceClient visionClient,
                              @Lazy DisputeService disputeService,
                              ObjectProvider<VisionRecognitionProducer> visionRecognitionProducer,

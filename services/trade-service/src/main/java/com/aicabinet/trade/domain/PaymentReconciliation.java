@@ -1,59 +1,43 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.aicabinet.trade.config.JsonStringTypeHandler;
 import java.time.Instant;
 import java.time.LocalDate;
 
-@Entity
-@Table(name = "payment_reconciliation")
+@TableName(value = "payment_reconciliation", autoResultMap = true)
 public class PaymentReconciliation {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long reconId;
 
-    @Column(nullable = false)
     private LocalDate reconDate;
 
-    @Column(nullable = false, length = 16)
     private String channel;
 
-    @Column(nullable = false)
     private long platformTotal;
 
-    @Column(nullable = false)
     private long ledgerTotal;
 
-    @Column(nullable = false)
     private long diffCents;
 
-    @Column(nullable = false)
     private int matchedCount;
 
-    @Column(nullable = false)
     private int unmatchedCount;
 
-    @Column(nullable = false, length = 16)
     private String status = "PENDING";
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
+    @TableField(typeHandler = JsonStringTypeHandler.class)
     private String detail;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
     private Instant completedAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public Long getReconId() { return reconId; }
+public Long getReconId() { return reconId; }
     public void setReconId(Long reconId) { this.reconId = reconId; }
     public LocalDate getReconDate() { return reconDate; }
     public void setReconDate(LocalDate reconDate) { this.reconDate = reconDate; }

@@ -19,8 +19,15 @@ public class DemoDataBootstrap implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (securityProperties.mockEnabled()) {
+        if (!securityProperties.mockEnabled()) {
+            return;
+        }
+        try {
             demoDataService.ensureDemoData();
+        } catch (Exception e) {
+            // Do not abort startup: demo seed failures should remain visible in logs.
+            org.slf4j.LoggerFactory.getLogger(DemoDataBootstrap.class)
+                    .error("Demo data bootstrap failed; service will continue without full seed data", e);
         }
     }
 }

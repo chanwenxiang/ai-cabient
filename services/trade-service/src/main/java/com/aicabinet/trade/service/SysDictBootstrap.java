@@ -2,8 +2,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.SysDictData;
 import com.aicabinet.trade.domain.SysDictType;
-import com.aicabinet.trade.repository.SysDictDataRepository;
-import com.aicabinet.trade.repository.SysDictTypeRepository;
+import com.aicabinet.trade.mapper.SysDictDataMapper;
+import com.aicabinet.trade.mapper.SysDictTypeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
@@ -22,10 +22,10 @@ public class SysDictBootstrap implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(SysDictBootstrap.class);
 
-    private final SysDictTypeRepository typeRepository;
-    private final SysDictDataRepository dataRepository;
+    private final SysDictTypeMapper typeRepository;
+    private final SysDictDataMapper dataRepository;
 
-    public SysDictBootstrap(SysDictTypeRepository typeRepository, SysDictDataRepository dataRepository) {
+    public SysDictBootstrap(SysDictTypeMapper typeRepository, SysDictDataMapper dataRepository) {
         this.typeRepository = typeRepository;
         this.dataRepository = dataRepository;
     }

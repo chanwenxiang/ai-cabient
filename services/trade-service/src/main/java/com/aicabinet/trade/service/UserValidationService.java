@@ -4,8 +4,8 @@ import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.config.CheckoutProperties;
-import com.aicabinet.trade.repository.UserAccountRepository;
-import com.aicabinet.trade.repository.UserInfoRepository;
+import com.aicabinet.trade.mapper.UserAccountMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -14,14 +14,14 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class UserValidationService {
 
-    private final UserInfoRepository userInfoRepository;
-    private final UserAccountRepository userAccountRepository;
+    private final UserInfoMapper userInfoRepository;
+    private final UserAccountMapper userAccountRepository;
     private final RiskControlService riskControlService;
     private final PayScoreService payScoreService;
     private final CheckoutProperties checkoutProperties;
 
-    public UserValidationService(UserInfoRepository userInfoRepository,
-                                 UserAccountRepository userAccountRepository,
+    public UserValidationService(UserInfoMapper userInfoRepository,
+                                 UserAccountMapper userAccountRepository,
                                  RiskControlService riskControlService,
                                  PayScoreService payScoreService,
                                  CheckoutProperties checkoutProperties) {

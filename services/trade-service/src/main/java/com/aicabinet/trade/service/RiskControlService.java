@@ -4,9 +4,9 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.config.RiskControlProperties;
 import com.aicabinet.trade.domain.RiskEvent;
 import com.aicabinet.trade.domain.UserBlacklist;
-import com.aicabinet.trade.repository.RiskEventRepository;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
-import com.aicabinet.trade.repository.UserBlacklistRepository;
+import com.aicabinet.trade.mapper.RiskEventMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.mapper.UserBlacklistMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,15 +27,15 @@ public class RiskControlService {
     private static final Logger log = LoggerFactory.getLogger(RiskControlService.class);
 
     private final RiskControlProperties properties;
-    private final UserBlacklistRepository blacklistRepository;
-    private final RiskEventRepository riskEventRepository;
-    private final ShoppingSessionRepository sessionRepository;
+    private final UserBlacklistMapper blacklistRepository;
+    private final RiskEventMapper riskEventRepository;
+    private final ShoppingSessionMapper sessionRepository;
     private final ObjectMapper objectMapper;
 
     public RiskControlService(RiskControlProperties properties,
-                              UserBlacklistRepository blacklistRepository,
-                              RiskEventRepository riskEventRepository,
-                              ShoppingSessionRepository sessionRepository,
+                              UserBlacklistMapper blacklistRepository,
+                              RiskEventMapper riskEventRepository,
+                              ShoppingSessionMapper sessionRepository,
                               ObjectMapper objectMapper) {
         this.properties = properties;
         this.blacklistRepository = blacklistRepository;

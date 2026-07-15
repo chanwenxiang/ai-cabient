@@ -1,6 +1,7 @@
 {
   "name": "ai-cabinet-frontend",
   "private": true,
+  "packageManager": "pnpm@9.15.9",
   "scripts": {
     "dev:admin": "pnpm --filter @aicabinet/admin-vue dev",
     "build:admin": "pnpm --filter @aicabinet/admin-vue build",
@@ -11,6 +12,7 @@
     "build:packages": "pnpm -r --filter @aicabinet/shared-types --filter @aicabinet/shared-dict --filter @aicabinet/shared-api build"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=24.18.0",
+    "pnpm": ">=9.15.0"
   }
 }

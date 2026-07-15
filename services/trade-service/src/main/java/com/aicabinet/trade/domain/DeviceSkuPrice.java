@@ -1,33 +1,48 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.Instant;
 
-@Entity
-@Table(name = "device_sku_price")
+@TableName("device_sku_price")
 public class DeviceSkuPrice {
 
-    @EmbeddedId
-    private DeviceSkuPriceId id = new DeviceSkuPriceId();
+    @TableField(exist = false)
+    private DeviceSkuPriceId id;
 
-    @Column(name = "price_cents", nullable = false)
+    private String deviceId;
+
+    private String skuId;
+
+    @TableField("price_cents")
     private int priceCents;
 
-    @Column(name = "updated_at", nullable = false)
+    @TableField("updated_at")
     private Instant updatedAt;
 
-    @Column(name = "updated_by_user_id")
+    @TableField("updated_by_user_id")
     private Long updatedByUserId;
 
-    @PrePersist
-    @PreUpdate
-    void touchUpdatedAt() {
-        updatedAt = Instant.now();
+    public DeviceSkuPriceId getId() {
+        if (id == null && deviceId != null && skuId != null) {
+            id = new DeviceSkuPriceId(deviceId, skuId);
+        }
+        return id;
     }
 
-    public DeviceSkuPriceId getId() { return id; }
-    public void setId(DeviceSkuPriceId id) { this.id = id; }
+    public void setId(DeviceSkuPriceId id) {
+        this.id = id;
+        if (id != null) {
+            this.deviceId = id.getDeviceId();
+            this.skuId = id.getSkuId();
+        }
+    }
+
+    public String getDeviceId() { return deviceId; }
+    public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
+    public String getSkuId() { return skuId; }
+    public void setSkuId(String skuId) { this.skuId = skuId; }
     public int getPriceCents() { return priceCents; }
     public void setPriceCents(int priceCents) { this.priceCents = priceCents; }
     public Instant getUpdatedAt() { return updatedAt; }

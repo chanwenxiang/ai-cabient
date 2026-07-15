@@ -1,37 +1,33 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
 import java.time.Instant;
 
-@Entity
-@Table(name = "device_slot")
+@TableName("device_slot")
 public class DeviceSlot {
 
-    @EmbeddedId
+    @TableField(exist = false)
     private DeviceSlotId id;
 
-    @Column(nullable = false)
+    private String deviceId;
+
+    private String slotCode;
+
     private int rowNo = 1;
 
-    @Column(nullable = false)
     private int colNo = 1;
 
-    @Column(nullable = false, length = 16)
     private String slotType = "SHELF";
 
-    @Column(length = 64)
     private String assignedSkuId;
 
-    @Column(nullable = false)
     private int parLevel;
 
-    @Column(nullable = false)
     private int minLevel;
 
-    @Column(nullable = false)
     private int maxLevel;
 
-    @Column(nullable = false)
     private boolean enabled = true;
 
     private Integer lastPhysicalQty;
@@ -40,18 +36,9 @@ public class DeviceSlot {
 
     private Instant lastRestockAt;
 
-    @Column(nullable = false)
     private Instant updatedAt;
 
-    @PrePersist
-    @PreUpdate
-    void touch() {
-        updatedAt = Instant.now();
-    }
-
-    public DeviceSlotId getId() { return id; }
-    public void setId(DeviceSlotId id) { this.id = id; }
-    public int getRowNo() { return rowNo; }
+public int getRowNo() { return rowNo; }
     public void setRowNo(int rowNo) { this.rowNo = rowNo; }
     public int getColNo() { return colNo; }
     public void setColNo(int colNo) { this.colNo = colNo; }
@@ -74,4 +61,23 @@ public class DeviceSlot {
     public Instant getLastRestockAt() { return lastRestockAt; }
     public void setLastRestockAt(Instant lastRestockAt) { this.lastRestockAt = lastRestockAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+
+    public DeviceSlotId getId() {
+        if (id == null && deviceId != null && slotCode != null) {
+            id = new DeviceSlotId(deviceId, slotCode);
+        }
+        return id;
+    }
+    public void setId(DeviceSlotId id) {
+        this.id = id;
+        if (id != null) {
+            this.deviceId = id.getDeviceId();
+            this.slotCode = id.getSlotCode();
+        }
+    }
+
+    public String getDeviceId() { return deviceId; }
+    public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
+    public String getSlotCode() { return slotCode; }
+    public void setSlotCode(String slotCode) { this.slotCode = slotCode; }
 }

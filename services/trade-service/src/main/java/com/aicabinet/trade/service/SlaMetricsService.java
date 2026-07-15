@@ -6,10 +6,10 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.SlaDailySnapshot;
-import com.aicabinet.trade.repository.DeviceInfoRepository;
-import com.aicabinet.trade.repository.DisputeTicketRepository;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
-import com.aicabinet.trade.repository.SlaDailySnapshotRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.DisputeTicketMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.mapper.SlaDailySnapshotMapper;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,18 +24,18 @@ import java.util.Set;
 @Service
 public class SlaMetricsService {
 
-    private final ShoppingSessionRepository sessionRepository;
-    private final DeviceInfoRepository deviceRepository;
-    private final SlaDailySnapshotRepository snapshotRepository;
+    private final ShoppingSessionMapper sessionRepository;
+    private final DeviceInfoMapper deviceRepository;
+    private final SlaDailySnapshotMapper snapshotRepository;
     private final MerchantScopeService merchantScopeService;
-    private final DisputeTicketRepository disputeRepository;
+    private final DisputeTicketMapper disputeRepository;
     private final DisputeSlaService disputeSlaService;
 
-    public SlaMetricsService(ShoppingSessionRepository sessionRepository,
-                             DeviceInfoRepository deviceRepository,
-                             SlaDailySnapshotRepository snapshotRepository,
+    public SlaMetricsService(ShoppingSessionMapper sessionRepository,
+                             DeviceInfoMapper deviceRepository,
+                             SlaDailySnapshotMapper snapshotRepository,
                              MerchantScopeService merchantScopeService,
-                             DisputeTicketRepository disputeRepository,
+                             DisputeTicketMapper disputeRepository,
                              DisputeSlaService disputeSlaService) {
         this.sessionRepository = sessionRepository;
         this.deviceRepository = deviceRepository;

@@ -1,70 +1,48 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.aicabinet.trade.config.JsonStringTypeHandler;
 import java.time.Instant;
 
-@Entity
-@Table(name = "promotion_activity")
+@TableName(value = "promotion_activity", autoResultMap = true)
 public class PromotionActivity {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long activityId;
 
-    @Column(nullable = false, length = 128)
     private String activityName;
 
-    @Column(nullable = false, length = 32)
     private String activityType;
 
-    @Column(nullable = false, length = 16)
     private String status = "DRAFT";
 
-    @Column(nullable = false)
     private Instant startTime;
 
-    @Column(nullable = false)
     private Instant endTime;
 
-    @Column(nullable = false)
     private long budgetCents;
 
-    @Column(nullable = false)
     private long usedCents;
 
-    @Column(nullable = false)
     private int userLimit = 1;
 
-    @Column(nullable = false, length = 32)
     private String deviceScope = "ALL";
 
-    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
-    @Column(name = "rule_config", columnDefinition = "jsonb")
+    @TableField(typeHandler = JsonStringTypeHandler.class)
     private String ruleConfig = "{}";
 
-    @Column(columnDefinition = "TEXT")
     private String description;
 
     private Long operatorId;
 
-    @Column(nullable = false)
     private Instant createdAt;
 
-    @Column(nullable = false)
     private Instant updatedAt;
 
-    @PrePersist
-    protected void onCreate() {
-        createdAt = Instant.now();
-        updatedAt = Instant.now();
-    }
-
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = Instant.now();
-    }
-
-    public Long getActivityId() { return activityId; }
+public Long getActivityId() { return activityId; }
     public void setActivityId(Long activityId) { this.activityId = activityId; }
     public String getActivityName() { return activityName; }
     public void setActivityName(String activityName) { this.activityName = activityName; }

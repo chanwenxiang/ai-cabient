@@ -2,9 +2,6 @@ spring:
   datasource:
     hikari:
       maximum-pool-size: 5
-  jpa:
-    hibernate:
-      ddl-auto: validate
   flyway:
     enabled: true
   autoconfigure:

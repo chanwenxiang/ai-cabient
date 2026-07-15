@@ -3,8 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.RiskEvent;
 import com.aicabinet.trade.domain.UserBlacklist;
-import com.aicabinet.trade.repository.RiskEventRepository;
-import com.aicabinet.trade.repository.UserBlacklistRepository;
+import com.aicabinet.trade.mapper.RiskEventMapper;
+import com.aicabinet.trade.mapper.UserBlacklistMapper;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 
@@ -22,8 +22,8 @@ public class OpsCommercialFacade {
     private final WarehouseService warehouseService;
     private final SlaMetricsService slaMetricsService;
     private final OpsRbacService rbacService;
-    private final RiskEventRepository riskEventRepository;
-    private final UserBlacklistRepository blacklistRepository;
+    private final RiskEventMapper riskEventRepository;
+    private final UserBlacklistMapper blacklistRepository;
     private final FinanceReportService financeReportService;
     private final InventoryOpsService inventoryOpsService;
     private final DeviceSlotService deviceSlotService;
@@ -38,8 +38,8 @@ public class OpsCommercialFacade {
                                WarehouseService warehouseService,
                                SlaMetricsService slaMetricsService,
                                OpsRbacService rbacService,
-                               RiskEventRepository riskEventRepository,
-                               UserBlacklistRepository blacklistRepository,
+                               RiskEventMapper riskEventRepository,
+                               UserBlacklistMapper blacklistRepository,
                                FinanceReportService financeReportService,
                                InventoryOpsService inventoryOpsService,
                                DeviceSlotService deviceSlotService,

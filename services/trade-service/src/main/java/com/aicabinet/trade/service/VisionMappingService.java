@@ -4,9 +4,9 @@ import com.aicabinet.common.dto.UpsertAliyunMappingRequest;
 import com.aicabinet.common.dto.UpsertYoloMappingRequest;
 import com.aicabinet.trade.domain.AliyunCategoryMapping;
 import com.aicabinet.trade.domain.SkuVisionMapping;
-import com.aicabinet.trade.repository.AliyunCategoryMappingRepository;
-import com.aicabinet.trade.repository.SkuCatalogRepository;
-import com.aicabinet.trade.repository.SkuVisionMappingRepository;
+import com.aicabinet.trade.mapper.AliyunCategoryMappingMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.aicabinet.trade.mapper.SkuVisionMappingMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -18,15 +18,15 @@ import java.util.List;
 @Service
 public class VisionMappingService {
 
-    private final SkuVisionMappingRepository yoloRepository;
-    private final AliyunCategoryMappingRepository aliyunRepository;
-    private final SkuCatalogRepository skuCatalogRepository;
+    private final SkuVisionMappingMapper yoloRepository;
+    private final AliyunCategoryMappingMapper aliyunRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
 
-    public VisionMappingService(SkuVisionMappingRepository yoloRepository,
-                                AliyunCategoryMappingRepository aliyunRepository,
-                                SkuCatalogRepository skuCatalogRepository,
+    public VisionMappingService(SkuVisionMappingMapper yoloRepository,
+                                AliyunCategoryMappingMapper aliyunRepository,
+                                SkuCatalogMapper skuCatalogRepository,
                                 PermissionService permissionService,
                                 AdminAuditService auditService) {
         this.yoloRepository = yoloRepository;

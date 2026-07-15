@@ -1,33 +1,23 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "device_temperature_reading")
+@TableName("device_temperature_reading")
 public class DeviceTemperatureReading {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long readingId;
 
-    @Column(nullable = false, length = 64)
     private String deviceId;
 
-    @Column(name = "temp_c", nullable = false)
     private int tempC;
 
-    @Column(nullable = false, updatable = false)
     private Instant reportedAt;
 
-    @PrePersist
-    void prePersist() {
-        if (reportedAt == null) {
-            reportedAt = Instant.now();
-        }
-    }
-
-    public Long getReadingId() { return readingId; }
+public Long getReadingId() { return readingId; }
     public String getDeviceId() { return deviceId; }
     public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
     public int getTempC() { return tempC; }

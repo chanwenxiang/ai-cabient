@@ -1,10 +1,8 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
 import java.io.Serializable;
 import java.util.Objects;
 
-@Embeddable
 public class MerchantSubscribePrefId implements Serializable {
     private Long userId;
     private String alertType;

@@ -3,9 +3,9 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.domain.Franchise;
 import com.aicabinet.trade.domain.FranchiseDevice;
 import com.aicabinet.trade.domain.FranchiseSettlement;
-import com.aicabinet.trade.repository.FranchiseRepository;
-import com.aicabinet.trade.repository.FranchiseDeviceRepository;
-import com.aicabinet.trade.repository.FranchiseSettlementRepository;
+import com.aicabinet.trade.mapper.FranchiseMapper;
+import com.aicabinet.trade.mapper.FranchiseDeviceMapper;
+import com.aicabinet.trade.mapper.FranchiseSettlementMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,13 +30,13 @@ public class FranchiseService {
     public static final String STATUS_SUSPENDED = "SUSPENDED";
     
     @Autowired
-    private FranchiseRepository franchiseRepository;
+    private FranchiseMapper franchiseRepository;
     
     @Autowired
-    private FranchiseDeviceRepository franchiseDeviceRepository;
+    private FranchiseDeviceMapper franchiseDeviceRepository;
     
     @Autowired
-    private FranchiseSettlementRepository settlementRepository;
+    private FranchiseSettlementMapper settlementRepository;
     
     @Transactional
     public Franchise createFranchise(Franchise franchise) {

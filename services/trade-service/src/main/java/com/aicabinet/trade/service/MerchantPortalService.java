@@ -7,7 +7,7 @@ import com.aicabinet.trade.config.ProfitSharingProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
-import com.aicabinet.trade.repository.*;
+import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.DeviceNameSupport;
 import com.aicabinet.trade.support.MerchantPortalGuard;
@@ -49,27 +49,27 @@ public class MerchantPortalService {
     private final MerchantFinanceService merchantFinanceService;
     private final MerchantScopeService merchantScopeService;
     private final MerchantPortalGuard merchantPortalGuard;
-    private final UserInfoRepository userInfoRepository;
-    private final UserAccountRepository userAccountRepository;
-    private final OpsUserMerchantRepository userMerchantRepository;
-    private final OpsUserRoleRepository userRoleRepository;
-    private final OpsRoleRepository roleRepository;
-    private final OpsPermissionRepository permissionRepository;
-    private final MerchantRepository merchantRepository;
-    private final DeviceInfoRepository deviceRepository;
-    private final CabinetOrderRepository orderRepository;
-    private final OrderRevenueSplitRepository splitRepository;
-    private final ShoppingSessionRepository sessionRepository;
-    private final ReplenishmentTaskRepository replenishmentTaskRepository;
-    private final ReplenishmentTaskLineRepository replenishmentTaskLineRepository;
-    private final DisputeTicketRepository disputeRepository;
-    private final DeviceSkuInventoryRepository inventoryRepository;
-    private final PullOffTaskRepository pullOffTaskRepository;
+    private final UserInfoMapper userInfoRepository;
+    private final UserAccountMapper userAccountRepository;
+    private final OpsUserMerchantMapper userMerchantRepository;
+    private final OpsUserRoleMapper userRoleRepository;
+    private final OpsRoleMapper roleRepository;
+    private final OpsPermissionMapper permissionRepository;
+    private final MerchantMapper merchantRepository;
+    private final DeviceInfoMapper deviceRepository;
+    private final CabinetOrderMapper orderRepository;
+    private final OrderRevenueSplitMapper splitRepository;
+    private final ShoppingSessionMapper sessionRepository;
+    private final ReplenishmentTaskMapper replenishmentTaskRepository;
+    private final ReplenishmentTaskLineMapper replenishmentTaskLineRepository;
+    private final DisputeTicketMapper disputeRepository;
+    private final DeviceSkuInventoryMapper inventoryRepository;
+    private final PullOffTaskMapper pullOffTaskRepository;
     private final DeviceSlotService deviceSlotService;
     private final SettlementService settlementService;
     private final AdminAuditService auditService;
     private final PasswordEncoder passwordEncoder;
-    private final DeviceTemperatureReadingRepository temperatureReadingRepository;
+    private final DeviceTemperatureReadingMapper temperatureReadingRepository;
     private final DeviceServiceClient deviceServiceClient;
     private final WeChatProfitSharingService profitSharingService;
     private final ProfitSharingProperties profitSharingProperties;
@@ -81,27 +81,27 @@ public class MerchantPortalService {
                                  PermissionService permissionService,
                                  MerchantScopeService merchantScopeService,
                                  MerchantPortalGuard merchantPortalGuard,
-                                 UserInfoRepository userInfoRepository,
-                                 UserAccountRepository userAccountRepository,
-                                 OpsUserMerchantRepository userMerchantRepository,
-                                 OpsUserRoleRepository userRoleRepository,
-                                 OpsRoleRepository roleRepository,
-                                 OpsPermissionRepository permissionRepository,
-                                 MerchantRepository merchantRepository,
-                                 DeviceInfoRepository deviceRepository,
-                                 CabinetOrderRepository orderRepository,
-                                 OrderRevenueSplitRepository splitRepository,
-                                 ShoppingSessionRepository sessionRepository,
-                                 ReplenishmentTaskRepository replenishmentTaskRepository,
-                                 ReplenishmentTaskLineRepository replenishmentTaskLineRepository,
-                                 DisputeTicketRepository disputeRepository,
-                                 DeviceSkuInventoryRepository inventoryRepository,
-                                 PullOffTaskRepository pullOffTaskRepository,
+                                 UserInfoMapper userInfoRepository,
+                                 UserAccountMapper userAccountRepository,
+                                 OpsUserMerchantMapper userMerchantRepository,
+                                 OpsUserRoleMapper userRoleRepository,
+                                 OpsRoleMapper roleRepository,
+                                 OpsPermissionMapper permissionRepository,
+                                 MerchantMapper merchantRepository,
+                                 DeviceInfoMapper deviceRepository,
+                                 CabinetOrderMapper orderRepository,
+                                 OrderRevenueSplitMapper splitRepository,
+                                 ShoppingSessionMapper sessionRepository,
+                                 ReplenishmentTaskMapper replenishmentTaskRepository,
+                                 ReplenishmentTaskLineMapper replenishmentTaskLineRepository,
+                                 DisputeTicketMapper disputeRepository,
+                                 DeviceSkuInventoryMapper inventoryRepository,
+                                 PullOffTaskMapper pullOffTaskRepository,
                                  DeviceSlotService deviceSlotService,
                                  SettlementService settlementService,
                                  AdminAuditService auditService,
                                  PasswordEncoder passwordEncoder,
-                                 DeviceTemperatureReadingRepository temperatureReadingRepository,
+                                 DeviceTemperatureReadingMapper temperatureReadingRepository,
                                  DeviceServiceClient deviceServiceClient,
                                  WeChatProfitSharingService profitSharingService,
                                  ProfitSharingProperties profitSharingProperties,

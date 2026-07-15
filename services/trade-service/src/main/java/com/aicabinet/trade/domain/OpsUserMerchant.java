@@ -1,22 +1,40 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.EmbeddedId;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
 
-@Entity
-@Table(name = "ops_user_merchant")
+@TableName("ops_user_merchant")
 public class OpsUserMerchant {
 
-    @EmbeddedId
+    @TableField(exist = false)
     private OpsUserMerchantId id;
+
+    private Long userId;
+
+    private String merchantId;
 
     public OpsUserMerchant() {}
 
     public OpsUserMerchant(Long userId, String merchantId) {
-        this.id = new OpsUserMerchantId(userId, merchantId);
+        setId(new OpsUserMerchantId(userId, merchantId));
     }
 
-    public OpsUserMerchantId getId() { return id; }
-    public void setId(OpsUserMerchantId id) { this.id = id; }
+    public OpsUserMerchantId getId() {
+        if (id == null && userId != null && merchantId != null) {
+            id = new OpsUserMerchantId(userId, merchantId);
+        }
+        return id;
+    }
+    public void setId(OpsUserMerchantId id) {
+        this.id = id;
+        if (id != null) {
+            this.userId = id.getUserId();
+            this.merchantId = id.getMerchantId();
+        }
+    }
+
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
+    public String getMerchantId() { return merchantId; }
+    public void setMerchantId(String merchantId) { this.merchantId = merchantId; }
 }

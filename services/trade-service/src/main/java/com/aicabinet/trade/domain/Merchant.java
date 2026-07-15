@@ -1,71 +1,41 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
-
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "merchant")
+@TableName("merchant")
 public class Merchant {
 
-    @Id
-    @Column(length = 32)
+    @TableId(type = IdType.INPUT)
     private String merchantId;
 
-    @Column(nullable = false, length = 128)
     private String merchantName;
 
-    @Column(length = 32)
     private String contactPhone;
 
-    @Column(nullable = false)
     private int platformRateBps = 1000;
 
-    @Column(length = 64)
     private String wechatReceiverId;
 
-    @Column(nullable = false, length = 16)
     private String status = "ACTIVE";
 
-    @Column(length = 256)
     private String remark;
 
-    @Column(length = 64, name = "alert_contact_name")
     private String alertContactName;
 
-    @Column(length = 32, name = "alert_contact_phone")
     private String alertContactPhone;
 
-    @Column(nullable = false, name = "allow_merchant_planogram_edit")
     private boolean allowMerchantPlanogramEdit = false;
 
-    @Column(nullable = false, name = "allow_merchant_pricing_edit")
     private boolean allowMerchantPricingEdit = false;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @Column(nullable = false)
     private Instant updatedAt;
 
-    @PrePersist
-    void prePersist() {
-        Instant now = Instant.now();
-        createdAt = now;
-        updatedAt = now;
-    }
-
-    @PreUpdate
-    void preUpdate() {
-        updatedAt = Instant.now();
-    }
-
-    public String getMerchantId() { return merchantId; }
+public String getMerchantId() { return merchantId; }
     public void setMerchantId(String merchantId) { this.merchantId = merchantId; }
     public String getMerchantName() { return merchantName; }
     public void setMerchantName(String merchantName) { this.merchantName = merchantName; }

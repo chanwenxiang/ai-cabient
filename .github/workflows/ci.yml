@@ -34,6 +34,11 @@ jobs:
           distribution: 'temurin'
           cache: maven
 
+      # Matches pom.xml <node.version>v24.18.0</node.version> (frontend-maven-plugin also pins this)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.18.0'
+
       - name: Build & Test (trade-service)
         run: mvn verify -DskipITs -pl services/trade-service -am
         env:

@@ -11,9 +11,9 @@ import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.WeChatPayClient;
-import com.aicabinet.trade.repository.PaymentOperationRepository;
-import com.aicabinet.trade.repository.UserAccountRepository;
-import com.aicabinet.trade.repository.UserInfoRepository;
+import com.aicabinet.trade.mapper.PaymentOperationMapper;
+import com.aicabinet.trade.mapper.UserAccountMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,8 +30,8 @@ public class OrderPaymentService {
 
     private static final Logger log = LoggerFactory.getLogger(OrderPaymentService.class);
 
-    private final UserInfoRepository userInfoRepository;
-    private final UserAccountRepository userAccountRepository;
+    private final UserInfoMapper userInfoRepository;
+    private final UserAccountMapper userAccountRepository;
     private final BalanceLedgerService balanceLedgerService;
     private final CheckoutProperties checkoutProperties;
     private final PayScoreService payScoreService;
@@ -39,16 +39,16 @@ public class OrderPaymentService {
     private final AlipayPayClient alipayPayClient;
     private final WeChatPayProperties weChatPayProperties;
     private final SecurityProperties securityProperties;
-    private final PaymentOperationRepository paymentOperationRepository;
+    private final PaymentOperationMapper paymentOperationRepository;
 
-    public OrderPaymentService(UserInfoRepository userInfoRepository,
-                               UserAccountRepository userAccountRepository,
+    public OrderPaymentService(UserInfoMapper userInfoRepository,
+                               UserAccountMapper userAccountRepository,
                                PayScoreService payScoreService,
                                WeChatPayClient weChatPayClient,
                                AlipayPayClient alipayPayClient,
                                WeChatPayProperties weChatPayProperties,
                                SecurityProperties securityProperties,
-                               PaymentOperationRepository paymentOperationRepository,
+                               PaymentOperationMapper paymentOperationRepository,
                                BalanceLedgerService balanceLedgerService,
                                CheckoutProperties checkoutProperties) {
         this.userInfoRepository = userInfoRepository;

@@ -3,10 +3,10 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.reconciliation.PlatformBillLine;
 import com.aicabinet.trade.reconciliation.PlatformBillProviderRegistry;
-import com.aicabinet.trade.repository.CabinetOrderRepository;
-import com.aicabinet.trade.repository.PaymentPlatformBillLineRepository;
-import com.aicabinet.trade.repository.PaymentReconciliationRepository;
-import com.aicabinet.trade.repository.RechargeOrderRepository;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.PaymentPlatformBillLineMapper;
+import com.aicabinet.trade.mapper.PaymentReconciliationMapper;
+import com.aicabinet.trade.mapper.RechargeOrderMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,10 +27,10 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class ReconciliationServiceTest {
 
-    @Mock private PaymentReconciliationRepository reconRepository;
-    @Mock private PaymentPlatformBillLineRepository billLineRepository;
-    @Mock private CabinetOrderRepository orderRepository;
-    @Mock private RechargeOrderRepository rechargeRepository;
+    @Mock private PaymentReconciliationMapper reconRepository;
+    @Mock private PaymentPlatformBillLineMapper billLineRepository;
+    @Mock private CabinetOrderMapper orderRepository;
+    @Mock private RechargeOrderMapper rechargeRepository;
     @Mock private PlatformBillProviderRegistry billProviderRegistry;
     @Mock private CabinetMetrics cabinetMetrics;
 

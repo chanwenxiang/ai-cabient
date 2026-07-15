@@ -1,53 +1,39 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "announcement")
+@TableName("announcement")
 public class Announcement {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long announceId;
 
-    @Column(nullable = false, length = 256)
     private String title;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    @Column(nullable = false, length = 16)
     private String announceType = "SYSTEM";
 
-    @Column(nullable = false, length = 32)
     private String targetScope = "ALL";
 
-    @Column(length = 64)
     private String targetDevice;
 
-    @Column(nullable = false, length = 8)
     private String priority = "NORMAL";
 
-    @Column(nullable = false, length = 16)
     private String status = "DRAFT";
 
     private Instant publishAt;
     private Instant expireAt;
     private Long operatorId;
 
-    @Column(nullable = false)
     private Instant createdAt;
 
-    @Column(nullable = false)
     private Instant updatedAt;
 
-    @PrePersist
-    protected void onCreate() { createdAt = Instant.now(); updatedAt = Instant.now(); }
-    @PreUpdate
-    protected void onUpdate() { updatedAt = Instant.now(); }
-
-    public Long getAnnounceId() { return announceId; }
+public Long getAnnounceId() { return announceId; }
     public void setAnnounceId(Long v) { this.announceId = v; }
     public String getTitle() { return title; }
     public void setTitle(String v) { this.title = v; }

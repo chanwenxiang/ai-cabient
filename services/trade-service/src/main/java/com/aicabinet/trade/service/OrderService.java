@@ -4,7 +4,7 @@ import com.aicabinet.common.dto.OrderDto;
 import com.aicabinet.common.dto.OrderSummaryDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.CabinetOrder;
-import com.aicabinet.trade.repository.CabinetOrderRepository;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -17,10 +17,10 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class OrderService {
 
-    private final CabinetOrderRepository orderRepository;
+    private final CabinetOrderMapper orderRepository;
     private final SettlementService settlementService;
 
-    public OrderService(CabinetOrderRepository orderRepository, SettlementService settlementService) {
+    public OrderService(CabinetOrderMapper orderRepository, SettlementService settlementService) {
         this.orderRepository = orderRepository;
         this.settlementService = settlementService;
     }

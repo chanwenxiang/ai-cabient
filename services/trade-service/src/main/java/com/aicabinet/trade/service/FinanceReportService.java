@@ -1,9 +1,9 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.*;
-import com.aicabinet.trade.repository.CabinetOrderLineRepository;
-import com.aicabinet.trade.repository.CabinetOrderRepository;
-import com.aicabinet.trade.repository.InventoryWriteOffRepository;
+import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,14 +19,14 @@ public class FinanceReportService {
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
-    private final CabinetOrderRepository orderRepository;
-    private final CabinetOrderLineRepository lineRepository;
-    private final InventoryWriteOffRepository writeOffRepository;
+    private final CabinetOrderMapper orderRepository;
+    private final CabinetOrderLineMapper lineRepository;
+    private final InventoryWriteOffMapper writeOffRepository;
     private final MerchantScopeService merchantScopeService;
 
-    public FinanceReportService(CabinetOrderRepository orderRepository,
-                                CabinetOrderLineRepository lineRepository,
-                                InventoryWriteOffRepository writeOffRepository,
+    public FinanceReportService(CabinetOrderMapper orderRepository,
+                                CabinetOrderLineMapper lineRepository,
+                                InventoryWriteOffMapper writeOffRepository,
                                 MerchantScopeService merchantScopeService) {
         this.orderRepository = orderRepository;
         this.lineRepository = lineRepository;

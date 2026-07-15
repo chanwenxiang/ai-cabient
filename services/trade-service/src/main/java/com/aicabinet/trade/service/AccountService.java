@@ -7,8 +7,8 @@ import com.aicabinet.common.dto.PayContractDto;
 import com.aicabinet.common.dto.VerifyIdentityRequest;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
-import com.aicabinet.trade.repository.UserAccountRepository;
-import com.aicabinet.trade.repository.UserInfoRepository;
+import com.aicabinet.trade.mapper.UserAccountMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -18,13 +18,13 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class AccountService {
 
-    private final UserInfoRepository userInfoRepository;
-    private final UserAccountRepository userAccountRepository;
+    private final UserInfoMapper userInfoRepository;
+    private final UserAccountMapper userAccountRepository;
     private final PayScoreService payScoreService;
     private final BalanceLedgerService balanceLedgerService;
 
-    public AccountService(UserInfoRepository userInfoRepository,
-                          UserAccountRepository userAccountRepository,
+    public AccountService(UserInfoMapper userInfoRepository,
+                          UserAccountMapper userAccountRepository,
                           PayScoreService payScoreService,
                           BalanceLedgerService balanceLedgerService) {
         this.userInfoRepository = userInfoRepository;

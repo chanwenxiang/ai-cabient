@@ -7,9 +7,9 @@ import com.aicabinet.trade.domain.DeviceSkuInventory;
 import com.aicabinet.trade.domain.DeviceSkuInventoryId;
 import com.aicabinet.trade.domain.InventoryWriteOff;
 import com.aicabinet.trade.domain.SkuCatalog;
-import com.aicabinet.trade.repository.DeviceSkuInventoryRepository;
-import com.aicabinet.trade.repository.InventoryWriteOffRepository;
-import com.aicabinet.trade.repository.SkuCatalogRepository;
+import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
+import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,15 +26,15 @@ public class InventoryOpsService {
 
     private final InventoryLotService lotService;
     private final DeviceValidationService deviceValidationService;
-    private final SkuCatalogRepository skuCatalogRepository;
-    private final DeviceSkuInventoryRepository inventoryRepository;
-    private final InventoryWriteOffRepository writeOffRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
+    private final DeviceSkuInventoryMapper inventoryRepository;
+    private final InventoryWriteOffMapper writeOffRepository;
 
     public InventoryOpsService(InventoryLotService lotService,
                                DeviceValidationService deviceValidationService,
-                               SkuCatalogRepository skuCatalogRepository,
-                               DeviceSkuInventoryRepository inventoryRepository,
-                               InventoryWriteOffRepository writeOffRepository) {
+                               SkuCatalogMapper skuCatalogRepository,
+                               DeviceSkuInventoryMapper inventoryRepository,
+                               InventoryWriteOffMapper writeOffRepository) {
         this.lotService = lotService;
         this.deviceValidationService = deviceValidationService;
         this.skuCatalogRepository = skuCatalogRepository;

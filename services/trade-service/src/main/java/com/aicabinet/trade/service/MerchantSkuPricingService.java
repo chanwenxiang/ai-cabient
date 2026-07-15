@@ -4,7 +4,7 @@ import com.aicabinet.common.dto.MerchantSkuPriceChangeDto;
 import com.aicabinet.common.dto.MerchantSkuPricingDto;
 import com.aicabinet.common.dto.UpdateMerchantSkuPriceRequest;
 import com.aicabinet.trade.domain.*;
-import com.aicabinet.trade.repository.*;
+import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import org.springframework.data.domain.PageRequest;
@@ -21,26 +21,26 @@ public class MerchantSkuPricingService {
 
     private static final int DEFAULT_MAX_MULTIPLIER = 2;
 
-    private final DeviceSkuPriceRepository priceRepository;
-    private final DeviceSkuInventoryRepository inventoryRepository;
-    private final SkuCatalogRepository skuCatalogRepository;
-    private final DeviceInfoRepository deviceRepository;
+    private final DeviceSkuPriceMapper priceRepository;
+    private final DeviceSkuInventoryMapper inventoryRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
+    private final DeviceInfoMapper deviceRepository;
     private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
     private final MerchantPortalGuard merchantPortalGuard;
     private final AdminAuditService auditService;
-    private final AdminAuditLogRepository auditLogRepository;
+    private final AdminAuditLogMapper auditLogRepository;
     private final MerchantSelfServiceGate merchantSelfServiceGate;
 
-    public MerchantSkuPricingService(DeviceSkuPriceRepository priceRepository,
-                                     DeviceSkuInventoryRepository inventoryRepository,
-                                     SkuCatalogRepository skuCatalogRepository,
-                                     DeviceInfoRepository deviceRepository,
+    public MerchantSkuPricingService(DeviceSkuPriceMapper priceRepository,
+                                     DeviceSkuInventoryMapper inventoryRepository,
+                                     SkuCatalogMapper skuCatalogRepository,
+                                     DeviceInfoMapper deviceRepository,
                                      MerchantScopeService merchantScopeService,
                                      PermissionService permissionService,
                                      MerchantPortalGuard merchantPortalGuard,
                                      AdminAuditService auditService,
-                                     AdminAuditLogRepository auditLogRepository,
+                                     AdminAuditLogMapper auditLogRepository,
                                      MerchantSelfServiceGate merchantSelfServiceGate) {
         this.priceRepository = priceRepository;
         this.inventoryRepository = inventoryRepository;

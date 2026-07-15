@@ -1,0 +1,144 @@
+﻿# Prometheus 告警规则
+
+groups:
+  - name: ai-cabinet-alerts
+    rules:
+      # ==================== 服务健康告警 ====================
+      
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "服务实例下线"
+          description: "服务 instance 已下线超过1分钟"
+
+      - alert: HighErrorRate
+        expr: rate(http_server_requests_seconds_count{status=~\"5..\"}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "高错误率告警"
+          description: "服务 5xx错误率超过5%"
+
+      - alert: SlowResponseTime
+        expr: histogram_quantile(0.95, rate(http_server_requests_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "响应时间过慢"
+          description: "服务 P95响应时间超过2秒"
+
+      # ==================== JVM 告警 ====================
+      
+      - alert: HighMemoryUsage
+        expr: (jvm_memory_used_bytes{area=\"heap\"} / jvm_memory_max_bytes{area=\"heap\"}) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JVM堆内存使用率高"
+          description: "堆内存使用率超过85%"
+
+      - alert: HighGCOverhead
+        expr: rate(jvm_gc_pause_seconds_sum[5m]) / rate(jvm_gc_pause_seconds_count[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GC开销过高"
+          description: "GC平均耗时超过500ms"
+
+      # ==================== 数据库告警 ====================
+      
+      - alert: DatabaseConnectionPoolExhausted
+        expr: hikaricp_connections_active / hikaricp_connections_max > 0.9
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "数据库连接池接近耗尽"
+          description: "连接池使用率超过90%"
+
+      # ==================== Redis 告警 ====================
+      
+      - alert: RedisConnectionFailed
+        expr: redis_up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis连接失败"
+          description: "Redis已断开连接超过1分钟"
+
+      # ==================== 业务告警 ====================
+      
+      - alert: HighOrderFailureRate
+        expr: rate(aicabinet_orders_total{status=\"failed\"}[5m]) / rate(aicabinet_orders_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "订单失败率过高"
+          description: "订单失败率超过10%"
+
+      - alert: PaymentFailureRate
+        expr: rate(aicabinet_payments_total{status=\"failed\"}[5m]) / rate(aicabinet_payments_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "支付失败率过高"
+          description: "支付失败率超过5%"
+
+      - alert: DeviceOfflineRate
+        expr: (count(aicabinet_device_status{status=\"offline\"}) / count(aicabinet_device_status)) > 0.2
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "设备离线率过高"
+          description: "设备离线率超过20%"
+
+      # ==================== 安全告警 ====================
+      
+      - alert: HighFailedLoginAttempts
+        expr: rate(aicabinet_auth_failures_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "登录失败次数异常"
+          description: "过去5分钟登录失败次数超过10次/分钟"
+
+      - alert: SuspectedBruteForceAttack
+        expr: rate(aicabinet_auth_failures_total[1m]) by (ip) > 5
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "疑似暴力破解攻击"
+          description: "IP在1分钟内登录失败超过5次"
+
+      # ==================== 系统资源告警 ====================
+      
+      - alert: HighCPUUsage
+        expr: process_cpu_usage > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU使用率高"
+          description: "CPU使用率超过80%"
+
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "磁盘空间不足"
+          description: "磁盘剩余空间不足10%"

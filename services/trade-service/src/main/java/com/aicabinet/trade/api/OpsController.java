@@ -6,7 +6,7 @@ import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.dto.SkuCatalogDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.domain.SkuCatalog;
-import com.aicabinet.trade.repository.SkuCatalogRepository;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.service.OpsService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -19,9 +19,9 @@ import java.util.List;
 public class OpsController {
 
     private final OpsService opsService;
-    private final SkuCatalogRepository skuCatalogRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
 
-    public OpsController(OpsService opsService, SkuCatalogRepository skuCatalogRepository) {
+    public OpsController(OpsService opsService, SkuCatalogMapper skuCatalogRepository) {
         this.opsService = opsService;
         this.skuCatalogRepository = skuCatalogRepository;
     }

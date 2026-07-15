@@ -1,34 +1,27 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 
-@Entity
-@Table(name = "ops_permission")
+@TableName("ops_permission")
 public class OpsPermission {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long permissionId;
 
-    @Column(nullable = false)
     private Long parentId = 0L;
 
-    @Column(nullable = false, unique = true, length = 128)
     private String permCode;
 
-    @Column(nullable = false, length = 64)
     private String permName;
 
-    @Column(nullable = false, length = 8)
     private String permType = "M";
 
-    @Column(length = 128)
     private String path;
 
-    @Column(nullable = false)
     private int sortOrder;
 
-    @Column(nullable = false, length = 16)
     private String status = "ACTIVE";
 
     public Long getPermissionId() { return permissionId; }

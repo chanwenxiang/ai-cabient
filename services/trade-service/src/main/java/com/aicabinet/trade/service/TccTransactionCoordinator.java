@@ -2,8 +2,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.DistributedTransaction;
 import com.aicabinet.trade.domain.TransactionStep;
-import com.aicabinet.trade.repository.DistributedTransactionRepository;
-import com.aicabinet.trade.repository.TransactionStepRepository;
+import com.aicabinet.trade.mapper.DistributedTransactionMapper;
+import com.aicabinet.trade.mapper.TransactionStepMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.redisson.api.RLock;
 import org.slf4j.Logger;
@@ -31,10 +31,10 @@ public class TccTransactionCoordinator {
     public static final String STEP_TYPE_CANCEL = "CANCEL";
     
     @Autowired
-    private DistributedTransactionRepository txRepository;
+    private DistributedTransactionMapper txRepository;
     
     @Autowired
-    private TransactionStepRepository stepRepository;
+    private TransactionStepMapper stepRepository;
     
     @Autowired
     private DistributedLockService lockService;

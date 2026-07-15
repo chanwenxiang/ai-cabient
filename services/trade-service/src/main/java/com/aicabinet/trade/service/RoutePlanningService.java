@@ -3,7 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.PlanRouteRequest;
 import com.aicabinet.common.dto.RouteWaypointDto;
 import com.aicabinet.trade.domain.DeviceInfo;
-import com.aicabinet.trade.repository.DeviceInfoRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -24,9 +24,9 @@ public class RoutePlanningService {
     private static final double DEFAULT_START_LAT = 31.2304;
     private static final double DEFAULT_START_LNG = 121.4737;
 
-    private final DeviceInfoRepository deviceRepository;
+    private final DeviceInfoMapper deviceRepository;
 
-    public RoutePlanningService(DeviceInfoRepository deviceRepository) {
+    public RoutePlanningService(DeviceInfoMapper deviceRepository) {
         this.deviceRepository = deviceRepository;
     }
 

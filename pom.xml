@@ -26,8 +26,8 @@
         <testcontainers.version>1.21.4</testcontainers.version>
         <skip.admin.build>false</skip.admin.build>
         <frontend-maven-plugin.version>1.15.1</frontend-maven-plugin.version>
-        <node.version>v18.20.4</node.version>
-        <npm.version>10.8.2</npm.version>
+        <node.version>v24.18.0</node.version>
+        <npm.version>11.16.0</npm.version>
         <resilience4j.version>2.2.0</resilience4j.version>
     </properties>
 

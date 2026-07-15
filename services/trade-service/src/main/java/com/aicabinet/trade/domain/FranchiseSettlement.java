@@ -1,37 +1,30 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "franchise_settlement")
+@TableName("franchise_settlement")
 public class FranchiseSettlement {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long settlementId;
+
     
-    @Column(nullable = false)
     private Long franchiseId;
     
-    @Column(length = 32, nullable = false)
     private String settlementPeriod;
     
-    @Column(precision = 12, scale = 2, nullable = false)
     private java.math.BigDecimal grossRevenue;
     
-    @Column(precision = 12, scale = 2, nullable = false)
     private java.math.BigDecimal commissionAmount;
     
-    @Column(precision = 12, scale = 2)
     private java.math.BigDecimal adjustmentAmount;
     
-    @Column(precision = 12, scale = 2, nullable = false)
     private java.math.BigDecimal netAmount;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     private Instant settledAt;

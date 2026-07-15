@@ -1,32 +1,27 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "idempotency_key")
+@TableName("idempotency_key")
 public class IdempotencyKey {
     
-    @Id
-    @Column(length = 128)
+    @TableId(type = IdType.INPUT)
     private String idempotencyKey;
+
     
-    @Column(length = 32, nullable = false)
     private String businessType;
     
-    @Column(length = 64, nullable = false)
     private String businessId;
     
-    @Column(length = 64)
     private String requestHash;
     
-    @Column(columnDefinition = "JSONB")
     private com.fasterxml.jackson.databind.JsonNode responseData;
     
-    @Column(nullable = false)
     private Instant expireAt;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     public String getIdempotencyKey() { return idempotencyKey; }

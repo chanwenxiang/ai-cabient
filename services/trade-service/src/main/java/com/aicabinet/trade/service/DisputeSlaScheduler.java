@@ -2,7 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.domain.DisputeTicket;
-import com.aicabinet.trade.repository.DisputeTicketRepository;
+import com.aicabinet.trade.mapper.DisputeTicketMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -19,11 +19,11 @@ public class DisputeSlaScheduler {
     private static final Logger log = LoggerFactory.getLogger(DisputeSlaScheduler.class);
 
     private final DisputeSlaProperties disputeSlaProperties;
-    private final DisputeTicketRepository disputeRepository;
+    private final DisputeTicketMapper disputeRepository;
     private final DisputeSlaAlertService alertService;
 
     public DisputeSlaScheduler(DisputeSlaProperties disputeSlaProperties,
-                                 DisputeTicketRepository disputeRepository,
+                                 DisputeTicketMapper disputeRepository,
                                  DisputeSlaAlertService alertService) {
         this.disputeSlaProperties = disputeSlaProperties;
         this.disputeRepository = disputeRepository;

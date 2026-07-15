@@ -1,28 +1,23 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 
-@Entity
-@Table(name = "merchant_replenishment_request_line")
+@TableName("merchant_replenishment_request_line")
 public class MerchantReplenishmentRequestLine {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long lineId;
 
-    @Column(nullable = false)
     private Long requestId;
 
-    @Column(nullable = false, length = 64)
     private String skuId;
 
-    @Column(length = 128)
     private String skuName;
 
-    @Column(nullable = false)
     private int suggestedQty;
 
-    @Column(nullable = false)
     private int requestedQty;
 
     public Long getLineId() { return lineId; }

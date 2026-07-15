@@ -1,7 +1,7 @@
 package com.aicabinet.trade.metrics;
 
 import com.aicabinet.common.enums.SessionState;
-import com.aicabinet.trade.repository.DeviceInfoRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -29,7 +29,7 @@ public class CabinetMetrics {
     private final AtomicLong devicesOnline = new AtomicLong();
     private final AtomicLong devicesTotal = new AtomicLong();
 
-    public CabinetMetrics(MeterRegistry registry, DeviceInfoRepository deviceRepository) {
+    public CabinetMetrics(MeterRegistry registry, DeviceInfoMapper deviceRepository) {
         this.doorOpenSuccess = registry.counter("cabinet.door.open", "result", "success");
         this.doorOpenFailure = registry.counter("cabinet.door.open", "result", "failure");
         this.sessionCompleted = registry.counter("cabinet.session.transition", "state", "COMPLETED");
@@ -48,7 +48,7 @@ public class CabinetMetrics {
         refreshDeviceGauges(deviceRepository);
     }
 
-    public void refreshDeviceGauges(DeviceInfoRepository deviceRepository) {
+    public void refreshDeviceGauges(DeviceInfoMapper deviceRepository) {
         devicesTotal.set(deviceRepository.count());
         devicesOnline.set(deviceRepository.findAll().stream()
                 .filter(d -> "ONLINE".equalsIgnoreCase(d.getOnlineStatus()))

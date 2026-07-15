@@ -1,43 +1,34 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "red_packet")
+@TableName("red_packet")
 public class RedPacket {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long packetId;
+
     
-    @Column(nullable = false)
     private Long senderId;
     
-    @Column(length = 32, nullable = false)
     private String packetCode;
     
-    @Column(precision = 10, scale = 2, nullable = false)
     private java.math.BigDecimal totalAmount;
     
-    @Column(nullable = false)
     private Integer totalCount;
     
-    @Column(nullable = false)
     private Integer claimedCount = 0;
     
-    @Column(precision = 10, scale = 2, nullable = false)
     private java.math.BigDecimal minAmount;
     
-    @Column(precision = 10, scale = 2, nullable = false)
     private java.math.BigDecimal maxAmount;
     
-    @Column(length = 200)
     private String message;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     private Instant expiredAt;

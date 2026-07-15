@@ -2,8 +2,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.Merchant;
-import com.aicabinet.trade.repository.DeviceInfoRepository;
-import com.aicabinet.trade.repository.MerchantRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -16,12 +16,12 @@ import java.util.Set;
 @Service
 public class MerchantSelfServiceGate {
 
-    private final MerchantRepository merchantRepository;
-    private final DeviceInfoRepository deviceRepository;
+    private final MerchantMapper merchantRepository;
+    private final DeviceInfoMapper deviceRepository;
     private final MerchantScopeService merchantScopeService;
 
-    public MerchantSelfServiceGate(MerchantRepository merchantRepository,
-                                   DeviceInfoRepository deviceRepository,
+    public MerchantSelfServiceGate(MerchantMapper merchantRepository,
+                                   DeviceInfoMapper deviceRepository,
                                    MerchantScopeService merchantScopeService) {
         this.merchantRepository = merchantRepository;
         this.deviceRepository = deviceRepository;

@@ -1,14 +1,14 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.repository.UserInfoRepository;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import org.springframework.stereotype.Component;
 
 @Component
 public class OperatorUserIdAllocator {
 
-    private final UserInfoRepository userInfoRepository;
+    private final UserInfoMapper userInfoRepository;
 
-    public OperatorUserIdAllocator(UserInfoRepository userInfoRepository) {
+    public OperatorUserIdAllocator(UserInfoMapper userInfoRepository) {
         this.userInfoRepository = userInfoRepository;
     }
 

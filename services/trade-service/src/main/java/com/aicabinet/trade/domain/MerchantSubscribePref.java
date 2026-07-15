@@ -1,37 +1,50 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
 import java.time.Instant;
 
-@Entity
-@Table(name = "merchant_subscribe_pref")
+@TableName("merchant_subscribe_pref")
 public class MerchantSubscribePref {
 
-    @EmbeddedId
+    @TableField(exist = false)
     private MerchantSubscribePrefId id;
 
-    @Column(nullable = false)
+    private Long userId;
+
+    private String alertType;
+
     private boolean enabled = true;
 
-    @Column(nullable = false, updatable = false)
     private Instant updatedAt;
 
-    @PrePersist
-    @PreUpdate
-    void touch() {
-        updatedAt = Instant.now();
-    }
-
-    public MerchantSubscribePref() {}
+public MerchantSubscribePref() {}
 
     public MerchantSubscribePref(Long userId, String alertType) {
-        this.id = new MerchantSubscribePrefId(userId, alertType);
+        setId(new MerchantSubscribePrefId(userId, alertType));
         this.enabled = true;
     }
 
-    public MerchantSubscribePrefId getId() { return id; }
-    public void setId(MerchantSubscribePrefId id) { this.id = id; }
-    public boolean isEnabled() { return enabled; }
+public boolean isEnabled() { return enabled; }
     public void setEnabled(boolean enabled) { this.enabled = enabled; }
     public Instant getUpdatedAt() { return updatedAt; }
+
+    public MerchantSubscribePrefId getId() {
+        if (id == null && userId != null && alertType != null) {
+            id = new MerchantSubscribePrefId(userId, alertType);
+        }
+        return id;
+    }
+    public void setId(MerchantSubscribePrefId id) {
+        this.id = id;
+        if (id != null) {
+            this.userId = id.getUserId();
+            this.alertType = id.getAlertType();
+        }
+    }
+
+    public Long getUserId() { return userId; }
+    public void setUserId(Long userId) { this.userId = userId; }
+    public String getAlertType() { return alertType; }
+    public void setAlertType(String alertType) { this.alertType = alertType; }
 }

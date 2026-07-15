@@ -1,7 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.Announcement;
-import com.aicabinet.trade.repository.AnnouncementRepository;
+import com.aicabinet.trade.mapper.AnnouncementMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -17,9 +17,9 @@ public class AnnouncementService {
 
     private static final Logger log = LoggerFactory.getLogger(AnnouncementService.class);
 
-    private final AnnouncementRepository repository;
+    private final AnnouncementMapper repository;
 
-    public AnnouncementService(AnnouncementRepository repository) {
+    public AnnouncementService(AnnouncementMapper repository) {
         this.repository = repository;
     }
 

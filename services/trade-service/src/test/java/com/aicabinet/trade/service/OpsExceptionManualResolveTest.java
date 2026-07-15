@@ -4,9 +4,9 @@ import com.aicabinet.common.dto.ResolveDisputeRequest;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.OpsException;
 import com.aicabinet.trade.domain.ShoppingSession;
-import com.aicabinet.trade.repository.AdminAuditLogRepository;
-import com.aicabinet.trade.repository.OpsExceptionRepository;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
+import com.aicabinet.trade.mapper.AdminAuditLogMapper;
+import com.aicabinet.trade.mapper.OpsExceptionMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,11 +23,11 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class OpsExceptionManualResolveTest {
 
-    @Mock OpsExceptionRepository repository;
+    @Mock OpsExceptionMapper repository;
     @Mock PermissionService permissionService;
     @Mock AdminAuditService auditService;
-    @Mock AdminAuditLogRepository auditRepository;
-    @Mock ShoppingSessionRepository sessionRepository;
+    @Mock AdminAuditLogMapper auditRepository;
+    @Mock ShoppingSessionMapper sessionRepository;
     @Mock SettlementService settlementService;
     @Mock DisputeService disputeService;
 

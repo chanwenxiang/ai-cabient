@@ -3,9 +3,9 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.domain.LineManager;
 import com.aicabinet.trade.domain.LineDevice;
 import com.aicabinet.trade.domain.LineManagerSettlement;
-import com.aicabinet.trade.repository.LineManagerRepository;
-import com.aicabinet.trade.repository.LineDeviceRepository;
-import com.aicabinet.trade.repository.LineManagerSettlementRepository;
+import com.aicabinet.trade.mapper.LineManagerMapper;
+import com.aicabinet.trade.mapper.LineDeviceMapper;
+import com.aicabinet.trade.mapper.LineManagerSettlementMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,13 +25,13 @@ public class LineManagerService {
     public static final String STATUS_INACTIVE = "INACTIVE";
     
     @Autowired
-    private LineManagerRepository lineManagerRepository;
+    private LineManagerMapper lineManagerRepository;
     
     @Autowired
-    private LineDeviceRepository lineDeviceRepository;
+    private LineDeviceMapper lineDeviceRepository;
     
     @Autowired
-    private LineManagerSettlementRepository settlementRepository;
+    private LineManagerSettlementMapper settlementRepository;
     
     @Transactional
     public LineManager createManager(LineManager manager) {

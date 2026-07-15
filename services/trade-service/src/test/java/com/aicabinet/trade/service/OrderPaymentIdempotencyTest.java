@@ -7,9 +7,9 @@ import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.PaymentOperation;
 import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.WeChatPayClient;
-import com.aicabinet.trade.repository.PaymentOperationRepository;
-import com.aicabinet.trade.repository.UserAccountRepository;
-import com.aicabinet.trade.repository.UserInfoRepository;
+import com.aicabinet.trade.mapper.PaymentOperationMapper;
+import com.aicabinet.trade.mapper.UserAccountMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,13 +28,13 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class OrderPaymentIdempotencyTest {
 
-    @Mock UserInfoRepository userInfoRepository;
-    @Mock UserAccountRepository userAccountRepository;
+    @Mock UserInfoMapper userInfoRepository;
+    @Mock UserAccountMapper userAccountRepository;
     @Mock BalanceLedgerService balanceLedgerService;
     @Mock PayScoreService payScoreService;
     @Mock WeChatPayClient weChatPayClient;
     @Mock AlipayPayClient alipayPayClient;
-    @Mock PaymentOperationRepository paymentOperationRepository;
+    @Mock PaymentOperationMapper paymentOperationRepository;
 
     private OrderPaymentService service;
 

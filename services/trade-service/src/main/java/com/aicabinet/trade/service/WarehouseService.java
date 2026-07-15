@@ -2,7 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
-import com.aicabinet.trade.repository.*;
+import com.aicabinet.trade.mapper.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -20,30 +20,30 @@ public class WarehouseService {
 
     public static final String DEFAULT_WAREHOUSE_ID = "WH-DEMO-001";
 
-    private final WarehouseRepository warehouseRepository;
-    private final WarehouseInventoryRepository inventoryRepository;
-    private final WarehouseInboundRepository inboundRepository;
-    private final WarehouseInboundLineRepository inboundLineRepository;
-    private final WarehouseOutboundRepository outboundRepository;
-    private final WarehouseOutboundLineRepository outboundLineRepository;
-    private final WarehouseMovementRepository movementRepository;
-    private final DeviceSkuInventoryRepository deviceInventoryRepository;
-    private final ReplenishmentTaskRepository taskRepository;
-    private final SkuCatalogRepository skuCatalogRepository;
+    private final WarehouseMapper warehouseRepository;
+    private final WarehouseInventoryMapper inventoryRepository;
+    private final WarehouseInboundMapper inboundRepository;
+    private final WarehouseInboundLineMapper inboundLineRepository;
+    private final WarehouseOutboundMapper outboundRepository;
+    private final WarehouseOutboundLineMapper outboundLineRepository;
+    private final WarehouseMovementMapper movementRepository;
+    private final DeviceSkuInventoryMapper deviceInventoryRepository;
+    private final ReplenishmentTaskMapper taskRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
     private final DeviceSlotService deviceSlotService;
     private final SalesVelocityService salesVelocityService;
     private final InTransitService inTransitService;
 
-    public WarehouseService(WarehouseRepository warehouseRepository,
-                            WarehouseInventoryRepository inventoryRepository,
-                            WarehouseInboundRepository inboundRepository,
-                            WarehouseInboundLineRepository inboundLineRepository,
-                            WarehouseOutboundRepository outboundRepository,
-                            WarehouseOutboundLineRepository outboundLineRepository,
-                            WarehouseMovementRepository movementRepository,
-                            DeviceSkuInventoryRepository deviceInventoryRepository,
-                            ReplenishmentTaskRepository taskRepository,
-                            SkuCatalogRepository skuCatalogRepository,
+    public WarehouseService(WarehouseMapper warehouseRepository,
+                            WarehouseInventoryMapper inventoryRepository,
+                            WarehouseInboundMapper inboundRepository,
+                            WarehouseInboundLineMapper inboundLineRepository,
+                            WarehouseOutboundMapper outboundRepository,
+                            WarehouseOutboundLineMapper outboundLineRepository,
+                            WarehouseMovementMapper movementRepository,
+                            DeviceSkuInventoryMapper deviceInventoryRepository,
+                            ReplenishmentTaskMapper taskRepository,
+                            SkuCatalogMapper skuCatalogRepository,
                             DeviceSlotService deviceSlotService,
                             SalesVelocityService salesVelocityService,
                             InTransitService inTransitService) {

@@ -2,8 +2,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.trade.domain.OpsUserRole;
-import com.aicabinet.trade.repository.OpsPermissionRepository;
-import com.aicabinet.trade.repository.OpsUserRoleRepository;
+import com.aicabinet.trade.mapper.OpsPermissionMapper;
+import com.aicabinet.trade.mapper.OpsUserRoleMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,10 +23,10 @@ class PermissionServiceTest {
     private static final long OPERATOR_ID = CabinetConstants.OPERATOR_USER_ID_START + 1;
 
     @Mock
-    private OpsPermissionRepository permissionRepository;
+    private OpsPermissionMapper permissionRepository;
 
     @Mock
-    private OpsUserRoleRepository userRoleRepository;
+    private OpsUserRoleMapper userRoleRepository;
 
     private PermissionService permissionService;
 

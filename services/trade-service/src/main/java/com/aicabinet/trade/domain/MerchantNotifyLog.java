@@ -1,36 +1,25 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "merchant_notify_log")
+@TableName("merchant_notify_log")
 public class MerchantNotifyLog {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long logId;
 
-    @Column(nullable = false)
     private Long userId;
 
-    @Column(nullable = false, length = 64)
     private String digest;
 
-    @Column(columnDefinition = "text")
     private String payload;
 
-    @Column(nullable = false, updatable = false)
     private Instant sentAt;
 
-    @PrePersist
-    void prePersist() {
-        if (sentAt == null) {
-            sentAt = Instant.now();
-        }
-    }
-
-    public Long getLogId() { return logId; }
+public Long getLogId() { return logId; }
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
     public String getDigest() { return digest; }

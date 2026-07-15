@@ -1,51 +1,37 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "user_info")
+@TableName("user_info")
 public class UserInfo {
 
-    @Id
+    @TableId(type = IdType.INPUT)
     private Long userId;
 
-    @Column(nullable = false, length = 32)
     private String phoneNumber;
 
-    @Column(length = 64)
     private String name;
 
-    @Column(nullable = false)
     private boolean verified;
 
-    @Column(name = "wx_open_id", length = 64)
     private String wxOpenId;
 
-    @Column(name = "password_hash", length = 100)
     private String passwordHash;
 
-    @Column(name = "payscore_enabled", nullable = false)
     private boolean payscoreEnabled;
 
-    @Column(name = "payscore_contract_id", length = 64)
     private String payscoreContractId;
 
-    @Column(name = "alipay_agreement_id", length = 64)
     private String alipayAgreementId;
 
-    @Column(name = "pay_preferred_channel", nullable = false, length = 16)
     private String payPreferredChannel = "BALANCE";
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public Long getUserId() { return userId; }
+public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
     public String getPhoneNumber() { return phoneNumber; }
     public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }

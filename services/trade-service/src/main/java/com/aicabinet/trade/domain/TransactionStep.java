@@ -1,42 +1,34 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "transaction_step")
+@TableName("transaction_step")
 public class TransactionStep {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long stepId;
+
     
-    @Column(length = 64, nullable = false)
     private String txId;
     
-    @Column(nullable = false)
     private Integer stepOrder;
     
-    @Column(length = 64, nullable = false)
     private String stepName;
     
-    @Column(length = 16, nullable = false)
     private String stepType;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(columnDefinition = "jsonb")
     private String requestData;
     
-    @Column(columnDefinition = "jsonb")
     private String responseData;
     
-    @Column(columnDefinition = "text")
     private String errorMessage;
     
     private Instant executedAt;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     public Long getStepId() { return stepId; }

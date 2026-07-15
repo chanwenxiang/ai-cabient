@@ -6,13 +6,13 @@ import com.aicabinet.trade.domain.OpsRolePermission;
 import com.aicabinet.trade.domain.OpsUserMerchant;
 import com.aicabinet.trade.domain.OpsUserRole;
 import com.aicabinet.trade.domain.UserInfo;
-import com.aicabinet.trade.repository.OpsPermissionRepository;
-import com.aicabinet.trade.repository.OpsRolePermissionRepository;
-import com.aicabinet.trade.repository.OpsRoleRepository;
-import com.aicabinet.trade.repository.OpsUserMerchantRepository;
-import com.aicabinet.trade.repository.OpsUserRoleRepository;
-import com.aicabinet.trade.repository.MerchantRepository;
-import com.aicabinet.trade.repository.UserInfoRepository;
+import com.aicabinet.trade.mapper.OpsPermissionMapper;
+import com.aicabinet.trade.mapper.OpsRolePermissionMapper;
+import com.aicabinet.trade.mapper.OpsRoleMapper;
+import com.aicabinet.trade.mapper.OpsUserMerchantMapper;
+import com.aicabinet.trade.mapper.OpsUserRoleMapper;
+import com.aicabinet.trade.mapper.MerchantMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -27,25 +27,25 @@ import java.util.Set;
 @Service
 public class OpsRbacService {
 
-    private final OpsRoleRepository roleRepository;
-    private final OpsPermissionRepository permissionRepository;
-    private final OpsRolePermissionRepository rolePermissionRepository;
-    private final OpsUserRoleRepository userRoleRepository;
-    private final OpsUserMerchantRepository userMerchantRepository;
-    private final MerchantRepository merchantRepository;
+    private final OpsRoleMapper roleRepository;
+    private final OpsPermissionMapper permissionRepository;
+    private final OpsRolePermissionMapper rolePermissionRepository;
+    private final OpsUserRoleMapper userRoleRepository;
+    private final OpsUserMerchantMapper userMerchantRepository;
+    private final MerchantMapper merchantRepository;
     private final PermissionService permissionService;
     private final MerchantScopeService merchantScopeService;
-    private final UserInfoRepository userInfoRepository;
+    private final UserInfoMapper userInfoRepository;
 
-    public OpsRbacService(OpsRoleRepository roleRepository,
-                          OpsPermissionRepository permissionRepository,
-                          OpsRolePermissionRepository rolePermissionRepository,
-                          OpsUserRoleRepository userRoleRepository,
-                          OpsUserMerchantRepository userMerchantRepository,
-                          MerchantRepository merchantRepository,
+    public OpsRbacService(OpsRoleMapper roleRepository,
+                          OpsPermissionMapper permissionRepository,
+                          OpsRolePermissionMapper rolePermissionRepository,
+                          OpsUserRoleMapper userRoleRepository,
+                          OpsUserMerchantMapper userMerchantRepository,
+                          MerchantMapper merchantRepository,
                           PermissionService permissionService,
                           MerchantScopeService merchantScopeService,
-                          UserInfoRepository userInfoRepository) {
+                          UserInfoMapper userInfoRepository) {
         this.roleRepository = roleRepository;
         this.permissionRepository = permissionRepository;
         this.rolePermissionRepository = rolePermissionRepository;

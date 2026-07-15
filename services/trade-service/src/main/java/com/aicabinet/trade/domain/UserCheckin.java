@@ -1,32 +1,27 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 import java.time.LocalDate;
 
-@Entity
-@Table(name = "user_checkin")
+@TableName("user_checkin")
 public class UserCheckin {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
+
     
-    @Column(nullable = false)
     private Long userId;
     
-    @Column(nullable = false)
     private LocalDate checkinDate;
     
-    @Column(nullable = false)
     private Integer consecutiveDays = 1;
     
-    @Column(nullable = false)
     private Integer totalDays = 1;
     
-    @Column
     private Integer rewardPoints;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     public Long getId() { return id; }

@@ -1,27 +1,20 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
-
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "system_config")
+@TableName("system_config")
 public class SystemConfig {
 
-    @Id
-    @Column(name = "config_key", length = 64)
+    @TableId(type = IdType.INPUT)
     private String configKey;
 
-    @Column(name = "config_value", nullable = false)
     private String configValue;
 
-    @Column(length = 256)
     private String description;
 
-    @Column(name = "updated_at", nullable = false)
     private Instant updatedAt = Instant.now();
 
     public String getConfigKey() {

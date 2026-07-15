@@ -5,7 +5,7 @@ import com.aicabinet.trade.config.ProfitSharingProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
-import com.aicabinet.trade.repository.*;
+import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import org.springframework.data.domain.*;
@@ -33,9 +33,9 @@ public class MerchantFinanceService {
     private final PermissionService permissionService;
     private final MerchantScopeService merchantScopeService;
     private final MerchantPortalGuard merchantPortalGuard;
-    private final CabinetOrderRepository orderRepository;
-    private final OrderRevenueSplitRepository splitRepository;
-    private final MerchantRepository merchantRepository;
+    private final CabinetOrderMapper orderRepository;
+    private final OrderRevenueSplitMapper splitRepository;
+    private final MerchantMapper merchantRepository;
     private final SettlementService settlementService;
     private final WeChatProfitSharingService profitSharingService;
     private final ProfitSharingProperties profitSharingProperties;
@@ -44,9 +44,9 @@ public class MerchantFinanceService {
     public MerchantFinanceService(PermissionService permissionService,
                                   MerchantScopeService merchantScopeService,
                                   MerchantPortalGuard merchantPortalGuard,
-                                  CabinetOrderRepository orderRepository,
-                                  OrderRevenueSplitRepository splitRepository,
-                                  MerchantRepository merchantRepository,
+                                  CabinetOrderMapper orderRepository,
+                                  OrderRevenueSplitMapper splitRepository,
+                                  MerchantMapper merchantRepository,
                                   SettlementService settlementService,
                                   WeChatProfitSharingService profitSharingService,
                                   ProfitSharingProperties profitSharingProperties,

@@ -1,34 +1,25 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.LocalDate;
 
-@Entity
-@Table(name = "purchase_order_line")
+@TableName("purchase_order_line")
 public class PurchaseOrderLine {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long lineId;
-    @Column(nullable = false)
+
     private Long purchaseOrderId;
-    @Column(nullable = false, length = 64)
     private String skuId;
-    @Column(nullable = false, length = 64)
     private String batchNo;
     private LocalDate productionDate;
-    @Column(nullable = false)
     private LocalDate expiryDate;
-    @Column(nullable = false)
     private int orderedQty;
-    @Column(nullable = false)
     private int receivedQty;
-    @Column(nullable = false)
     private int unitCostCents;
-    @Column(nullable = false, length = 16)
     private String qualityStatus = "PENDING";
-    @Column(length = 256)
     private String qualityNote;
-    @Column(nullable = false)
     private int rejectedQty;
 
     public Long getLineId() { return lineId; }

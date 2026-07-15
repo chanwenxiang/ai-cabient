@@ -1,40 +1,32 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "edge_device")
+@TableName("edge_device")
 public class EdgeDevice {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long edgeId;
+
     
-    @Column(length = 32, nullable = false)
     private String deviceId;
     
-    @Column(length = 64)
     private String modelVersion;
     
-    @Column(length = 32, nullable = false)
     private String deviceModel;
     
-    @Column(nullable = false)
     private Integer cpuCores;
     
-    @Column(nullable = false)
     private Integer memoryMB;
     
-    @Column(nullable = false)
     private Integer storageGB;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(nullable = false)
     private Instant lastSyncAt;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     private Instant updatedAt;

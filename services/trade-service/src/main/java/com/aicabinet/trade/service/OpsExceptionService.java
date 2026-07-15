@@ -5,12 +5,12 @@ import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.OpsExceptionActionDto;
 import com.aicabinet.common.dto.OpsExceptionDetailDto;
 import com.aicabinet.trade.domain.OpsException;
-import com.aicabinet.trade.repository.AdminAuditLogRepository;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
+import com.aicabinet.trade.mapper.AdminAuditLogMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.common.dto.ResolveDisputeRequest;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.VisionServiceClient;
-import com.aicabinet.trade.repository.OpsExceptionRepository;
+import com.aicabinet.trade.mapper.OpsExceptionMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -25,17 +25,17 @@ import java.util.Set;
 @Service
 public class OpsExceptionService {
     private static final List<String> OPEN = List.of("OPEN", "PROCESSING");
-    private final OpsExceptionRepository repository;
+    private final OpsExceptionMapper repository;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
-    private final AdminAuditLogRepository auditRepository;
-    private final ShoppingSessionRepository sessionRepository;
+    private final AdminAuditLogMapper auditRepository;
+    private final ShoppingSessionMapper sessionRepository;
     private final SettlementService settlementService;
     private final DisputeService disputeService;
 
-    public OpsExceptionService(OpsExceptionRepository repository, PermissionService permissionService,
-                               AdminAuditService auditService, AdminAuditLogRepository auditRepository,
-                               ShoppingSessionRepository sessionRepository, SettlementService settlementService,
+    public OpsExceptionService(OpsExceptionMapper repository, PermissionService permissionService,
+                               AdminAuditService auditService, AdminAuditLogMapper auditRepository,
+                               ShoppingSessionMapper sessionRepository, SettlementService settlementService,
                                DisputeService disputeService) {
         this.repository = repository; this.permissionService = permissionService; this.auditService = auditService;
         this.auditRepository = auditRepository;

@@ -6,10 +6,10 @@ import com.aicabinet.trade.domain.OpsUserMerchant;
 import com.aicabinet.trade.domain.OpsUserRole;
 import com.aicabinet.trade.domain.OpsUserRoleId;
 import com.aicabinet.trade.metrics.CabinetMetrics;
-import com.aicabinet.trade.repository.DeviceInfoRepository;
-import com.aicabinet.trade.repository.OpsRoleRepository;
-import com.aicabinet.trade.repository.OpsUserMerchantRepository;
-import com.aicabinet.trade.repository.OpsUserRoleRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.OpsRoleMapper;
+import com.aicabinet.trade.mapper.OpsUserMerchantMapper;
+import com.aicabinet.trade.mapper.OpsUserRoleMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,13 +35,13 @@ class MerchantScopeServiceTest {
     private static final long ADMIN_USER = 100000001L;
 
     @Mock
-    private OpsUserMerchantRepository userMerchantRepository;
+    private OpsUserMerchantMapper userMerchantRepository;
     @Mock
-    private OpsUserRoleRepository userRoleRepository;
+    private OpsUserRoleMapper userRoleRepository;
     @Mock
-    private OpsRoleRepository roleRepository;
+    private OpsRoleMapper roleRepository;
     @Mock
-    private DeviceInfoRepository deviceRepository;
+    private DeviceInfoMapper deviceRepository;
     @Mock
     private CabinetMetrics cabinetMetrics;
 

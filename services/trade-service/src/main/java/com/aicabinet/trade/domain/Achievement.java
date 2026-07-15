@@ -1,40 +1,32 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "achievement")
+@TableName("achievement")
 public class Achievement {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long achievementId;
+
     
-    @Column(length = 64, nullable = false)
     private String achievementCode;
     
-    @Column(length = 100, nullable = false)
     private String achievementName;
     
-    @Column(length = 200)
     private String description;
     
-    @Column(length = 32, nullable = false)
     private String category;
     
-    @Column(length = 64)
     private String iconUrl;
     
-    @Column(nullable = false)
     private Integer requiredProgress;
     
-    @Column(nullable = false)
     private Integer rewardPoints;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     public Long getAchievementId() { return achievementId; }

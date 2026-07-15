@@ -5,12 +5,12 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.domain.DisputeTicket;
 import com.aicabinet.trade.domain.ShoppingSession;
-import com.aicabinet.trade.repository.CabinetOrderRepository;
-import com.aicabinet.trade.repository.DisputeMessageRepository;
-import com.aicabinet.trade.repository.DisputeTicketRepository;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
-import com.aicabinet.trade.repository.SkuCatalogRepository;
-import com.aicabinet.trade.repository.UserInfoRepository;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.DisputeMessageMapper;
+import com.aicabinet.trade.mapper.DisputeTicketMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,10 +32,10 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DisputeTicketSyncTest {
 
-    @Mock DisputeTicketRepository disputeRepository;
-    @Mock DisputeMessageRepository disputeMessageRepository;
-    @Mock ShoppingSessionRepository sessionRepository;
-    @Mock CabinetOrderRepository orderRepository;
+    @Mock DisputeTicketMapper disputeRepository;
+    @Mock DisputeMessageMapper disputeMessageRepository;
+    @Mock ShoppingSessionMapper sessionRepository;
+    @Mock CabinetOrderMapper orderRepository;
     @Mock SettlementService settlementService;
     @Mock MinioVideoService minioVideoService;
     @Mock AdminAuditService auditService;
@@ -43,8 +43,8 @@ class DisputeTicketSyncTest {
     @Mock PermissionService permissionService;
     @Mock MerchantScopeService merchantScopeService;
     @Mock MerchantPortalGuard merchantPortalGuard;
-    @Mock SkuCatalogRepository skuCatalogRepository;
-    @Mock UserInfoRepository userInfoRepository;
+    @Mock SkuCatalogMapper skuCatalogRepository;
+    @Mock UserInfoMapper userInfoRepository;
     @Mock OpsExceptionService opsExceptionService;
 
     private DisputeService service;

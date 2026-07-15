@@ -1,11 +1,11 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.*;
-import com.aicabinet.trade.repository.CabinetOrderLineRepository;
-import com.aicabinet.trade.repository.DeviceSkuInventoryRepository;
-import com.aicabinet.trade.repository.InventoryWriteOffRepository;
-import com.aicabinet.trade.repository.PullOffTaskRepository;
-import com.aicabinet.trade.repository.SkuCatalogRepository;
+import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
+import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
+import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
+import com.aicabinet.trade.mapper.PullOffTaskMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,22 +24,22 @@ public class MerchantAnalyticsService {
     private final PermissionService permissionService;
     private final MerchantPortalGuard merchantPortalGuard;
     private final MerchantScopeService merchantScopeService;
-    private final CabinetOrderLineRepository lineRepository;
-    private final InventoryWriteOffRepository writeOffRepository;
-    private final PullOffTaskRepository pullOffTaskRepository;
+    private final CabinetOrderLineMapper lineRepository;
+    private final InventoryWriteOffMapper writeOffRepository;
+    private final PullOffTaskMapper pullOffTaskRepository;
     private final SalesVelocityService salesVelocityService;
-    private final SkuCatalogRepository skuCatalogRepository;
-    private final DeviceSkuInventoryRepository inventoryRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
+    private final DeviceSkuInventoryMapper inventoryRepository;
 
     public MerchantAnalyticsService(PermissionService permissionService,
                                     MerchantPortalGuard merchantPortalGuard,
                                     MerchantScopeService merchantScopeService,
-                                    CabinetOrderLineRepository lineRepository,
-                                    InventoryWriteOffRepository writeOffRepository,
-                                    PullOffTaskRepository pullOffTaskRepository,
+                                    CabinetOrderLineMapper lineRepository,
+                                    InventoryWriteOffMapper writeOffRepository,
+                                    PullOffTaskMapper pullOffTaskRepository,
                                     SalesVelocityService salesVelocityService,
-                                    SkuCatalogRepository skuCatalogRepository,
-                                    DeviceSkuInventoryRepository inventoryRepository) {
+                                    SkuCatalogMapper skuCatalogRepository,
+                                    DeviceSkuInventoryMapper inventoryRepository) {
         this.permissionService = permissionService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.merchantScopeService = merchantScopeService;

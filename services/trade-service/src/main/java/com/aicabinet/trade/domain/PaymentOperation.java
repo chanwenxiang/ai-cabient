@@ -1,43 +1,30 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.Table;
-
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "payment_operation")
+@TableName("payment_operation")
 public class PaymentOperation {
 
-    @Id
-    @Column(length = 64)
+    @TableId(type = IdType.INPUT)
     private String operationId;
 
-    @Column(nullable = false, length = 32)
     private String orderId;
 
-    @Column(nullable = false, length = 24)
     private String operationType;
 
-    @Column(nullable = false)
     private int amountCents;
 
-    @Column(nullable = false, length = 16)
     private String channel;
 
-    @Column(nullable = false, length = 16)
     private String status;
 
-    @Column(nullable = false, length = 128, unique = true)
     private String idempotencyKey;
 
-    @Column(length = 64)
     private String gatewayTradeNo;
 
-    @Column(length = 128)
     private String reason;
 
     private Long userId;
@@ -46,15 +33,9 @@ public class PaymentOperation {
 
     private Integer balanceAfterCents;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        if (createdAt == null) createdAt = Instant.now();
-    }
-
-    public String getOperationId() { return operationId; }
+public String getOperationId() { return operationId; }
     public void setOperationId(String operationId) { this.operationId = operationId; }
     public String getOrderId() { return orderId; }
     public void setOrderId(String orderId) { this.orderId = orderId; }

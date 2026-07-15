@@ -48,7 +48,7 @@
 
 > **开发原则**：代码按生产标准编写（鉴权、内部 API、权限隔离），本地默认 `dev` profile 自动 mock。
 
-> **环境要求**：JDK 17+、Docker、Maven 3.9+、Node 18+、Python 3.10+。若默认 Java 为 8，请设置 `JAVA_HOME` 指向 JDK 17。
+> **环境要求**：JDK 17+、Docker、Maven 3.9+、Node 24.18+、Python 3.10+。若默认 Java 为 8，请设置 `JAVA_HOME` 指向 JDK 17。
 
 ### 1. 启动基础设施
 

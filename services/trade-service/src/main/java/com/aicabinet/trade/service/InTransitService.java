@@ -2,7 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.WarehouseInTransit;
 import com.aicabinet.trade.domain.WarehouseOutboundLine;
-import com.aicabinet.trade.repository.WarehouseInTransitRepository;
+import com.aicabinet.trade.mapper.WarehouseInTransitMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -20,9 +20,9 @@ public class InTransitService {
     private static final String STATUS_IN_TRANSIT = "IN_TRANSIT";
     private static final String STATUS_RECEIVED = "RECEIVED";
 
-    private final WarehouseInTransitRepository transitRepository;
+    private final WarehouseInTransitMapper transitRepository;
 
-    public InTransitService(WarehouseInTransitRepository transitRepository) {
+    public InTransitService(WarehouseInTransitMapper transitRepository) {
         this.transitRepository = transitRepository;
     }
 

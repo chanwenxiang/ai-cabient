@@ -2,7 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.WarehouseInTransit;
 import com.aicabinet.trade.domain.WarehouseOutboundLine;
-import com.aicabinet.trade.repository.WarehouseInTransitRepository;
+import com.aicabinet.trade.mapper.WarehouseInTransitMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,7 +19,7 @@ import static org.mockito.Mockito.*;
 class InTransitServiceTest {
 
     @Mock
-    private WarehouseInTransitRepository transitRepository;
+    private WarehouseInTransitMapper transitRepository;
 
     private InTransitService inTransitService;
 

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.MemberMapper">
+
+  <select id="findByTotalSpentGreaterThanEqual" resultType="com.aicabinet.trade.domain.Member">
+    <![CDATA[
+    SELECT m.* FROM member m WHERE m.total_spent >= #{minSpent} ORDER BY m.total_spent DESC
+    ]]>
+  </select>
+</mapper>

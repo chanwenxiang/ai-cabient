@@ -17,9 +17,9 @@ import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.WeChatPayClient;
 import com.aicabinet.trade.payment.WeChatPayNotifyService;
 import com.aicabinet.trade.payment.WeChatPayV3Signer;
-import com.aicabinet.trade.repository.RechargeOrderRepository;
-import com.aicabinet.trade.repository.UserAccountRepository;
-import com.aicabinet.trade.repository.UserInfoRepository;
+import com.aicabinet.trade.mapper.RechargeOrderMapper;
+import com.aicabinet.trade.mapper.UserAccountMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
@@ -41,9 +41,9 @@ public class PaymentService {
 
     private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
 
-    private final RechargeOrderRepository rechargeOrderRepository;
-    private final UserInfoRepository userInfoRepository;
-    private final UserAccountRepository userAccountRepository;
+    private final RechargeOrderMapper rechargeOrderRepository;
+    private final UserInfoMapper userInfoRepository;
+    private final UserAccountMapper userAccountRepository;
     private final WeChatPayProperties weChatPayProperties;
     private final AlipayProperties alipayProperties;
     private final SecurityProperties securityProperties;
@@ -54,9 +54,9 @@ public class PaymentService {
     private final AlipayNotifyService alipayNotifyService;
     private final BalanceLedgerService balanceLedgerService;
 
-    public PaymentService(RechargeOrderRepository rechargeOrderRepository,
-                          UserInfoRepository userInfoRepository,
-                          UserAccountRepository userAccountRepository,
+    public PaymentService(RechargeOrderMapper rechargeOrderRepository,
+                          UserInfoMapper userInfoRepository,
+                          UserAccountMapper userAccountRepository,
                           WeChatPayProperties weChatPayProperties,
                           AlipayProperties alipayProperties,
                           SecurityProperties securityProperties,

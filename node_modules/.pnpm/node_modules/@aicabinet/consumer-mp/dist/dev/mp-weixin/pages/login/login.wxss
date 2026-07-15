@@ -1,0 +1,265 @@
+
+.login-wrap.data-v-cdfe2409 {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #f5c842;
+}
+.login-bg-scene.data-v-cdfe2409 {
+  position: absolute;
+  top: 140rpx;
+  left: 0;
+  width: 100%;
+  z-index: 0;
+  overflow: hidden;
+}
+.login-illustration.data-v-cdfe2409 {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.login-illustration-anim.data-v-cdfe2409 {
+  animation: illusKenBurns-cdfe2409 22s ease-in-out infinite alternate;
+  transform-origin: center top;
+}
+.anim-orb.data-v-cdfe2409 {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(24rpx);
+}
+.anim-orb-a.data-v-cdfe2409 {
+  top: 12%;
+  right: 6%;
+  width: 200rpx;
+  height: 200rpx;
+  background: rgba(255, 180, 60, 0.38);
+  animation: orbFloatA-cdfe2409 9s ease-in-out infinite;
+}
+.anim-orb-b.data-v-cdfe2409 {
+  top: 38%;
+  left: 4%;
+  width: 160rpx;
+  height: 160rpx;
+  background: rgba(255, 230, 140, 0.32);
+  animation: orbFloatB-cdfe2409 11s ease-in-out infinite;
+}
+.anim-shimmer.data-v-cdfe2409 {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.14) 50%, transparent 62%);
+  background-size: 220% 220%;
+  animation: shimmerSweep-cdfe2409 10s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes illusKenBurns-cdfe2409 {
+from { transform: scale(1) translateY(0);
+}
+to { transform: scale(1.045) translateY(-10rpx);
+}
+}
+@keyframes orbFloatA-cdfe2409 {
+0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55;
+}
+50% { transform: translate(-16rpx, 20rpx) scale(1.08); opacity: 0.85;
+}
+}
+@keyframes orbFloatB-cdfe2409 {
+0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.45;
+}
+50% { transform: translate(20rpx, -14rpx) scale(1.06); opacity: 0.75;
+}
+}
+@keyframes shimmerSweep-cdfe2409 {
+0%, 100% { background-position: 120% 0; opacity: 0.4;
+}
+50% { background-position: -20% 0; opacity: 0.75;
+}
+}
+@media (prefers-reduced-motion: reduce) {
+.login-illustration-anim.data-v-cdfe2409,
+  .anim-orb-a.data-v-cdfe2409,
+  .anim-orb-b.data-v-cdfe2409,
+  .anim-shimmer.data-v-cdfe2409 {
+    animation: none;
+}
+}
+.login-overlay.data-v-cdfe2409 {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 48%;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(245, 200, 66, 0) 0%, rgba(255, 247, 231, 0.86) 52%, #fff7e6 100%);
+}
+.login-content.data-v-cdfe2409 {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0 32rpx calc(32rpx + env(safe-area-inset-bottom));
+}
+.hero.data-v-cdfe2409 {
+  flex-shrink: 0;
+  padding-top: 48rpx;
+  text-align: center;
+}
+.brand.data-v-cdfe2409 {
+  font-size: 56rpx;
+  font-weight: 800;
+  display: block;
+  color: #5c3d1e;
+  letter-spacing: 2rpx;
+}
+.tagline.data-v-cdfe2409 {
+  font-size: 30rpx;
+  color: #7a5a32;
+  display: block;
+  margin-top: 10rpx;
+}
+.badge.data-v-cdfe2409 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  margin-top: 18rpx;
+  padding: 10rpx 22rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.78);
+}
+.badge-icon.data-v-cdfe2409 {
+  color: #07c160;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+.badge-text.data-v-cdfe2409 {
+  color: #4b5563;
+  font-size: 22rpx;
+}
+.login-spacer.data-v-cdfe2409 {
+  flex: 1;
+  min-height: 120rpx;
+}
+.form-card.data-v-cdfe2409 {
+  flex-shrink: 0;
+  padding: 36rpx 32rpx 40rpx;
+  border-radius: 32rpx 32rpx 24rpx 24rpx;
+  background: rgba(255, 248, 225, 0.94);
+  border: 2rpx solid rgba(245, 158, 11, 0.22);
+  box-shadow: 0 -8rpx 40rpx rgba(234, 88, 12, 0.1), 0 16rpx 48rpx rgba(146, 64, 14, 0.08);
+}
+.title.data-v-cdfe2409 {
+  font-size: 36rpx;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 8rpx;
+  color: #5c3d1e;
+}
+.subtitle.data-v-cdfe2409 {
+  font-size: 24rpx;
+  color: #a16207;
+  display: block;
+  margin-bottom: 28rpx;
+  line-height: 1.5;
+}
+.tabs.data-v-cdfe2409 {
+  display: flex;
+  gap: 8rpx;
+  margin-bottom: 28rpx;
+  padding: 6rpx;
+  border-radius: 16rpx;
+  background: rgba(254, 230, 138, 0.55);
+}
+.tab-item.data-v-cdfe2409 {
+  flex: 1;
+  padding: 16rpx 0;
+  text-align: center;
+  font-size: 28rpx;
+  color: #92400e;
+  border-radius: 12rpx;
+  transition: all 0.2s ease;
+}
+.tab-item.on.data-v-cdfe2409 {
+  color: #ea580c;
+  font-weight: 600;
+  background: rgba(255, 251, 235, 0.96);
+  box-shadow: 0 2rpx 8rpx rgba(234, 88, 12, 0.12);
+}
+.field.data-v-cdfe2409 {
+  margin-bottom: 20rpx;
+}
+.field-label.data-v-cdfe2409 {
+  display: block;
+  font-size: 26rpx;
+  color: #7a5a32;
+  font-weight: 500;
+  margin-bottom: 10rpx;
+}
+.input.data-v-cdfe2409 {
+  display: block;
+  width: 100%;
+  height: 88rpx;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.68);
+  border: 2rpx solid rgba(251, 191, 36, 0.42);
+  border-radius: 16rpx;
+  padding: 0 28rpx;
+  font-size: 28rpx;
+  color: #5c3d1e;
+  line-height: 88rpx;
+}
+.input.data-v-cdfe2409:focus {
+  border-color: #f59e0b;
+  background: rgba(255, 255, 255, 0.92);
+}
+.row.data-v-cdfe2409 {
+  display: flex;
+  gap: 16rpx;
+  align-items: stretch;
+}
+.flex.data-v-cdfe2409 {
+  flex: 1;
+  min-width: 0;
+}
+.btn-code.data-v-cdfe2409 {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 28rpx;
+  min-width: 180rpx;
+  height: 88rpx;
+  border-radius: 16rpx;
+  background: #fff7ed;
+  color: #ea580c;
+  font-size: 26rpx;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.btn-primary.data-v-cdfe2409 {
+  margin-top: 12rpx;
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  color: #fff;
+  border-radius: 44rpx;
+  height: 96rpx;
+  line-height: 96rpx;
+  text-align: center;
+  font-size: 30rpx;
+  font-weight: 600;
+  box-shadow: 0 10rpx 28rpx rgba(234, 88, 12, 0.28);
+}
+.btn-ghost.data-v-cdfe2409 {
+  margin-top: 20rpx;
+  text-align: center;
+  color: #b45309;
+  font-size: 28rpx;
+  padding: 8rpx;
+}
+.err.data-v-cdfe2409 {
+  color: #ef4444;
+  display: block;
+  margin-top: 16rpx;
+  text-align: center;
+  font-size: 26rpx;
+}

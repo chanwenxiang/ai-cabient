@@ -1,37 +1,30 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "ad_impression")
+@TableName("ad_impression")
 public class AdImpression {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
+
     
-    @Column(nullable = false)
     private Long campaignId;
     
-    @Column(nullable = false)
     private Long slotId;
     
-    @Column(length = 32)
     private String deviceId;
     
-    @Column(length = 64)
     private String userId;
     
-    @Column(length = 16, nullable = false)
     private String eventType;
     
-    @Column(precision = 10, scale = 4)
     private java.math.BigDecimal cost;
     
-    @Column(nullable = false)
     private Instant eventTime = Instant.now();
     
-    @Column(length = 64)
     private String sessionId;
     
     public Long getId() { return id; }

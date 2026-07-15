@@ -3,8 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.OtaCheckResponse;
 import com.aicabinet.common.dto.OtaReleaseDto;
 import com.aicabinet.trade.domain.OtaRelease;
-import com.aicabinet.trade.repository.DeviceInfoRepository;
-import com.aicabinet.trade.repository.OtaReleaseRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.OtaReleaseMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,13 +15,13 @@ import java.util.List;
 @Service
 public class OtaService {
 
-    private final OtaReleaseRepository releaseRepository;
-    private final DeviceInfoRepository deviceRepository;
+    private final OtaReleaseMapper releaseRepository;
+    private final DeviceInfoMapper deviceRepository;
     private final OtaCdnService otaCdnService;
     private final ObjectMapper objectMapper;
 
-    public OtaService(OtaReleaseRepository releaseRepository,
-                      DeviceInfoRepository deviceRepository,
+    public OtaService(OtaReleaseMapper releaseRepository,
+                      DeviceInfoMapper deviceRepository,
                       OtaCdnService otaCdnService,
                       ObjectMapper objectMapper) {
         this.releaseRepository = releaseRepository;

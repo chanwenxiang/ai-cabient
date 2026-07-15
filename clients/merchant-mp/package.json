@@ -9,6 +9,9 @@
     "dev:h5": "uni",
     "build:h5": "uni build"
   },
+  "engines": {
+    "node": ">=24.18.0"
+  },
   "dependencies": {
     "@aicabinet/shared-dict": "workspace:*",
     "@dcloudio/uni-app": "3.0.0-4010520240507001",

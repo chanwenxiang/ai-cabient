@@ -1,47 +1,36 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 import java.time.LocalDate;
 
-@Entity
-@Table(name = "sla_daily_snapshot")
+@TableName("sla_daily_snapshot")
 public class SlaDailySnapshot {
 
-    @Id
+    @TableId(type = IdType.INPUT)
     private LocalDate snapshotDate;
 
-    @Column(nullable = false)
     private int doorOpenAttempts;
 
-    @Column(nullable = false)
     private int doorOpenSuccess;
 
     private Float doorSuccessRate;
 
-    @Column(name = "avg_recognize_ms")
     private Long avgRecognizeMs;
 
-    @Column(name = "p95_recognize_ms")
     private Long p95RecognizeMs;
 
-    @Column(nullable = false)
     private int deviceTotal;
 
-    @Column(nullable = false)
     private int deviceOnlinePeak;
 
     private Float deviceOnlineRate;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public LocalDate getSnapshotDate() { return snapshotDate; }
+public LocalDate getSnapshotDate() { return snapshotDate; }
     public void setSnapshotDate(LocalDate snapshotDate) { this.snapshotDate = snapshotDate; }
     public int getDoorOpenAttempts() { return doorOpenAttempts; }
     public void setDoorOpenAttempts(int doorOpenAttempts) { this.doorOpenAttempts = doorOpenAttempts; }

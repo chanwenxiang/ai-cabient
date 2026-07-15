@@ -1,28 +1,24 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "group_buy_participant")
+@TableName("group_buy_participant")
 public class GroupBuyParticipant {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
+
     
-    @Column(nullable = false)
     private Long groupBuyId;
     
-    @Column(nullable = false)
     private Long userId;
     
-    @Column(length = 32)
     private String orderId;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(nullable = false)
     private Instant joinedAt = Instant.now();
     
     public Long getId() { return id; }

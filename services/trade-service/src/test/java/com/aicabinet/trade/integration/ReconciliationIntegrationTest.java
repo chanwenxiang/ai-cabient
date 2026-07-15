@@ -2,8 +2,8 @@ package com.aicabinet.trade.integration;
 
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.ShoppingSession;
-import com.aicabinet.trade.repository.CabinetOrderRepository;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.service.ReconciliationService;
 import com.aicabinet.common.enums.SessionState;
 import org.junit.jupiter.api.Test;
@@ -43,10 +43,10 @@ class ReconciliationIntegrationTest {
     private ReconciliationService reconciliationService;
 
     @Autowired
-    private CabinetOrderRepository orderRepository;
+    private CabinetOrderMapper orderRepository;
 
     @Autowired
-    private ShoppingSessionRepository sessionRepository;
+    private ShoppingSessionMapper sessionRepository;
 
     @Test
     void mockReconciliation_matchesInsertedOrder() {

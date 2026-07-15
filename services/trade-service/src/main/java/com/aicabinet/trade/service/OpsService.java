@@ -5,8 +5,8 @@ import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
-import com.aicabinet.trade.repository.ReplenishmentTaskRepository;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
+import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,14 +18,14 @@ public class OpsService {
     private final SessionService sessionService;
     private final DeviceValidationService deviceValidationService;
     private final DeviceServiceClient deviceClient;
-    private final ShoppingSessionRepository sessionRepository;
-    private final ReplenishmentTaskRepository taskRepository;
+    private final ShoppingSessionMapper sessionRepository;
+    private final ReplenishmentTaskMapper taskRepository;
 
     public OpsService(SessionService sessionService,
                       DeviceValidationService deviceValidationService,
                       DeviceServiceClient deviceClient,
-                      ShoppingSessionRepository sessionRepository,
-                      ReplenishmentTaskRepository taskRepository) {
+                      ShoppingSessionMapper sessionRepository,
+                      ReplenishmentTaskMapper taskRepository) {
         this.sessionService = sessionService;
         this.deviceValidationService = deviceValidationService;
         this.deviceClient = deviceClient;

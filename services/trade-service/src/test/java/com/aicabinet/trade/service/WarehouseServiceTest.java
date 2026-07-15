@@ -1,7 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.Warehouse;
-import com.aicabinet.trade.repository.*;
+import com.aicabinet.trade.mapper.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -15,16 +15,16 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class WarehouseServiceTest {
 
-    @Mock private WarehouseRepository warehouseRepository;
-    @Mock private WarehouseInventoryRepository inventoryRepository;
-    @Mock private WarehouseInboundRepository inboundRepository;
-    @Mock private WarehouseInboundLineRepository inboundLineRepository;
-    @Mock private WarehouseOutboundRepository outboundRepository;
-    @Mock private WarehouseOutboundLineRepository outboundLineRepository;
-    @Mock private WarehouseMovementRepository movementRepository;
-    @Mock private DeviceSkuInventoryRepository deviceInventoryRepository;
-    @Mock private ReplenishmentTaskRepository taskRepository;
-    @Mock private SkuCatalogRepository skuCatalogRepository;
+    @Mock private WarehouseMapper warehouseRepository;
+    @Mock private WarehouseInventoryMapper inventoryRepository;
+    @Mock private WarehouseInboundMapper inboundRepository;
+    @Mock private WarehouseInboundLineMapper inboundLineRepository;
+    @Mock private WarehouseOutboundMapper outboundRepository;
+    @Mock private WarehouseOutboundLineMapper outboundLineRepository;
+    @Mock private WarehouseMovementMapper movementRepository;
+    @Mock private DeviceSkuInventoryMapper deviceInventoryRepository;
+    @Mock private ReplenishmentTaskMapper taskRepository;
+    @Mock private SkuCatalogMapper skuCatalogRepository;
     @Mock private DeviceSlotService deviceSlotService;
     @Mock private SalesVelocityService salesVelocityService;
     @Mock private InTransitService inTransitService;

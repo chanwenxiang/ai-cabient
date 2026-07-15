@@ -1,0 +1,59 @@
+
+.page-root.data-v-48de6e3f { padding: 20rpx; background: #f7f7f7; min-height: 100vh;
+}
+.loading.data-v-48de6e3f, .error.data-v-48de6e3f { text-align: center; padding: 80rpx 0; color: #999; font-size: 28rpx;
+}
+.status-bar.data-v-48de6e3f { display: flex; align-items: center; background: #fff; border-radius: 16rpx; padding: 30rpx; margin-bottom: 20rpx;
+}
+.status-bar.status-paid.data-v-48de6e3f { background: linear-gradient(135deg, #e8f5e9, #fff);
+}
+.status-bar.status-refunded.data-v-48de6e3f { background: linear-gradient(135deg, #fff3e0, #fff);
+}
+.status-icon.data-v-48de6e3f { width: 60rpx; height: 60rpx; border-radius: 30rpx; display: flex; align-items: center; justify-content: center; font-size: 32rpx; font-weight: 700; margin-right: 20rpx; background: #07c160; color: #fff; flex-shrink: 0;
+}
+.status-bar.status-refunded .status-icon.data-v-48de6e3f { background: #ff9500;
+}
+.status-title.data-v-48de6e3f { font-size: 32rpx; font-weight: 600; display: block;
+}
+.status-detail.data-v-48de6e3f { font-size: 24rpx; color: #666; margin-top: 4rpx; display: block;
+}
+.section.data-v-48de6e3f { background: #fff; border-radius: 16rpx; padding: 24rpx; margin-bottom: 20rpx;
+}
+.section-title.data-v-48de6e3f { font-size: 28rpx; font-weight: 600; margin-bottom: 16rpx; display: block; color: #333;
+}
+.item-row.data-v-48de6e3f { display: flex; justify-content: space-between; align-items: center; padding: 14rpx 0; border-bottom: 1rpx solid #f5f5f5;
+}
+.item-name.data-v-48de6e3f { font-size: 28rpx;
+}
+.item-qty.data-v-48de6e3f { font-size: 24rpx; color: #999; margin-left: 12rpx;
+}
+.item-price.data-v-48de6e3f { font-size: 28rpx; font-weight: 500;
+}
+.total-row.data-v-48de6e3f { display: flex; justify-content: space-between; padding: 20rpx 0 0;
+}
+.total-label.data-v-48de6e3f { font-size: 28rpx; font-weight: 600;
+}
+.total-amount.data-v-48de6e3f { font-size: 36rpx; font-weight: 700; color: #ff3b30;
+}
+.discount-row.data-v-48de6e3f { display: flex; justify-content: space-between; padding: 8rpx 0;
+}
+.discount-label.data-v-48de6e3f { font-size: 24rpx; color: #07c160;
+}
+.discount-amount.data-v-48de6e3f { font-size: 24rpx; color: #07c160;
+}
+.info-row.data-v-48de6e3f { display: flex; justify-content: space-between; padding: 12rpx 0;
+}
+.info-label.data-v-48de6e3f { font-size: 26rpx; color: #666;
+}
+.info-value.data-v-48de6e3f { font-size: 26rpx; color: #333;
+}
+.mono.data-v-48de6e3f { font-family: monospace; font-size: 22rpx;
+}
+.actions.data-v-48de6e3f { display: flex; gap: 20rpx; padding: 10rpx 0;
+}
+.btn-outline.data-v-48de6e3f { flex: 1; height: 72rpx; line-height: 72rpx; border: 2rpx solid #07c160; color: #07c160; border-radius: 36rpx; background: #fff; font-size: 28rpx; text-align: center;
+}
+.btn-outline.danger.data-v-48de6e3f { border-color: #ff3b30; color: #ff3b30;
+}
+.support.data-v-48de6e3f { text-align: center; padding: 30rpx; color: #999; font-size: 24rpx;
+}

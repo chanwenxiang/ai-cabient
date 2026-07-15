@@ -3,7 +3,7 @@ package com.aicabinet.trade.sms;
 import com.aicabinet.trade.config.AuthProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.domain.SmsVerificationCode;
-import com.aicabinet.trade.repository.SmsVerificationCodeRepository;
+import com.aicabinet.trade.mapper.SmsVerificationCodeMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -22,12 +22,12 @@ public class SmsCodeService {
     private final AuthProperties authProperties;
     private final SecurityProperties securityProperties;
     private final WebhookSmsSender webhookSmsSender;
-    private final SmsVerificationCodeRepository codeRepository;
+    private final SmsVerificationCodeMapper codeRepository;
 
     public SmsCodeService(AuthProperties authProperties,
                           SecurityProperties securityProperties,
                           WebhookSmsSender webhookSmsSender,
-                          SmsVerificationCodeRepository codeRepository) {
+                          SmsVerificationCodeMapper codeRepository) {
         this.authProperties = authProperties;
         this.securityProperties = securityProperties;
         this.webhookSmsSender = webhookSmsSender;

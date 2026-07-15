@@ -5,9 +5,9 @@ import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
-import com.aicabinet.trade.repository.DeviceInfoRepository;
-import com.aicabinet.trade.repository.MerchantRepository;
-import com.aicabinet.trade.repository.OrderRevenueSplitRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.MerchantMapper;
+import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -22,14 +22,14 @@ public class RevenueSplitService {
 
     private static final Logger log = LoggerFactory.getLogger(RevenueSplitService.class);
 
-    private final OrderRevenueSplitRepository splitRepository;
-    private final DeviceInfoRepository deviceRepository;
-    private final MerchantRepository merchantRepository;
+    private final OrderRevenueSplitMapper splitRepository;
+    private final DeviceInfoMapper deviceRepository;
+    private final MerchantMapper merchantRepository;
     private final WeChatProfitSharingService profitSharingService;
 
-    public RevenueSplitService(OrderRevenueSplitRepository splitRepository,
-                               DeviceInfoRepository deviceRepository,
-                               MerchantRepository merchantRepository,
+    public RevenueSplitService(OrderRevenueSplitMapper splitRepository,
+                               DeviceInfoMapper deviceRepository,
+                               MerchantMapper merchantRepository,
                                WeChatProfitSharingService profitSharingService) {
         this.splitRepository = splitRepository;
         this.deviceRepository = deviceRepository;

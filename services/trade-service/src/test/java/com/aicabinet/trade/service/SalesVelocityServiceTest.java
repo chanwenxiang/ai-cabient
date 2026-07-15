@@ -1,7 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.config.RopProperties;
-import com.aicabinet.trade.repository.CabinetOrderLineRepository;
+import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 class SalesVelocityServiceTest {
 
     @Mock
-    private CabinetOrderLineRepository lineRepository;
+    private CabinetOrderLineMapper lineRepository;
 
     private SalesVelocityService salesVelocityService;
 

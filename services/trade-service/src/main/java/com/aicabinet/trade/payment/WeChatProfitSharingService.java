@@ -4,7 +4,7 @@ import com.aicabinet.trade.config.ProfitSharingProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
-import com.aicabinet.trade.repository.OrderRevenueSplitRepository;
+import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,12 +29,12 @@ public class WeChatProfitSharingService {
     private final ProfitSharingProperties profitSharingProperties;
     private final WeChatPayProperties weChatPayProperties;
     private final WeChatPayV3Client weChatPayV3Client;
-    private final OrderRevenueSplitRepository splitRepository;
+    private final OrderRevenueSplitMapper splitRepository;
 
     public WeChatProfitSharingService(ProfitSharingProperties profitSharingProperties,
                                       WeChatPayProperties weChatPayProperties,
                                       WeChatPayV3Client weChatPayV3Client,
-                                      OrderRevenueSplitRepository splitRepository) {
+                                      OrderRevenueSplitMapper splitRepository) {
         this.profitSharingProperties = profitSharingProperties;
         this.weChatPayProperties = weChatPayProperties;
         this.weChatPayV3Client = weChatPayV3Client;

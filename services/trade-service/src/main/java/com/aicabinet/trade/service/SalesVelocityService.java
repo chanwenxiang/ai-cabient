@@ -1,7 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.config.RopProperties;
-import com.aicabinet.trade.repository.CabinetOrderLineRepository;
+import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,10 +17,10 @@ public class SalesVelocityService {
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
 
-    private final CabinetOrderLineRepository lineRepository;
+    private final CabinetOrderLineMapper lineRepository;
     private final RopProperties ropProperties;
 
-    public SalesVelocityService(CabinetOrderLineRepository lineRepository, RopProperties ropProperties) {
+    public SalesVelocityService(CabinetOrderLineMapper lineRepository, RopProperties ropProperties) {
         this.lineRepository = lineRepository;
         this.ropProperties = ropProperties;
     }

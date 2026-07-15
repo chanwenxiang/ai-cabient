@@ -1,36 +1,30 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "compensation_task")
+@TableName("compensation_task")
 public class CompensationTask {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long taskId;
+
     
-    @Column(length = 64, nullable = false)
     private String txId;
     
-    @Column(length = 32, nullable = false)
     private String taskType;
     
-    @Column(nullable = false)
     private Integer priority = 0;
     
-    @Column(nullable = false)
     private Instant scheduledAt;
     
     private Instant executedAt;
     
-    @Column(length = 16, nullable = false)
     private String status = "PENDING";
     
-    @Column(columnDefinition = "text")
     private String result;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     public Long getTaskId() { return taskId; }

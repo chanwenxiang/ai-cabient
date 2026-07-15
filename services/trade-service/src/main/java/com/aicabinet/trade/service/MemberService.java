@@ -3,9 +3,9 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.domain.Member;
 import com.aicabinet.trade.domain.MemberPointsLog;
 import com.aicabinet.trade.domain.MemberLevelRule;
-import com.aicabinet.trade.repository.MemberRepository;
-import com.aicabinet.trade.repository.MemberPointsLogRepository;
-import com.aicabinet.trade.repository.MemberLevelRuleRepository;
+import com.aicabinet.trade.mapper.MemberMapper;
+import com.aicabinet.trade.mapper.MemberPointsLogMapper;
+import com.aicabinet.trade.mapper.MemberLevelRuleMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,13 +33,13 @@ public class MemberService {
     public static final String POINTS_EXPIRE = "EXPIRE";
     
     @Autowired
-    private MemberRepository memberRepository;
+    private MemberMapper memberRepository;
     
     @Autowired
-    private MemberPointsLogRepository pointsLogRepository;
+    private MemberPointsLogMapper pointsLogRepository;
     
     @Autowired
-    private MemberLevelRuleRepository levelRuleRepository;
+    private MemberLevelRuleMapper levelRuleRepository;
     
     @Transactional
     public Member createMember(Long userId) {

@@ -3,7 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.config.OpsMonitoringProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -12,11 +12,11 @@ import java.time.temporal.ChronoUnit;
 
 @Service
 public class OpsExceptionScannerService {
-    private final ShoppingSessionRepository sessionRepository;
+    private final ShoppingSessionMapper sessionRepository;
     private final OpsExceptionService exceptionService;
     private final OpsMonitoringProperties properties;
 
-    public OpsExceptionScannerService(ShoppingSessionRepository sessionRepository,
+    public OpsExceptionScannerService(ShoppingSessionMapper sessionRepository,
                                       OpsExceptionService exceptionService,
                                       OpsMonitoringProperties properties) {
         this.sessionRepository = sessionRepository;

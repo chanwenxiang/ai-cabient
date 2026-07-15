@@ -1,62 +1,45 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "coupon_definition")
+@TableName("coupon_definition")
 public class CouponDefinition {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long couponDefId;
 
-    @Column(nullable = false, length = 128)
     private String couponName;
 
-    @Column(nullable = false, length = 32)
     private String couponType;
 
-    @Column(nullable = false)
     private int denominationCents;
 
-    @Column(nullable = false)
     private int minSpendCents;
 
     private Integer discountPercent;
 
-    @Column(nullable = false)
     private int validityDays = 30;
 
-    @Column(nullable = false)
     private int maxIssueCount;
 
-    @Column(nullable = false)
     private int issuedCount;
 
     private Long activityId;
 
-    @Column(nullable = false, length = 32)
     private String deviceScope = "ALL";
 
-    @Column(nullable = false, length = 16)
     private String status = "ACTIVE";
 
-    @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(nullable = false)
     private Instant createdAt;
 
-    @Column(nullable = false)
     private Instant updatedAt;
 
-    @PrePersist
-    protected void onCreate() { createdAt = Instant.now(); updatedAt = Instant.now(); }
-    @PreUpdate
-    protected void onUpdate() { updatedAt = Instant.now(); }
-
-    public Long getCouponDefId() { return couponDefId; }
+public Long getCouponDefId() { return couponDefId; }
     public void setCouponDefId(Long v) { this.couponDefId = v; }
     public String getCouponName() { return couponName; }
     public void setCouponName(String v) { this.couponName = v; }

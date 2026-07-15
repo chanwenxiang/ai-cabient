@@ -8,10 +8,10 @@ import com.aicabinet.trade.domain.PaymentReconciliation;
 import com.aicabinet.trade.reconciliation.PlatformBillLine;
 import com.aicabinet.trade.reconciliation.PlatformBillProviderRegistry;
 import com.aicabinet.trade.metrics.CabinetMetrics;
-import com.aicabinet.trade.repository.CabinetOrderRepository;
-import com.aicabinet.trade.repository.PaymentPlatformBillLineRepository;
-import com.aicabinet.trade.repository.PaymentReconciliationRepository;
-import com.aicabinet.trade.repository.RechargeOrderRepository;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.PaymentPlatformBillLineMapper;
+import com.aicabinet.trade.mapper.PaymentReconciliationMapper;
+import com.aicabinet.trade.mapper.RechargeOrderMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -35,18 +35,18 @@ public class ReconciliationService {
 
     private static final Logger log = LoggerFactory.getLogger(ReconciliationService.class);
 
-    private final PaymentReconciliationRepository reconRepository;
-    private final PaymentPlatformBillLineRepository billLineRepository;
-    private final CabinetOrderRepository orderRepository;
-    private final RechargeOrderRepository rechargeRepository;
+    private final PaymentReconciliationMapper reconRepository;
+    private final PaymentPlatformBillLineMapper billLineRepository;
+    private final CabinetOrderMapper orderRepository;
+    private final RechargeOrderMapper rechargeRepository;
     private final PlatformBillProviderRegistry billProviderRegistry;
     private final ObjectMapper objectMapper;
     private final CabinetMetrics cabinetMetrics;
 
-    public ReconciliationService(PaymentReconciliationRepository reconRepository,
-                                 PaymentPlatformBillLineRepository billLineRepository,
-                                 CabinetOrderRepository orderRepository,
-                                 RechargeOrderRepository rechargeRepository,
+    public ReconciliationService(PaymentReconciliationMapper reconRepository,
+                                 PaymentPlatformBillLineMapper billLineRepository,
+                                 CabinetOrderMapper orderRepository,
+                                 RechargeOrderMapper rechargeRepository,
                                  PlatformBillProviderRegistry billProviderRegistry,
                                  ObjectMapper objectMapper,
                                  CabinetMetrics cabinetMetrics) {

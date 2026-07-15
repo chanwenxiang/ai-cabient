@@ -1,46 +1,36 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "member")
+@TableName("member")
 public class Member {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long memberId;
+
     
-    @Column(nullable = false)
     private Long userId;
     
-    @Column(length = 16, nullable = false)
     private String memberLevel;
     
-    @Column(nullable = false)
     private Integer totalPoints = 0;
     
-    @Column(nullable = false)
     private Integer availablePoints = 0;
     
-    @Column(nullable = false)
     private Integer usedPoints = 0;
     
-    @Column(nullable = false)
     private Integer expiredPoints = 0;
     
-    @Column(precision = 12, scale = 2)
     private java.math.BigDecimal totalSpent;
     
-    @Column(nullable = false)
     private Integer orderCount = 0;
     
-    @Column(length = 64)
     private String inviteCode;
     
-    @Column
     private Long invitedBy;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     private Instant updatedAt;

@@ -1,43 +1,34 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "ad_slot")
+@TableName("ad_slot")
 public class AdSlot {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long slotId;
+
     
-    @Column(length = 100, nullable = false)
     private String slotName;
     
-    @Column(length = 32, nullable = false)
     private String slotCode;
     
-    @Column(length = 32, nullable = false)
     private String slotType;
     
-    @Column(length = 32)
     private String deviceId;
     
-    @Column(length = 64)
     private String position;
     
-    @Column(nullable = false)
     private Integer width;
     
-    @Column(nullable = false)
     private Integer height;
     
-    @Column(precision = 10, scale = 2)
     private java.math.BigDecimal defaultPrice;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     private Instant updatedAt;

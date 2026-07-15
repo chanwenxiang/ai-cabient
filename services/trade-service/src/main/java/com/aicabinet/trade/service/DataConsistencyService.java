@@ -2,8 +2,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.DataChangeLog;
 import com.aicabinet.trade.domain.DataConsistencyRecord;
-import com.aicabinet.trade.repository.DataChangeLogRepository;
-import com.aicabinet.trade.repository.DataConsistencyRecordRepository;
+import com.aicabinet.trade.mapper.DataChangeLogMapper;
+import com.aicabinet.trade.mapper.DataConsistencyRecordMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,10 +26,10 @@ public class DataConsistencyService {
     public static final String STATUS_FIXED = "FIXED";
     
     @Autowired
-    private DataChangeLogRepository changeLogRepository;
+    private DataChangeLogMapper changeLogRepository;
     
     @Autowired
-    private DataConsistencyRecordRepository consistencyRepository;
+    private DataConsistencyRecordMapper consistencyRepository;
     
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -63,54 +63,39 @@ public class DataConsistencyService {
     }
     
     private void checkOrderConsistency() {
-        String sql = "SELECT o.order_id, o.total_amount, SUM(ol.line_total) as calculated_total " +
+        String sql = "SELECT o.order_id, o.total_amount_cents, COALESCE(SUM(ol.line_amount_cents), 0) as calculated_total " +
                      "FROM cabinet_order o LEFT JOIN cabinet_order_line ol ON o.order_id = ol.order_id " +
-                     "WHERE o.status = 'PAID' GROUP BY o.order_id, o.total_amount " +
-                     "HAVING o.total_amount != SUM(ol.line_total)";
+                     "WHERE o.status = 'PAID' GROUP BY o.order_id, o.total_amount_cents " +
+                     "HAVING o.total_amount_cents != COALESCE(SUM(ol.line_amount_cents), 0)";
         
         List<Map<String, Object>> mismatches = jdbcTemplate.queryForList(sql);
         
         for (Map<String, Object> row : mismatches) {
             recordInconsistency("ORDER_AMOUNT", "cabinet_order", 
                 row.get("order_id").toString(),
-                row.get("total_amount").toString(),
+                row.get("total_amount_cents").toString(),
                 row.get("calculated_total").toString());
         }
     }
     
     private void checkPaymentConsistency() {
-        String sql = "SELECT po.order_id, po.amount, o.paid_amount " +
+        String sql = "SELECT po.order_id, po.amount_cents, o.total_amount_cents " +
                      "FROM payment_operation po " +
                      "JOIN cabinet_order o ON po.order_id = o.order_id " +
-                     "WHERE po.status = 'SUCCESS' AND po.amount != o.paid_amount";
+                     "WHERE po.status = 'SUCCESS' AND po.amount_cents != o.total_amount_cents";
         
         List<Map<String, Object>> mismatches = jdbcTemplate.queryForList(sql);
         
         for (Map<String, Object> row : mismatches) {
             recordInconsistency("PAYMENT_AMOUNT", "payment_operation",
                 row.get("order_id").toString(),
-                row.get("paid_amount").toString(),
-                row.get("amount").toString());
+                row.get("total_amount_cents").toString(),
+                row.get("amount_cents").toString());
         }
     }
     
     private void checkInventoryConsistency() {
-        String sql = "SELECT dsi.device_id, dsi.sku_id, dsi.quantity, " +
-                     "COALESCE(SUM(dsl.slot_qty), 0) as slot_total " +
-                     "FROM device_sku_inventory dsi " +
-                     "LEFT JOIN device_slot dsl ON dsi.device_id = dsl.device_id " +
-                     "AND dsi.sku_id = dsl.sku_id " +
-                     "GROUP BY dsi.device_id, dsi.sku_id, dsi.quantity " +
-                     "HAVING dsi.quantity != COALESCE(SUM(dsl.slot_qty), 0)";
-        
-        List<Map<String, Object>> mismatches = jdbcTemplate.queryForList(sql);
-        
-        for (Map<String, Object> row : mismatches) {
-            recordInconsistency("INVENTORY_MISMATCH", "device_sku_inventory",
-                row.get("device_id") + "_" + row.get("sku_id"),
-                row.get("quantity").toString(),
-                row.get("slot_total").toString());
-        }
+        // device_slot has assigned_sku_id / last_physical_qty, not per-SKU slot_qty — skip until model aligns
     }
     
     private void recordInconsistency(String checkType, String tableName, 
@@ -157,7 +142,7 @@ public class DataConsistencyService {
         
         switch (record.getCheckType()) {
             case "ORDER_AMOUNT":
-                sql = "UPDATE cabinet_order SET total_amount = CAST(? AS DECIMAL(10,2)) WHERE order_id = CAST(? AS BIGINT)";
+                sql = "UPDATE cabinet_order SET total_amount_cents = CAST(? AS INT) WHERE order_id = ?";
                 jdbcTemplate.update(sql, record.getActualValue(), record.getCheckKey());
                 return true;
                 

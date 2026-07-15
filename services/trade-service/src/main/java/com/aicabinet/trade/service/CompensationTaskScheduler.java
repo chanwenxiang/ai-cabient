@@ -2,8 +2,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.CompensationTask;
 import com.aicabinet.trade.domain.DistributedTransaction;
-import com.aicabinet.trade.repository.CompensationTaskRepository;
-import com.aicabinet.trade.repository.DistributedTransactionRepository;
+import com.aicabinet.trade.mapper.CompensationTaskMapper;
+import com.aicabinet.trade.mapper.DistributedTransactionMapper;
 import org.redisson.api.RLock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,10 +20,10 @@ public class CompensationTaskScheduler {
     private static final Logger log = LoggerFactory.getLogger(CompensationTaskScheduler.class);
     
     @Autowired
-    private CompensationTaskRepository taskRepository;
+    private CompensationTaskMapper taskRepository;
     
     @Autowired
-    private DistributedTransactionRepository txRepository;
+    private DistributedTransactionMapper txRepository;
     
     @Autowired
     private DistributedLockService lockService;

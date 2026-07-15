@@ -3,7 +3,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
-import com.aicabinet.trade.repository.*;
+import com.aicabinet.trade.mapper.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -24,15 +24,15 @@ public class CouponService {
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final int COUPON_CODE_LENGTH = 12;
 
-    private final CouponDefinitionRepository definitionRepository;
-    private final UserCouponRepository userCouponRepository;
-    private final UserInfoRepository userInfoRepository;
-    private final CabinetOrderRepository orderRepository;
+    private final CouponDefinitionMapper definitionRepository;
+    private final UserCouponMapper userCouponRepository;
+    private final UserInfoMapper userInfoRepository;
+    private final CabinetOrderMapper orderRepository;
 
-    public CouponService(CouponDefinitionRepository definitionRepository,
-                         UserCouponRepository userCouponRepository,
-                         UserInfoRepository userInfoRepository,
-                         CabinetOrderRepository orderRepository) {
+    public CouponService(CouponDefinitionMapper definitionRepository,
+                         UserCouponMapper userCouponRepository,
+                         UserInfoMapper userInfoRepository,
+                         CabinetOrderMapper orderRepository) {
         this.definitionRepository = definitionRepository;
         this.userCouponRepository = userCouponRepository;
         this.userInfoRepository = userInfoRepository;

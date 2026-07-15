@@ -1,10 +1,10 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.DeviceInfo;
-import com.aicabinet.trade.repository.DeviceInfoRepository;
-import com.aicabinet.trade.repository.OpsRoleRepository;
-import com.aicabinet.trade.repository.OpsUserMerchantRepository;
-import com.aicabinet.trade.repository.OpsUserRoleRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.OpsRoleMapper;
+import com.aicabinet.trade.mapper.OpsUserMerchantMapper;
+import com.aicabinet.trade.mapper.OpsUserRoleMapper;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.http.HttpStatus;
@@ -25,16 +25,16 @@ import java.util.stream.Collectors;
 @Service
 public class MerchantScopeService {
 
-    private final OpsUserMerchantRepository userMerchantRepository;
-    private final OpsUserRoleRepository userRoleRepository;
-    private final OpsRoleRepository roleRepository;
-    private final DeviceInfoRepository deviceRepository;
+    private final OpsUserMerchantMapper userMerchantRepository;
+    private final OpsUserRoleMapper userRoleRepository;
+    private final OpsRoleMapper roleRepository;
+    private final DeviceInfoMapper deviceRepository;
     private final CabinetMetrics cabinetMetrics;
 
-    public MerchantScopeService(OpsUserMerchantRepository userMerchantRepository,
-                                OpsUserRoleRepository userRoleRepository,
-                                OpsRoleRepository roleRepository,
-                                DeviceInfoRepository deviceRepository,
+    public MerchantScopeService(OpsUserMerchantMapper userMerchantRepository,
+                                OpsUserRoleMapper userRoleRepository,
+                                OpsRoleMapper roleRepository,
+                                DeviceInfoMapper deviceRepository,
                                 CabinetMetrics cabinetMetrics) {
         this.userMerchantRepository = userMerchantRepository;
         this.userRoleRepository = userRoleRepository;

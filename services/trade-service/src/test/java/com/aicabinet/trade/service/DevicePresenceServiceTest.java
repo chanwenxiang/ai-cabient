@@ -2,8 +2,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.metrics.CabinetMetrics;
-import com.aicabinet.trade.repository.DeviceInfoRepository;
-import com.aicabinet.trade.repository.DeviceTemperatureReadingRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.DeviceTemperatureReadingMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -19,8 +19,8 @@ class DevicePresenceServiceTest {
 
     @Test
     void repeatedHeartbeatRefreshesLivenessEvenWhenStatusDoesNotChange() {
-        DeviceInfoRepository devices = mock(DeviceInfoRepository.class);
-        DeviceTemperatureReadingRepository temperatures = mock(DeviceTemperatureReadingRepository.class);
+        DeviceInfoMapper devices = mock(DeviceInfoMapper.class);
+        DeviceTemperatureReadingMapper temperatures = mock(DeviceTemperatureReadingMapper.class);
         CabinetMetrics metrics = mock(CabinetMetrics.class);
         OpsExceptionService exceptions = mock(OpsExceptionService.class);
         DeviceInfo device = new DeviceInfo();

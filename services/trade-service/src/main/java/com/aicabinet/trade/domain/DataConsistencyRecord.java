@@ -1,37 +1,30 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "data_consistency_record")
+@TableName("data_consistency_record")
 public class DataConsistencyRecord {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
+
     
-    @Column(length = 64, nullable = false)
     private String checkType;
     
-    @Column(length = 64, nullable = false)
     private String tableName;
     
-    @Column(length = 64)
     private String checkKey;
     
-    @Column(columnDefinition = "text")
     private String expectedValue;
     
-    @Column(columnDefinition = "text")
     private String actualValue;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(columnDefinition = "text")
     private String errorMessage;
     
-    @Column(nullable = false)
     private Instant checkedAt = Instant.now();
     
     private Instant fixedAt;

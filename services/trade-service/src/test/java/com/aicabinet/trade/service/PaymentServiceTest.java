@@ -11,9 +11,9 @@ import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.WeChatPayClient;
 import com.aicabinet.trade.payment.WeChatPayNotifyService;
 import com.aicabinet.trade.payment.WeChatPayV3Signer;
-import com.aicabinet.trade.repository.RechargeOrderRepository;
-import com.aicabinet.trade.repository.UserAccountRepository;
-import com.aicabinet.trade.repository.UserInfoRepository;
+import com.aicabinet.trade.mapper.RechargeOrderMapper;
+import com.aicabinet.trade.mapper.UserAccountMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,9 +30,9 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class PaymentServiceTest {
 
-    @Mock private RechargeOrderRepository rechargeOrderRepository;
-    @Mock private UserInfoRepository userInfoRepository;
-    @Mock private UserAccountRepository userAccountRepository;
+    @Mock private RechargeOrderMapper rechargeOrderRepository;
+    @Mock private UserInfoMapper userInfoRepository;
+    @Mock private UserAccountMapper userAccountRepository;
     @Mock private WeChatPayClient weChatPayClient;
     @Mock private WeChatPayV3Signer v3Signer;
     @Mock private WeChatPayNotifyService notifyService;

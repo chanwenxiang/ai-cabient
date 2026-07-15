@@ -5,7 +5,7 @@ import com.aicabinet.common.dto.UpsertSystemConfigRequest;
 import com.aicabinet.trade.config.AlipayProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.domain.SystemConfig;
-import com.aicabinet.trade.repository.SystemConfigRepository;
+import com.aicabinet.trade.mapper.SystemConfigMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,11 +24,11 @@ public class SystemConfigService {
     public static final String SETTLEMENT_MIN_CONFIDENCE = "settlement.min_confidence";
     public static final String DISPUTE_AUTO_OPEN = "dispute.auto_open";
 
-    private final SystemConfigRepository repository;
+    private final SystemConfigMapper repository;
     private final SecurityProperties securityProperties;
     private final AlipayProperties alipayProperties;
 
-    public SystemConfigService(SystemConfigRepository repository,
+    public SystemConfigService(SystemConfigMapper repository,
                                SecurityProperties securityProperties,
                                AlipayProperties alipayProperties) {
         this.repository = repository;

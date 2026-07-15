@@ -1,43 +1,34 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "member_level_rule")
+@TableName("member_level_rule")
 public class MemberLevelRule {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
+
     
-    @Column(length = 16, nullable = false)
     private String levelCode;
     
-    @Column(length = 32, nullable = false)
     private String levelName;
     
-    @Column(precision = 12, scale = 2)
     private java.math.BigDecimal minSpent;
     
-    @Column(precision = 12, scale = 2)
     private java.math.BigDecimal maxSpent;
     
-    @Column(nullable = false)
     private Integer minPoints;
     
-    @Column
     private Integer maxPoints;
     
-    @Column(precision = 5, scale = 2)
     private java.math.BigDecimal pointsRate;
     
-    @Column(nullable = false)
     private Integer sortorder;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     private Instant updatedAt;

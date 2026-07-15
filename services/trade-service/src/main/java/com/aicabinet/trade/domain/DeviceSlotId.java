@@ -1,18 +1,12 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Embeddable;
-
 import java.io.Serializable;
 import java.util.Objects;
 
-@Embeddable
 public class DeviceSlotId implements Serializable {
 
-    @Column(name = "device_id", length = 64, nullable = false)
     private String deviceId;
 
-    @Column(name = "slot_code", length = 32, nullable = false)
     private String slotCode;
 
     public DeviceSlotId() {

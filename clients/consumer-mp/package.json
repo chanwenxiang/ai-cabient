@@ -10,6 +10,9 @@
     "dev:h5": "uni",
     "build:h5": "uni build"
   },
+  "engines": {
+    "node": ">=24.18.0"
+  },
   "dependencies": {
     "@aicabinet/shared-dict": "workspace:*",
     "@aicabinet/shared-uni": "workspace:*",

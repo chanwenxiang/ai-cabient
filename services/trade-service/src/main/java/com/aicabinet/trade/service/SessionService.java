@@ -16,7 +16,7 @@ import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.metrics.CabinetMetrics;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,7 +45,7 @@ public class SessionService {
             SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
             SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING);
 
-    private final ShoppingSessionRepository repository;
+    private final ShoppingSessionMapper repository;
     private final DeviceServiceClient deviceClient;
     private final UserValidationService userValidationService;
     private final DeviceValidationService deviceValidationService;
@@ -58,7 +58,7 @@ public class SessionService {
     private final SessionService self;
     private final OpsExceptionService opsExceptionService;
 
-    public SessionService(ShoppingSessionRepository repository,
+    public SessionService(ShoppingSessionMapper repository,
                           DeviceServiceClient deviceClient,
                           UserValidationService userValidationService,
                           DeviceValidationService deviceValidationService,

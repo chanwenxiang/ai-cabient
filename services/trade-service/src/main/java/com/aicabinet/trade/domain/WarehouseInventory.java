@@ -1,44 +1,32 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 import java.time.LocalDate;
 
-@Entity
-@Table(name = "warehouse_inventory")
+@TableName("warehouse_inventory")
 public class WarehouseInventory {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long inventoryId;
 
-    @Column(nullable = false, length = 32)
     private String warehouseId;
 
-    @Column(nullable = false, length = 64)
     private String skuId;
 
-    @Column(nullable = false, length = 64)
     private String batchNo;
 
     private LocalDate productionDate;
 
-    @Column(nullable = false)
     private LocalDate expiryDate;
 
-    @Column(nullable = false)
     private int quantity;
 
-    @Column(nullable = false)
     private Instant updatedAt;
 
-    @PrePersist
-    @PreUpdate
-    void touch() {
-        updatedAt = Instant.now();
-    }
-
-    public Long getInventoryId() { return inventoryId; }
+public Long getInventoryId() { return inventoryId; }
     public String getWarehouseId() { return warehouseId; }
     public void setWarehouseId(String warehouseId) { this.warehouseId = warehouseId; }
     public String getSkuId() { return skuId; }

@@ -1,34 +1,28 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "member_points_log")
+@TableName("member_points_log")
 public class MemberPointsLog {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
+
     
-    @Column(nullable = false)
     private Long memberId;
     
-    @Column(nullable = false)
     private Integer points;
     
-    @Column(length = 16, nullable = false)
     private String pointsType;
     
-    @Column(length = 64)
     private String sourceType;
     
-    @Column(length = 64)
     private String sourceId;
     
-    @Column(length = 200)
     private String description;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     private Instant expireAt;

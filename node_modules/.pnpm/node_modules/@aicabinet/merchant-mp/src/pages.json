@@ -1,0 +1,115 @@
+﻿{
+    "pages":  [
+                  {
+                      "path":  "pages/login/login",
+                      "style":  {
+                                    "navigationBarTitleText":  "商户登录",
+                                    "navigationStyle":  "custom"
+                                }
+                  },
+                  {
+                      "path":  "pages/home/home",
+                      "style":  {
+                                    "navigationBarTitleText":  "概览",
+                                    "enablePullDownRefresh":  true
+                                }
+                  },
+                  {
+                      "path":  "pages/devices/devices",
+                      "style":  {
+                                    "navigationBarTitleText":  "柜机",
+                                    "enablePullDownRefresh":  true
+                                }
+                  },
+                  {
+                      "path":  "pages/device-detail/device-detail",
+                      "style":  {
+                                    "navigationBarTitleText":  "柜机详情"
+                                }
+                  },
+                  {
+                      "path":  "pages/pricing/pricing",
+                      "style":  {
+                                    "navigationBarTitleText":  "点位定价"
+                                }
+                  },
+                  {
+                      "path":  "pages/replenishment/replenishment",
+                      "style":  {
+                                    "navigationBarTitleText":  "补货任务",
+                                    "enablePullDownRefresh":  true
+                                }
+                  },
+                  {
+                      "path":  "pages/business/business",
+                      "style":  {
+                                    "navigationBarTitleText":  "经营分析",
+                                    "enablePullDownRefresh":  true
+                                }
+                  },
+                  {
+                      "path":  "pages/alerts/alerts",
+                      "style":  {
+                                    "navigationBarTitleText":  "待办",
+                                    "enablePullDownRefresh":  true
+                                }
+                  },
+                  {
+                      "path":  "pages/mine/mine",
+                      "style":  {
+                                    "navigationBarTitleText":  "我的"
+                                }
+                  },
+                  {
+                      "style":  {
+                                    "enablePullDownRefresh":  true,
+                                    "navigationBarTitleText":  "结算对账"
+                                },
+                      "path":  "pages/settlements/settlements"
+                  },
+                  {
+                      "style":  {
+                                    "enablePullDownRefresh":  true,
+                                    "navigationBarTitleText":  "争议处理"
+                                },
+                      "path":  "pages/disputes/disputes"
+                  }
+              ],
+    "tabBar":  {
+                   "color":  "#94a3b8",
+                   "selectedColor":  "#0f766e",
+                   "backgroundColor":  "#ffffff",
+                   "borderStyle":  "black",
+                   "list":  [
+                                {
+                                    "pagePath":  "pages/home/home",
+                                    "text":  "概览",
+                                    "iconPath":  "static/tab/home.png",
+                                    "selectedIconPath":  "static/tab/home-active.png"
+                                },
+                                {
+                                    "pagePath":  "pages/devices/devices",
+                                    "text":  "柜机",
+                                    "iconPath":  "static/tab/devices.png",
+                                    "selectedIconPath":  "static/tab/devices-active.png"
+                                },
+                                {
+                                    "pagePath":  "pages/alerts/alerts",
+                                    "text":  "待办",
+                                    "iconPath":  "static/tab/alerts.png",
+                                    "selectedIconPath":  "static/tab/alerts-active.png"
+                                },
+                                {
+                                    "pagePath":  "pages/mine/mine",
+                                    "text":  "我的",
+                                    "iconPath":  "static/tab/mine.png",
+                                    "selectedIconPath":  "static/tab/mine-active.png"
+                                }
+                            ]
+               },
+    "globalStyle":  {
+                        "navigationBarTextStyle":  "white",
+                        "navigationBarBackgroundColor":  "#134e4a",
+                        "backgroundColor":  "#f0fdfa"
+                    }
+}

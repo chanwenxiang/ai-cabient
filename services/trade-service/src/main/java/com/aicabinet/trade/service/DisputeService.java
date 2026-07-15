@@ -19,13 +19,13 @@ import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.DisputeMessage;
 import com.aicabinet.trade.domain.DisputeTicket;
 import com.aicabinet.trade.domain.ShoppingSession;
-import com.aicabinet.trade.repository.CabinetOrderRepository;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.storage.MinioVideoService;
-import com.aicabinet.trade.repository.DisputeMessageRepository;
-import com.aicabinet.trade.repository.DisputeTicketRepository;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
-import com.aicabinet.trade.repository.SkuCatalogRepository;
-import com.aicabinet.trade.repository.UserInfoRepository;
+import com.aicabinet.trade.mapper.DisputeMessageMapper;
+import com.aicabinet.trade.mapper.DisputeTicketMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -52,10 +52,10 @@ import java.util.stream.Collectors;
 @Service
 public class DisputeService {
 
-    private final DisputeTicketRepository disputeRepository;
-    private final DisputeMessageRepository disputeMessageRepository;
-    private final ShoppingSessionRepository sessionRepository;
-    private final CabinetOrderRepository orderRepository;
+    private final DisputeTicketMapper disputeRepository;
+    private final DisputeMessageMapper disputeMessageRepository;
+    private final ShoppingSessionMapper sessionRepository;
+    private final CabinetOrderMapper orderRepository;
     private final SettlementService settlementService;
     private final ObjectMapper objectMapper;
     private final MinioVideoService minioVideoService;
@@ -64,15 +64,15 @@ public class DisputeService {
     private final PermissionService permissionService;
     private final MerchantScopeService merchantScopeService;
     private final MerchantPortalGuard merchantPortalGuard;
-    private final SkuCatalogRepository skuCatalogRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
     private final DisputeSlaProperties disputeSlaProperties;
-    private final UserInfoRepository userInfoRepository;
+    private final UserInfoMapper userInfoRepository;
     private final OpsExceptionService opsExceptionService;
 
-    public DisputeService(DisputeTicketRepository disputeRepository,
-                          DisputeMessageRepository disputeMessageRepository,
-                          ShoppingSessionRepository sessionRepository,
-                          CabinetOrderRepository orderRepository,
+    public DisputeService(DisputeTicketMapper disputeRepository,
+                          DisputeMessageMapper disputeMessageRepository,
+                          ShoppingSessionMapper sessionRepository,
+                          CabinetOrderMapper orderRepository,
                           SettlementService settlementService,
                           ObjectMapper objectMapper,
                           MinioVideoService minioVideoService,
@@ -81,9 +81,9 @@ public class DisputeService {
                           PermissionService permissionService,
                           MerchantScopeService merchantScopeService,
                           MerchantPortalGuard merchantPortalGuard,
-                          SkuCatalogRepository skuCatalogRepository,
+                          SkuCatalogMapper skuCatalogRepository,
                           DisputeSlaProperties disputeSlaProperties,
-                          UserInfoRepository userInfoRepository,
+                          UserInfoMapper userInfoRepository,
                           @Lazy OpsExceptionService opsExceptionService) {
         this.disputeRepository = disputeRepository;
         this.disputeMessageRepository = disputeMessageRepository;

@@ -1,51 +1,39 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "user_coupon")
+@TableName("user_coupon")
 public class UserCoupon {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long couponId;
 
-    @Column(nullable = false)
     private Long userId;
 
-    @Column(nullable = false)
     private Long couponDefId;
 
-    @Column(nullable = false, length = 32, unique = true)
     private String couponCode;
 
-    @Column(nullable = false, length = 16)
     private String status = "UNUSED";
 
-    @Column(nullable = false)
     private Instant receivedAt;
 
     private Instant usedAt;
 
-    @Column(nullable = false)
     private Instant expireAt;
 
-    @Column(length = 32)
     private String orderId;
 
-    @Column(length = 64)
     private String deviceId;
 
     private Integer discountCents;
 
-    @Column(nullable = false)
     private Instant createdAt;
 
-    @PrePersist
-    protected void onCreate() { receivedAt = Instant.now(); createdAt = Instant.now(); }
-
-    public Long getCouponId() { return couponId; }
+public Long getCouponId() { return couponId; }
     public void setCouponId(Long v) { this.couponId = v; }
     public Long getUserId() { return userId; }
     public void setUserId(Long v) { this.userId = v; }

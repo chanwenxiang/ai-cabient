@@ -1,16 +1,16 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.AdminAuditLog;
-import com.aicabinet.trade.repository.AdminAuditLogRepository;
+import com.aicabinet.trade.mapper.AdminAuditLogMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class AdminAuditService {
 
-    private final AdminAuditLogRepository repository;
+    private final AdminAuditLogMapper repository;
 
-    public AdminAuditService(AdminAuditLogRepository repository) {
+    public AdminAuditService(AdminAuditLogMapper repository) {
         this.repository = repository;
     }
 

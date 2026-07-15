@@ -1,9 +1,9 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.ReplenishmentTask;
-import com.aicabinet.trade.repository.DeviceInfoRepository;
-import com.aicabinet.trade.repository.ReplenishmentTaskRepository;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -21,11 +21,11 @@ import static org.mockito.Mockito.when;
 class DeviceValidationServiceTest {
 
     @Mock
-    private DeviceInfoRepository deviceInfoRepository;
+    private DeviceInfoMapper deviceInfoRepository;
     @Mock
-    private ShoppingSessionRepository sessionRepository;
+    private ShoppingSessionMapper sessionRepository;
     @Mock
-    private ReplenishmentTaskRepository replenishmentTaskRepository;
+    private ReplenishmentTaskMapper replenishmentTaskRepository;
 
     private DeviceValidationService service;
 

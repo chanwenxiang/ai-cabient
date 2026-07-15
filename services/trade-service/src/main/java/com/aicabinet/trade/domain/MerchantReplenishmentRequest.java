@@ -1,32 +1,26 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "merchant_replenishment_request")
+@TableName("merchant_replenishment_request")
 public class MerchantReplenishmentRequest {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long requestId;
 
-    @Column(nullable = false, length = 64)
     private String merchantId;
 
-    @Column(nullable = false, length = 64)
     private String deviceId;
 
-    @Column(nullable = false, length = 16)
     private String status = "SUBMITTED";
 
-    @Column(length = 512)
     private String notes;
 
-    @Column(nullable = false)
     private Long createdBy;
 
-    @Column(nullable = false, updatable = false)
     private Instant submittedAt;
 
     private Instant reviewedAt;
@@ -37,24 +31,11 @@ public class MerchantReplenishmentRequest {
 
     private Long outboundId;
 
-    @Column(length = 512)
     private String rejectReason;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        Instant now = Instant.now();
-        if (createdAt == null) {
-            createdAt = now;
-        }
-        if (submittedAt == null) {
-            submittedAt = now;
-        }
-    }
-
-    public Long getRequestId() { return requestId; }
+public Long getRequestId() { return requestId; }
     public void setRequestId(Long requestId) { this.requestId = requestId; }
     public String getMerchantId() { return merchantId; }
     public void setMerchantId(String merchantId) { this.merchantId = merchantId; }

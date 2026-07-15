@@ -1,36 +1,25 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "purchase_order")
+@TableName("purchase_order")
 public class PurchaseOrder {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long purchaseOrderId;
-    @Column(nullable = false, length = 32)
+
     private String supplierId;
-    @Column(nullable = false, length = 32)
     private String warehouseId;
-    @Column(nullable = false, length = 16)
     private String status = "CREATED";
-    @Column(length = 64)
     private String refNo;
     private Long operatorId;
-    @Column(columnDefinition = "TEXT")
     private String notes;
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
     private Instant receivedAt;
 
-    @PrePersist
-    void prePersist() {
-        if (createdAt == null) createdAt = Instant.now();
-        if (status == null || status.isBlank()) status = "CREATED";
-    }
-
-    public Long getPurchaseOrderId() { return purchaseOrderId; }
+public Long getPurchaseOrderId() { return purchaseOrderId; }
     public String getSupplierId() { return supplierId; }
     public void setSupplierId(String supplierId) { this.supplierId = supplierId; }
     public String getWarehouseId() { return warehouseId; }

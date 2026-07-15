@@ -15,7 +15,7 @@ import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.domain.WarehouseInTransit;
-import com.aicabinet.trade.repository.*;
+import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
 import jakarta.servlet.http.HttpServletResponse;
@@ -60,58 +60,58 @@ public class AdminDashboardService {
     private static final long STALE_SESSION_MINUTES = 30;
     private static final long IN_TRANSIT_OVERDUE_HOURS = 24;
 
-    private final DeviceInfoRepository deviceRepository;
-    private final ShoppingSessionRepository sessionRepository;
-    private final CabinetOrderRepository orderRepository;
-    private final DisputeTicketRepository disputeRepository;
+    private final DeviceInfoMapper deviceRepository;
+    private final ShoppingSessionMapper sessionRepository;
+    private final CabinetOrderMapper orderRepository;
+    private final DisputeTicketMapper disputeRepository;
     private final SettlementService settlementService;
-    private final UserInfoRepository userInfoRepository;
-    private final UserAccountRepository userAccountRepository;
-    private final SkuCatalogRepository skuCatalogRepository;
+    private final UserInfoMapper userInfoRepository;
+    private final UserAccountMapper userAccountRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
     private final AdminAuditService auditService;
-    private final AdminAuditLogRepository auditLogRepository;
+    private final AdminAuditLogMapper auditLogRepository;
     private final PermissionService permissionService;
     private final PaymentService paymentService;
-    private final RechargeOrderRepository rechargeOrderRepository;
+    private final RechargeOrderMapper rechargeOrderRepository;
     private final SlaMetricsService slaMetricsService;
     private final MinioVideoService minioVideoService;
-    private final MerchantRepository merchantRepository;
+    private final MerchantMapper merchantRepository;
     private final MerchantScopeService merchantScopeService;
-    private final DeviceSkuInventoryRepository inventoryRepository;
-    private final OrderRevenueSplitRepository splitRepository;
+    private final DeviceSkuInventoryMapper inventoryRepository;
+    private final OrderRevenueSplitMapper splitRepository;
     private final DisputeSlaService disputeSlaService;
     private final InventoryLotService inventoryLotService;
     private final DeviceSlotService deviceSlotService;
-    private final ReplenishmentTaskRepository replenishmentTaskRepository;
-    private final PaymentReconciliationRepository reconciliationRepository;
-    private final WarehouseInTransitRepository inTransitRepository;
+    private final ReplenishmentTaskMapper replenishmentTaskRepository;
+    private final PaymentReconciliationMapper reconciliationRepository;
+    private final WarehouseInTransitMapper inTransitRepository;
     private final BalanceLedgerService balanceLedgerService;
 
-    public AdminDashboardService(DeviceInfoRepository deviceRepository,
-                                 ShoppingSessionRepository sessionRepository,
-                                 CabinetOrderRepository orderRepository,
-                                 DisputeTicketRepository disputeRepository,
+    public AdminDashboardService(DeviceInfoMapper deviceRepository,
+                                 ShoppingSessionMapper sessionRepository,
+                                 CabinetOrderMapper orderRepository,
+                                 DisputeTicketMapper disputeRepository,
                                  SettlementService settlementService,
-                                 UserInfoRepository userInfoRepository,
-                                 UserAccountRepository userAccountRepository,
-                                 SkuCatalogRepository skuCatalogRepository,
+                                 UserInfoMapper userInfoRepository,
+                                 UserAccountMapper userAccountRepository,
+                                 SkuCatalogMapper skuCatalogRepository,
                                  AdminAuditService auditService,
-                                 AdminAuditLogRepository auditLogRepository,
+                                 AdminAuditLogMapper auditLogRepository,
                                  PermissionService permissionService,
                                  PaymentService paymentService,
-                                 RechargeOrderRepository rechargeOrderRepository,
+                                 RechargeOrderMapper rechargeOrderRepository,
                                  SlaMetricsService slaMetricsService,
                                  MinioVideoService minioVideoService,
-                                 MerchantRepository merchantRepository,
+                                 MerchantMapper merchantRepository,
                                  MerchantScopeService merchantScopeService,
-                                 DeviceSkuInventoryRepository inventoryRepository,
-                                 OrderRevenueSplitRepository splitRepository,
+                                 DeviceSkuInventoryMapper inventoryRepository,
+                                 OrderRevenueSplitMapper splitRepository,
                                  DisputeSlaService disputeSlaService,
                                  InventoryLotService inventoryLotService,
                                  DeviceSlotService deviceSlotService,
-                                 ReplenishmentTaskRepository replenishmentTaskRepository,
-                                 PaymentReconciliationRepository reconciliationRepository,
-                                 WarehouseInTransitRepository inTransitRepository,
+                                 ReplenishmentTaskMapper replenishmentTaskRepository,
+                                 PaymentReconciliationMapper reconciliationRepository,
+                                 WarehouseInTransitMapper inTransitRepository,
                                  BalanceLedgerService balanceLedgerService) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;

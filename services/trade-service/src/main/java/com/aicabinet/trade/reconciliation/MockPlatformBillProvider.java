@@ -3,8 +3,8 @@ package com.aicabinet.trade.reconciliation;
 import com.aicabinet.trade.config.ReconciliationProperties;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.RechargeOrder;
-import com.aicabinet.trade.repository.CabinetOrderRepository;
-import com.aicabinet.trade.repository.RechargeOrderRepository;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.RechargeOrderMapper;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -20,12 +20,12 @@ import java.util.List;
 public class MockPlatformBillProvider implements PlatformBillProvider {
 
     private final ReconciliationProperties properties;
-    private final CabinetOrderRepository orderRepository;
-    private final RechargeOrderRepository rechargeRepository;
+    private final CabinetOrderMapper orderRepository;
+    private final RechargeOrderMapper rechargeRepository;
 
     public MockPlatformBillProvider(ReconciliationProperties properties,
-                                    CabinetOrderRepository orderRepository,
-                                    RechargeOrderRepository rechargeRepository) {
+                                    CabinetOrderMapper orderRepository,
+                                    RechargeOrderMapper rechargeRepository) {
         this.properties = properties;
         this.orderRepository = orderRepository;
         this.rechargeRepository = rechargeRepository;

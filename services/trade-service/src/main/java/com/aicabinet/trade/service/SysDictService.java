@@ -3,8 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.DictDtos;
 import com.aicabinet.trade.domain.SysDictData;
 import com.aicabinet.trade.domain.SysDictType;
-import com.aicabinet.trade.repository.SysDictDataRepository;
-import com.aicabinet.trade.repository.SysDictTypeRepository;
+import com.aicabinet.trade.mapper.SysDictDataMapper;
+import com.aicabinet.trade.mapper.SysDictTypeMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,13 +18,13 @@ import java.util.Map;
 @Service
 public class SysDictService {
 
-    private final SysDictTypeRepository typeRepository;
-    private final SysDictDataRepository dataRepository;
+    private final SysDictTypeMapper typeRepository;
+    private final SysDictDataMapper dataRepository;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
 
-    public SysDictService(SysDictTypeRepository typeRepository,
-                          SysDictDataRepository dataRepository,
+    public SysDictService(SysDictTypeMapper typeRepository,
+                          SysDictDataMapper dataRepository,
                           PermissionService permissionService,
                           AdminAuditService auditService) {
         this.typeRepository = typeRepository;

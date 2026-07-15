@@ -2,7 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.PromotionActivity;
-import com.aicabinet.trade.repository.PromotionActivityRepository;
+import com.aicabinet.trade.mapper.PromotionActivityMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -18,9 +18,9 @@ public class PromotionService {
 
     private static final Logger log = LoggerFactory.getLogger(PromotionService.class);
 
-    private final PromotionActivityRepository repository;
+    private final PromotionActivityMapper repository;
 
-    public PromotionService(PromotionActivityRepository repository) {
+    public PromotionService(PromotionActivityMapper repository) {
         this.repository = repository;
     }
 

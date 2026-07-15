@@ -4,10 +4,10 @@ import com.aicabinet.common.dto.CreateCouponRequest;
 import com.aicabinet.common.dto.CouponDto;
 import com.aicabinet.trade.domain.CouponDefinition;
 import com.aicabinet.trade.domain.UserCoupon;
-import com.aicabinet.trade.repository.CouponDefinitionRepository;
-import com.aicabinet.trade.repository.UserCouponRepository;
-import com.aicabinet.trade.repository.UserInfoRepository;
-import com.aicabinet.trade.repository.CabinetOrderRepository;
+import com.aicabinet.trade.mapper.CouponDefinitionMapper;
+import com.aicabinet.trade.mapper.UserCouponMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -27,10 +27,10 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class CouponServiceTest {
 
-    @Mock private CouponDefinitionRepository definitionRepository;
-    @Mock private UserCouponRepository userCouponRepository;
-    @Mock private UserInfoRepository userInfoRepository;
-    @Mock private CabinetOrderRepository orderRepository;
+    @Mock private CouponDefinitionMapper definitionRepository;
+    @Mock private UserCouponMapper userCouponRepository;
+    @Mock private UserInfoMapper userInfoRepository;
+    @Mock private CabinetOrderMapper orderRepository;
 
     private CouponService couponService;
 

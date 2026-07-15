@@ -7,11 +7,11 @@ import com.aicabinet.trade.domain.InventoryMovement;
 import com.aicabinet.trade.domain.PullOffTask;
 import com.aicabinet.trade.domain.ReplenishmentTaskLine;
 import com.aicabinet.trade.domain.SkuCatalog;
-import com.aicabinet.trade.repository.DeviceSkuInventoryRepository;
-import com.aicabinet.trade.repository.DeviceSkuLotRepository;
-import com.aicabinet.trade.repository.InventoryMovementRepository;
-import com.aicabinet.trade.repository.PullOffTaskRepository;
-import com.aicabinet.trade.repository.SkuCatalogRepository;
+import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
+import com.aicabinet.trade.mapper.DeviceSkuLotMapper;
+import com.aicabinet.trade.mapper.InventoryMovementMapper;
+import com.aicabinet.trade.mapper.PullOffTaskMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -30,17 +30,17 @@ public class InventoryLotService {
 
     private static final Logger log = LoggerFactory.getLogger(InventoryLotService.class);
 
-    private final DeviceSkuLotRepository lotRepository;
-    private final InventoryMovementRepository movementRepository;
-    private final DeviceSkuInventoryRepository inventoryRepository;
-    private final SkuCatalogRepository skuCatalogRepository;
-    private final PullOffTaskRepository pullOffTaskRepository;
+    private final DeviceSkuLotMapper lotRepository;
+    private final InventoryMovementMapper movementRepository;
+    private final DeviceSkuInventoryMapper inventoryRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
+    private final PullOffTaskMapper pullOffTaskRepository;
 
-    public InventoryLotService(DeviceSkuLotRepository lotRepository,
-                               InventoryMovementRepository movementRepository,
-                               DeviceSkuInventoryRepository inventoryRepository,
-                               SkuCatalogRepository skuCatalogRepository,
-                               PullOffTaskRepository pullOffTaskRepository) {
+    public InventoryLotService(DeviceSkuLotMapper lotRepository,
+                               InventoryMovementMapper movementRepository,
+                               DeviceSkuInventoryMapper inventoryRepository,
+                               SkuCatalogMapper skuCatalogRepository,
+                               PullOffTaskMapper pullOffTaskRepository) {
         this.lotRepository = lotRepository;
         this.movementRepository = movementRepository;
         this.inventoryRepository = inventoryRepository;

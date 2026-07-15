@@ -1,43 +1,34 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.aicabinet.trade.config.JsonStringTypeHandler;
 import java.time.Instant;
 
-@Entity
-@Table(name = "dispute_ticket")
+@TableName(value = "dispute_ticket", autoResultMap = true)
 public class DisputeTicket {
 
-    @Id
-    @Column(length = 32)
+    @TableId(type = IdType.INPUT)
     private String ticketId;
 
-    @Column(nullable = false, length = 32)
     private String sessionId;
 
-    @Column(length = 256)
     private String reason;
 
-    @Column(nullable = false, length = 16)
     private String status;
 
-    @Column(nullable = false, length = 32)
     private String category = "RECOGNITION";
 
-    @Column(nullable = false, length = 16)
     private String priority = "NORMAL";
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
+    @TableField(typeHandler = JsonStringTypeHandler.class)
     private String items;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
+    @TableField(typeHandler = JsonStringTypeHandler.class)
     private String resolutionItems;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
     private Instant resolvedAt;
@@ -48,23 +39,13 @@ public class DisputeTicket {
 
     private Instant slaAlertedAt;
 
-    @Column(length = 512)
     private String operatorNote;
 
     private Instant closedAt;
 
     private Instant reopenedAt;
 
-    @PrePersist
-    void prePersist() {
-        Instant now = Instant.now();
-        createdAt = now;
-        if (slaDueAt == null) {
-            slaDueAt = now.plusSeconds(48 * 3600L);
-        }
-    }
-
-    public String getTicketId() { return ticketId; }
+public String getTicketId() { return ticketId; }
     public void setTicketId(String ticketId) { this.ticketId = ticketId; }
     public String getSessionId() { return sessionId; }
     public void setSessionId(String sessionId) { this.sessionId = sessionId; }

@@ -18,7 +18,7 @@ import com.aicabinet.common.dto.WarehouseOutboundDto;
 import com.aicabinet.common.dto.SupplierDto;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.domain.DeviceInfo;
-import com.aicabinet.trade.repository.DeviceInfoRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -37,7 +37,7 @@ public class CommercialFlowService {
     private final ReplenishmentService replenishmentService;
     private final SessionService sessionService;
     private final ReconciliationService reconciliationService;
-    private final DeviceInfoRepository deviceRepository;
+    private final DeviceInfoMapper deviceRepository;
 
     public CommercialFlowService(PermissionService permissionService,
                                  DemoDataService demoDataService,
@@ -46,7 +46,7 @@ public class CommercialFlowService {
                                  ReplenishmentService replenishmentService,
                                  SessionService sessionService,
                                  ReconciliationService reconciliationService,
-                                 DeviceInfoRepository deviceRepository) {
+                                 DeviceInfoMapper deviceRepository) {
         this.permissionService = permissionService;
         this.demoDataService = demoDataService;
         this.warehouseService = warehouseService;

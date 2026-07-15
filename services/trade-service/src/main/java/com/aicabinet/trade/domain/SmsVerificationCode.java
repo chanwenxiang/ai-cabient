@@ -1,37 +1,27 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "sms_verification_code")
+@TableName("sms_verification_code")
 public class SmsVerificationCode {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
 
-    @Column(name = "phone_number", nullable = false, length = 32)
     private String phoneNumber;
 
-    @Column(nullable = false, length = 8)
     private String code;
 
-    @Column(name = "expires_at", nullable = false)
     private Instant expiresAt;
 
-    @Column(name = "used_at")
     private Instant usedAt;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public Long getId() { return id; }
+public Long getId() { return id; }
     public String getPhoneNumber() { return phoneNumber; }
     public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
     public String getCode() { return code; }

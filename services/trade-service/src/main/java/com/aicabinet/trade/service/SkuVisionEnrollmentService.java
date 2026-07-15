@@ -9,8 +9,8 @@ import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.config.StagingProperties;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.domain.SkuVisionMapping;
-import com.aicabinet.trade.repository.SkuCatalogRepository;
-import com.aicabinet.trade.repository.SkuVisionMappingRepository;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.aicabinet.trade.mapper.SkuVisionMappingMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,8 +32,8 @@ import java.util.stream.Collectors;
 @Service
 public class SkuVisionEnrollmentService {
 
-    private final SkuCatalogRepository skuCatalogRepository;
-    private final SkuVisionMappingRepository yoloRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
+    private final SkuVisionMappingMapper yoloRepository;
     private final DeviceSlotService deviceSlotService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
@@ -41,8 +41,8 @@ public class SkuVisionEnrollmentService {
     private final ObjectMapper objectMapper;
     private final VisionServiceClient visionServiceClient;
 
-    public SkuVisionEnrollmentService(SkuCatalogRepository skuCatalogRepository,
-                                        SkuVisionMappingRepository yoloRepository,
+    public SkuVisionEnrollmentService(SkuCatalogMapper skuCatalogRepository,
+                                        SkuVisionMappingMapper yoloRepository,
                                         DeviceSlotService deviceSlotService,
                                         PermissionService permissionService,
                                         AdminAuditService auditService,

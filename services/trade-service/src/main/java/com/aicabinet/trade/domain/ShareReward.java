@@ -1,37 +1,30 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "share_reward")
+@TableName("share_reward")
 public class ShareReward {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long rewardId;
+
     
-    @Column(nullable = false)
     private Long sharerId;
     
-    @Column
     private Long inviteeId;
     
-    @Column(length = 32)
     private String orderId;
     
-    @Column(length = 16, nullable = false)
     private String rewardType;
     
-    @Column(precision = 10, scale = 2)
     private java.math.BigDecimal rewardAmount;
     
-    @Column
     private Integer rewardPoints;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     private Instant claimedAt;

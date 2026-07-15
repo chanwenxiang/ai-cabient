@@ -1,47 +1,38 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.aicabinet.trade.config.JsonStringTypeHandler;
 import java.time.Instant;
 import java.time.LocalDate;
 
-@Entity
-@Table(name = "replenishment_route")
+@TableName(value = "replenishment_route", autoResultMap = true)
 public class ReplenishmentRoute {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long routeId;
 
-    @Column(nullable = false, length = 128)
     private String routeName;
 
     private Long assigneeUserId;
 
-    @Column(nullable = false)
     private LocalDate plannedDate;
 
-    @Column(nullable = false, length = 16)
     private String status = "PLANNED";
 
-    @Column(name = "total_distance_m")
     private Integer totalDistanceM;
 
-    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
-    @Column(name = "route_geo_json", columnDefinition = "jsonb")
+    @TableField(typeHandler = JsonStringTypeHandler.class)
     private String routeGeoJson;
 
     private Double startLatitude;
     private Double startLongitude;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public Long getRouteId() { return routeId; }
+public Long getRouteId() { return routeId; }
     public void setRouteId(Long routeId) { this.routeId = routeId; }
     public String getRouteName() { return routeName; }
     public void setRouteName(String routeName) { this.routeName = routeName; }

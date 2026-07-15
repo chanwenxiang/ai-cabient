@@ -2,7 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
-import com.aicabinet.trade.repository.*;
+import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import org.springframework.http.HttpStatus;
@@ -24,14 +24,14 @@ public class MerchantReplenishmentService {
     private final ReplenishmentService replenishmentService;
     private final WarehouseService warehouseService;
     private final AdminAuditService auditService;
-    private final DeviceInfoRepository deviceRepository;
-    private final MerchantRepository merchantRepository;
-    private final SkuCatalogRepository skuCatalogRepository;
-    private final UserInfoRepository userInfoRepository;
-    private final MerchantReplenishmentRequestRepository requestRepository;
-    private final MerchantReplenishmentRequestLineRepository requestLineRepository;
-    private final ReplenishmentRouteRepository routeRepository;
-    private final ReplenishmentTaskRepository taskRepository;
+    private final DeviceInfoMapper deviceRepository;
+    private final MerchantMapper merchantRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
+    private final UserInfoMapper userInfoRepository;
+    private final MerchantReplenishmentRequestMapper requestRepository;
+    private final MerchantReplenishmentRequestLineMapper requestLineRepository;
+    private final ReplenishmentRouteMapper routeRepository;
+    private final ReplenishmentTaskMapper taskRepository;
 
     public MerchantReplenishmentService(PermissionService permissionService,
                                         MerchantScopeService merchantScopeService,
@@ -39,14 +39,14 @@ public class MerchantReplenishmentService {
                                         ReplenishmentService replenishmentService,
                                         WarehouseService warehouseService,
                                         AdminAuditService auditService,
-                                        DeviceInfoRepository deviceRepository,
-                                        MerchantRepository merchantRepository,
-                                        SkuCatalogRepository skuCatalogRepository,
-                                        UserInfoRepository userInfoRepository,
-                                        MerchantReplenishmentRequestRepository requestRepository,
-                                        MerchantReplenishmentRequestLineRepository requestLineRepository,
-                                        ReplenishmentRouteRepository routeRepository,
-                                        ReplenishmentTaskRepository taskRepository) {
+                                        DeviceInfoMapper deviceRepository,
+                                        MerchantMapper merchantRepository,
+                                        SkuCatalogMapper skuCatalogRepository,
+                                        UserInfoMapper userInfoRepository,
+                                        MerchantReplenishmentRequestMapper requestRepository,
+                                        MerchantReplenishmentRequestLineMapper requestLineRepository,
+                                        ReplenishmentRouteMapper routeRepository,
+                                        ReplenishmentTaskMapper taskRepository) {
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
         this.merchantPortalGuard = merchantPortalGuard;

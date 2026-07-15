@@ -1,37 +1,30 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "game_task")
+@TableName("game_task")
 public class GameTask {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long taskId;
+
     
-    @Column(length = 64, nullable = false)
     private String taskCode;
     
-    @Column(length = 100, nullable = false)
     private String taskName;
     
-    @Column(length = 200)
     private String description;
     
-    @Column(length = 32, nullable = false)
     private String taskType;
     
-    @Column(nullable = false)
     private Integer requiredProgress;
     
-    @Column(nullable = false)
     private Integer rewardPoints;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     public Long getTaskId() { return taskId; }

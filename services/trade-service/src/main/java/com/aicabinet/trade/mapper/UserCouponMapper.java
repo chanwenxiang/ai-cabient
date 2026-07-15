@@ -1,0 +1,39 @@
+package com.aicabinet.trade.mapper;
+
+import com.aicabinet.trade.domain.UserCoupon;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+import org.apache.ibatis.annotations.Mapper;
+
+@Mapper
+public interface UserCouponMapper extends BaseTradeMapper<UserCoupon> {
+
+    default List<UserCoupon> findByUserIdAndStatus(Long userId, String status) {
+    return selectList(Wrappers.<UserCoupon>lambdaQuery().eq(UserCoupon::getUserId, userId).eq(UserCoupon::getStatus, status));
+    }
+
+    default List<UserCoupon> findByUserIdOrderByCreatedAtDesc(Long userId) {
+    return selectList(Wrappers.<UserCoupon>lambdaQuery().eq(UserCoupon::getUserId, userId).orderByDesc(UserCoupon::getCreatedAt));
+    }
+
+    default Optional<UserCoupon> findByCouponCode(String couponCode) {
+    return Optional.ofNullable(selectOne(Wrappers.<UserCoupon>lambdaQuery().eq(UserCoupon::getCouponCode, couponCode)));
+    }
+
+    default long countByUserIdAndStatus(Long userId, String status) {
+    Long c = selectCount(Wrappers.<UserCoupon>lambdaQuery().eq(UserCoupon::getUserId, userId).eq(UserCoupon::getStatus, status));
+    return c == null ? 0 : c;
+    }
+
+    default List<UserCoupon> findByStatusAndExpireAtBefore(String status, Instant now) {
+    return selectList(Wrappers.<UserCoupon>lambdaQuery().eq(UserCoupon::getStatus, status).lt(UserCoupon::getExpireAt, now));
+    }
+
+    default long countByCouponDefId(Long couponDefId) {
+    Long c = selectCount(Wrappers.<UserCoupon>lambdaQuery().eq(UserCoupon::getCouponDefId, couponDefId));
+    return c == null ? 0 : c;
+    }
+
+}

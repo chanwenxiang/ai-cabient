@@ -10,8 +10,8 @@ import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.metrics.CabinetMetrics;
-import com.aicabinet.trade.repository.DisputeTicketRepository;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
+import com.aicabinet.trade.mapper.DisputeTicketMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,7 +33,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DuplicateCallbackTest {
 
-    @Mock ShoppingSessionRepository repository;
+    @Mock ShoppingSessionMapper repository;
     @Mock DeviceServiceClient deviceClient;
     @Mock UserValidationService userValidationService;
     @Mock DeviceValidationService deviceValidationService;
@@ -44,7 +44,7 @@ class DuplicateCallbackTest {
     @Mock GravitySettlementHelper gravityHelper;
     @Mock RestockSnapshotService restockSnapshotService;
     @Mock OpsExceptionService opsExceptionService;
-    @Mock DisputeTicketRepository disputeRepository;
+    @Mock DisputeTicketMapper disputeRepository;
     @Mock PermissionService permissionService;
     @Mock RiskControlService riskControlService;
 

@@ -1,95 +1,64 @@
 package com.aicabinet.trade.domain;
 
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import com.aicabinet.common.dto.SkuCatalogDto;
-import jakarta.persistence.*;
-
 import java.time.Instant;
 
-@Entity
-@Table(name = "sku_catalog")
+@TableName("sku_catalog")
 public class SkuCatalog {
 
-    @Id
-    @Column(length = 64)
+    @TableId(type = IdType.INPUT)
     private String skuId;
 
-    @Column(nullable = false, length = 128)
     private String skuName;
 
-    @Column(nullable = false)
     private int priceCents;
 
-    @Column(name = "weight_grams")
     private Integer weightGrams;
 
-    @Column(name = "vision_enabled", nullable = false)
     private boolean visionEnabled = true;
 
-    @Column(name = "image_url", length = 512)
     private String imageUrl;
 
-    @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(length = 64)
     private String category;
 
-    @Column(length = 64)
     private String barcode;
 
-    @Column(nullable = false, length = 16)
     private String status = "ACTIVE";
 
-    @Column(name = "min_charge_confidence", nullable = false)
     private float minChargeConfidence = 0.92f;
 
-    @Column(name = "yolo_class_name", length = 128)
     private String yoloClassName;
 
-    @Column(name = "vision_enrollment_status", nullable = false, length = 16)
     private String visionEnrollmentStatus = "DRAFT";
 
-    @Column(name = "detection_min_confidence", nullable = false)
     private float detectionMinConfidence = 0.5f;
 
-    @Column(name = "reference_image_urls", columnDefinition = "TEXT")
+    @TableField("reference_image_urls")
     private String referenceImageUrlsJson;
 
-    @Column(name = "shelf_life_days")
     private Integer shelfLifeDays;
 
-    @Column(name = "near_expiry_days", nullable = false)
     private int nearExpiryDays = 7;
 
-    @Column(name = "block_sale_days_before_expiry", nullable = false)
     private int blockSaleDaysBeforeExpiry = 0;
 
-    @Column(name = "storage_type", nullable = false, length = 16)
     private String storageType = "AMBIENT";
 
-    @Column(name = "purchase_cost_cents")
     private Integer purchaseCostCents;
 
-    @Column(name = "near_expiry_price_cents")
     private Integer nearExpiryPriceCents;
 
-    @Column(name = "max_price_cents")
     private Integer maxPriceCents;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void onCreate() {
-        if (createdAt == null) {
-            createdAt = Instant.now();
-        }
-        if (status == null || status.isBlank()) {
-            status = "ACTIVE";
-        }
-    }
-
-    public SkuCatalogDto toDto() {
+public SkuCatalogDto toDto() {
         return new SkuCatalogDto(
                 skuId,
                 skuName,

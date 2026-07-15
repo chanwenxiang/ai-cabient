@@ -5,8 +5,8 @@ import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.payment.WeChatPayTestKeys;
 import com.aicabinet.trade.payment.WeChatPayV3Aead;
 import com.aicabinet.trade.payment.WeChatPayV3Signer;
-import com.aicabinet.trade.repository.RechargeOrderRepository;
-import com.aicabinet.trade.repository.UserAccountRepository;
+import com.aicabinet.trade.mapper.RechargeOrderMapper;
+import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeAll;
@@ -71,10 +71,10 @@ class WeChatNotifyIntegrationTest {
     private MockMvc mockMvc;
 
     @Autowired
-    private RechargeOrderRepository rechargeOrderRepository;
+    private RechargeOrderMapper rechargeOrderRepository;
 
     @Autowired
-    private UserAccountRepository userAccountRepository;
+    private UserAccountMapper userAccountRepository;
 
     @Autowired
     private ObjectMapper objectMapper;

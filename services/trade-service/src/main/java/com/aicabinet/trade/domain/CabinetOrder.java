@@ -1,61 +1,47 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-@Entity
-@Table(name = "cabinet_order")
+@TableName("cabinet_order")
 public class CabinetOrder {
 
-    @Id
-    @Column(length = 32)
+    @TableId(type = IdType.INPUT)
     private String orderId;
 
-    @Column(nullable = false, length = 32)
     private String sessionId;
 
-    @Column(nullable = false)
     private Long userId;
 
-    @Column(nullable = false, length = 64)
     private String deviceId;
 
-    @Column(nullable = false)
     private int totalAmountCents;
 
-    @Column(nullable = false, length = 16)
     private String status;
 
-    @Column(nullable = false, length = 16)
     private String payChannel = "BALANCE";
 
-    @Column(length = 64)
     private String payTradeNo;
 
-    @Column(length = 64)
     private String paymentOperationId;
     private Integer balanceBeforeCents;
     private Integer balanceAfterCents;
 
-    @Column(nullable = false)
     private boolean inventoryDeducted;
 
     private Instant refundedAt;
 
-    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
+    @TableField(exist = false)
     private List<CabinetOrderLine> lines = new ArrayList<>();
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public String getOrderId() { return orderId; }
+public String getOrderId() { return orderId; }
     public void setOrderId(String orderId) { this.orderId = orderId; }
     public String getSessionId() { return sessionId; }
     public void setSessionId(String sessionId) { this.sessionId = sessionId; }
@@ -86,7 +72,7 @@ public class CabinetOrder {
     public Instant getCreatedAt() { return createdAt; }
 
     public void addLine(CabinetOrderLine line) {
-        line.setOrder(this);
+        line.setOrderId(this.orderId);
         lines.add(line);
     }
 }

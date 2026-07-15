@@ -5,8 +5,8 @@ import com.aicabinet.common.dto.BalanceTransactionDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.PaymentOperation;
 import com.aicabinet.trade.domain.UserAccount;
-import com.aicabinet.trade.repository.PaymentOperationRepository;
-import com.aicabinet.trade.repository.UserAccountRepository;
+import com.aicabinet.trade.mapper.PaymentOperationMapper;
+import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -18,11 +18,11 @@ import java.util.UUID;
 
 @Service
 public class BalanceLedgerService {
-    private final UserAccountRepository accountRepository;
-    private final PaymentOperationRepository operationRepository;
+    private final UserAccountMapper accountRepository;
+    private final PaymentOperationMapper operationRepository;
 
-    public BalanceLedgerService(UserAccountRepository accountRepository,
-                                PaymentOperationRepository operationRepository) {
+    public BalanceLedgerService(UserAccountMapper accountRepository,
+                                PaymentOperationMapper operationRepository) {
         this.accountRepository = accountRepository;
         this.operationRepository = operationRepository;
     }

@@ -1,54 +1,40 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.aicabinet.trade.config.JsonStringTypeHandler;
 import java.time.Instant;
 
-@Entity
-@Table(name = "payment_platform_bill_line")
+@TableName(value = "payment_platform_bill_line", autoResultMap = true)
 public class PaymentPlatformBillLine {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long lineId;
 
     private Long reconId;
 
-    @Column(nullable = false, length = 16)
     private String channel;
 
-    @Column(nullable = false, length = 64)
     private String platformTradeNo;
 
-    @Column(length = 64)
     private String merchantOrderNo;
 
-    @Column(nullable = false)
     private long amountCents;
 
     private Instant tradeTime;
 
-    @Column(length = 32)
     private String tradeType;
 
-    @Column(nullable = false)
     private boolean matched;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
+    @TableField(typeHandler = JsonStringTypeHandler.class)
     private String rawDetail;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public Long getLineId() { return lineId; }
+public Long getLineId() { return lineId; }
     public void setLineId(Long lineId) { this.lineId = lineId; }
     public Long getReconId() { return reconId; }
     public void setReconId(Long reconId) { this.reconId = reconId; }

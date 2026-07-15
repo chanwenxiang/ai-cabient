@@ -3,7 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.config.OpsMonitoringProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -15,7 +15,7 @@ import static org.mockito.Mockito.*;
 class OpsExceptionScannerServiceTest {
     @Test
     void scanReportsStuckSettlementSession() {
-        ShoppingSessionRepository sessions = mock(ShoppingSessionRepository.class);
+        ShoppingSessionMapper sessions = mock(ShoppingSessionMapper.class);
         OpsExceptionService exceptions = mock(OpsExceptionService.class);
         ShoppingSession session = new ShoppingSession();
         session.setSessionId("S1"); session.setDeviceId("D1"); session.setUserId(1L);

@@ -30,20 +30,25 @@ public class VisionServiceHealthIndicator implements HealthIndicator {
                     .uri("/health")
                     .retrieve()
                     .body(VisionHealthResponse.class);
-            if (response != null && "ok".equals(response.status)) {
-                return Health.up()
-                        .withDetail("modelVersion", response.modelVersion)
-                        .withDetail("recognizerAvailable", response.recognizerAvailable)
-                        .withDetail("mockEnabled", response.mockEnabled)
-                        .build();
+            if (response != null && "ok".equalsIgnoreCase(response.status())) {
+                Health.Builder up = Health.up();
+                if (response.modelVersion() != null) {
+                    up.withDetail("modelVersion", response.modelVersion());
+                }
+                up.withDetail("recognizerAvailable", response.recognizerAvailable());
+                up.withDetail("mockEnabled", response.mockEnabled());
+                return up.build();
             }
             return Health.down().withDetail("reason", "vision response not ok").build();
         } catch (Exception e) {
             log.warn("vision health check failed: {}", e.getMessage());
-            return Health.down().withDetail("error", e.getMessage()).build();
+            return Health.down().withDetail("error", String.valueOf(e.getMessage())).build();
         }
     }
 
-    private record VisionHealthResponse(String status, String modelVersion,
-                                         boolean recognizerAvailable, boolean mockEnabled) {}
+    private record VisionHealthResponse(
+            String status,
+            @com.fasterxml.jackson.annotation.JsonProperty("model_version") String modelVersion,
+            @com.fasterxml.jackson.annotation.JsonProperty("recognizer_available") boolean recognizerAvailable,
+            @com.fasterxml.jackson.annotation.JsonProperty("mock_enabled") boolean mockEnabled) {}
 }

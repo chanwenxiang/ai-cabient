@@ -11,8 +11,8 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.SkuCatalog;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
-import com.aicabinet.trade.repository.SkuCatalogRepository;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,16 +36,16 @@ public class RecognitionTestService {
     private static final Logger log = LoggerFactory.getLogger(RecognitionTestService.class);
 
     private final SessionService sessionService;
-    private final ShoppingSessionRepository sessionRepository;
+    private final ShoppingSessionMapper sessionRepository;
     private final SettlementService settlementService;
     private final VisionServiceClient visionClient;
-    private final SkuCatalogRepository skuCatalogRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
 
     public RecognitionTestService(SessionService sessionService,
-                                   ShoppingSessionRepository sessionRepository,
+                                   ShoppingSessionMapper sessionRepository,
                                    SettlementService settlementService,
                                    VisionServiceClient visionClient,
-                                   SkuCatalogRepository skuCatalogRepository) {
+                                   SkuCatalogMapper skuCatalogRepository) {
         this.sessionService = sessionService;
         this.sessionRepository = sessionRepository;
         this.settlementService = settlementService;

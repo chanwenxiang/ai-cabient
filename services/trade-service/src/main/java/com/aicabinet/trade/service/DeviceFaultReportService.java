@@ -2,7 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.DeviceFaultReportRequest;
 import com.aicabinet.trade.domain.DeviceFaultReport;
-import com.aicabinet.trade.repository.DeviceFaultReportRepository;
+import com.aicabinet.trade.mapper.DeviceFaultReportMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -17,11 +17,11 @@ public class DeviceFaultReportService {
 
     private static final Logger log = LoggerFactory.getLogger(DeviceFaultReportService.class);
 
-    private final DeviceFaultReportRepository repository;
+    private final DeviceFaultReportMapper repository;
     private final DeviceValidationService deviceValidationService;
     private final OpsExceptionService opsExceptionService;
 
-    public DeviceFaultReportService(DeviceFaultReportRepository repository,
+    public DeviceFaultReportService(DeviceFaultReportMapper repository,
                                     DeviceValidationService deviceValidationService,
                                     OpsExceptionService opsExceptionService) {
         this.repository = repository;

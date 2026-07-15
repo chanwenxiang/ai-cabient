@@ -1,8 +1,8 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.CabinetConstants;
-import com.aicabinet.trade.repository.OpsPermissionRepository;
-import com.aicabinet.trade.repository.OpsUserRoleRepository;
+import com.aicabinet.trade.mapper.OpsPermissionMapper;
+import com.aicabinet.trade.mapper.OpsUserRoleMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -13,11 +13,11 @@ import java.util.Set;
 @Service
 public class PermissionService {
 
-    private final OpsPermissionRepository permissionRepository;
-    private final OpsUserRoleRepository userRoleRepository;
+    private final OpsPermissionMapper permissionRepository;
+    private final OpsUserRoleMapper userRoleRepository;
 
-    public PermissionService(OpsPermissionRepository permissionRepository,
-                           OpsUserRoleRepository userRoleRepository) {
+    public PermissionService(OpsPermissionMapper permissionRepository,
+                           OpsUserRoleMapper userRoleRepository) {
         this.permissionRepository = permissionRepository;
         this.userRoleRepository = userRoleRepository;
     }

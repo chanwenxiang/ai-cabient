@@ -1,7 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.config.DisputeSlaProperties;
-import com.aicabinet.trade.repository.DisputeTicketRepository;
+import com.aicabinet.trade.mapper.DisputeTicketMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,10 +11,10 @@ import java.time.temporal.ChronoUnit;
 @Service
 public class DisputeSlaService {
 
-    private final DisputeTicketRepository disputeRepository;
+    private final DisputeTicketMapper disputeRepository;
     private final DisputeSlaProperties disputeSlaProperties;
 
-    public DisputeSlaService(DisputeTicketRepository disputeRepository,
+    public DisputeSlaService(DisputeTicketMapper disputeRepository,
                              DisputeSlaProperties disputeSlaProperties) {
         this.disputeRepository = disputeRepository;
         this.disputeSlaProperties = disputeSlaProperties;

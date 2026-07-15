@@ -1,6 +1,6 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.repository.UserInfoRepository;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -12,7 +12,7 @@ class OperatorUserIdAllocatorTest {
 
     @Test
     void nextId_usesDatabaseSequence() {
-        UserInfoRepository repository = mock(UserInfoRepository.class);
+        UserInfoMapper repository = mock(UserInfoMapper.class);
         when(repository.nextOperatorUserId()).thenReturn(100000123L);
 
         assertEquals(100000123L, new OperatorUserIdAllocator(repository).nextId());
@@ -20,7 +20,7 @@ class OperatorUserIdAllocatorTest {
 
     @Test
     void nextId_rejectsNullSequenceValue() {
-        UserInfoRepository repository = mock(UserInfoRepository.class);
+        UserInfoMapper repository = mock(UserInfoMapper.class);
         when(repository.nextOperatorUserId()).thenReturn(null);
 
         assertThrows(IllegalStateException.class,

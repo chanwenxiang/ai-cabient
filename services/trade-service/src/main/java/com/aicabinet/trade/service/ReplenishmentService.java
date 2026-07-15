@@ -21,18 +21,18 @@ import com.aicabinet.trade.domain.ReplenishmentTaskLine;
 
 import com.aicabinet.trade.domain.WarehouseOutboundLine;
 
-import com.aicabinet.trade.repository.DeviceInfoRepository;
-import com.aicabinet.trade.repository.DeviceSkuInventoryRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 
-import com.aicabinet.trade.repository.DeviceSkuLotRepository;
+import com.aicabinet.trade.mapper.DeviceSkuLotMapper;
 
-import com.aicabinet.trade.repository.PullOffTaskRepository;
+import com.aicabinet.trade.mapper.PullOffTaskMapper;
 
-import com.aicabinet.trade.repository.ReplenishmentRouteRepository;
+import com.aicabinet.trade.mapper.ReplenishmentRouteMapper;
 
-import com.aicabinet.trade.repository.ReplenishmentTaskLineRepository;
+import com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper;
 
-import com.aicabinet.trade.repository.ReplenishmentTaskRepository;
+import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
@@ -60,27 +60,27 @@ public class ReplenishmentService {
 
 
 
-    private final DeviceSkuInventoryRepository inventoryRepository;
+    private final DeviceSkuInventoryMapper inventoryRepository;
 
-    private final ReplenishmentRouteRepository routeRepository;
+    private final ReplenishmentRouteMapper routeRepository;
 
-    private final ReplenishmentTaskRepository taskRepository;
+    private final ReplenishmentTaskMapper taskRepository;
 
-    private final ReplenishmentTaskLineRepository taskLineRepository;
+    private final ReplenishmentTaskLineMapper taskLineRepository;
 
     private final RoutePlanningService routePlanningService;
 
     private final InventoryLotService inventoryLotService;
 
-    private final DeviceSkuLotRepository lotRepository;
+    private final DeviceSkuLotMapper lotRepository;
 
-    private final PullOffTaskRepository pullOffTaskRepository;
+    private final PullOffTaskMapper pullOffTaskRepository;
 
     private final ObjectMapper objectMapper;
 
     private final WarehouseService warehouseService;
 
-    private final DeviceInfoRepository deviceRepository;
+    private final DeviceInfoMapper deviceRepository;
 
     private final DeviceSlotService deviceSlotService;
 
@@ -88,26 +88,26 @@ public class ReplenishmentService {
 
 
 
-    public ReplenishmentService(DeviceSkuInventoryRepository inventoryRepository,
+    public ReplenishmentService(DeviceSkuInventoryMapper inventoryRepository,
 
-                                ReplenishmentRouteRepository routeRepository,
+                                ReplenishmentRouteMapper routeRepository,
 
-                                ReplenishmentTaskRepository taskRepository,
+                                ReplenishmentTaskMapper taskRepository,
 
-                                ReplenishmentTaskLineRepository taskLineRepository,
+                                ReplenishmentTaskLineMapper taskLineRepository,
 
                                 RoutePlanningService routePlanningService,
 
                                 InventoryLotService inventoryLotService,
 
-                                DeviceSkuLotRepository lotRepository,
+                                DeviceSkuLotMapper lotRepository,
 
-                                PullOffTaskRepository pullOffTaskRepository,
+                                PullOffTaskMapper pullOffTaskRepository,
 
                                 ObjectMapper objectMapper,
 
                                 WarehouseService warehouseService,
-                                DeviceInfoRepository deviceRepository,
+                                DeviceInfoMapper deviceRepository,
                                 DeviceSlotService deviceSlotService,
                                 InTransitService inTransitService) {
 

@@ -1,45 +1,33 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "warehouse_in_transit")
+@TableName("warehouse_in_transit")
 public class WarehouseInTransit {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long transitId;
 
-    @Column(nullable = false)
     private Long outboundId;
 
-    @Column(nullable = false, length = 64)
     private String deviceId;
 
-    @Column(nullable = false, length = 64)
     private String skuId;
 
-    @Column(nullable = false, length = 64)
     private String batchNo;
 
-    @Column(nullable = false)
     private int quantity;
 
-    @Column(nullable = false, length = 16)
     private String status = "IN_TRANSIT";
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
     private Instant receivedAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public Long getTransitId() { return transitId; }
+public Long getTransitId() { return transitId; }
     public Long getOutboundId() { return outboundId; }
     public void setOutboundId(Long outboundId) { this.outboundId = outboundId; }
     public String getDeviceId() { return deviceId; }

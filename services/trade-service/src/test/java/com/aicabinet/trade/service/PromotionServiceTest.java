@@ -2,7 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.CreatePromotionRequest;
 import com.aicabinet.trade.domain.PromotionActivity;
-import com.aicabinet.trade.repository.PromotionActivityRepository;
+import com.aicabinet.trade.mapper.PromotionActivityMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,7 +22,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class PromotionServiceTest {
 
-    @Mock private PromotionActivityRepository repository;
+    @Mock private PromotionActivityMapper repository;
     private PromotionService promotionService;
 
     @BeforeEach

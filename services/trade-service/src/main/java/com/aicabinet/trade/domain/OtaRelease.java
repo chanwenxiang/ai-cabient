@@ -1,64 +1,48 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.aicabinet.trade.config.JsonStringTypeHandler;
 import java.time.Instant;
 
-@Entity
-@Table(name = "ota_release")
+@TableName(value = "ota_release", autoResultMap = true)
 public class OtaRelease {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long releaseId;
 
-    @Column(nullable = false, length = 32)
     private String appVersion;
 
-    @Column(nullable = false, length = 32)
     private String channel = "stable";
 
-    @Column(nullable = false, length = 512)
     private String downloadUrl;
 
-    @Column(length = 64)
     private String checksumSha256;
 
-    @Column(columnDefinition = "TEXT")
     private String releaseNotes;
 
-    @Column(nullable = false)
     private boolean mandatory;
 
-    @Column(length = 32)
     private String minVersion;
 
-    @Column(nullable = false, length = 16)
     private String status = "DRAFT";
 
     private Instant publishedAt;
 
-    @Column(name = "object_storage_uri", length = 512)
     private String objectStorageUri;
 
-    @Column(nullable = false)
     private int grayPercent = 100;
 
-    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
-    @Column(name = "device_allowlist", columnDefinition = "jsonb")
+    @TableField(typeHandler = JsonStringTypeHandler.class)
     private String deviceAllowlist;
 
-    @Column(name = "presign_ttl_seconds", nullable = false)
     private int presignTtlSeconds = 3600;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public Long getReleaseId() { return releaseId; }
+public Long getReleaseId() { return releaseId; }
     public void setReleaseId(Long releaseId) { this.releaseId = releaseId; }
     public String getAppVersion() { return appVersion; }
     public void setAppVersion(String appVersion) { this.appVersion = appVersion; }

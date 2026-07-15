@@ -1,80 +1,55 @@
 package com.aicabinet.trade.domain;
 
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.aicabinet.trade.config.JsonStringTypeHandler;
 import com.aicabinet.common.enums.SessionState;
-import jakarta.persistence.*;
 import java.time.Instant;
 
-@Entity
-@Table(name = "shopping_session")
+@TableName(value = "shopping_session", autoResultMap = true)
 public class ShoppingSession {
 
-    @Id
-    @Column(length = 32)
+    @TableId(type = IdType.INPUT)
     private String sessionId;
 
-    @Column(nullable = false)
     private Long userId;
 
-    @Column(nullable = false, length = 64)
     private String deviceId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 32)
     private SessionState state;
 
     private Instant openTime;
     private Instant closeTime;
 
-    @Column(length = 32)
     private String orderId;
 
-    @Column(length = 256)
     private String failReason;
 
-    @Column(length = 64)
     private String recognitionTaskId;
 
-    @Column(length = 512)
     private String videoUri;
 
-    @Column(nullable = false, length = 24)
     private String uploadStatus = "NONE";
 
-    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
-    @Column(name = "video_clips", columnDefinition = "jsonb")
+    @TableField(typeHandler = JsonStringTypeHandler.class)
     private String videoClips;
 
-    @Column(nullable = false, length = 16)
     private String cameraFusionMode = "SINGLE";
 
-    @Column(unique = true, length = 64)
     private String idempotencyKey;
 
     private Long replenishmentTaskId;
 
-    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
-    @Column(name = "gravity_deltas", columnDefinition = "jsonb")
+    @TableField(typeHandler = JsonStringTypeHandler.class)
     private String gravityDeltas;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @Column(nullable = false)
     private Instant updatedAt;
 
-    @PrePersist
-    void prePersist() {
-        Instant now = Instant.now();
-        createdAt = now;
-        updatedAt = now;
-    }
-
-    @PreUpdate
-    void preUpdate() {
-        updatedAt = Instant.now();
-    }
-
-    public String getSessionId() { return sessionId; }
+public String getSessionId() { return sessionId; }
     public void setSessionId(String sessionId) { this.sessionId = sessionId; }
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }

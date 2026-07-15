@@ -7,9 +7,9 @@ import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.domain.MerchantNotifyLog;
 import com.aicabinet.trade.domain.MerchantSubscribePref;
 import com.aicabinet.trade.domain.UserInfo;
-import com.aicabinet.trade.repository.MerchantNotifyLogRepository;
-import com.aicabinet.trade.repository.MerchantSubscribePrefRepository;
-import com.aicabinet.trade.repository.UserInfoRepository;
+import com.aicabinet.trade.mapper.MerchantNotifyLogMapper;
+import com.aicabinet.trade.mapper.MerchantSubscribePrefMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.aicabinet.trade.wechat.WeChatMiniAppClient;
 import org.slf4j.Logger;
@@ -37,18 +37,18 @@ public class MerchantNotifyService {
     private final MerchantPortalGuard merchantPortalGuard;
     private final PermissionService permissionService;
     private final MerchantPortalService merchantPortalService;
-    private final UserInfoRepository userInfoRepository;
-    private final MerchantSubscribePrefRepository subscribePrefRepository;
-    private final MerchantNotifyLogRepository notifyLogRepository;
+    private final UserInfoMapper userInfoRepository;
+    private final MerchantSubscribePrefMapper subscribePrefRepository;
+    private final MerchantNotifyLogMapper notifyLogRepository;
     private final WeChatMiniAppClient weChatMiniAppClient;
     private final WeChatMiniAppProperties weChatMiniAppProperties;
 
     public MerchantNotifyService(MerchantPortalGuard merchantPortalGuard,
                                  PermissionService permissionService,
                                  @Lazy MerchantPortalService merchantPortalService,
-                                 UserInfoRepository userInfoRepository,
-                                 MerchantSubscribePrefRepository subscribePrefRepository,
-                                 MerchantNotifyLogRepository notifyLogRepository,
+                                 UserInfoMapper userInfoRepository,
+                                 MerchantSubscribePrefMapper subscribePrefRepository,
+                                 MerchantNotifyLogMapper notifyLogRepository,
                                  WeChatMiniAppClient weChatMiniAppClient,
                                  WeChatMiniAppProperties weChatMiniAppProperties) {
         this.merchantPortalGuard = merchantPortalGuard;

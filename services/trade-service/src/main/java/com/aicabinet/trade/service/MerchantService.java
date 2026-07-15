@@ -11,9 +11,9 @@ import com.aicabinet.trade.domain.OrderRevenueSplit;
 import com.aicabinet.trade.config.ProfitSharingProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
-import com.aicabinet.trade.repository.DeviceInfoRepository;
-import com.aicabinet.trade.repository.MerchantRepository;
-import com.aicabinet.trade.repository.OrderRevenueSplitRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.MerchantMapper;
+import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -34,9 +34,9 @@ public class MerchantService {
 
     private static final int EXPORT_LIMIT = 5000;
 
-    private final MerchantRepository merchantRepository;
-    private final DeviceInfoRepository deviceRepository;
-    private final OrderRevenueSplitRepository splitRepository;
+    private final MerchantMapper merchantRepository;
+    private final DeviceInfoMapper deviceRepository;
+    private final OrderRevenueSplitMapper splitRepository;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final MerchantScopeService merchantScopeService;
@@ -44,9 +44,9 @@ public class MerchantService {
     private final ProfitSharingProperties profitSharingProperties;
     private final WeChatPayProperties weChatPayProperties;
 
-    public MerchantService(MerchantRepository merchantRepository,
-                           DeviceInfoRepository deviceRepository,
-                           OrderRevenueSplitRepository splitRepository,
+    public MerchantService(MerchantMapper merchantRepository,
+                           DeviceInfoMapper deviceRepository,
+                           OrderRevenueSplitMapper splitRepository,
                            PermissionService permissionService,
                            AdminAuditService auditService,
                            MerchantScopeService merchantScopeService,

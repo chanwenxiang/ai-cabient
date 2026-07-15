@@ -2,8 +2,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.PaymentOperation;
 import com.aicabinet.trade.domain.UserAccount;
-import com.aicabinet.trade.repository.PaymentOperationRepository;
-import com.aicabinet.trade.repository.UserAccountRepository;
+import com.aicabinet.trade.mapper.PaymentOperationMapper;
+import com.aicabinet.trade.mapper.UserAccountMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,8 +19,8 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class BalanceLedgerServiceTest {
-    @Mock UserAccountRepository accountRepository;
-    @Mock PaymentOperationRepository operationRepository;
+    @Mock UserAccountMapper accountRepository;
+    @Mock PaymentOperationMapper operationRepository;
     BalanceLedgerService service;
 
     @BeforeEach void setUp() { service = new BalanceLedgerService(accountRepository, operationRepository); }

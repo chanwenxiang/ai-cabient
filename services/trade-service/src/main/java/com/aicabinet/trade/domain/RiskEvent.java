@@ -1,43 +1,32 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
-
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.aicabinet.trade.config.JsonStringTypeHandler;
 import java.time.Instant;
 
-@Entity
-@Table(name = "risk_event")
+@TableName(value = "risk_event", autoResultMap = true)
 public class RiskEvent {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long eventId;
 
     private Long userId;
 
-    @Column(length = 64)
     private String deviceId;
 
-    @Column(nullable = false, length = 32)
     private String eventType;
 
-    @Column(nullable = false, length = 16)
     private String severity = "WARN";
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(columnDefinition = "jsonb")
+    @TableField(typeHandler = JsonStringTypeHandler.class)
     private String detail;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public Long getEventId() { return eventId; }
+public Long getEventId() { return eventId; }
     public void setEventId(Long eventId) { this.eventId = eventId; }
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }

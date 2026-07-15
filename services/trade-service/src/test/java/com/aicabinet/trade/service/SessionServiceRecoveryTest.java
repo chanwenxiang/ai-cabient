@@ -7,7 +7,7 @@ import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.metrics.CabinetMetrics;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,7 +28,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class SessionServiceRecoveryTest {
 
-    @Mock ShoppingSessionRepository repository;
+    @Mock ShoppingSessionMapper repository;
     @Mock DeviceServiceClient deviceClient;
     @Mock UserValidationService userValidationService;
     @Mock DeviceValidationService deviceValidationService;

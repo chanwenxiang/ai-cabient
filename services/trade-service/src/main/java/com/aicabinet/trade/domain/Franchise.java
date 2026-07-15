@@ -1,56 +1,44 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "franchise")
+@TableName("franchise")
 public class Franchise {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long franchiseId;
+
     
-    @Column(length = 100, nullable = false)
     private String franchiseName;
     
-    @Column(length = 32, nullable = false)
     private String franchiseCode;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(length = 100)
     private String contactName;
     
-    @Column(length = 32)
     private String contactPhone;
     
-    @Column(length = 200)
     private String address;
     
-    @Column(length = 64)
     private String province;
     
-    @Column(length = 64)
     private String city;
     
-    @Column(length = 64)
     private String district;
     
-    @Column(precision = 10, scale = 4)
     private java.math.BigDecimal commissionRate;
     
-    @Column(precision = 12, scale = 2)
     private java.math.BigDecimal depositAmount;
     
-    @Column(length = 64)
     private String contractNumber;
     
     private Instant contractStartDate;
     
     private Instant contractEndDate;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     private Instant updatedAt;

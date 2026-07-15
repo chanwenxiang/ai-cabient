@@ -2,7 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
-import com.aicabinet.trade.repository.*;
+import com.aicabinet.trade.mapper.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,19 +16,19 @@ import java.util.List;
 public class ProcurementService {
 
     private final PermissionService permissionService;
-    private final SupplierRepository supplierRepository;
-    private final PurchaseOrderRepository purchaseOrderRepository;
-    private final PurchaseOrderLineRepository purchaseOrderLineRepository;
-    private final WarehouseRepository warehouseRepository;
-    private final SkuCatalogRepository skuCatalogRepository;
+    private final SupplierMapper supplierRepository;
+    private final PurchaseOrderMapper purchaseOrderRepository;
+    private final PurchaseOrderLineMapper purchaseOrderLineRepository;
+    private final WarehouseMapper warehouseRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
     private final WarehouseService warehouseService;
 
     public ProcurementService(PermissionService permissionService,
-                              SupplierRepository supplierRepository,
-                              PurchaseOrderRepository purchaseOrderRepository,
-                              PurchaseOrderLineRepository purchaseOrderLineRepository,
-                              WarehouseRepository warehouseRepository,
-                              SkuCatalogRepository skuCatalogRepository,
+                              SupplierMapper supplierRepository,
+                              PurchaseOrderMapper purchaseOrderRepository,
+                              PurchaseOrderLineMapper purchaseOrderLineRepository,
+                              WarehouseMapper warehouseRepository,
+                              SkuCatalogMapper skuCatalogRepository,
                               WarehouseService warehouseService) {
         this.permissionService = permissionService;
         this.supplierRepository = supplierRepository;

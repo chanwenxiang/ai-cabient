@@ -1,40 +1,29 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "admin_audit_log")
+@TableName("admin_audit_log")
 public class AdminAuditLog {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long logId;
 
-    @Column(nullable = false)
     private Long operatorId;
 
-    @Column(nullable = false, length = 64)
     private String action;
 
-    @Column(length = 32)
     private String targetType;
 
-    @Column(length = 64)
     private String targetId;
 
-    @Column(length = 512)
     private String detail;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public Long getLogId() { return logId; }
+public Long getLogId() { return logId; }
     public void setLogId(Long logId) { this.logId = logId; }
     public Long getOperatorId() { return operatorId; }
     public void setOperatorId(Long operatorId) { this.operatorId = operatorId; }

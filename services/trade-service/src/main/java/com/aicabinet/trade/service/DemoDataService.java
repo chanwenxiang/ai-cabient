@@ -2,7 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.domain.*;
-import com.aicabinet.trade.repository.*;
+import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.DeviceNameSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,25 +27,25 @@ public class DemoDataService {
     public static final String DEMO_CONSUMER_PHONE = "13800138000";
 
     private final SecurityProperties securityProperties;
-    private final SkuCatalogRepository skuCatalogRepository;
-    private final DeviceInfoRepository deviceInfoRepository;
-    private final DeviceSkuInventoryRepository deviceSkuInventoryRepository;
-    private final WarehouseRepository warehouseRepository;
-    private final WarehouseInventoryRepository warehouseInventoryRepository;
-    private final SkuVisionMappingRepository skuVisionMappingRepository;
-    private final UserInfoRepository userInfoRepository;
-    private final UserAccountRepository userAccountRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
+    private final DeviceInfoMapper deviceInfoRepository;
+    private final DeviceSkuInventoryMapper deviceSkuInventoryRepository;
+    private final WarehouseMapper warehouseRepository;
+    private final WarehouseInventoryMapper warehouseInventoryRepository;
+    private final SkuVisionMappingMapper skuVisionMappingRepository;
+    private final UserInfoMapper userInfoRepository;
+    private final UserAccountMapper userAccountRepository;
     private final DeviceSlotService deviceSlotService;
 
     public DemoDataService(SecurityProperties securityProperties,
-                           SkuCatalogRepository skuCatalogRepository,
-                           DeviceInfoRepository deviceInfoRepository,
-                           DeviceSkuInventoryRepository deviceSkuInventoryRepository,
-                           WarehouseRepository warehouseRepository,
-                           WarehouseInventoryRepository warehouseInventoryRepository,
-                           SkuVisionMappingRepository skuVisionMappingRepository,
-                           UserInfoRepository userInfoRepository,
-                           UserAccountRepository userAccountRepository,
+                           SkuCatalogMapper skuCatalogRepository,
+                           DeviceInfoMapper deviceInfoRepository,
+                           DeviceSkuInventoryMapper deviceSkuInventoryRepository,
+                           WarehouseMapper warehouseRepository,
+                           WarehouseInventoryMapper warehouseInventoryRepository,
+                           SkuVisionMappingMapper skuVisionMappingRepository,
+                           UserInfoMapper userInfoRepository,
+                           UserAccountMapper userAccountRepository,
                            DeviceSlotService deviceSlotService) {
         this.securityProperties = securityProperties;
         this.skuCatalogRepository = skuCatalogRepository;

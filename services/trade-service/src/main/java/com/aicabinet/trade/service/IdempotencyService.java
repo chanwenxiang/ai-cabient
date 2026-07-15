@@ -1,7 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.IdempotencyKey;
-import com.aicabinet.trade.repository.IdempotencyKeyRepository;
+import com.aicabinet.trade.mapper.IdempotencyKeyMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +19,7 @@ public class IdempotencyService {
     private static final Logger log = LoggerFactory.getLogger(IdempotencyService.class);
     
     @Autowired
-    private IdempotencyKeyRepository repository;
+    private IdempotencyKeyMapper repository;
     
     @Autowired
     private ObjectMapper objectMapper;

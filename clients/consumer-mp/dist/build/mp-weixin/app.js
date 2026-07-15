@@ -1,0 +1,1 @@
+"use strict";Object.defineProperty(exports,Symbol.toStringTag,{value:"Module"});const e=require("./common/vendor.js"),t=require("./utils/consumer-api.js");Math;const n=e.defineComponent({__name:"App",setup:n=>(e.onLaunch(async()=>{await t.ensureConsumerAuth()}),()=>{})});function o(){return{app:e.createSSRApp(n)}}o().app.mount("#app"),exports.createApp=o;

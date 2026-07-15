@@ -1,34 +1,25 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "warehouse")
+@TableName("warehouse")
 public class Warehouse {
 
-    @Id
-    @Column(length = 32)
+    @TableId(type = IdType.INPUT)
     private String warehouseId;
 
-    @Column(nullable = false, length = 128)
     private String warehouseName;
 
-    @Column(length = 256)
     private String address;
 
-    @Column(nullable = false, length = 16)
     private String status = "ACTIVE";
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public String getWarehouseId() { return warehouseId; }
+public String getWarehouseId() { return warehouseId; }
     public void setWarehouseId(String warehouseId) { this.warehouseId = warehouseId; }
     public String getWarehouseName() { return warehouseName; }
     public void setWarehouseName(String warehouseName) { this.warehouseName = warehouseName; }

@@ -1,43 +1,34 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "edge_inference_log")
+@TableName("edge_inference_log")
 public class EdgeInferenceLog {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long id;
+
     
-    @Column(length = 32, nullable = false)
     private String deviceId;
     
-    @Column(length = 64)
     private String sessionId;
     
-    @Column(length = 32, nullable = false)
     private String modelType;
     
-    @Column(length = 64)
     private String modelName;
     
-    @Column(nullable = false)
     private Integer inferenceTimeMs;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(nullable = false)
     private Instant inferenceAt = Instant.now();
     
-    @Column(length = 64)
     private String resultSkuId;
     
-    @Column(precision = 5, scale = 2)
     private java.math.BigDecimal confidence;
     
-    @Column(columnDefinition = "text")
     private String errorMessage;
     
     public Long getId() { return id; }

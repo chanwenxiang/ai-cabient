@@ -1,40 +1,32 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "distributed_transaction")
+@TableName("distributed_transaction")
 public class DistributedTransaction {
-    @Id
-    @Column(length = 64)
+    @TableId(type = IdType.INPUT)
     private String txId;
+
     
-    @Column(length = 32, nullable = false)
     private String txType;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(nullable = false)
     private Integer retryCount = 0;
     
-    @Column(nullable = false)
     private Integer maxRetry = 5;
     
-    @Column(columnDefinition = "jsonb", nullable = false)
     private String payload;
     
-    @Column(columnDefinition = "text")
     private String compensationSql;
     
-    @Column(columnDefinition = "text")
     private String errorMessage;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
-    @Column(nullable = false)
     private Instant updatedAt = Instant.now();
     
     private Instant completedAt;

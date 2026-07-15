@@ -1,36 +1,29 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.LocalDate;
 
-@Entity
-@Table(name = "warehouse_outbound_line")
+@TableName("warehouse_outbound_line")
 public class WarehouseOutboundLine {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long lineId;
 
-    @Column(nullable = false)
     private Long outboundId;
 
-    @Column(length = 64)
     private String deviceId;
 
-    @Column(nullable = false, length = 64)
     private String skuId;
 
-    @Column(nullable = false, length = 64)
     private String batchNo;
 
     private LocalDate expiryDate;
 
-    @Column(nullable = false)
     private int quantity;
 
-    @Column(nullable = false)
     private boolean picked;
-    @Column(nullable = false, length = 16)
     private String handoverStatus = "PENDING";
 
     public Long getLineId() { return lineId; }

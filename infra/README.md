@@ -99,7 +99,7 @@ docker build -f infra/docker/trade-service.Dockerfile -t ai-cabinet/trade-servic
 `trade-service` 镜像在 **Maven `package` 阶段** 自动构建运营后台，**不要**加 `-Dskip.admin.build`：
 
 1. Dockerfile 拷贝 `clients/admin-vue/` 与 `packages/shared-*`
-2. `frontend-maven-plugin` 在容器内安装 Node 18 → `npm install` → `npm run build`
+2. `frontend-maven-plugin` 在容器内安装 Node 24.18 → `npm install` → `npm run build`
 3. 产物写入 `static/admin/` 并打进 Spring Boot JAR
 4. 运行时与 API 同域：`/admin/index.html`
 

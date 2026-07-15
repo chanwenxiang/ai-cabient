@@ -68,7 +68,7 @@ demo/
 - JDK 17+
 - Docker（PostgreSQL、Redis、EMQX、MinIO）
 - Python 3.10+（vision-service）
-- Node 18+（admin-vue / uni-app 开发）
+- Node 24.18+（admin-vue / uni-app 开发）
 
 ## 前端产品决策
 

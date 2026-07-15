@@ -3,7 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ReplenishmentTaskLine;
 import com.aicabinet.trade.domain.WarehouseOutboundLine;
-import com.aicabinet.trade.repository.*;
+import com.aicabinet.trade.mapper.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,9 +24,9 @@ import static org.mockito.Mockito.*;
 class ReplenishmentServiceOutboundTest {
 
     @Mock
-    private ReplenishmentTaskRepository taskRepository;
+    private ReplenishmentTaskMapper taskRepository;
     @Mock
-    private ReplenishmentTaskLineRepository taskLineRepository;
+    private ReplenishmentTaskLineMapper taskLineRepository;
     @Mock
     private WarehouseService warehouseService;
     @Mock

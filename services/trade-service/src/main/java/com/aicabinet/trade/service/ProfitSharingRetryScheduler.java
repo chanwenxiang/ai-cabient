@@ -4,8 +4,8 @@ import com.aicabinet.trade.config.ProfitSharingProperties;
 import com.aicabinet.trade.domain.Merchant;
 import com.aicabinet.trade.domain.OrderRevenueSplit;
 import com.aicabinet.trade.payment.WeChatProfitSharingService;
-import com.aicabinet.trade.repository.MerchantRepository;
-import com.aicabinet.trade.repository.OrderRevenueSplitRepository;
+import com.aicabinet.trade.mapper.MerchantMapper;
+import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -22,13 +22,13 @@ public class ProfitSharingRetryScheduler {
     private static final Logger log = LoggerFactory.getLogger(ProfitSharingRetryScheduler.class);
 
     private final ProfitSharingProperties profitSharingProperties;
-    private final OrderRevenueSplitRepository splitRepository;
-    private final MerchantRepository merchantRepository;
+    private final OrderRevenueSplitMapper splitRepository;
+    private final MerchantMapper merchantRepository;
     private final WeChatProfitSharingService profitSharingService;
 
     public ProfitSharingRetryScheduler(ProfitSharingProperties profitSharingProperties,
-                                       OrderRevenueSplitRepository splitRepository,
-                                       MerchantRepository merchantRepository,
+                                       OrderRevenueSplitMapper splitRepository,
+                                       MerchantMapper merchantRepository,
                                        WeChatProfitSharingService profitSharingService) {
         this.profitSharingProperties = profitSharingProperties;
         this.splitRepository = splitRepository;

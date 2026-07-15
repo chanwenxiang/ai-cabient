@@ -5,9 +5,9 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
-import com.aicabinet.trade.repository.DeviceInfoRepository;
-import com.aicabinet.trade.repository.ReplenishmentTaskRepository;
-import com.aicabinet.trade.repository.ShoppingSessionRepository;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.DeviceNameSupport;
 import org.springframework.http.HttpStatus;
@@ -29,13 +29,13 @@ public class DeviceValidationService {
             SessionState.WAITING_UPLOAD, SessionState.SETTLING
     );
 
-    private final DeviceInfoRepository deviceInfoRepository;
-    private final ShoppingSessionRepository sessionRepository;
-    private final ReplenishmentTaskRepository replenishmentTaskRepository;
+    private final DeviceInfoMapper deviceInfoRepository;
+    private final ShoppingSessionMapper sessionRepository;
+    private final ReplenishmentTaskMapper replenishmentTaskRepository;
 
-    public DeviceValidationService(DeviceInfoRepository deviceInfoRepository,
-                                   ShoppingSessionRepository sessionRepository,
-                                   ReplenishmentTaskRepository replenishmentTaskRepository) {
+    public DeviceValidationService(DeviceInfoMapper deviceInfoRepository,
+                                   ShoppingSessionMapper sessionRepository,
+                                   ReplenishmentTaskMapper replenishmentTaskRepository) {
         this.deviceInfoRepository = deviceInfoRepository;
         this.sessionRepository = sessionRepository;
         this.replenishmentTaskRepository = replenishmentTaskRepository;

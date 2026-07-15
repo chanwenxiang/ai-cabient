@@ -1,0 +1,17 @@
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\api\DeviceInternalController.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\client\TradeServiceClient.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\config\InternalApiAuthInterceptor.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\config\InternalApiProperties.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\config\MqttProperties.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\config\ProductionStartupValidator.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\config\WebConfig.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\DeviceServiceApplication.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\health\MqttHealthIndicator.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\metrics\DeviceMqttMetrics.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\mqtt\DoorEventDeduplicator.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\mqtt\MqttCommandPublisher.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\mqtt\MqttConnectionRegistry.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\mqtt\MqttConnectOptionsFactory.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\mqtt\MqttEventListener.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\service\DeviceCommandService.java
+C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\device-service\src\main\java\com\aicabinet\device\service\DeviceCommandTracker.java

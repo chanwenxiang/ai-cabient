@@ -2,7 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.domain.*;
-import com.aicabinet.trade.repository.*;
+import com.aicabinet.trade.mapper.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -19,23 +19,23 @@ public class DeviceSlotService {
 
     private static final Logger log = LoggerFactory.getLogger(DeviceSlotService.class);
 
-    private final DeviceSlotRepository slotRepository;
-    private final DeviceSkuLotRepository lotRepository;
-    private final DeviceInfoRepository deviceRepository;
-    private final DeviceSkuInventoryRepository inventoryRepository;
-    private final SkuCatalogRepository skuCatalogRepository;
-    private final MerchantRepository merchantRepository;
-    private final ReplenishmentTaskRepository taskRepository;
+    private final DeviceSlotMapper slotRepository;
+    private final DeviceSkuLotMapper lotRepository;
+    private final DeviceInfoMapper deviceRepository;
+    private final DeviceSkuInventoryMapper inventoryRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
+    private final MerchantMapper merchantRepository;
+    private final ReplenishmentTaskMapper taskRepository;
     private final MerchantScopeService merchantScopeService;
     private final SalesVelocityService salesVelocityService;
 
-    public DeviceSlotService(DeviceSlotRepository slotRepository,
-                             DeviceSkuLotRepository lotRepository,
-                             DeviceInfoRepository deviceRepository,
-                             DeviceSkuInventoryRepository inventoryRepository,
-                             SkuCatalogRepository skuCatalogRepository,
-                             MerchantRepository merchantRepository,
-                             ReplenishmentTaskRepository taskRepository,
+    public DeviceSlotService(DeviceSlotMapper slotRepository,
+                             DeviceSkuLotMapper lotRepository,
+                             DeviceInfoMapper deviceRepository,
+                             DeviceSkuInventoryMapper inventoryRepository,
+                             SkuCatalogMapper skuCatalogRepository,
+                             MerchantMapper merchantRepository,
+                             ReplenishmentTaskMapper taskRepository,
                              MerchantScopeService merchantScopeService,
                              SalesVelocityService salesVelocityService) {
         this.slotRepository = slotRepository;

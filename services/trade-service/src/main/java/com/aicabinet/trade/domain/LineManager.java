@@ -1,34 +1,28 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "line_manager")
+@TableName("line_manager")
 public class LineManager {
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @TableId(type = IdType.AUTO)
     private Long managerId;
+
     
-    @Column(length = 100, nullable = false)
     private String managerName;
     
-    @Column(length = 32, nullable = false)
     private String phone;
     
-    @Column(length = 64)
     private String employeeId;
     
-    @Column(nullable = false)
     private Long franchiseId;
     
-    @Column(precision = 10, scale = 4)
     private java.math.BigDecimal commissionRate;
     
-    @Column(length = 16, nullable = false)
     private String status;
     
-    @Column(nullable = false)
     private Instant createdAt = Instant.now();
     
     private Instant updatedAt;

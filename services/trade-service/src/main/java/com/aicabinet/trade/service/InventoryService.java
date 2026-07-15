@@ -4,7 +4,7 @@ import com.aicabinet.common.dto.GravityDeltaRequest;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.domain.DeviceSkuInventory;
 import com.aicabinet.trade.domain.DeviceSkuInventoryId;
-import com.aicabinet.trade.repository.DeviceSkuInventoryRepository;
+import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -22,13 +22,13 @@ public class InventoryService {
 
     private static final Logger log = LoggerFactory.getLogger(InventoryService.class);
 
-    private final DeviceSkuInventoryRepository inventoryRepository;
+    private final DeviceSkuInventoryMapper inventoryRepository;
     private final InventoryLotService inventoryLotService;
     private final DeviceSlotService deviceSlotService;
     private final GravitySettlementHelper gravityHelper;
     private final DeviceValidationService deviceValidationService;
 
-    public InventoryService(DeviceSkuInventoryRepository inventoryRepository,
+    public InventoryService(DeviceSkuInventoryMapper inventoryRepository,
                             InventoryLotService inventoryLotService,
                             DeviceSlotService deviceSlotService,
                             GravitySettlementHelper gravityHelper,

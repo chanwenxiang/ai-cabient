@@ -1,55 +1,40 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.*;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 
-@Entity
-@Table(name = "recharge_order")
+@TableName("recharge_order")
 public class RechargeOrder {
 
-    @Id
-    @Column(length = 32)
+    @TableId(type = IdType.INPUT)
     private String orderId;
 
-    @Column(nullable = false)
     private Long userId;
 
-    @Column(nullable = false)
     private int amountCents;
 
-    @Column(nullable = false, length = 16)
     private String channel;
 
-    @Column(nullable = false, length = 16)
     private String status;
 
-    @Column(nullable = false, length = 128, unique = true)
     private String idempotencyKey;
 
-    @Column(length = 64)
     private String paymentOperationId;
 
-    @Column(length = 64)
     private String wxPrepayId;
 
-    @Column(length = 64)
     private String wxTransactionId;
 
-    @Column(length = 64)
     private String alipayTradeNo;
 
-    @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
     private Instant paidAt;
     private Instant refundedAt;
 
-    @PrePersist
-    void prePersist() {
-        createdAt = Instant.now();
-    }
-
-    public String getOrderId() { return orderId; }
+public String getOrderId() { return orderId; }
     public void setOrderId(String orderId) { this.orderId = orderId; }
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }

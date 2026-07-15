@@ -1,25 +1,19 @@
 package com.aicabinet.trade.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.IdType;
 
-@Entity
-@Table(name = "aliyun_category_mapping")
+@TableName("aliyun_category_mapping")
 public class AliyunCategoryMapping {
 
-    @Id
-    @Column(name = "category_id", length = 64)
+    @TableId(type = IdType.INPUT)
     private String categoryId;
 
-    @Column(name = "category_name", length = 128)
     private String categoryName;
 
-    @Column(name = "sku_id", nullable = false, length = 64)
     private String skuId;
 
-    @Column(name = "min_confidence", nullable = false)
     private float minConfidence;
 
     public String getCategoryId() { return categoryId; }

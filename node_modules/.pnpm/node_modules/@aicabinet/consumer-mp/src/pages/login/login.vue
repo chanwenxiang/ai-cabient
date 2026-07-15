@@ -1,0 +1,383 @@
+<template>
+  <view class="login-wrap">
+    <view class="login-bg-scene" aria-hidden="true">
+      <image class="login-illustration login-illustration-anim" :src="loginBgUrl" mode="widthFix" />
+      <view class="anim-orb anim-orb-a" />
+      <view class="anim-orb anim-orb-b" />
+      <view class="anim-shimmer" />
+    </view>
+    <view class="login-overlay" />
+    <view class="login-content">
+      <view class="hero">
+        <text class="brand">AI开门柜</text>
+        <text class="tagline">无感支付 · 即拿即走</text>
+        <view class="badge">
+          <text class="badge-icon">✓</text>
+          <text class="badge-text">微信支付分 · 先购后付</text>
+        </view>
+      </view>
+
+      <view class="login-spacer" />
+
+      <view class="form-card">
+        <text class="title">手机号验证</text>
+        <text class="subtitle">扫码购物无需注册；绑定账户或微信授权失败时使用</text>
+
+        <view class="tabs">
+          <view :class="['tab-item', mode === 'sms' ? 'on' : '']" @click="mode = 'sms'">验证码</view>
+          <view :class="['tab-item', mode === 'password' ? 'on' : '']" @click="mode = 'password'">密码</view>
+        </view>
+
+        <view class="field">
+          <text class="field-label">手机号</text>
+          <input v-model="phone" class="input" type="number" maxlength="11" placeholder="请输入11位手机号" />
+        </view>
+
+        <view v-if="mode === 'password'" class="field">
+          <text class="field-label">密码</text>
+          <input v-model="password" class="input" password placeholder="请输入登录密码" />
+        </view>
+        <view v-else class="field">
+          <text class="field-label">验证码</text>
+          <view class="row">
+            <input v-model="code" class="input flex" placeholder="请输入验证码" />
+            <view class="btn-code" @click="onSendCode">{{ codeCooldown ? codeCooldown + 's' : '获取验证码' }}</view>
+          </view>
+        </view>
+
+        <view class="btn-primary" @click="onLogin">{{ loading ? '验证中…' : '验证并继续' }}</view>
+        <view class="btn-ghost" @click="goBack">返回购物</view>
+        <text v-if="err" class="err">{{ err }}</text>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { onLoad } from '@dcloudio/uni-app';
+import { ref } from 'vue';
+import { consumerPasswordLogin, consumerSmsLogin, consumerWxLogin, sendSmsCode } from '@/utils/consumer-api';
+import loginBgUrl from '@/static/login-bg.png';
+
+const redirect = ref('/pages/index/index');
+
+const mode = ref<'password' | 'sms'>('sms');
+const phone = ref('');
+const password = ref('');
+const code = ref('');
+const loading = ref(false);
+const err = ref('');
+const codeCooldown = ref(0);
+let codeTimer: ReturnType<typeof setInterval> | null = null;
+
+onLoad((opts) => {
+  if (opts?.redirect) redirect.value = decodeURIComponent(String(opts.redirect));
+});
+
+function goBack() {
+  if (redirect.value.startsWith('/pages/index') || redirect.value.startsWith('/pages/orders') || redirect.value.startsWith('/pages/mine')) {
+    uni.switchTab({ url: redirect.value.split('?')[0] });
+  } else {
+    uni.redirectTo({ url: redirect.value });
+  }
+}
+
+async function onSendCode() {
+  if (codeCooldown.value || !phone.value.trim()) return;
+  try {
+    await sendSmsCode(phone.value.trim());
+    codeCooldown.value = 60;
+    codeTimer = setInterval(() => {
+      codeCooldown.value -= 1;
+      if (codeCooldown.value <= 0 && codeTimer) clearInterval(codeTimer);
+    }, 1000);
+    uni.showToast({ title: '验证码已发送', icon: 'none' });
+  } catch (e) {
+    err.value = e instanceof Error ? e.message : '发送失败';
+  }
+}
+
+async function onLogin() {
+  loading.value = true;
+  err.value = '';
+  try {
+    if (mode.value === 'password') {
+      await consumerPasswordLogin(phone.value.trim(), password.value);
+    } else {
+      await consumerSmsLogin(phone.value.trim(), code.value.trim());
+    }
+    try {
+      const wxCode = await new Promise<string>((resolve, reject) => {
+        uni.login({ provider: 'weixin', success: (r) => (r.code ? resolve(r.code) : reject()), fail: reject });
+      });
+      await consumerWxLogin(wxCode, phone.value.trim());
+    } catch {
+      /* 非微信环境或绑定失败时仍可用手机号会话 */
+    }
+    goBack();
+  } catch (e) {
+    err.value = e instanceof Error ? e.message : '验证失败';
+  } finally {
+    loading.value = false;
+  }
+}
+</script>
+
+<style scoped>
+.login-wrap {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  background: #f5c842;
+}
+.login-bg-scene {
+  position: absolute;
+  top: 140rpx;
+  left: 0;
+  width: 100%;
+  z-index: 0;
+  overflow: hidden;
+}
+.login-illustration {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.login-illustration-anim {
+  animation: illusKenBurns 22s ease-in-out infinite alternate;
+  transform-origin: center top;
+}
+.anim-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(24rpx);
+}
+.anim-orb-a {
+  top: 12%;
+  right: 6%;
+  width: 200rpx;
+  height: 200rpx;
+  background: rgba(255, 180, 60, 0.38);
+  animation: orbFloatA 9s ease-in-out infinite;
+}
+.anim-orb-b {
+  top: 38%;
+  left: 4%;
+  width: 160rpx;
+  height: 160rpx;
+  background: rgba(255, 230, 140, 0.32);
+  animation: orbFloatB 11s ease-in-out infinite;
+}
+.anim-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.14) 50%, transparent 62%);
+  background-size: 220% 220%;
+  animation: shimmerSweep 10s ease-in-out infinite;
+  pointer-events: none;
+}
+@keyframes illusKenBurns {
+  from { transform: scale(1) translateY(0); }
+  to { transform: scale(1.045) translateY(-10rpx); }
+}
+@keyframes orbFloatA {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
+  50% { transform: translate(-16rpx, 20rpx) scale(1.08); opacity: 0.85; }
+}
+@keyframes orbFloatB {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.45; }
+  50% { transform: translate(20rpx, -14rpx) scale(1.06); opacity: 0.75; }
+}
+@keyframes shimmerSweep {
+  0%, 100% { background-position: 120% 0; opacity: 0.4; }
+  50% { background-position: -20% 0; opacity: 0.75; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-illustration-anim,
+  .anim-orb-a,
+  .anim-orb-b,
+  .anim-shimmer {
+    animation: none;
+  }
+}
+.login-overlay {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 48%;
+  z-index: 1;
+  background: linear-gradient(180deg, rgba(245, 200, 66, 0) 0%, rgba(255, 247, 231, 0.86) 52%, #fff7e6 100%);
+}
+.login-content {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0 32rpx calc(32rpx + env(safe-area-inset-bottom));
+}
+.hero {
+  flex-shrink: 0;
+  padding-top: 48rpx;
+  text-align: center;
+}
+.brand {
+  font-size: 56rpx;
+  font-weight: 800;
+  display: block;
+  color: #5c3d1e;
+  letter-spacing: 2rpx;
+}
+.tagline {
+  font-size: 30rpx;
+  color: #7a5a32;
+  display: block;
+  margin-top: 10rpx;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8rpx;
+  margin-top: 18rpx;
+  padding: 10rpx 22rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.78);
+}
+.badge-icon {
+  color: #07c160;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+.badge-text {
+  color: #4b5563;
+  font-size: 22rpx;
+}
+.login-spacer {
+  flex: 1;
+  min-height: 120rpx;
+}
+.form-card {
+  flex-shrink: 0;
+  padding: 36rpx 32rpx 40rpx;
+  border-radius: 32rpx 32rpx 24rpx 24rpx;
+  background: rgba(255, 248, 225, 0.94);
+  border: 2rpx solid rgba(245, 158, 11, 0.22);
+  box-shadow: 0 -8rpx 40rpx rgba(234, 88, 12, 0.1), 0 16rpx 48rpx rgba(146, 64, 14, 0.08);
+}
+.title {
+  font-size: 36rpx;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 8rpx;
+  color: #5c3d1e;
+}
+.subtitle {
+  font-size: 24rpx;
+  color: #a16207;
+  display: block;
+  margin-bottom: 28rpx;
+  line-height: 1.5;
+}
+.tabs {
+  display: flex;
+  gap: 8rpx;
+  margin-bottom: 28rpx;
+  padding: 6rpx;
+  border-radius: 16rpx;
+  background: rgba(254, 230, 138, 0.55);
+}
+.tab-item {
+  flex: 1;
+  padding: 16rpx 0;
+  text-align: center;
+  font-size: 28rpx;
+  color: #92400e;
+  border-radius: 12rpx;
+  transition: all 0.2s ease;
+}
+.tab-item.on {
+  color: #ea580c;
+  font-weight: 600;
+  background: rgba(255, 251, 235, 0.96);
+  box-shadow: 0 2rpx 8rpx rgba(234, 88, 12, 0.12);
+}
+.field {
+  margin-bottom: 20rpx;
+}
+.field-label {
+  display: block;
+  font-size: 26rpx;
+  color: #7a5a32;
+  font-weight: 500;
+  margin-bottom: 10rpx;
+}
+.input {
+  display: block;
+  width: 100%;
+  height: 88rpx;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.68);
+  border: 2rpx solid rgba(251, 191, 36, 0.42);
+  border-radius: 16rpx;
+  padding: 0 28rpx;
+  font-size: 28rpx;
+  color: #5c3d1e;
+  line-height: 88rpx;
+}
+.input:focus {
+  border-color: #f59e0b;
+  background: rgba(255, 255, 255, 0.92);
+}
+.row {
+  display: flex;
+  gap: 16rpx;
+  align-items: stretch;
+}
+.flex {
+  flex: 1;
+  min-width: 0;
+}
+.btn-code {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 28rpx;
+  min-width: 180rpx;
+  height: 88rpx;
+  border-radius: 16rpx;
+  background: #fff7ed;
+  color: #ea580c;
+  font-size: 26rpx;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.btn-primary {
+  margin-top: 12rpx;
+  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  color: #fff;
+  border-radius: 44rpx;
+  height: 96rpx;
+  line-height: 96rpx;
+  text-align: center;
+  font-size: 30rpx;
+  font-weight: 600;
+  box-shadow: 0 10rpx 28rpx rgba(234, 88, 12, 0.28);
+}
+.btn-ghost {
+  margin-top: 20rpx;
+  text-align: center;
+  color: #b45309;
+  font-size: 28rpx;
+  padding: 8rpx;
+}
+.err {
+  color: #ef4444;
+  display: block;
+  margin-top: 16rpx;
+  text-align: center;
+  font-size: 26rpx;
+}
+</style>

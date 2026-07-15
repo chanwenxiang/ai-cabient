@@ -2,7 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.domain.SkuCatalog;
-import com.aicabinet.trade.repository.SkuCatalogRepository;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -14,9 +14,9 @@ public class SettlementConfidenceService {
 
     private static final float MEDIUM_BAND_LOW = 0.80f;
 
-    private final SkuCatalogRepository skuCatalogRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
 
-    public SettlementConfidenceService(SkuCatalogRepository skuCatalogRepository) {
+    public SettlementConfidenceService(SkuCatalogMapper skuCatalogRepository) {
         this.skuCatalogRepository = skuCatalogRepository;
     }
 

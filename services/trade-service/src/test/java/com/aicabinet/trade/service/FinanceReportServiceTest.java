@@ -1,9 +1,9 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.FinanceStatsDto;
-import com.aicabinet.trade.repository.CabinetOrderLineRepository;
-import com.aicabinet.trade.repository.CabinetOrderRepository;
-import com.aicabinet.trade.repository.InventoryWriteOffRepository;
+import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -20,9 +20,9 @@ class FinanceReportServiceTest {
 
     @Test
     void stats_scopesRevenueAndCostsToAllowedDevices() {
-        CabinetOrderRepository orders = mock(CabinetOrderRepository.class);
-        CabinetOrderLineRepository lines = mock(CabinetOrderLineRepository.class);
-        InventoryWriteOffRepository writeOffs = mock(InventoryWriteOffRepository.class);
+        CabinetOrderMapper orders = mock(CabinetOrderMapper.class);
+        CabinetOrderLineMapper lines = mock(CabinetOrderLineMapper.class);
+        InventoryWriteOffMapper writeOffs = mock(InventoryWriteOffMapper.class);
         MerchantScopeService scope = mock(MerchantScopeService.class);
         Set<String> devices = Set.of("CAB-1");
         when(scope.allowedDeviceIds(7L)).thenReturn(devices);
@@ -44,9 +44,9 @@ class FinanceReportServiceTest {
 
     @Test
     void stats_returnsZerosWithoutQueryingGlobalDataWhenScopeIsEmpty() {
-        CabinetOrderRepository orders = mock(CabinetOrderRepository.class);
-        CabinetOrderLineRepository lines = mock(CabinetOrderLineRepository.class);
-        InventoryWriteOffRepository writeOffs = mock(InventoryWriteOffRepository.class);
+        CabinetOrderMapper orders = mock(CabinetOrderMapper.class);
+        CabinetOrderLineMapper lines = mock(CabinetOrderLineMapper.class);
+        InventoryWriteOffMapper writeOffs = mock(InventoryWriteOffMapper.class);
         MerchantScopeService scope = mock(MerchantScopeService.class);
         when(scope.allowedDeviceIds(8L)).thenReturn(Set.of());
 
