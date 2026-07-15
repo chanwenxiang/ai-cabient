@@ -1,0 +1,26 @@
+{
+  "java.compile.nullAnalysis.mode": "disabled",
+  "java.jdt.ls.java.home": "C:\\Program Files\\Java\\jdk-17.0.17",
+  "java.configuration.runtimes": [
+    {
+      "name": "JavaSE-17",
+      "path": "C:\\Program Files\\Java\\jdk-17.0.17",
+      "default": true
+    }
+  ],
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.import.maven.enabled": true,
+  "java.import.gradle.enabled": false,
+  "java.errors.incompleteClasspath.severity": "ignore",
+  "java.project.importOnFirstTimeStartup": "automatic",
+  "files.exclude": {
+    "**/target": true,
+    "easygo": true
+  },
+  "files.watcherExclude": {
+    "**/easygo/**": true
+  },
+  "java.import.exclusions": [
+    "**/easygo/**"
+  ]
+}

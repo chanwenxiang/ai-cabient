@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vision-service
+  namespace: ai-cabinet
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vision-service
+  template:
+    metadata:
+      labels:
+        app: vision-service
+    spec:
+      containers:
+        - name: vision-service
+          image: ai-cabinet/vision-service:latest
+          ports:
+            - containerPort: 8082
+          envFrom:
+            - configMapRef:
+                name: ai-cabinet-config
+          env:
+            - name: KAFKA_ENABLED
+              value: "true"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vision-service
+  namespace: ai-cabinet
+spec:
+  selector:
+    app: vision-service
+  ports:
+    - port: 8082
+      targetPort: 8082

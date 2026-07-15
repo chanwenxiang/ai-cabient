@@ -1,0 +1,24 @@
+<view class="container">
+  <view class="title">AI开门柜</view>
+  <view class="tabs">
+    <view class="tab {{loginMode === 'password' ? 'active' : ''}}" bindtap="onSwitchMode" data-mode="password">密码登录</view>
+    <view class="tab {{loginMode === 'sms' ? 'active' : ''}}" bindtap="onSwitchMode" data-mode="sms">验证码</view>
+  </view>
+  <input class="input" type="number" maxlength="11" placeholder="11位手机号（须已注册）" value="{{phone}}" bindinput="onPhoneInput" />
+  <block wx:if="{{loginMode === 'password'}}">
+    <input class="input" password placeholder="登录密码" value="{{password}}" bindinput="onPasswordInput" />
+    <button type="primary" bindtap="onPasswordLogin" loading="{{logging}}" disabled="{{logging}}">密码登录</button>
+  </block>
+  <block wx:else>
+    <view class="row">
+      <input class="input code" placeholder="验证码" value="{{code}}" bindinput="onCodeInput" />
+      <button size="mini" bindtap="onSendCode" disabled="{{sending || codeCooldown > 0}}">
+        {{codeCooldown > 0 ? codeCooldown + 's' : '获取验证码'}}
+      </button>
+    </view>
+    <button type="primary" bindtap="onLogin" loading="{{logging}}" disabled="{{logging}}">验证码登录</button>
+  </block>
+  <button class="wx-btn" bindtap="onWxLogin">微信一键登录</button>
+  <view class="hint" wx:if="{{showDevHint}}">开发：消费者 13800138000 / 123456（测试购物扣款）；运营 13900000001 / 123456（补货/后台，首页开门不扣余额）</view>
+  <view class="hint sub-hint">微信首次登录需先填写上方手机号以绑定已有账号</view>
+</view>

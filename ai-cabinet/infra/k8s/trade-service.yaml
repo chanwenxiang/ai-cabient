@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trade-service
+  namespace: ai-cabinet
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: trade-service
+  template:
+    metadata:
+      labels:
+        app: trade-service
+    spec:
+      containers:
+        - name: trade-service
+          image: ai-cabinet/trade-service:latest
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: ai-cabinet-config
+          env:
+            - name: SPRING_DATASOURCE_USERNAME
+              value: aicabinet
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ai-cabinet-secrets
+                  key: postgres-password
+            - name: AICABINET_DEVICE_SERVICE_URL
+              value: http://device-service:8081
+            - name: AICABINET_VISION_SERVICE_URL
+              value: http://vision-service:8082
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trade-service
+  namespace: ai-cabinet
+spec:
+  selector:
+    app: trade-service
+  ports:
+    - port: 8080
+      targetPort: 8080

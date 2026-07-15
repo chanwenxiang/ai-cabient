@@ -1,0 +1,142 @@
+<view class="page">
+
+  <!-- 顶部栏 -->
+  <view class="top-bar">
+    <view class="brand">
+      <text class="brand-title">智能货柜</text>
+      <text class="brand-sub">先选商品 · 开门取货 · 自动结算</text>
+    </view>
+    <view class="balance-chip {{balanceLow ? 'low' : ''}}" bindtap="onRefreshBalance">
+      <text class="balance-label">余额</text>
+      <text class="balance-value">¥{{balance || '0.00'}}</text>
+      <text class="balance-refresh">{{balanceRefreshing ? '…' : '↻'}}</text>
+    </view>
+  </view>
+
+  <!-- 设备选择 -->
+  <view class="device-panel">
+    <view class="device-input-row">
+      <input class="device-input" placeholder="设备编号 CAB-001" value="{{deviceId}}" bindinput="onDeviceInput" />
+      <button class="scan-btn" size="mini" bindtap="onScan" disabled="{{opening || polling}}">扫码</button>
+    </view>
+    <view class="device-card {{deviceStatusClass}}" wx:if="{{deviceStatusText}}">
+      <view class="device-dot"></view>
+      <view class="device-info">
+        <text class="device-title">{{deviceName || deviceId}}</text>
+        <text class="device-desc">{{deviceStatusText}}</text>
+      </view>
+    </view>
+    <view class="scan-hint" wx:if="{{scanHint}}">{{scanHint}}</view>
+  </view>
+
+  <!-- 商品列表 -->
+  <view class="section-head">
+    <text class="section-title">柜内商品</text>
+    <text class="section-meta" wx:if="{{products.length}}">共 {{products.length}} 款</text>
+    <text class="section-meta loading" wx:if="{{productsLoading}}">加载中…</text>
+  </view>
+
+  <view class="product-empty" wx:if="{{!productsLoading && !products.length}}">
+    <text class="empty-icon">📦</text>
+    <text class="empty-title">暂无在售商品</text>
+    <text class="empty-desc">请确认设备编号，或联系运营补货上架</text>
+  </view>
+
+  <block wx:if="{{productGroups.length}}">
+    <view class="category-block" wx:for="{{productGroups}}" wx:key="category" wx:for-item="group">
+      <view class="category-head">
+        <text class="category-icon">{{group.icon}}</text>
+        <text class="category-name">{{group.category}}</text>
+        <text class="category-count">{{group.items.length}} 款</text>
+      </view>
+      <view class="product-grid">
+        <view class="product-card" wx:for="{{group.items}}" wx:key="skuId" wx:for-item="item">
+          <image class="product-img" wx:if="{{item.imageUrl}}" src="{{item.imageUrl}}" mode="aspectFill" />
+          <view class="product-img product-img-ph" wx:else style="background: {{item.placeholderBg}}">
+            <text class="ph-icon">{{item.categoryIcon}}</text>
+            <text class="ph-initial">{{item.initial}}</text>
+          </view>
+          <view class="product-body">
+            <text class="product-name">{{item.skuName}}</text>
+            <text class="product-meta">库存 {{item.quantity}}</text>
+            <view class="product-foot">
+              <text class="product-price">¥{{item.priceYuan}}</text>
+              <view class="qty-ctrl" wx:if="{{item.cartQty > 0}}">
+                <view class="qty-btn" data-id="{{item.skuId}}" data-delta="-1" bindtap="onCartDelta">−</view>
+                <text class="qty-num">{{item.cartQty}}</text>
+                <view class="qty-btn" data-id="{{item.skuId}}" data-delta="1" bindtap="onCartDelta">+</view>
+              </view>
+              <view class="add-btn" wx:else data-id="{{item.skuId}}" bindtap="onAddToCart">加入</view>
+            </view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <!-- 购物车栏 -->
+  <view class="cart-bar" wx:if="{{cartCount > 0}}">
+    <view class="cart-left" bindtap="toggleCartSheet">
+      <view class="cart-badge">{{cartCount}}</view>
+      <view class="cart-info">
+        <text class="cart-total">预计 ¥{{cartTotalYuan}}</text>
+        <text class="cart-hint">开门后按实际取货结算</text>
+      </view>
+    </view>
+    <button class="checkout-btn" type="primary" bindtap="onCheckoutOpen" loading="{{opening}}" disabled="{{opening || polling}}">
+      开门取货
+    </button>
+  </view>
+  <view class="cart-placeholder" wx:if="{{cartCount > 0}}"></view>
+
+  <!-- 无购物车时的开门 -->
+  <view class="open-panel" wx:if="{{cartCount === 0 && !sessionId}}">
+    <button class="open-main-btn" type="primary" bindtap="onScanOpen" loading="{{opening}}" disabled="{{opening || polling || (deviceOnline !== false && !deviceAvailable)}}">
+      直接开门购物
+    </button>
+    <text class="open-tip">也可先加入购物车预估消费，再开门取货</text>
+  </view>
+
+  <!-- 会话状态 -->
+  <view class="status card tone-{{stateTone}}" wx:if="{{sessionId}}">
+    <text class="status-title">当前会话</text>
+    <text class="mono">{{sessionId}}</text>
+    <text class="state">{{stateLabel}}</text>
+    <text class="hint" wx:if="{{stateHint}}">{{stateHint}}</text>
+    <view class="progress" wx:if="{{polling && !pollError}}">
+      <view class="progress-bar"></view>
+    </view>
+    <view class="poll-error" wx:if="{{pollError}}">
+      <text>{{pollError}}</text>
+      <button size="mini" bindtap="retryPoll">重试</button>
+    </view>
+    <button class="abandon-btn" size="mini" wx:if="{{state === 'OPENING' || state === 'CREATED'}}" bindtap="abandonSession">取消并重试</button>
+  </view>
+
+  <!-- 购物车抽屉 -->
+  <view class="sheet-mask" wx:if="{{cartSheetOpen}}" bindtap="toggleCartSheet"></view>
+  <view class="cart-sheet {{cartSheetOpen ? 'open' : ''}}">
+    <view class="sheet-head">
+      <text class="sheet-title">购物车</text>
+      <text class="sheet-clear" bindtap="clearCart">清空</text>
+    </view>
+    <scroll-view scroll-y class="sheet-list">
+      <view class="sheet-item" wx:for="{{cartItems}}" wx:key="skuId">
+        <view class="sheet-item-info">
+          <text class="sheet-item-name">{{item.skuName}}</text>
+          <text class="sheet-item-price">¥{{item.priceYuan}} × {{item.qty}}</text>
+        </view>
+        <view class="qty-ctrl small">
+          <view class="qty-btn" data-id="{{item.skuId}}" data-delta="-1" bindtap="onCartDelta">−</view>
+          <text class="qty-num">{{item.qty}}</text>
+          <view class="qty-btn" data-id="{{item.skuId}}" data-delta="1" bindtap="onCartDelta">+</view>
+        </view>
+      </view>
+    </scroll-view>
+    <view class="sheet-foot">
+      <text>合计 ¥{{cartTotalYuan}}</text>
+      <button type="primary" size="mini" bindtap="onCheckoutOpen" loading="{{opening}}">开门取货</button>
+    </view>
+  </view>
+
+</view>

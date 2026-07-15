@@ -1,0 +1,26 @@
+.container { padding: 24rpx; min-height: 100vh; background: #f5f6f8; box-sizing: border-box; }
+.page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20rpx; }
+.summary { font-size: 28rpx; color: #666; }
+.refresh-btn { margin: 0 !important; }
+.empty { padding: 120rpx 0; text-align: center; color: #999; display: flex; flex-direction: column; gap: 24rpx; align-items: center; }
+.empty-hint { font-size: 24rpx; color: #bbb; max-width: 480rpx; line-height: 1.5; }
+.order-card { background: #fff; border-radius: 16rpx; padding: 28rpx; margin-bottom: 20rpx; box-shadow: 0 4rpx 16rpx rgba(0,0,0,0.04); }
+.row { display: flex; justify-content: space-between; align-items: center; }
+.top { margin-bottom: 12rpx; }
+.sub { font-size: 24rpx; color: #888; margin-top: 8rpx; }
+.meta-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 24rpx; font-size: 26rpx; margin-top: 12rpx; }
+.label { color: #999; flex-shrink: 0; }
+.value { color: #333; text-align: right; flex: 1; }
+.line-summary { line-height: 1.4; }
+.device { font-size: 32rpx; font-weight: 600; color: #222; }
+.amount { font-size: 34rpx; color: #1677ff; font-weight: 600; }
+.status-badge { font-size: 24rpx; padding: 4rpx 14rpx; border-radius: 8rpx; }
+.status-paid { color: #389e0d; background: #f6ffed; }
+.status-pending { color: #d48806; background: #fffbe6; }
+.status-refunded { color: #595959; background: #f5f5f5; }
+.status-cancelled { color: #cf1322; background: #fff1f0; }
+.status-default { color: #666; background: #f5f5f5; }
+.mono { font-size: 22rpx; color: #aaa; max-width: 420rpx; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.actions { gap: 12rpx; flex-wrap: wrap; }
+.dispute-tag { font-size: 22rpx; color: #fa8c16; background: #fff7e6; padding: 4rpx 12rpx; border-radius: 6rpx; }
+.footer { text-align: center; color: #bbb; font-size: 24rpx; padding: 24rpx 0 40rpx; }

@@ -1,0 +1,29 @@
+<view class="container">
+  <view class="title">余额充值</view>
+  <view class="balance">当前余额：¥{{balance}}</view>
+
+  <view class="section-label">支付方式</view>
+  <view class="channel-row">
+    <view
+      class="channel {{channel === item.id ? 'active' : ''}}"
+      wx:for="{{channels}}"
+      wx:key="id"
+      data-channel="{{item.id}}"
+      bindtap="onChannelChange"
+    >{{item.label}}</view>
+  </view>
+
+  <view class="section-label">充值金额</view>
+  <view class="quick-row">
+    <view
+      class="quick {{amountYuan === item ? 'active' : ''}}"
+      wx:for="{{quickAmounts}}"
+      wx:key="*this"
+      data-amount="{{item}}"
+      bindtap="onQuickAmount"
+    >{{item}}元</view>
+  </view>
+  <input class="input" type="digit" placeholder="自定义金额（元）" value="{{amountYuan}}" bindinput="onAmountInput" />
+  <button type="primary" bindtap="onRecharge" loading="{{loading}}" disabled="{{loading}}">确认充值</button>
+  <view class="hint">开发环境将自动 mock 到账；支付宝需在外部浏览器完成支付</view>
+</view>

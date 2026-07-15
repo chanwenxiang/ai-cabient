@@ -1,0 +1,38 @@
+# 预发/试点 Compose 叠加层 — 配合 verify-step5.ps1 -Staging
+# 用法：docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.staging.yml --profile apps up -d
+
+services:
+  sms-webhook-mock:
+    image: python:3.12-slim
+    volumes:
+      - ../scripts/sms-webhook-mock.py:/app/sms-webhook-mock.py:ro
+    command: python /app/sms-webhook-mock.py
+    ports:
+      - "8099:8099"
+    environment:
+      PORT: "8099"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8099/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    profiles: ["apps"]
+
+  trade-service:
+    environment:
+      SPRING_PROFILES_ACTIVE: staging
+      AICABINET_STAGING_MODE: "true"
+      AICABINET_SECURITY_MOCK_ENABLED: "false"
+      AICABINET_MOCK_ENABLED: "false"
+      SMS_WEBHOOK_URL: http://sms-webhook-mock:8099/send
+    depends_on:
+      sms-webhook-mock:
+        condition: service_healthy
+
+  vision-service:
+    build:
+      args:
+        INSTALL_ML: ${VISION_INSTALL_ML:-true}
+    environment:
+      MOCK_ENABLED: ${VISION_MOCK_ENABLED:-false}
+      YOLO_AUTO_DOWNLOAD: "true"

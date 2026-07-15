@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="DeviceSimulator CAB-001" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="com.aicabinet.simulator.DeviceSimulator" />
+    <module name="device-simulator" />
+    <option name="PROGRAM_PARAMETERS" value="CAB-001" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

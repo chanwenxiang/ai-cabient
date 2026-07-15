@@ -1,0 +1,126 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.9 },
+              { "color": "green", "value": 0.98 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "id": 1,
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true },
+      "targets": [
+        {
+          "expr": "sum(rate(cabinet_door_open_total{result=\"success\"}[5m])) / (sum(rate(cabinet_door_open_total[5m])) > 0)",
+          "legendFormat": "开门成功率"
+        }
+      ],
+      "title": "开门成功率 (5m)",
+      "type": "gauge"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "id": 2,
+      "options": { "colorMode": "value", "graphMode": "area", "justifyMode": "auto", "orientation": "auto", "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto" },
+      "targets": [
+        { "expr": "cabinet_devices_online", "legendFormat": "在线" },
+        { "expr": "cabinet_devices_total", "legendFormat": "总数" }
+      ],
+      "title": "设备在线 / 总数",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "id": 3,
+      "options": { "colorMode": "value", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "expr": "sum(increase(cabinet_reconciliation_total{status=\"MISMATCH\"}[24h]))", "legendFormat": "对账差额 (24h)" }
+      ],
+      "title": "对账 MISMATCH (24h)",
+      "type": "stat"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "id": 4,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } },
+      "targets": [
+        { "expr": "sum(rate(cabinet_door_open_total{result=\"success\"}[5m]))", "legendFormat": "成功" },
+        { "expr": "sum(rate(cabinet_door_open_total{result=\"failure\"}[5m]))", "legendFormat": "失败" }
+      ],
+      "title": "开门 QPS",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "id": 5,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "rate(cabinet_recognize_duration_seconds_sum[5m]) / rate(cabinet_recognize_duration_seconds_count[5m])", "legendFormat": "平均识别耗时" }
+      ],
+      "title": "视觉识别平均耗时",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "id": 6,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum(rate(cabinet_session_transition_total{state=\"COMPLETED\"}[5m]))", "legendFormat": "完成" },
+        { "expr": "sum(rate(cabinet_session_transition_total{state=\"DISPUTED\"}[5m]))", "legendFormat": "争议" }
+      ],
+      "title": "会话结算",
+      "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "expr": "sum(rate(device_mqtt_door_total{result=\"forwarded\"}[5m]))", "legendFormat": "门事件转发" },
+        { "expr": "sum(rate(device_mqtt_door_total{result=\"deduped\"}[5m]))", "legendFormat": "去重丢弃" },
+        { "expr": "sum(rate(device_mqtt_heartbeat_total{result=\"forwarded\"}[5m]))", "legendFormat": "心跳转发" }
+      ],
+      "title": "device-service MQTT",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["ai-cabinet"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timezone": "browser",
+  "title": "AI Cabinet 运营概览",
+  "uid": "ai-cabinet-overview",
+  "version": 1
+}

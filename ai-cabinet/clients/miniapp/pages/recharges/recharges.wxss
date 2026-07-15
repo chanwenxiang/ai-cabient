@@ -1,0 +1,17 @@
+.container { padding: 24rpx; min-height: 100vh; background: #f5f6f8; }
+.page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20rpx; }
+.summary { font-size: 28rpx; color: #666; }
+.refresh-btn { margin: 0 !important; }
+.empty { padding: 120rpx 0; text-align: center; color: #999; display: flex; flex-direction: column; gap: 24rpx; align-items: center; }
+.record-card { background: #fff; border-radius: 16rpx; padding: 28rpx; margin-bottom: 20rpx; }
+.row { display: flex; justify-content: space-between; align-items: center; }
+.top { margin-bottom: 12rpx; }
+.sub { font-size: 24rpx; color: #888; margin-top: 8rpx; justify-content: flex-start; gap: 8rpx; }
+.amount { font-size: 36rpx; font-weight: 600; color: #1677ff; }
+.status { font-size: 24rpx; }
+.status-PAID { color: #52c41a; }
+.status-PENDING { color: #fa8c16; }
+.status-CANCELLED { color: #999; }
+.status-REFUNDED { color: #ff4d4f; }
+.mono { font-size: 22rpx; color: #aaa; word-break: break-all; }
+.footer { text-align: center; color: #999; font-size: 24rpx; padding: 24rpx 0 40rpx; }
