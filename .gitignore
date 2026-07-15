@@ -3,6 +3,14 @@ easygo/
 # 嵌套旧副本（与根目录正式工程重复，勿被 IDE/Java LS 扫描）
 /ai-cabinet/
 
-# Migration leftovers �� not source of truth; keep out of IDE indexing
+# Migration leftovers — not source of truth; keep out of IDE indexing
 scripts/_repo_backup/
 scripts/*.java.bak
+
+# Maven build output
+target/
+**/target/
+
+# Eclipse JDT output (not node_modules/**/bin)
+services/**/bin/
+edge/**/bin/

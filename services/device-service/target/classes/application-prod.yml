@@ -1,5 +1,0 @@
-# 生产环境：MQTT 必须 ssl:// + 账号密码，见 docs/PRODUCTION.md
-logging:
-  level:
-    root: INFO
-    com.aicabinet: INFO
