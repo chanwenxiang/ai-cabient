@@ -205,11 +205,14 @@ public class MerchantService {
         permissionService.requirePermission(operatorId, "ops:merchant:split");
         boolean enabled = profitSharingProperties.enabled();
         boolean apiReady = profitSharingService.isApiReady();
+        boolean mock = profitSharingService.isMockMode();
         String note;
         if (!enabled) {
             note = "分账未启用：设置 PROFIT_SHARING_ENABLED=true";
+        } else if (mock) {
+            note = "分账联调 Mock 已启用（不调用微信 API）；提交时填写任意 wxTransactionId 即可";
         } else if (!weChatPayProperties.isConfigured()) {
-            note = "微信支付未配置完整，无法调用分账 API";
+            note = "微信支付未配置完整，无法调用分账 API（或设 PROFIT_SHARING_MOCK_ENABLED=true 联调）";
         } else if (!apiReady) {
             note = "分账 API 未就绪";
         } else {
@@ -220,7 +223,7 @@ public class MerchantService {
                 apiReady,
                 profitSharingProperties.retryEnabled(),
                 profitSharingProperties.retryBatchSize(),
-                weChatPayProperties.isConfigured() ? "CONFIGURED" : "MISSING",
+                mock ? "MOCK" : (weChatPayProperties.isConfigured() ? "CONFIGURED" : "MISSING"),
                 note
         );
     }

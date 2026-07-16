@@ -7,5 +7,6 @@ public record OpsPermissionDto(
         String permName,
         String permType,
         String path,
-        int sortOrder
+        int sortOrder,
+        String status
 ) {}

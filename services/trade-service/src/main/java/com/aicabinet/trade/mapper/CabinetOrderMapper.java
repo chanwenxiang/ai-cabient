@@ -32,6 +32,27 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
     return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
+    default Page<CabinetOrder> findByFiltersOrderByCreatedAtDesc(
+            String deviceId, Collection<String> deviceIds, String status, Pageable pageable) {
+        var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<CabinetOrder>(
+                pageable.getPageNumber() + 1L, pageable.getPageSize());
+        var q = Wrappers.<CabinetOrder>lambdaQuery();
+        if (deviceId != null && !deviceId.isBlank()) {
+            q.eq(CabinetOrder::getDeviceId, deviceId.trim());
+        } else if (deviceIds != null) {
+            if (deviceIds.isEmpty()) {
+                return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
+            }
+            q.in(CabinetOrder::getDeviceId, deviceIds);
+        }
+        if (status != null && !status.isBlank()) {
+            q.eq(CabinetOrder::getStatus, status.trim());
+        }
+        q.orderByDesc(CabinetOrder::getCreatedAt);
+        var result = selectPage(mpPage, q);
+        return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
+    }
+
     default Page<CabinetOrder> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<CabinetOrder>(
             pageable.getPageNumber() + 1L, pageable.getPageSize());

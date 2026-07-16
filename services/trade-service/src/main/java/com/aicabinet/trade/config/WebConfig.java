@@ -35,6 +35,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/v2/payment/recharges/**",
                         "/api/v2/devices/**",
                         "/api/v2/disputes/**",
+                        "/api/v2/feedback/**",
                         "/api/v2/ops/**",
                         "/api/v2/coupons/**",
                         "/api/v2/merchant/**")

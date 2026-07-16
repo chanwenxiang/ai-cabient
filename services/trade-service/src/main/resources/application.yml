@@ -1,4 +1,4 @@
-﻿server:
+server:
   port: 8080
 
 spring:
@@ -67,7 +67,7 @@ aicabinet:
       - http://localhost:5173
       - http://127.0.0.1:5173
   wechat-pay:
-    enabled: false
+    enabled: ${WECHAT_PAY_ENABLED:false}
     app-id: ${WECHAT_APP_ID:}
     mch-id: ${WECHAT_MCH_ID:}
     notify-url: ${WECHAT_NOTIFY_URL:}
@@ -104,6 +104,7 @@ aicabinet:
     max-disputes-per-7-days: ${RISK_MAX_DISPUTES_PER_7_DAYS:3}
   profit-sharing:
     enabled: ${PROFIT_SHARING_ENABLED:false}
+    mock-enabled: ${PROFIT_SHARING_MOCK_ENABLED:false}
     retry-enabled: ${PROFIT_SHARING_RETRY_ENABLED:true}
     retry-batch-size: ${PROFIT_SHARING_RETRY_BATCH_SIZE:20}
   alipay:

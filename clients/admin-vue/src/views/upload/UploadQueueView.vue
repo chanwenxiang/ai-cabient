@@ -10,32 +10,45 @@
       <el-form-item label="设备"><el-input v-model="deviceId" clearable /></el-form-item>
       <el-form-item><el-button type="primary" @click="search">查询</el-button></el-form-item>
     </el-form>
-    <el-table v-loading="loading" :data="items" stripe>
-      <el-table-column prop="sessionId" label="会话" min-width="160"><template #default="{ row }"><code>{{ row.sessionId }}</code></template></el-table-column>
-      <el-table-column prop="userId" label="用户" />
-      <el-table-column prop="deviceId" label="设备" />
-      <el-table-column label="对象路径" min-width="220">
-        <template #default="{ row }">
-          <code v-if="objectKey(row.videoUri)" class="object-key">{{ objectKey(row.videoUri) }}</code>
-          <span v-else class="muted">—</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="上传状态"><template #default="{ row }">{{ dictLabel('upload_status', row.uploadStatus) }}</template></el-table-column>
-      <el-table-column label="预览" width="80">
-        <template #default="{ row }">
-          <el-link v-if="row.videoUri" type="primary" @click.prevent="playVideo(row.sessionId)">播放</el-link>
-          <span v-else class="muted">—</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="关门时间" width="180"><template #default="{ row }">{{ formatDateTime(row.closeTime) }}</template></el-table-column>
-      <el-table-column label="更新时间" width="180"><template #default="{ row }">{{ formatDateTime(row.updatedAt) }}</template></el-table-column>
-    </el-table>
+    <div class="table-scroll">
+      <div class="table-scroll-inner" style="min-width: 1100px">
+        <el-table v-loading="loading" :data="items" stripe border>
+          <el-table-column prop="sessionId" label="会话" min-width="160">
+            <template #default="{ row }"><span class="cell-id">{{ row.sessionId }}</span></template>
+          </el-table-column>
+          <el-table-column prop="userId" label="用户" width="100" />
+          <el-table-column prop="deviceId" label="设备" width="120" />
+          <el-table-column label="对象路径" min-width="220" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span v-if="objectKey(row.videoUri)" class="cell-id">{{ objectKey(row.videoUri) }}</span>
+              <span v-else class="muted">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="上传状态" width="110">
+            <template #default="{ row }">{{ dictLabel('upload_status', row.uploadStatus) }}</template>
+          </el-table-column>
+          <el-table-column label="预览" width="80" align="center">
+            <template #default="{ row }">
+              <el-link v-if="row.videoUri" type="primary" @click.prevent="playVideo(row.sessionId)">播放</el-link>
+              <span v-else class="muted">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="关门时间" width="170">
+            <template #default="{ row }">{{ formatDateTime(row.closeTime) }}</template>
+          </el-table-column>
+          <el-table-column label="更新时间" width="170">
+            <template #default="{ row }">{{ formatDateTime(row.updatedAt) }}</template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
     <el-pagination v-model:current-page="page" :page-size="size" :total="total" layout="prev,pager,next" style="margin-top:16px" @current-change="load" />
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onActivated, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel } from '@aicabinet/shared-dict';
@@ -54,6 +67,7 @@ interface SessionRow {
   updatedAt?: string;
 }
 
+const route = useRoute();
 const loading = ref(false);
 const deviceId = ref('');
 const page = ref(1);
@@ -101,7 +115,16 @@ async function playVideo(sessionId: string) {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  if (typeof route.query.deviceId === 'string') deviceId.value = route.query.deviceId;
+  load();
+});
+onActivated(() => {
+  if (typeof route.query.deviceId === 'string' && route.query.deviceId !== deviceId.value) {
+    deviceId.value = route.query.deviceId;
+    load();
+  }
+});
 </script>
 
 <style scoped>

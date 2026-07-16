@@ -70,7 +70,7 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("upload_status", t("上传状态", m(
                 "NONE", "无需上传", "LOCAL_QUEUED", "待上传", "UPLOADING", "上传中",
                 "UPLOADED", "已上传", "FAILED", "上传失败")));
-        map.put("dispute_status", t("争议状态", m("OPEN", "待审核", "RESOLVED", "已结案", "CLOSED", "已结案")));
+        map.put("dispute_status", t("争议状态", m("OPEN", "待审核", "RESOLVED", "已结案", "CLOSED", "已关闭")));
         map.put("pay_channel", t("支付渠道", m(
                 "WECHAT", "微信", "ALIPAY", "支付宝", "MOCK", "其他", "BALANCE", "余额", "UNKNOWN", "未知")));
         map.put("split_status", t("分账状态", m(
@@ -90,10 +90,12 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("in_transit_status", t("在途状态", m(
                 "IN_TRANSIT", "在途", "RECEIVED", "已签收", "LOST", "丢失", "DAMAGED", "破损")));
         map.put("warehouse_movement_type", t("库存变动类型", m(
-                "PURCHASE_RECEIVE", "采购收货", "MANUAL_INBOUND", "手工入库", "OUTBOUND", "出库",
-                "OUTBOUND_SHIP", "发运", "RETURN", "退回", "ADJUSTMENT", "库存调整")));
+                "PURCHASE_RECEIVE", "采购收货", "MANUAL_INBOUND", "手工入库", "INBOUND_MANUAL", "手工入库",
+                "OUTBOUND", "出库", "OUTBOUND_SHIP", "发运", "RETURN", "退回", "ADJUSTMENT", "库存调整")));
         map.put("business_reference_type", t("业务关联类型", m(
-                "PURCHASE_ORDER", "采购单", "OUTBOUND_ORDER", "出库单", "REPLENISHMENT_TASK", "补货任务",
+                "PURCHASE_ORDER", "采购单", "OUTBOUND_ORDER", "出库单",
+                "WAREHOUSE_INBOUND", "仓库入库", "WAREHOUSE_OUTBOUND", "仓库出库",
+                "REPLENISHMENT_TASK", "补货任务",
                 "INVENTORY_ADJUSTMENT", "库存调整", "MANUAL", "人工操作")));
         map.put("replenishment_route_status", t("补货路线状态", m(
                 "PLANNED", "待执行", "IN_PROGRESS", "执行中", "COMPLETED", "已完成", "CANCELLED", "已取消")));
@@ -107,6 +109,10 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "CRITICAL", "紧急", "HIGH", "高", "MEDIUM", "中", "LOW", "低")));
         map.put("exception_status", t("异常状态", m(
                 "OPEN", "待处理", "PROCESSING", "处理中", "RESOLVED", "已解决", "CLOSED", "已关闭")));
+        map.put("feedback_type", t("反馈类型", m(
+                "COMPLAINT", "投诉", "SUGGESTION", "建议", "BUG", "缺陷", "PRAISE", "表扬")));
+        map.put("feedback_status", t("反馈状态", m(
+                "PENDING", "待处理", "HANDLED", "已回复", "CLOSED", "已关闭")));
         map.put("exception_type", t("异常类型", m(
                 "DISPUTE", "消费争议", "LOW_STOCK", "低库存", "EXPIRY", "临期商品",
                 "REPLENISHMENT_REQUIRED", "待补货", "DEVICE_OFFLINE", "设备离线", "DEVICE_FAULT", "设备故障",

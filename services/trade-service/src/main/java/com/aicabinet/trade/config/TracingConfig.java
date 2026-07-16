@@ -6,6 +6,7 @@ import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -14,7 +15,7 @@ import java.time.Duration;
 /**
  * 分布式追踪配置 — OpenTelemetry + OTLP HTTP 导出。
  * 配合 Jaeger / Grafana Tempo / SigNoz 使用。
- * 默认关闭（通过 otlp.endpoint 控制），生产环境配置 OTLP_ENDPOINT 即可启用。
+ * 默认关闭（tracing.otlp.endpoint 为空时不注册 exporter），生产环境配置 OTLP_ENDPOINT 即可启用。
  */
 @Configuration
 public class TracingConfig {
@@ -22,14 +23,9 @@ public class TracingConfig {
     private static final Logger log = LoggerFactory.getLogger(TracingConfig.class);
 
     @Bean
+    @ConditionalOnExpression("T(org.springframework.util.StringUtils).hasText('${tracing.otlp.endpoint:}')")
     public OtlpHttpSpanExporter otlpHttpSpanExporter(
-            @Value("${tracing.otlp.endpoint:}") String endpoint) {
-        if (endpoint == null || endpoint.isBlank()) {
-            log.info("OTLP tracing disabled (no endpoint configured)");
-            return OtlpHttpSpanExporter.builder()
-                    .setEndpoint("http://localhost:4318/v1/traces")
-                    .build();
-        }
+            @Value("${tracing.otlp.endpoint}") String endpoint) {
         log.info("OTLP tracing enabled, exporting to {}", endpoint);
         return OtlpHttpSpanExporter.builder()
                 .setEndpoint(endpoint)

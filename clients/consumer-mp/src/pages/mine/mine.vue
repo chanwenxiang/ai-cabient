@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="mine-page">
     <view class="profile-header">
       <view class="profile-orb orb-a" /><view class="profile-orb orb-b" />
@@ -111,6 +111,14 @@
         <view class="menu-text">
           <text class="menu-title">故障报修</text>
           <text class="menu-desc">柜机打不开、门关不上等问题</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view class="menu-cell" @click="goFeedback">
+        <text class="menu-icon">💬</text>
+        <view class="menu-text">
+          <text class="menu-title">意见反馈</text>
+          <text class="menu-desc">投诉、建议或表扬</text>
         </view>
         <text class="menu-arrow">›</text>
       </view>
@@ -298,6 +306,15 @@ function goReport() {
     url: id
       ? `/pages/report/report?deviceId=${encodeURIComponent(id)}`
       : '/pages/report/report'
+  });
+}
+
+function goFeedback() {
+  const id = uni.getStorageSync('last_device_id') || '';
+  uni.navigateTo({
+    url: id
+      ? `/pages/feedback/feedback?deviceId=${encodeURIComponent(id)}`
+      : '/pages/feedback/feedback'
   });
 }
 

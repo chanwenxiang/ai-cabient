@@ -80,7 +80,6 @@
               <el-descriptions-item label="YOLO 检测类">
                 {{ (result.detectedClasses || []).join('、') || '无' }}
               </el-descriptions-item>
-              <el-descriptions-item label="模型">{{ result.modelVersion || '—' }}</el-descriptions-item>
             </el-descriptions>
 
             <el-descriptions :column="1" border size="small" class="meta-block">

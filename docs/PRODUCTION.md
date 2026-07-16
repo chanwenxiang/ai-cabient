@@ -66,9 +66,12 @@ AICABINET_VISION_SERVICE_URL=http://vision-service:8082
 CORS_ORIGIN=https://ops.your-domain.com
 
 # 微信分账（需微信支付 V3 已配置；余额购物订单提交时需填 wxTransactionId）
+# 本地联调可另设 PROFIT_SHARING_MOCK_ENABLED=true（不调微信 API；生产必须 false）
 PROFIT_SHARING_ENABLED=true
+PROFIT_SHARING_MOCK_ENABLED=false
 PROFIT_SHARING_RETRY_ENABLED=true
 PROFIT_SHARING_RETRY_BATCH_SIZE=20
+WECHAT_PAY_ENABLED=true
 
 # 免密购物扣款：未接入真实支付分/支付宝代扣前保持 false
 PAYSCORE_ENABLED=false
@@ -186,6 +189,8 @@ Content-Type: application/json
 | 变量 | 说明 |
 |------|------|
 | `PROFIT_SHARING_ENABLED` | `true` 启用分账 API（prod 下若开启则要求微信支付 V3 完整配置） |
+| `PROFIT_SHARING_MOCK_ENABLED` | 本地联调 Mock（不调微信）；**生产必须 `false`** |
+| `WECHAT_PAY_ENABLED` | 启用微信支付 V3 客户端（真机分账需 `true` 并配齐证书） |
 | `PROFIT_SHARING_RETRY_ENABLED` | 失败单自动重试（默认 `true`，每 15 分钟） |
 | `PROFIT_SHARING_RETRY_BATCH_SIZE` | 单次重试批大小（默认 20） |
 

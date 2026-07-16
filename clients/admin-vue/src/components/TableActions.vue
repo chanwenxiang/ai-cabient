@@ -1,17 +1,18 @@
 <template>
-  <div class="table-actions" @click.stop>
+  <div class="table-actions" :class="{ 'is-label': showLabel }" @click.stop>
     <template v-for="act in primary" :key="act.key">
-      <el-tooltip :content="act.label" placement="top" :show-after="120" :hide-after="0">
+      <el-tooltip :content="act.label" placement="top" :show-after="120" :hide-after="0" :disabled="showLabel">
         <span class="action-icon-wrap" :class="{ 'is-disabled': act.disabled }">
           <button
             type="button"
             class="action-icon-btn"
-            :class="act.type ? `is-${act.type}` : ''"
+            :class="[act.type ? `is-${act.type}` : '', { 'is-with-label': showLabel }]"
             :disabled="act.disabled"
             :aria-label="act.label"
             @click="emit('action', act.key)"
           >
             <el-icon><component :is="act.icon" /></el-icon>
+            <span v-if="showLabel" class="action-label">{{ act.label }}</span>
           </button>
         </span>
       </el-tooltip>
@@ -19,8 +20,14 @@
 
     <el-dropdown v-if="more.length" trigger="click" @command="(k: string) => emit('action', k)">
       <span class="action-icon-wrap" title="更多操作">
-        <button type="button" class="action-icon-btn" aria-label="更多操作">
+        <button
+          type="button"
+          class="action-icon-btn"
+          :class="{ 'is-with-label': showLabel }"
+          aria-label="更多操作"
+        >
           <el-icon><MoreFilled /></el-icon>
+          <span v-if="showLabel" class="action-label">更多</span>
         </button>
       </span>
       <template #dropdown>
@@ -44,6 +51,7 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue';
 import { MoreFilled } from '@element-plus/icons-vue';
+import { useSettingsStore } from '@/stores/settings';
 
 export interface TableAction {
   key: string;
@@ -65,12 +73,18 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{ action: [key: string] }>();
+const settings = useSettingsStore();
+
+const showLabel = computed(() => settings.tableActionMode === 'label');
+const effectiveMax = computed(() =>
+  showLabel.value ? Math.min(props.maxPrimary, 2) : props.maxPrimary
+);
 
 const visible = computed(() => props.actions.filter((a) => a && a.key));
 
 const primary = computed(() => {
   const main = visible.value.filter((a) => !a.overflow);
-  return main.slice(0, props.maxPrimary);
+  return main.slice(0, effectiveMax.value);
 });
 
 const more = computed(() => {
@@ -86,6 +100,9 @@ const more = computed(() => {
   justify-content: center;
   gap: 4px;
   flex-wrap: nowrap;
+}
+.table-actions.is-label {
+  gap: 6px;
 }
 .action-icon-wrap {
   display: inline-flex;
@@ -109,6 +126,17 @@ const more = computed(() => {
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.15s ease,
     box-shadow 0.15s ease;
+}
+.action-icon-btn.is-with-label {
+  width: auto;
+  min-width: 32px;
+  padding: 0 8px;
+  gap: 4px;
+}
+.action-label {
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
 }
 .action-icon-wrap:hover .action-icon-btn:not(:disabled),
 .action-icon-btn:hover:not(:disabled),

@@ -9,5 +9,6 @@ public record WarehouseOutboundLineDto(
         String batchNo,
         LocalDate expiryDate,
         int quantity,
-        boolean picked
+        boolean picked,
+        String handoverStatus
 ) {}

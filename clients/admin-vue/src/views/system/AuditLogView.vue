@@ -2,25 +2,31 @@
   <el-card class="page-card" shadow="never">
     <template #header>
       <div class="card-head">
-        <span>操作日志</span>
-        <div>
-          <el-switch v-model="mineOnly" active-text="仅看我的" style="margin-right:12px" @change="load" />
+        <span>审计日志</span>
+        <div class="actions">
+          <el-button @click="onExport">导出</el-button>
+          <el-switch v-model="mineOnly" active-text="仅看我的" @change="load" />
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
-    <el-table v-loading="loading" :data="items" stripe>
-      <el-table-column label="时间" width="180"><template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template></el-table-column>
-      <el-table-column label="操作人" min-width="150">
-        <template #default="{ row }">{{ row.operatorName || row.operatorPhone || row.operatorId || '-' }}</template>
-      </el-table-column>
-      <el-table-column label="动作" min-width="150"><template #default="{ row }">{{ actionLabel(row.action) }}</template></el-table-column>
-      <el-table-column label="对象类型" width="120"><template #default="{ row }">{{ targetLabel(row.targetType) }}</template></el-table-column>
-      <el-table-column prop="targetId" label="对象ID" min-width="140"><template #default="{ row }"><code>{{ row.targetId || '-' }}</code></template></el-table-column>
-      <el-table-column label="详情" min-width="220" show-overflow-tooltip>
-        <template #default="{ row }">{{ formatOpsActionDetail(row.detail) }}</template>
-      </el-table-column>
-    </el-table>
+    <div class="table-scroll">
+      <div class="table-scroll-inner" style="min-width: 1080px">
+        <el-table v-loading="loading" :data="items" stripe border>
+          <template #empty><el-empty description="暂无审计日志" /></template>
+          <el-table-column label="时间" width="180"><template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template></el-table-column>
+          <el-table-column label="操作人" min-width="150" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.operatorName || row.operatorPhone || row.operatorId || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="动作" min-width="150" show-overflow-tooltip><template #default="{ row }">{{ actionLabel(row.action) }}</template></el-table-column>
+          <el-table-column label="对象类型" width="120"><template #default="{ row }">{{ targetLabel(row.targetType) }}</template></el-table-column>
+          <el-table-column prop="targetId" label="对象ID" min-width="140" show-overflow-tooltip><template #default="{ row }"><span class="cell-id">{{ row.targetId || '-' }}</span></template></el-table-column>
+          <el-table-column label="详情" min-width="220" show-overflow-tooltip>
+            <template #default="{ row }">{{ formatOpsActionDetail(row.detail) }}</template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
     <el-pagination
       v-if="!mineOnly"
       v-model:current-page="page"
@@ -41,6 +47,7 @@ import { formatOpsActionDetail } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import type { PageResult } from '@aicabinet/shared-types';
 import { api } from '@/api/client';
+import { useListCsv } from '@/composables/useListCsv';
 
 interface AuditRow {
   logId: number;
@@ -84,6 +91,20 @@ const size = 20;
 const total = ref(0);
 const items = ref<AuditRow[]>([]);
 
+const { onExport } = useListCsv({
+  filePrefix: '审计日志',
+  headers: ['时间', '操作人', '动作', '对象类型', '对象ID', '详情'],
+  toRows: () =>
+    items.value.map((row) => [
+      formatDateTime(row.createdAt),
+      row.operatorName || row.operatorPhone || row.operatorId || '-',
+      actionLabel(row.action),
+      targetLabel(row.targetType),
+      row.targetId || '-',
+      formatOpsActionDetail(row.detail)
+    ])
+});
+
 function actionLabel(action?: string) {
   if (!action) return '-';
   return ACTION_LABELS[action] || action;
@@ -117,6 +138,6 @@ onMounted(load);
 </script>
 
 <style scoped>
-.card-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
-code { font-size:12px; }
+.card-head { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
+.actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 </style>

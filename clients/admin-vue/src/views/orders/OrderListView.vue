@@ -3,7 +3,10 @@
     <template #header>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span>订单管理</span>
-        <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+        <div style="display:flex;gap:8px">
+          <el-button @click="onExport">导出</el-button>
+          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+        </div>
       </div>
     </template>
     <el-form inline class="filter-bar" @submit.prevent="search">
@@ -18,11 +21,14 @@
         <el-button @click="reset">重置</el-button>
       </el-form-item>
     </el-form>
-    <el-table v-loading="loading" :data="items" stripe>
-    <template #empty><el-empty description="暂无订单" /></template>
-     <el-table-column label="订单号" min-width="150">
-        <template #default="{ row }"><span class="cell-id">{{ row.orderId }}</span></template>
-      </el-table-column>
+    <div class="table-scroll">
+      <div class="table-scroll-inner" style="min-width: 960px">
+        <el-table v-loading="loading" :data="items" stripe border row-key="orderId">
+          <template #empty><el-empty description="暂无订单" /></template>
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column label="订单号" min-width="150">
+            <template #default="{ row }"><span class="cell-id">{{ row.orderId }}</span></template>
+          </el-table-column>
       <el-table-column prop="sessionId" label="会话" min-width="140" show-overflow-tooltip />
       <el-table-column prop="userId" label="用户ID" width="110" />
       <el-table-column prop="deviceId" label="设备" width="120" />
@@ -35,10 +41,12 @@
       <el-table-column label="金额" width="110">
         <template #default="{ row }">¥{{ ((row.totalAmountCents || 0) / 100).toFixed(2) }}</template>
       </el-table-column>
-      <el-table-column label="创建时间" width="180">
-        <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-      </el-table-column>
-    </el-table>
+          <el-table-column label="创建时间" width="180">
+            <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
     <div class="page-pager">
       <el-pagination
         v-model:current-page="page"
@@ -54,14 +62,17 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onActivated, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { useListCsv } from '@/composables/useListCsv';
 import type { OrderSummary, PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
+const route = useRoute();
 const loading = ref(false);
 const deviceId = ref('');
 const status = ref('');
@@ -70,6 +81,22 @@ const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const statusOptions = dictOptions('order_status');
+
+const { onExport } = useListCsv({
+  filePrefix: '订单',
+  headers: ['订单号', '会话', '用户ID', '设备', '状态', '商品行', '金额', '创建时间'],
+  toRows: () =>
+    items.value.map((row) => [
+      row.orderId,
+      row.sessionId,
+      row.userId,
+      row.deviceId,
+      dictLabel('order_status', row.status) || row.status,
+      row.lineCount,
+      ((row.totalAmountCents || 0) / 100).toFixed(2),
+      formatDateTime(row.createdAt)
+    ])
+});
 
 function orderStatusType(s?: string) {
   if (s === 'PAID' || s === 'COMPLETED') return 'success';
@@ -108,5 +135,27 @@ function onSizeChange() {
   load();
 }
 
-onMounted(load);
+function applyRouteQuery() {
+  let changed = false;
+  if (typeof route.query.deviceId === 'string' && route.query.deviceId !== deviceId.value) {
+    deviceId.value = route.query.deviceId;
+    changed = true;
+  }
+  if (typeof route.query.status === 'string' && route.query.status !== status.value) {
+    status.value = route.query.status;
+    changed = true;
+  }
+  return changed;
+}
+
+onMounted(() => {
+  applyRouteQuery();
+  load();
+});
+onActivated(() => {
+  if (applyRouteQuery()) {
+    page.value = 1;
+    load();
+  }
+});
 </script>

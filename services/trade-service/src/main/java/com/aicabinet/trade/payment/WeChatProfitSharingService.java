@@ -42,7 +42,14 @@ public class WeChatProfitSharingService {
     }
 
     public boolean isApiReady() {
-        return profitSharingProperties.enabled() && weChatPayProperties.isConfigured();
+        if (!profitSharingProperties.enabled()) {
+            return false;
+        }
+        return profitSharingProperties.mockEnabled() || weChatPayProperties.isConfigured();
+    }
+
+    public boolean isMockMode() {
+        return profitSharingProperties.enabled() && profitSharingProperties.mockEnabled();
     }
 
     @Transactional
@@ -69,6 +76,15 @@ public class WeChatProfitSharingService {
         if (outOrderNo == null || outOrderNo.isBlank()) {
             outOrderNo = "PS" + split.getSplitId();
             split.setWechatOutOrderNo(outOrderNo);
+        }
+
+        if (profitSharingProperties.mockEnabled()) {
+            split.setWechatTransactionId(wxTransactionId.trim());
+            split.setStatus("WECHAT_SUBMITTED");
+            split.setFailureReason(null);
+            log.info("mock profit sharing submitted splitId={} orderId={} wxTxn={}",
+                    split.getSplitId(), split.getOrderId(), wxTransactionId.trim());
+            return splitRepository.save(split);
         }
 
         Map<String, Object> receiver = new LinkedHashMap<>();
@@ -115,6 +131,11 @@ public class WeChatProfitSharingService {
         }
         if ("LEDGER_ONLY".equals(split.getStatus()) || split.getMerchantCents() <= 0) {
             return split;
+        }
+        if (profitSharingProperties.mockEnabled()) {
+            applyRemoteState(split, "FINISHED", null);
+            log.info("mock profit sharing refreshed splitId={} status={}", split.getSplitId(), split.getStatus());
+            return splitRepository.save(split);
         }
         try {
             String encodedOut = URLEncoder.encode(outOrderNo.trim(), StandardCharsets.UTF_8);

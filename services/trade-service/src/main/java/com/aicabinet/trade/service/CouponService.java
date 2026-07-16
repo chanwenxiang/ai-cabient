@@ -65,6 +65,20 @@ public class CouponService {
         return definitionRepository.findByStatus("ACTIVE").stream().map(this::toDefDto).toList();
     }
 
+    @Transactional
+    public CouponDefinitionDto setDefinitionStatus(Long couponDefId, String status) {
+        String normalized = status == null ? "" : status.trim().toUpperCase();
+        if (!"ACTIVE".equals(normalized) && !"INACTIVE".equals(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "状态仅支持 ACTIVE 或 INACTIVE");
+        }
+        CouponDefinition def = definitionRepository.findById(couponDefId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券定义不存在"));
+        def.setStatus(normalized);
+        definitionRepository.save(def);
+        log.info("coupon definition status id={} status={}", couponDefId, normalized);
+        return toDefDto(def);
+    }
+
     // ── 发券 ────────────────────────────────────────────
 
     @Transactional

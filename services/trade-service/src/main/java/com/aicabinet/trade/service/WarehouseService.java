@@ -109,7 +109,7 @@ public class WarehouseService {
             line.setQuantity(dto.quantity());
             inboundLineRepository.save(line);
             addWarehouseStock(wh, dto.skuId(), dto.batchNo(), dto.productionDate(), dto.expiryDate(), dto.quantity());
-            recordWarehouseMovement(wh, dto.skuId(), dto.batchNo(), "INBOUND_MANUAL",
+            recordWarehouseMovement(wh, dto.skuId(), dto.batchNo(), "MANUAL_INBOUND",
                     dto.quantity(), "WAREHOUSE_INBOUND", String.valueOf(inbound.getInboundId()), operatorId);
         }
         return request;
@@ -318,8 +318,11 @@ public class WarehouseService {
         if ("SHIPPED".equals(outbound.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "already shipped");
         }
-        outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId)
-                .forEach(line -> {
+        List<WarehouseOutboundLine> lines = outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
+        if (lines.isEmpty()) {
+            throw badRequest("出库单无明细，无法拣货（可能库存不足未生成行项）");
+        }
+        lines.forEach(line -> {
                     line.setPicked(true);
                     line.setHandoverStatus("READY");
                     outboundLineRepository.save(line);
@@ -339,7 +342,7 @@ public class WarehouseService {
         }
         List<WarehouseOutboundLine> lines = outboundLineRepository.findByOutboundIdOrderByLineIdAsc(outboundId);
         if (lines.isEmpty()) {
-            throw badRequest("outbound has no lines");
+            throw badRequest("出库单无明细，无法发运（可能库存不足未生成行项）");
         }
         if (lines.stream().anyMatch(line -> !line.isPicked())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "outbound must be picked before ship");
@@ -487,8 +490,34 @@ public class WarehouseService {
     private WarehouseOutboundLineDto toOutboundLineDto(WarehouseOutboundLine line) {
         return new WarehouseOutboundLineDto(
                 line.getLineId(), line.getDeviceId(), line.getSkuId(), line.getBatchNo(),
-                line.getExpiryDate(), line.getQuantity(), line.isPicked()
+                line.getExpiryDate(), line.getQuantity(), line.isPicked(),
+                line.getHandoverStatus() == null ? "PENDING" : line.getHandoverStatus()
         );
+    }
+
+    @Transactional
+    public WarehouseDto upsertWarehouse(String warehouseId, String warehouseName, String address, String status) {
+        if (warehouseId == null || warehouseId.isBlank()) {
+            throw badRequest("warehouseId required");
+        }
+        if (warehouseName == null || warehouseName.isBlank()) {
+            throw badRequest("warehouseName required");
+        }
+        String id = warehouseId.trim();
+        Warehouse warehouse = warehouseRepository.findById(id).orElseGet(Warehouse::new);
+        boolean creating = warehouse.getWarehouseId() == null || warehouse.getWarehouseId().isBlank();
+        warehouse.setWarehouseId(id);
+        warehouse.setWarehouseName(warehouseName.trim());
+        warehouse.setAddress(address == null || address.isBlank() ? null : address.trim());
+        String st = status == null || status.isBlank() ? "ACTIVE" : status.trim().toUpperCase();
+        if (!"ACTIVE".equals(st) && !"INACTIVE".equals(st)) {
+            throw badRequest("status must be ACTIVE or INACTIVE");
+        }
+        warehouse.setStatus(st);
+        if (creating || warehouse.getCreatedAt() == null) {
+            warehouse.setCreatedAt(Instant.now());
+        }
+        return toWarehouseDto(warehouseRepository.save(warehouse));
     }
 
     private WarehouseMovementDto toMovementDto(WarehouseMovement movement) {

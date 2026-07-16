@@ -45,7 +45,7 @@ public class OpsExceptionService {
 
     @Transactional(readOnly = true)
     public OpsExceptionDetailDto detail(Long operatorId, String exceptionId) {
-        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        requireExceptionRead(operatorId);
         OpsException item = require(exceptionId);
         var actions = auditRepository.findByTargetTypeAndTargetIdOrderByCreatedAtAsc("OPS_EXCEPTION", exceptionId)
                 .stream().map(log -> new OpsExceptionActionDto(log.getLogId(), log.getOperatorId(),
@@ -69,7 +69,7 @@ public class OpsExceptionService {
 
     @Transactional(readOnly = true)
     public PageResult<OpsExceptionDto> list(Long operatorId, String status, int page, int size) {
-        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        requireExceptionRead(operatorId);
         var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
         var result = status == null || status.isBlank()
                 ? repository.findAllByOrderByCreatedAtDesc(pageable)
@@ -91,7 +91,7 @@ public class OpsExceptionService {
 
     @Transactional
     public OpsExceptionDto claim(Long operatorId, String exceptionId) {
-        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        requireExceptionHandle(operatorId);
         OpsException item = require(exceptionId);
         if ("RESOLVED".equals(item.getStatus())) return toDto(item);
         item.setAssigneeUserId(operatorId); item.setStatus("PROCESSING"); repository.save(item);
@@ -101,7 +101,7 @@ public class OpsExceptionService {
 
     @Transactional
     public OpsExceptionDto resolve(Long operatorId, String exceptionId, String resolution) {
-        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        requireExceptionHandle(operatorId);
         OpsException item = require(exceptionId);
         item.setAssigneeUserId(operatorId); item.setStatus("RESOLVED"); item.setResolution(trim(resolution));
         item.setResolvedAt(Instant.now()); repository.save(item);
@@ -167,7 +167,7 @@ public class OpsExceptionService {
 
     @Transactional
     public OpsExceptionDto transfer(Long operatorId, String exceptionId, Long assigneeUserId, String reason) {
-        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        requireExceptionHandle(operatorId);
         OpsException item = requireOpen(exceptionId);
         item.setAssigneeUserId(assigneeUserId);
         item.setStatus("PROCESSING");
@@ -179,7 +179,7 @@ public class OpsExceptionService {
 
     @Transactional
     public OpsExceptionDto addNote(Long operatorId, String exceptionId, String note) {
-        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        requireExceptionHandle(operatorId);
         OpsException item = requireOpen(exceptionId);
         auditService.record(operatorId, "OPS_EXCEPTION_NOTE", "OPS_EXCEPTION", exceptionId, trim(note));
         return toDto(item);
@@ -188,7 +188,7 @@ public class OpsExceptionService {
     @Transactional
     public OpsExceptionDto recordAction(Long operatorId, String exceptionId, String action,
                                         String idempotencyKey, String detail) {
-        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        requireExceptionHandle(operatorId);
         OpsException item = requireOpen(exceptionId);
         item.setAssigneeUserId(operatorId);
         item.setStatus("PROCESSING");
@@ -201,7 +201,7 @@ public class OpsExceptionService {
     @Transactional
     public OpsExceptionDto resolveByAction(Long operatorId, String exceptionId, String action,
                                            String idempotencyKey, String result) {
-        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        requireExceptionHandle(operatorId);
         OpsException item = require(exceptionId);
         if ("RESOLVED".equals(item.getStatus())) return toDto(item);
         item.setAssigneeUserId(operatorId);
@@ -218,7 +218,7 @@ public class OpsExceptionService {
     public OpsExceptionDto manualResolve(Long operatorId, String exceptionId, String resolutionType,
                                          List<ResolveDisputeRequest.ManualLineItem> lines,
                                          String idempotencyKey, String reason) {
-        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        requireExceptionHandle(operatorId);
         permissionService.requirePermission(operatorId, "ops:dispute");
         OpsException item = require(exceptionId);
         if (!Set.of("BALANCE_INSUFFICIENT", "RECOGNITION_UNAVAILABLE", "RECOGNITION_FAILED",
@@ -281,4 +281,12 @@ public class OpsExceptionService {
             i.getTitle(), i.getDetail(), i.getAssigneeUserId(), i.getResolution(), i.getCreatedAt(), i.getUpdatedAt(), i.getResolvedAt()); }
     private static String first(String... values) { for (String v : values) if (v != null && !v.isBlank() && !"null".equals(v)) return v; return "GLOBAL"; }
     private static String trim(String v) { if (v == null) return null; v=v.trim(); return v.length()>1000?v.substring(0,1000):v; }
+
+    private void requireExceptionRead(Long operatorId) {
+        permissionService.requireAnyPermission(operatorId, "ops:exception:list", "ops:dashboard:view");
+    }
+
+    private void requireExceptionHandle(Long operatorId) {
+        permissionService.requireAnyPermission(operatorId, "ops:exception:handle", "ops:dashboard:view");
+    }
 }

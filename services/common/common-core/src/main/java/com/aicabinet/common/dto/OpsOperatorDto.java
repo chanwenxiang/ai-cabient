@@ -6,6 +6,7 @@ public record OpsOperatorDto(
         Long userId,
         String phoneNumber,
         String name,
+        String status,
         List<String> roleNames,
         List<Long> roleIds
 ) {}

@@ -75,8 +75,21 @@ export interface RevenueSplit {
     platformCents: number;
     merchantCents: number;
     status: string;
+    wechatOutOrderNo?: string;
+    wechatTransactionId?: string;
     failureReason?: string;
     createdAt?: string;
+    settlementBatchNo?: string;
+    settleAfter?: string;
+    settledAt?: string;
+}
+export interface ProfitSharingStatus {
+    enabled: boolean;
+    apiReady: boolean;
+    retryEnabled: boolean;
+    retryBatchSize: number;
+    wechatPayConfigured: string;
+    note: string;
 }
 export interface OrderSummary {
     orderId: string;
@@ -115,6 +128,10 @@ export interface SkuCatalog {
     nearExpiryPriceCents?: number;
     maxPriceCents?: number;
     minChargeConfidence?: number;
+    yoloClassName?: string;
+    visionEnrollmentStatus?: string;
+    detectionMinConfidence?: number;
+    referenceImageUrlsJson?: string;
     createdAt?: string;
 }
 export interface UpsertSkuRequest {
@@ -135,6 +152,34 @@ export interface UpsertSkuRequest {
     purchaseCostCents?: number;
     nearExpiryPriceCents?: number;
     minChargeConfidence?: number;
+    yoloClassName?: string;
+    visionEnrollmentStatus?: string;
+    detectionMinConfidence?: number;
+    referenceImageUrlsJson?: string;
+}
+export interface UpsertSkuVisionEnrollmentRequest {
+    sku: UpsertSkuRequest;
+    yoloClassName?: string;
+    visionEnrollmentStatus?: string;
+    detectionMinConfidence?: number;
+    referenceImageUrlsJson?: string;
+    mappingSource?: string;
+}
+export interface DevRecognitionItemDto {
+    skuId: string;
+    skuName?: string;
+    quantity: number;
+    confidence: number;
+    unitPriceCents?: number;
+    lineAmountCents?: number;
+}
+export interface DevRecognitionPreviewDto {
+    items: DevRecognitionItemDto[];
+    detectedClasses?: string[];
+    overallConfidence?: number;
+    needReview?: boolean;
+    modelVersion?: string;
+    hint?: string;
 }
 export interface MerchantSkuPricing {
     deviceId: string;
@@ -286,6 +331,29 @@ export interface FileDisputeRequest {
 export interface DeviceFaultReportRequest {
     issueType: string;
     description?: string;
+}
+export interface SubmitFeedbackRequest {
+    feedbackType: string;
+    content: string;
+    contactInfo?: string;
+    deviceId?: string;
+    sessionId?: string;
+    rating?: number;
+}
+export interface UserFeedbackDto {
+    feedbackId: number;
+    userId: number;
+    feedbackType: string;
+    content: string;
+    contactInfo?: string;
+    deviceId?: string;
+    sessionId?: string;
+    rating?: number;
+    status: string;
+    handlerId?: number;
+    reply?: string;
+    handledAt?: string;
+    createdAt?: string;
 }
 export interface DisputeTicketDto {
     ticketId: string;

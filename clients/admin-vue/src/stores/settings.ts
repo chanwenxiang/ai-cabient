@@ -3,11 +3,13 @@ import { ref, watch } from 'vue';
 
 export type ThemeMode = 'light' | 'dark';
 export type FontSize = 'sm' | 'md' | 'lg';
+export type TableActionMode = 'icon' | 'label';
 
 const THEME_KEY = 'admin_vue_theme';
 const FONT_KEY = 'admin_vue_font_size';
 const PRIMARY_KEY = 'admin_vue_primary';
 const SIDEBAR_COLLAPSED_KEY = 'admin_vue_sidebar_collapsed';
+const TABLE_ACTION_KEY = 'admin_vue_table_action';
 
 function readSidebarCollapsed(): boolean {
   const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
@@ -44,12 +46,16 @@ export const useSettingsStore = defineStore('settings', () => {
   const fontSize = ref<FontSize>((localStorage.getItem(FONT_KEY) as FontSize) || 'md');
   const primaryColor = ref(localStorage.getItem(PRIMARY_KEY) || 'teal');
   const sidebarCollapsed = ref(readSidebarCollapsed());
+  const tableActionMode = ref<TableActionMode>(
+    (localStorage.getItem(TABLE_ACTION_KEY) as TableActionMode) === 'label' ? 'label' : 'icon'
+  );
 
   function persist() {
     localStorage.setItem(THEME_KEY, theme.value);
     localStorage.setItem(FONT_KEY, fontSize.value);
     localStorage.setItem(PRIMARY_KEY, primaryColor.value);
     localStorage.setItem(SIDEBAR_COLLAPSED_KEY, sidebarCollapsed.value ? '1' : '0');
+    localStorage.setItem(TABLE_ACTION_KEY, tableActionMode.value);
     applyDom(theme.value, fontSize.value, primaryColor.value);
   }
 
@@ -79,14 +85,20 @@ export const useSettingsStore = defineStore('settings', () => {
     persist();
   }
 
+  function setTableActionMode(mode: TableActionMode) {
+    tableActionMode.value = mode === 'label' ? 'label' : 'icon';
+    persist();
+  }
+
   function init() {
     applyDom(theme.value, fontSize.value, primaryColor.value);
   }
 
-  watch([theme, fontSize, primaryColor, sidebarCollapsed], persist);
+  watch([theme, fontSize, primaryColor, sidebarCollapsed, tableActionMode], persist);
 
   return {
-    theme, fontSize, primaryColor, sidebarCollapsed,
-    toggleTheme, setFontSize, setPrimaryColor, toggleSidebarCollapsed, setSidebarCollapsed, init, PRIMARY_COLORS
+    theme, fontSize, primaryColor, sidebarCollapsed, tableActionMode,
+    toggleTheme, setFontSize, setPrimaryColor, setTableActionMode,
+    toggleSidebarCollapsed, setSidebarCollapsed, init, PRIMARY_COLORS
   };
 });

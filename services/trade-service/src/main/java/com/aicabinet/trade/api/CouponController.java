@@ -14,9 +14,13 @@ import java.util.List;
 public class CouponController {
 
     private final CouponService couponService;
+    private final com.aicabinet.trade.service.PermissionService permissionService;
 
-    public CouponController(CouponService couponService) {
+    public CouponController(
+            CouponService couponService,
+            com.aicabinet.trade.service.PermissionService permissionService) {
         this.couponService = couponService;
+        this.permissionService = permissionService;
     }
 
     @GetMapping
@@ -44,23 +48,45 @@ public class CouponController {
     }
 
     @GetMapping("/definitions")
-    public ApiResponse<List<CouponDefinitionDto>> listDefinitions() {
+    public ApiResponse<List<CouponDefinitionDto>> listDefinitions(HttpServletRequest request) {
+        permissionService.requirePermission(operatorId(request), "ops:coupon:list");
         return ApiResponse.ok(couponService.listDefinitions());
     }
 
     @PostMapping("/definitions")
     public ApiResponse<CouponDefinitionDto> createDefinition(
-            @Valid @RequestBody CreateCouponRequest request) {
-        return ApiResponse.ok(couponService.createDefinition(request));
+            HttpServletRequest request,
+            @Valid @RequestBody CreateCouponRequest body) {
+        permissionService.requirePermission(operatorId(request), "ops:coupon:create");
+        return ApiResponse.ok(couponService.createDefinition(body));
+    }
+
+    @PutMapping("/definitions/{id}/status")
+    public ApiResponse<CouponDefinitionDto> setDefinitionStatus(
+            HttpServletRequest request,
+            @PathVariable("id") Long id,
+            @RequestParam("status") String status) {
+        permissionService.requirePermission(operatorId(request), "ops:coupon:edit");
+        return ApiResponse.ok(couponService.setDefinitionStatus(id, status));
     }
 
     @PostMapping("/issue")
-    public ApiResponse<CouponDto> issue(@Valid @RequestBody IssueCouponRequest request) {
-        return ApiResponse.ok(couponService.issueToUser(request.userId(), request.couponDefId()));
+    public ApiResponse<CouponDto> issue(
+            HttpServletRequest request,
+            @Valid @RequestBody IssueCouponRequest body) {
+        permissionService.requirePermission(operatorId(request), "ops:coupon:create");
+        return ApiResponse.ok(couponService.issueToUser(body.userId(), body.couponDefId()));
     }
 
     @PostMapping("/batch-issue")
-    public ApiResponse<List<CouponDto>> batchIssue(@Valid @RequestBody BatchIssueCouponRequest request) {
-        return ApiResponse.ok(couponService.batchIssue(request.couponDefId(), request.userIds()));
+    public ApiResponse<List<CouponDto>> batchIssue(
+            HttpServletRequest request,
+            @Valid @RequestBody BatchIssueCouponRequest body) {
+        permissionService.requirePermission(operatorId(request), "ops:coupon:create");
+        return ApiResponse.ok(couponService.batchIssue(body.couponDefId(), body.userIds()));
+    }
+
+    private static Long operatorId(HttpServletRequest request) {
+        return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }
 }

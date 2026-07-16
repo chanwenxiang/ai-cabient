@@ -327,6 +327,14 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.listWarehouses(operatorId(request)));
     }
 
+    @PutMapping("/warehouse/{warehouseId}")
+    public ApiResponse<WarehouseDto> upsertWarehouse(
+            HttpServletRequest request,
+            @PathVariable String warehouseId,
+            @Valid @RequestBody UpsertWarehouseRequest body) {
+        return ApiResponse.ok(facade.upsertWarehouse(operatorId(request), warehouseId, body));
+    }
+
     @GetMapping("/warehouse/inventory")
     public ApiResponse<List<WarehouseInventoryDto>> warehouseInventory(
             HttpServletRequest request,
@@ -398,9 +406,49 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.listRoles(operatorId(request)));
     }
 
+    @PostMapping("/rbac/roles")
+    public ApiResponse<OpsRoleDto> createRole(
+            HttpServletRequest request,
+            @Valid @RequestBody CreateOpsRoleRequest body) {
+        return ApiResponse.ok(facade.createRole(operatorId(request), body));
+    }
+
+    @PutMapping("/rbac/roles/{roleId}")
+    public ApiResponse<OpsRoleDto> updateRole(
+            HttpServletRequest request,
+            @PathVariable Long roleId,
+            @Valid @RequestBody UpdateOpsRoleRequest body) {
+        return ApiResponse.ok(facade.updateRole(operatorId(request), roleId, body));
+    }
+
     @GetMapping("/rbac/permissions")
-    public ApiResponse<List<OpsPermissionDto>> permissions(HttpServletRequest request) {
-        return ApiResponse.ok(facade.listPermissions(operatorId(request)));
+    public ApiResponse<List<OpsPermissionDto>> permissions(
+            HttpServletRequest request,
+            @RequestParam(name = "includeInactive", defaultValue = "false") boolean includeInactive) {
+        return ApiResponse.ok(facade.listPermissions(operatorId(request), includeInactive));
+    }
+
+    @PostMapping("/rbac/permissions")
+    public ApiResponse<OpsPermissionDto> createPermission(
+            HttpServletRequest request,
+            @Valid @RequestBody CreateOpsPermissionRequest body) {
+        return ApiResponse.ok(facade.createPermission(operatorId(request), body));
+    }
+
+    @PutMapping("/rbac/permissions/{permissionId}")
+    public ApiResponse<OpsPermissionDto> updatePermission(
+            HttpServletRequest request,
+            @PathVariable Long permissionId,
+            @Valid @RequestBody UpdateOpsPermissionRequest body) {
+        return ApiResponse.ok(facade.updatePermission(operatorId(request), permissionId, body));
+    }
+
+    @DeleteMapping("/rbac/permissions/{permissionId}")
+    public ApiResponse<Void> deletePermission(
+            HttpServletRequest request,
+            @PathVariable Long permissionId) {
+        facade.deletePermission(operatorId(request), permissionId);
+        return ApiResponse.ok(null);
     }
 
     @GetMapping("/rbac/roles/{roleId}/permissions")
@@ -425,6 +473,27 @@ public class OpsCommercialController {
             @RequestParam(name = "size", defaultValue = "20") int size,
             @RequestParam(name = "phone", required = false) String phone) {
         return ApiResponse.ok(facade.listOperators(operatorId(request), page, size, phone));
+    }
+
+    @PostMapping("/rbac/operators")
+    public ApiResponse<OpsOperatorDto> createOperator(
+            HttpServletRequest request,
+            @Valid @RequestBody CreateOpsOperatorRequest body) {
+        return ApiResponse.ok(facade.createOperator(operatorId(request), body));
+    }
+
+    @PutMapping("/rbac/operators/{userId}")
+    public ApiResponse<OpsOperatorDto> updateOperator(
+            HttpServletRequest request,
+            @PathVariable Long userId,
+            @Valid @RequestBody UpdateOpsOperatorRequest body) {
+        return ApiResponse.ok(facade.updateOperator(operatorId(request), userId, body));
+    }
+
+    @DeleteMapping("/rbac/operators/{userId}")
+    public ApiResponse<Void> disableOperator(HttpServletRequest request, @PathVariable Long userId) {
+        facade.disableOperator(operatorId(request), userId);
+        return ApiResponse.ok(null);
     }
 
     @GetMapping("/rbac/users/{userId}/roles")

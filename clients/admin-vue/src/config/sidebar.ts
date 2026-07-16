@@ -1,8 +1,8 @@
-﻿import type { Component } from 'vue';
+import type { Component } from 'vue';
 import {
-  Box, Briefcase, Coin, Collection, DataAnalysis, DataBoard, Document, Goods, House, Key, Lock, Monitor, Money, Notebook, OfficeBuilding, Setting, Tools, Upload, UserFilled, View, Wallet, Warning
+  Box, Briefcase, Coin, Collection, DataAnalysis, DataBoard, Document, Goods, House, Key, Lock, Menu, Monitor, Money, Notebook, OfficeBuilding, Setting, Tools, Upload, User, UserFilled, View, Wallet, Warning
 } from '@element-plus/icons-vue';
-import { NAV_ITEMS } from '@/config/menu';
+import { NAV_ITEMS, type NavItem } from '@/config/menu';
 
 export interface SidebarGroup {
   key: string;
@@ -31,9 +31,11 @@ const PATH_ICONS: Record<string, Component> = {
   '/users': Wallet,
   '/vision-mappings': View,
   '/risk': Lock,
+  '/operators': User,
+  '/roles': UserFilled,
+  '/menus': Menu,
   '/dicts': Collection,
   '/system-configs': Tools,
-  '/rbac': UserFilled,
   '/promotions': DataAnalysis,
   '/coupons': Goods,
   '/feedback': Warning,
@@ -43,9 +45,10 @@ const PATH_ICONS: Record<string, Component> = {
   '/profile': UserFilled
 };
 
-function itemsForGroup(group: string) {
+function itemsForGroup(group: string, canAccess?: (item: NavItem) => boolean) {
   return NAV_ITEMS
     .filter((item) => item.group === group)
+    .filter((item) => (canAccess ? canAccess(item) : true))
     .map((item) => ({
       path: item.path,
       title: item.title,
@@ -53,11 +56,26 @@ function itemsForGroup(group: string) {
     }));
 }
 
+/** 静态全量侧栏（兼容旧引用） */
 export const SIDEBAR_GROUPS: SidebarGroup[] = [
   { key: 'biz', label: '业务', icon: Briefcase, items: itemsForGroup('业务') },
   { key: 'ops', label: '运营', icon: Setting, items: itemsForGroup('运营') },
   { key: 'sys', label: '系统', icon: Setting, items: itemsForGroup('系统').filter((i) => i.path !== '/profile') }
 ];
+
+/** 按权限过滤后的侧栏（若依：菜单随角色权限裁剪） */
+export function buildSidebarGroups(canAccess: (item: NavItem) => boolean): SidebarGroup[] {
+  return [
+    { key: 'biz', label: '业务', icon: Briefcase, items: itemsForGroup('业务', canAccess) },
+    { key: 'ops', label: '运营', icon: Setting, items: itemsForGroup('运营', canAccess) },
+    {
+      key: 'sys',
+      label: '系统',
+      icon: Setting,
+      items: itemsForGroup('系统', canAccess).filter((i) => i.path !== '/profile')
+    }
+  ].filter((g) => g.items.length > 0);
+}
 
 export function sidebarGroupKeyForPath(path: string): string | null {
   const normalized = path.startsWith('/devices/') ? '/devices' : path;
@@ -68,4 +86,3 @@ export function sidebarGroupKeyForPath(path: string): string | null {
   if (item.group === '系统') return 'sys';
   return null;
 }
-

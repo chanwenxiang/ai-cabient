@@ -21,6 +21,9 @@ public class UserInfo {
 
     private String passwordHash;
 
+    /** ACTIVE / INACTIVE — 运营账号启停 */
+    private String status = "ACTIVE";
+
     private boolean payscoreEnabled;
 
     private String payscoreContractId;
@@ -43,6 +46,8 @@ public Long getUserId() { return userId; }
     public void setWxOpenId(String wxOpenId) { this.wxOpenId = wxOpenId; }
     public String getPasswordHash() { return passwordHash; }
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
     public boolean isPayscoreEnabled() { return payscoreEnabled; }
     public void setPayscoreEnabled(boolean payscoreEnabled) { this.payscoreEnabled = payscoreEnabled; }
     public String getPayscoreContractId() { return payscoreContractId; }

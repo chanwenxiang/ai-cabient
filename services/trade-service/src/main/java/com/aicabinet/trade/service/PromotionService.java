@@ -67,6 +67,35 @@ public class PromotionService {
     }
 
     @Transactional
+    public PromotionActivityDto update(Long activityId, CreatePromotionRequest request) {
+        PromotionActivity a = repository.findById(activityId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "活动不存在"));
+        if ("ACTIVE".equals(a.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "进行中的活动请先停止再编辑");
+        }
+        if (request.endTime() != null && request.startTime() != null
+                && !request.endTime().isAfter(request.startTime())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "结束时间需晚于开始时间");
+        }
+        a.setActivityName(request.activityName());
+        a.setActivityType(request.activityType());
+        a.setStartTime(request.startTime());
+        a.setEndTime(request.endTime());
+        a.setBudgetCents(request.budgetCents());
+        a.setUserLimit(request.userLimit());
+        if (request.deviceScope() != null) {
+            a.setDeviceScope(request.deviceScope());
+        }
+        if (request.ruleConfig() != null) {
+            a.setRuleConfig(request.ruleConfig());
+        }
+        a.setDescription(request.description());
+        repository.save(a);
+        log.info("promotion updated id={}", activityId);
+        return toDto(a);
+    }
+
+    @Transactional
     public PromotionActivityDto launch(Long activityId) {
         return updateStatus(activityId, "ACTIVE");
     }

@@ -1,4 +1,4 @@
-﻿{
+{
     "pages":  [
                   {
                       "path":  "pages/index/index",
@@ -62,6 +62,15 @@
                       "path":  "pages/report/report",
                       "style":  {
                                     "navigationBarTitleText":  "故障报修",
+                                    "navigationBarBackgroundColor":  "#ffffff",
+                                    "navigationBarTextStyle":  "black",
+                                    "backgroundColor":  "#f7f7f7"
+                                }
+                  },
+                  {
+                      "path":  "pages/feedback/feedback",
+                      "style":  {
+                                    "navigationBarTitleText":  "意见反馈",
                                     "navigationBarBackgroundColor":  "#ffffff",
                                     "navigationBarTextStyle":  "black",
                                     "backgroundColor":  "#f7f7f7"

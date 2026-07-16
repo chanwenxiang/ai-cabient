@@ -14,6 +14,7 @@
       <el-descriptions-item label="权限数">{{ auth.profile?.permissionCount ?? permissions.length }}</el-descriptions-item>
       <el-descriptions-item label="主题">{{ settings.theme === 'dark' ? '深色' : '浅色' }}</el-descriptions-item>
       <el-descriptions-item label="字号">{{ fontLabel }}</el-descriptions-item>
+      <el-descriptions-item label="操作列">{{ actionLabel }}</el-descriptions-item>
     </el-descriptions>
     <div class="perm-block" v-if="permissions.length">
       <h4>权限码（节选）</h4>
@@ -34,6 +35,7 @@ const settings = useSettingsStore();
 const permissions = computed(() => auth.permissions);
 const initial = computed(() => (auth.displayName || '运').slice(0, 1));
 const fontLabel = computed(() => ({ sm: '小', md: '中', lg: '大' })[settings.fontSize]);
+const actionLabel = computed(() => (settings.tableActionMode === 'label' ? '图标+文字' : '图标'));
 
 onMounted(() => auth.loadProfile());
 </script>

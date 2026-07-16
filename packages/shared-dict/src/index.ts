@@ -30,8 +30,38 @@ export const DICT = {
     UPLOADED: '已上传',
     FAILED: '上传失败'
   },
-  dispute_status: { OPEN: '待审核', RESOLVED: '已结案', CLOSED: '已结案' },
+  dispute_status: { OPEN: '待审核', RESOLVED: '已结案', CLOSED: '已关闭' },
   pay_channel: { WECHAT: '微信', ALIPAY: '支付宝', MOCK: '其他', BALANCE: '余额', UNKNOWN: '未知' },
+  recharge_status: {
+    CREATED: '已创建',
+    PENDING: '待支付',
+    PAID: '已支付',
+    SUCCESS: '成功',
+    FAILED: '失败',
+    REFUNDED: '已退款',
+    CANCELLED: '已取消',
+    CLOSED: '已关闭'
+  },
+  risk_event_type: {
+    MULTI_DEVICE: '多设备异常',
+    HIGH_FREQUENCY: '高频开门',
+    DISPUTE_SPIKE: '争议激增',
+    PAYMENT_FAIL: '支付失败聚集',
+    BLACKLIST_HIT: '黑名单命中',
+    FRAUD: '欺诈嫌疑',
+    ABNORMAL: '异常行为'
+  },
+  feedback_type: {
+    COMPLAINT: '投诉',
+    SUGGESTION: '建议',
+    BUG: '缺陷',
+    PRAISE: '表扬'
+  },
+  feedback_status: {
+    PENDING: '待处理',
+    HANDLED: '已回复',
+    CLOSED: '已关闭'
+  },
   split_status: {
     PENDING: '待处理',
     LEDGER_ONLY: '仅记账',
@@ -69,6 +99,7 @@ export const DICT = {
   warehouse_movement_type: {
     PURCHASE_RECEIVE: '采购收货',
     MANUAL_INBOUND: '手工入库',
+    INBOUND_MANUAL: '手工入库',
     OUTBOUND: '出库',
     OUTBOUND_SHIP: '发运',
     RETURN: '退回',
@@ -77,6 +108,8 @@ export const DICT = {
   business_reference_type: {
     PURCHASE_ORDER: '采购单',
     OUTBOUND_ORDER: '出库单',
+    WAREHOUSE_INBOUND: '仓库入库',
+    WAREHOUSE_OUTBOUND: '仓库出库',
     REPLENISHMENT_TASK: '补货任务',
     INVENTORY_ADJUSTMENT: '库存调整',
     MANUAL: '人工操作'

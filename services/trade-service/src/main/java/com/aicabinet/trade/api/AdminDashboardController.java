@@ -114,8 +114,9 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size,
-            @RequestParam(name = "deviceId", required = false) String deviceId) {
-        return ApiResponse.ok(adminService.listOrders(operatorId(request), page, size, deviceId));
+            @RequestParam(name = "deviceId", required = false) String deviceId,
+            @RequestParam(name = "status", required = false) String status) {
+        return ApiResponse.ok(adminService.listOrders(operatorId(request), page, size, deviceId, status));
     }
 
     @GetMapping(value = "/orders/export", produces = "text/csv")

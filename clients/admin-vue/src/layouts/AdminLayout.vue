@@ -8,8 +8,8 @@
         @click="settings.toggleSidebarCollapsed()"
       >
         <el-icon class="brand-toggle"><Expand v-if="settings.sidebarCollapsed" /><Fold v-else /></el-icon>
-        <span v-if="!settings.sidebarCollapsed" class="brand-text">AI开门柜 OPS</span>
-        <span v-else class="brand-mini">柜</span>
+        <span class="brand-text" :class="{ hidden: settings.sidebarCollapsed }">AI开门柜 OPS</span>
+        <span class="brand-mini" :class="{ hidden: !settings.sidebarCollapsed }">柜</span>
       </div>
       <el-scrollbar class="sidebar-scroll">
         <el-menu
@@ -18,7 +18,7 @@
           router
           unique-opened
           :collapse="settings.sidebarCollapsed"
-          :collapse-transition="true"
+          :collapse-transition="false"
           :background-color="sidebarBg"
           :text-color="sidebarText"
           active-text-color="#fff"
@@ -26,23 +26,23 @@
           @open="onSubMenuOpen"
           @close="onSubMenuClose"
         >
-          <el-menu-item index="/dashboard">
+          <el-menu-item v-if="auth.hasPerm('ops:dashboard:view')" index="/dashboard">
             <el-icon><Odometer /></el-icon>
             <template #title>运营工作台</template>
           </el-menu-item>
-          <el-menu-item index="/analytics">
+          <el-menu-item v-if="auth.hasPerm('ops:analytics:view')" index="/analytics">
             <el-icon><DataAnalysis /></el-icon>
             <template #title>数据分析</template>
           </el-menu-item>
-          <el-menu-item index="/reports">
+          <el-menu-item v-if="auth.hasPerm('ops:report:device')" index="/reports">
             <el-icon><DataBoard /></el-icon>
             <template #title>设备报表</template>
           </el-menu-item>
-          <el-menu-item index="/finance">
+          <el-menu-item v-if="auth.hasPerm('ops:finance:view')" index="/finance">
             <el-icon><Money /></el-icon>
             <template #title>财务毛利</template>
           </el-menu-item>
-          <el-sub-menu v-for="group in SIDEBAR_GROUPS" :key="group.key" :index="group.key">
+          <el-sub-menu v-for="group in sidebarGroups" :key="group.key" :index="group.key">
             <template #title>
               <el-icon><component :is="group.icon" /></el-icon>
               <span>{{ group.label }}</span>
@@ -68,7 +68,6 @@
           </el-button>
           <div class="title-block">
             <AppBreadcrumb />
-            <h2>{{ title }}</h2>
           </div>
         </div>
         <div class="topbar-right">
@@ -84,6 +83,9 @@
                 <el-dropdown-item command="font-sm">字号：小</el-dropdown-item>
                 <el-dropdown-item command="font-md">字号：中</el-dropdown-item>
                 <el-dropdown-item command="font-lg">字号：大</el-dropdown-item>
+                <el-dropdown-item divided disabled>操作列</el-dropdown-item>
+                <el-dropdown-item command="action-icon">操作列：图标</el-dropdown-item>
+                <el-dropdown-item command="action-label">操作列：图标+文字</el-dropdown-item>
                 <el-dropdown-item divided disabled>主题色</el-dropdown-item>
                 <el-dropdown-item v-for="c in PRIMARY_OPTIONS" :key="c.id" :command="'color-' + c.id">
                   <span class="color-dot" :style="{ background: c.color }" /> {{ c.label }}
@@ -109,22 +111,27 @@
         </div>
       </el-header>
 
-      <div v-if="tags.length" class="tags-view" @click="hideTagMenu" @contextmenu.prevent="onTagsContextMenu">
-        <span
-          v-for="tag in tags"
-          :key="tag.path"
-          class="tag-wrap"
-          :data-path="tag.path"
-          :data-title="tag.title"
-        >
-          <el-tag
-            :type="tag.path === route.path ? 'primary' : 'info'"
-            closable
-            class="tag-item"
-            @click="router.push(tag.path)"
-            @close.prevent="closeTag(tag.path)"
-          >{{ tag.title }}</el-tag>
-        </span>
+      <div class="tags-view" @click="hideTagMenu" @contextmenu.prevent="onTagsContextMenu">
+        <div ref="tagsScrollRef" class="tags-scroll">
+          <span
+            v-for="tag in tags"
+            :key="tag.path"
+            class="tag-wrap"
+            :data-path="tag.path"
+            :data-title="tag.title"
+          >
+            <el-tag
+              :type="tag.path === route.path ? 'primary' : 'info'"
+              closable
+              class="tag-item"
+              @click="router.push(tag.path)"
+              @close.prevent="closeTag(tag.path)"
+            >{{ tag.title }}</el-tag>
+          </span>
+        </div>
+        <div v-if="tags.length > 1" class="tags-actions">
+          <el-button text size="small" @click.stop="closeOtherTags">关闭其他</el-button>
+        </div>
       </div>
 
       <Teleport to="body">
@@ -145,7 +152,7 @@
 
       <el-main class="layout-main-scroll">
         <router-view v-slot="{ Component, route: viewRoute }">
-          <keep-alive :max="16">
+          <keep-alive :max="12">
             <component :is="Component" :key="viewRoute.path" />
           </keep-alive>
         </router-view>
@@ -155,12 +162,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   Fold, Expand, Odometer, DataAnalysis, DataBoard, Money, Brush, DArrowLeft, DArrowRight
 } from '@element-plus/icons-vue';
-import { SIDEBAR_GROUPS, sidebarGroupKeyForPath } from '@/config/sidebar';
+import { buildSidebarGroups, sidebarGroupKeyForPath } from '@/config/sidebar';
 import { useAuthStore } from '@/stores/auth';
 import { PRIMARY_OPTIONS, useSettingsStore } from '@/stores/settings';
 import AppBreadcrumb from '@/components/AppBreadcrumb.vue';
@@ -170,13 +177,15 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const settings = useSettingsStore();
+const MAX_TAGS = 12;
 const tags = ref<{ path: string; title: string }[]>([]);
+const tagsScrollRef = ref<HTMLElement | null>(null);
 const openedMenus = ref<string[]>([]);
 const OPENED_MENUS_KEY = 'admin_vue_sidebar_openeds';
 const tagMenu = ref({ visible: false, x: 0, y: 0, path: '' });
 
+const sidebarGroups = computed(() => buildSidebarGroups((item) => auth.canAccessNav(item)));
 const active = computed(() => (route.path.startsWith('/devices') ? '/devices' : route.path));
-const title = computed(() => (route.meta.title as string) || '运营后台');
 const userInitial = computed(() => (auth.displayName || '运').slice(0, 1));
 const sidebarBg = computed(() => (settings.theme === 'dark' ? '#111827' : '#1e293b'));
 const sidebarText = computed(() => '#cbd5e1');
@@ -207,7 +216,7 @@ function syncOpenedMenusForRoute(path: string, collapsed: boolean) {
     persistOpenedMenus(openedMenus.value);
     return;
   }
-  const stored = readOpenedMenus().filter((key) => SIDEBAR_GROUPS.some((group) => group.key === key));
+  const stored = readOpenedMenus().filter((key) => sidebarGroups.value.some((group) => group.key === key));
   openedMenus.value = stored.length ? [stored[0]] : [];
 }
 
@@ -239,10 +248,29 @@ watch(
   (path) => {
     if (path === '/login') return;
     const t = (route.meta.title as string) || path;
-    if (!tags.value.find((x) => x.path === path)) tags.value.push({ path, title: t });
+    if (!tags.value.find((x) => x.path === path)) {
+      tags.value.push({ path, title: t });
+    }
+    // 超出上限时关闭最旧的非当前标签，避免标签栏无限堆积
+    while (tags.value.length > MAX_TAGS) {
+      const dropIdx = tags.value.findIndex((x) => x.path !== path);
+      if (dropIdx < 0) break;
+      tags.value.splice(dropIdx, 1);
+    }
+    scrollActiveTagIntoView();
   },
   { immediate: true }
 );
+
+function scrollActiveTagIntoView() {
+  nextTick(() => {
+    const root = tagsScrollRef.value;
+    if (!root) return;
+    const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(route.path) : route.path.replace(/"/g, '\\"');
+    const active = root.querySelector(`.tag-wrap[data-path="${escaped}"]`) as HTMLElement | null;
+    active?.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+  });
+}
 
 function navigateAfterClose() {
   if (tags.value.some((t) => t.path === route.path)) return;
@@ -254,6 +282,15 @@ function closeTag(path: string) {
   tags.value = tags.value.filter((t) => t.path !== path);
   hideTagMenu();
   navigateAfterClose();
+}
+
+function closeOtherTags() {
+  const current = route.path;
+  tags.value = tags.value.filter((t) => t.path === current);
+  hideTagMenu();
+  if (!tags.value.length) {
+    router.push('/dashboard');
+  }
 }
 
 function openTagMenu(e: MouseEvent, tag: { path: string; title: string }) {
@@ -318,6 +355,8 @@ function onSettingCommand(cmd: string) {
   if (cmd === 'font-sm') settings.setFontSize('sm');
   if (cmd === 'font-md') settings.setFontSize('md');
   if (cmd === 'font-lg') settings.setFontSize('lg');
+  if (cmd === 'action-icon') settings.setTableActionMode('icon');
+  if (cmd === 'action-label') settings.setTableActionMode('label');
   if (cmd.startsWith('color-')) settings.setPrimaryColor(cmd.replace('color-', ''));
 }
 
@@ -344,7 +383,7 @@ onUnmounted(() => {
 .sidebar {
   background: var(--layout-sidebar);
   height: 100vh;
-  transition: width 0.25s ease;
+  transition: width 0.15s ease;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -379,6 +418,8 @@ onUnmounted(() => {
   background: var(--app-primary);
   font-size: 14px;
 }
+.brand-text.hidden,
+.brand-mini.hidden { display: none; }
 .sidebar-scroll { flex: 1; min-height: 0; }
 .sidebar-foot {
   display: flex;
@@ -409,38 +450,110 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  padding: 0 12px 0 8px;
   background: var(--layout-topbar);
   border-bottom: 1px solid var(--layout-border);
   height: var(--header-height);
+  min-height: var(--header-height);
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.topbar-left {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+.topbar-left > .el-button {
+  position: relative;
+  z-index: 2;
   flex-shrink: 0;
 }
-.topbar-left { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
-.topbar-left > .el-button { position: relative; z-index: 2; flex-shrink: 0; }
-.title-block { min-width: 0; }
-.title-block h2 { margin: 0; font-size: 1.05rem; font-weight: 600; }
-.topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.user-trigger { display: flex; align-items: center; gap: 8px; cursor: pointer; padding: 4px 8px; border-radius: 8px; }
+.title-block {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+.user-trigger {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  min-width: 0;
+  flex-shrink: 1;
+}
 .user-trigger:hover { background: var(--layout-hover); }
 .user-avatar { background: var(--app-primary); color: #fff; flex-shrink: 0; }
-.user-text { line-height: 1.3; max-width: 180px; }
-.user-name { display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.user-detail { display: block; font-size: 11px; color: var(--layout-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.user-text {
+  line-height: 1.3;
+  min-width: 0;
+  max-width: clamp(72px, 12vw, 180px);
+}
+.user-name {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.user-detail {
+  display: block;
+  font-size: 11px;
+  color: var(--layout-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .tags-view {
   display: flex;
-  flex-wrap: nowrap;
-  overflow-x: auto;
+  align-items: center;
   gap: 8px;
-  padding: 8px 16px;
+  min-height: 40px;
+  padding: 8px 12px 8px 16px;
   background: var(--layout-topbar);
   border-bottom: 1px solid var(--layout-border);
   flex-shrink: 0;
+  box-sizing: border-box;
+}
+.tags-scroll {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-x: auto;
+}
+.tags-actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding-left: 4px;
+  border-left: 1px solid var(--layout-border);
 }
 .tag-item { flex-shrink: 0; cursor: pointer; }
 .tag-wrap { display: inline-flex; flex-shrink: 0; }
 .layout-main-scroll {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  /* 只纵向滚；横向交给表格自身，避免双滚动条 */
+  overflow-x: hidden;
+  overflow-y: auto;
   background: var(--layout-bg);
   color: var(--layout-text);
   overscroll-behavior: contain;

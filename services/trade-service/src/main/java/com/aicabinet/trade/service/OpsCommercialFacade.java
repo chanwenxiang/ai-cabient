@@ -230,50 +230,64 @@ public class OpsCommercialFacade {
     }
 
     public List<WarehouseDto> listWarehouses(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        requireWarehouseRead(operatorId);
         return warehouseService.listWarehouses();
     }
 
+    public WarehouseDto upsertWarehouse(Long operatorId, String warehouseId, UpsertWarehouseRequest body) {
+        requireWarehouseWrite(operatorId);
+        return warehouseService.upsertWarehouse(
+                warehouseId, body.warehouseName(), body.address(), body.status());
+    }
+
     public List<WarehouseInventoryDto> warehouseInventory(Long operatorId, String warehouseId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        requireWarehouseRead(operatorId);
         return warehouseService.listInventory(warehouseId);
     }
 
     public List<WarehouseMovementDto> warehouseMovements(Long operatorId, String warehouseId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        requireWarehouseRead(operatorId);
         return warehouseService.listMovements(warehouseId);
     }
 
     public WarehouseInboundRequest warehouseInbound(Long operatorId, WarehouseInboundRequest body) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        requireWarehouseWrite(operatorId);
         return warehouseService.inbound(operatorId, body);
     }
 
     public List<WarehouseOutboundDto> listWarehouseOutbounds(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        requireWarehouseRead(operatorId);
         return warehouseService.listOutbounds();
     }
 
     public WarehouseOutboundDto getWarehouseOutbound(Long operatorId, Long outboundId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        requireWarehouseRead(operatorId);
         return warehouseService.getOutbound(outboundId);
     }
 
     public WarehouseOutboundDto pickWarehouseOutbound(Long operatorId, Long outboundId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        requireWarehouseWrite(operatorId);
         return warehouseService.markPicked(outboundId);
     }
 
     public WarehouseOutboundDto shipWarehouseOutbound(Long operatorId, Long outboundId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        requireWarehouseWrite(operatorId);
         WarehouseOutboundDto result = warehouseService.shipOutbound(operatorId, outboundId);
         replenishmentService.generateLinesFromOutbound(outboundId);
         return result;
     }
 
     public List<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransit(Long operatorId, String deviceId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        requireWarehouseRead(operatorId);
         return inTransitService.listInTransit(deviceId);
+    }
+
+    private void requireWarehouseRead(Long operatorId) {
+        permissionService.requireAnyPermission(operatorId, "ops:warehouse:list", "ops:replenishment:list");
+    }
+
+    private void requireWarehouseWrite(Long operatorId) {
+        permissionService.requireAnyPermission(operatorId, "ops:warehouse:edit", "ops:replenishment:edit");
     }
 
     public DeviceDetailDto deviceDetail(Long operatorId, String deviceId) {
@@ -316,8 +330,32 @@ public class OpsCommercialFacade {
         return rbacService.listRoles(operatorId);
     }
 
+    public OpsRoleDto createRole(Long operatorId, CreateOpsRoleRequest request) {
+        return rbacService.createRole(operatorId, request);
+    }
+
+    public OpsRoleDto updateRole(Long operatorId, Long roleId, UpdateOpsRoleRequest request) {
+        return rbacService.updateRole(operatorId, roleId, request);
+    }
+
     public List<OpsPermissionDto> listPermissions(Long operatorId) {
-        return rbacService.listPermissions(operatorId);
+        return rbacService.listPermissions(operatorId, false);
+    }
+
+    public List<OpsPermissionDto> listPermissions(Long operatorId, boolean includeInactive) {
+        return rbacService.listPermissions(operatorId, includeInactive);
+    }
+
+    public OpsPermissionDto createPermission(Long operatorId, CreateOpsPermissionRequest request) {
+        return rbacService.createPermission(operatorId, request);
+    }
+
+    public OpsPermissionDto updatePermission(Long operatorId, Long permissionId, UpdateOpsPermissionRequest request) {
+        return rbacService.updatePermission(operatorId, permissionId, request);
+    }
+
+    public void deletePermission(Long operatorId, Long permissionId) {
+        rbacService.deletePermission(operatorId, permissionId);
     }
 
     public OpsRolePermissionsDto getRolePermissions(Long operatorId, Long roleId) {
@@ -330,6 +368,18 @@ public class OpsCommercialFacade {
 
     public PageResult<OpsOperatorDto> listOperators(Long operatorId, int page, int size, String phone) {
         return rbacService.listOperators(operatorId, page, size, phone);
+    }
+
+    public OpsOperatorDto createOperator(Long operatorId, CreateOpsOperatorRequest request) {
+        return rbacService.createOperator(operatorId, request);
+    }
+
+    public OpsOperatorDto updateOperator(Long operatorId, Long userId, UpdateOpsOperatorRequest request) {
+        return rbacService.updateOperator(operatorId, userId, request);
+    }
+
+    public void disableOperator(Long operatorId, Long userId) {
+        rbacService.disableOperator(operatorId, userId);
     }
 
     public OpsUserRolesDto getUserRoles(Long operatorId, Long userId) {

@@ -1,108 +1,274 @@
-<template>
-  <div class="replenishment-page">
-    <section class="hero-card">
-      <div>
-        <p class="eyebrow">补货运营中心</p>
-        <h2>路线、出库与现场任务</h2>
-        <p>按设备缺货情况规划路线，创建后自动衔接仓库出库和补货员任务。</p>
+﻿<template>
+  <el-card class="page-card" shadow="never">
+    <template #header>
+      <div class="card-head">
+        <span class="title">补货</span>
+        <div class="actions">
+          <el-tag size="small" type="info">待执行 {{ plannedCount }}</el-tag>
+          <el-tag size="small" type="warning">待处理设备 {{ pendingTaskCount }}</el-tag>
+          <el-tag size="small">要货 {{ requests.length }}</el-tag>
+          <el-tag v-if="focusDeviceId" size="small" type="success" closable @close="clearDeviceFocus">
+            设备 {{ focusDeviceId }}
+          </el-tag>
+          <el-button v-if="canEdit" type="primary" @click="openPlan">规划补货路线</el-button>
+          <el-button @click="onExport">导出</el-button>
+          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+        </div>
       </div>
-      <div class="hero-actions">
-        <el-button type="primary" @click="openPlan">规划补货路线</el-button>
-        <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
-      </div>
-    </section>
+    </template>
 
-    <div class="summary-grid">
-      <div class="summary-card"><span>待执行路线</span><strong>{{ plannedCount }}</strong></div>
-      <div class="summary-card"><span>待处理设备</span><strong>{{ pendingTaskCount }}</strong></div>
-      <div class="summary-card"><span>商户要货</span><strong>{{ requests.length }}</strong></div>
-    </div>
-
-    <el-card class="page-card" shadow="never">
-      <el-tabs v-model="tab">
-        <el-tab-pane label="补货路线" name="routes">
-          <el-table :data="routes" stripe empty-text="暂无补货路线">
-            <el-table-column type="expand">
-              <template #default="{ row }">
-                <div class="route-detail">
-                  <div class="route-meta">
-                    <span>计划日期：{{ row.plannedDate || '-' }}</span>
-                    <span>负责人：{{ row.assigneeUserId || '未分配' }}</span>
-                    <span>预计里程：{{ row.totalDistanceM ? `${row.totalDistanceM} 米` : '未计算' }}</span>
-                  </div>
-                  <el-table :data="row.tasks || []" size="small" empty-text="该路线暂无设备任务">
-                    <el-table-column label="设备" min-width="210"><template #default="scope"><div class="master-data-cell"><strong>{{ deviceName(scope.row.deviceId) }}</strong><small>{{ scope.row.deviceId }}</small></div></template></el-table-column>
-                    <el-table-column label="任务状态" width="120"><template #default="scope"><el-tag :type="dictTagType(scope.row.status)">{{ dictLabel('replenishment_task_status', scope.row.status) }}</el-tag></template></el-table-column>
-                    <el-table-column prop="notes" label="路线说明" min-width="220" show-overflow-tooltip />
-                  </el-table>
+    <el-tabs v-model="tab">
+      <el-tab-pane label="补货路线" name="routes">
+        <div class="table-scroll">
+          <div class="table-scroll-inner" style="min-width: 900px">
+            <el-table v-loading="loading" :data="filteredRoutes" stripe border :empty-text="routesEmptyText">
+          <el-table-column type="expand">
+            <template #default="{ row }">
+              <div class="route-detail">
+                <div class="route-meta">
+                  <span>计划日期：{{ row.plannedDate || '-' }}</span>
+                  <span>负责人：{{ row.assigneeUserId || '未分配' }}</span>
+                  <span>预计里程：{{ row.totalDistanceM ? `${row.totalDistanceM} 米` : '未计算' }}</span>
                 </div>
-              </template>
-            </el-table-column>
-            <el-table-column prop="routeId" label="路线编号" width="110" />
-            <el-table-column prop="routeName" label="路线名称" min-width="200" />
-            <el-table-column label="设备数" width="100"><template #default="{ row }">{{ row.tasks?.length || 0 }}</template></el-table-column>
-            <el-table-column prop="plannedDate" label="计划日期" width="130" />
-            <el-table-column label="状态" width="120"><template #default="{ row }"><el-tag :type="dictTagType(row.status)">{{ dictLabel('replenishment_route_status', row.status) }}</el-tag></template></el-table-column>
-          </el-table>
-        </el-tab-pane>
+                <el-table :data="row.tasks || []" size="small" class="line-table">
+                  <el-table-column label="设备" min-width="210">
+                    <template #default="scope">
+                      <div class="master-data-cell">
+                        <strong>{{ deviceName(scope.row.deviceId) }}</strong>
+                        <small>{{ scope.row.deviceId }}</small>
+                      </div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="任务状态" width="120">
+                    <template #default="scope">
+                      <el-tag :type="dictTagType(scope.row.status)" size="small">
+                        {{ dictLabel('replenishment_task_status', scope.row.status) }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="notes" label="说明" min-width="220" show-overflow-tooltip />
+                  <template #empty><el-empty description="该路线暂无设备任务" :image-size="48" /></template>
+                </el-table>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="routeId" label="路线编号" width="110" />
+          <el-table-column prop="routeName" label="路线名称" min-width="200" />
+          <el-table-column label="设备数" width="100">
+            <template #default="{ row }">{{ row.tasks?.length || 0 }}</template>
+          </el-table-column>
+          <el-table-column prop="plannedDate" label="计划日期" width="130" />
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }">
+              <el-tag :type="dictTagType(row.status)" size="small">
+                {{ dictLabel('replenishment_route_status', row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <template #empty><el-empty description="暂无补货路线" /></template>
+            </el-table>
+          </div>
+        </div>
+      </el-tab-pane>
 
-        <el-tab-pane label="商户要货" name="requests">
-          <el-table :data="requests" stripe empty-text="暂无待处理要货申请">
-            <el-table-column prop="requestId" label="要货单" width="110" />
-            <el-table-column prop="merchantName" label="商户" min-width="180" />
-            <el-table-column label="目标设备" min-width="200"><template #default="{ row }"><div class="master-data-cell"><strong>{{ deviceName(row.deviceId) }}</strong><small>{{ row.deviceId }}</small></div></template></el-table-column>
-            <el-table-column label="状态" width="120"><template #default="{ row }"><el-tag :type="dictTagType(row.status)">{{ dictLabel('replenishment_request_status', row.status) }}</el-tag></template></el-table-column>
-            <el-table-column label="提交时间" width="180"><template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template></el-table-column>
-          </el-table>
-        </el-tab-pane>
-      </el-tabs>
-    </el-card>
+      <el-tab-pane label="商户要货" name="requests">
+        <div class="table-scroll">
+          <div class="table-scroll-inner" style="min-width: 900px">
+            <el-table v-loading="loading" :data="requests" stripe border>
+          <el-table-column prop="requestId" label="要货单" width="110" />
+          <el-table-column prop="merchantName" label="商户" min-width="160" />
+          <el-table-column label="目标设备" min-width="200">
+            <template #default="{ row }">
+              <div class="master-data-cell">
+                <strong>{{ deviceName(row.deviceId) }}</strong>
+                <small>{{ row.deviceId }}</small>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="120">
+            <template #default="{ row }">
+              <el-tag :type="dictTagType(row.status)" size="small">
+                {{ dictLabel('replenishment_request_status', row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="提交时间" width="180">
+            <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+          </el-table-column>
+          <el-table-column v-if="canEdit" label="操作" width="100" class-name="col-action" align="center">
+            <template #default="{ row }">
+              <TableActions
+                v-if="row.status === 'SUBMITTED'"
+                :actions="requestActions"
+                :max-primary="1"
+                @action="(k) => onRequestAction(row, String(k))"
+              />
+              <span v-else class="muted">-</span>
+            </template>
+          </el-table-column>
+          <template #empty><el-empty description="暂无待处理要货申请" /></template>
+            </el-table>
+          </div>
+        </div>
+      </el-tab-pane>
+    </el-tabs>
 
-    <el-dialog v-model="planDialog" title="规划补货路线" width="620px">
-      <el-alert type="info" :closable="false" title="路线创建后，系统会按柜机缺货建议尝试生成仓库出库单。库存不足时路线仍会保留，并进入运营待处理。" />
+    <el-dialog v-model="planDialog" title="规划补货路线" width="620px" destroy-on-close>
       <el-form label-width="96px" class="plan-form">
-        <el-form-item label="路线名称"><el-input v-model="planForm.routeName" maxlength="80" placeholder="例如：浦东早班补货路线" /></el-form-item>
-        <el-form-item label="计划日期"><input v-model="planForm.plannedDate" class="native-date" type="date" /></el-form-item>
-        <el-form-item label="负责人"><el-input-number v-model="planForm.assigneeUserId" :min="1" :precision="0" controls-position="right" /></el-form-item>
-        <el-form-item label="目标设备">
-          <el-select v-model="planForm.deviceIds" multiple filterable collapse-tags :max-collapse-tags="3" placeholder="选择需要补货的柜机">
-            <el-option v-for="device in devices" :key="device.deviceId" :label="`${device.deviceName || device.deviceId}（${device.deviceId}）`" :value="device.deviceId" />
+        <el-form-item label="路线名称" required>
+          <el-input v-model="planForm.routeName" maxlength="80" placeholder="例如：浦东早班补货路线" />
+        </el-form-item>
+        <el-form-item label="计划日期">
+          <input v-model="planForm.plannedDate" class="native-date" type="date" />
+        </el-form-item>
+        <el-form-item label="负责人">
+          <el-input-number v-model="planForm.assigneeUserId" :min="1" :precision="0" controls-position="right" />
+        </el-form-item>
+        <el-form-item label="目标设备" required>
+          <el-select
+            v-model="planForm.deviceIds"
+            multiple
+            filterable
+            collapse-tags
+            :max-collapse-tags="3"
+            placeholder="选择需要补货的柜机"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="device in devices"
+              :key="device.deviceId"
+              :label="`${device.deviceName || device.deviceId}（${device.deviceId}）`"
+              :value="device.deviceId"
+            />
           </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="planDialog=false">取消</el-button>
+        <el-button @click="planDialog = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="createPlan">创建路线</el-button>
       </template>
     </el-dialog>
-  </div>
+  </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
-import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { computed, onActivated, onMounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
+import { Check, Close, Refresh } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { useListCsv } from '@/composables/useListCsv';
+import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 type Row = Record<string, any>;
+const route = useRoute();
+const auth = useAuthStore();
+const canEdit = computed(() => auth.hasPerm('ops:replenishment:edit'));
+
 const loading = ref(false);
 const saving = ref(false);
 const tab = ref('routes');
+const focusDeviceId = ref('');
 const routes = ref<Row[]>([]);
 const requests = ref<Row[]>([]);
 const devices = ref<Row[]>([]);
 const planDialog = ref(false);
-const planForm = reactive({ routeName:'', plannedDate:'', assigneeUserId:1, deviceIds:[] as string[] });
-const plannedCount = computed(() => routes.value.filter(item => ['PLANNED','IN_PROGRESS'].includes(item.status)).length);
-const pendingTaskCount = computed(() => routes.value.flatMap(item => item.tasks || []).filter(item => ['PENDING','IN_PROGRESS'].includes(item.status)).length);
+const planForm = reactive({
+  routeName: '',
+  plannedDate: '',
+  assigneeUserId: 1,
+  deviceIds: [] as string[]
+});
 
-function deviceName(deviceId:string) { return devices.value.find(item => item.deviceId === deviceId)?.deviceName || deviceId || '-'; }
-function localDate() { const now=new Date(); return new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,10); }
+const plannedCount = computed(() =>
+  routes.value.filter((item) => ['PLANNED', 'IN_PROGRESS'].includes(item.status)).length
+);
+const pendingTaskCount = computed(() =>
+  routes.value
+    .flatMap((item) => item.tasks || [])
+    .filter((item) => ['PENDING', 'IN_PROGRESS'].includes(item.status)).length
+);
+const filteredRoutes = computed(() => {
+  const id = focusDeviceId.value.trim();
+  if (!id) return routes.value;
+  return routes.value.filter((row) => (row.tasks || []).some((task: Row) => task.deviceId === id));
+});
+const routesEmptyText = computed(() =>
+  focusDeviceId.value.trim()
+    ? `设备 ${focusDeviceId.value} 暂无关联补货路线`
+    : '暂无补货路线'
+);
+
+const requestActions: TableAction[] = [
+  { key: 'accept', label: '接单', icon: Check, type: 'primary' },
+  { key: 'reject', label: '驳回', icon: Close, type: 'danger', overflow: true }
+];
+
+const { onExport: exportRoutes } = useListCsv({
+  filePrefix: '补货路线',
+  headers: ['路线编号', '路线名称', '设备数', '计划日期', '状态'],
+  toRows: () =>
+    routes.value.map((row) => [
+      row.routeId,
+      row.routeName || '',
+      row.tasks?.length || 0,
+      row.plannedDate || '',
+      dictLabel('replenishment_route_status', row.status)
+    ])
+});
+
+const { onExport: exportRequests } = useListCsv({
+  filePrefix: '商户要货',
+  headers: ['要货单', '商户', '目标设备', '状态', '提交时间'],
+  toRows: () =>
+    requests.value.map((row) => [
+      row.requestId,
+      row.merchantName || '',
+      deviceName(row.deviceId),
+      dictLabel('replenishment_request_status', row.status),
+      formatDateTime(row.createdAt)
+    ])
+});
+
+function onExport() {
+  if (tab.value === 'requests') exportRequests();
+  else exportRoutes();
+}
+
+function currentAssigneeId() {
+  const id = Number(auth.userId || localStorage.getItem('admin_userId') || 0);
+  return Number.isFinite(id) && id > 0 ? id : 1;
+}
+function deviceName(deviceId: string) {
+  return devices.value.find((item) => item.deviceId === deviceId)?.deviceName || deviceId || '-';
+}
+function localDate() {
+  const now = new Date();
+  return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+}
+
 function openPlan() {
-  Object.assign(planForm, { routeName:`${new Date().toLocaleDateString('zh-CN')} 补货路线`, plannedDate:localDate(), assigneeUserId:1, deviceIds:[] });
+  Object.assign(planForm, {
+    routeName: `${new Date().toLocaleDateString('zh-CN')} 补货路线`,
+    plannedDate: localDate(),
+    assigneeUserId: currentAssigneeId(),
+    deviceIds: focusDeviceId.value.trim() ? [focusDeviceId.value.trim()] : []
+  });
   planDialog.value = true;
+}
+
+function clearDeviceFocus() {
+  focusDeviceId.value = '';
+}
+
+function applyRouteQuery() {
+  if (route.query.tab === 'routes' || route.query.tab === 'requests') {
+    tab.value = String(route.query.tab);
+  }
+  focusDeviceId.value = typeof route.query.deviceId === 'string' ? route.query.deviceId : '';
 }
 
 async function createPlan() {
@@ -110,14 +276,45 @@ async function createPlan() {
   if (!planForm.deviceIds.length) return ElMessage.warning('请至少选择一台柜机');
   saving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/replenishment/plan', 'POST', { ...planForm, startLatitude:null, startLongitude:null });
+    await api.request('/api/v2/ops/admin/replenishment/plan', 'POST', {
+      ...planForm,
+      startLatitude: null,
+      startLongitude: null
+    });
     planDialog.value = false;
     tab.value = 'routes';
-    ElMessage.success('补货路线已创建，正在准备仓库出库单');
+    ElMessage.success('补货路线已创建');
     await load();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '路线创建失败');
-  } finally { saving.value = false; }
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function onRequestAction(row: Row, key: string) {
+  try {
+    if (key === 'accept') {
+      await ElMessageBox.confirm(`确认接单要货 ${row.requestId}？`, '接单', { type: 'warning' });
+      await api.request(`/api/v2/ops/admin/replenishment/requests/${row.requestId}/accept`, 'POST');
+      ElMessage.success('已接单');
+    } else if (key === 'reject') {
+      const { value } = await ElMessageBox.prompt('请填写驳回原因', '驳回要货', {
+        inputValidator: (v) => !!String(v || '').trim() || '必须填写原因',
+        confirmButtonText: '确认驳回',
+        type: 'warning'
+      });
+      await api.request(`/api/v2/ops/admin/replenishment/requests/${row.requestId}/reject`, 'POST', {
+        reason: value
+      });
+      ElMessage.success('已驳回');
+    }
+    await load();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '操作失败');
+    }
+  }
 }
 
 async function load() {
@@ -125,7 +322,7 @@ async function load() {
   try {
     const [r, req, deviceRows] = await Promise.all([
       api.request<Row[]>('/api/v2/ops/admin/replenishment/routes', 'GET'),
-      api.request<Row[]>('/api/v2/ops/admin/replenishment/requests?status=SUBMITTED', 'GET').catch(() => []),
+      api.request<Row[]>('/api/v2/ops/admin/replenishment/requests?status=SUBMITTED', 'GET'),
       api.request<Row[]>('/api/v2/ops/admin/devices', 'GET')
     ]);
     routes.value = r || [];
@@ -133,12 +330,37 @@ async function load() {
     devices.value = deviceRows || [];
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '补货数据加载失败');
-  } finally { loading.value = false; }
+  } finally {
+    loading.value = false;
+  }
 }
 
-onMounted(load);
+onMounted(() => {
+  applyRouteQuery();
+  load();
+});
+onActivated(() => {
+  applyRouteQuery();
+});
 </script>
 
 <style scoped>
-.replenishment-page{display:grid;gap:16px}.hero-card{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 28px;border-radius:18px;color:#fff;background:linear-gradient(135deg,#064e3b,#059669 62%,#14b8a6);box-shadow:0 18px 40px rgba(5,150,105,.18)}.eyebrow{margin:0 0 6px;font-size:12px;letter-spacing:.14em;opacity:.75}.hero-card h2{margin:0;font-size:26px}.hero-card p:last-child{margin:8px 0 0;opacity:.84}.hero-actions{display:flex;gap:10px;flex-wrap:wrap}.summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.summary-card{display:grid;gap:6px;padding:18px 20px;border-radius:14px;background:var(--layout-card);border:1px solid var(--layout-border)}.summary-card span{color:var(--layout-muted);font-size:13px}.summary-card strong{font-size:26px;color:var(--layout-text)}.page-card{border:0;border-radius:16px}.route-detail{padding:12px 46px 18px}.route-meta{display:flex;gap:24px;flex-wrap:wrap;margin-bottom:12px;color:var(--layout-muted);font-size:13px}.master-data-cell{display:grid;gap:2px}.master-data-cell strong{color:var(--layout-text)}.master-data-cell small{color:var(--layout-muted);font-size:11px}.plan-form{margin-top:18px}.plan-form .el-select{width:100%}.native-date{width:100%;height:32px;padding:0 10px;border:1px solid var(--layout-border);border-radius:4px;color:var(--layout-text);background:var(--layout-card);box-sizing:border-box}.native-date:focus{outline:none;border-color:var(--el-color-primary)}@media(max-width:760px){.hero-card{align-items:flex-start;flex-direction:column}.summary-grid{grid-template-columns:1fr}.route-detail{padding:10px}}
+.card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.title { font-weight: 600; }
+.actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.route-detail { padding: 8px 44px 12px; }
+.route-meta { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 12px; color: var(--layout-muted); font-size: 13px; }
+.line-table { width: 100%; }
+.master-data-cell { display: grid; gap: 2px; line-height: 1.35; }
+.master-data-cell strong { color: var(--layout-text); font-weight: 650; }
+.master-data-cell small { color: var(--layout-muted); font-size: 11px; }
+.muted { color: var(--layout-muted); font-size: 13px; }
+.plan-form { margin-top: 4px; }
+.native-date {
+  width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--layout-border);
+  border-radius: 4px; color: var(--layout-text); background: var(--layout-card); box-sizing: border-box;
+}
+@media (max-width: 760px) {
+  .route-detail { padding: 8px 12px; }
+}
 </style>

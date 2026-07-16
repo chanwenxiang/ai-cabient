@@ -1,9 +1,12 @@
-<template>
+﻿<template>
   <el-card class="page-card">
     <template #header>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span>争议审核</span>
-        <el-button :icon="Refresh" :loading="loading" @click="load()">刷新</el-button>
+        <div style="display:flex;gap:8px">
+          <el-button @click="onExport">导出</el-button>
+          <el-button :icon="Refresh" :loading="loading" @click="load()">刷新</el-button>
+        </div>
       </div>
     </template>
     <el-form inline class="filter-bar">
@@ -14,7 +17,9 @@
       </el-form-item>
       <el-form-item><el-button type="primary" @click="search">查询</el-button></el-form-item>
     </el-form>
-    <el-table v-loading="loading" :data="items" stripe>
+    <div class="table-scroll">
+      <div class="table-scroll-inner" style="min-width: 1180px">
+        <el-table v-loading="loading" :data="items" stripe border :empty-text="emptyHint">
       <el-table-column prop="ticketId" label="工单" min-width="140" show-overflow-tooltip />
       <el-table-column prop="deviceId" label="设备" width="120" />
       <el-table-column prop="sessionId" label="会话" min-width="140" show-overflow-tooltip />
@@ -30,7 +35,7 @@
       <el-table-column prop="reason" label="原因" min-width="140" show-overflow-tooltip />
       <el-table-column label="创建时间" width="170"><template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template></el-table-column>
       <el-table-column label="结案时间" width="170"><template #default="{ row }">{{ formatDateTime(row.resolvedAt) }}</template></el-table-column>
-      <el-table-column label="操作" width="88" fixed="right" align="center">
+      <el-table-column label="操作" width="88" class-name="col-action" align="center">
         <template #default="{ row }">
           <TableActions
             :actions="[{ key: 'detail', label: '详情', icon: View, type: 'primary' }]"
@@ -38,7 +43,9 @@
           />
         </template>
       </el-table-column>
-    </el-table>
+        </el-table>
+      </div>
+    </div>
     <div class="page-pager">
       <el-pagination
         v-model:current-page="page"
@@ -51,7 +58,15 @@
       />
     </div>
 
-    <el-drawer v-model="detailVisible" title="争议工单详情" size="520px" @closed="resolveFeedback = null">
+    <el-drawer
+      v-if="detailVisible"
+      v-model="detailVisible"
+      title="争议工单详情"
+      size="520px"
+      append-to-body
+      destroy-on-close
+      @closed="resolveFeedback = null"
+    >
       <el-alert
         v-if="resolveFeedback"
         type="success"
@@ -117,12 +132,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onActivated, onDeactivated, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
+import { useListCsv } from '@/composables/useListCsv';
 import type { DevRecognitionPreviewDto, DisputeTicketDto, OrderLineDto, PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -135,6 +152,7 @@ interface ResolveDisputeResultDto {
   message?: string;
 }
 
+const route = useRoute();
 const loading = ref(false);
 const status = ref('OPEN');
 const items = ref<DisputeTicketDto[]>([]);
@@ -148,6 +166,31 @@ const suggestingDispute = ref(false);
 const disputeSuggestHint = ref('');
 const disputeImageInput = ref<HTMLInputElement | null>(null);
 const resolveFeedback = ref<{ message: string } | null>(null);
+
+const { onExport } = useListCsv({
+  filePrefix: '争议',
+  headers: ['工单', '设备', '会话', '关联订单', '状态', '分类', '优先级', '已扣金额', '原因', '创建时间', '结案时间'],
+  toRows: () =>
+    items.value.map((row) => [
+      row.ticketId,
+      row.deviceId,
+      row.sessionId,
+      row.orderId,
+      dictLabel('dispute_status', row.status),
+      row.category,
+      row.priority,
+      ((row.billedAmountCents || 0) / 100).toFixed(2),
+      row.reason,
+      formatDateTime(row.createdAt),
+      formatDateTime(row.resolvedAt)
+    ])
+});
+
+const emptyHint = computed(() =>
+  status.value === 'OPEN'
+    ? '当前无待审核工单，可切换「已结案」查看历史'
+    : '暂无数据'
+);
 
 const hasPriorBill = computed(() => (selected.value?.billedAmountCents || 0) > 0);
 
@@ -228,6 +271,7 @@ function applyResolvedTicket(result: ResolveDisputeResultDto) {
   selected.value = patched;
   if (status.value === 'OPEN') {
     items.value = items.value.filter((t) => t.ticketId !== ticketId);
+    total.value = Math.max(0, total.value - 1);
   } else {
     items.value = items.value.map((t) => (t.ticketId === ticketId ? patched : t));
   }
@@ -294,7 +338,31 @@ function search() {
   load();
 }
 
-onMounted(load);
+onActivated(async () => {
+  detailVisible.value = false;
+  selected.value = null;
+  resolveFeedback.value = null;
+  if (typeof route.query.status === 'string' && route.query.status && route.query.status !== status.value) {
+    status.value = route.query.status;
+    page.value = 1;
+    await load(false);
+  }
+});
+onDeactivated(() => {
+  detailVisible.value = false;
+  selected.value = null;
+});
+onMounted(async () => {
+  if (typeof route.query.status === 'string' && route.query.status) {
+    status.value = route.query.status;
+  }
+  await load(false);
+  const ticketId = route.query.ticketId;
+  if (typeof ticketId === 'string' && ticketId) {
+    const row = items.value.find((t) => t.ticketId === ticketId);
+    if (row) openDetail(row);
+  }
+});
 </script>
 
 <style scoped>

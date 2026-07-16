@@ -41,13 +41,13 @@ public class ProcurementService {
 
     @Transactional(readOnly = true)
     public List<SupplierDto> listSuppliers(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        requireWarehouseRead(operatorId);
         return supplierRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toSupplierDto).toList();
     }
 
     @Transactional
     public SupplierDto upsertSupplier(Long operatorId, SupplierDto request) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        requireWarehouseWrite(operatorId);
         if (request.supplierId() == null || request.supplierId().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "supplierId required");
         }
@@ -63,13 +63,13 @@ public class ProcurementService {
 
     @Transactional(readOnly = true)
     public List<PurchaseOrderDto> listPurchaseOrders(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:list");
+        requireWarehouseRead(operatorId);
         return purchaseOrderRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toPurchaseDto).toList();
     }
 
     @Transactional
     public PurchaseOrderDto createPurchaseOrder(Long operatorId, CreatePurchaseOrderRequest request) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        requireWarehouseWrite(operatorId);
         Supplier supplier = supplierRepository.findById(required(request.supplierId(), "supplierId"))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "supplier not found"));
         if (!"ACTIVE".equalsIgnoreCase(supplier.getStatus())) {
@@ -111,7 +111,7 @@ public class ProcurementService {
     @Transactional
     public PurchaseOrderDto receivePurchaseOrder(Long operatorId, Long purchaseOrderId,
                                                  ReceivePurchaseOrderRequest request) {
-        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        requireWarehouseWrite(operatorId);
         PurchaseOrder order = purchaseOrderRepository.findById(purchaseOrderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "purchase order not found"));
         if (!"CREATED".equals(order.getStatus()) && !"PARTIAL_RECEIVED".equals(order.getStatus())) {
@@ -270,5 +270,13 @@ public class ProcurementService {
         if (value == null) return null;
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private void requireWarehouseRead(Long operatorId) {
+        permissionService.requireAnyPermission(operatorId, "ops:warehouse:list", "ops:replenishment:list");
+    }
+
+    private void requireWarehouseWrite(Long operatorId) {
+        permissionService.requireAnyPermission(operatorId, "ops:warehouse:edit", "ops:replenishment:edit");
     }
 }

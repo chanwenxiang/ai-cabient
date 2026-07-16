@@ -326,5 +326,9 @@ export const consumerApi = {
       `/api/v2/devices/${encodeURIComponent(deviceId)}/fault-report`,
       'POST',
       body
-    )
+    ),
+  submitFeedback: (body: import('@aicabinet/shared-types').SubmitFeedbackRequest) =>
+    request<import('@aicabinet/shared-types').UserFeedbackDto>('/api/v2/feedback', 'POST', body),
+  listMyFeedback: () =>
+    request<import('@aicabinet/shared-types').UserFeedbackDto[]>('/api/v2/feedback/mine')
 };

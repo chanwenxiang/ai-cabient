@@ -1,3 +1,5 @@
+@import './chart-panel.css';
+
 :root,
 [data-theme='light'] {
   --app-primary: #0f766e;
@@ -85,17 +87,78 @@ button, input, textarea, select { font: inherit; }
   --el-table-header-text-color: var(--layout-text);
 }
 .layout-main-scroll .el-table th.el-table__cell > .cell,
-.layout-main-scroll .el-table td.el-table__cell > .cell {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+.layout-main-scroll .el-table td.el-table__cell > .cell,
+.page-card .el-table th.el-table__cell > .cell,
+.page-card .el-table td.el-table__cell > .cell {
   text-align: center;
-  white-space: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 10px;
+  line-height: 1.4;
+}
+
+/* 操作列：不裁剪图标按钮 */
+.layout-main-scroll .el-table th.col-action > .cell,
+.layout-main-scroll .el-table td.col-action > .cell,
+.page-card .el-table th.col-action > .cell,
+.page-card .el-table td.col-action > .cell {
+  overflow: visible;
+  text-overflow: clip;
+  padding: 4px 6px;
+}
+
+.page-card > .el-card__header {
+  overflow: visible;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.card-head .title {
+  min-width: 0;
+  font-weight: 600;
+}
+
+.card-head .actions,
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.cell-datetime {
+  display: block;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .page-pager {
   display: flex;
   justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
   margin-top: 16px;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.page-pager .el-pagination {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 8px;
 }
 
 .muted {
@@ -135,6 +198,16 @@ button, input, textarea, select { font: inherit; }
   color: var(--layout-text);
 }
 
+.topbar .app-breadcrumb-host,
+.topbar .app-breadcrumb,
+.topbar .app-breadcrumb .el-breadcrumb {
+  min-width: 0;
+}
+
+.topbar .el-breadcrumb__item {
+  float: none;
+}
+
 .cell-id {
   font-variant-numeric: tabular-nums;
   background: color-mix(in srgb, var(--el-fill-color) 80%, transparent);
@@ -144,13 +217,162 @@ button, input, textarea, select { font: inherit; }
 
 .page-card {
   margin-bottom: 16px;
+  min-width: 0;
+  overflow: visible;
+}
+
+.page-card > .el-card__body {
+  min-width: 0;
+  overflow: visible;
+}
+
+.page-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.page-card-head__meta {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.page-card-head__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.kpi-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+@media (min-width: 900px) {
+  .kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/*
+ * 表格横向滚动：只在 .table-scroll 一处滚动。
+ * 主区 overflow-x:hidden，禁止再出第二条横滚条。
+ * 不用 fixed/sticky 操作列，避免时间与操作叠在同一位置。
+ */
+.table-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--layout-border);
+  border-radius: 8px;
+  background: var(--layout-card);
+  container-type: inline-size;
+  container-name: tablescroll;
+}
+
+.table-scroll-inner {
+  display: block;
+  width: max-content;
+  min-width: 100%;
+}
+
+.table-scroll .el-table {
+  width: 100% !important;
+  margin-bottom: 0;
+}
+
+/* 禁止 el-table 内部再出横滚，避免双滚动条 */
+.table-scroll .el-table .el-table__header-wrapper,
+.table-scroll .el-table .el-table__body-wrapper,
+.table-scroll .el-table .el-table__footer-wrapper,
+.table-scroll .el-table .el-scrollbar__wrap {
+  overflow-x: hidden !important;
+}
+
+.table-scroll .el-table .el-scrollbar__bar.is-horizontal {
+  display: none !important;
+}
+
+.table-scroll .el-table::before,
+.table-scroll .el-table::after {
+  display: none;
+}
+
+/* 空态贴齐可视区宽度，避免跟宽表一起滚出视野 */
+.table-scroll .el-table__empty-block {
+  position: sticky;
+  left: 0;
+  width: 100cqw !important;
+  min-width: 100cqw !important;
+  max-width: 100cqw !important;
+  box-sizing: border-box;
+}
+.table-scroll .el-table__empty-text {
+  white-space: normal;
+  line-height: 1.5;
+  padding: 0 16px;
+  max-width: min(480px, 90cqw);
+}
+
+.filter-bar--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px 12px;
+}
+
+.filter-bar--compact .el-form-item {
+  margin-right: 0;
+  margin-bottom: 0;
+}
+
+.filter-bar--responsive .el-form-item {
+  margin-right: 0;
+  margin-bottom: 0;
+}
+
+.filter-bar--responsive .filter-item-grow {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.filter-bar--responsive .filter-item-sm {
+  flex: 0 1 160px;
+  min-width: 120px;
+}
+
+.filter-bar--responsive .filter-item-actions {
+  flex: 0 0 auto;
+}
+
+.filter-bar--responsive .el-input,
+.filter-bar--responsive .el-select {
+  width: 100%;
 }
 
 @media (max-width: 768px) {
   .el-main { padding: 12px !important; }
   .page-heading { gap: 12px; }
   .page-heading p { display: none; }
-  .stats-row .el-col { margin-bottom: 12px; }
+
+  .filter-bar--responsive .filter-item-grow,
+  .filter-bar--responsive .filter-item-sm,
+  .filter-bar--responsive .filter-item-actions {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .filter-bar--responsive .filter-item-actions .el-button + .el-button {
+    margin-left: 8px;
+  }
 }
 
 .filter-bar {

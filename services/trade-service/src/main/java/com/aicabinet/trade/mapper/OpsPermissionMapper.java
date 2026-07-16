@@ -18,7 +18,27 @@ public interface OpsPermissionMapper extends BaseTradeMapper<OpsPermission> {
 
 
     default List<OpsPermission> findByStatusOrderBySortOrderAsc(String status) {
-    return selectList(Wrappers.<OpsPermission>lambdaQuery().eq(OpsPermission::getStatus, status).orderByAsc(OpsPermission::getSortOrder));
+        return selectList(Wrappers.<OpsPermission>lambdaQuery()
+                .eq(OpsPermission::getStatus, status)
+                .orderByAsc(OpsPermission::getSortOrder));
     }
 
+    default List<OpsPermission> findAllOrderBySortOrderAsc() {
+        return selectList(Wrappers.<OpsPermission>lambdaQuery()
+                .orderByAsc(OpsPermission::getSortOrder)
+                .orderByAsc(OpsPermission::getPermissionId));
+    }
+
+    default java.util.Optional<OpsPermission> findByPermCode(String permCode) {
+        return selectList(Wrappers.<OpsPermission>lambdaQuery()
+                .eq(OpsPermission::getPermCode, permCode)
+                .last("LIMIT 1")).stream().findFirst();
+    }
+
+    default long countByParentIdAndStatus(Long parentId, String status) {
+        Long c = selectCount(Wrappers.<OpsPermission>lambdaQuery()
+                .eq(OpsPermission::getParentId, parentId)
+                .eq(OpsPermission::getStatus, status));
+        return c == null ? 0L : c;
+    }
 }

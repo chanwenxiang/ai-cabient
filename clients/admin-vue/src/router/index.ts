@@ -1,5 +1,7 @@
-﻿import { createRouter, createWebHashHistory } from 'vue-router';
+import { createRouter, createWebHashHistory } from 'vue-router';
 import { isLoggedIn } from '@/api/client';
+import { findNavByPath } from '@/config/menu';
+import { useAuthStore } from '@/stores/auth';
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -18,6 +20,7 @@ const router = createRouter({
         { path: 'devices/:id', name: 'device-detail', component: () => import('@/views/devices/DeviceDetailView.vue'), meta: { title: '设备详情', group: '业务', parentTitle: '设备管理', parentPath: '/devices' } },
         { path: 'sessions', name: 'sessions', component: () => import('@/views/sessions/SessionListView.vue'), meta: { title: '开门记录', group: '业务' } },
         { path: 'videos', redirect: '/upload-queue' },
+        { path: 'uploads', redirect: '/upload-queue' },
         { path: 'upload-queue', name: 'upload-queue', component: () => import('@/views/upload/UploadQueueView.vue'), meta: { title: '录像上传', group: '业务' } },
         { path: 'orders', name: 'orders', component: () => import('@/views/orders/OrderListView.vue'), meta: { title: '订单管理', group: '业务' } },
         { path: 'skus', name: 'skus', component: () => import('@/views/skus/SkuListView.vue'), meta: { title: '商品与识别', group: '业务' } },
@@ -32,23 +35,40 @@ const router = createRouter({
         { path: 'users', name: 'users', component: () => import('@/views/users/UserListView.vue'), meta: { title: '灰度用户', group: '运营' } },
         { path: 'vision-mappings', redirect: '/skus' },
         { path: 'risk', name: 'risk', component: () => import('@/views/risk/RiskView.vue'), meta: { title: '风控', group: '运营' } },
+        { path: 'operators', name: 'operators', component: () => import('@/views/system/OperatorManageView.vue'), meta: { title: '运营账号', group: '系统' } },
+        { path: 'roles', name: 'roles', component: () => import('@/views/system/RoleManageView.vue'), meta: { title: '角色管理', group: '系统' } },
+        { path: 'menus', name: 'menus', component: () => import('@/views/system/MenuManageView.vue'), meta: { title: '菜单管理', group: '系统' } },
+        { path: 'rbac', redirect: '/roles' },
         { path: 'dicts', name: 'dicts', component: () => import('@/views/system/DictManageView.vue'), meta: { title: '字典管理', group: '系统' } },
         { path: 'system-configs', name: 'system-configs', component: () => import('@/views/system/SystemConfigView.vue'), meta: { title: '参数配置', group: '系统' } },
-        { path: 'rbac', name: 'rbac', component: () => import('@/views/system/RbacView.vue'), meta: { title: '权限管理', group: '系统' } },
-        { path: 'audit', name: 'audit', component: () => import('@/views/system/AuditLogView.vue'), meta: { title: '操作日志', group: '系统' } },
+        { path: 'announcements', name: 'announcements', component: () => import('@/views/announcements/AnnouncementsView.vue'), meta: { title: '通知公告', group: '系统' } },
+        { path: 'audit', name: 'audit', component: () => import('@/views/system/AuditLogView.vue'), meta: { title: '审计日志', group: '系统' } },
+        { path: 'oper-logs', name: 'oper-logs', component: () => import('@/views/system/OperLogView.vue'), meta: { title: '操作日志', group: '系统' } },
         { path: 'promotions', name: 'promotions', component: () => import('@/views/promotions/PromotionsView.vue'), meta: { title: '营销活动', group: '运营' } },
         { path: 'coupons', name: 'coupons', component: () => import('@/views/promotions/CouponsView.vue'), meta: { title: '优惠券管理', group: '运营' } },
-        { path: 'announcements', name: 'announcements', component: () => import('@/views/announcements/AnnouncementsView.vue'), meta: { title: '公告管理', group: '系统' } },
         { path: 'feedback', name: 'feedback', component: () => import('@/views/feedback/FeedbackView.vue'), meta: { title: '用户反馈', group: '运营' } },
-        { path: 'oper-logs', name: 'oper-logs', component: () => import('@/views/system/OperLogView.vue'), meta: { title: '操作日志', group: '系统' } },        { path: 'profile', name: 'profile', component: () => import('@/views/profile/ProfileView.vue'), meta: { title: '个人中心', group: '系统' } }
+        { path: 'profile', name: 'profile', component: () => import('@/views/profile/ProfileView.vue'), meta: { title: '个人中心', group: '系统' } }
       ]
     }
   ]
 });
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   if (to.meta.public) return true;
   if (!isLoggedIn()) return { name: 'login', query: { redirect: to.fullPath } };
+
+  const auth = useAuthStore();
+  if (!auth.permissions.length) {
+    await auth.restore();
+  }
+  const nav = findNavByPath(to.path);
+  if (nav?.perm && !auth.hasPerm(nav.perm)) {
+    const fallback = ['/dashboard', '/devices', '/orders', '/profile'].find((p) => {
+      const item = findNavByPath(p);
+      return !item?.perm || auth.hasPerm(item.perm);
+    });
+    return { path: fallback || '/profile' };
+  }
   return true;
 });
 

@@ -1,58 +1,62 @@
 <template>
   <div class="franchise-page">
     <div class="page-header">
-      <h2>¼ÓÃËÉÌ¹ÜÀí</h2>
-      <el-button type="primary" @click="handleAdd">ÐÂÔö¼ÓÃËÉÌ</el-button>
+      <h2>ï¿½ï¿½ï¿½ï¿½ï¿½Ì¹ï¿½ï¿½ï¿½</h2>
+      <div class="actions">
+        <el-button @click="onExport">ï¿½ï¿½ï¿½ï¿½</el-button>
+        <el-button type="primary" @click="handleAdd">ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½</el-button>
+      </div>
     </div>
 
-    <!-- ËÑË÷À¸ -->
     <div class="search-bar">
-      <el-input v-model="searchForm.keyword" placeholder="ËÑË÷¼ÓÃËÉÌÃû³Æ/ÁªÏµÈË" style="width: 200px" />
+      <el-input v-model="searchForm.keyword" placeholder="ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½/ï¿½ï¿½Ïµï¿½ï¿½" style="width: 200px" />
       <el-select v-model="searchForm.status" placeholder="×´Ì¬" clearable style="width: 120px">
-        <el-option label="È«²¿" value="" />
-        <el-option label="Õý³£" value="active" />
-        <el-option label="¶³½á" value="frozen" />
+        <el-option label="È«ï¿½ï¿½" value="" />
+        <el-option label="ï¿½ï¿½ï¿½ï¿½" value="active" />
+        <el-option label="ï¿½ï¿½ï¿½ï¿½" value="frozen" />
       </el-select>
-      <el-button type="primary" @click="loadFranchisees">²éÑ¯</el-button>
+      <el-button type="primary" @click="loadFranchisees">ï¿½ï¿½Ñ¯</el-button>
     </div>
 
-    <!-- ±í¸ñ -->
-    <el-table :data="franchisees" stripe>
-      <el-table-column prop="id" label="ID" width="80" />
-      <el-table-column prop="name" label="¼ÓÃËÉÌÃû³Æ" min-width="150" />
-      <el-table-column prop="contactPerson" label="ÁªÏµÈË" width="100" />
-      <el-table-column prop="contactPhone" label="ÁªÏµµç»°" width="120" />
-      <el-table-column label="Éè±¸ÊýÁ¿" width="100">
-        <template #default="{ row }">
-          <span>{{ row.deviceCount || 0 }}Ì¨</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="·ÖÕË±ÈÀý" width="100">
-        <template #default="{ row }">
-          <span>{{ (row.shareRate * 100).toFixed(1) }}%</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="ÀÛ¼ÆÊÕÈë" width="120">
-        <template #default="{ row }">
-          <span>£¤{{ (row.totalIncome / 100).toFixed(2) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="×´Ì¬" width="80">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 'active' ? 'success' : 'danger'">
-            {{ row.status === 'active' ? 'Õý³£' : '¶³½á' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="²Ù×÷" width="180" fixed="right">
-        <template #default="{ row }">
-          <el-button size="small" @click="handleView(row)">²é¿´</el-button>
-          <el-button size="small" type="primary" @click="handleEdit(row)">±à¼­</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="table-scroll">
+      <div class="table-scroll-inner" style="min-width: 1030px">
+        <el-table :data="franchisees" stripe border>
+          <el-table-column prop="id" label="ID" width="80" />
+          <el-table-column prop="name" label="ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½" min-width="150" />
+          <el-table-column prop="contactPerson" label="ï¿½ï¿½Ïµï¿½ï¿½" width="100" />
+          <el-table-column prop="contactPhone" label="ï¿½ï¿½Ïµï¿½ç»°" width="120" />
+          <el-table-column label="ï¿½è±¸ï¿½ï¿½ï¿½ï¿½" width="100">
+            <template #default="{ row }">
+              <span>{{ row.deviceCount || 0 }}Ì¨</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="ï¿½ï¿½ï¿½Ë±ï¿½ï¿½ï¿½" width="100">
+            <template #default="{ row }">
+              <span>{{ (row.shareRate * 100).toFixed(1) }}%</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="ï¿½Û¼ï¿½ï¿½ï¿½ï¿½ï¿½" width="120">
+            <template #default="{ row }">
+              <span>?{{ (row.totalIncome / 100).toFixed(2) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="×´Ì¬" width="80">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 'active' ? 'success' : 'danger'">
+                {{ row.status === 'active' ? 'ï¿½ï¿½ï¿½ï¿½' : 'ï¿½ï¿½ï¿½ï¿½' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="ï¿½ï¿½ï¿½ï¿½" width="180" class-name="col-action" align="center">
+            <template #default="{ row }">
+              <el-button size="small" @click="handleView(row)">ï¿½é¿´</el-button>
+              <el-button size="small" type="primary" @click="handleEdit(row)">ï¿½à¼­</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
 
-    <!-- ·ÖÒ³ -->
     <el-pagination
       v-model:current-page="pagination.page"
       v-model:page-size="pagination.size"
@@ -66,6 +70,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { api } from '@/api/client';
+import { useListCsv } from '@/composables/useListCsv';
 
 const searchForm = ref({
   keyword: '',
@@ -77,6 +82,22 @@ const pagination = ref({
   page: 1,
   size: 20,
   total: 0
+});
+
+const { onExport } = useListCsv({
+  filePrefix: 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½',
+  headers: ['ID', 'ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½Ïµï¿½ï¿½', 'ï¿½ï¿½Ïµï¿½ç»°', 'ï¿½è±¸ï¿½ï¿½ï¿½ï¿½', 'ï¿½ï¿½ï¿½Ë±ï¿½ï¿½ï¿½', 'ï¿½Û¼ï¿½ï¿½ï¿½ï¿½ï¿½', '×´Ì¬'],
+  toRows: () =>
+    franchisees.value.map((row) => [
+      row.id,
+      row.name,
+      row.contactPerson,
+      row.contactPhone,
+      row.deviceCount || 0,
+      `${((row.shareRate || 0) * 100).toFixed(1)}%`,
+      ((row.totalIncome || 0) / 100).toFixed(2),
+      row.status === 'active' ? 'ï¿½ï¿½ï¿½ï¿½' : 'ï¿½ï¿½ï¿½ï¿½'
+    ])
 });
 
 onMounted(() => loadFranchisees());
@@ -92,20 +113,20 @@ async function loadFranchisees() {
     franchisees.value = res?.items ?? [];
     pagination.value.total = res?.total ?? 0;
   } catch (error) {
-    console.error('¼ÓÔØ¼ÓÃËÉÌÁÐ±íÊ§°Ü', error);
+    console.error('ï¿½ï¿½ï¿½Ø¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð±ï¿½Ê§ï¿½ï¿½', error);
   }
 }
 
 function handleAdd() {
-  // Ìø×ªµ½ÐÂÔöÒ³Ãæ
+  // ï¿½ï¿½×ªï¿½ï¿½ï¿½ï¿½Ò³ï¿½ï¿½
 }
 
 function handleView(row: any) {
-  // Ìø×ªµ½ÏêÇéÒ³Ãæ
+  // ï¿½ï¿½×ªï¿½ï¿½ï¿½ï¿½Ò³ï¿½ï¿½
 }
 
 function handleEdit(row: any) {
-  // Ìø×ªµ½±à¼­Ò³Ãæ
+  // ï¿½ï¿½×ªï¿½à¼­Ò³ï¿½ï¿½
 }
 </script>
 
@@ -118,6 +139,8 @@ function handleEdit(row: any) {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
   margin-bottom: 20px;
 }
 
@@ -126,9 +149,16 @@ function handleEdit(row: any) {
   font-size: 20px;
 }
 
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .search-bar {
   display: flex;
   gap: 12px;
+  flex-wrap: wrap;
   margin-bottom: 20px;
 }
 

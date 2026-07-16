@@ -77,9 +77,23 @@ export const useAuthStore = defineStore('auth', () => {
     profile.value = null;
   }
 
-  function hasPerm(code: string) {
-    if (!permissions.value.length) return true;
-    return permissions.value.includes(code);
+  function hasPerm(code?: string | null) {
+    if (!code) return true;
+    const perms = permissions.value || [];
+    if (perms.includes('ops:admin')) return true;
+    if (perms.includes(code)) return true;
+    // 若依风格通配：system:user:* 覆盖 system:user:list
+    const segments = code.split(':');
+    for (let i = segments.length - 1; i >= 1; i--) {
+      const wildcard = `${segments.slice(0, i).join(':')}:*`;
+      if (perms.includes(wildcard)) return true;
+    }
+    return false;
+  }
+
+  function canAccessNav(item: { perm?: string } | null | undefined) {
+    if (!item) return false;
+    return hasPerm(item.perm);
   }
 
   async function restore() {
@@ -100,6 +114,7 @@ export const useAuthStore = defineStore('auth', () => {
     loadPermissions,
     loadProfile,
     hasPerm,
+    canAccessNav,
     restore
   };
 });

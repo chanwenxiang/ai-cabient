@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="dict-page">
     <el-row :gutter="16">
       <el-col :xs="24" :md="8">
@@ -10,14 +10,18 @@
             </div>
           </template>
           <el-input v-model="typeQuery" clearable placeholder="搜索类型 / 名称" style="margin-bottom:12px" />
-          <el-table v-loading="loadingTypes" :data="filteredTypes" highlight-current-row height="560" @current-change="onSelectType">
+          <div class="table-scroll">
+            <div class="table-scroll-inner" style="min-width: 380px">
+              <el-table v-loading="loadingTypes" :data="filteredTypes" highlight-current-row height="560" border @current-change="onSelectType">
             <el-table-column prop="dictName" label="名称" min-width="120" />
             <el-table-column prop="dictType" label="类型" min-width="120"><template #default="{ row }"><code>{{ row.dictType }}</code></template></el-table-column>
             <el-table-column prop="itemCount" label="项数" width="70" />
-            <el-table-column label="操作" width="70">
+            <el-table-column label="操作" width="70" class-name="col-action" align="center">
               <template #default="{ row }"><el-button link type="primary" @click.stop="openType(row)">编辑</el-button></template>
             </el-table-column>
-          </el-table>
+              </el-table>
+            </div>
+          </div>
         </el-card>
       </el-col>
       <el-col :xs="24" :md="16">
@@ -25,23 +29,30 @@
           <template #header>
             <div class="card-head">
               <span>字典数据{{ selected ? ` · ${selected.dictName}` : '' }}</span>
-              <el-button type="primary" size="small" :disabled="!selected" @click="openItem()">新增字典项</el-button>
+              <div class="card-head-actions">
+                <el-button size="small" :disabled="!selected" @click="onExport">导出</el-button>
+                <el-button type="primary" size="small" :disabled="!selected" @click="openItem()">新增字典项</el-button>
+              </div>
             </div>
           </template>
-          <el-table v-loading="loadingItems" :data="items" stripe empty-text="请选择左侧字典类型">
+          <div class="table-scroll">
+            <div class="table-scroll-inner" style="min-width: 620px">
+              <el-table v-loading="loadingItems" :data="items" stripe border empty-text="请选择左侧字典类型">
             <el-table-column prop="dictValue" label="值" min-width="140"><template #default="{ row }"><code>{{ row.dictValue }}</code></template></el-table-column>
             <el-table-column prop="dictLabel" label="标签" min-width="160" />
             <el-table-column prop="sortOrder" label="排序" width="80" />
             <el-table-column label="状态" width="90">
               <template #default="{ row }"><el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{ row.status === 'ACTIVE' ? '启用' : '停用' }}</el-tag></template>
             </el-table-column>
-            <el-table-column label="操作" width="140" fixed="right">
+            <el-table-column label="操作" width="140" class-name="col-action">
               <template #default="{ row }">
                 <el-button link type="primary" @click="openItem(row)">编辑</el-button>
                 <el-button link type="danger" @click="removeItem(row)">删除</el-button>
               </template>
             </el-table-column>
-          </el-table>
+              </el-table>
+            </div>
+          </div>
         </el-card>
       </el-col>
     </el-row>
@@ -84,6 +95,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { useListCsv } from '@/composables/useListCsv';
 import { loadRuntimeDict } from '@/stores/dict-runtime';
 
 interface DictTypeRow {
@@ -122,6 +134,18 @@ const filteredTypes = computed(() => {
   const q = typeQuery.value.trim().toLowerCase();
   if (!q) return types.value;
   return types.value.filter((t) => t.dictType.toLowerCase().includes(q) || t.dictName.toLowerCase().includes(q));
+});
+
+const { onExport } = useListCsv({
+  filePrefix: '字典项',
+  headers: ['值', '标签', '排序', '状态'],
+  toRows: () =>
+    items.value.map((row) => [
+      row.dictValue,
+      row.dictLabel,
+      row.sortOrder,
+      row.status === 'ACTIVE' ? '启用' : '停用'
+    ])
 });
 
 async function loadTypes() {
@@ -233,5 +257,6 @@ onMounted(async () => {
 
 <style scoped>
 .card-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+.card-head-actions { display:flex; gap:8px; align-items:center; }
 code { font-size:12px; }
 </style>

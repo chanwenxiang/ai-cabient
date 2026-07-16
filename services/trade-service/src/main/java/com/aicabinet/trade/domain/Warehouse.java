@@ -26,5 +26,7 @@ public String getWarehouseId() { return warehouseId; }
     public String getAddress() { return address; }
     public void setAddress(String address) { this.address = address; }
     public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
     public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

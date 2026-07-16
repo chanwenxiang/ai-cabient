@@ -1,26 +1,26 @@
-<template>
+﻿<template>
   <el-card class="page-card">
     <template #header>
       <div class="head">
+        <strong>参数配置</strong>
         <div>
-          <strong>参数配置</strong>
-          <span class="hint">运营可读写的系统键值；保存后立即生效</span>
-        </div>
-        <div>
+          <el-button @click="onExport">导出</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
           <el-button type="primary" @click="openCreate">新增</el-button>
         </div>
       </div>
     </template>
 
-    <el-table v-loading="loading" :data="items" stripe>
+    <div class="table-scroll">
+      <div class="table-scroll-inner" style="min-width: 900px">
+        <el-table v-loading="loading" :data="items" stripe border>
       <el-table-column prop="configKey" label="配置键" min-width="180" />
       <el-table-column prop="configValue" label="配置值" min-width="160" show-overflow-tooltip />
       <el-table-column prop="description" label="说明" min-width="160" show-overflow-tooltip />
       <el-table-column label="更新时间" width="180">
         <template #default="{ row }">{{ formatDateTime(row.updatedAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="88" fixed="right" align="center">
+      <el-table-column label="操作" width="88" class-name="col-action" align="center">
         <template #default="{ row }">
           <TableActions
             :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
@@ -28,7 +28,9 @@
           />
         </template>
       </el-table-column>
-    </el-table>
+        </el-table>
+      </div>
+    </div>
 
     <el-dialog v-model="dialogVisible" :title="form.configKey && !creating ? '编辑参数' : '新增参数'" width="480px">
       <el-form label-position="top">
@@ -56,6 +58,7 @@ import { EditPen, Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
+import { useListCsv } from '@/composables/useListCsv';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface SystemConfigRow {
@@ -71,6 +74,18 @@ const items = ref<SystemConfigRow[]>([]);
 const dialogVisible = ref(false);
 const creating = ref(false);
 const form = reactive({ configKey: '', configValue: '', description: '' });
+
+const { onExport } = useListCsv({
+  filePrefix: '参数配置',
+  headers: ['配置键', '配置值', '说明', '更新时间'],
+  toRows: () =>
+    items.value.map((row) => [
+      row.configKey,
+      row.configValue,
+      row.description || '',
+      formatDateTime(row.updatedAt)
+    ])
+});
 
 async function load() {
   loading.value = true;
@@ -126,5 +141,4 @@ onMounted(load);
 
 <style scoped>
 .head { display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
-.hint { margin-left:10px; color:var(--layout-muted); font-size:12px; font-weight:400; }
 </style>

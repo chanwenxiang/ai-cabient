@@ -604,9 +604,15 @@ public class AdminDashboardService {
 
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(Long operatorId, int page, int size, String deviceId) {
+        return listOrders(operatorId, page, size, deviceId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<AdminOrderSummaryDto> listOrders(
+            Long operatorId, int page, int size, String deviceId, String status) {
         permissionService.requirePermission(operatorId, "ops:order:list");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
-        Page<CabinetOrder> result = queryOrders(operatorId, deviceId, pageable);
+        Page<CabinetOrder> result = queryOrders(operatorId, deviceId, status, pageable);
         return new PageResult<>(
                 result.getContent().stream().map(this::toOrderSummary).toList(),
                 result.getNumber(),
@@ -1042,7 +1048,7 @@ public class AdminDashboardService {
     @Transactional(readOnly = true)
     public PageResult<RechargeOrderDto> listRecharges(Long operatorId, int page, int size,
                                                       String status, Long userId) {
-        permissionService.requirePermission(operatorId, "ops:order:list");
+        permissionService.requireAnyPermission(operatorId, "ops:recharge:list", "ops:order:list");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100),
                 Sort.by(Sort.Direction.DESC, "createdAt"));
         String st = (status == null || status.isBlank()) ? null : status.trim();
@@ -1140,17 +1146,25 @@ public class AdminDashboardService {
     }
 
     private Page<CabinetOrder> queryOrders(Long operatorId, String deviceId, Pageable pageable) {
+        return queryOrders(operatorId, deviceId, null, pageable);
+    }
+
+    private Page<CabinetOrder> queryOrders(
+            Long operatorId, String deviceId, String status, Pageable pageable) {
         Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, deviceId);
         if (deviceScope != null && deviceScope.isEmpty()) {
             return Page.empty(pageable);
         }
+        String statusFilter = (status != null && !status.isBlank()) ? status.trim() : null;
         if (deviceId != null && !deviceId.isBlank()) {
-            return orderRepository.findByDeviceIdOrderByCreatedAtDesc(deviceId.trim(), pageable);
+            return orderRepository.findByFiltersOrderByCreatedAtDesc(
+                    deviceId.trim(), null, statusFilter, pageable);
         }
         if (deviceScope != null) {
-            return orderRepository.findByDeviceIdInOrderByCreatedAtDesc(deviceScope, pageable);
+            return orderRepository.findByFiltersOrderByCreatedAtDesc(
+                    null, deviceScope, statusFilter, pageable);
         }
-        return orderRepository.findAllByOrderByCreatedAtDesc(pageable);
+        return orderRepository.findByFiltersOrderByCreatedAtDesc(null, null, statusFilter, pageable);
     }
 
     private List<CabinetOrder> queryTrendOrders(Long operatorId, Instant since) {

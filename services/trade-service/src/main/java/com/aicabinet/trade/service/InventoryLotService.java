@@ -1,5 +1,7 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.trade.domain.DeviceSlot;
+import com.aicabinet.trade.domain.DeviceSlotId;
 import com.aicabinet.trade.domain.DeviceSkuInventory;
 import com.aicabinet.trade.domain.DeviceSkuInventoryId;
 import com.aicabinet.trade.domain.DeviceSkuLot;
@@ -7,6 +9,7 @@ import com.aicabinet.trade.domain.InventoryMovement;
 import com.aicabinet.trade.domain.PullOffTask;
 import com.aicabinet.trade.domain.ReplenishmentTaskLine;
 import com.aicabinet.trade.domain.SkuCatalog;
+import com.aicabinet.trade.mapper.DeviceSlotMapper;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 import com.aicabinet.trade.mapper.DeviceSkuLotMapper;
 import com.aicabinet.trade.mapper.InventoryMovementMapper;
@@ -35,17 +38,20 @@ public class InventoryLotService {
     private final DeviceSkuInventoryMapper inventoryRepository;
     private final SkuCatalogMapper skuCatalogRepository;
     private final PullOffTaskMapper pullOffTaskRepository;
+    private final DeviceSlotMapper slotRepository;
 
     public InventoryLotService(DeviceSkuLotMapper lotRepository,
                                InventoryMovementMapper movementRepository,
                                DeviceSkuInventoryMapper inventoryRepository,
                                SkuCatalogMapper skuCatalogRepository,
-                               PullOffTaskMapper pullOffTaskRepository) {
+                               PullOffTaskMapper pullOffTaskRepository,
+                               DeviceSlotMapper slotRepository) {
         this.lotRepository = lotRepository;
         this.movementRepository = movementRepository;
         this.inventoryRepository = inventoryRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.pullOffTaskRepository = pullOffTaskRepository;
+        this.slotRepository = slotRepository;
     }
 
     public boolean hasSellableLots(String deviceId, String skuId) {
@@ -172,6 +178,7 @@ public class InventoryLotService {
                            LocalDate productionDate, LocalDate expiryDate,
                            int quantity, String slotId, Long operatorId, String refId) {
         validateRestockExpiry(skuId, expiryDate);
+        ensureSlotCapacity(deviceId, slotId, quantity);
         String resolvedBatch = (batchNo == null || batchNo.isBlank())
                 ? "B-" + LocalDate.now() + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase()
                 : batchNo.trim();
@@ -354,6 +361,35 @@ public class InventoryLotService {
             }
         }
         return alerts;
+    }
+
+    /** 有货道时校验补货后账面不超过 maxLevel / parLevel。 */
+    private void ensureSlotCapacity(String deviceId, String slotId, int quantity) {
+        if (slotId == null || slotId.isBlank() || quantity <= 0) {
+            return;
+        }
+        String slotCode = slotId.trim().toUpperCase();
+        DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode)).orElse(null);
+        if (slot == null) {
+            return;
+        }
+        int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel()
+                : (slot.getParLevel() > 0 ? slot.getParLevel() : 0);
+        if (cap <= 0) {
+            return;
+        }
+        int book = 0;
+        for (Object[] row : lotRepository.sumBookQtyBySlot(deviceId)) {
+            if (row != null && row.length >= 2 && slotCode.equalsIgnoreCase(String.valueOf(row[0]))) {
+                book = ((Number) row[1]).intValue();
+                break;
+            }
+        }
+        if (book + quantity > cap) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "slot " + slotCode + " exceeds max " + cap
+                            + " (book=" + book + " add=" + quantity + ")");
+        }
     }
 
     private void validateRestockExpiry(String skuId, LocalDate expiryDate) {

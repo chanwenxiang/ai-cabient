@@ -16,7 +16,9 @@ const emit = defineEmits<{ edit: [DeviceSlot] }>();
 
 function cellClass(slot: DeviceSlot) {
   const st = (slot.stockStatus || '').toLowerCase();
-  return { [`status-${st}`]: !!st, mismatch: slot.hasDiscrepancy, clickable: true };
+  const cap = slot.maxLevel || slot.parLevel || 0;
+  const over = cap > 0 && slot.bookQty > cap;
+  return { [`status-${st}`]: !!st, over, mismatch: slot.hasDiscrepancy, clickable: true };
 }
 </script>
 
@@ -35,5 +37,7 @@ function cellClass(slot: DeviceSlot) {
 .slot-sku { color: var(--layout-muted); margin: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .slot-cell.status-oos { border-color: #f87171; background: color-mix(in srgb, #ef4444 12%, var(--layout-card)); }
 .slot-cell.status-low { border-color: #fbbf24; background: color-mix(in srgb, #f59e0b 10%, var(--layout-card)); }
+.slot-cell.status-over,
+.slot-cell.over { border-color: #f43f5e; background: color-mix(in srgb, #e11d48 14%, var(--layout-card)); }
 .slot-cell.mismatch { box-shadow: inset 0 0 0 2px #f97316; }
 </style>

@@ -306,10 +306,9 @@ public class DeviceSlotService {
                         .thenComparing(Candidate::slotCode))
                 .toList();
         if (candidates.isEmpty()) {
-            return listEnabledSlotsForSku(deviceId, skuId).stream()
-                    .findFirst()
-                    .map(s -> List.of(new SlotRestockAllocation(s.slotCode(), totalQty)))
-                    .orElse(List.of());
+            log.warn("allocateRestockQuantity: no slot headroom device={} sku={} qty={}",
+                    deviceId, skuId, totalQty);
+            return List.of();
         }
         int remaining = totalQty;
         List<SlotRestockAllocation> result = new java.util.ArrayList<>();
@@ -324,15 +323,9 @@ public class DeviceSlotService {
             }
         }
         if (remaining > 0) {
-            int overflow = remaining;
-            if (!result.isEmpty()) {
-                SlotRestockAllocation last = result.get(result.size() - 1);
-                result.set(result.size() - 1,
-                        new SlotRestockAllocation(last.slotCode(), last.quantity() + overflow));
-            } else {
-                listEnabledSlotsForSku(deviceId, skuId).stream().findFirst()
-                        .ifPresent(s -> result.add(new SlotRestockAllocation(s.slotCode(), overflow)));
-            }
+            // 不把溢出硬塞进末货道，避免账面库存超过 maxLevel（如 16/6）
+            log.warn("allocateRestockQuantity: {} units unallocated (over capacity) device={} sku={}",
+                    remaining, deviceId, skuId);
         }
         return result;
     }
@@ -615,6 +608,10 @@ public class DeviceSlotService {
     private static String resolveStockStatus(DeviceSlot slot, int bookQty) {
         if (!slot.isEnabled() || slot.getParLevel() <= 0) {
             return "DISABLED";
+        }
+        int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel() : slot.getParLevel();
+        if (cap > 0 && bookQty > cap) {
+            return "OVER";
         }
         if (bookQty <= 0) {
             return "OOS";

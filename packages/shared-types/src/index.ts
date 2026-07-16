@@ -82,8 +82,22 @@ export interface RevenueSplit {
   platformCents: number;
   merchantCents: number;
   status: string;
+  wechatOutOrderNo?: string;
+  wechatTransactionId?: string;
   failureReason?: string;
   createdAt?: string;
+  settlementBatchNo?: string;
+  settleAfter?: string;
+  settledAt?: string;
+}
+
+export interface ProfitSharingStatus {
+  enabled: boolean;
+  apiReady: boolean;
+  retryEnabled: boolean;
+  retryBatchSize: number;
+  wechatPayConfigured: string;
+  note: string;
 }
 
 export interface OrderSummary {
@@ -344,6 +358,31 @@ export interface FileDisputeRequest {
 export interface DeviceFaultReportRequest {
   issueType: string;
   description?: string;
+}
+
+export interface SubmitFeedbackRequest {
+  feedbackType: string;
+  content: string;
+  contactInfo?: string;
+  deviceId?: string;
+  sessionId?: string;
+  rating?: number;
+}
+
+export interface UserFeedbackDto {
+  feedbackId: number;
+  userId: number;
+  feedbackType: string;
+  content: string;
+  contactInfo?: string;
+  deviceId?: string;
+  sessionId?: string;
+  rating?: number;
+  status: string;
+  handlerId?: number;
+  reply?: string;
+  handledAt?: string;
+  createdAt?: string;
 }
 
 export interface DisputeTicketDto {

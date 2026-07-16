@@ -89,6 +89,22 @@ class DeviceSlotServiceTest {
         assertEquals(2, result.get(1).quantity());
     }
 
+    @Test
+    void allocateRestockQuantity_doesNotOverflowSlotCapacity() {
+        DeviceSlot a1 = slot("A1", "SKU-DEMO-001", 8);
+        when(slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(DEVICE_ID))
+                .thenReturn(List.of(a1));
+        when(lotRepository.sumBookQtyBySlot(DEVICE_ID))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{"A1", 6}));
+
+        List<DeviceSlotService.SlotRestockAllocation> result =
+                deviceSlotService.allocateRestockQuantity(DEVICE_ID, "SKU-DEMO-001", 10);
+
+        assertEquals(1, result.size());
+        assertEquals("A1", result.get(0).slotCode());
+        assertEquals(2, result.get(0).quantity());
+    }
+
     private static DeviceSlot slot(String slotCode, String skuId, int maxLevel) {
         DeviceSlot slot = new DeviceSlot();
         slot.setId(new DeviceSlotId(DEVICE_ID, slotCode));

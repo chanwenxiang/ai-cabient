@@ -1,13 +1,15 @@
-<template>
+﻿<template>
   <div>
-    <div class="page-heading">
-      <div>
-        <h1>运营异常中心</h1>
-        <p>集中处理影响消费者、设备占用和资金一致性的异常。</p>
-      </div>
-      <el-button :loading="loading" @click="load">刷新</el-button>
-    </div>
     <el-card shadow="never" class="page-card">
+      <template #header>
+        <div class="card-head">
+          <span class="title">异常中心</span>
+          <div class="actions">
+            <el-button @click="onExport">导出</el-button>
+            <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+          </div>
+        </div>
+      </template>
       <div class="filters">
         <el-select v-model="status" clearable placeholder="全部状态" style="width:160px" @change="search">
           <el-option v-for="item in dictOptions('exception_status')" :key="item.value" :label="item.label" :value="item.value" />
@@ -16,7 +18,9 @@
           <el-option v-for="item in dictOptions('exception_severity')" :key="item.value" :label="item.label" :value="item.value" />
         </el-select>
       </div>
-      <el-table v-loading="loading" :data="items" stripe empty-text="暂无异常" size="small" table-layout="auto">
+      <div class="table-scroll">
+        <div class="table-scroll-inner" style="min-width: 1120px">
+          <el-table v-loading="loading" :data="items" stripe border :empty-text="emptyHint" size="small" table-layout="auto">
         <el-table-column label="异常编号" min-width="130" show-overflow-tooltip>
           <template #default="{ row }"><span class="cell-id">{{ row.exceptionId }}</span></template>
         </el-table-column>
@@ -42,12 +46,14 @@
         <el-table-column label="创建时间" width="160">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="132" fixed="right" align="center">
+        <el-table-column label="操作" width="132" class-name="col-action" align="center">
           <template #default="{ row }">
             <TableActions :actions="exceptionActions(row)" @action="(key) => onExceptionAction(key, row)" />
           </template>
         </el-table-column>
-      </el-table>
+          </el-table>
+        </div>
+      </div>
       <div class="page-pager">
         <el-pagination
           v-model:current-page="page"
@@ -61,7 +67,14 @@
       </div>
     </el-card>
 
-    <el-drawer v-model="drawer" title="异常处理详情" size="560px">
+    <el-drawer
+      v-if="drawer"
+      v-model="drawer"
+      title="异常处理详情"
+      size="560px"
+      append-to-body
+      destroy-on-close
+    >
       <div v-loading="detailLoading" v-if="detail">
         <el-descriptions :column="1" border>
           <el-descriptions-item label="异常编号">{{ detail.exception.exceptionId }}</el-descriptions-item>
@@ -84,7 +97,7 @@
           <el-descriptions-item label="创建时间">{{ formatDateTime(detail.exception.createdAt) }}</el-descriptions-item>
           <el-descriptions-item label="更新时间">{{ formatDateTime(detail.exception.updatedAt) }}</el-descriptions-item>
         </el-descriptions>
-        <div v-if="detail.exception.status!=='RESOLVED'" class="actions">
+        <div v-if="canHandle && detail.exception.status!=='RESOLVED'" class="actions">
           <el-button type="primary" @click="addNote">添加备注</el-button>
           <el-button @click="transfer">转派</el-button>
           <el-button v-if="canRetry(detail.exception)" type="warning" @click="retryException">重试识别/结算</el-button>
@@ -125,14 +138,23 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import { CircleCheck, UserFilled, View } from '@element-plus/icons-vue';
+import { computed, onActivated, onDeactivated, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
+import { CircleCheck, Refresh, UserFilled, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { useListCsv } from '@/composables/useListCsv';
+import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, dictTagType, formatOpsActionDetail } from '@aicabinet/shared-dict';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+
+const route = useRoute();
+const auth = useAuthStore();
+const canHandle = computed(
+  () => auth.hasPerm('ops:exception:handle') || auth.hasPerm('ops:dashboard:view')
+);
 
 interface OpsException {
   exceptionId: string;
@@ -169,10 +191,36 @@ const manualReason = ref('');
 const manualLines = ref<{ skuId: string; quantity: number }[]>([{ skuId: '', quantity: 1 }]);
 const skus = ref<Sku[]>([]);
 
+const { onExport } = useListCsv({
+  filePrefix: '异常',
+  headers: ['异常编号', '级别', '类型', '异常', '设备', '会话', '订单', '用户', '状态', '负责人', '创建时间'],
+  toRows: () =>
+    items.value.map((row) => [
+      row.exceptionId,
+      dictLabel('exception_severity', row.severity),
+      dictLabel('exception_type', row.exceptionType),
+      row.title,
+      row.deviceId,
+      row.sessionId,
+      row.orderId,
+      row.userId || '-',
+      dictLabel('exception_status', row.status),
+      row.assigneeUserId || '未领取',
+      formatDateTime(row.createdAt)
+    ])
+});
+
+const emptyHint = computed(() =>
+  status.value === 'OPEN'
+    ? '当前无待处理异常，可清空状态筛选查看历史'
+    : '暂无异常'
+);
+
 function exceptionActions(row: OpsException): TableAction[] {
   const acts: TableAction[] = [
     { key: 'detail', label: '详情', icon: View, type: 'primary' }
   ];
+  if (!canHandle.value) return acts;
   if (row.status === 'OPEN') {
     acts.push({ key: 'claim', label: '领取', icon: UserFilled, type: 'primary' });
   }
@@ -359,13 +407,33 @@ async function waiveOrder() {
   await Promise.all([load(), refreshDetail()]);
 }
 
-onMounted(load);
+onActivated(async () => {
+  drawer.value = false;
+  detail.value = null;
+  manualDialog.value = false;
+  if (typeof route.query.status === 'string' && route.query.status && route.query.status !== status.value) {
+    status.value = route.query.status;
+    page.value = 1;
+    await load();
+  }
+});
+onDeactivated(() => {
+  drawer.value = false;
+  detail.value = null;
+  manualDialog.value = false;
+});
+onMounted(async () => {
+  if (typeof route.query.status === 'string' && route.query.status) {
+    status.value = route.query.status;
+  }
+  await load();
+});
 </script>
 
 <style scoped>
-.page-heading { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
-.page-heading h1 { margin: 0; font-size: 24px; }
-.page-heading p { margin: 6px 0 0; color: var(--layout-muted); }
+.card-head { display: flex; justify-content: space-between; align-items: center; }
+.title { font-weight: 600; }
+.actions { display: flex; gap: 8px; }
 .filters { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
 .actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 20px 0; }
 .action-detail { color: var(--layout-muted); margin-top: 5px; white-space: pre-wrap; }

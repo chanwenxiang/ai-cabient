@@ -86,6 +86,7 @@ public class AuthService {
     public LoginResponse adminLogin(LoginRequest request) {
         LoginResponse response = login(request);
         requireOperator(response.userId());
+        requireActiveAccount(response.userId());
         return response;
     }
 
@@ -93,6 +94,7 @@ public class AuthService {
     public LoginResponse adminLoginByPassword(PasswordLoginRequest request) {
         LoginResponse response = loginByPassword(request);
         requireOperator(response.userId());
+        requireActiveAccount(response.userId());
         return response;
     }
 
@@ -152,6 +154,14 @@ public class AuthService {
     private static void requireOperator(long userId) {
         if (userId < CabinetConstants.OPERATOR_USER_ID_START) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.CONSUMER_CANNOT_USE_ADMIN);
+        }
+    }
+
+    private void requireActiveAccount(long userId) {
+        UserInfo user = userInfoRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        if (user.getStatus() != null && "INACTIVE".equalsIgnoreCase(user.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.ACCOUNT_DISABLED);
         }
     }
 

@@ -838,9 +838,9 @@ public class MerchantPortalService {
         userAccountRepository.save(account);
 
         long roleId = resolveMerchantRoleId(request.roleKey());
-        userRoleRepository.save(new OpsUserRole(newUserId, roleId));
+        userRoleRepository.insert(new OpsUserRole(newUserId, roleId));
         for (String merchantId : merchants) {
-            userMerchantRepository.save(new OpsUserMerchant(newUserId, merchantId));
+            userMerchantRepository.insert(new OpsUserMerchant(newUserId, merchantId));
         }
         auditService.record(userId, "MERCHANT_USER_CREATE", "USER", String.valueOf(newUserId),
                 "phone=" + phone + ",role=" + request.roleKey());
@@ -1009,9 +1009,12 @@ public class MerchantPortalService {
     private ProfitSharingStatusDto buildProfitSharingStatus() {
         boolean enabled = profitSharingProperties.enabled();
         boolean apiReady = profitSharingService.isApiReady();
+        boolean mock = profitSharingService.isMockMode();
         String note;
         if (!enabled) {
             note = "平台分账功能未启用，当前为记账模式";
+        } else if (mock) {
+            note = "平台分账联调 Mock 已启用";
         } else if (!weChatPayProperties.isConfigured()) {
             note = "微信支付未配置，分账将延迟到账";
         } else if (!apiReady) {
@@ -1022,7 +1025,7 @@ public class MerchantPortalService {
         return new ProfitSharingStatusDto(
                 enabled, apiReady, profitSharingProperties.retryEnabled(),
                 profitSharingProperties.retryBatchSize(),
-                weChatPayProperties.isConfigured() ? "CONFIGURED" : "MISSING",
+                mock ? "MOCK" : (weChatPayProperties.isConfigured() ? "CONFIGURED" : "MISSING"),
                 note
         );
     }

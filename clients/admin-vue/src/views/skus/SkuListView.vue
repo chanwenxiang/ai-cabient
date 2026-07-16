@@ -4,6 +4,7 @@
       <div class="page-header">
         <span>商品与识别</span>
         <div class="header-actions">
+          <el-button @click="onExport">导出</el-button>
           <el-button type="primary" @click="openEnroll()">新建商品</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
@@ -16,53 +17,61 @@
       </el-form-item>
     </el-form>
 
-    <el-table v-loading="loading" :data="paged" stripe>
-      <el-table-column prop="skuId" label="SKU" min-width="120">
-        <template #default="{ row }"><code>{{ row.skuId }}</code></template>
-      </el-table-column>
-      <el-table-column prop="skuName" label="名称" min-width="120" />
-      <el-table-column label="基准价" width="96">
-        <template #default="{ row }">¥{{ ((row.priceCents || 0) / 100).toFixed(2) }}</template>
-      </el-table-column>
-      <el-table-column label="成本" width="96">
-        <template #default="{ row }">
-          {{ row.purchaseCostCents != null ? `¥${(row.purchaseCostCents / 100).toFixed(2)}` : '—' }}
-        </template>
-      </el-table-column>
-      <el-table-column prop="category" label="类目" width="100" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.category || '—' }}</template>
-      </el-table-column>
-      <el-table-column prop="yoloClassName" label="YOLO 类名" min-width="120">
-        <template #default="{ row }"><code>{{ row.yoloClassName || '—' }}</code></template>
-      </el-table-column>
-      <el-table-column label="识别状态" width="110">
-        <template #default="{ row }">
-          <el-tag :type="enrollmentTagType(row.visionEnrollmentStatus)">
-            {{ enrollmentLabel(row.visionEnrollmentStatus) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="商品状态" width="100">
-        <template #default="{ row }">
-          <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{ row.status || '—' }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="扣款阈值" width="100">
-        <template #default="{ row }">{{ formatConfidence(row.minChargeConfidence) }}</template>
-      </el-table-column>
-      <el-table-column label="检测阈值" width="100">
-        <template #default="{ row }">{{ formatConfidence(row.detectionMinConfidence ?? 0.5) }}</template>
-      </el-table-column>
-      <el-table-column label="操作" width="132" fixed="right" align="center">
-        <template #default="{ row }">
-          <TableActions
-            :actions="skuActions(row)"
-            :max-primary="2"
-            @action="(key) => onSkuAction(key, row)"
-          />
-        </template>
-      </el-table-column>
-    </el-table>
+    <div class="table-scroll">
+      <div class="table-scroll-inner" style="min-width: 1180px">
+        <el-table v-loading="loading" :data="paged" stripe border row-key="skuId" class="sku-table">
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column prop="skuId" label="SKU" min-width="120">
+            <template #default="{ row }"><span class="cell-id">{{ row.skuId }}</span></template>
+          </el-table-column>
+          <el-table-column prop="skuName" label="名称" min-width="120" show-overflow-tooltip />
+          <el-table-column label="基准价" width="96">
+            <template #default="{ row }">¥{{ ((row.priceCents || 0) / 100).toFixed(2) }}</template>
+          </el-table-column>
+          <el-table-column label="成本" width="96">
+            <template #default="{ row }">
+              {{ row.purchaseCostCents != null ? `¥${(row.purchaseCostCents / 100).toFixed(2)}` : '—' }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="category" label="类目" width="100" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.category || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="yoloClassName" label="YOLO 类名" min-width="120" show-overflow-tooltip>
+            <template #default="{ row }"><span class="cell-id">{{ row.yoloClassName || '—' }}</span></template>
+          </el-table-column>
+          <el-table-column label="识别状态" width="110">
+            <template #default="{ row }">
+              <el-tag size="small" :type="enrollmentTagType(row.visionEnrollmentStatus)">
+                {{ enrollmentLabel(row.visionEnrollmentStatus) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="商品状态" width="100">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
+                {{ skuStatusLabel(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="扣款阈值" width="100">
+            <template #default="{ row }">{{ formatConfidence(row.minChargeConfidence) }}</template>
+          </el-table-column>
+          <el-table-column label="检测阈值" width="100">
+            <template #default="{ row }">{{ formatConfidence(row.detectionMinConfidence ?? 0.5) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="132" class-name="col-action" align="center">
+            <template #default="{ row }">
+              <TableActions
+                :actions="skuActions(row)"
+                :max-primary="2"
+                @action="(key) => onSkuAction(key, row)"
+              />
+            </template>
+          </el-table-column>
+          <template #empty><el-empty description="暂无商品" /></template>
+        </el-table>
+      </div>
+    </div>
     <div class="page-pager">
       <el-pagination
         v-model:current-page="page"
@@ -73,7 +82,7 @@
       />
     </div>
 
-    <el-dialog v-model="enrollDialog" :title="enrollForm.skuId ? '编辑商品与识别' : '新建商品与识别'" width="640px">
+    <el-dialog v-model="enrollDialog" :title="enrollForm.existing ? '编辑商品与识别' : '新建商品与识别'" width="640px">
       <el-form label-width="108px">
         <el-form-item label="SKU ID" required>
           <el-input v-model="enrollForm.skuId" :disabled="!!enrollForm.existing" placeholder="SKU-XXX-001" />
@@ -149,6 +158,7 @@ import { EditPen, Refresh, Upload, CircleCheck } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { useListCsv } from '@/composables/useListCsv';
 import type {
   DevRecognitionPreviewDto,
   SkuCatalog,
@@ -175,6 +185,24 @@ const filtered = computed(() => {
 const paged = computed(() => {
   const start = (page.value - 1) * size.value;
   return filtered.value.slice(start, start + size.value);
+});
+
+const { onExport } = useListCsv({
+  filePrefix: '商品',
+  headers: ['SKU', '名称', '基准价', '成本', '类目', 'YOLO类名', '识别状态', '商品状态', '扣款阈值', '检测阈值'],
+  toRows: () =>
+    paged.value.map((row) => [
+      row.skuId,
+      row.skuName,
+      ((row.priceCents || 0) / 100).toFixed(2),
+      row.purchaseCostCents != null ? (row.purchaseCostCents / 100).toFixed(2) : '',
+      row.category || '',
+      row.yoloClassName || '',
+      enrollmentLabel(row.visionEnrollmentStatus),
+      skuStatusLabel(row.status),
+      formatConfidence(row.minChargeConfidence),
+      formatConfidence(row.detectionMinConfidence ?? 0.5)
+    ])
 });
 const enrollDialog = ref(false);
 const testDialog = ref(false);
@@ -217,6 +245,15 @@ function enrollmentLabel(status?: string) {
     PRODUCTION: '生产'
   };
   return map[status || 'DRAFT'] || status || '草稿';
+}
+
+function skuStatusLabel(status?: string) {
+  const map: Record<string, string> = {
+    ACTIVE: '上架',
+    INACTIVE: '下架',
+    DISABLED: '停用'
+  };
+  return map[status || ''] || status || '—';
 }
 
 function enrollmentTagType(status?: string) {
@@ -438,15 +475,33 @@ onMounted(load);
 </script>
 
 <style scoped>
+.page-card {
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--layout-text);
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.page-header > span {
+  font-weight: 600;
+  font-size: 15px;
 }
 
 .header-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sku-table {
+  font-size: 14px;
 }
 
 .inline-field {
@@ -462,11 +517,12 @@ onMounted(load);
 }
 
 .field-hint {
-  color: var(--el-text-color-secondary);
+  color: var(--layout-muted);
   font-size: 13px;
 }
 
 .test-table {
   margin-top: 12px;
+  font-size: 14px;
 }
 </style>

@@ -124,20 +124,29 @@ onBeforeUnmount(hide);
 .chart-host {
   position: relative;
   width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .chart-box {
   width: 100%;
-  min-height: 220px;
-  padding: 4px 0;
+  max-width: 100%;
+  padding: 0;
+}
+.chart-box:not(.donut) {
+  aspect-ratio: 640 / 260;
+  max-height: 268px;
+  min-height: 200px;
 }
 .chart-box.donut {
-  min-height: 0;
-  max-width: 200px;
+  width: 168px;
+  height: 168px;
   flex-shrink: 0;
 }
 .chart-box :deep(svg) {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
 }
 

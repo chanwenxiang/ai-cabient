@@ -114,6 +114,10 @@ public class ProductionStartupValidator {
             log.info("WeChat profit sharing disabled (PROFIT_SHARING_ENABLED=false)");
             return;
         }
+        if (profitSharingProperties.mockEnabled()) {
+            throw new IllegalStateException(
+                    "PROFIT_SHARING_MOCK_ENABLED=true is not allowed in production/staging");
+        }
         if (!weChatPayProperties.isConfigured()) {
             throw new IllegalStateException(
                     "PROFIT_SHARING_ENABLED=true requires full WeChat Pay V3 configuration");

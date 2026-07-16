@@ -6,11 +6,19 @@
       :prefix-icon="Search"
       clearable
       class="search-input"
-      @focus="open = true"
-      @input="open = true"
+      @click="openPalette"
+      @input="openPalette"
       @keydown.enter="pickFirst"
     />
-    <el-dialog v-model="open" title="全局搜索" width="520px" append-to-body @opened="focusInput">
+    <el-dialog
+      v-model="open"
+      title="全局搜索"
+      width="520px"
+      append-to-body
+      destroy-on-close
+      @opened="focusInput"
+      @closed="onClosed"
+    >
       <el-input
         ref="inputRef"
         v-model="keyword"
@@ -37,22 +45,37 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Search } from '@element-plus/icons-vue';
 import type { ElInput } from 'element-plus';
 import { searchNavItems } from '@/config/menu';
+import { useAuthStore } from '@/stores/auth';
 
 const router = useRouter();
+const auth = useAuthStore();
 const keyword = ref('');
 const open = ref(false);
 const inputRef = ref<InstanceType<typeof ElInput>>();
+/** 关闭后短时忽略再次打开，避免焦点回落到顶栏输入框又弹起对话框 */
+let suppressOpenUntil = 0;
 
-const results = computed(() => searchNavItems(keyword.value).slice(0, 12));
+const results = computed(() =>
+  searchNavItems(keyword.value, (item) => auth.canAccessNav(item)).slice(0, 12)
+);
+
+function openPalette() {
+  if (Date.now() < suppressOpenUntil) return;
+  open.value = true;
+}
 
 function go(path: string) {
+  suppressOpenUntil = Date.now() + 250;
   open.value = false;
   keyword.value = '';
+  nextTick(() => {
+    (document.activeElement as HTMLElement | null)?.blur?.();
+  });
   router.push(path);
 }
 
@@ -64,10 +87,17 @@ function focusInput() {
   inputRef.value?.focus();
 }
 
+function onClosed() {
+  suppressOpenUntil = Date.now() + 250;
+  nextTick(() => {
+    (document.activeElement as HTMLElement | null)?.blur?.();
+  });
+}
+
 function onKeydown(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
     e.preventDefault();
-    open.value = true;
+    openPalette();
   }
 }
 
@@ -76,7 +106,15 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
 </script>
 
 <style scoped>
-.search-input { width: 220px; }
+.global-search {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 220px;
+}
+.search-input {
+  width: clamp(108px, 16vw, 220px);
+  max-width: 100%;
+}
 .result-list { margin-top: 12px; max-height: 360px; overflow-y: auto; }
 .result-item {
   padding: 10px 12px;
