@@ -36,4 +36,11 @@ public interface UserCouponMapper extends BaseTradeMapper<UserCoupon> {
     return c == null ? 0 : c;
     }
 
+    default long countByUserIdAndCouponDefId(Long userId, Long couponDefId) {
+        Long c = selectCount(Wrappers.<UserCoupon>lambdaQuery()
+                .eq(UserCoupon::getUserId, userId)
+                .eq(UserCoupon::getCouponDefId, couponDefId));
+        return c == null ? 0 : c;
+    }
+
 }

@@ -79,6 +79,36 @@
       </ChartPanel>
     </div>
 
+    <div class="chart-grid chart-grid--2">
+      <ChartPanel title="订单支付渠道" hint="按订单金额" donut>
+        <div class="donut-layout">
+          <ChartBox v-if="orderChannelSvg" :svg="orderChannelSvg" donut />
+          <el-empty v-else description="暂无订单支付数据" :image-size="64" />
+          <ul v-if="orderChannelSvg" class="donut-legend-list">
+            <li v-for="p in orderChannelParts" :key="p.label">
+              <i :style="{ background: p.color }" />
+              {{ p.label }} ¥{{ ((p.value || 0) / 100).toFixed(p.value >= 10000 ? 0 : 2) }}
+              <span class="muted">（{{ p.count }} 单）</span>
+            </li>
+          </ul>
+        </div>
+      </ChartPanel>
+
+      <ChartPanel title="充值渠道" hint="已到账金额" donut>
+        <div class="donut-layout">
+          <ChartBox v-if="rechargeChannelSvg" :svg="rechargeChannelSvg" donut />
+          <el-empty v-else description="暂无充值数据" :image-size="64" />
+          <ul v-if="rechargeChannelSvg" class="donut-legend-list">
+            <li v-for="p in rechargeChannelParts" :key="p.label">
+              <i :style="{ background: p.color }" />
+              {{ p.label }} ¥{{ ((p.value || 0) / 100).toFixed(p.value >= 10000 ? 0 : 2) }}
+              <span class="muted">（{{ p.count }} 笔）</span>
+            </li>
+          </ul>
+        </div>
+      </ChartPanel>
+    </div>
+
     <div class="chart-grid chart-grid--split">
       <ChartPanel title="识别质量" hint="自动识别率 vs 争议率">
         <template #actions>
@@ -153,6 +183,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import { dictLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import ChartBox from '@/components/ChartBox.vue';
 import ChartPanel from '@/components/ChartPanel.vue';
@@ -181,6 +212,19 @@ interface AdminStats {
 interface DailyStat { date: string; orderCount: number; revenueCents: number }
 interface OpsDaily { date: string; recognitionRate: number; disputeRate: number }
 interface FinanceStats { grossMarginRateToday?: number }
+interface ChannelStat { channel: string; count: number; amountCents: number }
+interface ChannelBreakdown {
+  orderPayChannels?: ChannelStat[];
+  rechargeChannels?: ChannelStat[];
+}
+
+const CHANNEL_COLORS: Record<string, string> = {
+  WECHAT: '#07c160',
+  ALIPAY: '#1677ff',
+  BALANCE: '#f59e0b',
+  MOCK: '#94a3b8',
+  UNKNOWN: '#64748b'
+};
 
 const router = useRouter();
 const loading = ref(false);
@@ -189,6 +233,7 @@ const stats = ref<AdminStats>({});
 const trend = ref<DailyStat[]>([]);
 const opsTrend = ref<OpsDaily[]>([]);
 const finance = ref<FinanceStats | null>(null);
+const channels = ref<ChannelBreakdown>({});
 
 const revenueKind = ref<ChartKind>('area');
 const orderKind = ref<ChartKind>('bar');
@@ -196,6 +241,21 @@ const opsKind = ref<ChartKind>('line');
 
 const offlineDevices = computed(() => Math.max((stats.value.deviceTotal || 0) - (stats.value.deviceOnline || 0), 0));
 const labels = computed(() => trend.value.map((d) => shortDate(d.date)));
+
+function channelParts(statsList?: ChannelStat[]) {
+  return (statsList || []).map((s, i) => {
+    const code = String(s.channel || 'UNKNOWN').toUpperCase();
+    return {
+      label: dictLabel('pay_channel', code) || code,
+      value: s.amountCents || 0,
+      count: s.count || 0,
+      color: CHANNEL_COLORS[code] || ['#2dd4bf', '#60a5fa', '#a78bfa', '#fbbf24', '#f472b6'][i % 5]
+    };
+  });
+}
+
+const orderChannelParts = computed(() => channelParts(channels.value.orderPayChannels));
+const rechargeChannelParts = computed(() => channelParts(channels.value.rechargeChannels));
 
 const revenueSvg = computed(() => {
   if (!trend.value.length) return '';
@@ -230,6 +290,18 @@ const opsSvg = computed(() => {
   });
 });
 
+const orderChannelSvg = computed(() =>
+  buildDonutChart({
+    parts: orderChannelParts.value.map((p) => ({ label: p.label, value: p.value, color: p.color }))
+  })
+);
+
+const rechargeChannelSvg = computed(() =>
+  buildDonutChart({
+    parts: rechargeChannelParts.value.map((p) => ({ label: p.label, value: p.value, color: p.color }))
+  })
+);
+
 const deviceSvg = computed(() =>
   buildDonutChart({
     parts: [
@@ -243,16 +315,18 @@ async function load() {
   loading.value = true;
   try {
     const d = days.value;
-    const [s, t, o, f] = await Promise.all([
+    const [s, t, o, f, c] = await Promise.all([
       api.request<AdminStats>('/api/v2/ops/admin/stats', 'GET'),
       api.request<{ last7Days: DailyStat[] }>(`/api/v2/ops/admin/trend?days=${d}`, 'GET'),
       api.request<{ last7Days: OpsDaily[] }>(`/api/v2/ops/admin/trend/ops?days=${d}`, 'GET'),
-      api.request<FinanceStats>('/api/v2/ops/admin/finance/stats', 'GET').catch(() => null)
+      api.request<FinanceStats>('/api/v2/ops/admin/finance/stats', 'GET').catch(() => null),
+      api.request<ChannelBreakdown>(`/api/v2/ops/admin/trend/channels?days=${d}`, 'GET').catch(() => ({}))
     ]);
     stats.value = s || {};
     trend.value = t?.last7Days || [];
     opsTrend.value = o?.last7Days || [];
     finance.value = f;
+    channels.value = c || {};
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -297,4 +371,5 @@ onMounted(load);
 .stat-tile.accent-amber::before { background: #fbbf24; }
 .stat-label { font-size: 13px; color: var(--layout-muted); }
 .stat-value { font-size: 24px; font-weight: 700; margin-top: 6px; }
+.muted { color: var(--layout-muted); font-size: 12px; margin-left: 4px; }
 </style>

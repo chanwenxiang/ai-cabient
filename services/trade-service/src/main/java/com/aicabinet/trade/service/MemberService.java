@@ -203,4 +203,40 @@ public class MemberService {
     public List<MemberPointsLog> getPointsHistory(Long memberId) {
         return pointsLogRepository.findByMemberId(memberId);
     }
+
+    /**
+     * 订单支付成功后：按当前等级倍率返积分，并累计消费升级。
+     * 1 元实付 ≈ 1 积分 × points_rate（向下取整）。
+     */
+    @Transactional
+    public int onOrderPaid(Long userId, int paidAmountCents, String orderId) {
+        if (userId == null || paidAmountCents <= 0) {
+            return 0;
+        }
+        Member member = getMemberByUserId(userId).orElseGet(() -> createMember(userId));
+        double rate = 1.0;
+        Optional<MemberLevelRule> rule = levelRuleRepository.findByLevelCode(member.getMemberLevel());
+        if (rule.isPresent() && rule.get().getPointsRate() != null) {
+            rate = rule.get().getPointsRate().doubleValue();
+        }
+        int points = (int) Math.floor(paidAmountCents / 100.0 * rate);
+        if (points > 0) {
+            earnPoints(member.getMemberId(), points, "ORDER", orderId, "购物返积分");
+        }
+        updateMemberStats(member.getMemberId(), BigDecimal.valueOf(paidAmountCents, 2));
+        return points;
+    }
+
+    /** 查询订单购物返积分（无记录返回 0）。 */
+    @Transactional(readOnly = true)
+    public int findOrderEarnPoints(Long userId, String orderId) {
+        if (userId == null || orderId == null || orderId.isBlank()) {
+            return 0;
+        }
+        return getMemberByUserId(userId)
+                .flatMap(m -> pointsLogRepository.findByMemberIdAndSource(m.getMemberId(), "ORDER", orderId))
+                .map(MemberPointsLog::getPoints)
+                .map(p -> Math.abs(p == null ? 0 : p))
+                .orElse(0);
+    }
 }

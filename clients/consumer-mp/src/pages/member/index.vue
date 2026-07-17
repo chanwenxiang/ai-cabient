@@ -1,388 +1,249 @@
 ﻿<template>
-  <view class="page-root">
-    <!-- 会员卡片 -->
-    <view class="member-card" :class="'level-' + memberInfo.level">
-      <view class="card-header">
-        <image class="avatar" :src="userInfo.avatar || '/static/default-avatar.png'" mode="aspectFill" />
-        <view class="user-info">
-          <text class="nickname">{{ userInfo.nickname || '用户' }}</text>
-          <view class="level-badge">
-            <text class="level-text">{{ getLevelName(memberInfo.level) }}</text>
-          </view>
+  <view class="page">
+    <view class="hero" :class="'lv-' + (profile?.levelCode || 'NORMAL').toLowerCase()">
+      <view class="hero-top">
+        <view>
+          <text class="hero-kicker">AI CABINET CLUB</text>
+          <text class="hero-level">{{ profile?.levelName || '普通会员' }}</text>
+        </view>
+        <view class="points-chip" @click="goHistory">
+          <text class="points-num">{{ profile?.availablePoints ?? 0 }}</text>
+          <text class="points-unit">积分</text>
         </view>
       </view>
-      
-      <view class="card-body">
-        <view class="points-display">
-          <text class="points-label">当前积分</text>
-          <text class="points-value">{{ memberInfo.points }}</text>
+      <view class="progress-block">
+        <view class="progress-track">
+          <view class="progress-fill" :style="{ width: progressWidth }" />
         </view>
-        
-        <view class="progress-section">
-          <view class="progress-bar">
-            <view class="progress-fill" :style="{ width: progressWidth }" />
-          </view>
-          <text class="progress-text">
-            还差 {{ pointsToNextLevel }} 积分升级到 {{ getLevelName(memberInfo.level + 1) }}
-          </text>
-        </view>
+        <text class="progress-text">
+          <text v-if="profile?.nextLevelName">距 {{ profile.nextLevelName }} 还差约 ¥{{ profile.pointsToNextLevel }} 消费 · 积分倍率 {{ profile.pointsRate }}x</text>
+          <text v-else>已达最高等级 · 积分倍率 {{ profile?.pointsRate || 1 }}x</text>
+        </text>
       </view>
     </view>
 
-    <!-- 会员权益 -->
+    <view class="quick-grid">
+      <view class="quick" @click="goExchange">
+        <text class="quick-emoji">🎁</text>
+        <text class="quick-title">积分兑换</text>
+        <text class="quick-desc">兑优惠券</text>
+      </view>
+      <view class="quick" @click="goHistory">
+        <text class="quick-emoji">📒</text>
+        <text class="quick-title">积分明细</text>
+        <text class="quick-desc">收支一览</text>
+      </view>
+      <view class="quick" @click="goCoupons">
+        <text class="quick-emoji">🎫</text>
+        <text class="quick-title">我的券</text>
+        <text class="quick-desc">{{ couponCount }} 张可用</text>
+      </view>
+      <view class="quick" @click="goMarketing">
+        <text class="quick-emoji">🔥</text>
+        <text class="quick-title">热门活动</text>
+        <text class="quick-desc">本周上新</text>
+      </view>
+    </view>
+
+    <view class="section">
+      <view class="section-head">
+        <text class="section-title">积分兑好礼</text>
+        <text class="section-more" @click="goExchange">全部 ›</text>
+      </view>
+      <scroll-view scroll-x class="redeem-scroll" :show-scrollbar="false">
+        <view v-for="item in redeemPreview" :key="item.itemId" class="redeem-card" @click="goExchange">
+          <text class="redeem-emoji">{{ item.coverEmoji }}</text>
+          <text class="redeem-title">{{ item.title }}</text>
+          <text class="redeem-cost">{{ item.pointsCost }} 积分</text>
+        </view>
+        <view v-if="!redeemPreview.length" class="redeem-empty">加载中…</view>
+      </scroll-view>
+    </view>
+
     <view class="section">
       <text class="section-title">会员权益</text>
-      <view class="benefits-grid">
-        <view v-for="benefit in currentBenefits" :key="benefit.id" class="benefit-item">
-          <image class="benefit-icon" :src="benefit.icon" mode="aspectFit" />
-          <text class="benefit-name">{{ benefit.name }}</text>
-          <text class="benefit-desc">{{ benefit.desc }}</text>
+      <view class="benefit-list">
+        <view v-for="b in benefits" :key="b.title" class="benefit-row">
+          <text class="benefit-emoji">{{ b.emoji }}</text>
+          <view class="benefit-copy">
+            <text class="benefit-title">{{ b.title }}</text>
+            <text class="benefit-desc">{{ b.desc }}</text>
+          </view>
         </view>
       </view>
     </view>
 
-    <!-- 等级说明 -->
     <view class="section">
       <text class="section-title">等级说明</text>
-      <view class="level-list">
-        <view v-for="level in levelList" :key="level.level" 
-              class="level-item" 
-              :class="{ 'active': memberInfo.level === level.level }">
-          <view class="level-left">
-            <text class="level-name">{{ level.name }}</text>
-            <text class="level-range">{{ level.minPoints }}-{{ level.maxPoints }}积分</text>
-          </view>
-          <view class="level-benefits">
-            <text v-for="b in level.benefits" :key="b" class="benefit-tag">{{ b }}</text>
-          </view>
+      <view v-for="lv in profile?.levels || []" :key="lv.levelCode" class="level-row" :class="{ on: lv.levelCode === profile?.levelCode }">
+        <view>
+          <text class="level-name">{{ lv.levelName }}</text>
+          <text class="level-range">累计消费 ¥{{ Number(lv.minSpent || 0).toFixed(0) }}{{ lv.maxSpent != null ? ' - ¥' + Number(lv.maxSpent).toFixed(0) : '+' }}</text>
         </view>
-      </view>
-    </view>
-
-    <!-- 积分明细入口 -->
-    <view class="section">
-      <view class="action-item" @click="goToPointsHistory">
-        <text class="action-label">积分明细</text>
-        <text class="action-arrow">›</text>
-      </view>
-      <view class="action-item" @click="goToPointsExchange">
-        <text class="action-label">积分兑换</text>
-        <text class="action-arrow">›</text>
+        <text class="level-rate">{{ lv.pointsRate }}x 积分</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
-import { consumerApi } from '@/utils/consumer-api';
+import { computed, ref } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
+import {
+  consumerApi,
+  ensureConsumerAuth,
+  type MemberProfileDto,
+  type PointsRedeemItemDto
+} from '@/utils/consumer-api';
 
-const userInfo = ref({
-  avatar: '',
-  nickname: ''
-});
+const profile = ref<MemberProfileDto | null>(null);
+const redeemPreview = ref<PointsRedeemItemDto[]>([]);
+const couponCount = ref(0);
 
-const memberInfo = ref({
-  level: 1,
-  points: 0,
-  totalSpent: 0
-});
+const progressWidth = computed(() => `${Math.min(100, Math.max(0, profile.value?.progressPercent || 0))}%`);
 
-const levelConfig = [
-  { level: 1, name: '普通会员', minPoints: 0, maxPoints: 999, benefits: ['基础折扣'] },
-  { level: 2, name: '银卡会员', minPoints: 1000, maxPoints: 4999, benefits: ['95折', '优先客服'] },
-  { level: 3, name: '金卡会员', minPoints: 5000, maxPoints: 9999, benefits: ['9折', '免配送', '专属活动'] },
-  { level: 4, name: '钻石会员', minPoints: 10000, maxPoints: 99999, benefits: ['85折', '免配送', '专属客服', '生日礼'] }
-];
-
-const currentBenefits = computed(() => {
-  const level = levelConfig.find(l => l.level === memberInfo.value.level);
+const benefits = computed(() => {
+  const rate = profile.value?.pointsRate || 1;
   return [
-    { id: 1, name: '会员折扣', desc: 最高折, icon: '/static/icons/discount.png' },
-    { id: 2, name: '积分特权', desc: '购物双倍积分', icon: '/static/icons/points.png' },
-    { id: 3, name: '专属活动', desc: '会员专享活动', icon: '/static/icons/activity.png' },
-    { id: 4, name: '优先客服', desc: '专属客服通道', icon: '/static/icons/service.png' }
+    { emoji: '⭐', title: '购物返积分', desc: `当前 ${rate}x，关门结算自动到账` },
+    { emoji: '🎁', title: '积分兑券', desc: '100 积分起兑立减券，开门立减' },
+    { emoji: '🧊', title: '活动优先', desc: '会员专享满减与新客礼，活动页直达' }
   ];
 });
 
-const progressWidth = computed(() => {
-  const currentLevel = levelConfig.find(l => l.level === memberInfo.value.level);
-  const nextLevel = levelConfig.find(l => l.level === memberInfo.value.level + 1);
-  if (!currentLevel || !nextLevel) return '100%';
-  
-  const current = memberInfo.value.points - currentLevel.minPoints;
-  const total = nextLevel.minPoints - currentLevel.minPoints;
-  return ${Math.min(100, (current / total) * 100)}%;
+onShow(async () => {
+  if (!(await ensureConsumerAuth())) {
+    uni.navigateTo({ url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/member/index') });
+    return;
+  }
+  await load();
 });
 
-const pointsToNextLevel = computed(() => {
-  const nextLevel = levelConfig.find(l => l.level === memberInfo.value.level + 1);
-  if (!nextLevel) return 0;
-  return nextLevel.minPoints - memberInfo.value.points;
-});
-
-const levelList = computed(() => levelConfig);
-
-function getLevelName(level: number): string {
-  const config = levelConfig.find(l => l.level === level);
-  return config?.name || '普通会员';
-}
-
-function getDiscount(level: number): number {
-  const discounts: Record<number, number> = { 1: 9.8, 2: 9.5, 3: 9, 4: 8.5 };
-  return discounts[level] || 9.8;
-}
-
-function goToPointsHistory() {
-  uni.navigateTo({ url: '/pages/member/points-history' });
-}
-
-function goToPointsExchange() {
-  uni.navigateTo({ url: '/pages/member/points-exchange' });
-}
-
-async function loadMemberInfo() {
+async function load() {
   try {
-    const res = await consumerApi.get('/api/v2/member/profile');
-    const data = res.data?.data ?? {};
-    memberInfo.value = {
-      level: data.level || 1,
-      points: data.points || 0,
-      totalSpent: data.totalSpent || 0
-    };
-    userInfo.value = {
-      avatar: data.avatar || '',
-      nickname: data.nickname || ''
-    };
-  } catch (error) {
-    console.error('加载会员信息失败', error);
+    const [p, items, count] = await Promise.all([
+      consumerApi.memberProfile(),
+      consumerApi.redeemItems(),
+      consumerApi.couponCount().catch(() => 0)
+    ]);
+    profile.value = p;
+    redeemPreview.value = (items || []).slice(0, 6);
+    couponCount.value = Number(count) || 0;
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '加载失败', icon: 'none' });
   }
 }
 
-onMounted(() => loadMemberInfo());
+function goExchange() {
+  uni.navigateTo({ url: '/pages/member/exchange' });
+}
+function goHistory() {
+  uni.navigateTo({ url: '/pages/member/points-history' });
+}
+function goCoupons() {
+  uni.navigateTo({ url: '/pages/coupons/coupons' });
+}
+function goMarketing() {
+  uni.navigateTo({ url: '/pages/marketing/index' });
+}
 </script>
 
 <style scoped>
-.page-root {
+.page {
   min-height: 100vh;
-  background: linear-gradient(180deg, #f5f5f5 0%, #fff 100%);
+  padding: 24rpx 24rpx 48rpx;
+  background: linear-gradient(180deg, #e8f8f1 0%, #f5f7f8 220rpx, #f5f7f8 100%);
 }
-
-.member-card {
-  margin: 24rpx;
-  padding: 32rpx;
-  border-radius: 24rpx;
-  background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%);
-  box-shadow: 0 8rpx 32rpx rgba(255, 170, 0, 0.3);
-}
-
-.member-card.level-2 {
-  background: linear-gradient(135deg, #c0c0c0 0%, #a0a0a0 100%);
-}
-
-.member-card.level-3 {
-  background: linear-gradient(135deg, #ffd700 0%, #ffaa00 100%);
-}
-
-.member-card.level-4 {
-  background: linear-gradient(135deg, #b19cd9 0%, #9b59b6 100%);
-}
-
-.card-header {
-  display: flex;
-  align-items: center;
-  margin-bottom: 32rpx;
-}
-
-.avatar {
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: 50%;
-  border: 4rpx solid rgba(255, 255, 255, 0.8);
-}
-
-.user-info {
-  margin-left: 24rpx;
-  color: #fff;
-}
-
-.nickname {
-  font-size: 32rpx;
-  font-weight: bold;
-  display: block;
-  margin-bottom: 8rpx;
-}
-
-.level-badge {
-  display: inline-block;
-  background: rgba(255, 255, 255, 0.3);
-  padding: 4rpx 16rpx;
-  border-radius: 20rpx;
-}
-
-.level-text {
-  font-size: 24rpx;
-}
-
-.card-body {
-  color: #fff;
-}
-
-.points-display {
-  text-align: center;
-  margin-bottom: 24rpx;
-}
-
-.points-label {
-  font-size: 24rpx;
-  opacity: 0.8;
-  display: block;
-  margin-bottom: 8rpx;
-}
-
-.points-value {
-  font-size: 64rpx;
-  font-weight: bold;
-}
-
-.progress-section {
-  padding-top: 16rpx;
-}
-
-.progress-bar {
-  height: 12rpx;
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 6rpx;
+.hero {
+  position: relative;
   overflow: hidden;
+  padding: 36rpx 32rpx 28rpx;
+  border-radius: 28rpx;
+  color: #fff;
+  background: linear-gradient(135deg, #064e3b 0%, #059669 55%, #0d9488 100%);
+  box-shadow: 0 16rpx 40rpx rgba(5, 150, 105, 0.28);
 }
-
-.progress-fill {
-  height: 100%;
-  background: #fff;
-  border-radius: 6rpx;
-  transition: width 0.3s ease;
+.hero.lv-silver { background: linear-gradient(135deg, #334155, #64748b 60%, #94a3b8); }
+.hero.lv-gold { background: linear-gradient(135deg, #92400e, #d97706 55%, #f59e0b); }
+.hero.lv-platinum { background: linear-gradient(135deg, #1e1b4b, #4338ca 55%, #6366f1); }
+.hero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 20rpx; }
+.hero-kicker { display: block; font-size: 20rpx; letter-spacing: 2rpx; opacity: 0.7; }
+.hero-level { display: block; margin-top: 8rpx; font-size: 40rpx; font-weight: 800; }
+.points-chip {
+  min-width: 140rpx;
+  padding: 16rpx 22rpx;
+  border-radius: 20rpx;
+  background: rgba(255, 255, 255, 0.16);
+  text-align: right;
 }
+.points-num { display: block; font-size: 44rpx; font-weight: 800; line-height: 1; }
+.points-unit { display: block; margin-top: 6rpx; font-size: 22rpx; opacity: 0.85; }
+.progress-block { margin-top: 28rpx; }
+.progress-track { height: 10rpx; border-radius: 999rpx; background: rgba(255, 255, 255, 0.22); overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 999rpx; background: #fff; }
+.progress-text { display: block; margin-top: 14rpx; font-size: 22rpx; opacity: 0.88; line-height: 1.4; }
 
-.progress-text {
-  font-size: 22rpx;
-  opacity: 0.8;
-  display: block;
-  margin-top: 8rpx;
-  text-align: center;
-}
-
-.section {
-  background: #fff;
-  margin: 24rpx;
-  padding: 32rpx;
-  border-radius: 16rpx;
-}
-
-.section-title {
-  font-size: 32rpx;
-  font-weight: bold;
-  color: #333;
-  display: block;
-  margin-bottom: 24rpx;
-}
-
-.benefits-grid {
+.quick-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16rpx;
+  gap: 12rpx;
+  margin-top: 22rpx;
 }
-
-.benefit-item {
+.quick {
+  padding: 22rpx 10rpx;
+  border-radius: 20rpx;
+  background: #fff;
   text-align: center;
+  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.05);
 }
+.quick-emoji { display: block; font-size: 34rpx; }
+.quick-title { display: block; margin-top: 8rpx; font-size: 24rpx; font-weight: 650; color: #1f2a24; }
+.quick-desc { display: block; margin-top: 4rpx; font-size: 20rpx; color: #8a968e; }
 
-.benefit-icon {
-  width: 64rpx;
-  height: 64rpx;
-  margin-bottom: 8rpx;
+.section {
+  margin-top: 24rpx;
+  padding: 28rpx 24rpx;
+  border-radius: 24rpx;
+  background: #fff;
+  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
 }
-
-.benefit-name {
-  font-size: 24rpx;
-  color: #333;
-  display: block;
-  margin-bottom: 4rpx;
-}
-
-.benefit-desc {
-  font-size: 20rpx;
-  color: #999;
-  display: block;
-}
-
-.level-list {
-  padding: 0;
-}
-
-.level-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 24rpx;
-  border-radius: 12rpx;
-  margin-bottom: 16rpx;
-  background: #f5f5f5;
-}
-
-.level-item.active {
-  background: #fff7e6;
-  border: 2rpx solid #ffd700;
-}
-
-.level-left {
-  display: flex;
+.section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18rpx; }
+.section-title { font-size: 30rpx; font-weight: 700; color: #1b3027; }
+.section-more { font-size: 24rpx; color: #059669; }
+.redeem-scroll { white-space: nowrap; }
+.redeem-card {
+  display: inline-flex;
   flex-direction: column;
+  width: 200rpx;
+  margin-right: 16rpx;
+  padding: 22rpx 18rpx;
+  border-radius: 20rpx;
+  background: linear-gradient(180deg, #f0fdf4, #fff);
+  border: 1rpx solid #d1fae5;
+  vertical-align: top;
 }
+.redeem-emoji { font-size: 40rpx; }
+.redeem-title { margin-top: 10rpx; font-size: 24rpx; font-weight: 650; color: #14532d; white-space: normal; }
+.redeem-cost { margin-top: 8rpx; font-size: 22rpx; color: #059669; font-weight: 700; }
+.redeem-empty { padding: 24rpx; color: #999; font-size: 24rpx; }
 
-.level-name {
-  font-size: 28rpx;
-  color: #333;
-  font-weight: bold;
-}
+.benefit-row { display: flex; gap: 18rpx; padding: 18rpx 0; border-bottom: 1rpx solid #f0f2f1; }
+.benefit-row:last-child { border-bottom: 0; }
+.benefit-emoji { font-size: 34rpx; }
+.benefit-title { display: block; font-size: 28rpx; font-weight: 650; color: #223029; }
+.benefit-desc { display: block; margin-top: 6rpx; font-size: 22rpx; color: #849087; }
 
-.level-range {
-  font-size: 22rpx;
-  color: #999;
-  margin-top: 4rpx;
-}
-
-.level-benefits {
-  display: flex;
-  gap: 8rpx;
-}
-
-.benefit-tag {
-  font-size: 20rpx;
-  color: #667eea;
-  background: #f0f5ff;
-  padding: 4rpx 12rpx;
-  border-radius: 4rpx;
-}
-
-.action-item {
+.level-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24rpx 0;
-  border-bottom: 1rpx solid #f0f0f0;
+  padding: 20rpx 18rpx;
+  margin-top: 12rpx;
+  border-radius: 16rpx;
+  background: #f8faf9;
 }
-
-.action-item:last-child {
-  border-bottom: none;
-}
-
-.action-label {
-  font-size: 28rpx;
-  color: #333;
-}
-
-.action-arrow {
-  font-size: 32rpx;
-  color: #ccc;
-}
+.level-row.on { background: #ecfdf5; border: 1rpx solid #a7f3d0; }
+.level-name { display: block; font-size: 28rpx; font-weight: 650; color: #1b3027; }
+.level-range { display: block; margin-top: 4rpx; font-size: 22rpx; color: #849087; }
+.level-rate { font-size: 24rpx; color: #059669; font-weight: 700; }
 </style>

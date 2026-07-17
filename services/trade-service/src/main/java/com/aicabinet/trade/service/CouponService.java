@@ -106,7 +106,7 @@ public class CouponService {
         definitionRepository.save(def);
 
         log.info("coupon issued userId={} couponId={} code={}", userId, uc.getCouponId(), uc.getCouponCode());
-        return toDto(uc, def.getCouponName());
+        return toDto(uc, def);
     }
 
     @Transactional
@@ -122,7 +122,7 @@ public class CouponService {
                 : userCouponRepository.findByUserIdOrderByCreatedAtDesc(userId);
         return coupons.stream().map(uc -> {
             CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
-            return toDto(uc, def != null ? def.getCouponName() : "未知优惠券");
+            return toDto(uc, def);
         }).toList();
     }
 
@@ -150,7 +150,7 @@ public class CouponService {
 
         CouponDefinition def = definitionRepository.findById(uc.getCouponDefId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券定义不存在"));
-        int discount = resolveDiscount(def);
+        int discount = resolveDiscount(def, Integer.MAX_VALUE);
 
         uc.setStatus("USED");
         uc.setUsedAt(Instant.now());
@@ -160,16 +160,89 @@ public class CouponService {
         userCouponRepository.save(uc);
 
         log.info("coupon used userId={} couponId={} order={} discount={}", userId, couponId, orderId, discount);
-        return toDto(uc, def.getCouponName());
+        return toDto(uc, def);
     }
 
     public int resolveDiscount(CouponDefinition def) {
-        return switch (def.getCouponType()) {
+        return resolveDiscount(def, Integer.MAX_VALUE);
+    }
+
+    public int resolveDiscount(CouponDefinition def, int subtotalCents) {
+        if (def == null) return 0;
+        String type = def.getCouponType() == null ? "" : def.getCouponType();
+        // 无订单上下文时：满减取面额，折扣券无法计算
+        if (subtotalCents == Integer.MAX_VALUE) {
+            return "PERCENT_OFF".equals(type) ? 0 : Math.max(0, def.getDenominationCents());
+        }
+        int cappedSubtotal = Math.max(0, subtotalCents);
+        int raw = switch (type) {
             case "AMOUNT_OFF" -> def.getDenominationCents();
-            case "PERCENT_OFF" -> 0;
+            case "PERCENT_OFF" -> {
+                int pct = def.getDiscountPercent() != null ? def.getDiscountPercent() : 0;
+                yield cappedSubtotal * pct / 100;
+            }
             default -> def.getDenominationCents();
         };
+        return Math.max(0, Math.min(raw, cappedSubtotal));
     }
+
+    /**
+     * 自动挑选当前订单可用且抵扣最大的 UNUSED 优惠券。
+     */
+    public Optional<BestCoupon> selectBestCoupon(Long userId, int subtotalCents) {
+        if (userId == null || subtotalCents <= 0) {
+            return Optional.empty();
+        }
+        Instant now = Instant.now();
+        BestCoupon best = null;
+        for (UserCoupon uc : userCouponRepository.findByUserIdAndStatus(userId, "UNUSED")) {
+            if (uc.getExpireAt() != null && uc.getExpireAt().isBefore(now)) {
+                continue;
+            }
+            CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
+            if (def == null || !"ACTIVE".equalsIgnoreCase(def.getStatus())) {
+                continue;
+            }
+            if (subtotalCents < def.getMinSpendCents()) {
+                continue;
+            }
+            int discount = resolveDiscount(def, subtotalCents);
+            if (discount <= 0) {
+                continue;
+            }
+            if (best == null || discount > best.discountCents()) {
+                best = new BestCoupon(uc.getCouponId(), discount, def.getCouponName());
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
+    @Transactional
+    public void markUsed(Long userId, Long couponId, String orderId, String deviceId, int discountCents) {
+        UserCoupon uc = userCouponRepository.findById(couponId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券不存在"));
+        if (!uc.getUserId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权使用该优惠券");
+        }
+        if (!"UNUSED".equals(uc.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已使用或已过期");
+        }
+        if (uc.getExpireAt() != null && uc.getExpireAt().isBefore(Instant.now())) {
+            uc.setStatus("EXPIRED");
+            userCouponRepository.save(uc);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已过期");
+        }
+        uc.setStatus("USED");
+        uc.setUsedAt(Instant.now());
+        uc.setOrderId(orderId);
+        uc.setDeviceId(deviceId);
+        uc.setDiscountCents(Math.max(0, discountCents));
+        userCouponRepository.save(uc);
+        log.info("coupon marked used userId={} couponId={} order={} discount={}",
+                userId, couponId, orderId, discountCents);
+    }
+
+    public record BestCoupon(Long couponId, int discountCents, String couponName) {}
 
     // ── 定时任务：过期处理 ──────────────────────────────
 
@@ -196,12 +269,24 @@ public class CouponService {
                 d.getStatus(), d.getDescription());
     }
 
-    private CouponDto toDto(UserCoupon uc, String couponName) {
+    private CouponDto toDto(UserCoupon uc, CouponDefinition def) {
+        String name = def != null ? def.getCouponName() : "未知优惠券";
+        String type = def != null ? def.getCouponType() : "AMOUNT_OFF";
+        int denomination = def != null
+                ? def.getDenominationCents()
+                : (uc.getDiscountCents() != null ? uc.getDiscountCents() : 0);
+        int minSpend = def != null ? def.getMinSpendCents() : 0;
         return new CouponDto(
-                uc.getCouponId(), couponName, uc.getStatus(),
-                uc.getDiscountCents() != null ? uc.getDiscountCents() : 0,
-                0, uc.getStatus(), uc.getExpireAt(),
-                uc.getReceivedAt(), uc.getUsedAt(), uc.getCouponCode());
+                uc.getCouponId(),
+                name,
+                type,
+                denomination,
+                minSpend,
+                uc.getStatus(),
+                uc.getExpireAt(),
+                uc.getReceivedAt(),
+                uc.getUsedAt(),
+                uc.getCouponCode());
     }
 
     private String generateCouponCode() {

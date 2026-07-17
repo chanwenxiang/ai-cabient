@@ -1,7 +1,11 @@
 <template>
   <view>
     <view v-if="loading" class="card"><text class="meta">加载中…</text></view>
-    <view v-else-if="error" class="card"><text class="err">{{ error }}</text></view>
+    <view v-else-if="error" class="card error-card">
+      <text class="err">{{ error }}</text>
+      <button class="action-btn" hover-class="btn-hover" @click="goHome">回首页</button>
+      <button class="ghost-btn" hover-class="btn-hover" @click="goOrders">查看订单</button>
+    </view>
     <view v-else-if="order">
       <view class="success-header">
         <text class="success-icon">✓</text>
@@ -30,6 +34,22 @@
           </view>
         </view>
         <text v-else class="empty-lines">未识别到取走商品</text>
+        <view
+          v-if="order.originalAmountCents != null && order.originalAmountCents !== order.totalAmountCents"
+          class="sum-row"
+        >
+          <text class="sum-label">商品合计</text>
+          <text class="sum-value">{{ fmtMoney(order.originalAmountCents) }}</text>
+        </view>
+        <view v-if="order.couponDiscountCents" class="sum-row discount">
+          <text class="sum-label">优惠券抵扣</text>
+          <text class="sum-value">-{{ fmtMoney(order.couponDiscountCents) }}</text>
+        </view>
+        <text v-if="order.couponDiscountCents" class="coupon-hint">已自动选用最优优惠券</text>
+        <view v-if="order.pointsEarned" class="sum-row points">
+          <text class="sum-label">本次获得积分</text>
+          <text class="sum-value">+{{ order.pointsEarned }}</text>
+        </view>
       </view>
 
       <view class="footer-actions">
@@ -199,6 +219,12 @@ function goHome() {
 .line-name { color: #1e293b; }
 .line-amt { color: #07c160; font-weight: 600; }
 .empty-lines { font-size: 26rpx; color: #888; }
+.sum-row { display: flex; justify-content: space-between; padding: 14rpx 0 0; margin-top: 8rpx; }
+.sum-row.discount .sum-value { color: #d97706; font-weight: 600; }
+.sum-row.points .sum-value { color: #059669; font-weight: 700; }
+.sum-label { font-size: 26rpx; color: #64748b; }
+.sum-value { font-size: 28rpx; color: #1e293b; font-weight: 600; }
+.coupon-hint { display: block; margin-top: 8rpx; font-size: 22rpx; color: #ad6800; }
 .footer-actions { padding: 24rpx; display: flex; flex-direction: column; gap: 16rpx; }
 .action-btn {
   margin: 0;
@@ -224,7 +250,10 @@ function goHome() {
 .ghost-btn.subtle { color: #999; font-size: 28rpx; }
 .dispute-done { text-align: center; font-size: 26rpx; color: #07c160; padding: 8rpx 0; }
 .btn-hover { opacity: 0.85; }
-.err { color: #fa5151; }
+.err { color: #fa5151; display: block; margin-bottom: 24rpx; text-align: center; }
+.error-card { margin: 24rpx; padding: 40rpx 28rpx; text-align: center; }
+.error-card .action-btn { margin-top: 12rpx; }
+.error-card .ghost-btn { margin-top: 16rpx; }
 
 .dispute-mask {
   position: fixed;

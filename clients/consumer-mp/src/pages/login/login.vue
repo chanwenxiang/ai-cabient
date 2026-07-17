@@ -30,22 +30,44 @@
 
         <view class="field">
           <text class="field-label">手机号</text>
-          <input v-model="phone" class="input" type="number" maxlength="11" placeholder="请输入11位手机号" />
+          <input
+            class="input"
+            type="number"
+            maxlength="11"
+            :value="phone"
+            placeholder="请输入11位手机号"
+            @input="phone = eventInputValue($event)"
+          />
         </view>
 
         <view v-if="mode === 'password'" class="field">
           <text class="field-label">密码</text>
-          <input v-model="password" class="input" password placeholder="请输入登录密码" />
+          <input
+            class="input"
+            password
+            :value="password"
+            placeholder="请输入登录密码"
+            @input="password = eventInputValue($event)"
+          />
         </view>
         <view v-else class="field">
           <text class="field-label">验证码</text>
           <view class="row">
-            <input v-model="code" class="input flex" placeholder="请输入验证码" />
-            <view class="btn-code" @click="onSendCode">{{ codeCooldown ? codeCooldown + 's' : '获取验证码' }}</view>
+            <input
+              class="input flex"
+              :value="code"
+              placeholder="请输入验证码"
+              @input="code = eventInputValue($event)"
+            />
+            <view class="btn-code" :class="{ disabled: !!codeCooldown }" @click="onSendCode">
+              {{ codeCooldown ? codeCooldown + 's' : '获取验证码' }}
+            </view>
           </view>
         </view>
 
-        <view class="btn-primary" @click="onLogin">{{ loading ? '验证中…' : '验证并继续' }}</view>
+        <view class="btn-primary" :class="{ disabled: loading }" @click="onLogin">
+          {{ loading ? '验证中…' : '验证并继续' }}
+        </view>
         <view class="btn-ghost" @click="goBack">返回购物</view>
         <text v-if="err" class="err">{{ err }}</text>
       </view>
@@ -57,6 +79,7 @@
 import { onLoad } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 import { consumerPasswordLogin, consumerSmsLogin, consumerWxLogin, sendSmsCode } from '@/utils/consumer-api';
+import { eventInputValue, readDomFieldValue, readDomPassword } from '@/utils/form-bind';
 import loginBgUrl from '@/static/login-bg.png';
 
 const redirect = ref('/pages/index/index');
@@ -83,9 +106,16 @@ function goBack() {
 }
 
 async function onSendCode() {
-  if (codeCooldown.value || !phone.value.trim()) return;
+  if (codeCooldown.value) return;
+  let phoneNum = phone.value.trim();
+  if (!phoneNum) phoneNum = readDomFieldValue('input');
+  phone.value = phoneNum;
+  if (!/^1\d{10}$/.test(phoneNum)) {
+    err.value = '请输入11位有效手机号';
+    return;
+  }
   try {
-    await sendSmsCode(phone.value.trim());
+    await sendSmsCode(phoneNum);
     codeCooldown.value = 60;
     codeTimer = setInterval(() => {
       codeCooldown.value -= 1;
@@ -98,19 +128,44 @@ async function onSendCode() {
 }
 
 async function onLogin() {
+  if (loading.value) return;
+  let phoneNum = phone.value.trim();
+  if (!phoneNum) phoneNum = readDomFieldValue('input');
+  phone.value = phoneNum;
+  if (!/^1\d{10}$/.test(phoneNum)) {
+    err.value = '请输入11位有效手机号';
+    return;
+  }
+  if (mode.value === 'password') {
+    let pwd = password.value;
+    if (!pwd) pwd = readDomPassword();
+    password.value = pwd;
+    if (!pwd) {
+      err.value = '请输入登录密码';
+      return;
+    }
+  } else {
+    let sms = code.value.trim();
+    if (!sms) sms = readDomFieldValue('input');
+    code.value = sms;
+    if (!sms) {
+      err.value = '请输入验证码';
+      return;
+    }
+  }
   loading.value = true;
   err.value = '';
   try {
     if (mode.value === 'password') {
-      await consumerPasswordLogin(phone.value.trim(), password.value);
+      await consumerPasswordLogin(phoneNum, password.value);
     } else {
-      await consumerSmsLogin(phone.value.trim(), code.value.trim());
+      await consumerSmsLogin(phoneNum, code.value.trim());
     }
     try {
       const wxCode = await new Promise<string>((resolve, reject) => {
         uni.login({ provider: 'weixin', success: (r) => (r.code ? resolve(r.code) : reject()), fail: reject });
       });
-      await consumerWxLogin(wxCode, phone.value.trim());
+      await consumerWxLogin(wxCode, phoneNum);
     } catch {
       /* 非微信环境或绑定失败时仍可用手机号会话 */
     }
@@ -365,6 +420,14 @@ async function onLogin() {
   font-size: 30rpx;
   font-weight: 600;
   box-shadow: 0 10rpx 28rpx rgba(234, 88, 12, 0.28);
+}
+.btn-primary.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.btn-code.disabled {
+  opacity: 0.55;
+  pointer-events: none;
 }
 .btn-ghost {
   margin-top: 20rpx;

@@ -1,5 +1,12 @@
 ﻿<template>
   <view class="page">
+    <view class="page-nav">
+      <view class="nav-back" hover-class="nav-back-hover" @click="goBack">
+        <image class="nav-back-svg" src="/static/nav-back.svg" mode="aspectFit" />
+      </view>
+      <text class="nav-title">我的订单</text>
+      <view class="nav-side" />
+    </view>
     <view v-if="loading" class="state-wrap"><text class="meta">加载中…</text></view>
     <view v-else-if="error" class="state-wrap">
       <text class="empty-title">加载失败</text>
@@ -8,53 +15,96 @@
       <button class="ghost-btn" hover-class="btn-hover" @click="goShop">去扫码购物</button>
     </view>
     <view v-else-if="!authed" class="state-wrap">
-      <text class="empty-icon">🔐</text>
-      <text class="empty-title">授权后查看订单</text>
-      <text class="empty-desc">扫码购物会自动完成微信授权</text>
-      <button class="action-btn" hover-class="btn-hover" @click="onAuth">微信授权</button>
+      <text class="empty-title">登录后查看订单</text>
+      <text class="empty-desc">使用演示账号登录后，可查看购物账单与审核进度</text>
+      <button class="action-btn" hover-class="btn-hover" @click="onAuth">去登录</button>
       <button class="ghost-btn" hover-class="btn-hover" @click="goShop">先去扫码购物</button>
     </view>
     <view v-else-if="!orders.length && !reviewingDisputes.length" class="state-wrap">
-      <text class="empty-icon">📋</text>
       <text class="empty-title">暂无订单</text>
-      <text class="empty-desc">扫码开门购物后，订单将显示在这里</text>
+      <text class="empty-desc">扫码开门购物后，账单会显示在这里</text>
       <button class="action-btn" hover-class="btn-hover" @click="goShop">去扫码购物</button>
     </view>
     <view v-else class="orders-main">
       <view v-if="reviewingDisputes.length" class="review-section">
-        <text class="review-section-title">审核中的购物</text>
-        <view v-for="d in reviewingDisputes" :key="d.ticketId" class="card review-card" @click="goDisputeDetail(d)">
-          <view class="order-top">
-            <text class="order-id">会话 {{ shortId(d.sessionId) }}</text>
-            <text class="chip pending">审核中</text>
+        <text class="section-label">需要关注</text>
+        <view
+          v-for="d in reviewingDisputes"
+          :key="d.ticketId"
+          class="review-card"
+          :class="'tone-' + reviewCopy(d).tone"
+          @click="goDisputeDetail(d)"
+        >
+          <view class="review-icon">{{ reviewCopy(d).icon }}</view>
+          <view class="review-body">
+            <view class="review-top">
+              <text class="review-title">{{ reviewCopy(d).title }}</text>
+              <text class="chip pending">审核中</text>
+            </view>
+            <text class="review-detail">{{ reviewCopy(d).detail }}</text>
+            <view class="review-foot">
+              <text class="review-time">{{ formatTime(d.createdAt) }}</text>
+              <text class="review-link">查看详情 ›</text>
+            </view>
           </view>
-          <text class="review-detail">{{ consumerDisputeReviewCopy(d).detail }}</text>
-          <text class="order-time">{{ formatTime(d.createdAt) }}</text>
         </view>
       </view>
-      <view class="order-filters">
-        <text v-for="f in filters" :key="f.value" class="filter-chip" :class="{ active: filter === f.value }" @click="filter = f.value">{{ f.label }} {{ countBy(f.value) }}</text>
+
+      <view class="filter-block">
+        <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false">
+          <view class="order-filters">
+            <text
+              v-for="f in filters"
+              :key="f.value"
+              class="filter-chip"
+              :class="{ active: filter === f.value }"
+              @click="filter = f.value"
+            >{{ f.label }} {{ countBy(f.value) }}</text>
+          </view>
+        </scroll-view>
+        <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false">
+          <view class="order-filters time-filters">
+            <text
+              v-for="t in timeFilters"
+              :key="t.value"
+              class="filter-chip time"
+              :class="{ active: timeRange === t.value }"
+              @click="timeRange = t.value"
+            >{{ t.label }}</text>
+          </view>
+        </scroll-view>
       </view>
-    <scroll-view scroll-y class="list" :show-scrollbar="false">
-      <view v-for="o in visibleOrders" :key="o.orderId" class="card order-card" @click="goDetail(o)">
-        <view class="order-top">
-          <text class="order-id">订单 {{ shortId(o.orderId) }}</text>
-          <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
+
+      <scroll-view scroll-y class="list" :show-scrollbar="false">
+        <view v-for="o in visibleOrders" :key="o.orderId" class="order-card" @click="goDetail(o)">
+          <view class="order-top">
+            <view class="order-meta">
+              <text class="order-device-name">{{ deviceDisplay(o.deviceId) }}</text>
+              <text class="order-id">{{ shortId(o.orderId) }}</text>
+            </view>
+            <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
+          </view>
+          <view class="order-mid">
+            <text class="order-summary">{{ orderSummaryText(o) }}</text>
+            <text class="amt">¥{{ ((o.totalAmountCents || 0) / 100).toFixed(2) }}</text>
+          </view>
+          <view class="order-bottom">
+            <view class="order-bottom-left">
+              <text class="order-channel">{{ payChannelText(o.payChannel) }}</text>
+              <text class="order-time">{{ formatTime(o.createdAt) }}</text>
+            </view>
+            <text v-if="o.status === 'DISPUTED'" class="order-hint">审核中 ›</text>
+            <text v-else class="order-hint">查看详情 ›</text>
+          </view>
         </view>
-        <view class="order-device"><text class="device-icon">▣</text><text>{{ deviceDisplay(o.deviceId) }}</text><text class="device-code">{{ o.deviceId }}</text></view>
-        <view class="order-bottom">
-          <text class="order-time">{{ formatTime(o.createdAt) }}</text>
-          <text class="amt">¥{{ ((o.totalAmountCents || 0) / 100).toFixed(2) }}</text>
+        <view v-if="!visibleOrders.length" class="state-wrap compact">
+          <text class="empty-title">当前筛选暂无订单</text>
+          <text class="empty-desc">可切换时间或状态再试</text>
         </view>
-        <view v-if="o.status === 'DISPUTED'" class="order-actions" @click.stop="goDetail(o)">
-          <text class="order-action-text">账单审核中 · 点击查看</text>
+        <view class="list-foot">
+          <text class="foot-link" @click="goReport">柜机有问题？故障报修</text>
         </view>
-      </view>
-      <view v-if="!visibleOrders.length" class="state-wrap compact"><text class="empty-title">当前分类暂无订单</text></view>
-      <view class="list-foot">
-        <text class="foot-link" @click="goReport">柜机有问题？故障报修</text>
-      </view>
-    </scroll-view>
+      </scroll-view>
     </view>
   </view>
 </template>
@@ -64,6 +114,7 @@ import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
 import { orderStatusLabel, formatDateTimeShort } from '@aicabinet/shared-uni/format';
+import { dictLabel } from '@aicabinet/shared-dict';
 import { showDisputeResolvedToast } from '@/utils/notify';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import type { DisputeTicketDto, OrderSummary } from '@aicabinet/shared-types';
@@ -73,24 +124,70 @@ const error = ref('');
 const authed = ref(false);
 const orders = ref<OrderSummary[]>([]);
 const disputes = ref<DisputeTicketDto[]>([]);
-const filter = ref<'all' | 'paid' | 'pending' | 'issue'>('all');
+const filter = ref<'all' | 'paid' | 'pending' | 'issue' | 'refunded'>('all');
+type TimeRange = 'all' | 'today' | '7d' | '30d';
+const timeRange = ref<TimeRange>('all');
 const reviewingDisputes = computed(() =>
   disputes.value.filter((d) => d.status === 'OPEN' && !orders.value.some((o) => o.sessionId === d.sessionId))
 );
-const filters = [{ label: '全部', value: 'all' as const }, { label: '已完成', value: 'paid' as const }, { label: '处理中', value: 'pending' as const }, { label: '有疑问', value: 'issue' as const }];
-const visibleOrders = computed(() => orders.value.filter((o) => {
-  return matchesFilter(o, filter.value);
-}));
-function matchesFilter(order: OrderSummary, value: 'all' | 'paid' | 'pending' | 'issue') {
+const filters = [
+  { label: '全部', value: 'all' as const },
+  { label: '已完成', value: 'paid' as const },
+  { label: '处理中', value: 'pending' as const },
+  { label: '有疑问', value: 'issue' as const },
+  { label: '已退款', value: 'refunded' as const }
+];
+const timeFilters = [
+  { label: '全部时间', value: 'all' as const },
+  { label: '今天', value: 'today' as const },
+  { label: '近7天', value: '7d' as const },
+  { label: '近30天', value: '30d' as const }
+];
+const visibleOrders = computed(() =>
+  orders.value.filter((o) => matchesFilter(o, filter.value) && matchesTimeRange(o.createdAt, timeRange.value))
+);
+
+function startOfTodayShanghai(): number {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Shanghai',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date());
+  const y = parts.find((p) => p.type === 'year')?.value;
+  const m = parts.find((p) => p.type === 'month')?.value;
+  const d = parts.find((p) => p.type === 'day')?.value;
+  // Asia/Shanghai 当天 00:00 对应的瞬时时间
+  return new Date(`${y}-${m}-${d}T00:00:00+08:00`).getTime();
+}
+
+function matchesTimeRange(createdAt: string | undefined, range: TimeRange) {
+  if (range === 'all' || !createdAt) return range === 'all' ? true : false;
+  const ts = new Date(createdAt).getTime();
+  if (Number.isNaN(ts)) return false;
+  const now = Date.now();
+  if (range === 'today') return ts >= startOfTodayShanghai();
+  if (range === '7d') return ts >= now - 7 * 24 * 60 * 60 * 1000;
+  if (range === '30d') return ts >= now - 30 * 24 * 60 * 60 * 1000;
+  return true;
+}
+
+function matchesFilter(order: OrderSummary, value: 'all' | 'paid' | 'pending' | 'issue' | 'refunded') {
   if (value === 'paid') return order.status === 'PAID' || order.status === 'COMPLETED';
   if (value === 'pending') return order.status === 'PENDING' || order.status === 'PROCESSING';
   if (value === 'issue') return order.status === 'DISPUTED' || order.status === 'FAILED';
+  if (value === 'refunded') return order.status === 'REFUNDED';
   return true;
 }
-function countBy(value: 'all' | 'paid' | 'pending' | 'issue') {
-  return orders.value.filter((order) => matchesFilter(order, value)).length;
+function countBy(value: 'all' | 'paid' | 'pending' | 'issue' | 'refunded') {
+  return orders.value.filter(
+    (order) => matchesFilter(order, value) && matchesTimeRange(order.createdAt, timeRange.value)
+  ).length;
 }
-function shortId(id: string) { return id.length > 12 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id; }
+function shortId(id?: string) {
+  if (!id) return '-';
+  return id.length > 12 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
+}
 function deviceDisplay(deviceId?: string) {
   if (!deviceId) return '智能柜';
   const lastId = uni.getStorageSync('last_device_id');
@@ -98,19 +195,46 @@ function deviceDisplay(deviceId?: string) {
   if (lastId === deviceId && lastName) return lastName;
   return deviceId === 'CAB-001' ? '测试柜-001' : '智能零售柜';
 }
+function orderSummaryText(o: OrderSummary) {
+  const n = o.lineCount || 0;
+  if (n > 0) return `共 ${n} 件商品`;
+  return '购物账单';
+}
 function formatTime(value?: string) {
   return formatDateTimeShort(value);
 }
-
+function reviewCopy(d: DisputeTicketDto) {
+  return consumerDisputeReviewCopy(d);
+}
 function statusLabel(status?: string) {
   return orderStatusLabel(status);
 }
-
+function payChannelText(channel?: string) {
+  return dictLabel('pay_channel', channel || '') || channel || '未知';
+}
 function chipClass(status?: string) {
   if (status === 'PAID' || status === 'COMPLETED') return 'paid';
   if (status === 'PENDING' || status === 'PROCESSING') return 'pending';
   if (status === 'DISPUTED' || status === 'FAILED') return 'disputed';
+  if (status === 'REFUNDED') return 'refunded';
   return 'default';
+}
+
+function goBack() {
+  const pages = getCurrentPages();
+  if (pages.length > 1) {
+    uni.navigateBack({ delta: 1 });
+    return;
+  }
+  // #ifdef H5
+  if (typeof window !== 'undefined' && window.history.length > 1) {
+    window.history.back();
+    return;
+  }
+  // #endif
+  uni.navigateBack({
+    fail: () => uni.switchTab({ url: '/pages/mine/mine' })
+  });
 }
 
 function goShop() {
@@ -138,7 +262,7 @@ async function load() {
   }
   try {
     const [page, mine] = await Promise.all([
-      consumerApi.listOrders(0, 30),
+      consumerApi.listOrders(0, 100),
       consumerApi.listMyDisputes()
     ]);
     orders.value = page.items || [];
@@ -161,14 +285,13 @@ async function load() {
 }
 
 function goDisputeDetail(d: DisputeTicketDto) {
-  if (d.orderId) {
-    uni.navigateTo({
-      url: `/pages/result/result?orderId=${encodeURIComponent(d.orderId)}&sessionId=${encodeURIComponent(d.sessionId)}`
-    });
-    return;
-  }
-  uni.setStorageSync('last_disputed_session_id', d.sessionId);
-  uni.switchTab({ url: '/pages/index/index' });
+  const q = [
+    d.ticketId ? `ticketId=${encodeURIComponent(d.ticketId)}` : '',
+    d.sessionId ? `sessionId=${encodeURIComponent(d.sessionId)}` : ''
+  ]
+    .filter(Boolean)
+    .join('&');
+  uni.navigateTo({ url: `/pages/dispute/detail?${q}` });
 }
 
 function goDetail(o: OrderSummary) {
@@ -186,63 +309,243 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 </script>
 
 <style scoped>
-.page { height: 100vh; overflow: hidden; background: #f7f7f7; }
+.page {
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #e9fbf3 0, #f5f7f8 280rpx, #f5f7f8 100%);
+  box-sizing: border-box;
+}
+.page-nav {
+  flex-shrink: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  padding: 0;
+  padding-top: env(safe-area-inset-top);
+  background: #fff;
+  color: #000;
+  box-sizing: content-box;
+}
+.nav-back,
+.nav-side {
+  width: 48px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.nav-back {
+  padding-left: 2px;
+}
+.nav-back-svg {
+  display: block;
+  width: 26px;
+  height: 26px;
+}
+.nav-back-hover { opacity: 0.6; }
+.nav-title {
+  flex: 1;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 500;
+  color: #000;
+  line-height: 44px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .state-wrap {
-  padding: 120rpx 48rpx 80rpx;
+  flex: 1;
+  padding: 140rpx 48rpx 80rpx;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
 }
-.empty-icon { font-size: 80rpx; margin-bottom: 16rpx; }
-.empty-title { font-size: 32rpx; font-weight: 600; color: #191919; }
-.empty-desc { font-size: 26rpx; color: #888; margin-top: 12rpx; line-height: 1.5; }
+.state-wrap.compact { padding: 80rpx 24rpx; }
+.meta { color: #849087; }
+.empty-title { font-size: 34rpx; font-weight: 700; color: #223029; }
+.empty-desc { font-size: 26rpx; color: #849087; margin-top: 12rpx; line-height: 1.55; }
 .action-btn {
   margin: 40rpx 0 0;
   width: 360rpx;
   height: 88rpx;
   line-height: 88rpx;
-  background: #07c160;
+  background: linear-gradient(135deg, #059669, #0d9488);
   color: #fff;
   border-radius: 44rpx;
   font-size: 30rpx;
-  font-weight: 500;
+  font-weight: 600;
 }
-.action-btn::after { border: none; }
+.action-btn::after, .ghost-btn::after { border: none; }
 .ghost-btn {
   margin: 20rpx 0 0;
   width: 360rpx;
   height: 88rpx;
   line-height: 88rpx;
   background: #fff;
-  color: #576b95;
+  color: #53645b;
   border-radius: 44rpx;
   font-size: 28rpx;
+  border: 1rpx solid #e4ebe7;
 }
-.ghost-btn::after { border: none; }
-.btn-hover { opacity: 0.85; }
-.orders-main { height: 100%; display:flex; flex-direction:column; }
-.review-section { padding: 20rpx 24rpx 0; flex-shrink: 0; }
-.review-section-title { display: block; font-size: 26rpx; color: #68766e; margin-bottom: 12rpx; font-weight: 600; }
-.review-card { margin-bottom: 16rpx; }
-.review-detail { display: block; margin-top: 12rpx; font-size: 24rpx; color: #d48806; line-height: 1.5; }
-.order-filters{display:flex;gap:12rpx;padding:20rpx 24rpx;background:#f7f7f7;flex-shrink:0;overflow-x:auto}.filter-chip{white-space:nowrap;padding:12rpx 22rpx;border-radius:30rpx;background:#fff;color:#666;font-size:23rpx}.filter-chip.active{background:#07c160;color:#fff}.list { flex:1; min-height:0; }.state-wrap.compact{padding:80rpx 24rpx}
-.order-card { margin-bottom: 0; }
-.order-top { display: flex; justify-content: space-between; align-items: center; }
-.order-id { font-weight: 600; font-size: 28rpx; color: #191919; }
-.chip { font-size: 22rpx; padding: 4rpx 12rpx; border-radius: 20rpx; }
-.chip.paid { background: #e8f8ef; color: #07c160; }
-.chip.pending { background: #fff8e6; color: #fa9d3b; }
-.chip.disputed { background: #ffecec; color: #fa5151; }
+.btn-hover { opacity: 0.88; }
+
+.orders-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: 12rpx;
+}
+.section-label {
+  display: block;
+  margin: 8rpx 28rpx 14rpx;
+  font-size: 24rpx;
+  font-weight: 650;
+  color: #68766e;
+  letter-spacing: 1rpx;
+}
+.review-section { flex-shrink: 0; padding: 0 24rpx; }
+.review-card {
+  display: flex;
+  gap: 18rpx;
+  padding: 24rpx;
+  margin-bottom: 16rpx;
+  border-radius: 22rpx;
+  background: #fff;
+  border: 1rpx solid #edf1ef;
+  box-shadow: 0 10rpx 28rpx rgba(15, 23, 42, 0.05);
+}
+.review-card.tone-wait { background: linear-gradient(135deg, #fff, #f0fdf7); border-color: rgba(5, 150, 105, 0.22); }
+.review-card.tone-warn { background: linear-gradient(135deg, #fff, #fff7ed); border-color: rgba(217, 119, 6, 0.25); }
+.review-card.tone-success { background: linear-gradient(135deg, #fff, #ecfdf5); border-color: rgba(16, 185, 129, 0.28); }
+.review-icon {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 18rpx;
+  background: #ecfdf5;
+  color: #047857;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30rpx;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.tone-warn .review-icon { background: #fff7ed; color: #c2410c; }
+.review-body { flex: 1; min-width: 0; }
+.review-top { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
+.review-title { font-size: 28rpx; font-weight: 700; color: #223029; }
+.review-detail {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: #68766e;
+  line-height: 1.55;
+}
+.review-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14rpx;
+}
+.review-time { font-size: 22rpx; color: #a1aaa5; }
+.review-link { font-size: 24rpx; color: #059669; font-weight: 600; }
+
+.filter-block { flex-shrink: 0; }
+.filter-scroll { white-space: nowrap; }
+.order-filters {
+  display: inline-flex;
+  gap: 12rpx;
+  padding: 8rpx 24rpx 10rpx;
+}
+.time-filters { padding-top: 0; padding-bottom: 16rpx; }
+.filter-chip {
+  white-space: nowrap;
+  padding: 12rpx 22rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid #e7eeea;
+  background: rgba(255, 255, 255, 0.92);
+  color: #68766e;
+  font-size: 23rpx;
+  box-shadow: 0 5rpx 16rpx rgba(15, 23, 42, 0.04);
+}
+.filter-chip.time {
+  padding: 10rpx 20rpx;
+  font-size: 22rpx;
+  background: #f3faf7;
+  border-color: #dceee6;
+}
+.filter-chip.active {
+  border-color: #059669;
+  color: #fff;
+  background: linear-gradient(135deg, #059669, #0d9488);
+  box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.2);
+}
+.filter-chip.time.active {
+  background: #047857;
+  border-color: #047857;
+  box-shadow: 0 6rpx 16rpx rgba(4, 120, 87, 0.18);
+}
+
+.list { flex: 1; min-height: 0; }
+.order-card {
+  margin: 0 24rpx 16rpx;
+  padding: 26rpx 28rpx;
+  border-radius: 22rpx;
+  background: #fff;
+  border: 1rpx solid #edf1ef;
+  box-shadow: 0 10rpx 28rpx rgba(15, 23, 42, 0.05);
+}
+.order-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16rpx; }
+.order-meta { min-width: 0; }
+.order-device-name { display: block; font-size: 30rpx; font-weight: 700; color: #223029; }
+.order-id { display: block; margin-top: 6rpx; font-size: 22rpx; color: #a1aaa5; }
+.chip {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  font-weight: 650;
+}
+.chip.paid { background: #e8f8ef; color: #059669; }
+.chip.pending { background: #fff8e6; color: #d97706; }
+.chip.disputed { background: #ffecec; color: #ef4444; }
+.chip.refunded { background: #fff3e0; color: #ea580c; }
 .chip.default { background: #f0f0f0; color: #888; }
-.order-bottom { display: flex; justify-content: space-between; align-items: center; margin-top: 12rpx; }
-.order-time { font-size: 22rpx; color: #888; }
-.amt { color: #07c160; font-weight: 700; font-size: 32rpx; }
-.order-actions { margin-top: 12rpx; padding-top: 12rpx; border-top: 1rpx solid #f0f0f0; }
-.order-action-text { font-size: 24rpx; color: #d48806; }
-.list-foot { padding: 32rpx; text-align: center; }
+.order-mid {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 22rpx;
+  gap: 16rpx;
+}
+.order-summary { font-size: 26rpx; color: #53645b; }
+.amt { color: #047857; font-weight: 800; font-size: 40rpx; letter-spacing: -1rpx; }
+.order-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 18rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx dashed #e3e9e6;
+}
+.order-bottom-left { display: flex; align-items: center; gap: 12rpx; flex-wrap: wrap; }
+.order-channel {
+  font-size: 22rpx;
+  color: #576b95;
+  background: #f2f4f8;
+  padding: 2rpx 10rpx;
+  border-radius: 6rpx;
+}
+.order-time { font-size: 22rpx; color: #a1aaa5; }
+.order-hint { font-size: 24rpx; color: #059669; font-weight: 600; }
+.list-foot { padding: 28rpx 24rpx 60rpx; text-align: center; }
 .foot-link { font-size: 26rpx; color: #576b95; }
-</style>
-<style scoped>
-.page{background:linear-gradient(180deg,#eefbf5,#f5f7f8 260rpx)}.orders-main{padding-top:8rpx}.order-filters{padding:22rpx 24rpx 18rpx;background:transparent}.filter-chip{padding:13rpx 23rpx;border:1rpx solid #e7eeea;border-radius:999rpx;color:#68766e;background:rgba(255,255,255,.85);box-shadow:0 5rpx 16rpx rgba(15,23,42,.04)}.filter-chip.active{border-color:#059669;background:linear-gradient(135deg,#059669,#0d9488);box-shadow:0 8rpx 22rpx rgba(5,150,105,.2)}.order-card{position:relative;overflow:hidden;margin:0 24rpx 16rpx;padding:26rpx;border-radius:23rpx;box-shadow:0 10rpx 30rpx rgba(15,23,42,.06)}.order-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:6rpx;background:linear-gradient(#10b981,#0d9488)}.order-id{color:#26342d}.chip{padding:6rpx 14rpx;border-radius:999rpx;font-weight:650}.order-device{display:flex;align-items:center;gap:9rpx;margin-top:18rpx;color:#44534b;font-size:25rpx}.device-icon{display:flex;width:37rpx;height:37rpx;align-items:center;justify-content:center;border-radius:10rpx;color:#047857;background:#ecfdf5}.device-code{margin-left:auto;color:#a1aaa5;font-size:20rpx}.order-bottom{margin-top:20rpx;padding-top:16rpx;border-top:1rpx dashed #e3e9e6}.order-time{font-size:23rpx}.amt{color:#047857;font-size:36rpx}.list-foot{padding-bottom:50rpx}
 </style>

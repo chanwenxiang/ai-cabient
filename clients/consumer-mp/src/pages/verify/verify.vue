@@ -29,20 +29,31 @@
     </view>
 
     <view v-else-if="!payReady" class="card">
-      <text class="card-title">开通微信支付分</text>
-      <text class="card-desc">免押金开门，关门后自动扣款。演示环境一键模拟开通。</text>
+      <text class="card-title">开通支付</text>
+      <text class="card-desc">真实业务：开通微信/支付宝免密后关门自动扣款；测试余额 ≥ ¥5 仅作兜底。</text>
       <view class="status-row">
         <text class="status-label">当前余额</text>
         <text class="status-val">¥{{ balanceYuan }}</text>
       </view>
       <view class="status-row">
-        <text class="status-label">最低余额要求</text>
-        <text class="status-val">¥5.00（未开通支付分时）</text>
+        <text class="status-label">微信支付分</text>
+        <text class="status-val">{{ wechatReady ? '已开通' : '未开通' }}</text>
+      </view>
+      <view class="status-row">
+        <text class="status-label">支付宝免密</text>
+        <text class="status-val">{{ alipayReady ? '已开通' : '未开通' }}</text>
+      </view>
+      <view class="status-row">
+        <text class="status-label">开门条件</text>
+        <text class="status-val">免密 或 余额≥¥5</text>
       </view>
       <button class="btn-primary" hover-class="btn-hover" :loading="signing" @click="onSignPayScore">
-        {{ signing ? '开通中…' : '一键开通微信支付分' }}
+        {{ signing ? '开通中…' : '开通微信支付分' }}
       </button>
-      <text class="hint">或使用演示账号 13800138000 / 123456 登录（已实名且有余额）</text>
+      <button class="btn-alipay" hover-class="btn-hover" :loading="signingAlipay" @click="onSignAlipay">
+        {{ signingAlipay ? '开通中…' : '开通支付宝免密' }}
+      </button>
+      <text class="hint">演示环境为模拟开通，本地 mock 结算会记为微信/支付宝渠道。</text>
       <view class="link" @click="goLogin">去手机号验证 ›</view>
       <text v-if="err" class="err">{{ err }}</text>
     </view>
@@ -61,19 +72,21 @@ import { onLoad, onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
+import { isPayReady } from '@/utils/account';
 
 const account = ref<AccountDto | null>(null);
 const realName = ref('');
 const idCardLast4 = ref('');
 const verifying = ref(false);
 const signing = ref(false);
+const signingAlipay = ref(false);
 const err = ref('');
 const fromOpen = ref(false);
 
 const balanceYuan = computed(() => ((account.value?.balanceCents || 0) / 100).toFixed(2));
-const payReady = computed(
-  () => (account.value?.balanceCents || 0) >= 500
-);
+const payReady = computed(() => isPayReady(account.value));
+const wechatReady = computed(() => !!account.value?.payscoreEnabled);
+const alipayReady = computed(() => !!account.value?.alipayAgreementEnabled);
 
 onLoad((opts) => {
   fromOpen.value = opts?.from === 'open';
@@ -136,6 +149,23 @@ async function onSignPayScore() {
   }
 }
 
+async function onSignAlipay() {
+  signingAlipay.value = true;
+  err.value = '';
+  try {
+    const res = await consumerApi.signAlipayAgreement();
+    account.value = await consumerApi.account();
+    uni.showToast({ title: res.message || '开通成功', icon: 'success' });
+    if (fromOpen.value) {
+      setTimeout(goShop, 600);
+    }
+  } catch (e) {
+    err.value = e instanceof Error ? e.message : '开通失败';
+  } finally {
+    signingAlipay.value = false;
+  }
+}
+
 function goLogin() {
   uni.navigateTo({ url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/verify/verify') });
 }
@@ -163,6 +193,8 @@ function goShop() {
 .card-desc { font-size: 26rpx; color: #888; margin: 12rpx 0 28rpx; display: block; line-height: 1.5; }
 .input { background: #f7f7f7; border-radius: 12rpx; padding: 24rpx; margin-bottom: 20rpx; font-size: 30rpx; }
 .btn-primary { background: #07c160; color: #fff; border-radius: 12rpx; font-size: 32rpx; font-weight: 600; border: none; margin-top: 8rpx; }
+.btn-alipay { background: #1677ff; color: #fff; border-radius: 12rpx; font-size: 32rpx; font-weight: 600; border: none; margin-top: 16rpx; }
+.btn-alipay::after { border: none; }
 .btn-hover { opacity: 0.85; }
 .err { color: #fa5151; font-size: 26rpx; margin-top: 16rpx; display: block; }
 .status-row { display: flex; justify-content: space-between; padding: 16rpx 0; border-bottom: 1rpx solid #f0f0f0; }

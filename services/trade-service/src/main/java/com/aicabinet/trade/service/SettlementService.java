@@ -30,6 +30,7 @@ public class SettlementService {
     private final ShoppingSessionMapper sessionRepository;
     private final SkuCatalogMapper skuCatalogRepository;
     private final CabinetOrderMapper orderRepository;
+    private final CabinetOrderLineMapper orderLineRepository;
     private final VisionServiceClient visionClient;
     private final DisputeService disputeService;
     private final ObjectProvider<VisionRecognitionProducer> visionRecognitionProducer;
@@ -46,10 +47,13 @@ public class SettlementService {
     private final UserValidationService userValidationService;
     private final VideoArchiveService videoArchiveService;
     private final SkuVisionEnrollmentService skuVisionEnrollmentService;
+    private final CouponService couponService;
+    private final MemberService memberService;
 
     public SettlementService(ShoppingSessionMapper sessionRepository,
                              SkuCatalogMapper skuCatalogRepository,
                              CabinetOrderMapper orderRepository,
+                             CabinetOrderLineMapper orderLineRepository,
                              VisionServiceClient visionClient,
                              @Lazy DisputeService disputeService,
                              ObjectProvider<VisionRecognitionProducer> visionRecognitionProducer,
@@ -65,10 +69,13 @@ public class SettlementService {
                              MerchantSkuPricingService skuPricingService,
                              UserValidationService userValidationService,
                              VideoArchiveService videoArchiveService,
-                             SkuVisionEnrollmentService skuVisionEnrollmentService) {
+                             SkuVisionEnrollmentService skuVisionEnrollmentService,
+                             CouponService couponService,
+                             MemberService memberService) {
         this.sessionRepository = sessionRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.orderRepository = orderRepository;
+        this.orderLineRepository = orderLineRepository;
         this.visionClient = visionClient;
         this.disputeService = disputeService;
         this.visionRecognitionProducer = visionRecognitionProducer;
@@ -85,6 +92,8 @@ public class SettlementService {
         this.userValidationService = userValidationService;
         this.videoArchiveService = videoArchiveService;
         this.skuVisionEnrollmentService = skuVisionEnrollmentService;
+        this.couponService = couponService;
+        this.memberService = memberService;
     }
 
     /** 人工审核后确认清单：无订单则首次扣款；有订单则按差额退/补。 */
@@ -143,7 +152,12 @@ public class SettlementService {
         if (allowDevFallback && securityProperties.mockEnabled()) {
             List<VisionServiceClient.RecognizedItem> cartItems =
                     gravityHelper.toRecognizedItems(session.getGravityDeltas());
-            log.info("dev mock settle session={} cartItems={}", session.getSessionId(), cartItems.size());
+            if (cartItems.isEmpty() && recognition.items() != null && !recognition.items().isEmpty()) {
+                cartItems = recognition.items();
+                log.info("dev mock settle session={} using vision items={}", session.getSessionId(), cartItems.size());
+            } else {
+                log.info("dev mock settle session={} cartItems={}", session.getSessionId(), cartItems.size());
+            }
             return finalizeOrder(session, cartItems);
         }
 
@@ -257,6 +271,7 @@ public class SettlementService {
         }
 
         CabinetOrder order = existing.get();
+        hydrateOrderLines(order);
         if ("REFUNDED".equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_REFUNDED);
         }
@@ -281,6 +296,7 @@ public class SettlementService {
         }
         orderPaymentService.applyPaymentDelta(order, delta);
         orderRepository.save(order);
+        replaceOrderLines(order);
         log.info("dispute adjust session={} order={} original={} final={} delta={}",
                 session.getSessionId(), order.getOrderId(), original, finalTotal, delta);
         return new ConfirmDisputeResult(toDto(order), original, finalTotal, delta);
@@ -291,6 +307,7 @@ public class SettlementService {
     public int waiveAndRefund(ShoppingSession session) {
         return orderRepository.findBySessionId(session.getSessionId())
                 .map(order -> {
+                    hydrateOrderLines(order);
                     if ("REFUNDED".equals(order.getStatus())) {
                         return 0;
                     }
@@ -322,20 +339,66 @@ public class SettlementService {
                                    List<VisionServiceClient.RecognizedItem> items) {
         deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
         CabinetOrder order = buildOrder(session, items);
-        userValidationService.validateSufficientBalanceForCharge(session.getUserId(), order.getTotalAmountCents());
+        CouponService.BestCoupon appliedCoupon = selectBestCouponForOrder(order);
+        if (!userValidationService.canChargeViaPasswordFree(session.getUserId(), session.getEntryChannel())) {
+            userValidationService.validateSufficientBalanceForCharge(session.getUserId(), order.getTotalAmountCents());
+        }
         var batchBySku = inventoryService.deductForOrder(
                 session.getDeviceId(), items, session.getSessionId(), session.getGravityDeltas());
         applyBatchNos(order, batchBySku);
         order.setInventoryDeducted(true);
+        // Persist order before charge/coupon mark — payment_operation & user_coupon FK to cabinet_order
+        orderRepository.save(order);
+        persistOrderLines(order);
         orderPaymentService.chargeOrder(order);
         orderRepository.save(order);
+        if (appliedCoupon != null) {
+            couponService.markUsed(
+                    order.getUserId(),
+                    appliedCoupon.couponId(),
+                    order.getOrderId(),
+                    order.getDeviceId(),
+                    order.getCouponDiscountCents()
+            );
+        }
         revenueSplitService.recordSplit(order);
         session.setOrderId(order.getOrderId());
         sessionRepository.save(session);
+        try {
+            int pts = memberService.onOrderPaid(session.getUserId(), order.getTotalAmountCents(), order.getOrderId());
+            if (pts > 0) {
+                log.info("member points earned userId={} order={} points={}",
+                        session.getUserId(), order.getOrderId(), pts);
+            }
+        } catch (Exception e) {
+            log.warn("member points reward failed order={}", order.getOrderId(), e);
+        }
         videoArchiveService.archiveAfterSettlement(session, order.getLines());
-        log.info("settled session={} order={} amount={} channel={}",
-                session.getSessionId(), order.getOrderId(), order.getTotalAmountCents(), order.getPayChannel());
+        log.info("settled session={} order={} amount={} couponDiscount={} channel={}",
+                session.getSessionId(), order.getOrderId(), order.getTotalAmountCents(),
+                order.getCouponDiscountCents(), order.getPayChannel());
         return toDto(order);
+    }
+
+    /** Pick best coupon and rewrite payable; caller must markUsed after order is persisted (FK). */
+    private CouponService.BestCoupon selectBestCouponForOrder(CabinetOrder order) {
+        int subtotal = order.getTotalAmountCents();
+        order.setOriginalAmountCents(subtotal);
+        if (subtotal <= 0 || order.getUserId() == null) {
+            return null;
+        }
+        var best = couponService.selectBestCoupon(order.getUserId(), subtotal);
+        if (best.isEmpty()) {
+            return null;
+        }
+        var pick = best.get();
+        int discount = Math.min(pick.discountCents(), subtotal);
+        order.setCouponId(pick.couponId());
+        order.setCouponDiscountCents(discount);
+        order.setTotalAmountCents(Math.max(0, subtotal - discount));
+        log.info("auto applied coupon order={} couponId={} discount={} payable={}",
+                order.getOrderId(), pick.couponId(), discount, order.getTotalAmountCents());
+        return pick;
     }
 
     private void applyItemsToOrder(CabinetOrder order, List<VisionServiceClient.RecognizedItem> items) {
@@ -393,22 +456,77 @@ public class SettlementService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
     }
 
+    private void persistOrderLines(CabinetOrder order) {
+        if (order.getLines() == null || order.getLines().isEmpty()) {
+            return;
+        }
+        for (CabinetOrderLine line : order.getLines()) {
+            line.setOrderId(order.getOrderId());
+            orderLineRepository.save(line);
+        }
+    }
+
+    private void replaceOrderLines(CabinetOrder order) {
+        orderLineRepository.deleteByOrderId(order.getOrderId());
+        if (order.getLines() == null) {
+            return;
+        }
+        for (CabinetOrderLine line : order.getLines()) {
+            line.setId(null);
+            line.setOrderId(order.getOrderId());
+            orderLineRepository.save(line);
+        }
+    }
+
+    private void hydrateOrderLines(CabinetOrder order) {
+        if (order == null || order.getOrderId() == null) {
+            return;
+        }
+        if (order.getLines() != null && !order.getLines().isEmpty()) {
+            return;
+        }
+        order.setLines(new java.util.ArrayList<>(orderLineRepository.findByOrderId(order.getOrderId())));
+    }
+
     private OrderDto toDto(CabinetOrder order) {
+        hydrateOrderLines(order);
+        int pointsEarned = 0;
+        try {
+            pointsEarned = memberService.findOrderEarnPoints(order.getUserId(), order.getOrderId());
+        } catch (Exception ignored) {
+            // points lookup must not break order detail
+        }
+        Integer couponDiscount = order.getCouponDiscountCents() > 0
+                ? Integer.valueOf(order.getCouponDiscountCents())
+                : null;
+        // Avoid int/null nested ternary: javac unboxes the Integer branch and NPEs on null.
+        Integer originalAmount = null;
+        if (order.getOriginalAmountCents() > 0) {
+            originalAmount = order.getOriginalAmountCents();
+        } else if (order.getCouponDiscountCents() > 0) {
+            originalAmount = order.getTotalAmountCents() + order.getCouponDiscountCents();
+        }
+        List<OrderLineDto> lines = order.getLines() == null
+                ? List.of()
+                : order.getLines().stream()
+                        .map(l -> new OrderLineDto(
+                                l.getSkuId(), l.getSkuName(), l.getQuantity(),
+                                l.getUnitPriceCents(), l.getLineAmountCents(), l.getBatchNo()))
+                        .toList();
         return new OrderDto(
                 order.getOrderId(),
                 order.getSessionId(),
                 order.getUserId(),
                 order.getDeviceId(),
                 order.getTotalAmountCents(),
-                order.getLines().stream()
-                        .map(l -> new OrderLineDto(
-                                l.getSkuId(), l.getSkuName(), l.getQuantity(),
-                                l.getUnitPriceCents(), l.getLineAmountCents(), l.getBatchNo()))
-                        .toList(),
+                lines,
                 order.getStatus(),
                 order.getPayChannel() != null ? order.getPayChannel() : "BALANCE",
                 order.getPaymentOperationId(), order.getBalanceBeforeCents(), order.getBalanceAfterCents(),
-                order.getCreatedAt()
+                order.getCreatedAt(),
+                couponDiscount,
+                originalAmount,
+                pointsEarned > 0 ? pointsEarned : null
         );
     }
 }

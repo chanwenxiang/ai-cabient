@@ -39,6 +39,7 @@ class SessionServiceRecoveryTest {
     @Mock GravitySettlementHelper gravityHelper;
     @Mock RestockSnapshotService restockSnapshotService;
     @Mock OpsExceptionService opsExceptionService;
+    @Mock com.aicabinet.trade.mapper.UserInfoMapper userInfoRepository;
 
     private SessionService service;
 
@@ -46,7 +47,7 @@ class SessionServiceRecoveryTest {
     void setUp() {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
-                gravityHelper, restockSnapshotService, null, opsExceptionService);
+                gravityHelper, restockSnapshotService, null, opsExceptionService, userInfoRepository);
     }
 
     @Test

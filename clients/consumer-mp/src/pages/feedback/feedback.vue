@@ -21,19 +21,37 @@
 
       <text class="field-label">内容</text>
       <textarea
-        v-model="content"
         class="textarea"
+        :value="content"
         maxlength="500"
         placeholder="请描述你的问题或建议"
+        @input="content = eventInputValue($event)"
       />
+      <text class="counter">{{ content.length }}/500</text>
 
       <text class="field-label">联系方式（选填）</text>
-      <input v-model="contactInfo" class="input" placeholder="手机号或微信，方便回访" />
+      <input
+        class="input"
+        :value="contactInfo"
+        placeholder="手机号或微信，方便回访"
+        @input="contactInfo = eventInputValue($event)"
+      />
 
       <text class="field-label">柜机编号（选填）</text>
-      <input v-model="deviceId" class="input" placeholder="例如 CAB-001" />
+      <input
+        class="input"
+        :value="deviceId"
+        placeholder="例如 CAB-001"
+        @input="deviceId = eventInputValue($event)"
+      />
 
-      <button class="btn-primary" hover-class="btn-hover" :loading="submitting" @click="onSubmit">
+      <button
+        class="btn-primary"
+        hover-class="btn-hover"
+        :loading="submitting"
+        :disabled="submitting"
+        @click="onSubmit"
+      >
         {{ submitting ? '提交中…' : '提交反馈' }}
       </button>
       <text v-if="err" class="err">{{ err }}</text>
@@ -45,6 +63,7 @@
 import { onLoad } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
+import { eventInputValue, readDomFieldValue, readDomTextarea } from '@/utils/form-bind';
 
 const feedbackType = ref('SUGGESTION');
 const content = ref('');
@@ -67,11 +86,13 @@ onLoad((opts) => {
 });
 
 async function onSubmit() {
-  const text = content.value.trim();
+  let text = content.value.trim();
+  if (!text) text = readDomTextarea();
   if (text.length < 4) {
     err.value = '请至少填写 4 个字';
     return;
   }
+  if (submitting.value) return;
   if (!(await ensureConsumerAuth())) {
     err.value = '请先完成微信授权';
     return;
@@ -79,11 +100,14 @@ async function onSubmit() {
   submitting.value = true;
   err.value = '';
   try {
+    let contact = contactInfo.value.trim();
+    let device = deviceId.value.trim().toUpperCase();
+    if (!contact) contact = readDomFieldValue('input');
     await consumerApi.submitFeedback({
       feedbackType: feedbackType.value,
       content: text,
-      contactInfo: contactInfo.value.trim() || undefined,
-      deviceId: deviceId.value.trim().toUpperCase() || undefined
+      contactInfo: contact || undefined,
+      deviceId: device || undefined
     });
     uni.showToast({ title: '已提交', icon: 'success' });
     setTimeout(() => uni.navigateBack(), 800);
@@ -126,8 +150,9 @@ async function onSubmit() {
   padding: 20rpx 24rpx;
   font-size: 28rpx;
   box-sizing: border-box;
-  margin-bottom: 16rpx;
+  margin-bottom: 8rpx;
 }
+.counter { display: block; text-align: right; font-size: 22rpx; color: #bbb; margin-bottom: 12rpx; }
 .btn-primary {
   margin: 16rpx 0 0;
   background: #07c160;
@@ -138,6 +163,7 @@ async function onSubmit() {
   line-height: 88rpx;
   height: 88rpx;
 }
+.btn-primary[disabled] { opacity: 0.55; }
 .btn-primary::after { border: none; }
 .btn-hover { opacity: 0.85; }
 .err { color: #fa5151; font-size: 26rpx; display: block; margin-top: 16rpx; text-align: center; }

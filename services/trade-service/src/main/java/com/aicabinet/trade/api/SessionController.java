@@ -26,8 +26,7 @@ public class SessionController {
             HttpServletRequest request,
             @Valid @RequestBody CreateSessionRequest body) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        CreateSessionRequest req = new CreateSessionRequest(body.deviceId(), body.idempotencyKey());
-        return ApiResponse.ok(sessionService.createSession(userId, req));
+        return ApiResponse.ok(sessionService.createSession(userId, body));
     }
 
     @GetMapping("/{sessionId}")

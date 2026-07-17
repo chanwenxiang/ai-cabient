@@ -45,6 +45,9 @@ public class ShoppingSession {
     @TableField(typeHandler = JsonStringTypeHandler.class)
     private String gravityDeltas;
 
+    /** 扫码入口渠道 WECHAT / ALIPAY */
+    private String entryChannel;
+
     private Instant createdAt;
 
     private Instant updatedAt;
@@ -81,6 +84,8 @@ public String getSessionId() { return sessionId; }
     public void setReplenishmentTaskId(Long replenishmentTaskId) { this.replenishmentTaskId = replenishmentTaskId; }
     public String getGravityDeltas() { return gravityDeltas; }
     public void setGravityDeltas(String gravityDeltas) { this.gravityDeltas = gravityDeltas; }
+    public String getEntryChannel() { return entryChannel; }
+    public void setEntryChannel(String entryChannel) { this.entryChannel = entryChannel; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

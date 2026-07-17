@@ -7,7 +7,12 @@
 
     <view class="card">
       <text class="field-label">柜机编号</text>
-      <input v-model="deviceId" class="input" placeholder="例如 CAB-001" />
+      <input
+        class="input"
+        :value="deviceId"
+        placeholder="例如 CAB-001"
+        @input="onDeviceInput"
+      />
 
       <text class="field-label">问题类型</text>
       <view class="issue-grid">
@@ -30,7 +35,7 @@
         placeholder="描述具体情况，便于快速处理"
       />
 
-      <button class="btn-primary" hover-class="btn-hover" :loading="submitting" @click="onSubmit">
+      <button class="btn-primary" hover-class="btn-hover" :loading="submitting" :disabled="submitting" @click="onSubmit">
         {{ submitting ? '提交中…' : '提交报修' }}
       </button>
       <text v-if="err" class="err">{{ err }}</text>
@@ -42,6 +47,7 @@
 import { onLoad } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
+import { eventInputValue, readDomFieldValue } from '@/utils/form-bind';
 
 const deviceId = ref('');
 const issueType = ref('DOOR_OPEN');
@@ -63,30 +69,44 @@ onLoad((opts) => {
   deviceId.value = fromQuery || fromStorage || '';
 });
 
-async function onSubmit() {
-  const id = deviceId.value.trim().toUpperCase();
+function onDeviceInput(e: unknown) {
+  deviceId.value = eventInputValue(e);
+}
+
+function onSubmit() {
+  let id = deviceId.value.trim().toUpperCase();
+  if (!id) id = readDomFieldValue('input').toUpperCase();
+  deviceId.value = id;
   if (!id) {
     err.value = '请输入柜机编号';
     return;
   }
-  if (!(await ensureConsumerAuth())) {
-    err.value = '请先完成微信授权';
+  if (!/^[A-Z0-9][A-Z0-9\-]{2,31}$/.test(id)) {
+    err.value = '柜机编号格式不正确，例如 CAB-001';
     return;
   }
+  if (submitting.value) return;
   submitting.value = true;
   err.value = '';
-  try {
-    const res = await consumerApi.reportDeviceFault(id, {
-      issueType: issueType.value,
-      description: description.value.trim() || undefined
-    });
-    uni.showToast({ title: res.message || '已提交', icon: 'success' });
-    setTimeout(() => uni.navigateBack(), 800);
-  } catch (e) {
-    err.value = e instanceof Error ? e.message : '提交失败';
-  } finally {
-    submitting.value = false;
-  }
+  ensureConsumerAuth().then(async (ok) => {
+    if (!ok) {
+      err.value = '请先完成微信授权';
+      submitting.value = false;
+      return;
+    }
+    try {
+      const res = await consumerApi.reportDeviceFault(id, {
+        issueType: issueType.value,
+        description: description.value.trim() || undefined
+      });
+      uni.showToast({ title: res.message || '已提交', icon: 'success' });
+      setTimeout(() => uni.navigateBack(), 800);
+    } catch (e) {
+      err.value = e instanceof Error ? e.message : '提交失败';
+    } finally {
+      submitting.value = false;
+    }
+  });
 }
 </script>
 

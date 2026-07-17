@@ -43,7 +43,7 @@ mybatis-plus:
 
 aicabinet:
   checkout:
-    balance-only: ${CHECKOUT_BALANCE_ONLY:true}
+    balance-only: ${CHECKOUT_BALANCE_ONLY:false}
   security:
     mock-enabled: ${AICABINET_MOCK_ENABLED:true}
   staging-mode: ${AICABINET_STAGING_MODE:false}

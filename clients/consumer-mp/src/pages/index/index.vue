@@ -80,7 +80,8 @@
           <text class="review-title">{{ reviewCopy.title }}</text>
           <text class="review-detail">{{ reviewCopy.detail }}</text>
           <view class="review-actions">
-            <text class="review-link primary" @click="goOrders">稍后查看订单</text>
+            <text class="review-link primary" @click="goReviewDetail">查看审核详情</text>
+            <text class="review-link" @click="goOrders">稍后查看订单</text>
             <text class="review-link" @click="contactOps">联系运营</text>
             <text class="review-link subtle" @click="dismissReview">知道了</text>
           </view>
@@ -149,11 +150,20 @@
       >
         取消本次开门
       </button>
+      <button
+        v-if="recognitionSlow"
+        class="flow-cancel"
+        @click="deferRecognitionWait"
+      >
+        稍后再看结果
+      </button>
+      <text v-if="recognitionSlow" class="flow-slow-hint">识别时间较长，可先离开，账单出来后在「订单」查看</text>
     </view>
 
     <OpenPrepDrawer
       v-if="showPrepDrawer"
       :account="prepAccount"
+      :entry-channel="entryChannel"
       @done="onPrepDone"
       @cancel="onPrepCancel"
     />
@@ -175,16 +185,17 @@ import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrco
 import { sessionStateHint, sessionStateLabel, sessionStateTone } from '@aicabinet/shared-uni/session-labels';
 import { formatError } from '@aicabinet/shared-uni/format';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
+import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
 import { productEmoji, productThumb } from '@/utils/product-thumb';
 import heroIllustration from '@/static/login-bg.png';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import { delay, requestDisputeSubscribe, requestOrderSubscribe, showBillToast, showDisputeResolvedToast } from '@/utils/notify';
 import type { AccountDto, DeviceProduct, DisputeTicketDto, SessionDto } from '@aicabinet/shared-types';
 
-const MIN_BALANCE_CENTS = 500;
 const deviceInput = ref('');
 const deviceId = ref('');
 const deviceName = ref('');
+const entryChannel = ref<EntryChannel | null>(null);
 const scanned = ref(false);
 const enteringFlow = ref(false);
 const showManual = ref(false);
@@ -211,10 +222,19 @@ const lastDeviceId = ref('');
 const lastDeviceName = ref('');
 const showPrepDrawer = ref(false);
 const prepAccount = ref<AccountDto | null>(null);
+const recognitionDeferred = ref(false);
+const recognitionElapsedSec = ref(0);
+let recognitionTimer: ReturnType<typeof setInterval> | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let devicePollTimer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 let prepResolve: ((ok: boolean) => void) | null = null;
+
+const recognitionSlow = computed(
+  () =>
+    ['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value) &&
+    recognitionElapsedSec.value >= 90
+);
 
 const sessionActive = computed(() =>
   !!sessionId.value &&
@@ -229,6 +249,9 @@ const canReopen = computed(() =>
 
 const flowOverlayVisible = computed(() => {
   if (showPrepDrawer.value) return false;
+  if (recognitionDeferred.value && ['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)) {
+    return false;
+  }
   if (enteringFlow.value && !scanned.value) return true;
   if (opening.value && !sessionId.value) return true;
   if (['OPENING', 'CREATED', 'RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)) return true;
@@ -241,6 +264,7 @@ const flowOverlayPulse = computed(() =>
 
 const flowOverlayTitle = computed(() => {
   if (opening.value && !sessionId.value) return '正在开门';
+  if (recognitionSlow.value) return '识别时间较长';
   if (stateLabel.value && stateLabel.value !== '-') return stateLabel.value;
   return '准备中';
 });
@@ -249,6 +273,9 @@ const flowOverlayHint = computed(() => {
   if (state.value === 'OPENING' || state.value === 'CREATED') {
     const elapsed = Math.max(0, 90 - openingSeconds.value);
     return `已等待 ${elapsed} 秒，柜门无响应时可安全取消本次开门`;
+  }
+  if (recognitionSlow.value) {
+    return `已识别 ${recognitionElapsedSec.value} 秒，结果出来后会生成账单，也可稍后再看`;
   }
   if (stateHint.value) return stateHint.value;
   if (opening.value) return '正在连接柜机并验证开门资格…';
@@ -270,13 +297,16 @@ const cartBarAction = computed(() => {
 });
 
 function payReady(acc: AccountDto) {
-  return (acc.balanceCents || 0) >= MIN_BALANCE_CENTS;
+  return isPayReady(acc, entryChannel.value);
 }
 
 onLoad(async (opts) => {
   const launch = parseLaunchOptions((opts || {}) as Record<string, string>);
+  if (launch.channel) {
+    entryChannel.value = resolveEntryChannel(launch.channel);
+  }
   if (launch.deviceId) {
-    await startShoppingFlow(launch.deviceId);
+    await startShoppingFlow(launch.deviceId, launch.channel);
   }
 });
 
@@ -305,6 +335,7 @@ onUnload(() => {
   stopPoll();
   stopDevicePoll();
   stopOpeningCountdown();
+  stopRecognitionTimer();
 });
 
 function thumbTone(p: DeviceProduct) {
@@ -345,9 +376,12 @@ function resetDevice() {
   products.value = [];
 }
 
-async function startShoppingFlow(id: string) {
+async function startShoppingFlow(id: string, scanChannel?: string | null) {
   const cabinetId = id.trim().toUpperCase();
   if (!cabinetId || opening.value || enteringFlow.value) return;
+
+  const resolved = resolveEntryChannel(scanChannel) || entryChannel.value;
+  if (resolved) entryChannel.value = resolved;
 
   enteringFlow.value = true;
     landingError.value = '';
@@ -378,7 +412,7 @@ async function startShoppingFlow(id: string) {
     productsLoading.value = true;
     const [productsResult, sessionResult] = await Promise.allSettled([
       consumerApi.deviceProducts(cabinetId),
-      consumerApi.createSession(cabinetId)
+      consumerApi.createSession(cabinetId, entryChannel.value)
     ]);
     if (productsResult.status === 'fulfilled') {
       products.value = productsResult.value;
@@ -461,6 +495,22 @@ function dismissReview() {
   uni.removeStorageSync('last_disputed_session_id');
 }
 
+function goReviewDetail() {
+  const sid = reviewSessionId.value || String(uni.getStorageSync('last_disputed_session_id') || '');
+  const tid = (reviewTicket.value as any)?.ticketId || '';
+  const q = [
+    tid ? `ticketId=${encodeURIComponent(tid)}` : '',
+    sid ? `sessionId=${encodeURIComponent(sid)}` : ''
+  ]
+    .filter(Boolean)
+    .join('&');
+  if (!q) {
+    goOrders();
+    return;
+  }
+  uni.navigateTo({ url: `/pages/dispute/detail?${q}` });
+}
+
 function ensureCanOpenDoor(): Promise<boolean> {
   return consumerApi.account().then((acc) => {
     if (acc.operator || (acc.verified && payReady(acc))) return true;
@@ -472,7 +522,8 @@ function ensureCanOpenDoor(): Promise<boolean> {
   });
 }
 
-function onPrepDone() {
+function onPrepDone(channel?: EntryChannel | null) {
+  if (channel) entryChannel.value = channel;
   showPrepDrawer.value = false;
   prepResolve?.(true);
   prepResolve = null;
@@ -498,20 +549,28 @@ function onScan() {
         uni.showToast({ title: '无法识别柜机', icon: 'none' });
         return;
       }
-      startShoppingFlow(parsed.deviceId);
+      startShoppingFlow(parsed.deviceId, parsed.channel);
     }
   });
 }
 
 function confirmDevice() {
-  const parsed = parseCabinetScan(deviceInput.value);
-  const id = parsed.deviceId || deviceInput.value.trim().toUpperCase();
+  let raw = deviceInput.value;
+  // #ifdef H5
+  if (!raw.trim() && typeof document !== 'undefined') {
+    const el = document.querySelector('.manual-form input, .uni-input-input, input') as HTMLInputElement | null;
+    if (el?.value) raw = el.value;
+  }
+  // #endif
+  deviceInput.value = raw;
+  const parsed = parseCabinetScan(raw);
+  const id = parsed.deviceId || raw.trim().toUpperCase();
   if (!id) {
     landingError.value = '请输入柜机编号，例如 CAB-001。';
     uni.showToast({ title: '请输入柜机编号', icon: 'none' });
     return;
   }
-  startShoppingFlow(id);
+  startShoppingFlow(id, parsed.channel);
 }
 
 async function loadDeviceAndProducts() {
@@ -580,6 +639,29 @@ function clearSessionUi() {
   stateLabel.value = '';
   stateHint.value = '';
   stateTone.value = 'idle';
+  recognitionDeferred.value = false;
+  stopRecognitionTimer();
+}
+
+function startRecognitionTimer(since?: string) {
+  stopRecognitionTimer();
+  const started = since ? new Date(since).getTime() : Date.now();
+  const tick = () => {
+    recognitionElapsedSec.value = Math.max(0, Math.floor((Date.now() - started) / 1000));
+  };
+  tick();
+  recognitionTimer = setInterval(tick, 1000);
+}
+
+function stopRecognitionTimer() {
+  if (recognitionTimer) clearInterval(recognitionTimer);
+  recognitionTimer = null;
+  recognitionElapsedSec.value = 0;
+}
+
+function deferRecognitionWait() {
+  recognitionDeferred.value = true;
+  uni.showToast({ title: '可稍后在订单页查看', icon: 'none' });
 }
 
 async function finishSession(sessionState: string, sid: string) {
@@ -634,6 +716,12 @@ function applySessionView(s: SessionDto) {
   stateTone.value = sessionStateTone(s.state);
   if (s.state === 'OPENING' || s.state === 'CREATED') startOpeningCountdown(s.createdAt);
   else stopOpeningCountdown();
+  if (['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(s.state)) {
+    startRecognitionTimer(s.closeTime || s.createdAt);
+  } else {
+    stopRecognitionTimer();
+    recognitionDeferred.value = false;
+  }
   if (s.deviceId && deviceId.value) refreshDeviceStatus();
 }
 
@@ -1183,6 +1271,14 @@ function stopDevicePoll() {
   font-size: 26rpx;
 }
 .flow-cancel::after { border: none; }
+.flow-slow-hint {
+  margin-top: 16rpx;
+  padding: 0 40rpx;
+  font-size: 24rpx;
+  color: #888;
+  text-align: center;
+  line-height: 1.5;
+}
 </style>
 <style scoped>
 .landing{padding:0;background:#f5c842}.landing-head{padding-top:52rpx;text-align:center}.brand{font-size:58rpx}.tagline{font-size:31rpx}.hero-illustration{top:150rpx}

@@ -1,273 +1,219 @@
 ﻿<template>
-  <view class="page-root">
-    <!-- 活动轮播 -->
-    <swiper class="banner-swiper" autoplay circular :interval="5000">
-      <swiper-item v-for="banner in banners" :key="banner.id">
-        <image class="banner-image" :src="banner.image" mode="aspectFill" @click="goToCampaign(banner.campaignId)" />
+  <view class="page">
+    <swiper class="banner" circular autoplay :interval="4200" indicator-dots indicator-active-color="#059669">
+      <swiper-item v-for="b in banners" :key="b.id">
+        <view class="banner-card" :class="'tone-' + b.tone" @click="openPath(b.ctaPath)">
+          <view class="banner-copy">
+            <text class="banner-title">{{ b.title }}</text>
+            <text class="banner-sub">{{ b.subtitle }}</text>
+            <text class="banner-cta">立即查看 ›</text>
+          </view>
+          <text class="banner-emoji">{{ b.emoji }}</text>
+        </view>
       </swiper-item>
     </swiper>
 
-    <!-- 活动列表 -->
-    <view class="section">
-      <text class="section-title">热门活动</text>
-      <view class="campaign-list">
-        <view 
-          v-for="campaign in campaigns" 
-          :key="campaign.id" 
-          class="campaign-card"
-          @click="goToCampaignDetail(campaign.id)"
-        >
-          <image class="campaign-image" :src="campaign.image" mode="aspectFill" />
-          <view class="campaign-content">
-            <text class="campaign-title">{{ campaign.title }}</text>
-            <text class="campaign-desc">{{ campaign.description }}</text>
-            <view class="campaign-footer">
-              <view class="campaign-time">
-                <text class="time-label">活动时间：</text>
-                <text class="time-value">{{ campaign.startTime }} - {{ campaign.endTime }}</text>
-              </view>
-              <view class="campaign-tag" :class="'type-' + campaign.type">
-                {{ getTypeLabel(campaign.type) }}
-              </view>
-            </view>
-          </view>
-        </view>
+    <view class="entry" @click="goCoupons">
+      <view>
+        <text class="entry-title">我的优惠券</text>
+        <text class="entry-sub">{{ couponCount }} 张可用 · 结算时自动选用最优券抵扣</text>
       </view>
+      <text class="entry-arrow">›</text>
     </view>
 
-    <!-- 我的优惠券入口 -->
-    <view class="coupon-entry" @click="goToMyCoupons">
-      <view class="entry-left">
-        <image class="entry-icon" src="/static/icons/coupon.png" mode="aspectFit" />
-        <text class="entry-text">我的优惠券</text>
+    <view class="entry mint" @click="goExchange">
+      <view>
+        <text class="entry-title">积分兑好礼</text>
+        <text class="entry-sub">参考瑞幸积分商城 · 兑券更实用</text>
       </view>
-      <view class="entry-right">
-        <text class="coupon-count">{{ availableCouponCount }}张可用</text>
-        <text class="entry-arrow">›</text>
+      <text class="entry-arrow">›</text>
+    </view>
+
+    <view class="section-title">热门活动</view>
+    <view v-if="loading" class="empty">加载中…</view>
+    <view v-else-if="!campaigns.length" class="empty">暂无进行中活动</view>
+    <view v-else>
+      <view v-for="c in campaigns" :key="c.id" class="campaign" @click="onCampaignClick(c)">
+        <view class="campaign-badge" :class="'tone-' + c.coverColor">{{ c.coverEmoji }} {{ c.typeLabel }}</view>
+        <text class="campaign-title">{{ c.title }}</text>
+        <text class="campaign-desc">{{ c.description }}</text>
+        <view class="campaign-foot">
+          <text class="campaign-time">{{ formatRange(c.startTime, c.endTime) }}</text>
+          <text class="campaign-cta" :class="{ muted: c.claimed || claimingId === c.id }">
+            {{ claimingId === c.id ? '领取中…' : c.ctaLabel }} ›
+          </text>
+        </view>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { consumerApi } from '@/utils/consumer-api';
+import { ref } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
+import {
+  consumerApi,
+  ensureConsumerAuth,
+  type MarketingBannerDto,
+  type MarketingCampaignDto
+} from '@/utils/consumer-api';
 
-const banners = ref<any[]>([]);
-const campaigns = ref<any[]>([]);
-const availableCouponCount = ref(0);
+const banners = ref<MarketingBannerDto[]>([]);
+const campaigns = ref<MarketingCampaignDto[]>([]);
+const couponCount = ref(0);
+const loading = ref(false);
+const claimingId = ref<number | null>(null);
 
-onMounted(() => {
-  loadBanners();
-  loadCampaigns();
-  loadCouponCount();
-});
+onShow(() => load());
 
-async function loadBanners() {
+async function load() {
+  loading.value = true;
   try {
-    const res = await consumerApi.get('/api/v2/marketing/banners');
-    banners.value = res.data?.data ?? [];
-  } catch (error) {
-    console.error('加载轮播图失败', error);
+    const [b, c, count] = await Promise.all([
+      consumerApi.marketingBanners(),
+      consumerApi.marketingCampaigns(),
+      consumerApi.couponCount().catch(() => 0)
+    ]);
+    banners.value = b?.length ? b : [{
+      id: 0,
+      title: '积分兑好礼',
+      subtitle: '100 积分起兑优惠券',
+      tone: 'mint',
+      emoji: '⭐',
+      ctaPath: '/pages/member/exchange'
+    }];
+    campaigns.value = c || [];
+    couponCount.value = Number(count) || 0;
+  } catch {
+    banners.value = [];
+    campaigns.value = [];
+  } finally {
+    loading.value = false;
   }
 }
 
-async function loadCampaigns() {
+function openPath(path?: string) {
+  if (!path) return;
+  if (path.startsWith('/pages/index') || path.startsWith('/pages/orders') || path.startsWith('/pages/mine')) {
+    uni.switchTab({ url: path });
+    return;
+  }
+  uni.navigateTo({ url: path });
+}
+
+async function onCampaignClick(c: MarketingCampaignDto) {
+  if (!c?.id) return;
+  if (c.type === 'POINTS') {
+    openPath(c.ctaPath || '/pages/member/exchange');
+    return;
+  }
+  if (c.claimed || claimingId.value === c.id) {
+    openPath('/pages/coupons/coupons');
+    return;
+  }
+  if (!(await ensureConsumerAuth())) return;
+  claimingId.value = c.id;
   try {
-    const res = await consumerApi.get('/api/v2/marketing/campaigns/active');
-    campaigns.value = res.data?.data ?? [];
-  } catch (error) {
-    console.error('加载活动列表失败', error);
+    const coupon = await consumerApi.claimCampaign(c.id);
+    const name = coupon?.couponName || '优惠券';
+    uni.showToast({ title: `已领取 ${name}`, icon: 'success' });
+    c.claimed = true;
+    c.claimable = false;
+    c.ctaLabel = '已领取';
+    couponCount.value = await consumerApi.couponCount().catch(() => couponCount.value + 1);
+    setTimeout(() => openPath('/pages/coupons/coupons'), 400);
+  } catch (e: any) {
+    const msg = e?.message || '领取失败';
+    uni.showToast({ title: msg, icon: 'none' });
+    if (String(msg).includes('已领取')) {
+      c.claimed = true;
+      c.ctaLabel = '已领取';
+      openPath('/pages/coupons/coupons');
+    }
+  } finally {
+    claimingId.value = null;
   }
 }
 
-async function loadCouponCount() {
-  try {
-    const res = await consumerApi.get('/api/v2/coupons/my', {
-      params: { status: 'available' }
-    });
-    availableCouponCount.value = res.data?.data?.total || 0;
-  } catch (error) {
-    console.error('加载优惠券数量失败', error);
-  }
-}
-
-function getTypeLabel(type: string): string {
-  const labels: Record<string, string> = {
-    'discount': '折扣',
-    'full_reduce': '满减',
-    'gift': '赠品',
-    'new_user': '新人'
-  };
-  return labels[type] || '活动';
-}
-
-function goToCampaign(campaignId: number) {
-  uni.navigateTo({ url: /pages/marketing/detail?id= });
-}
-
-function goToCampaignDetail(id: number) {
-  uni.navigateTo({ url: /pages/marketing/detail?id= });
-}
-
-function goToMyCoupons() {
+function goCoupons() {
   uni.navigateTo({ url: '/pages/coupons/coupons' });
+}
+function goExchange() {
+  uni.navigateTo({ url: '/pages/member/exchange' });
+}
+
+function formatRange(start?: string, end?: string) {
+  const s = start ? String(start).substring(5, 10).replace('-', '/') : '';
+  const e = end ? String(end).substring(5, 10).replace('-', '/') : '';
+  if (!s && !e) return '长期有效';
+  return `${s} - ${e}`;
 }
 </script>
 
 <style scoped>
-.page-root {
-  min-height: 100vh;
-  background: #f5f5f5;
-}
-
-.banner-swiper {
-  width: 100%;
-  height: 360rpx;
-}
-
-.banner-image {
-  width: 100%;
-  height: 100%;
-}
-
-.section {
-  background: #fff;
-  margin: 24rpx;
-  padding: 32rpx;
-  border-radius: 16rpx;
-}
-
-.section-title {
-  font-size: 32rpx;
-  font-weight: bold;
-  color: #333;
-  display: block;
-  margin-bottom: 24rpx;
-}
-
-.campaign-list {
-  padding: 0;
-}
-
-.campaign-card {
-  display: flex;
-  background: #fff;
-  border-radius: 12rpx;
-  overflow: hidden;
-  margin-bottom: 24rpx;
-  box-shadow: 0 2rpx 12rpx rgba(0, 0, 0, 0.05);
-}
-
-.campaign-image {
-  width: 240rpx;
-  height: 180rpx;
-}
-
-.campaign-content {
-  flex: 1;
-  padding: 16rpx;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-}
-
-.campaign-title {
-  font-size: 28rpx;
-  font-weight: bold;
-  color: #333;
-  display: block;
-  margin-bottom: 8rpx;
-}
-
-.campaign-desc {
-  font-size: 24rpx;
-  color: #666;
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.campaign-footer {
+.page { min-height: 100vh; padding: 24rpx; background: #f5f7f8; }
+.banner { height: 280rpx; margin-bottom: 20rpx; }
+.banner-card {
+  height: 260rpx;
+  margin: 0 4rpx;
+  padding: 36rpx 32rpx;
+  border-radius: 28rpx;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 8rpx;
+  color: #fff;
+  background: linear-gradient(135deg, #064e3b, #0d9488);
 }
+.banner-card.tone-amber { background: linear-gradient(135deg, #92400e, #f59e0b); }
+.banner-card.tone-sky { background: linear-gradient(135deg, #0c4a6e, #0ea5e9); }
+.banner-card.tone-rose { background: linear-gradient(135deg, #9f1239, #fb7185); }
+.banner-card.tone-mint { background: linear-gradient(135deg, #064e3b, #10b981); }
+.banner-title { display: block; font-size: 40rpx; font-weight: 800; }
+.banner-sub { display: block; margin-top: 10rpx; font-size: 24rpx; opacity: 0.9; max-width: 420rpx; }
+.banner-cta { display: inline-block; margin-top: 22rpx; padding: 8rpx 18rpx; border-radius: 999rpx; background: rgba(255,255,255,0.2); font-size: 22rpx; }
+.banner-emoji { font-size: 88rpx; opacity: 0.9; }
 
-.campaign-time {
+.entry {
   display: flex;
-  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 28rpx 24rpx;
+  margin-bottom: 16rpx;
+  border-radius: 22rpx;
+  background: #fff;
+  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
 }
+.entry.mint { background: linear-gradient(90deg, #fff, #ecfdf5); border: 1rpx solid #d1fae5; }
+.entry-title { display: block; font-size: 30rpx; font-weight: 700; color: #1b3027; }
+.entry-sub { display: block; margin-top: 6rpx; font-size: 22rpx; color: #849087; }
+.entry-arrow { font-size: 36rpx; color: #cbd5e1; }
 
-.time-label {
-  font-size: 20rpx;
-  color: #999;
+.section-title { margin: 18rpx 0 14rpx; font-size: 30rpx; font-weight: 750; color: #1b3027; }
+.campaign {
+  padding: 26rpx 24rpx;
+  margin-bottom: 16rpx;
+  border-radius: 22rpx;
+  background: #fff;
+  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
 }
-
-.time-value {
+.campaign-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6rpx;
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
   font-size: 22rpx;
-  color: #666;
+  color: #065f46;
+  background: #d1fae5;
 }
-
-.campaign-tag {
-  font-size: 22rpx;
-  padding: 4rpx 12rpx;
-  border-radius: 4rpx;
-  background: #fff7e6;
-  color: #fa8c16;
-}
-
-.campaign-tag.type-discount {
-  background: #f6ffed;
-  color: #52c41a;
-}
-
-.campaign-tag.type-new_user {
-  background: #fff0f6;
-  color: #eb2f96;
-}
-
-.coupon-entry {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #fff;
-  margin: 24rpx;
-  padding: 32rpx;
-  border-radius: 16rpx;
-}
-
-.entry-left {
-  display: flex;
-  align-items: center;
-}
-
-.entry-icon {
-  width: 48rpx;
-  height: 48rpx;
-  margin-right: 16rpx;
-}
-
-.entry-text {
-  font-size: 28rpx;
-  color: #333;
-}
-
-.entry-right {
-  display: flex;
-  align-items: center;
-}
-
-.coupon-count {
-  font-size: 24rpx;
-  color: #ff4d4f;
-  margin-right: 16rpx;
-}
-
-.entry-arrow {
-  font-size: 32rpx;
-  color: #ccc;
-}
+.campaign-badge.tone-amber { color: #92400e; background: #fef3c7; }
+.campaign-badge.tone-sky { color: #075985; background: #e0f2fe; }
+.campaign-badge.tone-rose { color: #9f1239; background: #ffe4e6; }
+.campaign-title { display: block; margin-top: 14rpx; font-size: 32rpx; font-weight: 750; color: #1b3027; }
+.campaign-desc { display: block; margin-top: 8rpx; font-size: 24rpx; color: #849087; line-height: 1.5; }
+.campaign-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 18rpx; }
+.campaign-time { font-size: 22rpx; color: #94a3b8; }
+.campaign-cta { font-size: 24rpx; color: #059669; font-weight: 700; }
+.campaign-cta.muted { color: #94a3b8; }
+.empty { text-align: center; padding: 60rpx 0; color: #999; }
 </style>

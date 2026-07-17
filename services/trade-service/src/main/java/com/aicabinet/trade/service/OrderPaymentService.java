@@ -7,11 +7,13 @@ import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.config.CheckoutProperties;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.PaymentOperation;
+import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.WeChatPayClient;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
@@ -40,6 +42,7 @@ public class OrderPaymentService {
     private final WeChatPayProperties weChatPayProperties;
     private final SecurityProperties securityProperties;
     private final PaymentOperationMapper paymentOperationRepository;
+    private final ShoppingSessionMapper sessionRepository;
 
     public OrderPaymentService(UserInfoMapper userInfoRepository,
                                UserAccountMapper userAccountRepository,
@@ -50,7 +53,8 @@ public class OrderPaymentService {
                                SecurityProperties securityProperties,
                                PaymentOperationMapper paymentOperationRepository,
                                BalanceLedgerService balanceLedgerService,
-                               CheckoutProperties checkoutProperties) {
+                               CheckoutProperties checkoutProperties,
+                               ShoppingSessionMapper sessionRepository) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.payScoreService = payScoreService;
@@ -61,11 +65,17 @@ public class OrderPaymentService {
         this.paymentOperationRepository = paymentOperationRepository;
         this.balanceLedgerService = balanceLedgerService;
         this.checkoutProperties = checkoutProperties;
+        this.sessionRepository = sessionRepository;
     }
 
     @Transactional
     public void chargeOrder(CabinetOrder order) {
         if (order.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
+            order.setPayChannel(PayChannels.BALANCE);
+            return;
+        }
+        // 零元单（未取货 / 券全额抵扣）不走账本，避免 delta=0 被拒
+        if (order.getTotalAmountCents() <= 0) {
             order.setPayChannel(PayChannels.BALANCE);
             return;
         }
@@ -78,15 +88,23 @@ public class OrderPaymentService {
         UserInfo user = userInfoRepository.findById(order.getUserId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
 
+        String entryChannel = null;
+        if (order.getSessionId() != null && !order.getSessionId().isBlank()) {
+            entryChannel = sessionRepository.findById(order.getSessionId())
+                    .map(ShoppingSession::getEntryChannel)
+                    .orElse(null);
+        }
+
         if (!checkoutProperties.balanceOnly()) {
             PayScoreService.ChargeResult charge = payScoreService.charge(
-                    user, order.getOrderId(), order.getTotalAmountCents(), "AI开门柜购物");
+                    user, order.getOrderId(), order.getTotalAmountCents(), "AI开门柜购物", entryChannel);
             if (!PayChannels.BALANCE.equals(charge.channel())) {
                 order.setPayChannel(charge.channel());
                 order.setPayTradeNo(charge.tradeNo());
                 recordOperation(order, "CHARGE", order.getTotalAmountCents(), charge.channel(), idemKey,
                         charge.tradeNo(), "order charge");
-                log.info("order charged channel={} order={} tradeNo={}", charge.channel(), order.getOrderId(), charge.tradeNo());
+                log.info("order charged channel={} order={} tradeNo={} entry={}",
+                        charge.channel(), order.getOrderId(), charge.tradeNo(), entryChannel);
                 return;
             }
         }

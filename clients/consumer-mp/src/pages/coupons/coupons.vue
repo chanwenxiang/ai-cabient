@@ -11,6 +11,7 @@
       <text class="empty-icon">🎫</text>
       <text class="empty-text">暂无优惠券</text>
       <text class="empty-hint">购物后可获得优惠券哦</text>
+      <button class="empty-btn" @click="goShop">去扫码购物</button>
     </view>
     <view v-else>
       <view v-for="c in list" :key="c.couponId" class="coupon-card" :class="{ expired: c.status === 'EXPIRED', used: c.status === 'USED' }">
@@ -33,7 +34,8 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { get } from '@/utils/consumer-api';
+import { consumerApi } from '@/utils/consumer-api';
+import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 
 const tabs = [
   { key: '', label: '全部' },
@@ -52,9 +54,7 @@ watch(activeTab, () => load());
 async function load() {
   loading.value = true;
   try {
-    const params = activeTab.value ? `?status=${activeTab.value}` : '';
-    const res = await get('/api/v2/coupons' + params);
-    list.value = res.data ?? [];
+    list.value = await consumerApi.myCoupons(activeTab.value || undefined);
   } catch { list.value = []; }
   finally { loading.value = false; }
 }
@@ -65,7 +65,11 @@ function typeText(t: string) {
 }
 
 function formatTime(t: string) {
-  if (!t) return ''; return t.substring(0, 10);
+  return formatDateTimeMinute(t, '').slice(0, 10);
+}
+
+function goShop() {
+  uni.switchTab({ url: '/pages/index/index' });
 }
 </script>
 
@@ -76,8 +80,20 @@ function formatTime(t: string) {
 .tab.active { color: #07c160; font-weight: 600; border-bottom: 4rpx solid #07c160; }
 .loading, .empty-card { text-align: center; padding: 80rpx 0; }
 .empty-icon { font-size: 80rpx; display: block; margin-bottom: 16rpx; }
-.empty-text { font-size: 28rpx; color: #999; }
-.empty-hint { font-size: 24rpx; color: #ccc; margin-top: 8rpx; }
+.empty-text { font-size: 28rpx; color: #999; display: block; }
+.empty-hint { font-size: 24rpx; color: #ccc; margin-top: 8rpx; display: block; }
+.empty-btn {
+  margin: 32rpx auto 0;
+  width: 280rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  background: #07c160;
+  color: #fff;
+  border-radius: 36rpx;
+  font-size: 28rpx;
+  border: none;
+}
+.empty-btn::after { border: none; }
 .coupon-card { display: flex; background: #fff; border-radius: 16rpx; margin-bottom: 16rpx; overflow: hidden; box-shadow: 0 2rpx 8rpx rgba(0,0,0,.04); }
 .coupon-card.expired, .coupon-card.used { opacity: .6; }
 .coupon-left { width: 200rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(135deg, #ff6b35, #ff8f00); padding: 24rpx; }

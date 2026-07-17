@@ -1,238 +1,133 @@
 ﻿<template>
-  <view class="page-root">
-    <view class="header">
-      <text class="header-title">积分明细</text>
-    </view>
-
-    <!-- 积分统计 -->
-    <view class="stats-card">
-      <view class="stat-item">
-        <text class="stat-value">{{ pointsSummary.totalEarned }}</text>
-        <text class="stat-label">累计获得</text>
+  <view class="page">
+    <view class="summary">
+      <view class="sum-item">
+        <text class="sum-num">{{ summary?.availablePoints ?? 0 }}</text>
+        <text class="sum-label">可用积分</text>
       </view>
-      <view class="stat-divider"></view>
-      <view class="stat-item">
-        <text class="stat-value">{{ pointsSummary.totalSpent }}</text>
-        <text class="stat-label">累计消耗</text>
+      <view class="sum-item">
+        <text class="sum-num">{{ summary?.earnedThisMonth ?? 0 }}</text>
+        <text class="sum-label">本月获得</text>
       </view>
-      <view class="stat-divider"></view>
-      <view class="stat-item">
-        <text class="stat-value highlight">{{ pointsSummary.current }}</text>
-        <text class="stat-label">当前积分</text>
+      <view class="sum-item">
+        <text class="sum-num">{{ summary?.usedThisMonth ?? 0 }}</text>
+        <text class="sum-label">本月使用</text>
       </view>
     </view>
 
-    <!-- 筛选 -->
-    <view class="filter-bar">
-      <view 
-        v-for="tab in tabs" 
-        :key="tab.value"
-        class="filter-tab"
-        :class="{ active: currentTab === tab.value }"
-        @click="currentTab = tab.value"
-      >
-        <text class="tab-text">{{ tab.label }}</text>
-      </view>
+    <view class="tabs">
+      <view v-for="t in tabs" :key="t.key" class="tab" :class="{ on: tab === t.key }" @click="tab = t.key">{{ t.label }}</view>
     </view>
 
-    <!-- 明细列表 -->
-    <view class="list-container">
-      <view v-for="item in pointsList" :key="item.id" class="points-item">
-        <view class="item-left">
-          <text class="item-title">{{ item.title }}</text>
-          <text class="item-time">{{ item.createdAt }}</text>
+    <view v-if="loading" class="empty">加载中…</view>
+    <view v-else-if="!logs.length" class="empty">暂无积分记录</view>
+    <view v-else class="list">
+      <view v-for="row in logs" :key="row.id" class="row">
+        <view>
+          <text class="row-title">{{ row.description || typeLabel(row.pointsType) }}</text>
+          <text class="row-time">{{ formatTime(row.createdAt) }}</text>
         </view>
-        <text class="item-points" :class="{ plus: item.type === 'earn', minus: item.type === 'spend' }">
-          {{ item.type === 'earn' ? '+' : '-' }}{{ item.points }}
-        </text>
-      </view>
-
-      <view v-if="pointsList.length === 0" class="empty-state">
-        <text class="empty-text">暂无积分记录</text>
+        <text class="row-points" :class="{ plus: row.points > 0 }">{{ row.points > 0 ? '+' : '' }}{{ row.points }}</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { consumerApi } from '@/utils/consumer-api';
+import { ref, watch } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
+import {
+  consumerApi,
+  ensureConsumerAuth,
+  type MemberPointsLogDto,
+  type MemberPointsSummaryDto
+} from '@/utils/consumer-api';
+import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 
 const tabs = [
-  { label: '全部', value: 'all' },
-  { label: '获得', value: 'earn' },
-  { label: '消耗', value: 'spend' }
+  { key: '', label: '全部' },
+  { key: 'EARN', label: '获得' },
+  { key: 'USE', label: '使用' },
+  { key: 'EXPIRE', label: '过期' }
 ];
 
-const currentTab = ref('all');
-const pointsSummary = ref({
-  totalEarned: 0,
-  totalSpent: 0,
-  current: 0
+const tab = ref('');
+const loading = ref(false);
+const summary = ref<MemberPointsSummaryDto | null>(null);
+const logs = ref<MemberPointsLogDto[]>([]);
+
+onShow(async () => {
+  if (!(await ensureConsumerAuth())) {
+    uni.navigateTo({ url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/member/points-history') });
+    return;
+  }
+  await loadSummary();
+  await loadLogs();
 });
 
-const pointsList = ref<any[]>([]);
-
-onMounted(() => {
-  loadSummary();
-  loadList();
-});
+watch(tab, () => loadLogs());
 
 async function loadSummary() {
   try {
-    const res = await consumerApi.get('/api/v2/member/points/summary');
-    pointsSummary.value = res.data?.data ?? pointsSummary.value;
-  } catch (error) {
-    console.error('加载积分统计失败', error);
+    summary.value = await consumerApi.memberPointsSummary();
+  } catch {
+    summary.value = null;
   }
 }
 
-async function loadList() {
+async function loadLogs() {
+  loading.value = true;
   try {
-    const res = await consumerApi.get('/api/v2/member/points', {
-      params: { type: currentTab.value, page: 0, size: 50 }
-    });
-    pointsList.value = res.data?.data?.items ?? [];
-  } catch (error) {
-    console.error('加载积分明细失败', error);
+    logs.value = await consumerApi.memberPointsHistory(tab.value || undefined);
+  } catch {
+    logs.value = [];
+  } finally {
+    loading.value = false;
   }
+}
+
+function typeLabel(t: string) {
+  return ({ EARN: '获得积分', USE: '使用积分', EXPIRE: '积分过期' } as Record<string, string>)[t] || t;
+}
+
+function formatTime(t?: string) {
+  return formatDateTimeMinute(t, '');
 }
 </script>
 
 <style scoped>
-.page-root {
-  min-height: 100vh;
-  background: #f5f5f5;
-}
-
-.header {
-  background: #fff;
-  padding: 32rpx;
-}
-
-.header-title {
-  font-size: 36rpx;
-  font-weight: bold;
-  color: #333;
-}
-
-.stats-card {
-  display: flex;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  margin: 24rpx;
-  padding: 32rpx;
-  border-radius: 16rpx;
-  color: #fff;
-}
-
-.stat-item {
-  flex: 1;
-  text-align: center;
-}
-
-.stat-value {
-  font-size: 40rpx;
-  font-weight: bold;
-  display: block;
-  margin-bottom: 8rpx;
-}
-
-.stat-value.highlight {
-  color: #ffd700;
-}
-
-.stat-label {
-  font-size: 24rpx;
-  opacity: 0.8;
-}
-
-.stat-divider {
-  width: 1rpx;
-  background: rgba(255, 255, 255, 0.3);
-}
-
-.filter-bar {
+.page { min-height: 100vh; background: #f5f7f8; padding: 24rpx; }
+.summary {
   display: flex;
   background: #fff;
-  padding: 16rpx 24rpx;
-  margin-bottom: 24rpx;
-}
-
-.filter-tab {
-  padding: 16rpx 32rpx;
-  margin-right: 16rpx;
-}
-
-.filter-tab.active {
-  background: #f0f5ff;
   border-radius: 24rpx;
+  padding: 28rpx 12rpx;
+  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
 }
-
-.tab-text {
-  font-size: 28rpx;
-  color: #666;
-}
-
-.filter-tab.active .tab-text {
-  color: #667eea;
-  font-weight: bold;
-}
-
-.list-container {
-  background: #fff;
-  margin: 24rpx;
+.sum-item { flex: 1; text-align: center; }
+.sum-num { display: block; font-size: 36rpx; font-weight: 800; color: #059669; }
+.sum-label { display: block; margin-top: 8rpx; font-size: 22rpx; color: #849087; }
+.tabs {
+  display: flex;
+  margin: 20rpx 0;
+  padding: 6rpx;
   border-radius: 16rpx;
-  padding: 24rpx;
+  background: #fff;
 }
-
-.points-item {
+.tab { flex: 1; text-align: center; padding: 16rpx 0; font-size: 26rpx; color: #666; border-radius: 12rpx; }
+.tab.on { background: #ecfdf5; color: #059669; font-weight: 700; }
+.list { background: #fff; border-radius: 20rpx; padding: 0 24rpx; }
+.row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24rpx 0;
-  border-bottom: 1rpx solid #f0f0f0;
+  padding: 26rpx 0;
+  border-bottom: 1rpx solid #f0f2f1;
 }
-
-.points-item:last-child {
-  border-bottom: none;
-}
-
-.item-left {
-  display: flex;
-  flex-direction: column;
-}
-
-.item-title {
-  font-size: 28rpx;
-  color: #333;
-  margin-bottom: 8rpx;
-}
-
-.item-time {
-  font-size: 24rpx;
-  color: #999;
-}
-
-.item-points {
-  font-size: 32rpx;
-  font-weight: bold;
-}
-
-.item-points.plus {
-  color: #52c41a;
-}
-
-.item-points.minus {
-  color: #ff4d4f;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 80rpx 0;
-}
-
-.empty-text {
-  font-size: 28rpx;
-  color: #999;
-}
+.row:last-child { border-bottom: 0; }
+.row-title { display: block; font-size: 28rpx; color: #223029; font-weight: 600; }
+.row-time { display: block; margin-top: 6rpx; font-size: 22rpx; color: #99a39c; }
+.row-points { font-size: 32rpx; font-weight: 800; color: #334155; }
+.row-points.plus { color: #059669; }
+.empty { text-align: center; padding: 80rpx 0; color: #999; font-size: 26rpx; }
 </style>

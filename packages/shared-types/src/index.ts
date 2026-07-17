@@ -103,11 +103,13 @@ export interface ProfitSharingStatus {
 export interface OrderSummary {
   orderId: string;
   sessionId?: string;
-  userId?: string;
+  userId?: string | number;
   deviceId?: string;
   totalAmountCents: number;
   status?: string;
+  payChannel?: string;
   lineCount?: number;
+  lineSummary?: string;
   createdAt?: string;
 }
 
@@ -433,6 +435,9 @@ export interface OrderDetailDto {
   balanceBeforeCents?: number;
   balanceAfterCents?: number;
   totalAmountCents: number;
+  couponDiscountCents?: number;
+  originalAmountCents?: number;
+  pointsEarned?: number;
   lines?: OrderLineDto[];
   createdAt?: string;
 }

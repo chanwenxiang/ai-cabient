@@ -31,6 +31,20 @@ export function formatDateTime(value?: DateInput, fallback = '-'): string {
   return `${part(parts, 'year')}-${part(parts, 'month')}-${part(parts, 'day')} ${part(parts, 'hour')}:${part(parts, 'minute')}:${part(parts, 'second')}`;
 }
 
+/** 列表常用：YYYY-MM-DD HH:mm（东八区） */
+export function formatDateTimeMinute(value?: DateInput, fallback = '-'): string {
+  const date = parseDate(value ?? null);
+  if (!date) return value != null && value !== '' ? String(value) : fallback;
+  const parts = dateParts(date, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  return `${part(parts, 'year')}-${part(parts, 'month')}-${part(parts, 'day')} ${part(parts, 'hour')}:${part(parts, 'minute')}`;
+}
+
 /** 紧凑时间：MM/DD HH:mm（东八区），适合移动端列表 */
 export function formatDateTimeShort(value?: DateInput, fallback = '-'): string {
   const date = parseDate(value ?? null);

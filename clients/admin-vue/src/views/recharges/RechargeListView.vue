@@ -12,13 +12,15 @@
     <div class="table-scroll">
       <div class="table-scroll-inner" style="min-width: 900px">
         <el-table v-loading="loading" :data="items" stripe border>
-          <el-table-column prop="rechargeId" label="充值单" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="orderId" label="充值单" min-width="140" show-overflow-tooltip />
           <el-table-column prop="userId" label="用户" width="100" />
           <el-table-column label="金额" width="120">
             <template #default="{ row }">¥{{ ((row.amountCents || 0) / 100).toFixed(2) }}</template>
           </el-table-column>
           <el-table-column label="渠道" width="100">
-            <template #default="{ row }">{{ dictLabel('pay_channel', row.channel) }}</template>
+            <template #default="{ row }">
+              <el-tag size="small" effect="plain">{{ dictLabel('pay_channel', row.channel) }}</el-tag>
+            </template>
           </el-table-column>
           <el-table-column label="状态" width="110">
             <template #default="{ row }">
@@ -65,7 +67,7 @@ const { onExport } = useListCsv({
   headers: ['充值单', '用户', '金额', '渠道', '状态', '时间'],
   toRows: () =>
     items.value.map((row) => [
-      row.rechargeId,
+      row.orderId,
       row.userId,
       ((Number(row.amountCents) || 0) / 100).toFixed(2),
       dictLabel('pay_channel', String(row.channel || '')),

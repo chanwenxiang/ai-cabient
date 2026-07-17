@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.CabinetConstants;
+import com.aicabinet.common.constants.PayChannels;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.config.CheckoutProperties;
@@ -37,10 +38,14 @@ public class UserValidationService {
      * 运营账号 (userId >= 100000000) 跳过实名和余额检查。
      */
     public void validateCanOpenDoor(Long userId) {
-        validateCanOpenDoor(userId, null);
+        validateCanOpenDoor(userId, null, null);
     }
 
     public void validateCanOpenDoor(Long userId, String deviceId) {
+        validateCanOpenDoor(userId, deviceId, null);
+    }
+
+    public void validateCanOpenDoor(Long userId, String deviceId, String entryChannel) {
         if (userId == null || userId <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
         }
@@ -56,7 +61,9 @@ public class UserValidationService {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.USER_NOT_VERIFIED);
         }
 
-        if (!checkoutProperties.balanceOnly() && payScoreService.isPasswordFreeReady(user)) {
+        // 真实业务：优先按扫码渠道的免密能力开门；余额仅兜底
+        if (!checkoutProperties.balanceOnly()
+                && payScoreService.isPasswordFreeReadyForChannel(user, entryChannel)) {
             return;
         }
 
@@ -65,6 +72,18 @@ public class UserValidationService {
         if (account.getBalanceCents() < CabinetConstants.MIN_BALANCE_CENTS) {
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.BALANCE_TOO_LOW);
         }
+    }
+
+    /** 结算前：若已可按渠道免密扣款，则不强制要求余额覆盖订单金额。 */
+    public boolean canChargeViaPasswordFree(Long userId, String entryChannel) {
+        if (userId == null || userId >= CabinetConstants.OPERATOR_USER_ID_START) {
+            return true;
+        }
+        if (checkoutProperties.balanceOnly()) {
+            return false;
+        }
+        UserInfo user = userInfoRepository.findById(userId).orElse(null);
+        return payScoreService.isPasswordFreeReadyForChannel(user, entryChannel);
     }
 
     /** 结算前校验可用余额是否覆盖订单金额（运营账号跳过）。 */

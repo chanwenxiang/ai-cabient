@@ -6,122 +6,369 @@
     </view>
 
     <view class="amount-grid">
-      <view v-for="item in amounts" :key="item.value"
+      <view
+        v-for="item in amounts"
+        :key="item.value"
         class="amount-card"
         :class="{ selected: selectedAmount === item.value }"
-        @click="selectedAmount = item.value">
+        @click="selectedAmount = item.value"
+      >
         <text class="amount-value">¥{{ item.text }}</text>
-        <text v-if="item.bonus" class="amount-bonus">赠¥{{ item.bonus }}</text>
       </view>
     </view>
 
-    <button class="btn-primary" :disabled="!selectedAmount || loading" :loading="loading" @click="onRecharge">
-      {{ loading ? '充值中…' : '确认充值' }}
+    <button
+      v-if="mockEnabled"
+      class="btn-primary"
+      :disabled="!selectedAmount || loading"
+      :loading="loading"
+      @click="onRecharge"
+    >
+      {{ loading ? '充值中…' : selectedAmount ? `模拟到账 ¥${(selectedAmount / 100).toFixed(0)}` : '请选择金额' }}
+    </button>
+    <button
+      v-if="wechatRechargeEnabled"
+      class="btn-wechat"
+      :disabled="!selectedAmount || loading"
+      :loading="loading"
+      @click="onWeChatRecharge"
+    >
+      {{
+        loading
+          ? '处理中…'
+          : selectedAmount
+            ? `${wechatPayLive ? '微信支付' : '微信模拟充值'} ¥${(selectedAmount / 100).toFixed(0)}`
+            : '微信充值'
+      }}
+    </button>
+    <button
+      v-if="alipayRechargeEnabled"
+      class="btn-alipay"
+      :disabled="!selectedAmount || loading"
+      :loading="loading"
+      @click="onAlipayRecharge"
+    >
+      {{ loading ? '跳转中…' : selectedAmount ? `支付宝沙箱支付 ¥${(selectedAmount / 100).toFixed(0)}` : '支付宝沙箱充值' }}
     </button>
 
+    <view class="channel-hint">
+      <text v-if="wechatPayLive">微信已配置真实商户；小程序内可调起收银台。</text>
+      <text v-else-if="wechatRechargeEnabled">微信模拟充值：本地 mock 预下单并即时到账（无需真实证书）。</text>
+      <text v-if="alipayRechargeEnabled"> 支付宝沙箱可跳转真实收银台。</text>
+      <text v-if="mockEnabled"> 模拟到账仅用于本地联调。</text>
+    </view>
+
+    <button class="btn-back" hover-class="btn-hover" @click="goBack">返回我的</button>
+
     <view class="recharge-list">
-      <text class="section-title">充值记录</text>
-      <view v-if="!records.length" class="empty">暂无充值记录</view>
-      <view v-for="r in records" :key="r.orderId" class="record-row">
+      <view class="section-head">
+        <text class="section-title">充值记录</text>
+        <text v-if="pendingCount" class="cleanup" @click="cancelPendings">清理 {{ pendingCount }} 笔待支付</text>
+      </view>
+      <view v-if="recordsLoading" class="empty">加载中…</view>
+      <view v-else-if="!visibleRecords.length" class="empty">暂无充值记录</view>
+      <view v-for="r in visibleRecords" :key="r.orderId" class="record-row">
         <view>
-          <text class="record-amount">¥{{ (r.amountCents / 100).toFixed(2) }}</text>
-          <text class="record-time">{{ formatTime(r.createdAt) }}</text>
+          <text class="record-amount">¥{{ ((r.amountCents || 0) / 100).toFixed(2) }}</text>
+          <view class="record-meta">
+            <text class="record-channel">{{ channelText(r.channel) }}</text>
+            <text class="record-time">{{ formatTime(r.createdAt) }}</text>
+          </view>
         </view>
-        <text class="record-status" :class="r.status">{{ statusText(r.status) }}</text>
+        <view class="record-right">
+          <text class="record-status" :class="r.status">{{ statusText(r.status) }}</text>
+          <text v-if="r.status === 'PENDING'" class="cancel-link" @click="cancelOne(r.orderId)">取消</text>
+        </view>
       </view>
     </view>
 
-    <view class="note">充值金额将存入账户余额，用于关门自动扣款</view>
+    <view class="note">模拟到账仅本地联调；支付宝沙箱会跳转真实沙箱收银台（不会产生生产扣款）。</view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { get, post } from '@/utils/consumer-api';
+import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
+import { openAlipayPrepay, resumePendingRechargeIfAny, runWeChatRecharge, savePendingRechargeOrder } from '@/utils/recharge';
+import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import { dictLabel } from '@aicabinet/shared-dict';
 
 const amounts = [
-  { value: 1000, text: '10', bonus: '0' },
-  { value: 2000, text: '20', bonus: '2' },
-  { value: 5000, text: '50', bonus: '5' },
-  { value: 10000, text: '100', bonus: '10' },
-  { value: 20000, text: '200', bonus: '20' },
+  { value: 1000, text: '10' },
+  { value: 2000, text: '20' },
+  { value: 5000, text: '50' },
+  { value: 10000, text: '100' },
+  { value: 20000, text: '200' }
 ];
 
 const balanceYuan = ref('0.00');
-const balanceCents = ref(0);
-const selectedAmount = ref(0);
+const selectedAmount = ref(2000);
 const loading = ref(false);
+const recordsLoading = ref(false);
+const cancelling = ref(false);
 const records = ref<any[]>([]);
-const showManual = ref(false);
-const manualAmount = ref('');
+const alipayRechargeEnabled = ref(false);
+const wechatRechargeEnabled = ref(false);
+const wechatPayLive = ref(false);
+const mockEnabled = ref(true);
 
-onShow(() => { loadBalance(); loadRecords(); });
+const pendingCount = computed(() => records.value.filter((r) => r.status === 'PENDING').length);
+const visibleRecords = computed(() =>
+  records.value.filter((r) => r.status !== 'CANCELLED').slice(0, 20)
+);
+
+onShow(async () => {
+  await ensureConsumerAuth();
+  loadConfig();
+  // 先展示余额/记录，避免 pending 轮询期间长时间停在 ¥0.00
+  await Promise.all([loadBalance(), loadRecords()]);
+  const paid = await resumePendingRechargeIfAny();
+  if (paid) {
+    await Promise.all([loadBalance(), loadRecords()]);
+  }
+});
+
+function goBack() {
+  const pages = getCurrentPages();
+  if (pages.length > 1) {
+    uni.navigateBack({
+      fail: () => uni.switchTab({ url: '/pages/mine/mine' })
+    });
+    return;
+  }
+  uni.switchTab({ url: '/pages/mine/mine' });
+}
+
+async function loadConfig() {
+  try {
+    const cfg = await consumerApi.consumerPublicConfig();
+    mockEnabled.value = cfg?.mockEnabled !== 'false';
+    alipayRechargeEnabled.value = cfg?.alipayRechargeEnabled === 'true';
+    wechatRechargeEnabled.value = cfg?.wechatRechargeEnabled === 'true';
+    wechatPayLive.value = cfg?.wechatPayLive === 'true';
+  } catch {
+    mockEnabled.value = true;
+    alipayRechargeEnabled.value = false;
+    wechatRechargeEnabled.value = true;
+    wechatPayLive.value = false;
+  }
+}
 
 async function loadBalance() {
   try {
-    const res = await get('/api/v2/account/balance');
-    balanceCents.value = res.data.balanceCents ?? 0;
-    balanceYuan.value = (balanceCents.value / 100).toFixed(2);
-  } catch {}
+    const acc = await consumerApi.account();
+    balanceYuan.value = ((acc.balanceCents || 0) / 100).toFixed(2);
+  } catch {
+    balanceYuan.value = '-';
+  }
 }
 
 async function loadRecords() {
+  recordsLoading.value = true;
   try {
-    const res = await get('/api/v2/recharges');
-    records.value = res.data ?? [];
-  } catch { records.value = []; }
+    const res = await get<{ items?: any[] } | any[]>('/api/v2/payment/recharges');
+    const data = res.data;
+    records.value = Array.isArray(data) ? data : data?.items ?? [];
+  } catch {
+    records.value = [];
+  } finally {
+    recordsLoading.value = false;
+  }
 }
 
 function formatTime(t: string) {
-  if (!t) return '';
-  return t.substring(0, 16).replace('T', ' ');
+  return formatDateTimeMinute(t, '');
 }
 
 function statusText(s: string) {
-  const map: Record<string, string> = { PENDING: '待支付', PAID: '已完成', REFUNDED: '已退款', FAILED: '失败' };
+  const map: Record<string, string> = {
+    PENDING: '待支付',
+    PAID: '已完成',
+    SUCCESS: '已完成',
+    REFUNDED: '已退款',
+    FAILED: '失败',
+    CANCELLED: '已取消'
+  };
   return map[s] || s;
+}
+
+function channelText(channel?: string) {
+  return dictLabel('pay_channel', channel || '') || channel || '未知渠道';
+}
+
+async function cancelOne(orderId: string) {
+  if (cancelling.value) return;
+  cancelling.value = true;
+  try {
+    await consumerApi.cancelRecharge(orderId);
+    uni.showToast({ title: '已取消', icon: 'none' });
+    await loadRecords();
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '取消失败', icon: 'none' });
+  } finally {
+    cancelling.value = false;
+  }
+}
+
+async function cancelPendings() {
+  if (cancelling.value || !pendingCount.value) return;
+  const confirmed = await new Promise<boolean>((resolve) =>
+    uni.showModal({
+      title: '清理待支付',
+      content: `将取消 ${pendingCount.value} 笔未完成的充值单`,
+      success: (res) => resolve(!!res.confirm),
+      fail: () => resolve(false)
+    })
+  );
+  if (!confirmed) return;
+  cancelling.value = true;
+  try {
+    const pendings = records.value.filter((r) => r.status === 'PENDING');
+    for (const r of pendings) {
+      try {
+        await consumerApi.cancelRecharge(r.orderId);
+      } catch {
+        /* 单笔失败继续 */
+      }
+    }
+    uni.showToast({ title: '已清理', icon: 'success' });
+    await loadRecords();
+  } finally {
+    cancelling.value = false;
+  }
 }
 
 async function onRecharge() {
   if (!selectedAmount.value || loading.value) return;
+  if (!mockEnabled.value) {
+    uni.showToast({ title: '模拟充值未开启', icon: 'none' });
+    return;
+  }
   loading.value = true;
   try {
-    const res = await post('/api/v2/recharges', { amountCents: selectedAmount.value });
-    const order = res.data;
-    if (order.payUrl) {
-      uni.navigateTo({ url: `/pages/webview/webview?url=${encodeURIComponent(order.payUrl)}` });
-    } else {
-      uni.showToast({ title: '充值成功', icon: 'success' });
-      loadBalance();
-      loadRecords();
-    }
+    const key = `recharge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const prepay = await consumerApi.createMockRecharge(selectedAmount.value, key);
+    await consumerApi.confirmMockRecharge(prepay.orderId);
+    uni.showToast({ title: '充值成功', icon: 'success' });
+    await loadBalance();
+    await loadRecords();
   } catch (e: any) {
-    uni.showToast({ title: e?.message || '充值失败', icon: 'error' });
-  } finally { loading.value = false; }
+    uni.showToast({ title: e?.message || '充值失败', icon: 'none' });
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function onWeChatRecharge() {
+  if (!selectedAmount.value || loading.value) return;
+  loading.value = true;
+  try {
+    const key = `wechat-recharge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const { mode } = await runWeChatRecharge(selectedAmount.value, key);
+    uni.showToast({
+      title: mode === 'live' ? '充值已到账' : '微信模拟充值成功',
+      icon: 'success'
+    });
+    await loadBalance();
+    await loadRecords();
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '微信充值失败', icon: 'none' });
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function onAlipayRecharge() {
+  if (!selectedAmount.value || loading.value) return;
+  loading.value = true;
+  try {
+    const key = `alipay-recharge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const prepay = await consumerApi.createRechargePrepay('ALIPAY', selectedAmount.value, key);
+    if (!prepay.alipayPay?.payFormHtml && !prepay.alipayPay?.payUrl) {
+      throw new Error('未获取到支付宝支付链接，请检查沙箱配置');
+    }
+    savePendingRechargeOrder(prepay.orderId);
+    openAlipayPrepay(prepay.alipayPay);
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '支付宝下单失败', icon: 'none' });
+  } finally {
+    loading.value = false;
+  }
 }
 </script>
 
 <style scoped>
-.page-root { padding: 20rpx; background: #f7f7f7; min-height: 100vh; }
+.page-root { padding: 20rpx; background: #f7f7f7; min-height: 100vh; box-sizing: border-box; }
 .balance-card { background: linear-gradient(135deg, #07c160, #06ad56); border-radius: 20rpx; padding: 40rpx; text-align: center; margin-bottom: 30rpx; }
 .bal-label { color: rgba(255,255,255,.8); font-size: 28rpx; }
-.bal-amount { color: #fff; font-size: 72rpx; font-weight: 700; margin-top: 10rpx; }
+.bal-amount { color: #fff; font-size: 72rpx; font-weight: 700; margin-top: 10rpx; display: block; }
 .amount-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20rpx; margin-bottom: 30rpx; }
 .amount-card { background: #fff; border-radius: 16rpx; padding: 30rpx 20rpx; text-align: center; border: 2rpx solid #eee; }
 .amount-card.selected { border-color: #07c160; background: #f0fff4; }
 .amount-value { font-size: 40rpx; font-weight: 700; color: #333; }
 .amount-bonus { font-size: 22rpx; color: #ff6b35; margin-top: 8rpx; display: block; }
-.btn-primary { width: 100%; height: 88rpx; line-height: 88rpx; background: #07c160; color: #fff; border-radius: 44rpx; font-size: 32rpx; border: none; margin-bottom: 30rpx; }
+.btn-primary { width: 100%; height: 88rpx; line-height: 88rpx; background: #07c160; color: #fff; border-radius: 44rpx; font-size: 30rpx; border: none; margin-bottom: 16rpx; }
+.btn-primary[disabled] { opacity: 0.5; }
+.btn-wechat {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: #07c160;
+  color: #fff;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+  border: none;
+  margin-bottom: 16rpx;
+}
+.btn-wechat[disabled] { opacity: 0.5; }
+.btn-alipay {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: #1677ff;
+  color: #fff;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+  border: none;
+  margin-bottom: 16rpx;
+}
+.btn-alipay[disabled] { opacity: 0.5; }
+.btn-alipay::after, .btn-primary::after, .btn-back::after, .btn-wechat::after { border: none; }
+.btn-back {
+  width: 100%;
+  height: 80rpx;
+  line-height: 80rpx;
+  background: #fff;
+  color: #576b95;
+  border-radius: 40rpx;
+  font-size: 28rpx;
+  border: 1rpx solid #e5e5e5;
+  margin-bottom: 24rpx;
+}
+.btn-hover { opacity: 0.85; }
+.channel-hint { font-size: 22rpx; color: #999; text-align: center; margin-bottom: 24rpx; line-height: 1.5; }
 .recharge-list { background: #fff; border-radius: 16rpx; padding: 24rpx; }
-.section-title { font-size: 28rpx; font-weight: 600; color: #333; margin-bottom: 16rpx; display: block; }
+.section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16rpx; }
+.section-title { font-size: 28rpx; font-weight: 600; color: #333; }
+.cleanup { font-size: 24rpx; color: #576b95; }
 .empty { text-align: center; color: #999; padding: 40rpx; font-size: 26rpx; }
 .record-row { display: flex; justify-content: space-between; align-items: center; padding: 20rpx 0; border-bottom: 1rpx solid #f0f0f0; }
 .record-amount { font-size: 30rpx; font-weight: 600; display: block; }
-.record-time { font-size: 22rpx; color: #999; margin-top: 4rpx; display: block; }
+.record-meta { display: flex; align-items: center; gap: 12rpx; margin-top: 6rpx; flex-wrap: wrap; }
+.record-channel {
+  font-size: 22rpx;
+  color: #576b95;
+  background: #f2f4f8;
+  padding: 2rpx 10rpx;
+  border-radius: 6rpx;
+}
+.record-time { font-size: 22rpx; color: #999; }
+.record-right { display: flex; flex-direction: column; align-items: flex-end; gap: 8rpx; }
 .record-status { font-size: 24rpx; padding: 4rpx 12rpx; border-radius: 8rpx; }
-.record-status.PAID { color: #07c160; background: #f0fff4; }
+.record-status.PAID, .record-status.SUCCESS { color: #07c160; background: #f0fff4; }
 .record-status.PENDING { color: #ff9500; background: #fff8e8; }
-.record-status.FAILED, .record-status.REFUNDED { color: #ff3b30; background: #fff0ee; }
+.record-status.FAILED, .record-status.REFUNDED, .record-status.CANCELLED { color: #ff3b30; background: #fff0ee; }
+.cancel-link { font-size: 22rpx; color: #576b95; }
 .note { text-align: center; font-size: 24rpx; color: #999; margin-top: 24rpx; padding-bottom: 40rpx; }
 </style>

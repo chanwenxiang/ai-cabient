@@ -36,6 +36,17 @@ public class CabinetOrder {
 
     private Instant refundedAt;
 
+    private Long couponId;
+
+    private int couponDiscountCents;
+
+    private int memberDiscountCents;
+
+    private Long promotionId;
+
+    @TableField(exist = false)
+    private int originalAmountCents;
+
     @TableField(exist = false)
     private List<CabinetOrderLine> lines = new ArrayList<>();
 
@@ -67,6 +78,16 @@ public String getOrderId() { return orderId; }
     public void setInventoryDeducted(boolean inventoryDeducted) { this.inventoryDeducted = inventoryDeducted; }
     public Instant getRefundedAt() { return refundedAt; }
     public void setRefundedAt(Instant refundedAt) { this.refundedAt = refundedAt; }
+    public Long getCouponId() { return couponId; }
+    public void setCouponId(Long couponId) { this.couponId = couponId; }
+    public int getCouponDiscountCents() { return couponDiscountCents; }
+    public void setCouponDiscountCents(int couponDiscountCents) { this.couponDiscountCents = couponDiscountCents; }
+    public int getMemberDiscountCents() { return memberDiscountCents; }
+    public void setMemberDiscountCents(int memberDiscountCents) { this.memberDiscountCents = memberDiscountCents; }
+    public Long getPromotionId() { return promotionId; }
+    public void setPromotionId(Long promotionId) { this.promotionId = promotionId; }
+    public int getOriginalAmountCents() { return originalAmountCents; }
+    public void setOriginalAmountCents(int originalAmountCents) { this.originalAmountCents = originalAmountCents; }
     public List<CabinetOrderLine> getLines() { return lines; }
     public void setLines(List<CabinetOrderLine> lines) { this.lines = lines; }
     public Instant getCreatedAt() { return createdAt; }

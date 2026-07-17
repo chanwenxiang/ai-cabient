@@ -17,6 +17,7 @@ import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,6 +58,7 @@ public class SessionService {
     private final RestockSnapshotService restockSnapshotService;
     private final SessionService self;
     private final OpsExceptionService opsExceptionService;
+    private final UserInfoMapper userInfoRepository;
 
     public SessionService(ShoppingSessionMapper repository,
                           DeviceServiceClient deviceClient,
@@ -69,7 +71,8 @@ public class SessionService {
                           GravitySettlementHelper gravityHelper,
                           RestockSnapshotService restockSnapshotService,
                           @Lazy SessionService self,
-                          OpsExceptionService opsExceptionService) {
+                          OpsExceptionService opsExceptionService,
+                          UserInfoMapper userInfoRepository) {
         this.repository = repository;
         this.deviceClient = deviceClient;
         this.userValidationService = userValidationService;
@@ -82,6 +85,7 @@ public class SessionService {
         this.restockSnapshotService = restockSnapshotService;
         this.self = self;
         this.opsExceptionService = opsExceptionService;
+        this.userInfoRepository = userInfoRepository;
     }
 
     @Transactional
@@ -96,7 +100,8 @@ public class SessionService {
     }
 
     private SessionDto doCreateSession(Long userId, CreateSessionRequest request) {
-        userValidationService.validateCanOpenDoor(userId, request.deviceId());
+        String entryChannel = resolveEntryChannel(userId, request.entryChannel());
+        userValidationService.validateCanOpenDoor(userId, request.deviceId(), entryChannel);
         deviceValidationService.requireDevice(request.deviceId());
         deviceValidationService.ensureDeviceAvailable(request.deviceId());
 
@@ -105,6 +110,7 @@ public class SessionService {
         session.setUserId(userId);
         session.setDeviceId(request.deviceId());
         session.setState(SessionState.CREATED);
+        session.setEntryChannel(entryChannel);
         session.setIdempotencyKey(normalizeIdempotencyKey(request.idempotencyKey()));
         // 先强制写入唯一幂等键，再改变状态和下发开门命令。并发重复请求会在这里失败，
         // 不会出现两个事务都先向同一台柜机发送开门命令、最后才在提交时发现冲突。
@@ -121,7 +127,8 @@ public class SessionService {
      */
     @Transactional
     public SessionDto createSessionForDevTest(Long userId, CreateSessionRequest request) {
-        userValidationService.validateCanOpenDoor(userId, request.deviceId());
+        String entryChannel = resolveEntryChannel(userId, request.entryChannel());
+        userValidationService.validateCanOpenDoor(userId, request.deviceId(), entryChannel);
         deviceValidationService.requireDevice(request.deviceId());
         deviceValidationService.ensureDeviceAvailable(request.deviceId());
 
@@ -130,12 +137,14 @@ public class SessionService {
         session.setUserId(userId);
         session.setDeviceId(request.deviceId());
         session.setState(SessionState.CREATED);
+        session.setEntryChannel(entryChannel);
         repository.save(session);
 
         transition(session, SessionState.OPENING);
         session.setOpenTime(Instant.now());
         transition(session, SessionState.SHOPPING);
-        log.info("dev test session shopping session={} device={}", session.getSessionId(), request.deviceId());
+        log.info("dev test session shopping session={} device={} channel={}",
+                session.getSessionId(), request.deviceId(), entryChannel);
         return toDto(session);
     }
 
@@ -646,6 +655,46 @@ public class SessionService {
                 });
     }
 
+    /** 识别/结算长时间无结果：转争议，避免占柜机与前端一直卡在「识别中」。 */
+    @Scheduled(fixedRate = 60_000)
+    @Transactional
+    public void expireStaleRecognizingSessions() {
+        Instant cutoff = Instant.now().minus(10, ChronoUnit.MINUTES);
+        repository.findAll().stream()
+                .filter(s -> s.getState() == SessionState.RECOGNIZING
+                        || s.getState() == SessionState.WAITING_UPLOAD
+                        || s.getState() == SessionState.SETTLING)
+                .filter(s -> {
+                    Instant anchor = s.getCloseTime() != null ? s.getCloseTime()
+                            : (s.getUpdatedAt() != null ? s.getUpdatedAt() : s.getCreatedAt());
+                    return anchor != null && anchor.isBefore(cutoff);
+                })
+                .forEach(s -> {
+                    try {
+                        SessionState from = s.getState();
+                        if (from.canTransitionTo(SessionState.DISPUTED)) {
+                            s.setFailReason("识别超时，已转人工审核，本次暂未扣款");
+                            transition(s, SessionState.DISPUTED);
+                        } else if (from.canTransitionTo(SessionState.FAILED)) {
+                            s.setFailReason("识别超时");
+                            transition(s, SessionState.FAILED);
+                        } else {
+                            s.setFailReason("识别超时");
+                            s.setState(SessionState.FAILED);
+                            repository.save(s);
+                            cabinetMetrics.recordSessionState(SessionState.FAILED);
+                        }
+                        opsExceptionService.report("RECOGNITION_TIMEOUT", "HIGH", s.getDeviceId(),
+                                s.getSessionId(), s.getOrderId(), s.getUserId(),
+                                "识别超时", "关门后超过10分钟未完成识别结算");
+                        log.warn("recognizing session escalated session={} from={} to={}",
+                                s.getSessionId(), from, s.getState());
+                    } catch (Exception e) {
+                        log.warn("failed to escalate stale session={}", s.getSessionId(), e);
+                    }
+                });
+    }
+
     private void requireSessionOwner(Long userId, ShoppingSession session) {
         if (!session.getUserId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.ACCESS_DENIED);
@@ -685,11 +734,21 @@ public class SessionService {
     }
 
     private SessionDto toDto(ShoppingSession s) {
-        String payChannel = isRestockSession(s) ? null : PayChannels.BALANCE;
+        String payChannel = isRestockSession(s) ? null : s.getEntryChannel();
         return new SessionDto(
                 s.getSessionId(), s.getUserId(), s.getDeviceId(), s.getState(),
                 s.getOpenTime(), s.getCloseTime(), s.getOrderId(), s.getCreatedAt(),
                 s.getFailReason(), payChannel
         );
+    }
+
+    private String resolveEntryChannel(Long userId, String requested) {
+        String entry = PayChannels.normalizeEntryChannel(requested);
+        if (entry != null) {
+            return entry;
+        }
+        return userInfoRepository.findById(userId)
+                .map(u -> PayChannels.normalizeEntryChannel(u.getPayPreferredChannel()))
+                .orElse(null);
     }
 }

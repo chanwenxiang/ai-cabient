@@ -54,6 +54,23 @@ public class PayScoreService {
         return user.getAlipayAgreementId() != null && !user.getAlipayAgreementId().isBlank();
     }
 
+    /** 按扫码渠道判断免密是否就绪；channel 为空则任意渠道均可。 */
+    public boolean isPasswordFreeReadyForChannel(UserInfo user, String channel) {
+        if (user == null) {
+            return false;
+        }
+        String entry = PayChannels.normalizeEntryChannel(channel);
+        if (PayChannels.WECHAT.equals(entry)) {
+            return user.isPayscoreEnabled()
+                    && user.getPayscoreContractId() != null
+                    && !user.getPayscoreContractId().isBlank();
+        }
+        if (PayChannels.ALIPAY.equals(entry)) {
+            return user.getAlipayAgreementId() != null && !user.getAlipayAgreementId().isBlank();
+        }
+        return isPasswordFreeReady(user);
+    }
+
     public String signWeChatPayScore(Long userId) {
         UserInfo user = requireUser(userId);
         if (!payScoreProperties.enabled() && !securityProperties.mockEnabled()) {
@@ -82,24 +99,38 @@ public class PayScoreService {
     }
 
     public ChargeResult charge(UserInfo user, String orderId, int amountCents, String description) {
+        return charge(user, orderId, amountCents, description, null);
+    }
+
+    /**
+     * @param preferredChannel 会话扫码渠道优先；为空则用用户偏好，再回落到已签约渠道，最后余额
+     */
+    public ChargeResult charge(UserInfo user, String orderId, int amountCents, String description,
+                               String preferredChannel) {
         if (amountCents <= 0) {
             return new ChargeResult(PayChannels.BALANCE, null);
         }
-        String preferred = user.getPayPreferredChannel() != null ? user.getPayPreferredChannel() : PayChannels.BALANCE;
+        String preferred = PayChannels.normalizeEntryChannel(preferredChannel);
+        if (preferred == null) {
+            preferred = PayChannels.normalizeEntryChannel(user.getPayPreferredChannel());
+        }
 
-        if (PayChannels.WECHAT.equalsIgnoreCase(preferred)
+        if (PayChannels.WECHAT.equals(preferred)
                 && user.isPayscoreEnabled()
-                && user.getPayscoreContractId() != null) {
+                && user.getPayscoreContractId() != null
+                && !user.getPayscoreContractId().isBlank()) {
             return chargeWeChatPayScore(user, orderId, amountCents, description);
         }
-        if (PayChannels.ALIPAY.equalsIgnoreCase(preferred)
-                && user.getAlipayAgreementId() != null) {
+        if (PayChannels.ALIPAY.equals(preferred)
+                && user.getAlipayAgreementId() != null
+                && !user.getAlipayAgreementId().isBlank()) {
             return chargeAlipayAgreement(user, orderId, amountCents, description);
         }
-        if (user.isPayscoreEnabled() && user.getPayscoreContractId() != null) {
+        if (user.isPayscoreEnabled() && user.getPayscoreContractId() != null
+                && !user.getPayscoreContractId().isBlank()) {
             return chargeWeChatPayScore(user, orderId, amountCents, description);
         }
-        if (user.getAlipayAgreementId() != null) {
+        if (user.getAlipayAgreementId() != null && !user.getAlipayAgreementId().isBlank()) {
             return chargeAlipayAgreement(user, orderId, amountCents, description);
         }
         return new ChargeResult(PayChannels.BALANCE, null);

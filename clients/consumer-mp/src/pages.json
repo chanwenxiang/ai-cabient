@@ -15,6 +15,7 @@
                       "path":  "pages/orders/orders",
                       "style":  {
                                     "navigationBarTitleText":  "我的订单",
+                                    "navigationStyle":  "custom",
                                     "navigationBarBackgroundColor":  "#ffffff",
                                     "navigationBarTextStyle":  "black",
                                     "backgroundColor":  "#f7f7f7",
@@ -95,13 +96,58 @@
                       "path":  "pages/order-detail/order-detail"
                   },
                   {
+                      "path":  "pages/coupons/coupons",
                       "style":  {
                                     "navigationBarTitleText":  "我的优惠券",
                                     "navigationBarBackgroundColor":  "#ffffff",
                                     "backgroundColor":  "#f7f7f7",
                                     "navigationBarTextStyle":  "black"
-                                },
-                      "path":  "pages/coupons/coupons"
+                                }
+                  },
+                  {
+                      "path":  "pages/member/index",
+                      "style":  {
+                                    "navigationBarTitleText":  "会员中心",
+                                    "navigationBarBackgroundColor":  "#ffffff",
+                                    "backgroundColor":  "#f5f7f8",
+                                    "navigationBarTextStyle":  "black"
+                                }
+                  },
+                  {
+                      "path":  "pages/member/exchange",
+                      "style":  {
+                                    "navigationBarTitleText":  "积分兑换",
+                                    "navigationBarBackgroundColor":  "#ffffff",
+                                    "backgroundColor":  "#f5f7f8",
+                                    "navigationBarTextStyle":  "black"
+                                }
+                  },
+                  {
+                      "path":  "pages/member/points-history",
+                      "style":  {
+                                    "navigationBarTitleText":  "积分明细",
+                                    "navigationBarBackgroundColor":  "#ffffff",
+                                    "backgroundColor":  "#f5f7f8",
+                                    "navigationBarTextStyle":  "black"
+                                }
+                  },
+                  {
+                      "path":  "pages/marketing/index",
+                      "style":  {
+                                    "navigationBarTitleText":  "热门活动",
+                                    "navigationBarBackgroundColor":  "#ffffff",
+                                    "backgroundColor":  "#f5f7f8",
+                                    "navigationBarTextStyle":  "black"
+                                }
+                  },
+                  {
+                      "path":  "pages/dispute/detail",
+                      "style":  {
+                                    "navigationBarTitleText":  "账单审核",
+                                    "navigationBarBackgroundColor":  "#ffffff",
+                                    "backgroundColor":  "#f7f7f7",
+                                    "navigationBarTextStyle":  "black"
+                                }
                   }
               ],
     "tabBar":  {

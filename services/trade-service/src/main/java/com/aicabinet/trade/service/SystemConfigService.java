@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.SystemConfigDto;
 import com.aicabinet.common.dto.UpsertSystemConfigRequest;
 import com.aicabinet.trade.config.AlipayProperties;
 import com.aicabinet.trade.config.SecurityProperties;
+import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.SystemConfig;
 import com.aicabinet.trade.mapper.SystemConfigMapper;
 import org.springframework.stereotype.Service;
@@ -27,13 +28,16 @@ public class SystemConfigService {
     private final SystemConfigMapper repository;
     private final SecurityProperties securityProperties;
     private final AlipayProperties alipayProperties;
+    private final WeChatPayProperties weChatPayProperties;
 
     public SystemConfigService(SystemConfigMapper repository,
                                SecurityProperties securityProperties,
-                               AlipayProperties alipayProperties) {
+                               AlipayProperties alipayProperties,
+                               WeChatPayProperties weChatPayProperties) {
         this.repository = repository;
         this.securityProperties = securityProperties;
         this.alipayProperties = alipayProperties;
+        this.weChatPayProperties = weChatPayProperties;
     }
 
     @Transactional(readOnly = true)
@@ -49,7 +53,16 @@ public class SystemConfigService {
         Map<String, String> map = new LinkedHashMap<>();
         map.put("servicePhone", getValue(CONSUMER_SERVICE_PHONE, "400-888-0018"));
         map.put("mockEnabled", String.valueOf(securityProperties.mockEnabled()));
-        map.put("alipayRechargeEnabled", String.valueOf(alipayProperties.isConfigured()));
+        // 沙箱：已配置支付宝密钥，或 mock 模式下允许走 mock 支付宝预下单（便于本地联调入口可见）
+        boolean alipayOk = alipayProperties.isConfigured()
+                || (securityProperties.mockEnabled() && alipayProperties.enabled());
+        map.put("alipayRechargeEnabled", String.valueOf(alipayOk));
+        // 微信：已完整配置走 live；未配置但开启 mock 时允许微信模拟预下单+确认
+        boolean wechatOk = weChatPayProperties.isConfigured() || securityProperties.mockEnabled();
+        map.put("wechatRechargeEnabled", String.valueOf(wechatOk));
+        map.put("wechatPayLive", String.valueOf(weChatPayProperties.isConfigured()));
+        // 支付分开门：mock 或显式开启时前端展示一键开通
+        map.put("payScoreSignEnabled", String.valueOf(securityProperties.mockEnabled()));
         return map;
     }
 

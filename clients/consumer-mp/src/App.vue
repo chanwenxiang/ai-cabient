@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { onLaunch } from '@dcloudio/uni-app';
 import { ensureConsumerAuth } from '@/utils/consumer-api';
+import { redirectIfAlipayReturn } from '@/utils/recharge';
 
 onLaunch(async () => {
+  // 支付宝同步回跳常落在站点根路径（无 hash），先导回充值页再鉴权
+  redirectIfAlipayReturn();
   await ensureConsumerAuth();
 });
 </script>
@@ -40,10 +43,13 @@ button:active, .btn-primary:active, .btn-ghost:active, .menu-cell:active, .filte
 @media (min-width: 600px) {
   uni-page-body {
     width: 520px;
+    height: calc(100vh - 36px);
     min-height: calc(100vh - 36px);
     margin: 18px auto;
     border-radius: 28px;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
     box-shadow: 0 22px 70px rgba(15, 23, 42, .14);
   }
 }

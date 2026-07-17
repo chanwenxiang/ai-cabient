@@ -38,7 +38,9 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/v2/feedback/**",
                         "/api/v2/ops/**",
                         "/api/v2/coupons/**",
-                        "/api/v2/merchant/**")
+                        "/api/v2/member/**",
+                        "/api/v2/merchant/**",
+                        "/api/v2/marketing/campaigns/*/claim")
                 .excludePathPatterns(
                         "/api/v2/auth/**",
                         "/api/v2/payment/wechat/**",

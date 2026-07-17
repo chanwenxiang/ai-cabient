@@ -37,4 +37,10 @@ public interface RechargeOrderMapper extends BaseTradeMapper<RechargeOrder> {
         return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
+    default List<RechargeOrder> findByCreatedAtAfter(Instant since) {
+        return selectList(Wrappers.<RechargeOrder>lambdaQuery()
+                .ge(RechargeOrder::getCreatedAt, since)
+                .orderByAsc(RechargeOrder::getCreatedAt));
+    }
+
 }

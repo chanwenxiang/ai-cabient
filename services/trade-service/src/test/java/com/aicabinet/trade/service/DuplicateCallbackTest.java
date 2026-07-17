@@ -55,7 +55,7 @@ class DuplicateCallbackTest {
     void setUp() {
         sessionService = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
-                gravityHelper, restockSnapshotService, null, opsExceptionService);
+                gravityHelper, restockSnapshotService, null, opsExceptionService, null);
         disputeService = new DisputeService(
                 disputeRepository, null, repository, null, null, null, null, null,
                 riskControlService, permissionService, null, null, null,

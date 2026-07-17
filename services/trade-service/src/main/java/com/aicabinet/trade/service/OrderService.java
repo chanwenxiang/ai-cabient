@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.OrderDto;
 import com.aicabinet.common.dto.OrderSummaryDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.data.domain.Page;
@@ -18,10 +19,14 @@ import org.springframework.web.server.ResponseStatusException;
 public class OrderService {
 
     private final CabinetOrderMapper orderRepository;
+    private final CabinetOrderLineMapper orderLineRepository;
     private final SettlementService settlementService;
 
-    public OrderService(CabinetOrderMapper orderRepository, SettlementService settlementService) {
+    public OrderService(CabinetOrderMapper orderRepository,
+                        CabinetOrderLineMapper orderLineRepository,
+                        SettlementService settlementService) {
         this.orderRepository = orderRepository;
+        this.orderLineRepository = orderLineRepository;
         this.settlementService = settlementService;
     }
 
@@ -48,6 +53,9 @@ public class OrderService {
     }
 
     private OrderSummaryDto toSummary(CabinetOrder order) {
+        if (order.getLines() == null || order.getLines().isEmpty()) {
+            order.setLines(new java.util.ArrayList<>(orderLineRepository.findByOrderId(order.getOrderId())));
+        }
         return new OrderSummaryDto(
                 order.getOrderId(),
                 order.getSessionId(),

@@ -37,6 +37,11 @@
           <el-tag size="small" :type="orderStatusType(row.status)">{{ dictLabel('order_status', row.status) || row.status || '-' }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column label="支付渠道" width="110">
+        <template #default="{ row }">
+          <el-tag size="small" effect="plain">{{ dictLabel('pay_channel', row.payChannel) || row.payChannel || '-' }}</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="lineCount" label="商品行" width="90" />
       <el-table-column label="金额" width="110">
         <template #default="{ row }">¥{{ ((row.totalAmountCents || 0) / 100).toFixed(2) }}</template>
@@ -84,7 +89,7 @@ const statusOptions = dictOptions('order_status');
 
 const { onExport } = useListCsv({
   filePrefix: '订单',
-  headers: ['订单号', '会话', '用户ID', '设备', '状态', '商品行', '金额', '创建时间'],
+  headers: ['订单号', '会话', '用户ID', '设备', '状态', '支付渠道', '商品行', '金额', '创建时间'],
   toRows: () =>
     items.value.map((row) => [
       row.orderId,
@@ -92,6 +97,7 @@ const { onExport } = useListCsv({
       row.userId,
       row.deviceId,
       dictLabel('order_status', row.status) || row.status,
+      dictLabel('pay_channel', row.payChannel) || row.payChannel || '-',
       row.lineCount,
       ((row.totalAmountCents || 0) / 100).toFixed(2),
       formatDateTime(row.createdAt)

@@ -956,6 +956,52 @@ public class AdminDashboardService {
         return new AdminTrendDto(points);
     }
 
+    public AdminChannelBreakdownDto channelBreakdown(Long operatorId, int days) {
+        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        int window = normalizeTrendDays(days);
+        ZoneId zone = ZoneId.systemDefault();
+        LocalDate today = LocalDate.now(zone);
+        Instant since = today.minusDays(window - 1L).atStartOfDay(zone).toInstant();
+
+        Map<String, long[]> orderBuckets = new java.util.LinkedHashMap<>();
+        for (CabinetOrder order : queryTrendOrders(operatorId, since)) {
+            String channel = normalizePayChannel(order.getPayChannel());
+            long[] bucket = orderBuckets.computeIfAbsent(channel, k -> new long[]{0, 0});
+            bucket[0]++;
+            bucket[1] += Math.max(order.getTotalAmountCents(), 0);
+        }
+
+        Map<String, long[]> rechargeBuckets = new java.util.LinkedHashMap<>();
+        for (RechargeOrder recharge : rechargeOrderRepository.findByCreatedAtAfter(since)) {
+            if (!"PAID".equalsIgnoreCase(recharge.getStatus())) {
+                continue;
+            }
+            String channel = normalizePayChannel(recharge.getChannel());
+            long[] bucket = rechargeBuckets.computeIfAbsent(channel, k -> new long[]{0, 0});
+            bucket[0]++;
+            bucket[1] += Math.max(recharge.getAmountCents(), 0);
+        }
+
+        return new AdminChannelBreakdownDto(
+                toChannelStats(orderBuckets),
+                toChannelStats(rechargeBuckets)
+        );
+    }
+
+    private static List<AdminChannelStatDto> toChannelStats(Map<String, long[]> buckets) {
+        return buckets.entrySet().stream()
+                .sorted((a, b) -> Long.compare(b.getValue()[1], a.getValue()[1]))
+                .map(e -> new AdminChannelStatDto(e.getKey(), e.getValue()[0], e.getValue()[1]))
+                .toList();
+    }
+
+    private static String normalizePayChannel(String channel) {
+        if (channel == null || channel.isBlank()) {
+            return "UNKNOWN";
+        }
+        return channel.trim().toUpperCase();
+    }
+
     public AdminOpsTrendDto opsTrend(Long operatorId) {
         return opsTrend(operatorId, 7);
     }
@@ -1218,7 +1264,8 @@ public class AdminDashboardService {
     private AdminOrderSummaryDto toOrderSummary(CabinetOrder o) {
         return new AdminOrderSummaryDto(
                 o.getOrderId(), o.getSessionId(), o.getUserId(), o.getDeviceId(),
-                o.getTotalAmountCents(), o.getStatus(), o.getLines().size(), o.getCreatedAt()
+                o.getTotalAmountCents(), o.getStatus(), o.getPayChannel(),
+                o.getLines().size(), o.getCreatedAt()
         );
     }
 
@@ -1283,7 +1330,9 @@ public class AdminDashboardService {
         return switch (channel.toUpperCase()) {
             case "WECHAT" -> "微信";
             case "ALIPAY" -> "支付宝";
-            case "MOCK" -> "Mock";
+            case "BALANCE" -> "余额";
+            case "MOCK" -> "其他";
+            case "UNKNOWN" -> "未知";
             default -> channel;
         };
     }

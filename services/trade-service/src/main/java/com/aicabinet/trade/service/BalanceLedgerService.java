@@ -53,17 +53,39 @@ public class BalanceLedgerService {
 
         PaymentOperation operation = new PaymentOperation();
         operation.setOperationId("BL-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase());
-        operation.setOrderId(businessId);
+        // order_id FK → cabinet_order；充值/运营调账等业务单号不能写入该列
+        operation.setOrderId(resolveCabinetOrderId(businessType, businessId));
         operation.setOperationType(businessType);
         operation.setAmountCents(Math.abs(deltaCents));
         operation.setChannel(PayChannels.BALANCE);
         operation.setStatus("COMPLETED");
         operation.setIdempotencyKey(idempotencyKey);
-        operation.setReason(trim(reason));
+        operation.setReason(buildReason(businessType, businessId, reason));
         operation.setUserId(userId);
         operation.setBalanceBeforeCents(before);
         operation.setBalanceAfterCents((int) next);
         return operationRepository.saveAndFlush(operation);
+    }
+
+    /** 仅购物扣款/退款类流水挂接 cabinet_order，避免充值单号触发 FK 失败。 */
+    private static String resolveCabinetOrderId(String businessType, String businessId) {
+        if (businessId == null || businessId.isBlank()) return null;
+        return switch (businessType) {
+            case "CHARGE", "REFUND", "ADJUST_CHARGE" -> businessId;
+            default -> null;
+        };
+    }
+
+    private static String buildReason(String businessType, String businessId, String reason) {
+        String base = trim(reason);
+        if (businessId == null || businessId.isBlank()) return base;
+        if ("CHARGE".equals(businessType) || "REFUND".equals(businessType) || "ADJUST_CHARGE".equals(businessType)) {
+            return base;
+        }
+        String suffix = "#" + businessId;
+        if (base == null || base.isBlank()) return trim(suffix);
+        if (base.contains(businessId)) return base;
+        return trim(base + " " + suffix);
     }
 
     @Transactional(readOnly = true)

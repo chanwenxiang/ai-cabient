@@ -17,6 +17,15 @@ public interface MemberPointsLogMapper extends BaseTradeMapper<MemberPointsLog> 
     return selectList(Wrappers.<MemberPointsLog>lambdaQuery().eq(MemberPointsLog::getMemberId, memberId).eq(MemberPointsLog::getPointsType, pointsType));
     }
 
+    default java.util.Optional<MemberPointsLog> findByMemberIdAndSource(
+            Long memberId, String sourceType, String sourceId) {
+        return java.util.Optional.ofNullable(selectOne(Wrappers.<MemberPointsLog>lambdaQuery()
+                .eq(MemberPointsLog::getMemberId, memberId)
+                .eq(MemberPointsLog::getSourceType, sourceType)
+                .eq(MemberPointsLog::getSourceId, sourceId)
+                .last("LIMIT 1")));
+    }
+
         List<MemberPointsLog> findExpiredPoints(Long memberId, Instant now);
 
 }

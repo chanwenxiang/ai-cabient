@@ -7,11 +7,22 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine> {
+
+    default List<CabinetOrderLine> findByOrderId(String orderId) {
+        return selectList(Wrappers.<CabinetOrderLine>lambdaQuery()
+                .eq(CabinetOrderLine::getOrderId, orderId)
+                .orderByAsc(CabinetOrderLine::getId));
+    }
+
+    default void deleteByOrderId(String orderId) {
+        delete(Wrappers.<CabinetOrderLine>lambdaQuery().eq(CabinetOrderLine::getOrderId, orderId));
+    }
 
     long sumCogsSince(@Param("since") Instant since);
 

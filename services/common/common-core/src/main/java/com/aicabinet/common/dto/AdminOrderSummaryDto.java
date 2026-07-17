@@ -9,6 +9,7 @@ public record AdminOrderSummaryDto(
         String deviceId,
         int totalAmountCents,
         String status,
+        String payChannel,
         int lineCount,
         Instant createdAt
 ) {}

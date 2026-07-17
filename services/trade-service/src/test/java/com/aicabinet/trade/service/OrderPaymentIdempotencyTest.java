@@ -35,6 +35,7 @@ class OrderPaymentIdempotencyTest {
     @Mock WeChatPayClient weChatPayClient;
     @Mock AlipayPayClient alipayPayClient;
     @Mock PaymentOperationMapper paymentOperationRepository;
+    @Mock com.aicabinet.trade.mapper.ShoppingSessionMapper sessionRepository;
 
     private OrderPaymentService service;
 
@@ -50,7 +51,8 @@ class OrderPaymentIdempotencyTest {
                 new SecurityProperties(true),
                 paymentOperationRepository,
                 balanceLedgerService,
-                new CheckoutProperties(true));
+                new CheckoutProperties(true),
+                sessionRepository);
     }
 
     @Test

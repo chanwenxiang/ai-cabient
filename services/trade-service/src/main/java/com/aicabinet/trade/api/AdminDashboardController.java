@@ -54,6 +54,18 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.opsTrend(operatorId(request), days));
     }
 
+    @GetMapping("/trend/channels")
+    public ApiResponse<AdminChannelBreakdownDto> channelBreakdown(
+            HttpServletRequest request,
+            @RequestParam(name = "days", defaultValue = "7") int days) {
+        Long opId = operatorId(request);
+        return ApiResponse.ok(cacheService.get(
+                "dashboard:channels",
+                opId + ":" + days,
+                60_000L,
+                () -> adminService.channelBreakdown(opId, days)));
+    }
+
     @GetMapping("/devices")
     public ApiResponse<List<AdminDeviceDto>> devices(HttpServletRequest request) {
         Long opId = operatorId(request);

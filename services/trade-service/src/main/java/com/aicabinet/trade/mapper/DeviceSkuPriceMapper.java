@@ -17,4 +17,11 @@ public interface DeviceSkuPriceMapper extends BaseTradeMapper<DeviceSkuPrice> {
     return selectList(Wrappers.<DeviceSkuPrice>lambdaQuery().eq(DeviceSkuPrice::getDeviceId, deviceId));
     }
 
+    default java.util.Optional<DeviceSkuPrice> findByDeviceIdAndSkuId(String deviceId, String skuId) {
+        return java.util.Optional.ofNullable(selectOne(Wrappers.<DeviceSkuPrice>lambdaQuery()
+                .eq(DeviceSkuPrice::getDeviceId, deviceId)
+                .eq(DeviceSkuPrice::getSkuId, skuId)
+                .last("LIMIT 1")));
+    }
+
 }

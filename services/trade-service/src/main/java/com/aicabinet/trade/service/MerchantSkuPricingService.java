@@ -59,7 +59,7 @@ public class MerchantSkuPricingService {
         if (deviceId == null || sku == null) {
             return sku != null ? sku.getPriceCents() : 0;
         }
-        return priceRepository.findById(new DeviceSkuPriceId(deviceId, sku.getSkuId()))
+        return priceRepository.findByDeviceIdAndSkuId(deviceId, sku.getSkuId())
                 .map(DeviceSkuPrice::getPriceCents)
                 .orElse(sku.getPriceCents());
     }
@@ -148,7 +148,7 @@ public class MerchantSkuPricingService {
 
         Integer newPrice = request.priceCents();
         DeviceSkuPriceId priceId = new DeviceSkuPriceId(deviceId, skuId);
-        Optional<DeviceSkuPrice> existing = priceRepository.findById(priceId);
+        Optional<DeviceSkuPrice> existing = priceRepository.findByDeviceIdAndSkuId(deviceId, skuId);
         Integer oldOverride = existing.map(DeviceSkuPrice::getPriceCents).orElse(null);
 
         if (newPrice == null) {
@@ -170,7 +170,7 @@ public class MerchantSkuPricingService {
                 .filter(r -> skuId.equals(r.getId().getSkuId()))
                 .mapToInt(DeviceSkuInventory::getQuantity)
                 .sum();
-        Optional<DeviceSkuPrice> saved = priceRepository.findById(priceId);
+        Optional<DeviceSkuPrice> saved = priceRepository.findByDeviceIdAndSkuId(deviceId, skuId);
         return new MerchantSkuPricingDto(
                 deviceId,
                 device.getDeviceName(),

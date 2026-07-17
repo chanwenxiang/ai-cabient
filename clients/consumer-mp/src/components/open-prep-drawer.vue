@@ -28,19 +28,71 @@
       </view>
 
       <view v-else-if="!payReady" class="drawer-body">
-        <text class="drawer-desc">灰度运营仅使用测试余额结算。余额不足时请联系现场运营人员发放测试余额。</text>
+        <text class="drawer-desc">{{ payDesc }}</text>
+        <view v-if="!entryChannel" class="channel-pick">
+          <text class="field-label">本次扫码渠道</text>
+          <view class="channel-chips">
+            <text
+              class="channel-chip"
+              :class="{ on: pickedChannel === 'WECHAT' }"
+              @click="pickedChannel = 'WECHAT'"
+            >微信</text>
+            <text
+              class="channel-chip"
+              :class="{ on: pickedChannel === 'ALIPAY' }"
+              @click="pickedChannel = 'ALIPAY'"
+            >支付宝</text>
+          </view>
+        </view>
         <view class="balance-row">
           <text>当前余额</text>
           <text class="balance-val">¥{{ balanceYuan }}</text>
         </view>
-        <text class="balance-warning">最低开门余额 ¥5.00，测试余额不代表真实充值资金</text>
-        <button v-if="mockRechargeEnabled" class="btn-primary" hover-class="btn-hover" :loading="busy" :disabled="busy" @click="onMockRecharge">
-          {{ busy ? '发放中…' : '模拟充值 ¥20 测试余额' }}
+        <text class="balance-warning">{{ payReadyHintText }}</text>
+        <button
+          v-if="showWechatSign"
+          class="btn-primary"
+          hover-class="btn-hover"
+          :loading="busy"
+          :disabled="busy"
+          @click="onSignPayScore"
+        >
+          {{ busy ? '开通中…' : '开通微信支付分（推荐）' }}
         </button>
-        <button v-else-if="alipayRechargeEnabled" class="btn-primary" hover-class="btn-hover" :loading="busy" :disabled="busy" @click="onAlipayRecharge">
+        <button
+          v-if="showAlipaySign"
+          class="btn-alipay"
+          hover-class="btn-hover"
+          :loading="busy"
+          :disabled="busy"
+          @click="onSignAlipay"
+        >
+          {{ busy ? '开通中…' : '开通支付宝免密（推荐）' }}
+        </button>
+        <button
+          v-if="wechatRechargeEnabled"
+          class="btn-wechat"
+          hover-class="btn-hover"
+          :loading="busy"
+          :disabled="busy"
+          @click="onWeChatRecharge"
+        >
+          {{ busy ? '处理中…' : wechatPayLive ? '微信支付充值 ¥20' : '微信模拟充值 ¥20' }}
+        </button>
+        <button v-if="mockRechargeEnabled" class="btn-ghost-fill" hover-class="btn-hover" :loading="busy" :disabled="busy" @click="onMockRecharge">
+          {{ busy ? '发放中…' : '模拟充值 ¥20 测试余额（兜底）' }}
+        </button>
+        <button
+          v-if="alipayRechargeEnabled"
+          class="btn-alipay"
+          hover-class="btn-hover"
+          :loading="busy"
+          :disabled="busy"
+          @click="onAlipayRecharge"
+        >
           {{ busy ? '跳转中…' : '支付宝沙箱充值 ¥20' }}
         </button>
-        <text v-else class="drawer-desc">请联系现场运营人员发放测试余额，或登录后在「我的」页充值。</text>
+        <text v-if="!mockRechargeEnabled && !alipayRechargeEnabled && !wechatRechargeEnabled && !showWechatSign && !showAlipaySign" class="drawer-desc">请联系现场运营人员发放测试余额。</text>
         <view class="support-link" @click="contactOps">联系现场运营人员</view>
       </view>
 
@@ -54,14 +106,21 @@
 import { computed, ref, watch } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { consumerApi } from '@/utils/consumer-api';
-import { openAlipayPrepay, savePendingRechargeOrder } from '@/utils/recharge';
+import {
+  isPayReady,
+  normalizeEntryChannel,
+  payReadyHint,
+  type EntryChannel
+} from '@/utils/account';
+import { openAlipayPrepay, runWeChatRecharge, savePendingRechargeOrder } from '@/utils/recharge';
 
 const props = defineProps<{
   account: AccountDto | null;
+  entryChannel?: string | null;
 }>();
 
 const emit = defineEmits<{
-  done: [];
+  done: [channel?: EntryChannel | null];
   cancel: [];
 }>();
 
@@ -72,6 +131,10 @@ const busy = ref(false);
 const err = ref('');
 const mockRechargeEnabled = ref(true);
 const alipayRechargeEnabled = ref(false);
+const wechatRechargeEnabled = ref(false);
+const wechatPayLive = ref(false);
+const payScoreSignEnabled = ref(true);
+const pickedChannel = ref<EntryChannel | null>(normalizeEntryChannel(props.entryChannel));
 
 watch(
   () => props.account,
@@ -80,22 +143,46 @@ watch(
   }
 );
 
+watch(
+  () => props.entryChannel,
+  (v) => {
+    const n = normalizeEntryChannel(v);
+    if (n) pickedChannel.value = n;
+  }
+);
+
 consumerApi.consumerPublicConfig().then((cfg) => {
   mockRechargeEnabled.value = cfg?.mockEnabled !== 'false';
   alipayRechargeEnabled.value = cfg?.alipayRechargeEnabled === 'true';
+  wechatRechargeEnabled.value = cfg?.wechatRechargeEnabled === 'true';
+  wechatPayLive.value = cfg?.wechatPayLive === 'true';
+  payScoreSignEnabled.value = cfg?.payScoreSignEnabled !== 'false';
 }).catch(() => {
   mockRechargeEnabled.value = true;
   alipayRechargeEnabled.value = false;
+  wechatRechargeEnabled.value = true;
+  wechatPayLive.value = false;
+  payScoreSignEnabled.value = true;
 });
 
+const entryChannel = computed(() => normalizeEntryChannel(props.entryChannel) || pickedChannel.value);
 const balanceYuan = computed(() => ((account.value?.balanceCents || 0) / 100).toFixed(2));
-const payReady = computed(
-  () => (account.value?.balanceCents || 0) >= 500
+const payReady = computed(() => isPayReady(account.value, entryChannel.value));
+const payReadyHintText = computed(() => payReadyHint(account.value, entryChannel.value));
+const payDesc = computed(() => {
+  const c = entryChannel.value;
+  if (c === 'WECHAT') return '微信扫码入柜：开通微信支付分后，关门自动扣款（余额仅作兜底）。';
+  if (c === 'ALIPAY') return '支付宝扫码入柜：开通免密代扣后，关门自动扣款（余额仅作兜底）。';
+  return '请选择扫码渠道并开通对应免密支付；测试余额 ≥ ¥5 也可临时开门。';
+});
+const showWechatSign = computed(
+  () => payScoreSignEnabled.value && (!entryChannel.value || entryChannel.value === 'WECHAT')
 );
+const showAlipaySign = computed(() => !entryChannel.value || entryChannel.value === 'ALIPAY');
 
 watch(payReady, (ready) => {
   if (ready && account.value?.verified) {
-    emit('done');
+    emit('done', entryChannel.value);
   }
 });
 
@@ -114,9 +201,59 @@ async function onVerify() {
   err.value = '';
   try {
     account.value = await consumerApi.verifyIdentity({ realName: name, idCardLast4: last4 });
-    if (payReady.value) emit('done');
+    if (payReady.value) emit('done', entryChannel.value);
   } catch (e) {
     err.value = e instanceof Error ? e.message : '认证失败';
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function onSignPayScore() {
+  if (busy.value) return;
+  if (!pickedChannel.value && !props.entryChannel) pickedChannel.value = 'WECHAT';
+  busy.value = true;
+  err.value = '';
+  try {
+    await consumerApi.signPayScore();
+    account.value = await consumerApi.account();
+    uni.showToast({ title: '支付分已开通', icon: 'success' });
+    if (payReady.value) emit('done', entryChannel.value || 'WECHAT');
+  } catch (e) {
+    err.value = e instanceof Error ? e.message : '开通失败';
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function onSignAlipay() {
+  if (busy.value) return;
+  if (!pickedChannel.value && !props.entryChannel) pickedChannel.value = 'ALIPAY';
+  busy.value = true;
+  err.value = '';
+  try {
+    await consumerApi.signAlipayAgreement();
+    account.value = await consumerApi.account();
+    uni.showToast({ title: '支付宝免密已开通', icon: 'success' });
+    if (payReady.value) emit('done', entryChannel.value || 'ALIPAY');
+  } catch (e) {
+    err.value = e instanceof Error ? e.message : '开通失败';
+  } finally {
+    busy.value = false;
+  }
+}
+
+async function onWeChatRecharge() {
+  if (busy.value) return;
+  busy.value = true;
+  err.value = '';
+  try {
+    const key = `prep-wechat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    await runWeChatRecharge(2000, key);
+    account.value = await consumerApi.account();
+    uni.showToast({ title: '充值成功', icon: 'success' });
+  } catch (error) {
+    err.value = error instanceof Error ? error.message : '充值失败';
   } finally {
     busy.value = false;
   }
@@ -291,6 +428,40 @@ function onCancel() {
   height: 88rpx;
 }
 .btn-primary::after { border: none; }
+.btn-alipay {
+  margin: 16rpx 0 0;
+  background: #1677ff;
+  color: #fff;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  line-height: 88rpx;
+  height: 88rpx;
+}
+.btn-alipay::after { border: none; }
+.btn-wechat {
+  margin: 16rpx 0 0;
+  background: #07c160;
+  color: #fff;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  line-height: 88rpx;
+  height: 88rpx;
+}
+.btn-wechat::after { border: none; }
+.btn-ghost-fill {
+  margin: 16rpx 0 0;
+  background: #f0fdf4;
+  color: #047857;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 88rpx;
+  height: 88rpx;
+  border: 1rpx solid #bbf7d0;
+}
+.btn-ghost-fill::after { border: none; }
 .btn-hover { opacity: 0.85; }
 .hint {
   font-size: 24rpx;
@@ -300,6 +471,24 @@ function onCancel() {
   margin-top: 16rpx;
 }
 .balance-warning { display: block; padding: 20rpx; border-radius: 12rpx; background: #fff7e6; color: #ad6800; font-size: 25rpx; line-height: 1.5; }
+.channel-pick { margin-bottom: 16rpx; }
+.channel-chips { display: flex; gap: 16rpx; margin-top: 12rpx; }
+.channel-chip {
+  flex: 1;
+  text-align: center;
+  padding: 18rpx 0;
+  border-radius: 12rpx;
+  background: #f2f4f8;
+  color: #576b95;
+  font-size: 28rpx;
+  border: 2rpx solid transparent;
+}
+.channel-chip.on {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #34d399;
+  font-weight: 600;
+}
 .balance-warning + .btn-primary{margin-top:22rpx}.support-link{padding:22rpx 0 4rpx;text-align:center;color:#64748b;font-size:25rpx}
 .err {
   color: #fa5151;

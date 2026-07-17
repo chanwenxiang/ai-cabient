@@ -1,21 +1,44 @@
 import { consumerApi } from '@/utils/consumer-api';
 
 const PENDING_RECHARGE_KEY = 'pending_recharge_order_id';
+const ALIPAY_RETURN_PAGE_KEY = 'alipay_return_page';
+
+/** 支付宝同步回跳后应打开的页面（H5） */
+export const ALIPAY_RETURN_PAGE = '/pages/recharge/recharge';
 
 export function savePendingRechargeOrder(orderId: string) {
   uni.setStorageSync(PENDING_RECHARGE_KEY, orderId);
 }
 
+export function peekPendingRechargeOrder(): string {
+  return String(uni.getStorageSync(PENDING_RECHARGE_KEY) || '');
+}
+
+export function clearPendingRechargeOrder() {
+  uni.removeStorageSync(PENDING_RECHARGE_KEY);
+}
+
 export function takePendingRechargeOrder(): string {
-  const id = String(uni.getStorageSync(PENDING_RECHARGE_KEY) || '');
-  if (id) uni.removeStorageSync(PENDING_RECHARGE_KEY);
+  const id = peekPendingRechargeOrder();
+  if (id) clearPendingRechargeOrder();
   return id;
+}
+
+export function rememberAlipayReturnPage(page = ALIPAY_RETURN_PAGE) {
+  uni.setStorageSync(ALIPAY_RETURN_PAGE_KEY, page);
+}
+
+export function takeAlipayReturnPage(): string {
+  const page = String(uni.getStorageSync(ALIPAY_RETURN_PAGE_KEY) || '');
+  if (page) uni.removeStorageSync(ALIPAY_RETURN_PAGE_KEY);
+  return page || ALIPAY_RETURN_PAGE;
 }
 
 export function openAlipayPayUrl(payUrl: string) {
   if (!payUrl) {
     throw new Error('支付宝支付链接为空');
   }
+  rememberAlipayReturnPage();
   // #ifdef H5
   window.location.href = payUrl;
   // #endif
@@ -24,15 +47,25 @@ export function openAlipayPayUrl(payUrl: string) {
   // #endif
 }
 
+/**
+ * 提交支付宝 pagePay 表单。
+ * 禁止 document.write：会毁掉当前 SPA，取消支付返回时页面空白且像「掉登录」。
+ */
 export function openAlipayPayForm(payFormHtml: string) {
   if (!payFormHtml) {
     throw new Error('支付宝支付表单为空');
   }
+  rememberAlipayReturnPage();
   // #ifdef H5
-  const doc = window.document;
-  doc.open();
-  doc.write(payFormHtml);
-  doc.close();
+  const host = document.createElement('div');
+  host.innerHTML = payFormHtml.trim();
+  const form = host.querySelector('form');
+  if (!form) {
+    throw new Error('支付宝支付表单无效');
+  }
+  form.setAttribute('style', 'display:none');
+  document.body.appendChild(form);
+  form.submit();
   // #endif
   // #ifndef H5
   throw new Error('支付宝沙箱充值请在 H5 浏览器中打开');
@@ -49,6 +82,34 @@ export function openAlipayPrepay(alipayPay?: { payUrl?: string; payFormHtml?: st
     return;
   }
   throw new Error('未获取到支付宝支付参数');
+}
+
+/** H5：识别支付宝同步回跳，并导航到充值页（避免停在首页且无返回） */
+export function redirectIfAlipayReturn(): boolean {
+  // #ifdef H5
+  try {
+    const search = window.location.search || '';
+    const hash = window.location.hash || '';
+    const combined = `${search}\n${hash}`;
+    const fromAlipay =
+      /[?&]out_trade_no=/.test(combined) ||
+      /[?&]trade_no=/.test(combined) ||
+      /[?&]trade_status=/.test(combined) ||
+      /[?&]alipay_return=1/.test(combined) ||
+      /method=alipay\.trade/i.test(combined);
+    if (!fromAlipay) return false;
+    if (hash.includes('/pages/recharge/recharge')) return false;
+    const page = takeAlipayReturnPage();
+    const url = page.startsWith('/') ? page : `/${page}`;
+    uni.reLaunch({ url });
+    return true;
+  } catch {
+    return false;
+  }
+  // #endif
+  // #ifndef H5
+  return false;
+  // #endif
 }
 
 export async function pollRechargePaid(orderId: string, attempts = 30, intervalMs = 2000) {
@@ -68,18 +129,95 @@ function delay(ms: number) {
 }
 
 export async function resumePendingRechargeIfAny(): Promise<boolean> {
-  const orderId = takePendingRechargeOrder();
+  const orderId = peekPendingRechargeOrder();
   if (!orderId) return false;
   try {
-    await pollRechargePaid(orderId, 15, 1500);
+    // 短轮询：覆盖沙箱收银台回跳后的短暂延迟；未支付则静默保留 pending
+    await pollRechargePaid(orderId, 8, 1500);
+    clearPendingRechargeOrder();
     uni.showToast({ title: '充值已到账', icon: 'success' });
     return true;
   } catch (e) {
-    uni.showToast({
-      title: e instanceof Error ? e.message : '充值确认失败',
-      icon: 'none',
-      duration: 3000
-    });
+    const msg = e instanceof Error ? e.message : '充值确认失败';
+    // 未完成支付 / 网络抖动：保留 pending，不弹干扰 toast
+    if (/超时|timeout|无法连接|网络|request:fail/i.test(msg)) {
+      return false;
+    }
+    // 已取消/关闭：清掉 pending，避免每次进「我的」都弹错误
+    if (/取消|关闭|CANCELLED|REFUNDED/i.test(msg)) {
+      clearPendingRechargeOrder();
+      return false;
+    }
+    // 订单不存在等：清掉脏 pending
+    if (/不存在|404|NOT_FOUND/i.test(msg)) {
+      clearPendingRechargeOrder();
+      return false;
+    }
+    uni.showToast({ title: msg, icon: 'none', duration: 3000 });
     return false;
   }
+}
+
+type WxPayLike = {
+  timeStamp?: string;
+  timestamp?: string;
+  nonceStr?: string;
+  packageValue?: string;
+  package?: string;
+  signType?: string;
+  paySign?: string;
+  debugInfo?: Record<string, string>;
+};
+
+function wxPayMode(prepay: { debugInfo?: Record<string, string>; wxPay?: WxPayLike }) {
+  return String(prepay.debugInfo?.mode || prepay.wxPay?.debugInfo?.mode || '').toLowerCase();
+}
+
+/** 调起微信收银台（仅小程序 live 可用） */
+export function invokeWxRequestPayment(wxPay: WxPayLike): Promise<void> {
+  return new Promise((resolve, reject) => {
+    // #ifdef MP-WEIXIN
+    const pkg = wxPay.packageValue || wxPay.package || '';
+    uni.requestPayment({
+      provider: 'wxpay',
+      timeStamp: String(wxPay.timeStamp || wxPay.timestamp || ''),
+      nonceStr: String(wxPay.nonceStr || ''),
+      package: pkg,
+      signType: (wxPay.signType as 'RSA' | 'MD5' | undefined) || 'RSA',
+      paySign: String(wxPay.paySign || ''),
+      success: () => resolve(),
+      fail: (err) => reject(new Error(err?.errMsg || '微信支付取消或失败'))
+    });
+    // #endif
+    // #ifndef MP-WEIXIN
+    reject(new Error('真实微信支付仅支持微信小程序；H5 请使用「微信模拟充值」'));
+    // #endif
+  });
+}
+
+/**
+ * 微信充值：
+ * - live + 小程序：requestPayment + 轮询到账
+ * - mock / H5：预下单后 mock-success 即时到账（本地可测）
+ */
+export async function runWeChatRecharge(amountCents: number, idempotencyKey: string): Promise<{
+  orderId: string;
+  mode: 'mock' | 'live';
+}> {
+  const prepay = await consumerApi.createRechargePrepay('WECHAT', amountCents, idempotencyKey);
+  const mode = wxPayMode(prepay) === 'live' ? 'live' : 'mock';
+  if (mode === 'live' && prepay.wxPay) {
+    savePendingRechargeOrder(prepay.orderId);
+    try {
+      await invokeWxRequestPayment(prepay.wxPay as WxPayLike);
+      await pollRechargePaid(prepay.orderId, 20, 1500);
+      clearPendingRechargeOrder();
+    } catch (e) {
+      // 保留 pending，返回页可 resume；用户取消则不强制清
+      throw e;
+    }
+    return { orderId: prepay.orderId, mode };
+  }
+  await consumerApi.confirmMockRecharge(prepay.orderId);
+  return { orderId: prepay.orderId, mode: 'mock' };
 }

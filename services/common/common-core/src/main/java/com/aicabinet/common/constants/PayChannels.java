@@ -15,4 +15,16 @@ public final class PayChannels {
         }
         return channel.trim().toUpperCase();
     }
+
+    /** 仅接受 WECHAT / ALIPAY；其他返回 null。 */
+    public static String normalizeEntryChannel(String channel) {
+        if (channel == null || channel.isBlank()) {
+            return null;
+        }
+        String c = channel.trim().toUpperCase();
+        if (WECHAT.equals(c) || ALIPAY.equals(c)) {
+            return c;
+        }
+        return null;
+    }
 }

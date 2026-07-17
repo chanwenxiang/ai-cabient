@@ -6,7 +6,11 @@
       <view class="profile-info">
         <text class="account-kicker">AI CABINET MEMBER</text>
         <text class="hello">{{ authed ? displayName : '游客模式' }}</text>
-        <view v-if="authed" class="balance-row"><text class="balance-label">测试余额</text><text class="balance-number">¥{{ balanceYuan }}</text></view>
+        <view v-if="authed" class="balance-row" @click="goRecharge">
+          <text class="balance-label">测试余额</text>
+          <text class="balance-number">¥{{ balanceYuan }}</text>
+          <text class="balance-action">充值 ›</text>
+        </view>
         <text v-else class="balance">扫码购物无需注册</text>
         <view v-if="authed" class="tags">
           <text class="tag" :class="verified ? 'ok' : 'warn'">{{ verified ? '已实名' : '待实名' }}</text>
@@ -66,6 +70,22 @@
         </view>
         <text class="menu-arrow">›</text>
       </view>
+      <view class="menu-cell" @click="goMember">
+        <text class="menu-icon">👑</text>
+        <view class="menu-text">
+          <text class="menu-title">会员中心</text>
+          <text class="menu-desc">等级权益 · 积分兑券</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view class="menu-cell" @click="goMarketing">
+        <text class="menu-icon">🔥</text>
+        <view class="menu-text">
+          <text class="menu-title">热门活动</text>
+          <text class="menu-desc">满减周 · 新客礼 · 积分兑好礼</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
       <view class="menu-cell" @click="goRecharge">
         <text class="menu-icon">💰</text>
         <view class="menu-text">
@@ -73,6 +93,14 @@
           <text class="menu-desc">充值余额，关门自动扣款</text>
         </view>
         <text class="menu-arrow">›</text>
+      </view>
+      <view v-if="authed && wechatRechargeEnabled" class="menu-cell highlight" :class="{ disabled: rechargeLoading }" @click="onWeChatRecharge">
+        <text class="menu-icon">💚</text>
+        <view class="menu-text">
+          <text class="menu-title">{{ wechatPayLive ? '微信支付充值' : '微信模拟充值' }}</text>
+          <text class="menu-desc">{{ wechatPayLive ? '小程序内调起微信支付' : '本地 mock 预下单并即时到账 ¥20' }}</text>
+        </view>
+        <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
       </view>
       <view v-if="authed && alipayRechargeEnabled" class="menu-cell highlight" :class="{ disabled: rechargeLoading }" @click="onAlipayRecharge">
         <text class="menu-icon">💰</text>
@@ -147,10 +175,11 @@ import { computed, ref } from 'vue';
 import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
 import { clearConsumerSession, consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
+import { isPayReady, payReadyHint } from '@/utils/account';
 import {
-  openAlipayPayUrl,
   openAlipayPrepay,
   resumePendingRechargeIfAny,
+  runWeChatRecharge,
   savePendingRechargeOrder
 } from '@/utils/recharge';
 
@@ -163,18 +192,17 @@ const transactions = ref<BalanceTransactionDto[]>([]);
 const rechargeLoading = ref(false);
 const mockRechargeEnabled = ref(true);
 const alipayRechargeEnabled = ref(false);
+const wechatRechargeEnabled = ref(false);
+const wechatPayLive = ref(false);
 
 const verified = computed(() => !!account.value?.verified);
-const payReady = computed(
-  () => (account.value?.balanceCents || 0) >= 500
-);
+const payReady = computed(() => isPayReady(account.value));
 const needsSetup = computed(() => !verified.value || !payReady.value);
 const displayName = computed(() => (verified.value ? '我的账户' : '我的账户（待实名）'));
 const avatarText = computed(() => account.value?.realName?.slice(0, 1) || '我');
 const setupHint = computed(() => {
   if (!verified.value) return '需先完成实名认证';
-  if (!payReady.value) return '测试余额不足，请联系运营人员发放';
-  return '';
+  return payReadyHint(account.value);
 });
 
 onShow(async () => {
@@ -184,29 +212,55 @@ onShow(async () => {
     const cfg = await consumerApi.consumerPublicConfig();
     mockRechargeEnabled.value = cfg?.mockEnabled !== 'false';
     alipayRechargeEnabled.value = cfg?.alipayRechargeEnabled === 'true';
+    wechatRechargeEnabled.value = cfg?.wechatRechargeEnabled === 'true';
+    wechatPayLive.value = cfg?.wechatPayLive === 'true';
   } catch {
     mockRechargeEnabled.value = true;
     alipayRechargeEnabled.value = false;
+    wechatRechargeEnabled.value = true;
+    wechatPayLive.value = false;
   }
   if (!authed.value) {
     balanceYuan.value = '-';
     account.value = null;
     return;
   }
-  const resumed = await resumePendingRechargeIfAny();
+  // 先拉账户（避免 pending 轮询期间误显示「待实名 / ¥-」）
   try {
     account.value = await consumerApi.account();
     balanceYuan.value = ((account.value.balanceCents || 0) / 100).toFixed(2);
-    if (resumed) {
-      const page = await consumerApi.balanceTransactions(0, 10);
-      transactions.value = page.items || [];
-    }
-    transactionsLoading.value = true;
-    consumerApi.balanceTransactions(0, 10).then((page) => { transactions.value = page.items || []; }).finally(() => { transactionsLoading.value = false; });
-  } catch {
+  } catch (e) {
     balanceYuan.value = '-';
     account.value = null;
+    authed.value = !!getConsumerToken();
+    if (!authed.value) {
+      uni.showToast({ title: '登录已失效，请重新登录', icon: 'none' });
+      return;
+    }
+    uni.showToast({ title: e instanceof Error ? e.message : '账户加载失败', icon: 'none' });
   }
+  const resumed = await resumePendingRechargeIfAny();
+  if (resumed) {
+    try {
+      account.value = await consumerApi.account();
+      balanceYuan.value = ((account.value.balanceCents || 0) / 100).toFixed(2);
+    } catch {
+      /* keep previous snapshot */
+    }
+  }
+  if (!authed.value) return;
+  transactionsLoading.value = true;
+  consumerApi
+    .balanceTransactions(0, 10)
+    .then((page) => {
+      transactions.value = page.items || [];
+    })
+    .catch(() => {
+      /* ignore */
+    })
+    .finally(() => {
+      transactionsLoading.value = false;
+    });
 });
 
 function transactionLabel(type: string) {
@@ -232,6 +286,33 @@ async function refreshAccount() {
   balanceYuan.value = ((account.value.balanceCents || 0) / 100).toFixed(2);
   const page = await consumerApi.balanceTransactions(0, 10);
   transactions.value = page.items || [];
+}
+
+async function onWeChatRecharge() {
+  if (rechargeLoading.value) return;
+  const confirmed = await new Promise<boolean>((resolve) =>
+    uni.showModal({
+      title: wechatPayLive.value ? '微信支付充值' : '微信模拟充值',
+      content: wechatPayLive.value
+        ? '将调起微信支付充值 ¥20.00。'
+        : '将通过微信 mock 通道充值 ¥20.00 测试余额，不会真实扣款。',
+      confirmText: '确认',
+      success: (res) => resolve(!!res.confirm),
+      fail: () => resolve(false)
+    })
+  );
+  if (!confirmed) return;
+  rechargeLoading.value = true;
+  try {
+    const key = `mine-wechat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    await runWeChatRecharge(2000, key);
+    await refreshAccount();
+    uni.showToast({ title: '充值成功', icon: 'success' });
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '充值失败', icon: 'none' });
+  } finally {
+    rechargeLoading.value = false;
+  }
 }
 
 async function onAlipayRecharge() {
@@ -300,6 +381,22 @@ function goOrders() {
   uni.switchTab({ url: '/pages/orders/orders' });
 }
 
+function goCoupons() {
+  uni.navigateTo({ url: '/pages/coupons/coupons' });
+}
+
+function goMember() {
+  uni.navigateTo({ url: '/pages/member/index' });
+}
+
+function goMarketing() {
+  uni.navigateTo({ url: '/pages/marketing/index' });
+}
+
+function goRecharge() {
+  uni.navigateTo({ url: '/pages/recharge/recharge' });
+}
+
 function goReport() {
   const id = uni.getStorageSync('last_device_id') || '';
   uni.navigateTo({
@@ -319,11 +416,21 @@ function goFeedback() {
 }
 
 function onLogout() {
-  clearConsumerSession();
-  authed.value = false;
-  account.value = null;
-  balanceYuan.value = '-';
-  uni.showToast({ title: '已退出', icon: 'none' });
+  uni.showModal({
+    title: '退出登录',
+    content: '确定退出当前账户吗？',
+    confirmText: '退出',
+    success(res) {
+      if (!res.confirm) return;
+      clearConsumerSession();
+      authed.value = false;
+      account.value = null;
+      balanceYuan.value = '-';
+      transactions.value = [];
+      showTransactions.value = false;
+      uni.showToast({ title: '已退出', icon: 'none' });
+    }
+  });
 }
 </script>
 
@@ -343,7 +450,7 @@ function onLogout() {
 .setup-arrow { color: #d48806; font-size: 28rpx; font-weight: 500; white-space: nowrap; margin-left: 16rpx; }
 .menu-list {
   margin: 12px;
-  padding-bottom: calc(120rpx + env(safe-area-inset-bottom));
+  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
 }
 .menu-cell { background: #fff; border-radius: 16px; padding: 28rpx 24rpx; margin-bottom: 12rpx; display: flex; align-items: center; gap: 20rpx; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
 .menu-cell.highlight { border: 1rpx solid #07c160; }
@@ -364,6 +471,6 @@ function onLogout() {
 .transaction-empty { padding: 28rpx; text-align: center; color: #999; font-size: 25rpx; }
 </style>
 <style scoped>
-.mine-page{min-height:100vh;padding-bottom:30rpx;background:linear-gradient(180deg,#e9fbf3 0,#f5f7f8 390rpx,#f5f7f8 100%)}.profile-header{position:relative;overflow:hidden;margin:20rpx 24rpx 0;padding:40rpx 32rpx;border-radius:30rpx;background:linear-gradient(140deg,#064e3b 0%,#059669 56%,#14b8a6 100%);box-shadow:0 20rpx 46rpx rgba(5,150,105,.23)}.profile-orb{position:absolute;border-radius:50%;background:rgba(255,255,255,.09)}.orb-a{width:230rpx;height:230rpx;right:-80rpx;top:-110rpx}.orb-b{width:120rpx;height:120rpx;right:120rpx;bottom:-80rpx}.avatar{position:relative;width:112rpx;height:112rpx;border:2rpx solid rgba(255,255,255,.35);background:rgba(255,255,255,.18);box-shadow:0 10rpx 25rpx rgba(0,0,0,.1)}.profile-info{position:relative}.account-kicker{display:block;margin-bottom:7rpx;font-size:19rpx;letter-spacing:3rpx;opacity:.68}.hello{font-size:36rpx}.balance-row{display:flex;align-items:baseline;gap:13rpx;margin-top:9rpx}.balance-label{font-size:22rpx;opacity:.72}.balance-number{font-size:38rpx;font-weight:800;letter-spacing:-1rpx}.tags{margin-top:15rpx}.tag{padding:6rpx 15rpx;border-radius:999rpx}.setup-banner{margin:20rpx 24rpx 0;padding:24rpx 26rpx;border:0;border-radius:21rpx;background:linear-gradient(135deg,#fff7df,#fffbeb);box-shadow:0 8rpx 22rpx rgba(217,119,6,.08)}.menu-list{margin:22rpx 24rpx}.menu-cell{margin-bottom:14rpx;padding:25rpx 22rpx;border:1rpx solid #edf1ef;border-radius:22rpx;box-shadow:0 8rpx 25rpx rgba(15,23,42,.05)}.menu-cell.highlight{border:1rpx solid rgba(5,150,105,.32);background:linear-gradient(90deg,#fff,#f0fdf7)}.menu-icon{display:flex;width:72rpx;height:72rpx;align-items:center;justify-content:center;border-radius:19rpx;background:#f0fdf4;font-size:34rpx}.menu-title{font-size:28rpx;font-weight:650;color:#223029}.menu-desc{margin-top:5rpx;color:#849087;font-size:22rpx}.menu-badge{border-radius:999rpx}.transaction-list{margin-bottom:14rpx;border:1rpx solid #edf1ef;border-radius:22rpx;box-shadow:0 8rpx 25rpx rgba(15,23,42,.045)}.transaction-row:last-child{border-bottom:0}.danger-cell{background:#fffafa}.danger-cell .menu-icon{background:#fff1f0}
+.mine-page{min-height:100%;box-sizing:border-box;padding-bottom:calc(160rpx + env(safe-area-inset-bottom));background:linear-gradient(180deg,#e9fbf3 0,#f5f7f8 390rpx,#f5f7f8 100%)}.profile-header{position:relative;overflow:hidden;margin:20rpx 24rpx 0;padding:40rpx 32rpx;border-radius:30rpx;background:linear-gradient(140deg,#064e3b 0%,#059669 56%,#14b8a6 100%);box-shadow:0 20rpx 46rpx rgba(5,150,105,.23)}.profile-orb{position:absolute;border-radius:50%;background:rgba(255,255,255,.09)}.orb-a{width:230rpx;height:230rpx;right:-80rpx;top:-110rpx}.orb-b{width:120rpx;height:120rpx;right:120rpx;bottom:-80rpx}.avatar{position:relative;width:112rpx;height:112rpx;border:2rpx solid rgba(255,255,255,.35);background:rgba(255,255,255,.18);box-shadow:0 10rpx 25rpx rgba(0,0,0,.1)}.profile-info{position:relative}.account-kicker{display:block;margin-bottom:7rpx;font-size:19rpx;letter-spacing:3rpx;opacity:.68}.hello{font-size:36rpx}.balance-row{display:flex;align-items:baseline;gap:13rpx;margin-top:9rpx}.balance-label{font-size:22rpx;opacity:.72}.balance-number{font-size:38rpx;font-weight:800;letter-spacing:-1rpx}.balance-action{margin-left:auto;font-size:22rpx;opacity:.85}.tags{margin-top:15rpx}.tag{padding:6rpx 15rpx;border-radius:999rpx}.setup-banner{margin:20rpx 24rpx 0;padding:24rpx 26rpx;border:0;border-radius:21rpx;background:linear-gradient(135deg,#fff7df,#fffbeb);box-shadow:0 8rpx 22rpx rgba(217,119,6,.08)}.menu-list{margin:22rpx 24rpx 0;padding-bottom:24rpx}.menu-cell{margin-bottom:14rpx;padding:25rpx 22rpx;border:1rpx solid #edf1ef;border-radius:22rpx;box-shadow:0 8rpx 25rpx rgba(15,23,42,.05)}.menu-cell.highlight{border:1rpx solid rgba(5,150,105,.32);background:linear-gradient(90deg,#fff,#f0fdf7)}.menu-icon{display:flex;width:72rpx;height:72rpx;align-items:center;justify-content:center;border-radius:19rpx;background:#f0fdf4;font-size:34rpx}.menu-title{font-size:28rpx;font-weight:650;color:#223029}.menu-desc{margin-top:5rpx;color:#849087;font-size:22rpx}.menu-badge{border-radius:999rpx}.transaction-list{margin-bottom:14rpx;border:1rpx solid #edf1ef;border-radius:22rpx;box-shadow:0 8rpx 25rpx rgba(15,23,42,.045)}.transaction-row:last-child{border-bottom:0}.danger-cell{background:#fffafa}.danger-cell .menu-icon{background:#fff1f0}
 </style>
 
