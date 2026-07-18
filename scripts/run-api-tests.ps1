@@ -1,8 +1,9 @@
 # API-level smoke tests for local / staging stacks
-param([string]$BaseUrl = "http://localhost:8080")
+param([string]$BaseUrl = "")
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
+$BaseUrl = Resolve-E2eBaseUrl $BaseUrl
 $InternalKey = "dev-internal-key-change-me"
 $passed = 0
 $failed = 0

@@ -4,8 +4,8 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">补货</span>
-            <span class="hint">路线规划、商户要货与缺货建议；支持设备聚焦深链</span>
+            <span class="title">补货调度</span>
+            <span class="hint">路线 / 要货 / 缺货；任务可「补货开门」（绑定任务，非运维远程开门）</span>
           </div>
           <div class="kpi-tags">
             <el-tag size="small" type="info">待执行 {{ plannedCount }}</el-tag>
@@ -18,7 +18,7 @@
         </div>
         <div class="page-card-head__actions">
           <el-button v-if="canEdit" type="primary" @click="openPlan">规划补货路线</el-button>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:replenishment:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -47,22 +47,54 @@
                   <span>预计里程：{{ row.totalDistanceM ? `${row.totalDistanceM} 米` : '未计算' }}</span>
                 </div>
                 <el-table :data="row.tasks || []" size="small" class="line-table">
-                  <el-table-column label="设备" min-width="210">
+                  <el-table-column label="设备" min-width="200">
                     <template #default="scope">
                       <div class="master-data-cell">
-                        <strong>{{ deviceName(scope.row.deviceId) }}</strong>
+                        <strong>
+                          {{ deviceName(scope.row.deviceId) }}
+                          <el-tag
+                            size="small"
+                            :type="deviceOnline(scope.row.deviceId) ? 'success' : 'info'"
+                            class="online-tag"
+                          >{{ deviceOnline(scope.row.deviceId) ? '在线' : '离线' }}</el-tag>
+                        </strong>
                         <small>{{ scope.row.deviceId }}</small>
                       </div>
                     </template>
                   </el-table-column>
-                  <el-table-column label="任务状态" width="120">
+                  <el-table-column label="任务状态" width="110">
                     <template #default="scope">
                       <el-tag :type="dictTagType(scope.row.status)" size="small">
                         {{ dictLabel('replenishment_task_status', scope.row.status) }}
                       </el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column prop="notes" label="说明" min-width="220" show-overflow-tooltip />
+                  <el-table-column label="签到" width="88" align="center">
+                    <template #default="scope">
+                      <el-tag :type="scope.row.checkInAt ? 'success' : 'info'" size="small">
+                        {{ scope.row.checkInAt ? '已签到' : '未签到' }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="出库单" width="100" align="center">
+                    <template #default="scope">
+                      <el-tag v-if="scope.row.outboundId" size="small" type="warning">#{{ scope.row.outboundId }}</el-tag>
+                      <span v-else class="muted">现场</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="notes" label="说明" min-width="140" show-overflow-tooltip />
+                  <el-table-column v-if="canEdit" label="操作" width="120" align="center">
+                    <template #default="scope">
+                      <el-button
+                        v-if="canOpenRestock(scope.row)"
+                        link
+                        type="primary"
+                        :loading="openDoorLoading === scope.row.taskId"
+                        @click="openRestockDoor(scope.row)"
+                      >补货开门</el-button>
+                      <span v-else class="muted">{{ openDoorHint(scope.row) }}</span>
+                    </template>
+                  </el-table-column>
                   <template #empty><el-empty description="该路线暂无设备任务" :image-size="48" /></template>
                 </el-table>
               </div>
@@ -222,7 +254,7 @@
             filterable
             collapse-tags
             :max-collapse-tags="3"
-            placeholder="选择需要补货的柜机"
+            placeholder="选择需要补货的设备"
             style="width: 100%"
           >
             <el-option
@@ -265,6 +297,7 @@ const canEdit = computed(() => auth.hasPerm('ops:replenishment:edit'));
 const loading = ref(false);
 const saving = ref(false);
 const shortageLoading = ref(false);
+const openDoorLoading = ref<number | null>(null);
 const tab = ref('routes');
 const page = ref(1);
 const size = ref(20);
@@ -281,7 +314,7 @@ const planDialog = ref(false);
 const planForm = reactive({
   routeName: '',
   plannedDate: '',
-  assigneeUserId: 1,
+  assigneeUserId: currentAssigneeId(),
   deviceIds: [] as string[]
 });
 
@@ -508,12 +541,71 @@ async function loadShortage() {
   }
 }
 
+function deviceOnline(deviceId?: string) {
+  if (!deviceId) return false;
+  const d = devices.value.find((item) => item.deviceId === deviceId);
+  return String(d?.onlineStatus || '').toUpperCase() === 'ONLINE';
+}
+
+function canOpenRestock(task: Row) {
+  if (!task?.taskId || !task?.deviceId) return false;
+  if (['COMPLETED', 'CANCELLED'].includes(String(task.status || ''))) return false;
+  return !!task.checkInAt && deviceOnline(task.deviceId);
+}
+
+function openDoorHint(task: Row) {
+  if (['COMPLETED', 'CANCELLED'].includes(String(task.status || ''))) return '-';
+  if (!task.checkInAt) return '需先签到';
+  if (!deviceOnline(task.deviceId)) return '设备离线';
+  return '-';
+}
+
+async function openRestockDoor(task: Row) {
+  if (!task?.checkInAt) {
+    ElMessage.warning('请先到店签到后再补货开门');
+    return;
+  }
+  if (!deviceOnline(task.deviceId)) {
+    ElMessage.warning(`${deviceName(task.deviceId)} 当前离线，无法下发补货开门`);
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认对 ${deviceName(task.deviceId)}（${task.deviceId}）下发补货开门？\n将绑定任务 #${task.taskId}，不产生消费者账单。\n（与设备详情「远程开门」不同）`,
+      '补货开门',
+      { type: 'warning', confirmButtonText: '开门' }
+    );
+  } catch {
+    return;
+  }
+  openDoorLoading.value = task.taskId;
+  try {
+    const session = await api.request<{ sessionId?: string }>(
+      '/api/v2/ops/restock/open-door',
+      'POST',
+      { deviceId: task.deviceId, taskId: task.taskId }
+    );
+    ElMessage.success({
+      message: session?.sessionId ? `开门已下发（${session.sessionId}）` : '开门指令已下发',
+      duration: 4000
+    });
+    await load();
+  } catch (error) {
+    ElMessage.error({
+      message: error instanceof Error ? error.message : '开门失败',
+      duration: 5000
+    });
+  } finally {
+    openDoorLoading.value = null;
+  }
+}
+
 async function createPlan() {
   if (!planForm.routeName.trim()) return ElMessage.warning('请填写路线名称');
-  if (!planForm.deviceIds.length) return ElMessage.warning('请至少选择一台柜机');
+  if (!planForm.deviceIds.length) return ElMessage.warning('请至少选择一台设备');
   saving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/replenishment/plan', 'POST', {
+    const route = await api.request<Row>('/api/v2/ops/admin/replenishment/plan', 'POST', {
       ...planForm,
       startLatitude: null,
       startLongitude: null
@@ -521,8 +613,20 @@ async function createPlan() {
     planDialog.value = false;
     tab.value = 'routes';
     syncRouteQuery();
-    ElMessage.success('补货路线已创建');
     await load();
+    const outbounds = await api.request<Row[]>('/api/v2/ops/admin/warehouse/outbounds').catch(() => []);
+    const linked = (outbounds || []).filter((o) => o.routeId === route?.routeId);
+    if (linked.length) {
+      ElMessage.success({
+        message: `路线已创建，出库单 #${linked[0].outboundId} 待拣货发运（仓库页）`,
+        duration: 5000
+      });
+    } else {
+      ElMessage.warning({
+        message: '路线已创建，但未生成出库明细（设备无缺货或仓库缺货），可现场补录上架',
+        duration: 5000
+      });
+    }
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '路线创建失败');
   } finally {
@@ -654,6 +758,7 @@ onActivated(() => {
 .device-link-cell small { color: var(--layout-muted); font-size: 11px; font-family: var(--app-font-mono); }
 .device-link-cell:hover strong { text-decoration: underline; }
 .muted { color: var(--layout-muted); font-size: 13px; }
+.online-tag { margin-left: 6px; vertical-align: middle; }
 .shortage-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 .plan-form { margin-top: 4px; }
 .native-date {

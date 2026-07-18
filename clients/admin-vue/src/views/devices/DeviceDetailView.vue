@@ -53,27 +53,53 @@
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
               <span class="title">远程运维</span>
-              <span class="hint">指令经 device-service 下发（模拟器与真机同一接口）</span>
+              <span class="hint">运维指令与补货开门是两条链路，请勿混用</span>
             </div>
           </div>
         </div>
       </template>
+      <el-alert
+        type="warning"
+        :closable="false"
+        show-icon
+        class="open-door-alert"
+        title="开门请分清场景"
+        description="「运维远程开门」：应急/检修，不绑定补货任务、不产生补货签收。现场补货请用「补货调度 → 补货开门」或商户小程序（需先签到）。"
+      />
+      <div class="cmd-section-label">运维指令</div>
       <div class="cmd-bar">
-        <el-button type="primary" :loading="cmdLoading === 'OPEN_DOOR'" @click="sendCommand('OPEN_DOOR')">远程开门</el-button>
+        <el-button
+          v-hasPermi="['ops:device:edit']"
+          type="primary"
+          :loading="cmdLoading === 'OPEN_DOOR'"
+          @click="sendCommand('OPEN_DOOR')"
+        >运维远程开门</el-button>
         <el-button
           v-if="!metrics?.salesLocked"
+          v-hasPermi="['ops:device:edit']"
           type="warning"
           :loading="cmdLoading === 'LOCK'"
           @click="sendCommand('LOCK')"
         >锁机停售</el-button>
         <el-button
           v-else
+          v-hasPermi="['ops:device:edit']"
           type="success"
           :loading="cmdLoading === 'UNLOCK'"
           @click="sendCommand('UNLOCK')"
         >解锁营业</el-button>
-        <el-button type="danger" plain :loading="cmdLoading === 'REBOOT'" @click="sendCommand('REBOOT')">重启柜机</el-button>
-        <el-button @click="goReplenish">缺货补货</el-button>
+        <el-button
+          v-hasPermi="['ops:device:edit']"
+          type="danger"
+          plain
+          :loading="cmdLoading === 'REBOOT'"
+          @click="sendCommand('REBOOT')"
+        >重启设备</el-button>
+      </div>
+      <div class="cmd-section-label">补货入口</div>
+      <div class="cmd-bar">
+        <el-button @click="goReplenish">缺货建议</el-button>
+        <el-button type="success" plain @click="goRestockTasks">补货调度 / 补货开门</el-button>
       </div>
     </el-card>
 
@@ -206,7 +232,7 @@
       </el-form>
       <template #footer>
         <el-button @click="editorVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveSlot">保存</el-button>
+        <el-button v-hasPermi="['ops:device:edit']" type="primary" :loading="saving" @click="saveSlot">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -323,16 +349,20 @@ async function reload() {
 
 async function sendCommand(command: string) {
   const labels: Record<string, string> = {
-    OPEN_DOOR: '远程开门',
+    OPEN_DOOR: '运维远程开门',
     LOCK: '锁机停售',
     UNLOCK: '解锁营业',
-    REBOOT: '重启柜机'
+    REBOOT: '重启设备'
   };
   try {
-    const { value: reason } = await ElMessageBox.prompt(`确认执行「${labels[command]}」？请填写原因。`, '运维指令', {
+    const hint =
+      command === 'OPEN_DOOR'
+        ? '确认执行「运维远程开门」？此操作不绑定补货任务、不走补货结算。补货请用补货调度页的「补货开门」。请填写原因。'
+        : `确认执行「${labels[command]}」？请填写原因。`;
+    const { value: reason } = await ElMessageBox.prompt(hint, '运维指令', {
       inputValidator: (v) => !!String(v || '').trim() || '必须填写原因',
       confirmButtonText: '确认下发',
-      type: command === 'REBOOT' || command === 'LOCK' ? 'warning' : undefined
+      type: command === 'REBOOT' || command === 'LOCK' || command === 'OPEN_DOOR' ? 'warning' : undefined
     });
     cmdLoading.value = command;
     const result = await api.request<{ message?: string; salesLocked?: boolean }>(
@@ -353,6 +383,10 @@ async function sendCommand(command: string) {
 
 function goReplenish() {
   router.push({ path: '/replenishment', query: { tab: 'shortage', deviceId } });
+}
+
+function goRestockTasks() {
+  router.push({ path: '/replenishment', query: { tab: 'routes', deviceId } });
 }
 
 async function applyTemplate() {
@@ -439,7 +473,14 @@ onMounted(async () => {
 .page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
 .title { font-weight: 600; font-size: 15px; }
 .hint { font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.4; }
-.cmd-bar { display: flex; flex-wrap: wrap; gap: 8px; }
+.open-door-alert { margin-bottom: 14px; }
+.cmd-section-label {
+  margin: 4px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+}
+.cmd-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .slot-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
 .section-title { margin: 16px 0 8px; font-size: 14px; font-weight: 600; }
 .name-cell { display: grid; gap: 2px; line-height: 1.35; }

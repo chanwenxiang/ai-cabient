@@ -6,11 +6,14 @@
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
               <span class="title">运营工作台</span>
-              <span class="hint">今日运营快照；点击指标卡片可跳转对应业务页</span>
+              <span class="hint">今日快照与待办；补货开门请在「补货调度」或补货员小程序操作</span>
             </div>
           </div>
           <div class="page-card-head__actions">
-            <el-button :icon="Refresh" :loading="loading" @click="load">刷新数据</el-button>
+            <el-button type="primary" plain @click="router.push('/replenishment')">补货调度</el-button>
+            <el-button plain @click="router.push('/disputes')">争议审核</el-button>
+            <el-button plain @click="router.push('/devices')">设备管理</el-button>
+            <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
           </div>
         </div>
       </template>

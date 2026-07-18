@@ -35,6 +35,8 @@ public final class ApiMessages {
     // 设备/会话
     public static final String DEVICE_NOT_FOUND = "设备不存在，请检查设备编号";
     public static final String DEVICE_BUSY = "设备使用中，请稍后再试";
+    /** 补货开门时已有未结束会话（含购物/补货） */
+    public static final String RESTOCK_DOOR_SESSION_BUSY = "柜机有未结束的开门会话，请先关门或等待结束后再开";
     public static final String DEVICE_OFFLINE = "设备离线，暂不可开门";
     public static final String REPLENISHMENT_IN_PROGRESS = "设备补货中，暂不能购物或结算";
     public static final String REPLENISHMENT_TASK_NOT_FOUND = "补货任务不存在";
@@ -42,6 +44,12 @@ public final class ApiMessages {
     public static final String REPLENISHMENT_TASK_FINISHED = "补货任务已结束";
     public static final String REPLENISHMENT_TASK_ASSIGNEE = "仅任务负责人可执行此补货操作";
     public static final String REPLENISHMENT_CHECK_IN_REQUIRED = "请先到店签到后再补货开门";
+    public static final String REPLENISHMENT_OUTBOUND_NOT_IN_TRANSIT = "出库单尚未发运在途，请先完成仓库发运后再确认上架";
+    public static final String REPLENISHMENT_TASK_ALREADY_COMPLETED = "补货任务已完成，无需重复操作";
+    public static final String REPLENISHMENT_CHECK_IN_TOO_FAR =
+            "签到位置距柜机约 %d 米，超出 500 米范围，请到柜前再签到";
+    public static final String REPLENISHMENT_SLOT_CAPACITY =
+            "货道 %s 容量不足（上限 %d，已有 %d，本次再补 %d），请调低数量或换货道";
     public static final String DEVICE_MISMATCH = "设备与会话不匹配";
     public static final String SESSION_NOT_FOUND = "购物会话不存在";
     public static final String SESSION_FINISHED = "会话已结束，无法取消";
@@ -172,6 +180,8 @@ public final class ApiMessages {
             case "operator permission required" -> OPERATOR_REQUIRED;
             case "permission denied" -> PERMISSION_DENIED;
             case "device not found" -> DEVICE_NOT_FOUND;
+            case "task not found" -> REPLENISHMENT_TASK_NOT_FOUND;
+            case "task already completed" -> REPLENISHMENT_TASK_ALREADY_COMPLETED;
             case "device has active session" -> DEVICE_BUSY;
             case "device mismatch" -> DEVICE_MISMATCH;
             case "session not found" -> SESSION_NOT_FOUND;
@@ -226,6 +236,13 @@ public final class ApiMessages {
         }
         if (lower.startsWith("unknown device:")) {
             return DEVICE_NOT_FOUND;
+        }
+        if (lower.startsWith("check-in too far from device")) {
+            var m = Pattern.compile("(\\d+)\\s*m").matcher(lower);
+            if (m.find()) {
+                return String.format(REPLENISHMENT_CHECK_IN_TOO_FAR, Integer.parseInt(m.group(1)));
+            }
+            return String.format(REPLENISHMENT_CHECK_IN_TOO_FAR, 500);
         }
         if (lower.startsWith("permission denied:")) {
             return PERMISSION_DENIED;

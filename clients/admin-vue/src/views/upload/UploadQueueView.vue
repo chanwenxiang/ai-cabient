@@ -5,11 +5,11 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">录像上传队列</span>
-            <span class="hint">柜机自动上传状态；非人工上传入口</span>
+            <span class="hint">设备自动上传状态；非人工上传入口</span>
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:upload:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -20,8 +20,8 @@
       type="info"
       :closable="false"
       show-icon
-      title="本页为柜机录像上传状态队列，不是人工上传入口"
-      description="购物会话关门后，柜机/边缘端会自动上传录像到对象存储；此处仅查询待上传、上传中、失败会话，并可预览已上传文件。"
+      title="本页为设备录像上传状态队列，不是人工上传入口"
+      description="购物会话关门后，设备/边缘端会自动上传录像到对象存储；此处仅查询待上传、上传中、失败会话，并可预览已上传文件。"
     />
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">

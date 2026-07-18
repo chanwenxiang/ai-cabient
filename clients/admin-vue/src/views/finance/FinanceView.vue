@@ -78,7 +78,7 @@
 
     <ChartPanel :title="`商品毛利 TOP · 近 ${days} 天`" compact class="sku-panel">
       <template #actions>
-        <el-button @click="onExportTopSkus">{{ topSkusExportLabel }}</el-button>
+        <el-button v-hasPermi="['ops:finance:export']" @click="onExportTopSkus">{{ topSkusExportLabel }}</el-button>
         <el-button link type="primary" @click="router.push('/skus')">商品管理</el-button>
       </template>
       <div class="table-scroll">

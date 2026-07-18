@@ -275,7 +275,7 @@ public class MerchantPortalService {
             if (!inDeviceScope(deviceIds, d.getDeviceId())) continue;
             offline++;
             items.add(new OpsActionItemDto(
-                    "DEVICE_OFFLINE", "HIGH", "设备离线",
+                    "DEVICE_OFFLINE", "HIGH", "柜机离线",
                     d.getDeviceName() != null ? d.getDeviceName() : d.getDeviceId(),
                     d.getDeviceId(), null, null, null, null, d.getUpdatedAt(), null));
         }
@@ -391,14 +391,14 @@ public class MerchantPortalService {
                 try {
                     deviceServiceClient.requestSetTargetTemp(deviceId, request.targetTempC());
                     tempCommandSent = true;
-                    tempCommandMessage = "已向设备下发目标温度 " + request.targetTempC() + "°C";
+                    tempCommandMessage = "已向柜机下发目标温度 " + request.targetTempC() + "°C";
                 } catch (Exception ex) {
                     tempCommandSent = false;
-                    tempCommandMessage = "设置已保存，设备指令下发失败（请确认 device-service 在线）";
+                    tempCommandMessage = "设置已保存，柜机指令下发失败（请确认 device-service 在线）";
                 }
             } else {
                 tempCommandSent = false;
-                tempCommandMessage = "设置已保存，设备离线时将在上线后手动同步";
+                tempCommandMessage = "设置已保存，柜机离线时将在上线后手动同步";
             }
         }
         auditService.record(userId, "MERCHANT_DEVICE_SETTINGS", "DEVICE", deviceId,
@@ -924,7 +924,7 @@ public class MerchantPortalService {
                 t.getTaskId(), t.getRouteId(), t.getDeviceId(), t.getAssigneeUserId(),
                 t.getStatus(), t.getNotes(), t.getCompletedAt(),
                 t.getCheckInAt(), t.getCheckInLat(), t.getCheckInLng(),
-                t.getRequestId(), t.getCreatedAt()
+                t.getRequestId(), t.getOutboundId(), t.getCreatedAt()
         );
     }
 

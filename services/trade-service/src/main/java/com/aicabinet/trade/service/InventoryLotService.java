@@ -183,23 +183,32 @@ public class InventoryLotService {
                 ? "B-" + LocalDate.now() + "-" + UUID.randomUUID().toString().substring(0, 6).toUpperCase()
                 : batchNo.trim();
 
-        DeviceSkuLot lot = lotRepository.findByDeviceIdAndSkuIdAndBatchNo(deviceId, skuId, resolvedBatch)
-                .orElseGet(() -> {
-                    DeviceSkuLot created = new DeviceSkuLot();
-                    created.setLotId("L" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
-                    created.setDeviceId(deviceId);
-                    created.setSkuId(skuId);
-                    created.setBatchNo(resolvedBatch);
-                    created.setProductionDate(productionDate);
-                    created.setExpiryDate(expiryDate);
-                    created.setSlotId(slotId);
-                    created.setStatus("ON_SALE");
-                    return created;
-                });
+        String slotCode = (slotId == null || slotId.isBlank()) ? null : slotId.trim().toUpperCase();
+        DeviceSkuLot lot = null;
+        if (slotCode != null) {
+            lot = lotRepository
+                    .findByDeviceIdAndSkuIdAndBatchNoAndSlotId(deviceId, skuId, resolvedBatch, slotCode)
+                    .orElse(null);
+        }
+        if (lot == null && slotCode == null) {
+            lot = lotRepository.findByDeviceIdAndSkuIdAndBatchNo(deviceId, skuId, resolvedBatch).orElse(null);
+        }
+        if (lot == null) {
+            lot = new DeviceSkuLot();
+            lot.setLotId("L" + UUID.randomUUID().toString().replace("-", "").substring(0, 12).toUpperCase());
+            lot.setDeviceId(deviceId);
+            lot.setSkuId(skuId);
+            lot.setBatchNo(resolvedBatch);
+            lot.setProductionDate(productionDate);
+            lot.setExpiryDate(expiryDate);
+            lot.setSlotId(slotCode);
+            lot.setStatus("ON_SALE");
+            lot.setQuantity(0);
+        }
         lot.setQuantity(lot.getQuantity() + quantity);
         lot.setStatus(resolveLotStatus(lot));
-        if (slotId != null && !slotId.isBlank()) {
-            lot.setSlotId(slotId);
+        if (slotCode != null) {
+            lot.setSlotId(slotCode);
         }
         lotRepository.save(lot);
         recordMovement(deviceId, skuId, resolvedBatch, "RESTOCK", quantity, "REPLENISH", refId, operatorId);
@@ -387,8 +396,8 @@ public class InventoryLotService {
         }
         if (book + quantity > cap) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "slot " + slotCode + " exceeds max " + cap
-                            + " (book=" + book + " add=" + quantity + ")");
+                    String.format(com.aicabinet.trade.support.ApiMessages.REPLENISHMENT_SLOT_CAPACITY,
+                            slotCode, cap, book, quantity));
         }
     }
 

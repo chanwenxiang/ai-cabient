@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -9,7 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:session:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -101,7 +101,7 @@
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="140" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="140" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions :actions="sessionActions(row)" :max-primary="2" @action="(k) => onAction(String(k), row)" />
             </template>
@@ -188,6 +188,7 @@ import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
+import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -207,6 +208,7 @@ interface SessionRow {
 
 const route = useRoute();
 const router = useRouter();
+const auth = useAuthStore();
 const loading = ref(false);
 const deviceId = ref('');
 const state = ref('');
@@ -260,7 +262,7 @@ function sessionActions(row: SessionRow): TableAction[] {
   if (row.deviceId) {
     acts.push({ key: 'video', label: '录像队列', icon: VideoCamera, type: 'warning', overflow: true });
   }
-  if (canCancel(row.state)) {
+  if (canCancel(row.state) && auth.hasPerm('ops:session:cancel')) {
     acts.push({ key: 'cancel', label: '取消会话', icon: CircleClose, type: 'danger', overflow: true });
   }
   return acts;

@@ -36,10 +36,22 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
 
     default Optional<DeviceSkuLot> findByDeviceIdAndSkuIdAndBatchNo(
             String deviceId, String skuId, String batchNo) {
+        List<DeviceSkuLot> rows = selectList(Wrappers.<DeviceSkuLot>lambdaQuery()
+                .eq(DeviceSkuLot::getDeviceId, deviceId)
+                .eq(DeviceSkuLot::getSkuId, skuId)
+                .eq(DeviceSkuLot::getBatchNo, batchNo)
+                .orderByDesc(DeviceSkuLot::getUpdatedAt));
+        return rows.stream().findFirst();
+    }
+
+    /** 同批次可能分多个货道存放；补货入库按货道精确匹配。 */
+    default Optional<DeviceSkuLot> findByDeviceIdAndSkuIdAndBatchNoAndSlotId(
+            String deviceId, String skuId, String batchNo, String slotId) {
         return Optional.ofNullable(selectOne(Wrappers.<DeviceSkuLot>lambdaQuery()
                 .eq(DeviceSkuLot::getDeviceId, deviceId)
                 .eq(DeviceSkuLot::getSkuId, skuId)
-                .eq(DeviceSkuLot::getBatchNo, batchNo)));
+                .eq(DeviceSkuLot::getBatchNo, batchNo)
+                .eq(DeviceSkuLot::getSlotId, slotId)));
     }
 
     int sumSellableQuantity(@Param("deviceId") String deviceId, @Param("skuId") String skuId);

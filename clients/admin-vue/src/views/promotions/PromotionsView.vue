@@ -9,18 +9,19 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-if="auth.hasPerm('ops:promotion:create')" @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button v-if="auth.hasPerm('ops:promotion:create')" @click="onDownloadTemplate">导入模板</el-button>
-          <el-button v-if="auth.hasPerm('ops:promotion:create')" :loading="importing" @click="triggerImport">导入</el-button>
+          <el-button v-hasPermi="['ops:promotion:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:promotion:import']" @click="onDownloadTemplate">导入模板</el-button>
+          <el-button v-hasPermi="['ops:promotion:import']" :loading="importing" @click="triggerImport">导入</el-button>
           <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
           <el-button
-            v-if="selectedIds.length && auth.hasPerm('ops:promotion:stop')"
+            v-if="selectedIds.length"
+            v-hasPermi="['ops:promotion:stop']"
             type="warning"
             @click="batchDisable"
           >
             批量停用 ({{ selectedIds.length }})
           </el-button>
-          <el-button v-if="auth.hasPerm('ops:promotion:create')" type="primary" @click="openCreate">新建活动</el-button>
+          <el-button v-hasPermi="['ops:promotion:create']" type="primary" @click="openCreate">新建活动</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -93,7 +94,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="100" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 v-if="rowActions(row).length"

@@ -10,7 +10,7 @@
         </div>
         <div class="page-card-head__actions">
           <el-button @click="router.push('/skus')">商品与识别</el-button>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:vision:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>

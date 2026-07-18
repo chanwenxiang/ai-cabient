@@ -8,10 +8,19 @@
       <view class="landing-content">
         <view class="landing-head">
           <text class="brand">AI开门柜</text>
-          <text class="tagline">无感支付 · 即拿即走</text>
+          <text class="tagline">扫码开门 · 拿了就走</text>
           <view class="pay-badge">
             <text class="pay-badge-icon">✓</text>
-            <text class="pay-badge-text">微信支付分 · 先购后付</text>
+            <text class="pay-badge-text">关门自动结算</text>
+          </view>
+          <view class="flow-steps">
+            <text class="flow-step">扫码</text>
+            <text class="flow-sep">→</text>
+            <text class="flow-step">开门</text>
+            <text class="flow-sep">→</text>
+            <text class="flow-step">取货</text>
+            <text class="flow-sep">→</text>
+            <text class="flow-step">关门扣款</text>
           </view>
         </view>
 
@@ -52,12 +61,12 @@
             </view>
             <text class="scan-circle-text">{{ opening ? '连接中…' : '扫码购物' }}</text>
           </button>
-          <text class="scan-tip">扫描柜门二维码，开门即购</text>
+          <text class="scan-tip">对准柜门二维码，即可开门取货</text>
         </view>
 
-        <view class="landing-foot">
+        <view v-if="devTools" class="landing-foot">
           <text class="manual-link" @click="showManual = !showManual">
-            {{ showManual ? '收起' : '手动输入柜机编号（调试）' }}
+            {{ showManual ? '收起' : '开发：手动输入柜机编号' }}
           </text>
           <view v-if="showManual" class="manual-form">
             <input v-model="deviceInput" class="input" placeholder="例如 CAB-001" />
@@ -96,13 +105,24 @@
         </view>
       </view>
 
+      <view class="shopping-banner" :class="stateTone">
+        <text class="shopping-banner-title">{{ shoppingBannerTitle }}</text>
+        <text class="shopping-banner-sub">{{ shoppingBannerSub }}</text>
+      </view>
       <view class="catalog-notice">
-        <text>以下价格仅供参考，实际扣款以取货识别为准</text>
+        <text>本柜商品价目仅供参考，实付以关门识别为准</text>
       </view>
 
       <scroll-view scroll-y class="product-scroll" :show-scrollbar="false" enhanced>
         <view v-if="productsLoading" class="card loading-card"><text class="meta">加载商品中…</text></view>
-        <view v-else-if="!products.length" class="card loading-card"><text class="meta">暂无在售商品</text></view>
+        <view v-else-if="!products.length" class="card loading-card catalog-empty">
+          <text class="empty-title">本柜暂无上架商品</text>
+          <text class="empty-hint">仍可开门购物；实付以关门识别为准。有疑问可故障报修或换一台</text>
+          <view class="empty-actions">
+            <text class="empty-link" @click="goReport">故障报修</text>
+            <text class="empty-link" @click="resetDevice">换一台</text>
+          </view>
+        </view>
         <view v-else class="product-grid">
           <view v-for="p in products" :key="p.skuId" class="product-cell">
             <view class="product-thumb" :class="'cat-' + thumbTone(p)">
@@ -125,6 +145,7 @@
       <view class="cart-bar">
         <view class="cart-info">
           <text class="cart-hint">{{ cartBarHint }}</text>
+          <text v-if="sessionActive && state === 'SHOPPING'" class="cart-sub">拿错可放回，关门后按最终取走结算</text>
         </view>
         <view v-if="sessionActive" class="cart-status-chip" :class="stateTone">
           {{ cartBarAction }}
@@ -198,7 +219,10 @@ import { productEmoji, productThumb } from '@/utils/product-thumb';
 import heroIllustration from '@/static/login-bg.png';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import { delay, requestDisputeSubscribe, requestOrderSubscribe, showBillToast, showDisputeResolvedToast } from '@/utils/notify';
+import { showDevTools } from '@/utils/runtime-flags';
 import type { AccountDto, DeviceProduct, DisputeTicketDto, SessionDto } from '@aicabinet/shared-types';
+
+const devTools = showDevTools();
 
 const deviceInput = ref('');
 const deviceId = ref('');
@@ -292,14 +316,31 @@ const flowOverlayHint = computed(() => {
   return '请稍候';
 });
 
+const shoppingBannerTitle = computed(() => {
+  if (state.value === 'SHOPPING') return '柜门已开，请自由取货';
+  if (state.value === 'OPENING' || state.value === 'CREATED') return '正在开门，请稍候';
+  if (['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)) return '正在识别结算';
+  if (canReopen.value) return '本柜可继续购物';
+  return '选好商品后请关好柜门';
+});
+
+const shoppingBannerSub = computed(() => {
+  if (state.value === 'SHOPPING') return '无需在手机上点选商品，拿了就走';
+  if (['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)) {
+    return '可先离开，账单会在「订单」中展示';
+  }
+  if (canReopen.value) return '点击下方再次开门，或扫其他柜机';
+  return '实际扣款以视觉识别结果为准';
+});
+
 const cartBarHint = computed(() => {
-  if (state.value === 'SHOPPING') return '门已开 · 请直接取货，无需点选';
-  if (!sessionActive.value) return '取货后关门自动结算，可再次开门继续购';
+  if (state.value === 'SHOPPING') return '请取货后关好柜门';
+  if (!sessionActive.value) return '可再次开门继续购买';
   return '关门后自动识别并扣款';
 });
 
 const cartBarAction = computed(() => {
-  if (state.value === 'SHOPPING') return '购物中';
+  if (state.value === 'SHOPPING') return '请关门';
   if (state.value === 'OPENING' || state.value === 'CREATED') return '开门中';
   if (state.value === 'RECOGNIZING' || state.value === 'WAITING_UPLOAD') return '识别中';
   if (state.value === 'SETTLING') return '结算中';
@@ -964,6 +1005,24 @@ function stopDevicePoll() {
   color: #4b5563;
   font-size: 22rpx;
 }
+.flow-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-top: 20rpx;
+  padding: 0 12rpx;
+}
+.flow-step {
+  font-size: 22rpx;
+  color: #7a5a32;
+  font-weight: 600;
+}
+.flow-sep {
+  font-size: 20rpx;
+  color: #c4a574;
+}
 
 .resume-card {
   margin-top: 24rpx;
@@ -1116,6 +1175,36 @@ function stopDevicePoll() {
 .device-change { font-size: 26rpx; color: #576b95; }
 .device-report { font-size: 24rpx; color: #888; }
 
+.shopping-banner {
+  margin: 12rpx 24rpx 0;
+  padding: 22rpx 24rpx;
+  border-radius: 16rpx;
+  background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
+  border: 1rpx solid #bbf7d0;
+}
+.shopping-banner.wait {
+  background: linear-gradient(135deg, #fff7ed, #fffbeb);
+  border-color: #fde68a;
+}
+.shopping-banner-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #065f46;
+}
+.shopping-banner.wait .shopping-banner-title {
+  color: #92400e;
+}
+.shopping-banner-sub {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  color: #047857;
+  line-height: 1.4;
+}
+.shopping-banner.wait .shopping-banner-sub {
+  color: #a16207;
+}
 .catalog-notice {
   margin: 12rpx 24rpx 0;
   padding: 16rpx 20rpx;
@@ -1135,6 +1224,30 @@ function stopDevicePoll() {
 .list-bottom { height: 16rpx; }
 
 .loading-card { text-align: center; padding: 48rpx; margin: 0 16rpx; }
+.catalog-empty .empty-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #223029;
+}
+.catalog-empty .empty-hint {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  color: #849087;
+  line-height: 1.5;
+}
+.catalog-empty .empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: 28rpx;
+  margin-top: 20rpx;
+}
+.catalog-empty .empty-link {
+  font-size: 26rpx;
+  color: #059669;
+  font-weight: 650;
+}
 
 .product-grid {
   display: flex;
@@ -1204,7 +1317,8 @@ function stopDevicePoll() {
   justify-content: space-between;
   border-top: 1rpx solid #e5e5e5;
 }
-.cart-hint { font-size: 24rpx; color: #888; display: block; }
+.cart-hint { font-size: 28rpx; color: #1e293b; font-weight: 600; display: block; }
+.cart-sub { font-size: 22rpx; color: #888; display: block; margin-top: 4rpx; }
 .cart-cta {
   margin: 0;
   padding: 0 48rpx;

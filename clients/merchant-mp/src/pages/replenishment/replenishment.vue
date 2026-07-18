@@ -3,52 +3,195 @@
     <view class="hero">
       <view class="hero-orb orb-one" /><view class="hero-orb orb-two" />
       <text class="eyebrow">现场补货</text>
-      <text class="title">今日补货任务</text>
-      <text class="subtitle">到店签到、核对批次与数量，完成后库存自动入柜。</text>
-      <view class="stats"><view><text class="stat-value">{{ pendingCount }}</text><text class="stat-label">待处理</text></view><view><text class="stat-value">{{ completedCount }}</text><text class="stat-label">已完成</text></view></view>
+      <text class="title">补货任务</text>
+      <text class="subtitle">扫码到柜 → 签到 → 开门 → 核对上架</text>
+      <view class="stats">
+        <view>
+          <text class="stat-value">{{ pendingCount }}</text>
+          <text class="stat-label">待处理</text>
+        </view>
+        <view>
+          <text class="stat-value">{{ completedCount }}</text>
+          <text class="stat-label">已完成</text>
+        </view>
+      </view>
+      <view class="hero-actions">
+        <button class="scan-pill" :loading="scanning" @click="onScan">扫码找柜</button>
+        <button v-if="filterDeviceId" class="clear-pill" @click="clearDeviceFilter">清除筛选</button>
+      </view>
+      <text v-if="filterDeviceId" class="filter-tip">当前筛选：{{ filterDeviceId }}</text>
+      <view v-if="!loading && pendingCount === 0" class="idle-tip">
+        <text class="idle-title">今日暂无待补货</text>
+        <text class="idle-desc">可扫码巡柜查看缺货，或切换「已完成」回顾记录；新任务由调度下发</text>
+      </view>
     </view>
 
     <view class="filters">
-      <view v-for="item in statusOptions" :key="item.value" class="filter" :class="{ active: status === item.value }" @click="changeStatus(item.value)">{{ item.label }}</view>
+      <view
+        v-for="item in statusOptions"
+        :key="item.value"
+        class="filter"
+        :class="{ active: status === item.value }"
+        @click="changeStatus(item.value)"
+      >{{ item.label }}</view>
     </view>
 
     <view v-if="loading" class="empty">任务加载中…</view>
-    <view v-else-if="!tasks.length" class="empty">当前没有补货任务</view>
+    <view v-else-if="!tasks.length" class="empty">
+      <text>{{ emptyHint }}</text>
+      <view class="empty-actions-row">
+        <button
+          v-if="pendingCount === 0 && completedCount > 0 && status !== 'COMPLETED'"
+          class="empty-scan"
+          @click="changeStatus('COMPLETED')"
+        >查看已完成</button>
+        <button
+          v-if="status && pendingCount === 0 && completedCount > 0"
+          class="empty-scan ghost"
+          @click="changeStatus('')"
+        >查看全部</button>
+        <button class="empty-scan" @click="onScan">扫码到柜</button>
+      </view>
+    </view>
     <view v-for="task in tasks" :key="task.taskId" class="task-card">
       <view class="task-accent" />
       <view class="task-head">
-        <view><text class="device-name">{{ deviceName(task.deviceId) }}</text><text class="device-code">{{ task.deviceId }}</text></view>
-        <text class="status" :class="task.status.toLowerCase()">{{ dictLabel('replenishment_task_status', task.status) }}</text>
+        <view>
+          <text class="device-name">{{ deviceName(task.deviceId) }}</text>
+          <text class="device-code">{{ task.deviceId }}</text>
+        </view>
+        <text class="status" :class="task.status.toLowerCase()">
+          {{ dictLabel('replenishment_task_status', task.status) }}
+        </text>
       </view>
-      <view class="task-meta"><text>任务 #{{ task.taskId }}</text><text>{{ formatTime(task.createdAt) }}</text></view>
+      <view class="task-meta">
+        <text>任务 #{{ task.taskId }}</text>
+        <text>{{ formatTime(task.createdAt) }}</text>
+      </view>
       <view v-if="task.notes" class="task-note">{{ task.notes }}</view>
-      <button class="detail-btn" @click="openTask(task)">{{ task.status === 'COMPLETED' ? '查看完成明细' : '开始补货' }}</button>
+      <button class="detail-btn" @click="openTask(task)">
+        {{
+          task.status === 'COMPLETED'
+            ? '查看完成明细'
+            : task.checkInAt
+              ? '继续补货'
+              : '开始补货'
+        }}
+      </button>
     </view>
 
     <view v-if="detailVisible" class="mask" @click.self="closeDetail">
       <view class="sheet">
         <view class="sheet-handle" />
-        <view class="sheet-head"><view><text class="sheet-title">{{ deviceName(selected?.deviceId) }}</text><text class="device-code">任务 #{{ selected?.taskId }}</text></view><text class="close" @click="closeDetail">×</text></view>
-        <view class="step-row">
-          <view class="step" :class="{ done: !!selected?.checkInAt }"><text>1</text><span>现场签到</span></view>
-          <view class="step" :class="{ done: linesConfirmed }"><text>2</text><span>核对商品</span></view>
-          <view class="step" :class="{ done: selected?.status === 'COMPLETED' }"><text>3</text><span>确认上架</span></view>
+        <view class="sheet-head">
+          <view>
+            <text class="sheet-title">{{ deviceName(selected?.deviceId) }}</text>
+            <text class="device-code">任务 #{{ selected?.taskId }} · {{ selected?.deviceId }}</text>
+          </view>
+          <text class="close" @click="closeDetail">×</text>
+        </view>
+        <view class="step-row four">
+          <view class="step" :class="stepClass(1)">
+            <text class="step-num">{{ selected?.status === 'COMPLETED' || selected?.checkInAt ? '✓' : '1' }}</text>
+            <text class="step-label">签到</text>
+          </view>
+          <view class="step" :class="stepClass(2)">
+            <text class="step-num">{{ selected?.status === 'COMPLETED' || doorOpened ? '✓' : '2' }}</text>
+            <text class="step-label">开门</text>
+          </view>
+          <view class="step" :class="stepClass(3)">
+            <text class="step-num">{{ selected?.status === 'COMPLETED' || linesConfirmed ? '✓' : '3' }}</text>
+            <text class="step-label">核对</text>
+          </view>
+          <view class="step" :class="stepClass(4)">
+            <text class="step-num">{{ selected?.status === 'COMPLETED' ? '✓' : '4' }}</text>
+            <text class="step-label">上架</text>
+          </view>
         </view>
 
-        <button v-if="selected?.status !== 'COMPLETED' && !selected?.checkInAt" class="primary-btn" :disabled="submitting" @click="checkIn">现场签到</button>
-        <view class="section-heading"><view><text class="section-title">本次补货商品</text><text class="section-subtitle">请逐项核对商品、批次和货道</text></view><text class="line-count">{{ lines.length }} 项</text></view>
+        <button
+          v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
+          class="primary-btn"
+          :disabled="submitting"
+          @click="checkIn"
+        >现场签到</button>
+        <button
+          v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
+          class="primary-btn"
+          :disabled="submitting"
+          @click="openDoor"
+        >{{ doorOpened ? '再次开门' : '补货开门' }}</button>
+        <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">只读查看 — 需补货操作权限方可签到/开门/上架</text>
+        <text v-if="doorOpened && openSessionId" class="door-tip">已开门 · 会话 {{ openSessionId }} · 关门后继续核对上架</text>
+
+        <view class="section-heading">
+          <view>
+            <text class="section-title">本次补货商品</text>
+            <text class="section-subtitle">{{
+              selected?.outboundId
+                ? `仓配出库 #${selected.outboundId} · 核对后完成将签收在途`
+                : '请逐项核对商品、批次和货道'
+            }}</text>
+          </view>
+          <text class="line-count">{{ lines.length }} 项</text>
+        </view>
         <view v-if="detailLoading" class="empty small">明细加载中…</view>
-        <view v-for="line in lines" :key="line.lineId || `${line.skuId}-${line.batchNo}-${line.slotId}`" class="line-card">
-          <view class="line-main"><view class="product-thumb">{{ productIcon(line.skuId) }}</view><view class="product-copy"><text class="sku-name">{{ skuName(line.skuId) }}</text><text class="device-code">{{ line.skuId }}</text></view><text class="qty">× {{ line.quantity }}</text></view>
-          <view class="line-meta"><text>批次 {{ line.batchNo || '-' }}</text><text>货道 {{ line.slotId || '待分配' }}</text></view>
-          <view class="line-meta"><text>到期 {{ line.expiryDate || '-' }}</text><text>{{ line.applied ? '已入柜' : '待上架' }}</text></view>
+        <view v-else-if="!lines.length" class="empty small lines-empty">
+          <view class="lines-empty-title">暂无补货明细</view>
+          <view class="lines-empty-tip">可先开门上架；有出库明细时会显示在此核对</view>
+        </view>
+        <view
+          v-for="line in lines"
+          :key="line.lineId || `${line.skuId}-${line.batchNo}-${line.slotId}`"
+          class="line-card"
+        >
+          <view class="line-main">
+            <view class="product-thumb">{{ productIcon(line.skuId) }}</view>
+            <view class="product-copy">
+              <text class="sku-name">{{ skuName(line.skuId) }}</text>
+              <text class="device-code">{{ line.skuId }}</text>
+            </view>
+            <view
+              v-if="canRequest && selected?.status !== 'COMPLETED' && !linesConfirmed && !line.applied"
+              class="qty-stepper"
+            >
+              <text class="qty-btn" @click="adjustQty(line, -1)">−</text>
+              <text class="qty">{{ line.quantity }}</text>
+              <text class="qty-btn" @click="adjustQty(line, 1)">+</text>
+            </view>
+            <text v-else class="qty">× {{ line.quantity }}</text>
+          </view>
+          <view class="line-meta">
+            <text>批次 {{ line.batchNo || '-' }}</text>
+            <text>货道 {{ line.slotId || '待分配' }}</text>
+          </view>
+          <view class="line-meta">
+            <text>到期 {{ line.expiryDate || '-' }}</text>
+            <text>{{ line.applied ? '已入柜' : '待上架' }}</text>
+          </view>
+          <view
+            v-if="selected?.status !== 'COMPLETED' && line.slotId && slotHint(line)"
+            class="line-cap"
+            :class="{ full: slotHeadroom(line) <= 0, warn: slotHeadroom(line) > 0 && line.quantity > slotHeadroom(line) }"
+          >{{ slotHint(line) }}</view>
         </view>
 
-        <view v-if="selected?.status !== 'COMPLETED' && selected?.checkInAt" class="action-dock">
-          <button v-if="!linesConfirmed" class="secondary-btn" :disabled="submitting || !lines.length" @click="confirmLines">确认商品与数量</button>
-          <button class="primary-btn" :disabled="submitting || !lines.length || !linesConfirmed" @click="completeTask">确认全部上架</button>
+        <view v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt" class="action-dock">
+          <button
+            v-if="!linesConfirmed"
+            class="secondary-btn"
+            :disabled="submitting || !lines.length"
+            @click="confirmLines"
+          >确认商品与数量</button>
+          <button
+            class="primary-btn"
+            :disabled="submitting || !lines.length || !linesConfirmed"
+            @click="completeTask"
+          >确认全部上架</button>
         </view>
-        <view v-if="selected?.status === 'COMPLETED'" class="complete-banner">任务已完成，商品库存和在途状态已同步更新</view>
+        <view v-if="selected?.status === 'COMPLETED'" class="complete-banner">
+          任务已完成，商品库存和在途状态已同步更新
+        </view>
       </view>
     </view>
   </view>
@@ -56,29 +199,328 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
-import { merchantApi } from '@/utils/merchant-api';
+import { hasPerm, merchantApi } from '@/utils/merchant-api';
+import { useMerchantMe } from '@/composables/useMerchantMe';
+import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 
-type Task = { taskId:number; deviceId:string; status:string; notes?:string; checkInAt?:string; createdAt?:string };
-type Line = { lineId?:number; lineType:string; skuId:string; batchNo?:string; productionDate?:string; expiryDate?:string; quantity:number; slotId?:string; applied:boolean };
-const loading=ref(false); const detailLoading=ref(false); const submitting=ref(false);
-const status=ref('IN_PROGRESS'); const allTasks=ref<Task[]>([]); const devices=ref<Record<string,any>[]>([]); const skus=ref<Record<string,any>[]>([]);
-const detailVisible=ref(false); const selected=ref<Task|null>(null); const lines=ref<Line[]>([]); const linesConfirmed=ref(false);
-const statusOptions=computed(() => [{value:'',label:'全部'}, ...dictOptions('replenishment_task_status').filter(item=>['PENDING','IN_PROGRESS','COMPLETED'].includes(item.value))]);
-const tasks=computed(()=>status.value?allTasks.value.filter(item=>item.status===status.value):allTasks.value);
-const pendingCount=computed(()=>allTasks.value.filter(item=>item.status!=='COMPLETED').length); const completedCount=computed(()=>allTasks.value.filter(item=>item.status==='COMPLETED').length);
-function deviceName(id?:string){return devices.value.find(item=>item.deviceId===id)?.deviceName||id||'未知柜机'}
-function skuName(id:string){return skus.value.find(item=>item.skuId===id)?.skuName||id}
-function productIcon(id:string){if(id.includes('WATER'))return '💧';if(id.includes('MILK'))return '🥛';if(id.includes('NOODLE'))return '🍜';if(id.includes('SNACK'))return '🥔';return '🥤'}
-function formatTime(value?:string){return formatDateTimeShort(value)}
-async function load(){if(!uni.getStorageSync('merchant_token'))return uni.reLaunch({url:'/pages/login/login'});loading.value=true;try{const [taskRows,deviceRows,skuRows]=await Promise.all([merchantApi.replenishmentTasks(),merchantApi.devices(),merchantApi.pricing()]);allTasks.value=taskRows as Task[];devices.value=deviceRows as any[];skus.value=skuRows as any[]}catch(error){uni.showToast({title:error instanceof Error?error.message:'加载失败',icon:'none'})}finally{loading.value=false;uni.stopPullDownRefresh()}}
-function changeStatus(value:string){status.value=value}
-async function openTask(task:Task){selected.value={...task};detailVisible.value=true;linesConfirmed.value=task.status==='COMPLETED';detailLoading.value=true;try{lines.value=await merchantApi.replenishmentTaskLines(task.taskId) as Line[]}catch(error){uni.showToast({title:error instanceof Error?error.message:'明细加载失败',icon:'none'})}finally{detailLoading.value=false}}
-function closeDetail(){if(!submitting.value)detailVisible.value=false}
+const { me, refresh: refreshMe } = useMerchantMe();
+const canReplenish = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
+const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
+
+type Task = {
+  taskId: number;
+  deviceId: string;
+  status: string;
+  notes?: string;
+  outboundId?: number;
+  checkInAt?: string;
+  createdAt?: string;
+};
+type Line = {
+  lineId?: number;
+  lineType: string;
+  skuId: string;
+  batchNo?: string;
+  productionDate?: string;
+  expiryDate?: string;
+  quantity: number;
+  slotId?: string;
+  applied: boolean;
+};
+
+const loading = ref(false);
+const detailLoading = ref(false);
+const submitting = ref(false);
+const scanning = ref(false);
+const status = ref('');
+const filterDeviceId = ref('');
+const focusTaskId = ref<number | null>(null);
+const allTasks = ref<Task[]>([]);
+const devices = ref<Record<string, unknown>[]>([]);
+const skus = ref<Record<string, unknown>[]>([]);
+const detailVisible = ref(false);
+const selected = ref<Task | null>(null);
+const lines = ref<Line[]>([]);
+const linesConfirmed = ref(false);
+const doorOpened = ref(false);
+const openSessionId = ref('');
+/** slotCode -> { maxLevel, bookQty } */
+const slotCaps = ref<Record<string, { maxLevel: number; bookQty: number }>>({});
+
+const statusOptions = computed(() => [
+  { value: '', label: '全部' },
+  ...dictOptions('replenishment_task_status').filter((item) =>
+    ['PENDING', 'IN_PROGRESS', 'COMPLETED'].includes(item.value)
+  )
+]);
+
+const tasks = computed(() => {
+  let rows = allTasks.value.filter((t) => t.status !== 'CANCELLED');
+  if (filterDeviceId.value) {
+    rows = rows.filter((t) => t.deviceId === filterDeviceId.value);
+  }
+  if (status.value) {
+    rows = rows.filter((t) => t.status === status.value);
+  }
+  return rows;
+});
+
+const pendingCount = computed(
+  () => allTasks.value.filter((item) => item.status !== 'COMPLETED' && item.status !== 'CANCELLED').length
+);
+const completedCount = computed(
+  () => allTasks.value.filter((item) => item.status === 'COMPLETED').length
+);
+const emptyHint = computed(() => {
+  if (filterDeviceId.value) {
+    return status.value
+      ? `该柜机暂无「${dictLabel('replenishment_task_status', status.value) || status.value}」任务`
+      : '该柜机暂无补货任务';
+  }
+  if (status.value === 'IN_PROGRESS' && pendingCount.value === 0 && completedCount.value > 0) {
+    return '暂无进行中的任务，可查看已完成记录';
+  }
+  if (status.value) {
+    return `暂无「${dictLabel('replenishment_task_status', status.value) || status.value}」任务`;
+  }
+  return '当前没有补货任务';
+});
+
+function applyRouteQuery(opts?: Record<string, string | undefined>) {
+  const deviceId = opts?.deviceId || readHashQuery('deviceId');
+  const taskIdRaw = opts?.taskId || readHashQuery('taskId');
+  if (deviceId) {
+    filterDeviceId.value = String(deviceId).trim().toUpperCase();
+  }
+  if (taskIdRaw) {
+    const id = Number(taskIdRaw);
+    if (Number.isFinite(id) && id > 0) focusTaskId.value = id;
+  }
+  if (deviceId || taskIdRaw) {
+    status.value = '';
+  }
+}
+
+function readHashQuery(key: string): string | undefined {
+  if (typeof location === 'undefined') return undefined;
+  const m = location.hash.match(new RegExp(`[?&]${key}=([^&]+)`));
+  return m ? decodeURIComponent(m[1]) : undefined;
+}
+
+onLoad((opts) => {
+  applyRouteQuery(opts as Record<string, string | undefined>);
+});
+
+function deviceName(id?: string) {
+  const d = devices.value.find((item) => item.deviceId === id) as { deviceName?: string } | undefined;
+  return d?.deviceName || id || '未知柜机';
+}
+
+function skuName(id: string) {
+  const s = skus.value.find((item) => item.skuId === id) as { skuName?: string } | undefined;
+  return s?.skuName || id;
+}
+
+function productIcon(id: string) {
+  if (id.includes('WATER')) return '💧';
+  if (id.includes('MILK')) return '🥛';
+  if (id.includes('NOODLE')) return '🍜';
+  if (id.includes('SNACK')) return '🥔';
+  return '🥤';
+}
+
+function formatTime(value?: string) {
+  return formatDateTimeShort(value);
+}
+
+async function load() {
+  if (!uni.getStorageSync('merchant_token')) {
+    uni.reLaunch({ url: '/pages/login/login' });
+    return;
+  }
+  try {
+    await refreshMe();
+  } catch {
+    me.value = (uni.getStorageSync('merchant_me') as import('@aicabinet/shared-types').MerchantMe) || null;
+  }
+  if (!canReplenish.value) {
+    uni.showToast({ title: '无补货权限', icon: 'none' });
+    uni.switchTab({ url: '/pages/home/home' });
+    return;
+  }
+  // H5 同页改 query 时 onLoad 不重跑，每次刷新都同步深链
+  applyRouteQuery();
+  loading.value = true;
+  try {
+    const [taskRows, deviceRows, skuRows] = await Promise.all([
+      merchantApi.replenishmentTasks(),
+      merchantApi.devices(),
+      merchantApi.pricing().catch(() => [] as Record<string, unknown>[])
+    ]);
+    allTasks.value = taskRows as Task[];
+    devices.value = deviceRows as Record<string, unknown>[];
+    skus.value = (skuRows || []) as Record<string, unknown>[];
+
+    // 深链 / 扫柜进入：优先按 taskId 打开（即使详情已打开也要切换）
+    let open: Task | undefined;
+    const wantedTaskId = focusTaskId.value;
+    if (focusTaskId.value) {
+      open = allTasks.value.find(
+        (t) => t.taskId === focusTaskId.value && t.status !== 'CANCELLED'
+      );
+      focusTaskId.value = null;
+    } else if (!detailVisible.value && filterDeviceId.value) {
+      open = allTasks.value.find(
+        (t) =>
+          t.deviceId === filterDeviceId.value &&
+          t.status !== 'COMPLETED' &&
+          t.status !== 'CANCELLED'
+      );
+    }
+    if (open) {
+      await openTask(open);
+    } else if (wantedTaskId) {
+      uni.showToast({ title: `任务 #${wantedTaskId} 不可用或已取消`, icon: 'none' });
+    }
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '加载失败', icon: 'none' });
+  } finally {
+    loading.value = false;
+    uni.stopPullDownRefresh();
+  }
+}
+
+function changeStatus(value: string) {
+  status.value = value;
+}
+
+function clearDeviceFilter() {
+  filterDeviceId.value = '';
+}
+
+async function onScan() {
+  if (scanning.value) return;
+  scanning.value = true;
+  try {
+    const id = await scanCabinetDeviceId();
+    if (!id) return;
+    filterDeviceId.value = id;
+    status.value = '';
+    const open = allTasks.value.find(
+      (t) => t.deviceId === id && t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
+    );
+    if (open) {
+      await openTask(open);
+    } else {
+      uni.showToast({ title: '该柜暂无任务，已筛选列表', icon: 'none' });
+    }
+  } finally {
+    scanning.value = false;
+  }
+}
+
+function doorCacheKey(taskId: number) {
+  return `replenish_door_${taskId}`;
+}
+
+function restoreDoorState(taskId: number) {
+  try {
+    const raw = uni.getStorageSync(doorCacheKey(taskId));
+    if (!raw) {
+      doorOpened.value = false;
+      openSessionId.value = '';
+      return;
+    }
+    const cached = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    doorOpened.value = !!cached?.sessionId;
+    openSessionId.value = cached?.sessionId || '';
+  } catch {
+    doorOpened.value = false;
+    openSessionId.value = '';
+  }
+}
+
+function persistDoorState(taskId: number, sessionId: string) {
+  uni.setStorageSync(doorCacheKey(taskId), { sessionId, at: Date.now() });
+}
+
+function currentStep(): number {
+  if (!selected.value) return 1;
+  if (selected.value.status === 'COMPLETED') return 5;
+  if (linesConfirmed.value) return 4;
+  if (doorOpened.value) return 3;
+  if (selected.value.checkInAt) return 2;
+  return 1;
+}
+
+function stepClass(step: number) {
+  if (selected.value?.status === 'COMPLETED') {
+    return { done: true, current: false };
+  }
+  const cur = currentStep();
+  return { done: step < cur, current: step === cur };
+}
+
+async function openTask(task: Task) {
+  selected.value = { ...task };
+  detailVisible.value = true;
+  linesConfirmed.value = task.status === 'COMPLETED';
+  restoreDoorState(task.taskId);
+  detailLoading.value = true;
+  slotCaps.value = {};
+  try {
+    const [taskLines, slots] = await Promise.all([
+      merchantApi.replenishmentTaskLines(task.taskId) as Promise<Line[]>,
+      merchantApi.deviceSlots(task.deviceId).catch(() => [])
+    ]);
+    lines.value = taskLines;
+    const map: Record<string, { maxLevel: number; bookQty: number }> = {};
+    for (const s of slots as { slotCode?: string; maxLevel?: number; bookQty?: number }[]) {
+      const code = String(s.slotCode || '').toUpperCase();
+      if (!code) continue;
+      map[code] = {
+        maxLevel: Number(s.maxLevel) || 0,
+        bookQty: Number(s.bookQty) || 0
+      };
+    }
+    slotCaps.value = map;
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '明细加载失败', icon: 'none' });
+  } finally {
+    detailLoading.value = false;
+  }
+}
+
+function slotHeadroom(line: Line): number {
+  const code = String(line.slotId || '').toUpperCase();
+  const cap = slotCaps.value[code];
+  if (!cap || cap.maxLevel <= 0) return 99;
+  return Math.max(0, cap.maxLevel - cap.bookQty);
+}
+
+function slotHint(line: Line): string {
+  const code = String(line.slotId || '').toUpperCase();
+  const cap = slotCaps.value[code];
+  if (!cap || cap.maxLevel <= 0) return '';
+  const room = slotHeadroom(line);
+  if (room <= 0) return `货道已满（${cap.bookQty}/${cap.maxLevel}），请将数量调为 0 或换货道`;
+  if (line.quantity > room) return `超出容量：最多再补 ${room}（已有 ${cap.bookQty}/${cap.maxLevel}）`;
+  return `还可补 ${room}（已有 ${cap.bookQty}/${cap.maxLevel}）`;
+}
+
+function closeDetail() {
+  if (!submitting.value) detailVisible.value = false;
+}
+
 async function checkIn() {
   if (!selected.value || submitting.value) return;
+  if (!canRequest.value) {
+    uni.showToast({ title: '无补货操作权限', icon: 'none' });
+    return;
+  }
   submitting.value = true;
   let body: Record<string, number> = {};
   let locationOk = false;
@@ -111,31 +553,573 @@ async function checkIn() {
       icon: locationOk ? 'success' : 'none'
     });
   } catch (error) {
-    uni.showToast({ title: error instanceof Error ? error.message : '签到失败', icon: 'none' });
+    const msg = error instanceof Error ? error.message : '签到失败';
+    if (locationOk && (msg.includes('签到位置') || msg.includes('超出') || msg.includes('米'))) {
+      const retry = await new Promise<boolean>((resolve) =>
+        uni.showModal({
+          title: '距离柜机过远',
+          content: `${msg}\n\n若你已在柜前（定位漂移），可改为不校验距离继续签到。`,
+          confirmText: '继续签到',
+          cancelText: '取消',
+          success: (r) => resolve(!!r.confirm),
+          fail: () => resolve(false)
+        })
+      );
+      if (retry) {
+        try {
+          selected.value = (await merchantApi.checkInReplenishmentTask(selected.value.taskId, {})) as Task;
+          uni.showToast({ title: '已签到（未校验距离）', icon: 'none' });
+        } catch (e2) {
+          uni.showToast({
+            title: e2 instanceof Error ? e2.message : '签到失败',
+            icon: 'none',
+            duration: 3600
+          });
+        }
+      }
+    } else {
+      uni.showToast({ title: msg, icon: 'none', duration: 3600 });
+    }
   } finally {
     submitting.value = false;
   }
 }
-async function confirmLines(){if(!selected.value||submitting.value)return;submitting.value=true;try{lines.value=await merchantApi.confirmReplenishmentLines(selected.value.taskId,lines.value.map(({lineId,...line})=>line)) as Line[];linesConfirmed.value=true;uni.showToast({title:'清单已确认',icon:'success'})}catch(error){uni.showToast({title:error instanceof Error?error.message:'确认失败',icon:'none'})}finally{submitting.value=false}}
-async function completeTask(){if(!selected.value||submitting.value)return;const ok=await new Promise<boolean>(resolve=>uni.showModal({title:'确认全部上架',content:'完成后将更新柜机库存并签收在途商品，请确认商品、批次和货道无误。',confirmText:'确认完成',success:r=>resolve(r.confirm),fail:()=>resolve(false)}));if(!ok)return;submitting.value=true;try{selected.value=await merchantApi.completeReplenishmentTask(selected.value.taskId) as Task;lines.value=lines.value.map(line=>({...line,applied:true}));uni.showToast({title:'补货完成',icon:'success'});await load()}catch(error){uni.showToast({title:error instanceof Error?error.message:'完成失败',icon:'none'})}finally{submitting.value=false}}
-onShow(load);onPullDownRefresh(load);
+
+async function openDoor() {
+  if (!selected.value || submitting.value) return;
+  if (!canRequest.value) {
+    uni.showToast({ title: '无补货操作权限', icon: 'none' });
+    return;
+  }
+  if (!selected.value.checkInAt) {
+    uni.showToast({ title: '请先现场签到', icon: 'none' });
+    return;
+  }
+  const ok = await new Promise<boolean>((resolve) =>
+    uni.showModal({
+      title: doorOpened.value ? '再次开门' : '补货开门',
+      content: '将下发开门指令，本次为补货会话，不会按购物扣款。请确认人在柜前。',
+      confirmText: '开门',
+      success: (r) => resolve(!!r.confirm),
+      fail: () => resolve(false)
+    })
+  );
+  if (!ok) return;
+  submitting.value = true;
+  try {
+    const session = await merchantApi.openReplenishmentDoor(selected.value.taskId);
+    doorOpened.value = true;
+    openSessionId.value = session.sessionId || '';
+    if (session.sessionId) persistDoorState(selected.value.taskId, session.sessionId);
+    selected.value = {
+      ...selected.value,
+      status: selected.value.status === 'PENDING' ? 'IN_PROGRESS' : selected.value.status
+    };
+    uni.showToast({ title: '开门指令已下发', icon: 'success' });
+    await load();
+    const fresh = allTasks.value.find((t) => t.taskId === selected.value?.taskId);
+    if (fresh) selected.value = { ...fresh };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : '开门失败';
+    uni.showToast({ title: msg, icon: 'none', duration: 3200 });
+  } finally {
+    submitting.value = false;
+  }
+}
+
+function adjustQty(line: Line, delta: number) {
+  if (!canRequest.value) return;
+  if (linesConfirmed.value || line.applied || selected.value?.status === 'COMPLETED') return;
+  const cur = Number(line.quantity) || 0;
+  if (delta > 0) {
+    const room = slotHeadroom(line);
+    if (cur >= room) {
+      uni.showToast({
+        title: room <= 0 ? '货道已满，无法再加' : `最多再补 ${room}`,
+        icon: 'none'
+      });
+      return;
+    }
+    line.quantity = Math.min(room, cur + delta);
+    return;
+  }
+  line.quantity = Math.max(0, cur + delta);
+}
+
+function clampLinesToCapacity() {
+  let changed = false;
+  for (const line of lines.value) {
+    if (line.applied) continue;
+    const room = slotHeadroom(line);
+    const qty = Number(line.quantity) || 0;
+    if (qty > room) {
+      line.quantity = room;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+async function confirmLines() {
+  if (!selected.value || submitting.value) return;
+  if (!canRequest.value) {
+    uni.showToast({ title: '无补货操作权限', icon: 'none' });
+    return;
+  }
+  const over = lines.value.filter(
+    (l) => !l.applied && (Number(l.quantity) || 0) > slotHeadroom(l)
+  );
+  if (over.length) {
+    const ok = await new Promise<boolean>((resolve) =>
+      uni.showModal({
+        title: '货道容量不足',
+        content: `${over.map((l) => `${l.slotId || '?'} 最多再补 ${slotHeadroom(l)}`).join('；')}。是否自动调低数量后继续？`,
+        confirmText: '自动调低',
+        cancelText: '手动改',
+        success: (r) => resolve(!!r.confirm),
+        fail: () => resolve(false)
+      })
+    );
+    if (!ok) return;
+    clampLinesToCapacity();
+  }
+  const positive = lines.value.filter((l) => (Number(l.quantity) || 0) > 0);
+  if (!positive.length) {
+    uni.showToast({ title: '调低后无有效数量，请换货道或取消该行', icon: 'none' });
+    return;
+  }
+  submitting.value = true;
+  try {
+    lines.value = (await merchantApi.confirmReplenishmentLines(
+      selected.value.taskId,
+      positive.map(({ lineId, ...line }) => line)
+    )) as Line[];
+    linesConfirmed.value = true;
+    uni.showToast({ title: '清单已确认', icon: 'success' });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : '确认失败';
+    if (msg.includes('容量不足')) {
+      const auto = await new Promise<boolean>((resolve) =>
+        uni.showModal({
+          title: '确认失败',
+          content: `${msg}\n\n是否按货道余量自动调低？`,
+          confirmText: '自动调低',
+          cancelText: '知道了',
+          success: (r) => resolve(!!r.confirm),
+          fail: () => resolve(false)
+        })
+      );
+      if (auto) clampLinesToCapacity();
+    } else {
+      uni.showToast({ title: msg, icon: 'none', duration: 3600 });
+    }
+  } finally {
+    submitting.value = false;
+  }
+}
+
+async function completeTask() {
+  if (!selected.value || submitting.value) return;
+  if (!canRequest.value) {
+    uni.showToast({ title: '无补货操作权限', icon: 'none' });
+    return;
+  }
+  if (!linesConfirmed.value) {
+    uni.showToast({ title: '请先确认商品与数量', icon: 'none' });
+    return;
+  }
+  if (!doorOpened.value) {
+    const cont = await new Promise<boolean>((resolve) =>
+      uni.showModal({
+        title: '尚未开门',
+        content: '还未下发补货开门。若已现场开门完成上架，仍可继续确认完成。',
+        confirmText: '继续完成',
+        cancelText: '去开门',
+        success: (r) => resolve(!!r.confirm),
+        fail: () => resolve(false)
+      })
+    );
+    if (!cont) return;
+  }
+  const ok = await new Promise<boolean>((resolve) =>
+    uni.showModal({
+      title: '确认全部上架',
+      content: '完成后将更新柜机库存并签收在途商品，请确认商品、批次和货道无误。',
+      confirmText: '确认完成',
+      success: (r) => resolve(!!r.confirm),
+      fail: () => resolve(false)
+    })
+  );
+  if (!ok) return;
+  submitting.value = true;
+  try {
+    const taskId = selected.value.taskId;
+    selected.value = (await merchantApi.completeReplenishmentTask(taskId)) as Task;
+    lines.value = lines.value.map((line) => ({ ...line, applied: true }));
+    try {
+      uni.removeStorageSync(doorCacheKey(taskId));
+    } catch {
+      /* ignore */
+    }
+    doorOpened.value = false;
+    openSessionId.value = '';
+    uni.showToast({ title: '补货完成', icon: 'success' });
+    await load();
+    const fresh = allTasks.value.find((t) => t.taskId === taskId);
+    if (fresh) selected.value = { ...fresh };
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '完成失败', icon: 'none' });
+  } finally {
+    submitting.value = false;
+  }
+}
+
+onShow(load);
+onPullDownRefresh(load);
 </script>
 
 <style scoped>
-.page{min-height:100vh;padding:24rpx;background:#f0fdfa;box-sizing:border-box}.hero{padding:34rpx;border-radius:28rpx;color:#fff;background:linear-gradient(135deg,#064e3b,#0f766e 58%,#14b8a6);box-shadow:0 18rpx 40rpx rgba(15,118,110,.2)}.eyebrow,.title,.subtitle{display:block}.eyebrow{font-size:22rpx;opacity:.75;letter-spacing:4rpx}.title{margin-top:10rpx;font-size:42rpx;font-weight:800}.subtitle{margin-top:10rpx;font-size:24rpx;opacity:.82;line-height:1.55}.stats{display:flex;gap:60rpx;margin-top:28rpx}.stat-value,.stat-label{display:block}.stat-value{font-size:40rpx;font-weight:800}.stat-label{font-size:22rpx;opacity:.75}.filters{display:flex;gap:12rpx;margin:24rpx 0;overflow-x:auto}.filter{padding:14rpx 24rpx;border-radius:999rpx;color:#64748b;background:#fff;font-size:24rpx;white-space:nowrap}.filter.active{color:#fff;background:#0f766e}.task-card{margin-bottom:18rpx;padding:26rpx;border-radius:24rpx;background:#fff;box-shadow:0 8rpx 30rpx rgba(15,118,110,.08)}.task-head,.task-meta,.line-main,.line-meta,.sheet-head{display:flex;align-items:center;justify-content:space-between;gap:18rpx}.device-name,.device-code{display:block}.device-name{font-size:30rpx;font-weight:700;color:#0f172a}.device-code{margin-top:4rpx;color:#94a3b8;font-size:21rpx}.status{padding:8rpx 16rpx;border-radius:999rpx;color:#92400e;background:#fef3c7;font-size:22rpx}.status.completed{color:#166534;background:#dcfce7}.task-meta,.line-meta{margin-top:16rpx;color:#64748b;font-size:22rpx}.task-note{margin-top:16rpx;padding:16rpx;border-radius:14rpx;color:#475569;background:#f8fafc;font-size:22rpx}.detail-btn,.primary-btn,.secondary-btn{margin-top:22rpx;border:0;border-radius:18rpx;font-size:27rpx}.detail-btn,.primary-btn{color:#fff;background:#0f766e}.secondary-btn{color:#0f766e;background:#ccfbf1}.empty{padding:80rpx 20rpx;text-align:center;color:#94a3b8}.empty.small{padding:30rpx}.mask{position:fixed;inset:0;z-index:20;display:flex;align-items:flex-end;background:rgba(15,23,42,.45)}.sheet{width:100%;max-height:88vh;padding:30rpx 26rpx calc(30rpx + env(safe-area-inset-bottom));border-radius:32rpx 32rpx 0 0;background:#fff;overflow-y:auto;box-sizing:border-box}.sheet-title{display:block;font-size:34rpx;font-weight:800}.close{padding:10rpx;color:#64748b;font-size:46rpx}.step-row{display:grid;grid-template-columns:repeat(3,1fr);gap:12rpx;margin:26rpx 0}.step{text-align:center;color:#94a3b8;font-size:21rpx}.step text{display:flex;width:44rpx;height:44rpx;margin:0 auto 8rpx;align-items:center;justify-content:center;border-radius:50%;color:#64748b;background:#e2e8f0}.step span{display:block}.step.done{color:#0f766e}.step.done text{color:#fff;background:#0f766e}.section-title{margin:28rpx 0 14rpx;font-size:28rpx;font-weight:700}.line-card{margin-bottom:14rpx;padding:20rpx;border:1rpx solid #e2e8f0;border-radius:18rpx}.sku-name{display:block;font-size:27rpx;font-weight:700}.qty{color:#0f766e;font-size:30rpx;font-weight:800}.complete-banner{margin-top:22rpx;padding:22rpx;border-radius:18rpx;color:#166534;background:#dcfce7;text-align:center;font-size:24rpx}button[disabled]{opacity:.45}
-</style>
-<style scoped>
-.page{position:relative;max-width:520px;margin:0 auto;padding:18px 16px 40px;background:linear-gradient(180deg,#ecfdf5 0,#f8fafc 320px,#f8fafc 100%);overflow:hidden}
-.hero{position:relative;overflow:hidden;padding:28px 24px 24px;border-radius:26px;background:linear-gradient(145deg,#064e3b 0%,#047857 52%,#0d9488 100%);box-shadow:0 18px 45px rgba(6,95,70,.24)}
-.hero-orb{position:absolute;border-radius:50%;background:rgba(255,255,255,.09);pointer-events:none}.orb-one{width:160px;height:160px;right:-54px;top:-68px}.orb-two{width:88px;height:88px;right:80px;bottom:-55px}
-.eyebrow{position:relative;padding:5px 10px;width:max-content;border-radius:999px;background:rgba(255,255,255,.12);font-size:11px;letter-spacing:2px}.title{position:relative;margin-top:12px;font-size:29px;letter-spacing:-.5px}.subtitle{position:relative;max-width:350px;margin-top:8px;font-size:13px}.stats{position:relative;margin-top:22px;padding-top:18px;border-top:1px solid rgba(255,255,255,.16)}
-.filters{padding:3px 2px;margin:18px 0 14px}.filter{padding:8px 15px;border:1px solid #e2e8f0;box-shadow:0 4px 12px rgba(15,23,42,.04)}.filter.active{border-color:#0f766e;box-shadow:0 7px 18px rgba(15,118,110,.18)}
-.task-card{position:relative;overflow:hidden;margin-bottom:14px;padding:20px 18px 18px;border:1px solid #e2e8f0;border-radius:22px;box-shadow:0 10px 28px rgba(15,23,42,.07)}.task-accent{position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(#10b981,#0d9488)}
-.device-name{font-size:18px}.status{font-weight:700}.task-meta{padding-top:13px;border-top:1px dashed #e2e8f0}.task-note{line-height:1.55}.detail-btn{height:44px;border-radius:14px;font-weight:700;box-shadow:0 8px 18px rgba(15,118,110,.17)}
-.mask{justify-content:center}.sheet{position:relative;width:100%;max-width:520px;max-height:91vh;padding:12px 18px 28px;border-radius:28px 28px 0 0;box-shadow:0 -18px 55px rgba(15,23,42,.2)}.sheet-handle{width:42px;height:5px;margin:0 auto 16px;border-radius:999px;background:#cbd5e1}.sheet-head{padding:0 4px 15px;border-bottom:1px solid #eef2f7}.sheet-title{font-size:21px}.close{font-size:30px}
-.step-row{position:relative;margin:20px 0 10px;padding:14px 6px;border-radius:18px;background:#f8fafc}.step text{box-shadow:0 0 0 5px #f8fafc}.step.done text{box-shadow:0 0 0 5px #ccfbf1}
-.section-heading{display:flex;align-items:flex-end;justify-content:space-between;margin:24px 2px 12px}.section-title{display:block;margin:0;font-size:17px}.section-subtitle{display:block;margin-top:4px;color:#94a3b8;font-size:11px}.line-count{padding:5px 9px;border-radius:999px;color:#0f766e;background:#ccfbf1;font-size:11px;font-weight:700}
-.line-card{padding:15px;border-color:#e5e7eb;border-radius:17px;background:linear-gradient(180deg,#fff,#fcfdfd);box-shadow:0 5px 15px rgba(15,23,42,.035)}.line-main{justify-content:flex-start}.product-thumb{display:flex;flex:0 0 46px;height:46px;align-items:center;justify-content:center;border-radius:14px;background:linear-gradient(145deg,#ecfdf5,#ccfbf1);font-size:24px}.product-copy{min-width:0;flex:1}.sku-name{font-size:15px}.qty{padding:5px 9px;border-radius:10px;background:#f0fdfa;font-size:17px}.line-meta{padding-left:58px;margin-top:9px}
-.action-dock{position:sticky;bottom:-28px;margin:22px -18px -28px;padding:14px 18px calc(14px + env(safe-area-inset-bottom));background:rgba(255,255,255,.96);box-shadow:0 -10px 30px rgba(15,23,42,.08);backdrop-filter:blur(14px)}.primary-btn,.secondary-btn{height:46px;margin-top:9px;border-radius:15px;font-weight:700}.complete-banner{padding:16px;line-height:1.5}
-@media(min-width:600px){.page{margin-top:18px;border-radius:28px;box-shadow:0 20px 70px rgba(15,23,42,.12)}.sheet{margin-bottom:18px;border-radius:28px}}
+.page {
+  min-height: 100vh;
+  padding: 24rpx;
+  background: linear-gradient(180deg, #ecfdf5 0, #f8fafc 320rpx, #f8fafc 100%);
+  box-sizing: border-box;
+}
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 34rpx;
+  border-radius: 28rpx;
+  color: #fff;
+  background: linear-gradient(145deg, #064e3b, #0f766e 58%, #14b8a6);
+  box-shadow: 0 18rpx 40rpx rgba(15, 118, 110, 0.2);
+}
+.hero-orb {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.09);
+  pointer-events: none;
+}
+.orb-one { width: 160rpx; height: 160rpx; right: -54rpx; top: -68rpx; }
+.orb-two { width: 88rpx; height: 88rpx; right: 80rpx; bottom: -55rpx; }
+.eyebrow, .title, .subtitle { display: block; position: relative; }
+.eyebrow {
+  font-size: 22rpx;
+  opacity: 0.75;
+  letter-spacing: 4rpx;
+  width: max-content;
+  padding: 6rpx 12rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.12);
+}
+.title { margin-top: 12rpx; font-size: 42rpx; font-weight: 800; }
+.subtitle { margin-top: 10rpx; font-size: 24rpx; opacity: 0.82; line-height: 1.55; }
+.stats {
+  position: relative;
+  display: flex;
+  gap: 60rpx;
+  margin-top: 28rpx;
+  padding-top: 22rpx;
+  border-top: 1rpx solid rgba(255, 255, 255, 0.16);
+}
+.stat-value, .stat-label { display: block; }
+.stat-value { font-size: 40rpx; font-weight: 800; }
+.stat-label { font-size: 22rpx; opacity: 0.75; }
+.hero-actions {
+  position: relative;
+  display: flex;
+  gap: 16rpx;
+  margin-top: 24rpx;
+}
+.scan-pill, .clear-pill {
+  margin: 0;
+  height: 72rpx;
+  line-height: 72rpx;
+  padding: 0 28rpx;
+  border-radius: 36rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+.scan-pill { background: #fff; color: #0f766e; }
+.clear-pill { background: rgba(255, 255, 255, 0.18); color: #fff; }
+.scan-pill::after, .clear-pill::after { border: none; }
+.filter-tip {
+  position: relative;
+  display: block;
+  margin-top: 16rpx;
+  font-size: 22rpx;
+  opacity: 0.85;
+}
+.idle-tip {
+  position: relative;
+  margin-top: 18rpx;
+  padding: 16rpx 18rpx;
+  border-radius: 16rpx;
+  background: rgba(255, 255, 255, 0.14);
+}
+.idle-title { display: block; font-size: 24rpx; font-weight: 700; }
+.idle-desc { display: block; margin-top: 6rpx; font-size: 22rpx; opacity: 0.88; line-height: 1.4; }
+
+.filters { display: flex; gap: 12rpx; margin: 24rpx 0; overflow-x: auto; }
+.filter {
+  padding: 14rpx 24rpx;
+  border-radius: 999rpx;
+  color: #64748b;
+  background: #fff;
+  font-size: 24rpx;
+  white-space: nowrap;
+  border: 1rpx solid #e2e8f0;
+}
+.filter.active { color: #fff; background: #0f766e; border-color: #0f766e; }
+
+.task-card {
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 18rpx;
+  padding: 26rpx;
+  border-radius: 24rpx;
+  background: #fff;
+  border: 1rpx solid #e2e8f0;
+  box-shadow: 0 8rpx 30rpx rgba(15, 118, 110, 0.08);
+}
+.task-accent {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6rpx;
+  background: linear-gradient(#10b981, #0d9488);
+}
+.task-head, .task-meta, .line-main, .line-meta, .sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+.device-name, .device-code { display: block; }
+.device-name { font-size: 30rpx; font-weight: 700; color: #0f172a; }
+.device-code { margin-top: 4rpx; color: #94a3b8; font-size: 21rpx; }
+.status {
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  color: #92400e;
+  background: #fef3c7;
+  font-size: 22rpx;
+  font-weight: 600;
+}
+.status.completed { color: #166534; background: #dcfce7; }
+.task-meta, .line-meta { margin-top: 16rpx; color: #64748b; font-size: 22rpx; }
+.line-cap {
+  margin-top: 12rpx;
+  padding: 10rpx 14rpx;
+  border-radius: 12rpx;
+  font-size: 22rpx;
+  color: #0f766e;
+  background: #ecfdf5;
+}
+.line-cap.warn { color: #b45309; background: #fffbeb; }
+.line-cap.full { color: #b91c1c; background: #fef2f2; }
+.task-note {
+  margin-top: 16rpx;
+  padding: 16rpx;
+  border-radius: 14rpx;
+  color: #475569;
+  background: #f8fafc;
+  font-size: 22rpx;
+}
+.detail-btn, .primary-btn, .secondary-btn {
+  margin-top: 22rpx;
+  border: 0;
+  border-radius: 18rpx;
+  font-size: 27rpx;
+  font-weight: 700;
+}
+.detail-btn, .primary-btn { color: #fff; background: #0f766e; }
+.secondary-btn { color: #0f766e; background: #ccfbf1; }
+.detail-btn::after, .primary-btn::after, .secondary-btn::after { border: none; }
+
+.empty {
+  padding: 80rpx 20rpx;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 28rpx;
+}
+.empty.small { padding: 30rpx; }
+.empty-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16rpx;
+  margin-top: 28rpx;
+}
+.empty-scan {
+  margin: 0;
+  width: auto;
+  min-width: 200rpx;
+  padding: 0 28rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  border-radius: 36rpx;
+  background: #0f766e;
+  color: #fff;
+  font-size: 26rpx;
+}
+.empty-scan.ghost {
+  color: #0f766e;
+  background: #ecfdf5;
+}
+.empty-scan::after { border: none; }
+
+.mask {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* 加深遮罩，避免列表文字从弹层边缘透出 */
+  background: rgba(15, 23, 42, 0.62);
+}
+.sheet {
+  width: 100%;
+  max-width: 520px;
+  max-height: 88vh;
+  padding: 30rpx 26rpx calc(30rpx + env(safe-area-inset-bottom));
+  border-radius: 32rpx 32rpx 0 0;
+  background: #fff;
+  overflow-y: auto;
+  box-sizing: border-box;
+  /* 实心底 + 顶部分隔，杜绝背后列表透视 */
+  isolation: isolate;
+  box-shadow: 0 -12rpx 40rpx rgba(15, 23, 42, 0.18);
+}
+.sheet-handle {
+  width: 64rpx;
+  height: 8rpx;
+  margin: 0 auto 16rpx;
+  border-radius: 4rpx;
+  background: #cbd5e1;
+}
+.sheet-title { display: block; font-size: 34rpx; font-weight: 800; }
+.close { padding: 10rpx; color: #64748b; font-size: 46rpx; }
+.step-row {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12rpx;
+  margin: 26rpx 0;
+  padding: 16rpx 8rpx;
+  border-radius: 18rpx;
+  background: #f8fafc;
+}
+.step-row.four { grid-template-columns: repeat(4, 1fr); }
+.door-tip {
+  display: block;
+  margin-top: 12rpx;
+  padding: 14rpx 16rpx;
+  border-radius: 12rpx;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 22rpx;
+  line-height: 1.4;
+}
+.step { text-align: center; color: #94a3b8; font-size: 21rpx; }
+.step-num {
+  display: flex;
+  width: 44rpx;
+  height: 44rpx;
+  margin: 0 auto 8rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #64748b;
+  background: #e2e8f0;
+  font-size: 24rpx;
+}
+.step-label { display: block; }
+.step.done { color: #0f766e; }
+.step.done .step-num { color: #fff; background: #0f766e; }
+.step.current { color: #0f766e; font-weight: 600; }
+.step.current .step-num {
+  color: #fff;
+  background: #0f766e;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.2);
+}
+.lines-empty { display: flex; flex-direction: column; gap: 6px; }
+.lines-empty-title { font-size: 13px; color: #64748b; }
+.lines-empty-tip { font-size: 12px; color: #94a3b8; line-height: 1.4; }
+.section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin: 28rpx 0 14rpx;
+}
+.section-title { display: block; font-size: 28rpx; font-weight: 700; }
+.section-subtitle { display: block; margin-top: 4rpx; color: #94a3b8; font-size: 22rpx; }
+.line-count {
+  padding: 6rpx 12rpx;
+  border-radius: 999rpx;
+  color: #0f766e;
+  background: #ccfbf1;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+.line-card {
+  margin-bottom: 14rpx;
+  padding: 20rpx;
+  border: 1rpx solid #e2e8f0;
+  border-radius: 18rpx;
+}
+.sku-name { display: block; font-size: 27rpx; font-weight: 700; }
+.qty { color: #0f766e; font-size: 30rpx; font-weight: 800; min-width: 40rpx; text-align: center; }
+.qty-stepper {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  padding: 4rpx 8rpx;
+  border-radius: 999rpx;
+  background: #ecfdf5;
+}
+.qty-btn {
+  width: 48rpx;
+  height: 48rpx;
+  line-height: 48rpx;
+  text-align: center;
+  border-radius: 50%;
+  background: #fff;
+  color: #0f766e;
+  font-size: 32rpx;
+  font-weight: 700;
+  box-shadow: 0 2rpx 8rpx rgba(15, 118, 110, 0.12);
+}
+.product-thumb {
+  display: flex;
+  width: 72rpx;
+  height: 72rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16rpx;
+  background: #ecfdf5;
+  font-size: 32rpx;
+  margin-right: 16rpx;
+}
+.product-copy { flex: 1; min-width: 0; }
+.action-dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 22rpx;
+  padding: 16rpx 0 calc(8rpx + env(safe-area-inset-bottom));
+  background: #fff;
+  box-shadow: 0 -8rpx 20rpx rgba(255, 255, 255, 0.95);
+}
+.complete-banner {
+  margin-top: 22rpx;
+  padding: 22rpx;
+  border-radius: 18rpx;
+  color: #166534;
+  background: #dcfce7;
+  text-align: center;
+  font-size: 24rpx;
+}
+button[disabled] { opacity: 0.45; }
 </style>

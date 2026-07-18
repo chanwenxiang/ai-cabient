@@ -56,10 +56,31 @@ public class PermissionService {
         if (perms.isEmpty()) {
             return false;
         }
+        if (perms.contains("ops:admin")) {
+            return true;
+        }
+        if (permCode == null || permCode.isBlank()) {
+            return false;
+        }
         if (perms.contains(permCode)) {
             return true;
         }
-        return perms.contains("ops:admin") || perms.stream().anyMatch(p -> p.endsWith(":*"));
+        // 若依风格分段通配：ops:rbac:role:add ← ops:rbac:role:* / ops:rbac:* / ops:*
+        String[] segments = permCode.split(":");
+        for (int i = segments.length - 1; i >= 1; i--) {
+            StringBuilder wildcard = new StringBuilder();
+            for (int j = 0; j < i; j++) {
+                if (j > 0) {
+                    wildcard.append(':');
+                }
+                wildcard.append(segments[j]);
+            }
+            wildcard.append(":*");
+            if (perms.contains(wildcard.toString())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean hasAnyPermission(Long userId, String... permCodes) {

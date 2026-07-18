@@ -7,7 +7,15 @@
     </view>
 
     <view v-if="loading" class="empty">加载中…</view>
-    <view v-else-if="!items.length" class="empty">暂无可兑换商品</view>
+    <empty-state
+      v-else-if="!items.length"
+      icon="🎁"
+      title="暂无可兑好礼"
+      hint="购物结算会自动返积分，攒够后再来兑券"
+    >
+      <button class="empty-btn" @click="goShop">去扫码购物</button>
+      <button class="empty-btn ghost" @click="goHistory">查看积分明细</button>
+    </empty-state>
     <view v-else class="grid">
       <view v-for="item in items" :key="item.itemId" class="card">
         <view class="card-top">
@@ -35,7 +43,7 @@
       <text class="tips-title">兑换说明</text>
       <text class="tips-line">· 兑换成功后优惠券自动放入「我的优惠券」</text>
       <text class="tips-line">· 积分一经兑换不退回，请确认后操作</text>
-      <text class="tips-line">· 参考便利蜂 / 瑞幸：积分商城主推「兑券」而非实物邮寄</text>
+      <text class="tips-line">· 当前主推「兑券」：兑换后立即可用于开门结算抵扣</text>
     </view>
   </view>
 </template>
@@ -106,6 +114,9 @@ async function onRedeem(item: PointsRedeemItemDto) {
 function goHistory() {
   uni.navigateTo({ url: '/pages/member/points-history' });
 }
+function goShop() {
+  uni.switchTab({ url: '/pages/index/index' });
+}
 </script>
 
 <style scoped>
@@ -152,6 +163,18 @@ function goHistory() {
 .btn.disabled, .btn[disabled] { opacity: 0.45; background: #94a3b8; }
 .btn::after { border: none; }
 .empty { text-align: center; padding: 80rpx 0; color: #999; }
+.empty-btn {
+  margin: 0;
+  width: 320rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  background: #059669;
+  color: #fff;
+  border-radius: 36rpx;
+  font-size: 28rpx;
+}
+.empty-btn.ghost { background: #fff; color: #059669; border: 2rpx solid #059669; }
+.empty-btn::after { border: none; }
 .tips { margin-top: 28rpx; padding: 24rpx; border-radius: 18rpx; background: #fff; }
 .tips-title { display: block; font-size: 26rpx; font-weight: 700; color: #334155; margin-bottom: 10rpx; }
 .tips-line { display: block; font-size: 22rpx; color: #849087; line-height: 1.7; }

@@ -452,29 +452,30 @@ public class DeviceSlotService {
     @Transactional(readOnly = true)
     public void validateRestockLine(String deviceId, String slotId, String skuId, int quantity) {
         if (slotId == null || slotId.isBlank()) {
-            throw badRequest("slotId required for RESTOCK");
+            throw badRequest("补货明细必须填写货道");
         }
         if (quantity <= 0) {
-            throw badRequest("quantity must be positive");
+            throw badRequest("补货数量必须大于 0");
         }
         String slotCode = slotId.trim().toUpperCase();
         DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode))
-                .orElseThrow(() -> badRequest("unknown slot " + slotCode + " for device " + deviceId));
+                .orElseThrow(() -> badRequest("货道不存在：" + slotCode));
         if (!slot.isEnabled()) {
-            throw badRequest("slot disabled: " + slotCode);
+            throw badRequest("货道已停用：" + slotCode);
         }
         if (slot.getAssignedSkuId() != null && skuId != null
                 && !slot.getAssignedSkuId().equals(skuId.trim())) {
-            throw badRequest("slot " + slotCode + " assigned to sku " + slot.getAssignedSkuId()
-                    + ", got " + skuId);
+            throw badRequest("货道 " + slotCode + " 已绑定 "
+                    + slot.getAssignedSkuId() + "，与明细商品 " + skuId + " 不一致");
         }
         int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel()
                 : (slot.getParLevel() > 0 ? slot.getParLevel() : 0);
         if (cap > 0) {
             int book = loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
             if (book + quantity > cap) {
-                throw badRequest("slot " + slotCode + " exceeds max " + cap
-                        + " (book=" + book + " add=" + quantity + ")");
+                throw badRequest(String.format(
+                        com.aicabinet.trade.support.ApiMessages.REPLENISHMENT_SLOT_CAPACITY,
+                        slotCode, cap, book, quantity));
             }
         }
     }

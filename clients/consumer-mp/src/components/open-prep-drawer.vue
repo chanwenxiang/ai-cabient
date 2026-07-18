@@ -2,8 +2,8 @@
   <view class="drawer-mask" @click="onCancel">
     <view class="drawer-panel" @click.stop>
       <view class="drawer-handle" />
-      <text class="drawer-title">开门前准备</text>
-      <text class="drawer-sub">完成以下步骤即可开门取货</text>
+      <text class="drawer-title">开通后即可开门</text>
+      <text class="drawer-sub">首次使用需完成实名与免密支付</text>
 
       <view class="prep-steps">
         <view class="prep-step" :class="{ done: account?.verified }">
@@ -13,17 +13,18 @@
         <view class="prep-line" :class="{ done: account?.verified }" />
         <view class="prep-step" :class="{ done: payReady }">
           <view class="prep-dot">{{ payReady ? '✓' : '2' }}</view>
-          <text>支付</text>
+          <text>免密支付</text>
         </view>
       </view>
 
       <view v-if="!account?.verified" class="drawer-body">
+        <text class="drawer-desc">用于保障交易安全，信息仅用于本柜购物核验</text>
         <text class="field-label">真实姓名</text>
         <input v-model="realName" class="input" placeholder="与身份证一致" maxlength="32" />
         <text class="field-label">身份证后四位</text>
         <input v-model="idCardLast4" class="input" type="number" maxlength="4" placeholder="0000" />
         <button class="btn-primary" hover-class="btn-hover" :loading="busy" @click="onVerify">
-          {{ busy ? '提交中…' : '完成实名认证' }}
+          {{ busy ? '提交中…' : '下一步' }}
         </button>
       </view>
 
@@ -44,11 +45,6 @@
             >支付宝</text>
           </view>
         </view>
-        <view class="balance-row">
-          <text>当前余额</text>
-          <text class="balance-val">¥{{ balanceYuan }}</text>
-        </view>
-        <text class="balance-warning">{{ payReadyHintText }}</text>
         <button
           v-if="showWechatSign"
           class="btn-primary"
@@ -57,7 +53,7 @@
           :disabled="busy"
           @click="onSignPayScore"
         >
-          {{ busy ? '开通中…' : '开通微信支付分（推荐）' }}
+          {{ busy ? '开通中…' : '开通微信支付分' }}
         </button>
         <button
           v-if="showAlipaySign"
@@ -67,33 +63,48 @@
           :disabled="busy"
           @click="onSignAlipay"
         >
-          {{ busy ? '开通中…' : '开通支付宝免密（推荐）' }}
+          {{ busy ? '开通中…' : '开通支付宝免密' }}
         </button>
-        <button
-          v-if="wechatRechargeEnabled"
-          class="btn-wechat"
-          hover-class="btn-hover"
-          :loading="busy"
-          :disabled="busy"
-          @click="onWeChatRecharge"
-        >
-          {{ busy ? '处理中…' : wechatPayLive ? '微信支付充值 ¥20' : '微信模拟充值 ¥20' }}
-        </button>
-        <button v-if="mockRechargeEnabled" class="btn-ghost-fill" hover-class="btn-hover" :loading="busy" :disabled="busy" @click="onMockRecharge">
-          {{ busy ? '发放中…' : '模拟充值 ¥20（开发联调）' }}
-        </button>
-        <button
-          v-if="alipayRechargeEnabled"
-          class="btn-alipay"
-          hover-class="btn-hover"
-          :loading="busy"
-          :disabled="busy"
-          @click="onAlipayRecharge"
-        >
-          {{ busy ? '跳转中…' : '支付宝沙箱充值 ¥20' }}
-        </button>
-        <text v-if="!mockRechargeEnabled && !alipayRechargeEnabled && !wechatRechargeEnabled && !showWechatSign && !showAlipaySign" class="drawer-desc">请联系现场运营人员发放余额。</text>
-        <view class="support-link" @click="contactOps">联系现场运营人员</view>
+        <view class="fallback-block">
+          <text class="fallback-title">或使用余额开门</text>
+          <view class="balance-row">
+            <text>当前余额</text>
+            <text class="balance-val">¥{{ balanceYuan }}</text>
+          </view>
+          <text class="balance-warning">{{ payReadyHintText }}</text>
+          <button
+            v-if="wechatPayLive || (devTools && wechatRechargeEnabled)"
+            class="btn-wechat"
+            hover-class="btn-hover"
+            :loading="busy"
+            :disabled="busy"
+            @click="onWeChatRecharge"
+          >
+            {{ busy ? '处理中…' : wechatPayLive ? '微信支付充值 ¥20' : '微信模拟充值 ¥20' }}
+          </button>
+          <button
+            v-if="devTools && mockRechargeEnabled"
+            class="btn-ghost-fill"
+            hover-class="btn-hover"
+            :loading="busy"
+            :disabled="busy"
+            @click="onMockRecharge"
+          >
+            {{ busy ? '发放中…' : '模拟充值 ¥20' }}
+          </button>
+          <button
+            v-if="devTools && alipayRechargeEnabled"
+            class="btn-alipay"
+            hover-class="btn-hover"
+            :loading="busy"
+            :disabled="busy"
+            @click="onAlipayRecharge"
+          >
+            {{ busy ? '跳转中…' : '支付宝沙箱充值 ¥20' }}
+          </button>
+          <view class="support-link" @click="goRechargePage">去充值页选择金额 ›</view>
+        </view>
+        <view class="support-link muted" @click="contactOps">联系现场运营</view>
       </view>
 
       <text v-if="err" class="err">{{ err }}</text>
@@ -113,6 +124,12 @@ import {
   type EntryChannel
 } from '@/utils/account';
 import { openAlipayPrepay, runWeChatRecharge, savePendingRechargeOrder } from '@/utils/recharge';
+import {
+  resolveMockEnabled,
+  resolveSandboxRecharge,
+  resolveWechatRechargeVisible,
+  showDevTools
+} from '@/utils/runtime-flags';
 
 const props = defineProps<{
   account: AccountDto | null;
@@ -124,12 +141,13 @@ const emit = defineEmits<{
   cancel: [];
 }>();
 
+const devTools = showDevTools();
 const account = ref<AccountDto | null>(props.account);
 const realName = ref('');
 const idCardLast4 = ref('');
 const busy = ref(false);
 const err = ref('');
-const mockRechargeEnabled = ref(true);
+const mockRechargeEnabled = ref(false);
 const alipayRechargeEnabled = ref(false);
 const wechatRechargeEnabled = ref(false);
 const wechatPayLive = ref(false);
@@ -151,22 +169,19 @@ watch(
   }
 );
 
-function resolveMockEnabled(flag?: string): boolean {
-  if (flag === 'true') return true;
-  if (flag === 'false') return false;
-  return import.meta.env.DEV;
-}
-
 consumerApi.consumerPublicConfig().then((cfg) => {
   mockRechargeEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
-  alipayRechargeEnabled.value = cfg?.alipayRechargeEnabled === 'true';
-  wechatRechargeEnabled.value = cfg?.wechatRechargeEnabled === 'true';
+  alipayRechargeEnabled.value = resolveSandboxRecharge(cfg?.alipayRechargeEnabled);
   wechatPayLive.value = cfg?.wechatPayLive === 'true';
+  wechatRechargeEnabled.value = resolveWechatRechargeVisible({
+    wechatRechargeEnabled: cfg?.wechatRechargeEnabled,
+    wechatPayLive: cfg?.wechatPayLive
+  });
   payScoreSignEnabled.value = cfg?.payScoreSignEnabled !== 'false';
 }).catch(() => {
-  mockRechargeEnabled.value = import.meta.env.DEV;
+  mockRechargeEnabled.value = resolveMockEnabled();
   alipayRechargeEnabled.value = false;
-  wechatRechargeEnabled.value = import.meta.env.DEV;
+  wechatRechargeEnabled.value = showDevTools();
   wechatPayLive.value = false;
   payScoreSignEnabled.value = true;
 });
@@ -177,14 +192,19 @@ const payReady = computed(() => isPayReady(account.value, entryChannel.value));
 const payReadyHintText = computed(() => payReadyHint(account.value, entryChannel.value));
 const payDesc = computed(() => {
   const c = entryChannel.value;
-  if (c === 'WECHAT') return '微信扫码入柜：开通微信支付分后，关门自动扣款（余额仅作兜底）。';
-  if (c === 'ALIPAY') return '支付宝扫码入柜：开通免密代扣后，关门自动扣款（余额仅作兜底）。';
-  return '请选择扫码渠道并开通对应免密支付；余额 ≥ ¥5 也可临时开门。';
+  if (c === 'WECHAT') return '推荐开通微信支付分：关门后自动扣款，无需每次确认。';
+  if (c === 'ALIPAY') return '推荐开通支付宝免密：关门后自动扣款，无需每次确认。';
+  return '请开通对应渠道免密支付；余额 ≥ ¥5 也可临时开门。';
 });
 const showWechatSign = computed(
   () => payScoreSignEnabled.value && (!entryChannel.value || entryChannel.value === 'WECHAT')
 );
 const showAlipaySign = computed(() => !entryChannel.value || entryChannel.value === 'ALIPAY');
+
+function goRechargePage() {
+  emit('cancel');
+  uni.navigateTo({ url: '/pages/recharge/recharge' });
+}
 
 watch(payReady, (ready) => {
   if (ready && account.value?.verified) {
@@ -476,6 +496,18 @@ function onCancel() {
   text-align: center;
   margin-top: 16rpx;
 }
+.fallback-block {
+  margin-top: 28rpx;
+  padding-top: 24rpx;
+  border-top: 1rpx solid #eef2f0;
+}
+.fallback-title {
+  display: block;
+  font-size: 26rpx;
+  color: #64748b;
+  margin-bottom: 8rpx;
+  font-weight: 600;
+}
 .balance-warning { display: block; padding: 20rpx; border-radius: 12rpx; background: #fff7e6; color: #ad6800; font-size: 25rpx; line-height: 1.5; }
 .channel-pick { margin-bottom: 16rpx; }
 .channel-chips { display: flex; gap: 16rpx; margin-top: 12rpx; }
@@ -495,7 +527,7 @@ function onCancel() {
   border-color: #34d399;
   font-weight: 600;
 }
-.balance-warning + .btn-primary{margin-top:22rpx}.support-link{padding:22rpx 0 4rpx;text-align:center;color:#64748b;font-size:25rpx}
+.balance-warning + .btn-primary{margin-top:22rpx}.support-link{padding:22rpx 0 4rpx;text-align:center;color:#059669;font-size:25rpx;font-weight:500}.support-link.muted{color:#64748b;font-weight:400}
 .err {
   color: #fa5151;
   font-size: 26rpx;

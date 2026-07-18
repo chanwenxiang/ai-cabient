@@ -1,3 +1,13 @@
+/**
+ * Shared dict labels (compile-time baseline + optional runtime overrides).
+ *
+ * Contract:
+ * - Dict = display metadata (labels, filter options, tags). Not capability switches.
+ * - Payment / feature ability stays in Java constants (e.g. PayChannels) + env flags
+ *   (ALIPAY_ENABLED, PAYSCORE_*). Disabling a dict item must not block checkout.
+ * - New business enum codes: add in backend first, then seed here + SysDictBootstrap.
+ * - Clients load GET /api/v2/dicts/runtime when logged in; on failure keep DICT defaults.
+ */
 /** Runtime overrides from ops dict admin (value -> label per type). */
 let runtimeOverrides: Record<string, Record<string, string>> = {};
 
@@ -138,9 +148,10 @@ export const DICT = {
     DISPUTE: '消费争议', LOW_STOCK: '低库存', EXPIRY: '临期商品', REPLENISHMENT_REQUIRED: '待补货',
     DEVICE_OFFLINE: '设备离线', DEVICE_FAULT: '设备故障', DOOR_OPEN_TOO_LONG: '长时间未关门',
     OPEN_TIMEOUT: '开门超时', UPLOAD_STUCK: '录像上传滞留', RECOGNITION_STUCK: '识别滞留',
-    RECOGNITION_FAILED: '识别存疑需人工审核', RECOGNITION_UNAVAILABLE: '识别服务不可用',
+    RECOGNITION_TIMEOUT: '识别超时', RECOGNITION_FAILED: '识别存疑需人工审核',
+    RECOGNITION_UNAVAILABLE: '识别服务不可用',
     BALANCE_INSUFFICIENT: '余额不足', SETTLEMENT_FAILED: '结算失败', SETTLEMENT_STUCK: '结算滞留',
-    INVENTORY_MISMATCH: '库存差异'
+    INVENTORY_MISMATCH: '库存差异', SLOT_DISCREPANCY: '货道账实差异'
   },
   ops_exception_action: {
     OPS_EXCEPTION_CLAIM: '领取异常',

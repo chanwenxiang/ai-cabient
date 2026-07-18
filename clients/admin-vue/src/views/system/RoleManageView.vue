@@ -9,10 +9,10 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-if="auth.hasPerm('ops:rbac:role:add')" type="primary" @click="openCreate">新增角色</el-button>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button v-if="canImport" @click="onDownloadTemplate(['', '示例角色', 'ops_demo', '正常', '', '备注'])">导入模板</el-button>
-          <el-button v-if="canImport" :loading="importing" @click="triggerImport">导入</el-button>
+          <el-button v-hasPermi="['ops:rbac:role:add']" type="primary" @click="openCreate">新增角色</el-button>
+          <el-button v-hasPermi="['ops:rbac:role:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:rbac:role:import']" @click="onDownloadTemplate(['', '示例角色', 'ops_demo', '正常', '', '备注'])">导入模板</el-button>
+          <el-button v-hasPermi="['ops:rbac:role:import']" :loading="importing" @click="triggerImport">导入</el-button>
           <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
           <el-button :icon="Refresh" :loading="loading" @click="loadRoles">刷新</el-button>
         </div>
@@ -80,7 +80,7 @@
           <el-table-column prop="remark" label="备注" min-width="160" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.remark || '-' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="140" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="140" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions :actions="roleActions(row)" @action="(k) => onRoleAction(k, row)" />
             </template>
@@ -241,7 +241,7 @@ const statusByLabel: Record<string, string> = {
   INACTIVE: 'INACTIVE'
 };
 
-const { canImport, importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
+const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
   filePrefix: '角色',
   headers: ['角色ID', '角色名称', '权限字符', '状态', '权限数', '备注'],
   toRows: () =>

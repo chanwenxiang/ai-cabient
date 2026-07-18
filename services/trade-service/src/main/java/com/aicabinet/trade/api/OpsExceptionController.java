@@ -2,6 +2,7 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
+import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.OpsExceptionService;
 import com.aicabinet.trade.service.SessionService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,6 +17,7 @@ public class OpsExceptionController {
     public OpsExceptionController(OpsExceptionService service, SessionService sessionService) {
         this.service = service; this.sessionService = sessionService;
     }
+    @RequiresPermissions(value = {"ops:exception:list", "ops:dashboard:view"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping public ApiResponse<PageResult<OpsExceptionDto>> list(HttpServletRequest request,
             @RequestParam(required=false) String status,
             @RequestParam(required=false) String severity,
@@ -23,21 +25,26 @@ public class OpsExceptionController {
             @RequestParam(defaultValue="20") int size) {
         return ApiResponse.ok(service.list(operator(request), status, severity, page, size));
     }
+    @RequiresPermissions(value = {"ops:exception:list", "ops:dashboard:view"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/{id}") public ApiResponse<OpsExceptionDetailDto> detail(HttpServletRequest request,
             @PathVariable String id) {
         return ApiResponse.ok(service.detail(operator(request), id));
     }
+    @RequiresPermissions("ops:exception:handle")
     @PostMapping("/{id}/claim") public ApiResponse<OpsExceptionDto> claim(HttpServletRequest request, @PathVariable String id) {
         return ApiResponse.ok(service.claim(operator(request), id));
     }
+    @RequiresPermissions("ops:exception:handle")
     @PostMapping("/{id}/transfer") public ApiResponse<OpsExceptionDto> transfer(HttpServletRequest request,
             @PathVariable String id, @Valid @RequestBody TransferOpsExceptionRequest body) {
         return ApiResponse.ok(service.transfer(operator(request), id, body.assigneeUserId(), body.reason()));
     }
+    @RequiresPermissions("ops:exception:handle")
     @PostMapping("/{id}/notes") public ApiResponse<OpsExceptionDto> note(HttpServletRequest request,
             @PathVariable String id, @Valid @RequestBody OpsExceptionNoteRequest body) {
         return ApiResponse.ok(service.addNote(operator(request), id, body.note()));
     }
+    @RequiresPermissions("ops:exception:handle")
     @PostMapping("/{id}/cancel-session") public ApiResponse<OpsExceptionDto> cancelSession(HttpServletRequest request,
             @PathVariable String id, @Valid @RequestBody OpsExceptionDangerActionRequest body) {
         Long operatorId = operator(request);
@@ -51,6 +58,7 @@ public class OpsExceptionController {
         return ApiResponse.ok(service.resolveByAction(operatorId, id, "OPS_EXCEPTION_CANCEL_SESSION",
                 body.idempotencyKey(), "已取消会话并释放设备：" + body.reason()));
     }
+    @RequiresPermissions("ops:exception:handle")
     @PostMapping("/{id}/retry") public ApiResponse<OpsExceptionDto> retry(HttpServletRequest request,
             @PathVariable String id, @Valid @RequestBody OpsExceptionDangerActionRequest body) {
         Long operatorId = operator(request);
@@ -77,6 +85,7 @@ public class OpsExceptionController {
         }
         return ApiResponse.ok(service.detail(operatorId, id).exception());
     }
+    @RequiresPermissions(value = {"ops:exception:handle", "ops:dispute:resolve"}, logical = RequiresPermissions.Logical.AND)
     @PostMapping("/{id}/manual-resolve") public ApiResponse<OpsExceptionDto> manualResolve(
             HttpServletRequest request, @PathVariable String id,
             @Valid @RequestBody OpsManualResolveRequest body) {
@@ -88,6 +97,7 @@ public class OpsExceptionController {
         return detail.actions().stream().anyMatch(action -> action.detail() != null
                 && action.detail().contains(marker));
     }
+    @RequiresPermissions("ops:exception:handle")
     @PostMapping("/{id}/resolve") public ApiResponse<OpsExceptionDto> resolve(HttpServletRequest request,
             @PathVariable String id, @Valid @RequestBody ResolveOpsExceptionRequest body) {
         return ApiResponse.ok(service.resolve(operator(request), id, body.resolution()));

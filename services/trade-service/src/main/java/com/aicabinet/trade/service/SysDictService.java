@@ -58,6 +58,15 @@ public class SysDictService {
 
     public DictDtos.DictRuntimeDto runtimeMap(Long operatorId) {
         permissionService.requireAnyPermission(operatorId, "ops:dict:list", "ops:dashboard:view");
+        return buildActiveRuntimeMap();
+    }
+
+    /** Labels for any authenticated client (consumer / merchant / admin). Display only — not capability flags. */
+    public DictDtos.DictRuntimeDto runtimeMapForAuthenticatedUser() {
+        return buildActiveRuntimeMap();
+    }
+
+    private DictDtos.DictRuntimeDto buildActiveRuntimeMap() {
         Map<String, List<DictDtos.DictDataDto>> map = new LinkedHashMap<>();
         for (SysDictData row : dataRepository.findByStatusOrderByDictTypeAscSortOrderAsc("ACTIVE")) {
             map.computeIfAbsent(row.getDictType(), k -> new ArrayList<>()).add(toDataDto(row));

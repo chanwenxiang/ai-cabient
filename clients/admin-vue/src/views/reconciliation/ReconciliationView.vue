@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -10,7 +10,7 @@
         </div>
         <div class="page-card-head__actions">
           <el-button v-if="canRun" type="primary" @click="openRunDialog">执行对账</el-button>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:reconciliation:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -89,7 +89,7 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="88" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="88" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 :actions="[{ key: 'detail', label: '详情', icon: View, type: 'primary' }]"

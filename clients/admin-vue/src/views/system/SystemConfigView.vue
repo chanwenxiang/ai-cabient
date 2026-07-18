@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -9,11 +9,11 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button v-if="canImport" @click="onDownloadTemplate(['demo.config.key', 'value', '说明', ''])">导入模板</el-button>
-          <el-button v-if="canImport" :loading="importing" @click="triggerImport">导入</el-button>
+          <el-button v-hasPermi="['ops:config:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:config:import']" @click="onDownloadTemplate(['demo.config.key', 'value', '说明', ''])">导入模板</el-button>
+          <el-button v-hasPermi="['ops:config:import']" :loading="importing" @click="triggerImport">导入</el-button>
           <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
-          <el-button type="primary" @click="openCreate">新增</el-button>
+          <el-button v-hasPermi="['ops:config:edit']" type="primary" @click="openCreate">新增</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -65,9 +65,10 @@
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="88" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="88" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
+                v-if="auth.hasPerm('ops:config:edit')"
                 :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
                 @action="() => openEdit(row)"
               />
@@ -102,7 +103,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+        <el-button v-hasPermi="['ops:config:edit']" type="primary" :loading="saving" @click="save">保存</el-button>
       </template>
     </el-dialog>
   </el-card>
@@ -117,6 +118,7 @@ import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
+import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface SystemConfigRow {
@@ -128,6 +130,7 @@ interface SystemConfigRow {
 
 const route = useRoute();
 const router = useRouter();
+const auth = useAuthStore();
 const loading = ref(false);
 const saving = ref(false);
 const keyword = ref('');
@@ -160,7 +163,6 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<SystemConfigRow>((r) => r.configKey);
 
 const {
-  canImport,
   importing,
   importInput,
   onExport,

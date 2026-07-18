@@ -10,18 +10,18 @@
     <view class="login-content">
       <view class="hero">
         <text class="brand">AI开门柜</text>
-        <text class="tagline">商户运营中心</text>
+        <text class="tagline">补货与运营</text>
         <view class="badge">
           <text class="badge-icon">◆</text>
-          <text class="badge-text">智能柜机 · 库存经营</text>
+          <text class="badge-text">扫码到柜 · 补货上架 · 经营对账</text>
         </view>
       </view>
 
       <view class="login-spacer" />
 
       <view class="form-card">
-        <text class="title">商户登录</text>
-        <text class="subtitle">管理柜机、库存与经营数据</text>
+        <text class="title">登录</text>
+        <text class="subtitle">补货员与商户运营共用入口</text>
 
         <view class="field">
           <text class="field-label">手机号</text>
@@ -43,9 +43,10 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { merchantLogin, merchantApi } from '@/utils/merchant-api';
+import { showDevTools } from '@/utils/runtime-flags';
 import loginBgUrl from '@/static/login-bg.png';
 
-const isDev = import.meta.env.DEV;
+const isDev = showDevTools();
 const phone = ref(isDev ? '13800138001' : '');
 const password = ref(isDev ? '123456' : '');
 const loading = ref(false);

@@ -22,6 +22,7 @@ public class MerchantReplenishmentService {
     private final MerchantScopeService merchantScopeService;
     private final MerchantPortalGuard merchantPortalGuard;
     private final ReplenishmentService replenishmentService;
+    private final OpsService opsService;
     private final WarehouseService warehouseService;
     private final AdminAuditService auditService;
     private final DeviceInfoMapper deviceRepository;
@@ -37,6 +38,7 @@ public class MerchantReplenishmentService {
                                         MerchantScopeService merchantScopeService,
                                         MerchantPortalGuard merchantPortalGuard,
                                         ReplenishmentService replenishmentService,
+                                        OpsService opsService,
                                         WarehouseService warehouseService,
                                         AdminAuditService auditService,
                                         DeviceInfoMapper deviceRepository,
@@ -51,6 +53,7 @@ public class MerchantReplenishmentService {
         this.merchantScopeService = merchantScopeService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.replenishmentService = replenishmentService;
+        this.opsService = opsService;
         this.warehouseService = warehouseService;
         this.auditService = auditService;
         this.deviceRepository = deviceRepository;
@@ -100,6 +103,19 @@ public class MerchantReplenishmentService {
         auditService.record(userId, "MERCHANT_REPLENISHMENT_COMPLETE", "REPLENISHMENT_TASK",
                 String.valueOf(taskId), "deviceId=" + task.getDeviceId());
         return result;
+    }
+
+    /**
+     * 商户/补货员现场开门：须已签到，绑定补货任务，不走消费者结算。
+     */
+    @Transactional
+    public SessionDto openDoorForTask(Long userId, Long taskId) {
+        ReplenishmentTask task = requireScopedTask(userId, taskId);
+        SessionDto session = opsService.openDoorForRestockAsUser(userId, task.getDeviceId(), taskId);
+        auditService.record(userId, "MERCHANT_REPLENISHMENT_OPEN_DOOR", "REPLENISHMENT_TASK",
+                String.valueOf(taskId),
+                "deviceId=" + task.getDeviceId() + ",sessionId=" + session.sessionId());
+        return session;
     }
 
     private ReplenishmentTask requireScopedTask(Long userId, Long taskId) {

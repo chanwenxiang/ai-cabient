@@ -10,7 +10,7 @@
             </div>
           </div>
           <div class="page-card-head__actions">
-            <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+            <el-button v-hasPermi="['ops:exception:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
             <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
           </div>
         </div>
@@ -134,7 +134,7 @@
                 <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="150" class-name="col-action" align="center" fixed="right">
+            <el-table-column label="操作" width="150" class-name="col-action" align="center">
               <template #default="{ row }">
                 <TableActions :actions="exceptionActions(row)" @action="(key) => onExceptionAction(key, row)" />
               </template>
@@ -230,7 +230,7 @@
           <el-button v-if="canRetry(detail.exception)" type="warning" @click="retryException">重试识别/结算</el-button>
           <el-button v-if="canManualResolve(detail.exception)" type="success" @click="openManualResolve">人工确认商品</el-button>
           <el-button v-if="canManualResolve(detail.exception)" type="danger" plain @click="waiveOrder">免单/全额退回</el-button>
-          <el-button v-if="detail.exception.sessionId" type="danger" @click="cancelSession">取消会话并释放设备</el-button>
+          <el-button v-if="detail.exception.sessionId && auth.hasPerm('ops:session:cancel')" type="danger" @click="cancelSession">取消会话并释放设备</el-button>
         </div>
 
         <h3 class="section-title">处理记录</h3>
@@ -282,7 +282,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onDeactivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onDeactivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { CircleCheck, Refresh, UserFilled, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -299,7 +299,7 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const canHandle = computed(
-  () => auth.hasPerm('ops:exception:handle') || auth.hasPerm('ops:dashboard:view')
+  () => auth.hasPerm('ops:exception:handle')
 );
 
 interface OpsException {
@@ -599,25 +599,39 @@ async function waiveOrder() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (typeof route.query.status === 'string' && route.query.status !== status.value) {
-    status.value = route.query.status;
+  const qStatus = typeof route.query.status === 'string' ? route.query.status : '';
+  const qSeverity = typeof route.query.severity === 'string' ? route.query.severity : '';
+  // Keep default OPEN when query omits status (matches page default).
+  const nextStatus = qStatus || 'OPEN';
+  if (nextStatus !== status.value) {
+    status.value = nextStatus;
     changed = true;
   }
-  if (typeof route.query.severity === 'string' && route.query.severity !== severity.value) {
-    severity.value = route.query.severity;
+  if (qSeverity !== severity.value) {
+    severity.value = qSeverity;
     changed = true;
   }
   return changed;
 }
 
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+  await load();
+}
+
+watch(
+  () => [route.query.status, route.query.severity] as const,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
+
 onActivated(async () => {
   drawer.value = false;
   detail.value = null;
   manualDialog.value = false;
-  if (applyRouteQuery()) {
-    page.value = 1;
-    await load();
-  }
+  await reloadFromRouteQuery();
 });
 onDeactivated(() => {
   drawer.value = false;

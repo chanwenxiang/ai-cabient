@@ -152,6 +152,16 @@ public class SettlementService {
 
         recognition = withGravityFallback(session, recognition);
 
+        // Honor explicit vision need_review even in local mock mode (dispute E2E toggle).
+        // Previously mock cart settle short-circuited before this check, so force-review never fired.
+        if (recognition.needReview()) {
+            OrderDto stagingOrder = tryStagingGravitySettle(session);
+            if (stagingOrder != null) {
+                return stagingOrder;
+            }
+            escalateToDispute(session, recognition, "识别结果需人工审核");
+        }
+
         if (allowDevFallback && securityProperties.mockEnabled()) {
             List<VisionServiceClient.RecognizedItem> cartItems =
                     gravityHelper.toRecognizedItems(session.getGravityDeltas());
@@ -162,18 +172,6 @@ public class SettlementService {
                 log.info("dev mock settle session={} cartItems={}", session.getSessionId(), cartItems.size());
             }
             return finalizeOrder(session, cartItems);
-        }
-
-        if (recognition.needReview()) {
-            if (allowDevFallback && securityProperties.mockEnabled() && !recognition.items().isEmpty()) {
-                log.warn("dev mock: skip manual review session={}", session.getSessionId());
-                return finalizeOrder(session, recognition.items());
-            }
-            OrderDto stagingOrder = tryStagingGravitySettle(session);
-            if (stagingOrder != null) {
-                return stagingOrder;
-            }
-            escalateToDispute(session, recognition, "识别结果需人工审核");
         }
 
         if (recognition.items().isEmpty()) {

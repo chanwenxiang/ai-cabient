@@ -1,4 +1,5 @@
-export type DictType = keyof typeof DICT;
+export declare function setDictOverrides(map: Record<string, Record<string, string>> | null | undefined): void;
+export declare function clearDictOverrides(): void;
 export declare const DICT: {
     readonly device_type: {
         readonly AI_CABINET_V1: "AI智能柜 V1";
@@ -25,7 +26,7 @@ export declare const DICT: {
     readonly dispute_status: {
         readonly OPEN: "待审核";
         readonly RESOLVED: "已结案";
-        readonly CLOSED: "已结案";
+        readonly CLOSED: "已关闭";
     };
     readonly pay_channel: {
         readonly WECHAT: "微信";
@@ -33,6 +34,48 @@ export declare const DICT: {
         readonly MOCK: "其他";
         readonly BALANCE: "余额";
         readonly UNKNOWN: "未知";
+    };
+    readonly recharge_status: {
+        readonly CREATED: "已创建";
+        readonly PENDING: "待支付";
+        readonly PAID: "已支付";
+        readonly SUCCESS: "成功";
+        readonly FAILED: "失败";
+        readonly REFUNDED: "已退款";
+        readonly CANCELLED: "已取消";
+        readonly CLOSED: "已关闭";
+    };
+    readonly risk_event_type: {
+        readonly MULTI_DEVICE: "多设备异常";
+        readonly HIGH_FREQUENCY: "高频开门";
+        readonly DISPUTE_SPIKE: "争议激增";
+        readonly PAYMENT_FAIL: "支付失败聚集";
+        readonly BLACKLIST_HIT: "黑名单命中";
+        readonly MALICIOUS_OPEN: "高频恶意开门";
+        readonly DISPUTE_CREATED: "用户发起争议";
+        readonly FREQUENT_DISPUTE: "频繁发起争议";
+        readonly BLACKLIST_ADD: "人工加入黑名单";
+        readonly BLACKLIST_AUTO: "自动加入黑名单";
+        readonly FRAUD: "欺诈嫌疑";
+        readonly ABNORMAL: "异常行为";
+    };
+    readonly risk_severity: {
+        readonly INFO: "提示";
+        readonly WARN: "警告";
+        readonly BLOCK: "已拦截";
+        readonly HIGH: "高风险";
+        readonly CRITICAL: "严重";
+    };
+    readonly feedback_type: {
+        readonly COMPLAINT: "投诉";
+        readonly SUGGESTION: "建议";
+        readonly BUG: "缺陷";
+        readonly PRAISE: "表扬";
+    };
+    readonly feedback_status: {
+        readonly PENDING: "待处理";
+        readonly HANDLED: "已回复";
+        readonly CLOSED: "已关闭";
     };
     readonly split_status: {
         readonly PENDING: "待处理";
@@ -89,7 +132,9 @@ export declare const DICT: {
     };
     readonly warehouse_movement_type: {
         readonly PURCHASE_RECEIVE: "采购收货";
+        readonly PURCHASE_RETURN: "采购退货";
         readonly MANUAL_INBOUND: "手工入库";
+        readonly INBOUND_MANUAL: "手工入库";
         readonly OUTBOUND: "出库";
         readonly OUTBOUND_SHIP: "发运";
         readonly RETURN: "退回";
@@ -97,7 +142,10 @@ export declare const DICT: {
     };
     readonly business_reference_type: {
         readonly PURCHASE_ORDER: "采购单";
+        readonly PURCHASE_RETURN: "采购退货";
         readonly OUTBOUND_ORDER: "出库单";
+        readonly WAREHOUSE_INBOUND: "仓库入库";
+        readonly WAREHOUSE_OUTBOUND: "仓库出库";
         readonly REPLENISHMENT_TASK: "补货任务";
         readonly INVENTORY_ADJUSTMENT: "库存调整";
         readonly MANUAL: "人工操作";
@@ -149,12 +197,14 @@ export declare const DICT: {
         readonly OPEN_TIMEOUT: "开门超时";
         readonly UPLOAD_STUCK: "录像上传滞留";
         readonly RECOGNITION_STUCK: "识别滞留";
+        readonly RECOGNITION_TIMEOUT: "识别超时";
         readonly RECOGNITION_FAILED: "识别存疑需人工审核";
         readonly RECOGNITION_UNAVAILABLE: "识别服务不可用";
         readonly BALANCE_INSUFFICIENT: "余额不足";
         readonly SETTLEMENT_FAILED: "结算失败";
         readonly SETTLEMENT_STUCK: "结算滞留";
         readonly INVENTORY_MISMATCH: "库存差异";
+        readonly SLOT_DISCREPANCY: "货道账实差异";
     };
     readonly ops_exception_action: {
         readonly OPS_EXCEPTION_CLAIM: "领取异常";
@@ -190,9 +240,10 @@ export declare const DICT: {
         readonly CANCELLED: "已取消";
     };
 };
+export type DictType = keyof typeof DICT;
 export type DictTagType = 'success' | 'warning' | 'danger' | 'info' | 'primary';
-export declare function dictLabel(type: DictType, code: string | null | undefined): string;
-export declare function dictOptions(type: DictType): {
+export declare function dictLabel(type: DictType | string, code: string | null | undefined): string;
+export declare function dictOptions(type: DictType | string): {
     value: string;
     label: string;
 }[];

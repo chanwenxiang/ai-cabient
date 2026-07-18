@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -9,7 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:device:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button type="primary" :icon="Refresh" :loading="loading" @click="load(false)">刷新</el-button>
         </div>
       </div>
@@ -100,13 +100,10 @@
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="140" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="140" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
-                :actions="[
-                  { key: 'detail', label: '详情', icon: View, type: 'primary' },
-                  { key: 'policy', label: '退款设置', icon: Setting, type: 'warning' }
-                ]"
+                :actions="deviceActions(row)"
                 @action="(key: string) => onRowAction(key, row)"
               />
             </template>
@@ -156,7 +153,7 @@
       </el-form>
       <template #footer>
         <el-button @click="policyVisible = false">取消</el-button>
-        <el-button type="primary" :loading="policySaving" @click="savePolicy">保存</el-button>
+        <el-button v-hasPermi="['ops:device:edit']" type="primary" :loading="policySaving" @click="savePolicy">保存</el-button>
       </template>
     </el-dialog>
   </el-card>
@@ -169,14 +166,16 @@ import { Refresh, Setting, View } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
-import TableActions from '@/components/TableActions.vue';
+import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
+import { useAuthStore } from '@/stores/auth';
 import type { DeviceInfo, PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 const router = useRouter();
 const route = useRoute();
+const auth = useAuthStore();
 const loading = ref(false);
 const keyword = ref('');
 const onlineFilter = ref('');
@@ -235,6 +234,14 @@ const { onExport } = useListCsv({
 
 function goDetail(row: DeviceInfo) {
   router.push(`/devices/${row.deviceId}`);
+}
+
+function deviceActions(_row: DeviceInfo): TableAction[] {
+  const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
+  if (auth.hasPerm('ops:device:edit')) {
+    actions.push({ key: 'policy', label: '退款设置', icon: Setting, type: 'warning' });
+  }
+  return actions;
 }
 
 function onRowAction(key: string, row: DeviceInfo) {

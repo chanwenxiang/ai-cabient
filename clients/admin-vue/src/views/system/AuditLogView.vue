@@ -9,7 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:audit:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-switch v-model="mineOnly" active-text="仅看我的" @change="onMineChange" />
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>

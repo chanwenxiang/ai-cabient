@@ -1,5 +1,9 @@
 <template>
   <view>
+    <view class="toolbar">
+      <button class="scan-btn" :loading="scanning" @click="onScan">扫码到柜</button>
+      <button class="replenish-btn" @click="goReplenishment">补货任务</button>
+    </view>
     <view v-if="loading" class="card">加载中…</view>
     <view v-else-if="error" class="card"><text class="err">{{ error }}</text></view>
     <view v-else>
@@ -25,10 +29,16 @@
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import { merchantApi } from '@/utils/merchant-api';
-import type { DeviceInfo } from '@aicabinet/shared-types';
+import { hasPerm, merchantApi } from '@/utils/merchant-api';
+import { useMerchantMe } from '@/composables/useMerchantMe';
+import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
+import type { DeviceInfo, MerchantMe } from '@aicabinet/shared-types';
+
+const { me, refresh: refreshMe } = useMerchantMe();
+const canListDevices = computed(() => hasPerm(me.value, 'merchant:devices:list'));
 
 const loading = ref(true);
+const scanning = ref(false);
 const error = ref('');
 const devices = ref<(DeviceInfo & { online?: boolean })[]>([]);
 const keyword = ref('');
@@ -57,6 +67,16 @@ async function load() {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
+  try {
+    await refreshMe();
+  } catch {
+    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  if (!canListDevices.value) {
+    uni.showToast({ title: '无柜机权限', icon: 'none' });
+    uni.switchTab({ url: '/pages/home/home' });
+    return;
+  }
   loading.value = true;
   try {
     const list = await merchantApi.devices();
@@ -72,11 +92,50 @@ function goDetail(id: string) {
   uni.navigateTo({ url: `/pages/device-detail/device-detail?id=${encodeURIComponent(id)}` });
 }
 
+function goReplenishment() {
+  uni.navigateTo({ url: '/pages/replenishment/replenishment' });
+}
+
+async function onScan() {
+  if (scanning.value) return;
+  scanning.value = true;
+  try {
+    const id = await scanCabinetDeviceId();
+    if (!id) return;
+    const hit = devices.value.find((d) => d.deviceId === id);
+    if (!hit) {
+      uni.showToast({ title: '未找到该柜机或无权限', icon: 'none' });
+      return;
+    }
+    goDetail(id);
+  } finally {
+    scanning.value = false;
+  }
+}
+
 onShow(load);
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 </script>
 
 <style scoped>
+.toolbar {
+  display: flex;
+  gap: 12rpx;
+  padding: 16rpx 24rpx 0;
+  background: #f0fdfa;
+}
+.scan-btn, .replenish-btn {
+  flex: 1;
+  margin: 0;
+  height: 72rpx;
+  line-height: 72rpx;
+  border-radius: 36rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+.scan-btn { background: #0f766e; color: #fff; }
+.replenish-btn { background: #fff; color: #0f766e; border: 1rpx solid #99f6e4; }
+.scan-btn::after, .replenish-btn::after { border: none; }
 .device-card { display: flex; justify-content: space-between; align-items: center; }
 .filters { position: sticky; top: 0; z-index: 2; background: #f0fdfa; padding: 16rpx 24rpx 12rpx; }
 .search { height: 72rpx; box-sizing: border-box; background: #fff; border: 1rpx solid #ccfbf1; border-radius: 36rpx; padding: 0 28rpx; font-size: 26rpx; }

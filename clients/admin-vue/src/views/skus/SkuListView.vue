@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -9,11 +9,11 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button v-if="canImport" @click="onDownloadTemplate(['SKU-DEMO-001', '示例商品', '3.50', '', '饮料', 'demo_sku', '映射中', '上架', '92%', '50%'])">导入模板</el-button>
-          <el-button v-if="canImport" :loading="importing" @click="triggerImport">导入</el-button>
+          <el-button v-hasPermi="['ops:sku:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:sku:import']" @click="onDownloadTemplate(['SKU-DEMO-001', '示例商品', '3.50', '', '饮料', 'demo_sku', '映射中', '上架', '92%', '50%'])">导入模板</el-button>
+          <el-button v-hasPermi="['ops:sku:import']" :loading="importing" @click="triggerImport">导入</el-button>
           <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
-          <el-button type="primary" @click="openEnroll()">新建商品</el-button>
+          <el-button v-hasPermi="['ops:sku:edit']" type="primary" @click="openEnroll()">新建商品</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -100,7 +100,7 @@
           <el-table-column label="检测阈值" width="96" align="center">
             <template #default="{ row }">{{ formatConfidence(row.detectionMinConfidence ?? 0.5) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="132" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="132" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 :actions="skuActions(row)"
@@ -164,7 +164,7 @@
       </el-form>
       <template #footer>
         <el-button @click="enrollDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveEnroll">保存</el-button>
+        <el-button v-hasPermi="['ops:sku:edit']" type="primary" :loading="saving" @click="saveEnroll">保存</el-button>
       </template>
     </el-dialog>
 
@@ -203,6 +203,7 @@ import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
+import { useAuthStore } from '@/stores/auth';
 import type {
   DevRecognitionPreviewDto,
   SkuCatalog,
@@ -211,6 +212,7 @@ import type {
 
 const route = useRoute();
 const router = useRouter();
+const auth = useAuthStore();
 const loading = ref(false);
 const saving = ref(false);
 const testing = ref(false);
@@ -267,7 +269,7 @@ function parseConfidence(raw: string | undefined, fallback: number) {
   return n > 1 ? n / 100 : n;
 }
 
-const { canImport, importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
+const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
   filePrefix: '商品',
   headers: ['商品编号', '名称', '基准价', '成本', '类目', '识别类名', '识别状态', '商品状态', '扣款阈值', '检测阈值'],
   toRows: () =>
@@ -379,13 +381,14 @@ function enrollmentTagType(status?: string) {
 }
 
 function skuActions(row: SkuCatalog): TableAction[] {
-  const acts: TableAction[] = [
-    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }
-  ];
+  const acts: TableAction[] = [];
+  if (auth.hasPerm('ops:sku:edit')) {
+    acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
+  }
   if (ENABLE_TEST_TOOLS) {
     acts.push({ key: 'test', label: '识别测试', icon: Upload, type: 'warning' });
   }
-  if (row.visionEnrollmentStatus !== 'PRODUCTION') {
+  if (auth.hasPerm('ops:sku:edit') && row.visionEnrollmentStatus !== 'PRODUCTION') {
     acts.push({ key: 'production', label: '转生产', icon: CircleCheck, type: 'success', overflow: true });
   }
   return acts;

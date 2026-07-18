@@ -1,3 +1,21 @@
+/**
+ * Shared dict labels (compile-time baseline + optional runtime overrides).
+ *
+ * Contract:
+ * - Dict = display metadata (labels, filter options, tags). Not capability switches.
+ * - Payment / feature ability stays in Java constants (e.g. PayChannels) + env flags
+ *   (ALIPAY_ENABLED, PAYSCORE_*). Disabling a dict item must not block checkout.
+ * - New business enum codes: add in backend first, then seed here + SysDictBootstrap.
+ * - Clients load GET /api/v2/dicts/runtime when logged in; on failure keep DICT defaults.
+ */
+/** Runtime overrides from ops dict admin (value -> label per type). */
+let runtimeOverrides = {};
+export function setDictOverrides(map) {
+    runtimeOverrides = map || {};
+}
+export function clearDictOverrides() {
+    runtimeOverrides = {};
+}
 export const DICT = {
     device_type: { AI_CABINET_V1: 'AI智能柜 V1' },
     session_state: {
@@ -19,8 +37,50 @@ export const DICT = {
         UPLOADED: '已上传',
         FAILED: '上传失败'
     },
-    dispute_status: { OPEN: '待审核', RESOLVED: '已结案', CLOSED: '已结案' },
+    dispute_status: { OPEN: '待审核', RESOLVED: '已结案', CLOSED: '已关闭' },
     pay_channel: { WECHAT: '微信', ALIPAY: '支付宝', MOCK: '其他', BALANCE: '余额', UNKNOWN: '未知' },
+    recharge_status: {
+        CREATED: '已创建',
+        PENDING: '待支付',
+        PAID: '已支付',
+        SUCCESS: '成功',
+        FAILED: '失败',
+        REFUNDED: '已退款',
+        CANCELLED: '已取消',
+        CLOSED: '已关闭'
+    },
+    risk_event_type: {
+        MULTI_DEVICE: '多设备异常',
+        HIGH_FREQUENCY: '高频开门',
+        DISPUTE_SPIKE: '争议激增',
+        PAYMENT_FAIL: '支付失败聚集',
+        BLACKLIST_HIT: '黑名单命中',
+        MALICIOUS_OPEN: '高频恶意开门',
+        DISPUTE_CREATED: '用户发起争议',
+        FREQUENT_DISPUTE: '频繁发起争议',
+        BLACKLIST_ADD: '人工加入黑名单',
+        BLACKLIST_AUTO: '自动加入黑名单',
+        FRAUD: '欺诈嫌疑',
+        ABNORMAL: '异常行为'
+    },
+    risk_severity: {
+        INFO: '提示',
+        WARN: '警告',
+        BLOCK: '已拦截',
+        HIGH: '高风险',
+        CRITICAL: '严重'
+    },
+    feedback_type: {
+        COMPLAINT: '投诉',
+        SUGGESTION: '建议',
+        BUG: '缺陷',
+        PRAISE: '表扬'
+    },
+    feedback_status: {
+        PENDING: '待处理',
+        HANDLED: '已回复',
+        CLOSED: '已关闭'
+    },
     split_status: {
         PENDING: '待处理',
         LEDGER_ONLY: '仅记账',
@@ -57,7 +117,9 @@ export const DICT = {
     in_transit_status: { IN_TRANSIT: '在途', RECEIVED: '已签收', LOST: '丢失', DAMAGED: '破损' },
     warehouse_movement_type: {
         PURCHASE_RECEIVE: '采购收货',
+        PURCHASE_RETURN: '采购退货',
         MANUAL_INBOUND: '手工入库',
+        INBOUND_MANUAL: '手工入库',
         OUTBOUND: '出库',
         OUTBOUND_SHIP: '发运',
         RETURN: '退回',
@@ -65,7 +127,10 @@ export const DICT = {
     },
     business_reference_type: {
         PURCHASE_ORDER: '采购单',
+        PURCHASE_RETURN: '采购退货',
         OUTBOUND_ORDER: '出库单',
+        WAREHOUSE_INBOUND: '仓库入库',
+        WAREHOUSE_OUTBOUND: '仓库出库',
         REPLENISHMENT_TASK: '补货任务',
         INVENTORY_ADJUSTMENT: '库存调整',
         MANUAL: '人工操作'
@@ -80,9 +145,10 @@ export const DICT = {
         DISPUTE: '消费争议', LOW_STOCK: '低库存', EXPIRY: '临期商品', REPLENISHMENT_REQUIRED: '待补货',
         DEVICE_OFFLINE: '设备离线', DEVICE_FAULT: '设备故障', DOOR_OPEN_TOO_LONG: '长时间未关门',
         OPEN_TIMEOUT: '开门超时', UPLOAD_STUCK: '录像上传滞留', RECOGNITION_STUCK: '识别滞留',
-        RECOGNITION_FAILED: '识别存疑需人工审核', RECOGNITION_UNAVAILABLE: '识别服务不可用',
+        RECOGNITION_TIMEOUT: '识别超时', RECOGNITION_FAILED: '识别存疑需人工审核',
+        RECOGNITION_UNAVAILABLE: '识别服务不可用',
         BALANCE_INSUFFICIENT: '余额不足', SETTLEMENT_FAILED: '结算失败', SETTLEMENT_STUCK: '结算滞留',
-        INVENTORY_MISMATCH: '库存差异'
+        INVENTORY_MISMATCH: '库存差异', SLOT_DISCREPANCY: '货道账实差异'
     },
     ops_exception_action: {
         OPS_EXCEPTION_CLAIM: '领取异常',
@@ -113,13 +179,20 @@ const STATUS_TAGS = {
     INACTIVE: 'danger', OFFLINE: 'danger', FAILED: 'danger', REJECTED: 'danger', CANCELLED: 'danger', BLOCKED: 'danger', LOST: 'danger', DAMAGED: 'danger', CRITICAL: 'danger', MISMATCH: 'danger'
 };
 export function dictLabel(type, code) {
+    const key = String(code || '').toUpperCase();
+    const override = runtimeOverrides[type]?.[key] ?? runtimeOverrides[type]?.[String(code || '')];
+    if (override)
+        return override;
     const map = DICT[type];
     if (!map)
         return code || '-';
-    const key = String(code || '').toUpperCase();
     return map[key] ?? map[code] ?? code ?? '-';
 }
 export function dictOptions(type) {
+    const override = runtimeOverrides[type];
+    if (override && Object.keys(override).length) {
+        return Object.entries(override).map(([value, label]) => ({ value, label }));
+    }
     const map = DICT[type];
     return Object.entries(map || {}).map(([value, label]) => ({ value, label }));
 }

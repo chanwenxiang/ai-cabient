@@ -33,29 +33,55 @@ public class SysDictBootstrap implements ApplicationRunner {
     @Override
     @Transactional
     public void run(ApplicationArguments args) {
-        if (typeRepository.count() > 0) {
+        if (typeRepository.count() == 0) {
+            int sort = 1;
+            for (Map.Entry<String, SeedType> entry : seedCatalog().entrySet()) {
+                SysDictType type = new SysDictType();
+                type.setDictType(entry.getKey());
+                type.setDictName(entry.getValue().name());
+                type.setStatus("ACTIVE");
+                type.setSortOrder(sort++);
+                typeRepository.save(type);
+                int itemSort = 1;
+                for (Map.Entry<String, String> item : entry.getValue().items().entrySet()) {
+                    SysDictData data = new SysDictData();
+                    data.setDictType(entry.getKey());
+                    data.setDictValue(item.getKey());
+                    data.setDictLabel(item.getValue());
+                    data.setSortOrder(itemSort++);
+                    data.setStatus("ACTIVE");
+                    dataRepository.save(data);
+                }
+            }
+            log.info("Seeded {} dict types", typeRepository.count());
+        }
+        // Keep exception_type labels in sync when new codes ship after initial seed.
+        ensureMissingDictItems("exception_type");
+    }
+
+    private void ensureMissingDictItems(String dictType) {
+        SeedType seed = seedCatalog().get(dictType);
+        if (seed == null) {
             return;
         }
-        int sort = 1;
-        for (Map.Entry<String, SeedType> entry : seedCatalog().entrySet()) {
-            SysDictType type = new SysDictType();
-            type.setDictType(entry.getKey());
-            type.setDictName(entry.getValue().name());
-            type.setStatus("ACTIVE");
-            type.setSortOrder(sort++);
-            typeRepository.save(type);
-            int itemSort = 1;
-            for (Map.Entry<String, String> item : entry.getValue().items().entrySet()) {
-                SysDictData data = new SysDictData();
-                data.setDictType(entry.getKey());
-                data.setDictValue(item.getKey());
-                data.setDictLabel(item.getValue());
-                data.setSortOrder(itemSort++);
-                data.setStatus("ACTIVE");
-                dataRepository.save(data);
+        int added = 0;
+        int sort = (int) dataRepository.countByDictType(dictType) + 1;
+        for (Map.Entry<String, String> item : seed.items().entrySet()) {
+            if (dataRepository.findByDictTypeAndDictValue(dictType, item.getKey()).isPresent()) {
+                continue;
             }
+            SysDictData data = new SysDictData();
+            data.setDictType(dictType);
+            data.setDictValue(item.getKey());
+            data.setDictLabel(item.getValue());
+            data.setSortOrder(sort++);
+            data.setStatus("ACTIVE");
+            dataRepository.save(data);
+            added++;
         }
-        log.info("Seeded {} dict types", typeRepository.count());
+        if (added > 0) {
+            log.info("Added {} missing dict items for {}", added, dictType);
+        }
     }
 
     private record SeedType(String name, Map<String, String> items) {}
@@ -118,9 +144,11 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "DISPUTE", "消费争议", "LOW_STOCK", "低库存", "EXPIRY", "临期商品",
                 "REPLENISHMENT_REQUIRED", "待补货", "DEVICE_OFFLINE", "设备离线", "DEVICE_FAULT", "设备故障",
                 "DOOR_OPEN_TOO_LONG", "长时间未关门", "OPEN_TIMEOUT", "开门超时", "UPLOAD_STUCK", "录像上传滞留",
-                "RECOGNITION_STUCK", "识别滞留", "RECOGNITION_FAILED", "识别存疑需人工审核",
+                "RECOGNITION_STUCK", "识别滞留", "RECOGNITION_TIMEOUT", "识别超时",
+                "RECOGNITION_FAILED", "识别存疑需人工审核",
                 "RECOGNITION_UNAVAILABLE", "识别服务不可用", "BALANCE_INSUFFICIENT", "余额不足",
-                "SETTLEMENT_FAILED", "结算失败", "SETTLEMENT_STUCK", "结算滞留", "INVENTORY_MISMATCH", "库存差异")));
+                "SETTLEMENT_FAILED", "结算失败", "SETTLEMENT_STUCK", "结算滞留",
+                "INVENTORY_MISMATCH", "库存差异", "SLOT_DISCREPANCY", "货道账实差异")));
         map.put("ops_exception_action", t("异常操作", m(
                 "OPS_EXCEPTION_CLAIM", "领取异常", "OPS_EXCEPTION_TRANSFER", "转派异常",
                 "OPS_EXCEPTION_NOTE", "添加备注", "OPS_EXCEPTION_RETRY", "重试识别/结算",

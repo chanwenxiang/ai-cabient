@@ -70,6 +70,36 @@ class PermissionServiceTest {
                 .thenReturn(Set.of("ops:device:*"));
 
         assertTrue(permissionService.hasPermission(OPERATOR_ID, "ops:device:edit"));
+        assertFalse(permissionService.hasPermission(OPERATOR_ID, "ops:sku:edit"));
+    }
+
+    @Test
+    void unrelatedWildcard_doesNotGrantAccess() {
+        when(userRoleRepository.findByIdUserId(OPERATOR_ID)).thenReturn(List.of(new OpsUserRole()));
+        when(permissionRepository.findPermCodesByUserId(OPERATOR_ID))
+                .thenReturn(Set.of("merchant:orders:*"));
+
+        assertFalse(permissionService.hasPermission(OPERATOR_ID, "ops:device:list"));
+    }
+
+    @Test
+    void nestedWildcard_grantsButtonAccess() {
+        when(userRoleRepository.findByIdUserId(OPERATOR_ID)).thenReturn(List.of(new OpsUserRole()));
+        when(permissionRepository.findPermCodesByUserId(OPERATOR_ID))
+                .thenReturn(Set.of("ops:rbac:role:*"));
+
+        assertTrue(permissionService.hasPermission(OPERATOR_ID, "ops:rbac:role:add"));
+        assertFalse(permissionService.hasPermission(OPERATOR_ID, "ops:rbac:menu:add"));
+    }
+
+    @Test
+    void opsAdmin_grantsAll() {
+        when(userRoleRepository.findByIdUserId(OPERATOR_ID)).thenReturn(List.of(new OpsUserRole()));
+        when(permissionRepository.findPermCodesByUserId(OPERATOR_ID))
+                .thenReturn(Set.of("ops:admin"));
+
+        assertTrue(permissionService.hasPermission(OPERATOR_ID, "ops:rbac:role:add"));
+        assertTrue(permissionService.hasPermission(OPERATOR_ID, "merchant:devices:edit"));
     }
 
     @Test

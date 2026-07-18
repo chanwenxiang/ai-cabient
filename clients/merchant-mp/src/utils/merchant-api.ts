@@ -1,7 +1,7 @@
 import { API_BASE_URL } from '@/config/api';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { clearDictOverrides, dictLabel } from '@aicabinet/shared-dict';
 
-function getToken() {
+export function getToken() {
   return uni.getStorageSync('merchant_token') || '';
 }
 
@@ -9,6 +9,7 @@ export function clearSession() {
   uni.removeStorageSync('merchant_token');
   uni.removeStorageSync('merchant_user_id');
   uni.removeStorageSync('merchant_me');
+  clearDictOverrides();
 }
 
 export function request<T>(
@@ -29,7 +30,12 @@ export function request<T>(
         const body = res.data as { code?: number; message?: string; data?: T };
         if (res.statusCode === 401 || res.statusCode === 403) {
           clearSession();
-          reject(new Error(body?.message || '登录已失效'));
+          const pages = getCurrentPages();
+          const route = pages[pages.length - 1]?.route || '';
+          if (!route.includes('login')) {
+            uni.reLaunch({ url: '/pages/login/login' });
+          }
+          reject(new Error(body?.message || '登录已失效，请重新登录'));
           return;
         }
         if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0) {
@@ -51,9 +57,11 @@ export function merchantLogin(phone: string, password: string) {
     'POST',
     { phoneNumber: phone, password },
     false
-  ).then((data) => {
+  ).then(async (data) => {
     uni.setStorageSync('merchant_token', data.token);
     uni.setStorageSync('merchant_user_id', data.userId);
+    const { loadRuntimeDict } = await import('@/utils/dict-runtime');
+    await loadRuntimeDict();
     return data;
   });
 }
@@ -106,6 +114,7 @@ export const merchantApi = {
   },
   exportSettlementsUrl: (from: string, to: string) =>
     `${API_BASE_URL}/api/v2/merchant/settlements/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+  exportDeviceReportsUrl: () => `${API_BASE_URL}/api/v2/merchant/device-reports/export`,
   skuSales: (days = 30) => request<import('@aicabinet/shared-types').MerchantSkuSales[]>(`/api/v2/merchant/analytics/sku-sales?days=${days}`),
   replenishmentSuggestions: (deviceId: string) =>
     request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`),
@@ -115,10 +124,36 @@ export const merchantApi = {
     request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/tasks/${taskId}/lines`),
   checkInReplenishmentTask: (taskId: number, body?: { latitude?: number; longitude?: number }) =>
     request(`/api/v2/merchant/replenishment/tasks/${taskId}/check-in`, 'POST', body || {}),
+  /** 补货员开门：签到后调用，绑定补货任务，不产生消费者账单 */
+  openReplenishmentDoor: (taskId: number) =>
+    request<{ sessionId: string; state?: string }>(
+      `/api/v2/merchant/replenishment/tasks/${taskId}/open-door`,
+      'POST'
+    ),
   confirmReplenishmentLines: (taskId: number, lines: Record<string, unknown>[]) =>
     request(`/api/v2/merchant/replenishment/tasks/${taskId}/lines`, 'POST', { lines }),
   completeReplenishmentTask: (taskId: number) =>
-    request(`/api/v2/merchant/replenishment/tasks/${taskId}/complete`, 'POST')
+    request(`/api/v2/merchant/replenishment/tasks/${taskId}/complete`, 'POST'),
+  disputes: (status?: string) => {
+    const q = status ? `?status=${encodeURIComponent(status)}` : '';
+    return request<{ items?: MerchantDisputeTicket[]; total?: number } | MerchantDisputeTicket[]>(
+      `/api/v2/merchant/disputes${q}`
+    );
+  },
+  disputeDetail: (ticketId: string) =>
+    request<MerchantDisputeTicket>(`/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}`),
+  disputeReply: (ticketId: string, body: string) =>
+    request(`/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}/reply`, 'POST', { body })
+};
+
+export type MerchantDisputeTicket = {
+  ticketId: string;
+  status?: string;
+  reason?: string;
+  deviceId?: string;
+  createdAt?: string;
+  lastMessage?: string;
+  canReply?: boolean;
 };
 
 export function canEditPlanogram(me: import('@aicabinet/shared-types').MerchantMe | null) {
@@ -131,10 +166,30 @@ export function canEditPricing(me: import('@aicabinet/shared-types').MerchantMe 
   return me.merchants.some((m) => m.allowMerchantPricingEdit);
 }
 
+/** 若依风格：精确码或分段通配 merchant:replenishment:* */
 export function hasPerm(me: import('@aicabinet/shared-types').MerchantMe | null, code: string) {
-  return (me?.permissions || []).includes(code);
+  const perms = me?.permissions || [];
+  if (!code) return true;
+  if (perms.includes('ops:admin')) return true;
+  if (perms.includes(code)) return true;
+  const segments = code.split(':');
+  for (let i = segments.length - 1; i >= 1; i--) {
+    const wildcard = `${segments.slice(0, i).join(':')}:*`;
+    if (perms.includes(wildcard)) return true;
+  }
+  return false;
 }
 
+/** 商户端展示用：运营字典「设备」在商户侧统一为「柜机」 */
+const MERCHANT_ALERT_TYPE_LABELS: Record<string, string> = {
+  DEVICE_OFFLINE: '柜机离线',
+  DEVICE_FAULT: '柜机故障'
+};
+
 export function alertTypeLabel(type: string) {
-  return dictLabel('exception_type', type);
+  return MERCHANT_ALERT_TYPE_LABELS[type] || dictLabel('exception_type', type);
+}
+
+export function merchantAlertTitle(_type: string, title: string) {
+  return String(title || '').replaceAll('设备', '柜机');
 }

@@ -10,67 +10,86 @@
     <view class="login-content">
       <view class="hero">
         <text class="brand">AI开门柜</text>
-        <text class="tagline">无感支付 · 即拿即走</text>
+        <text class="tagline">扫码开门 · 拿了就走</text>
         <view class="badge">
           <text class="badge-icon">✓</text>
-          <text class="badge-text">微信支付分 · 先购后付</text>
+          <text class="badge-text">关门自动结算</text>
         </view>
       </view>
 
       <view class="login-spacer" />
 
       <view class="form-card">
-        <text class="title">手机号验证</text>
-        <text class="subtitle">扫码购物无需注册；绑定账户或微信授权失败时使用</text>
+        <text class="title">登录后继续</text>
+        <text class="subtitle">微信授权即可开门购物；手机号仅作备用验证</text>
 
-        <view class="tabs">
-          <view :class="['tab-item', mode === 'sms' ? 'on' : '']" @click="mode = 'sms'">验证码</view>
-          <view :class="['tab-item', mode === 'password' ? 'on' : '']" @click="mode = 'password'">密码</view>
+        <view
+          class="btn-wx"
+          :class="{ disabled: loading }"
+          @click="onWxLogin"
+        >
+          {{ loading && wxMode ? '授权中…' : '微信授权登录' }}
         </view>
 
-        <view class="field">
-          <text class="field-label">手机号</text>
-          <input
-            class="input"
-            type="number"
-            maxlength="11"
-            :value="phone"
-            placeholder="请输入11位手机号"
-            @input="phone = eventInputValue($event)"
-          />
+        <view class="divider">
+          <view class="divider-line" />
+          <text class="divider-text" @click="showPhoneForm = !showPhoneForm">
+            {{ showPhoneForm ? '收起手机号登录' : '其他方式' }}
+          </text>
+          <view class="divider-line" />
         </view>
 
-        <view v-if="mode === 'password'" class="field">
-          <text class="field-label">密码</text>
-          <input
-            class="input"
-            password
-            :value="password"
-            placeholder="请输入登录密码"
-            @input="password = eventInputValue($event)"
-          />
-        </view>
-        <view v-else class="field">
-          <text class="field-label">验证码</text>
-          <view class="row">
+        <view v-if="showPhoneForm">
+          <view class="tabs">
+            <view :class="['tab-item', mode === 'sms' ? 'on' : '']" @click="mode = 'sms'">验证码</view>
+            <view :class="['tab-item', mode === 'password' ? 'on' : '']" @click="mode = 'password'">密码</view>
+          </view>
+
+          <view class="field">
+            <text class="field-label">手机号</text>
             <input
-              class="input flex"
-              :value="code"
-              placeholder="请输入验证码"
-              @input="code = eventInputValue($event)"
+              class="input"
+              type="number"
+              maxlength="11"
+              :value="phone"
+              placeholder="请输入11位手机号"
+              @input="phone = eventInputValue($event)"
             />
-            <view class="btn-code" :class="{ disabled: !!codeCooldown }" @click="onSendCode">
-              {{ codeCooldown ? codeCooldown + 's' : '获取验证码' }}
+          </view>
+
+          <view v-if="mode === 'password'" class="field">
+            <text class="field-label">密码</text>
+            <input
+              class="input"
+              password
+              :value="password"
+              placeholder="请输入登录密码"
+              @input="password = eventInputValue($event)"
+            />
+          </view>
+          <view v-else class="field">
+            <text class="field-label">验证码</text>
+            <view class="row">
+              <input
+                class="input flex"
+                :value="code"
+                placeholder="请输入验证码"
+                @input="code = eventInputValue($event)"
+              />
+              <view class="btn-code" :class="{ disabled: !!codeCooldown }" @click="onSendCode">
+                {{ codeCooldown ? codeCooldown + 's' : '获取验证码' }}
+              </view>
             </view>
           </view>
+
+          <view class="btn-primary" :class="{ disabled: loading }" @click="onLogin">
+            {{ loading && !wxMode ? '验证中…' : '验证并继续' }}
+          </view>
+          <text v-if="isDev" class="dev-hint">开发联调：13800138000 / 验证码 123456</text>
         </view>
 
-        <view class="btn-primary" :class="{ disabled: loading }" @click="onLogin">
-          {{ loading ? '验证中…' : '验证并继续' }}
-        </view>
-        <view class="btn-ghost" @click="goBack">返回购物</view>
+        <view class="btn-ghost" @click="goBack">返回</view>
         <text v-if="err" class="err">{{ err }}</text>
-        <text v-if="isDev" class="dev-hint">开发联调：13800138000 / 验证码 123456</text>
       </view>
     </view>
   </view>
@@ -79,31 +98,72 @@
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
 import { ref } from 'vue';
-import { consumerPasswordLogin, consumerSmsLogin, consumerWxLogin, sendSmsCode } from '@/utils/consumer-api';
+import {
+  consumerPasswordLogin,
+  consumerSmsLogin,
+  consumerWxLogin,
+  ensureConsumerAuth,
+  sendSmsCode
+} from '@/utils/consumer-api';
 import { eventInputValue, readDomFieldValue, readDomPassword } from '@/utils/form-bind';
+import { showDevTools } from '@/utils/runtime-flags';
 import loginBgUrl from '@/static/login-bg.png';
 
 const redirect = ref('/pages/index/index');
-
+const showPhoneForm = ref(false);
 const mode = ref<'password' | 'sms'>('sms');
 const phone = ref(import.meta.env.DEV ? '13800138000' : '');
 const password = ref('');
 const code = ref(import.meta.env.DEV ? '123456' : '');
 const loading = ref(false);
+const wxMode = ref(false);
 const err = ref('');
 const codeCooldown = ref(0);
-const isDev = import.meta.env.DEV;
+const isDev = showDevTools();
 let codeTimer: ReturnType<typeof setInterval> | null = null;
 
 onLoad((opts) => {
   if (opts?.redirect) redirect.value = decodeURIComponent(String(opts.redirect));
 });
 
-function goBack() {
-  if (redirect.value.startsWith('/pages/index') || redirect.value.startsWith('/pages/orders') || redirect.value.startsWith('/pages/mine')) {
-    uni.switchTab({ url: redirect.value.split('?')[0] });
+function finishLogin() {
+  const target = redirect.value.split('?')[0];
+  if (target.startsWith('/pages/index') || target.startsWith('/pages/orders') || target.startsWith('/pages/mine')) {
+    uni.switchTab({ url: target });
   } else {
-    uni.redirectTo({ url: redirect.value });
+    uni.redirectTo({
+      url: redirect.value,
+      fail: () => uni.switchTab({ url: '/pages/index/index' })
+    });
+  }
+}
+
+function goBack() {
+  uni.navigateBack({
+    fail: () => uni.switchTab({ url: '/pages/index/index' })
+  });
+}
+
+async function onWxLogin() {
+  if (loading.value) return;
+  loading.value = true;
+  wxMode.value = true;
+  err.value = '';
+  try {
+    const ok = await ensureConsumerAuth();
+    if (!ok) {
+      // H5 / 非微信：引导展开手机号
+      showPhoneForm.value = true;
+      err.value = '当前环境无法微信授权，请使用手机号登录';
+      return;
+    }
+    finishLogin();
+  } catch (e) {
+    err.value = e instanceof Error ? e.message : '微信授权失败';
+    showPhoneForm.value = true;
+  } finally {
+    loading.value = false;
+    wxMode.value = false;
   }
 }
 
@@ -148,14 +208,15 @@ async function onLogin() {
     }
   } else {
     let sms = code.value.trim();
-    if (!sms) sms = readDomFieldValue('input');
-    code.value = sms;
+    // 避免误读手机号输入框：优先已有 code
     if (!sms) {
       err.value = '请输入验证码';
       return;
     }
+    code.value = sms;
   }
   loading.value = true;
+  wxMode.value = false;
   err.value = '';
   try {
     if (mode.value === 'password') {
@@ -171,7 +232,7 @@ async function onLogin() {
     } catch {
       /* 非微信环境或绑定失败时仍可用手机号会话 */
     }
-    goBack();
+    finishLogin();
   } catch (e) {
     err.value = e instanceof Error ? e.message : '验证失败';
   } finally {
@@ -337,6 +398,37 @@ async function onLogin() {
   margin-bottom: 28rpx;
   line-height: 1.5;
 }
+.btn-wx {
+  background: linear-gradient(135deg, #07c160, #059669);
+  color: #fff;
+  border-radius: 44rpx;
+  height: 96rpx;
+  line-height: 96rpx;
+  text-align: center;
+  font-size: 32rpx;
+  font-weight: 700;
+  box-shadow: 0 10rpx 28rpx rgba(5, 150, 105, 0.28);
+}
+.btn-wx.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  margin: 28rpx 0 20rpx;
+}
+.divider-line {
+  flex: 1;
+  height: 1rpx;
+  background: rgba(180, 83, 9, 0.2);
+}
+.divider-text {
+  font-size: 24rpx;
+  color: #b45309;
+  padding: 8rpx;
+}
 .tabs {
   display: flex;
   gap: 8rpx;
@@ -360,9 +452,7 @@ async function onLogin() {
   background: rgba(255, 251, 235, 0.96);
   box-shadow: 0 2rpx 8rpx rgba(234, 88, 12, 0.12);
 }
-.field {
-  margin-bottom: 20rpx;
-}
+.field { margin-bottom: 20rpx; }
 .field-label {
   display: block;
   font-size: 26rpx;
@@ -382,10 +472,6 @@ async function onLogin() {
   font-size: 28rpx;
   color: #5c3d1e;
   line-height: 88rpx;
-}
-.input:focus {
-  border-color: #f59e0b;
-  background: rgba(255, 255, 255, 0.92);
 }
 .row {
   display: flex;
@@ -423,10 +509,7 @@ async function onLogin() {
   font-weight: 600;
   box-shadow: 0 10rpx 28rpx rgba(234, 88, 12, 0.28);
 }
-.btn-primary.disabled {
-  opacity: 0.6;
-  pointer-events: none;
-}
+.btn-primary.disabled,
 .btn-code.disabled {
   opacity: 0.55;
   pointer-events: none;

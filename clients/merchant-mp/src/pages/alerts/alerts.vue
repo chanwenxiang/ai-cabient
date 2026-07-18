@@ -17,15 +17,28 @@
         <text v-if="a.deviceId" class="action">查看柜机 ›</text>
         <button v-if="a.exceptionId && isInventoryException(a.type)" class="resolve-btn" size="mini" @click.stop="resolveInventory(a)">完成库存核对</button>
       </view>
-      <view v-if="!items.length" class="card meta">暂无待办</view>
+      <empty-state
+        v-if="!items.length"
+        icon="✅"
+        title="暂无待办事项"
+        hint="争议、离线、低库存与临期告警都会集中显示在这里"
+      >
+        <button class="empty-btn primary" @click="goDevices">查看柜机</button>
+      </empty-state>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
-import { ref } from 'vue';
-import { merchantApi, alertTypeLabel } from '@/utils/merchant-api';
+import { computed, ref } from 'vue';
+import EmptyState from '@/components/empty-state.vue';
+import { hasPerm, merchantApi, alertTypeLabel, merchantAlertTitle } from '@/utils/merchant-api';
+import { useMerchantMe } from '@/composables/useMerchantMe';
+import type { MerchantMe } from '@aicabinet/shared-types';
+
+const { me, refresh: refreshMe } = useMerchantMe();
+const canViewAlerts = computed(() => hasPerm(me.value, 'merchant:alerts:view'));
 
 const loading = ref(true);
 const error = ref('');
@@ -45,6 +58,16 @@ async function load() {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
+  try {
+    await refreshMe();
+  } catch {
+    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  if (!canViewAlerts.value) {
+    uni.showToast({ title: '无待办权限', icon: 'none' });
+    uni.switchTab({ url: '/pages/home/home' });
+    return;
+  }
   loading.value = true;
   try {
     const [wb, exceptionPage] = await Promise.all([merchantApi.workbench(), merchantApi.exceptions('OPEN')]);
@@ -57,16 +80,16 @@ async function load() {
     const workbenchItems = (wb.actionItems || []).map((a) => ({
       type: a.type,
       typeLabel: alertTypeLabel(a.type),
-      title: a.title,
-      detail: a.detail || '',
+      title: merchantAlertTitle(a.type, a.title),
+      detail: merchantAlertTitle(a.type, a.detail || ''),
       deviceId: a.deviceId,
       ticketId: a.ticketId
     }));
     const exceptionItems = (exceptionPage.items || []).map((a) => ({
       type: a.exceptionType,
       typeLabel: alertTypeLabel(a.exceptionType),
-      title: a.title,
-      detail: a.detail || '',
+      title: merchantAlertTitle(a.exceptionType, a.title),
+      detail: merchantAlertTitle(a.exceptionType, a.detail || ''),
       deviceId: a.deviceId,
       exceptionId: a.exceptionId
     }));
@@ -82,6 +105,10 @@ function handleItem(item: { deviceId?: string }) {
   if (item.deviceId) {
     uni.navigateTo({ url: `/pages/device-detail/device-detail?id=${encodeURIComponent(item.deviceId)}` });
   }
+}
+
+function goDevices() {
+  uni.switchTab({ url: '/pages/devices/devices' });
 }
 
 function isInventoryException(type: string) {
@@ -136,4 +163,17 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .action { color: #0f766e; font-size: 24rpx; display: block; margin-top: 12rpx; }
 .err { color: #ef4444; }
 .resolve-btn { margin-top: 14rpx; background: #0f766e; color: #fff; border: 0; }
+.empty-btn {
+  margin: 0;
+  padding: 0 28rpx;
+  height: 64rpx;
+  line-height: 64rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  color: #0f766e;
+  background: #ecfdf5;
+  border: none;
+}
+.empty-btn.primary { color: #fff; background: #0f766e; }
+.empty-btn::after { border: none; }
 </style>

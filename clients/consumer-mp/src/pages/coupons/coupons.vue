@@ -7,10 +7,18 @@
     </view>
 
     <view v-if="loading" class="loading"><text>加载中…</text></view>
+    <view v-else-if="loadError" class="empty-card">
+      <text class="empty-icon">⚠️</text>
+      <text class="empty-text">优惠券加载失败</text>
+      <text class="empty-hint">{{ loadError }}</text>
+      <view class="empty-actions">
+        <button class="empty-btn" @click="load">重试</button>
+      </view>
+    </view>
     <view v-else-if="!list.length" class="empty-card">
       <text class="empty-icon">🎫</text>
-      <text class="empty-text">暂无优惠券</text>
-      <text class="empty-hint">可先去逛逛热门活动，或扫码购物后领取优惠券</text>
+      <text class="empty-text">{{ emptyTitle }}</text>
+      <text class="empty-hint">{{ emptyHint }}</text>
       <view class="empty-actions">
         <button class="empty-btn" @click="goShop">去扫码购物</button>
         <button class="empty-btn ghost" @click="goMarketing">看热门活动</button>
@@ -35,9 +43,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import { consumerApi } from '@/utils/consumer-api';
+import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 
 const tabs = [
@@ -49,17 +57,42 @@ const tabs = [
 
 const activeTab = ref('');
 const loading = ref(false);
+const loadError = ref('');
 const list = ref<any[]>([]);
 
-onShow(() => load());
+const emptyTitle = computed(() => {
+  if (activeTab.value === 'UNUSED') return '暂无未使用优惠券';
+  if (activeTab.value === 'USED') return '暂无已使用优惠券';
+  if (activeTab.value === 'EXPIRED') return '暂无已过期优惠券';
+  return '暂无优惠券';
+});
+const emptyHint = computed(() =>
+  activeTab.value
+    ? '可切换状态再试，或去热门活动领券'
+    : '可先去逛逛热门活动，或扫码购物后领取优惠券'
+);
+
+onShow(async () => {
+  if (!(await ensureConsumerAuth())) {
+    uni.navigateTo({ url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/coupons/coupons') });
+    return;
+  }
+  await load();
+});
 watch(activeTab, () => load());
 
 async function load() {
   loading.value = true;
+  loadError.value = '';
   try {
     list.value = await consumerApi.myCoupons(activeTab.value || undefined);
-  } catch { list.value = []; }
-  finally { loading.value = false; }
+  } catch (e: any) {
+    list.value = [];
+    loadError.value = e?.message || '加载失败';
+    uni.showToast({ title: loadError.value, icon: 'none' });
+  } finally {
+    loading.value = false;
+  }
 }
 
 function typeText(t: string) {
@@ -87,8 +120,8 @@ function goMarketing() {
 .tab.active { color: #07c160; font-weight: 600; border-bottom: 4rpx solid #07c160; }
 .loading, .empty-card { text-align: center; padding: 80rpx 0; }
 .empty-icon { font-size: 80rpx; display: block; margin-bottom: 16rpx; }
-.empty-text { font-size: 28rpx; color: #999; display: block; }
-.empty-hint { font-size: 24rpx; color: #999; margin-top: 8rpx; display: block; padding: 0 40rpx; line-height: 1.5; }
+.empty-text { font-size: 30rpx; font-weight: 700; color: #223029; display: block; }
+.empty-hint { font-size: 24rpx; color: #849087; margin-top: 8rpx; display: block; padding: 0 40rpx; line-height: 1.5; }
 .empty-actions { display: flex; flex-direction: column; align-items: center; gap: 16rpx; margin-top: 32rpx; }
 .empty-btn {
   margin: 0;

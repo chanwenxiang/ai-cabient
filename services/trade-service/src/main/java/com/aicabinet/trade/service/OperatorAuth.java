@@ -9,8 +9,12 @@ public final class OperatorAuth {
 
     private OperatorAuth() {}
 
+    public static boolean isOperator(Long userId) {
+        return userId != null && userId >= CabinetConstants.OPERATOR_USER_ID_START;
+    }
+
     public static void requireOperator(Long userId) {
-        if (userId == null || userId < CabinetConstants.OPERATOR_USER_ID_START) {
+        if (!isOperator(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.OPERATOR_REQUIRED);
         }
     }

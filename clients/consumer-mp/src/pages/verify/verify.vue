@@ -1,36 +1,37 @@
 <template>
   <view class="page">
     <view class="hero">
-      <text class="hero-title">开门前准备</text>
-      <text class="hero-sub">完成以下步骤即可扫码开门购物</text>
+      <text class="hero-title">开通免密支付</text>
+      <text class="hero-sub">完成后即可扫码开门，关门自动扣款</text>
     </view>
 
     <view class="steps">
       <view class="step" :class="{ done: account?.verified }">
         <view class="step-dot">{{ account?.verified ? '✓' : '1' }}</view>
-        <text class="step-label">实名认证</text>
+        <text class="step-label">实名</text>
       </view>
       <view class="step-line" :class="{ done: account?.verified }" />
       <view class="step" :class="{ done: payReady }">
         <view class="step-dot">{{ payReady ? '✓' : '2' }}</view>
-        <text class="step-label">开通支付</text>
+        <text class="step-label">免密支付</text>
       </view>
     </view>
 
     <view v-if="!account?.verified" class="card">
       <text class="card-title">实名认证</text>
-      <text class="card-desc">填写真实姓名与身份证后四位（演示环境仅做格式校验）</text>
+      <text class="card-desc">用于保障交易安全，信息仅用于本柜购物核验</text>
       <input v-model="realName" class="input" placeholder="真实姓名" maxlength="32" />
       <input v-model="idCardLast4" class="input" type="number" maxlength="4" placeholder="身份证后四位" />
       <button class="btn-primary" hover-class="btn-hover" :loading="verifying" @click="onVerify">
-        {{ verifying ? '提交中…' : '提交认证' }}
+        {{ verifying ? '提交中…' : '下一步' }}
       </button>
+      <text v-if="devTools" class="hint">开发环境仅做格式校验，上线需对接实名核验。</text>
       <text v-if="err" class="err">{{ err }}</text>
     </view>
 
     <view v-else-if="!payReady" class="card">
-      <text class="card-title">开通支付</text>
-      <text class="card-desc">真实业务：开通微信/支付宝免密后关门自动扣款；余额 ≥ ¥5 仅作兜底。</text>
+      <text class="card-title">开通免密支付</text>
+      <text class="card-desc">推荐开通支付分 / 免密代扣；余额 ≥ ¥5 也可临时开门。</text>
       <view class="status-row">
         <text class="status-label">当前余额</text>
         <text class="status-val">¥{{ balanceYuan }}</text>
@@ -43,26 +44,22 @@
         <text class="status-label">支付宝免密</text>
         <text class="status-val">{{ alipayReady ? '已开通' : '未开通' }}</text>
       </view>
-      <view class="status-row">
-        <text class="status-label">开门条件</text>
-        <text class="status-val">免密 或 余额≥¥5</text>
-      </view>
       <button class="btn-primary" hover-class="btn-hover" :loading="signing" @click="onSignPayScore">
         {{ signing ? '开通中…' : '开通微信支付分' }}
       </button>
       <button class="btn-alipay" hover-class="btn-hover" :loading="signingAlipay" @click="onSignAlipay">
         {{ signingAlipay ? '开通中…' : '开通支付宝免密' }}
       </button>
-      <text class="hint">演示环境为模拟开通，本地 mock 结算会记为微信/支付宝渠道。</text>
-      <view class="link" @click="goLogin">去手机号验证 ›</view>
+      <view class="link" @click="goRecharge">余额不足？去充值 ›</view>
+      <text v-if="devTools" class="hint">开发环境为模拟开通；正式环境将跳转微信/支付宝签约页。</text>
       <text v-if="err" class="err">{{ err }}</text>
     </view>
 
     <view v-else class="card done-card">
-      <text class="done-icon">✅</text>
-      <text class="done-title">已满足开门条件</text>
-      <text class="done-desc">实名与支付均已就绪，可以扫码开门购物</text>
-      <button class="btn-primary" hover-class="btn-hover" @click="goShop">去开门购物</button>
+      <text class="done-icon">✓</text>
+      <text class="done-title">可以开门购物了</text>
+      <text class="done-desc">扫柜门二维码即可开门取货</text>
+      <button class="btn-primary" hover-class="btn-hover" @click="goShop">去扫码开门</button>
     </view>
   </view>
 </template>
@@ -73,7 +70,9 @@ import { computed, ref } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
 import { isPayReady } from '@/utils/account';
+import { showDevTools } from '@/utils/runtime-flags';
 
+const devTools = showDevTools();
 const account = ref<AccountDto | null>(null);
 const realName = ref('');
 const idCardLast4 = ref('');
@@ -166,8 +165,8 @@ async function onSignAlipay() {
   }
 }
 
-function goLogin() {
-  uni.navigateTo({ url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/verify/verify') });
+function goRecharge() {
+  uni.navigateTo({ url: '/pages/recharge/recharge' });
 }
 
 function goShop() {

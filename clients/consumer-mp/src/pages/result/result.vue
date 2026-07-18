@@ -16,6 +16,7 @@
       <view class="card amount-card">
         <text class="amount-label">实付金额</text>
         <text class="amount">{{ fmtMoney(order.totalAmountCents) }}</text>
+        <text v-if="payChannelText" class="pay-channel">{{ payChannelText }}</text>
         <text v-if="order.totalAmountCents <= 0" class="zero-hint">本次未取走商品，未产生扣款</text>
       </view>
       <view v-if="order.balanceBeforeCents != null && order.balanceAfterCents != null" class="card balance-card">
@@ -33,7 +34,7 @@
             <text class="line-amt">{{ fmtMoney(line.lineAmountCents) }}</text>
           </view>
         </view>
-        <text v-else class="empty-lines">未识别到取走商品</text>
+        <text v-else class="empty-lines">本次未识别到取走商品</text>
         <view
           v-if="order.originalAmountCents != null && order.originalAmountCents !== order.totalAmountCents"
           class="sum-row"
@@ -53,31 +54,18 @@
       </view>
 
       <view class="footer-actions">
-        <button class="action-btn" hover-class="btn-hover" @click="continueShop">继续在本柜购物</button>
+        <button class="action-btn" hover-class="btn-hover" @click="continueShop">继续购物</button>
         <button class="ghost-btn" hover-class="btn-hover" @click="goOrders">查看订单</button>
-        <button
-          v-if="canRefundNow"
-          class="refund-btn"
-          hover-class="btn-hover"
-          :disabled="disputeLoading || refundLoading"
-          @click="openRefund"
-        >
-          立即退款
-        </button>
-        <button
-          v-if="sessionId && !disputeFiled"
-          class="ghost-btn warn"
-          hover-class="btn-hover"
-          :disabled="disputeLoading || refundLoading"
-          @click="openDispute"
-        >
-          {{ canRefundNow ? '仅申诉（不立即退款）' : '申请退款 / 账单申诉' }}
-        </button>
-        <text v-else-if="disputeFiled && !refundDone" class="dispute-done">申诉已提交，请等待处理</text>
+
+        <view v-if="sessionId && !disputeFiled && !refundDone" class="secondary-actions">
+          <text class="secondary-link warn" @click="openDispute">账单有问题</text>
+          <text v-if="canRefundNow" class="secondary-dot">·</text>
+          <text v-if="canRefundNow" class="secondary-link danger" @click="openRefund">申请退款</text>
+          <text class="secondary-dot">·</text>
+          <text class="secondary-link" @click="goHelp">帮助</text>
+        </view>
+        <text v-else-if="disputeFiled && !refundDone" class="dispute-done">申诉已提交，请在「订单」查看进度</text>
         <text v-else-if="refundDone" class="dispute-done">退款已完成</text>
-        <button class="ghost-btn subtle" hover-class="btn-hover" @click="goHelp">帮助与客服</button>
-        <button class="ghost-btn subtle" hover-class="btn-hover" @click="goReport">柜机故障报修</button>
-        <button class="ghost-btn subtle" hover-class="btn-hover" @click="goHome">回首页</button>
       </view>
     </view>
 
@@ -134,6 +122,7 @@
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
+import { dictLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
 import { fmtMoney, orderStatusLabel } from '@aicabinet/shared-uni/format';
 import type { OrderDetailDto } from '@aicabinet/shared-types';
@@ -177,13 +166,20 @@ const canRefundNow = computed(
     ['PAID', 'COMPLETED'].includes(String(order.value?.status || ''))
 );
 
+const payChannelText = computed(() => {
+  const ch = String(order.value?.payChannel || '').toUpperCase();
+  if (!ch) return '';
+  const label = dictLabel('pay_channel', ch);
+  return label && label !== '-' ? label : ch;
+});
+
 onLoad((opts) => {
   sessionId = (opts?.sessionId as string) || '';
   const orderId = (opts?.orderId as string) || '';
   if (orderId) loadByOrderId(orderId);
   else if (sessionId) loadBySession(sessionId);
   else {
-    error.value = '缺少会话或订单信息';
+    error.value = '缺少订单信息';
     loading.value = false;
   }
 });
@@ -255,7 +251,7 @@ async function submitAction() {
 async function submitDispute() {
   const reason = disputeReason.value.trim();
   if (!sessionId) {
-    uni.showToast({ title: '缺少会话信息', icon: 'none' });
+    uni.showToast({ title: '缺少订单信息', icon: 'none' });
     return;
   }
   if (reason.length < 4) {
@@ -332,19 +328,8 @@ function goOrders() {
   uni.switchTab({ url: '/pages/orders/orders' });
 }
 
-function goReport() {
-  const id = deviceId.value || order.value?.deviceId || '';
-  uni.navigateTo({
-    url: `/pages/report/report?deviceId=${encodeURIComponent(id)}`
-  });
-}
-
 function goHelp() {
   uni.navigateTo({ url: '/pages/help/help' });
-}
-
-function goHome() {
-  uni.switchTab({ url: '/pages/index/index' });
 }
 </script>
 
@@ -356,6 +341,7 @@ function goHome() {
 .amount-card { text-align: center; margin-top: -20rpx; position: relative; z-index: 1; }
 .amount-label { font-size: 24rpx; color: #64748b; display: block; }
 .amount { font-size: 56rpx; font-weight: 800; color: #059669; display: block; margin-top: 4rpx; }
+.pay-channel { font-size: 24rpx; color: #64748b; display: block; margin-top: 12rpx; }
 .zero-hint { font-size: 24rpx; color: #888; display: block; margin-top: 12rpx; }
 .balance-card { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .balance-caption { display: block; font-size: 23rpx; color: #888; }
@@ -375,6 +361,18 @@ function goHome() {
 .sum-value { font-size: 28rpx; color: #1e293b; font-weight: 600; }
 .coupon-hint { display: block; margin-top: 8rpx; font-size: 22rpx; color: #ad6800; }
 .footer-actions { padding: 24rpx; display: flex; flex-direction: column; gap: 16rpx; }
+.secondary-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  padding: 12rpx 0 8rpx;
+}
+.secondary-link { font-size: 26rpx; color: #64748b; padding: 8rpx; }
+.secondary-link.warn { color: #d48806; }
+.secondary-link.danger { color: #ef4444; }
+.secondary-dot { color: #cbd5e1; font-size: 26rpx; }
 .action-btn {
   margin: 0;
   height: 88rpx;

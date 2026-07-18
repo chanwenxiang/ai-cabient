@@ -4,7 +4,7 @@
 $ErrorActionPreference = "Stop"
 . "$PSScriptRoot\e2e-lib.ps1"
 
-$BaseUrl = if ($env:E2E_BASE_URL) { $env:E2E_BASE_URL } else { "http://127.0.0.1" }
+$BaseUrl = Get-E2eBaseUrl
 $Phone = if ($env:E2E_PHONE) { $env:E2E_PHONE } else { "13800138000" }
 $Password = if ($env:E2E_PASSWORD) { $env:E2E_PASSWORD } else { "123456" }
 

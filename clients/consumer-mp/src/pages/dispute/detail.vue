@@ -20,7 +20,7 @@
           <text class="info-value mono">{{ ticket.deviceId }}</text>
         </view>
         <view class="info-row">
-          <text class="info-label">会话</text>
+          <text class="info-label">购物单号</text>
           <text class="info-value mono">{{ ticket.sessionId }}</text>
         </view>
         <view v-if="ticket.createdAt" class="info-row">

@@ -28,7 +28,7 @@ const PATH_ICONS: Record<string, Component> = {
   '/reconciliation': Coin,
   '/warehouse': House,
   '/recharges': Wallet,
-  '/users': Wallet,
+  '/users': User,
   '/risk': Lock,
   '/operators': User,
   '/roles': UserFilled,

@@ -9,9 +9,9 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-if="auth.hasPerm('ops:coupon:create')" @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button v-if="auth.hasPerm('ops:coupon:create')" @click="onDownloadTemplate(['示例优惠券', '满减券', '5', '0', '90', '30', '100', '示例描述', '停用'])">导入模板</el-button>
-          <el-button v-if="auth.hasPerm('ops:coupon:create')" :loading="importing" @click="triggerImport">导入</el-button>
+          <el-button v-hasPermi="['ops:coupon:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:coupon:import']" @click="onDownloadTemplate(['示例优惠券', '满减券', '5', '0', '90', '30', '100', '示例描述', '停用'])">导入模板</el-button>
+          <el-button v-hasPermi="['ops:coupon:import']" :loading="importing" @click="triggerImport">导入</el-button>
           <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
           <el-button
             v-if="selectedIds.length && auth.hasPerm('ops:coupon:edit')"
@@ -20,8 +20,8 @@
           >
             批量停用 ({{ selectedIds.length }})
           </el-button>
-          <el-button v-if="auth.hasPerm('ops:coupon:create')" type="primary" @click="openCreate">新建优惠券</el-button>
-          <el-button v-if="auth.hasPerm('ops:coupon:create')" @click="showIssue = true">手动发券</el-button>
+          <el-button v-hasPermi="['ops:coupon:create']" type="primary" @click="openCreate">新建优惠券</el-button>
+          <el-button v-hasPermi="['ops:coupon:create']" @click="showIssue = true">手动发券</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -96,7 +96,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="100" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 v-if="rowActions(row).length"

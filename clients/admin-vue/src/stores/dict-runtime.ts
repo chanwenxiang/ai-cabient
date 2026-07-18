@@ -11,7 +11,7 @@ export async function loadRuntimeDict() {
     return;
   }
   try {
-    const data = await api.request<RuntimePayload>('/api/v2/ops/admin/dicts/runtime', 'GET');
+    const data = await api.request<RuntimePayload>('/api/v2/dicts/runtime', 'GET');
     const map: Record<string, Record<string, string>> = {};
     for (const [type, rows] of Object.entries(data?.itemsByType || {})) {
       map[type] = {};

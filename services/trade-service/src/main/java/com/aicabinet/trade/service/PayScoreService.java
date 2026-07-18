@@ -110,6 +110,13 @@ public class PayScoreService {
         if (amountCents <= 0) {
             return new ChargeResult(PayChannels.BALANCE, null);
         }
+        // Explicit BALANCE preference forces wallet debit (used by channel-scoped E2E).
+        String preferredRaw = preferredChannel != null && !preferredChannel.isBlank()
+                ? preferredChannel
+                : user.getPayPreferredChannel();
+        if (preferredRaw != null && PayChannels.BALANCE.equalsIgnoreCase(preferredRaw.trim())) {
+            return new ChargeResult(PayChannels.BALANCE, null);
+        }
         String preferred = PayChannels.normalizeEntryChannel(preferredChannel);
         if (preferred == null) {
             preferred = PayChannels.normalizeEntryChannel(user.getPayPreferredChannel());

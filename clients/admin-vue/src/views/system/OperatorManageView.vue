@@ -9,11 +9,11 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button v-if="canImport" @click="onDownloadTemplate(['', '张三', '13900000099', 'Passw0rd', '正常', ''])">导入模板</el-button>
-          <el-button v-if="canImport" :loading="importing" @click="triggerImport">导入</el-button>
+          <el-button v-hasPermi="['ops:rbac:assign:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:rbac:assign:import']" @click="onDownloadTemplate(['', '张三', '13900000099', 'Passw0rd', '正常', ''])">导入模板</el-button>
+          <el-button v-hasPermi="['ops:rbac:assign:import']" :loading="importing" @click="triggerImport">导入</el-button>
           <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
-          <el-button v-if="auth.hasPerm('ops:rbac:assign:add')" type="primary" @click="openCreate">新增账号</el-button>
+          <el-button v-hasPermi="['ops:rbac:assign:add']" type="primary" @click="openCreate">新增账号</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="reload">刷新</el-button>
         </div>
       </div>
@@ -83,7 +83,7 @@
               <span v-else class="muted">未分配</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="120" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions :actions="rowActions(row)" :max-primary="2" @action="(k) => onRowAction(k, row)" />
             </template>
@@ -245,7 +245,7 @@ const statusByLabel: Record<string, string> = {
   INACTIVE: 'INACTIVE'
 };
 
-const { canImport, importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
+const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
   filePrefix: '运营账号',
   headers: ['用户ID', '姓名', '手机号', '密码', '状态', '角色'],
   toRows: () =>

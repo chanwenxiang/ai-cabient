@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { onLaunch } from '@dcloudio/uni-app';
-import { ensureConsumerAuth } from '@/utils/consumer-api';
+import { ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
+import { loadRuntimeDict } from '@/utils/dict-runtime';
 import { redirectIfAlipayReturn } from '@/utils/recharge';
 
 onLaunch(async () => {
   // 支付宝同步回跳常落在站点根路径（无 hash），先导回充值页再鉴权
   redirectIfAlipayReturn();
   await ensureConsumerAuth();
+  if (getConsumerToken()) {
+    await loadRuntimeDict();
+  }
 });
 </script>
 

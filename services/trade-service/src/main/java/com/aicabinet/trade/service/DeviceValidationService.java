@@ -87,7 +87,8 @@ public class DeviceValidationService {
         }
         ensureNoBlockingSession(deviceId);
         if (hasInProgressReplenishmentTask(deviceId)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DEVICE_BUSY);
+            // 与结算冻结文案一致，避免消费者误以为柜机故障
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_IN_PROGRESS);
         }
     }
 
@@ -102,18 +103,18 @@ public class DeviceValidationService {
         if ("COMPLETED".equals(task.getStatus()) || "CANCELLED".equals(task.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_TASK_FINISHED);
         }
-        if (task.getAssigneeUserId() != null && !task.getAssigneeUserId().equals(operatorUserId)) {
+        // 运营账号可代开；商户/补货员须为任务负责人（或未指定负责人）
+        if (task.getAssigneeUserId() != null
+                && !task.getAssigneeUserId().equals(operatorUserId)
+                && !OperatorAuth.isOperator(operatorUserId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.REPLENISHMENT_TASK_ASSIGNEE);
         }
         if (task.getCheckInAt() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_CHECK_IN_REQUIRED);
         }
         ensureDeviceOnline(deviceId);
+        // 仅活跃会话占柜；同柜多条「已签到/进行中」任务不互斥（避免签到后互相卡死开门）
         ensureNoBlockingSession(deviceId);
-        var otherTasks = replenishmentTaskRepository.findByDeviceIdAndStatusIn(deviceId, List.of("IN_PROGRESS"));
-        if (otherTasks.stream().anyMatch(t -> !t.getTaskId().equals(taskId))) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DEVICE_BUSY);
-        }
         return task;
     }
 
@@ -131,7 +132,10 @@ public class DeviceValidationService {
     private void ensureNoBlockingSession(String deviceId) {
         var active = sessionRepository.findByDeviceIdAndStateIn(deviceId, BLOCKING_SESSION_STATES);
         if (!active.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DEVICE_BUSY);
+            boolean restock = active.stream().anyMatch(DeviceValidationService::isRestockSession);
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    restock ? ApiMessages.RESTOCK_DOOR_SESSION_BUSY : ApiMessages.DEVICE_BUSY);
         }
     }
 

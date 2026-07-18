@@ -12,7 +12,7 @@
                 </div>
               </div>
               <div class="page-card-head__actions">
-                <el-button type="primary" size="small" @click="openType()">新增类型</el-button>
+                <el-button v-hasPermi="['ops:dict:edit']" type="primary" size="small" @click="openType()">新增类型</el-button>
               </div>
             </div>
           </template>
@@ -46,7 +46,7 @@
                 <el-table-column prop="itemCount" label="项数" width="64" align="center" />
                 <el-table-column label="操作" width="70" class-name="col-action" align="center">
                   <template #default="{ row }">
-                    <el-button link type="primary" @click.stop="openType(row)">编辑</el-button>
+                    <el-button v-hasPermi="['ops:dict:edit']" link type="primary" @click.stop="openType(row)">编辑</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -65,11 +65,11 @@
                 </div>
               </div>
               <div class="page-card-head__actions">
-                <el-button size="small" :disabled="!selected" @click="onExport">{{ exportButtonLabel }}</el-button>
-                <el-button v-if="canImport" size="small" :disabled="!selected" @click="onDownloadTemplate(['DEMO', '示例标签', '0', '启用'])">导入模板</el-button>
-                <el-button v-if="canImport" size="small" :disabled="!selected" :loading="importing" @click="triggerImport">导入</el-button>
+                <el-button v-hasPermi="['ops:dict:export']" size="small" :disabled="!selected" @click="onExport">{{ exportButtonLabel }}</el-button>
+                <el-button v-hasPermi="['ops:dict:import']" size="small" :disabled="!selected" @click="onDownloadTemplate(['DEMO', '示例标签', '0', '启用'])">导入模板</el-button>
+                <el-button v-hasPermi="['ops:dict:import']" size="small" :disabled="!selected" :loading="importing" @click="triggerImport">导入</el-button>
                 <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
-                <el-button type="primary" size="small" :disabled="!selected" @click="openItem()">新增字典项</el-button>
+                <el-button v-hasPermi="['ops:dict:edit']" type="primary" size="small" :disabled="!selected" @click="openItem()">新增字典项</el-button>
               </div>
             </div>
           </template>
@@ -106,8 +106,8 @@
                 </el-table-column>
                 <el-table-column label="操作" width="120" class-name="col-action" align="center">
                   <template #default="{ row }">
-                    <el-button link type="primary" @click="openItem(row)">编辑</el-button>
-                    <el-button link type="danger" @click="removeItem(row)">删除</el-button>
+                    <el-button v-hasPermi="['ops:dict:edit']" link type="primary" @click="openItem(row)">编辑</el-button>
+                    <el-button v-hasPermi="['ops:dict:edit']" link type="danger" @click="removeItem(row)">删除</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -129,7 +129,7 @@
       </el-form>
       <template #footer>
         <el-button @click="typeDlg = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveType">保存</el-button>
+        <el-button v-hasPermi="['ops:dict:edit']" type="primary" :loading="saving" @click="saveType">保存</el-button>
       </template>
     </el-dialog>
 
@@ -145,7 +145,7 @@
       </el-form>
       <template #footer>
         <el-button @click="itemDlg = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveItem">保存</el-button>
+        <el-button v-hasPermi="['ops:dict:edit']" type="primary" :loading="saving" @click="saveItem">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -207,7 +207,7 @@ const statusByLabel: Record<string, string> = {
   INACTIVE: 'INACTIVE'
 };
 
-const { canImport, importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
+const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
   filePrefix: '字典项',
   headers: ['值', '标签', '排序', '状态'],
   toRows: () =>

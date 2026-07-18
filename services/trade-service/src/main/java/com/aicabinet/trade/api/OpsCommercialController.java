@@ -2,6 +2,7 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
+import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.OpsCommercialFacade;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -412,12 +413,14 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.sla(operatorId(request)));
     }
 
-    // --- RBAC ---
+    // --- RBAC（权限以 @RequiresPermissions 为准，增删改注解即可）---
+    @RequiresPermissions(value = {"ops:rbac:role", "ops:rbac:assign"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/rbac/roles")
     public ApiResponse<List<OpsRoleDto>> roles(HttpServletRequest request) {
         return ApiResponse.ok(facade.listRoles(operatorId(request)));
     }
 
+    @RequiresPermissions("ops:rbac:role:add")
     @PostMapping("/rbac/roles")
     public ApiResponse<OpsRoleDto> createRole(
             HttpServletRequest request,
@@ -425,6 +428,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.createRole(operatorId(request), body));
     }
 
+    @RequiresPermissions("ops:rbac:role:edit")
     @PutMapping("/rbac/roles/{roleId}")
     public ApiResponse<OpsRoleDto> updateRole(
             HttpServletRequest request,
@@ -433,6 +437,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.updateRole(operatorId(request), roleId, body));
     }
 
+    @RequiresPermissions(value = {"ops:rbac:role", "ops:rbac:menu"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/rbac/permissions")
     public ApiResponse<List<OpsPermissionDto>> permissions(
             HttpServletRequest request,
@@ -440,6 +445,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.listPermissions(operatorId(request), includeInactive));
     }
 
+    @RequiresPermissions("ops:rbac:menu:add")
     @PostMapping("/rbac/permissions")
     public ApiResponse<OpsPermissionDto> createPermission(
             HttpServletRequest request,
@@ -447,6 +453,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.createPermission(operatorId(request), body));
     }
 
+    @RequiresPermissions("ops:rbac:menu:edit")
     @PutMapping("/rbac/permissions/{permissionId}")
     public ApiResponse<OpsPermissionDto> updatePermission(
             HttpServletRequest request,
@@ -455,6 +462,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.updatePermission(operatorId(request), permissionId, body));
     }
 
+    @RequiresPermissions("ops:rbac:menu:remove")
     @DeleteMapping("/rbac/permissions/{permissionId}")
     public ApiResponse<Void> deletePermission(
             HttpServletRequest request,
@@ -463,6 +471,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(null);
     }
 
+    @RequiresPermissions(value = {"ops:rbac:role", "ops:rbac:role:perm"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/rbac/roles/{roleId}/permissions")
     public ApiResponse<OpsRolePermissionsDto> rolePermissions(
             HttpServletRequest request,
@@ -470,6 +479,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.getRolePermissions(operatorId(request), roleId));
     }
 
+    @RequiresPermissions("ops:rbac:role:perm")
     @PutMapping("/rbac/roles/{roleId}/permissions")
     public ApiResponse<OpsRolePermissionsDto> assignRolePermissions(
             HttpServletRequest request,
@@ -478,6 +488,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.assignRolePermissions(operatorId(request), roleId, permissionIds));
     }
 
+    @RequiresPermissions("ops:rbac:assign")
     @GetMapping("/rbac/operators")
     public ApiResponse<PageResult<OpsOperatorDto>> operators(
             HttpServletRequest request,
@@ -487,6 +498,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.listOperators(operatorId(request), page, size, phone));
     }
 
+    @RequiresPermissions("ops:rbac:assign:add")
     @PostMapping("/rbac/operators")
     public ApiResponse<OpsOperatorDto> createOperator(
             HttpServletRequest request,
@@ -494,6 +506,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.createOperator(operatorId(request), body));
     }
 
+    @RequiresPermissions("ops:rbac:assign:edit")
     @PutMapping("/rbac/operators/{userId}")
     public ApiResponse<OpsOperatorDto> updateOperator(
             HttpServletRequest request,
@@ -502,17 +515,20 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.updateOperator(operatorId(request), userId, body));
     }
 
+    @RequiresPermissions("ops:rbac:assign:disable")
     @DeleteMapping("/rbac/operators/{userId}")
     public ApiResponse<Void> disableOperator(HttpServletRequest request, @PathVariable Long userId) {
         facade.disableOperator(operatorId(request), userId);
         return ApiResponse.ok(null);
     }
 
+    @RequiresPermissions("ops:rbac:assign")
     @GetMapping("/rbac/users/{userId}/roles")
     public ApiResponse<OpsUserRolesDto> userRoles(HttpServletRequest request, @PathVariable Long userId) {
         return ApiResponse.ok(facade.getUserRoles(operatorId(request), userId));
     }
 
+    @RequiresPermissions("ops:rbac:assign:role")
     @PutMapping("/rbac/users/{userId}/roles")
     public ApiResponse<OpsUserRolesDto> assignRoles(
             HttpServletRequest request,
@@ -521,11 +537,13 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.assignRoles(operatorId(request), userId, roleIds));
     }
 
+    @RequiresPermissions("ops:rbac:assign")
     @GetMapping("/rbac/users/{userId}/merchants")
     public ApiResponse<OpsUserMerchantsDto> userMerchants(HttpServletRequest request, @PathVariable Long userId) {
         return ApiResponse.ok(facade.getUserMerchants(operatorId(request), userId));
     }
 
+    @RequiresPermissions("ops:rbac:assign:merchant")
     @PutMapping("/rbac/users/{userId}/merchants")
     public ApiResponse<OpsUserMerchantsDto> assignMerchants(
             HttpServletRequest request,

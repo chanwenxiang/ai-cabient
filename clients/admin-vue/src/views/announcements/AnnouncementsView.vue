@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -9,11 +9,11 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button @click="onDownloadTemplate(['示例公告', '公告正文', '全部', '普通', '已发布', ''])">导入模板</el-button>
-          <el-button :loading="importing" @click="triggerImport">导入</el-button>
+          <el-button v-hasPermi="['ops:announcement:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:announcement:import']" @click="onDownloadTemplate(['示例公告', '公告正文', '全部', '普通', '已发布', ''])">导入模板</el-button>
+          <el-button v-hasPermi="['ops:announcement:import']" :loading="importing" @click="triggerImport">导入</el-button>
           <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
-          <el-button type="primary" @click="showCreate = true">发布公告</el-button>
+          <el-button v-hasPermi="['ops:announcement:create']" type="primary" @click="showCreate = true">发布公告</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -98,7 +98,7 @@
               <span class="cell-datetime">{{ formatTime(row.publishAt) || '-' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="120" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions :actions="rowActions(row)" :max-primary="2" @action="(k) => onRowAction(k, row)" />
             </template>
@@ -143,7 +143,7 @@
       </el-form>
       <template #footer>
         <el-button @click="showCreate = false">取消</el-button>
-        <el-button type="primary" :loading="publishing" @click="onPublishSubmit">发布</el-button>
+        <el-button v-hasPermi="['ops:announcement:publish']" type="primary" :loading="publishing" @click="onPublishSubmit">发布</el-button>
       </template>
     </el-dialog>
 
@@ -171,9 +171,11 @@ import { get, post } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
+import { useAuthStore } from '@/stores/auth';
 
 const route = useRoute();
 const router = useRouter();
+const auth = useAuthStore();
 const loading = ref(false);
 const publishing = ref(false);
 const error = ref('');
@@ -336,10 +338,10 @@ function formatTime(t: string) {
 
 function rowActions(row: any): TableAction[] {
   const actions: TableAction[] = [{ key: 'preview', label: '查看', icon: View, type: 'primary' }];
-  if (row.status === 'DRAFT') {
+  if (row.status === 'DRAFT' && auth.hasPerm('ops:announcement:publish')) {
     actions.push({ key: 'publish', label: '发布', icon: Promotion, type: 'success' });
   }
-  if (row.status === 'PUBLISHED') {
+  if (row.status === 'PUBLISHED' && auth.hasPerm('ops:announcement:edit')) {
     actions.push({ key: 'archive', label: '归档', icon: FolderOpened, type: 'warning' });
   }
   return actions;

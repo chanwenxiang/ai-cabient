@@ -20,7 +20,7 @@ const SESSION_STATE_HINT: Record<string, string> = {
   OPENING: '柜门正在打开，请稍候',
   SHOPPING: '门已打开，请随意取货；关柜门后自动识别并结算',
   RECOGNIZING: '已关门，正在识别您取走的商品',
-  WAITING_UPLOAD: '等待设备上传购物视频',
+  WAITING_UPLOAD: '等待柜机上传购物视频',
   SETTLING: '识别完成，正在扣款结算',
   COMPLETED: '购物已完成，可查看账单',
   DISPUTED: '识别结果需人工确认，请稍后再查或联系客服',

@@ -36,7 +36,7 @@
         </div>
 
         <div class="actions">
-          <el-button type="primary" :loading="recognizing" :disabled="!imageFile" @click="runRecognize">
+          <el-button v-hasPermi="['ops:sku:demo']" type="primary" :loading="recognizing" :disabled="!imageFile" @click="runRecognize">
             开始识别
           </el-button>
           <el-button :disabled="!imageFile" @click="clearImage">清空</el-button>

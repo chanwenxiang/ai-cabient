@@ -67,7 +67,7 @@ export function formatError(err: unknown): string {
     const msg = String(e.message);
     if (/too many door open/i.test(msg)) return '开门过于频繁，请稍后再试';
     if (/余额|balance/i.test(msg)) return '余额不足，请先充值';
-    if (/device not found/i.test(msg)) return '设备不存在，请检查设备编号';
+    if (/device not found/i.test(msg)) return '柜机不存在，请检查柜机编号';
     if (/[\u4e00-\u9fff]/.test(msg)) return msg;
     return '操作失败，请稍后重试';
   }

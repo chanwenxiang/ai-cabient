@@ -236,7 +236,7 @@ public class OpsExceptionService {
                                          List<ResolveDisputeRequest.ManualLineItem> lines,
                                          String idempotencyKey, String reason) {
         requireExceptionHandle(operatorId);
-        permissionService.requirePermission(operatorId, "ops:dispute");
+        permissionService.requirePermission(operatorId, "ops:dispute:resolve");
         OpsException item = require(exceptionId);
         if (!Set.of("BALANCE_INSUFFICIENT", "RECOGNITION_UNAVAILABLE", "RECOGNITION_FAILED",
                 "SETTLEMENT_FAILED").contains(item.getExceptionType())) {
@@ -310,6 +310,6 @@ public class OpsExceptionService {
     }
 
     private void requireExceptionHandle(Long operatorId) {
-        permissionService.requireAnyPermission(operatorId, "ops:exception:handle", "ops:dashboard:view");
+        permissionService.requirePermission(operatorId, "ops:exception:handle");
     }
 }

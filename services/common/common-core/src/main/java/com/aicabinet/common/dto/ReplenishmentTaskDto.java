@@ -14,5 +14,6 @@ public record ReplenishmentTaskDto(
         Double checkInLat,
         Double checkInLng,
         Long requestId,
+        Long outboundId,
         Instant createdAt
 ) {}

@@ -40,29 +40,47 @@
 
     <view class="section">
       <text class="section-title">按日汇总</text>
-      <view v-for="d in daily" :key="d.date" class="device-row">
-        <view class="device-info">
-          <text class="device-name">{{ d.date }}</text>
-          <text class="device-orders">{{ d.orderCount }} 笔 · 待分 ¥{{ (d.pendingCents / 100).toFixed(2) }}</text>
+      <view v-if="loading" class="loading-inline">结算数据加载中…</view>
+      <template v-else>
+        <view v-for="d in daily" :key="d.date" class="device-row">
+          <view class="device-info">
+            <text class="device-name">{{ d.date }}</text>
+            <text class="device-orders">{{ d.orderCount }} 笔 · 待分 ¥{{ (d.pendingCents / 100).toFixed(2) }}</text>
+          </view>
+          <text class="device-amount">¥{{ (d.merchantCents / 100).toFixed(2) }}</text>
         </view>
-        <text class="device-amount">¥{{ (d.merchantCents / 100).toFixed(2) }}</text>
-      </view>
-      <view v-if="!daily.length" class="empty">所选日期暂无结算数据</view>
+        <empty-state
+          v-if="!daily.length"
+          compact
+          icon="📅"
+          title="所选日期暂无结算数据"
+          hint="可调整上方日期范围，或等待订单完成分账"
+        />
+      </template>
     </view>
 
     <view class="section">
       <text class="section-title">结算批次</text>
-      <view v-for="b in batches" :key="b.batchNo" class="device-row">
-        <view class="device-info">
-          <text class="device-name">{{ b.batchNo }}</text>
-          <text class="device-orders">{{ b.batchStatus }} · {{ b.orderCount }} 笔</text>
+      <view v-if="loading" class="loading-inline">批次加载中…</view>
+      <template v-else>
+        <view v-for="b in batches" :key="b.batchNo" class="device-row">
+          <view class="device-info">
+            <text class="device-name">{{ b.batchNo }}</text>
+            <text class="device-orders">{{ b.batchStatus }} · {{ b.orderCount }} 笔</text>
+          </view>
+          <text class="device-amount">¥{{ (b.merchantCents / 100).toFixed(2) }}</text>
         </view>
-        <text class="device-amount">¥{{ (b.merchantCents / 100).toFixed(2) }}</text>
-      </view>
-      <view v-if="!batches.length" class="empty">暂无批次</view>
+        <empty-state
+          v-if="!batches.length"
+          compact
+          icon="📦"
+          title="暂无结算批次"
+          hint="平台定期提交分账后，批次会显示在这里"
+        />
+      </template>
     </view>
 
-    <view class="actions">
+    <view v-if="canExport" class="actions">
       <button class="btn-outline" @click="onExport">导出对账单</button>
     </view>
   </view>
@@ -70,9 +88,15 @@
 
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app';
-import { ref } from 'vue';
-import { getToken, merchantApi } from '@/utils/merchant-api';
-import type { MerchantDailySettlement, MerchantSettlementBatch } from '@aicabinet/shared-types';
+import { computed, ref } from 'vue';
+import EmptyState from '@/components/empty-state.vue';
+import { getToken, hasPerm, merchantApi } from '@/utils/merchant-api';
+import { useMerchantMe } from '@/composables/useMerchantMe';
+import type { MerchantDailySettlement, MerchantMe, MerchantSettlementBatch } from '@aicabinet/shared-types';
+
+const { me, refresh: refreshMe } = useMerchantMe();
+const canViewSettlements = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
+const canExport = computed(() => hasPerm(me.value, 'merchant:settlements:export'));
 
 const today = new Date().toISOString().substring(0, 10);
 const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().substring(0, 10);
@@ -89,10 +113,26 @@ const summary = ref({
 const daily = ref<MerchantDailySettlement[]>([]);
 const batches = ref<MerchantSettlementBatch[]>([]);
 const profitNote = ref('');
+const loading = ref(false);
 
 onShow(() => load());
 
 async function load() {
+  if (!uni.getStorageSync('merchant_token')) {
+    uni.reLaunch({ url: '/pages/login/login' });
+    return;
+  }
+  try {
+    await refreshMe();
+  } catch {
+    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  if (!canViewSettlements.value) {
+    uni.showToast({ title: '无结算权限', icon: 'none' });
+    uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
+    return;
+  }
+  loading.value = true;
   try {
     const [overview, days, batchList] = await Promise.all([
       merchantApi.settlements(),
@@ -112,12 +152,18 @@ async function load() {
       settledMonth: ((overview.settledMonthCents || 0) / 100).toFixed(2)
     };
     profitNote.value = overview.profitSharing?.note || '';
-  } catch {
-    uni.showToast({ title: '加载失败', icon: 'none' });
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '加载失败', icon: 'none' });
+  } finally {
+    loading.value = false;
   }
 }
 
 function onExport() {
+  if (!canExport.value) {
+    uni.showToast({ title: '无导出权限', icon: 'none' });
+    return;
+  }
   const url = merchantApi.exportSettlementsUrl(startDate.value, endDate.value);
   const token = getToken();
   uni.downloadFile({
@@ -160,7 +206,7 @@ function onExport() {
 .device-name { font-size: 28rpx; display: block; }
 .device-orders { font-size: 22rpx; color: #999; }
 .device-amount { font-size: 28rpx; font-weight: 600; }
-.empty { font-size: 24rpx; color: #94a3b8; padding: 12rpx 0; }
+.loading-inline { font-size: 24rpx; color: #94a3b8; padding: 24rpx 0; text-align: center; }
 .actions { padding: 20rpx 0; }
 .btn-outline { width: 100%; height: 72rpx; line-height: 72rpx; border: 2rpx solid #0f766e; color: #0f766e; border-radius: 36rpx; background: #fff; font-size: 28rpx; text-align: center; }
 </style>

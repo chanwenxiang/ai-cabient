@@ -377,6 +377,16 @@ public class WarehouseService {
         return getOutbound(outboundId);
     }
 
+    @Transactional(readOnly = true)
+    public boolean hasOutboundLinesForDevice(Long outboundId, String deviceId) {
+        if (outboundId == null || deviceId == null || deviceId.isBlank()) {
+            return false;
+        }
+        return !outboundLineRepository
+                .findByOutboundIdAndDeviceIdOrderByLineIdAsc(outboundId, deviceId.trim())
+                .isEmpty();
+    }
+
     @Transactional
     public void markDeviceHandoverReceived(Long outboundId, String deviceId) {
         if (outboundId == null || deviceId == null || deviceId.isBlank()) {

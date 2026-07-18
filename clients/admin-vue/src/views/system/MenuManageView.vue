@@ -11,8 +11,8 @@
         <div class="page-card-head__actions">
           <el-switch v-model="opsOnly" active-text="仅运营" @change="syncRouteQuery" />
           <el-switch v-model="showInactive" active-text="含停用" @change="syncRouteQuery" />
-          <el-button v-if="auth.hasPerm('ops:rbac:menu:add')" type="primary" @click="openCreate()">新增</el-button>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:rbac:menu:add']" type="primary" @click="openCreate()">新增</el-button>
+          <el-button v-hasPermi="['ops:rbac:menu:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -70,7 +70,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="120" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions :actions="menuActions(row)" @action="(k) => onMenuAction(k, row)" />
             </template>

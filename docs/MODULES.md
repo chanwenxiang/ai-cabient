@@ -11,7 +11,7 @@
 | `clients/merchant-mp` | 商户小程序 | 独立 uni-app 微信小程序，柜机运营 / 定价 / 待办 | `cd clients/merchant-mp && npm run dev:mp-weixin` / `npm run build:mp-weixin` |
 | `packages/shared-types` | 共享前端包 | TypeScript 类型 | 被 admin-vue / 小程序 Vite alias 引用 |
 | `packages/shared-api` | 共享前端包 | API 客户端封装 | 同上 |
-| `packages/shared-dict` | 共享前端包 | 字典 / 枚举文案 | 同上 |
+| `packages/shared-dict` | 共享前端包 | 字典 / 枚举**展示文案**（非能力开关） | 同上；登录后可被 `/api/v2/dicts/runtime` 覆盖 |
 | `packages/shared-uni` | 共享 uni 工具 | 二维码解析、会话状态、格式化 | 被 consumer-mp / merchant-mp 引用 |
 
 ## 后端服务
@@ -47,13 +47,14 @@
 | `scripts/stop-apps.ps1` | 停止应用进程 |
 | `scripts/check-ports.ps1` | 端口占用检查 |
 | `scripts/seed-demo-data.ps1` | Demo 种子数据 |
-| `scripts/verify-local.ps1` | 本地健康 + 购物 E2E |
+| `scripts/verify-local.ps1` | 本地健康 + 购物 E2E；可选 `-WithReplenishment/-WithAlipay/-WithPayscore/-WithDispute`（默认 BaseUrl=`http://localhost:18080`，可用 `E2E_BASE_URL` 覆盖） |
 | `scripts/verify-full.ps1` | 编译 + admin-vue 构建 + E2E |
 | `scripts/verify-production-readiness.ps1` | 上线前门禁 |
 | `scripts/deploy-production.ps1` | 生产 env 检查清单 |
 | `scripts/deploy-staging.ps1` | 预发 compose 部署 |
 | `scripts/run-api-tests.ps1` | API 冒烟 |
-| `scripts/e2e-shopping.ps1` | 核心购物流程 E2E |
+| `scripts/e2e-shopping.ps1` | 核心购物流程 E2E；可选 `-Channel WECHAT\|ALIPAY\|BALANCE` |
+| `scripts/e2e-replenishment.ps1` | 补货闭环 E2E（计划→仓配可选→签到开门→完成） |
 | `scripts/check-env.ps1` | 环境变量必填项检查 |
 | `scripts/sms-webhook-mock.py` | 预发 SMS mock |
 
@@ -80,6 +81,35 @@ demo/
 ```
 
 数据库 schema 由 Flyway 管理：`services/trade-service/src/main/resources/db/migration/`。本地联调无需额外 ETL。
+
+### 字典用法约定
+
+- **字典只做展示**：状态 / 渠道 / 异常类型等 `value → label`、筛选项与 Tag；运营改文案或启停筛选项不影响扣款与开门。
+- **能力开关不进字典**：支付是否可用由 Java 常量（如 `PayChannels`）与环境变量（`ALIPAY_ENABLED`、`PAYSCORE_*` 等）决定。
+- **多端对齐**：已登录客户端拉 `GET /api/v2/dicts/runtime`（ACTIVE 项）写入 `shared-dict` overrides；失败回退编译期 `DICT`。管理写接口仍走 `/api/v2/ops/admin/dicts`。
+- **新增枚举**：先改后端契约 / 状态机，再 seed `packages/shared-dict` 与 `SysDictBootstrap`。
+
+### 权限（三端 + 若依 / AOP）
+
+最终目标：运营后台、补货员（商户端）、消费者能力均可控，但机制不同。
+
+| 受众 | 机制 | 怎么改权限 |
+|------|------|-----------|
+| **运营后台** | 若依式 M/C/F + 角色勾选；前端 `v-hasPermi` / `auth.hasPerm`；后端 `@RequiresPermissions`（AOP） | 角色管理勾选按钮码；新接口在 Controller 方法上加/删注解即可 |
+| **补货员 / 商户** | 同一 RBAC 表的 `merchant:*` 码 + 商户范围；API 注解如 `merchant:replenishment:view` | 运营给账号分配商户角色/权限；前端 `hasPerm(me, code)` |
+| **消费者** | 非菜单 RBAC：登录态、实名/风控黑名单、支付渠道能力（env + `PayChannels`） | 后台用户/风控操作；部署环境开关；不按「按钮权限树」建模 |
+
+**AOP 约定（推荐主路径）**
+
+- 注解：`@RequiresPermissions("ops:xxx")` 或 `value={...}, logical=OR|AND`
+- 切面：[`PermissionAspect`](../services/trade-service/src/main/java/com/aicabinet/trade/auth/PermissionAspect.java) 读取登录 `userId`，走 `PermissionService`（含若依分段通配与 `ops:admin`）
+- **增删改权限控制**：优先改 Controller 注解；Service 内 `requirePermission` 可保留作内部调用双保险
+- 前端按钮：`v-hasPermi="['ops:xxx']"`，与后端同码
+- **导入 / 导出**：独立 F 码 `ops:{module}:export` / `ops:{module}:import`（见 `V106__export_import_button_perms.sql`）；已有特例 `ops:order:export`、`ops:coupon:export`、`ops:operlog:export`。CSV 的 `canImport` 仅表示有 handler，**不是**权限。
+- **商户端**：页面进入用 `merchant:*:list|view`；写操作用 `:edit|:request|:reply`；导出用 `merchant:settlements:export` / `merchant:reports:export`。
+- **消费者**：本次补全不含按钮 RBAC（见上表）。
+
+**通配**：`ops:rbac:role:*` 覆盖 `ops:rbac:role:add`；任意无关 `*:*` 不再全局放行。
 
 小程序生产构建前，复制对应客户端的 `.env.production.example` 为 `.env.production.local`，并把
 `VITE_API_BASE_URL` 设置为已加入微信小程序合法域名列表的真实 HTTPS API 地址。构建脚本会拒绝

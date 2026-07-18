@@ -1,7 +1,7 @@
 # Consumer mini program E2E: API flows + mp-weixin bundle assertions
 
 param(
-    [string]$BaseUrl = "http://localhost:8080",
+    [string]$BaseUrl = "",
     [string]$DeviceId = "CAB-001",
     [string]$DistDir = ""
 )
@@ -12,6 +12,7 @@ if (-not $DistDir) {
     $DistDir = Join-Path $Root "clients\consumer-mp\dist\build\mp-weixin"
 }
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
+$BaseUrl = Resolve-E2eBaseUrl $BaseUrl
 
 $pass = 0
 $fail = 0

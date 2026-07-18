@@ -20,7 +20,14 @@
     </view>
 
     <view v-if="loading" class="empty">加载中…</view>
-    <view v-else-if="!logs.length" class="empty">暂无积分记录</view>
+    <empty-state
+      v-else-if="!logs.length"
+      compact
+      :title="emptyTitle"
+      :hint="emptyHint"
+    >
+      <button class="empty-btn" @click="goShop">去扫码购物</button>
+    </empty-state>
     <view v-else class="list">
       <view v-for="row in logs" :key="row.id" class="row">
         <view>
@@ -34,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import {
   consumerApi,
@@ -55,6 +62,18 @@ const tab = ref('');
 const loading = ref(false);
 const summary = ref<MemberPointsSummaryDto | null>(null);
 const logs = ref<MemberPointsLogDto[]>([]);
+
+const emptyTitle = computed(() => {
+  if (tab.value === 'EARN') return '暂无获得记录';
+  if (tab.value === 'USE') return '暂无使用记录';
+  if (tab.value === 'EXPIRE') return '暂无过期记录';
+  return '暂无积分记录';
+});
+const emptyHint = computed(() =>
+  tab.value
+    ? '可切换分类再试，或去开门购物赚积分'
+    : '扫码开门购物结算后，积分会显示在这里'
+);
 
 onShow(async () => {
   if (!(await ensureConsumerAuth())) {
@@ -93,6 +112,10 @@ function typeLabel(t: string) {
 function formatTime(t?: string) {
   return formatDateTimeMinute(t, '');
 }
+
+function goShop() {
+  uni.switchTab({ url: '/pages/index/index' });
+}
 </script>
 
 <style scoped>
@@ -130,4 +153,15 @@ function formatTime(t?: string) {
 .row-points { font-size: 32rpx; font-weight: 800; color: #334155; }
 .row-points.plus { color: #059669; }
 .empty { text-align: center; padding: 80rpx 0; color: #999; font-size: 26rpx; }
+.empty-btn {
+  margin: 0;
+  width: 320rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  background: #059669;
+  color: #fff;
+  border-radius: 36rpx;
+  font-size: 28rpx;
+}
+.empty-btn::after { border: none; }
 </style>

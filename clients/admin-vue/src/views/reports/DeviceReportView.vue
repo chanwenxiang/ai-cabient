@@ -5,11 +5,11 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">设备经营报表</span>
-            <span class="hint">按柜机汇总累计 / 今日订单、营收与会话</span>
+            <span class="hint">按设备汇总累计 / 今日订单、营收与会话</span>
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:report:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>

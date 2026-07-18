@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -9,7 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:dispute:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load(false)">刷新</el-button>
         </div>
       </div>
@@ -123,7 +123,7 @@
               <span class="cell-datetime">{{ formatDateTime(row.resolvedAt) || '-' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="88" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="88" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 :actions="[{ key: 'detail', label: '详情', icon: View, type: 'primary' }]"
@@ -238,17 +238,25 @@
         </div>
         <el-button
           v-if="hasPriorBill"
+          v-hasPermi="['ops:dispute:resolve']"
           type="primary"
           :loading="resolving"
           @click="resolveSelected('KEEP')"
         >维持原账单</el-button>
         <el-button
+          v-hasPermi="['ops:dispute:resolve']"
           type="success"
           :loading="resolving"
           :disabled="!confirmItems.length"
           @click="resolveSelected('CONFIRM')"
         >确认扣款</el-button>
-        <el-button type="danger" plain :loading="resolving" @click="resolveSelected('WAIVE')">免单并退款</el-button>
+        <el-button
+          v-hasPermi="['ops:dispute:resolve']"
+          type="danger"
+          plain
+          :loading="resolving"
+          @click="resolveSelected('WAIVE')"
+        >免单并退款</el-button>
       </div>
     </el-drawer>
   </el-card>

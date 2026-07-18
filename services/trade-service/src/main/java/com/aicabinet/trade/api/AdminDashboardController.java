@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.auth.AuthInterceptor;
+import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.AdminDashboardService;
 import com.aicabinet.trade.service.AdminDeviceOpsService;
 import com.aicabinet.trade.service.DisputeService;
@@ -75,6 +76,7 @@ public class AdminDashboardController {
                 () -> adminService.channelBreakdown(opId, days)));
     }
 
+    @RequiresPermissions("ops:device:list")
     @GetMapping("/devices")
     public ApiResponse<PageResult<AdminDeviceDto>> devices(
             HttpServletRequest request,
@@ -85,6 +87,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.listDevicesPaged(operatorId(request), page, size, q, online));
     }
 
+    @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices/{deviceId}/commands")
     public ApiResponse<DeviceOpsCommandResultDto> deviceCommand(
             HttpServletRequest request,
@@ -93,6 +96,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(deviceOpsService.execute(operatorId(request), deviceId, body));
     }
 
+    @RequiresPermissions("ops:device:edit")
     @PostMapping("/devices")
     public ApiResponse<AdminDeviceDto> createDevice(
             HttpServletRequest request,
@@ -100,6 +104,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.createDevice(operatorId(request), body));
     }
 
+    @RequiresPermissions("ops:device:edit")
     @PatchMapping("/devices/{deviceId}")
     public ApiResponse<AdminDeviceDto> updateDevice(
             HttpServletRequest request,
@@ -108,6 +113,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.updateDevice(operatorId(request), deviceId, body));
     }
 
+    @RequiresPermissions("ops:session:list")
     @GetMapping("/sessions")
     public ApiResponse<PageResult<AdminSessionDto>> sessions(
             HttpServletRequest request,
@@ -118,6 +124,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.listSessions(operatorId(request), page, size, deviceId, state));
     }
 
+    @RequiresPermissions("ops:session:export")
     @GetMapping(value = "/sessions/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportSessions(
             HttpServletRequest request,
@@ -127,6 +134,7 @@ public class AdminDashboardController {
         return csvAttachment("sessions.csv", csv);
     }
 
+    @RequiresPermissions("ops:session:cancel")
     @PostMapping("/sessions/{sessionId}/cancel")
     public ApiResponse<AdminSessionDto> cancelSession(
             HttpServletRequest request,
@@ -152,6 +160,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.listOrders(operatorId(request), page, size, deviceId, status));
     }
 
+    @RequiresPermissions("ops:order:export")
     @GetMapping(value = "/orders/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportOrders(
             HttpServletRequest request,
@@ -179,6 +188,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.listUsers(operatorId(request), page, size, phone, name, role, verified));
     }
 
+    @RequiresPermissions("ops:user:balance")
     @PostMapping("/users/{userId}/balance")
     public ApiResponse<AdminUserDto> adjustBalance(
             HttpServletRequest request,
@@ -205,6 +215,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.listRecharges(operatorId(request), page, size, status, userId));
     }
 
+    @RequiresPermissions("ops:recharge:edit")
     @PostMapping("/recharge/{orderId}/refund")
     public ApiResponse<RechargeOrderDto> refundRecharge(
             HttpServletRequest request,
@@ -214,6 +225,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.refundRecharge(operatorId(request), orderId, reason));
     }
 
+    @RequiresPermissions("ops:dispute:resolve")
     @PostMapping("/orders/{orderId}/refund")
     public ApiResponse<OrderRefundResultDto> refundOrder(
             HttpServletRequest request,
@@ -222,12 +234,14 @@ public class AdminDashboardController {
         return ApiResponse.ok(disputeService.refundByOperator(operatorId(request), orderId, body));
     }
 
+    @RequiresPermissions("ops:sku:list")
     @GetMapping("/skus")
     public ApiResponse<List<SkuCatalogDto>> skus(HttpServletRequest request) {
         Long opId = operatorId(request);
         return ApiResponse.ok(cacheService.get("admin:skus", "all", 60_000L, () -> adminService.listSkus(opId)));
     }
 
+    @RequiresPermissions(value = {"ops:sku:edit", "ops:sku:import"}, logical = RequiresPermissions.Logical.OR)
     @PostMapping("/skus")
     public ApiResponse<SkuCatalogDto> createSku(
             HttpServletRequest request,
@@ -235,6 +249,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.createSku(operatorId(request), body));
     }
 
+    @RequiresPermissions(value = {"ops:sku:edit", "ops:sku:import"}, logical = RequiresPermissions.Logical.OR)
     @PutMapping("/skus/{skuId}")
     public ApiResponse<SkuCatalogDto> updateSku(
             HttpServletRequest request,

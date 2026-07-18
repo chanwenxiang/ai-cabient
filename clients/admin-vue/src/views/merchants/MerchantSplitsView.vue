@@ -9,7 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:merchant:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading || loadingMerchants || loadingStatus" @click="refresh">
             刷新
           </el-button>
@@ -159,7 +159,6 @@
                 width="110"
                 class-name="col-action"
                 align="center"
-                fixed="right"
               >
                 <template #default="{ row }">
                   <TableActions

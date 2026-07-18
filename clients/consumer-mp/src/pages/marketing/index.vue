@@ -24,14 +24,22 @@
     <view class="entry mint" @click="goExchange">
       <view>
         <text class="entry-title">积分兑好礼</text>
-        <text class="entry-sub">参考瑞幸积分商城 · 兑券更实用</text>
+        <text class="entry-sub">积分兑立减券，开门购物更省</text>
       </view>
       <text class="entry-arrow">›</text>
     </view>
 
     <view class="section-title">热门活动</view>
     <view v-if="loading" class="empty">加载中…</view>
-    <view v-else-if="!campaigns.length" class="empty">暂无进行中活动</view>
+    <empty-state
+      v-else-if="!campaigns.length"
+      icon="🔥"
+      title="暂无进行中活动"
+      hint="可先去积分兑券，或扫码开门购物"
+    >
+      <button class="empty-btn" @click="goShop">去扫码购物</button>
+      <button class="empty-btn ghost" @click="goExchange">去积分兑换</button>
+    </empty-state>
     <view v-else>
       <view v-for="c in campaigns" :key="c.id" class="campaign" @click="onCampaignClick(c)">
         <view class="campaign-badge" :class="'tone-' + c.coverColor">{{ c.coverEmoji }} {{ c.typeLabel }}</view>
@@ -72,7 +80,7 @@ async function load() {
     const [b, c, count] = await Promise.all([
       consumerApi.marketingBanners(),
       consumerApi.marketingCampaigns(),
-      consumerApi.couponCount().catch(() => 0)
+      consumerApi.couponCount()
     ]);
     banners.value = b?.length ? b : [{
       id: 0,
@@ -84,9 +92,10 @@ async function load() {
     }];
     campaigns.value = c || [];
     couponCount.value = Number(count) || 0;
-  } catch {
+  } catch (e: any) {
     banners.value = [];
     campaigns.value = [];
+    uni.showToast({ title: e?.message || '加载失败', icon: 'none' });
   } finally {
     loading.value = false;
   }
@@ -120,7 +129,11 @@ async function onCampaignClick(c: MarketingCampaignDto) {
     c.claimed = true;
     c.claimable = false;
     c.ctaLabel = '已领取';
-    couponCount.value = await consumerApi.couponCount().catch(() => couponCount.value + 1);
+    try {
+      couponCount.value = await consumerApi.couponCount();
+    } catch {
+      /* keep previous count */
+    }
     setTimeout(() => openPath('/pages/coupons/coupons'), 400);
   } catch (e: any) {
     const msg = e?.message || '领取失败';
@@ -140,6 +153,9 @@ function goCoupons() {
 }
 function goExchange() {
   uni.navigateTo({ url: '/pages/member/exchange' });
+}
+function goShop() {
+  uni.switchTab({ url: '/pages/index/index' });
 }
 
 function formatRange(start?: string, end?: string) {
@@ -216,4 +232,16 @@ function formatRange(start?: string, end?: string) {
 .campaign-cta { font-size: 24rpx; color: #059669; font-weight: 700; }
 .campaign-cta.muted { color: #94a3b8; }
 .empty { text-align: center; padding: 60rpx 0; color: #999; }
+.empty-btn {
+  margin: 0;
+  width: 320rpx;
+  height: 72rpx;
+  line-height: 72rpx;
+  background: #059669;
+  color: #fff;
+  border-radius: 36rpx;
+  font-size: 28rpx;
+}
+.empty-btn.ghost { background: #fff; color: #059669; border: 2rpx solid #059669; }
+.empty-btn::after { border: none; }
 </style>

@@ -954,7 +954,7 @@ public class AdminDashboardService {
 
     @Transactional(readOnly = true)
     public byte[] exportOrdersCsv(Long operatorId, String deviceId) {
-        permissionService.requirePermission(operatorId, "ops:order:list");
+        permissionService.requirePermission(operatorId, "ops:order:export");
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<CabinetOrder> page = queryOrders(operatorId, deviceId, pageable);
         StringBuilder sb = new StringBuilder("orderId,sessionId,userId,deviceId,totalAmountCents,status,lineCount,createdAt\n");
@@ -1175,7 +1175,7 @@ public class AdminDashboardService {
 
     @Transactional
     public RechargeOrderDto refundRecharge(Long operatorId, String orderId, String reason) {
-        permissionService.requirePermission(operatorId, "ops:user:balance");
+        permissionService.requirePermission(operatorId, "ops:recharge:edit");
         RechargeOrderDto result = paymentService.refundRecharge(orderId, reason);
         auditService.record(operatorId, "RECHARGE_REFUND", "RECHARGE", orderId,
                 "userId=" + result.userId() + " amount=" + result.amountCents());

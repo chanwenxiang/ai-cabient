@@ -3,6 +3,9 @@ package com.aicabinet.trade.service;
 
 
 import com.aicabinet.common.dto.*;
+import com.aicabinet.trade.support.ApiMessages;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DeviceSkuInventory;
@@ -58,7 +61,7 @@ import java.util.List;
 
 public class ReplenishmentService {
 
-
+    private static final Logger log = LoggerFactory.getLogger(ReplenishmentService.class);
 
     private final DeviceSkuInventoryMapper inventoryRepository;
 
@@ -274,8 +277,9 @@ public class ReplenishmentService {
 
         try {
             warehouseService.createOutboundForRoute(route.getRouteId(), null, route.getAssigneeUserId());
-        } catch (Exception ignored) {
-            // 仓库库存不足时仍允许创建路线
+        } catch (Exception ex) {
+            // 仓库库存不足/无缺货建议时仍允许创建路线，由运营现场补录或稍后重试出库
+            log.warn("规划路线 {} 未生成出库单: {}", route.getRouteId(), ex.getMessage());
         }
 
         return toRouteDto(route);
@@ -339,7 +343,7 @@ public class ReplenishmentService {
     @Transactional
     public ReplenishmentTaskDto checkInTask(Long operatorId, Long taskId, ReplenishmentCheckInRequest request) {
         ReplenishmentTask task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "task not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_TASK_NOT_FOUND));
         if (request != null && request.latitude() != null && request.longitude() != null) {
             validateCheckInLocation(task.getDeviceId(), request.latitude(), request.longitude());
             task.setCheckInLat(request.latitude());
@@ -349,19 +353,21 @@ public class ReplenishmentService {
         if (!"IN_PROGRESS".equals(task.getStatus()) && !"COMPLETED".equals(task.getStatus())) {
             task.setStatus("IN_PROGRESS");
         }
-        return toTaskDto(taskRepository.save(task));
+        task = taskRepository.save(task);
+        reopenRouteIfActive(task.getRouteId());
+        return toTaskDto(task);
     }
 
     private void validateCheckInLocation(String deviceId, double lat, double lng) {
         DeviceInfo device = deviceRepository.findById(deviceId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "device not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
         if (device.getLatitude() == null || device.getLongitude() == null) {
             return;
         }
         double distM = haversineMeters(device.getLatitude(), device.getLongitude(), lat, lng);
         if (distM > 500) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "check-in too far from device (" + Math.round(distM) + "m)");
+                    String.format(ApiMessages.REPLENISHMENT_CHECK_IN_TOO_FAR, Math.round(distM)));
         }
     }
 
@@ -428,11 +434,11 @@ public class ReplenishmentService {
 
         ReplenishmentTask task = taskRepository.findById(taskId)
 
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "task not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_TASK_NOT_FOUND));
 
         if ("COMPLETED".equals(task.getStatus())) {
 
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "task already completed");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_TASK_ALREADY_COMPLETED);
 
         }
 
@@ -482,6 +488,7 @@ public class ReplenishmentService {
             taskRepository.save(task);
 
         }
+        reopenRouteIfActive(task.getRouteId());
 
         return listTaskLines(taskId);
 
@@ -509,7 +516,7 @@ public class ReplenishmentService {
 
         ReplenishmentTask task = taskRepository.findById(taskId)
 
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "task not found"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_TASK_NOT_FOUND));
 
         if ("COMPLETED".equals(task.getStatus())) {
             completeRouteIfReady(task.getRouteId());
@@ -518,11 +525,17 @@ public class ReplenishmentService {
 
         List<ReplenishmentTaskLine> pending = taskLineRepository.findByTaskIdAndAppliedFalse(taskId);
 
-        if (!pending.isEmpty()
-                && task.getOutboundId() != null
-                && !inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "outbound is not in transit or has already been received for this device");
+        boolean expectReceive = false;
+        if (!pending.isEmpty() && task.getOutboundId() != null) {
+            boolean inTransit = inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId());
+            boolean hasOutboundLines = warehouseService.hasOutboundLinesForDevice(
+                    task.getOutboundId(), task.getDeviceId());
+            if (!inTransit && hasOutboundLines) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        ApiMessages.REPLENISHMENT_OUTBOUND_NOT_IN_TRANSIT);
+            }
+            // 出库单无柜机明细时，按现场任务明细直接上架（联调/无仓配场景）
+            expectReceive = inTransit;
         }
 
         String refId = String.valueOf(taskId);
@@ -545,8 +558,10 @@ public class ReplenishmentService {
 
         task.setCompletedAt(Instant.now());
 
-        inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
-        warehouseService.markDeviceHandoverReceived(task.getOutboundId(), task.getDeviceId());
+        if (expectReceive) {
+            inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
+            warehouseService.markDeviceHandoverReceived(task.getOutboundId(), task.getDeviceId());
+        }
 
         task = taskRepository.save(task);
         completeRouteIfReady(task.getRouteId());
@@ -565,6 +580,25 @@ public class ReplenishmentService {
                 routeRepository.save(route);
             });
         }
+    }
+
+    /** 路线下出现未完成任务时，从 COMPLETED 回退为进行中（联调补任务/补签到场景） */
+    private void reopenRouteIfActive(Long routeId) {
+        if (routeId == null) {
+            return;
+        }
+        List<ReplenishmentTask> routeTasks = taskRepository.findByRouteId(routeId);
+        boolean hasOpen = routeTasks.stream()
+                .anyMatch(item -> !"COMPLETED".equals(item.getStatus()) && !"CANCELLED".equals(item.getStatus()));
+        if (!hasOpen) {
+            return;
+        }
+        routeRepository.findById(routeId).ifPresent(route -> {
+            if ("COMPLETED".equals(route.getStatus()) || "CANCELLED".equals(route.getStatus())) {
+                route.setStatus("IN_PROGRESS");
+                routeRepository.save(route);
+            }
+        });
     }
 
 
@@ -665,7 +699,7 @@ public class ReplenishmentService {
                 t.getTaskId(), t.getRouteId(), t.getDeviceId(), t.getAssigneeUserId(),
                 t.getStatus(), t.getNotes(), t.getCompletedAt(),
                 t.getCheckInAt(), t.getCheckInLat(), t.getCheckInLng(),
-                t.getRequestId(), t.getCreatedAt()
+                t.getRequestId(), t.getOutboundId(), t.getCreatedAt()
         );
 
     }

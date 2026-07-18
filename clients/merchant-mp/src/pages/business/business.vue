@@ -27,6 +27,9 @@
       <view v-if="settlement.failedSplitCount" class="risk-card">
         <text class="risk-title">有 {{ settlement.failedSplitCount }} 笔分账异常</text><text class="risk-desc">建议联系平台运营核对收款账户和失败原因</text>
       </view>
+      <view v-if="canExport" class="actions">
+        <button class="btn-outline" @click="onExport">导出柜机报表</button>
+      </view>
     </template>
   </view>
 </template>
@@ -34,8 +37,15 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
-import { merchantApi } from '@/utils/merchant-api';
-import type { MerchantAnalyticsOverview, MerchantSettlementOverview, MerchantSkuSales } from '@aicabinet/shared-types';
+import { getToken, hasPerm, merchantApi } from '@/utils/merchant-api';
+import { useMerchantMe } from '@/composables/useMerchantMe';
+import type { MerchantAnalyticsOverview, MerchantMe, MerchantSettlementOverview, MerchantSkuSales } from '@aicabinet/shared-types';
+
+const { me, refresh: refreshMe } = useMerchantMe();
+const canViewBusiness = computed(
+  () => hasPerm(me.value, 'merchant:reports:view') || hasPerm(me.value, 'merchant:analytics:view')
+);
+const canExport = computed(() => hasPerm(me.value, 'merchant:reports:export'));
 
 const periods = [7, 30, 90];
 const days = ref(30);
@@ -46,12 +56,110 @@ const settlement = ref<MerchantSettlementOverview>({ pendingAmountCents: 0, pend
 const marginRate = computed(() => analytics.value.revenueCents ? `${(analytics.value.grossMarginCents / analytics.value.revenueCents * 100).toFixed(1)}%` : '—');
 const money = (cents = 0) => `¥${(cents / 100).toFixed(2)}`;
 function skuMarginRate(sku: MerchantSkuSales) { return sku.revenueCents ? `${(sku.grossMarginCents / sku.revenueCents * 100).toFixed(1)}%` : '—'; }
-async function load() { loading.value = true; error.value = ''; try { [analytics.value, settlement.value] = await Promise.all([merchantApi.analytics(days.value), merchantApi.settlements()]); } catch (e) { error.value = e instanceof Error ? e.message : '加载失败'; } finally { loading.value = false; } }
-function changeDays(value: number) { if (days.value === value) return; days.value = value; load(); }
+
+async function ensureAccess() {
+  if (!uni.getStorageSync('merchant_token')) {
+    uni.reLaunch({ url: '/pages/login/login' });
+    return false;
+  }
+  try {
+    await refreshMe();
+  } catch {
+    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  if (!canViewBusiness.value) {
+    uni.showToast({ title: '无经营分析权限', icon: 'none' });
+    uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
+    return false;
+  }
+  return true;
+}
+
+async function load() {
+  if (!(await ensureAccess())) return;
+  loading.value = true;
+  error.value = '';
+  try {
+    [analytics.value, settlement.value] = await Promise.all([
+      merchantApi.analytics(days.value),
+      merchantApi.settlements()
+    ]);
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '加载失败';
+  } finally {
+    loading.value = false;
+  }
+}
+
+function changeDays(value: number) {
+  if (days.value === value) return;
+  days.value = value;
+  load();
+}
+
+function onExport() {
+  if (!canExport.value) {
+    uni.showToast({ title: '无导出权限', icon: 'none' });
+    return;
+  }
+  const url = merchantApi.exportDeviceReportsUrl();
+  const token = getToken();
+  uni.downloadFile({
+    url,
+    header: token ? { Authorization: `Bearer ${token}` } : {},
+    success(res) {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        uni.showToast({ title: '导出成功', icon: 'success' });
+        if (res.tempFilePath) {
+          uni.openDocument({ filePath: res.tempFilePath, showMenu: true }).catch(() => undefined);
+        }
+      } else {
+        uni.showToast({ title: '导出失败', icon: 'none' });
+      }
+    },
+    fail() {
+      uni.showToast({ title: '导出失败', icon: 'none' });
+    }
+  });
+}
+
 onLoad(load);
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 </script>
 
 <style scoped>
-.page { padding-bottom: 24rpx; }.periods { display:flex; gap:12rpx; padding:20rpx 24rpx 8rpx; }.period { padding:12rpx 24rpx; border-radius:28rpx; background:#fff; color:#64748b; font-size:24rpx; }.period.active { background:#0f766e; color:#fff; }.state { margin:24rpx; padding:80rpx 24rpx; text-align:center; background:#fff; border-radius:20rpx; color:#64748b; }.error{display:block;color:#dc2626}.retry{margin-top:24rpx;width:220rpx;background:#0f766e;color:#fff;border-radius:40rpx}.hero { margin:12rpx 24rpx; padding:32rpx; border-radius:24rpx; color:#fff; background:linear-gradient(135deg,#134e4a,#0f766e 65%,#14b8a6); }.hero-label{display:block;font-size:24rpx;opacity:.8}.hero-value{display:block;font-size:56rpx;font-weight:800;margin-top:8rpx}.hero-row{display:flex;justify-content:space-between;margin-top:22rpx;font-size:23rpx;opacity:.9}.metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:12rpx;margin:12rpx 24rpx}.metric{background:#fff;border-radius:18rpx;padding:24rpx}.metric-value{display:block;font-size:32rpx;font-weight:700;color:#0f172a}.metric-value.warn{color:#d97706}.metric-value.danger{color:#dc2626}.metric-label{display:block;font-size:22rpx;color:#64748b;margin-top:6rpx}.section-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10rpx}.section-title{font-size:30rpx;font-weight:700}.section-sub{font-size:21rpx;color:#94a3b8}.sku-row{display:flex;justify-content:space-between;gap:20rpx;padding:22rpx 0;border-top:1rpx solid #f1f5f9}.sku-main{min-width:0;flex:1}.sku-name{display:block;font-size:27rpx;font-weight:600}.sku-rec{display:block;font-size:22rpx;color:#0f766e;margin-top:5rpx}.sku-data{text-align:right;font-size:22rpx;color:#64748b}.sku-money{display:block;color:#0f172a;font-size:26rpx;font-weight:600;margin-top:5rpx}.empty{text-align:center;padding:40rpx;color:#94a3b8}.risk-card{margin:12rpx 24rpx;padding:24rpx;border-radius:18rpx;background:#fff7ed;border:1rpx solid #fed7aa}.risk-title{display:block;color:#c2410c;font-weight:700}.risk-desc{display:block;color:#9a3412;font-size:23rpx;margin-top:6rpx}
+.page { padding-bottom: 24rpx; }
+.periods { display:flex; gap:12rpx; padding:20rpx 24rpx 8rpx; }
+.period { padding:12rpx 24rpx; border-radius:28rpx; background:#fff; color:#64748b; font-size:24rpx; }
+.period.active { background:#0f766e; color:#fff; }
+.state { margin:24rpx; padding:80rpx 24rpx; text-align:center; background:#fff; border-radius:20rpx; color:#64748b; }
+.error{display:block;color:#dc2626}
+.retry{margin-top:24rpx;width:220rpx;background:#0f766e;color:#fff;border-radius:40rpx}
+.hero { margin:12rpx 24rpx; padding:32rpx; border-radius:24rpx; color:#fff; background:linear-gradient(135deg,#134e4a,#0f766e 65%,#14b8a6); }
+.hero-label{display:block;font-size:24rpx;opacity:.8}
+.hero-value{display:block;font-size:56rpx;font-weight:800;margin-top:8rpx}
+.hero-row{display:flex;justify-content:space-between;margin-top:22rpx;font-size:23rpx;opacity:.9}
+.metric-grid{display:grid;grid-template-columns:1fr 1fr;gap:12rpx;margin:12rpx 24rpx}
+.metric{background:#fff;border-radius:18rpx;padding:24rpx}
+.metric-value{display:block;font-size:32rpx;font-weight:700;color:#0f172a}
+.metric-value.warn{color:#d97706}
+.metric-value.danger{color:#dc2626}
+.metric-label{display:block;font-size:22rpx;color:#64748b;margin-top:6rpx}
+.section-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:10rpx}
+.section-title{font-size:30rpx;font-weight:700}
+.section-sub{font-size:21rpx;color:#94a3b8}
+.sku-row{display:flex;justify-content:space-between;gap:20rpx;padding:22rpx 0;border-top:1rpx solid #f1f5f9}
+.sku-main{min-width:0;flex:1}
+.sku-name{display:block;font-size:27rpx;font-weight:600}
+.sku-rec{display:block;font-size:22rpx;color:#0f766e;margin-top:5rpx}
+.sku-data{text-align:right;font-size:22rpx;color:#64748b}
+.sku-money{display:block;color:#0f172a;font-size:26rpx;font-weight:600;margin-top:5rpx}
+.empty{text-align:center;padding:40rpx;color:#94a3b8}
+.risk-card{margin:12rpx 24rpx;padding:24rpx;border-radius:18rpx;background:#fff7ed;border:1rpx solid #fed7aa}
+.risk-title{display:block;color:#c2410c;font-weight:700}
+.risk-desc{display:block;color:#9a3412;font-size:23rpx;margin-top:6rpx}
+.actions { padding: 12rpx 24rpx 24rpx; }
+.btn-outline { width: 100%; height: 72rpx; line-height: 72rpx; border: 2rpx solid #0f766e; color: #0f766e; border-radius: 36rpx; background: #fff; font-size: 28rpx; text-align: center; }
+.btn-outline::after { border: none; }
+.card { margin: 12rpx 24rpx; padding: 24rpx; background: #fff; border-radius: 18rpx; }
 </style>

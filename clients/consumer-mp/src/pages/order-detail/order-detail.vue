@@ -23,7 +23,7 @@
           </view>
           <text class="item-price">¥{{ (item.lineAmountCents / 100).toFixed(2) }}</text>
         </view>
-        <view v-if="!(order?.lines || []).length" class="empty-lines">暂无商品明细</view>
+        <view v-if="!(order?.lines || []).length" class="empty-lines">本次未识别到取走商品</view>
         <view class="total-row">
           <text class="total-label">商品合计</text>
           <text class="total-amount">¥{{ ((order?.originalAmountCents || order?.totalAmountCents || 0) / 100).toFixed(2) }}</text>
@@ -47,7 +47,7 @@
         <view class="info-row"><text class="info-label">支付方式</text><text class="info-value">{{ payChannelText }}</text></view>
         <view class="info-row"><text class="info-label">扣款时间</text><text class="info-value">{{ formatTime(order?.payTime || order?.createdAt) }}</text></view>
         <view class="info-row"><text class="info-label">订单编号</text><text class="info-value mono">{{ order?.orderId }}</text></view>
-        <view class="info-row"><text class="info-label">设备编号</text><text class="info-value mono">{{ order?.deviceId }}</text></view>
+        <view class="info-row"><text class="info-label">柜机编号</text><text class="info-value mono">{{ order?.deviceId }}</text></view>
       </view>
 
       <view class="actions">
@@ -67,7 +67,7 @@
           :disabled="disputeLoading || refundLoading"
           @click="openDispute"
         >
-          {{ disputeFiled ? '申诉已提交' : (autoRefundEnabled ? '仅申诉（不立即退款）' : '申请退款 / 账单申诉') }}
+          {{ disputeFiled ? '申诉已提交' : (autoRefundEnabled ? '提交账单申诉' : '申请退款 / 账单申诉') }}
         </button>
         <button class="btn-outline" @click="goHelp">帮助与客服</button>
       </view>
@@ -128,6 +128,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
+import { dictLabel } from '@aicabinet/shared-dict';
 import { consumerApi, get } from '@/utils/consumer-api';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import {
@@ -233,8 +234,9 @@ const statusDetail = computed(() => {
 });
 
 const payChannelText = computed(() => {
-  const map: Record<string, string> = { BALANCE: '余额支付', WECHAT: '微信支付', ALIPAY: '支付宝' };
-  return map[order.value?.payChannel || ''] || order.value?.payChannel || '-';
+  const ch = order.value?.payChannel;
+  if (!ch) return '-';
+  return dictLabel('pay_channel', ch) || ch;
 });
 
 function formatTime(t: string) {
@@ -287,7 +289,7 @@ async function submitDispute() {
   const sessionId = order.value?.sessionId;
   const reason = disputeReason.value.trim();
   if (!sessionId) {
-    uni.showToast({ title: '缺少会话信息', icon: 'none' });
+    uni.showToast({ title: '缺少订单信息', icon: 'none' });
     return;
   }
   if (reason.length < 4) {

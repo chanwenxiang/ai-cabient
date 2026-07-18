@@ -1,11 +1,13 @@
 # Load or ensure demo business context from trade-service DB
 param(
-    [string]$BaseUrl = "http://localhost:8080",
+    [string]$BaseUrl = "",
     [string]$InternalApiKey = "dev-internal-key-change-me",
     [switch]$Ensure
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "e2e-lib.ps1")
+$BaseUrl = Resolve-E2eBaseUrl $BaseUrl
 
 $path = if ($Ensure) { "/internal/v1/demo/ensure" } else { "/internal/v1/demo/context" }
 $method = if ($Ensure) { "POST" } else { "GET" }

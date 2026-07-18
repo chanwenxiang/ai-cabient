@@ -576,7 +576,8 @@ button, input, textarea, select { font: inherit; }
   --el-table-bg-color: var(--layout-card);
   --el-table-tr-bg-color: var(--layout-card);
   --el-table-header-bg-color: #151f2e;
-  --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.06);
+  /* 必须用不透明色，否则 fixed 操作列会透视出左侧时间/金额文字 */
+  --el-table-row-hover-bg-color: #222c3c;
   --el-table-border-color: var(--layout-border);
   --el-table-text-color: var(--layout-text);
   --el-table-header-text-color: var(--layout-muted);
@@ -587,8 +588,63 @@ button, input, textarea, select { font: inherit; }
   color: var(--layout-text);
 }
 
+[data-theme='dark'] .el-table__body tr.hover-row > td.el-table__cell,
+[data-theme='dark'] .el-table__body tr:hover > td.el-table__cell {
+  background-color: #222c3c !important;
+}
+
 [data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped > td.el-table__cell {
   background-color: #151f2e !important;
+}
+
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped.hover-row > td.el-table__cell,
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped:hover > td.el-table__cell {
+  background-color: #1c2636 !important;
+}
+
+/* fixed 列：实心底 + 左侧分隔，杜绝时间/金额从操作按钮下透视 */
+.el-table__fixed,
+.el-table__fixed-right,
+.el-table__fixed-right-patch {
+  background-color: var(--el-table-bg-color, var(--layout-card)) !important;
+}
+.el-table__fixed-right {
+  box-shadow: -6px 0 12px rgba(0, 0, 0, 0.18);
+}
+[data-theme='light'] .el-table__fixed-right {
+  box-shadow: -6px 0 10px rgba(15, 23, 42, 0.08);
+}
+.el-table__fixed .el-table__cell,
+.el-table__fixed-right .el-table__cell {
+  background-color: var(--el-table-bg-color, var(--layout-card));
+}
+.el-table__fixed-right th.el-table__cell,
+.el-table__fixed th.el-table__cell {
+  background-color: var(--el-table-header-bg-color, var(--el-fill-color-light, #f5f7fa)) !important;
+}
+[data-theme='dark'] .el-table__fixed .el-table__body tr > td.el-table__cell,
+[data-theme='dark'] .el-table__fixed-right .el-table__body tr > td.el-table__cell {
+  background-color: var(--layout-card) !important;
+}
+[data-theme='dark'] .el-table__fixed .el-table__body tr.hover-row > td.el-table__cell,
+[data-theme='dark'] .el-table__fixed .el-table__body tr:hover > td.el-table__cell,
+[data-theme='dark'] .el-table__fixed-right .el-table__body tr.hover-row > td.el-table__cell,
+[data-theme='dark'] .el-table__fixed-right .el-table__body tr:hover > td.el-table__cell {
+  background-color: #222c3c !important;
+}
+[data-theme='dark'] .el-table--striped .el-table__fixed .el-table__body tr.el-table__row--striped > td.el-table__cell,
+[data-theme='dark'] .el-table--striped .el-table__fixed-right .el-table__body tr.el-table__row--striped > td.el-table__cell {
+  background-color: #151f2e !important;
+}
+[data-theme='dark'] .el-table--striped .el-table__fixed .el-table__body tr.el-table__row--striped.hover-row > td.el-table__cell,
+[data-theme='dark'] .el-table--striped .el-table__fixed .el-table__body tr.el-table__row--striped:hover > td.el-table__cell,
+[data-theme='dark'] .el-table--striped .el-table__fixed-right .el-table__body tr.el-table__row--striped.hover-row > td.el-table__cell,
+[data-theme='dark'] .el-table--striped .el-table__fixed-right .el-table__body tr.el-table__row--striped:hover > td.el-table__cell {
+  background-color: #1c2636 !important;
+}
+.layout-main-scroll .el-table td.col-action,
+.page-card .el-table td.col-action {
+  background-clip: padding-box;
 }
 
 [data-theme='dark'] .el-tag.el-tag--light {

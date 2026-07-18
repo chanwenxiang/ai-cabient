@@ -2,6 +2,7 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
+import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.DisputeService;
 import com.aicabinet.trade.service.MerchantAnalyticsService;
 import com.aicabinet.trade.service.MerchantAiInsightService;
@@ -279,6 +280,7 @@ public class MerchantPortalController {
         return csvAttachment("merchant-device-reports.csv", csv);
     }
 
+    @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/tasks")
     public ApiResponse<List<ReplenishmentTaskDto>> replenishmentTasks(
             HttpServletRequest request,
@@ -287,12 +289,14 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.listReplenishmentTasks(userId(request), status, deviceId));
     }
 
+    @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/tasks/{taskId}/lines")
     public ApiResponse<List<ReplenishmentTaskLineDto>> replenishmentTaskLines(
             HttpServletRequest request, @PathVariable Long taskId) {
         return ApiResponse.ok(merchantPortalService.getReplenishmentTaskLines(userId(request), taskId));
     }
 
+    @RequiresPermissions("merchant:replenishment:view")
     @PostMapping("/replenishment/tasks/{taskId}/check-in")
     public ApiResponse<ReplenishmentTaskDto> checkInReplenishmentTask(
             HttpServletRequest request,
@@ -301,6 +305,15 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantReplenishmentService.checkInTask(userId(request), taskId, body));
     }
 
+    /** 补货员开门：签到后可开门上架，不产生消费者账单 */
+    @RequiresPermissions("merchant:replenishment:view")
+    @PostMapping("/replenishment/tasks/{taskId}/open-door")
+    public ApiResponse<SessionDto> openReplenishmentDoor(
+            HttpServletRequest request, @PathVariable Long taskId) {
+        return ApiResponse.ok(merchantReplenishmentService.openDoorForTask(userId(request), taskId));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
     @PostMapping("/replenishment/tasks/{taskId}/lines")
     public ApiResponse<List<ReplenishmentTaskLineDto>> confirmReplenishmentTaskLines(
             HttpServletRequest request,
@@ -309,12 +322,14 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantReplenishmentService.confirmTaskLines(userId(request), taskId, body));
     }
 
+    @RequiresPermissions("merchant:replenishment:view")
     @PostMapping("/replenishment/tasks/{taskId}/complete")
     public ApiResponse<ReplenishmentTaskDto> completeReplenishmentTask(
             HttpServletRequest request, @PathVariable Long taskId) {
         return ApiResponse.ok(merchantReplenishmentService.completeTask(userId(request), taskId));
     }
 
+    @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/suggestions")
     public ApiResponse<List<ReplenishmentSuggestDto>> replenishmentSuggestions(
             HttpServletRequest request,
@@ -322,6 +337,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantReplenishmentService.listSuggestions(userId(request), deviceId));
     }
 
+    @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/requests")
     public ApiResponse<List<MerchantReplenishmentRequestDto>> replenishmentRequests(
             HttpServletRequest request,
@@ -331,12 +347,14 @@ public class MerchantPortalController {
                 userId(request), status, deviceId));
     }
 
+    @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/requests/{requestId}")
     public ApiResponse<MerchantReplenishmentRequestDto> replenishmentRequestDetail(
             HttpServletRequest request, @PathVariable Long requestId) {
         return ApiResponse.ok(merchantReplenishmentService.getRequest(userId(request), requestId));
     }
 
+    @RequiresPermissions("merchant:replenishment:request")
     @PostMapping("/replenishment/requests")
     public ApiResponse<MerchantReplenishmentRequestDto> createReplenishmentRequest(
             HttpServletRequest request,

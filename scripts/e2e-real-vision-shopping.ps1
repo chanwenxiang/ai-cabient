@@ -1,6 +1,6 @@
 # 真实 YOLO 购物 E2E — mock 关闭，simulator 上传图片/视频，vision 识别结算
 param(
-    [string]$BaseUrl = "http://localhost:18080",
+    [string]$BaseUrl = "",
     [string]$Phone = "",
     [string]$Code = "123456",
     [string]$DeviceId = "",
@@ -18,6 +18,7 @@ param(
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
+$BaseUrl = Resolve-E2eBaseUrl $BaseUrl
 
 if (-not $EnvFile) {
     $EnvFile = Join-Path $Root "infra\.env.sandbox"

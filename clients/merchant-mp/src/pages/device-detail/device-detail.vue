@@ -10,7 +10,7 @@
       </view>
 
       <view v-if="canEditDevice" class="card">
-        <text class="section">设备设置</text>
+        <text class="section">柜机设置</text>
         <input v-model="formName" class="input" placeholder="显示名称" />
         <input v-model="formTargetTemp" class="input" type="number" placeholder="目标温度(°C)" />
         <input v-model="formRemark" class="input" placeholder="备注" />
@@ -78,7 +78,7 @@ onLoad((opts) => {
   }
   deviceId.value = decodeURIComponent((opts?.id as string) || '');
   if (!deviceId.value) {
-    error.value = '设备不存在';
+    error.value = '柜机不存在';
     loading.value = false;
     return;
   }

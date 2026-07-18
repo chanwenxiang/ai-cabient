@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -9,7 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:feedback:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -101,7 +101,6 @@
             width="88"
             class-name="col-action"
             align="center"
-            fixed="right"
           >
             <template #default="{ row }">
               <TableActions

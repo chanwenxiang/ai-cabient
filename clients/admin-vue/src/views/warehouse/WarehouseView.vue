@@ -35,11 +35,13 @@
             @click="openInbound()"
           >其他入库</el-button>
           <el-button
-            v-if="canImportMaster && canEdit"
+            v-if="canImportMaster"
+            v-hasPermi="['ops:warehouse:import']"
             @click="onDownloadImportTemplate"
           >导入模板</el-button>
           <el-button
-            v-if="canImportMaster && canEdit"
+            v-if="canImportMaster"
+            v-hasPermi="['ops:warehouse:import']"
             :loading="importing"
             @click="triggerImport"
           >导入</el-button>
@@ -57,7 +59,7 @@
             class="hidden-input"
             @change="onSupplierImportFile"
           />
-          <el-button @click="onExport">
+          <el-button v-hasPermi="['ops:warehouse:export']" @click="onExport">
             {{ selectedKeys.length ? `导出选中 (${selectedKeys.length})` : '导出' }}
           </el-button>
           <el-button :icon="Refresh" :loading="loading" @click="reloadCurrent">刷新</el-button>
@@ -122,7 +124,7 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column v-if="canEdit" label="操作" width="88" class-name="col-action" align="center" fixed="right">
+              <el-table-column v-if="canEdit" label="操作" width="88" class-name="col-action" align="center">
                 <template #default="{ row }">
                   <TableActions
                     :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
@@ -316,7 +318,7 @@
             <template #default="{ row }">
               <div class="expand-panel">
                 <el-table :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
-                  <el-table-column label="目标柜机" min-width="180">
+                  <el-table-column label="目标设备" min-width="180">
                     <template #default="scope">
                       <div class="name-cell"><strong>{{ deviceName(scope.row.deviceId) }}</strong><small class="cell-id">{{ scope.row.deviceId }}</small></div>
                     </template>

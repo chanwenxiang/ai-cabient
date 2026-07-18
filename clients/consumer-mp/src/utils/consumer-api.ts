@@ -1,5 +1,7 @@
 import type { LoginResponse } from '@aicabinet/shared-types';
+import { clearDictOverrides } from '@aicabinet/shared-dict';
 import { API_BASE_URL } from '@/config/api';
+import { isDevBuild } from '@/utils/runtime-flags';
 
 const BASE_URL = API_BASE_URL;
 
@@ -7,10 +9,14 @@ function formatRequestError(errMsg: string | undefined, path: string) {
   const raw = errMsg || '网络错误';
   if (raw === 'request:fail' || raw.includes('request:fail')) {
     // #ifdef H5
-    return `暂时无法连接服务（${path}），请确认本机 gateway / trade-service 已启动后重试`;
+    return isDevBuild
+      ? `网络不太稳定（${path}），请确认本机服务已启动后重试`
+      : '网络不太稳定，请稍后再试';
     // #endif
     // #ifndef H5
-    return `无法连接服务器 ${BASE_URL}${path}。请确认 trade-service 已启动，并在微信开发者工具勾选「不校验合法域名」`;
+    return isDevBuild
+      ? '网络不太稳定，请稍后再试。开发调试时可在微信开发者工具勾选「不校验合法域名」'
+      : '网络不太稳定，请稍后再试';
     // #endif
   }
   return raw;
@@ -34,6 +40,7 @@ export function clearConsumerSession() {
   uni.removeStorageSync('consumer_server_boot');
   uni.removeStorageSync('active_session_id');
   uni.removeStorageSync(OPEN_ATTEMPT_KEY);
+  clearDictOverrides();
 }
 
 type OpenAttempt = { deviceId: string; idempotencyKey: string; createdAt: number };
@@ -63,6 +70,7 @@ function applyTokenSession(data: LoginResponse) {
   if (data.serverBootEpoch != null) {
     uni.setStorageSync('consumer_server_boot', data.serverBootEpoch);
   }
+  void import('@/utils/dict-runtime').then((m) => m.loadRuntimeDict());
 }
 
 async function refreshTokenSilently(): Promise<boolean> {

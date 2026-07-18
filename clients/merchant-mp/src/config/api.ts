@@ -1,3 +1,15 @@
-/** H5 开发环境使用同源代理；小程序开发连接本机，生产构建强制使用显式 HTTPS 域名。 */
-const developmentDefault = import.meta.env.DEV && typeof window !== 'undefined' ? '' : 'http://localhost:8080';
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || developmentDefault).replace(/\/$/, '');
+/**
+ * H5 开发（浏览器）走 Vite 同源代理，忽略局域网 VITE_API_BASE_URL。
+ * 微信开发者工具 / 小程序仍使用 .env 中的本机或局域网地址。
+ */
+const envBase = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+const isH5DevBrowser =
+  import.meta.env.DEV &&
+  typeof window !== 'undefined' &&
+  typeof navigator !== 'undefined' &&
+  !/miniProgram|miniprogram/i.test(navigator.userAgent);
+
+export const API_BASE_URL = (isH5DevBrowser ? '' : envBase || 'http://localhost:8080').replace(
+  /\/$/,
+  ''
+);

@@ -170,7 +170,7 @@ public class DisputeService {
      */
     @Transactional
     public OrderRefundResultDto refundByOperator(Long operatorId, String orderId, OrderRefundRequest request) {
-        permissionService.requireAnyPermission(operatorId, "ops:dispute", "ops:order:list", "ops:user:balance");
+        permissionService.requirePermission(operatorId, "ops:dispute:resolve");
         CabinetOrder order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         ShoppingSession session = sessionRepository.findById(order.getSessionId())
@@ -305,7 +305,7 @@ public class DisputeService {
 
     @Transactional
     public ResolveDisputeResultDto resolveTicket(Long operatorId, String ticketId, ResolveDisputeRequest request) {
-        permissionService.requirePermission(operatorId, "ops:dispute");
+        permissionService.requirePermission(operatorId, "ops:dispute:resolve");
         DisputeTicket ticket = disputeRepository.findById(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
         if (!"OPEN".equals(ticket.getStatus())) {
@@ -364,7 +364,7 @@ public class DisputeService {
 
     @Transactional
     public DisputeTicketDto closeTicket(Long operatorId, String ticketId, CloseDisputeRequest request) {
-        permissionService.requirePermission(operatorId, "ops:dispute");
+        permissionService.requirePermission(operatorId, "ops:dispute:resolve");
         DisputeTicket ticket = disputeRepository.findById(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
         ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
@@ -384,7 +384,7 @@ public class DisputeService {
 
     @Transactional
     public DisputeTicketDto reopenTicket(Long operatorId, String ticketId, ReopenDisputeRequest request) {
-        permissionService.requirePermission(operatorId, "ops:dispute");
+        permissionService.requirePermission(operatorId, "ops:dispute:resolve");
         DisputeTicket ticket = disputeRepository.findById(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
         ShoppingSession session = sessionRepository.findById(ticket.getSessionId())

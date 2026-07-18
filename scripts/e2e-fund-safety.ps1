@@ -1,6 +1,6 @@
 # Fund safety E2E: balance insufficient, trade-service outage recovery, idempotency checks
 param(
-    [string]$BaseUrl = "http://127.0.0.1:8080",
+    [string]$BaseUrl = "",
     [string]$DeviceId = "CAB-001",
     [string]$ConsumerPhone = "13800138000",
     [string]$ConsumerPassword = "123456",
@@ -11,6 +11,7 @@ param(
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
+$BaseUrl = Resolve-E2eBaseUrl $BaseUrl
 
 function Get-E2eAuth {
     param([string]$Phone, [string]$Password, [int]$MaxAttempts = 5)

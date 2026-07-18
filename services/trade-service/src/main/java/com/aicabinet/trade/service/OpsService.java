@@ -33,19 +33,27 @@ public class OpsService {
         this.taskRepository = taskRepository;
     }
 
-    /** 运营补货开门：绑定补货任务，不校验余额，不触发消费者结算。 */
+    /** 运营账号补货开门（需 userId ≥ 100000000）。 */
     @Transactional
     public SessionDto openDoorForRestock(Long operatorUserId, OpsOpenDoorRequest request) {
         requireOperator(operatorUserId);
-        deviceValidationService.requireDevice(request.deviceId());
-        ReplenishmentTask task = deviceValidationService.ensureRestockDoorAllowed(
-                request.deviceId(), request.taskId(), operatorUserId);
+        return openDoorForRestockAsUser(operatorUserId, request.deviceId(), request.taskId());
+    }
+
+    /**
+     * 补货开门核心逻辑（运营 / 商户补货员共用）：
+     * 绑定补货任务，不校验消费者余额，不触发购物结算。
+     */
+    @Transactional
+    public SessionDto openDoorForRestockAsUser(Long userId, String deviceId, Long taskId) {
+        deviceValidationService.requireDevice(deviceId);
+        ReplenishmentTask task = deviceValidationService.ensureRestockDoorAllowed(deviceId, taskId, userId);
 
         ShoppingSession session = new ShoppingSession();
         String sessionId = generateSessionId();
         session.setSessionId(sessionId);
-        session.setUserId(operatorUserId);
-        session.setDeviceId(request.deviceId());
+        session.setUserId(userId);
+        session.setDeviceId(deviceId);
         session.setReplenishmentTaskId(task.getTaskId());
         session.setIdempotencyKey("RESTOCK:" + task.getTaskId() + ":" + sessionId);
         session.setState(com.aicabinet.common.enums.SessionState.OPENING);
@@ -56,8 +64,8 @@ public class OpsService {
             taskRepository.save(task);
         }
 
-        deviceClient.requestOpenDoorOperator(session.getSessionId(), request.deviceId(), operatorUserId);
-        return sessionService.getSession(operatorUserId, session.getSessionId());
+        deviceClient.requestOpenDoorOperator(session.getSessionId(), deviceId, userId);
+        return sessionService.getSession(userId, session.getSessionId());
     }
 
     private void requireOperator(Long userId) {

@@ -3,14 +3,14 @@
                   {
                       "path":  "pages/login/login",
                       "style":  {
-                                    "navigationBarTitleText":  "商户登录",
+                                    "navigationBarTitleText":  "登录",
                                     "navigationStyle":  "custom"
                                 }
                   },
                   {
                       "path":  "pages/home/home",
                       "style":  {
-                                    "navigationBarTitleText":  "概览",
+                                    "navigationBarTitleText":  "工作台",
                                     "enablePullDownRefresh":  true
                                 }
                   },
@@ -83,7 +83,7 @@
                    "list":  [
                                 {
                                     "pagePath":  "pages/home/home",
-                                    "text":  "概览",
+                                    "text":  "工作台",
                                     "iconPath":  "static/tab/home.png",
                                     "selectedIconPath":  "static/tab/home-active.png"
                                 },
@@ -107,6 +107,12 @@
                                 }
                             ]
                },
+    "easycom": {
+        "autoscan": true,
+        "custom": {
+            "^empty-state$": "@/components/empty-state.vue"
+        }
+    },
     "globalStyle":  {
                         "navigationBarTextStyle":  "white",
                         "navigationBarBackgroundColor":  "#134e4a",

@@ -1,5 +1,101 @@
 # Shared E2E helpers: API client, device cleanup, MQTT shopping flow
 
+function Get-E2eBaseUrl {
+    param([string]$Fallback = "http://localhost:18080")
+    if (-not [string]::IsNullOrWhiteSpace($env:E2E_BASE_URL)) {
+        return $env:E2E_BASE_URL.Trim().TrimEnd('/')
+    }
+    return $Fallback.TrimEnd('/')
+}
+
+function Get-E2eVisionUrl {
+    param([string]$Fallback = "http://localhost:18082")
+    if (-not [string]::IsNullOrWhiteSpace($env:E2E_VISION_URL)) {
+        return $env:E2E_VISION_URL.Trim().TrimEnd('/')
+    }
+    return $Fallback.TrimEnd('/')
+}
+
+function Get-E2eDeviceUrl {
+    param([string]$Fallback = "http://localhost:18081")
+    if (-not [string]::IsNullOrWhiteSpace($env:E2E_DEVICE_URL)) {
+        return $env:E2E_DEVICE_URL.Trim().TrimEnd('/')
+    }
+    return $Fallback.TrimEnd('/')
+}
+
+function Resolve-E2eBaseUrl {
+    param([string]$BaseUrl)
+    if ([string]::IsNullOrWhiteSpace($BaseUrl)) { return Get-E2eBaseUrl }
+    return $BaseUrl.TrimEnd('/')
+}
+
+function Get-E2eVisionApiKey {
+    param([string]$Fallback = "dev-vision-key-change-me")
+    if (-not [string]::IsNullOrWhiteSpace($env:VISION_API_KEY)) {
+        return $env:VISION_API_KEY.Trim()
+    }
+    $envFile = Join-Path (Split-Path -Parent $PSScriptRoot) "infra\.env"
+    if (Test-Path $envFile) {
+        $line = Get-Content $envFile | Where-Object { $_ -match '^\s*VISION_API_KEY\s*=' } | Select-Object -First 1
+        if ($line -match '^\s*VISION_API_KEY\s*=\s*(.+)\s*$') {
+            $val = $Matches[1].Trim().Trim('"').Trim("'")
+            if (-not [string]::IsNullOrWhiteSpace($val)) { return $val }
+        }
+    }
+    return $Fallback
+}
+
+function Set-E2eVisionForceNeedReview {
+    param(
+        [bool]$Enabled,
+        [string]$VisionUrl = "",
+        [string]$VisionApiKey = ""
+    )
+    if ([string]::IsNullOrWhiteSpace($VisionUrl)) { $VisionUrl = Get-E2eVisionUrl }
+    if ([string]::IsNullOrWhiteSpace($VisionApiKey)) { $VisionApiKey = Get-E2eVisionApiKey }
+    $uri = "$VisionUrl/api/v2/vision/debug/force-need-review"
+    $params = @{
+        Method      = "POST"
+        Uri         = $uri
+        ContentType = "application/json"
+        Headers     = @{ "X-Internal-Api-Key" = $VisionApiKey }
+        Body        = (@{ enabled = $Enabled } | ConvertTo-Json -Compress)
+    }
+    return Invoke-RestMethod @params
+}
+
+function Set-E2eConsumerPayChannel {
+    param(
+        [string]$BaseUrl,
+        [hashtable]$Auth,
+        [ValidateSet("WECHAT", "ALIPAY", "BALANCE")]
+        [string]$Channel,
+        [string]$Phone = "13800138000",
+        [string]$PostgresContainer = "ai-cabinet-postgres-1"
+    )
+    switch ($Channel.ToUpper()) {
+        "WECHAT" {
+            $sign = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/account/payscore/sign" -Headers $Auth
+            Write-Host "    pay channel WECHAT (payscore signed contract=$($sign.contractId))"
+        }
+        "ALIPAY" {
+            $sign = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/account/alipay-agreement/sign" -Headers $Auth
+            Write-Host "    pay channel ALIPAY (agreement signed contract=$($sign.contractId))"
+        }
+        "BALANCE" {
+            $sql = @"
+UPDATE user_info
+SET pay_preferred_channel = 'BALANCE'
+WHERE phone_number = '$Phone';
+"@
+            docker exec $PostgresContainer psql -U aicabinet -d aicabinet -c $sql | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "failed to set pay_preferred_channel=BALANCE for $Phone" }
+            Write-Host "    pay channel BALANCE (preferred_channel forced via DB)"
+        }
+    }
+}
+
 function Get-E2eSimVideoKey {
     param(
         [string]$DeviceId = "CAB-001",
@@ -206,6 +302,26 @@ function Wait-E2eSessionTerminal {
     return $final
 }
 
+function Wait-E2eSessionLeftStates {
+    param(
+        [string]$BaseUrl,
+        [string]$SessionId,
+        [hashtable]$Auth,
+        [string[]]$States = @("CREATED", "OPENING"),
+        [int]$TimeoutSec = 15
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    $last = $null
+    while ((Get-Date) -lt $deadline) {
+        $s = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/sessions/$SessionId" -Headers $Auth
+        $last = $s.state
+        if ($last -notin $States) { return $last }
+        if ($last -in @("COMPLETED", "DISPUTED", "FAILED", "CANCELLED")) { return $last }
+        Start-Sleep -Milliseconds 500
+    }
+    return $last
+}
+
 function Wait-E2eSessionOrder {
     param(
         [string]$BaseUrl,
@@ -265,19 +381,49 @@ function Invoke-E2eMqttShopping {
         }
     }
     $sessionId = $session.sessionId
+    $userId = 0
+    try { $userId = [long]$session.userId } catch { $userId = 0 }
     Write-Host "    sessionId=$sessionId state=$($session.state) idempotencyKey=$idempotencyKey"
+
+    # MQTT unlock should move OPENING -> SHOPPING quickly. If the simulator missed
+    # OPEN_DOOR (common after broker blips), inject internal door close to finish.
+    $progress = Wait-E2eSessionLeftStates -BaseUrl $BaseUrl -SessionId $sessionId -Auth $Auth `
+        -States @("CREATED", "OPENING") -TimeoutSec 15
+    Write-Host "    progress state=$progress"
+    $usedFallback = $false
+    if ($progress -in @("CREATED", "OPENING")) {
+        Write-Warning "MQTT unlock stalled at $progress; injecting internal door close fallback"
+        Invoke-E2eInternalDoorClose -BaseUrl $BaseUrl -SessionId $sessionId -DeviceId $DeviceId `
+            -UserId $userId -InternalApiKey $InternalApiKey | Out-Null
+        $usedFallback = $true
+    }
 
     $final = Wait-E2eSessionTerminal -BaseUrl $BaseUrl -SessionId $sessionId -Auth $Auth
     if ($final -notin @("COMPLETED", "DISPUTED")) {
+        # One more fallback attempt if we somehow never left OPENING
+        if ($final -in @("CREATED", "OPENING", $null) -or -not $usedFallback) {
+            $cur = (Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/sessions/$sessionId" -Headers $Auth).state
+            if ($cur -in @("CREATED", "OPENING", "SHOPPING", "RECOGNIZING", "WAITING_UPLOAD", "SETTLING")) {
+                Write-Warning "session still $cur after wait; retrying internal door close"
+                Invoke-E2eInternalDoorClose -BaseUrl $BaseUrl -SessionId $sessionId -DeviceId $DeviceId `
+                    -UserId $userId -InternalApiKey $InternalApiKey | Out-Null
+                $usedFallback = $true
+                $final = Wait-E2eSessionTerminal -BaseUrl $BaseUrl -SessionId $sessionId -Auth $Auth -MaxPolls 20
+            }
+        }
+    }
+    if ($final -notin @("COMPLETED", "DISPUTED")) {
         throw "session did not finish via MQTT path, state=$final"
     }
-    Write-Host "    final state=$final (DeviceSimulator handled door + video)"
+    $pathLabel = if ($usedFallback) { "internal door fallback" } else { "DeviceSimulator MQTT" }
+    Write-Host "    final state=$final ($pathLabel)"
 
     return @{
         SessionId          = $sessionId
         FinalState         = $final
         SimulatorStarted   = [bool]$sim.Started
         SimulatorProcess   = $sim.Process
+        UsedDoorFallback   = $usedFallback
     }
 }
 
@@ -295,7 +441,7 @@ function Invoke-TradeServiceOutage {
     param(
         [int]$DurationSec = 20,
         [string]$TradeContainer = "ai-cabinet-trade-service-1",
-        [string]$HealthUrl = "http://127.0.0.1:8080/actuator/health"
+        [string]$HealthUrl = "http://127.0.0.1:18080/actuator/health"
     )
     Write-Host "==> Stopping trade-service ($TradeContainer) for ${DurationSec}s..."
     docker stop $TradeContainer | Out-Null

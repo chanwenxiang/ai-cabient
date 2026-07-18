@@ -1,6 +1,6 @@
 # Cleanup E2E/browser test artifacts: resolve open exceptions, cancel blocking sessions, restore consumer balance.
 param(
-    [string]$BaseUrl = "http://127.0.0.1:8080",
+    [string]$BaseUrl = "",
     [string]$DeviceId = "CAB-001",
     [string]$ConsumerPhone = "13800138000",
     [int]$RestoreBalanceCents = 11300,
@@ -12,6 +12,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
+$BaseUrl = Resolve-E2eBaseUrl $BaseUrl
 
 Write-Host "========== Cleanup Test Data =========="
 

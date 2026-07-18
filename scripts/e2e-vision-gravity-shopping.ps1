@@ -1,6 +1,6 @@
 # 识别 + mock 重力 E2E：真实 YOLO 跑 vision，模拟器上报重力取货，期望 COMPLETED
 param(
-    [string]$BaseUrl = "http://localhost:18080",
+    [string]$BaseUrl = "",
     [string]$Phone = "",
     [string]$Code = "123456",
     [string]$DeviceId = "",
@@ -20,6 +20,7 @@ param(
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
+$BaseUrl = Resolve-E2eBaseUrl $BaseUrl
 
 if (-not $EnvFile) {
     $EnvFile = Join-Path $Root "infra\.env.sandbox"

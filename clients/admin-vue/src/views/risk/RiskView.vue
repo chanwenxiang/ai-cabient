@@ -12,7 +12,7 @@
           <el-button v-if="canBlacklist && tab === 'blacklist'" type="primary" @click="openAdd">
             加入黑名单
           </el-button>
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:risk:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="reloadCurrent">刷新</el-button>
         </div>
       </div>
@@ -122,7 +122,6 @@
                 width="88"
                 class-name="col-action"
                 align="center"
-                fixed="right"
               >
                 <template #default="{ row }">
                   <TableActions

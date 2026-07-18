@@ -73,7 +73,7 @@ public class OpsRbacService {
 
     @Transactional
     public OpsRoleDto createRole(Long operatorId, CreateOpsRoleRequest request) {
-        permissionService.requirePermission(operatorId, "ops:rbac:role");
+        permissionService.requirePermission(operatorId, "ops:rbac:role:add");
         String roleKey = request.roleKey().trim();
         if (roleRepository.findByRoleKey(roleKey).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "角色标识已存在");
@@ -92,7 +92,7 @@ public class OpsRbacService {
 
     @Transactional
     public OpsRoleDto updateRole(Long operatorId, Long roleId, UpdateOpsRoleRequest request) {
-        permissionService.requirePermission(operatorId, "ops:rbac:role");
+        permissionService.requirePermission(operatorId, "ops:rbac:role:edit");
         OpsRole role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ROLE_NOT_FOUND));
         if ("admin".equals(role.getRoleKey()) && request.status() != null
@@ -133,7 +133,7 @@ public class OpsRbacService {
 
     @Transactional
     public OpsPermissionDto createPermission(Long operatorId, CreateOpsPermissionRequest request) {
-        permissionService.requireAnyPermission(operatorId, "ops:rbac:menu", "ops:rbac:menu:add");
+        permissionService.requirePermission(operatorId, "ops:rbac:menu:add");
         String permType = normalizePermType(request.permType());
         String permCode = request.permCode().trim();
         if (permissionRepository.findByPermCode(permCode).isPresent()) {
@@ -158,7 +158,7 @@ public class OpsRbacService {
 
     @Transactional
     public OpsPermissionDto updatePermission(Long operatorId, Long permissionId, UpdateOpsPermissionRequest request) {
-        permissionService.requireAnyPermission(operatorId, "ops:rbac:menu", "ops:rbac:menu:edit");
+        permissionService.requirePermission(operatorId, "ops:rbac:menu:edit");
         OpsPermission p = permissionRepository.findById(permissionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "菜单权限不存在"));
         Long parentId = request.parentId() == null ? p.getParentId() : request.parentId();
@@ -182,7 +182,7 @@ public class OpsRbacService {
 
     @Transactional
     public void deletePermission(Long operatorId, Long permissionId) {
-        permissionService.requireAnyPermission(operatorId, "ops:rbac:menu", "ops:rbac:menu:remove");
+        permissionService.requirePermission(operatorId, "ops:rbac:menu:remove");
         OpsPermission p = permissionRepository.findById(permissionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "菜单权限不存在"));
         long childCount = permissionRepository.countByParentIdAndStatus(permissionId, "ACTIVE");
@@ -242,7 +242,7 @@ public class OpsRbacService {
 
     @Transactional(readOnly = true)
     public OpsRolePermissionsDto getRolePermissions(Long operatorId, Long roleId) {
-        permissionService.requirePermission(operatorId, "ops:rbac:role");
+        permissionService.requireAnyPermission(operatorId, "ops:rbac:role", "ops:rbac:role:perm");
         var role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ROLE_NOT_FOUND));
         List<Long> permissionIds = rolePermissionRepository.findPermissionIdsByRoleId(roleId);
@@ -251,7 +251,7 @@ public class OpsRbacService {
 
     @Transactional
     public OpsRolePermissionsDto assignRolePermissions(Long operatorId, Long roleId, List<Long> permissionIds) {
-        permissionService.requirePermission(operatorId, "ops:rbac:role");
+        permissionService.requirePermission(operatorId, "ops:rbac:role:perm");
         var role = roleRepository.findById(roleId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ROLE_NOT_FOUND));
         if ("admin".equals(role.getRoleKey())) {
@@ -287,7 +287,7 @@ public class OpsRbacService {
 
     @Transactional
     public OpsOperatorDto createOperator(Long operatorId, CreateOpsOperatorRequest request) {
-        permissionService.requireAnyPermission(operatorId, "ops:rbac:assign", "ops:rbac:assign:add");
+        permissionService.requirePermission(operatorId, "ops:rbac:assign:add");
         String phone = normalizePhone(request.phoneNumber());
         if (userInfoRepository.findByPhoneNumber(phone).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.PHONE_ALREADY_EXISTS);
@@ -315,7 +315,7 @@ public class OpsRbacService {
 
     @Transactional
     public OpsOperatorDto updateOperator(Long operatorId, Long userId, UpdateOpsOperatorRequest request) {
-        permissionService.requireAnyPermission(operatorId, "ops:rbac:assign", "ops:rbac:assign:edit");
+        permissionService.requirePermission(operatorId, "ops:rbac:assign:edit");
         ensureOperatorAccount(userId);
         UserInfo user = userInfoRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
@@ -343,7 +343,7 @@ public class OpsRbacService {
 
     @Transactional
     public void disableOperator(Long operatorId, Long userId) {
-        permissionService.requireAnyPermission(operatorId, "ops:rbac:assign", "ops:rbac:assign:disable");
+        permissionService.requirePermission(operatorId, "ops:rbac:assign:disable");
         ensureOperatorAccount(userId);
         if (userId.equals(operatorId)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CANNOT_DISABLE_SELF);
@@ -367,7 +367,7 @@ public class OpsRbacService {
 
     @Transactional
     public OpsUserRolesDto assignRoles(Long operatorId, Long userId, List<Long> roleIds) {
-        permissionService.requireAnyPermission(operatorId, "ops:rbac:assign", "ops:rbac:assign:role");
+        permissionService.requirePermission(operatorId, "ops:rbac:assign:role");
         ensureOperatorAccount(userId);
         replaceUserRoles(userId, roleIds);
         return getUserRoles(operatorId, userId);
@@ -399,7 +399,7 @@ public class OpsRbacService {
 
     @Transactional
     public OpsUserMerchantsDto assignMerchants(Long operatorId, Long userId, List<String> merchantIds) {
-        permissionService.requirePermission(operatorId, "ops:rbac:assign");
+        permissionService.requirePermission(operatorId, "ops:rbac:assign:merchant");
         ensureOperatorAccount(userId);
         Set<String> allowed = merchantScopeService.allowedMerchantIds(operatorId);
         userMerchantRepository.deleteByIdUserId(userId);

@@ -3,7 +3,7 @@
     <view class="hero" :class="'lv-' + (profile?.levelCode || 'NORMAL').toLowerCase()">
       <view class="hero-top">
         <view>
-          <text class="hero-kicker">AI CABINET CLUB</text>
+          <text class="hero-kicker">会员俱乐部</text>
           <text class="hero-level">{{ profile?.levelName || '普通会员' }}</text>
         </view>
         <view class="points-chip" @click="goHistory">
@@ -56,7 +56,11 @@
           <text class="redeem-title">{{ item.title }}</text>
           <text class="redeem-cost">{{ item.pointsCost }} 积分</text>
         </view>
-        <view v-if="!redeemPreview.length" class="redeem-empty">加载中…</view>
+        <view v-if="redeemLoading" class="redeem-empty">加载中…</view>
+        <view v-else-if="!redeemPreview.length" class="redeem-empty clickable" @click="goExchange">
+          <text class="redeem-empty-title">暂无可兑好礼</text>
+          <text class="redeem-empty-hint">去积分兑换看看 ›</text>
+        </view>
       </scroll-view>
     </view>
 
@@ -99,6 +103,7 @@ import {
 const profile = ref<MemberProfileDto | null>(null);
 const redeemPreview = ref<PointsRedeemItemDto[]>([]);
 const couponCount = ref(0);
+const redeemLoading = ref(false);
 
 const progressWidth = computed(() => `${Math.min(100, Math.max(0, profile.value?.progressPercent || 0))}%`);
 
@@ -120,17 +125,20 @@ onShow(async () => {
 });
 
 async function load() {
+  redeemLoading.value = true;
   try {
     const [p, items, count] = await Promise.all([
       consumerApi.memberProfile(),
       consumerApi.redeemItems(),
-      consumerApi.couponCount().catch(() => 0)
+      consumerApi.couponCount()
     ]);
     profile.value = p;
     redeemPreview.value = (items || []).slice(0, 6);
     couponCount.value = Number(count) || 0;
   } catch (e: any) {
     uni.showToast({ title: e?.message || '加载失败', icon: 'none' });
+  } finally {
+    redeemLoading.value = false;
   }
 }
 
@@ -225,7 +233,19 @@ function goMarketing() {
 .redeem-emoji { font-size: 40rpx; }
 .redeem-title { margin-top: 10rpx; font-size: 24rpx; font-weight: 650; color: #14532d; white-space: normal; }
 .redeem-cost { margin-top: 8rpx; font-size: 22rpx; color: #059669; font-weight: 700; }
-.redeem-empty { padding: 24rpx; color: #999; font-size: 24rpx; }
+.redeem-empty {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 280rpx;
+  padding: 24rpx 20rpx;
+  color: #849087;
+  font-size: 24rpx;
+  vertical-align: top;
+}
+.redeem-empty.clickable { color: #059669; }
+.redeem-empty-title { font-size: 26rpx; font-weight: 650; color: #64748b; }
+.redeem-empty-hint { margin-top: 8rpx; font-size: 22rpx; color: #059669; }
 
 .benefit-row { display: flex; gap: 18rpx; padding: 18rpx 0; border-bottom: 1rpx solid #f0f2f1; }
 .benefit-row:last-child { border-bottom: 0; }

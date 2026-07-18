@@ -40,6 +40,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "/api/v2/coupons/**",
                         "/api/v2/member/**",
                         "/api/v2/merchant/**",
+                        "/api/v2/dicts/**",
                         "/api/v2/marketing/campaigns/*/claim")
                 .excludePathPatterns(
                         "/api/v2/auth/**",

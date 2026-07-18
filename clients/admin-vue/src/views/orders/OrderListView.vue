@@ -9,7 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:order:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -106,14 +106,15 @@
           <el-table-column label="金额" width="110" align="right" class-name="col-money">
             <template #default="{ row }">¥{{ money(row.totalAmountCents) }}</template>
           </el-table-column>
-          <el-table-column label="创建时间" width="168" class-name="col-text">
+          <el-table-column label="创建时间" width="172" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120" align="center" class-name="col-action" fixed="right">
+          <!-- 与 .table-scroll 约定一致：不用 fixed，避免时间列与操作列叠层透视 -->
+          <el-table-column label="操作" width="100" align="center" class-name="col-action">
             <template #default="{ row }">
-              <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
+              <TableActions :actions="rowActions(row)" :max-primary="2" @action="(key) => onRowAction(key, row)" />
             </template>
           </el-table-column>
         </el-table>
@@ -170,7 +171,7 @@
 
           <div class="drawer-actions">
             <el-button
-              v-if="canRefund(detail.status)"
+              v-if="canRefund(detail.status) && auth.hasPerm('ops:dispute:resolve')"
               type="danger"
               :loading="refundingId === detail.orderId"
               @click="refundOrder(detail)"
@@ -223,11 +224,13 @@ import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
+import { useAuthStore } from '@/stores/auth';
 import type { OrderSummary, PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 const route = useRoute();
 const router = useRouter();
+const auth = useAuthStore();
 const loading = ref(false);
 const refundingId = ref('');
 const deviceId = ref('');
@@ -278,7 +281,7 @@ function canRefund(s?: string) {
 
 function rowActions(row: OrderSummary): TableAction[] {
   const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
-  if (canRefund(row.status)) {
+  if (canRefund(row.status) && auth.hasPerm('ops:dispute:resolve')) {
     actions.push({
       key: 'refund',
       label: '退款',
