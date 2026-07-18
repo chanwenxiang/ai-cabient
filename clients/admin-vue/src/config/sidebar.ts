@@ -1,6 +1,6 @@
 import type { Component } from 'vue';
 import {
-  Box, Briefcase, Coin, Collection, DataAnalysis, DataBoard, Document, Goods, House, Key, Lock, Menu, Monitor, Money, Notebook, OfficeBuilding, Setting, Tools, Upload, User, UserFilled, View, Wallet, Warning
+  Box, Briefcase, Coin, Collection, DataAnalysis, DataBoard, Document, Goods, House, Key, Lock, Menu, Monitor, Money, Notebook, OfficeBuilding, Operation, Setting, Tools, Upload, User, UserFilled, View, Wallet, Warning
 } from '@element-plus/icons-vue';
 import { NAV_ITEMS, type NavItem } from '@/config/menu';
 
@@ -29,7 +29,6 @@ const PATH_ICONS: Record<string, Component> = {
   '/warehouse': House,
   '/recharges': Wallet,
   '/users': Wallet,
-  '/vision-mappings': View,
   '/risk': Lock,
   '/operators': User,
   '/roles': UserFilled,
@@ -40,7 +39,6 @@ const PATH_ICONS: Record<string, Component> = {
   '/coupons': Goods,
   '/feedback': Warning,
   '/announcements': Document,
-  '/oper-logs': Notebook,
   '/audit': Notebook,
   '/profile': UserFilled
 };
@@ -59,7 +57,7 @@ function itemsForGroup(group: string, canAccess?: (item: NavItem) => boolean) {
 /** 静态全量侧栏（兼容旧引用） */
 export const SIDEBAR_GROUPS: SidebarGroup[] = [
   { key: 'biz', label: '业务', icon: Briefcase, items: itemsForGroup('业务') },
-  { key: 'ops', label: '运营', icon: Setting, items: itemsForGroup('运营') },
+  { key: 'ops', label: '运营', icon: Operation, items: itemsForGroup('运营') },
   { key: 'sys', label: '系统', icon: Setting, items: itemsForGroup('系统').filter((i) => i.path !== '/profile') }
 ];
 
@@ -67,7 +65,7 @@ export const SIDEBAR_GROUPS: SidebarGroup[] = [
 export function buildSidebarGroups(canAccess: (item: NavItem) => boolean): SidebarGroup[] {
   return [
     { key: 'biz', label: '业务', icon: Briefcase, items: itemsForGroup('业务', canAccess) },
-    { key: 'ops', label: '运营', icon: Setting, items: itemsForGroup('运营', canAccess) },
+    { key: 'ops', label: '运营', icon: Operation, items: itemsForGroup('运营', canAccess) },
     {
       key: 'sys',
       label: '系统',

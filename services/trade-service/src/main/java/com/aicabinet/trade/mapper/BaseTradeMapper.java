@@ -104,7 +104,7 @@ public interface BaseTradeMapper<T> extends BaseMapper<T> {
         for (String name : List.of(
                 "id", "exceptionId", "userId", "orderId", "sessionId", "deviceId", "merchantId",
                 "skuId", "configKey", "key", "snapshotDate", "className", "ticketId", "splitId",
-                "txId", "opId", "lotId", "warehouseId", "dictType")) {
+                "txId", "opId", "lotId", "warehouseId", "dictType", "returnId")) {
             try {
                 Object v = ReflectionKit.getFieldValue(entity, name);
                 if (v != null) {

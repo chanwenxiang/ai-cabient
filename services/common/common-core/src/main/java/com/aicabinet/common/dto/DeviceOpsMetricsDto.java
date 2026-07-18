@@ -13,5 +13,33 @@ public record DeviceOpsMetricsDto(
         int totalBookQty,
         int totalParLevel,
         Instant lastRestockAt,
-        int inventoryAccuracyPct
-) {}
+        int inventoryAccuracyPct,
+        String address,
+        Integer currentTempC,
+        Integer targetTempC,
+        Instant tempReportedAt,
+        boolean salesLocked,
+        String appVersion,
+        String firmwareVersion,
+        String alertContactName,
+        String alertContactPhone
+) {
+    /** 兼容旧 12 字段构造 */
+    public DeviceOpsMetricsDto(
+            String deviceId,
+            int configuredSlotCount,
+            int activeSlotCount,
+            int fillRatePct,
+            int oosRatePct,
+            int oosSlotCount,
+            int lowStockSlotCount,
+            int totalBookQty,
+            int totalParLevel,
+            Instant lastRestockAt,
+            int inventoryAccuracyPct
+    ) {
+        this(deviceId, configuredSlotCount, activeSlotCount, fillRatePct, oosRatePct,
+                oosSlotCount, lowStockSlotCount, totalBookQty, totalParLevel, lastRestockAt,
+                inventoryAccuracyPct, null, null, null, null, false, null, null, null, null);
+    }
+}

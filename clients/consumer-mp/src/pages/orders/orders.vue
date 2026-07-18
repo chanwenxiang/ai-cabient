@@ -16,7 +16,7 @@
     </view>
     <view v-else-if="!authed" class="state-wrap">
       <text class="empty-title">登录后查看订单</text>
-      <text class="empty-desc">使用演示账号登录后，可查看购物账单与审核进度</text>
+      <text class="empty-desc">登录后可查看购物账单与审核进度</text>
       <button class="action-btn" hover-class="btn-hover" @click="onAuth">去登录</button>
       <button class="ghost-btn" hover-class="btn-hover" @click="goShop">先去扫码购物</button>
     </view>
@@ -102,7 +102,10 @@
           <text class="empty-desc">可切换时间或状态再试</text>
         </view>
         <view class="list-foot">
-          <text class="foot-link" @click="goReport">柜机有问题？故障报修</text>
+          <view class="foot-actions">
+            <text class="foot-btn" @click="goReport">故障报修</text>
+            <text class="foot-btn primary" @click="goHelp">帮助与客服</text>
+          </view>
         </view>
       </scroll-view>
     </view>
@@ -302,6 +305,10 @@ function goDetail(o: OrderSummary) {
 
 function goReport() {
   uni.navigateTo({ url: '/pages/report/report' });
+}
+
+function goHelp() {
+  uni.navigateTo({ url: '/pages/help/help' });
 }
 
 onShow(load);
@@ -548,4 +555,17 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .order-hint { font-size: 24rpx; color: #059669; font-weight: 600; }
 .list-foot { padding: 28rpx 24rpx 60rpx; text-align: center; }
 .foot-link { font-size: 26rpx; color: #576b95; }
+.foot-actions { display: flex; gap: 20rpx; justify-content: center; flex-wrap: wrap; }
+.foot-btn {
+  padding: 14rpx 28rpx;
+  border-radius: 999rpx;
+  font-size: 26rpx;
+  color: #576b95;
+  background: #f3f4f6;
+}
+.foot-btn.primary {
+  color: #047857;
+  background: #ecfdf5;
+  font-weight: 600;
+}
 </style>

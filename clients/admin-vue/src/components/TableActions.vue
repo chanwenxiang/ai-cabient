@@ -84,7 +84,9 @@ const visible = computed(() => props.actions.filter((a) => a && a.key));
 
 const primary = computed(() => {
   const main = visible.value.filter((a) => !a.overflow);
-  return main.slice(0, effectiveMax.value);
+  // 全部被标为 overflow 时，仍展示前 N 个为主按钮，避免只剩「更多」
+  const pool = main.length ? main : visible.value;
+  return pool.slice(0, effectiveMax.value);
 });
 
 const more = computed(() => {

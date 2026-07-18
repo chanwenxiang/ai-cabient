@@ -10,44 +10,86 @@
     <div class="login-overlay" aria-hidden="true" />
     <div class="login-card">
       <div class="card-header">
+        <div class="brand-mark" aria-hidden="true">柜</div>
         <h1>AI开门柜</h1>
         <p class="sub">运营管理系统</p>
       </div>
       <el-form label-position="top" @submit.prevent="onSubmit">
         <el-form-item label="手机号">
-          <el-input v-model="phone" maxlength="11" placeholder="请输入11位手机号" size="large" />
+          <el-input
+            ref="phoneInput"
+            v-model="phone"
+            maxlength="11"
+            inputmode="numeric"
+            autocomplete="username"
+            placeholder="请输入11位手机号"
+            size="large"
+            @input="err = ''"
+            @keyup.enter="focusPassword"
+          />
         </el-form-item>
         <el-form-item label="密码">
-          <el-input v-model="password" type="password" show-password placeholder="请输入登录密码" size="large" />
+          <el-input
+            ref="passwordInput"
+            v-model="password"
+            type="password"
+            show-password
+            autocomplete="current-password"
+            placeholder="请输入登录密码"
+            size="large"
+            @input="err = ''"
+          />
         </el-form-item>
         <el-button type="primary" native-type="submit" :loading="loading" class="submit-btn">登录</el-button>
-        <p v-if="err" class="err">{{ err }}</p>
+        <p v-if="err" class="err" role="alert">{{ err }}</p>
       </el-form>
-      <p class="hint">演示：13900000001 / 123456</p>
+      <p v-if="ENABLE_TEST_TOOLS" class="hint">演示：13900000001 / 123456</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { nextTick, onMounted, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import loginBgUrl from '@/assets/login-bg.svg';
 
-const phone = ref('13900000001');
-const password = ref('123456');
+const phone = ref(ENABLE_TEST_TOOLS ? '13900000001' : '');
+const password = ref(ENABLE_TEST_TOOLS ? '123456' : '');
 const loading = ref(false);
 const err = ref('');
+const phoneInput = ref<{ focus?: () => void } | null>(null);
+const passwordInput = ref<{ focus?: () => void } | null>(null);
 const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
 
+function focusPassword() {
+  passwordInput.value?.focus?.();
+}
+
+onMounted(async () => {
+  await nextTick();
+  if (!phone.value) phoneInput.value?.focus?.();
+  else if (!password.value) passwordInput.value?.focus?.();
+});
+
 async function onSubmit() {
+  const normalizedPhone = phone.value.trim();
+  if (!/^1\d{10}$/.test(normalizedPhone)) {
+    err.value = '请输入正确的11位手机号';
+    return;
+  }
+  if (!password.value) {
+    err.value = '请输入登录密码';
+    return;
+  }
   loading.value = true;
   err.value = '';
   try {
-    await auth.login(phone.value.trim(), password.value);
-    const redirect = (route.query.redirect as string) || '/devices';
+    await auth.login(normalizedPhone, password.value);
+    const redirect = (route.query.redirect as string) || '/dashboard';
     router.replace(redirect);
   } catch (e) {
     err.value = e instanceof Error ? e.message : '登录失败';
@@ -178,6 +220,19 @@ async function onSubmit() {
 .card-header {
   margin-bottom: 28px;
   text-align: center;
+}
+.brand-mark {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 14px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: #ecfeff;
+  background: linear-gradient(145deg, #14b8a6, #0f766e);
+  box-shadow: 0 10px 24px rgba(15, 118, 110, 0.35);
 }
 .card-header h1 {
   margin: 0 0 6px;

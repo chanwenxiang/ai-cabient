@@ -8,6 +8,7 @@ import io.minio.CopySource;
 import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
 import io.minio.StatObjectArgs;
 import io.minio.http.Method;
 import jakarta.servlet.http.HttpServletRequest;
@@ -100,6 +101,30 @@ public class MinioVideoService {
         }
     }
 
+    /**
+     * 服务端直传对象（消费者申诉附图等）。失败时返回 empty，由上层改写本地磁盘。
+     */
+    public Optional<String> putObject(String objectKey, byte[] data, String contentType) {
+        if (objectKey == null || objectKey.isBlank() || data == null || data.length == 0) {
+            return Optional.empty();
+        }
+        try {
+            String type = (contentType == null || contentType.isBlank())
+                    ? contentTypeForKey(objectKey)
+                    : contentType;
+            client().putObject(PutObjectArgs.builder()
+                    .bucket(properties.bucket())
+                    .object(objectKey)
+                    .stream(new java.io.ByteArrayInputStream(data), data.length, -1)
+                    .contentType(type)
+                    .build());
+            return Optional.of("minio://" + properties.bucket() + "/" + objectKey);
+        } catch (Exception e) {
+            log.warn("putObject failed key={} size={}", objectKey, data.length, e);
+            return Optional.empty();
+        }
+    }
+
     /** 将对象复制到归档路径（结算后按 SKU 索引录像）。 */
     public boolean copyObject(String sourceUri, String destObjectKey) {
         ParsedUri parsed = parseUri(sourceUri);
@@ -160,7 +185,7 @@ public class MinioVideoService {
             response.setHeader("Accept-Ranges", "bytes");
             response.setHeader("Cache-Control", "private, max-age=3600");
 
-            Range range = parseRange(request.getHeader("Range"), totalSize);
+            Range range = parseRange(request != null ? request.getHeader("Range") : null, totalSize);
             if (range != null) {
                 long length = range.end - range.start + 1;
                 response.setStatus(HttpServletResponse.SC_PARTIAL_CONTENT);

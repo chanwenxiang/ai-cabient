@@ -48,6 +48,10 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/aicabinet
       SPRING_DATASOURCE_USERNAME: aicabinet
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-aicabinet}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
       KAFKA_BOOTSTRAP: redpanda:9092
       JWT_SECRET: ${JWT_SECRET}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}

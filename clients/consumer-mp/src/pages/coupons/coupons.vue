@@ -10,8 +10,11 @@
     <view v-else-if="!list.length" class="empty-card">
       <text class="empty-icon">🎫</text>
       <text class="empty-text">暂无优惠券</text>
-      <text class="empty-hint">购物后可获得优惠券哦</text>
-      <button class="empty-btn" @click="goShop">去扫码购物</button>
+      <text class="empty-hint">可先去逛逛热门活动，或扫码购物后领取优惠券</text>
+      <view class="empty-actions">
+        <button class="empty-btn" @click="goShop">去扫码购物</button>
+        <button class="empty-btn ghost" @click="goMarketing">看热门活动</button>
+      </view>
     </view>
     <view v-else>
       <view v-for="c in list" :key="c.couponId" class="coupon-card" :class="{ expired: c.status === 'EXPIRED', used: c.status === 'USED' }">
@@ -71,6 +74,10 @@ function formatTime(t: string) {
 function goShop() {
   uni.switchTab({ url: '/pages/index/index' });
 }
+
+function goMarketing() {
+  uni.navigateTo({ url: '/pages/marketing/index' });
+}
 </script>
 
 <style scoped>
@@ -81,10 +88,11 @@ function goShop() {
 .loading, .empty-card { text-align: center; padding: 80rpx 0; }
 .empty-icon { font-size: 80rpx; display: block; margin-bottom: 16rpx; }
 .empty-text { font-size: 28rpx; color: #999; display: block; }
-.empty-hint { font-size: 24rpx; color: #ccc; margin-top: 8rpx; display: block; }
+.empty-hint { font-size: 24rpx; color: #999; margin-top: 8rpx; display: block; padding: 0 40rpx; line-height: 1.5; }
+.empty-actions { display: flex; flex-direction: column; align-items: center; gap: 16rpx; margin-top: 32rpx; }
 .empty-btn {
-  margin: 32rpx auto 0;
-  width: 280rpx;
+  margin: 0;
+  width: 320rpx;
   height: 72rpx;
   line-height: 72rpx;
   background: #07c160;
@@ -92,6 +100,11 @@ function goShop() {
   border-radius: 36rpx;
   font-size: 28rpx;
   border: none;
+}
+.empty-btn.ghost {
+  background: #fff;
+  color: #059669;
+  border: 2rpx solid #86efac;
 }
 .empty-btn::after { border: none; }
 .coupon-card { display: flex; background: #fff; border-radius: 16rpx; margin-bottom: 16rpx; overflow: hidden; box-shadow: 0 2rpx 8rpx rgba(0,0,0,.04); }

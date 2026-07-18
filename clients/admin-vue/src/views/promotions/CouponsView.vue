@@ -1,13 +1,25 @@
-﻿<template>
-  <el-card class="page-card" shadow="never">
+<template>
+  <el-card class="page-card report-page" shadow="never">
     <template #header>
-      <div class="card-head">
-        <span class="title">优惠券</span>
-        <div class="actions">
-          <el-button v-if="auth.hasPerm('ops:coupon:create')" @click="onExport">导出</el-button>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">优惠券</span>
+            <span class="hint">券定义与发券；面值 / 门槛右对齐</span>
+          </div>
+        </div>
+        <div class="page-card-head__actions">
+          <el-button v-if="auth.hasPerm('ops:coupon:create')" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button v-if="auth.hasPerm('ops:coupon:create')" @click="onDownloadTemplate(['示例优惠券', '满减券', '5', '0', '90', '30', '100', '示例描述', '停用'])">导入模板</el-button>
           <el-button v-if="auth.hasPerm('ops:coupon:create')" :loading="importing" @click="triggerImport">导入</el-button>
           <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
+          <el-button
+            v-if="selectedIds.length && auth.hasPerm('ops:coupon:edit')"
+            type="warning"
+            @click="batchDisable"
+          >
+            批量停用 ({{ selectedIds.length }})
+          </el-button>
           <el-button v-if="auth.hasPerm('ops:coupon:create')" type="primary" @click="openCreate">新建优惠券</el-button>
           <el-button v-if="auth.hasPerm('ops:coupon:create')" @click="showIssue = true">手动发券</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
@@ -15,46 +27,96 @@
       </div>
     </template>
 
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
+      <el-form-item label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="名称 / ID"
+          style="width: 180px"
+          @keyup.enter="search"
+          @clear="search"
+        />
+      </el-form-item>
+      <el-form-item label="状态">
+        <el-select v-model="statusFilter" clearable placeholder="全部" style="width: 120px" @change="search">
+          <el-option label="启用" value="ACTIVE" />
+          <el-option label="停用" value="INACTIVE" />
+        </el-select>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="resetFilters">重置</el-button>
+      </el-form-item>
+    </el-form>
+
     <div class="table-scroll">
       <div class="table-scroll-inner" style="min-width: 930px">
-        <el-table v-loading="loading" :data="list" stripe border>
-      <el-table-column prop="couponDefId" label="ID" width="80" />
-      <el-table-column prop="couponName" label="名称" min-width="150" />
-      <el-table-column label="类型" width="100">
-        <template #default="{ row }">{{ typeMap[row.couponType] || row.couponType }}</template>
-      </el-table-column>
-      <el-table-column label="面值" width="100">
-        <template #default="{ row }">¥{{ yuan(row.denominationCents) }}</template>
-      </el-table-column>
-      <el-table-column label="最低消费" width="110">
-        <template #default="{ row }">¥{{ yuan(row.minSpendCents) }}</template>
-      </el-table-column>
-      <el-table-column label="有效期" width="80">
-        <template #default="{ row }">{{ row.validityDays }}天</template>
-      </el-table-column>
-      <el-table-column label="发行/总量" width="120">
-        <template #default="{ row }">{{ row.issuedCount }}/{{ row.maxIssueCount || '不限' }}</template>
-      </el-table-column>
-      <el-table-column label="状态" width="88">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-            {{ statusMap[row.status] || row.status }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="100" class-name="col-action" align="center">
-        <template #default="{ row }">
-          <TableActions
-            v-if="rowActions(row).length"
-            :actions="rowActions(row)"
-            :max-primary="1"
-            @action="(k) => onAction(String(k), row)"
-          />
-        </template>
-      </el-table-column>
-      <template #empty><el-empty description="暂无优惠券" /></template>
+        <el-table
+          v-loading="loading"
+          :data="paged"
+          stripe
+          border
+          class="report-table"
+          table-layout="auto"
+          row-key="couponDefId"
+          @selection-change="onSelectionChange"
+        >
+          <template #empty><el-empty description="暂无优惠券" /></template>
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column label="优惠券" min-width="170" class-name="col-text">
+            <template #default="{ row }">
+              <div class="name-cell">
+                <strong>{{ row.couponName || row.couponDefId }}</strong>
+                <small>ID {{ row.couponDefId }}</small>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="类型" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" effect="plain">{{ typeMap[row.couponType] || row.couponType }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="面值" width="96" align="right" class-name="col-money">
+            <template #default="{ row }">¥{{ yuan(row.denominationCents) }}</template>
+          </el-table-column>
+          <el-table-column label="最低消费" width="100" align="right" class-name="col-money">
+            <template #default="{ row }">¥{{ yuan(row.minSpendCents) }}</template>
+          </el-table-column>
+          <el-table-column label="有效期" width="88" align="center">
+            <template #default="{ row }">{{ row.validityDays }}天</template>
+          </el-table-column>
+          <el-table-column label="发行/总量" width="110" align="center">
+            <template #default="{ row }">{{ row.issuedCount }}/{{ row.maxIssueCount || '不限' }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="88" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
+                {{ statusMap[row.status] || row.status }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="100" class-name="col-action" align="center" fixed="right">
+            <template #default="{ row }">
+              <TableActions
+                v-if="rowActions(row).length"
+                :actions="rowActions(row)"
+                @action="(k) => onAction(String(k), row)"
+              />
+            </template>
+          </el-table-column>
         </el-table>
       </div>
+    </div>
+    <div class="page-pager">
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="size"
+        :total="filtered.length"
+        :page-sizes="[10, 20, 50, 100]"
+        layout="total, sizes, prev, pager, next"
+        background
+      />
     </div>
 
     <el-dialog v-model="showCreate" title="新建优惠券" width="500px" destroy-on-close>
@@ -115,20 +177,66 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Refresh, SwitchButton, Ticket } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 
+const route = useRoute();
+const router = useRouter();
 const auth = useAuthStore();
 const loading = ref(false);
 const saving = ref(false);
 const list = ref<any[]>([]);
+const keyword = ref('');
+const statusFilter = ref('');
+const page = ref(1);
+const size = ref(20);
 const showCreate = ref(false);
+const filtered = computed(() => {
+  const q = keyword.value.trim().toLowerCase();
+  return list.value.filter((row) => {
+    if (statusFilter.value === 'ACTIVE' && row.status !== 'ACTIVE') return false;
+    if (statusFilter.value === 'INACTIVE' && row.status === 'ACTIVE') return false;
+    if (!q) return true;
+    return [row.couponDefId, row.couponName, row.couponType]
+      .some((x) => String(x || '').toLowerCase().includes(q));
+  });
+});
+const paged = computed(() => {
+  const start = (page.value - 1) * size.value;
+  return filtered.value.slice(start, start + size.value);
+});
+watch([keyword, statusFilter], () => {
+  page.value = 1;
+});
 const showIssue = ref(false);
+
+const { selectedKeys: selectedIds, onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
+  useTableSelection<any>((r) => r.couponDefId);
+
+async function batchDisable() {
+  const targets = list.value.filter((r) => selectedIds.value.includes(r.couponDefId) && r.status === 'ACTIVE');
+  if (!targets.length) return ElMessage.warning('请勾选已启用的优惠券');
+  try {
+    await ElMessageBox.confirm(`确认停用选中的 ${targets.length} 张优惠券？`, '批量停用', { type: 'warning' });
+    for (const row of targets) {
+      await api.request(`/api/v2/coupons/definitions/${row.couponDefId}/status?status=INACTIVE`, 'PUT');
+    }
+    ElMessage.success(`已停用 ${targets.length} 张优惠券`);
+    clearSelection();
+    await load();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '批量停用失败');
+    }
+  }
+}
 
 const createForm = ref({
   couponName: '',
@@ -168,7 +276,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
   filePrefix: '优惠券',
   headers: CSV_HEADERS,
   toRows: () =>
-    list.value.map((row) => [
+    pickSelected(list.value).map((row) => [
       row.couponName,
       typeMap[row.couponType] || row.couponType,
       yuan(row.denominationCents),
@@ -223,9 +331,9 @@ function rowActions(row: any): TableAction[] {
       key: 'toggle',
       label: row.status === 'ACTIVE' ? '停用' : '启用',
       icon: SwitchButton,
-      type: row.status === 'ACTIVE' ? 'warning' : 'success',
-      overflow: true
+      type: row.status === 'ACTIVE' ? 'warning' : 'success'
     });
+
   }
   return acts;
 }
@@ -290,7 +398,7 @@ async function onCreateSubmit() {
 
 async function onIssueSubmit() {
   if (!issueForm.value.couponDefId || !issueForm.value.userId) {
-    return ElMessage.warning('请选择优惠券并填写用户 ID');
+    return ElMessage.warning('请选择优惠券并填写用户编号');
   }
   saving.value = true;
   try {
@@ -319,12 +427,66 @@ async function onToggleStatus(row: any) {
   }
 }
 
-onMounted(load);
+function syncRouteQuery() {
+  const query: Record<string, string> = {};
+  if (keyword.value.trim()) query.keyword = keyword.value.trim();
+  if (statusFilter.value) query.status = statusFilter.value;
+  router.replace({ query });
+}
+
+function search() {
+  page.value = 1;
+  syncRouteQuery();
+}
+
+function resetFilters() {
+  keyword.value = '';
+  statusFilter.value = '';
+  page.value = 1;
+  syncRouteQuery();
+}
+
+function applyRouteQuery() {
+  let changed = false;
+  if (typeof route.query.keyword === 'string' && route.query.keyword !== keyword.value) {
+    keyword.value = route.query.keyword;
+    changed = true;
+  }
+  if (typeof route.query.status === 'string' && route.query.status !== statusFilter.value) {
+    statusFilter.value = route.query.status;
+    changed = true;
+  }
+  return changed;
+}
+
+onMounted(() => {
+  applyRouteQuery();
+  load();
+});
+onActivated(() => {
+  applyRouteQuery();
+});
 </script>
 
 <style scoped>
-.card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.title { font-weight: 600; }
-.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.page-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.page-card-head__meta { min-width: 0; }
+.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
+.title { font-weight: 600; font-size: 15px; }
+.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.name-cell { display: grid; gap: 2px; line-height: 1.35; }
+.name-cell strong { font-weight: 650; }
+.name-cell small {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-family: var(--app-font-mono);
+}
 .hidden-input { display: none; }
 </style>

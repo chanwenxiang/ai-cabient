@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.SystemConfigDto;
 import com.aicabinet.common.dto.UpsertSystemConfigRequest;
 import com.aicabinet.trade.config.AlipayProperties;
+import com.aicabinet.trade.config.PayScoreProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.SystemConfig;
@@ -24,20 +25,24 @@ public class SystemConfigService {
     public static final String OPS_SUPPORT_EMAIL = "ops.support_email";
     public static final String SETTLEMENT_MIN_CONFIDENCE = "settlement.min_confidence";
     public static final String DISPUTE_AUTO_OPEN = "dispute.auto_open";
+    public static final String REFUND_DEFAULT_POLICY = "refund.default_policy";
 
     private final SystemConfigMapper repository;
     private final SecurityProperties securityProperties;
     private final AlipayProperties alipayProperties;
     private final WeChatPayProperties weChatPayProperties;
+    private final PayScoreProperties payScoreProperties;
 
     public SystemConfigService(SystemConfigMapper repository,
                                SecurityProperties securityProperties,
                                AlipayProperties alipayProperties,
-                               WeChatPayProperties weChatPayProperties) {
+                               WeChatPayProperties weChatPayProperties,
+                               PayScoreProperties payScoreProperties) {
         this.repository = repository;
         this.securityProperties = securityProperties;
         this.alipayProperties = alipayProperties;
         this.weChatPayProperties = weChatPayProperties;
+        this.payScoreProperties = payScoreProperties;
     }
 
     @Transactional(readOnly = true)
@@ -61,8 +66,10 @@ public class SystemConfigService {
         boolean wechatOk = weChatPayProperties.isConfigured() || securityProperties.mockEnabled();
         map.put("wechatRechargeEnabled", String.valueOf(wechatOk));
         map.put("wechatPayLive", String.valueOf(weChatPayProperties.isConfigured()));
-        // 支付分开门：mock 或显式开启时前端展示一键开通
-        map.put("payScoreSignEnabled", String.valueOf(securityProperties.mockEnabled()));
+        // 支付分开门：显式开启或 mock 时前端展示一键开通
+        map.put("payScoreSignEnabled",
+                String.valueOf(payScoreProperties.enabled() || securityProperties.mockEnabled()));
+        map.put("refundDefaultPolicy", getValue(REFUND_DEFAULT_POLICY, "AUTO_REFUND"));
         return map;
     }
 
@@ -101,6 +108,8 @@ public class SystemConfigService {
         upsertIfAbsent(OPS_SUPPORT_EMAIL, "ops@aicabinet.local", "运营支持邮箱");
         upsertIfAbsent(SETTLEMENT_MIN_CONFIDENCE, "0.72", "自动结算最低识别置信度");
         upsertIfAbsent(DISPUTE_AUTO_OPEN, "true", "识别低置信是否自动开争议工单");
+        upsertIfAbsent(REFUND_DEFAULT_POLICY, "AUTO_REFUND",
+                "全局默认退款策略：AUTO_REFUND=自助退款；DISPUTE_ONLY=仅申诉、运营审核后退款");
     }
 
     private void upsertIfAbsent(String key, String value, String description) {

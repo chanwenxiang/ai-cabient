@@ -19,6 +19,8 @@ public class ProcurementService {
     private final SupplierMapper supplierRepository;
     private final PurchaseOrderMapper purchaseOrderRepository;
     private final PurchaseOrderLineMapper purchaseOrderLineRepository;
+    private final PurchaseReturnMapper purchaseReturnRepository;
+    private final PurchaseReturnLineMapper purchaseReturnLineRepository;
     private final WarehouseMapper warehouseRepository;
     private final SkuCatalogMapper skuCatalogRepository;
     private final WarehouseService warehouseService;
@@ -27,6 +29,8 @@ public class ProcurementService {
                               SupplierMapper supplierRepository,
                               PurchaseOrderMapper purchaseOrderRepository,
                               PurchaseOrderLineMapper purchaseOrderLineRepository,
+                              PurchaseReturnMapper purchaseReturnRepository,
+                              PurchaseReturnLineMapper purchaseReturnLineRepository,
                               WarehouseMapper warehouseRepository,
                               SkuCatalogMapper skuCatalogRepository,
                               WarehouseService warehouseService) {
@@ -34,6 +38,8 @@ public class ProcurementService {
         this.supplierRepository = supplierRepository;
         this.purchaseOrderRepository = purchaseOrderRepository;
         this.purchaseOrderLineRepository = purchaseOrderLineRepository;
+        this.purchaseReturnRepository = purchaseReturnRepository;
+        this.purchaseReturnLineRepository = purchaseReturnLineRepository;
         this.warehouseRepository = warehouseRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.warehouseService = warehouseService;
@@ -102,10 +108,86 @@ public class ProcurementService {
             line.setExpiryDate(lineDto.expiryDate());
             line.setOrderedQty(lineDto.orderedQty());
             line.setReceivedQty(0);
+            line.setReturnedQty(0);
             line.setUnitCostCents(lineDto.unitCostCents());
             purchaseOrderLineRepository.save(line);
         }
         return toPurchaseDto(order);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PurchaseReturnDto> listPurchaseReturns(Long operatorId) {
+        requireWarehouseRead(operatorId);
+        return purchaseReturnRepository.findAllByOrderByCreatedAtDesc().stream()
+                .map(this::toPurchaseReturnDto)
+                .toList();
+    }
+
+    @Transactional
+    public PurchaseReturnDto createPurchaseReturn(Long operatorId, CreatePurchaseReturnRequest request) {
+        requireWarehouseWrite(operatorId);
+        if (request.purchaseOrderId() == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "purchaseOrderId required");
+        }
+        if (request.lines() == null || request.lines().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "return lines required");
+        }
+        PurchaseOrder order = purchaseOrderRepository.findById(request.purchaseOrderId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "purchase order not found"));
+        if (!"RECEIVED".equals(order.getStatus()) && !"PARTIAL_RECEIVED".equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "purchase order has no receivable stock to return");
+        }
+        List<PurchaseOrderLine> existing = purchaseOrderLineRepository
+                .findByPurchaseOrderIdOrderByLineIdAsc(order.getPurchaseOrderId());
+
+        PurchaseReturn ret = new PurchaseReturn();
+        ret.setPurchaseOrderId(order.getPurchaseOrderId());
+        ret.setWarehouseId(order.getWarehouseId());
+        ret.setSupplierId(order.getSupplierId());
+        ret.setStatus("COMPLETED");
+        ret.setNotes(trimToNull(request.notes()));
+        ret.setOperatorId(operatorId);
+        ret.setCreatedAt(Instant.now());
+        ret = purchaseReturnRepository.save(ret);
+
+        for (CreatePurchaseReturnRequest.PurchaseReturnLineRequest lineReq : request.lines()) {
+            if (lineReq.purchaseLineId() == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "purchaseLineId required");
+            }
+            if (lineReq.quantity() <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "return quantity must be positive");
+            }
+            PurchaseOrderLine poLine = existing.stream()
+                    .filter(l -> lineReq.purchaseLineId().equals(l.getLineId()))
+                    .findFirst()
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "purchase line not found"));
+            int returnable = poLine.getReceivedQty() - poLine.getReturnedQty();
+            if (lineReq.quantity() > returnable) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "return qty exceeds returnable for sku=" + poLine.getSkuId()
+                                + " returnable=" + returnable);
+            }
+            warehouseService.returnPurchaseStock(
+                    order.getWarehouseId(),
+                    poLine.getSkuId(),
+                    poLine.getBatchNo(),
+                    lineReq.quantity(),
+                    operatorId,
+                    "PURCHASE_RETURN",
+                    String.valueOf(ret.getReturnId())
+            );
+            poLine.setReturnedQty(poLine.getReturnedQty() + lineReq.quantity());
+            purchaseOrderLineRepository.save(poLine);
+
+            PurchaseReturnLine retLine = new PurchaseReturnLine();
+            retLine.setReturnId(ret.getReturnId());
+            retLine.setPurchaseLineId(poLine.getLineId());
+            retLine.setSkuId(poLine.getSkuId());
+            retLine.setBatchNo(poLine.getBatchNo());
+            retLine.setQuantity(lineReq.quantity());
+            purchaseReturnLineRepository.save(retLine);
+        }
+        return toPurchaseReturnDto(ret);
     }
 
     @Transactional
@@ -248,7 +330,25 @@ public class ProcurementService {
         return new PurchaseOrderLineDto(
                 line.getLineId(), line.getSkuId(), line.getBatchNo(),
                 line.getProductionDate(), line.getExpiryDate(),
-                line.getOrderedQty(), line.getReceivedQty(), line.getUnitCostCents()
+                line.getOrderedQty(), line.getReceivedQty(), line.getUnitCostCents(),
+                line.getReturnedQty()
+        );
+    }
+
+    private PurchaseReturnDto toPurchaseReturnDto(PurchaseReturn ret) {
+        return new PurchaseReturnDto(
+                ret.getReturnId(),
+                ret.getPurchaseOrderId(),
+                ret.getWarehouseId(),
+                ret.getSupplierId(),
+                ret.getStatus(),
+                ret.getNotes(),
+                ret.getOperatorId(),
+                ret.getCreatedAt(),
+                purchaseReturnLineRepository.findByReturnIdOrderByLineIdAsc(ret.getReturnId()).stream()
+                        .map(l -> new PurchaseReturnLineDto(
+                                l.getLineId(), l.getPurchaseLineId(), l.getSkuId(), l.getBatchNo(), l.getQuantity()))
+                        .toList()
         );
     }
 

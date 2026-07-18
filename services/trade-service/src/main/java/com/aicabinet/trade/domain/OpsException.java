@@ -25,6 +25,7 @@ public class OpsException {
     private Instant createdAt;
     private Instant updatedAt;
     private Instant resolvedAt;
+    private Instant slaDueAt;
 
     public String getExceptionId() { return exceptionId; }
     public void setExceptionId(String v) { exceptionId = v; }
@@ -56,4 +57,6 @@ public class OpsException {
     public Instant getUpdatedAt() { return updatedAt; }
     public Instant getResolvedAt() { return resolvedAt; }
     public void setResolvedAt(Instant v) { resolvedAt = v; }
+    public Instant getSlaDueAt() { return slaDueAt; }
+    public void setSlaDueAt(Instant v) { slaDueAt = v; }
 }

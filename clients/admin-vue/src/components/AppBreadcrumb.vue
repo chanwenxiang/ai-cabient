@@ -48,7 +48,7 @@ let observer: ResizeObserver | null = null;
 function updateCompact() {
   const el = hostRef.value;
   if (!el) return;
-  compact.value = el.clientWidth < 300;
+  compact.value = el.clientWidth < 220;
 }
 
 onMounted(() => {

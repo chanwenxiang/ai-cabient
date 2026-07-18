@@ -1,10 +1,15 @@
 <template>
-  <el-card class="page-card" shadow="never">
+  <el-card class="page-card report-page" shadow="never">
     <template #header>
-      <div class="card-head">
-        <span class="title">营销活动</span>
-        <div class="actions">
-          <el-button v-if="auth.hasPerm('ops:promotion:create')" @click="onExport">导出</el-button>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">营销活动</span>
+            <span class="hint">满减 / 折扣等活动；预算与已使用右对齐</span>
+          </div>
+        </div>
+        <div class="page-card-head__actions">
+          <el-button v-if="auth.hasPerm('ops:promotion:create')" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button v-if="auth.hasPerm('ops:promotion:create')" @click="onDownloadTemplate">导入模板</el-button>
           <el-button v-if="auth.hasPerm('ops:promotion:create')" :loading="importing" @click="triggerImport">导入</el-button>
           <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
@@ -21,52 +26,95 @@
       </div>
     </template>
 
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
+      <el-form-item label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="名称 / ID"
+          style="width: 180px"
+          @keyup.enter="search"
+          @clear="search"
+        />
+      </el-form-item>
+      <el-form-item label="状态">
+        <el-select v-model="statusFilter" clearable placeholder="全部" style="width: 120px" @change="search">
+          <el-option label="启用" value="ACTIVE" />
+          <el-option label="停用" value="INACTIVE" />
+        </el-select>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="resetFilters">重置</el-button>
+      </el-form-item>
+    </el-form>
+
     <div class="table-scroll">
       <div class="table-scroll-inner" style="min-width: 980px">
         <el-table
           v-loading="loading"
-          :data="list"
+          :data="paged"
           stripe
           border
+          class="report-table"
           row-key="activityId"
           @selection-change="onSelectionChange"
         >
+          <template #empty><el-empty description="暂无活动" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="activityId" label="ID" width="80" />
-          <el-table-column prop="activityName" label="活动名称" min-width="160" show-overflow-tooltip />
-          <el-table-column label="类型" width="110">
-            <template #default="{ row }">{{ typeMap[row.activityType] || row.activityType }}</template>
+          <el-table-column label="活动" min-width="180" class-name="col-text">
+            <template #default="{ row }">
+              <div class="name-cell">
+                <strong>{{ row.activityName || row.activityId }}</strong>
+                <small>ID {{ row.activityId }}</small>
+              </div>
+            </template>
           </el-table-column>
-          <el-table-column label="时间" min-width="200">
-            <template #default="{ row }">{{ formatTime(row.startTime) }} ~ {{ formatTime(row.endTime) }}</template>
+          <el-table-column label="类型" width="120" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" effect="plain">{{ typeMap[row.activityType] || row.activityType }}</el-tag>
+            </template>
           </el-table-column>
-          <el-table-column label="预算" width="110">
+          <el-table-column label="时间" min-width="200" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-datetime">{{ formatTime(row.startTime) }} ~ {{ formatTime(row.endTime) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="预算" width="110" align="right" class-name="col-money">
             <template #default="{ row }">¥{{ yuan(row.budgetCents) }}</template>
           </el-table-column>
-          <el-table-column label="已使用" width="110">
+          <el-table-column label="已使用" width="110" align="right" class-name="col-money">
             <template #default="{ row }">¥{{ yuan(row.usedCents) }}</template>
           </el-table-column>
-          <el-table-column label="状态" width="88">
+          <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">
               <el-tag :type="isEnabled(row.status) ? 'success' : 'info'" size="small">
                 {{ statusLabel(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100" class-name="col-action" align="center">
+          <el-table-column label="操作" width="100" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions
                 v-if="rowActions(row).length"
                 :actions="rowActions(row)"
-                :max-primary="1"
                 @action="(k) => onAction(String(k), row)"
               />
-              <span v-else class="muted">—</span>
+              <span v-else class="muted">-</span>
             </template>
           </el-table-column>
-          <template #empty><el-empty description="暂无活动" /></template>
         </el-table>
       </div>
+    </div>
+    <div class="page-pager">
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="size"
+        :total="filtered.length"
+        :page-sizes="[10, 20, 50, 100]"
+        layout="total, sizes, prev, pager, next"
+        background
+      />
     </div>
 
     <el-dialog v-model="showDialog" :title="editingId ? '编辑活动' : '新建活动'" width="560px" destroy-on-close>
@@ -97,7 +145,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
@@ -105,15 +154,44 @@ import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName, csvRowsToObjects, downloadCsv, parseCsv } from '@/utils/csv';
 
+const route = useRoute();
+const router = useRouter();
 const auth = useAuthStore();
 const loading = ref(false);
 const saving = ref(false);
 const importing = ref(false);
 const list = ref<any[]>([]);
+const keyword = ref('');
+const statusFilter = ref('');
+const page = ref(1);
+const size = ref(20);
 const selectedIds = ref<number[]>([]);
 const showDialog = ref(false);
 const editingId = ref<number | null>(null);
 const importInput = ref<HTMLInputElement | null>(null);
+
+const filtered = computed(() => {
+  const q = keyword.value.trim().toLowerCase();
+  return list.value.filter((row) => {
+    if (statusFilter.value === 'ACTIVE' && !isEnabled(row.status)) return false;
+    if (statusFilter.value === 'INACTIVE' && isEnabled(row.status)) return false;
+    if (!q) return true;
+    return [row.activityId, row.activityName, row.activityType]
+      .some((x) => String(x || '').toLowerCase().includes(q));
+  });
+});
+
+const paged = computed(() => {
+  const start = (page.value - 1) * size.value;
+  return filtered.value.slice(start, start + size.value);
+});
+watch([keyword, statusFilter], () => {
+  page.value = 1;
+});
+
+const exportButtonLabel = computed(() =>
+  selectedIds.value.length ? `导出选中 (${selectedIds.value.length})` : '导出'
+);
 
 const CSV_HEADERS = ['活动名称', '类型', '开始时间', '结束时间', '预算(元)', '每人限制', '描述', '状态'];
 
@@ -132,7 +210,9 @@ const typeMap: Record<string, string> = {
   FULL_REDUCE: '满减',
   DISCOUNT: '折扣',
   BUY_GIFT: '买赠',
-  SECOND_HALF: '第二件半价'
+  SECOND_HALF: '第二件半价',
+  NEW_USER: '新客礼',
+  POINTS: '积分兑换'
 };
 const typeCodeByLabel: Record<string, string> = {
   满减: 'FULL_REDUCE',
@@ -169,8 +249,7 @@ function rowActions(row: any): TableAction[] {
       key: 'toggle',
       label: isEnabled(row.status) ? '停用' : '启用',
       icon: SwitchButton,
-      type: isEnabled(row.status) ? 'warning' : 'success',
-      overflow: true
+      type: isEnabled(row.status) ? 'warning' : 'success'
     });
   }
   return acts;
@@ -373,13 +452,67 @@ async function onImportFile(ev: Event) {
   }
 }
 
-onMounted(load);
+function syncRouteQuery() {
+  const query: Record<string, string> = {};
+  if (keyword.value.trim()) query.keyword = keyword.value.trim();
+  if (statusFilter.value) query.status = statusFilter.value;
+  router.replace({ query });
+}
+
+function search() {
+  page.value = 1;
+  syncRouteQuery();
+}
+
+function resetFilters() {
+  keyword.value = '';
+  statusFilter.value = '';
+  page.value = 1;
+  syncRouteQuery();
+}
+
+function applyRouteQuery() {
+  let changed = false;
+  if (typeof route.query.keyword === 'string' && route.query.keyword !== keyword.value) {
+    keyword.value = route.query.keyword;
+    changed = true;
+  }
+  if (typeof route.query.status === 'string' && route.query.status !== statusFilter.value) {
+    statusFilter.value = route.query.status;
+    changed = true;
+  }
+  return changed;
+}
+
+onMounted(() => {
+  applyRouteQuery();
+  load();
+});
+onActivated(() => {
+  applyRouteQuery();
+});
 </script>
 
 <style scoped>
-.card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.title { font-weight: 600; }
-.actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.page-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.page-card-head__meta { min-width: 0; }
+.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
+.title { font-weight: 600; font-size: 15px; }
+.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.name-cell { display: grid; gap: 2px; line-height: 1.35; }
+.name-cell strong { font-weight: 650; }
+.name-cell small {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-family: var(--app-font-mono);
+}
 .muted { color: var(--layout-muted); font-size: 13px; }
 .hidden-input { display: none; }
 </style>

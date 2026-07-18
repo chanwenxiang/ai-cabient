@@ -52,10 +52,15 @@ public class DeviceValidationService {
         String activeSessionId = active.isEmpty() ? null : active.get(0).getSessionId();
         String activeSessionState = active.isEmpty() ? null : active.get(0).getState().name();
         boolean replenishment = hasInProgressReplenishmentTask(deviceId);
-        boolean available = active.isEmpty() && !replenishment;
+        boolean locked = device.salesLockedEnabled();
+        boolean available = active.isEmpty() && !replenishment && !locked;
         String busyReason = "NONE";
         if (!available) {
-            busyReason = !active.isEmpty() ? "SESSION" : "REPLENISHMENT";
+            if (locked) {
+                busyReason = "LOCKED";
+            } else {
+                busyReason = !active.isEmpty() ? "SESSION" : "REPLENISHMENT";
+            }
         }
         boolean online = "ONLINE".equalsIgnoreCase(device.getOnlineStatus());
         return new DeviceStatusDto(
@@ -76,7 +81,10 @@ public class DeviceValidationService {
     }
 
     public void ensureConsumerShoppingAllowed(String deviceId) {
-        ensureDeviceOnline(deviceId);
+        DeviceInfo device = ensureDeviceOnline(deviceId);
+        if (device.salesLockedEnabled()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备已暂停营业，请稍后再试");
+        }
         ensureNoBlockingSession(deviceId);
         if (hasInProgressReplenishmentTask(deviceId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DEVICE_BUSY);
@@ -127,11 +135,12 @@ public class DeviceValidationService {
         }
     }
 
-    private void ensureDeviceOnline(String deviceId) {
+    private DeviceInfo ensureDeviceOnline(String deviceId) {
         DeviceInfo device = requireDevice(deviceId);
         if (!"ONLINE".equalsIgnoreCase(device.getOnlineStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DEVICE_OFFLINE);
         }
+        return device;
     }
 
     private boolean hasActiveRestockSession(String deviceId) {

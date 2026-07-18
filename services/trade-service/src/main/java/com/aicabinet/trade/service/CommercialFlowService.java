@@ -88,14 +88,15 @@ public class CommercialFlowService {
                         LocalDate.now().plusDays(180),
                         inboundQty,
                         0,
-                        100
+                        100,
+                        0
                 ))
         ));
         procurementService.receivePurchaseOrder(operatorId, purchase.purchaseOrderId(), new ReceivePurchaseOrderRequest(
                 purchase.lines().stream()
                         .map(l -> new PurchaseOrderLineDto(
                                 l.lineId(), l.skuId(), l.batchNo(), l.productionDate(), l.expiryDate(),
-                                l.orderedQty(), l.orderedQty(), l.unitCostCents()))
+                                l.orderedQty(), l.orderedQty(), l.unitCostCents(), l.returnedQty()))
                         .toList(),
                 "flow receive"
         ));

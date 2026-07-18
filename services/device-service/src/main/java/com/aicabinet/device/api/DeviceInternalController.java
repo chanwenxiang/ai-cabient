@@ -41,8 +41,22 @@ public class DeviceInternalController {
         return new SetTargetTempResponse(commandId);
     }
 
+    @PostMapping("/{deviceId}/ops-command")
+    public OpsCommandResponse opsCommand(
+            @PathVariable("deviceId") String deviceId,
+            @RequestBody OpsCommandRequest request) {
+        String type = request.command() == null ? "" : request.command().trim().toUpperCase();
+        if (!type.equals("LOCK") && !type.equals("UNLOCK") && !type.equals("REBOOT")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported command");
+        }
+        String commandId = commandService.sendOpsCommand(deviceId, type);
+        return new OpsCommandResponse(commandId, type);
+    }
+
     record OpenDoorRequest(String sessionId, Long userId, boolean operatorMode) {}
     record OpenDoorResponse(String commandId) {}
     record SetTargetTempRequest(int targetTempC) {}
     record SetTargetTempResponse(String commandId) {}
+    record OpsCommandRequest(String command) {}
+    record OpsCommandResponse(String commandId, String command) {}
 }

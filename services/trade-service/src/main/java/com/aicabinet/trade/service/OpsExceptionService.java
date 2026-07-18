@@ -63,19 +63,36 @@ public class OpsExceptionService {
             item.setExceptionType(type); item.setSeverity(severity); item.setStatus("OPEN");
             item.setDeviceId(deviceId); item.setSessionId(sessionId); item.setOrderId(orderId); item.setUserId(userId);
             item.setTitle(title); item.setDetail(trim(detail)); item.setDedupKey(dedup);
+            item.setSlaDueAt(slaDueFor(severity, Instant.now()));
             return toDto(repository.save(item));
         });
     }
 
+    private static Instant slaDueFor(String severity, Instant from) {
+        String s = severity == null ? "" : severity.trim().toUpperCase();
+        long hours = switch (s) {
+            case "CRITICAL", "HIGH" -> 4;
+            case "MEDIUM" -> 24;
+            default -> 48;
+        };
+        return from.plusSeconds(hours * 3600);
+    }
+
     @Transactional(readOnly = true)
-    public PageResult<OpsExceptionDto> list(Long operatorId, String status, int page, int size) {
+    public PageResult<OpsExceptionDto> list(Long operatorId, String status, String severity, int page, int size) {
         requireExceptionRead(operatorId);
         var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
-        var result = status == null || status.isBlank()
-                ? repository.findAllByOrderByCreatedAtDesc(pageable)
-                : repository.findByStatusOrderByCreatedAtDesc(status.trim().toUpperCase(), pageable);
+        String statusFilter = status == null || status.isBlank() ? null : status.trim().toUpperCase();
+        String severityFilter = severity == null || severity.isBlank() ? null : severity.trim().toUpperCase();
+        var result = repository.findFiltered(statusFilter, severityFilter, pageable);
         return new PageResult<>(result.getContent().stream().map(this::toDto).toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements());
+    }
+
+    /** @deprecated Prefer {@link #list(Long, String, String, int, int)} with severity. */
+    @Transactional(readOnly = true)
+    public PageResult<OpsExceptionDto> list(Long operatorId, String status, int page, int size) {
+        return list(operatorId, status, null, page, size);
     }
 
     @Transactional(readOnly = true)
@@ -276,9 +293,15 @@ public class OpsExceptionService {
         }
         return item;
     }
-    private OpsExceptionDto toDto(OpsException i) { return new OpsExceptionDto(i.getExceptionId(), i.getExceptionType(),
+    private OpsExceptionDto toDto(OpsException i) {
+        Instant sla = i.getSlaDueAt();
+        boolean open = "OPEN".equals(i.getStatus()) || "PROCESSING".equals(i.getStatus());
+        boolean overdue = open && sla != null && Instant.now().isAfter(sla);
+        return new OpsExceptionDto(i.getExceptionId(), i.getExceptionType(),
             i.getSeverity(), i.getStatus(), i.getDeviceId(), i.getSessionId(), i.getOrderId(), i.getUserId(),
-            i.getTitle(), i.getDetail(), i.getAssigneeUserId(), i.getResolution(), i.getCreatedAt(), i.getUpdatedAt(), i.getResolvedAt()); }
+            i.getTitle(), i.getDetail(), i.getAssigneeUserId(), i.getResolution(), i.getCreatedAt(), i.getUpdatedAt(),
+            i.getResolvedAt(), sla, overdue);
+    }
     private static String first(String... values) { for (String v : values) if (v != null && !v.isBlank() && !"null".equals(v)) return v; return "GLOBAL"; }
     private static String trim(String v) { if (v == null) return null; v=v.trim(); return v.length()>1000?v.substring(0,1000):v; }
 

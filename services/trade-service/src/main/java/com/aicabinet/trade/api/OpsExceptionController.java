@@ -17,9 +17,11 @@ public class OpsExceptionController {
         this.service = service; this.sessionService = sessionService;
     }
     @GetMapping public ApiResponse<PageResult<OpsExceptionDto>> list(HttpServletRequest request,
-            @RequestParam(required=false) String status, @RequestParam(defaultValue="0") int page,
+            @RequestParam(required=false) String status,
+            @RequestParam(required=false) String severity,
+            @RequestParam(defaultValue="0") int page,
             @RequestParam(defaultValue="20") int size) {
-        return ApiResponse.ok(service.list(operator(request), status, page, size));
+        return ApiResponse.ok(service.list(operator(request), status, severity, page, size));
     }
     @GetMapping("/{id}") public ApiResponse<OpsExceptionDetailDto> detail(HttpServletRequest request,
             @PathVariable String id) {

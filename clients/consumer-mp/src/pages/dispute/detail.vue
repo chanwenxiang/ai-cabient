@@ -33,6 +33,20 @@
         </view>
       </view>
 
+      <view v-if="ticket.evidence?.length" class="card">
+        <text class="section-title">申诉附图</text>
+        <view class="evidence-row">
+          <image
+            v-for="img in ticket.evidence"
+            :key="img.fileId"
+            class="evidence-img"
+            :src="evidencePreview(img.url)"
+            mode="aspectFill"
+            @click="previewEvidence(img.url)"
+          />
+        </view>
+      </view>
+
       <view v-if="suggestedLines.length" class="card">
         <text class="section-title">识别参考明细</text>
         <text class="section-sub">以下为系统识别结果，最终以人工审核为准</text>
@@ -69,8 +83,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import { consumerApi } from '@/utils/consumer-api';
+import { consumerApi, getConsumerToken } from '@/utils/consumer-api';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
+import { absoluteEvidenceUrl } from '@/utils/dispute-evidence';
 import { fmtMoney, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import type { DisputeTicketDto, OrderLineDto } from '@aicabinet/shared-types';
 
@@ -191,6 +206,23 @@ function goOrders() {
 function contactOps() {
   uni.makePhoneCall({ phoneNumber: servicePhone.value });
 }
+
+function evidencePreview(url?: string) {
+  const abs = absoluteEvidenceUrl(url);
+  if (!abs) return '';
+  const token = getConsumerToken();
+  if (!token) return abs;
+  return `${abs}${abs.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(token)}`;
+}
+
+function previewEvidence(url?: string) {
+  const src = evidencePreview(url);
+  if (!src) return;
+  const list = (ticket.value?.evidence || [])
+    .map((e) => evidencePreview(e.url))
+    .filter(Boolean);
+  uni.previewImage({ urls: list.length ? list : [src], current: src });
+}
 </script>
 
 <style scoped>
@@ -219,6 +251,8 @@ function contactOps() {
 }
 .section-title { display: block; font-size: 30rpx; font-weight: 700; color: #1e293b; margin-bottom: 12rpx; }
 .section-sub { display: block; font-size: 22rpx; color: #94a3b8; margin-bottom: 12rpx; }
+.evidence-row { display: flex; flex-wrap: wrap; gap: 16rpx; }
+.evidence-img { width: 160rpx; height: 160rpx; border-radius: 12rpx; background: #f1f5f9; }
 .reason { display: block; font-size: 28rpx; color: #334155; line-height: 1.55; margin-bottom: 16rpx; }
 .info-row { display: flex; justify-content: space-between; padding: 10rpx 0; }
 .info-label { font-size: 24rpx; color: #94a3b8; }

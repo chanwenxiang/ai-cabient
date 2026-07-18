@@ -1,8 +1,10 @@
 package com.aicabinet.trade.domain;
 
-import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
 
 @TableName("device_info")
@@ -40,9 +42,16 @@ public class DeviceInfo {
 
     private String opsRemark;
 
+    /** AUTO_REFUND | DISPUTE_ONLY | null=继承全局 */
+    private String refundPolicy;
+
+    /** 营业锁机：禁止消费者开门 */
+    private Boolean salesLocked;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
     private Instant updatedAt;
 
-public String getDeviceId() { return deviceId; }
+    public String getDeviceId() { return deviceId; }
     public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
     public String getDeviceName() { return deviceName; }
     public void setDeviceName(String deviceName) { this.deviceName = deviceName; }
@@ -74,6 +83,12 @@ public String getDeviceId() { return deviceId; }
     public void setTempReportedAt(Instant tempReportedAt) { this.tempReportedAt = tempReportedAt; }
     public String getOpsRemark() { return opsRemark; }
     public void setOpsRemark(String opsRemark) { this.opsRemark = opsRemark; }
+    public String getRefundPolicy() { return refundPolicy; }
+    public void setRefundPolicy(String refundPolicy) { this.refundPolicy = refundPolicy; }
+    public Boolean getSalesLocked() { return salesLocked; }
+    public void setSalesLocked(Boolean salesLocked) { this.salesLocked = salesLocked; }
+    public boolean salesLockedEnabled() { return Boolean.TRUE.equals(salesLocked); }
     public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
     public void markHeartbeatReceived() { updatedAt = Instant.now(); }
 }

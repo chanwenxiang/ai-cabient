@@ -1,9 +1,14 @@
-﻿<template>
-  <el-card class="page-card" shadow="never">
+<template>
+  <el-card class="page-card report-page" shadow="never">
     <template #header>
-      <div class="card-head">
-        <span class="title">仓库</span>
-        <div class="actions">
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">仓库</span>
+            <span class="hint">仓库 / 供应商 / 库存 / 采购与退货</span>
+          </div>
+        </div>
+        <div class="page-card-head__actions">
           <el-button
             v-if="canEdit && tab === 'warehouses'"
             type="primary"
@@ -20,61 +25,111 @@
             @click="openPurchase()"
           >新建采购单</el-button>
           <el-button
+            v-if="canEdit && tab === 'returns'"
+            type="primary"
+            @click="openReturn()"
+          >新建退货</el-button>
+          <el-button
             v-if="canEdit && (tab === 'inventory' || tab === 'movements')"
             type="primary"
             @click="openInbound()"
           >其他入库</el-button>
-          <el-button @click="onExport">导出</el-button>
+          <el-button
+            v-if="canImportMaster && canEdit"
+            @click="onDownloadImportTemplate"
+          >导入模板</el-button>
+          <el-button
+            v-if="canImportMaster && canEdit"
+            :loading="importing"
+            @click="triggerImport"
+          >导入</el-button>
+          <input
+            ref="warehouseImportInput"
+            type="file"
+            accept=".csv,text/csv"
+            class="hidden-input"
+            @change="onWarehouseImportFile"
+          />
+          <input
+            ref="supplierImportInput"
+            type="file"
+            accept=".csv,text/csv"
+            class="hidden-input"
+            @change="onSupplierImportFile"
+          />
+          <el-button @click="onExport">
+            {{ selectedKeys.length ? `导出选中 (${selectedKeys.length})` : '导出' }}
+          </el-button>
           <el-button :icon="Refresh" :loading="loading" @click="reloadCurrent">刷新</el-button>
         </div>
       </div>
     </template>
 
-    <div v-if="showFilterBar" class="filter-bar">
-      <el-select
-        v-if="tab === 'inventory' || tab === 'movements' || tab === 'outbounds' || tab === 'purchase'"
-        v-model="filterWarehouseId"
-        clearable
-        placeholder="全部仓库"
-        style="width: 220px"
-        @change="onWarehouseFilter"
+    <el-form v-if="showFilterBar" inline class="filter-bar filter-bar--compact" @submit.prevent>
+      <el-form-item
+        v-if="tab === 'inventory' || tab === 'movements' || tab === 'outbounds' || tab === 'purchase' || tab === 'returns'"
+        label="仓库"
       >
-        <el-option v-for="w in warehouses" :key="w.warehouseId" :label="w.warehouseName" :value="w.warehouseId" />
-      </el-select>
-      <el-input
-        v-if="tab === 'suppliers' || tab === 'purchase'"
-        v-model="keyword"
-        clearable
-        placeholder="搜索关键词"
-        style="width: 200px"
-      />
-    </div>
+        <el-select
+          v-model="filterWarehouseId"
+          clearable
+          placeholder="全部仓库"
+          style="width: 220px"
+          @change="onWarehouseFilter"
+        >
+          <el-option v-for="w in warehouses" :key="w.warehouseId" :label="w.warehouseName" :value="w.warehouseId" />
+        </el-select>
+      </el-form-item>
+      <el-form-item v-if="tab === 'suppliers' || tab === 'purchase' || tab === 'returns'" label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="搜索关键词"
+          style="width: 200px"
+        />
+      </el-form-item>
+    </el-form>
 
     <el-tabs v-model="tab" @tab-change="onTabChange">
       <el-tab-pane label="仓库概览" name="warehouses">
         <div class="table-scroll">
-          <div class="table-scroll-inner" style="min-width: 900px">
-            <el-table v-loading="loading" :data="warehouses" stripe border>
-          <el-table-column prop="warehouseName" label="仓库名称" min-width="180">
-            <template #default="{ row }">
-              <div class="master-data-cell"><strong>{{ row.warehouseName || row.warehouseId }}</strong><small>{{ row.warehouseId }}</small></div>
-            </template>
-          </el-table-column>
-          <el-table-column prop="address" label="地址" min-width="220" show-overflow-tooltip />
-          <el-table-column label="状态" width="100">
-            <template #default="{ row }">
-              <el-tag :type="dictTagType(row.status)" size="small">{{ dictLabel('warehouse_status', row.status || 'ACTIVE') }}</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="88" class-name="col-action" align="center">
-            <template #default="{ row }">
-              <TableActions
-                :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
-                @action="() => openWarehouse(row)"
-              />
-            </template>
-          </el-table-column>
-          <template #empty><el-empty description="暂无仓库" /></template>
+          <div class="table-scroll-inner">
+            <el-table
+              v-loading="loading"
+              :data="pagedWarehouses"
+              stripe
+              border
+              class="report-table"
+              table-layout="auto"
+              row-key="warehouseId"
+              @selection-change="onSelectionChange"
+            >
+              <template #empty><el-empty description="暂无仓库" /></template>
+              <el-table-column type="selection" width="48" align="center" />
+              <el-table-column label="仓库" min-width="180" class-name="col-text">
+                <template #default="{ row }">
+                  <div class="name-cell">
+                    <strong>{{ row.warehouseName || row.warehouseId }}</strong>
+                    <small class="cell-id">{{ row.warehouseId }}</small>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="address" label="地址" min-width="220" show-overflow-tooltip class-name="col-text" />
+              <el-table-column label="状态" width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="dictTagType(row.status)" size="small">
+                    {{ dictLabel('warehouse_status', row.status || 'ACTIVE') }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column v-if="canEdit" label="操作" width="88" class-name="col-action" align="center" fixed="right">
+                <template #default="{ row }">
+                  <TableActions
+                    :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
+                    @action="() => openWarehouse(row)"
+                  />
+                </template>
+              </el-table-column>
             </el-table>
           </div>
         </div>
@@ -82,16 +137,26 @@
 
       <el-tab-pane label="供应商" name="suppliers">
         <div class="table-scroll">
-          <div class="table-scroll-inner" style="min-width: 900px">
-            <el-table v-loading="loading" :data="filteredSuppliers" stripe border>
+          <div class="table-scroll-inner">
+            <el-table
+              class="report-table"
+              v-loading="loading"
+              :data="pagedSuppliers"
+              stripe
+              border
+              table-layout="auto"
+              row-key="supplierId"
+              @selection-change="onSelectionChange"
+            >
+          <el-table-column type="selection" width="48" />
           <el-table-column prop="supplierName" label="供应商" min-width="200">
             <template #default="{ row }">
-              <div class="master-data-cell"><strong>{{ row.supplierName || row.supplierId }}</strong><small>{{ row.supplierId }}</small></div>
+              <div class="name-cell"><strong>{{ row.supplierName || row.supplierId }}</strong><small class="cell-id">{{ row.supplierId }}</small></div>
             </template>
           </el-table-column>
-          <el-table-column prop="contactName" label="联系人" width="120" />
-          <el-table-column prop="contactPhone" label="联系电话" width="150" />
-          <el-table-column label="状态" width="100">
+          <el-table-column prop="contactName" label="联系人" min-width="120" />
+          <el-table-column prop="contactPhone" label="联系电话" min-width="150" />
+          <el-table-column label="状态" min-width="100">
             <template #default="{ row }">
               <el-tag :type="dictTagType(row.status)" size="small">{{ dictLabel('supplier_status', row.status) }}</el-tag>
             </template>
@@ -112,39 +177,52 @@
 
       <el-tab-pane label="采购单" name="purchase">
         <div class="table-scroll">
-          <div class="table-scroll-inner" style="min-width: 1100px">
-            <el-table v-loading="loading" :data="filteredPurchaseOrders" stripe border>
+          <div class="table-scroll-inner">
+            <el-table
+              class="report-table"
+              v-loading="loading"
+              :data="pagedPurchaseOrders"
+              stripe
+              border
+              table-layout="auto"
+              row-key="purchaseOrderId"
+              @selection-change="onSelectionChange"
+            >
+          <el-table-column type="selection" width="48" />
           <el-table-column type="expand">
             <template #default="{ row }">
-              <el-table :data="row.lines || []" size="small" class="line-table">
-                <el-table-column label="商品" min-width="180">
-                  <template #default="scope">
-                    <div class="master-data-cell"><strong>{{ skuName(scope.row.skuId) }}</strong><small>{{ scope.row.skuId }}</small></div>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="batchNo" label="批次" min-width="140" />
-                <el-table-column prop="orderedQty" label="采购数" width="90" />
-                <el-table-column prop="receivedQty" label="已收数" width="90" />
-                <el-table-column label="成本" width="100">
-                  <template #default="scope">¥{{ money(scope.row.unitCostCents) }}</template>
-                </el-table-column>
-                <el-table-column prop="expiryDate" label="到期日期" width="130" />
-              </el-table>
+              <div class="expand-panel">
+                <el-table :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
+                  <el-table-column label="商品" min-width="180">
+                    <template #default="scope">
+                      <div class="name-cell"><strong>{{ skuName(scope.row.skuId) }}</strong><small class="cell-id">{{ scope.row.skuId }}</small></div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="batchNo" label="批次" min-width="140" />
+                  <el-table-column prop="orderedQty" label="采购数" min-width="88" />
+                  <el-table-column prop="receivedQty" label="已收数" min-width="88" />
+                  <el-table-column prop="returnedQty" label="已退数" min-width="88" />
+                  <el-table-column label="成本" min-width="96">
+                    <template #default="scope">¥{{ money(scope.row.unitCostCents) }}</template>
+                  </el-table-column>
+                  <el-table-column prop="expiryDate" label="到期日期" min-width="120" />
+                </el-table>
+              </div>
             </template>
           </el-table-column>
-          <el-table-column prop="purchaseOrderId" label="采购单" width="100" />
+          <el-table-column prop="purchaseOrderId" label="采购单" min-width="96" />
           <el-table-column prop="refNo" label="外部单号" min-width="140" show-overflow-tooltip />
           <el-table-column label="供应商" min-width="160">
             <template #default="{ row }">
-              <div class="master-data-cell"><strong>{{ supplierName(row.supplierId) }}</strong><small>{{ row.supplierId }}</small></div>
+              <div class="name-cell"><strong>{{ supplierName(row.supplierId) }}</strong><small class="cell-id">{{ row.supplierId }}</small></div>
             </template>
           </el-table-column>
           <el-table-column label="入库仓库" min-width="160">
             <template #default="{ row }">
-              <div class="master-data-cell"><strong>{{ warehouseName(row.warehouseId) }}</strong><small>{{ row.warehouseId }}</small></div>
+              <div class="name-cell"><strong>{{ warehouseName(row.warehouseId) }}</strong><small class="cell-id">{{ row.warehouseId }}</small></div>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="130">
+          <el-table-column label="状态" min-width="120">
             <template #default="{ row }">
               <el-tag :type="dictTagType(row.status)" size="small">{{ dictLabel('purchase_order_status', row.status) }}</el-tag>
             </template>
@@ -165,39 +243,106 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="出库单" name="outbounds">
+      <el-tab-pane label="采购退货" name="returns">
         <div class="table-scroll">
-          <div class="table-scroll-inner" style="min-width: 1100px">
-            <el-table v-loading="loading" :data="filteredOutbounds" stripe border>
+          <div class="table-scroll-inner">
+            <el-table
+              class="report-table"
+              v-loading="loading"
+              :data="pagedPurchaseReturns"
+              stripe
+              border
+              table-layout="auto"
+              row-key="returnId"
+              @selection-change="onSelectionChange"
+            >
+          <el-table-column type="selection" width="48" />
           <el-table-column type="expand">
             <template #default="{ row }">
-              <el-table :data="row.lines || []" size="small" class="line-table">
-                <el-table-column label="目标柜机" min-width="180">
-                  <template #default="scope">
-                    <div class="master-data-cell"><strong>{{ deviceName(scope.row.deviceId) }}</strong><small>{{ scope.row.deviceId }}</small></div>
-                  </template>
-                </el-table-column>
-                <el-table-column label="商品" min-width="180">
-                  <template #default="scope">
-                    <div class="master-data-cell"><strong>{{ skuName(scope.row.skuId) }}</strong><small>{{ scope.row.skuId }}</small></div>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="batchNo" label="批次" min-width="140" />
-                <el-table-column prop="quantity" label="数量" width="90" />
-                <el-table-column label="交接状态" width="120">
-                  <template #default="scope">{{ dictLabel('handover_status', scope.row.handoverStatus || 'PENDING') }}</template>
-                </el-table-column>
-              </el-table>
+              <div class="expand-panel">
+                <el-table :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
+                  <el-table-column label="商品" min-width="180">
+                    <template #default="scope">
+                      <div class="name-cell"><strong>{{ skuName(scope.row.skuId) }}</strong><small class="cell-id">{{ scope.row.skuId }}</small></div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="batchNo" label="批次" min-width="140" />
+                  <el-table-column prop="quantity" label="退货数" min-width="88" />
+                </el-table>
+              </div>
             </template>
           </el-table-column>
-          <el-table-column prop="outboundId" label="出库单" width="100" />
-          <el-table-column prop="routeId" label="路线" width="90" />
+          <el-table-column prop="returnId" label="退货单" min-width="96" />
+          <el-table-column prop="purchaseOrderId" label="采购单" min-width="96" />
+          <el-table-column label="供应商" min-width="160">
+            <template #default="{ row }">
+              <div class="name-cell"><strong>{{ supplierName(row.supplierId) }}</strong><small class="cell-id">{{ row.supplierId }}</small></div>
+            </template>
+          </el-table-column>
+          <el-table-column label="仓库" min-width="160">
+            <template #default="{ row }">
+              <div class="name-cell"><strong>{{ warehouseName(row.warehouseId) }}</strong><small class="cell-id">{{ row.warehouseId }}</small></div>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" min-width="100">
+            <template #default="{ row }">
+              <el-tag type="success" size="small">{{ returnStatusLabel(row.status) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="创建时间" min-width="170">
+            <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+          </el-table-column>
+          <template #empty><el-empty description="暂无采购退货" /></template>
+            </el-table>
+          </div>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="出库单" name="outbounds">
+        <div class="table-scroll">
+          <div class="table-scroll-inner">
+            <el-table
+              class="report-table"
+              v-loading="loading"
+              :data="pagedOutbounds"
+              stripe
+              border
+              table-layout="auto"
+              row-key="outboundId"
+              @selection-change="onSelectionChange"
+            >
+          <el-table-column type="selection" width="48" />
+          <el-table-column type="expand">
+            <template #default="{ row }">
+              <div class="expand-panel">
+                <el-table :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
+                  <el-table-column label="目标柜机" min-width="180">
+                    <template #default="scope">
+                      <div class="name-cell"><strong>{{ deviceName(scope.row.deviceId) }}</strong><small class="cell-id">{{ scope.row.deviceId }}</small></div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="商品" min-width="180">
+                    <template #default="scope">
+                      <div class="name-cell"><strong>{{ skuName(scope.row.skuId) }}</strong><small class="cell-id">{{ scope.row.skuId }}</small></div>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="batchNo" label="批次" min-width="140" />
+                  <el-table-column prop="quantity" label="数量" min-width="88" />
+                  <el-table-column label="交接状态" min-width="110">
+                    <template #default="scope">{{ dictLabel('handover_status', scope.row.handoverStatus || 'PENDING') }}</template>
+                  </el-table-column>
+                </el-table>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="outboundId" label="出库单" min-width="96" />
+          <el-table-column prop="routeId" label="路线" min-width="88" />
           <el-table-column label="出库仓库" min-width="160">
             <template #default="{ row }">
-              <div class="master-data-cell"><strong>{{ warehouseName(row.warehouseId) }}</strong><small>{{ row.warehouseId }}</small></div>
+              <div class="name-cell"><strong>{{ warehouseName(row.warehouseId) }}</strong><small class="cell-id">{{ row.warehouseId }}</small></div>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="110">
+          <el-table-column label="状态" min-width="110">
             <template #default="{ row }">
               <el-tag :type="dictTagType(row.status)" size="small">{{ dictLabel('warehouse_outbound_status', row.status) }}</el-tag>
             </template>
@@ -210,7 +355,6 @@
               <TableActions
                 v-if="outboundActions(row).length"
                 :actions="outboundActions(row)"
-                :max-primary="1"
                 @action="(k) => changeOutbound(row, String(k) as 'pick' | 'ship')"
               />
               <span v-else-if="!(row.lines?.length) && row.status !== 'SHIPPED'" class="muted">无明细</span>
@@ -225,22 +369,32 @@
 
       <el-tab-pane label="在途" name="transit">
         <div class="table-scroll">
-          <div class="table-scroll-inner" style="min-width: 980px">
-            <el-table v-loading="loading" :data="inTransit" stripe border>
-          <el-table-column prop="outboundId" label="出库单" width="100" />
+          <div class="table-scroll-inner">
+            <el-table
+              class="report-table"
+              v-loading="loading"
+              :data="pagedInTransit"
+              stripe
+              border
+              table-layout="auto"
+              :row-key="transitRowKey"
+              @selection-change="onSelectionChange"
+            >
+          <el-table-column type="selection" width="48" />
+          <el-table-column prop="outboundId" label="出库单" min-width="96" />
           <el-table-column label="目标设备" min-width="180">
             <template #default="{ row }">
-              <div class="master-data-cell"><strong>{{ deviceName(row.deviceId) }}</strong><small>{{ row.deviceId }}</small></div>
+              <div class="name-cell"><strong>{{ deviceName(row.deviceId) }}</strong><small class="cell-id">{{ row.deviceId }}</small></div>
             </template>
           </el-table-column>
           <el-table-column label="商品" min-width="180">
             <template #default="{ row }">
-              <div class="master-data-cell"><strong>{{ skuName(row.skuId) }}</strong><small>{{ row.skuId }}</small></div>
+              <div class="name-cell"><strong>{{ skuName(row.skuId) }}</strong><small class="cell-id">{{ row.skuId }}</small></div>
             </template>
           </el-table-column>
           <el-table-column prop="batchNo" label="批次" min-width="140" />
-          <el-table-column prop="quantity" label="数量" width="90" />
-          <el-table-column label="状态" width="120">
+          <el-table-column prop="quantity" label="数量" min-width="88" />
+          <el-table-column label="状态" min-width="110">
             <template #default="{ row }">
               <el-tag :type="dictTagType(row.status)" size="small">{{ dictLabel('in_transit_status', row.status) }}</el-tag>
             </template>
@@ -256,21 +410,31 @@
 
       <el-tab-pane label="批次库存" name="inventory">
         <div class="table-scroll">
-          <div class="table-scroll-inner" style="min-width: 900px">
-            <el-table v-loading="loading" :data="inventory" stripe border>
+          <div class="table-scroll-inner">
+            <el-table
+              class="report-table"
+              v-loading="loading"
+              :data="pagedInventory"
+              stripe
+              border
+              table-layout="auto"
+              :row-key="inventoryRowKey"
+              @selection-change="onSelectionChange"
+            >
+          <el-table-column type="selection" width="48" />
           <el-table-column label="仓库" min-width="140">
             <template #default="{ row }">{{ warehouseName(row.warehouseId) }}</template>
           </el-table-column>
           <el-table-column label="商品" min-width="180">
             <template #default="{ row }">
-              <div class="master-data-cell"><strong>{{ skuName(row.skuId) }}</strong><small>{{ row.skuId }}</small></div>
+              <div class="name-cell"><strong>{{ skuName(row.skuId) }}</strong><small class="cell-id">{{ row.skuId }}</small></div>
             </template>
           </el-table-column>
           <el-table-column prop="batchNo" label="批次" min-width="150" />
-          <el-table-column prop="productionDate" label="生产日期" width="120" />
-          <el-table-column prop="expiryDate" label="到期日期" width="120" />
-          <el-table-column prop="quantity" label="库存" width="90" />
-          <el-table-column label="效期" width="100">
+          <el-table-column prop="productionDate" label="生产日期" min-width="120" />
+          <el-table-column prop="expiryDate" label="到期日期" min-width="120" />
+          <el-table-column prop="quantity" label="库存" min-width="88" />
+          <el-table-column label="效期" min-width="100">
             <template #default="{ row }">
               <el-tag :type="expiryType(row.expiryDate)" size="small">{{ expiryText(row.expiryDate) }}</el-tag>
             </template>
@@ -284,27 +448,37 @@
       <el-tab-pane label="库存流水" name="movements">
         <p class="muted tip">仅显示最近 100 条</p>
         <div class="table-scroll">
-          <div class="table-scroll-inner" style="min-width: 1060px">
-            <el-table v-loading="loading" :data="movements" stripe border>
-          <el-table-column prop="movementId" label="流水" width="90" />
+          <div class="table-scroll-inner">
+            <el-table
+              class="report-table"
+              v-loading="loading"
+              :data="pagedMovements"
+              stripe
+              border
+              table-layout="auto"
+              row-key="movementId"
+              @selection-change="onSelectionChange"
+            >
+          <el-table-column type="selection" width="48" />
+          <el-table-column prop="movementId" label="流水" min-width="90" />
           <el-table-column label="类型" min-width="130">
             <template #default="{ row }">{{ dictLabel('warehouse_movement_type', row.movementType) }}</template>
           </el-table-column>
           <el-table-column label="商品" min-width="180">
             <template #default="{ row }">
-              <div class="master-data-cell"><strong>{{ skuName(row.skuId) }}</strong><small>{{ row.skuId }}</small></div>
+              <div class="name-cell"><strong>{{ skuName(row.skuId) }}</strong><small class="cell-id">{{ row.skuId }}</small></div>
             </template>
           </el-table-column>
           <el-table-column prop="batchNo" label="批次" min-width="140" />
-          <el-table-column prop="deltaQty" label="变动" width="90">
+          <el-table-column prop="deltaQty" label="变动" min-width="88">
             <template #default="{ row }">
               <span :class="row.deltaQty >= 0 ? 'positive' : 'negative'">{{ row.deltaQty > 0 ? '+' : '' }}{{ row.deltaQty }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="关联业务" width="140">
+          <el-table-column label="关联业务" min-width="140">
             <template #default="{ row }">{{ dictLabel('business_reference_type', row.refType) }}</template>
           </el-table-column>
-          <el-table-column prop="refId" label="关联单号" width="120" />
+          <el-table-column prop="refId" label="关联单号" min-width="120" />
           <el-table-column label="时间" min-width="170">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
@@ -314,6 +488,15 @@
         </div>
       </el-tab-pane>
     </el-tabs>
+    <div class="page-pager">
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="size"
+        :total="tabTotal"
+        :page-sizes="[10, 20, 50, 100]"
+        layout="total, sizes, prev, pager, next"
+      />
+    </div>
 
     <el-dialog v-model="warehouseDialog" :title="warehouseForm.editing ? '编辑仓库' : '新增仓库'" width="480px" destroy-on-close>
       <el-form label-width="88px">
@@ -407,7 +590,7 @@
       <el-table :data="receiveForm.lines" class="receive-table">
         <el-table-column label="商品" min-width="180">
           <template #default="{ row }">
-            <div class="master-data-cell"><strong>{{ skuName(row.skuId) }}</strong><small>{{ row.skuId }}</small></div>
+            <div class="name-cell"><strong>{{ skuName(row.skuId) }}</strong><small class="cell-id">{{ row.skuId }}</small></div>
           </template>
         </el-table-column>
         <el-table-column prop="batchNo" label="批次" min-width="140" />
@@ -422,6 +605,49 @@
       <template #footer>
         <el-button @click="receiveDialog = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="saveReceive">确认收货</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="returnDialog" title="采购退货" width="760px" destroy-on-close>
+      <el-form label-width="90px">
+        <el-form-item label="采购单" required>
+          <el-select
+            v-model="returnForm.purchaseOrderId"
+            filterable
+            placeholder="选择已收货采购单"
+            style="width: 100%"
+            @change="onReturnPoChange"
+          >
+            <el-option
+              v-for="po in returnablePurchaseOrders"
+              :key="po.purchaseOrderId"
+              :label="`#${po.purchaseOrderId} · ${supplierName(po.supplierId)} · ${warehouseName(po.warehouseId)}`"
+              :value="po.purchaseOrderId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="returnForm.notes" type="textarea" placeholder="退货备注" />
+        </el-form-item>
+      </el-form>
+      <el-table :data="returnForm.lines" class="receive-table">
+        <el-table-column label="商品" min-width="180">
+          <template #default="{ row }">
+            <div class="name-cell"><strong>{{ skuName(row.skuId) }}</strong><small class="cell-id">{{ row.skuId }}</small></div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="batchNo" label="批次" min-width="140" />
+        <el-table-column prop="receivedQty" label="已收" width="80" />
+        <el-table-column prop="returnedQty" label="已退" width="80" />
+        <el-table-column label="本次退货" width="150">
+          <template #default="{ row }">
+            <el-input-number v-model="row.quantity" :min="0" :max="row.maxQty" controls-position="right" />
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="returnDialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveReturn">确认退货</el-button>
       </template>
     </el-dialog>
 
@@ -468,7 +694,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Box, EditPen, Refresh, Van } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
@@ -476,20 +703,76 @@ import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
+import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 type Row = Record<string, any>;
+const route = useRoute();
+const router = useRouter();
 const auth = useAuthStore();
 const canEdit = computed(() => auth.hasPerm('ops:warehouse:edit') || auth.hasPerm('ops:replenishment:edit'));
+const canImportMaster = computed(() => tab.value === 'warehouses' || tab.value === 'suppliers');
+const selectedKeys = ref<Array<string | number>>([]);
+
+function rowKeyOf(row: Row): string | number {
+  switch (tab.value) {
+    case 'warehouses':
+      return row.warehouseId;
+    case 'suppliers':
+      return row.supplierId;
+    case 'purchase':
+      return row.purchaseOrderId;
+    case 'returns':
+      return row.returnId;
+    case 'outbounds':
+      return row.outboundId;
+    case 'transit':
+      return transitRowKey(row);
+    case 'inventory':
+      return inventoryRowKey(row);
+    case 'movements':
+      return row.movementId;
+    default:
+      return row.warehouseId;
+  }
+}
+function transitRowKey(row: Row) {
+  return `${row.outboundId || ''}|${row.deviceId || ''}|${row.skuId || ''}|${row.batchNo || ''}`;
+}
+function inventoryRowKey(row: Row) {
+  return `${row.warehouseId || ''}|${row.skuId || ''}|${row.batchNo || ''}|${row.expiryDate || ''}`;
+}
+function onSelectionChange(rows: Row[]) {
+  selectedKeys.value = rows.map((r) => rowKeyOf(r)).filter((k) => k != null && k !== '');
+}
+function pickSelected<T extends Row>(all: T[]): T[] {
+  if (!selectedKeys.value.length) return all;
+  const set = new Set(selectedKeys.value.map(String));
+  return all.filter((r) => set.has(String(rowKeyOf(r))));
+}
+function statusCode(raw: string | undefined, fallback = 'ACTIVE') {
+  const v = (raw || '').trim();
+  if (!v) return fallback;
+  const upper = v.toUpperCase();
+  if (['ACTIVE', 'INACTIVE', 'ENABLED', 'DISABLED'].includes(upper)) {
+    return upper === 'ENABLED' ? 'ACTIVE' : upper === 'DISABLED' ? 'INACTIVE' : upper;
+  }
+  if (v === '启用' || v === '正常') return 'ACTIVE';
+  if (v === '停用' || v === '禁用') return 'INACTIVE';
+  return fallback;
+}
 
 const loading = ref(false);
 const saving = ref(false);
 const tab = ref('warehouses');
+const page = ref(1);
+const size = ref(20);
 const keyword = ref('');
 const filterWarehouseId = ref('');
 const warehouses = ref<Row[]>([]);
 const suppliers = ref<Row[]>([]);
 const purchaseOrders = ref<Row[]>([]);
+const purchaseReturns = ref<Row[]>([]);
 const outbounds = ref<Row[]>([]);
 const inTransit = ref<Row[]>([]);
 const inventory = ref<Row[]>([]);
@@ -502,6 +785,7 @@ const warehouseDialog = ref(false);
 const supplierDialog = ref(false);
 const purchaseDialog = ref(false);
 const receiveDialog = ref(false);
+const returnDialog = ref(false);
 const inboundDialog = ref(false);
 
 const warehouseForm = reactive({
@@ -521,10 +805,11 @@ const supplierForm = reactive({
 });
 const purchaseForm = reactive<Row>({ supplierId: '', warehouseId: '', refNo: '', notes: '', lines: [] });
 const receiveForm = reactive<Row>({ purchaseOrderId: null, notes: '', lines: [] });
+const returnForm = reactive<Row>({ purchaseOrderId: null, notes: '', lines: [] });
 const inboundForm = reactive<Row>({ warehouseId: '', refNo: '', notes: '', lines: [] });
 
 const showFilterBar = computed(() =>
-  ['suppliers', 'purchase', 'inventory', 'movements', 'outbounds'].includes(tab.value)
+  ['suppliers', 'purchase', 'returns', 'inventory', 'movements', 'outbounds'].includes(tab.value)
 );
 const activeSuppliers = computed(() => suppliers.value.filter((s) => s.status === 'ACTIVE'));
 const activeWarehouses = computed(() => warehouses.value.filter((w) => (w.status || 'ACTIVE') === 'ACTIVE'));
@@ -544,41 +829,164 @@ const filteredPurchaseOrders = computed(() => {
     [p.purchaseOrderId, p.refNo, p.supplierId, supplierName(p.supplierId)].join(' ').toLowerCase().includes(q)
   );
 });
+const filteredPurchaseReturns = computed(() => {
+  const q = keyword.value.trim().toLowerCase();
+  let list = purchaseReturns.value;
+  if (filterWarehouseId.value) list = list.filter((r) => r.warehouseId === filterWarehouseId.value);
+  if (!q) return list;
+  return list.filter((r) =>
+    [r.returnId, r.purchaseOrderId, r.supplierId, supplierName(r.supplierId)].join(' ').toLowerCase().includes(q)
+  );
+});
+const returnablePurchaseOrders = computed(() =>
+  purchaseOrders.value.filter((po) =>
+    ['RECEIVED', 'PARTIAL_RECEIVED'].includes(po.status)
+    && (po.lines || []).some((l: Row) => (l.receivedQty || 0) - (l.returnedQty || 0) > 0)
+  )
+);
 const filteredOutbounds = computed(() => {
   if (!filterWarehouseId.value) return outbounds.value;
   return outbounds.value.filter((o) => o.warehouseId === filterWarehouseId.value);
 });
 
-const { onExport: exportWarehouses } = useListCsv({
+function slicePage<T>(rows: T[]) {
+  const start = (page.value - 1) * size.value;
+  return rows.slice(start, start + size.value);
+}
+
+const tabSource = computed(() => {
+  switch (tab.value) {
+    case 'suppliers':
+      return filteredSuppliers.value;
+    case 'purchase':
+      return filteredPurchaseOrders.value;
+    case 'returns':
+      return filteredPurchaseReturns.value;
+    case 'outbounds':
+      return filteredOutbounds.value;
+    case 'transit':
+      return inTransit.value;
+    case 'inventory':
+      return inventory.value;
+    case 'movements':
+      return movements.value;
+    default:
+      return warehouses.value;
+  }
+});
+const tabTotal = computed(() => tabSource.value.length);
+const pagedWarehouses = computed(() => slicePage(warehouses.value));
+const pagedSuppliers = computed(() => slicePage(filteredSuppliers.value));
+const pagedPurchaseOrders = computed(() => slicePage(filteredPurchaseOrders.value));
+const pagedPurchaseReturns = computed(() => slicePage(filteredPurchaseReturns.value));
+const pagedOutbounds = computed(() => slicePage(filteredOutbounds.value));
+const pagedInTransit = computed(() => slicePage(inTransit.value));
+const pagedInventory = computed(() => slicePage(inventory.value));
+const pagedMovements = computed(() => slicePage(movements.value));
+
+watch(tab, () => {
+  page.value = 1;
+  selectedKeys.value = [];
+});
+watch([keyword, filterWarehouseId], () => {
+  page.value = 1;
+});
+
+const {
+  onExport: exportWarehouses,
+  importing: importingWarehouses,
+  importInput: warehouseImportInput,
+  onDownloadTemplate: downloadWarehouseTemplate,
+  triggerImport: triggerWarehouseImport,
+  onImportFile: onWarehouseImportFile
+} = useListCsv({
   filePrefix: '仓库概览',
   headers: ['仓库名称', '仓库编号', '地址', '状态'],
   toRows: () =>
-    warehouses.value.map((row) => [
+    pickSelected(warehouses.value).map((row) => [
       row.warehouseName || row.warehouseId,
       row.warehouseId,
       row.address || '',
       dictLabel('warehouse_status', row.status || 'ACTIVE')
-    ])
+    ]),
+  onImportRows: async (rows) => {
+    let ok = 0;
+    for (const row of rows) {
+      const warehouseId = (row['仓库编号'] || row.warehouseId || '').trim();
+      const warehouseName = (row['仓库名称'] || row.warehouseName || '').trim();
+      if (!warehouseId || !warehouseName) continue;
+      await api.request(`/api/v2/ops/admin/warehouse/${encodeURIComponent(warehouseId)}`, 'PUT', {
+        warehouseName,
+        address: (row['地址'] || row.address || '').trim(),
+        status: statusCode(row['状态'] || row.status)
+      });
+      ok++;
+    }
+    loadedTabs.value.delete('warehouses');
+    await loadTab('warehouses', true);
+    return ok;
+  }
 });
 
-const { onExport: exportSuppliers } = useListCsv({
+const {
+  onExport: exportSuppliers,
+  importing: importingSuppliers,
+  importInput: supplierImportInput,
+  onDownloadTemplate: downloadSupplierTemplate,
+  triggerImport: triggerSupplierImport,
+  onImportFile: onSupplierImportFile
+} = useListCsv({
   filePrefix: '供应商',
   headers: ['供应商', '供应商编号', '联系人', '联系电话', '状态'],
   toRows: () =>
-    filteredSuppliers.value.map((row) => [
+    pickSelected(filteredSuppliers.value).map((row) => [
       row.supplierName || row.supplierId,
       row.supplierId,
       row.contactName || '',
       row.contactPhone || '',
       dictLabel('supplier_status', row.status)
-    ])
+    ]),
+  onImportRows: async (rows) => {
+    let ok = 0;
+    for (const row of rows) {
+      const supplierId = (row['供应商编号'] || row.supplierId || '').trim();
+      const supplierName = (row['供应商'] || row.supplierName || '').trim();
+      if (!supplierId || !supplierName) continue;
+      await api.request(`/api/v2/ops/admin/suppliers/${encodeURIComponent(supplierId)}`, 'PUT', {
+        supplierId,
+        supplierName,
+        contactName: (row['联系人'] || row.contactName || '').trim(),
+        contactPhone: (row['联系电话'] || row.contactPhone || '').trim(),
+        status: statusCode(row['状态'] || row.status)
+      });
+      ok++;
+    }
+    loadedTabs.value.delete('suppliers');
+    await loadTab('suppliers', true);
+    return ok;
+  }
 });
+
+const importing = computed(() => importingWarehouses.value || importingSuppliers.value);
+
+function onDownloadImportTemplate() {
+  if (tab.value === 'warehouses') {
+    downloadWarehouseTemplate(['演示中心仓', 'WH-DEMO-001', '上海市示例路 1 号', '启用']);
+  } else if (tab.value === 'suppliers') {
+    downloadSupplierTemplate(['Demo Beverage Supplier', 'SUP-DEMO-001', '张三', '13800000000', '启用']);
+  }
+}
+
+function triggerImport() {
+  if (tab.value === 'warehouses') triggerWarehouseImport();
+  else if (tab.value === 'suppliers') triggerSupplierImport();
+}
 
 const { onExport: exportPurchase } = useListCsv({
   filePrefix: '采购单',
   headers: ['采购单', '外部单号', '供应商', '入库仓库', '状态'],
   toRows: () =>
-    filteredPurchaseOrders.value.map((row) => [
+    pickSelected(filteredPurchaseOrders.value).map((row) => [
       row.purchaseOrderId,
       row.refNo || '',
       supplierName(row.supplierId),
@@ -587,11 +995,25 @@ const { onExport: exportPurchase } = useListCsv({
     ])
 });
 
+const { onExport: exportReturns } = useListCsv({
+  filePrefix: '采购退货',
+  headers: ['退货单', '采购单', '供应商', '仓库', '状态', '创建时间'],
+  toRows: () =>
+    pickSelected(filteredPurchaseReturns.value).map((row) => [
+      row.returnId,
+      row.purchaseOrderId,
+      supplierName(row.supplierId),
+      warehouseName(row.warehouseId),
+      returnStatusLabel(row.status),
+      formatDateTime(row.createdAt)
+    ])
+});
+
 const { onExport: exportOutbounds } = useListCsv({
   filePrefix: '出库单',
   headers: ['出库单', '路线', '出库仓库', '状态', '创建时间'],
   toRows: () =>
-    filteredOutbounds.value.map((row) => [
+    pickSelected(filteredOutbounds.value).map((row) => [
       row.outboundId,
       row.routeId || '',
       warehouseName(row.warehouseId),
@@ -604,7 +1026,7 @@ const { onExport: exportTransit } = useListCsv({
   filePrefix: '在途',
   headers: ['出库单', '目标设备', '商品', '批次', '数量', '状态', '发运时间'],
   toRows: () =>
-    inTransit.value.map((row) => [
+    pickSelected(inTransit.value).map((row) => [
       row.outboundId,
       deviceName(row.deviceId),
       skuName(row.skuId),
@@ -619,7 +1041,7 @@ const { onExport: exportInventory } = useListCsv({
   filePrefix: '批次库存',
   headers: ['仓库', '商品', '批次', '生产日期', '到期日期', '库存', '效期'],
   toRows: () =>
-    inventory.value.map((row) => [
+    pickSelected(inventory.value).map((row) => [
       warehouseName(row.warehouseId),
       skuName(row.skuId),
       row.batchNo || '',
@@ -634,7 +1056,7 @@ const { onExport: exportMovements } = useListCsv({
   filePrefix: '库存流水',
   headers: ['流水', '类型', '商品', '批次', '变动', '关联业务', '关联单号', '时间'],
   toRows: () =>
-    movements.value.map((row) => [
+    pickSelected(movements.value).map((row) => [
       row.movementId,
       dictLabel('warehouse_movement_type', row.movementType),
       skuName(row.skuId),
@@ -651,6 +1073,7 @@ function onExport() {
     warehouses: exportWarehouses,
     suppliers: exportSuppliers,
     purchase: exportPurchase,
+    returns: exportReturns,
     outbounds: exportOutbounds,
     transit: exportTransit,
     inventory: exportInventory,
@@ -659,6 +1082,12 @@ function onExport() {
   exporters[tab.value]?.();
 }
 
+function returnStatusLabel(status?: string) {
+  const code = (status || 'COMPLETED').toUpperCase();
+  if (code === 'COMPLETED') return '已完成';
+  if (code === 'CANCELLED') return '已取消';
+  return status || '已完成';
+}
 function supplierName(id: string) {
   return suppliers.value.find((s) => s.supplierId === id)?.supplierName || id || '-';
 }
@@ -724,7 +1153,9 @@ function outboundActions(row: Row): TableAction[] {
 
 async function ensureMeta() {
   if (!devices.value.length) {
-    devices.value = await api.request<Row[]>('/api/v2/ops/admin/devices', 'GET').catch(() => []);
+    devices.value = await api.request<PageResult<Row>>('/api/v2/ops/admin/devices?page=0&size=200', 'GET')
+      .then((r) => r?.items || [])
+      .catch(() => []);
   }
   if (!skus.value.length) {
     skus.value = await api.request<Row[]>('/api/v2/ops/admin/skus', 'GET').catch(() => []);
@@ -739,6 +1170,9 @@ async function loadSuppliers() {
 }
 async function loadPurchase() {
   purchaseOrders.value = await api.request<Row[]>('/api/v2/ops/admin/purchase-orders', 'GET');
+}
+async function loadReturns() {
+  purchaseReturns.value = await api.request<Row[]>('/api/v2/ops/admin/purchase-returns', 'GET');
 }
 async function loadOutbounds() {
   outbounds.value = await api.request<Row[]>('/api/v2/ops/admin/warehouse/outbounds', 'GET');
@@ -764,6 +1198,8 @@ async function loadTab(name: string, force = false) {
     else if (name === 'suppliers') await loadSuppliers();
     else if (name === 'purchase') {
       await Promise.all([loadPurchase(), loadSuppliers(), loadWarehouses()]);
+    } else if (name === 'returns') {
+      await Promise.all([loadReturns(), loadPurchase(), loadSuppliers(), loadWarehouses()]);
     } else if (name === 'outbounds') {
       await Promise.all([loadOutbounds(), loadWarehouses()]);
     } else if (name === 'transit') await loadTransit();
@@ -781,13 +1217,19 @@ async function loadTab(name: string, force = false) {
 }
 
 function onTabChange(name: string | number) {
-  loadTab(String(name));
+  page.value = 1;
+  const next = String(name);
+  if (route.query.tab !== next) {
+    router.replace({ query: { ...route.query, tab: next } });
+  }
+  loadTab(next);
 }
 function reloadCurrent() {
   loadedTabs.value.delete(tab.value);
   loadTab(tab.value, true);
 }
 function onWarehouseFilter() {
+  page.value = 1;
   if (tab.value === 'inventory' || tab.value === 'movements') {
     loadedTabs.value.delete(tab.value);
     loadTab(tab.value, true);
@@ -941,6 +1383,68 @@ async function saveReceive() {
   }
 }
 
+async function openReturn() {
+  await Promise.all([loadPurchase(), loadSuppliers(), loadWarehouses(), ensureMeta()]);
+  const first = returnablePurchaseOrders.value[0];
+  Object.assign(returnForm, {
+    purchaseOrderId: first?.purchaseOrderId || null,
+    notes: '',
+    lines: []
+  });
+  if (first) onReturnPoChange(first.purchaseOrderId);
+  returnDialog.value = true;
+}
+function onReturnPoChange(purchaseOrderId: number | string | null) {
+  const po = purchaseOrders.value.find((p) => p.purchaseOrderId === purchaseOrderId);
+  returnForm.lines = (po?.lines || [])
+    .map((line: Row) => {
+      const maxQty = Math.max(0, (line.receivedQty || 0) - (line.returnedQty || 0));
+      return {
+        purchaseLineId: line.lineId,
+        skuId: line.skuId,
+        batchNo: line.batchNo,
+        receivedQty: line.receivedQty || 0,
+        returnedQty: line.returnedQty || 0,
+        maxQty,
+        quantity: maxQty > 0 ? 1 : 0
+      };
+    })
+    .filter((l: Row) => l.maxQty > 0);
+}
+async function saveReturn() {
+  if (!returnForm.purchaseOrderId) {
+    return ElMessage.warning('请选择采购单');
+  }
+  const lines = (returnForm.lines || []).filter((l: Row) => (l.quantity || 0) > 0);
+  if (!lines.length) {
+    return ElMessage.warning('请填写退货数量');
+  }
+  saving.value = true;
+  try {
+    await ElMessageBox.confirm('确认退货并扣减仓库库存？', '采购退货', { type: 'warning' });
+    await api.request('/api/v2/ops/admin/purchase-returns', 'POST', {
+      purchaseOrderId: returnForm.purchaseOrderId,
+      notes: returnForm.notes,
+      lines: lines.map((l: Row) => ({
+        purchaseLineId: l.purchaseLineId,
+        quantity: l.quantity
+      }))
+    });
+    returnDialog.value = false;
+    ElMessage.success('退货完成');
+    loadedTabs.value.delete('returns');
+    loadedTabs.value.delete('purchase');
+    loadedTabs.value.delete('inventory');
+    loadedTabs.value.delete('movements');
+    tab.value = 'returns';
+    await loadTab('returns', true);
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') ElMessage.error(e instanceof Error ? e.message : '退货失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
 async function changeOutbound(row: Row, action: 'pick' | 'ship') {
   const text = action === 'pick' ? '确认本单已完成拣货？' : '发运后库存将转为在途，确认继续？';
   try {
@@ -991,17 +1495,61 @@ async function saveInbound() {
   }
 }
 
+function applyTabFromQuery() {
+  const qTab = typeof route.query.tab === 'string' ? route.query.tab : '';
+  const allowed = [
+    'warehouses', 'suppliers', 'purchase', 'returns', 'outbounds', 'transit', 'inventory', 'movements'
+  ];
+  if (allowed.includes(qTab) && tab.value !== qTab) {
+    tab.value = qTab;
+  }
+}
+
 onMounted(async () => {
-  await loadTab('warehouses', true);
+  applyTabFromQuery();
+  await loadTab(tab.value, true);
 });
+
+onActivated(() => {
+  applyTabFromQuery();
+  loadTab(tab.value, false);
+});
+
+watch(
+  () => route.query.tab,
+  () => {
+    applyTabFromQuery();
+  }
+);
 </script>
 
 <style scoped>
-.card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.title { font-weight: 600; }
-.actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.filter-bar { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
-.line-table { margin: 8px 44px; width: calc(100% - 88px); }
+.page-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.page-card-head__meta { min-width: 0; }
+.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
+.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.title { font-weight: 600; font-size: 15px; }
+.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+
+.line-table { margin: 0; width: 100% !important; }
+.expand-panel {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 10px 12px 12px;
+  overflow-x: auto;
+}
+.expand-panel .line-table {
+  width: 100% !important;
+  min-width: 100%;
+}
+.hidden-input { display: none; }
 .muted, .tip { color: var(--layout-muted); font-size: 13px; }
 .tip { margin: 0 0 8px; }
 .positive { color: #059669; font-weight: 700; }
@@ -1015,10 +1563,15 @@ onMounted(async () => {
 .line-field :deep(.el-input-number), .line-field :deep(.el-select) { width: 100%; }
 .native-date { width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--layout-border); border-radius: 4px; color: var(--layout-text); background: var(--layout-card); box-sizing: border-box; }
 .receive-table { margin-bottom: 12px; }
-.master-data-cell { display: grid; gap: 2px; line-height: 1.35; }
-.master-data-cell strong { color: var(--layout-text); font-weight: 650; }
-.master-data-cell small { color: var(--layout-muted); font-size: 11px; }
+
 @media (max-width: 900px) {
   .form-grid, .line-grid { grid-template-columns: 1fr; }
+}
+.name-cell { display: grid; gap: 2px; line-height: 1.35; }
+.name-cell strong { color: var(--layout-text); font-weight: 650; }
+.name-cell small {
+  color: var(--layout-muted);
+  font-size: 11px;
+  font-family: var(--app-font-mono);
 }
 </style>

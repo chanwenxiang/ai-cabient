@@ -51,32 +51,73 @@
       </view>
 
       <view class="actions">
+        <button v-if="order?.deviceId" class="btn-primary" @click="reopenCabinet">再去本柜购物</button>
         <button v-if="videoUrl" class="btn-outline" @click="playVideo">查看购物视频</button>
+        <button
+          v-if="canRefund"
+          class="btn-refund"
+          :disabled="refundLoading || disputeLoading"
+          @click="openRefund"
+        >
+          {{ refundDone ? '已退款' : '立即退款' }}
+        </button>
         <button
           v-if="canDispute"
           class="btn-outline danger"
-          :disabled="disputeLoading"
+          :disabled="disputeLoading || refundLoading"
           @click="openDispute"
         >
-          {{ disputeFiled ? '申诉已提交' : '对账单有疑问' }}
+          {{ disputeFiled ? '申诉已提交' : (autoRefundEnabled ? '仅申诉（不立即退款）' : '申请退款 / 账单申诉') }}
         </button>
+        <button class="btn-outline" @click="goHelp">帮助与客服</button>
       </view>
 
-      <view class="support">客服电话: 400-888-0018</view>
+      <view class="support" @click="callSupport">客服电话: 400-888-0018 ›</view>
     </view>
 
     <view v-if="showDispute" class="dispute-mask" @click="closeDispute">
       <view class="dispute-panel" @click.stop>
-        <text class="dispute-title">账单申诉</text>
-        <text class="dispute-sub">请描述您认为有误的地方，运营将在 24 小时内处理</text>
+        <text class="dispute-title">{{ refundMode ? '立即退款' : '申请退款 / 账单申诉' }}</text>
+        <text class="dispute-sub">
+          {{ refundMode
+            ? '将原路退回本单已扣款项（余额/微信/支付宝）。可上传凭证图片辅助核对。'
+            : '仅提交申诉工单，运营审核后再退款。可上传凭证图片。' }}
+        </text>
+        <view class="chip-row">
+          <text
+            v-for="chip in reasonChips"
+            :key="chip.label"
+            class="reason-chip"
+            :class="{ on: selectedCategory === chip.category }"
+            @click="pickChip(chip)"
+          >{{ chip.label }}</text>
+        </view>
         <textarea
           v-model="disputeReason"
           class="dispute-input"
           maxlength="200"
           placeholder="例如：我没有拿这个商品 / 数量不对"
         />
-        <button class="btn-submit" :loading="disputeLoading" :disabled="disputeLoading" @click="submitDispute">
-          {{ disputeLoading ? '提交中…' : '提交申诉' }}
+        <view class="evidence-block">
+          <text class="evidence-label">申诉附图（选填，最多 5 张）</text>
+          <view class="evidence-row">
+            <view v-for="(img, idx) in evidence" :key="img.localPath + idx" class="evidence-item">
+              <image class="evidence-img" :src="previewEvidenceSrc(img)" mode="aspectFill" />
+              <text class="evidence-del" @click="removeEvidence(idx)">×</text>
+              <text v-if="img.uploading" class="evidence-uploading">上传中</text>
+            </view>
+            <view v-if="evidence.length < 5" class="evidence-add" @click="onAddEvidence">+</view>
+          </view>
+        </view>
+        <button
+          class="btn-submit"
+          :loading="disputeLoading || refundLoading"
+          :disabled="disputeLoading || refundLoading"
+          @click="submitAction"
+        >
+          {{ refundMode
+            ? (refundLoading ? '退款中…' : '确认退款')
+            : (disputeLoading ? '提交中…' : '提交申诉') }}
         </button>
         <text class="dispute-cancel" @click="closeDispute">取消</text>
       </view>
@@ -89,6 +130,18 @@ import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { consumerApi, get } from '@/utils/consumer-api';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import {
+  DISPUTE_REASON_CHIPS,
+  appendChipToReason,
+  type DisputeReasonChip
+} from '@/utils/dispute-form';
+import {
+  pickAndUploadEvidence,
+  evidenceFileIds,
+  previewEvidenceSrc,
+  removeEvidenceAt,
+  type LocalEvidence
+} from '@/utils/dispute-evidence';
 
 const orderId = ref('');
 const order = ref<any>(null);
@@ -96,9 +149,15 @@ const loading = ref(true);
 const error = ref('');
 const videoUrl = ref('');
 const showDispute = ref(false);
+const refundMode = ref(false);
 const disputeReason = ref('');
 const disputeLoading = ref(false);
+const refundLoading = ref(false);
 const disputeFiled = ref(false);
+const refundDone = ref(false);
+const reasonChips = DISPUTE_REASON_CHIPS;
+const selectedCategory = ref('USER_APPEAL');
+const evidence = ref<LocalEvidence[]>([]);
 
 onLoad(async (opt: any) => {
   orderId.value = opt?.orderId || '';
@@ -117,6 +176,11 @@ async function reload() {
     const res = await get('/api/v2/orders/' + orderId.value);
     order.value = res.data;
     if (order.value?.videoUri) videoUrl.value = order.value.videoUri;
+    if (order.value?.status === 'DISPUTED') disputeFiled.value = true;
+    if (order.value?.status === 'REFUNDED') {
+      refundDone.value = true;
+      disputeFiled.value = true;
+    }
   } catch (e: any) {
     error.value = e?.message || '加载失败';
   } finally {
@@ -140,11 +204,30 @@ const statusTitle = computed(() => {
   return map[order.value?.status || ''] || '已完成';
 });
 
+const canDispute = computed(() => {
+  const s = order.value?.status;
+  return !!order.value?.sessionId && !disputeFiled.value && s !== 'REFUNDED' && s !== 'DISPUTED';
+});
+
+const autoRefundEnabled = computed(() => order.value?.refundPolicy !== 'DISPUTE_ONLY');
+
+const canRefund = computed(() => {
+  const s = order.value?.status;
+  return (
+    autoRefundEnabled.value &&
+    !!order.value?.orderId &&
+    !refundDone.value &&
+    (s === 'PAID' || s === 'COMPLETED' || s === 'DISPUTED')
+  );
+});
+
 const statusDetail = computed(() => {
   if (order.value?.status === 'PAID' || order.value?.status === 'COMPLETED') {
-    return '关门自动扣款成功，如有疑问请联系客服';
+    return autoRefundEnabled.value
+      ? '关门自动扣款成功，如有疑问可立即退款或提交申诉'
+      : '关门自动扣款成功，如有疑问请提交账单申诉，由运营审核后退款';
   }
-  if (order.value?.status === 'REFUNDED') return '已退款至您的账户余额';
+  if (order.value?.status === 'REFUNDED') return '已退款至原支付渠道或账户余额';
   if (order.value?.status === 'DISPUTED') return '账单审核中，请耐心等待';
   return '';
 });
@@ -152,11 +235,6 @@ const statusDetail = computed(() => {
 const payChannelText = computed(() => {
   const map: Record<string, string> = { BALANCE: '余额支付', WECHAT: '微信支付', ALIPAY: '支付宝' };
   return map[order.value?.payChannel || ''] || order.value?.payChannel || '-';
-});
-
-const canDispute = computed(() => {
-  const s = order.value?.status;
-  return !!order.value?.sessionId && !disputeFiled.value && s !== 'REFUNDED' && s !== 'DISPUTED';
 });
 
 function formatTime(t: string) {
@@ -168,12 +246,41 @@ function playVideo() {
 }
 
 function openDispute() {
+  refundMode.value = false;
   disputeReason.value = '';
+  selectedCategory.value = 'USER_APPEAL';
+  evidence.value = [];
+  showDispute.value = true;
+}
+
+function openRefund() {
+  refundMode.value = true;
+  disputeReason.value = '申请退回本单已扣款项';
+  selectedCategory.value = 'USER_APPEAL';
+  evidence.value = [];
   showDispute.value = true;
 }
 
 function closeDispute() {
   showDispute.value = false;
+}
+
+function pickChip(chip: DisputeReasonChip) {
+  selectedCategory.value = chip.category;
+  disputeReason.value = appendChipToReason(disputeReason.value, chip);
+}
+
+async function onAddEvidence() {
+  evidence.value = await pickAndUploadEvidence(evidence.value);
+}
+
+function removeEvidence(idx: number) {
+  evidence.value = removeEvidenceAt(evidence.value, idx);
+}
+
+async function submitAction() {
+  if (refundMode.value) await submitRefund();
+  else await submitDispute();
 }
 
 async function submitDispute() {
@@ -187,22 +294,92 @@ async function submitDispute() {
     uni.showToast({ title: '请至少填写 4 个字', icon: 'none' });
     return;
   }
+  if (evidence.value.some((e) => e.uploading)) {
+    uni.showToast({ title: '图片仍在上传', icon: 'none' });
+    return;
+  }
   disputeLoading.value = true;
   try {
     await consumerApi.fileDispute({
       sessionId,
       reason,
-      category: 'USER_APPEAL',
-      priority: 'NORMAL'
+      category: selectedCategory.value || 'USER_APPEAL',
+      priority: 'NORMAL',
+      evidenceFileIds: evidenceFileIds(evidence.value)
     });
     disputeFiled.value = true;
     showDispute.value = false;
     uni.showToast({ title: '申诉已提交', icon: 'success' });
+    await reload();
   } catch (e) {
     uni.showToast({ title: e instanceof Error ? e.message : '提交失败', icon: 'none' });
   } finally {
     disputeLoading.value = false;
   }
+}
+
+async function submitRefund() {
+  const oid = order.value?.orderId;
+  const reason = disputeReason.value.trim();
+  if (!oid) {
+    uni.showToast({ title: '缺少订单编号', icon: 'none' });
+    return;
+  }
+  if (reason.length < 4) {
+    uni.showToast({ title: '请至少填写 4 字退款原因', icon: 'none' });
+    return;
+  }
+  if (evidence.value.some((e) => e.uploading)) {
+    uni.showToast({ title: '图片仍在上传', icon: 'none' });
+    return;
+  }
+  const confirmed = await new Promise<boolean>((resolve) =>
+    uni.showModal({
+      title: '确认退款',
+      content: '将立即原路退回本单金额，是否继续？',
+      confirmText: '确认退款',
+      success: (r) => resolve(!!r.confirm),
+      fail: () => resolve(false)
+    })
+  );
+  if (!confirmed) return;
+  refundLoading.value = true;
+  try {
+    const result = await consumerApi.refundOrder(oid, {
+      reason,
+      evidenceFileIds: evidenceFileIds(evidence.value)
+    });
+    refundDone.value = true;
+    disputeFiled.value = true;
+    showDispute.value = false;
+    uni.showToast({ title: result.message || '退款成功', icon: 'success' });
+    await reload();
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '退款失败', icon: 'none' });
+  } finally {
+    refundLoading.value = false;
+  }
+}
+
+function reopenCabinet() {
+  const id = order.value?.deviceId;
+  if (!id) {
+    uni.showToast({ title: '缺少柜机编号', icon: 'none' });
+    return;
+  }
+  uni.setStorageSync('reopen_device_id', id);
+  uni.switchTab({ url: '/pages/index/index' });
+}
+
+function goHelp() {
+  uni.navigateTo({ url: '/pages/help/help' });
+}
+
+function callSupport() {
+  uni.makePhoneCall({
+    phoneNumber: '4008880018',
+    fail: () => uni.showToast({ title: '请拨打 400-888-0018', icon: 'none' })
+  });
 }
 </script>
 
@@ -239,14 +416,27 @@ async function submitDispute() {
 .info-value { font-size: 26rpx; color: #333; }
 .mono { font-family: monospace; font-size: 22rpx; }
 .actions { display: flex; flex-direction: column; gap: 20rpx; padding: 10rpx 0; }
+.btn-primary { height: 80rpx; line-height: 80rpx; border: none; color: #fff; border-radius: 40rpx; background: #07c160; font-size: 28rpx; text-align: center; }
 .btn-outline { height: 72rpx; line-height: 72rpx; border: 2rpx solid #07c160; color: #07c160; border-radius: 36rpx; background: #fff; font-size: 28rpx; text-align: center; }
-.btn-outline.danger { border-color: #ff3b30; color: #ff3b30; }
-.support { text-align: center; padding: 30rpx; color: #999; font-size: 24rpx; }
+.btn-outline.danger { border-color: #f97316; color: #c2410c; }
+.btn-refund { height: 80rpx; line-height: 80rpx; border: none; color: #fff; border-radius: 40rpx; background: #ef4444; font-size: 28rpx; font-weight: 600; text-align: center; }
+.support { text-align: center; padding: 30rpx; color: #059669; font-size: 24rpx; }
 .dispute-mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100; display: flex; align-items: flex-end; }
-.dispute-panel { width: 100%; background: #fff; border-radius: 24rpx 24rpx 0 0; padding: 32rpx 28rpx calc(32rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
+.dispute-panel { width: 100%; max-height: 90vh; overflow-y: auto; background: #fff; border-radius: 24rpx 24rpx 0 0; padding: 32rpx 28rpx calc(32rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
 .dispute-title { font-size: 34rpx; font-weight: 700; display: block; }
-.dispute-sub { font-size: 24rpx; color: #888; display: block; margin: 12rpx 0 20rpx; }
-.dispute-input { width: 100%; min-height: 160rpx; background: #f7f7f7; border-radius: 12rpx; padding: 20rpx; box-sizing: border-box; font-size: 28rpx; margin-bottom: 20rpx; }
-.btn-submit { width: 100%; height: 88rpx; line-height: 88rpx; background: #07c160; color: #fff; border-radius: 44rpx; font-size: 30rpx; border: none; }
+.dispute-sub { font-size: 24rpx; color: #888; display: block; margin: 12rpx 0 20rpx; line-height: 1.5; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 16rpx; }
+.reason-chip { padding: 10rpx 18rpx; border-radius: 999rpx; background: #f3f4f6; color: #374151; font-size: 24rpx; border: 1rpx solid transparent; }
+.reason-chip.on { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.dispute-input { width: 100%; min-height: 140rpx; background: #f7f7f7; border-radius: 12rpx; padding: 20rpx; box-sizing: border-box; font-size: 28rpx; margin-bottom: 16rpx; }
+.evidence-block { margin-bottom: 20rpx; }
+.evidence-label { display: block; font-size: 24rpx; color: #6b7280; margin-bottom: 12rpx; }
+.evidence-row { display: flex; flex-wrap: wrap; gap: 16rpx; }
+.evidence-item { position: relative; width: 140rpx; height: 140rpx; }
+.evidence-img { width: 140rpx; height: 140rpx; border-radius: 12rpx; background: #f3f4f6; }
+.evidence-del { position: absolute; top: -8rpx; right: -8rpx; width: 36rpx; height: 36rpx; border-radius: 50%; background: #111; color: #fff; text-align: center; line-height: 36rpx; font-size: 24rpx; }
+.evidence-uploading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); color: #fff; font-size: 22rpx; border-radius: 12rpx; }
+.evidence-add { width: 140rpx; height: 140rpx; border-radius: 12rpx; border: 2rpx dashed #d1d5db; color: #9ca3af; font-size: 48rpx; display: flex; align-items: center; justify-content: center; }
+.btn-submit { width: 100%; height: 88rpx; line-height: 88rpx; background: #ef4444; color: #fff; border-radius: 44rpx; font-size: 30rpx; border: none; }
 .dispute-cancel { display: block; text-align: center; color: #888; margin-top: 20rpx; font-size: 28rpx; padding: 8rpx; }
 </style>

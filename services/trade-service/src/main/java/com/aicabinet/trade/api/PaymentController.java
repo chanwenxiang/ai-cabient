@@ -58,13 +58,6 @@ public class PaymentController {
         return ApiResponse.ok(paymentService.cancelRecharge(userId, orderId));
     }
 
-    @PostMapping("/recharge/{orderId}/mock-success")
-    public ApiResponse<RechargeOrderDto> confirmMockRecharge(HttpServletRequest request,
-            @PathVariable("orderId") String orderId) {
-        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return ApiResponse.ok(paymentService.confirmRechargeMock(userId, orderId));
-    }
-
     public record RechargePrepayRequest(
             @NotBlank String channel,
             @Min(1) int amountCents,

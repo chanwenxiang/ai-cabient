@@ -59,7 +59,7 @@ class DuplicateCallbackTest {
         disputeService = new DisputeService(
                 disputeRepository, null, repository, null, null, null, null, null,
                 riskControlService, permissionService, null, null, null,
-                new DisputeSlaProperties(24, 12, "", false), null, opsExceptionService);
+                new DisputeSlaProperties(24, 12, "", false), null, opsExceptionService, null, null);
     }
 
     @Test

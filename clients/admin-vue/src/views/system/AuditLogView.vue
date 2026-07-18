@@ -1,46 +1,103 @@
 <template>
-  <el-card class="page-card" shadow="never">
+  <el-card class="page-card report-page" shadow="never">
     <template #header>
-      <div class="card-head">
-        <span>审计日志</span>
-        <div class="actions">
-          <el-button @click="onExport">导出</el-button>
-          <el-switch v-model="mineOnly" active-text="仅看我的" @change="load" />
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">审计日志</span>
+            <span class="hint">关键写操作留痕；可仅看本人</span>
+          </div>
+        </div>
+        <div class="page-card-head__actions">
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-switch v-model="mineOnly" active-text="仅看我的" @change="onMineChange" />
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
+
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
+      <el-form-item label="动作">
+        <el-select v-model="actionFilter" clearable filterable placeholder="全部" style="width: 180px" @change="search">
+          <el-option v-for="(label, key) in ACTION_LABELS" :key="key" :label="label" :value="key" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="对象">
+        <el-select v-model="targetFilter" clearable placeholder="全部" style="width: 130px" @change="search">
+          <el-option v-for="(label, key) in TARGET_LABELS" :key="key" :label="label" :value="key" />
+        </el-select>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="reset">重置</el-button>
+      </el-form-item>
+    </el-form>
+
     <div class="table-scroll">
       <div class="table-scroll-inner" style="min-width: 1080px">
-        <el-table v-loading="loading" :data="items" stripe border>
+        <el-table
+          v-loading="loading"
+          :data="displayItems"
+          stripe
+          border
+          class="report-table"
+          row-key="logId"
+          @selection-change="onSelectionChange"
+        >
           <template #empty><el-empty description="暂无审计日志" /></template>
-          <el-table-column label="时间" width="180"><template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template></el-table-column>
-          <el-table-column label="操作人" min-width="150" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.operatorName || row.operatorPhone || row.operatorId || '-' }}</template>
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column label="时间" width="168" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
+            </template>
           </el-table-column>
-          <el-table-column label="动作" min-width="150" show-overflow-tooltip><template #default="{ row }">{{ actionLabel(row.action) }}</template></el-table-column>
-          <el-table-column label="对象类型" width="120"><template #default="{ row }">{{ targetLabel(row.targetType) }}</template></el-table-column>
-          <el-table-column prop="targetId" label="对象ID" min-width="140" show-overflow-tooltip><template #default="{ row }"><span class="cell-id">{{ row.targetId || '-' }}</span></template></el-table-column>
-          <el-table-column label="详情" min-width="220" show-overflow-tooltip>
-            <template #default="{ row }">{{ formatOpsActionDetail(row.detail) }}</template>
+          <el-table-column label="操作人" min-width="140" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">
+              <div class="name-cell">
+                <strong>{{ row.operatorName || row.operatorPhone || row.operatorId || '-' }}</strong>
+                <small v-if="row.operatorId">ID {{ row.operatorId }}</small>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="动作" min-width="140" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">
+              <el-tag size="small" effect="plain">{{ actionLabel(row.action) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="对象" min-width="160" class-name="col-text">
+            <template #default="{ row }">
+              <div class="name-cell">
+                <strong>{{ targetLabel(row.targetType) }}</strong>
+                <small v-if="row.targetId" class="cell-id">{{ row.targetId }}</small>
+                <small v-else class="muted">-</small>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="详情" min-width="220" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ formatOpsActionDetail(row.detail) || '-' }}</template>
           </el-table-column>
         </el-table>
       </div>
     </div>
-    <el-pagination
-      v-if="!mineOnly"
-      v-model:current-page="page"
-      :page-size="size"
-      :total="total"
-      layout="prev,pager,next,total"
-      style="margin-top:16px"
-      @current-change="load"
-    />
+
+    <div v-if="!mineOnly" class="page-pager">
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="size"
+        :total="total"
+        :page-sizes="[10, 20, 50, 100]"
+        layout="total, sizes, prev, pager, next"
+        background
+        @current-change="load"
+        @size-change="onSizeChange"
+      />
+    </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { formatOpsActionDetail } from '@aicabinet/shared-dict';
@@ -48,6 +105,7 @@ import { formatDateTime } from '@aicabinet/shared-uni/format';
 import type { PageResult } from '@aicabinet/shared-types';
 import { api } from '@/api/client';
 import { useListCsv } from '@/composables/useListCsv';
+import { useTableSelection } from '@/composables/useTableSelection';
 
 interface AuditRow {
   logId: number;
@@ -84,18 +142,33 @@ const TARGET_LABELS: Record<string, string> = {
   DICT_DATA: '字典项'
 };
 
+const route = useRoute();
+const router = useRouter();
 const loading = ref(false);
 const mineOnly = ref(false);
+const actionFilter = ref('');
+const targetFilter = ref('');
 const page = ref(1);
-const size = 20;
+const size = ref(20);
 const total = ref(0);
 const items = ref<AuditRow[]>([]);
+
+const displayItems = computed(() => {
+  return items.value.filter((row) => {
+    if (actionFilter.value && row.action !== actionFilter.value) return false;
+    if (targetFilter.value && row.targetType !== targetFilter.value) return false;
+    return true;
+  });
+});
+
+const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
+  useTableSelection<AuditRow>((r) => r.logId);
 
 const { onExport } = useListCsv({
   filePrefix: '审计日志',
   headers: ['时间', '操作人', '动作', '对象类型', '对象ID', '详情'],
   toRows: () =>
-    items.value.map((row) => [
+    pickSelected(displayItems.value).map((row) => [
       formatDateTime(row.createdAt),
       row.operatorName || row.operatorPhone || row.operatorId || '-',
       actionLabel(row.action),
@@ -115,6 +188,32 @@ function targetLabel(type?: string) {
   return TARGET_LABELS[type] || type;
 }
 
+function syncRouteQuery() {
+  const query: Record<string, string> = {};
+  if (mineOnly.value) query.mine = '1';
+  if (actionFilter.value) query.action = actionFilter.value;
+  if (targetFilter.value) query.target = targetFilter.value;
+  router.replace({ query });
+}
+
+function applyRouteQuery() {
+  let changed = false;
+  const mine = route.query.mine === '1' || route.query.mine === 'true';
+  if (mine !== mineOnly.value) {
+    mineOnly.value = mine;
+    changed = true;
+  }
+  if (typeof route.query.action === 'string' && route.query.action !== actionFilter.value) {
+    actionFilter.value = route.query.action;
+    changed = true;
+  }
+  if (typeof route.query.target === 'string' && route.query.target !== targetFilter.value) {
+    targetFilter.value = route.query.target;
+    changed = true;
+  }
+  return changed;
+}
+
 async function load() {
   loading.value = true;
   try {
@@ -122,11 +221,12 @@ async function load() {
       items.value = await api.request<AuditRow[]>('/api/v2/ops/admin/audit-logs/recent?size=50&mine=true', 'GET');
       total.value = items.value.length;
     } else {
-      const q = new URLSearchParams({ page: String(page.value - 1), size: String(size) });
+      const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
       const data = await api.request<PageResult<AuditRow>>(`/api/v2/ops/admin/audit-logs?${q}`, 'GET');
       items.value = data.items;
       total.value = data.total;
     }
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -134,10 +234,63 @@ async function load() {
   }
 }
 
-onMounted(load);
+function search() {
+  page.value = 1;
+  syncRouteQuery();
+  // Client-side filters apply via displayItems; still reload for mine toggle consistency
+  load();
+}
+
+function reset() {
+  actionFilter.value = '';
+  targetFilter.value = '';
+  page.value = 1;
+  syncRouteQuery();
+  load();
+}
+
+function onMineChange() {
+  page.value = 1;
+  syncRouteQuery();
+  load();
+}
+
+function onSizeChange() {
+  page.value = 1;
+  load();
+}
+
+onMounted(() => {
+  applyRouteQuery();
+  load();
+});
+onActivated(() => {
+  if (applyRouteQuery()) {
+    page.value = 1;
+    load();
+  }
+});
 </script>
 
 <style scoped>
-.card-head { display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; }
-.actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.page-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.page-card-head__meta { min-width: 0; }
+.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
+.title { font-weight: 600; font-size: 15px; }
+.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+.page-card-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.name-cell { display: grid; gap: 2px; line-height: 1.35; }
+.name-cell strong { font-weight: 650; }
+.name-cell small {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-family: var(--app-font-mono);
+}
+.muted { color: var(--el-text-color-secondary); }
 </style>

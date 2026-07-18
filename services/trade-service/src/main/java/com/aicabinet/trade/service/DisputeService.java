@@ -2,10 +2,13 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.DisputeMessageDto;
 import com.aicabinet.common.dto.DisputeTicketDto;
+import com.aicabinet.common.dto.FileAttachmentDto;
 import com.aicabinet.common.dto.FileDisputeRequest;
 import com.aicabinet.common.dto.MerchantDisputeDetailDto;
 import com.aicabinet.common.dto.MerchantReplyDisputeRequest;
 import com.aicabinet.common.dto.OrderLineDto;
+import com.aicabinet.common.dto.OrderRefundRequest;
+import com.aicabinet.common.dto.OrderRefundResultDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.CloseDisputeRequest;
 import com.aicabinet.common.dto.ReopenDisputeRequest;
@@ -67,6 +70,8 @@ public class DisputeService {
     private final DisputeSlaProperties disputeSlaProperties;
     private final UserInfoMapper userInfoRepository;
     private final OpsExceptionService opsExceptionService;
+    private final FileAttachmentService fileAttachmentService;
+    private final RefundPolicyService refundPolicyService;
 
     public DisputeService(DisputeTicketMapper disputeRepository,
                           DisputeMessageMapper disputeMessageRepository,
@@ -83,7 +88,9 @@ public class DisputeService {
                           SkuCatalogMapper skuCatalogRepository,
                           DisputeSlaProperties disputeSlaProperties,
                           UserInfoMapper userInfoRepository,
-                          @Lazy OpsExceptionService opsExceptionService) {
+                          @Lazy OpsExceptionService opsExceptionService,
+                          FileAttachmentService fileAttachmentService,
+                          RefundPolicyService refundPolicyService) {
         this.disputeRepository = disputeRepository;
         this.disputeMessageRepository = disputeMessageRepository;
         this.sessionRepository = sessionRepository;
@@ -100,6 +107,8 @@ public class DisputeService {
         this.disputeSlaProperties = disputeSlaProperties;
         this.userInfoRepository = userInfoRepository;
         this.opsExceptionService = opsExceptionService;
+        this.fileAttachmentService = fileAttachmentService;
+        this.refundPolicyService = refundPolicyService;
     }
 
     @Transactional
@@ -125,8 +134,115 @@ public class DisputeService {
         if (disputeRepository.findBySessionId(session.getSessionId()).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DISPUTE_ALREADY_EXISTS);
         }
-        return saveOpenTicket(userId, session.getSessionId(), request.reason().trim(), "[]",
+        DisputeTicketDto dto = saveOpenTicket(userId, session.getSessionId(), request.reason().trim(), "[]",
                 normalizeCategory(request.category()), normalizePriority(request.priority()));
+        fileAttachmentService.bindEvidenceToDispute(userId, dto.ticketId(), request.evidenceFileIds());
+        session.setState(SessionState.DISPUTED);
+        sessionRepository.save(session);
+        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
+            if ("PAID".equals(order.getStatus()) || "COMPLETED".equals(order.getStatus())) {
+                order.setStatus("DISPUTED");
+                orderRepository.save(order);
+            }
+        });
+        return toDto(disputeRepository.findById(dto.ticketId()).orElseThrow());
+    }
+
+    /**
+     * 消费者自助全额退款：创建申诉工单（可带附图）并立即原路退款。
+     */
+    @Transactional
+    public OrderRefundResultDto refundByConsumer(Long userId, String orderId, OrderRefundRequest request) {
+        CabinetOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        if (!userId.equals(order.getUserId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND);
+        }
+        if (refundPolicyService != null && !refundPolicyService.allowsAutoRefund(order.getDeviceId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "该柜机未开启自助退款，请提交账单申诉，由运营审核后处理");
+        }
+        return executeFullRefund(userId, order, request, false);
+    }
+
+    /**
+     * 运营后台直接全额退款（无需先点争议结案）。
+     */
+    @Transactional
+    public OrderRefundResultDto refundByOperator(Long operatorId, String orderId, OrderRefundRequest request) {
+        permissionService.requireAnyPermission(operatorId, "ops:dispute", "ops:order:list", "ops:user:balance");
+        CabinetOrder order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        ShoppingSession session = sessionRepository.findById(order.getSessionId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
+        return executeFullRefund(operatorId, order, request, true);
+    }
+
+    private OrderRefundResultDto executeFullRefund(Long actorId, CabinetOrder order, OrderRefundRequest request,
+                                                   boolean operator) {
+        if ("REFUNDED".equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单已退款");
+        }
+        if (!Set.of("PAID", "COMPLETED", "DISPUTED").contains(String.valueOf(order.getStatus()))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前订单状态不可退款");
+        }
+        String reason = request != null && request.reason() != null ? request.reason().trim() : "";
+        if (reason.length() < 4) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写至少 4 字退款原因");
+        }
+        ShoppingSession session = sessionRepository.findById(order.getSessionId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        DisputeTicket ticket = disputeRepository.findBySessionId(session.getSessionId()).orElse(null);
+        if (ticket == null) {
+            DisputeTicketDto created = saveOpenTicket(
+                    order.getUserId(),
+                    session.getSessionId(),
+                    reason,
+                    "[]",
+                    "USER_APPEAL",
+                    "NORMAL");
+            ticket = disputeRepository.findById(created.ticketId()).orElseThrow();
+        } else if ("RESOLVED".equals(ticket.getStatus()) || "CLOSED".equals(ticket.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "关联争议已结案，无法再次退款");
+        } else {
+            ticket.setReason(reason);
+            ticket.setCategory("USER_APPEAL");
+            disputeRepository.save(ticket);
+        }
+        Long evidenceOwner = operator ? order.getUserId() : actorId;
+        if (!operator) {
+            fileAttachmentService.bindEvidenceToDispute(evidenceOwner, ticket.getTicketId(),
+                    request != null ? request.evidenceFileIds() : null);
+        } else if (request != null && request.evidenceFileIds() != null && !request.evidenceFileIds().isEmpty()) {
+            // 运营代传附图时仍校验上传者归属（通常是消费者先传）
+            fileAttachmentService.bindEvidenceToDispute(order.getUserId(), ticket.getTicketId(),
+                    request.evidenceFileIds());
+        }
+        int refunded = settlementService.waiveAndRefund(session);
+        ticket.setStatus("RESOLVED");
+        ticket.setResolutionItems("[]");
+        ticket.setResolvedAt(Instant.now());
+        if (operator) {
+            ticket.setOperatorNote("运营直接退款: " + reason);
+        }
+        disputeRepository.save(ticket);
+        session.setState(SessionState.COMPLETED);
+        sessionRepository.save(session);
+        auditService.record(actorId, operator ? "ORDER_REFUND_OPS" : "ORDER_REFUND_CONSUMER",
+                "ORDER", order.getOrderId(),
+                "ticket=" + ticket.getTicketId() + "; refund=" + refunded + "; reason=" + reason);
+        String message = refunded > 0
+                ? "退款成功，已退回 ¥" + String.format("%.2f", refunded / 100.0)
+                : "已处理，本单无需退款金额";
+        return new OrderRefundResultDto(
+                order.getOrderId(),
+                session.getSessionId(),
+                ticket.getTicketId(),
+                "REFUNDED",
+                refunded,
+                order.getPayChannel(),
+                message);
     }
 
     private DisputeTicketDto saveOpenTicket(Long userId, String sessionId, String reason, String itemsJson,
@@ -408,7 +524,8 @@ public class DisputeService {
                 videoUri, previewUrl, sessionState, orderId, billedAmountCents,
                 ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining,
                 ticket.getCategory(), ticket.getPriority(), ticket.getOperatorNote(),
-                ticket.getClosedAt(), ticket.getReopenedAt(), loadMessages(ticket.getTicketId()));
+                ticket.getClosedAt(), ticket.getReopenedAt(), loadMessages(ticket.getTicketId()),
+                fileAttachmentService.listDisputeEvidence(ticket.getTicketId()));
     }
 
     @Transactional(readOnly = true)
@@ -476,7 +593,8 @@ public class DisputeService {
                 null, null, sessionState, orderId, billedAmountCents,
                 ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining,
                 ticket.getCategory(), null, null,
-                ticket.getClosedAt(), ticket.getReopenedAt(), List.of());
+                ticket.getClosedAt(), ticket.getReopenedAt(), List.of(),
+                fileAttachmentService.listDisputeEvidence(ticket.getTicketId()));
     }
 
     private DisputeTicket requireTicket(String ticketId) {

@@ -27,6 +27,12 @@ public class DeviceCommandService {
         return commandId;
     }
 
+    public String sendOpsCommand(String deviceId, String commandType) {
+        String commandId = mqttPublisher.publishOpsCommand(deviceId, commandType);
+        commandTracker.recordPublished(commandId, deviceId, null);
+        return commandId;
+    }
+
     public DeviceCommandTracker.CommandStatus getCommandStatus(String commandId) {
         return commandTracker.getStatus(commandId);
     }

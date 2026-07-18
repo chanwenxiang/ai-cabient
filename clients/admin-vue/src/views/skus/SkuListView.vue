@@ -1,65 +1,106 @@
 <template>
-  <el-card class="page-card">
+  <el-card class="page-card report-page" shadow="never">
     <template #header>
-      <div class="page-header">
-        <span>商品与识别</span>
-        <div class="header-actions">
-          <el-button @click="onExport">导出</el-button>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">商品与识别</span>
+            <span class="hint">YOLO 类名映射与识别阈值；支持导入与新建</span>
+          </div>
+        </div>
+        <div class="page-card-head__actions">
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-if="canImport" @click="onDownloadTemplate(['SKU-DEMO-001', '示例商品', '3.50', '', '饮料', 'demo_sku', '映射中', '上架', '92%', '50%'])">导入模板</el-button>
+          <el-button v-if="canImport" :loading="importing" @click="triggerImport">导入</el-button>
+          <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
           <el-button type="primary" @click="openEnroll()">新建商品</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
-    <el-form inline class="filter-bar" @submit.prevent>
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="关键词">
-        <el-input v-model="keyword" clearable placeholder="SKU / 名称 / 类名" style="width:220px" />
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="编号 / 名称 / 类名"
+          style="width: 220px"
+          @keyup.enter="search"
+          @clear="search"
+        />
+      </el-form-item>
+      <el-form-item label="识别状态">
+        <el-select v-model="enrollmentFilter" clearable placeholder="全部" style="width: 130px" @change="search">
+          <el-option v-for="s in enrollmentStatuses" :key="s" :label="enrollmentLabel(s)" :value="s" />
+        </el-select>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="resetFilters">重置</el-button>
       </el-form-item>
     </el-form>
 
     <div class="table-scroll">
       <div class="table-scroll-inner" style="min-width: 1180px">
-        <el-table v-loading="loading" :data="paged" stripe border row-key="skuId" class="sku-table">
+        <el-table
+          v-loading="loading"
+          :data="paged"
+          stripe
+          border
+          table-layout="auto"
+          row-key="skuId"
+          class="report-table sku-table"
+          @selection-change="onSelectionChange"
+        >
+          <template #empty><el-empty description="暂无商品" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="skuId" label="SKU" min-width="120">
-            <template #default="{ row }"><span class="cell-id">{{ row.skuId }}</span></template>
-          </el-table-column>
-          <el-table-column prop="skuName" label="名称" min-width="120" show-overflow-tooltip />
-          <el-table-column label="基准价" width="96">
-            <template #default="{ row }">¥{{ ((row.priceCents || 0) / 100).toFixed(2) }}</template>
-          </el-table-column>
-          <el-table-column label="成本" width="96">
+          <el-table-column label="商品" min-width="180" class-name="col-text">
             <template #default="{ row }">
-              {{ row.purchaseCostCents != null ? `¥${(row.purchaseCostCents / 100).toFixed(2)}` : '—' }}
+              <button type="button" class="sku-cell" @click="openEnroll(row)">
+                <strong>{{ row.skuName || row.skuId }}</strong>
+                <small>{{ row.skuId }}</small>
+              </button>
             </template>
           </el-table-column>
-          <el-table-column prop="category" label="类目" width="100" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.category || '—' }}</template>
+          <el-table-column label="基准价" width="96" align="right" class-name="col-money">
+            <template #default="{ row }">¥{{ ((row.priceCents || 0) / 100).toFixed(2) }}</template>
           </el-table-column>
-          <el-table-column prop="yoloClassName" label="YOLO 类名" min-width="120" show-overflow-tooltip>
-            <template #default="{ row }"><span class="cell-id">{{ row.yoloClassName || '—' }}</span></template>
+          <el-table-column label="成本" width="96" align="right" class-name="col-money">
+            <template #default="{ row }">
+              {{ row.purchaseCostCents != null ? `¥${(row.purchaseCostCents / 100).toFixed(2)}` : '-' }}
+            </template>
           </el-table-column>
-          <el-table-column label="识别状态" width="110">
+          <el-table-column prop="category" label="类目" min-width="100" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.category || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="识别类名" min-width="130" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span v-if="row.yoloClassName" class="cell-id">{{ row.yoloClassName }}</span>
+              <span v-else class="muted">-</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="识别状态" width="100" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="enrollmentTagType(row.visionEnrollmentStatus)">
                 {{ enrollmentLabel(row.visionEnrollmentStatus) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="商品状态" width="100">
+          <el-table-column label="商品状态" width="96" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
                 {{ skuStatusLabel(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="扣款阈值" width="100">
+          <el-table-column label="扣款阈值" width="96" align="center">
             <template #default="{ row }">{{ formatConfidence(row.minChargeConfidence) }}</template>
           </el-table-column>
-          <el-table-column label="检测阈值" width="100">
+          <el-table-column label="检测阈值" width="96" align="center">
             <template #default="{ row }">{{ formatConfidence(row.detectionMinConfidence ?? 0.5) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="132" class-name="col-action" align="center">
+          <el-table-column label="操作" width="132" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions
                 :actions="skuActions(row)"
@@ -68,7 +109,6 @@
               />
             </template>
           </el-table-column>
-          <template #empty><el-empty description="暂无商品" /></template>
         </el-table>
       </div>
     </div>
@@ -79,13 +119,14 @@
         :total="filtered.length"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next"
+        background
       />
     </div>
 
     <el-dialog v-model="enrollDialog" :title="enrollForm.existing ? '编辑商品与识别' : '新建商品与识别'" width="640px">
       <el-form label-width="108px">
-        <el-form-item label="SKU ID" required>
-          <el-input v-model="enrollForm.skuId" :disabled="!!enrollForm.existing" placeholder="SKU-XXX-001" />
+        <el-form-item label="商品编号" required>
+          <el-input v-model="enrollForm.skuId" :disabled="!!enrollForm.existing" placeholder="例如 SKU-COLA-001" />
         </el-form-item>
         <el-form-item label="商品名称" required>
           <el-input v-model="enrollForm.skuName" @blur="suggestClassNameIfEmpty" />
@@ -93,16 +134,16 @@
         <el-form-item label="基准价(分)" required>
           <el-input-number v-model="enrollForm.priceCents" :min="1" :step="10" />
         </el-form-item>
-        <el-form-item label="YOLO 类名" required>
+        <el-form-item label="识别类名" required>
           <div class="inline-field">
-            <el-input v-model="enrollForm.yoloClassName" placeholder="cola_330ml" />
+            <el-input v-model="enrollForm.yoloClassName" placeholder="例如 cola_330ml（英文类名）" />
             <el-button :loading="suggestingClass" @click="suggestClassNameIfEmpty">规则建议</el-button>
           </div>
         </el-form-item>
-        <el-form-item label="主图 URL">
-          <el-input v-model="enrollForm.imageUrl" placeholder="https://..." />
+        <el-form-item label="主图地址">
+          <el-input v-model="enrollForm.imageUrl" placeholder="商品图片地址（可选）" />
         </el-form-item>
-        <el-form-item label="DeepSeek 建议">
+        <el-form-item label="智能建议">
           <div class="inline-field">
             <input ref="classImageInput" type="file" accept="image/*" class="hidden-input" @change="onClassImagePick" />
             <el-button :loading="suggestingImage" @click="triggerClassImage">上传主图建议类名</el-button>
@@ -130,7 +171,7 @@
     <el-dialog v-model="testDialog" :title="`识别测试 · ${testForm.skuName}`" width="560px">
       <el-form label-width="96px">
         <el-form-item label="设备 ID">
-          <el-input v-model="testForm.deviceId" placeholder="CAB-DEMO-001" />
+          <el-input v-model="testForm.deviceId" placeholder="例如 CAB-001" />
         </el-form-item>
         <el-form-item label="测试图片">
           <input ref="testImageInput" type="file" accept="image/*" @change="onTestImagePick" />
@@ -153,18 +194,23 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, Upload, CircleCheck } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useTableSelection } from '@/composables/useTableSelection';
+import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import type {
   DevRecognitionPreviewDto,
   SkuCatalog,
   UpsertSkuVisionEnrollmentRequest
 } from '@aicabinet/shared-types';
 
+const route = useRoute();
+const router = useRouter();
 const loading = ref(false);
 const saving = ref(false);
 const testing = ref(false);
@@ -172,26 +218,60 @@ const suggestingClass = ref(false);
 const suggestingImage = ref(false);
 const items = ref<SkuCatalog[]>([]);
 const keyword = ref('');
+const enrollmentFilter = ref('');
 const page = ref(1);
 const size = ref(20);
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();
-  if (!q) return items.value;
-  return items.value.filter((row) =>
-    [row.skuId, row.skuName, row.yoloClassName, row.category, row.status]
-      .some((x) => String(x || '').toLowerCase().includes(q))
-  );
+  return items.value.filter((row) => {
+    if (enrollmentFilter.value && row.visionEnrollmentStatus !== enrollmentFilter.value) return false;
+    if (!q) return true;
+    return [row.skuId, row.skuName, row.yoloClassName, row.category, row.status]
+      .some((x) => String(x || '').toLowerCase().includes(q));
+  });
 });
 const paged = computed(() => {
   const start = (page.value - 1) * size.value;
   return filtered.value.slice(start, start + size.value);
 });
+watch([keyword, enrollmentFilter], () => {
+  page.value = 1;
+});
 
-const { onExport } = useListCsv({
+const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
+  useTableSelection<SkuCatalog>((r) => r.skuId);
+
+const enrollmentStatusByLabel: Record<string, string> = {
+  草稿: 'DRAFT',
+  映射中: 'MAPPING',
+  已测试: 'TESTED',
+  生产: 'PRODUCTION',
+  DRAFT: 'DRAFT',
+  MAPPING: 'MAPPING',
+  TESTED: 'TESTED',
+  PRODUCTION: 'PRODUCTION'
+};
+const skuStatusByLabel: Record<string, string> = {
+  上架: 'ACTIVE',
+  下架: 'INACTIVE',
+  停用: 'DISABLED',
+  ACTIVE: 'ACTIVE',
+  INACTIVE: 'INACTIVE',
+  DISABLED: 'DISABLED'
+};
+
+function parseConfidence(raw: string | undefined, fallback: number) {
+  if (raw == null || !String(raw).trim()) return fallback;
+  const n = Number(String(raw).replace(/%/g, '').trim());
+  if (Number.isNaN(n)) return fallback;
+  return n > 1 ? n / 100 : n;
+}
+
+const { canImport, importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
   filePrefix: '商品',
-  headers: ['SKU', '名称', '基准价', '成本', '类目', 'YOLO类名', '识别状态', '商品状态', '扣款阈值', '检测阈值'],
+  headers: ['商品编号', '名称', '基准价', '成本', '类目', '识别类名', '识别状态', '商品状态', '扣款阈值', '检测阈值'],
   toRows: () =>
-    paged.value.map((row) => [
+    pickSelected(filtered.value).map((row) => [
       row.skuId,
       row.skuName,
       ((row.priceCents || 0) / 100).toFixed(2),
@@ -202,7 +282,43 @@ const { onExport } = useListCsv({
       skuStatusLabel(row.status),
       formatConfidence(row.minChargeConfidence),
       formatConfidence(row.detectionMinConfidence ?? 0.5)
-    ])
+    ]),
+  onImportRows: async (rows) => {
+    let ok = 0;
+    for (const row of rows) {
+      const skuId = (row['商品编号'] || row.skuId || '').trim();
+      const skuName = (row['名称'] || row.skuName || '').trim();
+      if (!skuId || !skuName) continue;
+      const yoloClassName = (row['识别类名'] || row.yoloClassName || '').trim() || skuId.toLowerCase().replace(/[^a-z0-9_]+/g, '_');
+      const priceCents = Math.round((Number(row['基准价'] || row.priceYuan) || 0) * 100);
+      const visionEnrollmentStatus =
+        enrollmentStatusByLabel[row['识别状态'] || row.visionEnrollmentStatus] || 'MAPPING';
+      const status = skuStatusByLabel[row['商品状态'] || row.status] || 'ACTIVE';
+      const body: UpsertSkuVisionEnrollmentRequest = {
+        sku: {
+          skuId,
+          skuName,
+          priceCents: priceCents || 350,
+          visionEnabled: true,
+          status,
+          category: (row['类目'] || row.category || '').trim() || undefined,
+          minChargeConfidence: parseConfidence(row['扣款阈值'] || row.minChargeConfidence, 0.92),
+          yoloClassName,
+          visionEnrollmentStatus,
+          detectionMinConfidence: parseConfidence(row['检测阈值'] || row.detectionMinConfidence, 0.5)
+        },
+        yoloClassName,
+        visionEnrollmentStatus,
+        detectionMinConfidence: parseConfidence(row['检测阈值'] || row.detectionMinConfidence, 0.5),
+        mappingSource: 'YOLO_SKU'
+      };
+      await api.request<SkuCatalog>('/api/v2/ops/admin/sku-vision/enroll', 'POST', body);
+      ok++;
+    }
+    clearSelection();
+    await load();
+    return ok;
+  }
 });
 const enrollDialog = ref(false);
 const testDialog = ref(false);
@@ -264,9 +380,11 @@ function enrollmentTagType(status?: string) {
 
 function skuActions(row: SkuCatalog): TableAction[] {
   const acts: TableAction[] = [
-    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' },
-    { key: 'test', label: '识别测试', icon: Upload, type: 'warning' }
+    { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }
   ];
+  if (ENABLE_TEST_TOOLS) {
+    acts.push({ key: 'test', label: '识别测试', icon: Upload, type: 'warning' });
+  }
   if (row.visionEnrollmentStatus !== 'PRODUCTION') {
     acts.push({ key: 'production', label: '转生产', icon: CircleCheck, type: 'success', overflow: true });
   }
@@ -354,7 +472,7 @@ async function onClassImagePick(ev: Event) {
       classSuggestHint.value = result.reason || '未能生成建议';
     }
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : 'DeepSeek 建议失败');
+    ElMessage.error(e instanceof Error ? e.message : '智能建议失败');
   } finally {
     suggestingImage.value = false;
     input.value = '';
@@ -369,7 +487,7 @@ function onTestImagePick(ev: Event) {
 
 async function saveEnroll() {
   if (!enrollForm.skuId.trim() || !enrollForm.skuName.trim()) {
-    ElMessage.warning('请填写 SKU 与名称');
+    ElMessage.warning('请填写商品编号与名称');
     return;
   }
   if (!enrollForm.yoloClassName.trim()) {
@@ -460,10 +578,43 @@ async function uploadMultipart<T>(path: string, fields: Record<string, string | 
   return json.data as T;
 }
 
+function syncRouteQuery() {
+  const query: Record<string, string> = {};
+  if (keyword.value.trim()) query.keyword = keyword.value.trim();
+  if (enrollmentFilter.value) query.enrollment = enrollmentFilter.value;
+  router.replace({ query });
+}
+
+function search() {
+  page.value = 1;
+  syncRouteQuery();
+}
+
+function resetFilters() {
+  keyword.value = '';
+  enrollmentFilter.value = '';
+  page.value = 1;
+  syncRouteQuery();
+}
+
+function applyRouteQuery() {
+  let changed = false;
+  if (typeof route.query.keyword === 'string' && route.query.keyword !== keyword.value) {
+    keyword.value = route.query.keyword;
+    changed = true;
+  }
+  if (typeof route.query.enrollment === 'string' && route.query.enrollment !== enrollmentFilter.value) {
+    enrollmentFilter.value = route.query.enrollment;
+    changed = true;
+  }
+  return changed;
+}
+
 async function load() {
   loading.value = true;
   try {
     items.value = await api.request<SkuCatalog[]>('/api/v2/ops/admin/sku-vision', 'GET');
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -471,39 +622,51 @@ async function load() {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  applyRouteQuery();
+  load();
+});
+onActivated(() => {
+  applyRouteQuery();
+});
 </script>
 
 <style scoped>
-.page-card {
-  font-family: inherit;
-  font-size: 14px;
-  color: var(--layout-text);
-}
-
-.page-header {
+.page-card-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   flex-wrap: wrap;
 }
-
-.page-header > span {
-  font-weight: 600;
-  font-size: 15px;
+.page-card-head__meta { min-width: 0; }
+.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
+.title { font-weight: 600; font-size: 15px; }
+.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sku-cell {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  line-height: 1.35;
 }
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+.sku-cell strong { color: var(--el-color-primary); font-weight: 650; }
+.sku-cell small {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-family: var(--app-font-mono);
 }
-
-.sku-table {
-  font-size: 14px;
-}
-
+.sku-cell:hover strong { text-decoration: underline; }
+.muted { color: var(--el-text-color-secondary); }
+.sku-table { font-size: 14px; }
 .inline-field {
   display: flex;
   flex-wrap: wrap;
@@ -511,18 +674,7 @@ onMounted(load);
   align-items: center;
   width: 100%;
 }
-
-.hidden-input {
-  display: none;
-}
-
-.field-hint {
-  color: var(--layout-muted);
-  font-size: 13px;
-}
-
-.test-table {
-  margin-top: 12px;
-  font-size: 14px;
-}
+.hidden-input { display: none; }
+.field-hint { color: var(--layout-muted); font-size: 13px; }
+.test-table { margin-top: 12px; font-size: 14px; }
 </style>

@@ -28,6 +28,7 @@ public class DeviceSlotService {
     private final ReplenishmentTaskMapper taskRepository;
     private final MerchantScopeService merchantScopeService;
     private final SalesVelocityService salesVelocityService;
+    private final RefundPolicyService refundPolicyService;
 
     public DeviceSlotService(DeviceSlotMapper slotRepository,
                              DeviceSkuLotMapper lotRepository,
@@ -37,7 +38,8 @@ public class DeviceSlotService {
                              MerchantMapper merchantRepository,
                              ReplenishmentTaskMapper taskRepository,
                              MerchantScopeService merchantScopeService,
-                             SalesVelocityService salesVelocityService) {
+                             SalesVelocityService salesVelocityService,
+                             RefundPolicyService refundPolicyService) {
         this.slotRepository = slotRepository;
         this.lotRepository = lotRepository;
         this.deviceRepository = deviceRepository;
@@ -47,6 +49,7 @@ public class DeviceSlotService {
         this.taskRepository = taskRepository;
         this.merchantScopeService = merchantScopeService;
         this.salesVelocityService = salesVelocityService;
+        this.refundPolicyService = refundPolicyService;
     }
 
     @Transactional(readOnly = true)
@@ -58,7 +61,7 @@ public class DeviceSlotService {
         List<DeviceSlotDto> slotDtos = slots.stream()
                 .map(s -> toSlotDto(s, bookBySlot.getOrDefault(s.getId().getSlotCode(), 0)))
                 .toList();
-        DeviceOpsMetricsDto metrics = computeMetrics(deviceId, slots, bookBySlot);
+        DeviceOpsMetricsDto metrics = computeMetrics(device, slots, bookBySlot);
         List<DeviceInventoryDto> skuInventory = inventoryRepository.findByIdDeviceId(deviceId).stream()
                 .map(this::toInventoryDto)
                 .toList();
@@ -526,8 +529,9 @@ public class DeviceSlotService {
         return applyPlanogramTemplate(deviceId, device.getDeviceType());
     }
 
-    private DeviceOpsMetricsDto computeMetrics(String deviceId, List<DeviceSlot> slots,
+    private DeviceOpsMetricsDto computeMetrics(DeviceInfo device, List<DeviceSlot> slots,
                                                Map<String, Integer> bookBySlot) {
+        String deviceId = device.getDeviceId();
         List<DeviceSlot> active = slots.stream()
                 .filter(s -> s.isEnabled() && s.getParLevel() > 0)
                 .toList();
@@ -581,7 +585,16 @@ public class DeviceSlotService {
                 bookBySlot.values().stream().mapToInt(Integer::intValue).sum(),
                 totalPar,
                 lastRestock,
-                accuracy
+                accuracy,
+                device.getAddress(),
+                device.getCurrentTempC(),
+                device.getTargetTempC(),
+                device.getTempReportedAt(),
+                device.salesLockedEnabled(),
+                device.getAppVersion(),
+                device.getFirmwareVersion(),
+                device.getAlertContactName(),
+                device.getAlertContactPhone()
         );
     }
 
@@ -640,9 +653,13 @@ public class DeviceSlotService {
         String merchantName = d.getMerchantId() == null ? null
                 : merchantRepository.findById(d.getMerchantId())
                 .map(Merchant::getMerchantName).orElse(null);
+        String effective = refundPolicyService != null
+                ? refundPolicyService.resolveForDevice(d.getDeviceId()).name()
+                : null;
         return new AdminDeviceDto(
                 d.getDeviceId(), d.getDeviceName(), d.getDeviceType(), d.getOnlineStatus(),
-                d.getMerchantId(), merchantName, null, null, d.getUpdatedAt(), false
+                d.getMerchantId(), merchantName, null, null, d.getUpdatedAt(), false,
+                d.getRefundPolicy(), effective
         );
     }
 

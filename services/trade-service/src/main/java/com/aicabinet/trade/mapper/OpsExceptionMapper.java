@@ -34,6 +34,21 @@ public interface OpsExceptionMapper extends BaseTradeMapper<OpsException> {
     return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
+    default Page<OpsException> findFiltered(String status, String severity, Pageable pageable) {
+    var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<OpsException>(
+            pageable.getPageNumber() + 1L, pageable.getPageSize());
+    var query = Wrappers.<OpsException>lambdaQuery();
+    if (status != null && !status.isBlank()) {
+        query.eq(OpsException::getStatus, status);
+    }
+    if (severity != null && !severity.isBlank()) {
+        query.eq(OpsException::getSeverity, severity);
+    }
+    query.orderByDesc(OpsException::getCreatedAt);
+    var result = selectPage(mpPage, query);
+    return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
+    }
+
     default Page<OpsException> findByDeviceIdInOrderByCreatedAtDesc(Collection<String> deviceIds, Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<OpsException>(
             pageable.getPageNumber() + 1L, pageable.getPageSize());

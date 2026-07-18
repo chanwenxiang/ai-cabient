@@ -61,7 +61,7 @@ class SettlementDisputeTest {
                 visionClient, disputeService, visionRecognitionProducer, revenueSplitService,
                 securityProperties, stagingProperties, inventoryService, orderPaymentService, confidenceService, gravityHelper,
                 demoDataService, deviceValidationService, skuPricingService, userValidationService, videoArchiveService,
-                skuVisionEnrollmentService, couponService, memberService);
+                skuVisionEnrollmentService, couponService, memberService, null);
     }
 
     @Test

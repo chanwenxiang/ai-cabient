@@ -50,8 +50,21 @@ public class DeviceServiceClient {
                 .commandId();
     }
 
+    public String requestOpsCommand(String deviceId, String command) {
+        log.info("request ops command: device={}, command={}", deviceId, command);
+        return restClient.post()
+                .uri("/internal/v1/devices/{deviceId}/ops-command", deviceId)
+                .header(InternalApiConstants.API_KEY_HEADER, internalApiProperties.key())
+                .body(new OpsCommandRequest(command))
+                .retrieve()
+                .body(OpsCommandResponse.class)
+                .commandId();
+    }
+
     record OpenDoorRequest(String sessionId, Long userId, boolean operatorMode) {}
     record SetTargetTempRequest(int targetTempC) {}
     record SetTargetTempResponse(String commandId) {}
+    record OpsCommandRequest(String command) {}
+    record OpsCommandResponse(String commandId, String command) {}
 }
 

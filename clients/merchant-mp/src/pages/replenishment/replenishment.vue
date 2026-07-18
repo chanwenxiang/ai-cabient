@@ -77,7 +77,45 @@ async function load(){if(!uni.getStorageSync('merchant_token'))return uni.reLaun
 function changeStatus(value:string){status.value=value}
 async function openTask(task:Task){selected.value={...task};detailVisible.value=true;linesConfirmed.value=task.status==='COMPLETED';detailLoading.value=true;try{lines.value=await merchantApi.replenishmentTaskLines(task.taskId) as Line[]}catch(error){uni.showToast({title:error instanceof Error?error.message:'明细加载失败',icon:'none'})}finally{detailLoading.value=false}}
 function closeDetail(){if(!submitting.value)detailVisible.value=false}
-async function checkIn(){if(!selected.value||submitting.value)return;submitting.value=true;let body:Record<string,number>={};try{const location=await new Promise<UniApp.GetLocationSuccess>((resolve,reject)=>uni.getLocation({type:'gcj02',success:resolve,fail:reject}));body={latitude:location.latitude,longitude:location.longitude}}catch{}try{selected.value=await merchantApi.checkInReplenishmentTask(selected.value.taskId,body) as Task;uni.showToast({title:'签到成功',icon:'success'})}catch(error){uni.showToast({title:error instanceof Error?error.message:'签到失败',icon:'none'})}finally{submitting.value=false}}
+async function checkIn() {
+  if (!selected.value || submitting.value) return;
+  submitting.value = true;
+  let body: Record<string, number> = {};
+  let locationOk = false;
+  try {
+    const location = await new Promise<UniApp.GetLocationSuccess>((resolve, reject) =>
+      uni.getLocation({ type: 'gcj02', success: resolve, fail: reject })
+    );
+    body = { latitude: location.latitude, longitude: location.longitude };
+    locationOk = true;
+  } catch {
+    const cont = await new Promise<boolean>((resolve) =>
+      uni.showModal({
+        title: '定位失败',
+        content: '无法获取当前位置，仍可继续签到，但无法校验是否到店。是否继续？',
+        confirmText: '继续签到',
+        cancelText: '取消',
+        success: (r) => resolve(!!r.confirm),
+        fail: () => resolve(false)
+      })
+    );
+    if (!cont) {
+      submitting.value = false;
+      return;
+    }
+  }
+  try {
+    selected.value = (await merchantApi.checkInReplenishmentTask(selected.value.taskId, body)) as Task;
+    uni.showToast({
+      title: locationOk ? '签到成功' : '已签到（未带定位）',
+      icon: locationOk ? 'success' : 'none'
+    });
+  } catch (error) {
+    uni.showToast({ title: error instanceof Error ? error.message : '签到失败', icon: 'none' });
+  } finally {
+    submitting.value = false;
+  }
+}
 async function confirmLines(){if(!selected.value||submitting.value)return;submitting.value=true;try{lines.value=await merchantApi.confirmReplenishmentLines(selected.value.taskId,lines.value.map(({lineId,...line})=>line)) as Line[];linesConfirmed.value=true;uni.showToast({title:'清单已确认',icon:'success'})}catch(error){uni.showToast({title:error instanceof Error?error.message:'确认失败',icon:'none'})}finally{submitting.value=false}}
 async function completeTask(){if(!selected.value||submitting.value)return;const ok=await new Promise<boolean>(resolve=>uni.showModal({title:'确认全部上架',content:'完成后将更新柜机库存并签收在途商品，请确认商品、批次和货道无误。',confirmText:'确认完成',success:r=>resolve(r.confirm),fail:()=>resolve(false)}));if(!ok)return;submitting.value=true;try{selected.value=await merchantApi.completeReplenishmentTask(selected.value.taskId) as Task;lines.value=lines.value.map(line=>({...line,applied:true}));uni.showToast({title:'补货完成',icon:'success'});await load()}catch(error){uni.showToast({title:error instanceof Error?error.message:'完成失败',icon:'none'})}finally{submitting.value=false}}
 onShow(load);onPullDownRefresh(load);

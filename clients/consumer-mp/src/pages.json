@@ -148,6 +148,15 @@
                                     "backgroundColor":  "#f7f7f7",
                                     "navigationBarTextStyle":  "black"
                                 }
+                  },
+                  {
+                      "path":  "pages/help/help",
+                      "style":  {
+                                    "navigationBarTitleText":  "帮助中心",
+                                    "navigationBarBackgroundColor":  "#ffffff",
+                                    "backgroundColor":  "#f7f7f7",
+                                    "navigationBarTextStyle":  "black"
+                                }
                   }
               ],
     "tabBar":  {

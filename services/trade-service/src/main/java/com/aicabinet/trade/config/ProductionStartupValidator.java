@@ -27,6 +27,7 @@ public class ProductionStartupValidator {
     private final CorsProperties corsProperties;
     private final ProfitSharingProperties profitSharingProperties;
     private final PayScoreProperties payScoreProperties;
+    private final ReconciliationProperties reconciliationProperties;
 
     public ProductionStartupValidator(Environment environment,
                                       SecurityProperties securityProperties,
@@ -39,7 +40,8 @@ public class ProductionStartupValidator {
                                       MinioProperties minioProperties,
                                       CorsProperties corsProperties,
                                       ProfitSharingProperties profitSharingProperties,
-                                      PayScoreProperties payScoreProperties) {
+                                      PayScoreProperties payScoreProperties,
+                                      ReconciliationProperties reconciliationProperties) {
         this.environment = environment;
         this.securityProperties = securityProperties;
         this.stagingProperties = stagingProperties;
@@ -52,6 +54,7 @@ public class ProductionStartupValidator {
         this.corsProperties = corsProperties;
         this.profitSharingProperties = profitSharingProperties;
         this.payScoreProperties = payScoreProperties;
+        this.reconciliationProperties = reconciliationProperties;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -76,6 +79,7 @@ public class ProductionStartupValidator {
 
         if (isStagingProfile()) {
             log.warn("Staging mode active — WeChat Pay/MiniApp validation skipped; use prod profile before go-live");
+            validateReconciliationConfig(false);
         } else {
             if (!weChatPayProperties.isConfigured()) {
                 throw new IllegalStateException("Production requires WeChat Pay V3 configuration");
@@ -91,8 +95,24 @@ public class ProductionStartupValidator {
             }
             validatePayScoreConfig();
             validateProfitSharingConfig();
+            validateReconciliationConfig(true);
         }
         log.info("{} configuration validated", isStagingProfile() ? "Staging" : "Production");
+    }
+
+    private void validateReconciliationConfig(boolean requireWeChatWhenReal) {
+        if (reconciliationProperties.mockEnabled()) {
+            log.info("Reconciliation mock enabled (RECON_MOCK_ENABLED=true) — platform bills mirrored from ledger");
+            return;
+        }
+        if (!weChatPayProperties.isConfigured()) {
+            String msg = "RECON_MOCK_ENABLED=false requires WeChat Pay V3 configuration "
+                    + "(or keep RECON_MOCK_ENABLED=true without credentials)";
+            if (requireWeChatWhenReal) {
+                throw new IllegalStateException(msg);
+            }
+            log.warn("Staging: {}", msg);
+        }
     }
 
     private void validatePayScoreConfig() {

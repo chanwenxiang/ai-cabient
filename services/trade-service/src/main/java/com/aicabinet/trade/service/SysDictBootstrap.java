@@ -90,10 +90,11 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("in_transit_status", t("在途状态", m(
                 "IN_TRANSIT", "在途", "RECEIVED", "已签收", "LOST", "丢失", "DAMAGED", "破损")));
         map.put("warehouse_movement_type", t("库存变动类型", m(
-                "PURCHASE_RECEIVE", "采购收货", "MANUAL_INBOUND", "手工入库", "INBOUND_MANUAL", "手工入库",
+                "PURCHASE_RECEIVE", "采购收货", "PURCHASE_RETURN", "采购退货",
+                "MANUAL_INBOUND", "手工入库", "INBOUND_MANUAL", "手工入库",
                 "OUTBOUND", "出库", "OUTBOUND_SHIP", "发运", "RETURN", "退回", "ADJUSTMENT", "库存调整")));
         map.put("business_reference_type", t("业务关联类型", m(
-                "PURCHASE_ORDER", "采购单", "OUTBOUND_ORDER", "出库单",
+                "PURCHASE_ORDER", "采购单", "PURCHASE_RETURN", "采购退货", "OUTBOUND_ORDER", "出库单",
                 "WAREHOUSE_INBOUND", "仓库入库", "WAREHOUSE_OUTBOUND", "仓库出库",
                 "REPLENISHMENT_TASK", "补货任务",
                 "INVENTORY_ADJUSTMENT", "库存调整", "MANUAL", "人工操作")));

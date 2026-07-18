@@ -238,7 +238,10 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 | `WECHAT_*` | 微信支付 V3 + 小程序 |
 | `SMS_WEBHOOK_URL` | 短信网关 |
 | `AICABINET_MOCK_ENABLED` | 生产设为 `false` |
-| `VISION_MOCK_ENABLED` | 生产设为 `false` |
+| `VISION_MOCK_ENABLED` | 生产设为 `false`（需挂载 YOLO SKU 模型；栈为 YOLO + DeepSeek + 重力，无阿里云） |
+| `RECON_MOCK_ENABLED` | 生产设为 `false` 且须配齐 `WECHAT_*`；无渠道凭证时保持 `true`，勿空跑对账 |
+| `CHECKOUT_BALANCE_ONLY` | 无支付分/微信密钥的预发可设 `true`，强制余额结算 |
+| `PAYSCORE_LIVE_CHARGE_ENABLED` | 真支付分扣款前须 `true` 并配置 charge gateway；mock 关闭后禁止静默回落余额 |
 
 对外通过 **Gateway :80** 暴露 API 与运营后台；数据库/Redis/MQTT/MinIO 端口建议仅内网开放。
 
@@ -273,6 +276,8 @@ copy infra\.env.staging.example infra\.env.staging
 | `scripts/sms-webhook-mock.py` | 本地/容器 SMS 接收器，供 webhook 联调 |
 
 正式上线：将 `SPRING_PROFILES_ACTIVE=prod`，填写全部 `WECHAT_*`，`MQTT_BROKER=ssl://...`，`VISION_MOCK_ENABLED=false`，配置 SKU 模型见 [`VISION_SKU_MODEL.md`](VISION_SKU_MODEL.md)。
+
+识别栈为 **本地 YOLO + DeepSeek + 重力**（无阿里云）。`VISION_MOCK_ENABLED=false` 时需挂载 YOLO 模型；重力兜底仅 staging / `AICABINET_GRAVITY_FALLBACK_SETTLE=true`；`AICABINET_MOCK_ENABLED=false` 时空识别 escalate 争议，不静默零结算。运营后台「识别映射」仅展示 YOLO 类名映射。
 
 生产 Compose：
 

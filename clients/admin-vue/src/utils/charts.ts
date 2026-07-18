@@ -309,8 +309,14 @@ export function buildBarChart(opts: {
 export function buildDonutChart(opts: {
   parts: { label: string; value: number; color: string }[];
   size?: number;
+  /** 中心合计展示；默认原始数值 */
+  formatCenter?: (total: number) => string;
+  /** 悬停 tip 中数值列；默认原值 */
+  formatValue?: (value: number) => string;
+  /** tip 数值列标题，默认「数值」 */
+  valueLabel?: string;
 }): string {
-  const { parts, size = 200 } = opts;
+  const { parts, size = 200, formatCenter, formatValue, valueLabel = '数值' } = opts;
   const total = parts.reduce((s, p) => s + Math.max(p.value, 0), 0);
   if (total <= 0) return '';
   const cx = size / 2;
@@ -318,6 +324,7 @@ export function buildDonutChart(opts: {
   const r = size * 0.34;
   const stroke = size * 0.17;
   let angle = -Math.PI / 2;
+  const centerText = formatCenter ? formatCenter(total) : String(total);
   const arcs = parts
     .map((p) => {
       const sweep = (Math.max(p.value, 0) / total) * Math.PI * 2;
@@ -329,14 +336,16 @@ export function buildDonutChart(opts: {
       const y2 = cy + r * Math.sin(angle);
       const large = sweep > Math.PI ? 1 : 0;
       const pct = ((Math.max(p.value, 0) / total) * 100).toFixed(1);
-      const tip = tipAttr([p.label, `数量|${p.value}|${p.color}`, `占比|${pct}%|${p.color}`]);
+      const raw = Math.max(p.value, 0);
+      const shown = formatValue ? formatValue(raw) : String(raw);
+      const tip = tipAttr([p.label, `${valueLabel}|${shown}|${p.color}`, `占比|${pct}%|${p.color}`]);
       return `<path class="chart-arc" data-tip="${tip}" d="M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}" fill="none" stroke="${p.color}" stroke-width="${stroke}" stroke-linecap="butt"/>`;
     })
     .join('');
   return `<svg viewBox="0 0 ${size} ${size}" role="img" class="chart-svg chart-interactive">
     <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--layout-border)" stroke-width="${stroke}" opacity="0.35" pointer-events="none"/>
     ${arcs}
-    <text x="${cx}" y="${cy - 2}" text-anchor="middle" fill="var(--layout-text)" font-size="22" font-weight="700" font-family="inherit" pointer-events="none">${total}</text>
+    <text x="${cx}" y="${cy - 2}" text-anchor="middle" fill="var(--layout-text)" font-size="22" font-weight="700" font-family="inherit" pointer-events="none">${escapeXml(centerText)}</text>
     <text x="${cx}" y="${cy + 18}" text-anchor="middle" fill="var(--layout-muted)" font-size="11" font-family="inherit" pointer-events="none">合计</text>
   </svg>`;
 }

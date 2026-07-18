@@ -54,7 +54,7 @@ class DisputeTicketSyncTest {
         service = new DisputeService(disputeRepository, disputeMessageRepository, sessionRepository, orderRepository,
                 settlementService, new ObjectMapper(), minioVideoService, auditService, riskControlService,
                 permissionService, merchantScopeService, merchantPortalGuard, skuCatalogRepository,
-                new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService);
+                new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService, null, null);
     }
 
     @Test

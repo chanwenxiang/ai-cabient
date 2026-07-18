@@ -140,17 +140,23 @@ function goBack() {
   uni.switchTab({ url: '/pages/mine/mine' });
 }
 
+function resolveMockEnabled(flag?: string): boolean {
+  if (flag === 'true') return true;
+  if (flag === 'false') return false;
+  return import.meta.env.DEV;
+}
+
 async function loadConfig() {
   try {
     const cfg = await consumerApi.consumerPublicConfig();
-    mockEnabled.value = cfg?.mockEnabled !== 'false';
+    mockEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
     alipayRechargeEnabled.value = cfg?.alipayRechargeEnabled === 'true';
     wechatRechargeEnabled.value = cfg?.wechatRechargeEnabled === 'true';
     wechatPayLive.value = cfg?.wechatPayLive === 'true';
   } catch {
-    mockEnabled.value = true;
+    mockEnabled.value = import.meta.env.DEV;
     alipayRechargeEnabled.value = false;
-    wechatRechargeEnabled.value = true;
+    wechatRechargeEnabled.value = import.meta.env.DEV;
     wechatPayLive.value = false;
   }
 }

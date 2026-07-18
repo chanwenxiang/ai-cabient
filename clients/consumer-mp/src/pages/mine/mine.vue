@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="mine-page">
     <view class="profile-header">
       <view class="profile-orb orb-a" /><view class="profile-orb orb-b" />
@@ -7,7 +7,7 @@
         <text class="account-kicker">AI CABINET MEMBER</text>
         <text class="hello">{{ authed ? displayName : '游客模式' }}</text>
         <view v-if="authed" class="balance-row" @click="goRecharge">
-          <text class="balance-label">测试余额</text>
+          <text class="balance-label">余额</text>
           <text class="balance-number">¥{{ balanceYuan }}</text>
           <text class="balance-action">充值 ›</text>
         </view>
@@ -106,22 +106,22 @@
         <text class="menu-icon">💰</text>
         <view class="menu-text">
           <text class="menu-title">支付宝沙箱充值</text>
-          <text class="menu-desc">充值 ¥20 测试余额，用于真实环境购物扣款</text>
+          <text class="menu-desc">充值 ¥20 余额，用于真实环境购物扣款</text>
         </view>
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
       </view>
       <view v-if="authed && mockRechargeEnabled" class="menu-cell highlight" :class="{ disabled: rechargeLoading }" @click="onMockRecharge">
         <text class="menu-icon">🧪</text>
         <view class="menu-text">
-          <text class="menu-title">模拟充值测试余额</text>
-          <text class="menu-desc">灰度测试专用，不会收取微信或支付宝资金</text>
+          <text class="menu-title">模拟充值（开发联调）</text>
+          <text class="menu-desc">本地发放余额，不会真实扣款</text>
         </view>
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
       </view>
       <view v-if="authed" class="menu-cell" @click="showTransactions = !showTransactions">
         <text class="menu-icon">💳</text>
         <view class="menu-text">
-          <text class="menu-title">测试余额明细</text>
+          <text class="menu-title">余额明细</text>
           <text class="menu-desc">查看购物扣款、退款和运营发放记录</text>
         </view>
         <text class="menu-arrow">›</text>
@@ -133,6 +133,14 @@
           <view><text class="transaction-title">{{ transactionLabel(item.businessType) }}</text><text class="transaction-time">{{ formatTransactionTime(item.createdAt) }}</text></view>
           <view class="transaction-amount" :class="{ income: item.amountCents > 0 }">{{ formatTransactionAmount(item.amountCents) }}</view>
         </view>
+      </view>
+      <view class="menu-cell" @click="goHelp">
+        <text class="menu-icon">❓</text>
+        <view class="menu-text">
+          <text class="menu-title">帮助与客服</text>
+          <text class="menu-desc">FAQ、热线与退款申诉说明</text>
+        </view>
+        <text class="menu-arrow">›</text>
       </view>
       <view class="menu-cell" @click="goReport">
         <text class="menu-icon">🔧</text>
@@ -154,7 +162,7 @@
         <text class="menu-icon">📱</text>
         <view class="menu-text">
           <text class="menu-title">手机号验证</text>
-          <text class="menu-desc">绑定演示账号或已有账户</text>
+          <text class="menu-desc">绑定手机号或已有账户</text>
         </view>
         <text class="menu-arrow">›</text>
       </view>
@@ -210,14 +218,14 @@ onShow(async () => {
   authed.value = !!getConsumerToken();
   try {
     const cfg = await consumerApi.consumerPublicConfig();
-    mockRechargeEnabled.value = cfg?.mockEnabled !== 'false';
+    mockRechargeEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
     alipayRechargeEnabled.value = cfg?.alipayRechargeEnabled === 'true';
     wechatRechargeEnabled.value = cfg?.wechatRechargeEnabled === 'true';
     wechatPayLive.value = cfg?.wechatPayLive === 'true';
   } catch {
-    mockRechargeEnabled.value = true;
+    mockRechargeEnabled.value = import.meta.env.DEV;
     alipayRechargeEnabled.value = false;
-    wechatRechargeEnabled.value = true;
+    wechatRechargeEnabled.value = import.meta.env.DEV;
     wechatPayLive.value = false;
   }
   if (!authed.value) {
@@ -295,7 +303,7 @@ async function onWeChatRecharge() {
       title: wechatPayLive.value ? '微信支付充值' : '微信模拟充值',
       content: wechatPayLive.value
         ? '将调起微信支付充值 ¥20.00。'
-        : '将通过微信 mock 通道充值 ¥20.00 测试余额，不会真实扣款。',
+        : '将通过微信 mock 通道充值 ¥20.00 余额，不会真实扣款。',
       confirmText: '确认',
       success: (res) => resolve(!!res.confirm),
       fail: () => resolve(false)
@@ -319,7 +327,7 @@ async function onAlipayRecharge() {
   if (rechargeLoading.value) return;
   const confirmed = await new Promise<boolean>((resolve) => uni.showModal({
     title: '支付宝沙箱充值',
-    content: '将跳转支付宝沙箱支付页充值 ¥20.00 测试余额。支付完成后返回本页自动确认到账。',
+    content: '将跳转支付宝沙箱支付页充值 ¥20.00 余额。支付完成后返回本页自动确认到账。',
     confirmText: '去支付',
     success: (res) => resolve(res.confirm),
     fail: () => resolve(false)
@@ -341,11 +349,17 @@ async function onAlipayRecharge() {
   }
 }
 
+function resolveMockEnabled(flag?: string): boolean {
+  if (flag === 'true') return true;
+  if (flag === 'false') return false;
+  return import.meta.env.DEV;
+}
+
 async function onMockRecharge() {
   if (rechargeLoading.value) return;
   const confirmed = await new Promise<boolean>((resolve) => uni.showModal({
     title: '确认模拟充值',
-    content: '将向当前账户发放 ¥20.00 测试余额，不会发生真实扣款。',
+    content: '将向当前账户发放 ¥20.00 余额（仅开发联调，不会真实扣款）。',
     confirmText: '确认发放',
     success: (res) => resolve(res.confirm),
     fail: () => resolve(false)
@@ -357,7 +371,7 @@ async function onMockRecharge() {
     const prepay = await consumerApi.createMockRecharge(2000, key);
     await consumerApi.confirmMockRecharge(prepay.orderId);
     await refreshAccount();
-    uni.showToast({ title: '测试余额已到账', icon: 'success' });
+    uni.showToast({ title: '余额已到账', icon: 'success' });
   } catch (error) {
     uni.showToast({ title: error instanceof Error ? error.message : '充值失败', icon: 'none' });
   } finally {
@@ -404,6 +418,10 @@ function goReport() {
       ? `/pages/report/report?deviceId=${encodeURIComponent(id)}`
       : '/pages/report/report'
   });
+}
+
+function goHelp() {
+  uni.navigateTo({ url: '/pages/help/help' });
 }
 
 function goFeedback() {
@@ -473,4 +491,5 @@ function onLogout() {
 <style scoped>
 .mine-page{min-height:100%;box-sizing:border-box;padding-bottom:calc(160rpx + env(safe-area-inset-bottom));background:linear-gradient(180deg,#e9fbf3 0,#f5f7f8 390rpx,#f5f7f8 100%)}.profile-header{position:relative;overflow:hidden;margin:20rpx 24rpx 0;padding:40rpx 32rpx;border-radius:30rpx;background:linear-gradient(140deg,#064e3b 0%,#059669 56%,#14b8a6 100%);box-shadow:0 20rpx 46rpx rgba(5,150,105,.23)}.profile-orb{position:absolute;border-radius:50%;background:rgba(255,255,255,.09)}.orb-a{width:230rpx;height:230rpx;right:-80rpx;top:-110rpx}.orb-b{width:120rpx;height:120rpx;right:120rpx;bottom:-80rpx}.avatar{position:relative;width:112rpx;height:112rpx;border:2rpx solid rgba(255,255,255,.35);background:rgba(255,255,255,.18);box-shadow:0 10rpx 25rpx rgba(0,0,0,.1)}.profile-info{position:relative}.account-kicker{display:block;margin-bottom:7rpx;font-size:19rpx;letter-spacing:3rpx;opacity:.68}.hello{font-size:36rpx}.balance-row{display:flex;align-items:baseline;gap:13rpx;margin-top:9rpx}.balance-label{font-size:22rpx;opacity:.72}.balance-number{font-size:38rpx;font-weight:800;letter-spacing:-1rpx}.balance-action{margin-left:auto;font-size:22rpx;opacity:.85}.tags{margin-top:15rpx}.tag{padding:6rpx 15rpx;border-radius:999rpx}.setup-banner{margin:20rpx 24rpx 0;padding:24rpx 26rpx;border:0;border-radius:21rpx;background:linear-gradient(135deg,#fff7df,#fffbeb);box-shadow:0 8rpx 22rpx rgba(217,119,6,.08)}.menu-list{margin:22rpx 24rpx 0;padding-bottom:24rpx}.menu-cell{margin-bottom:14rpx;padding:25rpx 22rpx;border:1rpx solid #edf1ef;border-radius:22rpx;box-shadow:0 8rpx 25rpx rgba(15,23,42,.05)}.menu-cell.highlight{border:1rpx solid rgba(5,150,105,.32);background:linear-gradient(90deg,#fff,#f0fdf7)}.menu-icon{display:flex;width:72rpx;height:72rpx;align-items:center;justify-content:center;border-radius:19rpx;background:#f0fdf4;font-size:34rpx}.menu-title{font-size:28rpx;font-weight:650;color:#223029}.menu-desc{margin-top:5rpx;color:#849087;font-size:22rpx}.menu-badge{border-radius:999rpx}.transaction-list{margin-bottom:14rpx;border:1rpx solid #edf1ef;border-radius:22rpx;box-shadow:0 8rpx 25rpx rgba(15,23,42,.045)}.transaction-row:last-child{border-bottom:0}.danger-cell{background:#fffafa}.danger-cell .menu-icon{background:#fff1f0}
 </style>
+
 

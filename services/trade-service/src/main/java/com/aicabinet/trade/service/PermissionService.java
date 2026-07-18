@@ -62,6 +62,18 @@ public class PermissionService {
         return perms.contains("ops:admin") || perms.stream().anyMatch(p -> p.endsWith(":*"));
     }
 
+    public boolean hasAnyPermission(Long userId, String... permCodes) {
+        if (permCodes == null) {
+            return false;
+        }
+        for (String permCode : permCodes) {
+            if (hasPermission(userId, permCode)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public Set<String> listPermCodes(Long userId) {
         requireOperator(userId);
         return permissionRepository.findPermCodesByUserId(userId);

@@ -70,6 +70,7 @@
         </view>
         <view class="btn-ghost" @click="goBack">返回购物</view>
         <text v-if="err" class="err">{{ err }}</text>
+        <text v-if="isDev" class="dev-hint">开发联调：13800138000 / 验证码 123456</text>
       </view>
     </view>
   </view>
@@ -85,12 +86,13 @@ import loginBgUrl from '@/static/login-bg.png';
 const redirect = ref('/pages/index/index');
 
 const mode = ref<'password' | 'sms'>('sms');
-const phone = ref('');
+const phone = ref(import.meta.env.DEV ? '13800138000' : '');
 const password = ref('');
-const code = ref('');
+const code = ref(import.meta.env.DEV ? '123456' : '');
 const loading = ref(false);
 const err = ref('');
 const codeCooldown = ref(0);
+const isDev = import.meta.env.DEV;
 let codeTimer: ReturnType<typeof setInterval> | null = null;
 
 onLoad((opts) => {
@@ -442,5 +444,14 @@ async function onLogin() {
   margin-top: 16rpx;
   text-align: center;
   font-size: 26rpx;
+}
+.dev-hint {
+  display: block;
+  margin-top: 18rpx;
+  text-align: center;
+  color: #92400e;
+  font-size: 22rpx;
+  line-height: 1.4;
+  opacity: 0.85;
 }
 </style>

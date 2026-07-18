@@ -40,8 +40,9 @@ public class WeChatPlatformBillProvider implements PlatformBillProvider {
     @Override
     public List<PlatformBillLine> fetchDailyBill(LocalDate date) {
         if (!weChatPayProperties.isConfigured()) {
-            log.warn("wechat pay not configured, skip bill download for {}", date);
-            return List.of();
+            throw new IllegalStateException(
+                    "WeChat platform bill unavailable: configure WECHAT_* or set RECON_MOCK_ENABLED=true. "
+                            + "Empty bill download is disabled to avoid silent MISMATCH.");
         }
         String billType = reconciliationProperties.wechatBillType();
         String path = "/v3/bill/tradebill?bill_date=" + date + "&bill_type=" + billType;

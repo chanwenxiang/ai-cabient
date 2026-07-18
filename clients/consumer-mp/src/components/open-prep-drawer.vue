@@ -80,7 +80,7 @@
           {{ busy ? '处理中…' : wechatPayLive ? '微信支付充值 ¥20' : '微信模拟充值 ¥20' }}
         </button>
         <button v-if="mockRechargeEnabled" class="btn-ghost-fill" hover-class="btn-hover" :loading="busy" :disabled="busy" @click="onMockRecharge">
-          {{ busy ? '发放中…' : '模拟充值 ¥20 测试余额（兜底）' }}
+          {{ busy ? '发放中…' : '模拟充值 ¥20（开发联调）' }}
         </button>
         <button
           v-if="alipayRechargeEnabled"
@@ -92,7 +92,7 @@
         >
           {{ busy ? '跳转中…' : '支付宝沙箱充值 ¥20' }}
         </button>
-        <text v-if="!mockRechargeEnabled && !alipayRechargeEnabled && !wechatRechargeEnabled && !showWechatSign && !showAlipaySign" class="drawer-desc">请联系现场运营人员发放测试余额。</text>
+        <text v-if="!mockRechargeEnabled && !alipayRechargeEnabled && !wechatRechargeEnabled && !showWechatSign && !showAlipaySign" class="drawer-desc">请联系现场运营人员发放余额。</text>
         <view class="support-link" @click="contactOps">联系现场运营人员</view>
       </view>
 
@@ -151,16 +151,22 @@ watch(
   }
 );
 
+function resolveMockEnabled(flag?: string): boolean {
+  if (flag === 'true') return true;
+  if (flag === 'false') return false;
+  return import.meta.env.DEV;
+}
+
 consumerApi.consumerPublicConfig().then((cfg) => {
-  mockRechargeEnabled.value = cfg?.mockEnabled !== 'false';
+  mockRechargeEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
   alipayRechargeEnabled.value = cfg?.alipayRechargeEnabled === 'true';
   wechatRechargeEnabled.value = cfg?.wechatRechargeEnabled === 'true';
   wechatPayLive.value = cfg?.wechatPayLive === 'true';
   payScoreSignEnabled.value = cfg?.payScoreSignEnabled !== 'false';
 }).catch(() => {
-  mockRechargeEnabled.value = true;
+  mockRechargeEnabled.value = import.meta.env.DEV;
   alipayRechargeEnabled.value = false;
-  wechatRechargeEnabled.value = true;
+  wechatRechargeEnabled.value = import.meta.env.DEV;
   wechatPayLive.value = false;
   payScoreSignEnabled.value = true;
 });
@@ -173,7 +179,7 @@ const payDesc = computed(() => {
   const c = entryChannel.value;
   if (c === 'WECHAT') return '微信扫码入柜：开通微信支付分后，关门自动扣款（余额仅作兜底）。';
   if (c === 'ALIPAY') return '支付宝扫码入柜：开通免密代扣后，关门自动扣款（余额仅作兜底）。';
-  return '请选择扫码渠道并开通对应免密支付；测试余额 ≥ ¥5 也可临时开门。';
+  return '请选择扫码渠道并开通对应免密支付；余额 ≥ ¥5 也可临时开门。';
 });
 const showWechatSign = computed(
   () => payScoreSignEnabled.value && (!entryChannel.value || entryChannel.value === 'WECHAT')
@@ -282,7 +288,7 @@ async function onMockRecharge() {
   if (busy.value) return;
   const confirmed = await new Promise<boolean>((resolve) => uni.showModal({
     title: '确认模拟充值',
-    content: '将发放 ¥20.00 测试余额，不会从微信、支付宝或银行卡扣款。',
+    content: '将发放 ¥20.00 余额（仅开发联调，不会真实扣款）。',
     confirmText: '确认发放',
     success: (result) => resolve(result.confirm),
     fail: () => resolve(false)
@@ -295,16 +301,16 @@ async function onMockRecharge() {
     const order = await consumerApi.createMockRecharge(2000, key);
     await consumerApi.confirmMockRecharge(order.orderId);
     account.value = await consumerApi.account();
-    uni.showToast({ title: '测试余额已到账', icon: 'success' });
+    uni.showToast({ title: '余额已到账', icon: 'success' });
   } catch (error) {
-    err.value = error instanceof Error ? error.message : '测试余额发放失败';
+    err.value = error instanceof Error ? error.message : '余额发放失败';
   } finally { busy.value = false; }
 }
 
 function contactOps() {
   uni.showModal({
     title: '联系运营人员',
-    content: '请联系柜机所在点位的现场工作人员，并提供柜机编号。运营人员可在后台发放测试余额。',
+    content: '请联系柜机所在点位的现场工作人员，并提供柜机编号。运营人员可在后台发放余额。',
     showCancel: false,
     confirmText: '我知道了'
   });

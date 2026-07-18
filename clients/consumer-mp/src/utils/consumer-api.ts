@@ -148,6 +148,43 @@ export function request<T>(
   });
 }
 
+export function uploadDisputeEvidenceFile(
+  filePath: string
+): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
+  return new Promise((resolve, reject) => {
+    if (!getConsumerToken()) {
+      reject(new Error('请先登录'));
+      return;
+    }
+    uni.uploadFile({
+      url: BASE_URL + '/api/v2/disputes/evidence',
+      filePath,
+      name: 'file',
+      header: { Authorization: 'Bearer ' + getConsumerToken() },
+      timeout: 30_000,
+      success(res) {
+        try {
+          const body = JSON.parse(String(res.data || '{}')) as {
+            code?: number;
+            message?: string;
+            data?: import('@aicabinet/shared-types').FileAttachmentDto;
+          };
+          if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0 && body.data) {
+            resolve(body.data);
+            return;
+          }
+          reject(new Error(body?.message || `上传失败 (${res.statusCode})`));
+        } catch {
+          reject(new Error('上传响应解析失败'));
+        }
+      },
+      fail(err) {
+        reject(new Error(formatRequestError(err.errMsg, '/api/v2/disputes/evidence')));
+      }
+    });
+  });
+}
+
 export async function bootstrapConsumerSession() {
   if (!getConsumerToken()) return false;
   let bootEpoch: number | string | undefined;
@@ -357,6 +394,13 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').DisputeTicketDto>('/api/v2/disputes', 'POST', body),
   listMyDisputes: () =>
     request<import('@aicabinet/shared-types').DisputeTicketDto[]>('/api/v2/disputes/mine'),
+  uploadDisputeEvidence: (filePath: string) => uploadDisputeEvidenceFile(filePath),
+  refundOrder: (orderId: string, body: import('@aicabinet/shared-types').OrderRefundRequest) =>
+    request<import('@aicabinet/shared-types').OrderRefundResultDto>(
+      `/api/v2/orders/${encodeURIComponent(orderId)}/refund`,
+      'POST',
+      body
+    ),
   consumerPublicConfig: () =>
     request<Record<string, string>>('/api/v2/public/consumer-config', 'GET', null, false),
   reportDeviceFault: (deviceId: string, body: import('@aicabinet/shared-types').DeviceFaultReportRequest) =>

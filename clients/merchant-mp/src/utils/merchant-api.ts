@@ -83,7 +83,29 @@ export const merchantApi = {
   resolveInventoryException: (id: string, resolution: string) =>
     request(`/api/v2/merchant/exceptions/${encodeURIComponent(id)}/resolve`, 'POST', { resolution }),
   analytics: (days = 30) => request<import('@aicabinet/shared-types').MerchantAnalyticsOverview>(`/api/v2/merchant/analytics/overview?days=${days}`),
-  settlements: () => request<import('@aicabinet/shared-types').MerchantSettlementOverview>('/api/v2/merchant/settlements/overview'),
+  settlements: () =>
+    request<import('@aicabinet/shared-types').MerchantSettlementOverview>(
+      '/api/v2/merchant/settlements/overview'
+    ),
+  dailySettlements: (from: string, to: string) =>
+    request<import('@aicabinet/shared-types').MerchantDailySettlement[]>(
+      `/api/v2/merchant/settlements/daily?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+    ),
+  settlementBatches: (from: string, to: string) =>
+    request<import('@aicabinet/shared-types').MerchantSettlementBatch[]>(
+      `/api/v2/merchant/settlements/batches?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+    ),
+  revenueSplits: (page = 0, size = 50, status?: string, from?: string, to?: string) => {
+    const q = new URLSearchParams({ page: String(page), size: String(size) });
+    if (status) q.set('status', status);
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    return request<{ items: import('@aicabinet/shared-types').RevenueSplit[]; total: number }>(
+      `/api/v2/merchant/revenue-splits?${q}`
+    );
+  },
+  exportSettlementsUrl: (from: string, to: string) =>
+    `${API_BASE_URL}/api/v2/merchant/settlements/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
   skuSales: (days = 30) => request<import('@aicabinet/shared-types').MerchantSkuSales[]>(`/api/v2/merchant/analytics/sku-sales?days=${days}`),
   replenishmentSuggestions: (deviceId: string) =>
     request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`),

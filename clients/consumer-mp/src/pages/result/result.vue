@@ -19,10 +19,10 @@
         <text v-if="order.totalAmountCents <= 0" class="zero-hint">本次未取走商品，未产生扣款</text>
       </view>
       <view v-if="order.balanceBeforeCents != null && order.balanceAfterCents != null" class="card balance-card">
-        <view><text class="balance-caption">扣款前测试余额</text><text class="balance-number">{{ fmtMoney(order.balanceBeforeCents) }}</text></view>
+        <view><text class="balance-caption">扣款前余额</text><text class="balance-number">{{ fmtMoney(order.balanceBeforeCents) }}</text></view>
         <text class="balance-arrow">→</text>
-        <view><text class="balance-caption">扣款后测试余额</text><text class="balance-number strong">{{ fmtMoney(order.balanceAfterCents) }}</text></view>
-        <text class="trial-note">本页面余额为灰度测试余额，不代表微信或支付宝真实资金</text>
+        <view><text class="balance-caption">扣款后余额</text><text class="balance-number strong">{{ fmtMoney(order.balanceAfterCents) }}</text></view>
+        <text class="trial-note">本页余额为账户余额展示；免密渠道扣款以微信/支付宝为准</text>
       </view>
 
       <view class="card">
@@ -55,10 +55,27 @@
       <view class="footer-actions">
         <button class="action-btn" hover-class="btn-hover" @click="continueShop">继续在本柜购物</button>
         <button class="ghost-btn" hover-class="btn-hover" @click="goOrders">查看订单</button>
-        <button v-if="sessionId && !disputeFiled" class="ghost-btn warn" hover-class="btn-hover" :disabled="disputeLoading" @click="openDispute">
-          账单有疑问
+        <button
+          v-if="canRefundNow"
+          class="refund-btn"
+          hover-class="btn-hover"
+          :disabled="disputeLoading || refundLoading"
+          @click="openRefund"
+        >
+          立即退款
         </button>
-        <text v-else-if="disputeFiled" class="dispute-done">申诉已提交，请等待处理</text>
+        <button
+          v-if="sessionId && !disputeFiled"
+          class="ghost-btn warn"
+          hover-class="btn-hover"
+          :disabled="disputeLoading || refundLoading"
+          @click="openDispute"
+        >
+          {{ canRefundNow ? '仅申诉（不立即退款）' : '申请退款 / 账单申诉' }}
+        </button>
+        <text v-else-if="disputeFiled && !refundDone" class="dispute-done">申诉已提交，请等待处理</text>
+        <text v-else-if="refundDone" class="dispute-done">退款已完成</text>
+        <button class="ghost-btn subtle" hover-class="btn-hover" @click="goHelp">帮助与客服</button>
         <button class="ghost-btn subtle" hover-class="btn-hover" @click="goReport">柜机故障报修</button>
         <button class="ghost-btn subtle" hover-class="btn-hover" @click="goHome">回首页</button>
       </view>
@@ -66,16 +83,47 @@
 
     <view v-if="showDispute" class="dispute-mask" @click="closeDispute">
       <view class="dispute-panel" @click.stop>
-        <text class="dispute-title">账单申诉</text>
-        <text class="dispute-sub">请描述您认为有误的地方，运营将在 24 小时内处理</text>
+        <text class="dispute-title">{{ refundMode ? '立即退款' : '账单申诉' }}</text>
+        <text class="dispute-sub">
+          {{ refundMode
+            ? '将原路退回本单已扣款项，可上传凭证图片'
+            : '提交申诉后由运营审核；可上传凭证图片' }}
+        </text>
+        <view class="chip-row">
+          <text
+            v-for="chip in reasonChips"
+            :key="chip.label"
+            class="reason-chip"
+            :class="{ on: selectedCategory === chip.category }"
+            @click="pickChip(chip)"
+          >{{ chip.label }}</text>
+        </view>
         <textarea
           v-model="disputeReason"
           class="dispute-input"
           maxlength="200"
           placeholder="例如：我没有拿这个商品 / 数量不对"
         />
-        <button class="action-btn" hover-class="btn-hover" :loading="disputeLoading" :disabled="disputeLoading" @click="submitDispute">
-          {{ disputeLoading ? '提交中…' : '提交申诉' }}
+        <view class="evidence-block">
+          <text class="evidence-label">申诉附图（选填）</text>
+          <view class="evidence-row">
+            <view v-for="(img, idx) in evidence" :key="img.localPath + idx" class="evidence-item">
+              <image class="evidence-img" :src="previewEvidenceSrc(img)" mode="aspectFill" />
+              <text class="evidence-del" @click="removeEvidence(idx)">×</text>
+            </view>
+            <view v-if="evidence.length < 5" class="evidence-add" @click="onAddEvidence">+</view>
+          </view>
+        </view>
+        <button
+          class="action-btn refund-submit"
+          hover-class="btn-hover"
+          :loading="disputeLoading || refundLoading"
+          :disabled="disputeLoading || refundLoading"
+          @click="submitAction"
+        >
+          {{ refundMode
+            ? (refundLoading ? '退款中…' : '确认退款')
+            : (disputeLoading ? '提交中…' : '提交申诉') }}
         </button>
         <text class="dispute-cancel" @click="closeDispute">取消</text>
       </view>
@@ -85,10 +133,22 @@
 
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { consumerApi } from '@/utils/consumer-api';
 import { fmtMoney, orderStatusLabel } from '@aicabinet/shared-uni/format';
 import type { OrderDetailDto } from '@aicabinet/shared-types';
+import {
+  DISPUTE_REASON_CHIPS,
+  appendChipToReason,
+  type DisputeReasonChip
+} from '@/utils/dispute-form';
+import {
+  pickAndUploadEvidence,
+  evidenceFileIds,
+  previewEvidenceSrc,
+  removeEvidenceAt,
+  type LocalEvidence
+} from '@/utils/dispute-evidence';
 
 const loading = ref(true);
 const error = ref('');
@@ -97,9 +157,25 @@ const statusLabel = ref('');
 let sessionId = '';
 const deviceId = ref('');
 const showDispute = ref(false);
+const refundMode = ref(false);
 const disputeReason = ref('');
 const disputeLoading = ref(false);
+const refundLoading = ref(false);
 const disputeFiled = ref(false);
+const refundDone = ref(false);
+const reasonChips = DISPUTE_REASON_CHIPS;
+const selectedCategory = ref('USER_APPEAL');
+const evidence = ref<LocalEvidence[]>([]);
+
+const canRefundNow = computed(
+  () =>
+    !!order.value?.orderId &&
+    !refundDone.value &&
+    !disputeFiled.value &&
+    (order.value?.totalAmountCents || 0) > 0 &&
+    order.value?.refundPolicy !== 'DISPUTE_ONLY' &&
+    ['PAID', 'COMPLETED'].includes(String(order.value?.status || ''))
+);
 
 onLoad((opts) => {
   sessionId = (opts?.sessionId as string) || '';
@@ -139,12 +215,41 @@ async function loadByOrderId(oid: string) {
 }
 
 function openDispute() {
+  refundMode.value = false;
   disputeReason.value = '';
+  selectedCategory.value = 'USER_APPEAL';
+  evidence.value = [];
+  showDispute.value = true;
+}
+
+function openRefund() {
+  refundMode.value = true;
+  disputeReason.value = '申请退回本单已扣款项';
+  selectedCategory.value = 'USER_APPEAL';
+  evidence.value = [];
   showDispute.value = true;
 }
 
 function closeDispute() {
   showDispute.value = false;
+}
+
+function pickChip(chip: DisputeReasonChip) {
+  selectedCategory.value = chip.category;
+  disputeReason.value = appendChipToReason(disputeReason.value, chip);
+}
+
+async function onAddEvidence() {
+  evidence.value = await pickAndUploadEvidence(evidence.value);
+}
+
+function removeEvidence(idx: number) {
+  evidence.value = removeEvidenceAt(evidence.value, idx);
+}
+
+async function submitAction() {
+  if (refundMode.value) await submitRefund();
+  else await submitDispute();
 }
 
 async function submitDispute() {
@@ -162,8 +267,9 @@ async function submitDispute() {
     await consumerApi.fileDispute({
       sessionId,
       reason,
-      category: 'USER_APPEAL',
-      priority: 'NORMAL'
+      category: selectedCategory.value || 'USER_APPEAL',
+      priority: 'NORMAL',
+      evidenceFileIds: evidenceFileIds(evidence.value)
     });
     disputeFiled.value = true;
     showDispute.value = false;
@@ -172,6 +278,45 @@ async function submitDispute() {
     uni.showToast({ title: e instanceof Error ? e.message : '提交失败', icon: 'none' });
   } finally {
     disputeLoading.value = false;
+  }
+}
+
+async function submitRefund() {
+  const oid = order.value?.orderId;
+  const reason = disputeReason.value.trim();
+  if (!oid) {
+    uni.showToast({ title: '缺少订单编号', icon: 'none' });
+    return;
+  }
+  if (reason.length < 4) {
+    uni.showToast({ title: '请至少填写 4 字退款原因', icon: 'none' });
+    return;
+  }
+  const confirmed = await new Promise<boolean>((resolve) =>
+    uni.showModal({
+      title: '确认退款',
+      content: '将立即原路退回本单金额，是否继续？',
+      confirmText: '确认退款',
+      success: (r) => resolve(!!r.confirm),
+      fail: () => resolve(false)
+    })
+  );
+  if (!confirmed) return;
+  refundLoading.value = true;
+  try {
+    const result = await consumerApi.refundOrder(oid, {
+      reason,
+      evidenceFileIds: evidenceFileIds(evidence.value)
+    });
+    refundDone.value = true;
+    disputeFiled.value = true;
+    showDispute.value = false;
+    statusLabel.value = '已退款';
+    uni.showToast({ title: result.message || '退款成功', icon: 'success' });
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '退款失败', icon: 'none' });
+  } finally {
+    refundLoading.value = false;
   }
 }
 
@@ -192,6 +337,10 @@ function goReport() {
   uni.navigateTo({
     url: `/pages/report/report?deviceId=${encodeURIComponent(id)}`
   });
+}
+
+function goHelp() {
+  uni.navigateTo({ url: '/pages/help/help' });
 }
 
 function goHome() {
@@ -248,6 +397,36 @@ function goHome() {
 .ghost-btn::after { border: none; }
 .ghost-btn.warn { color: #d48806; border: 1rpx solid #ffd591; }
 .ghost-btn.subtle { color: #999; font-size: 28rpx; }
+.refund-btn {
+  margin: 0;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: #ef4444;
+  color: #fff;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  border: none;
+}
+.refund-btn::after { border: none; }
+.refund-submit { background: #ef4444; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 16rpx; }
+.reason-chip {
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 24rpx;
+  border: 1rpx solid transparent;
+}
+.reason-chip.on { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+.evidence-block { margin-bottom: 16rpx; }
+.evidence-label { display: block; font-size: 24rpx; color: #888; margin-bottom: 10rpx; }
+.evidence-row { display: flex; flex-wrap: wrap; gap: 14rpx; }
+.evidence-item { position: relative; width: 120rpx; height: 120rpx; }
+.evidence-img { width: 120rpx; height: 120rpx; border-radius: 10rpx; background: #f3f4f6; }
+.evidence-del { position: absolute; top: -8rpx; right: -8rpx; width: 32rpx; height: 32rpx; border-radius: 50%; background: #111; color: #fff; text-align: center; line-height: 32rpx; font-size: 22rpx; }
+.evidence-add { width: 120rpx; height: 120rpx; border-radius: 10rpx; border: 2rpx dashed #d1d5db; color: #9ca3af; font-size: 40rpx; display: flex; align-items: center; justify-content: center; }
 .dispute-done { text-align: center; font-size: 26rpx; color: #07c160; padding: 8rpx 0; }
 .btn-hover { opacity: 0.85; }
 .err { color: #fa5151; display: block; margin-bottom: 24rpx; text-align: center; }

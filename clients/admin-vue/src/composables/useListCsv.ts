@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { csvFileName, csvRowsToObjects, downloadCsv, parseCsv } from '@/utils/csv';
 
@@ -11,6 +11,7 @@ export function useListCsv(opts: {
 }) {
   const importing = ref(false);
   const importInput = ref<HTMLInputElement | null>(null);
+  const canImport = computed(() => typeof opts.onImportRows === 'function');
 
   function onExport() {
     const rows = opts.toRows();
@@ -60,5 +61,13 @@ export function useListCsv(opts: {
     }
   }
 
-  return { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile };
+  return {
+    importing,
+    importInput,
+    canImport,
+    onExport,
+    onDownloadTemplate,
+    triggerImport,
+    onImportFile
+  };
 }

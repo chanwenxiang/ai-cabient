@@ -96,6 +96,24 @@ public class MqttCommandPublisher {
         }
     }
 
+    /** 运维指令：LOCK / UNLOCK / REBOOT（与真设备同一 MQTT 通道，模拟器可 ACK） */
+    public String publishOpsCommand(String deviceId, String commandType) {
+        try {
+            ensureConnected();
+            String commandId = UUID.randomUUID().toString();
+            Map<String, Object> payload = Map.of(
+                    "commandId", commandId,
+                    "type", commandType,
+                    "expireAt", System.currentTimeMillis() + 60_000
+            );
+            publish(deviceId, payload);
+            log.info("published {} to {} commandId={}", commandType, deviceId, commandId);
+            return commandId;
+        } catch (Exception e) {
+            throw new RuntimeException("failed to publish ops command " + commandType, e);
+        }
+    }
+
     private void publish(String deviceId, Map<String, Object> payload) throws Exception {
         ensureConnected();
         byte[] bytes = objectMapper.writeValueAsBytes(payload);

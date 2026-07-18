@@ -51,5 +51,8 @@ public final class CabinetConstants {
 
     public static final String MQTT_CMD_OPEN_DOOR = "OPEN_DOOR";
     public static final String MQTT_CMD_SET_TARGET_TEMP = "SET_TARGET_TEMP";
+    public static final String MQTT_CMD_LOCK = "LOCK";
+    public static final String MQTT_CMD_UNLOCK = "UNLOCK";
+    public static final String MQTT_CMD_REBOOT = "REBOOT";
 }
 

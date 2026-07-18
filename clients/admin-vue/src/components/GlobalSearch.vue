@@ -89,6 +89,7 @@ function focusInput() {
 
 function onClosed() {
   suppressOpenUntil = Date.now() + 250;
+  keyword.value = '';
   nextTick(() => {
     (document.activeElement as HTMLElement | null)?.blur?.();
   });
@@ -127,4 +128,25 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
 .result-title { display: block; font-weight: 600; }
 .result-meta { font-size: 12px; color: var(--layout-muted); }
 .hint { color: var(--layout-muted); font-size: 13px; padding: 8px 0; }
+@media (max-width: 900px) {
+  .global-search {
+    max-width: 40px;
+  }
+  .search-input {
+    width: 40px;
+  }
+  .search-input :deep(.el-input__inner) {
+    padding-left: 0;
+    padding-right: 0;
+    opacity: 0;
+    width: 0;
+  }
+  .search-input :deep(.el-input__wrapper) {
+    padding: 0 8px;
+    justify-content: center;
+  }
+  .search-input :deep(.el-input__suffix) {
+    display: none;
+  }
+}
 </style>

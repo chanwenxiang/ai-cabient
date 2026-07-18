@@ -75,6 +75,18 @@ public class OpsCommercialController {
         return ApiResponse.ok(procurementService.receivePurchaseOrder(operatorId(request), purchaseOrderId, body));
     }
 
+    @GetMapping("/purchase-returns")
+    public ApiResponse<List<PurchaseReturnDto>> purchaseReturns(HttpServletRequest request) {
+        return ApiResponse.ok(procurementService.listPurchaseReturns(operatorId(request)));
+    }
+
+    @PostMapping("/purchase-returns")
+    public ApiResponse<PurchaseReturnDto> createPurchaseReturn(
+            HttpServletRequest request,
+            @Valid @RequestBody CreatePurchaseReturnRequest body) {
+        return ApiResponse.ok(procurementService.createPurchaseReturn(operatorId(request), body));
+    }
+
     // --- OTA ---
     @GetMapping("/ota/releases")
     public ApiResponse<List<OtaReleaseDto>> listOta(HttpServletRequest request) {

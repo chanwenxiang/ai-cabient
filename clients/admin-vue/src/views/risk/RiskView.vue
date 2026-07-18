@@ -1,62 +1,136 @@
-﻿<template>
-  <el-card class="page-card" shadow="never">
+<template>
+  <el-card class="page-card report-page" shadow="never">
     <template #header>
-      <div class="card-head">
-        <span class="title">风控</span>
-        <div class="actions">
-          <el-button
-            v-if="canBlacklist && tab === 'blacklist'"
-            type="primary"
-            @click="openAdd"
-          >加入黑名单</el-button>
-          <el-button @click="onExport">导出</el-button>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">风控</span>
+            <span class="hint">风险事件与黑名单；按 Tab 切换</span>
+          </div>
+        </div>
+        <div class="page-card-head__actions">
+          <el-button v-if="canBlacklist && tab === 'blacklist'" type="primary" @click="openAdd">
+            加入黑名单
+          </el-button>
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="reloadCurrent">刷新</el-button>
         </div>
       </div>
     </template>
+
     <el-tabs v-model="tab" @tab-change="onTabChange">
       <el-tab-pane label="风险事件" name="events">
         <div class="table-scroll">
           <div class="table-scroll-inner" style="min-width: 900px">
-            <el-table v-loading="loading" :data="events" stripe border>
-          <el-table-column prop="eventId" label="事件ID" min-width="120" />
-          <el-table-column prop="userId" label="用户" width="100" />
-          <el-table-column label="类型" min-width="140">
-            <template #default="{ row }">{{ dictLabel('risk_event_type', row.eventType) }}</template>
-          </el-table-column>
-          <el-table-column label="级别" width="100">
-            <template #default="{ row }">
-              <el-tag :type="dictTagType(row.severity)" size="small">
-                {{ dictLabel('exception_severity', row.severity) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="时间" width="180">
-            <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-          </el-table-column>
-          <template #empty><el-empty description="暂无风险事件" /></template>
+            <el-table
+              v-loading="loading"
+              :data="events"
+              stripe
+              border
+              class="report-table"
+              row-key="eventId"
+              @selection-change="onEventsSelectionChange"
+            >
+              <template #empty><el-empty description="暂无风险事件" /></template>
+              <el-table-column type="selection" width="48" align="center" />
+              <el-table-column label="事件" min-width="140" class-name="col-text">
+                <template #default="{ row }">
+                  <div class="id-cell">
+                    <strong>{{ dictLabel('risk_event_type', row.eventType) || row.eventType || '-' }}</strong>
+                    <small>{{ row.eventId }}</small>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="用户" width="100" class-name="col-text">
+                <template #default="{ row }">
+                  <button
+                    v-if="row.userId"
+                    type="button"
+                    class="link-cell"
+                    @click="router.push({ path: '/users', query: { keyword: String(row.userId) } })"
+                  >
+                    {{ row.userId }}
+                  </button>
+                  <span v-else class="muted">-</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="级别" width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="dictTagType(row.severity)" size="small">
+                    {{ dictLabel('risk_severity', row.severity) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="时间" width="168" class-name="col-text">
+                <template #default="{ row }">
+                  <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
+                </template>
+              </el-table-column>
             </el-table>
           </div>
         </div>
+        <div class="page-pager">
+          <el-pagination
+            v-model:current-page="eventPage"
+            v-model:page-size="eventSize"
+            :total="eventTotal"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next"
+            background
+            @current-change="loadEvents"
+            @size-change="onEventSizeChange"
+          />
+        </div>
       </el-tab-pane>
+
       <el-tab-pane label="黑名单" name="blacklist">
         <div class="table-scroll">
           <div class="table-scroll-inner" style="min-width: 900px">
-            <el-table v-loading="loading" :data="blacklist" stripe border>
-          <el-table-column prop="userId" label="用户ID" width="120" />
-          <el-table-column prop="reason" label="原因" min-width="200" show-overflow-tooltip />
-          <el-table-column label="加入时间" width="180">
-            <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-          </el-table-column>
-          <el-table-column v-if="canBlacklist" label="操作" width="88" class-name="col-action" align="center">
-            <template #default="{ row }">
-              <TableActions
-                :actions="[{ key: 'remove', label: '移出', icon: Delete, type: 'danger' }]"
-                @action="() => removeBlacklist(row)"
-              />
-            </template>
-          </el-table-column>
-          <template #empty><el-empty description="暂无黑名单" /></template>
+            <el-table
+              v-loading="loading"
+              :data="blacklist"
+              stripe
+              border
+              class="report-table"
+              row-key="userId"
+              @selection-change="onBlacklistSelectionChange"
+            >
+              <template #empty><el-empty description="暂无黑名单" /></template>
+              <el-table-column type="selection" width="48" align="center" />
+              <el-table-column label="用户" width="120" class-name="col-text">
+                <template #default="{ row }">
+                  <button
+                    type="button"
+                    class="link-cell"
+                    @click="router.push({ path: '/users', query: { keyword: String(row.userId) } })"
+                  >
+                    {{ row.userId }}
+                  </button>
+                </template>
+              </el-table-column>
+              <el-table-column label="原因" min-width="220" class-name="col-text" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.reason || '-' }}</template>
+              </el-table-column>
+              <el-table-column label="加入时间" width="168" class-name="col-text">
+                <template #default="{ row }">
+                  <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                v-if="canBlacklist"
+                label="操作"
+                width="88"
+                class-name="col-action"
+                align="center"
+                fixed="right"
+              >
+                <template #default="{ row }">
+                  <TableActions
+                    :actions="[{ key: 'remove', label: '移出', icon: Delete, type: 'danger' }]"
+                    @action="() => removeBlacklist(row)"
+                  />
+                </template>
+              </el-table-column>
             </el-table>
           </div>
         </div>
@@ -66,7 +140,13 @@
     <el-dialog v-model="addDialog" title="加入黑名单" width="440px" destroy-on-close>
       <el-form label-width="88px">
         <el-form-item label="用户 ID" required>
-          <el-input-number v-model="addForm.userId" :min="1" :precision="0" controls-position="right" style="width: 100%" />
+          <el-input-number
+            v-model="addForm.userId"
+            :min="1"
+            :precision="0"
+            controls-position="right"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="原因" required>
           <el-input v-model="addForm.reason" type="textarea" maxlength="200" />
@@ -81,17 +161,22 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Delete, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
+import type { PageResult } from '@aicabinet/shared-types';
 import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 type Row = Record<string, any>;
+const route = useRoute();
+const router = useRouter();
 const auth = useAuthStore();
 const canBlacklist = computed(() => auth.hasPerm('ops:risk:blacklist'));
 
@@ -100,19 +185,40 @@ const saving = ref(false);
 const tab = ref('events');
 const events = ref<Row[]>([]);
 const blacklist = ref<Row[]>([]);
+const eventPage = ref(1);
+const eventSize = ref(20);
+const eventTotal = ref(0);
 const loaded = ref(new Set<string>(['events']));
 const addDialog = ref(false);
 const addForm = reactive({ userId: 1, reason: '' });
+
+const {
+  onSelectionChange: onEventsSelectionChange,
+  pickSelected: pickEvents,
+  exportButtonLabel: eventsExportLabel,
+  clearSelection: clearEventsSelection
+} = useTableSelection<Row>((r) => r.eventId);
+
+const {
+  onSelectionChange: onBlacklistSelectionChange,
+  pickSelected: pickBlacklist,
+  exportButtonLabel: blacklistExportLabel,
+  clearSelection: clearBlacklistSelection
+} = useTableSelection<Row>((r) => r.userId);
+
+const exportButtonLabel = computed(() =>
+  tab.value === 'blacklist' ? blacklistExportLabel.value : eventsExportLabel.value
+);
 
 const { onExport: exportEvents } = useListCsv({
   filePrefix: '风险事件',
   headers: ['事件ID', '用户', '类型', '级别', '时间'],
   toRows: () =>
-    events.value.map((row) => [
+    pickEvents(events.value).map((row) => [
       row.eventId,
       row.userId,
       dictLabel('risk_event_type', row.eventType),
-      dictLabel('exception_severity', row.severity),
+      dictLabel('risk_severity', row.severity),
       formatDateTime(row.createdAt)
     ])
 });
@@ -121,7 +227,11 @@ const { onExport: exportBlacklist } = useListCsv({
   filePrefix: '黑名单',
   headers: ['用户ID', '原因', '加入时间'],
   toRows: () =>
-    blacklist.value.map((row) => [row.userId, row.reason || '', formatDateTime(row.createdAt)])
+    pickBlacklist(blacklist.value).map((row) => [
+      row.userId,
+      row.reason || '',
+      formatDateTime(row.createdAt)
+    ])
 });
 
 function onExport() {
@@ -129,20 +239,50 @@ function onExport() {
   else exportEvents();
 }
 
+function syncRouteQuery() {
+  const query: Record<string, string> = {};
+  if (tab.value && tab.value !== 'events') query.tab = tab.value;
+  router.replace({ query });
+}
+
+function applyRouteQuery() {
+  if (typeof route.query.tab === 'string' && route.query.tab !== tab.value) {
+    tab.value = route.query.tab === 'blacklist' ? 'blacklist' : 'events';
+    return true;
+  }
+  return false;
+}
+
 async function loadEvents() {
   loading.value = true;
   try {
-    const ev = await api.request<{ items?: Row[] } | Row[]>(
-      '/api/v2/ops/admin/risk/events?page=0&size=50',
+    const q = new URLSearchParams({
+      page: String(Math.max(0, eventPage.value - 1)),
+      size: String(eventSize.value)
+    });
+    const ev = await api.request<PageResult<Row> | Row[]>(
+      `/api/v2/ops/admin/risk/events?${q}`,
       'GET'
     );
-    events.value = Array.isArray(ev) ? ev : ev?.items || [];
+    if (Array.isArray(ev)) {
+      events.value = ev;
+      eventTotal.value = ev.length;
+    } else {
+      events.value = ev?.items || [];
+      eventTotal.value = ev?.total ?? events.value.length;
+    }
+    clearEventsSelection();
     loaded.value.add('events');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '风险事件加载失败');
   } finally {
     loading.value = false;
   }
+}
+
+function onEventSizeChange() {
+  eventPage.value = 1;
+  loadEvents();
 }
 
 async function loadBlacklist() {
@@ -154,6 +294,7 @@ async function loadBlacklist() {
   loading.value = true;
   try {
     blacklist.value = await api.request<Row[]>('/api/v2/ops/admin/risk/blacklist', 'GET');
+    clearBlacklistSelection();
     loaded.value.add('blacklist');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '黑名单加载失败');
@@ -164,6 +305,7 @@ async function loadBlacklist() {
 
 function onTabChange(name: string | number) {
   const key = String(name);
+  syncRouteQuery();
   if (!loaded.value.has(key)) {
     if (key === 'blacklist') loadBlacklist();
     else loadEvents();
@@ -217,11 +359,49 @@ async function removeBlacklist(row: Row) {
   }
 }
 
-onMounted(loadEvents);
+onMounted(() => {
+  applyRouteQuery();
+  if (tab.value === 'blacklist') loadBlacklist();
+  else loadEvents();
+});
+onActivated(() => {
+  if (applyRouteQuery()) {
+    if (tab.value === 'blacklist') loadBlacklist();
+    else loadEvents();
+  }
+});
 </script>
 
 <style scoped>
-.card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.title { font-weight: 600; }
-.actions { display: flex; gap: 8px; }
+.page-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.page-card-head__meta { min-width: 0; }
+.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
+.title { font-weight: 600; font-size: 15px; }
+.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.id-cell { display: grid; gap: 2px; line-height: 1.35; }
+.id-cell strong { font-weight: 650; }
+.id-cell small {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-family: var(--app-font-mono);
+}
+.link-cell {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: var(--el-color-primary);
+  cursor: pointer;
+  font: inherit;
+}
+.link-cell:hover { text-decoration: underline; }
+.muted { color: var(--el-text-color-secondary); }
 </style>

@@ -10,5 +10,6 @@ public record PurchaseOrderLineDto(
         LocalDate expiryDate,
         int orderedQty,
         int receivedQty,
-        int unitCostCents
+        int unitCostCents,
+        int returnedQty
 ) {}

@@ -3,9 +3,14 @@
     <el-aside :width="settings.sidebarCollapsed ? '64px' : '220px'" class="sidebar">
       <div
         class="brand"
+        role="button"
+        tabindex="0"
         :class="{ collapsed: settings.sidebarCollapsed }"
         :title="settings.sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+        :aria-label="settings.sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
         @click="settings.toggleSidebarCollapsed()"
+        @keydown.enter.prevent="settings.toggleSidebarCollapsed()"
+        @keydown.space.prevent="settings.toggleSidebarCollapsed()"
       >
         <el-icon class="brand-toggle"><Expand v-if="settings.sidebarCollapsed" /><Fold v-else /></el-icon>
         <span class="brand-text" :class="{ hidden: settings.sidebarCollapsed }">AI开门柜 OPS</span>
@@ -26,19 +31,19 @@
           @open="onSubMenuOpen"
           @close="onSubMenuClose"
         >
-          <el-menu-item v-if="auth.hasPerm('ops:dashboard:view')" index="/dashboard">
+          <el-menu-item v-if="auth.hasPerm('ops:dashboard:view')" index="/dashboard" title="运营工作台" aria-label="运营工作台">
             <el-icon><Odometer /></el-icon>
             <template #title>运营工作台</template>
           </el-menu-item>
-          <el-menu-item v-if="auth.hasPerm('ops:analytics:view')" index="/analytics">
+          <el-menu-item v-if="auth.hasPerm('ops:analytics:view')" index="/analytics" title="数据分析" aria-label="数据分析">
             <el-icon><DataAnalysis /></el-icon>
             <template #title>数据分析</template>
           </el-menu-item>
-          <el-menu-item v-if="auth.hasPerm('ops:report:device')" index="/reports">
+          <el-menu-item v-if="auth.hasPerm('ops:report:device')" index="/reports" title="设备报表" aria-label="设备报表">
             <el-icon><DataBoard /></el-icon>
             <template #title>设备报表</template>
           </el-menu-item>
-          <el-menu-item v-if="auth.hasPerm('ops:finance:view')" index="/finance">
+          <el-menu-item v-if="auth.hasPerm('ops:finance:view')" index="/finance" title="财务毛利" aria-label="财务毛利">
             <el-icon><Money /></el-icon>
             <template #title>财务毛利</template>
           </el-menu-item>
@@ -47,7 +52,13 @@
               <el-icon><component :is="group.icon" /></el-icon>
               <span>{{ group.label }}</span>
             </template>
-            <el-menu-item v-for="item in group.items" :key="item.path" :index="item.path">
+            <el-menu-item
+              v-for="item in group.items"
+              :key="item.path"
+              :index="item.path"
+              :title="item.title"
+              :aria-label="item.title"
+            >
               <el-icon><component :is="item.icon" /></el-icon>
               <template #title>{{ item.title }}</template>
             </el-menu-item>
@@ -183,6 +194,7 @@ const tagsScrollRef = ref<HTMLElement | null>(null);
 const openedMenus = ref<string[]>([]);
 const OPENED_MENUS_KEY = 'admin_vue_sidebar_openeds';
 const tagMenu = ref({ visible: false, x: 0, y: 0, path: '' });
+const compactViewport = ref(false);
 
 const sidebarGroups = computed(() => buildSidebarGroups((item) => auth.canAccessNav(item)));
 const active = computed(() => (route.path.startsWith('/devices') ? '/devices' : route.path));
@@ -360,23 +372,37 @@ function onSettingCommand(cmd: string) {
   if (cmd.startsWith('color-')) settings.setPrimaryColor(cmd.replace('color-', ''));
 }
 
+function syncSidebarWithViewport() {
+  const compact = window.innerWidth <= 1200;
+  if (compact && !compactViewport.value && !settings.sidebarCollapsed) {
+    settings.toggleSidebarCollapsed();
+  }
+  compactViewport.value = compact;
+}
+
 onMounted(() => {
   settings.init();
+  syncSidebarWithViewport();
   auth.loadProfile();
   window.addEventListener('click', hideTagMenu);
   window.addEventListener('scroll', hideTagMenu, true);
+  window.addEventListener('resize', syncSidebarWithViewport);
 });
 
 onUnmounted(() => {
   window.removeEventListener('click', hideTagMenu);
   window.removeEventListener('scroll', hideTagMenu, true);
+  window.removeEventListener('resize', syncSidebarWithViewport);
 });
 </script>
 
 <style scoped>
 .layout-main {
+  width: 100%;
   height: 100vh;
+  height: 100dvh;
   max-height: 100vh;
+  max-height: 100dvh;
   overflow: hidden;
   background: var(--layout-bg);
 }
@@ -439,12 +465,16 @@ onUnmounted(() => {
 .sidebar-foot:hover { background: rgba(255, 255, 255, 0.06); color: #f8fafc; }
 
 .layout-content {
+  flex: 1;
+  width: auto;
+  min-width: 0;
   height: 100vh;
+  height: 100dvh;
   max-height: 100vh;
+  max-height: 100dvh;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  min-width: 0;
 }
 .topbar {
   display: flex;
@@ -520,6 +550,23 @@ onUnmounted(() => {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+@media (max-width: 900px) {
+  .title-block {
+    flex: 1 1 120px;
+    min-width: 88px;
+  }
+  .topbar-right {
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+  .user-text {
+    display: none;
+  }
+  .user-trigger {
+    padding: 4px;
+    flex-shrink: 0;
+  }
+}
 .tags-view {
   display: flex;
   align-items: center;
@@ -546,17 +593,34 @@ onUnmounted(() => {
   padding-left: 4px;
   border-left: 1px solid var(--layout-border);
 }
+@media (max-width: 640px) {
+  .tags-actions {
+    display: none;
+  }
+}
 .tag-item { flex-shrink: 0; cursor: pointer; }
 .tag-wrap { display: inline-flex; flex-shrink: 0; }
 .layout-main-scroll {
   flex: 1;
+  width: 100%;
+  min-width: 0;
   min-height: 0;
+  display: flex;
+  flex-direction: column;
   /* 只纵向滚；横向交给表格自身，避免双滚动条 */
   overflow-x: hidden;
   overflow-y: auto;
   background: var(--layout-bg);
   color: var(--layout-text);
   overscroll-behavior: contain;
+}
+
+/* 页面根节点横向铺满主区 */
+.layout-main-scroll > * {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 .color-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
 :deep(.el-menu--collapse) { width: 64px; }

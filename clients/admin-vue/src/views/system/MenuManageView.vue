@@ -1,26 +1,32 @@
-﻿<template>
-  <el-card class="page-card" shadow="never">
+<template>
+  <el-card class="page-card report-page" shadow="never">
     <template #header>
-      <div class="card-head">
-        <span class="title">菜单管理</span>
-        <div class="actions">
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">菜单管理</span>
+            <span class="hint">目录 / 菜单 / 按钮树；默认仅运营权限</span>
+          </div>
+        </div>
+        <div class="page-card-head__actions">
+          <el-switch v-model="opsOnly" active-text="仅运营" @change="syncRouteQuery" />
+          <el-switch v-model="showInactive" active-text="含停用" @change="syncRouteQuery" />
           <el-button v-if="auth.hasPerm('ops:rbac:menu:add')" type="primary" @click="openCreate()">新增</el-button>
-          <el-button @click="onExport">导出</el-button>
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
-    <div class="filter-bar">
-      <el-select v-model="typeFilter" clearable placeholder="类型" style="width: 110px">
-        <el-option label="全部" value="" />
-        <el-option label="目录 M" value="M" />
-        <el-option label="菜单 C" value="C" />
-        <el-option label="按钮 F" value="F" />
-      </el-select>
-      <el-switch v-model="opsOnly" active-text="仅运营" />
-      <el-switch v-model="showInactive" active-text="含停用" />
-    </div>
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent>
+      <el-form-item label="类型">
+        <el-select v-model="typeFilter" clearable placeholder="全部" style="width: 120px" @change="syncRouteQuery">
+          <el-option label="目录 M" value="M" />
+          <el-option label="菜单 C" value="C" />
+          <el-option label="按钮 F" value="F" />
+        </el-select>
+      </el-form-item>
+    </el-form>
 
     <div class="table-scroll">
       <div class="table-scroll-inner" style="min-width: 900px">
@@ -30,35 +36,45 @@
           row-key="permissionId"
           default-expand-all
           :tree-props="{ children: 'children' }"
-          height="calc(100vh - 280px)"
           stripe
           border
+          class="report-table"
+          @selection-change="onSelectionChange"
         >
-      <el-table-column prop="permName" label="名称" min-width="160" align="left" header-align="left" />
-      <el-table-column label="类型" width="80">
-        <template #default="{ row }">
-          <el-tag :type="typeTag(row.permType)" size="small">{{ typeText(row.permType) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="permCode" label="权限标识" min-width="180">
-        <template #default="{ row }"><code>{{ row.permCode }}</code></template>
-      </el-table-column>
-      <el-table-column prop="path" label="路由" min-width="120" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.path || '-' }}</template>
-      </el-table-column>
-      <el-table-column prop="sortOrder" label="排序" width="64" />
-      <el-table-column label="状态" width="80">
-        <template #default="{ row }">
-          <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-            {{ row.status === 'ACTIVE' ? '正常' : '停用' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="操作" width="88" class-name="col-action" align="center">
-        <template #default="{ row }">
-          <TableActions :actions="menuActions(row)" :max-primary="1" @action="(k) => onMenuAction(k, row)" />
-        </template>
-      </el-table-column>
+          <template #empty><el-empty description="暂无菜单" /></template>
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column label="名称" min-width="180" class-name="col-text" align="left" header-align="left">
+            <template #default="{ row }">
+              <div class="name-cell">
+                <strong>{{ row.permName }}</strong>
+                <small class="cell-id">{{ row.permCode }}</small>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="类型" width="88" align="center">
+            <template #default="{ row }">
+              <el-tag :type="typeTag(row.permType)" size="small">{{ typeText(row.permType) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="权限标识" min-width="180" class-name="col-text">
+            <template #default="{ row }"><span class="cell-id">{{ row.permCode }}</span></template>
+          </el-table-column>
+          <el-table-column label="路由" min-width="120" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.path || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="sortOrder" label="排序" width="72" align="center" />
+          <el-table-column label="状态" width="80" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
+                {{ row.status === 'ACTIVE' ? '正常' : '停用' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="120" class-name="col-action" align="center" fixed="right">
+            <template #default="{ row }">
+              <TableActions :actions="menuActions(row)" @action="(k) => onMenuAction(k, row)" />
+            </template>
+          </el-table-column>
         </el-table>
       </div>
     </div>
@@ -116,15 +132,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Delete, EditPen, Plus, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { buildPermTree, flattenForParentSelect, type PermRow } from '@/utils/rbac-tree';
 
+const route = useRoute();
+const router = useRouter();
 const auth = useAuthStore();
 const loading = ref(false);
 const saving = ref(false);
@@ -163,7 +183,7 @@ function menuActions(row: PermRow): TableAction[] {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
   }
   if (auth.hasPerm('ops:rbac:menu:add') && row.permType !== 'F') {
-    acts.push({ key: 'add', label: '新增', icon: Plus, type: 'success', overflow: true });
+    acts.push({ key: 'add', label: '新增', icon: Plus, type: 'success' });
   }
   if (auth.hasPerm('ops:rbac:menu:remove') && row.status === 'ACTIVE') {
     acts.push({ key: 'remove', label: '停用', icon: Delete, type: 'danger', overflow: true });
@@ -225,11 +245,15 @@ function flattenTableRows(nodes: PermRow[]): PermRow[] {
   return out;
 }
 
+const { onSelectionChange, pickSelected, exportButtonLabel } = useTableSelection<PermRow>(
+  (r) => r.permissionId
+);
+
 const { onExport } = useListCsv({
   filePrefix: '菜单',
   headers: ['名称', '类型', '权限标识', '路由', '排序', '状态'],
   toRows: () =>
-    flattenTableRows(tableRows.value).map((row) => [
+    pickSelected(flattenTableRows(tableRows.value)).map((row) => [
       row.permName,
       typeText(row.permType),
       row.permCode,
@@ -330,13 +354,60 @@ async function onRemove(row: PermRow) {
   }
 }
 
-onMounted(load);
+function syncRouteQuery() {
+  const query: Record<string, string> = {};
+  if (typeFilter.value) query.type = typeFilter.value;
+  if (!opsOnly.value) query.opsOnly = '0';
+  if (showInactive.value) query.inactive = '1';
+  router.replace({ query });
+}
+
+function applyRouteQuery() {
+  let changed = false;
+  if (typeof route.query.type === 'string' && route.query.type !== typeFilter.value) {
+    typeFilter.value = route.query.type;
+    changed = true;
+  }
+  const ops = route.query.opsOnly !== '0';
+  if (ops !== opsOnly.value) {
+    opsOnly.value = ops;
+    changed = true;
+  }
+  const inactive = route.query.inactive === '1' || route.query.inactive === 'true';
+  if (inactive !== showInactive.value) {
+    showInactive.value = inactive;
+    changed = true;
+  }
+  return changed;
+}
+
+onMounted(() => {
+  applyRouteQuery();
+  load();
+});
+onActivated(() => {
+  applyRouteQuery();
+});
 </script>
 
 <style scoped>
-.card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.title { font-weight: 600; }
-.actions { display: flex; gap: 8px; align-items: center; }
-.filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
-code { font-size: 12px; }
+.page-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.page-card-head__meta { min-width: 0; }
+.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
+.title { font-weight: 600; font-size: 15px; }
+.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+.page-card-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.name-cell { display: grid; gap: 2px; line-height: 1.35; }
+.name-cell strong { font-weight: 650; }
+.name-cell small {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-family: var(--app-font-mono);
+}
 </style>

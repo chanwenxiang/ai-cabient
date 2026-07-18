@@ -55,11 +55,14 @@ public class DataConsistencyService {
     
     @Scheduled(fixedDelay = 300000)
     public void performConsistencyCheck() {
-        log.info("Starting data consistency check");
-        
-        checkOrderConsistency();
-        checkPaymentConsistency();
-        checkInventoryConsistency();
+        try {
+            log.info("Starting data consistency check");
+            checkOrderConsistency();
+            checkPaymentConsistency();
+            checkInventoryConsistency();
+        } catch (Exception e) {
+            log.error("Data consistency check aborted: {}", e.getMessage());
+        }
     }
     
     private void checkOrderConsistency() {
@@ -100,16 +103,21 @@ public class DataConsistencyService {
     
     private void recordInconsistency(String checkType, String tableName, 
                                      String checkKey, String expected, String actual) {
-        DataConsistencyRecord record = new DataConsistencyRecord();
-        record.setCheckType(checkType);
-        record.setTableName(tableName);
-        record.setCheckKey(checkKey);
-        record.setExpectedValue(expected);
-        record.setActualValue(actual);
-        record.setStatus(STATUS_FAIL);
-        consistencyRepository.save(record);
-        
-        log.warn("Data inconsistency found: type={}, key={}, expected={}, actual={}", 
+        try {
+            DataConsistencyRecord record = new DataConsistencyRecord();
+            record.setCheckType(checkType);
+            record.setTableName(tableName);
+            record.setCheckKey(checkKey);
+            record.setExpectedValue(expected);
+            record.setActualValue(actual);
+            record.setStatus(STATUS_FAIL);
+            consistencyRepository.save(record);
+        } catch (Exception e) {
+            log.error("Failed to persist consistency record type={} key={}: {}",
+                    checkType, checkKey, e.getMessage());
+        }
+
+        log.warn("Data inconsistency found: type={}, key={}, expected={}, actual={}",
             checkType, checkKey, expected, actual);
     }
     

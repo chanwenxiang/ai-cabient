@@ -17,6 +17,7 @@ public class PurchaseOrderLine {
     private LocalDate expiryDate;
     private int orderedQty;
     private int receivedQty;
+    private int returnedQty;
     private int unitCostCents;
     private String qualityStatus = "PENDING";
     private String qualityNote;
@@ -37,6 +38,8 @@ public class PurchaseOrderLine {
     public void setOrderedQty(int orderedQty) { this.orderedQty = orderedQty; }
     public int getReceivedQty() { return receivedQty; }
     public void setReceivedQty(int receivedQty) { this.receivedQty = receivedQty; }
+    public int getReturnedQty() { return returnedQty; }
+    public void setReturnedQty(int returnedQty) { this.returnedQty = returnedQty; }
     public int getUnitCostCents() { return unitCostCents; }
     public void setUnitCostCents(int unitCostCents) { this.unitCostCents = unitCostCents; }
     public String getQualityStatus() { return qualityStatus; }

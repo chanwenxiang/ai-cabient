@@ -19,14 +19,12 @@
   min-height: 0;
 }
 
-/* Side-by-side from tablet width (admin content area often < 992px) */
-@media (min-width: 768px) {
-  .chart-grid--2 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
+/* Side-by-side once viewport clears mobile; admin content often ~560–700px with collapsed rail */
+@media (min-width: 640px) {
+  .chart-grid--2,
   .chart-grid--split {
-    grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
+    /* 与上下行共用等宽两列，保证卡片左右对齐 */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   /* Equal-height columns: only stretch direct grid children */
@@ -34,6 +32,7 @@
   .chart-grid--split > .chart-panel.el-card,
   .chart-grid--split > .chart-aside {
     height: 100%;
+    align-self: stretch;
   }
 
   .chart-aside .chart-panel.is-fill {
@@ -49,7 +48,7 @@
 .chart-panel.el-card {
   display: flex;
   flex-direction: column;
-  height: auto;
+  min-height: 0;
   border: 1px solid var(--layout-border);
   background:
     radial-gradient(120% 80% at 100% 0%, rgba(45, 212, 191, 0.05), transparent 52%),
@@ -131,6 +130,24 @@
   border: none;
 }
 
+.chart-panel.is-fill > .el-card__body > .chart-panel-body.is-compact {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chart-panel.is-fill .snapshot-desc,
+.chart-panel.is-fill .chart-panel-body.is-compact > .el-descriptions {
+  flex: 1 1 auto;
+  height: 100%;
+}
+
+.chart-panel.is-fill .snapshot-desc .el-descriptions__body,
+.chart-panel.is-fill .chart-panel-body.is-compact > .el-descriptions .el-descriptions__body {
+  height: 100%;
+}
+
 .chart-panel-foot {
   display: flex;
   flex-wrap: wrap;
@@ -191,13 +208,12 @@
 
 .donut-layout {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  justify-content: center;
-  gap: 16px 24px;
+  gap: 16px 20px;
   width: 100%;
-  max-width: 340px;
-  margin: 0 auto;
+  max-width: 100%;
+  margin: 0;
 }
 
 .donut-legend-list {
@@ -206,15 +222,18 @@
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  min-width: 0;
 }
 
 .donut-legend-list li {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.4;
   color: var(--layout-text);
+  min-width: 0;
 }
 
 .donut-legend-list i {
@@ -222,6 +241,21 @@
   height: 10px;
   border-radius: 999px;
   flex-shrink: 0;
+}
+
+.donut-legend-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.donut-legend-count {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  color: var(--layout-muted);
+  font-size: 12px;
 }
 
 .chart-fade-enter-active,

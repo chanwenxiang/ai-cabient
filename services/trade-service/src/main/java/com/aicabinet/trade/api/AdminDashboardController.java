@@ -4,6 +4,8 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.service.AdminDashboardService;
+import com.aicabinet.trade.service.AdminDeviceOpsService;
+import com.aicabinet.trade.service.DisputeService;
 import com.aicabinet.trade.support.CacheService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -21,10 +23,17 @@ public class AdminDashboardController {
 
     private final AdminDashboardService adminService;
     private final CacheService cacheService;
+    private final DisputeService disputeService;
+    private final AdminDeviceOpsService deviceOpsService;
 
-    public AdminDashboardController(AdminDashboardService adminService, CacheService cacheService) {
+    public AdminDashboardController(AdminDashboardService adminService,
+                                    CacheService cacheService,
+                                    DisputeService disputeService,
+                                    AdminDeviceOpsService deviceOpsService) {
         this.adminService = adminService;
         this.cacheService = cacheService;
+        this.disputeService = disputeService;
+        this.deviceOpsService = deviceOpsService;
     }
 
     @GetMapping("/stats")
@@ -67,9 +76,21 @@ public class AdminDashboardController {
     }
 
     @GetMapping("/devices")
-    public ApiResponse<List<AdminDeviceDto>> devices(HttpServletRequest request) {
-        Long opId = operatorId(request);
-        return ApiResponse.ok(cacheService.get("admin:devices", "all", 30_000L, () -> adminService.listDevices(opId)));
+    public ApiResponse<PageResult<AdminDeviceDto>> devices(
+            HttpServletRequest request,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "online", required = false) String online) {
+        return ApiResponse.ok(adminService.listDevicesPaged(operatorId(request), page, size, q, online));
+    }
+
+    @PostMapping("/devices/{deviceId}/commands")
+    public ApiResponse<DeviceOpsCommandResultDto> deviceCommand(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId,
+            @Valid @RequestBody DeviceOpsCommandRequest body) {
+        return ApiResponse.ok(deviceOpsService.execute(operatorId(request), deviceId, body));
     }
 
     @PostMapping("/devices")
@@ -191,6 +212,14 @@ public class AdminDashboardController {
             @RequestBody(required = false) RechargeRefundRequest body) {
         String reason = body != null ? body.reason() : null;
         return ApiResponse.ok(adminService.refundRecharge(operatorId(request), orderId, reason));
+    }
+
+    @PostMapping("/orders/{orderId}/refund")
+    public ApiResponse<OrderRefundResultDto> refundOrder(
+            HttpServletRequest request,
+            @PathVariable("orderId") String orderId,
+            @Valid @RequestBody OrderRefundRequest body) {
+        return ApiResponse.ok(disputeService.refundByOperator(operatorId(request), orderId, body));
     }
 
     @GetMapping("/skus")

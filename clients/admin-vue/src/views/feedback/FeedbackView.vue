@@ -1,82 +1,155 @@
 ﻿<template>
-  <el-card class="page-card" shadow="never">
+  <el-card class="page-card report-page" shadow="never">
     <template #header>
-      <div class="card-head">
-        <span class="title">用户反馈</span>
-        <div class="actions">
-          <el-button @click="onExport">导出</el-button>
-          <el-select v-model="status" clearable placeholder="全部状态" style="width: 140px" @change="load">
-            <el-option
-              v-for="item in dictOptions('feedback_status')"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">用户反馈</span>
+            <span class="hint">按状态筛选；待处理可回复</span>
+          </div>
+        </div>
+        <div class="page-card-head__actions">
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
+      <el-form-item label="状态">
+        <el-select v-model="status" clearable placeholder="全部" style="width: 140px" @change="search">
+          <el-option
+            v-for="item in dictOptions('feedback_status')"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="reset">重置</el-button>
+      </el-form-item>
+    </el-form>
+
     <div class="table-scroll">
       <div class="table-scroll-inner" style="min-width: 1080px">
-        <el-table v-loading="loading" :data="list" stripe border>
-      <el-table-column prop="feedbackId" label="ID" width="80" />
-      <el-table-column label="类型" width="100">
-        <template #default="{ row }">{{ dictLabel('feedback_type', row.feedbackType) }}</template>
-      </el-table-column>
-      <el-table-column prop="content" label="内容" min-width="260" show-overflow-tooltip />
-      <el-table-column prop="userId" label="用户" width="90" />
-      <el-table-column prop="deviceId" label="设备" width="120" show-overflow-tooltip />
-      <el-table-column prop="rating" label="评分" width="70" />
-      <el-table-column label="状态" width="100">
-        <template #default="{ row }">
-          <el-tag :type="dictTagType(row.status)" size="small">
-            {{ dictLabel('feedback_status', row.status) }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="时间" width="170">
-        <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-      </el-table-column>
-      <el-table-column v-if="canReply" label="操作" width="88" class-name="col-action" align="center">
-        <template #default="{ row }">
-          <TableActions
-            v-if="row.status === 'PENDING'"
-            :actions="[{ key: 'reply', label: '回复', icon: ChatDotRound, type: 'primary' }]"
-            @action="() => openReply(row)"
-          />
-          <span v-else class="muted">已处理</span>
-        </template>
-      </el-table-column>
-      <template #empty><el-empty description="暂无反馈" /></template>
+        <el-table
+          v-loading="loading"
+          :data="list"
+          stripe
+          border
+          class="report-table"
+          row-key="feedbackId"
+          @selection-change="onSelectionChange"
+        >
+          <template #empty><el-empty description="暂无反馈" /></template>
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column label="反馈" min-width="260" class-name="col-text">
+            <template #default="{ row }">
+              <div class="feedback-cell">
+                <strong>{{ dictLabel('feedback_type', row.feedbackType) || '反馈' }}</strong>
+                <small class="content-line">{{ row.content || '-' }}</small>
+                <small>ID {{ row.feedbackId }}</small>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="用户" width="100" class-name="col-text">
+            <template #default="{ row }">
+              <button
+                v-if="row.userId"
+                type="button"
+                class="link-cell"
+                @click="router.push({ path: '/users', query: { keyword: String(row.userId) } })"
+              >
+                {{ row.userId }}
+              </button>
+              <span v-else class="muted">-</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="设备" min-width="120" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">
+              <button
+                v-if="row.deviceId"
+                type="button"
+                class="link-cell"
+                @click="router.push(`/devices/${encodeURIComponent(row.deviceId)}`)"
+              >
+                {{ row.deviceId }}
+              </button>
+              <span v-else class="muted">-</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="评分" width="72" align="center">
+            <template #default="{ row }">{{ row.rating ?? '-' }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag :type="dictTagType(row.status)" size="small">
+                {{ dictLabel('feedback_status', row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="时间" width="168" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            v-if="canReply"
+            label="操作"
+            width="88"
+            class-name="col-action"
+            align="center"
+            fixed="right"
+          >
+            <template #default="{ row }">
+              <TableActions
+                v-if="row.status === 'PENDING'"
+                :actions="[{ key: 'reply', label: '回复', icon: ChatDotRound, type: 'primary' }]"
+                @action="() => openReply(row)"
+              />
+              <span v-else class="muted">已处理</span>
+            </template>
+          </el-table-column>
         </el-table>
       </div>
     </div>
-
-    <el-dialog v-model="replyDialog" title="回复反馈" width="480px" destroy-on-close>
-      <p class="reply-content">{{ current?.content }}</p>
-      <el-input v-model="replyText" type="textarea" :rows="4" maxlength="2000" show-word-limit placeholder="回复内容" />
-      <template #footer>
-        <el-button @click="replyDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="submitReply">提交回复</el-button>
-      </template>
-    </el-dialog>
   </el-card>
+
+  <el-dialog v-model="replyDialog" title="回复反馈" width="480px" destroy-on-close>
+    <p class="reply-content">{{ current?.content }}</p>
+    <el-input
+      v-model="replyText"
+      type="textarea"
+      :rows="4"
+      maxlength="2000"
+      show-word-limit
+      placeholder="回复内容"
+    />
+    <template #footer>
+      <el-button @click="replyDialog = false">取消</el-button>
+      <el-button type="primary" :loading="saving" @click="submitReply">提交回复</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { ChatDotRound, Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 type Row = Record<string, any>;
+const route = useRoute();
+const router = useRouter();
 const auth = useAuthStore();
 const canReply = computed(() => auth.hasPerm('ops:feedback:reply'));
 
@@ -88,11 +161,14 @@ const replyDialog = ref(false);
 const replyText = ref('');
 const current = ref<Row | null>(null);
 
+const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
+  useTableSelection<Row>((r) => r.feedbackId);
+
 const { onExport } = useListCsv({
   filePrefix: '用户反馈',
   headers: ['ID', '类型', '内容', '用户', '设备', '评分', '状态', '时间'],
   toRows: () =>
-    list.value.map((row) => [
+    pickSelected(list.value).map((row) => [
       row.feedbackId,
       dictLabel('feedback_type', row.feedbackType),
       row.content,
@@ -104,16 +180,42 @@ const { onExport } = useListCsv({
     ])
 });
 
+function syncRouteQuery() {
+  const query: Record<string, string> = {};
+  if (status.value) query.status = status.value;
+  router.replace({ query });
+}
+
+function applyRouteQuery() {
+  if (typeof route.query.status === 'string' && route.query.status !== status.value) {
+    status.value = route.query.status;
+    return true;
+  }
+  return false;
+}
+
 async function load() {
   loading.value = true;
   try {
     const q = status.value ? `?status=${encodeURIComponent(status.value)}` : '';
     list.value = await api.request<Row[]>(`/api/v2/ops/feedback${q}`, 'GET');
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     loading.value = false;
   }
+}
+
+function search() {
+  syncRouteQuery();
+  load();
+}
+
+function reset() {
+  status.value = '';
+  syncRouteQuery();
+  load();
 }
 
 function openReply(row: Row) {
@@ -140,13 +242,53 @@ async function submitReply() {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  applyRouteQuery();
+  load();
+});
+onActivated(() => {
+  if (applyRouteQuery()) load();
+});
 </script>
 
 <style scoped>
-.card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-.title { font-weight: 600; }
-.actions { display: flex; gap: 8px; align-items: center; }
+.page-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.page-card-head__meta { min-width: 0; }
+.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
+.title { font-weight: 600; font-size: 15px; }
+.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+.page-card-head__actions { display: flex; gap: 8px; }
+.feedback-cell { display: grid; gap: 2px; line-height: 1.35; }
+.feedback-cell strong { font-weight: 650; }
+.feedback-cell small {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+}
+.feedback-cell .content-line {
+  color: var(--el-text-color-regular);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 320px;
+}
+.link-cell {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: var(--el-color-primary);
+  cursor: pointer;
+  font: inherit;
+}
+.link-cell:hover { text-decoration: underline; }
 .muted { color: var(--layout-muted); font-size: 13px; }
 .reply-content { margin: 0 0 12px; color: var(--layout-muted); line-height: 1.5; }
 </style>

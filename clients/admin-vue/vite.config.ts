@@ -25,7 +25,11 @@ export default defineConfig(({ mode }) => {
       host: '127.0.0.1',
       port: 3000,
       proxy: {
-        '/api': { target: env.VITE_DEV_PROXY || 'http://localhost:8080', changeOrigin: true }
+        '/api': {
+          target: env.VITE_DEV_PROXY || 'http://localhost:8080',
+          changeOrigin: true,
+          headers: { Origin: env.VITE_DEV_ORIGIN || 'http://localhost' }
+        }
       }
     },
     build: {

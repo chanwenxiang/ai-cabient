@@ -9,17 +9,26 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="onExport">导出</el-button>
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
 
     <div class="kpi-grid">
-      <div v-for="tile in kpiTiles" :key="tile.label" class="kpi-tile" :class="tile.accent">
+      <component
+        :is="tile.action ? 'button' : 'div'"
+        v-for="tile in kpiTiles"
+        :key="tile.label"
+        :type="tile.action ? 'button' : undefined"
+        class="kpi-tile"
+        :class="[tile.accent, { 'is-clickable': !!tile.action }]"
+        @click="tile.action?.()"
+      >
         <div class="kpi-label">{{ tile.label }}</div>
         <div class="kpi-value">{{ tile.value }}</div>
-      </div>
+        <div v-if="tile.hint" class="kpi-hint">{{ tile.hint }}</div>
+      </component>
     </div>
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
@@ -53,34 +62,39 @@
           border
           class="report-table"
           row-key="deviceId"
+          @selection-change="onSelectionChange"
         >
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="设备编号" width="128">
-            <template #default="{ row }"><span class="cell-id">{{ row.deviceId }}</span></template>
+          <el-table-column label="设备" min-width="180" class-name="col-text">
+            <template #default="{ row }">
+              <button type="button" class="device-cell" @click="goDevice(row.deviceId)">
+                <strong>{{ row.deviceName || row.deviceId }}</strong>
+                <small>{{ row.deviceId }}</small>
+              </button>
+            </template>
           </el-table-column>
-          <el-table-column prop="deviceName" label="设备名称" width="120" show-overflow-tooltip />
-          <el-table-column label="状态" width="88">
+          <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">
               <el-tag :type="row.onlineStatus === 'ONLINE' ? 'success' : 'info'" size="small">
                 {{ dictLabel('online_status', row.onlineStatus) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="orderTotal" label="累计订单" width="96" />
-          <el-table-column label="累计营收" width="108">
+          <el-table-column prop="orderTotal" label="累计订单" min-width="96" align="center" />
+          <el-table-column label="累计营收" min-width="108" align="right">
             <template #default="{ row }">¥{{ (row.revenueTotalCents / 100).toFixed(2) }}</template>
           </el-table-column>
-          <el-table-column prop="orderToday" label="今日订单" width="96" />
-          <el-table-column label="今日营收" width="108">
+          <el-table-column prop="orderToday" label="今日订单" min-width="96" align="center" />
+          <el-table-column label="今日营收" min-width="108" align="right">
             <template #default="{ row }">¥{{ (row.revenueTodayCents / 100).toFixed(2) }}</template>
           </el-table-column>
-          <el-table-column prop="sessionTotal" label="累计会话" width="96" />
-          <el-table-column prop="sessionActive" label="进行中" width="88" />
+          <el-table-column prop="sessionTotal" label="累计会话" min-width="96" align="center" />
+          <el-table-column prop="sessionActive" label="进行中" min-width="88" align="center" />
           <el-table-column label="操作" width="96" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 :actions="[{ key: 'detail', label: '详情', icon: View, type: 'primary' }]"
-                @action="() => router.push(`/devices/${encodeURIComponent(row.deviceId)}`)"
+                @action="() => goDevice(row.deviceId)"
               />
             </template>
           </el-table-column>
@@ -114,6 +128,7 @@ import { dictLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useTableSelection } from '@/composables/useTableSelection';
 
 interface DeviceReportRow {
   deviceId: string;
@@ -156,17 +171,49 @@ const sum = computed(() =>
     (acc, r) => ({
       orderTotal: acc.orderTotal + (r.orderTotal || 0),
       revenueTotal: acc.revenueTotal + (r.revenueTotalCents || 0),
-      revenueToday: acc.revenueToday + (r.revenueTodayCents || 0)
+      revenueToday: acc.revenueToday + (r.revenueTodayCents || 0),
+      offline: acc.offline + (r.onlineStatus === 'OFFLINE' ? 1 : 0)
     }),
-    { orderTotal: 0, revenueTotal: 0, revenueToday: 0 }
+    { orderTotal: 0, revenueTotal: 0, revenueToday: 0, offline: 0 }
   )
 );
 
+const offlineTotal = computed(() => rows.value.filter((r) => r.onlineStatus === 'OFFLINE').length);
+
 const kpiTiles = computed(() => [
-  { label: '设备数', value: String(filtered.value.length), accent: 'accent-teal' },
-  { label: '累计订单', value: String(sum.value.orderTotal), accent: 'accent-blue' },
-  { label: '累计营收', value: `¥${(sum.value.revenueTotal / 100).toFixed(2)}`, accent: 'accent-violet' },
-  { label: '今日营收', value: `¥${(sum.value.revenueToday / 100).toFixed(2)}`, accent: 'accent-amber' }
+  {
+    label: '设备数',
+    value: String(filtered.value.length),
+    accent: 'accent-teal',
+    hint: onlineFilter.value ? `已筛选 · 共 ${rows.value.length} 台` : undefined,
+    action: () => {
+      if (onlineFilter.value) {
+        onlineFilter.value = '';
+        search();
+      }
+    }
+  },
+  {
+    label: '离线设备',
+    value: String(offlineTotal.value),
+    accent: 'accent-amber',
+    hint: offlineTotal.value ? '点击筛选离线' : '全部在线',
+    action: () => {
+      onlineFilter.value = onlineFilter.value === 'OFFLINE' ? '' : 'OFFLINE';
+      search();
+    }
+  },
+  {
+    label: '累计营收',
+    value: `¥${(sum.value.revenueTotal / 100).toFixed(2)}`,
+    accent: 'accent-violet',
+    hint: `订单 ${sum.value.orderTotal}`
+  },
+  {
+    label: '今日营收',
+    value: `¥${(sum.value.revenueToday / 100).toFixed(2)}`,
+    accent: 'accent-blue'
+  }
 ]);
 
 const paginationLayout = computed(() => {
@@ -176,6 +223,9 @@ const paginationLayout = computed(() => {
 });
 
 const pagerCount = computed(() => (viewportWidth.value < 560 ? 5 : 7));
+
+const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
+  useTableSelection<DeviceReportRow>((r) => r.deviceId);
 
 const { onExport } = useListCsv({
   filePrefix: '设备经营报表',
@@ -191,7 +241,7 @@ const { onExport } = useListCsv({
     '进行中'
   ],
   toRows: () =>
-    paged.value.map((row) => [
+    pickSelected(filtered.value).map((row) => [
       row.deviceId,
       row.deviceName || '',
       dictLabel('online_status', row.onlineStatus),
@@ -217,6 +267,7 @@ async function load() {
   try {
     rows.value = await api.request<DeviceReportRow[]>('/api/v2/ops/admin/reports/devices', 'GET');
     page.value = 1;
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -224,18 +275,31 @@ async function load() {
   }
 }
 
+function syncRouteQuery() {
+  const query: Record<string, string> = {};
+  if (keyword.value.trim()) query.keyword = keyword.value.trim();
+  if (onlineFilter.value) query.online = onlineFilter.value;
+  router.replace({ query });
+}
+
 function search() {
   page.value = 1;
+  syncRouteQuery();
 }
 
 function reset() {
   keyword.value = '';
   onlineFilter.value = '';
   page.value = 1;
+  syncRouteQuery();
 }
 
 function onSizeChange() {
   page.value = 1;
+}
+
+function goDevice(deviceId: string) {
+  router.push(`/devices/${encodeURIComponent(deviceId)}`);
 }
 
 onMounted(() => {
@@ -324,12 +388,26 @@ onUnmounted(() => {
 
 .kpi-tile {
   min-width: 0;
+  width: 100%;
   border-radius: 10px;
   padding: 12px 14px;
   border: 1px solid var(--layout-border);
-  background: var(--layout-bg, #f8fafc);
+  background: var(--el-fill-color-light);
   position: relative;
   overflow: hidden;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+.kpi-tile.is-clickable {
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.15s ease;
+}
+.kpi-tile.is-clickable:hover,
+.kpi-tile.is-clickable:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--app-primary, #0f766e) 40%, var(--layout-border));
+  outline: none;
 }
 
 .kpi-tile::before {
@@ -357,6 +435,38 @@ onUnmounted(() => {
   margin-top: 4px;
   line-height: 1.2;
   word-break: break-word;
+  color: var(--layout-text);
+}
+.kpi-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--layout-muted);
+}
+.device-cell {
+  display: grid;
+  gap: 2px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  line-height: 1.35;
+}
+.device-cell:hover strong {
+  color: var(--app-primary, #0f766e);
+}
+.device-cell strong {
+  font-weight: 650;
+}
+.device-cell small {
+  color: var(--layout-muted);
+  font-size: 11px;
+}
+.report-table :deep(th.col-text > .cell),
+.report-table :deep(td.col-text > .cell) {
+  text-align: left;
 }
 
 @media (max-width: 640px) {

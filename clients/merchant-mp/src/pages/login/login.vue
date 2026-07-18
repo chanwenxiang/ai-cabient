@@ -34,7 +34,7 @@
 
         <view class="btn-primary" @click="onLogin">{{ loading ? '登录中…' : '登录' }}</view>
         <text v-if="err" class="err">{{ err }}</text>
-        <text class="hint">演示：13800138001 / 123456</text>
+        <text v-if="isDev" class="hint">开发演示：13800138001 / 123456</text>
       </view>
     </view>
   </view>
@@ -45,8 +45,9 @@ import { ref } from 'vue';
 import { merchantLogin, merchantApi } from '@/utils/merchant-api';
 import loginBgUrl from '@/static/login-bg.png';
 
-const phone = ref('13800138001');
-const password = ref('123456');
+const isDev = import.meta.env.DEV;
+const phone = ref(isDev ? '13800138001' : '');
+const password = ref(isDev ? '123456' : '');
 const loading = ref(false);
 const err = ref('');
 

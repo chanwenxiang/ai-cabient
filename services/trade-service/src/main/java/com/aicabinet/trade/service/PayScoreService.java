@@ -149,17 +149,16 @@ public class PayScoreService {
             log.info("payscore live charge user={} order={} amount={}", user.getUserId(), orderId, amountCents);
             return new ChargeResult(PayChannels.WECHAT, tradeNo);
         }
-        if (securityProperties.mockEnabled()) {
+        // PAYSCORE_MOCK_ENABLED gates mock charge together with global security mock
+        if (securityProperties.mockEnabled() && payScoreProperties.mockEnabled()) {
             String tradeNo = "MOCK-PS-" + orderId;
             log.info("payscore mock charge user={} order={} amount={} desc={}",
                     user.getUserId(), orderId, amountCents, description);
             return new ChargeResult(PayChannels.WECHAT, tradeNo);
         }
-        if (weChatPayProperties.isConfigured() && payScoreProperties.enabled()) {
-            throw new IllegalStateException(
-                    "WeChat PayScore live charging is not enabled. Configure a real charge implementation before production use.");
-        }
-        return new ChargeResult(PayChannels.BALANCE, null);
+        throw new IllegalStateException(
+                "WeChat PayScore charge unavailable: enable PAYSCORE_LIVE_CHARGE_ENABLED with a charge gateway, "
+                        + "or enable mock (AICABINET_MOCK_ENABLED + PAYSCORE_MOCK_ENABLED). Silent balance fallback is disabled.");
     }
 
     private ChargeResult chargeAlipayAgreement(UserInfo user, String orderId, int amountCents, String description) {
@@ -175,17 +174,15 @@ public class PayScoreService {
             log.info("alipay agreement live charge user={} order={} amount={}", user.getUserId(), orderId, amountCents);
             return new ChargeResult(PayChannels.ALIPAY, tradeNo);
         }
-        if (securityProperties.mockEnabled()) {
+        if (securityProperties.mockEnabled() && payScoreProperties.mockEnabled()) {
             String tradeNo = "MOCK-ALI-" + orderId;
             log.info("alipay agreement mock charge user={} order={} amount={} desc={}",
                     user.getUserId(), orderId, amountCents, description);
             return new ChargeResult(PayChannels.ALIPAY, tradeNo);
         }
-        if (alipayPayClient.isConfigured()) {
-            throw new IllegalStateException(
-                    "Alipay agreement live charging is not enabled. Configure a real charge implementation before production use.");
-        }
-        return new ChargeResult(PayChannels.BALANCE, null);
+        throw new IllegalStateException(
+                "Alipay agreement charge unavailable: enable PAYSCORE_LIVE_CHARGE_ENABLED with a charge gateway, "
+                        + "or enable mock (AICABINET_MOCK_ENABLED + PAYSCORE_MOCK_ENABLED). Silent balance fallback is disabled.");
     }
 
     private UserInfo requireUser(Long userId) {

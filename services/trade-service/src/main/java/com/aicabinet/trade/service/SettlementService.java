@@ -49,6 +49,7 @@ public class SettlementService {
     private final SkuVisionEnrollmentService skuVisionEnrollmentService;
     private final CouponService couponService;
     private final MemberService memberService;
+    private final RefundPolicyService refundPolicyService;
 
     public SettlementService(ShoppingSessionMapper sessionRepository,
                              SkuCatalogMapper skuCatalogRepository,
@@ -71,7 +72,8 @@ public class SettlementService {
                              VideoArchiveService videoArchiveService,
                              SkuVisionEnrollmentService skuVisionEnrollmentService,
                              CouponService couponService,
-                             MemberService memberService) {
+                             MemberService memberService,
+                             RefundPolicyService refundPolicyService) {
         this.sessionRepository = sessionRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.orderRepository = orderRepository;
@@ -94,6 +96,7 @@ public class SettlementService {
         this.skuVisionEnrollmentService = skuVisionEnrollmentService;
         this.couponService = couponService;
         this.memberService = memberService;
+        this.refundPolicyService = refundPolicyService;
     }
 
     /** 人工审核后确认清单：无订单则首次扣款；有订单则按差额退/补。 */
@@ -526,7 +529,10 @@ public class SettlementService {
                 order.getCreatedAt(),
                 couponDiscount,
                 originalAmount,
-                pointsEarned > 0 ? pointsEarned : null
+                pointsEarned > 0 ? pointsEarned : null,
+                refundPolicyService != null
+                        ? refundPolicyService.resolveForDevice(order.getDeviceId()).name()
+                        : null
         );
     }
 }

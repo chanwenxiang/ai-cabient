@@ -1,12 +1,15 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OrderDto;
+import com.aicabinet.common.dto.OrderRefundRequest;
+import com.aicabinet.common.dto.OrderRefundResultDto;
 import com.aicabinet.common.dto.OrderSummaryDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -21,13 +24,16 @@ public class OrderService {
     private final CabinetOrderMapper orderRepository;
     private final CabinetOrderLineMapper orderLineRepository;
     private final SettlementService settlementService;
+    private final DisputeService disputeService;
 
     public OrderService(CabinetOrderMapper orderRepository,
                         CabinetOrderLineMapper orderLineRepository,
-                        SettlementService settlementService) {
+                        SettlementService settlementService,
+                        @Lazy DisputeService disputeService) {
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
         this.settlementService = settlementService;
+        this.disputeService = disputeService;
     }
 
     @Transactional(readOnly = true)
@@ -50,6 +56,11 @@ public class OrderService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND);
         }
         return settlementService.getOrderBySession(order.getSessionId());
+    }
+
+    @Transactional
+    public OrderRefundResultDto refundMyOrder(Long userId, String orderId, OrderRefundRequest request) {
+        return disputeService.refundByConsumer(userId, orderId, request);
     }
 
     private OrderSummaryDto toSummary(CabinetOrder order) {

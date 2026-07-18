@@ -1,21 +1,28 @@
-﻿<template>
-  <el-card class="page-card" shadow="never">
+<template>
+  <el-card class="page-card report-page" shadow="never">
     <template #header>
-      <div class="card-head">
-        <span class="title">灰度用户</span>
-        <div class="actions">
-          <el-button @click="onExport">导出</el-button>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">灰度用户</span>
+            <span class="hint">按手机号 / 姓名 / ID 筛选；余额右对齐</span>
+          </div>
+        </div>
+        <div class="page-card-head__actions">
+          <el-button @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
-    <el-form inline class="filter-bar" @submit.prevent="search">
+
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="关键词">
         <el-input
           v-model="keyword"
           clearable
           placeholder="手机号 / 姓名 / 用户ID"
           style="width: 220px"
+          @keyup.enter="search"
           @clear="search"
         />
       </el-form-item>
@@ -24,47 +31,79 @@
         <el-button @click="reset">重置</el-button>
       </el-form-item>
     </el-form>
+
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 980px">
-        <el-table v-loading="loading" :data="items" stripe border>
-      <el-table-column prop="userId" label="用户ID" width="120" />
-      <el-table-column prop="phoneNumber" label="手机号" min-width="130" />
-      <el-table-column prop="name" label="姓名" min-width="110" />
-      <el-table-column label="角色" width="120">
-        <template #default="{ row }">{{ row.role || '-' }}</template>
-      </el-table-column>
-      <el-table-column label="实名" width="100">
-        <template #default="{ row }">
-          <el-tag :type="row.verified ? 'success' : 'warning'" size="small">
-            {{ row.verified ? '已实名' : '未实名' }}
-          </el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column label="测试余额" width="120">
-        <template #default="{ row }">¥{{ ((row.balanceCents || 0) / 100).toFixed(2) }}</template>
-      </el-table-column>
-      <el-table-column label="注册时间" width="180">
-        <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-      </el-table-column>
-      <el-table-column v-if="canAdjust" label="操作" width="88" class-name="col-action" align="center">
-        <template #default="{ row }">
-          <TableActions
-            :actions="[{ key: 'adjust', label: '调整余额', icon: Wallet, type: 'primary' }]"
-            @action="() => adjust(row)"
-          />
-        </template>
-      </el-table-column>
-      <template #empty><el-empty description="暂无用户" /></template>
+      <div class="table-scroll-inner" style="min-width: 920px">
+        <el-table
+          v-loading="loading"
+          :data="items"
+          stripe
+          border
+          class="report-table"
+          row-key="userId"
+          @selection-change="onSelectionChange"
+        >
+          <template #empty><el-empty description="暂无用户" /></template>
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column label="用户" min-width="160" class-name="col-text">
+            <template #default="{ row }">
+              <div class="user-cell">
+                <strong>{{ row.name || row.phoneNumber || row.userId }}</strong>
+                <small>ID {{ row.userId }}</small>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="手机号" width="140" class-name="col-text">
+            <template #default="{ row }">{{ row.phoneNumber || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="角色" width="110" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.role" size="small" effect="plain">{{ row.role }}</el-tag>
+              <span v-else class="muted">-</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="实名" width="96" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.verified ? 'success' : 'warning'" size="small">
+                {{ row.verified ? '已实名' : '未实名' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="余额" width="120" align="right" class-name="col-money">
+            <template #default="{ row }">¥{{ ((row.balanceCents || 0) / 100).toFixed(2) }}</template>
+          </el-table-column>
+          <el-table-column label="注册时间" width="168" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            v-if="canAdjust"
+            label="操作"
+            width="100"
+            class-name="col-action"
+            align="center"
+            fixed="right"
+          >
+            <template #default="{ row }">
+              <TableActions
+                :actions="[{ key: 'adjust', label: '调整余额', icon: Wallet, type: 'primary' }]"
+                @action="() => adjust(row)"
+              />
+            </template>
+          </el-table-column>
         </el-table>
       </div>
     </div>
+
     <div class="page-pager">
       <el-pagination
         v-model:current-page="page"
         v-model:page-size="size"
         :total="total"
         :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
+        layout="total, sizes, prev, pager, next"
+        background
         @current-change="load"
         @size-change="onSizeChange"
       />
@@ -73,13 +112,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Refresh, Wallet } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
+import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -93,8 +135,10 @@ interface UserRow {
   createdAt?: string;
 }
 
+const route = useRoute();
+const router = useRouter();
 const auth = useAuthStore();
-const canAdjust = computed(() => auth.hasPerm('ops:user:balance'));
+const canAdjust = computed(() => ENABLE_TEST_TOOLS && auth.hasPerm('ops:user:balance'));
 
 const loading = ref(false);
 const keyword = ref('');
@@ -103,11 +147,14 @@ const size = ref(20);
 const total = ref(0);
 const items = ref<UserRow[]>([]);
 
+const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
+  useTableSelection<UserRow>((r) => r.userId);
+
 const { onExport } = useListCsv({
   filePrefix: '灰度用户',
-  headers: ['用户ID', '手机号', '姓名', '角色', '实名', '测试余额', '注册时间'],
+  headers: ['用户ID', '手机号', '姓名', '角色', '实名', '余额', '注册时间'],
   toRows: () =>
-    items.value.map((row) => [
+    pickSelected(items.value).map((row) => [
       row.userId,
       row.phoneNumber,
       row.name,
@@ -117,6 +164,20 @@ const { onExport } = useListCsv({
       formatDateTime(row.createdAt)
     ])
 });
+
+function syncRouteQuery() {
+  const query: Record<string, string> = {};
+  if (keyword.value.trim()) query.keyword = keyword.value.trim();
+  router.replace({ query });
+}
+
+function applyRouteQuery() {
+  if (typeof route.query.keyword === 'string' && route.query.keyword !== keyword.value) {
+    keyword.value = route.query.keyword;
+    return true;
+  }
+  return false;
+}
 
 async function load() {
   loading.value = true;
@@ -135,6 +196,7 @@ async function load() {
     }
     items.value = list;
     total.value = data.total || list.length;
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -144,12 +206,17 @@ async function load() {
 
 function search() {
   page.value = 1;
+  syncRouteQuery();
   load();
 }
+
 function reset() {
   keyword.value = '';
-  search();
+  page.value = 1;
+  syncRouteQuery();
+  load();
 }
+
 function onSizeChange() {
   page.value = 1;
   load();
@@ -158,8 +225,8 @@ function onSizeChange() {
 async function adjust(row: UserRow) {
   try {
     const amount = await ElMessageBox.prompt(
-      `当前测试余额 ¥${((row.balanceCents || 0) / 100).toFixed(2)}。输入变动金额，正数发放、负数扣回。`,
-      '调整测试余额',
+      `当前余额 ¥${((row.balanceCents || 0) / 100).toFixed(2)}。输入变动金额，正数发放、负数扣回。`,
+      '调整余额',
       {
         inputPattern: /^-?\d+(\.\d{1,2})?$/,
         inputErrorMessage: '请输入正确金额',
@@ -179,7 +246,7 @@ async function adjust(row: UserRow) {
       reason: reason.value,
       idempotencyKey: `admin-${row.userId}-${Date.now()}`
     });
-    ElMessage.success('测试余额已调整');
+    ElMessage.success('余额已调整');
     await load();
   } catch (e: any) {
     if (e !== 'cancel' && e !== 'close') {
@@ -188,12 +255,37 @@ async function adjust(row: UserRow) {
   }
 }
 
-onMounted(load);
+onMounted(() => {
+  applyRouteQuery();
+  load();
+});
+onActivated(() => {
+  if (applyRouteQuery()) {
+    page.value = 1;
+    load();
+  }
+});
 </script>
 
 <style scoped>
-.card-head { display: flex; justify-content: space-between; align-items: center; }
-.title { font-weight: 600; }
-.filter-bar { margin-bottom: 8px; }
-.page-pager { margin-top: 16px; display: flex; justify-content: flex-end; }
+.page-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.page-card-head__meta { min-width: 0; }
+.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
+.title { font-weight: 600; font-size: 15px; }
+.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+.page-card-head__actions { display: flex; gap: 8px; }
+.user-cell { display: grid; gap: 2px; line-height: 1.35; }
+.user-cell strong { font-weight: 650; }
+.user-cell small {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-family: var(--app-font-mono);
+}
+.muted { color: var(--el-text-color-secondary); }
 </style>

@@ -55,7 +55,7 @@ class MerchantE2ETest {
                 .param("page", "0")
                 .param("size", "20"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(jsonPath("$.code").value(0));
     }
 
     @Test
@@ -65,28 +65,27 @@ class MerchantE2ETest {
         mockMvc.perform(get("/api/v2/merchant/devices/" + deviceId)
                 .header("Authorization", "Bearer " + merchantToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(jsonPath("$.code").value(0));
     }
 
     @Test
     @Order(4)
     @DisplayName("商户场景4：查看销售统计")
     void scenario4_GetSalesStatistics() throws Exception {
-        mockMvc.perform(get("/api/v2/merchant/statistics")
-                .header("Authorization", "Bearer " + merchantToken)
-                .param("period", "today"))
+        mockMvc.perform(get("/api/v2/merchant/stats")
+                .header("Authorization", "Bearer " + merchantToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(jsonPath("$.code").value(0));
     }
 
     @Test
     @Order(5)
-    @DisplayName("商户场景5：查看分账收入")
+    @DisplayName("商户场景5：查看结算概览")
     void scenario5_GetRevenueShare() throws Exception {
-        mockMvc.perform(get("/api/v2/revenue-share/my-income")
+        mockMvc.perform(get("/api/v2/merchant/settlements/overview")
                 .header("Authorization", "Bearer " + merchantToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(jsonPath("$.code").value(0));
     }
 
     @Test
@@ -98,19 +97,17 @@ class MerchantE2ETest {
                 .param("page", "0")
                 .param("size", "20"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(jsonPath("$.code").value(0));
     }
 
     @Test
     @Order(7)
-    @DisplayName("商户场景7：申请提现")
+    @DisplayName("商户场景7：查看结算批次（无自主提现）")
     void scenario7_RequestWithdraw() throws Exception {
-        mockMvc.perform(post("/api/v2/revenue-share/withdraw")
-                .header("Authorization", "Bearer " + merchantToken)
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"amountCents\":10000,\"method\":\"wechat\",\"idempotencyKey\":\"e2e-withdraw-001\"}"))
+        mockMvc.perform(get("/api/v2/merchant/settlements/batches")
+                .header("Authorization", "Bearer " + merchantToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(jsonPath("$.code").value(0));
     }
 
     @Test
@@ -120,7 +117,7 @@ class MerchantE2ETest {
         mockMvc.perform(get("/api/v2/merchant/replenishment/tasks")
                 .header("Authorization", "Bearer " + merchantToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(jsonPath("$.code").value(0));
     }
 
     @Test
@@ -133,18 +130,18 @@ class MerchantE2ETest {
                 .param("page", "0")
                 .param("size", "10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(jsonPath("$.code").value(0));
     }
 
     @Test
     @Order(10)
-    @DisplayName("商户场景10：查看财务报表")
+    @DisplayName("商户场景10：查看日结算汇总")
     void scenario10_GetFinanceReport() throws Exception {
-        mockMvc.perform(get("/api/v2/merchant/finance/report")
+        mockMvc.perform(get("/api/v2/merchant/settlements/daily")
                 .header("Authorization", "Bearer " + merchantToken)
-                .param("startDate", "2026-07-01")
-                .param("endDate", "2026-07-14"))
+                .param("from", "2026-07-01")
+                .param("to", "2026-07-14"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(jsonPath("$.code").value(0));
     }
 }

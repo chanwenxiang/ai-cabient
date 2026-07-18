@@ -140,7 +140,16 @@ public class DeviceSimulator implements MqttCallback {
     @Override
     public void messageArrived(String topic, MqttMessage message) throws Exception {
         JsonNode node = mapper.readTree(message.getPayload());
-        if (!CabinetConstants.MQTT_CMD_OPEN_DOOR.equals(node.path("type").asText())) {
+        String type = node.path("type").asText();
+        String commandId = node.path("commandId").asText();
+        if (!CabinetConstants.MQTT_CMD_OPEN_DOOR.equals(type)) {
+            if (CabinetConstants.MQTT_CMD_SET_TARGET_TEMP.equals(type)
+                    || CabinetConstants.MQTT_CMD_LOCK.equals(type)
+                    || CabinetConstants.MQTT_CMD_UNLOCK.equals(type)
+                    || CabinetConstants.MQTT_CMD_REBOOT.equals(type)) {
+                System.out.println("[simulator] " + type + " received");
+                publishAck(commandId);
+            }
             return;
         }
 
@@ -150,7 +159,7 @@ public class DeviceSimulator implements MqttCallback {
         System.out.println("[simulator] OPEN_DOOR received session=" + sessionId
                 + " userId=" + userId + " operatorMode=" + operatorMode);
 
-        publishAck(node.path("commandId").asText());
+        publishAck(commandId);
         scheduleShoppingFlow(sessionId, userId, operatorMode);
     }
 

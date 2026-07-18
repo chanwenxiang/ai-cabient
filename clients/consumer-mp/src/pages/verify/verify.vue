@@ -30,7 +30,7 @@
 
     <view v-else-if="!payReady" class="card">
       <text class="card-title">开通支付</text>
-      <text class="card-desc">真实业务：开通微信/支付宝免密后关门自动扣款；测试余额 ≥ ¥5 仅作兜底。</text>
+      <text class="card-desc">真实业务：开通微信/支付宝免密后关门自动扣款；余额 ≥ ¥5 仅作兜底。</text>
       <view class="status-row">
         <text class="status-label">当前余额</text>
         <text class="status-val">¥{{ balanceYuan }}</text>

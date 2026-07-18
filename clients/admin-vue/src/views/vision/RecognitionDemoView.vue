@@ -1,111 +1,116 @@
 <template>
-  <div class="demo-page">
-    <el-card class="demo-card">
-      <template #header>
-        <div class="demo-header">
-          <div>
-            <h2>识别 Demo</h2>
-            <p class="subtitle">上传商品图片，YOLO 识别后自动匹配 SKU 名称与价格</p>
+  <el-card class="page-card report-page demo-card" shadow="never">
+    <template #header>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">识别 Demo</span>
+            <span class="hint">上传商品图，YOLO 识别后匹配 SKU 名称与价格</span>
           </div>
-          <el-tag type="info">仅预览，不扣款</el-tag>
         </div>
-      </template>
-
-      <div class="demo-layout">
-        <section class="upload-panel">
-          <div
-            class="drop-zone"
-            :class="{ dragging: dragging, 'has-image': !!previewUrl }"
-            @dragover.prevent="dragging = true"
-            @dragleave.prevent="dragging = false"
-            @drop.prevent="onDrop"
-            @click="triggerPick"
-          >
-            <input ref="fileInput" type="file" accept="image/*" class="hidden-input" @change="onPick" />
-            <img v-if="previewUrl" :src="previewUrl" alt="预览" class="preview-image" />
-            <div v-else class="drop-placeholder">
-              <el-icon :size="48"><UploadFilled /></el-icon>
-              <p>点击或拖拽上传商品图片</p>
-              <span>支持 JPG / PNG，建议单品正面清晰图</span>
-            </div>
-          </div>
-
-          <div class="actions">
-            <el-button type="primary" size="large" :loading="recognizing" :disabled="!imageFile" @click="runRecognize">
-              开始识别
-            </el-button>
-            <el-button size="large" :disabled="!imageFile" @click="clearImage">清空</el-button>
-          </div>
-        </section>
-
-        <section class="result-panel">
-          <el-empty v-if="!result && !recognizing" description="识别结果将显示在这里" />
-
-          <div v-if="recognizing" class="loading-block">
-            <el-skeleton :rows="4" animated />
-          </div>
-
-          <template v-if="result && !recognizing">
-            <el-alert
-              :title="result.hint || '识别完成'"
-              :type="result.needReview ? 'warning' : 'success'"
-              show-icon
-              :closable="false"
-              class="result-alert"
-            />
-
-            <div v-if="result.items?.length" class="result-list">
-              <div v-for="item in result.items" :key="item.skuId" class="result-item">
-                <div class="item-main">
-                  <div class="item-name">{{ item.skuName || item.skuId }}</div>
-                  <div class="item-meta">
-                    <code>{{ item.skuId }}</code>
-                    <span>× {{ item.quantity }}</span>
-                  </div>
-                </div>
-                <div class="item-price">
-                  <div v-if="item.unitPriceCents != null" class="unit">¥{{ cents(item.unitPriceCents) }}</div>
-                  <div v-if="item.lineAmountCents != null" class="line">小计 ¥{{ cents(item.lineAmountCents) }}</div>
-                  <div class="confidence">置信度 {{ Math.round((item.confidence || 0) * 100) }}%</div>
-                </div>
-              </div>
-
-              <div v-if="totalCents > 0" class="total-row">
-                <span>合计</span>
-                <strong>¥{{ cents(totalCents) }}</strong>
-              </div>
-            </div>
-
-            <el-descriptions v-else :column="1" border size="small" class="meta-block">
-              <el-descriptions-item label="YOLO 检测类">
-                {{ (result.detectedClasses || []).join('、') || '无' }}
-              </el-descriptions-item>
-            </el-descriptions>
-
-            <el-descriptions :column="1" border size="small" class="meta-block">
-              <el-descriptions-item label="模型">{{ result.modelVersion || '—' }}</el-descriptions-item>
-              <el-descriptions-item label="整体置信度">
-                {{ Math.round((result.overallConfidence || 0) * 100) }}%
-              </el-descriptions-item>
-              <el-descriptions-item label="自动扣款">
-                <el-tag :type="result.needReview ? 'warning' : 'success'" size="small">
-                  {{ result.needReview ? '需人工审核' : '可自动扣款' }}
-                </el-tag>
-              </el-descriptions-item>
-            </el-descriptions>
-          </template>
-        </section>
+        <div class="page-card-head__actions">
+          <el-tag type="info" effect="plain">仅预览，不扣款</el-tag>
+          <el-button @click="router.push('/vision-mappings')">识别映射</el-button>
+          <el-button @click="router.push('/skus')">商品与识别</el-button>
+        </div>
       </div>
-    </el-card>
-  </div>
+    </template>
+
+    <div class="demo-layout">
+      <section class="upload-panel">
+        <div
+          class="drop-zone"
+          :class="{ dragging: dragging, 'has-image': !!previewUrl }"
+          @dragover.prevent="dragging = true"
+          @dragleave.prevent="dragging = false"
+          @drop.prevent="onDrop"
+          @click="triggerPick"
+        >
+          <input ref="fileInput" type="file" accept="image/*" class="hidden-input" @change="onPick" />
+          <img v-if="previewUrl" :src="previewUrl" alt="预览" class="preview-image" />
+          <div v-else class="drop-placeholder">
+            <el-icon :size="48"><UploadFilled /></el-icon>
+            <p>点击或拖拽上传商品图片</p>
+            <span>支持 JPG / PNG，建议单品正面清晰图</span>
+          </div>
+        </div>
+
+        <div class="actions">
+          <el-button type="primary" :loading="recognizing" :disabled="!imageFile" @click="runRecognize">
+            开始识别
+          </el-button>
+          <el-button :disabled="!imageFile" @click="clearImage">清空</el-button>
+        </div>
+      </section>
+
+      <section class="result-panel">
+        <el-empty v-if="!result && !recognizing" description="识别结果将显示在这里" />
+
+        <div v-if="recognizing" class="loading-block">
+          <el-skeleton :rows="4" animated />
+        </div>
+
+        <template v-if="result && !recognizing">
+          <el-alert
+            :title="result.hint || '识别完成'"
+            :type="result.needReview ? 'warning' : 'success'"
+            show-icon
+            :closable="false"
+            class="result-alert"
+          />
+
+          <div v-if="result.items?.length" class="result-list">
+            <div v-for="item in result.items" :key="item.skuId" class="result-item">
+              <div class="item-main">
+                <div class="name-cell">
+                  <strong>{{ item.skuName || item.skuId }}</strong>
+                  <small class="cell-id">{{ item.skuId }} · ×{{ item.quantity }}</small>
+                </div>
+              </div>
+              <div class="item-price">
+                <div v-if="item.unitPriceCents != null" class="unit">¥{{ cents(item.unitPriceCents) }}</div>
+                <div v-if="item.lineAmountCents != null" class="line">小计 ¥{{ cents(item.lineAmountCents) }}</div>
+                <div class="confidence">置信度 {{ Math.round((item.confidence || 0) * 100) }}%</div>
+              </div>
+            </div>
+
+            <div v-if="totalCents > 0" class="total-row">
+              <span>合计</span>
+              <strong>¥{{ cents(totalCents) }}</strong>
+            </div>
+          </div>
+
+          <el-descriptions v-else :column="1" border size="small" class="meta-block">
+            <el-descriptions-item label="YOLO 检测类">
+              {{ (result.detectedClasses || []).join('、') || '无' }}
+            </el-descriptions-item>
+          </el-descriptions>
+
+          <el-descriptions :column="1" border size="small" class="meta-block">
+            <el-descriptions-item label="模型">{{ result.modelVersion || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="整体置信度">
+              {{ Math.round((result.overallConfidence || 0) * 100) }}%
+            </el-descriptions-item>
+            <el-descriptions-item label="自动扣款">
+              <el-tag :type="result.needReview ? 'warning' : 'success'" size="small">
+                {{ result.needReview ? '需人工审核' : '可自动扣款' }}
+              </el-tag>
+            </el-descriptions-item>
+          </el-descriptions>
+        </template>
+      </section>
+    </div>
+  </el-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { UploadFilled } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import type { DevRecognitionPreviewDto } from '@aicabinet/shared-types';
 
+const router = useRouter();
 const dragging = ref(false);
 const recognizing = ref(false);
 const imageFile = ref<File | null>(null);
@@ -180,28 +185,18 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.demo-page {
-  max-width: 1080px;
-  margin: 0 auto;
-}
-
-.demo-header {
+.page-card-head {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  gap: 16px;
+  gap: 12px;
+  flex-wrap: wrap;
 }
-
-.demo-header h2 {
-  margin: 0 0 4px;
-  font-size: 20px;
-}
-
-.subtitle {
-  margin: 0;
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
-}
+.page-card-head__meta { min-width: 0; }
+.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
+.title { font-weight: 600; font-size: 15px; }
+.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+.page-card-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 
 .demo-layout {
   display: grid;
@@ -210,9 +205,7 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 900px) {
-  .demo-layout {
-    grid-template-columns: 1fr;
-  }
+  .demo-layout { grid-template-columns: 1fr; }
 }
 
 .drop-zone {
@@ -254,9 +247,7 @@ onBeforeUnmount(() => {
   color: var(--el-text-color-primary);
 }
 
-.hidden-input {
-  display: none;
-}
+.hidden-input { display: none; }
 
 .actions {
   display: flex;
@@ -264,13 +255,8 @@ onBeforeUnmount(() => {
   margin-top: 16px;
 }
 
-.result-panel {
-  min-height: 320px;
-}
-
-.result-alert {
-  margin-bottom: 16px;
-}
+.result-panel { min-height: 320px; }
+.result-alert { margin-bottom: 16px; }
 
 .result-list {
   display: flex;
@@ -282,24 +268,18 @@ onBeforeUnmount(() => {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px;
+  padding: 14px 16px;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 10px;
   background: var(--el-fill-color-light);
 }
 
-.item-name {
-  font-size: 18px;
-  font-weight: 600;
-  margin-bottom: 6px;
-}
-
-.item-meta {
-  display: flex;
-  gap: 10px;
-  align-items: center;
+.name-cell { display: grid; gap: 2px; line-height: 1.35; }
+.name-cell strong { font-weight: 650; font-size: 16px; }
+.name-cell small {
   color: var(--el-text-color-secondary);
-  font-size: 13px;
+  font-size: 11px;
+  font-family: var(--app-font-mono);
 }
 
 .item-price {
@@ -308,14 +288,16 @@ onBeforeUnmount(() => {
 }
 
 .item-price .unit {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--el-color-danger);
+  font-variant-numeric: tabular-nums;
 }
 
 .item-price .line {
   margin-top: 4px;
-  font-size: 14px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
 }
 
 .item-price .confidence {
@@ -334,11 +316,6 @@ onBeforeUnmount(() => {
   font-size: 16px;
 }
 
-.meta-block {
-  margin-top: 16px;
-}
-
-.loading-block {
-  padding: 8px 0;
-}
+.meta-block { margin-top: 16px; }
+.loading-block { padding: 8px 0; }
 </style>

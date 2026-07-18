@@ -2,14 +2,14 @@
   <div v-loading="loading" class="analytics-page">
     <el-card class="page-card" shadow="never">
       <template #header>
-        <div class="card-head">
-          <span class="title">数据分析</span>
-          <div class="heading-actions">
-            <el-radio-group v-model="days" size="default" @change="load">
-              <el-radio-button :label="7">近 7 天</el-radio-button>
-              <el-radio-button :label="30">近 30 天</el-radio-button>
-              <el-radio-button :label="90">近 90 天</el-radio-button>
-            </el-radio-group>
+        <div class="page-card-head">
+          <div class="page-card-head__meta">
+            <div class="page-card-head__title">
+              <span class="title">数据分析</span>
+              <span class="hint">上方为今日 / 近 24 小时快照，不受下方趋势范围影响</span>
+            </div>
+          </div>
+          <div class="page-card-head__actions">
             <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
           </div>
         </div>
@@ -17,34 +17,74 @@
 
       <el-row :gutter="12" class="stats-row">
         <el-col :xs="12" :sm="6">
-          <div class="stat-tile accent-teal">
+          <div
+            class="stat-tile accent-teal is-clickable"
+            role="button"
+            tabindex="0"
+            @click="router.push('/finance')"
+            @keydown.enter="router.push('/finance')"
+          >
             <div class="stat-label">今日营收</div>
             <div class="stat-value">¥{{ ((stats.revenueTodayCents || 0) / 100).toFixed(2) }}</div>
+            <div class="stat-hint">查看财务毛利</div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
-          <div class="stat-tile accent-blue">
+          <div
+            class="stat-tile accent-blue is-clickable"
+            role="button"
+            tabindex="0"
+            @click="router.push('/orders')"
+            @keydown.enter="router.push('/orders')"
+          >
             <div class="stat-label">今日订单</div>
             <div class="stat-value">{{ stats.orderToday || 0 }}</div>
+            <div class="stat-hint">查看订单列表</div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
-          <div class="stat-tile accent-violet">
+          <div
+            class="stat-tile accent-violet is-clickable"
+            role="button"
+            tabindex="0"
+            @click="router.push('/sessions')"
+            @keydown.enter="router.push('/sessions')"
+          >
             <div class="stat-label">24h 开门成功率</div>
             <div class="stat-value">{{ ((stats.doorSuccessRate24h || 0) * 100).toFixed(1) }}%</div>
+            <div class="stat-hint">查看开门记录</div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
-          <div class="stat-tile accent-amber">
+          <div
+            class="stat-tile accent-amber is-clickable"
+            role="button"
+            tabindex="0"
+            @click="router.push('/disputes')"
+            @keydown.enter="router.push('/disputes')"
+          >
             <div class="stat-label">24h 自动识别率</div>
             <div class="stat-value">{{ ((stats.recognitionAutoRate24h || 0) * 100).toFixed(1) }}%</div>
+            <div class="stat-hint">查看争议审核</div>
           </div>
         </el-col>
       </el-row>
     </el-card>
 
+    <div class="trend-toolbar">
+      <div>
+        <span class="trend-title">趋势与渠道</span>
+        <span class="header-hint">当前范围：近 {{ days }} 天</span>
+      </div>
+      <el-radio-group v-model="days" size="default" @change="onDaysChange">
+        <el-radio-button :value="7">近 7 天</el-radio-button>
+        <el-radio-button :value="30">近 30 天</el-radio-button>
+        <el-radio-button :value="90">近 90 天</el-radio-button>
+      </el-radio-group>
+    </div>
+
     <div class="chart-grid chart-grid--2">
-      <ChartPanel title="营收趋势" hint="单位：元">
+      <ChartPanel title="营收趋势" :hint="`近 ${days} 天 · 元`">
         <template #actions>
           <div class="chart-type-switch" role="group" aria-label="图表类型">
             <button type="button" :class="{ active: revenueKind === 'line' }" @click="revenueKind = 'line'">折线</button>
@@ -61,7 +101,7 @@
         </template>
       </ChartPanel>
 
-      <ChartPanel title="订单量" hint="单位：单">
+      <ChartPanel title="订单量" :hint="`近 ${days} 天 · 单`">
         <template #actions>
           <div class="chart-type-switch" role="group" aria-label="图表类型">
             <button type="button" :class="{ active: orderKind === 'line' }" @click="orderKind = 'line'">折线</button>
@@ -80,7 +120,7 @@
     </div>
 
     <div class="chart-grid chart-grid--2">
-      <ChartPanel title="订单支付渠道" hint="按订单金额" donut>
+      <ChartPanel title="订单支付渠道" :hint="`近 ${days} 天 · 按金额`" donut>
         <div class="donut-layout">
           <ChartBox v-if="orderChannelSvg" :svg="orderChannelSvg" donut />
           <el-empty v-else description="暂无订单支付数据" :image-size="64" />
@@ -94,7 +134,7 @@
         </div>
       </ChartPanel>
 
-      <ChartPanel title="充值渠道" hint="已到账金额" donut>
+      <ChartPanel title="充值渠道" :hint="`近 ${days} 天 · 已到账`" donut>
         <div class="donut-layout">
           <ChartBox v-if="rechargeChannelSvg" :svg="rechargeChannelSvg" donut />
           <el-empty v-else description="暂无充值数据" :image-size="64" />
@@ -110,7 +150,7 @@
     </div>
 
     <div class="chart-grid chart-grid--split">
-      <ChartPanel title="识别质量" hint="自动识别率 vs 争议率">
+      <ChartPanel title="识别质量" :hint="`近 ${days} 天 · 识别率 vs 争议率`">
         <template #actions>
           <div class="chart-type-switch" role="group" aria-label="图表类型">
             <button type="button" :class="{ active: opsKind === 'line' }" @click="opsKind = 'line'">折线</button>
@@ -151,24 +191,24 @@
         </ChartPanel>
 
         <ChartPanel title="经营快照" compact>
-          <el-descriptions :column="1" border size="small">
+          <el-descriptions :column="1" border size="small" class="snapshot-desc">
             <el-descriptions-item label="累计营收">¥{{ ((stats.revenueTotalCents || 0) / 100).toFixed(2) }}</el-descriptions-item>
             <el-descriptions-item label="累计订单">{{ stats.orderTotal || 0 }}</el-descriptions-item>
             <el-descriptions-item label="待审争议">
               <el-button
                 v-if="(stats.disputeOpen || 0) > 0"
                 link
-                type="primary"
+                type="danger"
                 @click="router.push({ path: '/disputes', query: { status: 'OPEN' } })"
               >
-                {{ stats.disputeOpen }}
+                {{ stats.disputeOpen }} 条待审
               </el-button>
-              <span v-else>0</span>
+              <span v-else class="muted">0</span>
             </el-descriptions-item>
             <el-descriptions-item label="24h 争议率">{{ ((stats.disputeRate24h || 0) * 100).toFixed(1) }}%</el-descriptions-item>
-            <el-descriptions-item label="毛利率（今日）">
+            <el-descriptions-item label="今日毛利率">
               <el-button link type="primary" @click="router.push('/finance')">
-                {{ ((finance?.grossMarginRateToday || 0) * 100).toFixed(1) }}%
+                查看 {{ ((finance?.grossMarginRateToday || 0) * 100).toFixed(1) }}%
               </el-button>
             </el-descriptions-item>
           </el-descriptions>
@@ -179,8 +219,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel } from '@aicabinet/shared-dict';
@@ -227,8 +267,9 @@ const CHANNEL_COLORS: Record<string, string> = {
 };
 
 const router = useRouter();
+const route = useRoute();
 const loading = ref(false);
-const days = ref(7);
+const days = ref(parseDays(route.query.days));
 const stats = ref<AdminStats>({});
 const trend = ref<DailyStat[]>([]);
 const opsTrend = ref<OpsDaily[]>([]);
@@ -238,6 +279,16 @@ const channels = ref<ChannelBreakdown>({});
 const revenueKind = ref<ChartKind>('area');
 const orderKind = ref<ChartKind>('bar');
 const opsKind = ref<ChartKind>('line');
+
+function parseDays(raw: unknown): number {
+  const n = Number(raw);
+  return n === 30 || n === 90 ? n : 7;
+}
+
+function onDaysChange() {
+  router.replace({ query: { ...route.query, days: String(days.value) } });
+  load();
+}
 
 const offlineDevices = computed(() => Math.max((stats.value.deviceTotal || 0) - (stats.value.deviceOnline || 0), 0));
 const labels = computed(() => trend.value.map((d) => shortDate(d.date)));
@@ -292,13 +343,19 @@ const opsSvg = computed(() => {
 
 const orderChannelSvg = computed(() =>
   buildDonutChart({
-    parts: orderChannelParts.value.map((p) => ({ label: p.label, value: p.value, color: p.color }))
+    parts: orderChannelParts.value.map((p) => ({ label: p.label, value: p.value, color: p.color })),
+    formatCenter: (cents) => (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2),
+    formatValue: (cents) => `¥${(cents / 100).toFixed(2)}`,
+    valueLabel: '金额'
   })
 );
 
 const rechargeChannelSvg = computed(() =>
   buildDonutChart({
-    parts: rechargeChannelParts.value.map((p) => ({ label: p.label, value: p.value, color: p.color }))
+    parts: rechargeChannelParts.value.map((p) => ({ label: p.label, value: p.value, color: p.color })),
+    formatCenter: (cents) => (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2),
+    formatValue: (cents) => `¥${(cents / 100).toFixed(2)}`,
+    valueLabel: '金额'
   })
 );
 
@@ -307,7 +364,9 @@ const deviceSvg = computed(() =>
     parts: [
       { label: '在线', value: stats.value.deviceOnline || 0, color: '#2dd4bf' },
       { label: '离线', value: offlineDevices.value, color: '#64748b' }
-    ]
+    ],
+    formatValue: (n) => `${n} 台`,
+    valueLabel: '数量'
   })
 );
 
@@ -334,28 +393,65 @@ async function load() {
   }
 }
 
+watch(
+  () => route.query.days,
+  (raw) => {
+    const next = parseDays(raw);
+    if (next !== days.value) {
+      days.value = next;
+      load();
+    }
+  }
+);
+
 onMounted(load);
 </script>
 
 <style scoped>
-.card-head {
+.page-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.page-card-head__meta { min-width: 0; }
+.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
+.page-card-head__actions { display: flex; gap: 8px; align-items: center; }
+.title { font-weight: 600; font-size: 15px; }
+.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+.header-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--layout-muted);
+}
+.trend-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--layout-border);
+  border-radius: 12px;
+  background: var(--layout-card);
 }
-.title { font-weight: 600; }
-.heading-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-
+.trend-title {
+  font-weight: 600;
+  margin-right: 8px;
+}
 .stats-row .stat-tile {
   border-radius: 10px;
   padding: 14px 16px;
   margin-bottom: 4px;
   border: 1px solid var(--layout-border);
-  background: var(--layout-bg, #f8fafc);
+  background: var(--el-fill-color-light);
   position: relative;
   overflow: hidden;
+  height: 100%;
+  box-sizing: border-box;
 }
 .stats-row .stat-tile::before {
   content: '';
@@ -365,11 +461,27 @@ onMounted(load);
   bottom: 0;
   width: 3px;
 }
+.stat-tile.is-clickable {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.stat-tile.is-clickable:hover,
+.stat-tile.is-clickable:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--app-primary, #0f766e) 40%, var(--layout-border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, #0f766e) 16%, transparent);
+  outline: none;
+}
 .stat-tile.accent-teal::before { background: #2dd4bf; }
 .stat-tile.accent-blue::before { background: #60a5fa; }
 .stat-tile.accent-violet::before { background: #a78bfa; }
 .stat-tile.accent-amber::before { background: #fbbf24; }
 .stat-label { font-size: 13px; color: var(--layout-muted); }
-.stat-value { font-size: 24px; font-weight: 700; margin-top: 6px; }
-.muted { color: var(--layout-muted); font-size: 12px; margin-left: 4px; }
+.stat-value { font-size: 24px; font-weight: 700; margin-top: 6px; color: var(--layout-text); }
+.stat-hint { font-size: 12px; color: var(--layout-muted); margin-top: 8px; }
+.muted { color: var(--layout-muted); font-size: 12px; }
+.donut-legend-list .muted { margin-left: 4px; }
+.snapshot-desc :deep(.el-descriptions__label) {
+  width: 110px;
+}
 </style>

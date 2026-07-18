@@ -14,6 +14,7 @@ import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -82,6 +83,7 @@ public class AdminDashboardService {
     private final PaymentReconciliationMapper reconciliationRepository;
     private final WarehouseInTransitMapper inTransitRepository;
     private final BalanceLedgerService balanceLedgerService;
+    private final RefundPolicyService refundPolicyService;
 
     public AdminDashboardService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
@@ -108,7 +110,8 @@ public class AdminDashboardService {
                                  ReplenishmentTaskMapper replenishmentTaskRepository,
                                  PaymentReconciliationMapper reconciliationRepository,
                                  WarehouseInTransitMapper inTransitRepository,
-                                 BalanceLedgerService balanceLedgerService) {
+                                 BalanceLedgerService balanceLedgerService,
+                                 RefundPolicyService refundPolicyService) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -135,6 +138,7 @@ public class AdminDashboardService {
         this.reconciliationRepository = reconciliationRepository;
         this.inTransitRepository = inTransitRepository;
         this.balanceLedgerService = balanceLedgerService;
+        this.refundPolicyService = refundPolicyService;
     }
 
     public AdminStatsDto stats(Long operatorId) {
@@ -572,21 +576,63 @@ public class AdminDashboardService {
     }
 
     public List<AdminDeviceDto> listDevices(Long operatorId) {
+        return listDevicesPaged(operatorId, 0, 5000, null, null).items();
+    }
+
+    public PageResult<AdminDeviceDto> listDevicesPaged(Long operatorId, int page, int size,
+                                                         String q, String online) {
         permissionService.requirePermission(operatorId, "ops:device:list");
         List<DeviceInfo> devices = merchantScopeService.allowedDevices(operatorId);
         Set<String> replenishing = replenishingDeviceIds();
-        Map<String, ShoppingSession> activeByDevice = sessionRepository
-                .findAll().stream()
-                .filter(s -> ACTIVE_STATES.contains(s.getState()))
+        Map<String, ShoppingSession> sessionByDevice = sessionRepository.findAll().stream()
                 .collect(Collectors.toMap(
                         ShoppingSession::getDeviceId,
                         s -> s,
-                        (a, b) -> a.getCreatedAt().isAfter(b.getCreatedAt()) ? a : b
+                        AdminDashboardService::preferSessionForDeviceList
                 ));
 
-        return devices.stream()
-                .map(d -> toDeviceDto(d, activeByDevice.get(d.getDeviceId()), replenishing.contains(d.getDeviceId())))
+        String kw = q == null ? "" : q.trim().toLowerCase();
+        String onlineFilter = online == null ? "" : online.trim().toUpperCase();
+
+        List<AdminDeviceDto> filtered = devices.stream()
+                .map(d -> toDeviceDto(d, sessionByDevice.get(d.getDeviceId()), replenishing.contains(d.getDeviceId())))
+                .filter(d -> {
+                    if (!onlineFilter.isEmpty() && !onlineFilter.equalsIgnoreCase(String.valueOf(d.onlineStatus()))) {
+                        return false;
+                    }
+                    if (kw.isEmpty()) {
+                        return true;
+                    }
+                    return String.valueOf(d.deviceId()).toLowerCase().contains(kw)
+                            || String.valueOf(d.deviceName() == null ? "" : d.deviceName()).toLowerCase().contains(kw)
+                            || String.valueOf(d.merchantId() == null ? "" : d.merchantId()).toLowerCase().contains(kw)
+                            || String.valueOf(d.merchantName() == null ? "" : d.merchantName()).toLowerCase().contains(kw);
+                })
                 .toList();
+
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        int safePage = Math.max(page, 0);
+        int from = Math.min(safePage * safeSize, filtered.size());
+        int to = Math.min(from + safeSize, filtered.size());
+        return new PageResult<>(filtered.subList(from, to), safePage, safeSize, filtered.size());
+    }
+
+    private static ShoppingSession preferSessionForDeviceList(ShoppingSession a, ShoppingSession b) {
+        boolean aActive = ACTIVE_STATES.contains(a.getState());
+        boolean bActive = ACTIVE_STATES.contains(b.getState());
+        if (aActive != bActive) {
+            return aActive ? a : b;
+        }
+        Instant au = sessionTouchTime(a);
+        Instant bu = sessionTouchTime(b);
+        return au.isAfter(bu) ? a : b;
+    }
+
+    private static Instant sessionTouchTime(ShoppingSession s) {
+        if (s.getUpdatedAt() != null) {
+            return s.getUpdatedAt();
+        }
+        return s.getCreatedAt() != null ? s.getCreatedAt() : Instant.EPOCH;
     }
 
     public PageResult<AdminSessionDto> listSessions(Long operatorId, int page, int size,
@@ -880,10 +926,30 @@ public class AdminDashboardService {
                 device.setMerchantId(merchantId);
             }
         }
+        boolean touchRefundPolicy = request.refundPolicy() != null;
+        String storedRefundPolicy = null;
+        if (touchRefundPolicy) {
+            // INHERIT/空 → null（跟随全局）；MyBatis-Plus updateById 默认跳过 null，须单独 set
+            storedRefundPolicy = RefundPolicyService.normalizeStored(request.refundPolicy());
+            device.setRefundPolicy(storedRefundPolicy);
+        }
+        Instant now = Instant.now();
+        device.setUpdatedAt(now);
         deviceRepository.save(device);
-        auditService.record(operatorId, "DEVICE_UPDATE", "DEVICE", deviceId, device.getDeviceName());
-        ShoppingSession active = findActiveSession(deviceId);
-        return toDeviceDto(device, active, replenishingDeviceIds().contains(device.getDeviceId()));
+        if (touchRefundPolicy) {
+            deviceRepository.update(null, Wrappers.<DeviceInfo>lambdaUpdate()
+                    .eq(DeviceInfo::getDeviceId, deviceId)
+                    .set(DeviceInfo::getRefundPolicy, storedRefundPolicy)
+                    .set(DeviceInfo::getUpdatedAt, now));
+            device.setRefundPolicy(storedRefundPolicy);
+            device.setUpdatedAt(now);
+        }
+        auditService.record(operatorId, "DEVICE_UPDATE", "DEVICE", deviceId,
+                device.getDeviceName() + "; refundPolicy=" + device.getRefundPolicy());
+        // 重新加载，避免返回值与库不一致
+        DeviceInfo fresh = deviceRepository.findById(deviceId).orElse(device);
+        ShoppingSession session = findSessionForDeviceList(deviceId);
+        return toDeviceDto(fresh, session, replenishingDeviceIds().contains(fresh.getDeviceId()));
     }
 
     @Transactional(readOnly = true)
@@ -1146,6 +1212,17 @@ public class AdminDashboardService {
                 .findFirst().orElse(null);
     }
 
+    private ShoppingSession findSessionForDeviceList(String deviceId) {
+        ShoppingSession active = findActiveSession(deviceId);
+        if (active != null) {
+            return active;
+        }
+        return sessionRepository.findByDeviceIdOrderByCreatedAtDesc(deviceId, PageRequest.of(0, 1))
+                .stream()
+                .findFirst()
+                .orElse(null);
+    }
+
     private AdminUserDto toUserDto(UserInfo u) {
         int balance = userAccountRepository.findById(u.getUserId())
                 .map(a -> a.getBalanceCents()).orElse(0);
@@ -1241,7 +1318,9 @@ public class AdminDashboardService {
                 active != null ? active.getSessionId() : null,
                 active != null ? active.getState().name() : null,
                 d.getUpdatedAt(),
-                replenishmentInProgress
+                replenishmentInProgress,
+                d.getRefundPolicy(),
+                refundPolicyService.resolveForDevice(d.getDeviceId()).name()
         );
     }
 

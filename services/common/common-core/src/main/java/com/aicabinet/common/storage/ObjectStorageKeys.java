@@ -55,6 +55,16 @@ public final class ObjectStorageKeys {
         return String.format(Locale.ROOT, "archive/%s/%s/user-%d/%s-%s%s", date, safeSku, userId, safeSession, cam, ext);
     }
 
+    /** 消费者申诉证据图。 */
+    public static String disputeEvidenceKey(long userId, String fileToken, String extension) {
+        ZonedDateTime zdt = Instant.now().atZone(ZONE);
+        String date = String.format(
+                Locale.ROOT, "%04d/%02d/%02d", zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+        String token = sanitize(fileToken, "file");
+        String ext = normalizeExtension(extension);
+        return String.format(Locale.ROOT, "dispute-evidence/%s/user-%d/%s%s", date, userId, token, ext);
+    }
+
     private static String prefix(
             String root,
             String deviceId,

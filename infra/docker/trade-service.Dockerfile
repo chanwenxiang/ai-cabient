@@ -21,12 +21,14 @@ COPY packages/shared-uni/src packages/shared-uni/src
 
 COPY clients/admin-vue/package.json clients/admin-vue/package-lock.json clients/admin-vue/
 COPY clients/admin-vue/index.html clients/admin-vue/vite.config.ts clients/admin-vue/tsconfig.json clients/admin-vue/
+COPY clients/admin-vue/public clients/admin-vue/public
 COPY clients/admin-vue/src clients/admin-vue/src
 
 COPY services/common/common-core/src services/common/common-core/src
 COPY services/trade-service/src services/trade-service/src
 
 RUN --mount=type=cache,target=/root/.m2,sharing=locked \
+    --mount=type=cache,target=/root/.npm,sharing=locked \
     --mount=type=cache,target=/build/services/trade-service/target/frontend,sharing=locked \
     mvn package -DskipTests -pl services/trade-service -am -B
 

@@ -25,6 +25,14 @@
           <view class="error-copy">
             <text class="error-title">暂时无法开门</text>
             <text class="error-detail">{{ landingError }}</text>
+            <view class="error-actions">
+              <text
+                v-if="lastFailedDeviceId"
+                class="error-action primary"
+                @click="retryLastOpen"
+              >重试开门</text>
+              <text class="error-action" @click="landingError = ''; showManual = true">换一台</text>
+            </view>
           </view>
           <text class="error-close" @click="landingError = ''">×</text>
         </view>
@@ -142,7 +150,7 @@
       <text v-if="deviceId" class="flow-device">{{ deviceName || deviceId }}</text>
       <text v-if="pollError" class="flow-err">{{ pollError }}</text>
       <button
-        v-if="state === 'CREATED' || state === 'OPENING'"
+        v-if="state === 'CREATED' || state === 'OPENING' || (opening && !sessionId)"
         class="flow-cancel"
         :loading="cancelling"
         :disabled="cancelling"
@@ -212,6 +220,8 @@ const opening = ref(false);
 const cancelling = ref(false);
 const pollError = ref('');
 const landingError = ref('');
+const lastFailedDeviceId = ref('');
+const lastFailedChannel = ref<string | null>(null);
 const reviewSessionId = ref(String(uni.getStorageSync('last_disputed_session_id') || ''));
 const reviewTicket = ref<DisputeTicketDto | null>(null);
 const reviewCopy = computed(() => consumerDisputeReviewCopy(reviewTicket.value));
@@ -379,12 +389,18 @@ function resetDevice() {
 async function startShoppingFlow(id: string, scanChannel?: string | null) {
   const cabinetId = id.trim().toUpperCase();
   if (!cabinetId || opening.value || enteringFlow.value) return;
+  if (!/^[A-Z0-9][A-Z0-9_-]{1,63}$/.test(cabinetId)) {
+    landingError.value = '柜机编号无效，请扫描柜门二维码或输入如 CAB-001。';
+    lastFailedDeviceId.value = '';
+    uni.showToast({ title: '柜机编号无效', icon: 'none' });
+    return;
+  }
 
   const resolved = resolveEntryChannel(scanChannel) || entryChannel.value;
   if (resolved) entryChannel.value = resolved;
 
   enteringFlow.value = true;
-    landingError.value = '';
+  landingError.value = '';
 
   if (!(await requireConsumerAuth('扫码开门需先完成微信授权'))) {
     enteringFlow.value = false;
@@ -403,6 +419,8 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
     if (deviceOffline.value) {
       scanned.value = false;
       deviceId.value = '';
+      lastFailedDeviceId.value = cabinetId;
+      lastFailedChannel.value = entryChannel.value;
       landingError.value = deviceStatusText.value && deviceStatusText.value !== '离线'
         ? deviceStatusText.value
         : '该柜机当前离线或编号无效，请确认柜号后重试，或更换其他柜机。';
@@ -410,24 +428,34 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
       return;
     }
     productsLoading.value = true;
+    const OPEN_TIMEOUT_MS = 20000;
     const [productsResult, sessionResult] = await Promise.allSettled([
-      consumerApi.deviceProducts(cabinetId),
-      consumerApi.createSession(cabinetId, entryChannel.value)
+      withTimeout(consumerApi.deviceProducts(cabinetId), OPEN_TIMEOUT_MS, '商品加载超时，请重试'),
+      withTimeout(
+        consumerApi.createSession(cabinetId, entryChannel.value),
+        OPEN_TIMEOUT_MS,
+        '开门请求超时，请检查网络后重试'
+      )
     ]);
     if (productsResult.status === 'fulfilled') {
       products.value = productsResult.value;
     } else {
       products.value = [];
+      // 商品失败不阻断开门，仅提示
       uni.showToast({ title: formatError(productsResult.reason), icon: 'none' });
     }
     if (sessionResult.status !== 'fulfilled') {
       scanned.value = false;
       deviceId.value = '';
+      lastFailedDeviceId.value = cabinetId;
+      lastFailedChannel.value = entryChannel.value;
       landingError.value = formatError(sessionResult.reason);
       uni.showToast({ title: landingError.value, icon: 'none' });
       return;
     }
     const s = sessionResult.value;
+    lastFailedDeviceId.value = '';
+    lastFailedChannel.value = null;
     sessionId.value = s.sessionId;
     uni.setStorageSync('active_session_id', s.sessionId);
     applySessionView(s);
@@ -437,6 +465,29 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
     opening.value = false;
     enteringFlow.value = false;
   }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      }
+    );
+  });
+}
+
+function retryLastOpen() {
+  const id = lastFailedDeviceId.value;
+  if (!id) return;
+  landingError.value = '';
+  startShoppingFlow(id, lastFailedChannel.value);
 }
 
 function goOrders() {
@@ -540,16 +591,25 @@ function onScan() {
     onlyFromCamera: false,
     scanType: ['qrCode', 'barCode'],
     success(res) {
-      const parsed = parseCabinetScan(res.result);
+      const raw = String(res.result || '').trim();
+      if (!raw) {
+        uni.showToast({ title: '未识别到有效内容，请对准柜门二维码', icon: 'none' });
+        return;
+      }
+      const parsed = parseCabinetScan(raw);
       if (parsed.alipayOnly) {
         uni.showToast({ title: '请使用支付宝扫码', icon: 'none' });
         return;
       }
       if (!parsed.deviceId) {
-        uni.showToast({ title: '无法识别柜机', icon: 'none' });
+        landingError.value = '无法识别柜机二维码，请扫描柜门上的专用码，或手动输入柜机编号。';
+        uni.showToast({ title: '无法识别柜机二维码', icon: 'none' });
         return;
       }
       startShoppingFlow(parsed.deviceId, parsed.channel);
+    },
+    fail() {
+      uni.showToast({ title: '扫码取消或失败', icon: 'none' });
     }
   });
 }
@@ -609,7 +669,17 @@ async function reopenShop() {
 }
 
 async function cancelOpening() {
-  if (!sessionId.value || cancelling.value) return;
+  if (cancelling.value) return;
+  // 尚无 session：仅取消本地开门等待
+  if (!sessionId.value) {
+    opening.value = false;
+    enteringFlow.value = false;
+    scanned.value = false;
+    deviceId.value = '';
+    products.value = [];
+    uni.showToast({ title: '已取消开门', icon: 'none' });
+    return;
+  }
   cancelling.value = true;
   try {
     const s = await consumerApi.cancelSession(sessionId.value);
@@ -1283,7 +1353,7 @@ function stopDevicePoll() {
 <style scoped>
 .landing{padding:0;background:#f5c842}.landing-head{padding-top:52rpx;text-align:center}.brand{font-size:58rpx}.tagline{font-size:31rpx}.hero-illustration{top:150rpx}
 .resume-card{margin-top:22rpx;padding:24rpx 28rpx;border-left:6rpx solid #ea580c;border-radius:22rpx;box-shadow:0 12rpx 34rpx rgba(92,61,30,.1)}.resume-title{color:#ea580c}.resume-sub{color:#7a5a32}
-.landing-error{display:flex;align-items:flex-start;gap:18rpx;margin-top:20rpx;padding:22rpx;border:1rpx solid #fecaca;border-radius:20rpx;background:rgba(255,247,247,.94);box-shadow:0 9rpx 24rpx rgba(220,38,38,.07)}.error-icon{display:flex;flex:0 0 42rpx;height:42rpx;align-items:center;justify-content:center;border-radius:50%;color:#fff;background:#ef4444;font-weight:800}.error-copy{min-width:0;flex:1}.error-title,.error-detail{display:block}.error-title{color:#991b1b;font-size:25rpx;font-weight:700}.error-detail{margin-top:6rpx;color:#b45353;font-size:22rpx;line-height:1.5}.error-close{padding:0 5rpx;color:#b98b8b;font-size:34rpx;line-height:1}
+.landing-error{display:flex;align-items:flex-start;gap:18rpx;margin-top:20rpx;padding:22rpx;border:1rpx solid #fecaca;border-radius:20rpx;background:rgba(255,247,247,.94);box-shadow:0 9rpx 24rpx rgba(220,38,38,.07)}.error-icon{display:flex;flex:0 0 42rpx;height:42rpx;align-items:center;justify-content:center;border-radius:50%;color:#fff;background:#ef4444;font-weight:800}.error-copy{min-width:0;flex:1}.error-title,.error-detail{display:block}.error-title{color:#991b1b;font-size:25rpx;font-weight:700}.error-detail{margin-top:6rpx;color:#b45353;font-size:22rpx;line-height:1.5}.error-actions{display:flex;flex-wrap:wrap;gap:16rpx;margin-top:14rpx}.error-action{padding:8rpx 18rpx;border-radius:999rpx;border:1rpx solid #f0b4b4;color:#9f1239;font-size:22rpx;background:#fff}.error-action.primary{border-color:#059669;color:#047857;background:#ecfdf5}.error-close{padding:0 5rpx;color:#b98b8b;font-size:34rpx;line-height:1}
 .scan-circle-inner{width:228rpx;height:228rpx;box-shadow:0 18rpx 52rpx rgba(234,88,12,.4)}.scan-circle-text{font-size:36rpx}.landing-foot{padding-bottom:22rpx}.manual-link{color:#9a7b4f}
 .device-bar{margin:18rpx 20rpx 0;padding:25rpx;border:1rpx solid #edf2ef;border-radius:22rpx;box-shadow:0 9rpx 28rpx rgba(15,23,42,.055)}.device-status{margin-top:7rpx;font-weight:600}.catalog-notice{margin:14rpx 20rpx 0;padding:18rpx 20rpx;border:1rpx solid #fde7a9;border-radius:15rpx;background:#fffbeb}.product-grid{padding:0 20rpx;gap:18rpx}.product-cell{width:calc(50% - 9rpx);padding:15rpx;border:1rpx solid #eef2f0;border-radius:22rpx;box-shadow:0 9rpx 26rpx rgba(15,23,42,.055)}.product-thumb{height:210rpx;border-radius:17rpx}.product-name{font-size:27rpx;font-weight:600;color:#26342d}.product-price{color:#047857;font-size:34rpx}.cart-bar{border-top:0;box-shadow:0 -10rpx 32rpx rgba(15,23,42,.08);padding:18rpx 24rpx}.cart-cta{background:linear-gradient(135deg,#059669,#0d9488);box-shadow:0 8rpx 22rpx rgba(5,150,105,.22)}
 .flow-overlay{background:radial-gradient(circle at 50% 35%,#ecfdf5,#fff 55%)}.flow-spinner{width:132rpx;height:132rpx;border-width:10rpx;box-shadow:0 16rpx 44rpx rgba(5,150,105,.13)}.flow-title{font-size:44rpx;color:#173026}.flow-device{padding:10rpx 18rpx;border-radius:999rpx;background:#ecfdf5;font-weight:600}

@@ -53,7 +53,8 @@ html, body, #app {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-family: var(--app-font, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif);
+  font-size: 14px;
   color: var(--layout-text);
   background: var(--layout-bg);
 }
@@ -61,28 +62,59 @@ html, body, #app {
 * { box-sizing: border-box; }
 button, input, textarea, select { font: inherit; }
 
+/* 所有弹窗在窄窗口内保留安全边距，避免固定像素宽度溢出屏幕。 */
+.el-dialog {
+  max-width: calc(100vw - 32px);
+}
+
+.el-message-box {
+  max-width: calc(100vw - 32px);
+}
+
 :root {
   --sidebar-width: 220px;
   --header-height: 56px;
+  --app-font: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --app-font-mono: "Cascadia Code", "Consolas", "SF Mono", ui-monospace, monospace;
 }
 
 .layout-main {
+  width: 100%;
   height: 100vh;
+  height: 100dvh;
   background: var(--layout-bg);
 }
 
 .el-main {
+  width: 100%;
+  min-width: 0;
   background: var(--layout-bg);
   color: var(--layout-text);
 }
 
 /* 默认表头/单元格居中（主内容区列表通用） */
+.layout-main-scroll .el-table,
+.page-card .el-table {
+  font-family: var(--app-font);
+  font-size: 13px;
+  color: var(--layout-text);
+  --el-table-font-size: 13px;
+}
+
 .layout-main-scroll .el-table th.el-table__cell,
 .layout-main-scroll .el-table td.el-table__cell,
 .page-card .el-table th.el-table__cell,
 .page-card .el-table td.el-table__cell {
   text-align: center;
+  font-family: inherit;
+  font-size: 13px;
 }
+
+.layout-main-scroll .el-table th.el-table__cell,
+.page-card .el-table th.el-table__cell {
+  font-weight: 600;
+}
+
 .layout-main-scroll .el-table {
   --el-table-header-text-color: var(--layout-text);
 }
@@ -96,6 +128,8 @@ button, input, textarea, select { font: inherit; }
   text-overflow: ellipsis;
   padding: 0 10px;
   line-height: 1.4;
+  font-family: inherit;
+  font-size: inherit;
 }
 
 /* 操作列：不裁剪图标按钮 */
@@ -209,21 +243,127 @@ button, input, textarea, select { font: inherit; }
 }
 
 .cell-id {
+  font-family: var(--app-font-mono);
   font-variant-numeric: tabular-nums;
+  font-size: 12px;
   background: color-mix(in srgb, var(--el-fill-color) 80%, transparent);
   padding: 2px 8px;
   border-radius: 4px;
 }
 
+.name-cell {
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+}
+
+.name-cell strong {
+  font-weight: 650;
+  color: var(--layout-text);
+}
+
+.name-cell small {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-family: var(--app-font-mono);
+}
+
 .page-card {
+  width: 100%;
+  max-width: 100%;
   margin-bottom: 16px;
   min-width: 0;
   overflow: visible;
+  box-sizing: border-box;
 }
 
 .page-card > .el-card__body {
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   overflow: visible;
+  box-sizing: border-box;
+}
+
+/*
+ * 列表页单卡片：随主区宽高等比铺满（窗口放大 / 浏览器缩放后不再四周留白）。
+ * 多卡片页（如工作台）根节点是 div，不受影响。
+ */
+.layout-main-scroll > .page-card {
+  flex: 1 1 auto;
+  align-self: stretch;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.layout-main-scroll > .page-card.el-card {
+  /* Element Plus card 本身已是 flex column */
+  height: 100%;
+}
+
+.layout-main-scroll > .page-card > .el-card__header {
+  flex-shrink: 0;
+}
+
+.layout-main-scroll > .page-card > .el-card__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .filter-bar,
+.layout-main-scroll > .page-card > .el-card__body > .el-form {
+  flex-shrink: 0;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .table-scroll {
+  flex: 1 1 auto;
+  min-height: 200px;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs > .el-tabs__header {
+  flex-shrink: 0;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs > .el-tabs__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs > .el-tabs__content > .el-tab-pane {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs .table-scroll {
+  flex: 1 1 auto;
+  min-height: 160px;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs .page-pager {
+  flex-shrink: 0;
+  margin-top: 12px;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .page-pager {
+  flex-shrink: 0;
+  margin-top: 12px;
 }
 
 .page-card-head {
@@ -241,9 +381,27 @@ button, input, textarea, select { font: inherit; }
 
 .page-card-head__title {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.page-card-head__title .title {
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.page-card-head__title .hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.page-card-head__actions {
+  display: flex;
   gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .kpi-grid {
@@ -280,25 +438,16 @@ button, input, textarea, select { font: inherit; }
 
 .table-scroll-inner {
   display: block;
-  width: max-content;
+  /* 始终铺满主区宽度；列用 min-width 时由 Element Plus 分配多余空间 */
+  width: 100%;
   min-width: 100%;
+  box-sizing: border-box;
 }
 
 .table-scroll .el-table {
   width: 100% !important;
+  min-width: 100%;
   margin-bottom: 0;
-}
-
-/* 禁止 el-table 内部再出横滚，避免双滚动条 */
-.table-scroll .el-table .el-table__header-wrapper,
-.table-scroll .el-table .el-table__body-wrapper,
-.table-scroll .el-table .el-table__footer-wrapper,
-.table-scroll .el-table .el-scrollbar__wrap {
-  overflow-x: hidden !important;
-}
-
-.table-scroll .el-table .el-scrollbar__bar.is-horizontal {
-  display: none !important;
 }
 
 .table-scroll .el-table::before,
@@ -322,6 +471,15 @@ button, input, textarea, select { font: inherit; }
   max-width: min(480px, 90cqw);
 }
 
+/* 展开行二级表：铺满可用宽度，避免 margin 裁切与列不对齐 */
+.table-scroll .el-table__expanded-cell {
+  padding: 8px 12px 12px !important;
+  background: color-mix(in srgb, var(--layout-bg, #f8fafc) 70%, transparent);
+}
+.table-scroll .el-table__expanded-cell .el-table {
+  width: 100% !important;
+}
+
 .filter-bar--compact {
   display: flex;
   flex-wrap: wrap;
@@ -332,6 +490,14 @@ button, input, textarea, select { font: inherit; }
 .filter-bar--compact .el-form-item {
   margin-right: 0;
   margin-bottom: 0;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 100%;
+}
+
+/* 避免 inline 表单项内容区 flex:1 把整行撑满导致筛选竖排 */
+.filter-bar--compact .el-form-item__content {
+  flex: 0 1 auto;
 }
 
 .filter-bar--responsive .el-form-item {
@@ -362,6 +528,25 @@ button, input, textarea, select { font: inherit; }
   .el-main { padding: 12px !important; }
   .page-heading { gap: 12px; }
   .page-heading p { display: none; }
+
+  .el-dialog {
+    --el-dialog-margin-top: 5vh;
+  }
+
+  .el-dialog__body {
+    max-height: 72vh;
+    overflow-y: auto;
+  }
+
+  .el-form--inline .el-form-item {
+    width: 100%;
+  }
+
+  .el-form--inline .el-form-item__content,
+  .el-form--inline .el-input,
+  .el-form--inline .el-select {
+    width: 100% !important;
+  }
 
   .filter-bar--responsive .filter-item-grow,
   .filter-bar--responsive .filter-item-sm,

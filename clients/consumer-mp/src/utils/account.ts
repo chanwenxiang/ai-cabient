@@ -45,7 +45,7 @@ export function channelLabel(channel?: string | null): string {
  * 是否满足开门支付条件（真实业务优先免密）：
  * - 运营账号
  * - 指定渠道已开通免密（支付分 / 支付宝代扣）
- * - 或测试余额 ≥ ¥5（兜底）
+ * - 或余额 ≥ ¥5（兜底）
  */
 export function isPayReady(
   acc?: Pick<
@@ -79,15 +79,15 @@ export function payReadyHint(
   const channel = normalizeEntryChannel(entryChannel);
   if (channel === 'WECHAT') {
     if (acc.payscoreEnabled) return '已开通微信支付分，购物后自动扣款';
-    if ((acc.balanceCents || 0) >= MIN_BALANCE_CENTS) return '可用测试余额兜底开门';
-    return '请开通微信支付分（推荐），或充值测试余额至 ¥5 以上';
+    if ((acc.balanceCents || 0) >= MIN_BALANCE_CENTS) return '可用余额兜底开门';
+    return '请开通微信支付分（推荐），或充值余额至 ¥5 以上';
   }
   if (channel === 'ALIPAY') {
     if (acc.alipayAgreementEnabled) return '已开通支付宝免密，购物后自动扣款';
-    if ((acc.balanceCents || 0) >= MIN_BALANCE_CENTS) return '可用测试余额兜底开门';
-    return '请开通支付宝免密代扣（推荐），或充值测试余额至 ¥5 以上';
+    if ((acc.balanceCents || 0) >= MIN_BALANCE_CENTS) return '可用余额兜底开门';
+    return '请开通支付宝免密代扣（推荐），或充值余额至 ¥5 以上';
   }
   if (acc.passwordFreeReady) return '已开通免密支付';
-  if ((acc.balanceCents || 0) >= MIN_BALANCE_CENTS) return '测试余额已满足开门条件';
-  return '请开通微信/支付宝免密，或充值测试余额至 ¥5 以上';
+  if ((acc.balanceCents || 0) >= MIN_BALANCE_CENTS) return '余额已满足开门条件';
+  return '请开通微信/支付宝免密，或充值余额至 ¥5 以上';
 }

@@ -153,7 +153,12 @@ export async function resumePendingRechargeIfAny(): Promise<boolean> {
       clearPendingRechargeOrder();
       return false;
     }
-    uni.showToast({ title: msg, icon: 'none', duration: 3000 });
+    // 开发阶段：避免反复弹错误；仅保留一次轻提示并可手动清理
+    const softKey = `recharge_resume_soft_${orderId}`;
+    if (!uni.getStorageSync(softKey)) {
+      uni.setStorageSync(softKey, '1');
+      uni.showToast({ title: '有一笔充值待确认，稍后刷新余额即可', icon: 'none', duration: 2500 });
+    }
     return false;
   }
 }

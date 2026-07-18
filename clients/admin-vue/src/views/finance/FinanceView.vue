@@ -2,33 +2,62 @@
   <div v-loading="loading" class="finance-page">
     <el-card class="page-card" shadow="never">
       <template #header>
-        <div class="card-head">
-          <span class="title">财务毛利</span>
-          <div class="heading-actions">
-            <el-radio-group v-model="days" @change="load">
-              <el-radio-button :label="7">近 7 天</el-radio-button>
-              <el-radio-button :label="30">近 30 天</el-radio-button>
-              <el-radio-button :label="90">近 90 天</el-radio-button>
-            </el-radio-group>
+        <div class="page-card-head">
+          <div class="page-card-head__meta">
+            <div class="page-card-head__title">
+              <span class="title">财务毛利</span>
+              <span class="hint">上方为今日快照；趋势与商品 TOP 受下方天数范围影响</span>
+            </div>
+          </div>
+          <div class="page-card-head__actions">
             <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
           </div>
         </div>
       </template>
 
-      <el-row :gutter="12">
+      <el-row :gutter="12" class="kpi-row">
         <el-col v-for="item in kpiTiles" :key="item.label" :xs="12" :sm="8" :md="4">
-          <div class="kpi-tile">
+          <div
+            class="kpi-tile"
+            :class="[item.accent, { 'is-clickable': !!item.path }]"
+            :role="item.path ? 'button' : undefined"
+            :tabindex="item.path ? 0 : undefined"
+            @click="item.path && router.push(item.path)"
+            @keydown.enter="item.path && router.push(item.path)"
+          >
             <div class="kpi-label">{{ item.label }}</div>
-            <div class="kpi-value">{{ item.value }}</div>
+            <div class="kpi-value" :class="{ warn: item.warn }">{{ item.value }}</div>
+            <div v-if="item.hint" class="kpi-hint">{{ item.hint }}</div>
           </div>
         </el-col>
       </el-row>
     </el-card>
 
+    <div class="trend-toolbar">
+      <div>
+        <span class="trend-title">趋势与商品</span>
+        <span class="header-hint">当前范围：近 {{ days }} 天</span>
+      </div>
+      <el-radio-group v-model="days" size="default" @change="onDaysChange">
+        <el-radio-button :value="7">近 7 天</el-radio-button>
+        <el-radio-button :value="30">近 30 天</el-radio-button>
+        <el-radio-button :value="90">近 90 天</el-radio-button>
+      </el-radio-group>
+    </div>
+
     <div class="chart-grid chart-grid--split">
-      <ChartPanel title="毛利趋势" hint="营收 / 成本 / 毛利">
-        <ChartBox v-if="chartSvg" :svg="chartSvg" />
-        <el-empty v-else description="暂无趋势数据" :image-size="64" />
+      <ChartPanel title="毛利趋势" :hint="`近 ${days} 天 · 营收 / 成本 / 毛利`">
+        <template #actions>
+          <div class="chart-type-switch" role="group" aria-label="图表类型">
+            <button type="button" :class="{ active: chartKind === 'line' }" @click="chartKind = 'line'">折线</button>
+            <button type="button" :class="{ active: chartKind === 'area' }" @click="chartKind = 'area'">面积</button>
+            <button type="button" :class="{ active: chartKind === 'bar' }" @click="chartKind = 'bar'">柱状</button>
+          </div>
+        </template>
+        <Transition name="chart-fade" mode="out-in">
+          <ChartBox v-if="chartSvg" :key="chartKind" :svg="chartSvg" />
+          <el-empty v-else key="empty" description="暂无趋势数据" :image-size="64" />
+        </Transition>
         <template #footer>
           <span class="chart-legend-item"><i style="background:#2dd4bf" />营收</span>
           <span class="chart-legend-item"><i style="background:#60a5fa" />成本</span>
@@ -36,8 +65,8 @@
         </template>
       </ChartPanel>
 
-      <ChartPanel title="累计快照" compact>
-        <el-descriptions :column="1" border size="small">
+      <ChartPanel title="累计快照" fill compact>
+        <el-descriptions :column="1" border size="small" class="snapshot-desc">
           <el-descriptions-item label="累计营收">¥{{ ((stats.revenueTotalCents || 0) / 100).toFixed(2) }}</el-descriptions-item>
           <el-descriptions-item label="累计成本">¥{{ ((stats.cogsTotalCents || 0) / 100).toFixed(2) }}</el-descriptions-item>
           <el-descriptions-item label="累计毛利">¥{{ ((stats.grossMarginTotalCents || 0) / 100).toFixed(2) }}</el-descriptions-item>
@@ -47,31 +76,49 @@
       </ChartPanel>
     </div>
 
-    <ChartPanel title="SKU 毛利 TOP" compact class="sku-panel">
+    <ChartPanel :title="`商品毛利 TOP · 近 ${days} 天`" compact class="sku-panel">
       <template #actions>
+        <el-button @click="onExportTopSkus">{{ topSkusExportLabel }}</el-button>
         <el-button link type="primary" @click="router.push('/skus')">商品管理</el-button>
       </template>
       <div class="table-scroll">
         <div class="table-scroll-inner" style="min-width: 780px">
-          <el-table :data="topSkus" stripe>
-            <el-table-column prop="skuId" label="SKU" min-width="120" />
-            <el-table-column prop="skuName" label="商品" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="qtySold" label="销量" width="90" />
-            <el-table-column label="营收" width="110">
-              <template #default="{ row }">¥{{ (row.revenueCents / 100).toFixed(2) }}</template>
-            </el-table-column>
-            <el-table-column label="成本" width="110">
-              <template #default="{ row }">¥{{ (row.cogsCents / 100).toFixed(2) }}</template>
-            </el-table-column>
-            <el-table-column label="毛利" width="110">
-              <template #default="{ row }">¥{{ (row.grossMarginCents / 100).toFixed(2) }}</template>
-            </el-table-column>
-            <el-table-column label="毛利率" width="100">
+          <el-table
+            class="report-table sku-table"
+            :data="topSkus"
+            stripe
+            border
+            table-layout="auto"
+            row-key="skuId"
+            @selection-change="onTopSkusSelectionChange"
+          >
+            <template #empty><el-empty description="暂无商品毛利数据" /></template>
+            <el-table-column type="selection" width="48" align="center" />
+            <el-table-column label="商品" min-width="180" class-name="col-text" show-overflow-tooltip>
               <template #default="{ row }">
-                {{ row.revenueCents ? ((row.grossMarginCents / row.revenueCents) * 100).toFixed(1) : '0.0' }}%
+                <div class="name-cell">
+                  <strong>{{ row.skuName || row.skuId }}</strong>
+                  <small class="cell-id">{{ row.skuId }}</small>
+                </div>
               </template>
             </el-table-column>
-            <template #empty><el-empty description="暂无 SKU 毛利数据" /></template>
+            <el-table-column prop="qtySold" label="销量" min-width="88" align="center" />
+            <el-table-column label="营收" min-width="110" align="right" class-name="col-money">
+              <template #default="{ row }">¥{{ (row.revenueCents / 100).toFixed(2) }}</template>
+            </el-table-column>
+            <el-table-column label="成本" min-width="110" align="right" class-name="col-money">
+              <template #default="{ row }">¥{{ (row.cogsCents / 100).toFixed(2) }}</template>
+            </el-table-column>
+            <el-table-column label="毛利" min-width="110" align="right" class-name="col-money">
+              <template #default="{ row }">
+                <span :class="{ warn: row.grossMarginCents < 0 }">¥{{ (row.grossMarginCents / 100).toFixed(2) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="毛利率" min-width="96" align="center">
+              <template #default="{ row }">
+                <span :class="{ warn: Number(skuMarginRate(row)) < 0 }">{{ skuMarginRate(row) }}%</span>
+              </template>
+            </el-table-column>
           </el-table>
         </div>
       </div>
@@ -80,14 +127,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import ChartBox from '@/components/ChartBox.vue';
 import ChartPanel from '@/components/ChartPanel.vue';
-import { buildSeriesChart, formatYuan, shortDate } from '@/utils/charts';
+import { useListCsv } from '@/composables/useListCsv';
+import { useTableSelection } from '@/composables/useTableSelection';
+import { buildSeriesChart, formatYuan, shortDate, type ChartKind } from '@/utils/charts';
 
 interface FinanceStats {
   revenueTodayCents?: number;
@@ -127,20 +176,92 @@ interface FinanceReport {
 }
 
 const router = useRouter();
+const route = useRoute();
 const loading = ref(false);
-const days = ref(7);
+const days = ref(parseDays(route.query.days));
+const chartKind = ref<ChartKind>('area');
 const stats = ref<FinanceStats>({});
 const daily = ref<FinanceDaily[]>([]);
 const topSkus = ref<FinanceSku[]>([]);
 
-const kpiTiles = computed(() => [
-  { label: '今日营收', value: `¥${((stats.value.revenueTodayCents || 0) / 100).toFixed(2)}` },
-  { label: '今日成本', value: `¥${((stats.value.cogsTodayCents || 0) / 100).toFixed(2)}` },
-  { label: '今日毛利', value: `¥${((stats.value.grossMarginTodayCents || 0) / 100).toFixed(2)}` },
-  { label: '今日毛利率', value: `${((stats.value.grossMarginRateToday || 0) * 100).toFixed(1)}%` },
-  { label: '今日订单', value: String(stats.value.orderToday || 0) },
-  { label: '今日客单', value: `¥${((stats.value.averageOrderValueTodayCents || 0) / 100).toFixed(2)}` }
-]);
+function parseDays(raw: unknown): number {
+  const n = Number(raw);
+  return n === 30 || n === 90 ? n : 7;
+}
+
+function onDaysChange() {
+  router.replace({ query: { ...route.query, days: String(days.value) } });
+  load();
+}
+
+function skuMarginRate(row: FinanceSku) {
+  return row.revenueCents ? ((row.grossMarginCents / row.revenueCents) * 100).toFixed(1) : '0.0';
+}
+
+const {
+  onSelectionChange: onTopSkusSelectionChange,
+  pickSelected: pickTopSkusSelected,
+  exportButtonLabel: topSkusExportLabel,
+  clearSelection: clearTopSkusSelection
+} = useTableSelection<FinanceSku>((row) => row.skuId);
+
+const { onExport: onExportTopSkus } = useListCsv({
+  filePrefix: '商品毛利TOP',
+  headers: ['商品编号', '商品', '销量', '营收', '成本', '毛利', '毛利率'],
+  toRows: () =>
+    pickTopSkusSelected(topSkus.value).map((row) => [
+      row.skuId,
+      row.skuName,
+      row.qtySold,
+      (row.revenueCents / 100).toFixed(2),
+      (row.cogsCents / 100).toFixed(2),
+      (row.grossMarginCents / 100).toFixed(2),
+      `${skuMarginRate(row)}%`
+    ])
+});
+
+const kpiTiles = computed(() => {
+  const marginRate = (stats.value.grossMarginRateToday || 0) * 100;
+  const marginCents = stats.value.grossMarginTodayCents || 0;
+  return [
+    {
+      label: '今日营收',
+      value: `¥${((stats.value.revenueTodayCents || 0) / 100).toFixed(2)}`,
+      accent: 'accent-teal',
+      path: '/analytics',
+      hint: '查看数据分析'
+    },
+    {
+      label: '今日成本',
+      value: `¥${((stats.value.cogsTodayCents || 0) / 100).toFixed(2)}`,
+      accent: 'accent-blue'
+    },
+    {
+      label: '今日毛利',
+      value: `¥${(marginCents / 100).toFixed(2)}`,
+      accent: 'accent-amber',
+      warn: marginCents < 0
+    },
+    {
+      label: '今日毛利率',
+      value: `${marginRate.toFixed(1)}%`,
+      accent: 'accent-violet',
+      warn: marginRate < 0
+    },
+    {
+      label: '今日订单',
+      value: String(stats.value.orderToday || 0),
+      accent: 'accent-teal',
+      path: '/orders',
+      hint: '查看订单'
+    },
+    {
+      label: '今日客单',
+      value: `¥${((stats.value.averageOrderValueTodayCents || 0) / 100).toFixed(2)}`,
+      accent: 'accent-blue'
+    }
+  ];
+});
 
 const chartSvg = computed(() => {
   if (!daily.value.length) return '';
@@ -151,7 +272,7 @@ const chartSvg = computed(() => {
       { name: '成本', values: daily.value.map((d) => d.cogsCents / 100), color: '#60a5fa' },
       { name: '毛利', values: daily.value.map((d) => d.grossMarginCents / 100), color: '#fbbf24' }
     ],
-    kind: 'area',
+    kind: chartKind.value,
     formatY: (v) => formatYuan(v * 100)
   });
 });
@@ -163,6 +284,7 @@ async function load() {
     stats.value = data.summary || {};
     daily.value = data.daily || [];
     topSkus.value = data.topSkus || [];
+    clearTopSkusSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -170,28 +292,113 @@ async function load() {
   }
 }
 
+watch(
+  () => route.query.days,
+  (raw) => {
+    const next = parseDays(raw);
+    if (next !== days.value) {
+      days.value = next;
+      load();
+    }
+  }
+);
+
 onMounted(load);
 </script>
 
 <style scoped>
-.card-head {
+.page-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.page-card-head__meta { min-width: 0; }
+.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
+.page-card-head__actions { display: flex; gap: 8px; }
+.title { font-weight: 600; font-size: 15px; }
+.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+.name-cell { display: grid; gap: 2px; line-height: 1.35; }
+.name-cell strong { font-weight: 650; }
+.name-cell small {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  font-family: var(--app-font-mono);
+}
+.header-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--layout-muted);
+}
+.trend-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--layout-border);
+  border-radius: 12px;
+  background: var(--layout-card);
 }
-.title { font-weight: 600; }
-.heading-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.trend-title {
+  font-weight: 600;
+  margin-right: 8px;
+}
+.kpi-row { margin-bottom: 4px; }
 .kpi-tile {
-  background: var(--layout-bg, #f8fafc);
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--layout-border);
   border-radius: 10px;
   padding: 12px 14px;
   margin-bottom: 8px;
+  height: 100%;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+}
+.kpi-tile::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+}
+.kpi-tile.accent-teal::before { background: #2dd4bf; }
+.kpi-tile.accent-blue::before { background: #60a5fa; }
+.kpi-tile.accent-violet::before { background: #a78bfa; }
+.kpi-tile.accent-amber::before { background: #fbbf24; }
+.kpi-tile.is-clickable {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.kpi-tile.is-clickable:hover,
+.kpi-tile.is-clickable:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--app-primary, #0f766e) 40%, var(--layout-border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, #0f766e) 16%, transparent);
+  outline: none;
 }
 .kpi-label { font-size: 13px; color: var(--layout-muted); }
-.kpi-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
-.sku-panel {
-  margin-top: 16px;
+.kpi-value { font-size: 20px; font-weight: 700; margin-top: 4px; color: var(--layout-text); }
+.kpi-hint { font-size: 12px; color: var(--layout-muted); margin-top: 6px; }
+.warn { color: #dc2626; }
+.sku-panel { margin-top: 16px; }
+.sku-table :deep(th.col-text > .cell),
+.sku-table :deep(td.col-text > .cell) {
+  text-align: left;
+}
+.snapshot-desc :deep(.el-descriptions__table) {
+  height: 100%;
+}
+.snapshot-desc :deep(.el-descriptions__cell) {
+  vertical-align: middle;
+}
+.snapshot-desc :deep(.el-descriptions__label) {
+  width: 110px;
 }
 </style>

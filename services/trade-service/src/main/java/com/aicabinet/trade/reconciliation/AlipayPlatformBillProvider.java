@@ -36,8 +36,9 @@ public class AlipayPlatformBillProvider implements PlatformBillProvider {
     @Override
     public List<PlatformBillLine> fetchDailyBill(LocalDate date) {
         if (!alipayProperties.isConfigured()) {
-            log.warn("alipay not configured, skip bill download for {}", date);
-            return List.of();
+            throw new IllegalStateException(
+                    "Alipay platform bill unavailable: configure ALIPAY_* or set RECON_MOCK_ENABLED=true. "
+                            + "Empty bill download is disabled to avoid silent MISMATCH.");
         }
         JsonNode response = openApiClient.execute(
                 "alipay.data.dataservice.bill.downloadurl.query",

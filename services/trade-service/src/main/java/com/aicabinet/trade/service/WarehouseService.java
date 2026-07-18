@@ -149,6 +149,18 @@ public class WarehouseService {
         recordWarehouseMovement(wh, skuId, batchNo, "PURCHASE_RECEIVE", qty, refType, refId, operatorId);
     }
 
+    @Transactional
+    public void returnPurchaseStock(String warehouseId, String skuId, String batchNo, int qty,
+                                    Long operatorId, String refType, String refId) {
+        if (qty <= 0) {
+            throw badRequest("quantity must be positive");
+        }
+        String wh = resolveWarehouseId(warehouseId);
+        warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
+        deductWarehouseStock(wh, skuId, batchNo, qty);
+        recordWarehouseMovement(wh, skuId, batchNo, "PURCHASE_RETURN", -qty, refType, refId, operatorId);
+    }
+
     @Transactional(readOnly = true)
     public List<ReplenishmentSuggestDto> suggestForDevice(String deviceId) {
         String dev = deviceId.trim();

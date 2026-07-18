@@ -48,8 +48,20 @@ export const DICT = {
     DISPUTE_SPIKE: '争议激增',
     PAYMENT_FAIL: '支付失败聚集',
     BLACKLIST_HIT: '黑名单命中',
+    MALICIOUS_OPEN: '高频恶意开门',
+    DISPUTE_CREATED: '用户发起争议',
+    FREQUENT_DISPUTE: '频繁发起争议',
+    BLACKLIST_ADD: '人工加入黑名单',
+    BLACKLIST_AUTO: '自动加入黑名单',
     FRAUD: '欺诈嫌疑',
     ABNORMAL: '异常行为'
+  },
+  risk_severity: {
+    INFO: '提示',
+    WARN: '警告',
+    BLOCK: '已拦截',
+    HIGH: '高风险',
+    CRITICAL: '严重'
   },
   feedback_type: {
     COMPLAINT: '投诉',
@@ -98,6 +110,7 @@ export const DICT = {
   in_transit_status: { IN_TRANSIT: '在途', RECEIVED: '已签收', LOST: '丢失', DAMAGED: '破损' },
   warehouse_movement_type: {
     PURCHASE_RECEIVE: '采购收货',
+    PURCHASE_RETURN: '采购退货',
     MANUAL_INBOUND: '手工入库',
     INBOUND_MANUAL: '手工入库',
     OUTBOUND: '出库',
@@ -107,6 +120,7 @@ export const DICT = {
   },
   business_reference_type: {
     PURCHASE_ORDER: '采购单',
+    PURCHASE_RETURN: '采购退货',
     OUTBOUND_ORDER: '出库单',
     WAREHOUSE_INBOUND: '仓库入库',
     WAREHOUSE_OUTBOUND: '仓库出库',

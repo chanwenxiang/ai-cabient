@@ -1,40 +1,74 @@
-﻿<template>
-  <div v-loading="loading">
+<template>
+  <div v-loading="loading" class="workbench">
     <el-card class="page-card" shadow="never">
       <template #header>
-        <div class="card-head">
-          <span class="title">运营工作台</span>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新数据</el-button>
+        <div class="page-card-head">
+          <div class="page-card-head__meta">
+            <div class="page-card-head__title">
+              <span class="title">运营工作台</span>
+              <span class="hint">今日运营快照；点击指标卡片可跳转对应业务页</span>
+            </div>
+          </div>
+          <div class="page-card-head__actions">
+            <el-button :icon="Refresh" :loading="loading" @click="load">刷新数据</el-button>
+          </div>
         </div>
       </template>
 
       <el-row :gutter="12" class="stats-row">
         <el-col :xs="12" :sm="6">
-          <div class="stat-tile">
+          <div
+            class="stat-tile is-clickable"
+            role="button"
+            tabindex="0"
+            @click="router.push('/devices')"
+            @keydown.enter="router.push('/devices')"
+          >
             <div class="stat-label">设备在线率</div>
             <div class="stat-value">{{ onlineRate.toFixed(1) }}%</div>
-            <div class="stat-hint">{{ stats.deviceOnline || 0 }} / {{ stats.deviceTotal || 0 }} 台</div>
+            <div class="stat-hint">{{ stats.deviceOnline || 0 }} / {{ stats.deviceTotal || 0 }} 台 · 查看设备</div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
-          <div class="stat-tile">
+          <div
+            class="stat-tile is-clickable"
+            role="button"
+            tabindex="0"
+            @click="router.push('/finance')"
+            @keydown.enter="router.push('/finance')"
+          >
             <div class="stat-label">今日营收</div>
             <div class="stat-value">¥{{ ((stats.revenueTodayCents || 0) / 100).toFixed(2) }}</div>
-            <div class="stat-hint">实时交易汇总</div>
+            <div class="stat-hint">查看财务毛利</div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
-          <div class="stat-tile" :class="{ warn: totalIssues > 0 }">
+          <div
+            class="stat-tile is-clickable"
+            :class="{ warn: openExceptionCount > 0 || totalIssues > 0 }"
+            role="button"
+            tabindex="0"
+            @click="goExceptions"
+            @keydown.enter="goExceptions"
+          >
             <div class="stat-label">待处理异常</div>
-            <div class="stat-value">{{ totalIssues }}</div>
-            <div class="stat-hint">{{ totalIssues ? '需要尽快处理' : '运行正常' }}</div>
+            <div class="stat-value">{{ openExceptionCount || totalIssues }}</div>
+            <div class="stat-hint">
+              {{ openExceptionCount || totalIssues ? '进入异常中心' : '运行正常' }}
+            </div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
-          <div class="stat-tile">
+          <div
+            class="stat-tile is-clickable"
+            role="button"
+            tabindex="0"
+            @click="router.push('/sessions')"
+            @keydown.enter="router.push('/sessions')"
+          >
             <div class="stat-label">进行中会话</div>
             <div class="stat-value">{{ stats.sessionActive || 0 }}</div>
-            <div class="stat-hint">正在购物或结算</div>
+            <div class="stat-hint">查看开门记录</div>
           </div>
         </el-col>
       </el-row>
@@ -42,72 +76,112 @@
 
     <el-card class="page-card queue-card" shadow="never">
       <template #header>
-        <div class="card-head">
-          <div>
-            <span class="title">异常优先队列</span>
-            <div class="header-hint">按严重程度排序，点击卡片或「处理」直达对应页面</div>
+        <div class="page-card-head">
+          <div class="page-card-head__meta">
+            <div class="page-card-head__title">
+              <span class="title">异常优先队列</span>
+              <span class="hint">有待办的入口优先展示；下方列表按严重程度排序，点「处理」直达</span>
+            </div>
+          </div>
+          <div class="page-card-head__actions">
+            <el-checkbox v-model="showZeroLinks">显示 0 项</el-checkbox>
           </div>
         </div>
       </template>
 
-      <el-row :gutter="12">
-        <el-col v-for="item in quickLinks" :key="item.label" :xs="12" :sm="8" :md="6" :lg="4">
-          <el-card shadow="hover" class="quick-card" @click="goQuick(item)">
-            <div class="quick-label">{{ item.label }}</div>
-            <div class="quick-value" :class="{ warn: item.count > 0 }">{{ item.count }}</div>
-          </el-card>
+      <el-row :gutter="10" class="quick-row">
+        <el-col
+          v-for="item in visibleQuickLinks"
+          :key="item.label"
+          :xs="12"
+          :sm="8"
+          :md="6"
+          :lg="4"
+          :xl="3"
+        >
+          <button
+            type="button"
+            class="quick-tile"
+            :class="{ warn: item.count > 0, muted: item.count === 0 }"
+            @click="goQuick(item)"
+          >
+            <span class="quick-label">{{ item.label }}</span>
+            <span class="quick-value">{{ item.count }}</span>
+          </button>
         </el-col>
       </el-row>
+      <p v-if="!visibleQuickLinks.length" class="empty-quick">当前无待办入口，勾选「显示 0 项」可查看全部</p>
+
+      <div class="table-toolbar">
+        <span class="table-meta">待处理明细 {{ sortedActions.length }} 条</span>
+        <el-radio-group v-model="severityFilter" size="small">
+          <el-radio-button value="all">全部</el-radio-button>
+          <el-radio-button value="urgent">仅紧急</el-radio-button>
+        </el-radio-group>
+      </div>
 
       <div class="table-scroll">
-        <div class="table-scroll-inner" style="min-width: 900px">
+        <div class="table-scroll-inner">
           <el-table
-            :data="sortedActions"
+            class="action-table"
+            :data="pagedActions"
             stripe
             border
-            style="margin-top: 16px"
-            :empty-text="totalIssues ? '暂无明细项' : '当前没有待处理异常'"
+            :empty-text="filteredActions.length ? '暂无明细项' : '运行正常，暂无待处理异常'"
           >
-        <template #empty>
-          <el-empty :description="totalIssues ? '暂无明细项' : '运行正常，暂无待处理异常'" :image-size="72" />
-        </template>
-        <el-table-column label="优先级" width="92">
-          <template #default="{ row }">
-            <el-tag :type="priority(row.severity).tag" effect="light" size="small">
-              {{ priority(row.severity).label }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="类型" width="120">
-          <template #default="{ row }">{{ typeLabel(row.type) }}</template>
-        </el-table-column>
-        <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip />
-        <el-table-column label="关联" min-width="160" show-overflow-tooltip>
-          <template #default="{ row }">{{ contextLabel(row) }}</template>
-        </el-table-column>
-        <el-table-column prop="detail" label="详情" min-width="220" show-overflow-tooltip />
-        <el-table-column label="操作" width="88" class-name="col-action" align="center">
-          <template #default="{ row }">
-            <TableActions
-              :actions="[{ key: 'handle', label: '处理', icon: Right, type: 'primary' }]"
-              @action="() => goAction(row)"
-            />
-          </template>
-        </el-table-column>
+            <template #empty>
+              <el-empty
+                :description="filteredActions.length ? '暂无明细项' : '运行正常，暂无待处理异常'"
+                :image-size="72"
+              />
+            </template>
+            <el-table-column label="优先级" width="92" align="center">
+              <template #default="{ row }">
+                <el-tag :type="priority(row.severity).tag" effect="light" size="small">
+                  {{ priority(row.severity).label }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="类型" width="110" align="center">
+              <template #default="{ row }">{{ typeLabel(row.type) }}</template>
+            </el-table-column>
+            <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip class-name="col-text" />
+            <el-table-column label="关联" min-width="160" show-overflow-tooltip class-name="col-text">
+              <template #default="{ row }">{{ contextLabel(row) }}</template>
+            </el-table-column>
+            <el-table-column prop="detail" label="详情" min-width="220" show-overflow-tooltip class-name="col-text" />
+            <el-table-column label="操作" width="88" class-name="col-action" align="center">
+              <template #default="{ row }">
+                <TableActions
+                  :actions="[{ key: 'handle', label: '处理', icon: Right, type: 'primary' }]"
+                  @action="() => goAction(row)"
+                />
+              </template>
+            </el-table-column>
           </el-table>
         </div>
+      </div>
+      <div v-if="filteredActions.length > pageSize" class="page-pager">
+        <el-pagination
+          v-model:current-page="page"
+          :page-size="pageSize"
+          :total="filteredActions.length"
+          layout="total, prev, pager, next"
+          background
+        />
       </div>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Refresh, Right } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
+import type { PageResult } from '@aicabinet/shared-types';
 
 interface OpsStats {
   deviceTotal?: number;
@@ -153,8 +227,19 @@ const router = useRouter();
 const loading = ref(false);
 const stats = ref<OpsStats>({});
 const workbench = ref<OpsWorkbench | null>(null);
+const openExceptionCount = ref(0);
+const showZeroLinks = ref(false);
+const severityFilter = ref<'all' | 'urgent'>('all');
+const page = ref(1);
+const pageSize = 10;
 
 const quickLinks = computed<QuickLink[]>(() => [
+  {
+    label: '异常中心',
+    count: openExceptionCount.value,
+    path: '/exceptions',
+    query: { status: 'OPEN' }
+  },
   { label: '待审争议', count: workbench.value?.openDisputes || 0, path: '/disputes', query: { status: 'OPEN' } },
   {
     label: '离线设备',
@@ -167,7 +252,7 @@ const quickLinks = computed<QuickLink[]>(() => [
     count: workbench.value?.waitingUploads || stats.value.sessionWaitingUpload || 0,
     path: '/upload-queue'
   },
-  { label: '低库存', count: workbench.value?.lowStockItems || 0, path: '/replenishment' },
+  { label: '低库存', count: workbench.value?.lowStockItems || 0, path: '/replenishment', query: { tab: 'shortage' } },
   {
     label: '补货任务',
     count: workbench.value?.pendingReplenishments || 0,
@@ -190,10 +275,17 @@ const quickLinks = computed<QuickLink[]>(() => [
   {
     label: '签收超时',
     count: workbench.value?.inTransitOverdue || 0,
-    path: '/replenishment',
-    query: { tab: 'routes' }
+    path: '/warehouse',
+    query: { tab: 'transit' }
   }
 ]);
+
+const visibleQuickLinks = computed(() => {
+  const list = showZeroLinks.value
+    ? quickLinks.value
+    : quickLinks.value.filter((item) => item.count > 0);
+  return [...list].sort((a, b) => b.count - a.count);
+});
 
 const onlineRate = computed(() =>
   stats.value.deviceTotal ? ((stats.value.deviceOnline || 0) / stats.value.deviceTotal) * 100 : 0
@@ -208,6 +300,24 @@ const sortedActions = computed(() => {
     if (diff !== 0) return diff;
     return (a.title || '').localeCompare(b.title || '');
   });
+});
+
+const filteredActions = computed(() => {
+  if (severityFilter.value !== 'urgent') return sortedActions.value;
+  return sortedActions.value.filter((row) => priority(row.severity).score >= 3);
+});
+
+const pagedActions = computed(() => {
+  const start = (page.value - 1) * pageSize;
+  return filteredActions.value.slice(start, start + pageSize);
+});
+
+watch(severityFilter, () => {
+  page.value = 1;
+});
+watch(filteredActions, (list) => {
+  const maxPage = Math.max(1, Math.ceil(list.length / pageSize) || 1);
+  if (page.value > maxPage) page.value = maxPage;
 });
 
 function priority(severity = '') {
@@ -258,6 +368,10 @@ function goQuick(item: QuickLink) {
   router.push(item.path);
 }
 
+function goExceptions() {
+  router.push({ path: '/exceptions', query: { status: 'OPEN' } });
+}
+
 function queryOf(row: OpsActionItem): Record<string, string> {
   const q: Record<string, string> = {};
   if (row.deviceId) q.deviceId = row.deviceId;
@@ -280,8 +394,10 @@ function goAction(row: OpsActionItem) {
       return;
     case 'LOW_STOCK':
     case 'REPLENISHMENT':
+      router.push({ path: '/replenishment', query: { tab: row.type === 'LOW_STOCK' ? 'shortage' : 'routes', ...q } });
+      return;
     case 'IN_TRANSIT_OVERDUE':
-      router.push({ path: '/replenishment', query: { tab: 'routes', ...q } });
+      router.push({ path: '/warehouse', query: { tab: 'transit', ...q } });
       return;
     case 'RECON_MISMATCH':
     case 'RECONCILIATION_MISMATCH':
@@ -305,12 +421,16 @@ function goAction(row: OpsActionItem) {
 async function load() {
   loading.value = true;
   try {
-    const [s, wb] = await Promise.all([
+    const [s, wb, ex] = await Promise.all([
       api.request<OpsStats>('/api/v2/ops/admin/stats', 'GET'),
-      api.request<OpsWorkbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null)
+      api.request<OpsWorkbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null),
+      api
+        .request<PageResult<{ exceptionId: string }>>('/api/v2/ops/admin/exceptions?status=OPEN&page=0&size=1', 'GET')
+        .catch(() => null)
     ]);
     stats.value = s;
     workbench.value = wb;
+    openExceptionCount.value = ex?.total || 0;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -322,21 +442,21 @@ onMounted(load);
 </script>
 
 <style scoped>
-.card-head {
+.workbench {
+  min-width: 0;
+}
+.page-card-head {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   flex-wrap: wrap;
 }
-.title {
-  font-weight: 600;
-}
-.header-hint {
-  font-size: 12px;
-  color: var(--layout-muted);
-  margin-top: 4px;
-}
+.page-card-head__meta { min-width: 0; }
+.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
+.page-card-head__actions { display: flex; gap: 8px; align-items: center; }
+.title { font-weight: 600; font-size: 15px; }
+.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .queue-card {
   margin-top: 16px;
 }
@@ -344,12 +464,29 @@ onMounted(load);
   margin-bottom: 4px;
 }
 .stat-tile {
-  background: var(--layout-bg, #f8fafc);
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--layout-border);
   border-radius: 10px;
   padding: 14px 16px;
   height: 100%;
+  box-sizing: border-box;
 }
-.stat-tile.warn .stat-value {
+.stat-tile.is-clickable {
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+.stat-tile.is-clickable:hover,
+.stat-tile.is-clickable:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--app-primary, #0f766e) 45%, var(--layout-border));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, #0f766e) 18%, transparent);
+  outline: none;
+}
+.stat-tile.warn {
+  border-color: color-mix(in srgb, #dc2626 35%, var(--layout-border));
+}
+.stat-tile.warn .stat-value,
+.quick-tile.warn .quick-value {
   color: #dc2626;
 }
 .stat-label {
@@ -361,32 +498,78 @@ onMounted(load);
   font-weight: 700;
   margin-top: 6px;
   line-height: 1.2;
+  color: var(--layout-text);
 }
 .stat-hint {
   font-size: 12px;
   color: var(--layout-muted);
   margin-top: 8px;
 }
-.quick-card {
-  cursor: pointer;
-  text-align: center;
-  margin-bottom: 12px;
-  transition: transform 0.15s ease;
+.quick-row {
+  margin-bottom: 4px;
 }
-.quick-card:hover {
-  transform: translateY(-2px);
+.quick-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--layout-border);
+  border-radius: 10px;
+  background: var(--el-fill-color-blank, var(--layout-card));
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+}
+.quick-tile:hover,
+.quick-tile:focus-visible {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--app-primary, #0f766e) 40%, var(--layout-border));
+  outline: none;
+}
+.quick-tile.muted {
+  opacity: 0.55;
+}
+.quick-tile.warn {
+  border-color: color-mix(in srgb, #dc2626 28%, var(--layout-border));
+  background: color-mix(in srgb, #dc2626 4%, var(--layout-card));
 }
 .quick-label {
   color: var(--layout-muted);
   font-size: 13px;
 }
 .quick-value {
-  font-size: 28px;
+  font-size: 24px;
   font-weight: 700;
-  margin-top: 8px;
+  margin-top: 6px;
+  line-height: 1.15;
   color: var(--layout-text);
 }
-.quick-value.warn {
-  color: #f59e0b;
+.empty-quick {
+  margin: 0 0 12px;
+  color: var(--layout-muted);
+  font-size: 13px;
+}
+.table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0 12px;
+}
+.table-meta {
+  font-size: 13px;
+  color: var(--layout-muted);
+}
+.action-table :deep(th.col-text > .cell),
+.action-table :deep(td.col-text > .cell) {
+  text-align: left;
+}
+.page-pager {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
 }
 </style>
