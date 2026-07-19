@@ -22,9 +22,21 @@ CONF_THRESHOLD = float(os.getenv("YOLO_CONF", "0.5"))
 REVIEW_CONF_THRESHOLD = float(os.getenv("YOLO_REVIEW_CONF", "0.7"))
 MOCK_ENABLED = os.getenv("MOCK_ENABLED", "true").lower() == "true"
 VISION_FORCE_REAL = os.getenv("VISION_FORCE_REAL", "false").lower() == "true"
-MOCK_FORCE_NEED_REVIEW = os.getenv("MOCK_FORCE_NEED_REVIEW", "false").lower() == "true"
+# Runtime-togglable for dispute E2E without recreating the container.
+_force_need_review = os.getenv("MOCK_FORCE_NEED_REVIEW", "false").lower() == "true"
 AUTO_DOWNLOAD = os.getenv("YOLO_AUTO_DOWNLOAD", "true").lower() == "true"
 RECOGNITION_MODE = os.getenv("YOLO_RECOGNITION_MODE", "delta").lower()
+
+
+def get_force_need_review() -> bool:
+    return _force_need_review
+
+
+def set_force_need_review(enabled: bool) -> bool:
+    global _force_need_review
+    _force_need_review = bool(enabled)
+    log.info("MOCK_FORCE_NEED_REVIEW set to %s", _force_need_review)
+    return _force_need_review
 
 MODEL_PATH = resolve_model_path()
 MODEL_VERSION = resolve_model_version(MODEL_PATH)
@@ -296,7 +308,7 @@ class YoloRecognizer:
     def _mock(self, session_id: str, video_uri: str | None, need_review: bool | None = None,
               device_id: str | None = None) -> RecognitionOutput:
         if need_review is None:
-            if MOCK_FORCE_NEED_REVIEW:
+            if get_force_need_review():
                 need_review = True
             else:
                 need_review = False if MOCK_ENABLED else not video_uri

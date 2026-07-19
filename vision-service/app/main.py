@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.kafka_worker import start_kafka_worker
+from app.recognition.yolo_recognizer import get_force_need_review, set_force_need_review
 from app.recognizer import get_recognizer
 from app.storage import OBJECT_STORAGE_ENDPOINT
 
@@ -117,6 +118,7 @@ def health():
         "video_cache_dir": os.getenv("VIDEO_CACHE_DIR", "cache/videos"),
         "kafka_enabled": os.getenv("KAFKA_ENABLED", "false").lower() == "true",
         "mock_enabled": os.getenv("MOCK_ENABLED", "true").lower() == "true",
+        "mock_force_need_review": get_force_need_review(),
         "vision_force_real": VISION_FORCE_REAL,
         "yolo_recognition_mode": YOLO_RECOGNITION_MODE,
         "yolo_loaded": getattr(recognizer, "available", False),
@@ -126,6 +128,17 @@ def health():
         "deepseek_auto_charge": os.getenv("DEEPSEEK_AUTO_CHARGE", "false").lower() == "true",
         "deepseek_timeout_ms": int(os.getenv("DEEPSEEK_TIMEOUT_MS", "2000")),
     }
+
+
+class ForceNeedReviewRequest(BaseModel):
+    enabled: bool
+
+
+@app.post("/api/v2/vision/debug/force-need-review")
+def debug_force_need_review(req: ForceNeedReviewRequest):
+    """Local/E2E helper: toggle mock need_review without recreating the container."""
+    enabled = set_force_need_review(req.enabled)
+    return {"ok": True, "mock_force_need_review": enabled}
 
 
 @app.post("/api/v2/vision/recognize", response_model=RecognizeResponse)
