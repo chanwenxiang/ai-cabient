@@ -15,7 +15,12 @@
         <text class="title">{{ a.title }}</text>
         <text v-if="a.detail" class="meta">{{ a.detail }}</text>
         <text v-if="a.deviceId" class="action">查看柜机 ›</text>
-        <button v-if="a.exceptionId && isInventoryException(a.type)" class="resolve-btn" size="mini" @click.stop="resolveInventory(a)">完成库存核对</button>
+        <button
+          v-if="canResolveInventory && a.exceptionId && isInventoryException(a.type)"
+          class="resolve-btn"
+          size="mini"
+          @click.stop="resolveInventory(a)"
+        >完成库存核对</button>
       </view>
       <empty-state
         v-if="!items.length"
@@ -39,6 +44,7 @@ import type { MerchantMe } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canViewAlerts = computed(() => hasPerm(me.value, 'merchant:alerts:view'));
+const canResolveInventory = computed(() => hasPerm(me.value, 'merchant:inventory:view'));
 
 const loading = ref(true);
 const error = ref('');
@@ -117,6 +123,10 @@ function isInventoryException(type: string) {
 
 function resolveInventory(item: { exceptionId?: string; deviceId?: string }) {
   if (!item.exceptionId) return;
+  if (!canResolveInventory.value) {
+    uni.showToast({ title: '无库存处理权限', icon: 'none' });
+    return;
+  }
   uni.showModal({
     title: '确认完成库存核对',
     editable: true,

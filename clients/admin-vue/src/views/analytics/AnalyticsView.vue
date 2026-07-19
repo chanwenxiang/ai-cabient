@@ -18,54 +18,58 @@
       <el-row :gutter="12" class="stats-row">
         <el-col :xs="12" :sm="6">
           <div
-            class="stat-tile accent-teal is-clickable"
-            role="button"
-            tabindex="0"
-            @click="router.push('/finance')"
-            @keydown.enter="router.push('/finance')"
+            class="stat-tile accent-teal"
+            :class="{ 'is-clickable': canAccessPath('/finance') }"
+            :role="canAccessPath('/finance') ? 'button' : undefined"
+            :tabindex="canAccessPath('/finance') ? 0 : undefined"
+            @click="goPath('/finance')"
+            @keydown.enter="goPath('/finance')"
           >
             <div class="stat-label">今日营收</div>
             <div class="stat-value">¥{{ ((stats.revenueTodayCents || 0) / 100).toFixed(2) }}</div>
-            <div class="stat-hint">查看财务毛利</div>
+            <div class="stat-hint">{{ canAccessPath('/finance') ? '查看财务毛利' : '今日快照' }}</div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
           <div
-            class="stat-tile accent-blue is-clickable"
-            role="button"
-            tabindex="0"
-            @click="router.push('/orders')"
-            @keydown.enter="router.push('/orders')"
+            class="stat-tile accent-blue"
+            :class="{ 'is-clickable': canAccessPath('/orders') }"
+            :role="canAccessPath('/orders') ? 'button' : undefined"
+            :tabindex="canAccessPath('/orders') ? 0 : undefined"
+            @click="goPath('/orders')"
+            @keydown.enter="goPath('/orders')"
           >
             <div class="stat-label">今日订单</div>
             <div class="stat-value">{{ stats.orderToday || 0 }}</div>
-            <div class="stat-hint">查看订单列表</div>
+            <div class="stat-hint">{{ canAccessPath('/orders') ? '查看订单列表' : '今日快照' }}</div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
           <div
-            class="stat-tile accent-violet is-clickable"
-            role="button"
-            tabindex="0"
-            @click="router.push('/sessions')"
-            @keydown.enter="router.push('/sessions')"
+            class="stat-tile accent-violet"
+            :class="{ 'is-clickable': canAccessPath('/sessions') }"
+            :role="canAccessPath('/sessions') ? 'button' : undefined"
+            :tabindex="canAccessPath('/sessions') ? 0 : undefined"
+            @click="goPath('/sessions')"
+            @keydown.enter="goPath('/sessions')"
           >
             <div class="stat-label">24h 开门成功率</div>
             <div class="stat-value">{{ ((stats.doorSuccessRate24h || 0) * 100).toFixed(1) }}%</div>
-            <div class="stat-hint">查看开门记录</div>
+            <div class="stat-hint">{{ canAccessPath('/sessions') ? '查看开门记录' : '近 24 小时' }}</div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
           <div
-            class="stat-tile accent-amber is-clickable"
-            role="button"
-            tabindex="0"
-            @click="router.push('/disputes')"
-            @keydown.enter="router.push('/disputes')"
+            class="stat-tile accent-amber"
+            :class="{ 'is-clickable': canAccessPath('/disputes') }"
+            :role="canAccessPath('/disputes') ? 'button' : undefined"
+            :tabindex="canAccessPath('/disputes') ? 0 : undefined"
+            @click="goPath('/disputes')"
+            @keydown.enter="goPath('/disputes')"
           >
             <div class="stat-label">24h 自动识别率</div>
             <div class="stat-value">{{ ((stats.recognitionAutoRate24h || 0) * 100).toFixed(1) }}%</div>
-            <div class="stat-hint">查看争议审核</div>
+            <div class="stat-hint">{{ canAccessPath('/disputes') ? '查看争议审核' : '近 24 小时' }}</div>
           </div>
         </el-col>
       </el-row>
@@ -172,10 +176,10 @@
         <ChartPanel title="设备在线" fill donut>
           <template #actions>
             <el-button
-              v-if="offlineDevices > 0"
+              v-if="offlineDevices > 0 && canAccessPath('/devices')"
               link
               type="primary"
-              @click="router.push({ path: '/devices', query: { online: 'OFFLINE' } })"
+              @click="goPath('/devices', { online: 'OFFLINE' })"
             >
               查看离线 {{ offlineDevices }}
             </el-button>
@@ -196,20 +200,26 @@
             <el-descriptions-item label="累计订单">{{ stats.orderTotal || 0 }}</el-descriptions-item>
             <el-descriptions-item label="待审争议">
               <el-button
-                v-if="(stats.disputeOpen || 0) > 0"
+                v-if="(stats.disputeOpen || 0) > 0 && canAccessPath('/disputes')"
                 link
                 type="danger"
-                @click="router.push({ path: '/disputes', query: { status: 'OPEN' } })"
+                @click="goPath('/disputes', { status: 'OPEN' })"
               >
                 {{ stats.disputeOpen }} 条待审
               </el-button>
-              <span v-else class="muted">0</span>
+              <span v-else class="muted">{{ stats.disputeOpen || 0 }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="24h 争议率">{{ ((stats.disputeRate24h || 0) * 100).toFixed(1) }}%</el-descriptions-item>
             <el-descriptions-item label="今日毛利率">
-              <el-button link type="primary" @click="router.push('/finance')">
+              <el-button
+                v-if="canAccessPath('/finance')"
+                link
+                type="primary"
+                @click="goPath('/finance')"
+              >
                 查看 {{ ((finance?.grossMarginRateToday || 0) * 100).toFixed(1) }}%
               </el-button>
+              <span v-else>{{ ((finance?.grossMarginRateToday || 0) * 100).toFixed(1) }}%</span>
             </el-descriptions-item>
           </el-descriptions>
         </ChartPanel>
@@ -220,13 +230,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import ChartBox from '@/components/ChartBox.vue';
 import ChartPanel from '@/components/ChartPanel.vue';
+import { useNavAccess } from '@/composables/useNavAccess';
 import {
   buildDonutChart,
   buildSeriesChart,
@@ -266,8 +277,8 @@ const CHANNEL_COLORS: Record<string, string> = {
   UNKNOWN: '#64748b'
 };
 
-const router = useRouter();
 const route = useRoute();
+const { router, canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
 const days = ref(parseDays(route.query.days));
 const stats = ref<AdminStats>({});

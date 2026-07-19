@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.ReplyFeedbackRequest;
 import com.aicabinet.common.dto.UserFeedbackDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
+import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.UserFeedbackService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -21,6 +22,7 @@ public class UserFeedbackController {
         this.feedbackService = feedbackService;
     }
 
+    @RequiresPermissions(value = {"ops:feedback", "ops:feedback:reply"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping
     public ApiResponse<List<UserFeedbackDto>> list(
             HttpServletRequest request,
@@ -28,6 +30,7 @@ public class UserFeedbackController {
         return ApiResponse.ok(feedbackService.list(operatorId(request), status));
     }
 
+    @RequiresPermissions("ops:feedback:reply")
     @PostMapping("/{feedbackId}/reply")
     public ApiResponse<UserFeedbackDto> reply(
             HttpServletRequest request,

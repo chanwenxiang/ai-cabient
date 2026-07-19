@@ -57,7 +57,7 @@ public class SysDictService {
     }
 
     public DictDtos.DictRuntimeDto runtimeMap(Long operatorId) {
-        permissionService.requireAnyPermission(operatorId, "ops:dict:list", "ops:dashboard:view");
+        permissionService.requirePermission(operatorId, "ops:dict:list");
         return buildActiveRuntimeMap();
     }
 

@@ -84,6 +84,22 @@
               <span class="cell-datetime">{{ formatDateTime(String(row.createdAt || '')) }}</span>
             </template>
           </el-table-column>
+          <el-table-column
+            v-if="canRefund"
+            label="操作"
+            width="100"
+            class-name="col-action"
+            align="center"
+          >
+            <template #default="{ row }">
+              <TableActions
+                v-if="isRefundable(row)"
+                :actions="[{ key: 'refund', label: '退款', icon: RefreshLeft, type: 'danger' }]"
+                @action="() => refundRecharge(row)"
+              />
+              <span v-else class="muted">-</span>
+            </template>
+          </el-table-column>
         </el-table>
       </div>
     </div>
@@ -104,19 +120,23 @@
 </template>
 
 <script setup lang="ts">
-import { onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { Refresh, RefreshLeft } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
+import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 const route = useRoute();
 const router = useRouter();
+const auth = useAuthStore();
+const canRefund = computed(() => auth.hasPerm('ops:recharge:edit'));
 const loading = ref(false);
 const page = ref(1);
 const size = ref(20);
@@ -145,6 +165,31 @@ const { onExport } = useListCsv({
 
 function money(cents: unknown) {
   return ((Number(cents) || 0) / 100).toFixed(2);
+}
+
+function isRefundable(row: Record<string, unknown>) {
+  const s = String(row.status || '').toUpperCase();
+  return s === 'PAID' || s === 'SUCCESS';
+}
+
+async function refundRecharge(row: Record<string, unknown>) {
+  const orderId = String(row.orderId || '');
+  if (!orderId) return;
+  try {
+    const { value } = await ElMessageBox.prompt('请输入退款原因（可选）', `退款 ${orderId}`, {
+      confirmButtonText: '确认退款',
+      cancelButtonText: '取消',
+      inputPlaceholder: '退款原因'
+    });
+    await api.request(`/api/v2/ops/admin/recharge/${encodeURIComponent(orderId)}/refund`, 'POST', {
+      reason: (value || '').trim() || undefined
+    });
+    ElMessage.success('已发起退款');
+    await load();
+  } catch (e) {
+    if (e === 'cancel' || e === 'close') return;
+    ElMessage.error(e instanceof Error ? e.message : '退款失败');
+  }
 }
 
 function syncRouteQuery() {

@@ -306,7 +306,7 @@ public class OpsExceptionService {
     private static String trim(String v) { if (v == null) return null; v=v.trim(); return v.length()>1000?v.substring(0,1000):v; }
 
     private void requireExceptionRead(Long operatorId) {
-        permissionService.requireAnyPermission(operatorId, "ops:exception:list", "ops:dashboard:view");
+        permissionService.requireAnyPermission(operatorId, "ops:exception:list", "ops:exception:handle");
     }
 
     private void requireExceptionHandle(Long operatorId) {

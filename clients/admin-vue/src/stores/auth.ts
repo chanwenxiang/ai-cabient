@@ -38,7 +38,15 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem(PERM_KEY, JSON.stringify(permissions.value));
     } catch {
       permissions.value = [];
+      localStorage.setItem(PERM_KEY, '[]');
     }
+  }
+
+  /** Re-fetch permissions (+ profile) after role edits; drives reactive v-hasPermi. */
+  async function refreshPermissions() {
+    if (!isLoggedIn()) return false;
+    await Promise.all([loadPermissions(), loadProfile()]);
+    return true;
   }
 
   async function loadProfile() {
@@ -113,6 +121,7 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     loadPermissions,
     loadProfile,
+    refreshPermissions,
     hasPerm,
     canAccessNav,
     restore

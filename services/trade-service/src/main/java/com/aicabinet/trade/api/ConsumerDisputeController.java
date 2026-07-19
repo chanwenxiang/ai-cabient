@@ -69,7 +69,7 @@ public class ConsumerDisputeController {
             @PathVariable("fileId") Long fileId) throws Exception {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         boolean operator = permissionService.hasAnyPermission(userId,
-                "ops:dispute", "ops:order:list", "ops:dashboard:view");
+                "ops:dispute", "ops:dispute:resolve");
         FileAttachment row = fileAttachmentService.requireReadable(userId, fileId, operator);
         fileAttachmentService.stream(row, response);
     }

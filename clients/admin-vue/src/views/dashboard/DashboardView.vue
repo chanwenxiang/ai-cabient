@@ -10,9 +10,16 @@
             </div>
           </div>
           <div class="page-card-head__actions">
-            <el-button type="primary" plain @click="router.push('/replenishment')">补货调度</el-button>
-            <el-button plain @click="router.push('/disputes')">争议审核</el-button>
-            <el-button plain @click="router.push('/devices')">设备管理</el-button>
+            <el-button
+              v-hasPermi="['ops:replenishment:list']"
+              type="primary"
+              plain
+              @click="goPath('/replenishment')"
+            >
+              补货调度
+            </el-button>
+            <el-button v-hasPermi="['ops:dispute']" plain @click="goPath('/disputes')">争议审核</el-button>
+            <el-button v-hasPermi="['ops:device:list']" plain @click="goPath('/devices')">设备管理</el-button>
             <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
           </div>
         </div>
@@ -21,57 +28,69 @@
       <el-row :gutter="12" class="stats-row">
         <el-col :xs="12" :sm="6">
           <div
-            class="stat-tile is-clickable"
-            role="button"
-            tabindex="0"
-            @click="router.push('/devices')"
-            @keydown.enter="router.push('/devices')"
+            class="stat-tile"
+            :class="{ 'is-clickable': canAccessPath('/devices') }"
+            :role="canAccessPath('/devices') ? 'button' : undefined"
+            :tabindex="canAccessPath('/devices') ? 0 : undefined"
+            @click="goPath('/devices')"
+            @keydown.enter="goPath('/devices')"
           >
             <div class="stat-label">设备在线率</div>
             <div class="stat-value">{{ onlineRate.toFixed(1) }}%</div>
-            <div class="stat-hint">{{ stats.deviceOnline || 0 }} / {{ stats.deviceTotal || 0 }} 台 · 查看设备</div>
+            <div class="stat-hint">
+              {{ stats.deviceOnline || 0 }} / {{ stats.deviceTotal || 0 }} 台
+              <template v-if="canAccessPath('/devices')"> · 查看设备</template>
+            </div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
           <div
-            class="stat-tile is-clickable"
-            role="button"
-            tabindex="0"
-            @click="router.push('/finance')"
-            @keydown.enter="router.push('/finance')"
+            class="stat-tile"
+            :class="{ 'is-clickable': canAccessPath('/finance') }"
+            :role="canAccessPath('/finance') ? 'button' : undefined"
+            :tabindex="canAccessPath('/finance') ? 0 : undefined"
+            @click="goPath('/finance')"
+            @keydown.enter="goPath('/finance')"
           >
             <div class="stat-label">今日营收</div>
             <div class="stat-value">¥{{ ((stats.revenueTodayCents || 0) / 100).toFixed(2) }}</div>
-            <div class="stat-hint">查看财务毛利</div>
+            <div class="stat-hint">{{ canAccessPath('/finance') ? '查看财务毛利' : '今日快照' }}</div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
           <div
-            class="stat-tile is-clickable"
-            :class="{ warn: openExceptionCount > 0 || totalIssues > 0 }"
-            role="button"
-            tabindex="0"
+            class="stat-tile"
+            :class="{
+              'is-clickable': canAccessPath('/exceptions'),
+              warn: openExceptionCount > 0 || totalIssues > 0
+            }"
+            :role="canAccessPath('/exceptions') ? 'button' : undefined"
+            :tabindex="canAccessPath('/exceptions') ? 0 : undefined"
             @click="goExceptions"
             @keydown.enter="goExceptions"
           >
             <div class="stat-label">待处理异常</div>
             <div class="stat-value">{{ openExceptionCount || totalIssues }}</div>
             <div class="stat-hint">
-              {{ openExceptionCount || totalIssues ? '进入异常中心' : '运行正常' }}
+              <template v-if="canAccessPath('/exceptions')">
+                {{ openExceptionCount || totalIssues ? '进入异常中心' : '运行正常' }}
+              </template>
+              <template v-else>{{ openExceptionCount || totalIssues ? '待办汇总' : '运行正常' }}</template>
             </div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
           <div
-            class="stat-tile is-clickable"
-            role="button"
-            tabindex="0"
-            @click="router.push('/sessions')"
-            @keydown.enter="router.push('/sessions')"
+            class="stat-tile"
+            :class="{ 'is-clickable': canAccessPath('/sessions') }"
+            :role="canAccessPath('/sessions') ? 'button' : undefined"
+            :tabindex="canAccessPath('/sessions') ? 0 : undefined"
+            @click="goPath('/sessions')"
+            @keydown.enter="goPath('/sessions')"
           >
             <div class="stat-label">进行中会话</div>
             <div class="stat-value">{{ stats.sessionActive || 0 }}</div>
-            <div class="stat-hint">查看开门记录</div>
+            <div class="stat-hint">{{ canAccessPath('/sessions') ? '查看开门记录' : '今日快照' }}</div>
           </div>
         </el-col>
       </el-row>
@@ -156,9 +175,11 @@
             <el-table-column label="操作" width="88" class-name="col-action" align="center">
               <template #default="{ row }">
                 <TableActions
+                  v-if="canHandleAction(row)"
                   :actions="[{ key: 'handle', label: '处理', icon: Right, type: 'primary' }]"
                   @action="() => goAction(row)"
                 />
+                <span v-else class="no-perm">—</span>
               </template>
             </el-table-column>
           </el-table>
@@ -179,11 +200,11 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
 import { Refresh, Right } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
+import { useNavAccess } from '@/composables/useNavAccess';
 import type { PageResult } from '@aicabinet/shared-types';
 
 interface OpsStats {
@@ -226,7 +247,7 @@ interface QuickLink {
   query?: Record<string, string | undefined>;
 }
 
-const router = useRouter();
+const { router, canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
 const stats = ref<OpsStats>({});
 const workbench = ref<OpsWorkbench | null>(null);
@@ -287,8 +308,38 @@ const visibleQuickLinks = computed(() => {
   const list = showZeroLinks.value
     ? quickLinks.value
     : quickLinks.value.filter((item) => item.count > 0);
-  return [...list].sort((a, b) => b.count - a.count);
+  return [...list]
+    .filter((item) => canAccessPath(item.path))
+    .sort((a, b) => b.count - a.count);
 });
+
+function actionTargetPath(row: OpsActionItem) {
+  switch (row.type) {
+    case 'DISPUTE':
+      return '/disputes';
+    case 'UPLOAD_STUCK':
+      return '/upload-queue';
+    case 'SESSION_STALE':
+      return '/sessions';
+    case 'LOW_STOCK':
+    case 'REPLENISHMENT':
+      return '/replenishment';
+    case 'IN_TRANSIT_OVERDUE':
+      return '/warehouse';
+    case 'RECON_MISMATCH':
+    case 'RECONCILIATION_MISMATCH':
+      return '/reconciliation';
+    case 'SPLIT_EXCEPTION':
+      return '/merchants';
+    case 'DEVICE_OFFLINE':
+    default:
+      return '/devices';
+  }
+}
+
+function canHandleAction(row: OpsActionItem) {
+  return canAccessPath(actionTargetPath(row));
+}
 
 const onlineRate = computed(() =>
   stats.value.deviceTotal ? ((stats.value.deviceOnline || 0) / stats.value.deviceTotal) * 100 : 0
@@ -361,18 +412,16 @@ function shortId(id: string) {
 }
 
 function goQuick(item: QuickLink) {
-  if (item.query) {
-    const query = Object.fromEntries(
-      Object.entries(item.query).filter((entry): entry is [string, string] => !!entry[1])
-    );
-    router.push({ path: item.path, query });
-    return;
-  }
-  router.push(item.path);
+  const query = item.query
+    ? Object.fromEntries(
+        Object.entries(item.query).filter((entry): entry is [string, string] => !!entry[1])
+      )
+    : undefined;
+  goPath(item.path, query);
 }
 
 function goExceptions() {
-  router.push({ path: '/exceptions', query: { status: 'OPEN' } });
+  goPath('/exceptions', { status: 'OPEN' });
 }
 
 function queryOf(row: OpsActionItem): Record<string, string> {
@@ -384,6 +433,10 @@ function queryOf(row: OpsActionItem): Record<string, string> {
 }
 
 function goAction(row: OpsActionItem) {
+  if (!canHandleAction(row)) {
+    ElMessage.warning('无访问权限');
+    return;
+  }
   const q = queryOf(row);
   switch (row.type) {
     case 'DISPUTE':
@@ -460,6 +513,7 @@ onMounted(load);
 .page-card-head__actions { display: flex; gap: 8px; align-items: center; }
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+.no-perm { color: var(--el-text-color-placeholder); font-size: 13px; }
 .queue-card {
   margin-top: 16px;
 }

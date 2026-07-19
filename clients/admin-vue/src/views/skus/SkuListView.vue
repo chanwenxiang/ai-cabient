@@ -13,7 +13,7 @@
           <el-button v-hasPermi="['ops:sku:import']" @click="onDownloadTemplate(['SKU-DEMO-001', '示例商品', '3.50', '', '饮料', 'demo_sku', '映射中', '上架', '92%', '50%'])">导入模板</el-button>
           <el-button v-hasPermi="['ops:sku:import']" :loading="importing" @click="triggerImport">导入</el-button>
           <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
-          <el-button v-hasPermi="['ops:sku:edit']" type="primary" @click="openEnroll()">新建商品</el-button>
+          <el-button v-if="canEnroll" type="primary" @click="openEnroll()">新建商品</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -164,7 +164,7 @@
       </el-form>
       <template #footer>
         <el-button @click="enrollDialog = false">取消</el-button>
-        <el-button v-hasPermi="['ops:sku:edit']" type="primary" :loading="saving" @click="saveEnroll">保存</el-button>
+        <el-button v-if="canEnroll" type="primary" :loading="saving" @click="saveEnroll">保存</el-button>
       </template>
     </el-dialog>
 
@@ -213,6 +213,10 @@ import type {
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+/** 入驻/转生产需同时具备商品编辑与识别映射编辑 */
+const canEnroll = computed(
+  () => auth.hasPerm('ops:sku:edit') && auth.hasPerm('ops:vision:edit')
+);
 const loading = ref(false);
 const saving = ref(false);
 const testing = ref(false);
@@ -382,13 +386,13 @@ function enrollmentTagType(status?: string) {
 
 function skuActions(row: SkuCatalog): TableAction[] {
   const acts: TableAction[] = [];
-  if (auth.hasPerm('ops:sku:edit')) {
+  if (canEnroll.value) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
   }
   if (ENABLE_TEST_TOOLS) {
     acts.push({ key: 'test', label: '识别测试', icon: Upload, type: 'warning' });
   }
-  if (auth.hasPerm('ops:sku:edit') && row.visionEnrollmentStatus !== 'PRODUCTION') {
+  if (canEnroll.value && row.visionEnrollmentStatus !== 'PRODUCTION') {
     acts.push({ key: 'production', label: '转生产', icon: CircleCheck, type: 'success', overflow: true });
   }
   return acts;

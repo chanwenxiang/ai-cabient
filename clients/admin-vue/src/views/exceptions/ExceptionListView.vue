@@ -228,8 +228,17 @@
           <el-button type="primary" @click="addNote">添加备注</el-button>
           <el-button @click="transfer">转派</el-button>
           <el-button v-if="canRetry(detail.exception)" type="warning" @click="retryException">重试识别/结算</el-button>
-          <el-button v-if="canManualResolve(detail.exception)" type="success" @click="openManualResolve">人工确认商品</el-button>
-          <el-button v-if="canManualResolve(detail.exception)" type="danger" plain @click="waiveOrder">免单/全额退回</el-button>
+          <el-button
+            v-if="canManualSettle && canManualResolve(detail.exception)"
+            type="success"
+            @click="openManualResolve"
+          >人工确认商品</el-button>
+          <el-button
+            v-if="canManualSettle && canManualResolve(detail.exception)"
+            type="danger"
+            plain
+            @click="waiveOrder"
+          >免单/全额退回</el-button>
           <el-button v-if="detail.exception.sessionId && auth.hasPerm('ops:session:cancel')" type="danger" @click="cancelSession">取消会话并释放设备</el-button>
         </div>
 
@@ -289,6 +298,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, dictTagType, formatOpsActionDetail } from '@aicabinet/shared-dict';
@@ -297,9 +307,14 @@ import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 const route = useRoute();
 const router = useRouter();
+const { canAccessPath, goPath } = useNavAccess();
 const auth = useAuthStore();
 const canHandle = computed(
   () => auth.hasPerm('ops:exception:handle')
+);
+/** 与后端 manual-resolve 一致：需同时具备争议解决权限 */
+const canManualSettle = computed(
+  () => canHandle.value && auth.hasPerm('ops:dispute:resolve')
 );
 
 interface OpsException {
@@ -398,17 +413,21 @@ function onExceptionAction(key: string, row: OpsException) {
 }
 
 function goDevice(id: string) {
+  if (!canAccessPath('/devices')) {
+    ElMessage.warning('无访问权限');
+    return;
+  }
   router.push(`/devices/${encodeURIComponent(id)}`);
 }
 function goSessions(device?: string) {
   const query: Record<string, string> = {};
   if (device) query.deviceId = device;
-  router.push({ path: '/sessions', query });
+  goPath('/sessions', query);
 }
 function goOrders(device?: string) {
   const query: Record<string, string> = {};
   if (device) query.deviceId = device;
-  router.push({ path: '/orders', query });
+  goPath('/orders', query);
 }
 
 function syncRouteQuery() {

@@ -279,11 +279,13 @@ import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Check, Close, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { api } from '@/api/client';
+import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
+import { csvFileName } from '@/utils/csv';
 import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -291,6 +293,7 @@ import { formatDateTime } from '@aicabinet/shared-uni/format';
 type Row = Record<string, any>;
 const route = useRoute();
 const router = useRouter();
+const { goPath } = useNavAccess();
 const auth = useAuthStore();
 const canEdit = computed(() => auth.hasPerm('ops:replenishment:edit'));
 
@@ -428,10 +431,36 @@ const { onExport: exportShortages } = useListCsv({
     ])
 });
 
-function onExport() {
-  if (tab.value === 'requests') exportRequests();
-  else if (tab.value === 'shortage') exportShortages();
-  else exportRoutes();
+async function onExport() {
+  if (tab.value === 'shortage') {
+    exportShortages();
+    return;
+  }
+  if (tab.value === 'requests') {
+    const selected = pickRequests(requests.value);
+    if (selected.length && selected.length < requests.value.length) {
+      exportRequests();
+      return;
+    }
+    try {
+      await downloadAuthFile('/api/v2/ops/admin/replenishment/requests/export', csvFileName('商户要货'));
+      ElMessage.success('已导出');
+    } catch (e) {
+      ElMessage.error(e instanceof Error ? e.message : '导出失败');
+    }
+    return;
+  }
+  const selected = pickRoutes(routes.value);
+  if (selected.length && selected.length < routes.value.length) {
+    exportRoutes();
+    return;
+  }
+  try {
+    await downloadAuthFile('/api/v2/ops/admin/replenishment/routes/export', csvFileName('补货路线'));
+    ElMessage.success('已导出');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '导出失败');
+  }
 }
 
 function currentAssigneeId() {
@@ -462,7 +491,7 @@ function stockTagType(row: Row) {
 
 function goDevice(deviceId?: string) {
   if (!deviceId) return;
-  router.push(`/devices/${encodeURIComponent(deviceId)}`);
+  goPath(`/devices/${encodeURIComponent(deviceId)}`);
 }
 
 function openPlan() {

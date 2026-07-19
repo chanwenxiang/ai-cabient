@@ -66,3 +66,32 @@ export async function del(path: string): Promise<{ data: any }> {
   const data = await api.request<any>(path, 'DELETE');
   return { data };
 }
+
+/** Download authenticated CSV/binary endpoints (not JSON ApiResponse). */
+export async function downloadAuthFile(path: string, fallbackName: string) {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const res = await fetch(`${getBaseUrl()}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {}
+  });
+  if (res.status === 401 || res.status === 403) {
+    clearSession();
+    if (!window.location.hash.includes('/login')) {
+      window.location.hash = '#/login';
+    }
+    throw new Error(res.status === 403 ? '权限不足' : '登录已失效');
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({} as { message?: string }));
+    throw new Error(err.message || `下载失败 (${res.status})`);
+  }
+  const blob = await res.blob();
+  const cd = res.headers.get('Content-Disposition') || '';
+  const match = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(cd);
+  const filename = match ? decodeURIComponent(match[1].replace(/"/g, '')) : fallbackName;
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}

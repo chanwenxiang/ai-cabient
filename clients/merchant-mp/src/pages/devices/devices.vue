@@ -2,7 +2,7 @@
   <view>
     <view class="toolbar">
       <button class="scan-btn" :loading="scanning" @click="onScan">扫码到柜</button>
-      <button class="replenish-btn" @click="goReplenishment">补货任务</button>
+      <button v-if="canReplenishment" class="replenish-btn" @click="goReplenishment">补货任务</button>
     </view>
     <view v-if="loading" class="card">加载中…</view>
     <view v-else-if="error" class="card"><text class="err">{{ error }}</text></view>
@@ -36,6 +36,7 @@ import type { DeviceInfo, MerchantMe } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canListDevices = computed(() => hasPerm(me.value, 'merchant:devices:list'));
+const canReplenishment = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 
 const loading = ref(true);
 const scanning = ref(false);
@@ -93,6 +94,10 @@ function goDetail(id: string) {
 }
 
 function goReplenishment() {
+  if (!canReplenishment.value) {
+    uni.showToast({ title: '无补货权限', icon: 'none' });
+    return;
+  }
   uni.navigateTo({ url: '/pages/replenishment/replenishment' });
 }
 

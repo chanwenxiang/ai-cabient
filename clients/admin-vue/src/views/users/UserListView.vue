@@ -78,17 +78,14 @@
             </template>
           </el-table-column>
           <el-table-column
-            v-if="canAdjust"
+            v-if="canAdjust || canVerify"
             label="操作"
-            width="100"
+            width="140"
             class-name="col-action"
             align="center"
           >
             <template #default="{ row }">
-              <TableActions
-                :actions="[{ key: 'adjust', label: '调整余额', icon: Wallet, type: 'primary' }]"
-                @action="() => adjust(row)"
-              />
+              <TableActions :actions="userActions(row)" @action="(key) => onUserAction(key, row)" />
             </template>
           </el-table-column>
         </el-table>
@@ -113,10 +110,10 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Refresh, Wallet } from '@element-plus/icons-vue';
+import { CircleCheck, Refresh, Wallet } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
-import TableActions from '@/components/TableActions.vue';
+import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
@@ -138,6 +135,43 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const canAdjust = computed(() => ENABLE_TEST_TOOLS && auth.hasPerm('ops:user:balance'));
+const canVerify = computed(() => auth.hasPerm('ops:user:verify'));
+
+function userActions(row: UserRow): TableAction[] {
+  const acts: TableAction[] = [];
+  if (canVerify.value && !row.verified) {
+    acts.push({ key: 'verify', label: '核验实名', icon: CircleCheck, type: 'success' });
+  }
+  if (canAdjust.value) {
+    acts.push({ key: 'adjust', label: '调整余额', icon: Wallet, type: 'primary', overflow: true });
+  }
+  return acts;
+}
+
+function onUserAction(key: string, row: UserRow) {
+  if (key === 'verify') verifyUser(row);
+  else if (key === 'adjust') adjust(row);
+}
+
+async function verifyUser(row: UserRow) {
+  try {
+    const { value } = await ElMessageBox.prompt('确认实名姓名（可留空）', `核验用户 ${row.userId}`, {
+      confirmButtonText: '确认已实名',
+      cancelButtonText: '取消',
+      inputPlaceholder: row.name || '真实姓名',
+      inputValue: row.name || ''
+    });
+    await api.request(`/api/v2/ops/admin/users/${row.userId}/verify`, 'POST', {
+      verified: true,
+      realName: (value || '').trim() || undefined
+    });
+    ElMessage.success('已核验实名');
+    await load();
+  } catch (e) {
+    if (e === 'cancel' || e === 'close') return;
+    ElMessage.error(e instanceof Error ? e.message : '核验失败');
+  }
+}
 
 const loading = ref(false);
 const keyword = ref('');

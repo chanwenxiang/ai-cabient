@@ -1,6 +1,6 @@
 import type { Component } from 'vue';
 import {
-  Box, Briefcase, Coin, Collection, DataAnalysis, DataBoard, Document, Goods, House, Key, Lock, Menu, Monitor, Money, Notebook, OfficeBuilding, Operation, Setting, Tools, Upload, User, UserFilled, View, Wallet, Warning
+  Box, Briefcase, Coin, Collection, Cpu, DataAnalysis, DataBoard, Document, Goods, House, Key, Lock, Menu, Monitor, Money, Notebook, OfficeBuilding, Operation, Setting, Timer, Tools, Upload, User, UserFilled, View, Wallet, Warning
 } from '@element-plus/icons-vue';
 import { NAV_ITEMS, type NavItem } from '@/config/menu';
 
@@ -21,6 +21,9 @@ const PATH_ICONS: Record<string, Component> = {
   '/orders': Document,
   '/skus': Goods,
   '/recognition-demo': View,
+  '/vision-mappings': View,
+  '/ota': Cpu,
+  '/sla': Timer,
   '/disputes': Warning,
   '/exceptions': Warning,
   '/replenishment': Box,

@@ -171,7 +171,7 @@
 
           <div class="drawer-actions">
             <el-button
-              v-if="canRefund(detail.status) && auth.hasPerm('ops:dispute:resolve')"
+              v-if="canRefund(detail.status) && auth.hasPerm('ops:order:refund')"
               type="danger"
               :loading="refundingId === detail.orderId"
               @click="refundOrder(detail)"
@@ -216,20 +216,22 @@
 
 <script setup lang="ts">
 import { onActivated, onMounted, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { Refresh, View, Wallet } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
-import { api } from '@/api/client';
+import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { OrderSummary, PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { csvFileName } from '@/utils/csv';
 
 const route = useRoute();
-const router = useRouter();
+const { router, goPath } = useNavAccess();
 const auth = useAuthStore();
 const loading = ref(false);
 const refundingId = ref('');
@@ -247,7 +249,7 @@ const statusOptions = dictOptions('order_status');
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<OrderSummary>((r) => r.orderId);
 
-const { onExport } = useListCsv({
+const { onExport: exportSelectedCsv } = useListCsv({
   filePrefix: '订单',
   headers: ['订单号', '会话', '用户ID', '设备', '状态', '支付渠道', '商品行', '金额', '创建时间'],
   toRows: () =>
@@ -263,6 +265,26 @@ const { onExport } = useListCsv({
       formatDateTime(row.createdAt)
     ])
 });
+
+async function onExport() {
+  const selected = pickSelected(items.value);
+  if (selected.length && selected.length < items.value.length) {
+    exportSelectedCsv();
+    return;
+  }
+  try {
+    const q = new URLSearchParams();
+    if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
+    const qs = q.toString();
+    await downloadAuthFile(
+      `/api/v2/ops/admin/orders/export${qs ? `?${qs}` : ''}`,
+      csvFileName('订单')
+    );
+    ElMessage.success('已导出');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '导出失败');
+  }
+}
 
 function money(cents?: number) {
   return ((cents || 0) / 100).toFixed(2);
@@ -281,7 +303,7 @@ function canRefund(s?: string) {
 
 function rowActions(row: OrderSummary): TableAction[] {
   const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
-  if (canRefund(row.status) && auth.hasPerm('ops:dispute:resolve')) {
+  if (canRefund(row.status) && auth.hasPerm('ops:order:refund')) {
     actions.push({
       key: 'refund',
       label: '退款',
@@ -299,13 +321,13 @@ function onRowAction(key: string, row: OrderSummary) {
 }
 
 function goDevice(id: string) {
-  router.push(`/devices/${encodeURIComponent(id)}`);
+  goPath(`/devices/${encodeURIComponent(id)}`);
 }
 
 function goSessions(device?: string) {
   const query: Record<string, string> = {};
   if (device) query.deviceId = device;
-  router.push({ path: '/sessions', query });
+  goPath('/sessions', query);
 }
 
 async function openDetail(row: OrderSummary) {

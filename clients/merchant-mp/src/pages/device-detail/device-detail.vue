@@ -1,6 +1,7 @@
 <template>
   <view>
-    <view v-if="loading" class="card">加载中…</view>
+    <view v-if="!canView" class="card"><text class="err">当前账号无柜机详情权限</text></view>
+    <view v-else-if="loading" class="card">加载中…</view>
     <view v-else-if="error" class="card"><text class="err">{{ error }}</text></view>
     <view v-else>
       <view class="card">
@@ -49,9 +50,9 @@ import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { merchantApi, hasPerm } from '@/utils/merchant-api';
 import { useMerchantMe, canEditPlanogramForMerchant } from '@/composables/useMerchantMe';
-import type { DeviceSlot } from '@aicabinet/shared-types';
+import type { DeviceSlot, MerchantMe } from '@aicabinet/shared-types';
 
-const { me } = useMerchantMe();
+const { me, refresh: refreshMe } = useMerchantMe();
 const loading = ref(true);
 const error = ref('');
 const deviceId = ref('');
@@ -68,6 +69,7 @@ const savingSlots = ref(false);
 const slots = ref<DeviceSlot[]>([]);
 const slotPar = ref<Record<string, string>>({});
 
+const canView = computed(() => hasPerm(me.value, 'merchant:devices:detail'));
 const canEditDevice = computed(() => hasPerm(me.value, 'merchant:devices:edit'));
 const canEditSlots = computed(() => canEditPlanogramForMerchant(me.value, merchantId.value));
 
@@ -86,6 +88,17 @@ onLoad((opts) => {
 });
 
 async function loadDetail() {
+  try {
+    await refreshMe();
+  } catch {
+    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  if (!canView.value) {
+    loading.value = false;
+    uni.showToast({ title: '无柜机详情权限', icon: 'none' });
+    uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
+    return;
+  }
   loading.value = true;
   try {
     const settings = await merchantApi.deviceSettings(deviceId.value);

@@ -287,7 +287,7 @@ public class OpsCommercialFacade {
     }
 
     private void requireWarehouseWrite(Long operatorId) {
-        permissionService.requireAnyPermission(operatorId, "ops:warehouse:edit", "ops:replenishment:edit");
+        permissionService.requireAnyPermission(operatorId, "ops:warehouse:edit", "ops:warehouse:import", "ops:replenishment:edit");
     }
 
     public DeviceDetailDto deviceDetail(Long operatorId, String deviceId) {

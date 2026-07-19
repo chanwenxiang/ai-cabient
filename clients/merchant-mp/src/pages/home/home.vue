@@ -92,10 +92,10 @@
         </view>
       </view>
 
-      <view class="ops-block">
+      <view v-if="canPricing || canSettlements || canDisputes || canBusiness" class="ops-block">
         <text class="ops-title">经营工具</text>
         <view class="ops-grid">
-          <view class="ops-card" @click="goPricing">
+          <view v-if="canPricing" class="ops-card" @click="goPricing">
             <text class="ops-label">点位定价</text>
           </view>
           <view v-if="canSettlements" class="ops-card" @click="goSettlements">
@@ -110,14 +110,14 @@
         </view>
       </view>
 
-      <view class="card section-card">
-        <text class="section">近7日营收</text>
+      <view v-if="canFinanceKpi || canDevices" class="card section-card">
+        <text class="section">{{ canFinanceKpi ? '近7日营收' : '柜机概况' }}</text>
         <view class="kpi-mini">
-          <view>
+          <view v-if="canFinanceKpi">
             <text class="kpi-label">今日营收</text>
             <text class="kpi-value">{{ revenueToday }}</text>
           </view>
-          <view>
+          <view v-if="canFinanceKpi">
             <text class="kpi-label">商户收入</text>
             <text class="kpi-value">{{ incomeToday }}</text>
           </view>
@@ -126,7 +126,7 @@
             <text class="kpi-value">{{ onlineText }}</text>
           </view>
         </view>
-        <view class="bars">
+        <view v-if="canFinanceKpi && trendBars.length" class="bars">
           <view v-for="b in trendBars" :key="b.date" class="bar-wrap">
             <view class="bar" :style="{ height: b.height + 'rpx' }" />
             <text class="bar-label">{{ b.label }}</text>
@@ -152,10 +152,18 @@ const { me, refresh: refreshMe } = useMerchantMe();
 const canReplenishment = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 const canDevices = computed(() => hasPerm(me.value, 'merchant:devices:list'));
 const canAlerts = computed(() => hasPerm(me.value, 'merchant:alerts:view'));
+const canPricing = computed(() => hasPerm(me.value, 'merchant:pricing:view'));
 const canSettlements = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
 const canDisputes = computed(() => hasPerm(me.value, 'merchant:disputes:list'));
 const canBusiness = computed(
   () => hasPerm(me.value, 'merchant:reports:view') || hasPerm(me.value, 'merchant:analytics:view')
+);
+const canTrend = computed(() => hasPerm(me.value, 'merchant:trend:view'));
+const canFinanceKpi = computed(
+  () =>
+    canBusiness.value ||
+    canSettlements.value ||
+    canTrend.value
 );
 
 const loading = ref(true);
@@ -278,8 +286,10 @@ async function load() {
 
     const [s, trend, workbench, devices, tasks] = await Promise.all([
       merchantApi.stats() as Promise<Record<string, number>>,
-      merchantApi.trend(7) as Promise<{ last7Days?: { date: string; revenueCents: number }[] }>,
-      canAlerts.value || canDevices.value
+      canTrend.value
+        ? (merchantApi.trend(7) as Promise<{ last7Days?: { date: string; revenueCents: number }[] }>)
+        : Promise.resolve({ last7Days: [] }),
+      canAlerts.value
         ? merchantApi.workbench()
         : Promise.resolve({
             offlineDevices: 0,
@@ -297,9 +307,11 @@ async function load() {
     const days = trend.last7Days || [];
     const maxRev = Math.max(...days.map((d) => d.revenueCents), 1);
     stats.value = s;
-    revenueToday.value = fmtMoney(s.revenueTodayCents);
-    incomeToday.value = fmtMoney(s.merchantIncomeTodayCents);
-    offlineCount.value = workbench.offlineDevices || 0;
+    revenueToday.value = canFinanceKpi.value ? fmtMoney(s.revenueTodayCents) : '-';
+    incomeToday.value = canFinanceKpi.value ? fmtMoney(s.merchantIncomeTodayCents) : '-';
+    offlineCount.value = canAlerts.value
+      ? workbench.offlineDevices || 0
+      : Number(s.deviceOffline || 0);
     pendingCount.value = canAlerts.value
       ? (workbench.openDisputes || 0) +
         (workbench.offlineDevices || 0) +
@@ -307,11 +319,13 @@ async function load() {
         (workbench.expiryAlerts || 0)
       : 0;
     actionItems.value = canAlerts.value ? (workbench.actionItems || []).slice(0, 3) : [];
-    trendBars.value = days.map((d) => ({
-      date: d.date,
-      label: d.date.slice(5),
-      height: Math.max(16, Math.round((d.revenueCents / maxRev) * 120))
-    }));
+    trendBars.value = canFinanceKpi.value
+      ? days.map((d) => ({
+          date: d.date,
+          label: d.date.slice(5),
+          height: Math.max(16, Math.round((d.revenueCents / maxRev) * 120))
+        }))
+      : [];
 
     const map: Record<string, string> = {};
     for (const d of devices as { deviceId: string; deviceName?: string }[]) {

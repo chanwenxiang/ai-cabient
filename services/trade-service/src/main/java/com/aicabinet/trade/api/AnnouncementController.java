@@ -32,7 +32,7 @@ public class AnnouncementController {
         return ApiResponse.ok(announcementService.listPublished());
     }
 
-    @RequiresPermissions("ops:announcement:create")
+    @RequiresPermissions(value = {"ops:announcement:create", "ops:announcement:import"}, logical = RequiresPermissions.Logical.OR)
     @PostMapping
     public ApiResponse<Announcement> create(
             HttpServletRequest request,

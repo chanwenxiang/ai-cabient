@@ -373,10 +373,10 @@ public class ProcurementService {
     }
 
     private void requireWarehouseRead(Long operatorId) {
-        permissionService.requireAnyPermission(operatorId, "ops:warehouse:list", "ops:replenishment:list");
+        permissionService.requirePermission(operatorId, "ops:procurement:list");
     }
 
     private void requireWarehouseWrite(Long operatorId) {
-        permissionService.requireAnyPermission(operatorId, "ops:warehouse:edit", "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, "ops:procurement:edit");
     }
 }

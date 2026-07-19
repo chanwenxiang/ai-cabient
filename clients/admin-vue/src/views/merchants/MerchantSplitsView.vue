@@ -211,19 +211,20 @@
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { Refresh, RefreshRight, Upload } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { MerchantDto, PageResult, ProfitSharingStatus, RevenueSplit } from '@aicabinet/shared-types';
 
 const route = useRoute();
-const router = useRouter();
+const { router, goPath } = useNavAccess();
 const auth = useAuthStore();
 const canEdit = computed(() => auth.hasPerm('ops:merchant:edit'));
 const canSplit = computed(() => auth.hasPerm('ops:merchant:split'));
@@ -302,7 +303,7 @@ function onExport() {
 }
 
 function goOrders() {
-  router.push({ path: '/orders' });
+  goPath('/orders');
 }
 
 function splitTagType(s: string) {

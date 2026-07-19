@@ -375,7 +375,7 @@ async function savePerms() {
     );
     ElMessage.success('权限已保存');
     permDlg.value = false;
-    await loadRoles();
+    await Promise.all([loadRoles(), auth.refreshPermissions()]);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {

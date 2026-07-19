@@ -9,9 +9,9 @@
       </view>
     </view>
 
-    <view class="section-label">现场作业</view>
-    <view class="menu-list">
-      <view class="menu-cell highlight" @click="goReplenishment">
+    <view v-if="canReplenishment || canDevices || canAlerts" class="section-label">现场作业</view>
+    <view v-if="canReplenishment || canDevices || canAlerts" class="menu-list">
+      <view v-if="canReplenishment" class="menu-cell highlight" @click="goReplenishment">
         <text class="menu-icon">📦</text>
         <view class="menu-text">
           <text class="menu-title">补货任务</text>
@@ -19,7 +19,7 @@
         </view>
         <text class="menu-arrow">›</text>
       </view>
-      <view class="menu-cell" @click="goDevices">
+      <view v-if="canDevices" class="menu-cell" @click="goDevices">
         <text class="menu-icon">🗄️</text>
         <view class="menu-text">
           <text class="menu-title">柜机管理</text>
@@ -27,7 +27,7 @@
         </view>
         <text class="menu-arrow">›</text>
       </view>
-      <view class="menu-cell" @click="goAlerts">
+      <view v-if="canAlerts" class="menu-cell" @click="goAlerts">
         <text class="menu-icon">🔔</text>
         <view class="menu-text">
           <text class="menu-title">待办事项</text>
@@ -37,9 +37,9 @@
       </view>
     </view>
 
-    <view class="section-label">经营工具</view>
-    <view class="menu-list">
-      <view class="menu-cell" @click="goPricing">
+    <view v-if="canPricing || canSettlements || canDisputes || canBusiness" class="section-label">经营工具</view>
+    <view v-if="canPricing || canSettlements || canDisputes || canBusiness" class="menu-list">
+      <view v-if="canPricing" class="menu-cell" @click="goPricing">
         <text class="menu-icon">¥</text>
         <view class="menu-text">
           <text class="menu-title">点位定价</text>
@@ -47,7 +47,7 @@
         </view>
         <text class="menu-arrow">›</text>
       </view>
-      <view class="menu-cell" @click="goSettlements">
+      <view v-if="canSettlements" class="menu-cell" @click="goSettlements">
         <text class="menu-icon">📑</text>
         <view class="menu-text">
           <text class="menu-title">结算对账</text>
@@ -55,7 +55,7 @@
         </view>
         <text class="menu-arrow">›</text>
       </view>
-      <view class="menu-cell" @click="goDisputes">
+      <view v-if="canDisputes" class="menu-cell" @click="goDisputes">
         <text class="menu-icon">⚖️</text>
         <view class="menu-text">
           <text class="menu-title">争议处理</text>
@@ -63,7 +63,7 @@
         </view>
         <text class="menu-arrow">›</text>
       </view>
-      <view class="menu-cell" @click="goBusiness">
+      <view v-if="canBusiness" class="menu-cell" @click="goBusiness">
         <text class="menu-icon">📈</text>
         <view class="menu-text">
           <text class="menu-title">经营分析</text>
@@ -88,23 +88,40 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import { clearSession } from '@/utils/merchant-api';
+import { clearSession, hasPerm } from '@/utils/merchant-api';
+import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { MerchantMe } from '@aicabinet/shared-types';
 
+const { me, refresh: refreshMe } = useMerchantMe();
 const meName = ref('');
 const merchantNames = ref('');
 const phone = ref('');
 const avatarText = computed(() => (meName.value || '商').slice(0, 1));
 
-onShow(() => {
+const canReplenishment = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
+const canDevices = computed(() => hasPerm(me.value, 'merchant:devices:list'));
+const canAlerts = computed(() => hasPerm(me.value, 'merchant:alerts:view'));
+const canPricing = computed(() => hasPerm(me.value, 'merchant:pricing:view'));
+const canSettlements = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
+const canDisputes = computed(() => hasPerm(me.value, 'merchant:disputes:list'));
+const canBusiness = computed(
+  () => hasPerm(me.value, 'merchant:reports:view') || hasPerm(me.value, 'merchant:analytics:view')
+);
+
+onShow(async () => {
   if (!uni.getStorageSync('merchant_token')) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
-  const me = (uni.getStorageSync('merchant_me') || {}) as MerchantMe;
-  meName.value = me.displayName || me.phoneNumber || '商户';
-  merchantNames.value = (me.merchants || []).map((m) => m.merchantName).join('、') || '未绑定';
-  phone.value = me.phoneNumber || '';
+  try {
+    await refreshMe();
+  } catch {
+    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  const profile = me.value || ((uni.getStorageSync('merchant_me') || {}) as MerchantMe);
+  meName.value = profile.displayName || profile.phoneNumber || '商户';
+  merchantNames.value = (profile.merchants || []).map((m) => m.merchantName).join('、') || '未绑定';
+  phone.value = profile.phoneNumber || '';
 });
 
 function goPricing() {

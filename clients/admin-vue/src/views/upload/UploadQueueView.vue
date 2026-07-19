@@ -73,7 +73,7 @@
                 v-if="row.deviceId"
                 type="button"
                 class="link-cell"
-                @click="router.push(`/devices/${encodeURIComponent(row.deviceId)}`)"
+                @click="goPath(`/devices/${encodeURIComponent(row.deviceId)}`)"
               >
                 {{ row.deviceId }}
               </button>
@@ -130,12 +130,13 @@
 
 <script setup lang="ts">
 import { onActivated, onMounted, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { useListCsv } from '@/composables/useListCsv';
+import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -152,7 +153,7 @@ interface SessionRow {
 }
 
 const route = useRoute();
-const router = useRouter();
+const { router, goPath } = useNavAccess();
 const loading = ref(false);
 const deviceId = ref('');
 const page = ref(1);
@@ -231,7 +232,7 @@ function onSizeChange() {
 }
 
 function goSession(sessionId: string) {
-  router.push({ path: '/sessions', query: { sessionId } });
+  goPath('/sessions', { sessionId });
 }
 
 function objectKey(videoUri?: string) {

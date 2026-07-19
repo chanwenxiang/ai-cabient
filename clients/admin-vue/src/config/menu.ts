@@ -19,7 +19,9 @@ const BASE_NAV: NavItem[] = [
   { path: '/upload-queue', title: '录像上传', group: '业务', perm: 'ops:session:upload', keywords: ['上传', '视频', 'upload'] },
   { path: '/orders', title: '订单管理', group: '业务', perm: 'ops:order:list', keywords: ['order'] },
   { path: '/skus', title: '商品与识别', group: '业务', perm: 'ops:sku:list', keywords: ['sku', '商品', '定价', 'yolo', '识别', 'vision'] },
-  { path: '/vision-mappings', title: '识别映射', group: '业务', perm: 'ops:sku:list', keywords: ['yolo', '映射', 'vision', 'deepseek', '重力'] },
+  { path: '/vision-mappings', title: '识别映射', group: '业务', perm: 'ops:vision:list', keywords: ['yolo', '映射', 'vision', 'deepseek', '重力'] },
+  { path: '/ota', title: 'OTA 版本', group: '运营', perm: 'ops:ota:list', keywords: ['ota', '固件', '升级', '版本'] },
+  { path: '/sla', title: 'SLA 监控', group: '运营', perm: 'ops:sla', keywords: ['sla', '开门成功率', '识别耗时', '在线率'] },
   { path: '/disputes', title: '争议审核', group: '业务', perm: 'ops:dispute', keywords: ['争议', 'dispute'] },
   { path: '/exceptions', title: '异常中心', group: '业务', perm: 'ops:exception:list', keywords: ['异常', '超时', '资金', 'exception'] },
   { path: '/replenishment', title: '补货调度', group: '运营', perm: 'ops:replenishment:list', keywords: ['补货', '要货', '开门', '路线'] },
@@ -46,7 +48,7 @@ const DEMO_NAV: NavItem = {
   path: '/recognition-demo',
   title: '识别 Demo',
   group: '业务',
-  perm: 'ops:sku:list',
+  perm: 'ops:sku:demo',
   keywords: ['识别', 'demo', '上传', 'yolo', '测试']
 };
 

@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.SkuCatalogDto;
 import com.aicabinet.common.dto.UpsertSkuVisionEnrollmentRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
+import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.SkuVisionEnrollmentService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -19,11 +20,13 @@ public class SkuVisionEnrollmentController {
         this.enrollmentService = enrollmentService;
     }
 
+    @RequiresPermissions("ops:sku:list")
     @GetMapping
     public ApiResponse<java.util.List<SkuCatalogDto>> list(HttpServletRequest request) {
         return ApiResponse.ok(enrollmentService.listSkusWithVision(operatorId(request)));
     }
 
+    @RequiresPermissions(value = {"ops:sku:edit", "ops:vision:edit"}, logical = RequiresPermissions.Logical.AND)
     @PostMapping("/enroll")
     public ApiResponse<SkuCatalogDto> enroll(
             HttpServletRequest request,
@@ -31,6 +34,7 @@ public class SkuVisionEnrollmentController {
         return ApiResponse.ok(enrollmentService.enrollSku(operatorId(request), body));
     }
 
+    @RequiresPermissions("ops:vision:edit")
     @PatchMapping("/{skuId}/status")
     public ApiResponse<SkuCatalogDto> updateStatus(
             HttpServletRequest request,
@@ -39,6 +43,7 @@ public class SkuVisionEnrollmentController {
         return ApiResponse.ok(enrollmentService.updateEnrollmentStatus(operatorId(request), skuId, status));
     }
 
+    @RequiresPermissions(value = {"ops:sku:list", "ops:vision:edit"}, logical = RequiresPermissions.Logical.OR)
     @PostMapping(value = "/suggest-class", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<java.util.Map<String, Object>> suggestClassFromImage(
             HttpServletRequest request,
@@ -49,6 +54,7 @@ public class SkuVisionEnrollmentController {
                 image.getBytes(), image.getOriginalFilename(), skuName));
     }
 
+    @RequiresPermissions(value = {"ops:sku:list", "ops:vision:edit"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/suggest-class-name")
     public ApiResponse<SuggestClassDto> suggestClass(@RequestParam("skuName") String skuName) {
         return ApiResponse.ok(new SuggestClassDto(SkuVisionEnrollmentService.suggestClassName(skuName)));

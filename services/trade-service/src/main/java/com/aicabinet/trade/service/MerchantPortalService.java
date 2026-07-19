@@ -169,6 +169,17 @@ public class MerchantPortalService {
         int online = (int) devices.stream().filter(d -> "ONLINE".equalsIgnoreCase(d.getOnlineStatus())).count();
         int offline = devices.size() - online;
 
+        boolean canFinanceKpi = permissionService.hasAnyPermission(
+                userId,
+                "merchant:reports:view",
+                "merchant:settlements:view",
+                "merchant:trend:view",
+                "merchant:analytics:view");
+        if (!canFinanceKpi) {
+            return new MerchantDashboardStatsDto(
+                    devices.size(), online, offline, 0, 0, 0, 0, 0, 0, 0, 0);
+        }
+
         Instant startOfDay = LocalDate.now(ZoneId.systemDefault())
                 .atStartOfDay(ZoneId.systemDefault()).toInstant();
 

@@ -21,6 +21,7 @@ import static org.mockito.Mockito.when;
 class PermissionServiceTest {
 
     private static final long OPERATOR_ID = CabinetConstants.OPERATOR_USER_ID_START + 1;
+    private static final long CONSUMER_ID = 10001L;
 
     @Mock
     private OpsPermissionMapper permissionRepository;
@@ -50,8 +51,6 @@ class PermissionServiceTest {
 
         assertFalse(permissionService.hasPermission(OPERATOR_ID, "ops:device:list"));
     }
-
-    private static final long CONSUMER_ID = 10001L;
 
     @Test
     void exactPermission_grantsAccess() {
@@ -114,5 +113,40 @@ class PermissionServiceTest {
 
         assertThrows(ResponseStatusException.class,
                 () -> permissionService.requirePermission(OPERATOR_ID, "ops:order:list"));
+    }
+
+    @Test
+    void exportCodes_exactAndDenied() {
+        when(userRoleRepository.findByIdUserId(OPERATOR_ID)).thenReturn(List.of(new OpsUserRole()));
+        when(permissionRepository.findPermCodesByUserId(OPERATOR_ID))
+                .thenReturn(Set.of("ops:order:export", "ops:device:list"));
+
+        assertTrue(permissionService.hasPermission(OPERATOR_ID, "ops:order:export"));
+        assertFalse(permissionService.hasPermission(OPERATOR_ID, "ops:session:export"));
+        assertFalse(permissionService.hasPermission(OPERATOR_ID, "ops:sku:import"));
+    }
+
+    @Test
+    void requireAnyPermission_importOrEdit() {
+        when(userRoleRepository.findByIdUserId(OPERATOR_ID)).thenReturn(List.of(new OpsUserRole()));
+        when(permissionRepository.findPermCodesByUserId(OPERATOR_ID))
+                .thenReturn(Set.of("ops:sku:import"));
+
+        assertDoesNotThrow(() ->
+                permissionService.requireAnyPermission(OPERATOR_ID, "ops:sku:edit", "ops:sku:import"));
+        assertThrows(ResponseStatusException.class, () ->
+                permissionService.requireAnyPermission(OPERATOR_ID, "ops:dict:edit", "ops:dict:import"));
+    }
+
+    @Test
+    void enrollStyle_requiresBothSkuEditAndVisionEdit() {
+        when(userRoleRepository.findByIdUserId(OPERATOR_ID)).thenReturn(List.of(new OpsUserRole()));
+        when(permissionRepository.findPermCodesByUserId(OPERATOR_ID))
+                .thenReturn(Set.of("ops:sku:edit", "ops:vision:edit"));
+
+        assertDoesNotThrow(() -> permissionService.requirePermission(OPERATOR_ID, "ops:sku:edit"));
+        assertDoesNotThrow(() -> permissionService.requirePermission(OPERATOR_ID, "ops:vision:edit"));
+        assertThrows(ResponseStatusException.class,
+                () -> permissionService.requirePermission(OPERATOR_ID, "ops:sku:import"));
     }
 }

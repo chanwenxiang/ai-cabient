@@ -2,7 +2,7 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
-import com.aicabinet.trade.service.PermissionService;
+import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.PromotionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -15,61 +15,55 @@ import java.util.List;
 public class PromotionController {
 
     private final PromotionService promotionService;
-    private final PermissionService permissionService;
 
-    public PromotionController(PromotionService promotionService, PermissionService permissionService) {
+    public PromotionController(PromotionService promotionService) {
         this.promotionService = promotionService;
-        this.permissionService = permissionService;
     }
 
+    @RequiresPermissions("ops:promotion:list")
     @GetMapping
     public ApiResponse<List<PromotionActivityDto>> listAll(HttpServletRequest request) {
-        permissionService.requirePermission(operatorId(request), "ops:promotion:list");
         return ApiResponse.ok(promotionService.listAll());
     }
 
+    @RequiresPermissions("ops:promotion:list")
     @GetMapping("/active")
     public ApiResponse<List<PromotionActivityDto>> listActive(HttpServletRequest request) {
-        permissionService.requirePermission(operatorId(request), "ops:promotion:list");
         return ApiResponse.ok(promotionService.listActive());
     }
 
+    @RequiresPermissions("ops:promotion:list")
     @GetMapping("/running")
     public ApiResponse<List<PromotionActivityDto>> listRunning(HttpServletRequest request) {
-        permissionService.requirePermission(operatorId(request), "ops:promotion:list");
         return ApiResponse.ok(promotionService.listCurrentlyRunning());
     }
 
+    @RequiresPermissions(value = {"ops:promotion:create", "ops:promotion:import"}, logical = RequiresPermissions.Logical.OR)
     @PostMapping
     public ApiResponse<PromotionActivityDto> create(
             HttpServletRequest request,
             @Valid @RequestBody CreatePromotionRequest body) {
-        permissionService.requirePermission(operatorId(request), "ops:promotion:create");
         return ApiResponse.ok(promotionService.create(body));
     }
 
+    @RequiresPermissions("ops:promotion:edit")
     @PutMapping("/{id}")
     public ApiResponse<PromotionActivityDto> update(
             HttpServletRequest request,
             @PathVariable("id") Long id,
             @Valid @RequestBody CreatePromotionRequest body) {
-        permissionService.requirePermission(operatorId(request), "ops:promotion:edit");
         return ApiResponse.ok(promotionService.update(id, body));
     }
 
+    @RequiresPermissions("ops:promotion:launch")
     @PostMapping("/{id}/launch")
     public ApiResponse<PromotionActivityDto> launch(HttpServletRequest request, @PathVariable("id") Long id) {
-        permissionService.requirePermission(operatorId(request), "ops:promotion:stop");
         return ApiResponse.ok(promotionService.launch(id));
     }
 
+    @RequiresPermissions("ops:promotion:stop")
     @PostMapping("/{id}/stop")
     public ApiResponse<PromotionActivityDto> stop(HttpServletRequest request, @PathVariable("id") Long id) {
-        permissionService.requirePermission(operatorId(request), "ops:promotion:stop");
         return ApiResponse.ok(promotionService.stop(id));
-    }
-
-    private static Long operatorId(HttpServletRequest request) {
-        return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }
 }

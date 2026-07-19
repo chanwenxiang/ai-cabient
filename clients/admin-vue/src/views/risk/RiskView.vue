@@ -47,7 +47,7 @@
                     v-if="row.userId"
                     type="button"
                     class="link-cell"
-                    @click="router.push({ path: '/users', query: { keyword: String(row.userId) } })"
+                    @click="goPath('/users', { keyword: String(row.userId) })"
                   >
                     {{ row.userId }}
                   </button>
@@ -102,7 +102,7 @@
                   <button
                     type="button"
                     class="link-cell"
-                    @click="router.push({ path: '/users', query: { keyword: String(row.userId) } })"
+                    @click="goPath('/users', { keyword: String(row.userId) })"
                   >
                     {{ row.userId }}
                   </button>
@@ -161,21 +161,23 @@
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { Delete, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { api } from '@/api/client';
+import { api, downloadAuthFile } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
+import { csvFileName } from '@/utils/csv';
 import type { PageResult } from '@aicabinet/shared-types';
 import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 type Row = Record<string, any>;
 const route = useRoute();
-const router = useRouter();
+const { router, goPath } = useNavAccess();
 const auth = useAuthStore();
 const canBlacklist = computed(() => auth.hasPerm('ops:risk:blacklist'));
 
@@ -233,9 +235,32 @@ const { onExport: exportBlacklist } = useListCsv({
     ])
 });
 
-function onExport() {
-  if (tab.value === 'blacklist') exportBlacklist();
-  else exportEvents();
+async function onExport() {
+  if (tab.value === 'blacklist') {
+    const selected = pickBlacklist(blacklist.value);
+    if (selected.length && selected.length < blacklist.value.length) {
+      exportBlacklist();
+      return;
+    }
+    try {
+      await downloadAuthFile('/api/v2/ops/admin/risk/blacklist/export', csvFileName('黑名单'));
+      ElMessage.success('已导出');
+    } catch (e) {
+      ElMessage.error(e instanceof Error ? e.message : '导出失败');
+    }
+    return;
+  }
+  const selected = pickEvents(events.value);
+  if (selected.length && selected.length < events.value.length) {
+    exportEvents();
+    return;
+  }
+  try {
+    await downloadAuthFile('/api/v2/ops/admin/risk/events/export', csvFileName('风险事件'));
+    ElMessage.success('已导出');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '导出失败');
+  }
 }
 
 function syncRouteQuery() {

@@ -118,8 +118,9 @@ public class MerchantReplenishmentService {
         return session;
     }
 
+    /** 签到/开门/确认上架/完成：与前端一致，需补货操作权（request） */
     private ReplenishmentTask requireScopedTask(Long userId, Long taskId) {
-        permissionService.requirePermission(userId, "merchant:replenishment:view");
+        permissionService.requirePermission(userId, "merchant:replenishment:request");
         merchantPortalGuard.requireAccess(userId);
         ReplenishmentTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));

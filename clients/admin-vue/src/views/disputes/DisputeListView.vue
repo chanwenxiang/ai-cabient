@@ -271,6 +271,7 @@ import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import type { DevRecognitionPreviewDto, DisputeTicketDto, OrderLineDto, PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -286,6 +287,7 @@ interface ResolveDisputeResultDto {
 
 const route = useRoute();
 const router = useRouter();
+const { canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
 const status = ref('OPEN');
 const items = ref<DisputeTicketDto[]>([]);
@@ -348,17 +350,21 @@ function disputeStatusType(s?: string) {
 }
 
 function goDevice(id: string) {
+  if (!canAccessPath('/devices')) {
+    ElMessage.warning('无访问权限');
+    return;
+  }
   router.push(`/devices/${encodeURIComponent(id)}`);
 }
 function goSessions(device?: string) {
   const query: Record<string, string> = {};
   if (device) query.deviceId = device;
-  router.push({ path: '/sessions', query });
+  goPath('/sessions', query);
 }
 function goOrders(device?: string) {
   const query: Record<string, string> = {};
   if (device) query.deviceId = device;
-  router.push({ path: '/orders', query });
+  goPath('/orders', query);
 }
 
 function openDetail(row: DisputeTicketDto) {

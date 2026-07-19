@@ -137,7 +137,7 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="供应商" name="suppliers">
+      <el-tab-pane v-if="canProcurementList" label="供应商" name="suppliers">
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
@@ -177,7 +177,7 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="采购单" name="purchase">
+      <el-tab-pane v-if="canProcurementList" label="采购单" name="purchase">
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
@@ -245,7 +245,7 @@
         </div>
       </el-tab-pane>
 
-      <el-tab-pane label="采购退货" name="returns">
+      <el-tab-pane v-if="canProcurementList" label="采购退货" name="returns">
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
@@ -700,10 +700,11 @@ import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Box, EditPen, Refresh, Van } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { api } from '@/api/client';
+import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useAuthStore } from '@/stores/auth';
+import { csvFileName } from '@/utils/csv';
 import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -712,7 +713,13 @@ type Row = Record<string, any>;
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
-const canEdit = computed(() => auth.hasPerm('ops:warehouse:edit') || auth.hasPerm('ops:replenishment:edit'));
+const canWarehouseEdit = computed(() => auth.hasPerm('ops:warehouse:edit'));
+const canProcurementEdit = computed(() => auth.hasPerm('ops:procurement:edit'));
+const canProcurementList = computed(() => auth.hasPerm('ops:procurement:list'));
+const canEdit = computed(() => {
+  if (['suppliers', 'purchase', 'returns'].includes(tab.value)) return canProcurementEdit.value;
+  return canWarehouseEdit.value;
+});
 const canImportMaster = computed(() => tab.value === 'warehouses' || tab.value === 'suppliers');
 const selectedKeys = ref<Array<string | number>>([]);
 
@@ -1070,18 +1077,58 @@ const { onExport: exportMovements } = useListCsv({
     ])
 });
 
-function onExport() {
-  const exporters: Record<string, () => void> = {
-    warehouses: exportWarehouses,
-    suppliers: exportSuppliers,
-    purchase: exportPurchase,
-    returns: exportReturns,
-    outbounds: exportOutbounds,
-    transit: exportTransit,
-    inventory: exportInventory,
-    movements: exportMovements
+async function onExport() {
+  const serverTabs = new Set(['warehouses', 'suppliers', 'purchase', 'returns', 'inventory', 'outbounds']);
+  const currentRows = (() => {
+    switch (tab.value) {
+      case 'warehouses':
+        return warehouses.value;
+      case 'suppliers':
+        return suppliers.value;
+      case 'purchase':
+        return purchaseOrders.value;
+      case 'returns':
+        return purchaseReturns.value;
+      case 'inventory':
+        return inventory.value;
+      case 'outbounds':
+        return outbounds.value;
+      default:
+        return [];
+    }
+  })();
+  const partial = selectedKeys.value.length > 0 && selectedKeys.value.length < currentRows.length;
+  if (partial || !serverTabs.has(tab.value)) {
+    const exporters: Record<string, () => void> = {
+      warehouses: exportWarehouses,
+      suppliers: exportSuppliers,
+      purchase: exportPurchase,
+      returns: exportReturns,
+      outbounds: exportOutbounds,
+      transit: exportTransit,
+      inventory: exportInventory,
+      movements: exportMovements
+    };
+    exporters[tab.value]?.();
+    return;
+  }
+  const labels: Record<string, string> = {
+    warehouses: '仓库',
+    suppliers: '供应商',
+    purchase: '采购单',
+    returns: '采购退货',
+    inventory: '仓库库存',
+    outbounds: '出库单'
   };
-  exporters[tab.value]?.();
+  try {
+    await downloadAuthFile(
+      `/api/v2/ops/admin/warehouse/export?tab=${encodeURIComponent(tab.value)}`,
+      csvFileName(labels[tab.value] || '仓库')
+    );
+    ElMessage.success('已导出');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '导出失败');
+  }
 }
 
 function returnStatusLabel(status?: string) {

@@ -170,7 +170,7 @@ public class DisputeService {
      */
     @Transactional
     public OrderRefundResultDto refundByOperator(Long operatorId, String orderId, OrderRefundRequest request) {
-        permissionService.requirePermission(operatorId, "ops:dispute:resolve");
+        permissionService.requirePermission(operatorId, "ops:order:refund");
         CabinetOrder order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
         ShoppingSession session = sessionRepository.findById(order.getSessionId())

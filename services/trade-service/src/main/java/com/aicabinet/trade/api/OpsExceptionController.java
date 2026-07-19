@@ -17,7 +17,7 @@ public class OpsExceptionController {
     public OpsExceptionController(OpsExceptionService service, SessionService sessionService) {
         this.service = service; this.sessionService = sessionService;
     }
-    @RequiresPermissions(value = {"ops:exception:list", "ops:dashboard:view"}, logical = RequiresPermissions.Logical.OR)
+    @RequiresPermissions("ops:exception:list")
     @GetMapping public ApiResponse<PageResult<OpsExceptionDto>> list(HttpServletRequest request,
             @RequestParam(required=false) String status,
             @RequestParam(required=false) String severity,
@@ -25,7 +25,7 @@ public class OpsExceptionController {
             @RequestParam(defaultValue="20") int size) {
         return ApiResponse.ok(service.list(operator(request), status, severity, page, size));
     }
-    @RequiresPermissions(value = {"ops:exception:list", "ops:dashboard:view"}, logical = RequiresPermissions.Logical.OR)
+    @RequiresPermissions(value = {"ops:exception:list", "ops:exception:handle"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/{id}") public ApiResponse<OpsExceptionDetailDto> detail(HttpServletRequest request,
             @PathVariable String id) {
         return ApiResponse.ok(service.detail(operator(request), id));

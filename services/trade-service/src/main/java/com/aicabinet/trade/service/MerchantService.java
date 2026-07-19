@@ -133,7 +133,7 @@ public class MerchantService {
 
     @Transactional(readOnly = true)
     public byte[] exportSplitsCsv(Long operatorId, String merchantId, String status) {
-        permissionService.requirePermission(operatorId, "ops:merchant:split");
+        permissionService.requirePermission(operatorId, "ops:merchant:export");
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT);
         Set<String> allowed = merchantScopeService.allowedMerchantIds(operatorId);
         if (merchantId != null && !merchantId.isBlank()) {

@@ -142,7 +142,7 @@ public class AdminDashboardService {
     }
 
     public AdminStatsDto stats(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        permissionService.requireAnyPermission(operatorId, "ops:dashboard:view", "ops:analytics:view");
         Instant todayStart = LocalDate.now(ZoneId.systemDefault())
                 .atStartOfDay(ZoneId.systemDefault()).toInstant();
         Instant since24h = Instant.now().minus(24, ChronoUnit.HOURS);
@@ -637,7 +637,7 @@ public class AdminDashboardService {
 
     public PageResult<AdminSessionDto> listSessions(Long operatorId, int page, int size,
                                                       String deviceId, SessionState state) {
-        permissionService.requirePermission(operatorId, "ops:session:list");
+        permissionService.requireAnyPermission(operatorId, "ops:session:list", "ops:session:upload");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         Page<ShoppingSession> result = querySessions(operatorId, deviceId, state, pageable);
         return new PageResult<>(
@@ -697,7 +697,7 @@ public class AdminDashboardService {
     public void streamSessionVideo(Long operatorId, String sessionId,
                                    jakarta.servlet.http.HttpServletRequest request,
                                    HttpServletResponse response) {
-        permissionService.requireAnyPermission(operatorId, "ops:session:list", "ops:dispute");
+        permissionService.requireAnyPermission(operatorId, "ops:session:list", "ops:session:upload", "ops:dispute");
         ShoppingSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
@@ -709,7 +709,7 @@ public class AdminDashboardService {
     }
 
     public List<AdminDeviceReportDto> deviceReports(Long operatorId) {
-        permissionService.requirePermission(operatorId, "ops:device:list");
+        permissionService.requirePermission(operatorId, "ops:report:device");
         Instant todayStart = LocalDate.now(ZoneId.systemDefault())
                 .atStartOfDay(ZoneId.systemDefault()).toInstant();
         Map<String, ShoppingSession> activeByDevice = sessionRepository.findAll().stream()
@@ -735,7 +735,7 @@ public class AdminDashboardService {
     }
 
     public PageResult<AdminAuditLogDto> listAuditLogs(Long operatorId, int page, int size) {
-        permissionService.requireAnyPermission(operatorId, "ops:audit:list", "ops:dashboard:view");
+        permissionService.requirePermission(operatorId, "ops:audit:list");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         Page<com.aicabinet.trade.domain.AdminAuditLog> result =
                 auditLogRepository.findAllByOrderByCreatedAtDesc(pageable);
@@ -743,7 +743,7 @@ public class AdminDashboardService {
     }
 
     public List<AdminAuditLogDto> listRecentAuditLogs(Long operatorId, int size, boolean mineOnly) {
-        permissionService.requireAnyPermission(operatorId, "ops:audit:recent", "ops:audit:list", "ops:dashboard:view");
+        permissionService.requireAnyPermission(operatorId, "ops:audit:recent", "ops:audit:list");
         int limit = Math.min(Math.max(size, 1), 50);
         Pageable pageable = PageRequest.of(0, limit);
         Page<com.aicabinet.trade.domain.AdminAuditLog> result = mineOnly
@@ -972,7 +972,7 @@ public class AdminDashboardService {
     }
 
     public byte[] exportSessionsCsv(Long operatorId, String deviceId, SessionState state) {
-        permissionService.requirePermission(operatorId, "ops:session:list");
+        permissionService.requirePermission(operatorId, "ops:session:export");
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<ShoppingSession> page = querySessions(operatorId, deviceId, state, pageable);
         StringBuilder sb = new StringBuilder("sessionId,userId,deviceId,state,orderId,openTime,closeTime,createdAt\n");
@@ -994,7 +994,7 @@ public class AdminDashboardService {
     }
 
     public AdminTrendDto orderTrend(Long operatorId, int days) {
-        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        permissionService.requireAnyPermission(operatorId, "ops:dashboard:view", "ops:analytics:view");
         int window = normalizeTrendDays(days);
         ZoneId zone = ZoneId.systemDefault();
         LocalDate today = LocalDate.now(zone);
@@ -1023,7 +1023,7 @@ public class AdminDashboardService {
     }
 
     public AdminChannelBreakdownDto channelBreakdown(Long operatorId, int days) {
-        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        permissionService.requireAnyPermission(operatorId, "ops:dashboard:view", "ops:analytics:view");
         int window = normalizeTrendDays(days);
         ZoneId zone = ZoneId.systemDefault();
         LocalDate today = LocalDate.now(zone);
@@ -1073,7 +1073,7 @@ public class AdminDashboardService {
     }
 
     public AdminOpsTrendDto opsTrend(Long operatorId, int days) {
-        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        permissionService.requireAnyPermission(operatorId, "ops:dashboard:view", "ops:analytics:view");
         int window = normalizeTrendDays(days);
         ZoneId zone = ZoneId.systemDefault();
         LocalDate today = LocalDate.now(zone);
@@ -1141,7 +1141,7 @@ public class AdminDashboardService {
 
     @Transactional
     public AdminUserDto setUserVerified(Long operatorId, Long userId, VerifyUserRequest request) {
-        permissionService.requirePermission(operatorId, "ops:user:list");
+        permissionService.requirePermission(operatorId, "ops:user:verify");
         if (userId >= CabinetConstants.OPERATOR_USER_ID_START) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
         }
@@ -1160,7 +1160,7 @@ public class AdminDashboardService {
     @Transactional(readOnly = true)
     public PageResult<RechargeOrderDto> listRecharges(Long operatorId, int page, int size,
                                                       String status, Long userId) {
-        permissionService.requireAnyPermission(operatorId, "ops:recharge:list", "ops:order:list");
+        permissionService.requirePermission(operatorId, "ops:recharge:list");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100),
                 Sort.by(Sort.Direction.DESC, "createdAt"));
         String st = (status == null || status.isBlank()) ? null : status.trim();

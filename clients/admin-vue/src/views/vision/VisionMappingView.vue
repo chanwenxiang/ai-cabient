@@ -9,7 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button @click="router.push('/skus')">商品与识别</el-button>
+          <el-button v-if="canAccessPath('/skus')" @click="goPath('/skus')">商品与识别</el-button>
           <el-button v-hasPermi="['ops:vision:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
@@ -86,11 +86,12 @@
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { useListCsv } from '@/composables/useListCsv';
+import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 
 interface YoloMappingRow {
@@ -101,7 +102,7 @@ interface YoloMappingRow {
 }
 
 const route = useRoute();
-const router = useRouter();
+const { router, canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
 const keyword = ref('');
 const page = ref(1);

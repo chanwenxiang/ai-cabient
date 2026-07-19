@@ -57,11 +57,13 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.getMe(userId(request)));
     }
 
+    @RequiresPermissions("merchant:portal:access")
     @GetMapping("/stats")
     public ApiResponse<MerchantDashboardStatsDto> stats(HttpServletRequest request) {
         return ApiResponse.ok(merchantPortalService.getStats(userId(request)));
     }
 
+    @RequiresPermissions("merchant:trend:view")
     @GetMapping("/trend")
     public ApiResponse<MerchantTrendDto> trend(
             HttpServletRequest request,
@@ -69,28 +71,33 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.getTrend(userId(request), days));
     }
 
+    @RequiresPermissions("merchant:alerts:view")
     @GetMapping("/workbench")
     public ApiResponse<MerchantWorkbenchDto> workbench(HttpServletRequest request) {
         return ApiResponse.ok(merchantPortalService.getWorkbench(userId(request)));
     }
 
+    @RequiresPermissions("merchant:devices:list")
     @GetMapping("/devices")
     public ApiResponse<List<MerchantDeviceDto>> devices(HttpServletRequest request) {
         return ApiResponse.ok(merchantPortalService.listDevices(userId(request)));
     }
 
+    @RequiresPermissions("merchant:devices:detail")
     @GetMapping("/devices/{deviceId}")
     public ApiResponse<DeviceDetailDto> deviceDetail(
             HttpServletRequest request, @PathVariable String deviceId) {
         return ApiResponse.ok(merchantPortalService.getDeviceDetail(userId(request), deviceId));
     }
 
+    @RequiresPermissions("merchant:devices:detail")
     @GetMapping("/devices/{deviceId}/settings")
     public ApiResponse<MerchantDeviceSettingsDto> deviceSettings(
             HttpServletRequest request, @PathVariable String deviceId) {
         return ApiResponse.ok(merchantPortalService.getDeviceSettings(userId(request), deviceId));
     }
 
+    @RequiresPermissions("merchant:devices:edit")
     @PatchMapping("/devices/{deviceId}/settings")
     public ApiResponse<MerchantDeviceSettingsDto> updateDeviceSettings(
             HttpServletRequest request,
@@ -99,12 +106,14 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.updateDeviceSettings(userId(request), deviceId, body));
     }
 
+    @RequiresPermissions("merchant:slots:view")
     @GetMapping("/devices/{deviceId}/slots")
     public ApiResponse<List<DeviceSlotDto>> deviceSlots(
             HttpServletRequest request, @PathVariable String deviceId) {
         return ApiResponse.ok(merchantPortalService.listDeviceSlots(userId(request), deviceId));
     }
 
+    @RequiresPermissions("merchant:slots:edit")
     @PutMapping("/devices/{deviceId}/slots")
     public ApiResponse<List<DeviceSlotDto>> upsertDeviceSlots(
             HttpServletRequest request,
@@ -113,11 +122,13 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.upsertDeviceSlots(userId(request), deviceId, body));
     }
 
+    @RequiresPermissions("merchant:reports:view")
     @GetMapping("/device-reports")
     public ApiResponse<List<MerchantDeviceReportDto>> deviceReports(HttpServletRequest request) {
         return ApiResponse.ok(merchantPortalService.deviceReports(userId(request)));
     }
 
+    @RequiresPermissions("merchant:orders:list")
     @GetMapping("/orders")
     public ApiResponse<PageResult<MerchantOrderSummaryDto>> orders(
             HttpServletRequest request,
@@ -127,12 +138,14 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantFinanceService.listOrders(userId(request), page, size, deviceId));
     }
 
+    @RequiresPermissions("merchant:orders:list")
     @GetMapping("/orders/{orderId}")
     public ApiResponse<OrderDto> order(
             HttpServletRequest request, @PathVariable String orderId) {
         return ApiResponse.ok(merchantFinanceService.getOrder(userId(request), orderId));
     }
 
+    @RequiresPermissions("merchant:disputes:list")
     @GetMapping("/disputes")
     public ApiResponse<PageResult<MerchantDisputeSummaryDto>> disputes(
             HttpServletRequest request,
@@ -144,12 +157,14 @@ public class MerchantPortalController {
                 userId(request), page, size, status, deviceId));
     }
 
+    @RequiresPermissions("merchant:disputes:list")
     @GetMapping("/disputes/{ticketId}")
     public ApiResponse<MerchantDisputeDetailDto> disputeDetail(
             HttpServletRequest request, @PathVariable String ticketId) {
         return ApiResponse.ok(disputeService.getMerchantDetail(userId(request), ticketId));
     }
 
+    @RequiresPermissions("merchant:disputes:reply")
     @PostMapping("/disputes/{ticketId}/reply")
     public ApiResponse<MerchantDisputeDetailDto> disputeReply(
             HttpServletRequest request,
@@ -158,6 +173,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(disputeService.replyAsMerchant(userId(request), ticketId, body));
     }
 
+    @RequiresPermissions("merchant:inventory:view")
     @GetMapping("/inventory")
     public ApiResponse<List<DeviceInventoryDto>> inventory(
             HttpServletRequest request,
@@ -166,11 +182,13 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.listInventory(userId(request), deviceId, lowStockOnly));
     }
 
+    @RequiresPermissions("merchant:inventory:view")
     @GetMapping("/expiry-alerts")
     public ApiResponse<List<PullOffTaskDto>> expiryAlerts(HttpServletRequest request) {
         return ApiResponse.ok(merchantPortalService.listExpiryAlerts(userId(request)));
     }
 
+    @RequiresPermissions("merchant:inventory:view")
     @GetMapping("/slot-discrepancies")
     public ApiResponse<List<SlotDiscrepancyAlertDto>> slotDiscrepancies(
             HttpServletRequest request,
@@ -178,6 +196,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.listSlotDiscrepancies(userId(request), deviceId));
     }
 
+    @RequiresPermissions("merchant:splits:list")
     @GetMapping("/revenue-splits")
     public ApiResponse<PageResult<RevenueSplitDto>> revenueSplits(
             HttpServletRequest request,
@@ -190,11 +209,13 @@ public class MerchantPortalController {
                 userId(request), page, size, status, fromDate, toDate));
     }
 
+    @RequiresPermissions("merchant:settlements:view")
     @GetMapping("/settlements/overview")
     public ApiResponse<MerchantSettlementOverviewDto> settlementOverview(HttpServletRequest request) {
         return ApiResponse.ok(merchantFinanceService.getSettlementOverview(userId(request)));
     }
 
+    @RequiresPermissions("merchant:settlements:view")
     @GetMapping("/settlements/daily")
     public ApiResponse<List<MerchantDailySettlementDto>> dailySettlements(
             HttpServletRequest request,
@@ -203,6 +224,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantFinanceService.listDailySettlements(userId(request), fromDate, toDate));
     }
 
+    @RequiresPermissions("merchant:settlements:view")
     @GetMapping("/settlements/batches")
     public ApiResponse<List<MerchantSettlementBatchDto>> settlementBatches(
             HttpServletRequest request,
@@ -211,12 +233,14 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantFinanceService.listSettlementBatches(userId(request), fromDate, toDate));
     }
 
+    @RequiresPermissions("merchant:settlements:view")
     @GetMapping("/settlements/batches/{batchNo}")
     public ApiResponse<List<RevenueSplitDto>> settlementBatchDetail(
             HttpServletRequest request, @PathVariable String batchNo) {
         return ApiResponse.ok(merchantFinanceService.getSettlementBatchDetail(userId(request), batchNo));
     }
 
+    @RequiresPermissions("merchant:settlements:export")
     @GetMapping(value = "/settlements/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportSettlements(
             HttpServletRequest request,
@@ -226,6 +250,7 @@ public class MerchantPortalController {
         return csvAttachment("merchant-settlements.csv", csv);
     }
 
+    @RequiresPermissions("merchant:pricing:view")
     @GetMapping("/pricing/skus")
     public ApiResponse<List<MerchantSkuPricingDto>> pricingSkus(
             HttpServletRequest request,
@@ -233,6 +258,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(skuPricingService.listPricing(userId(request), deviceId));
     }
 
+    @RequiresPermissions("merchant:pricing:edit")
     @PatchMapping("/pricing/skus/{skuId}")
     public ApiResponse<MerchantSkuPricingDto> updatePricing(
             HttpServletRequest request,
@@ -241,6 +267,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(skuPricingService.updatePricing(userId(request), skuId, body));
     }
 
+    @RequiresPermissions("merchant:pricing:view")
     @GetMapping("/pricing/history")
     public ApiResponse<List<MerchantSkuPriceChangeDto>> pricingHistory(
             HttpServletRequest request,
@@ -249,6 +276,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(skuPricingService.listPriceHistory(userId(request), deviceId, skuId));
     }
 
+    @RequiresPermissions("merchant:profile:edit")
     @PatchMapping("/profile")
     public ApiResponse<List<MerchantDto>> updateProfile(
             HttpServletRequest request,
@@ -256,6 +284,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.updateProfile(userId(request), body));
     }
 
+    @RequiresPermissions("merchant:reports:export")
     @GetMapping(value = "/orders/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportOrders(
             HttpServletRequest request,
@@ -264,6 +293,7 @@ public class MerchantPortalController {
         return csvAttachment("merchant-orders.csv", csv);
     }
 
+    @RequiresPermissions("merchant:reports:export")
     @GetMapping(value = "/revenue-splits/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportSplits(
             HttpServletRequest request,
@@ -274,6 +304,7 @@ public class MerchantPortalController {
         return csvAttachment("merchant-splits.csv", csv);
     }
 
+    @RequiresPermissions("merchant:reports:export")
     @GetMapping(value = "/device-reports/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportDeviceReports(HttpServletRequest request) {
         byte[] csv = merchantPortalService.exportDeviceReportsCsv(userId(request));
@@ -296,7 +327,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.getReplenishmentTaskLines(userId(request), taskId));
     }
 
-    @RequiresPermissions("merchant:replenishment:view")
+    @RequiresPermissions("merchant:replenishment:request")
     @PostMapping("/replenishment/tasks/{taskId}/check-in")
     public ApiResponse<ReplenishmentTaskDto> checkInReplenishmentTask(
             HttpServletRequest request,
@@ -306,14 +337,14 @@ public class MerchantPortalController {
     }
 
     /** 补货员开门：签到后可开门上架，不产生消费者账单 */
-    @RequiresPermissions("merchant:replenishment:view")
+    @RequiresPermissions("merchant:replenishment:request")
     @PostMapping("/replenishment/tasks/{taskId}/open-door")
     public ApiResponse<SessionDto> openReplenishmentDoor(
             HttpServletRequest request, @PathVariable Long taskId) {
         return ApiResponse.ok(merchantReplenishmentService.openDoorForTask(userId(request), taskId));
     }
 
-    @RequiresPermissions("merchant:replenishment:view")
+    @RequiresPermissions("merchant:replenishment:request")
     @PostMapping("/replenishment/tasks/{taskId}/lines")
     public ApiResponse<List<ReplenishmentTaskLineDto>> confirmReplenishmentTaskLines(
             HttpServletRequest request,
@@ -322,7 +353,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantReplenishmentService.confirmTaskLines(userId(request), taskId, body));
     }
 
-    @RequiresPermissions("merchant:replenishment:view")
+    @RequiresPermissions("merchant:replenishment:request")
     @PostMapping("/replenishment/tasks/{taskId}/complete")
     public ApiResponse<ReplenishmentTaskDto> completeReplenishmentTask(
             HttpServletRequest request, @PathVariable Long taskId) {
@@ -362,6 +393,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantReplenishmentService.submitRequest(userId(request), body));
     }
 
+    @RequiresPermissions("merchant:temp:history")
     @GetMapping("/devices/{deviceId}/temperature-history")
     public ApiResponse<List<DeviceTemperatureReadingDto>> temperatureHistory(
             HttpServletRequest request,
@@ -370,6 +402,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantPortalService.getTemperatureHistory(userId(request), deviceId, hours));
     }
 
+    @RequiresPermissions("merchant:analytics:view")
     @GetMapping("/analytics/overview")
     public ApiResponse<MerchantAnalyticsOverviewDto> analyticsOverview(
             HttpServletRequest request,
@@ -377,6 +410,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantAnalyticsService.overview(userId(request), days));
     }
 
+    @RequiresPermissions("merchant:analytics:view")
     @GetMapping("/analytics/sku-sales")
     public ApiResponse<List<MerchantSkuSalesDto>> analyticsSkuSales(
             HttpServletRequest request,
@@ -385,6 +419,7 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantAnalyticsService.skuSales(userId(request), days, deviceId));
     }
 
+    @RequiresPermissions("merchant:analytics:view")
     @GetMapping("/analytics/velocity")
     public ApiResponse<List<MerchantSkuVelocityDto>> analyticsVelocity(
             HttpServletRequest request,
@@ -392,11 +427,13 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantAnalyticsService.velocity(userId(request), deviceId));
     }
 
+    @RequiresPermissions("merchant:analytics:view")
     @GetMapping("/analytics/expiry-summary")
     public ApiResponse<MerchantExpirySummaryDto> analyticsExpirySummary(HttpServletRequest request) {
         return ApiResponse.ok(merchantAnalyticsService.expirySummary(userId(request)));
     }
 
+    @RequiresPermissions("merchant:analytics:view")
     @GetMapping("/analytics/ai-insight")
     public ApiResponse<MerchantAiInsightDto> aiInsight(
             HttpServletRequest request,
@@ -404,28 +441,33 @@ public class MerchantPortalController {
         return ApiResponse.ok(merchantAiInsightService.insight(userId(request), days));
     }
 
+    @RequiresPermissions("merchant:portal:access")
     @GetMapping("/notify/prefs")
     public ApiResponse<MerchantNotifyPrefDto> notifyPrefs(HttpServletRequest request) {
         return ApiResponse.ok(merchantNotifyService.getPrefs(userId(request)));
     }
 
+    @RequiresPermissions("merchant:portal:access")
     @PostMapping("/notify/wx-bind")
     public ApiResponse<MerchantNotifyPrefDto> notifyWxBind(
             HttpServletRequest request, @RequestBody MerchantWxBindRequest body) {
         return ApiResponse.ok(merchantNotifyService.bindWxOpenId(userId(request), body.code()));
     }
 
+    @RequiresPermissions("merchant:alerts:view")
     @PostMapping("/notify/subscribe")
     public ApiResponse<MerchantNotifyPrefDto> notifySubscribe(
             HttpServletRequest request, @RequestBody MerchantSubscribeRequest body) {
         return ApiResponse.ok(merchantNotifyService.updateSubscribe(userId(request), body));
     }
 
+    @RequiresPermissions("merchant:users:list")
     @GetMapping("/team/users")
     public ApiResponse<List<MerchantUserDto>> teamUsers(HttpServletRequest request) {
         return ApiResponse.ok(merchantPortalService.listTeamUsers(userId(request)));
     }
 
+    @RequiresPermissions("merchant:users:invite")
     @PostMapping("/team/users")
     public ApiResponse<MerchantUserDto> createTeamUser(
             HttpServletRequest request,

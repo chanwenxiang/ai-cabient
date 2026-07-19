@@ -8,6 +8,7 @@ import com.aicabinet.common.dto.RevenueSplitDto;
 import com.aicabinet.common.dto.SubmitProfitSharingRequest;
 import com.aicabinet.common.dto.UpsertMerchantRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
+import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.MerchantService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -29,11 +30,13 @@ public class MerchantAdminController {
         this.merchantService = merchantService;
     }
 
+    @RequiresPermissions("ops:merchant:list")
     @GetMapping
     public ApiResponse<List<MerchantDto>> list(HttpServletRequest request) {
         return ApiResponse.ok(merchantService.listMerchants(operatorId(request)));
     }
 
+    @RequiresPermissions("ops:merchant:edit")
     @PostMapping
     public ApiResponse<MerchantDto> upsert(
             HttpServletRequest request,
@@ -41,11 +44,13 @@ public class MerchantAdminController {
         return ApiResponse.ok(merchantService.upsertMerchant(operatorId(request), body));
     }
 
+    @RequiresPermissions("ops:merchant:split")
     @GetMapping("/profit-sharing/status")
     public ApiResponse<ProfitSharingStatusDto> profitSharingStatus(HttpServletRequest request) {
         return ApiResponse.ok(merchantService.profitSharingStatus(operatorId(request)));
     }
 
+    @RequiresPermissions("ops:merchant:split")
     @GetMapping("/revenue-splits")
     public ApiResponse<PageResult<RevenueSplitDto>> revenueSplits(
             HttpServletRequest request,
@@ -56,6 +61,7 @@ public class MerchantAdminController {
         return ApiResponse.ok(merchantService.listSplits(operatorId(request), page, size, merchantId, status));
     }
 
+    @RequiresPermissions("ops:merchant:export")
     @GetMapping(value = "/revenue-splits/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportRevenueSplits(
             HttpServletRequest request,
@@ -68,6 +74,7 @@ public class MerchantAdminController {
                 .body(csv);
     }
 
+    @RequiresPermissions("ops:merchant:split")
     @PostMapping("/revenue-splits/{splitId}/wechat-submit")
     public ApiResponse<RevenueSplitDto> submitWeChatProfitSharing(
             HttpServletRequest request,
@@ -76,6 +83,7 @@ public class MerchantAdminController {
         return ApiResponse.ok(merchantService.submitWeChatProfitSharing(operatorId(request), splitId, body));
     }
 
+    @RequiresPermissions("ops:merchant:split")
     @PostMapping("/revenue-splits/{splitId}/wechat-refresh")
     public ApiResponse<RevenueSplitDto> refreshWeChatProfitSharing(
             HttpServletRequest request,

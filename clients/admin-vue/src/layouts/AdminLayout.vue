@@ -179,6 +179,7 @@ import {
   Fold, Expand, Odometer, DataAnalysis, DataBoard, Money, Brush, DArrowLeft, DArrowRight
 } from '@element-plus/icons-vue';
 import { buildSidebarGroups, sidebarGroupKeyForPath } from '@/config/sidebar';
+import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
 import { PRIMARY_OPTIONS, useSettingsStore } from '@/stores/settings';
 import AppBreadcrumb from '@/components/AppBreadcrumb.vue';
@@ -187,6 +188,7 @@ import GlobalSearch from '@/components/GlobalSearch.vue';
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const { firstAccessiblePath, goPath } = useNavAccess();
 const settings = useSettingsStore();
 const MAX_TAGS = 12;
 const tags = ref<{ path: string; title: string }[]>([]);
@@ -287,7 +289,11 @@ function scrollActiveTagIntoView() {
 function navigateAfterClose() {
   if (tags.value.some((t) => t.path === route.path)) return;
   const fallback = tags.value[tags.value.length - 1];
-  router.push(fallback ? fallback.path : '/dashboard');
+  if (fallback) {
+    router.push(fallback.path);
+    return;
+  }
+  goPath(firstAccessiblePath());
 }
 
 function closeTag(path: string) {
@@ -301,7 +307,7 @@ function closeOtherTags() {
   tags.value = tags.value.filter((t) => t.path === current);
   hideTagMenu();
   if (!tags.value.length) {
-    router.push('/dashboard');
+    goPath(firstAccessiblePath());
   }
 }
 
@@ -337,7 +343,7 @@ function runTagAction(action: 'close' | 'others' | 'left' | 'right' | 'all') {
   if (action === 'all') {
     tags.value = [];
     hideTagMenu();
-    router.push('/dashboard');
+    goPath(firstAccessiblePath());
     return;
   }
   if (action === 'others') {
@@ -380,19 +386,25 @@ function syncSidebarWithViewport() {
   compactViewport.value = compact;
 }
 
+function onWindowFocus() {
+  void auth.refreshPermissions();
+}
+
 onMounted(() => {
   settings.init();
   syncSidebarWithViewport();
-  auth.loadProfile();
+  void auth.refreshPermissions();
   window.addEventListener('click', hideTagMenu);
   window.addEventListener('scroll', hideTagMenu, true);
   window.addEventListener('resize', syncSidebarWithViewport);
+  window.addEventListener('focus', onWindowFocus);
 });
 
 onUnmounted(() => {
   window.removeEventListener('click', hideTagMenu);
   window.removeEventListener('scroll', hideTagMenu, true);
   window.removeEventListener('resize', syncSidebarWithViewport);
+  window.removeEventListener('focus', onWindowFocus);
 });
 </script>
 

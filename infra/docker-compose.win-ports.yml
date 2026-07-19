@@ -1,0 +1,13 @@
+# Windows Hyper-V 预留端口 overlapping 9000–9139 时使用：
+# docker compose -f docker-compose.full.yml -f docker-compose.win-ports.yml up -d
+services:
+  minio:
+    ports: !override
+      - "19000:9000"
+      - "19001:9001"
+  redpanda:
+    ports: !override
+      - "19092:9092"
+  trade-service:
+    ports: !override
+      - "18080:8080"

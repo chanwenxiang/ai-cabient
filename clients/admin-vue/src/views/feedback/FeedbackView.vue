@@ -60,7 +60,7 @@
                 v-if="row.userId"
                 type="button"
                 class="link-cell"
-                @click="router.push({ path: '/users', query: { keyword: String(row.userId) } })"
+                @click="goPath('/users', { keyword: String(row.userId) })"
               >
                 {{ row.userId }}
               </button>
@@ -73,7 +73,7 @@
                 v-if="row.deviceId"
                 type="button"
                 class="link-cell"
-                @click="router.push(`/devices/${encodeURIComponent(row.deviceId)}`)"
+                @click="goPath(`/devices/${encodeURIComponent(row.deviceId)}`)"
               >
                 {{ row.deviceId }}
               </button>
@@ -135,12 +135,13 @@
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { ChatDotRound, Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
@@ -148,7 +149,7 @@ import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 type Row = Record<string, any>;
 const route = useRoute();
-const router = useRouter();
+const { router, goPath } = useNavAccess();
 const auth = useAuthStore();
 const canReply = computed(() => auth.hasPerm('ops:feedback:reply'));
 

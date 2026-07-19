@@ -10,8 +10,8 @@
         </div>
         <div class="page-card-head__actions">
           <el-tag type="info" effect="plain">仅预览，不扣款</el-tag>
-          <el-button @click="router.push('/vision-mappings')">识别映射</el-button>
-          <el-button @click="router.push('/skus')">商品与识别</el-button>
+          <el-button v-if="canAccessPath('/vision-mappings')" @click="goPath('/vision-mappings')">识别映射</el-button>
+          <el-button v-if="canAccessPath('/skus')" @click="goPath('/skus')">商品与识别</el-button>
         </div>
       </div>
     </template>
@@ -105,12 +105,12 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue';
-import { useRouter } from 'vue-router';
 import { UploadFilled } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import type { DevRecognitionPreviewDto } from '@aicabinet/shared-types';
+import { useNavAccess } from '@/composables/useNavAccess';
 
-const router = useRouter();
+const { canAccessPath, goPath } = useNavAccess();
 const dragging = ref(false);
 const recognizing = ref(false);
 const imageFile = ref<File | null>(null);

@@ -37,18 +37,21 @@ public class AdminDashboardController {
         this.deviceOpsService = deviceOpsService;
     }
 
+    @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/stats")
     public ApiResponse<AdminStatsDto> stats(HttpServletRequest request) {
         Long opId = operatorId(request);
         return ApiResponse.ok(cacheService.get("dashboard:stats", String.valueOf(opId), 30_000L, () -> adminService.stats(opId)));
     }
 
+    @RequiresPermissions("ops:dashboard:view")
     @GetMapping("/workbench")
     public ApiResponse<OpsWorkbenchDto> workbench(HttpServletRequest request) {
         Long opId = operatorId(request);
         return ApiResponse.ok(cacheService.get("dashboard:workbench", String.valueOf(opId), 30_000L, () -> adminService.workbench(opId)));
     }
 
+    @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/trend")
     public ApiResponse<AdminTrendDto> trend(
             HttpServletRequest request,
@@ -57,6 +60,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(cacheService.get("dashboard:trend", opId + ":" + days, 60_000L, () -> adminService.orderTrend(opId, days)));
     }
 
+    @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/trend/ops")
     public ApiResponse<AdminOpsTrendDto> opsTrend(
             HttpServletRequest request,
@@ -64,6 +68,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.opsTrend(operatorId(request), days));
     }
 
+    @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/trend/channels")
     public ApiResponse<AdminChannelBreakdownDto> channelBreakdown(
             HttpServletRequest request,
@@ -113,7 +118,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.updateDevice(operatorId(request), deviceId, body));
     }
 
-    @RequiresPermissions("ops:session:list")
+    @RequiresPermissions(value = {"ops:session:list", "ops:session:upload"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/sessions")
     public ApiResponse<PageResult<AdminSessionDto>> sessions(
             HttpServletRequest request,
@@ -142,6 +147,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.cancelSession(operatorId(request), sessionId));
     }
 
+    @RequiresPermissions(value = {"ops:session:list", "ops:session:upload"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping(value = "/sessions/{sessionId}/video", produces = {MediaType.APPLICATION_OCTET_STREAM_VALUE, "video/mp4", "video/webm"})
     public void sessionVideo(
             HttpServletRequest request,
@@ -150,6 +156,7 @@ public class AdminDashboardController {
         adminService.streamSessionVideo(operatorId(request), sessionId, request, response);
     }
 
+    @RequiresPermissions("ops:order:list")
     @GetMapping("/orders")
     public ApiResponse<PageResult<AdminOrderSummaryDto>> orders(
             HttpServletRequest request,
@@ -169,6 +176,7 @@ public class AdminDashboardController {
         return csvAttachment("orders.csv", csv);
     }
 
+    @RequiresPermissions("ops:order:list")
     @GetMapping("/orders/{orderId}")
     public ApiResponse<OrderDto> orderDetail(
             HttpServletRequest request,
@@ -176,6 +184,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.getOrder(operatorId(request), orderId));
     }
 
+    @RequiresPermissions("ops:user:list")
     @GetMapping("/users")
     public ApiResponse<PageResult<AdminUserDto>> users(
             HttpServletRequest request,
@@ -197,6 +206,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.adjustBalance(operatorId(request), userId, body));
     }
 
+    @RequiresPermissions("ops:user:verify")
     @PostMapping("/users/{userId}/verify")
     public ApiResponse<AdminUserDto> verifyUser(
             HttpServletRequest request,
@@ -205,6 +215,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.setUserVerified(operatorId(request), userId, body));
     }
 
+    @RequiresPermissions("ops:recharge:list")
     @GetMapping("/recharges")
     public ApiResponse<PageResult<RechargeOrderDto>> recharges(
             HttpServletRequest request,
@@ -225,7 +236,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.refundRecharge(operatorId(request), orderId, reason));
     }
 
-    @RequiresPermissions("ops:dispute:resolve")
+    @RequiresPermissions("ops:order:refund")
     @PostMapping("/orders/{orderId}/refund")
     public ApiResponse<OrderRefundResultDto> refundOrder(
             HttpServletRequest request,
@@ -258,12 +269,14 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.updateSku(operatorId(request), skuId, body));
     }
 
+    @RequiresPermissions("ops:report:device")
     @GetMapping("/reports/devices")
     public ApiResponse<List<AdminDeviceReportDto>> deviceReports(HttpServletRequest request) {
         Long opId = operatorId(request);
         return ApiResponse.ok(cacheService.get("admin:reports", "all", 60_000L, () -> adminService.deviceReports(opId)));
     }
 
+    @RequiresPermissions("ops:audit:list")
     @GetMapping("/audit-logs")
     public ApiResponse<PageResult<AdminAuditLogDto>> auditLogs(
             HttpServletRequest request,
@@ -272,6 +285,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.listAuditLogs(operatorId(request), page, size));
     }
 
+    @RequiresPermissions(value = {"ops:audit:recent", "ops:audit:list"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/audit-logs/recent")
     public ApiResponse<List<AdminAuditLogDto>> recentAuditLogs(
             HttpServletRequest request,

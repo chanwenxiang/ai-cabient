@@ -58,7 +58,7 @@ public class CommercialFlowService {
     }
 
     public CommercialFlowRunResult runFullFlow(Long operatorId, CommercialFlowRunRequest request) {
-        permissionService.requireAnyPermission(operatorId, "ops:dashboard:view", "ops:replenishment:edit");
+        permissionService.requirePermission(operatorId, "ops:admin");
         List<CommercialFlowStepDto> steps = new ArrayList<>();
         DemoDataService.DemoContext demo = demoDataService.ensureDemoData();
 

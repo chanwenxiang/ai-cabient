@@ -1,51 +1,58 @@
 <template>
   <view>
-    <view class="card">
-      <picker :range="deviceOptions" range-key="label" @change="onDevicePick">
-        <view class="picker">柜机：{{ selectedLabel }}</view>
-      </picker>
-      <text v-if="!canEdit" class="meta warn">定价只读 — 需平台开启「允许商户改价」且具备 pricing:edit 权限</text>
+    <view v-if="!canView" class="card">
+      <text class="err">当前账号无定价查看权限</text>
     </view>
-
-    <view v-if="loading" class="card">加载中…</view>
-    <view v-else-if="error" class="card"><text class="err">{{ error }}</text></view>
-    <view v-else>
-      <view v-for="p in rows" :key="p.skuId + p.deviceId" class="card row">
-        <view>
-          <text class="name">{{ p.skuName }}</text>
-          <text class="meta">基准 ¥{{ (p.basePriceCents / 100).toFixed(2) }}</text>
-        </view>
-        <view class="price-col">
-          <text class="effective">¥{{ (p.effectivePriceCents / 100).toFixed(2) }}</text>
-          <input
-            v-if="canEdit"
-            v-model="draft[p.skuId]"
-            class="input"
-            type="digit"
-            placeholder="覆盖价(元)"
-            @blur="savePrice(p)"
-          />
-        </view>
+    <template v-else>
+      <view class="card">
+        <picker :range="deviceOptions" range-key="label" @change="onDevicePick">
+          <view class="picker">柜机：{{ selectedLabel }}</view>
+        </picker>
+        <text v-if="!canEdit" class="meta warn">定价只读 — 需平台开启「允许商户改价」且具备 pricing:edit 权限</text>
       </view>
-      <view v-if="!rows.length" class="card meta">暂无定价数据</view>
-    </view>
+
+      <view v-if="loading" class="card">加载中…</view>
+      <view v-else-if="error" class="card"><text class="err">{{ error }}</text></view>
+      <view v-else>
+        <view v-for="p in rows" :key="p.skuId + p.deviceId" class="card row">
+          <view>
+            <text class="name">{{ p.skuName }}</text>
+            <text class="meta">基准 ¥{{ (p.basePriceCents / 100).toFixed(2) }}</text>
+          </view>
+          <view class="price-col">
+            <text class="effective">¥{{ (p.effectivePriceCents / 100).toFixed(2) }}</text>
+            <input
+              v-if="canEdit"
+              v-model="draft[p.skuId]"
+              class="input"
+              type="digit"
+              placeholder="覆盖价(元)"
+              @blur="savePrice(p)"
+            />
+          </view>
+        </view>
+        <view v-if="!rows.length" class="card meta">暂无定价数据</view>
+      </view>
+    </template>
   </view>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { merchantApi } from '@/utils/merchant-api';
+import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe, canEditPricingWithPerm } from '@/composables/useMerchantMe';
-import type { MerchantSkuPricing } from '@aicabinet/shared-types';
+import type { MerchantMe, MerchantSkuPricing } from '@aicabinet/shared-types';
 
-const { me } = useMerchantMe();
+const { me, refresh: refreshMe } = useMerchantMe();
 const loading = ref(true);
 const error = ref('');
 const rows = ref<MerchantSkuPricing[]>([]);
 const draft = ref<Record<string, string>>({});
 const devices = ref<{ deviceId: string; deviceName?: string }[]>([]);
 const selectedDeviceId = ref('');
+const gated = ref(false);
 
+const canView = computed(() => hasPerm(me.value, 'merchant:pricing:view'));
 const canEdit = computed(() => canEditPricingWithPerm(me.value));
 
 const deviceOptions = computed(() =>
@@ -68,6 +75,24 @@ watch(me, () => {
 }, { immediate: true });
 
 async function load() {
+  if (!uni.getStorageSync('merchant_token')) {
+    uni.reLaunch({ url: '/pages/login/login' });
+    return;
+  }
+  try {
+    await refreshMe();
+  } catch {
+    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  if (!canView.value) {
+    loading.value = false;
+    if (!gated.value) {
+      gated.value = true;
+      uni.showToast({ title: '无定价查看权限', icon: 'none' });
+      uni.switchTab({ url: '/pages/home/home' });
+    }
+    return;
+  }
   loading.value = true;
   error.value = '';
   try {

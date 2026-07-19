@@ -1,7 +1,7 @@
 <template>
   <div ref="hostRef" class="app-breadcrumb-host">
     <el-breadcrumb v-if="!compact" separator="/" class="app-breadcrumb">
-      <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+      <el-breadcrumb-item :to="{ path: homePath }">首页</el-breadcrumb-item>
       <el-breadcrumb-item v-if="group">{{ group }}</el-breadcrumb-item>
       <el-breadcrumb-item v-if="parentTitle" :to="parentPath">{{ parentTitle }}</el-breadcrumb-item>
       <el-breadcrumb-item>{{ currentTitle }}</el-breadcrumb-item>
@@ -14,8 +14,11 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { findNavByPath } from '@/config/menu';
+import { useNavAccess } from '@/composables/useNavAccess';
 
 const route = useRoute();
+const { firstAccessiblePath } = useNavAccess();
+const homePath = computed(() => firstAccessiblePath());
 const hostRef = ref<HTMLElement | null>(null);
 const compact = ref(false);
 

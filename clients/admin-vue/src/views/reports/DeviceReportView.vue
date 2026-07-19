@@ -67,10 +67,19 @@
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="设备" min-width="180" class-name="col-text">
             <template #default="{ row }">
-              <button type="button" class="device-cell" @click="goDevice(row.deviceId)">
+              <button
+                v-if="canAccessPath('/devices')"
+                type="button"
+                class="device-cell"
+                @click="goDevice(row.deviceId)"
+              >
                 <strong>{{ row.deviceName || row.deviceId }}</strong>
                 <small>{{ row.deviceId }}</small>
               </button>
+              <div v-else class="device-cell">
+                <strong>{{ row.deviceName || row.deviceId }}</strong>
+                <small>{{ row.deviceId }}</small>
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
@@ -90,7 +99,7 @@
           </el-table-column>
           <el-table-column prop="sessionTotal" label="累计会话" min-width="96" align="center" />
           <el-table-column prop="sessionActive" label="进行中" min-width="88" align="center" />
-          <el-table-column label="操作" width="96" class-name="col-action" align="center">
+          <el-table-column v-if="canAccessPath('/devices')" label="操作" width="96" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 :actions="[{ key: 'detail', label: '详情', icon: View, type: 'primary' }]"
@@ -121,13 +130,14 @@
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 
 interface DeviceReportRow {
@@ -142,8 +152,8 @@ interface DeviceReportRow {
   sessionActive: number;
 }
 
-const router = useRouter();
 const route = useRoute();
+const { router, canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
 const rows = ref<DeviceReportRow[]>([]);
 const keyword = ref('');
@@ -299,7 +309,7 @@ function onSizeChange() {
 }
 
 function goDevice(deviceId: string) {
-  router.push(`/devices/${encodeURIComponent(deviceId)}`);
+  goPath(`/devices/${encodeURIComponent(deviceId)}`);
 }
 
 onMounted(() => {

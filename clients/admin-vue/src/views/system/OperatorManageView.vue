@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -448,7 +448,11 @@ async function saveRoles() {
     await api.request(`/api/v2/ops/admin/rbac/users/${currentUserId.value}/roles`, 'PUT', roleIds.value);
     ElMessage.success('角色已更新');
     roleDlg.value = false;
-    await loadOperators();
+    const tasks: Promise<unknown>[] = [loadOperators()];
+    if (String(currentUserId.value) === String(auth.userId)) {
+      tasks.push(auth.refreshPermissions());
+    }
+    await Promise.all(tasks);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {

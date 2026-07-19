@@ -65,7 +65,7 @@
                 v-if="row.deviceId"
                 type="button"
                 class="link-cell"
-                @click="router.push(`/devices/${encodeURIComponent(row.deviceId)}`)"
+                @click="goPath(`/devices/${encodeURIComponent(row.deviceId)}`)"
               >{{ row.deviceId }}</button>
               <span v-else class="muted">-</span>
             </template>
@@ -134,7 +134,7 @@
               v-if="timelineRow.deviceId"
               type="button"
               class="link-cell"
-              @click="router.push(`/devices/${encodeURIComponent(timelineRow.deviceId)}`)"
+              @click="goPath(`/devices/${encodeURIComponent(timelineRow.deviceId)}`)"
             >{{ timelineRow.deviceId }}</button>
             <span v-else>-</span>
           </el-descriptions-item>
@@ -164,11 +164,11 @@
         </el-timeline>
         <div class="tl-actions">
           <el-button
-            v-if="timelineRow.deviceId"
-            @click="router.push({ path: '/upload-queue', query: { deviceId: timelineRow.deviceId } })"
+            v-if="timelineRow.deviceId && canAccessPath('/upload-queue')"
+            @click="goPath('/upload-queue', { deviceId: timelineRow.deviceId })"
           >录像上传队列</el-button>
           <el-button
-            v-if="timelineRow.orderId"
+            v-if="timelineRow.orderId && canAccessPath('/orders')"
             type="primary"
             @click="goOrders(timelineRow.deviceId)"
           >查看订单</el-button>
@@ -180,17 +180,19 @@
 
 <script setup lang="ts">
 import { onActivated, onMounted, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { CircleClose, Clock, CopyDocument, Refresh, View, VideoCamera } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
-import { api } from '@/api/client';
+import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { csvFileName } from '@/utils/csv';
 
 interface SessionRow {
   sessionId: string;
@@ -207,7 +209,7 @@ interface SessionRow {
 }
 
 const route = useRoute();
-const router = useRouter();
+const { router, canAccessPath, goPath } = useNavAccess();
 const auth = useAuthStore();
 const loading = ref(false);
 const deviceId = ref('');
@@ -223,7 +225,7 @@ const stateOptions = dictOptions('session_state');
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<SessionRow>((r) => r.sessionId);
 
-const { onExport } = useListCsv({
+const { onExport: exportSelectedCsv } = useListCsv({
   filePrefix: '开门记录',
   headers: ['会话ID', '用户', '设备', '订单', '状态', '失败原因', '创建时间', '更新时间'],
   toRows: () =>
@@ -238,6 +240,28 @@ const { onExport } = useListCsv({
       formatDateTime(row.updatedAt)
     ])
 });
+
+async function onExport() {
+  const selected = pickSelected(items.value);
+  // 有勾选时导出勾选项；否则走服务端 F 码导出（当前筛选条件）
+  if (selected.length && selected.length < items.value.length) {
+    exportSelectedCsv();
+    return;
+  }
+  try {
+    const q = new URLSearchParams();
+    if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
+    if (state.value) q.set('state', state.value);
+    const qs = q.toString();
+    await downloadAuthFile(
+      `/api/v2/ops/admin/sessions/export${qs ? `?${qs}` : ''}`,
+      csvFileName('开门记录')
+    );
+    ElMessage.success('已导出');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '导出失败');
+  }
+}
 
 function canCancel(s?: string) {
   return !!s && !['COMPLETED', 'CANCELLED', 'FAILED'].includes(s);
@@ -255,11 +279,11 @@ function sessionActions(row: SessionRow): TableAction[] {
   const acts: TableAction[] = [
     { key: 'timeline', label: '时间线', icon: Clock, type: 'primary' }
   ];
-  if (row.deviceId) {
+  if (row.deviceId && canAccessPath('/devices')) {
     acts.push({ key: 'device', label: '看设备', icon: View, type: 'info' });
   }
   acts.push({ key: 'copy', label: '复制会话ID', icon: CopyDocument, type: 'info', overflow: true });
-  if (row.deviceId) {
+  if (row.deviceId && canAccessPath('/upload-queue')) {
     acts.push({ key: 'video', label: '录像队列', icon: VideoCamera, type: 'warning', overflow: true });
   }
   if (canCancel(row.state) && auth.hasPerm('ops:session:cancel')) {
@@ -308,7 +332,7 @@ function openTimeline(row: SessionRow) {
 function goOrders(device?: string) {
   const query: Record<string, string> = {};
   if (device) query.deviceId = device;
-  router.push({ path: '/orders', query });
+  goPath('/orders', query);
 }
 
 async function onAction(key: string, row: SessionRow) {
@@ -317,7 +341,7 @@ async function onAction(key: string, row: SessionRow) {
     return;
   }
   if (key === 'device' && row.deviceId) {
-    router.push(`/devices/${encodeURIComponent(row.deviceId)}`);
+    goPath(`/devices/${encodeURIComponent(row.deviceId)}`);
     return;
   }
   if (key === 'copy') {
@@ -330,7 +354,7 @@ async function onAction(key: string, row: SessionRow) {
     return;
   }
   if (key === 'video' && row.deviceId) {
-    router.push({ path: '/upload-queue', query: { deviceId: row.deviceId } });
+    goPath('/upload-queue', { deviceId: row.deviceId });
     return;
   }
   if (key === 'cancel') {

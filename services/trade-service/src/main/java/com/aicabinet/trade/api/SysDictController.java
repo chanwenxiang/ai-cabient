@@ -27,7 +27,7 @@ public class SysDictController {
         return ApiResponse.ok(dictService.listTypes(operatorId(request)));
     }
 
-    @RequiresPermissions(value = {"ops:dict:list", "ops:dashboard:view"}, logical = RequiresPermissions.Logical.OR)
+    @RequiresPermissions("ops:dict:list")
     @GetMapping("/runtime")
     public ApiResponse<DictDtos.DictRuntimeDto> runtime(HttpServletRequest request) {
         return ApiResponse.ok(dictService.runtimeMap(operatorId(request)));

@@ -1,6 +1,6 @@
 <template>
   <div v-loading="loading" class="device-ops">
-    <el-page-header @back="router.push('/devices')">
+    <el-page-header @back="goPath('/devices')">
       <template #content>
         <div class="page-head-meta">
           <div class="page-title-row">
@@ -98,8 +98,16 @@
       </div>
       <div class="cmd-section-label">补货入口</div>
       <div class="cmd-bar">
-        <el-button @click="goReplenish">缺货建议</el-button>
-        <el-button type="success" plain @click="goRestockTasks">补货调度 / 补货开门</el-button>
+        <el-button v-if="canAccessPath('/replenishment')" @click="goReplenish">缺货建议</el-button>
+        <el-button
+          v-if="canAccessPath('/replenishment')"
+          type="success"
+          plain
+          @click="goRestockTasks"
+        >
+          补货调度 / 补货开门
+        </el-button>
+        <span v-else class="muted">无补货调度权限</span>
       </div>
     </el-card>
 
@@ -146,10 +154,16 @@
 
         <el-tab-pane label="货道陈列" name="slots">
           <div class="slot-toolbar">
-            <el-button type="primary" size="small" :loading="applying" @click="applyTemplate">套用模板</el-button>
+            <el-button
+              v-hasPermi="['ops:device:edit']"
+              type="primary"
+              size="small"
+              :loading="applying"
+              @click="applyTemplate"
+            >套用模板</el-button>
             <el-button size="small" :icon="Refresh" @click="loadDetail">刷新货道</el-button>
           </div>
-          <SlotGrid :slots="slots" editable @edit="openEditor" />
+          <SlotGrid :slots="slots" :editable="canEditSlots" @edit="openEditor" />
         </el-tab-pane>
 
         <el-tab-pane label="关联单据" name="related">
@@ -178,9 +192,11 @@
             <el-table-column label="操作" width="88" class-name="col-action" align="center">
               <template #default>
                 <TableActions
+                  v-if="canAccessPath('/sessions')"
                   :actions="[{ key: 'sessions', label: '查看', icon: View, type: 'primary' }]"
-                  @action="() => router.push({ path: '/sessions', query: { deviceId } })"
+                  @action="() => goPath('/sessions', { deviceId })"
                 />
+                <span v-else class="muted">—</span>
               </template>
             </el-table-column>
           </el-table>
@@ -208,9 +224,11 @@
             <el-table-column label="操作" width="88" class-name="col-action" align="center">
               <template #default>
                 <TableActions
+                  v-if="canAccessPath('/orders')"
                   :actions="[{ key: 'orders', label: '查看', icon: View, type: 'primary' }]"
-                  @action="() => router.push({ path: '/orders', query: { deviceId } })"
+                  @action="() => goPath('/orders', { deviceId })"
                 />
+                <span v-else class="muted">—</span>
               </template>
             </el-table-column>
           </el-table>
@@ -239,14 +257,16 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { computed, onMounted, reactive, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import SlotGrid from '@/components/SlotGrid.vue';
+import { useNavAccess } from '@/composables/useNavAccess';
+import { useAuthStore } from '@/stores/auth';
 import type { DeviceSlot, PageResult, SkuCatalog, UpsertDeviceSlotRequest } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -284,8 +304,10 @@ interface DeviceDetail {
 }
 
 const route = useRoute();
-const router = useRouter();
+const auth = useAuthStore();
+const { router, canAccessPath, goPath } = useNavAccess();
 const deviceId = route.params.id as string;
+const canEditSlots = computed(() => auth.hasPerm('ops:device:edit'));
 const loading = ref(false);
 const applying = ref(false);
 const saving = ref(false);
@@ -382,12 +404,13 @@ async function sendCommand(command: string) {
 }
 
 function goReplenish() {
-  router.push({ path: '/replenishment', query: { tab: 'shortage', deviceId } });
+  goPath('/replenishment', { tab: 'shortage', deviceId });
 }
 
 function goRestockTasks() {
-  router.push({ path: '/replenishment', query: { tab: 'routes', deviceId } });
+  goPath('/replenishment', { tab: 'routes', deviceId });
 }
+
 
 async function applyTemplate() {
   applying.value = true;
@@ -406,6 +429,7 @@ async function applyTemplate() {
 }
 
 function openEditor(slot: DeviceSlot) {
+  if (!canEditSlots.value) return;
   editForm.slotCode = slot.slotCode;
   editForm.assignedSkuId = slot.assignedSkuId || '';
   editForm.parLevel = slot.parLevel;
@@ -480,7 +504,8 @@ onMounted(async () => {
   font-weight: 600;
   color: var(--el-text-color-secondary);
 }
-.cmd-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.cmd-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+.muted { color: var(--el-text-color-placeholder); font-size: 13px; }
 .slot-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
 .section-title { margin: 16px 0 8px; font-size: 14px; font-weight: 600; }
 .name-cell { display: grid; gap: 2px; line-height: 1.35; }

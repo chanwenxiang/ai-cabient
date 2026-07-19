@@ -245,13 +245,12 @@ function rowActions(row: any): TableAction[] {
   if (!isEnabled(row.status) && row.status !== 'ENDED' && auth.hasPerm('ops:promotion:edit')) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
   }
-  if (auth.hasPerm('ops:promotion:stop') && row.status !== 'ENDED') {
-    acts.push({
-      key: 'toggle',
-      label: isEnabled(row.status) ? '停用' : '启用',
-      icon: SwitchButton,
-      type: isEnabled(row.status) ? 'warning' : 'success'
-    });
+  if (row.status !== 'ENDED') {
+    if (isEnabled(row.status) && auth.hasPerm('ops:promotion:stop')) {
+      acts.push({ key: 'toggle', label: '停用', icon: SwitchButton, type: 'warning' });
+    } else if (!isEnabled(row.status) && auth.hasPerm('ops:promotion:launch')) {
+      acts.push({ key: 'toggle', label: '启用', icon: SwitchButton, type: 'success' });
+    }
   }
   return acts;
 }

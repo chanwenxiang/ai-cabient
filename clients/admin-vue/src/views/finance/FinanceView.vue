@@ -19,11 +19,11 @@
         <el-col v-for="item in kpiTiles" :key="item.label" :xs="12" :sm="8" :md="4">
           <div
             class="kpi-tile"
-            :class="[item.accent, { 'is-clickable': !!item.path }]"
-            :role="item.path ? 'button' : undefined"
-            :tabindex="item.path ? 0 : undefined"
-            @click="item.path && router.push(item.path)"
-            @keydown.enter="item.path && router.push(item.path)"
+            :class="[item.accent, { 'is-clickable': !!item.path && canAccessPath(item.path) }]"
+            :role="item.path && canAccessPath(item.path) ? 'button' : undefined"
+            :tabindex="item.path && canAccessPath(item.path) ? 0 : undefined"
+            @click="item.path && goPath(item.path)"
+            @keydown.enter="item.path && goPath(item.path)"
           >
             <div class="kpi-label">{{ item.label }}</div>
             <div class="kpi-value" :class="{ warn: item.warn }">{{ item.value }}</div>
@@ -79,7 +79,7 @@
     <ChartPanel :title="`商品毛利 TOP · 近 ${days} 天`" compact class="sku-panel">
       <template #actions>
         <el-button v-hasPermi="['ops:finance:export']" @click="onExportTopSkus">{{ topSkusExportLabel }}</el-button>
-        <el-button link type="primary" @click="router.push('/skus')">商品管理</el-button>
+        <el-button v-if="canAccessPath('/skus')" link type="primary" @click="goPath('/skus')">商品管理</el-button>
       </template>
       <div class="table-scroll">
         <div class="table-scroll-inner" style="min-width: 780px">
@@ -128,13 +128,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import ChartBox from '@/components/ChartBox.vue';
 import ChartPanel from '@/components/ChartPanel.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { buildSeriesChart, formatYuan, shortDate, type ChartKind } from '@/utils/charts';
 
@@ -175,7 +176,7 @@ interface FinanceReport {
   topSkus: FinanceSku[];
 }
 
-const router = useRouter();
+const { router, canAccessPath, goPath } = useNavAccess();
 const route = useRoute();
 const loading = ref(false);
 const days = ref(parseDays(route.query.days));
@@ -223,13 +224,15 @@ const { onExport: onExportTopSkus } = useListCsv({
 const kpiTiles = computed(() => {
   const marginRate = (stats.value.grossMarginRateToday || 0) * 100;
   const marginCents = stats.value.grossMarginTodayCents || 0;
+  const canAnalytics = canAccessPath('/analytics');
+  const canOrders = canAccessPath('/orders');
   return [
     {
       label: '今日营收',
       value: `¥${((stats.value.revenueTodayCents || 0) / 100).toFixed(2)}`,
       accent: 'accent-teal',
-      path: '/analytics',
-      hint: '查看数据分析'
+      path: canAnalytics ? '/analytics' : undefined,
+      hint: canAnalytics ? '查看数据分析' : '今日快照'
     },
     {
       label: '今日成本',
@@ -252,8 +255,8 @@ const kpiTiles = computed(() => {
       label: '今日订单',
       value: String(stats.value.orderToday || 0),
       accent: 'accent-teal',
-      path: '/orders',
-      hint: '查看订单'
+      path: canOrders ? '/orders' : undefined,
+      hint: canOrders ? '查看订单' : '今日快照'
     },
     {
       label: '今日客单',

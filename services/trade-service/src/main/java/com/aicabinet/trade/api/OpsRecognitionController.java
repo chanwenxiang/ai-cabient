@@ -5,6 +5,7 @@ import com.aicabinet.common.dto.DevRecognitionPreviewDto;
 import com.aicabinet.common.dto.DevRecognitionTestRequest;
 import com.aicabinet.common.dto.DevRecognitionTestResponse;
 import com.aicabinet.trade.auth.AuthInterceptor;
+import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.OperatorAuth;
 import com.aicabinet.trade.service.RecognitionTestService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -27,6 +28,7 @@ public class OpsRecognitionController {
         this.recognitionTestService = recognitionTestService;
     }
 
+    @RequiresPermissions("ops:sku:demo")
     @PostMapping(value = "/recognition-preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<DevRecognitionPreviewDto> preview(
             HttpServletRequest request,
@@ -39,6 +41,7 @@ public class OpsRecognitionController {
                 bytes, image.getOriginalFilename(), deviceId));
     }
 
+    @RequiresPermissions("ops:sku:demo")
     @PostMapping(value = "/recognition-upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<DevRecognitionTestResponse> upload(
             HttpServletRequest request,
@@ -56,6 +59,7 @@ public class OpsRecognitionController {
     }
 
     /** 争议审核：上传关键帧，DeepSeek 推荐 SKU（不自动改单）。 */
+    @RequiresPermissions(value = {"ops:dispute:resolve", "ops:dispute"}, logical = RequiresPermissions.Logical.OR)
     @PostMapping(value = "/dispute-suggest", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<DevRecognitionPreviewDto> disputeSuggest(
             HttpServletRequest request,
