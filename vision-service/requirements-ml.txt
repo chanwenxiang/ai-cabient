@@ -1,4 +1,7 @@
-# 本地 YOLO（RECOGNIZER_BACKEND=yolo|yolo_deepseek）
+# 本地 YOLO（RECOGNIZER_BACKEND=yolo|hybrid）
 # 固定 4.x：opencv 5.x headless 在 slim 镜像中无 cv2 模块
 opencv-python-headless==4.10.0.84
 ultralytics>=8.1.0
+# 阿里云商品理解（RECOGNIZER_BACKEND=aliyun|hybrid）
+alibabacloud_goodstech20191230>=2.0.0
+alibabacloud_tea_openapi>=0.3.0
