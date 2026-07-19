@@ -568,9 +568,8 @@ INTERNAL_API_KEY=
 - [生产部署文档](docs/PRODUCTION.md)
 - [模块说明](docs/MODULES.md)
 - [商户平台API](docs/MERCHANT_PLATFORM.md)
-- [测试报告](TESTING_COMPLETE_FINAL_REPORT.md)
-- [浏览器UAT报告](docs/BROWSER_FULL_UAT_REPORT.md)
-- [上线准备清单](docs/production-launch-checklist.md)
+- [浏览器UAT报告](BROWSER_FULL_UAT_REPORT.md)
+- [上线准备清单](production-launch-checklist.md)
 
 ### B. 关键代码路径
 
