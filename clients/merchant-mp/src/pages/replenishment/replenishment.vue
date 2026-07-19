@@ -464,14 +464,32 @@ function stepClass(step: number) {
   return { done: step < cur, current: step === cur };
 }
 
+function syncTaskInList(task: Task) {
+  const idx = allTasks.value.findIndex((t) => t.taskId === task.taskId);
+  if (idx >= 0) {
+    allTasks.value[idx] = { ...allTasks.value[idx], ...task };
+  }
+}
+
 async function openTask(task: Task) {
-  selected.value = { ...task };
+  // 打开前用列表最新状态（签到后避免仍用旧 checkInAt）
+  const fromList = allTasks.value.find((t) => t.taskId === task.taskId);
+  selected.value = { ...(fromList || task) };
   detailVisible.value = true;
-  linesConfirmed.value = task.status === 'COMPLETED';
-  restoreDoorState(task.taskId);
+  linesConfirmed.value = selected.value.status === 'COMPLETED';
+  restoreDoorState(selected.value.taskId);
   detailLoading.value = true;
   slotCaps.value = {};
   try {
+    // 再拉一次任务列表，确保签到/状态与明细一致
+    try {
+      const latest = (await merchantApi.replenishmentTasks()) as Task[];
+      allTasks.value = latest;
+      const fresh = latest.find((t) => t.taskId === task.taskId);
+      if (fresh) selected.value = { ...fresh };
+    } catch {
+      /* keep selected */
+    }
     const [taskLines, slots] = await Promise.all([
       merchantApi.replenishmentTaskLines(task.taskId) as Promise<Line[]>,
       merchantApi.deviceSlots(task.deviceId).catch(() => [])
@@ -548,6 +566,7 @@ async function checkIn() {
   }
   try {
     selected.value = (await merchantApi.checkInReplenishmentTask(selected.value.taskId, body)) as Task;
+    syncTaskInList(selected.value);
     uni.showToast({
       title: locationOk ? '签到成功' : '已签到（未带定位）',
       icon: locationOk ? 'success' : 'none'
@@ -568,6 +587,7 @@ async function checkIn() {
       if (retry) {
         try {
           selected.value = (await merchantApi.checkInReplenishmentTask(selected.value.taskId, {})) as Task;
+          syncTaskInList(selected.value);
           uni.showToast({ title: '已签到（未校验距离）', icon: 'none' });
         } catch (e2) {
           uni.showToast({
@@ -692,7 +712,10 @@ async function confirmLines() {
   try {
     lines.value = (await merchantApi.confirmReplenishmentLines(
       selected.value.taskId,
-      positive.map(({ lineId, ...line }) => line)
+      positive.map(({ lineId, ...line }) => ({
+        ...line,
+        lineType: line.lineType || 'RESTOCK'
+      }))
     )) as Line[];
     linesConfirmed.value = true;
     uni.showToast({ title: '清单已确认', icon: 'success' });

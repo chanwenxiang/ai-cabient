@@ -89,6 +89,8 @@ public class ReplenishmentService {
 
     private final InTransitService inTransitService;
 
+    private final SessionService sessionService;
+
 
 
     public ReplenishmentService(DeviceSkuInventoryMapper inventoryRepository,
@@ -112,7 +114,8 @@ public class ReplenishmentService {
                                 WarehouseService warehouseService,
                                 DeviceInfoMapper deviceRepository,
                                 DeviceSlotService deviceSlotService,
-                                InTransitService inTransitService) {
+                                InTransitService inTransitService,
+                                @org.springframework.context.annotation.Lazy SessionService sessionService) {
 
         this.inventoryRepository = inventoryRepository;
 
@@ -136,6 +139,7 @@ public class ReplenishmentService {
         this.deviceRepository = deviceRepository;
         this.deviceSlotService = deviceSlotService;
         this.inTransitService = inTransitService;
+        this.sessionService = sessionService;
 
     }
 
@@ -317,9 +321,7 @@ public class ReplenishmentService {
             for (WarehouseOutboundLine ol : outboundLines) {
                 List<DeviceSlotService.SlotRestockAllocation> allocations = deviceSlotService
                         .allocateRestockQuantity(task.getDeviceId(), ol.getSkuId(), ol.getQuantity());
-                if (allocations.isEmpty()) {
-                    continue;
-                }
+                int allocated = 0;
                 for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
                     ReplenishmentTaskLine line = new ReplenishmentTaskLine();
                     line.setTaskId(task.getTaskId());
@@ -331,6 +333,13 @@ public class ReplenishmentService {
                     line.setSlotId(alloc.slotCode());
                     line.setApplied(false);
                     taskLineRepository.save(line);
+                    allocated += alloc.quantity();
+                }
+                // 超出货道可补容量：截断，不生成无货道行（避免确认时手填）
+                int remain = Math.max(0, ol.getQuantity() - allocated);
+                if (remain > 0) {
+                    log.warn("generateLinesFromOutbound: truncated {} units over capacity task={} sku={} allocated={}",
+                            remain, task.getTaskId(), ol.getSkuId(), allocated);
                 }
             }
             if (!"IN_PROGRESS".equals(task.getStatus())) {
@@ -448,34 +457,26 @@ public class ReplenishmentService {
 
             for (ReplenishmentTaskLineDto dto : request.lines()) {
 
-                String lineType = dto.lineType().toUpperCase();
+                // 小程序/联调常省略 lineType，默认按上架（RESTOCK）处理
+                String lineType = (dto.lineType() == null || dto.lineType().isBlank())
+                        ? "RESTOCK"
+                        : dto.lineType().trim().toUpperCase();
                 if ("RESTOCK".equals(lineType)) {
-                    deviceSlotService.validateRestockLine(
-                            task.getDeviceId(), dto.slotId(), dto.skuId(), dto.quantity());
+                    persistRestockLines(task, taskId, dto);
+                } else {
+                    ReplenishmentTaskLine line = new ReplenishmentTaskLine();
+                    line.setTaskId(taskId);
+                    line.setLineType(lineType);
+                    line.setSkuId(dto.skuId());
+                    line.setBatchNo(dto.batchNo());
+                    line.setProductionDate(dto.productionDate());
+                    line.setExpiryDate(dto.expiryDate());
+                    line.setQuantity(dto.quantity());
+                    line.setSlotId(dto.slotId() != null && !dto.slotId().isBlank()
+                            ? dto.slotId().trim().toUpperCase() : null);
+                    line.setApplied(false);
+                    taskLineRepository.save(line);
                 }
-
-                ReplenishmentTaskLine line = new ReplenishmentTaskLine();
-
-                line.setTaskId(taskId);
-
-                line.setLineType(lineType);
-
-                line.setSkuId(dto.skuId());
-
-                line.setBatchNo(dto.batchNo());
-
-                line.setProductionDate(dto.productionDate());
-
-                line.setExpiryDate(dto.expiryDate());
-
-                line.setQuantity(dto.quantity());
-
-                line.setSlotId(dto.slotId() != null && !dto.slotId().isBlank()
-                        ? dto.slotId().trim().toUpperCase() : null);
-
-                line.setApplied(false);
-
-                taskLineRepository.save(line);
 
             }
 
@@ -519,22 +520,51 @@ public class ReplenishmentService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_TASK_NOT_FOUND));
 
         if ("COMPLETED".equals(task.getStatus())) {
+            // 任务已完成但出库仍在途（先完成任务、后发运的联调顺序）时，补签收；
+            // 仅当任务本身无明细时按出库行回写，避免与已上架任务行重复加库存
+            if (task.getOutboundId() != null
+                    && inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId())) {
+                if (taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId).isEmpty()) {
+                    String refIdOutbound = "OB-" + task.getOutboundId();
+                    for (var ol : warehouseService.outboundLinesForDevice(task.getOutboundId(), task.getDeviceId())) {
+                        if (ol.getQuantity() <= 0) {
+                            continue;
+                        }
+                        inventoryLotService.addRestock(
+                                task.getDeviceId(),
+                                ol.getSkuId(),
+                                ol.getBatchNo(),
+                                null,
+                                ol.getExpiryDate(),
+                                ol.getQuantity(),
+                                null,
+                                operatorId,
+                                refIdOutbound);
+                    }
+                }
+                inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
+                warehouseService.markDeviceHandoverReceived(task.getOutboundId(), task.getDeviceId());
+            }
             completeRouteIfReady(task.getRouteId());
+            if (sessionService != null) {
+                sessionService.closeRestockSessionsForTask(taskId, "补货任务已完成，自动关闭开门会话");
+            }
             return toTaskDto(task);
         }
 
         List<ReplenishmentTaskLine> pending = taskLineRepository.findByTaskIdAndAppliedFalse(taskId);
 
         boolean expectReceive = false;
-        if (!pending.isEmpty() && task.getOutboundId() != null) {
+        if (task.getOutboundId() != null) {
             boolean inTransit = inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId());
             boolean hasOutboundLines = warehouseService.hasOutboundLinesForDevice(
                     task.getOutboundId(), task.getDeviceId());
-            if (!inTransit && hasOutboundLines) {
+            // 有仓配明细却未发运：有待上架任务行时阻止完成
+            if (!inTransit && hasOutboundLines && !pending.isEmpty()) {
                 throw new ResponseStatusException(HttpStatus.CONFLICT,
                         ApiMessages.REPLENISHMENT_OUTBOUND_NOT_IN_TRANSIT);
             }
-            // 出库单无柜机明细时，按现场任务明细直接上架（联调/无仓配场景）
+            // 在途签收与任务行是否为空无关（空任务行仍应签收仓配在途）
             expectReceive = inTransit;
         }
 
@@ -559,14 +589,83 @@ public class ReplenishmentService {
         task.setCompletedAt(Instant.now());
 
         if (expectReceive) {
+            // 任务无明细时，按仓配出库行回写柜机库存（避免只改在途状态、库存不动）
+            if (pending.isEmpty()) {
+                String refIdOutbound = "OB-" + task.getOutboundId();
+                for (var ol : warehouseService.outboundLinesForDevice(task.getOutboundId(), task.getDeviceId())) {
+                    if (ol.getQuantity() <= 0) {
+                        continue;
+                    }
+                    inventoryLotService.addRestock(
+                            task.getDeviceId(),
+                            ol.getSkuId(),
+                            ol.getBatchNo(),
+                            null,
+                            ol.getExpiryDate(),
+                            ol.getQuantity(),
+                            null,
+                            operatorId,
+                            refIdOutbound);
+                }
+            }
             inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
             warehouseService.markDeviceHandoverReceived(task.getOutboundId(), task.getDeviceId());
         }
 
         task = taskRepository.save(task);
         completeRouteIfReady(task.getRouteId());
+        // 完成补货后关闭仍占用柜机的补货开门会话，避免挡消费者
+        if (sessionService != null) {
+            sessionService.closeRestockSessionsForTask(taskId, "补货任务已完成，自动关闭开门会话");
+        }
         return toTaskDto(task);
 
+    }
+
+    /** RESTOCK：无货道时按可补容量自动拆分/截断并分配货道，减少手填。 */
+    private void persistRestockLines(ReplenishmentTask task, Long taskId, ReplenishmentTaskLineDto dto) {
+        int qty = dto.quantity();
+        if (qty <= 0) {
+            return;
+        }
+        String slotId = dto.slotId() != null && !dto.slotId().isBlank()
+                ? dto.slotId().trim().toUpperCase() : null;
+        if (slotId != null) {
+            deviceSlotService.validateRestockLine(task.getDeviceId(), slotId, dto.skuId(), qty);
+            saveRestockLine(taskId, dto, slotId, qty);
+            return;
+        }
+        List<DeviceSlotService.SlotRestockAllocation> allocations = deviceSlotService
+                .allocateRestockQuantity(task.getDeviceId(), dto.skuId(), qty);
+        if (allocations.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "商品 " + dto.skuId() + " 无可用货道容量，请调低数量或调整货道陈列");
+        }
+        int allocated = 0;
+        for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
+            deviceSlotService.validateRestockLine(
+                    task.getDeviceId(), alloc.slotCode(), dto.skuId(), alloc.quantity());
+            saveRestockLine(taskId, dto, alloc.slotCode(), alloc.quantity());
+            allocated += alloc.quantity();
+        }
+        if (allocated < qty) {
+            log.warn("submitTaskLines: truncated {} -> {} for sku={} task={}",
+                    qty, allocated, dto.skuId(), taskId);
+        }
+    }
+
+    private void saveRestockLine(Long taskId, ReplenishmentTaskLineDto dto, String slotId, int qty) {
+        ReplenishmentTaskLine line = new ReplenishmentTaskLine();
+        line.setTaskId(taskId);
+        line.setLineType("RESTOCK");
+        line.setSkuId(dto.skuId());
+        line.setBatchNo(dto.batchNo());
+        line.setProductionDate(dto.productionDate());
+        line.setExpiryDate(dto.expiryDate());
+        line.setQuantity(qty);
+        line.setSlotId(slotId);
+        line.setApplied(false);
+        taskLineRepository.save(line);
     }
 
     private void completeRouteIfReady(Long routeId) {

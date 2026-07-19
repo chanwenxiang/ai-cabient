@@ -233,7 +233,14 @@ const { onExport } = useListCsv({
 });
 
 function goDetail(row: DeviceInfo) {
-  router.push(`/devices/${row.deviceId}`);
+  if (!row?.deviceId) return;
+  // 使用具名路由 + encode，避免偶发路径匹配失败被 catch-all 打回工作台
+  router.push({
+    name: 'device-detail',
+    params: { id: row.deviceId },
+  }).catch(() => {
+    router.push(`/devices/${encodeURIComponent(row.deviceId)}`);
+  });
 }
 
 function deviceActions(_row: DeviceInfo): TableAction[] {

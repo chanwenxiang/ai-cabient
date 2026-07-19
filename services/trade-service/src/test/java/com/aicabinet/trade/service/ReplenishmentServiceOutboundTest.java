@@ -33,6 +33,8 @@ class ReplenishmentServiceOutboundTest {
     private DeviceSlotService deviceSlotService;
     @Mock
     private InTransitService inTransitService;
+    @Mock
+    private SessionService sessionService;
 
     private ReplenishmentService replenishmentService;
 
@@ -40,7 +42,8 @@ class ReplenishmentServiceOutboundTest {
     void setUp() {
         replenishmentService = new ReplenishmentService(
                 null, null, taskRepository, taskLineRepository, null, null, null, null,
-                new ObjectMapper(), warehouseService, null, deviceSlotService, inTransitService);
+                new ObjectMapper(), warehouseService, null, deviceSlotService, inTransitService,
+                sessionService);
     }
 
     @Test
@@ -108,6 +111,34 @@ class ReplenishmentServiceOutboundTest {
         assertEquals(10, saved.stream().mapToInt(ReplenishmentTaskLine::getQuantity).sum());
         assertTrue(saved.stream().anyMatch(l -> "A1".equals(l.getSlotId()) && l.getQuantity() == 4));
         assertTrue(saved.stream().anyMatch(l -> "A2".equals(l.getSlotId()) && l.getQuantity() == 6));
+    }
+
+    @Test
+    void generateLinesFromOutbound_truncatesWhenOverSlotCapacity() {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(13L);
+        task.setDeviceId("CAB-001");
+        task.setStatus("PLANNED");
+
+        WarehouseOutboundLine outboundLine = new WarehouseOutboundLine();
+        outboundLine.setSkuId("SKU-DEMO-001");
+        outboundLine.setBatchNo("B20260701-003");
+        outboundLine.setQuantity(16);
+        outboundLine.setExpiryDate(LocalDate.of(2026, 12, 31));
+
+        when(taskRepository.findByOutboundId(102L)).thenReturn(List.of(task));
+        when(taskLineRepository.findByTaskIdAndAppliedFalse(13L)).thenReturn(List.of());
+        when(warehouseService.outboundLinesForDevice(102L, "CAB-001")).thenReturn(List.of(outboundLine));
+        when(deviceSlotService.allocateRestockQuantity("CAB-001", "SKU-DEMO-001", 16))
+                .thenReturn(List.of(new DeviceSlotService.SlotRestockAllocation("A1", 6)));
+
+        replenishmentService.generateLinesFromOutbound(102L);
+
+        ArgumentCaptor<ReplenishmentTaskLine> lineCaptor = ArgumentCaptor.forClass(ReplenishmentTaskLine.class);
+        verify(taskLineRepository, times(1)).save(lineCaptor.capture());
+        ReplenishmentTaskLine saved = lineCaptor.getValue();
+        assertEquals("A1", saved.getSlotId());
+        assertEquals(6, saved.getQuantity());
     }
 
     @Test

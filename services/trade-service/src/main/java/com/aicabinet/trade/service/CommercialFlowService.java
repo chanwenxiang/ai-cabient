@@ -164,6 +164,7 @@ public class CommercialFlowService {
     private WarehouseOutboundDto ensureOutbound(Long operatorId, Long routeId) {
         return warehouseService.listOutbounds().stream()
                 .filter(o -> routeId.equals(o.routeId()))
+                .filter(o -> o.lines() != null && !o.lines().isEmpty())
                 .findFirst()
                 .orElseGet(() -> warehouseService.createOutboundForRoute(
                         routeId, DemoDataService.DEMO_WAREHOUSE_ID, operatorId));

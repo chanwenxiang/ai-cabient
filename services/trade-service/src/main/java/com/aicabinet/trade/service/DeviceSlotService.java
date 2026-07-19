@@ -333,7 +333,25 @@ public class DeviceSlotService {
         return result;
     }
 
-    /** 按货道陈列图 + 动销 ROP 计算补货建议。 */
+    /** SKU 是否已绑定启用货道。 */
+    @Transactional(readOnly = true)
+    public boolean hasSkuSlots(String deviceId, String skuId) {
+        if (deviceId == null || skuId == null || skuId.isBlank()) {
+            return false;
+        }
+        return slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
+                .anyMatch(s -> s.isEnabled() && skuId.equals(s.getAssignedSkuId()));
+    }
+
+    /** 该 SKU 在柜机上的可补总容量（各货道 headroom 之和）。 */
+    @Transactional(readOnly = true)
+    public int totalHeadroomForSku(String deviceId, String skuId) {
+        return allocateRestockQuantity(deviceId, skuId, Integer.MAX_VALUE / 4).stream()
+                .mapToInt(SlotRestockAllocation::quantity)
+                .sum();
+    }
+
+    /** 按货道陈列图 + 动销 ROP 计算补货建议（仅低于 minLevel / ROP 时触发）。 */
     @Transactional(readOnly = true)
     public List<SlotReplenishmentSuggestDto> suggestSlotsForDevice(String deviceId) {
         requireDevice(deviceId);
@@ -343,14 +361,32 @@ public class DeviceSlotService {
                 .filter(DeviceSlot::isEnabled)
                 .filter(s -> s.getAssignedSkuId() != null && !s.getAssignedSkuId().isBlank())
                 .filter(s -> s.getParLevel() > 0)
-                .map(s -> buildSlotSuggest(deviceId, s, bookBySlot, velocityBySku))
+                .map(s -> buildSlotSuggest(deviceId, s, bookBySlot, velocityBySku, false))
+                .filter(s -> s.suggestQty() > 0)
+                .toList();
+    }
+
+    /**
+     * 规划出库用：账面低于 PAR 即补到 PAR（不必跌破 minLevel），避免路线出库单无明细。
+     */
+    @Transactional(readOnly = true)
+    public List<SlotReplenishmentSuggestDto> suggestSlotsForOutboundFill(String deviceId) {
+        requireDevice(deviceId);
+        Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
+        Map<String, SalesVelocityService.SkuVelocity> velocityBySku = salesVelocityService.velocityBySku(deviceId);
+        return slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
+                .filter(DeviceSlot::isEnabled)
+                .filter(s -> s.getAssignedSkuId() != null && !s.getAssignedSkuId().isBlank())
+                .filter(s -> s.getParLevel() > 0)
+                .map(s -> buildSlotSuggest(deviceId, s, bookBySlot, velocityBySku, true))
                 .filter(s -> s.suggestQty() > 0)
                 .toList();
     }
 
     private SlotReplenishmentSuggestDto buildSlotSuggest(String deviceId, DeviceSlot s,
                                                            Map<String, Integer> bookBySlot,
-                                                           Map<String, SalesVelocityService.SkuVelocity> velocityBySku) {
+                                                           Map<String, SalesVelocityService.SkuVelocity> velocityBySku,
+                                                           boolean fillToPar) {
         String slotCode = s.getId().getSlotCode();
         String skuId = s.getAssignedSkuId();
         int bookQty = bookBySlot.getOrDefault(slotCode, 0);
@@ -358,12 +394,20 @@ public class DeviceSlotService {
                 skuId, new SalesVelocityService.SkuVelocity(0, 0, 0, 0));
         int target = s.getParLevel();
         int cap = s.getMaxLevel() > 0 ? s.getMaxLevel() : target;
+        int headroom = Math.max(0, Math.min(target, cap) - bookQty);
         int suggestQty = 0;
         String reason = "PAR";
         boolean parLow = bookQty <= s.getMinLevel();
         boolean ropLow = velocity.ropPoint() > 0 && bookQty <= velocity.ropPoint();
-        if (parLow || ropLow) {
-            suggestQty = Math.max(0, Math.min(target, cap) - bookQty);
+        if (fillToPar) {
+            suggestQty = headroom;
+            if (ropLow && parLow) {
+                reason = "PAR+ROP";
+            } else if (ropLow) {
+                reason = "ROP";
+            }
+        } else if (parLow || ropLow) {
+            suggestQty = headroom;
             if (ropLow && !parLow) {
                 reason = "ROP";
             } else if (ropLow && parLow) {

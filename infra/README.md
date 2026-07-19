@@ -318,13 +318,7 @@ docker compose up -d
 ```
 ## Step 4 one-command runtime smoke
 
-From the repository root:
-
-```powershell
-.\scripts\start-docker-step4.ps1 -Build
-```
-
-Or from `infra/`:
+From `infra/`:
 
 ```powershell
 .\up.ps1 -Build -Smoke

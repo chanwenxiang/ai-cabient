@@ -33,8 +33,10 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      # Host defaults; on Windows if 9000–9039 is Hyper-V reserved, use
+      # docker-compose.win-ports.yml (19000/19001) or set MINIO_API_PORT / MINIO_CONSOLE_PORT.
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
     volumes:
       - miniodata:/data
 

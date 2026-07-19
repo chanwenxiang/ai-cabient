@@ -67,13 +67,21 @@ public class OrderService {
         if (order.getLines() == null || order.getLines().isEmpty()) {
             order.setLines(new java.util.ArrayList<>(orderLineRepository.findByOrderId(order.getOrderId())));
         }
+        String payChannel = order.getPayChannel();
+        // 与运营后台一致：余额账本扣款以 BL- 操作号为准
+        if (order.getPaymentOperationId() != null && order.getPaymentOperationId().startsWith("BL-")) {
+            payChannel = "BALANCE";
+        }
+        if (payChannel == null || payChannel.isBlank()) {
+            payChannel = "UNKNOWN";
+        }
         return new OrderSummaryDto(
                 order.getOrderId(),
                 order.getSessionId(),
                 order.getDeviceId(),
                 order.getTotalAmountCents(),
                 order.getStatus(),
-                "BALANCE",
+                payChannel,
                 order.getLines().size(),
                 buildLineSummary(order),
                 order.getCreatedAt()

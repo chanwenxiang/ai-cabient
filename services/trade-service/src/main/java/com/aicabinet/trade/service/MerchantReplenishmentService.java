@@ -261,15 +261,11 @@ public class MerchantReplenishmentService {
         for (MerchantReplenishmentRequestLine line : lines) {
             skuQty.merge(line.getSkuId(), line.getRequestedQty(), Integer::sum);
         }
-        try {
-            WarehouseOutboundDto outbound = warehouseService.createOutboundFromLines(
-                    route.getRouteId(), request.getDeviceId(), operatorId, skuQty, null);
-            task.setOutboundId(outbound.outboundId());
-            taskRepository.save(task);
-            request.setOutboundId(outbound.outboundId());
-        } catch (Exception ex) {
-            taskRepository.save(task);
-        }
+        WarehouseOutboundDto outbound = warehouseService.createOutboundFromLines(
+                route.getRouteId(), request.getDeviceId(), operatorId, skuQty, null);
+        task.setOutboundId(outbound.outboundId());
+        taskRepository.save(task);
+        request.setOutboundId(outbound.outboundId());
 
         request.setStatus("ACCEPTED");
         request.setReviewedAt(Instant.now());

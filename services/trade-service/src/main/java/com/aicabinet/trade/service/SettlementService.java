@@ -159,6 +159,16 @@ public class SettlementService {
             if (stagingOrder != null) {
                 return stagingOrder;
             }
+            // 本地 mock：无视频时 vision 常标 need_review；有重力/购物车扣减时仍按演示结算，避免必进争议
+            if (allowDevFallback && securityProperties.mockEnabled()) {
+                List<VisionServiceClient.RecognizedItem> cartItems =
+                        gravityHelper.toRecognizedItems(session.getGravityDeltas());
+                if (!cartItems.isEmpty()) {
+                    log.info("dev mock settle on needReview session={} cartItems={}",
+                            session.getSessionId(), cartItems.size());
+                    return finalizeOrder(session, cartItems);
+                }
+            }
             escalateToDispute(session, recognition, "识别结果需人工审核");
         }
 

@@ -285,16 +285,19 @@ public class InventoryLotService {
     public void applyReplenishmentLine(String deviceId, ReplenishmentTaskLine line, Long operatorId, String refId) {
         if ("RESTOCK".equalsIgnoreCase(line.getLineType())) {
             LocalDate expiry = line.getExpiryDate();
+            LocalDate production = line.getProductionDate();
             if (expiry == null) {
                 SkuCatalog sku = skuCatalogRepository.findById(line.getSkuId()).orElse(null);
-                if (sku != null && sku.getShelfLifeDays() != null && line.getProductionDate() != null) {
-                    expiry = line.getProductionDate().plusDays(sku.getShelfLifeDays());
+                int shelfDays = sku != null && sku.getShelfLifeDays() != null ? sku.getShelfLifeDays() : 180;
+                if (production != null) {
+                    expiry = production.plusDays(shelfDays);
                 } else {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                            "expiryDate required for RESTOCK sku=" + line.getSkuId());
+                    // 现场补货未填批次日期时，按保质期从今天起算，避免阻断上架回传
+                    production = LocalDate.now();
+                    expiry = production.plusDays(shelfDays);
                 }
             }
-            addRestock(deviceId, line.getSkuId(), line.getBatchNo(), line.getProductionDate(), expiry,
+            addRestock(deviceId, line.getSkuId(), line.getBatchNo(), production, expiry,
                     line.getQuantity(), line.getSlotId(), operatorId, refId);
         } else if ("PULL_OFF".equalsIgnoreCase(line.getLineType())) {
             pullOff(deviceId, line.getSkuId(), line.getBatchNo(), line.getQuantity(), operatorId, refId);

@@ -12,7 +12,8 @@ export default defineConfig({
     port: 3001,
     proxy: {
       '/api': {
-        target: 'http://localhost:18080',
+        // Prefer gateway (:80); fall back docs note trade direct :18080 on win-ports full stack
+        target: process.env.VITE_DEV_PROXY || 'http://localhost',
         changeOrigin: true,
         configure(proxy) { proxy.on('proxyReq', (request) => request.removeHeader('origin')); }
       }

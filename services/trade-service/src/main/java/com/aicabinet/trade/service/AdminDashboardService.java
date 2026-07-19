@@ -60,6 +60,7 @@ public class AdminDashboardService {
     private final DeviceInfoMapper deviceRepository;
     private final ShoppingSessionMapper sessionRepository;
     private final CabinetOrderMapper orderRepository;
+    private final CabinetOrderLineMapper orderLineRepository;
     private final DisputeTicketMapper disputeRepository;
     private final SettlementService settlementService;
     private final UserInfoMapper userInfoRepository;
@@ -88,6 +89,7 @@ public class AdminDashboardService {
     public AdminDashboardService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
                                  CabinetOrderMapper orderRepository,
+                                 CabinetOrderLineMapper orderLineRepository,
                                  DisputeTicketMapper disputeRepository,
                                  SettlementService settlementService,
                                  UserInfoMapper userInfoRepository,
@@ -115,6 +117,7 @@ public class AdminDashboardService {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
+        this.orderLineRepository = orderLineRepository;
         this.disputeRepository = disputeRepository;
         this.settlementService = settlementService;
         this.userInfoRepository = userInfoRepository;
@@ -659,8 +662,12 @@ public class AdminDashboardService {
         permissionService.requirePermission(operatorId, "ops:order:list");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         Page<CabinetOrder> result = queryOrders(operatorId, deviceId, status, pageable);
+        Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(
+                result.getContent().stream().map(CabinetOrder::getOrderId).toList());
         return new PageResult<>(
-                result.getContent().stream().map(this::toOrderSummary).toList(),
+                result.getContent().stream()
+                        .map(o -> toOrderSummary(o, qtyByOrder.getOrDefault(o.getOrderId(), 0)))
+                        .toList(),
                 result.getNumber(),
                 result.getSize(),
                 result.getTotalElements()
@@ -957,6 +964,8 @@ public class AdminDashboardService {
         permissionService.requirePermission(operatorId, "ops:order:export");
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<CabinetOrder> page = queryOrders(operatorId, deviceId, pageable);
+        Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(
+                page.getContent().stream().map(CabinetOrder::getOrderId).toList());
         StringBuilder sb = new StringBuilder("orderId,sessionId,userId,deviceId,totalAmountCents,status,lineCount,createdAt\n");
         for (CabinetOrder o : page.getContent()) {
             sb.append(csv(o.getOrderId())).append(',')
@@ -965,7 +974,7 @@ public class AdminDashboardService {
                     .append(csv(o.getDeviceId())).append(',')
                     .append(o.getTotalAmountCents()).append(',')
                     .append(csv(o.getStatus())).append(',')
-                    .append(o.getLines().size()).append(',')
+                    .append(qtyByOrder.getOrDefault(o.getOrderId(), 0)).append(',')
                     .append(csv(String.valueOf(o.getCreatedAt()))).append('\n');
         }
         return sb.toString().getBytes(StandardCharsets.UTF_8);
@@ -1340,11 +1349,16 @@ public class AdminDashboardService {
         );
     }
 
-    private AdminOrderSummaryDto toOrderSummary(CabinetOrder o) {
+    private AdminOrderSummaryDto toOrderSummary(CabinetOrder o, int lineCount) {
+        String payChannel = o.getPayChannel();
+        // 余额账本扣款以 BL- 操作号为准，避免入口渠道误标为微信/支付宝
+        if (o.getPaymentOperationId() != null && o.getPaymentOperationId().startsWith("BL-")) {
+            payChannel = "BALANCE";
+        }
         return new AdminOrderSummaryDto(
                 o.getOrderId(), o.getSessionId(), o.getUserId(), o.getDeviceId(),
-                o.getTotalAmountCents(), o.getStatus(), o.getPayChannel(),
-                o.getLines().size(), o.getCreatedAt()
+                o.getTotalAmountCents(), o.getStatus(), payChannel,
+                lineCount, o.getCreatedAt()
         );
     }
 

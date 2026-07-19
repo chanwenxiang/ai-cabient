@@ -62,7 +62,7 @@
             class="stat-tile"
             :class="{
               'is-clickable': canAccessPath('/exceptions'),
-              warn: openExceptionCount > 0 || totalIssues > 0
+              warn: openExceptionCount > 0
             }"
             :role="canAccessPath('/exceptions') ? 'button' : undefined"
             :tabindex="canAccessPath('/exceptions') ? 0 : undefined"
@@ -70,12 +70,12 @@
             @keydown.enter="goExceptions"
           >
             <div class="stat-label">待处理异常</div>
-            <div class="stat-value">{{ openExceptionCount || totalIssues }}</div>
+            <div class="stat-value">{{ openExceptionCount }}</div>
             <div class="stat-hint">
               <template v-if="canAccessPath('/exceptions')">
-                {{ openExceptionCount || totalIssues ? '进入异常中心' : '运行正常' }}
+                {{ openExceptionCount ? '进入异常中心' : (totalIssues ? `其它待办 ${totalIssues}` : '运行正常') }}
               </template>
-              <template v-else>{{ openExceptionCount || totalIssues ? '待办汇总' : '运行正常' }}</template>
+              <template v-else>{{ totalIssues ? `其它待办 ${totalIssues}` : '运行正常' }}</template>
             </div>
           </div>
         </el-col>
@@ -106,7 +106,7 @@
             </div>
           </div>
           <div class="page-card-head__actions">
-            <el-checkbox v-model="showZeroLinks">显示 0 项</el-checkbox>
+            <el-checkbox v-model="showZeroLinks">显示无待办入口</el-checkbox>
           </div>
         </div>
       </template>
@@ -132,7 +132,9 @@
           </button>
         </el-col>
       </el-row>
-      <p v-if="!visibleQuickLinks.length" class="empty-quick">当前无待办入口，勾选「显示 0 项」可查看全部</p>
+      <p v-if="!visibleQuickLinks.length" class="empty-quick">
+        {{ totalIssues > 0 ? '有待办但当前账号无对应入口权限' : '当前无待办入口，勾选「显示无待办入口」可查看全部' }}
+      </p>
 
       <div class="table-toolbar">
         <span class="table-meta">待处理明细 {{ sortedActions.length }} 条</span>
@@ -304,13 +306,15 @@ const quickLinks = computed<QuickLink[]>(() => [
   }
 ]);
 
+const accessibleQuickLinks = computed(() =>
+  quickLinks.value.filter((item) => canAccessPath(item.path))
+);
+
 const visibleQuickLinks = computed(() => {
   const list = showZeroLinks.value
-    ? quickLinks.value
-    : quickLinks.value.filter((item) => item.count > 0);
-  return [...list]
-    .filter((item) => canAccessPath(item.path))
-    .sort((a, b) => b.count - a.count);
+    ? accessibleQuickLinks.value
+    : accessibleQuickLinks.value.filter((item) => item.count > 0);
+  return [...list].sort((a, b) => b.count - a.count);
 });
 
 function actionTargetPath(row: OpsActionItem) {
@@ -345,7 +349,9 @@ const onlineRate = computed(() =>
   stats.value.deviceTotal ? ((stats.value.deviceOnline || 0) / stats.value.deviceTotal) * 100 : 0
 );
 
-const totalIssues = computed(() => quickLinks.value.reduce((sum, item) => sum + item.count, 0));
+const totalIssues = computed(() =>
+  accessibleQuickLinks.value.reduce((sum, item) => sum + item.count, 0)
+);
 
 const sortedActions = computed(() => {
   const items = [...(workbench.value?.actionItems || [])];

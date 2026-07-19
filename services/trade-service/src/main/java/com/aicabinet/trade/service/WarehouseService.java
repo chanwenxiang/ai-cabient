@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class WarehouseService {
@@ -163,6 +164,14 @@ public class WarehouseService {
 
     @Transactional(readOnly = true)
     public List<ReplenishmentSuggestDto> suggestForDevice(String deviceId) {
+        return suggestForDevice(deviceId, false);
+    }
+
+    /**
+     * @param fillToPar true=规划出库：按货道补到 PAR；false=运营建议：仅 minLevel/ROP 触发
+     */
+    @Transactional(readOnly = true)
+    public List<ReplenishmentSuggestDto> suggestForDevice(String deviceId, boolean fillToPar) {
         String dev = deviceId.trim();
         Map<String, Integer> inTransitBySku = inTransitService.qtyBySkuForDevice(dev);
         Map<String, Integer> qtyBySku = new LinkedHashMap<>();
@@ -170,7 +179,10 @@ public class WarehouseService {
         Map<String, Integer> parBySku = new LinkedHashMap<>();
         Map<String, String> reasonBySku = new LinkedHashMap<>();
         Map<String, SalesVelocityService.SkuVelocity> velocityBySku = salesVelocityService.velocityBySku(deviceId);
-        for (SlotReplenishmentSuggestDto slot : deviceSlotService.suggestSlotsForDevice(deviceId)) {
+        List<SlotReplenishmentSuggestDto> slots = fillToPar
+                ? deviceSlotService.suggestSlotsForOutboundFill(deviceId)
+                : deviceSlotService.suggestSlotsForDevice(deviceId);
+        for (SlotReplenishmentSuggestDto slot : slots) {
             if (slot.suggestQty() <= 0) {
                 continue;
             }
@@ -180,7 +192,7 @@ public class WarehouseService {
             reasonBySku.putIfAbsent(slot.skuId(), slot.suggestReason());
         }
         if (!qtyBySku.isEmpty()) {
-            return qtyBySku.entrySet().stream()
+            List<ReplenishmentSuggestDto> fromSlots = qtyBySku.entrySet().stream()
                     .map(e -> {
                         String skuId = e.getKey();
                         SalesVelocityService.SkuVelocity velocity = velocityBySku.getOrDefault(
@@ -195,7 +207,15 @@ public class WarehouseService {
                                 velocity.soldQty7d(), velocity.soldQty14d(), velocity.ropPoint(),
                                 reasonBySku.getOrDefault(skuId, "PAR"));
                     })
+                    .filter(s -> s.suggestQty() > 0)
                     .toList();
+            if (!fromSlots.isEmpty()) {
+                return fromSlots;
+            }
+        }
+        if (fillToPar) {
+            // 货道已满 PAR / 在途抵消后，再回退常规低库存/ROP 建议
+            return suggestForDevice(deviceId, false);
         }
         List<ReplenishmentSuggestDto> lowStock = deviceInventoryRepository.findByIdDeviceId(dev).stream()
                 .filter(i -> i.getQuantity() <= i.getLowThreshold())
@@ -205,6 +225,8 @@ public class WarehouseService {
                     String skuId = i.getId().getSkuId();
                     int inTransit = inTransitBySku.getOrDefault(skuId, 0);
                     int rawSuggest = Math.max(0, i.getCapacity() - i.getQuantity());
+                    // 有货道陈列时按可补容量截断，避免出库远超货道
+                    rawSuggest = capSuggestBySlotHeadroom(dev, skuId, rawSuggest);
                     return new ReplenishmentSuggestDto(
                             i.getId().getDeviceId(),
                             skuId,
@@ -215,6 +237,7 @@ public class WarehouseService {
                             velocity.soldQty7d(), velocity.soldQty14d(), velocity.ropPoint(),
                             "LOW_STOCK");
                 })
+                .filter(s -> s.suggestQty() > 0)
                 .toList();
         if (!lowStock.isEmpty()) {
             return lowStock;
@@ -234,6 +257,10 @@ public class WarehouseService {
                     int target = Math.max(velocity.ropPoint() * 2, book + 1);
                     int inTransit = inTransitBySku.getOrDefault(skuId, 0);
                     int rawSuggest = Math.max(0, target - book);
+                    rawSuggest = capSuggestBySlotHeadroom(dev, skuId, rawSuggest);
+                    if (rawSuggest <= 0) {
+                        return null;
+                    }
                     return new ReplenishmentSuggestDto(
                             dev, skuId, book, target, velocity.ropPoint(),
                             Math.max(0, rawSuggest - inTransit), inTransit,
@@ -242,6 +269,14 @@ public class WarehouseService {
                 })
                 .filter(java.util.Objects::nonNull)
                 .toList();
+    }
+
+    /** 已绑定货道时，建议量不超过货道可补总容量。 */
+    private int capSuggestBySlotHeadroom(String deviceId, String skuId, int rawSuggest) {
+        if (rawSuggest <= 0 || !deviceSlotService.hasSkuSlots(deviceId, skuId)) {
+            return rawSuggest;
+        }
+        return Math.min(rawSuggest, deviceSlotService.totalHeadroomForSku(deviceId, skuId));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -258,11 +293,17 @@ public class WarehouseService {
         outbound.setStatus("DRAFT");
         outbound.setNotes("merchant replenishment request");
         outbound = outboundRepository.save(outbound);
+        int allocatedLines = 0;
         for (var entry : skuQty.entrySet()) {
             if (entry.getValue() == null || entry.getValue() <= 0) {
                 continue;
             }
-            allocateFefoToOutbound(outbound.getOutboundId(), wh, deviceId, entry.getKey(), entry.getValue());
+            allocatedLines += allocateFefoToOutbound(
+                    outbound.getOutboundId(), wh, deviceId, entry.getKey(), entry.getValue(), true);
+        }
+        if (allocatedLines <= 0) {
+            outboundRepository.deleteById(outbound.getOutboundId());
+            throw badRequest("outbound lines required");
         }
         return getOutbound(outbound.getOutboundId());
     }
@@ -270,9 +311,23 @@ public class WarehouseService {
     @Transactional
     public WarehouseOutboundDto createOutboundForRoute(Long routeId, String warehouseId, Long assigneeUserId) {
         String wh = resolveWarehouseId(warehouseId);
-        outboundRepository.findByRouteId(routeId).ifPresent(o -> {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "outbound already exists for route");
-        });
+        Optional<WarehouseOutbound> existing = outboundRepository.findByRouteId(routeId);
+        if (existing.isPresent()) {
+            WarehouseOutbound o = existing.get();
+            boolean emptyDraft = "DRAFT".equals(o.getStatus())
+                    && outboundLineRepository.findByOutboundIdOrderByLineIdAsc(o.getOutboundId()).isEmpty();
+            if (!emptyDraft) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "outbound already exists for route");
+            }
+            // 历史空出库头：清理后重建明细
+            for (ReplenishmentTask task : taskRepository.findByRouteId(routeId)) {
+                if (o.getOutboundId().equals(task.getOutboundId())) {
+                    task.setOutboundId(null);
+                    taskRepository.save(task);
+                }
+            }
+            outboundRepository.deleteById(o.getOutboundId());
+        }
         List<ReplenishmentTask> tasks = taskRepository.findByRouteId(routeId);
         if (tasks.isEmpty()) {
             throw badRequest("route has no tasks");
@@ -286,14 +341,28 @@ public class WarehouseService {
         outbound.setNotes("auto from route " + routeId);
         outbound = outboundRepository.save(outbound);
 
+        int allocatedLines = 0;
         for (ReplenishmentTask task : tasks) {
-            List<ReplenishmentSuggestDto> suggestions = suggestForDevice(task.getDeviceId());
+            // 规划出库按补到 PAR，避免仅 minLevel 触发导致出库单无行
+            List<ReplenishmentSuggestDto> suggestions = suggestForDevice(task.getDeviceId(), true);
             for (ReplenishmentSuggestDto s : suggestions) {
                 if (s.suggestQty() <= 0) continue;
-                allocateFefoToOutbound(outbound.getOutboundId(), wh, task.getDeviceId(), s.skuId(), s.suggestQty());
+                // 单 SKU 库存不足时尽量分配可用量，避免整单回滚成空出库头
+                allocatedLines += allocateFefoToOutbound(
+                        outbound.getOutboundId(), wh, task.getDeviceId(), s.skuId(), s.suggestQty(), false);
             }
             task.setOutboundId(outbound.getOutboundId());
             taskRepository.save(task);
+        }
+        if (allocatedLines <= 0) {
+            for (ReplenishmentTask task : tasks) {
+                if (outbound.getOutboundId().equals(task.getOutboundId())) {
+                    task.setOutboundId(null);
+                    taskRepository.save(task);
+                }
+            }
+            outboundRepository.deleteById(outbound.getOutboundId());
+            throw badRequest("无补货缺口或仓库可用库存不足，未生成出库明细");
         }
         return getOutbound(outbound.getOutboundId());
     }
@@ -411,9 +480,14 @@ public class WarehouseService {
         outboundRepository.save(outbound);
     }
 
-    private void allocateFefoToOutbound(Long outboundId, String warehouseId, String deviceId,
-                                        String skuId, int needQty) {
+    /**
+     * @param requireFull true 时库存不足抛冲突；false 时尽力分配并返回已生成行数
+     * @return 本次写入的出库行数
+     */
+    private int allocateFefoToOutbound(Long outboundId, String warehouseId, String deviceId,
+                                       String skuId, int needQty, boolean requireFull) {
         int remaining = needQty;
+        int lines = 0;
         List<WarehouseInventory> lots = inventoryRepository
                 .findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(warehouseId, skuId);
         for (WarehouseInventory lot : lots) {
@@ -433,11 +507,13 @@ public class WarehouseService {
             line.setPicked(false);
             outboundLineRepository.save(line);
             remaining -= take;
+            lines++;
         }
-        if (remaining > 0) {
+        if (remaining > 0 && requireFull) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "warehouse stock insufficient for outbound sku=" + skuId + " need=" + needQty + " remaining=" + remaining);
         }
+        return lines;
     }
 
     private void addWarehouseStock(String warehouseId, String skuId, String batchNo,

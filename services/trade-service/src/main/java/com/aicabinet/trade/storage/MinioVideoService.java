@@ -35,6 +35,8 @@ public class MinioVideoService {
 
     private final MinioProperties properties;
     private volatile MinioClient client;
+    /** 仅用于预签名：按 public-endpoint 签名，避免改写 Host 导致 SignatureDoesNotMatch。 */
+    private volatile MinioClient presignClient;
 
     public MinioVideoService(MinioProperties properties) {
         this.properties = properties;
@@ -52,22 +54,65 @@ public class MinioVideoService {
             return Optional.empty();
         }
         try {
-            String url = client().getPresignedObjectUrl(
+            // 必须用 public endpoint 直接签名；事后 rewrite host 会破坏 SigV4
+            String url = presignClient().getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.GET)
                             .bucket(parsed.bucket())
                             .object(parsed.objectKey())
                             .expiry(expirySeconds, TimeUnit.SECONDS)
                             .build());
-            return Optional.of(rewritePublicUrl(url));
+            return Optional.of(url);
         } catch (Exception e) {
             log.warn("presign failed uri={}", storageUri, e);
             return Optional.empty();
         }
     }
 
+    /**
+     * 播放预签名：对象不存在时不返回 URL，避免后台 videoPreviewUrl 指向 404。
+     */
     public Optional<String> presignPlaybackUrl(String videoUri) {
+        if (videoUri == null || videoUri.isBlank()) {
+            return Optional.empty();
+        }
+        if (videoUri.startsWith("file://") || videoUri.startsWith("http://") || videoUri.startsWith("https://")) {
+            return Optional.of(videoUri);
+        }
+        if (!objectExists(videoUri)) {
+            return Optional.empty();
+        }
         return presignDownloadUrl(videoUri, properties.presignExpirySeconds());
+    }
+
+    /** MinIO 对象是否存在（minio://bucket/key）。 */
+    public boolean objectExists(String storageUri) {
+        if (storageUri == null || storageUri.isBlank()) {
+            return false;
+        }
+        if (storageUri.startsWith("file://")) {
+            try {
+                return Files.isRegularFile(Paths.get(URI.create(storageUri)));
+            } catch (Exception e) {
+                return false;
+            }
+        }
+        if (storageUri.startsWith("http://") || storageUri.startsWith("https://")) {
+            return true;
+        }
+        ParsedUri parsed = parseUri(storageUri);
+        if (parsed == null) {
+            return false;
+        }
+        try {
+            client().statObject(StatObjectArgs.builder()
+                    .bucket(parsed.bucket())
+                    .object(parsed.objectKey())
+                    .build());
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**
@@ -85,7 +130,7 @@ public class MinioVideoService {
                 ? ObjectStorageKeys.simMediaKey(deviceId, userId, sessionId, camera, extension)
                 : ObjectStorageKeys.shoppingVideoKey(deviceId, userId, sessionId, camera, extension);
         try {
-            String uploadUrl = client().getPresignedObjectUrl(
+            String uploadUrl = presignClient().getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.PUT)
                             .bucket(properties.bucket())
@@ -94,7 +139,7 @@ public class MinioVideoService {
                             .build());
             String videoUri = "minio://" + properties.bucket() + "/" + objectKey;
             return Optional.of(new VideoUploadPresignResponse(
-                    objectKey, rewritePublicUrl(uploadUrl), videoUri, expirySeconds));
+                    objectKey, uploadUrl, videoUri, expirySeconds));
         } catch (Exception e) {
             log.warn("presign upload failed session={} device={} sim={}", sessionId, deviceId, sim, e);
             return Optional.empty();
@@ -310,35 +355,6 @@ public class MinioVideoService {
 
     private record Range(long start, long end) {}
 
-    private String rewritePublicUrl(String presignedUrl) {
-        String publicEndpoint = properties.publicEndpoint();
-        if (publicEndpoint == null || publicEndpoint.isBlank()) {
-            return presignedUrl;
-        }
-        try {
-            URI signed = URI.create(presignedUrl);
-            URI pub = URI.create(publicEndpoint.endsWith("/")
-                    ? publicEndpoint.substring(0, publicEndpoint.length() - 1)
-                    : publicEndpoint);
-            int port = pub.getPort();
-            if (port < 0) {
-                port = "https".equalsIgnoreCase(pub.getScheme()) ? 443 : 80;
-            }
-            return new URI(
-                    pub.getScheme(),
-                    signed.getUserInfo(),
-                    pub.getHost(),
-                    port,
-                    signed.getPath(),
-                    signed.getQuery(),
-                    signed.getFragment()
-            ).toString();
-        } catch (Exception e) {
-            log.warn("rewrite presign url failed publicEndpoint={}", publicEndpoint, e);
-            return presignedUrl;
-        }
-    }
-
     private MinioClient client() {
         if (client == null) {
             synchronized (this) {
@@ -351,6 +367,33 @@ public class MinioVideoService {
             }
         }
         return client;
+    }
+
+    /**
+     * 预签名客户端：优先使用浏览器可达的 public-endpoint。
+     * 只做本地签名计算，不会对 public host 发起服务端 IO。
+     */
+    private MinioClient presignClient() {
+        String publicEndpoint = properties.publicEndpoint();
+        if (publicEndpoint == null || publicEndpoint.isBlank()) {
+            return client();
+        }
+        if (presignClient == null) {
+            synchronized (this) {
+                if (presignClient == null) {
+                    String endpoint = publicEndpoint.endsWith("/")
+                            ? publicEndpoint.substring(0, publicEndpoint.length() - 1)
+                            : publicEndpoint;
+                    // 指定 region，避免 SDK 为查 region 去连 public host（容器内 localhost 不可达）
+                    presignClient = MinioClient.builder()
+                            .endpoint(endpoint)
+                            .credentials(properties.accessKey(), properties.secretKey())
+                            .region("us-east-1")
+                            .build();
+                }
+            }
+        }
+        return presignClient;
     }
 
     private ParsedUri parseUri(String videoUri) {

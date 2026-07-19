@@ -13,9 +13,11 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.config.VisionAsyncProperties;
+import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.metrics.CabinetMetrics;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
@@ -42,7 +44,12 @@ public class SessionService {
     private static final Logger log = LoggerFactory.getLogger(SessionService.class);
 
     private static final long OPENING_EXPIRE_SECONDS = 90;
+    /** 补货开门后未关门/未完成任务时的占柜超时（避免挡消费者）。 */
+    private static final long RESTOCK_SHOPPING_EXPIRE_MINUTES = 30;
     private static final EnumSet<SessionState> ACTIVE_STATES = EnumSet.of(
+            SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
+            SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING);
+    private static final EnumSet<SessionState> RESTOCK_CLOSEABLE_STATES = EnumSet.of(
             SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
             SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING);
 
@@ -59,6 +66,7 @@ public class SessionService {
     private final SessionService self;
     private final OpsExceptionService opsExceptionService;
     private final UserInfoMapper userInfoRepository;
+    private final CabinetOrderMapper orderRepository;
 
     public SessionService(ShoppingSessionMapper repository,
                           DeviceServiceClient deviceClient,
@@ -72,7 +80,8 @@ public class SessionService {
                           RestockSnapshotService restockSnapshotService,
                           @Lazy SessionService self,
                           OpsExceptionService opsExceptionService,
-                          UserInfoMapper userInfoRepository) {
+                          UserInfoMapper userInfoRepository,
+                          CabinetOrderMapper orderRepository) {
         this.repository = repository;
         this.deviceClient = deviceClient;
         this.userValidationService = userValidationService;
@@ -86,6 +95,7 @@ public class SessionService {
         this.self = self;
         this.opsExceptionService = opsExceptionService;
         this.userInfoRepository = userInfoRepository;
+        this.orderRepository = orderRepository;
     }
 
     @Transactional
@@ -592,6 +602,39 @@ public class SessionService {
         return toDto(session);
     }
 
+    /**
+     * 补货任务完成/取消时关闭仍占用柜机的补货会话，避免「柜机有未结束会话」挡消费者。
+     */
+    @Transactional
+    public int closeRestockSessionsForTask(Long taskId, String reason) {
+        if (taskId == null) {
+            return 0;
+        }
+        String failReason = (reason == null || reason.isBlank()) ? "补货任务结束，自动关闭会话" : reason.trim();
+        List<ShoppingSession> open = repository.findAll().stream()
+                .filter(DeviceValidationService::isRestockSession)
+                .filter(s -> taskId.equals(s.getReplenishmentTaskId())
+                        || (s.getIdempotencyKey() != null
+                        && s.getIdempotencyKey().startsWith("RESTOCK:" + taskId + ":")))
+                .filter(s -> RESTOCK_CLOSEABLE_STATES.contains(s.getState()))
+                .toList();
+        for (ShoppingSession session : open) {
+            session.setFailReason(failReason);
+            if (session.getCloseTime() == null) {
+                session.setCloseTime(Instant.now());
+            }
+            session.setState(SessionState.COMPLETED);
+            repository.save(session);
+            cabinetMetrics.recordSessionState(SessionState.COMPLETED);
+            domainEventPublisher.publish("RestockSessionAutoClosed", session.getSessionId(),
+                    Map.of("deviceId", session.getDeviceId(), "taskId", String.valueOf(taskId),
+                            "reason", failReason));
+            log.info("restock session auto-closed session={} task={} reason={}",
+                    session.getSessionId(), taskId, failReason);
+        }
+        return open.size();
+    }
+
     /** 运营兜底：终止异常活跃会话，使设备重新可用。调用方必须完成权限、二次确认和审计。 */
     @Transactional
     public SessionDto forceCancelForOperations(String sessionId, String reason) {
@@ -652,6 +695,35 @@ public class SessionService {
                     opsExceptionService.report("OPEN_TIMEOUT", "HIGH", s.getDeviceId(), s.getSessionId(),
                             s.getOrderId(), s.getUserId(), "开门超时", "开门命令在90秒内未得到设备响应");
                     log.warn("opening session expired session={} device={}", s.getSessionId(), s.getDeviceId());
+                });
+    }
+
+    /** 补货会话长时间停在购物态：超时清理，避免挡消费者开门。 */
+    @Scheduled(fixedRate = 60_000)
+    @Transactional
+    public void expireStaleRestockShoppingSessions() {
+        Instant cutoff = Instant.now().minus(RESTOCK_SHOPPING_EXPIRE_MINUTES, ChronoUnit.MINUTES);
+        repository.findAll().stream()
+                .filter(DeviceValidationService::isRestockSession)
+                .filter(s -> s.getState() == SessionState.SHOPPING
+                        || s.getState() == SessionState.WAITING_UPLOAD)
+                .filter(s -> {
+                    Instant anchor = s.getUpdatedAt() != null ? s.getUpdatedAt() : s.getCreatedAt();
+                    return anchor != null && anchor.isBefore(cutoff);
+                })
+                .forEach(s -> {
+                    s.setFailReason("补货会话超时自动关闭");
+                    if (s.getCloseTime() == null) {
+                        s.setCloseTime(Instant.now());
+                    }
+                    s.setState(SessionState.CANCELLED);
+                    repository.save(s);
+                    cabinetMetrics.recordSessionState(SessionState.CANCELLED);
+                    opsExceptionService.report("RESTOCK_SESSION_TIMEOUT", "MEDIUM", s.getDeviceId(),
+                            s.getSessionId(), s.getOrderId(), s.getUserId(),
+                            "补货会话超时", "补货开门后超过" + RESTOCK_SHOPPING_EXPIRE_MINUTES + "分钟未结束");
+                    log.warn("restock shopping session expired session={} device={}",
+                            s.getSessionId(), s.getDeviceId());
                 });
     }
 
@@ -734,7 +806,18 @@ public class SessionService {
     }
 
     private SessionDto toDto(ShoppingSession s) {
-        String payChannel = isRestockSession(s) ? null : s.getEntryChannel();
+        String payChannel = null;
+        if (!isRestockSession(s)) {
+            // 已生成订单时展示真实扣款渠道，避免扫码入口渠道（WECHAT）被当成余额支付渠道
+            if (s.getOrderId() != null && !s.getOrderId().isBlank()) {
+                payChannel = orderRepository.findById(s.getOrderId())
+                        .map(CabinetOrder::getPayChannel)
+                        .orElse(null);
+            }
+            if (payChannel == null || payChannel.isBlank()) {
+                payChannel = s.getEntryChannel();
+            }
+        }
         return new SessionDto(
                 s.getSessionId(), s.getUserId(), s.getDeviceId(), s.getState(),
                 s.getOpenTime(), s.getCloseTime(), s.getOrderId(), s.getCreatedAt(),

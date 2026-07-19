@@ -13,9 +13,9 @@
 | 3 | trade-service | IDEA Run `TradeServiceApplication`（:8080） |
 | 4 | device-service | IDEA Run `DeviceServiceApplication`（:8081） |
 | 5 | 设备模拟器 | IDEA Run `DeviceSimulator`，参数 `CAB-001` |
-| 6 | 消费者小程序 | `clients/consumer-mp` → `npm run dev:mp-weixin`，微信开发者工具导入 |
-| 7 | 商户小程序 | `clients/merchant-mp` → `npm run dev:mp-weixin`，微信开发者工具导入 |
-| 8 | 运营控制台 | 浏览器 http://localhost:8080/admin/index.html |
+| 6 | 消费者小程序 | 微信：`pnpm --filter @aicabinet/consumer-mp dev:mp-weixin`；**浏览器 H5**：`pnpm --filter @aicabinet/consumer-mp dev:h5` → http://127.0.0.1:3002 |
+| 7 | 商户小程序 | 微信：`pnpm --filter @aicabinet/merchant-mp dev:mp-weixin`；**浏览器 H5**：`pnpm --filter @aicabinet/merchant-mp dev:h5` → http://127.0.0.1:3001 |
+| 8 | 运营控制台 | 浏览器 http://localhost/admin/index.html（Gateway）或 http://localhost:8080/admin/index.html |
 
 ---
 
@@ -27,10 +27,10 @@
 |------|------|-----------------|
 | PostgreSQL | **15433** | Docker 内 5432，宿主机 15433 |
 | **EMQX MQTT** | 11883 | 设备通信 |
-| **MinIO API** | 9000 | 视频存储 |
-| **trade-service** | **8080** | http://localhost:8080/actuator/health |
-| **device-service** | **8081** | http://localhost:8081/actuator/health |
-| **vision-service** | **8082** | http://localhost:8082/health |
+| **MinIO API** | 9000（Windows 常需 **19000**） | 视频存储；若 `bind: access permissions` 见下方 Windows 说明 |
+| **trade-service** | **8080**（全栈 Docker 常为 **18080**） | http://localhost:8080/actuator/health 或 :18080 |
+| **device-service** | **8081**（Docker 常为 **18081**） | http://localhost:8081/actuator/health |
+| **vision-service** | **8082**（Docker 常为 **18082**） | http://localhost:8082/health |
 | **设备模拟器** | — | 程序参数 `CAB-001`，每 30s 心跳 |
 
 ### 可选
@@ -41,15 +41,32 @@
 | Redpanda/Kafka | 9092 | 异步识别用，默认关闭 |
 | Nginx Gateway | 80 | http://localhost/admin/index.html |
 | EMQX 控制台 | 28083 | http://localhost:28083 |
-| MinIO 控制台 | 9001 | http://localhost:9001 |
+| MinIO 控制台 | 9001（Windows 常需 **19001**） | http://localhost:9001 或 http://localhost:19001 |
+
+### Windows MinIO 端口（Hyper-V 预留）
+
+若宿主机排除段包含 9000（如 `8940–9039`），`ai-cabinet-minio-1` 会停在 Created，报错 `bind: An attempt was made to access a socket in a way forbidden by its access permissions`。解决：
+
+```powershell
+cd infra
+# .env 已含 MINIO_PUBLIC_ENDPOINT=http://localhost:19000 时：
+docker compose -f docker-compose.full.yml -f docker-compose.win-ports.yml up -d minio minio-init
+```
+
+| 项 | URL |
+|----|-----|
+| MinIO API | http://localhost:19000 |
+| MinIO 控制台 | http://localhost:19001 （minioadmin / minioadmin） |
 
 ### 前端入口
 
 | 入口 | URL |
 |------|-----|
-| 运营控制台 | http://localhost:8080/admin/index.html |
-| 小程序 API | 开发环境由各客户端 `VITE_API_BASE_URL` 配置 |
-| API Gateway | http://localhost/api/v2/（需 gateway 容器 + trade 在宿主机） |
+| 运营控制台 | http://localhost/admin/index.html |
+| 消费者小程序 H5 | http://127.0.0.1:3002 （`dev:h5`，账号 `13800138000` / 验证码 `123456`） |
+| 商户小程序 H5 | http://127.0.0.1:3001 （`dev:h5`，账号 `13800138001` / 验证码 `123456`） |
+| 小程序 API | H5 经 Vite 同源代理到 Gateway；微信端用 `VITE_API_BASE_URL` |
+| API Gateway | http://localhost/api/v2/ |
 
 ---
 
