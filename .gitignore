@@ -14,3 +14,55 @@ target/
 # Eclipse JDT output (not node_modules/**/bin)
 services/**/bin/
 edge/**/bin/
+
+# Dependencies & package managers
+node_modules/
+**/node_modules/
+
+# Env / secrets (keep *.example)
+.env
+.env.*
+!.env.example
+!**/.env.example
+infra/.env
+
+# Local IDE / editor
+.idea/
+*.iml
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+**/.settings/
+*.swp
+*.swo
+*~
+
+# Gradle / Android local caches
+**/.gradle/
+**/local.properties
+**/build/
+!**/src/**/build/
+
+# Playwright / browser test artifacts
+.playwright-cli/
+**/.playwright-cli/
+**/output/
+**/playwright-report/
+**/test-results/
+**/blob-report/
+
+# Python
+.venv/
+**/__pycache__/
+**/.pytest_cache/
+*.pyc
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local scratch
+patch.txt
+*.log
+)
