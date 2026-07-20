@@ -26,6 +26,9 @@ public class WarehouseOutboundLine {
     private boolean picked;
     private String handoverStatus = "PENDING";
 
+    /** 目标货道（规划按货道拆行时写入） */
+    private String slotId;
+
     public Long getLineId() { return lineId; }
     public Long getOutboundId() { return outboundId; }
     public void setOutboundId(Long outboundId) { this.outboundId = outboundId; }
@@ -43,4 +46,6 @@ public class WarehouseOutboundLine {
     public void setPicked(boolean picked) { this.picked = picked; }
     public String getHandoverStatus() { return handoverStatus; }
     public void setHandoverStatus(String handoverStatus) { this.handoverStatus = handoverStatus; }
+    public String getSlotId() { return slotId; }
+    public void setSlotId(String slotId) { this.slotId = slotId; }
 }

@@ -72,6 +72,24 @@ public class InTransitService {
                 outboundId, deviceId.trim(), STATUS_IN_TRANSIT);
     }
 
+    /** 取消未签收的在途行（空任务/未签到清理用），不回写柜机库存。 */
+    @Transactional
+    public int cancelOpenForDevice(Long outboundId, String deviceId) {
+        if (outboundId == null || deviceId == null || deviceId.isBlank()) {
+            return 0;
+        }
+        List<WarehouseInTransit> rows = transitRepository.findByOutboundIdAndDeviceIdAndStatus(
+                outboundId, deviceId.trim(), STATUS_IN_TRANSIT);
+        for (WarehouseInTransit row : rows) {
+            row.setStatus("CANCELLED");
+            transitRepository.save(row);
+        }
+        if (!rows.isEmpty()) {
+            log.info("in-transit cancelled outboundId={} deviceId={} rows={}", outboundId, deviceId, rows.size());
+        }
+        return rows.size();
+    }
+
     @Transactional(readOnly = true)
     public Map<String, Integer> qtyBySkuForDevice(String deviceId) {
         Map<String, Integer> bySku = new HashMap<>();

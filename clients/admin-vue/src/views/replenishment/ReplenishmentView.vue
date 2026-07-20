@@ -119,6 +119,19 @@
               </el-tag>
             </template>
           </el-table-column>
+          <el-table-column v-if="canEdit" label="操作" width="100" align="center" class-name="col-action">
+            <template #default="{ row }">
+              <el-button
+                v-if="canCancelEmptyRoute(row)"
+                link
+                type="danger"
+                :loading="cancelRouteLoading === row.routeId"
+                data-testid="cancel-empty-route"
+                @click="cancelEmptyRoute(row)"
+              >{{ row.status === 'CANCELLED' ? '收口脏出库' : '取消空路线' }}</el-button>
+              <span v-else class="muted">-</span>
+            </template>
+          </el-table-column>
           <template #empty><el-empty description="暂无补货路线" /></template>
             </el-table>
           </div>
@@ -236,39 +249,68 @@
       />
     </div>
 
-    <el-dialog v-model="planDialog" title="规划补货路线" width="620px" destroy-on-close>
+    <el-dialog
+      v-model="planDialog"
+      title="规划补货路线"
+      width="620px"
+      append-to-body
+      destroy-on-close
+      data-testid="plan-route-dialog"
+    >
       <el-form label-width="96px" class="plan-form">
         <el-form-item label="路线名称" required>
-          <el-input v-model="planForm.routeName" maxlength="80" placeholder="例如：浦东早班补货路线" />
+          <el-input
+            v-model="planForm.routeName"
+            maxlength="80"
+            placeholder="例如：浦东早班补货路线"
+            data-testid="plan-route-name"
+          />
         </el-form-item>
         <el-form-item label="计划日期">
-          <input v-model="planForm.plannedDate" class="native-date" type="date" />
+          <input v-model="planForm.plannedDate" class="native-date" type="date" data-testid="plan-route-date" />
         </el-form-item>
         <el-form-item label="负责人">
           <el-input-number v-model="planForm.assigneeUserId" :min="1" :precision="0" controls-position="right" />
         </el-form-item>
         <el-form-item label="目标设备" required>
-          <el-select
-            v-model="planForm.deviceIds"
-            multiple
-            filterable
-            collapse-tags
-            :max-collapse-tags="3"
-            placeholder="选择需要补货的设备"
-            style="width: 100%"
-          >
-            <el-option
-              v-for="device in devices"
-              :key="device.deviceId"
-              :label="`${device.deviceName || device.deviceId}（${device.deviceId}）`"
-              :value="device.deviceId"
-            />
-          </el-select>
+          <!-- 勾选列表替代下拉：热区更大，Browser 不易难点选 -->
+          <div class="plan-device-list" data-testid="plan-device-select">
+            <el-checkbox-group v-model="planForm.deviceIds" class="plan-device-group">
+              <label
+                v-for="device in devices"
+                :key="device.deviceId"
+                class="plan-device-option"
+                :data-testid="`plan-device-option-${device.deviceId}`"
+              >
+                <el-checkbox :label="device.deviceId">
+                  {{ device.deviceName || device.deviceId }}（{{ device.deviceId }}）
+                </el-checkbox>
+              </label>
+            </el-checkbox-group>
+          </div>
+          <div v-if="!shortageDevices.length" class="plan-hint">
+            当前无缺货建议：满柜时无法规划。请先盘点/消费产生缺口，或到「缺货建议」查看。
+          </div>
+          <div v-else-if="selectedDevicesWithoutShortage.length" class="plan-hint">
+            所选设备中 {{ selectedDevicesWithoutShortage.join('、') }} 不在缺货建议内，满柜可能无法生成出库单。
+          </div>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="planDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="createPlan">创建路线</el-button>
+        <div class="plan-dialog-footer">
+          <el-button native-type="button" @click="planDialog = false">取消</el-button>
+          <el-button
+            type="primary"
+            native-type="button"
+            class="plan-create-btn"
+            :loading="saving"
+            :disabled="!planForm.deviceIds.length || saving"
+            data-testid="plan-create-route"
+            @click.stop="createPlan"
+          >
+            创建路线
+          </el-button>
+        </div>
       </template>
     </el-dialog>
   </el-card>
@@ -301,6 +343,7 @@ const loading = ref(false);
 const saving = ref(false);
 const shortageLoading = ref(false);
 const openDoorLoading = ref<number | null>(null);
+const cancelRouteLoading = ref<number | null>(null);
 const tab = ref('routes');
 const page = ref(1);
 const size = ref(20);
@@ -320,6 +363,9 @@ const planForm = reactive({
   assigneeUserId: currentAssigneeId(),
   deviceIds: [] as string[]
 });
+const selectedDevicesWithoutShortage = computed(() =>
+  planForm.deviceIds.filter((id) => !shortageDevices.value.includes(id))
+);
 
 const plannedCount = computed(() =>
   routes.value.filter((item) => ['PLANNED', 'IN_PROGRESS'].includes(item.status)).length
@@ -589,6 +635,45 @@ function openDoorHint(task: Row) {
   return '-';
 }
 
+function canCancelEmptyRoute(row: Row) {
+  if (!row?.routeId) return false;
+  if (String(row.status || '') === 'COMPLETED') return false;
+  // CANCELLED：仍可幂等收口历史脏出库/在途
+  if (String(row.status || '') === 'CANCELLED') return true;
+  const tasks: Row[] = row.tasks || [];
+  if (!tasks.length) return true;
+  return tasks.every((t) => {
+    if (['COMPLETED', 'CANCELLED'].includes(String(t.status || ''))) return true;
+    return !t.checkInAt;
+  });
+}
+
+async function cancelEmptyRoute(row: Row) {
+  if (!row?.routeId) return;
+  const orphanCleanup = String(row.status || '') === 'CANCELLED';
+  try {
+    await ElMessageBox.confirm(
+      orphanCleanup
+        ? `确认收口路线 #${row.routeId} 的脏出库/在途？\n已发运未签收将回仓并取消在途。`
+        : `确认取消空路线 #${row.routeId}（${row.routeName || ''}）？\n仅未签到且未交接的任务可取消；已发运未签收会回仓。`,
+      orphanCleanup ? '收口脏出库' : '取消空路线',
+      { type: 'warning', confirmButtonText: orphanCleanup ? '确认收口' : '确认取消' }
+    );
+  } catch {
+    return;
+  }
+  cancelRouteLoading.value = row.routeId;
+  try {
+    await api.request(`/api/v2/ops/admin/replenishment/routes/${row.routeId}/cancel-empty`, 'POST');
+    ElMessage.success(orphanCleanup ? `路线 #${row.routeId} 脏出库已收口` : `路线 #${row.routeId} 已取消`);
+    await load();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '取消失败');
+  } finally {
+    cancelRouteLoading.value = null;
+  }
+}
+
 async function openRestockDoor(task: Row) {
   if (!task?.checkInAt) {
     ElMessage.warning('请先到店签到后再补货开门');
@@ -652,12 +737,15 @@ async function createPlan() {
       });
     } else {
       ElMessage.warning({
-        message: '路线已创建，但未生成出库明细（设备无缺货或仓库缺货），可现场补录上架',
+        message: '路线已创建，但未生成出库明细（仓库可用库存不足），可现场补录上架',
         duration: 5000
       });
     }
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '路线创建失败');
+    ElMessage.error({
+      message: error instanceof Error ? error.message : '路线创建失败',
+      duration: 5000
+    });
   } finally {
     saving.value = false;
   }
@@ -789,7 +877,56 @@ onActivated(() => {
 .muted { color: var(--layout-muted); font-size: 13px; }
 .online-tag { margin-left: 6px; vertical-align: middle; }
 .shortage-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.plan-hint { margin-top: 6px; font-size: 12px; color: var(--el-color-warning); line-height: 1.4; }
 .plan-form { margin-top: 4px; }
+.plan-device-list {
+  width: 100%;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--layout-border);
+  border-radius: 6px;
+  padding: 4px 0;
+  background: var(--layout-card);
+}
+.plan-device-group {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+.plan-device-option {
+  display: flex;
+  align-items: center;
+  min-height: 40px;
+  padding: 6px 12px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.plan-device-option:hover {
+  background: var(--el-fill-color-light);
+}
+.plan-device-option :deep(.el-checkbox) {
+  width: 100%;
+  height: auto;
+  margin-right: 0;
+}
+.plan-device-option :deep(.el-checkbox__label) {
+  white-space: normal;
+  line-height: 1.35;
+}
+.plan-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  position: relative;
+  z-index: 2;
+}
+.plan-create-btn {
+  position: relative;
+  z-index: 3;
+  min-width: 96px;
+  min-height: 36px;
+  pointer-events: auto;
+}
 .native-date {
   width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--layout-border);
   border-radius: 4px; color: var(--layout-text); background: var(--layout-card); box-sizing: border-box;

@@ -112,12 +112,16 @@
         <button
           v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
           class="primary-btn"
+          role="button"
+          data-testid="replenish-checkin"
           :disabled="submitting"
           @click="checkIn"
         >现场签到</button>
         <button
           v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
           class="primary-btn"
+          role="button"
+          data-testid="replenish-open-door"
           :disabled="submitting"
           @click="openDoor"
         >{{ doorOpened ? '再次开门' : '补货开门' }}</button>
@@ -180,17 +184,56 @@
           <button
             v-if="!linesConfirmed"
             class="secondary-btn"
+            role="button"
+            data-testid="replenish-confirm-lines"
             :disabled="submitting || !lines.length"
             @click="confirmLines"
           >确认商品与数量</button>
           <button
             class="primary-btn"
+            role="button"
+            data-testid="replenish-complete"
             :disabled="submitting || !lines.length || !linesConfirmed"
             @click="completeTask"
           >确认全部上架</button>
         </view>
         <view v-if="selected?.status === 'COMPLETED'" class="complete-banner">
           任务已完成，商品库存和在途状态已同步更新
+        </view>
+      </view>
+    </view>
+
+    <!-- H5 可访问确认框：替代 uni.showModal，便于自动化与读屏点击 -->
+    <view
+      v-if="confirmDialog.visible"
+      class="confirm-mask"
+      role="dialog"
+      aria-modal="true"
+      :aria-label="confirmDialog.title"
+      data-testid="confirm-dialog"
+      @click.self="resolveConfirm(false)"
+      @touchmove.stop.prevent
+    >
+      <view class="confirm-card" @click.stop>
+        <text class="confirm-title">{{ confirmDialog.title }}</text>
+        <text class="confirm-body">{{ confirmDialog.content }}</text>
+        <view class="confirm-actions">
+          <button
+            type="button"
+            class="confirm-btn cancel"
+            role="button"
+            :aria-label="confirmDialog.cancelText"
+            data-testid="confirm-cancel"
+            @click.stop="resolveConfirm(false)"
+          >{{ confirmDialog.cancelText }}</button>
+          <button
+            type="button"
+            class="confirm-btn ok"
+            role="button"
+            :aria-label="confirmDialog.confirmText"
+            data-testid="confirm-ok"
+            @click.stop="resolveConfirm(true)"
+          >{{ confirmDialog.confirmText }}</button>
         </view>
       </view>
     </view>
@@ -249,6 +292,57 @@ const doorOpened = ref(false);
 const openSessionId = ref('');
 /** slotCode -> { maxLevel, bookQty } */
 const slotCaps = ref<Record<string, { maxLevel: number; bookQty: number }>>({});
+
+type ConfirmDialogState = {
+  visible: boolean;
+  title: string;
+  content: string;
+  confirmText: string;
+  cancelText: string;
+  resolve: ((ok: boolean) => void) | null;
+};
+const confirmDialog = ref<ConfirmDialogState>({
+  visible: false,
+  title: '',
+  content: '',
+  confirmText: '确定',
+  cancelText: '取消',
+  resolve: null
+});
+
+function askConfirm(opts: {
+  title: string;
+  content: string;
+  confirmText?: string;
+  cancelText?: string;
+}): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (confirmDialog.value.visible && confirmDialog.value.resolve) {
+      confirmDialog.value.resolve(false);
+    }
+    confirmDialog.value = {
+      visible: true,
+      title: opts.title,
+      content: opts.content,
+      confirmText: opts.confirmText || '确定',
+      cancelText: opts.cancelText || '取消',
+      resolve
+    };
+  });
+}
+
+function resolveConfirm(ok: boolean) {
+  const resolver = confirmDialog.value.resolve;
+  confirmDialog.value = {
+    visible: false,
+    title: '',
+    content: '',
+    confirmText: '确定',
+    cancelText: '取消',
+    resolve: null
+  };
+  resolver?.(ok);
+}
 
 const statusOptions = computed(() => [
   { value: '', label: '全部' },
@@ -549,16 +643,12 @@ async function checkIn() {
     body = { latitude: location.latitude, longitude: location.longitude };
     locationOk = true;
   } catch {
-    const cont = await new Promise<boolean>((resolve) =>
-      uni.showModal({
-        title: '定位失败',
-        content: '无法获取当前位置，仍可继续签到，但无法校验是否到店。是否继续？',
-        confirmText: '继续签到',
-        cancelText: '取消',
-        success: (r) => resolve(!!r.confirm),
-        fail: () => resolve(false)
-      })
-    );
+    const cont = await askConfirm({
+      title: '定位失败',
+      content: '无法获取当前位置，仍可继续签到，但无法校验是否到店。是否继续？',
+      confirmText: '继续签到',
+      cancelText: '取消'
+    });
     if (!cont) {
       submitting.value = false;
       return;
@@ -574,16 +664,12 @@ async function checkIn() {
   } catch (error) {
     const msg = error instanceof Error ? error.message : '签到失败';
     if (locationOk && (msg.includes('签到位置') || msg.includes('超出') || msg.includes('米'))) {
-      const retry = await new Promise<boolean>((resolve) =>
-        uni.showModal({
-          title: '距离柜机过远',
-          content: `${msg}\n\n若你已在柜前（定位漂移），可改为不校验距离继续签到。`,
-          confirmText: '继续签到',
-          cancelText: '取消',
-          success: (r) => resolve(!!r.confirm),
-          fail: () => resolve(false)
-        })
-      );
+      const retry = await askConfirm({
+        title: '距离柜机过远',
+        content: `${msg}\n\n若你已在柜前（定位漂移），可改为不校验距离继续签到。`,
+        confirmText: '继续签到',
+        cancelText: '取消'
+      });
       if (retry) {
         try {
           selected.value = (await merchantApi.checkInReplenishmentTask(selected.value.taskId, {})) as Task;
@@ -615,15 +701,12 @@ async function openDoor() {
     uni.showToast({ title: '请先现场签到', icon: 'none' });
     return;
   }
-  const ok = await new Promise<boolean>((resolve) =>
-    uni.showModal({
-      title: doorOpened.value ? '再次开门' : '补货开门',
-      content: '将下发开门指令，本次为补货会话，不会按购物扣款。请确认人在柜前。',
-      confirmText: '开门',
-      success: (r) => resolve(!!r.confirm),
-      fail: () => resolve(false)
-    })
-  );
+  const ok = await askConfirm({
+    title: doorOpened.value ? '再次开门' : '补货开门',
+    content: '将下发开门指令，本次为补货会话，不会按购物扣款。请确认人在柜前。',
+    confirmText: '开门',
+    cancelText: '取消'
+  });
   if (!ok) return;
   submitting.value = true;
   try {
@@ -690,16 +773,12 @@ async function confirmLines() {
     (l) => !l.applied && (Number(l.quantity) || 0) > slotHeadroom(l)
   );
   if (over.length) {
-    const ok = await new Promise<boolean>((resolve) =>
-      uni.showModal({
-        title: '货道容量不足',
-        content: `${over.map((l) => `${l.slotId || '?'} 最多再补 ${slotHeadroom(l)}`).join('；')}。是否自动调低数量后继续？`,
-        confirmText: '自动调低',
-        cancelText: '手动改',
-        success: (r) => resolve(!!r.confirm),
-        fail: () => resolve(false)
-      })
-    );
+    const ok = await askConfirm({
+      title: '货道容量不足',
+      content: `${over.map((l) => `${l.slotId || '?'} 最多再补 ${slotHeadroom(l)}`).join('；')}。是否自动调低数量后继续？`,
+      confirmText: '自动调低',
+      cancelText: '手动改'
+    });
     if (!ok) return;
     clampLinesToCapacity();
   }
@@ -722,16 +801,12 @@ async function confirmLines() {
   } catch (error) {
     const msg = error instanceof Error ? error.message : '确认失败';
     if (msg.includes('容量不足')) {
-      const auto = await new Promise<boolean>((resolve) =>
-        uni.showModal({
-          title: '确认失败',
-          content: `${msg}\n\n是否按货道余量自动调低？`,
-          confirmText: '自动调低',
-          cancelText: '知道了',
-          success: (r) => resolve(!!r.confirm),
-          fail: () => resolve(false)
-        })
-      );
+      const auto = await askConfirm({
+        title: '确认失败',
+        content: `${msg}\n\n是否按货道余量自动调低？`,
+        confirmText: '自动调低',
+        cancelText: '知道了'
+      });
       if (auto) clampLinesToCapacity();
     } else {
       uni.showToast({ title: msg, icon: 'none', duration: 3600 });
@@ -752,27 +827,20 @@ async function completeTask() {
     return;
   }
   if (!doorOpened.value) {
-    const cont = await new Promise<boolean>((resolve) =>
-      uni.showModal({
-        title: '尚未开门',
-        content: '还未下发补货开门。若已现场开门完成上架，仍可继续确认完成。',
-        confirmText: '继续完成',
-        cancelText: '去开门',
-        success: (r) => resolve(!!r.confirm),
-        fail: () => resolve(false)
-      })
-    );
+    const cont = await askConfirm({
+      title: '尚未开门',
+      content: '还未下发补货开门。若已现场开门完成上架，仍可继续确认完成。',
+      confirmText: '继续完成',
+      cancelText: '去开门'
+    });
     if (!cont) return;
   }
-  const ok = await new Promise<boolean>((resolve) =>
-    uni.showModal({
-      title: '确认全部上架',
-      content: '完成后将更新柜机库存并签收在途商品，请确认商品、批次和货道无误。',
-      confirmText: '确认完成',
-      success: (r) => resolve(!!r.confirm),
-      fail: () => resolve(false)
-    })
-  );
+  const ok = await askConfirm({
+    title: '确认全部上架',
+    content: '完成后将更新柜机库存并签收在途商品，请确认商品、批次和货道无误。',
+    confirmText: '确认完成',
+    cancelText: '取消'
+  });
   if (!ok) return;
   submitting.value = true;
   try {
@@ -1143,6 +1211,63 @@ onPullDownRefresh(load);
   background: #dcfce7;
   text-align: center;
   font-size: 24rpx;
+}
+.confirm-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 10050;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48rpx;
+  background: rgba(15, 23, 42, 0.55);
+  box-sizing: border-box;
+  pointer-events: auto;
+}
+.confirm-card {
+  width: 100%;
+  max-width: 620rpx;
+  padding: 36rpx 32rpx 28rpx;
+  border-radius: 24rpx;
+  background: #fff;
+  box-shadow: 0 24rpx 48rpx rgba(15, 23, 42, 0.18);
+}
+.confirm-title {
+  display: block;
+  color: #0f172a;
+  font-size: 32rpx;
+  font-weight: 700;
+}
+.confirm-body {
+  display: block;
+  margin-top: 16rpx;
+  color: #475569;
+  font-size: 26rpx;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.confirm-actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 32rpx;
+}
+.confirm-btn {
+  flex: 1;
+  margin: 0;
+  border: none;
+  border-radius: 14rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 1.2;
+  padding: 22rpx 12rpx;
+}
+.confirm-btn.cancel {
+  color: #334155;
+  background: #f1f5f9;
+}
+.confirm-btn.ok {
+  color: #fff;
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
 }
 button[disabled] { opacity: 0.45; }
 </style>

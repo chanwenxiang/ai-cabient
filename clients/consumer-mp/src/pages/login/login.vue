@@ -25,17 +25,28 @@
 
         <view
           class="btn-wx"
+          role="button"
+          data-testid="login-wx"
           :class="{ disabled: loading }"
           @click="onWxLogin"
         >
           {{ loading && wxMode ? '授权中…' : '微信授权登录' }}
         </view>
 
-        <view class="divider">
+        <view class="divider" role="separator" aria-hidden="true">
           <view class="divider-line" />
-          <text class="divider-text" @click="showPhoneForm = !showPhoneForm">
-            {{ showPhoneForm ? '收起手机号登录' : '其他方式' }}
-          </text>
+          <view
+            class="divider-toggle"
+            role="button"
+            :aria-expanded="showPhoneForm ? 'true' : 'false'"
+            :aria-label="showPhoneForm ? '收起手机号登录' : '其他方式登录'"
+            data-testid="login-other-method"
+            @click="showPhoneForm = !showPhoneForm"
+          >
+            <text class="divider-text">
+              {{ showPhoneForm ? '收起手机号登录' : '其他方式' }}
+            </text>
+          </view>
           <view class="divider-line" />
         </view>
 
@@ -82,7 +93,13 @@
             </view>
           </view>
 
-          <view class="btn-primary" :class="{ disabled: loading }" @click="onLogin">
+          <view
+            class="btn-primary"
+            role="button"
+            data-testid="login-submit"
+            :class="{ disabled: loading }"
+            @click="onLogin"
+          >
             {{ loading && !wxMode ? '验证中…' : '验证并继续' }}
           </view>
           <text v-if="isDev" class="dev-hint">开发联调：13800138000 / 验证码 123456</text>
@@ -424,10 +441,26 @@ async function onLogin() {
   height: 1rpx;
   background: rgba(180, 83, 9, 0.2);
 }
+.divider-toggle {
+  flex-shrink: 0;
+  min-width: 200rpx;
+  min-height: 72rpx;
+  padding: 16rpx 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.55);
+  border: 2rpx solid rgba(180, 83, 9, 0.22);
+  box-sizing: border-box;
+  cursor: pointer;
+}
 .divider-text {
-  font-size: 24rpx;
+  font-size: 26rpx;
   color: #b45309;
-  padding: 8rpx;
+  font-weight: 600;
+  line-height: 1.2;
+  pointer-events: none;
 }
 .tabs {
   display: flex;

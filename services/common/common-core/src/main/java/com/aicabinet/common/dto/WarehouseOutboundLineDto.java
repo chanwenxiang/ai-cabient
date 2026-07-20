@@ -10,5 +10,6 @@ public record WarehouseOutboundLineDto(
         LocalDate expiryDate,
         int quantity,
         boolean picked,
-        String handoverStatus
+        String handoverStatus,
+        String slotId
 ) {}

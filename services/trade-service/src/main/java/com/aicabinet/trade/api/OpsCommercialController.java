@@ -260,6 +260,18 @@ public class OpsCommercialController {
     }
 
     @RequiresPermissions("ops:replenishment:edit")
+    @PostMapping("/replenishment/tasks/{taskId}/cancel-empty")
+    public ApiResponse<ReplenishmentTaskDto> cancelEmptyTask(HttpServletRequest request, @PathVariable Long taskId) {
+        return ApiResponse.ok(facade.cancelEmptyTask(operatorId(request), taskId));
+    }
+
+    @RequiresPermissions("ops:replenishment:edit")
+    @PostMapping("/replenishment/routes/{routeId}/cancel-empty")
+    public ApiResponse<ReplenishmentRouteDto> cancelEmptyRoute(HttpServletRequest request, @PathVariable Long routeId) {
+        return ApiResponse.ok(facade.cancelEmptyRoute(operatorId(request), routeId));
+    }
+
+    @RequiresPermissions("ops:replenishment:edit")
     @PostMapping("/replenishment/tasks/{taskId}/lines")
     public ApiResponse<List<ReplenishmentTaskLineDto>> submitTaskLines(
             HttpServletRequest request,
@@ -508,6 +520,21 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @PathVariable Long outboundId) {
         return ApiResponse.ok(facade.shipWarehouseOutbound(operatorId(request), outboundId));
+    }
+
+    @RequiresPermissions(value = {"ops:warehouse:edit", "ops:warehouse:import", "ops:replenishment:edit"}, logical = RequiresPermissions.Logical.OR)
+    @PostMapping("/warehouse/outbounds/{outboundId}/cancel-unreceived")
+    public ApiResponse<WarehouseOutboundDto> cancelUnreceivedOutbound(
+            HttpServletRequest request,
+            @PathVariable Long outboundId) {
+        return ApiResponse.ok(facade.cancelUnreceivedWarehouseOutbound(operatorId(request), outboundId));
+    }
+
+    /** 一键清理空草稿 / 终态路线未发运草稿 / 已取消路线孤儿 SHIPPED（安全 cancel-unreceived，不硬删）。 */
+    @RequiresPermissions(value = {"ops:warehouse:edit", "ops:warehouse:import", "ops:replenishment:edit"}, logical = RequiresPermissions.Logical.OR)
+    @PostMapping("/warehouse/outbounds/cleanup-stale")
+    public ApiResponse<WarehouseStaleCleanupResultDto> cleanupStaleOutbounds(HttpServletRequest request) {
+        return ApiResponse.ok(facade.cleanupStaleWarehouseOutbounds(operatorId(request)));
     }
 
     @RequiresPermissions(value = {"ops:warehouse:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)

@@ -282,6 +282,12 @@ public class DeviceSimulator implements MqttCallback {
             try {
                 return uploadViaPresign(Path.of(localFile.trim()), sessionId, lastUserId, camera);
             } catch (Exception e) {
+                // 补货/运营开门以关门事件为主；上传失败时回退占位 URI，避免会话永久卡在 SHOPPING
+                if (lastOperatorMode) {
+                    System.err.println("[simulator] upload failed (operatorMode), fallback uri: " + e.getMessage());
+                    String objectKey = ObjectStorageKeys.simMediaKey(deviceId, lastUserId, sessionId, camera, extension(Path.of(localFile.trim())));
+                    return storageScheme() + "://" + bucket() + "/" + objectKey;
+                }
                 throw new RuntimeException("failed to upload sim video", e);
             }
         }
@@ -333,7 +339,8 @@ public class DeviceSimulator implements MqttCallback {
                 .build();
         HttpResponse<Void> putRes = http.send(putReq, HttpResponse.BodyHandlers.discarding());
         if (putRes.statusCode() < 200 || putRes.statusCode() >= 300) {
-            throw new IllegalStateException("presign upload HTTP " + putRes.statusCode());
+            throw new IllegalStateException(
+                    "presign upload HTTP " + putRes.statusCode() + " urlHost=" + URI.create(uploadUrl).getHost());
         }
 
         System.out.println("[simulator] uploaded " + localPath + " -> " + videoUri);

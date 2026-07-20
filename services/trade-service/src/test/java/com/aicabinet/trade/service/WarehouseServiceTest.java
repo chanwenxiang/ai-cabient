@@ -24,6 +24,7 @@ class WarehouseServiceTest {
     @Mock private WarehouseMovementMapper movementRepository;
     @Mock private DeviceSkuInventoryMapper deviceInventoryRepository;
     @Mock private ReplenishmentTaskMapper taskRepository;
+    @Mock private ReplenishmentRouteMapper routeRepository;
     @Mock private SkuCatalogMapper skuCatalogRepository;
     @Mock private DeviceSlotService deviceSlotService;
     @Mock private SalesVelocityService salesVelocityService;
@@ -40,7 +41,7 @@ class WarehouseServiceTest {
         when(warehouseRepository.findAll()).thenReturn(List.of(w1));
         warehouseService = new WarehouseService(warehouseRepository, inventoryRepository,
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
-                movementRepository, deviceInventoryRepository, taskRepository, skuCatalogRepository,
+                movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
                 deviceSlotService, salesVelocityService, inTransitService);
 
         var result = warehouseService.listWarehouses();
@@ -56,7 +57,7 @@ class WarehouseServiceTest {
         when(warehouseRepository.findAll()).thenReturn(List.of());
         warehouseService = new WarehouseService(warehouseRepository, inventoryRepository,
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
-                movementRepository, deviceInventoryRepository, taskRepository, skuCatalogRepository,
+                movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
                 deviceSlotService, salesVelocityService, inTransitService);
 
         var result = warehouseService.listWarehouses();
@@ -68,7 +69,7 @@ class WarehouseServiceTest {
     void listInventory_shouldFilterByWarehouse() {
         warehouseService = new WarehouseService(warehouseRepository, inventoryRepository,
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
-                movementRepository, deviceInventoryRepository, taskRepository, skuCatalogRepository,
+                movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
                 deviceSlotService, salesVelocityService, inTransitService);
 
         when(inventoryRepository.findByWarehouseIdOrderByExpiryDateAsc("WH-001")).thenReturn(List.of());

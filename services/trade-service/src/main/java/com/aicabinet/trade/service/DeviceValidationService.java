@@ -152,8 +152,13 @@ public class DeviceValidationService {
                 .anyMatch(DeviceValidationService::isRestockSession);
     }
 
+    /**
+     * 仅「已签到」的进行中补货任务冻结购物/结算。
+     * 出库明细生成会把任务标成 IN_PROGRESS，但商户尚未到店时不应挡消费者。
+     */
     private boolean hasInProgressReplenishmentTask(String deviceId) {
-        return !replenishmentTaskRepository.findByDeviceIdAndStatusIn(deviceId, List.of("IN_PROGRESS")).isEmpty();
+        return replenishmentTaskRepository.findByDeviceIdAndStatusIn(deviceId, List.of("IN_PROGRESS")).stream()
+                .anyMatch(t -> t.getCheckInAt() != null);
     }
 
     static boolean isRestockSession(ShoppingSession session) {

@@ -35,6 +35,12 @@
             @click="openInbound()"
           >其他入库</el-button>
           <el-button
+            v-if="canEdit && tab === 'outbounds'"
+            :loading="cleanupStaleLoading"
+            data-testid="cleanup-stale-outbounds"
+            @click="cleanupStaleOutbounds"
+          >清理空草稿/脏在途</el-button>
+          <el-button
             v-if="canImportMaster"
             v-hasPermi="['ops:warehouse:import']"
             @click="onDownloadImportTemplate"
@@ -89,6 +95,20 @@
           placeholder="搜索关键词"
           style="width: 200px"
         />
+      </el-form-item>
+      <el-form-item v-if="tab === 'outbounds'" label="状态">
+        <el-select
+          v-model="filterOutboundStatus"
+          style="width: 160px"
+          data-testid="outbound-status-filter"
+          @change="onOutboundStatusFilter"
+        >
+          <el-option label="待处理" value="actionable" />
+          <el-option label="全部" value="" />
+          <el-option label="草稿" value="DRAFT" />
+          <el-option label="已拣货" value="PICKED" />
+          <el-option label="已发运" value="SHIPPED" />
+        </el-select>
       </el-form-item>
     </el-form>
 
@@ -311,12 +331,14 @@
               border
               table-layout="auto"
               row-key="outboundId"
+              :row-class-name="outboundRowClassName"
+              data-testid="outbound-table"
               @selection-change="onSelectionChange"
             >
           <el-table-column type="selection" width="48" />
           <el-table-column type="expand">
             <template #default="{ row }">
-              <div class="expand-panel">
+              <div class="expand-panel" :data-testid="`outbound-expand-${row.outboundId}`">
                 <el-table :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
                   <el-table-column label="目标设备" min-width="180">
                     <template #default="scope">
@@ -328,6 +350,9 @@
                       <div class="name-cell"><strong>{{ skuName(scope.row.skuId) }}</strong><small class="cell-id">{{ scope.row.skuId }}</small></div>
                     </template>
                   </el-table-column>
+                  <el-table-column label="货道" min-width="88">
+                    <template #default="scope">{{ scope.row.slotId || '—' }}</template>
+                  </el-table-column>
                   <el-table-column prop="batchNo" label="批次" min-width="140" />
                   <el-table-column prop="quantity" label="数量" min-width="88" />
                   <el-table-column label="交接状态" min-width="110">
@@ -337,7 +362,11 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="outboundId" label="出库单" min-width="96" />
+          <el-table-column label="出库单" min-width="110">
+            <template #default="{ row }">
+              <span :data-testid="`outbound-id-${row.outboundId}`" class="outbound-id-cell">#{{ row.outboundId }}</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="routeId" label="路线" min-width="88" />
           <el-table-column label="出库仓库" min-width="160">
             <template #default="{ row }">
@@ -352,15 +381,18 @@
           <el-table-column label="创建时间" min-width="170">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="100" class-name="col-action" align="center">
+          <el-table-column v-if="canEdit" label="操作" width="110" class-name="col-action" align="center">
             <template #default="{ row }">
-              <TableActions
-                v-if="outboundActions(row).length"
-                :actions="outboundActions(row)"
-                @action="(k) => changeOutbound(row, String(k) as 'pick' | 'ship')"
-              />
-              <span v-else-if="!(row.lines?.length) && row.status !== 'SHIPPED'" class="muted">无明细</span>
-              <span v-else-if="row.status === 'SHIPPED'" class="muted">已发运</span>
+              <div :data-testid="`outbound-row-${row.outboundId}`">
+                <TableActions
+                  v-if="outboundActions(row).length"
+                  :actions="outboundActions(row)"
+                  :test-id-prefix="`outbound-${row.outboundId}`"
+                  @action="(k) => changeOutbound(row, String(k) as 'pick' | 'ship' | 'cancel-unreceived')"
+                />
+                <span v-else-if="!(row.lines?.length) && row.status !== 'SHIPPED'" class="muted">无明细</span>
+                <span v-else-if="row.status === 'SHIPPED'" class="muted">已发运</span>
+              </div>
             </template>
           </el-table-column>
           <template #empty><el-empty description="暂无出库单" /></template>
@@ -692,13 +724,40 @@
         <el-button type="primary" :loading="saving" @click="saveInbound">确认入库</el-button>
       </template>
     </el-dialog>
+
+    <!-- 拣货/发运：用 el-dialog 替代 MessageBox，避免自动化偶发点不到确认钮 -->
+    <el-dialog
+      v-model="outboundConfirm.visible"
+      :title="outboundConfirm.title"
+      width="420px"
+      append-to-body
+      destroy-on-close
+      :close-on-click-modal="false"
+      data-testid="outbound-confirm-dialog"
+      @closed="onOutboundConfirmClosed"
+    >
+      <p class="outbound-confirm-body">
+        <span class="outbound-confirm-id" data-testid="outbound-confirm-id">出库单 #{{ outboundConfirm.outboundId }}</span>
+        <br />
+        {{ outboundConfirm.message }}
+      </p>
+      <template #footer>
+        <el-button data-testid="outbound-confirm-cancel" @click="cancelOutboundConfirm">取消</el-button>
+        <el-button
+          type="primary"
+          :loading="outboundConfirm.saving"
+          data-testid="outbound-confirm-ok"
+          @click="submitOutboundConfirm"
+        >确定</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Box, EditPen, Refresh, Van } from '@element-plus/icons-vue';
+import { Box, EditPen, Refresh, RefreshLeft, Van } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
@@ -773,11 +832,14 @@ function statusCode(raw: string | undefined, fallback = 'ACTIVE') {
 
 const loading = ref(false);
 const saving = ref(false);
+const cleanupStaleLoading = ref(false);
 const tab = ref('warehouses');
 const page = ref(1);
 const size = ref(20);
 const keyword = ref('');
 const filterWarehouseId = ref('');
+/** 默认「待处理」：有明细的 DRAFT + PICKED，避免历史草稿淹没操作列 */
+const filterOutboundStatus = ref<string>('actionable');
 const warehouses = ref<Row[]>([]);
 const suppliers = ref<Row[]>([]);
 const purchaseOrders = ref<Row[]>([]);
@@ -853,10 +915,47 @@ const returnablePurchaseOrders = computed(() =>
     && (po.lines || []).some((l: Row) => (l.receivedQty || 0) - (l.returnedQty || 0) > 0)
   )
 );
+const OUTBOUND_STATUS_RANK: Record<string, number> = {
+  PICKED: 0,
+  DRAFT: 1,
+  SHIPPED: 2,
+  CANCELLED: 3
+};
+
+function isOutboundActionable(row: Row) {
+  const hasLines = (row.lines?.length || 0) > 0;
+  return (row.status === 'DRAFT' && hasLines) || (row.status === 'PICKED' && hasLines);
+}
+
 const filteredOutbounds = computed(() => {
-  if (!filterWarehouseId.value) return outbounds.value;
-  return outbounds.value.filter((o) => o.warehouseId === filterWarehouseId.value);
+  let list = outbounds.value;
+  if (filterWarehouseId.value) {
+    list = list.filter((o) => o.warehouseId === filterWarehouseId.value);
+  }
+  const st = filterOutboundStatus.value;
+  if (st === 'actionable') {
+    list = list.filter((o) => isOutboundActionable(o));
+  } else if (st) {
+    list = list.filter((o) => o.status === st);
+  }
+  return [...list].sort((a, b) => {
+    const ra = OUTBOUND_STATUS_RANK[String(a.status)] ?? 9;
+    const rb = OUTBOUND_STATUS_RANK[String(b.status)] ?? 9;
+    if (ra !== rb) return ra - rb;
+    return Number(b.outboundId) - Number(a.outboundId);
+  });
 });
+
+function outboundRowClassName({ row }: { row: Row }) {
+  const parts = [`outbound-tr-${row.outboundId}`];
+  if (isOutboundActionable(row)) parts.push('outbound-row--actionable');
+  return parts.join(' ');
+}
+
+function onOutboundStatusFilter() {
+  page.value = 1;
+  selectedKeys.value = [];
+}
 
 function slicePage<T>(rows: T[]) {
   const start = (page.value - 1) * size.value;
@@ -1197,6 +1296,20 @@ function outboundActions(row: Row): TableAction[] {
   if (row.status === 'PICKED' && hasLines) {
     acts.push({ key: 'ship', label: '确认发运', icon: Van, type: 'danger' });
   }
+  if (['DRAFT', 'PICKED', 'SHIPPED'].includes(String(row.status || '')) && hasLines) {
+    const handed = (row.lines || []).some((l: Row) =>
+      ['RECEIVED', 'PARTIAL'].includes(String(l.handoverStatus || ''))
+    );
+    if (!handed) {
+      acts.push({
+        key: 'cancel-unreceived',
+        label: row.status === 'SHIPPED' ? '作废回仓' : '作废出库',
+        icon: RefreshLeft,
+        type: 'warning',
+        overflow: acts.length >= 2
+      });
+    }
+  }
   return acts;
 }
 
@@ -1494,18 +1607,108 @@ async function saveReturn() {
   }
 }
 
-async function changeOutbound(row: Row, action: 'pick' | 'ship') {
-  const text = action === 'pick' ? '确认本单已完成拣货？' : '发运后库存将转为在途，确认继续？';
+const outboundConfirm = reactive({
+  visible: false,
+  saving: false,
+  title: '',
+  message: '',
+  action: 'pick' as 'pick' | 'ship' | 'cancel-unreceived',
+  outboundId: null as number | string | null
+});
+
+function changeOutbound(row: Row, action: 'pick' | 'ship' | 'cancel-unreceived') {
+  outboundConfirm.action = action;
+  outboundConfirm.outboundId = row.outboundId;
+  if (action === 'pick') {
+    outboundConfirm.title = '确认拣货';
+    outboundConfirm.message = `确认出库单 #${row.outboundId} 已完成拣货？`;
+  } else if (action === 'ship') {
+    outboundConfirm.title = '确认发运';
+    outboundConfirm.message = `确认发运出库单 #${row.outboundId}？发运后库存将转为在途。`;
+  } else {
+    outboundConfirm.title = row.status === 'SHIPPED' ? '作废回仓' : '作废出库';
+    outboundConfirm.message =
+      row.status === 'SHIPPED'
+        ? `确认作废出库单 #${row.outboundId}？将回仓并取消在途（仅未签收）。`
+        : `确认作废出库单 #${row.outboundId}？未发运单据将直接取消。`;
+  }
+  outboundConfirm.saving = false;
+  outboundConfirm.visible = true;
+}
+
+function cancelOutboundConfirm() {
+  outboundConfirm.visible = false;
+}
+
+async function cleanupStaleOutbounds() {
   try {
-    await ElMessageBox.confirm(text, action === 'pick' ? '确认拣货' : '确认发运', { type: 'warning' });
-    await api.request(`/api/v2/ops/admin/warehouse/outbounds/${row.outboundId}/${action}`, 'POST');
-    ElMessage.success(action === 'pick' ? '拣货完成' : '已发运');
+    await ElMessageBox.confirm(
+      '将安全作废：空草稿/已拣货、终态路线上的未发运草稿、已取消路线上的未签收发运单（回仓并取消在途）。不硬删业务行，已签收单据跳过。',
+      '清理空草稿/脏在途',
+      { type: 'warning', confirmButtonText: '确认清理' }
+    );
+  } catch {
+    return;
+  }
+  cleanupStaleLoading.value = true;
+  try {
+    const result = await api.request<{
+      cancelledEmptyDrafts?: number;
+      cancelledTerminalDrafts?: number;
+      cancelledOrphanShipped?: number;
+      skipped?: number;
+      cancelledOutboundIds?: number[];
+    }>('/api/v2/ops/admin/warehouse/outbounds/cleanup-stale', 'POST');
+    const total =
+      (result?.cancelledEmptyDrafts || 0) +
+      (result?.cancelledTerminalDrafts || 0) +
+      (result?.cancelledOrphanShipped || 0);
+    ElMessage.success({
+      message: total
+        ? `已清理 ${total} 单（空草稿 ${result?.cancelledEmptyDrafts || 0} / 终态草稿 ${result?.cancelledTerminalDrafts || 0} / 孤儿发运 ${result?.cancelledOrphanShipped || 0}），跳过 ${result?.skipped || 0}`
+        : `无可清理单据（跳过 ${result?.skipped || 0}）`,
+      duration: 5000
+    });
     loadedTabs.value.delete('outbounds');
     loadedTabs.value.delete('transit');
     loadedTabs.value.delete('inventory');
     await loadTab('outbounds', true);
   } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') ElMessage.error(e instanceof Error ? e.message : '操作失败');
+    ElMessage.error(e instanceof Error ? e.message : '清理失败');
+  } finally {
+    cleanupStaleLoading.value = false;
+  }
+}
+
+function onOutboundConfirmClosed() {
+  if (!outboundConfirm.saving) {
+    outboundConfirm.outboundId = null;
+  }
+}
+
+async function submitOutboundConfirm() {
+  const action = outboundConfirm.action;
+  const outboundId = outboundConfirm.outboundId;
+  if (outboundId == null) {
+    outboundConfirm.visible = false;
+    return;
+  }
+  outboundConfirm.saving = true;
+  try {
+    await api.request(`/api/v2/ops/admin/warehouse/outbounds/${outboundId}/${action}`, 'POST');
+    outboundConfirm.visible = false;
+    const okMsg =
+      action === 'pick' ? '拣货完成' : action === 'ship' ? '已发运' : '出库单已作废';
+    ElMessage.success(okMsg);
+    loadedTabs.value.delete('outbounds');
+    loadedTabs.value.delete('transit');
+    loadedTabs.value.delete('inventory');
+    await loadTab('outbounds', true);
+  } catch (e: any) {
+    ElMessage.error(e instanceof Error ? e.message : '操作失败');
+  } finally {
+    outboundConfirm.saving = false;
+    outboundConfirm.outboundId = null;
   }
 }
 
@@ -1599,6 +1802,18 @@ watch(
   min-width: 100%;
 }
 .hidden-input { display: none; }
+.outbound-id-cell { font-weight: 650; font-variant-numeric: tabular-nums; }
+.outbound-confirm-body { margin: 0; color: var(--layout-text); line-height: 1.6; font-size: 14px; }
+.outbound-confirm-id {
+  display: inline-block;
+  margin-bottom: 6px;
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--app-primary, #0f766e);
+}
+:deep(.outbound-row--actionable) > td {
+  background: color-mix(in srgb, var(--app-primary, #0f766e) 8%, transparent);
+}
 .muted, .tip { color: var(--layout-muted); font-size: 13px; }
 .tip { margin: 0 0 8px; }
 .positive { color: #059669; font-weight: 700; }

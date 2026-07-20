@@ -130,7 +130,10 @@ public class MinioVideoService {
                 ? ObjectStorageKeys.simMediaKey(deviceId, userId, sessionId, camera, extension)
                 : ObjectStorageKeys.shoppingVideoKey(deviceId, userId, sessionId, camera, extension);
         try {
-            String uploadUrl = presignClient().getPresignedObjectUrl(
+            // sim 上传方在 Docker 内网（device-simulator），须用内部 endpoint 签名；
+            // 若用 publicEndpoint（localhost:19000）再改写 host，签名 host 不一致会 403。
+            MinioClient signer = sim ? client() : presignClient();
+            String uploadUrl = signer.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .method(Method.PUT)
                             .bucket(properties.bucket())

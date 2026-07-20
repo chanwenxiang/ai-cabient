@@ -229,6 +229,8 @@ public class ReplenishmentService {
 
     public ReplenishmentRouteDto planAndCreateRoute(Long operatorId, PlanRouteRequest request) {
 
+        assertHasReplenishmentGap(request);
+
         RoutePlanningService.PlannedRoute planned = routePlanningService.plan(request);
 
 
@@ -279,15 +281,33 @@ public class ReplenishmentService {
 
         }
 
-        try {
-            warehouseService.createOutboundForRoute(route.getRouteId(), null, route.getAssigneeUserId());
-        } catch (Exception ex) {
-            // 仓库库存不足/无缺货建议时仍允许创建路线，由运营现场补录或稍后重试出库
-            log.warn("规划路线 {} 未生成出库单: {}", route.getRouteId(), ex.getMessage());
-        }
+        // 同事务生成出库单：失败则整单回滚，避免吞异常导致 UnexpectedRollback→500 或半成功路线
+        warehouseService.createOutboundForRoute(route.getRouteId(), null, route.getAssigneeUserId());
 
         return toRouteDto(route);
 
+    }
+
+    /** 满柜/无缺口时直接 400，避免半成功路线 + 事务回滚 500。 */
+    private void assertHasReplenishmentGap(PlanRouteRequest request) {
+        List<String> deviceIds = request.deviceIds();
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一台设备");
+        }
+        boolean anyGap = false;
+        for (String deviceId : deviceIds) {
+            if (deviceId == null || deviceId.isBlank()) {
+                continue;
+            }
+            List<ReplenishmentSuggestDto> suggestions = warehouseService.suggestForDevice(deviceId.trim(), true);
+            if (suggestions.stream().anyMatch(s -> s.suggestQty() > 0)) {
+                anyGap = true;
+                break;
+            }
+        }
+        if (!anyGap) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.REPLENISHMENT_NO_GAP);
+        }
     }
 
 
@@ -319,8 +339,8 @@ public class ReplenishmentService {
                 continue;
             }
             for (WarehouseOutboundLine ol : outboundLines) {
-                List<DeviceSlotService.SlotRestockAllocation> allocations = deviceSlotService
-                        .allocateRestockQuantity(task.getDeviceId(), ol.getSkuId(), ol.getQuantity());
+                List<DeviceSlotService.SlotRestockAllocation> allocations =
+                        resolveOutboundSlotAllocations(task.getDeviceId(), ol);
                 int allocated = 0;
                 for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
                     ReplenishmentTaskLine line = new ReplenishmentTaskLine();
@@ -338,8 +358,8 @@ public class ReplenishmentService {
                 // 超出货道可补容量：截断，不生成无货道行（避免确认时手填）
                 int remain = Math.max(0, ol.getQuantity() - allocated);
                 if (remain > 0) {
-                    log.warn("generateLinesFromOutbound: truncated {} units over capacity task={} sku={} allocated={}",
-                            remain, task.getTaskId(), ol.getSkuId(), allocated);
+                    log.warn("generateLinesFromOutbound: truncated {} units over capacity task={} sku={} slot={} allocated={}",
+                            remain, task.getTaskId(), ol.getSkuId(), ol.getSlotId(), allocated);
                 }
             }
             if (!"IN_PROGRESS".equals(task.getStatus())) {
@@ -524,26 +544,22 @@ public class ReplenishmentService {
             // 仅当任务本身无明细时按出库行回写，避免与已上架任务行重复加库存
             if (task.getOutboundId() != null
                     && inTransitService.hasOpenForDevice(task.getOutboundId(), task.getDeviceId())) {
-                if (taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId).isEmpty()) {
-                    String refIdOutbound = "OB-" + task.getOutboundId();
-                    for (var ol : warehouseService.outboundLinesForDevice(task.getOutboundId(), task.getDeviceId())) {
-                        if (ol.getQuantity() <= 0) {
-                            continue;
-                        }
-                        inventoryLotService.addRestock(
-                                task.getDeviceId(),
-                                ol.getSkuId(),
-                                ol.getBatchNo(),
-                                null,
-                                ol.getExpiryDate(),
-                                ol.getQuantity(),
-                                null,
-                                operatorId,
-                                refIdOutbound);
-                    }
+                int appliedQty;
+                List<ReplenishmentTaskLine> existingLines =
+                        taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId);
+                if (existingLines.isEmpty()) {
+                    appliedQty = restockFromOutboundLines(
+                            task, operatorId, "OB-" + task.getOutboundId());
+                } else {
+                    appliedQty = existingLines.stream()
+                            .filter(l -> "RESTOCK".equalsIgnoreCase(l.getLineType()))
+                            .filter(ReplenishmentTaskLine::isApplied)
+                            .mapToInt(ReplenishmentTaskLine::getQuantity)
+                            .sum();
                 }
                 inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
-                warehouseService.markDeviceHandoverReceived(task.getOutboundId(), task.getDeviceId());
+                warehouseService.markDeviceHandoverReceived(
+                        task.getOutboundId(), task.getDeviceId(), appliedQty);
             }
             completeRouteIfReady(task.getRouteId());
             if (sessionService != null) {
@@ -569,6 +585,7 @@ public class ReplenishmentService {
         }
 
         String refId = String.valueOf(taskId);
+        int appliedRestockQty = 0;
 
         for (ReplenishmentTaskLine line : pending) {
 
@@ -576,6 +593,7 @@ public class ReplenishmentService {
 
             if ("RESTOCK".equalsIgnoreCase(line.getLineType())) {
                 deviceSlotService.recordRestock(task.getDeviceId(), line.getSlotId());
+                appliedRestockQty += line.getQuantity();
             }
 
             line.setApplied(true);
@@ -591,25 +609,13 @@ public class ReplenishmentService {
         if (expectReceive) {
             // 任务无明细时，按仓配出库行回写柜机库存（避免只改在途状态、库存不动）
             if (pending.isEmpty()) {
-                String refIdOutbound = "OB-" + task.getOutboundId();
-                for (var ol : warehouseService.outboundLinesForDevice(task.getOutboundId(), task.getDeviceId())) {
-                    if (ol.getQuantity() <= 0) {
-                        continue;
-                    }
-                    inventoryLotService.addRestock(
-                            task.getDeviceId(),
-                            ol.getSkuId(),
-                            ol.getBatchNo(),
-                            null,
-                            ol.getExpiryDate(),
-                            ol.getQuantity(),
-                            null,
-                            operatorId,
-                            refIdOutbound);
-                }
+                appliedRestockQty = restockFromOutboundLines(
+                        task, operatorId, "OB-" + task.getOutboundId());
             }
             inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
-            warehouseService.markDeviceHandoverReceived(task.getOutboundId(), task.getDeviceId());
+            // 按实际上架数量签收：不足则 PARTIAL
+            warehouseService.markDeviceHandoverReceived(
+                    task.getOutboundId(), task.getDeviceId(), appliedRestockQty);
         }
 
         task = taskRepository.save(task);
@@ -620,6 +626,54 @@ public class ReplenishmentService {
         }
         return toTaskDto(task);
 
+    }
+
+    /** 出库行 → 货道分配：优先沿用出库明细货道，并按当前余量截断。 */
+    private List<DeviceSlotService.SlotRestockAllocation> resolveOutboundSlotAllocations(
+            String deviceId, WarehouseOutboundLine ol) {
+        if (ol.getQuantity() <= 0) {
+            return List.of();
+        }
+        if (ol.getSlotId() != null && !ol.getSlotId().isBlank()) {
+            String slot = ol.getSlotId().trim().toUpperCase();
+            int room = deviceSlotService.headroomForSlot(deviceId, slot);
+            int take = Math.min(ol.getQuantity(), room);
+            if (take <= 0) {
+                return List.of();
+            }
+            return List.of(new DeviceSlotService.SlotRestockAllocation(slot, take));
+        }
+        return deviceSlotService.allocateRestockQuantity(deviceId, ol.getSkuId(), ol.getQuantity());
+    }
+
+    /** 无任务明细时按出库行（含货道/容量）回写柜机，返回实际上架件数。 */
+    private int restockFromOutboundLines(ReplenishmentTask task, Long operatorId, String refId) {
+        int received = 0;
+        for (var ol : warehouseService.outboundLinesForDevice(task.getOutboundId(), task.getDeviceId())) {
+            if (ol.getQuantity() <= 0) {
+                continue;
+            }
+            List<DeviceSlotService.SlotRestockAllocation> allocations =
+                    resolveOutboundSlotAllocations(task.getDeviceId(), ol);
+            if (allocations.isEmpty()) {
+                // 无货道绑定时仍按出库数量回写（兼容旧柜）
+                if (!deviceSlotService.hasSkuSlots(task.getDeviceId(), ol.getSkuId())) {
+                    inventoryLotService.addRestock(
+                            task.getDeviceId(), ol.getSkuId(), ol.getBatchNo(), null,
+                            ol.getExpiryDate(), ol.getQuantity(), null, operatorId, refId);
+                    received += ol.getQuantity();
+                }
+                continue;
+            }
+            for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
+                inventoryLotService.addRestock(
+                        task.getDeviceId(), ol.getSkuId(), ol.getBatchNo(), null,
+                        ol.getExpiryDate(), alloc.quantity(), alloc.slotCode(), operatorId, refId);
+                deviceSlotService.recordRestock(task.getDeviceId(), alloc.slotCode());
+                received += alloc.quantity();
+            }
+        }
+        return received;
     }
 
     /** RESTOCK：无货道时按可补容量自动拆分/截断并分配货道，减少手填。 */
@@ -669,16 +723,134 @@ public class ReplenishmentService {
     }
 
     private void completeRouteIfReady(Long routeId) {
+        finalizeRouteIfReady(routeId);
+    }
+
+    /**
+     * 安全取消空/卡死任务：未签到、无已上架明细；无出库或出库未交接可取消。
+     * 有 SHIPPED 未签收时回仓并取消在途，不 DELETE 业务表。
+     * 任务已 CANCELLED 时仍幂等收口其脏出库/在途（历史联调残留）。
+     */
+    @Transactional
+    public ReplenishmentTaskDto cancelEmptyTask(Long operatorId, Long taskId) {
+        ReplenishmentTask task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_TASK_NOT_FOUND));
+        boolean alreadyCancelled = "CANCELLED".equals(task.getStatus());
+        if ("COMPLETED".equals(task.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_TASK_ALREADY_COMPLETED);
+        }
+        if (!alreadyCancelled) {
+            assertTaskCancellableEmpty(task);
+        }
+        if (task.getOutboundId() != null) {
+            warehouseService.cancelUnreceivedOutboundForDevice(task.getOutboundId(), task.getDeviceId(), operatorId);
+        }
+        if (!alreadyCancelled) {
+            task.setStatus("CANCELLED");
+            task = taskRepository.save(task);
+            if (sessionService != null) {
+                sessionService.closeRestockSessionsForTask(taskId, "补货任务已取消，自动关闭开门会话");
+            }
+            finalizeRouteIfReady(task.getRouteId());
+        }
+        log.info("cancelEmptyTask taskId={} routeId={} deviceId={} operatorId={} alreadyCancelled={}",
+                taskId, task.getRouteId(), task.getDeviceId(), operatorId, alreadyCancelled);
+        return toTaskDto(task);
+    }
+
+    /**
+     * 取消空路线：取消其下所有可空取消的开放任务；若仅剩终态则收口路线为 CANCELLED/COMPLETED。
+     * 已 CANCELLED 的任务仍会尝试收口其脏出库/在途。
+     */
+    @Transactional
+    public ReplenishmentRouteDto cancelEmptyRoute(Long operatorId, Long routeId) {
+        ReplenishmentRoute route = routeRepository.findById(routeId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_ROUTE_NOT_FOUND));
+        List<ReplenishmentTask> tasks = taskRepository.findByRouteId(routeId);
+        // 终态路线仍允许幂等收口脏出库（如历史 SHIPPED + 任务已取消）
+        if ("CANCELLED".equals(route.getStatus()) || "COMPLETED".equals(route.getStatus())) {
+            for (ReplenishmentTask task : tasks) {
+                if (task.getOutboundId() != null && !"COMPLETED".equals(task.getStatus())) {
+                    warehouseService.cancelUnreceivedOutboundForDevice(
+                            task.getOutboundId(), task.getDeviceId(), operatorId);
+                }
+            }
+            log.info("cancelEmptyRoute orphan-cleanup routeId={} operatorId={} status={}",
+                    routeId, operatorId, route.getStatus());
+            return toRouteDto(route);
+        }
+        for (ReplenishmentTask task : tasks) {
+            if ("COMPLETED".equals(task.getStatus())) {
+                continue;
+            }
+            if ("CANCELLED".equals(task.getStatus())) {
+                if (task.getOutboundId() != null) {
+                    warehouseService.cancelUnreceivedOutboundForDevice(
+                            task.getOutboundId(), task.getDeviceId(), operatorId);
+                }
+                continue;
+            }
+            try {
+                assertTaskCancellableEmpty(task);
+            } catch (ResponseStatusException ex) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_ROUTE_CANCEL_BLOCKED);
+            }
+            if (task.getOutboundId() != null) {
+                warehouseService.cancelUnreceivedOutboundForDevice(task.getOutboundId(), task.getDeviceId(), operatorId);
+            }
+            task.setStatus("CANCELLED");
+            taskRepository.save(task);
+            if (sessionService != null) {
+                sessionService.closeRestockSessionsForTask(task.getTaskId(), "补货任务已取消，自动关闭开门会话");
+            }
+        }
+        finalizeRouteIfReady(routeId);
+        route = routeRepository.findById(routeId).orElse(route);
+        // 仍开放则强制标 CANCELLED（任务已全部取消）
+        if (!"CANCELLED".equals(route.getStatus()) && !"COMPLETED".equals(route.getStatus())) {
+            route.setStatus("CANCELLED");
+            route = routeRepository.save(route);
+        }
+        log.info("cancelEmptyRoute routeId={} operatorId={} status={}", routeId, operatorId, route.getStatus());
+        return toRouteDto(route);
+    }
+
+    private void assertTaskCancellableEmpty(ReplenishmentTask task) {
+        if (task.getCheckInAt() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_CANCEL_NOT_EMPTY);
+        }
+        boolean hasApplied = taskLineRepository.findByTaskIdOrderByLineIdAsc(task.getTaskId()).stream()
+                .anyMatch(ReplenishmentTaskLine::isApplied);
+        if (hasApplied) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.REPLENISHMENT_CANCEL_NOT_EMPTY);
+        }
+    }
+
+    /** 路线任务均终态时收口：全取消→CANCELLED；含完成→COMPLETED。 */
+    private void finalizeRouteIfReady(Long routeId) {
         if (routeId == null) {
             return;
         }
         List<ReplenishmentTask> routeTasks = taskRepository.findByRouteId(routeId);
-        if (!routeTasks.isEmpty() && routeTasks.stream().allMatch(item -> "COMPLETED".equals(item.getStatus()))) {
+        if (routeTasks.isEmpty()) {
             routeRepository.findById(routeId).ifPresent(route -> {
-                route.setStatus("COMPLETED");
-                routeRepository.save(route);
+                if (!"CANCELLED".equals(route.getStatus()) && !"COMPLETED".equals(route.getStatus())) {
+                    route.setStatus("CANCELLED");
+                    routeRepository.save(route);
+                }
             });
+            return;
         }
+        boolean allTerminal = routeTasks.stream()
+                .allMatch(item -> "COMPLETED".equals(item.getStatus()) || "CANCELLED".equals(item.getStatus()));
+        if (!allTerminal) {
+            return;
+        }
+        boolean anyCompleted = routeTasks.stream().anyMatch(item -> "COMPLETED".equals(item.getStatus()));
+        routeRepository.findById(routeId).ifPresent(route -> {
+            route.setStatus(anyCompleted ? "COMPLETED" : "CANCELLED");
+            routeRepository.save(route);
+        });
     }
 
     /** 路线下出现未完成任务时，从 COMPLETED 回退为进行中（联调补任务/补签到场景） */

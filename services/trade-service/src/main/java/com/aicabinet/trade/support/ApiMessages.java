@@ -46,6 +46,15 @@ public final class ApiMessages {
     public static final String REPLENISHMENT_CHECK_IN_REQUIRED = "请先到店签到后再补货开门";
     public static final String REPLENISHMENT_OUTBOUND_NOT_IN_TRANSIT = "出库单尚未发运在途，请先完成仓库发运后再确认上架";
     public static final String REPLENISHMENT_TASK_ALREADY_COMPLETED = "补货任务已完成，无需重复操作";
+    public static final String REPLENISHMENT_NO_GAP = "当前无补货缺口";
+    public static final String REPLENISHMENT_ROUTE_NOT_FOUND = "补货路线不存在";
+    public static final String REPLENISHMENT_CANCEL_NOT_EMPTY =
+            "任务已签到或已有上架记录/已交接，不能按空任务取消";
+    public static final String REPLENISHMENT_ROUTE_CANCEL_BLOCKED =
+            "路线下仍有不可取消的任务（已签到或已交接），请先处理后再取消";
+    public static final String WAREHOUSE_OUTBOUND_CANCEL_BLOCKED =
+            "出库单已有签收/部分签收记录，不能整单作废回仓";
+    public static final String REPLENISHMENT_WAREHOUSE_STOCK_INSUFFICIENT = "仓库可用库存不足，未生成出库明细";
     public static final String REPLENISHMENT_CHECK_IN_TOO_FAR =
             "签到位置距柜机约 %d 米，超出 500 米范围，请到柜前再签到";
     public static final String REPLENISHMENT_SLOT_CAPACITY =

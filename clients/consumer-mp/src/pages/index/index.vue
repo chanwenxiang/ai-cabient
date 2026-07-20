@@ -65,12 +65,30 @@
         </view>
 
         <view v-if="devTools" class="landing-foot">
-          <text class="manual-link" @click="showManual = !showManual">
+          <text
+            class="manual-link"
+            role="button"
+            data-testid="manual-device-toggle"
+            @click="showManual = !showManual"
+          >
             {{ showManual ? '收起' : '开发：手动输入柜机编号' }}
           </text>
           <view v-if="showManual" class="manual-form">
-            <input v-model="deviceInput" class="input" placeholder="例如 CAB-001" />
-            <button class="btn-primary" hover-class="btn-hover" :loading="opening" :disabled="opening" @click="confirmDevice">
+            <input
+              v-model="deviceInput"
+              class="input"
+              data-testid="device-code-input"
+              placeholder="例如 CAB-001"
+            />
+            <button
+              class="btn-primary"
+              hover-class="btn-hover"
+              role="button"
+              data-testid="open-door-confirm"
+              :loading="opening"
+              :disabled="opening"
+              @click="confirmDevice"
+            >
               {{ opening ? '开门中…' : '确认并开门' }}
             </button>
           </view>
@@ -154,6 +172,8 @@
           v-else-if="canReopen"
           class="cart-cta"
           hover-class="btn-hover"
+          role="button"
+          data-testid="open-door-again"
           :loading="opening"
           :disabled="opening"
           @click="reopenShop"

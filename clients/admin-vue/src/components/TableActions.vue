@@ -1,5 +1,10 @@
 <template>
-  <div class="table-actions" :class="{ 'is-label': showLabel }" @click.stop>
+  <div
+    class="table-actions"
+    :class="{ 'is-label': showLabel }"
+    :data-testid="testIdPrefix || undefined"
+    @click.stop
+  >
     <template v-for="act in primary" :key="act.key">
       <el-tooltip :content="act.label" placement="top" :show-after="120" :hide-after="0" :disabled="showLabel">
         <span class="action-icon-wrap" :class="{ 'is-disabled': act.disabled }">
@@ -9,6 +14,7 @@
             :class="[act.type ? `is-${act.type}` : '', { 'is-with-label': showLabel }]"
             :disabled="act.disabled"
             :aria-label="act.label"
+            :data-testid="actTestId(act.key)"
             @click="emit('action', act.key)"
           >
             <el-icon><component :is="act.icon" /></el-icon>
@@ -68,6 +74,8 @@ const props = withDefaults(
   defineProps<{
     actions: TableAction[];
     maxPrimary?: number;
+    /** 行级定位前缀，按钮为 `${prefix}-${key}` */
+    testIdPrefix?: string;
   }>(),
   { maxPrimary: 3 }
 );
@@ -79,6 +87,10 @@ const showLabel = computed(() => settings.tableActionMode === 'label');
 const effectiveMax = computed(() =>
   showLabel.value ? Math.min(props.maxPrimary, 2) : props.maxPrimary
 );
+
+function actTestId(key: string) {
+  return props.testIdPrefix ? `${props.testIdPrefix}-${key}` : undefined;
+}
 
 const visible = computed(() => props.actions.filter((a) => a && a.key));
 

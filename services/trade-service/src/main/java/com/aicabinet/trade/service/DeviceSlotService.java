@@ -351,6 +351,26 @@ public class DeviceSlotService {
                 .sum();
     }
 
+    /** 单货道可补容量（max/par − 账面）；货道不存在或未启用返回 0。 */
+    @Transactional(readOnly = true)
+    public int headroomForSlot(String deviceId, String slotCode) {
+        if (deviceId == null || slotCode == null || slotCode.isBlank()) {
+            return 0;
+        }
+        String normalized = slotCode.trim().toUpperCase();
+        DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, normalized)).orElse(null);
+        if (slot == null || !slot.isEnabled()) {
+            return 0;
+        }
+        int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel()
+                : (slot.getParLevel() > 0 ? slot.getParLevel() : 0);
+        if (cap <= 0) {
+            return Integer.MAX_VALUE / 4;
+        }
+        int book = loadBookQtyBySlot(deviceId).getOrDefault(normalized, 0);
+        return Math.max(0, cap - book);
+    }
+
     /** 按货道陈列图 + 动销 ROP 计算补货建议（仅低于 minLevel / ROP 时触发）。 */
     @Transactional(readOnly = true)
     public List<SlotReplenishmentSuggestDto> suggestSlotsForDevice(String deviceId) {

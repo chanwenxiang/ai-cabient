@@ -142,6 +142,16 @@ public class OpsCommercialFacade {
         return replenishmentService.completeTask(operatorId, taskId);
     }
 
+    public ReplenishmentTaskDto cancelEmptyTask(Long operatorId, Long taskId) {
+        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        return replenishmentService.cancelEmptyTask(operatorId, taskId);
+    }
+
+    public ReplenishmentRouteDto cancelEmptyRoute(Long operatorId, Long routeId) {
+        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        return replenishmentService.cancelEmptyRoute(operatorId, routeId);
+    }
+
     public List<ReplenishmentTaskLineDto> submitTaskLines(Long operatorId, Long taskId,
                                                           SubmitReplenishmentLinesRequest body) {
         permissionService.requirePermission(operatorId, "ops:replenishment:edit");
@@ -275,6 +285,16 @@ public class OpsCommercialFacade {
         WarehouseOutboundDto result = warehouseService.shipOutbound(operatorId, outboundId);
         replenishmentService.generateLinesFromOutbound(outboundId);
         return result;
+    }
+
+    public WarehouseOutboundDto cancelUnreceivedWarehouseOutbound(Long operatorId, Long outboundId) {
+        requireWarehouseWrite(operatorId);
+        return warehouseService.cancelUnreceivedOutbound(outboundId, operatorId);
+    }
+
+    public WarehouseStaleCleanupResultDto cleanupStaleWarehouseOutbounds(Long operatorId) {
+        requireWarehouseWrite(operatorId);
+        return warehouseService.cleanupStaleOutbounds(operatorId);
     }
 
     public List<com.aicabinet.common.dto.WarehouseInTransitDto> listInTransit(Long operatorId, String deviceId) {
