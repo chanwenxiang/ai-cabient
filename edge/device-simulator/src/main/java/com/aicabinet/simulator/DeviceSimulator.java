@@ -3,7 +3,6 @@ package com.aicabinet.simulator;
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.enums.DoorState;
 import com.aicabinet.common.mqtt.MqttTopics;
-import com.aicabinet.common.storage.ObjectStorageKeys;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.eclipse.paho.client.mqttv3.*;
@@ -37,7 +36,22 @@ import java.util.UUID;
  */
 public class DeviceSimulator implements MqttCallback {
 
-    private static final String DEFAULT_BUCKET = "cabinet-videos";
+    /** 1x1 JPEG；无素材或上传失败回退时写入桶内，避免会话挂空 minio:// URI。 */
+    private static final byte[] PLACEHOLDER_JPEG = new byte[]{
+            (byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01,
+            0x01, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x00, (byte) 0xFF, (byte) 0xDB, 0x00, 0x43, 0x00, 0x08,
+            0x06, 0x06, 0x07, 0x06, 0x05, 0x08, 0x07, 0x07, 0x07, 0x09, 0x09, 0x08, 0x0A, 0x0C, 0x14, 0x0D,
+            0x0C, 0x0B, 0x0B, 0x0C, 0x19, 0x12, 0x13, 0x0F, 0x14, 0x1D, 0x1A, 0x1F, 0x1E, 0x1D, 0x1A, 0x1C,
+            0x1C, 0x20, 0x24, 0x2E, 0x27, 0x20, 0x22, 0x2C, 0x23, 0x1C, 0x1C, 0x28, 0x37, 0x29, 0x2C, 0x30,
+            0x31, 0x34, 0x34, 0x34, 0x1F, 0x27, 0x39, 0x3D, 0x38, 0x32, 0x3C, 0x2E, 0x33, 0x34, 0x32,
+            (byte) 0xFF, (byte) 0xC0, 0x00, 0x0B, 0x08, 0x00, 0x01, 0x00, 0x01, 0x01, 0x01, 0x11, 0x00,
+            (byte) 0xFF, (byte) 0xC4, 0x00, 0x14, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08,
+            (byte) 0xFF, (byte) 0xC4, 0x00, 0x14, 0x10, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            (byte) 0xFF, (byte) 0xDA, 0x00, 0x08, 0x01, 0x01, 0x00, 0x00, 0x3F, 0x00, 0x7F,
+            (byte) 0xFF, (byte) 0xD9
+    };
 
     private final String deviceId;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -282,35 +296,58 @@ public class DeviceSimulator implements MqttCallback {
             try {
                 return uploadViaPresign(Path.of(localFile.trim()), sessionId, lastUserId, camera);
             } catch (Exception e) {
-                // 补货/运营开门以关门事件为主；上传失败时回退占位 URI，避免会话永久卡在 SHOPPING
+                // 补货/运营开门以关门事件为主；上传失败时改传占位图，避免空 minio:// 与会话卡死
                 if (lastOperatorMode) {
-                    System.err.println("[simulator] upload failed (operatorMode), fallback uri: " + e.getMessage());
-                    String objectKey = ObjectStorageKeys.simMediaKey(deviceId, lastUserId, sessionId, camera, extension(Path.of(localFile.trim())));
-                    return storageScheme() + "://" + bucket() + "/" + objectKey;
+                    System.err.println("[simulator] upload failed (operatorMode), uploading placeholder: " + e.getMessage());
+                    try {
+                        return uploadPlaceholder(sessionId, camera);
+                    } catch (Exception placeholderEx) {
+                        throw new RuntimeException("failed to upload sim placeholder after media failure", placeholderEx);
+                    }
                 }
                 throw new RuntimeException("failed to upload sim video", e);
             }
         }
 
-        String objectKey = ObjectStorageKeys.simMediaKey(deviceId, lastUserId, sessionId, camera, ".mp4");
-        return storageScheme() + "://" + bucket() + "/" + objectKey;
+        try {
+            System.out.println("[simulator] AICABINET_SIM_VIDEO_FILE unset, uploading placeholder for " + camera);
+            return uploadPlaceholder(sessionId, camera);
+        } catch (Exception e) {
+            throw new RuntimeException("failed to upload sim placeholder", e);
+        }
+    }
+
+    private String uploadPlaceholder(String sessionId, String camera) throws Exception {
+        String uri = uploadBytesViaPresign(PLACEHOLDER_JPEG, ".jpg", "image/jpeg", sessionId, lastUserId, camera);
+        System.out.println("[simulator] uploaded placeholder -> " + uri);
+        return uri;
     }
 
     private String uploadViaPresign(Path localPath, String sessionId, long userId, String camera) throws Exception {
         if (!Files.isRegularFile(localPath)) {
             throw new IllegalArgumentException("video file not found: " + localPath.toAbsolutePath());
         }
+        String ext = extension(localPath);
+        String uri = uploadBytesViaPresign(Files.readAllBytes(localPath), ext, contentType(ext), sessionId, userId, camera);
+        System.out.println("[simulator] uploaded " + localPath + " -> " + uri);
+        return uri;
+    }
 
+    private String uploadBytesViaPresign(byte[] bytes, String ext, String contentType,
+                                         String sessionId, long userId, String camera) throws Exception {
+        if (bytes == null || bytes.length == 0) {
+            throw new IllegalArgumentException("empty upload payload");
+        }
         String tradeUrl = env("TRADE_SERVICE_URL", "http://localhost:8080");
         String apiKey = env("INTERNAL_API_KEY", "dev-internal-key-change-me");
-        String ext = extension(localPath);
+        String normalizedExt = ext == null || ext.isBlank() ? ".bin" : (ext.startsWith(".") ? ext : "." + ext);
 
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("sessionId", sessionId);
         body.put("deviceId", deviceId);
         body.put("userId", userId);
         body.put("camera", camera);
-        body.put("extension", ext);
+        body.put("extension", normalizedExt);
         body.put("sim", true);
 
         HttpRequest presignReq = HttpRequest.newBuilder()
@@ -333,17 +370,15 @@ public class DeviceSimulator implements MqttCallback {
 
         HttpRequest putReq = HttpRequest.newBuilder()
                 .uri(URI.create(uploadUrl))
-                .header("Content-Type", contentType(ext))
+                .header("Content-Type", contentType)
                 .timeout(Duration.ofSeconds(120))
-                .PUT(HttpRequest.BodyPublishers.ofFile(localPath))
+                .PUT(HttpRequest.BodyPublishers.ofByteArray(bytes))
                 .build();
         HttpResponse<Void> putRes = http.send(putReq, HttpResponse.BodyHandlers.discarding());
         if (putRes.statusCode() < 200 || putRes.statusCode() >= 300) {
             throw new IllegalStateException(
                     "presign upload HTTP " + putRes.statusCode() + " urlHost=" + URI.create(uploadUrl).getHost());
         }
-
-        System.out.println("[simulator] uploaded " + localPath + " -> " + videoUri);
         return videoUri;
     }
 
@@ -447,14 +482,6 @@ public class DeviceSimulator implements MqttCallback {
 
     private static String appVersion() {
         return env("AICABINET_SIM_APP_VERSION", "0.9.0");
-    }
-
-    private static String storageScheme() {
-        return env("OBJECT_STORAGE_SCHEME", "minio");
-    }
-
-    private static String bucket() {
-        return env("MINIO_BUCKET", DEFAULT_BUCKET);
     }
 
     private static String env(String key, String defaultValue) {
