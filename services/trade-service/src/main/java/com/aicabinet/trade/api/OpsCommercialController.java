@@ -530,7 +530,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.cancelUnreceivedWarehouseOutbound(operatorId(request), outboundId));
     }
 
-    /** 一键清理空草稿 / 终态路线未发运草稿 / 已取消路线孤儿 SHIPPED（安全 cancel-unreceived，不硬删）。 */
+    /** 一键清理空草稿 / 终态路线未发运草稿 / 终态路线未签收且无已完成任务的 SHIPPED（安全 cancel-unreceived，不硬删）。 */
     @RequiresPermissions(value = {"ops:warehouse:edit", "ops:warehouse:import", "ops:replenishment:edit"}, logical = RequiresPermissions.Logical.OR)
     @PostMapping("/warehouse/outbounds/cleanup-stale")
     public ApiResponse<WarehouseStaleCleanupResultDto> cleanupStaleOutbounds(HttpServletRequest request) {

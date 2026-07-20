@@ -1643,7 +1643,7 @@ function cancelOutboundConfirm() {
 async function cleanupStaleOutbounds() {
   try {
     await ElMessageBox.confirm(
-      '将安全作废：空草稿/已拣货、终态路线上的未发运草稿、已取消路线上的未签收发运单（回仓并取消在途）。不硬删业务行，已签收单据跳过。',
+      '将安全作废：空草稿/已拣货、终态路线上的未发运草稿、终态路线上未签收且无已完成任务的发运单（回仓并取消在途）。不硬删业务行；已签收或任务已完成的单据跳过。',
       '清理空草稿/脏在途',
       { type: 'warning', confirmButtonText: '确认清理' }
     );

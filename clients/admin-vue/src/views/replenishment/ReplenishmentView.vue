@@ -276,7 +276,8 @@
           <!-- 勾选列表替代下拉：热区更大，Browser 不易难点选 -->
           <div class="plan-device-list" data-testid="plan-device-select">
             <el-checkbox-group v-model="planForm.deviceIds" class="plan-device-group">
-              <label
+              <!-- div 而非 label：避免外层 label 与 el-checkbox 内部 label 双绑导致偶发点选无效 -->
+              <div
                 v-for="device in devices"
                 :key="device.deviceId"
                 class="plan-device-option"
@@ -285,7 +286,7 @@
                 <el-checkbox :label="device.deviceId">
                   {{ device.deviceName || device.deviceId }}（{{ device.deviceId }}）
                 </el-checkbox>
-              </label>
+              </div>
             </el-checkbox-group>
           </div>
           <div v-if="!shortageDevices.length" class="plan-hint">

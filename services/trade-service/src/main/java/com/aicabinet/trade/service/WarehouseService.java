@@ -575,9 +575,10 @@ public class WarehouseService {
      * <ul>
      *   <li>空 DRAFT/PICKED（无明细）</li>
      *   <li>终态路线上的未发运草稿/已拣货（含有明细）</li>
-     *   <li>已取消路线上的 SHIPPED 且未签收（回仓 + 取消在途）</li>
+     *   <li>终态路线上的 SHIPPED 且未签收，且无 COMPLETED 关联任务（回仓 + 取消在途）</li>
      * </ul>
-     * 不触碰「路线已完成但仍 SHIPPED 未签收」单据，避免误回仓。
+     * COMPLETED 路线仍 SHIPPED 时：仅当关联任务全非 COMPLETED（多为已取消未签收）才收口，
+     * 避免「任务已完成但交接态未回写」场景误回仓造成假满货。
      */
     @Transactional
     public WarehouseStaleCleanupResultDto cleanupStaleOutbounds(Long operatorId) {
@@ -608,14 +609,14 @@ public class WarehouseService {
             boolean empty = lines.isEmpty();
             String routeStatus = outbound.getRouteId() == null ? null : routeStatusById.get(outbound.getRouteId());
             boolean terminalRoute = "CANCELLED".equals(routeStatus) || "COMPLETED".equals(routeStatus);
-            boolean cancelRoute = "CANCELLED".equals(routeStatus);
 
             String bucket = null;
             if (("DRAFT".equals(status) || "PICKED".equals(status)) && empty) {
                 bucket = "empty";
             } else if (("DRAFT".equals(status) || "PICKED".equals(status)) && terminalRoute) {
                 bucket = "terminal-draft";
-            } else if ("SHIPPED".equals(status) && cancelRoute) {
+            } else if ("SHIPPED".equals(status) && terminalRoute && !hasCompletedTaskLinked(outboundId)) {
+                // 终态路线 + 未签收 + 无已完成任务：与 cancel-empty 孤儿收口同安全边界
                 bucket = "orphan-shipped";
             }
             if (bucket == null) {
@@ -637,6 +638,15 @@ public class WarehouseService {
         }
         return new WarehouseStaleCleanupResultDto(
                 cancelledEmptyDrafts, cancelledTerminalDrafts, cancelledOrphanShipped, skipped, cancelledIds);
+    }
+
+    /** 出库是否仍有已完成补货任务（已上架场景禁止自动回仓）。 */
+    private boolean hasCompletedTaskLinked(Long outboundId) {
+        if (outboundId == null) {
+            return false;
+        }
+        return taskRepository.findByOutboundId(outboundId).stream()
+                .anyMatch(task -> "COMPLETED".equals(task.getStatus()));
     }
 
     @Transactional
