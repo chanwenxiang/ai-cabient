@@ -25,6 +25,13 @@ export interface DeviceInfo {
     activeSessionId?: string;
     activeSessionState?: string;
     updatedAt?: string;
+    /** 设备覆盖：AUTO_REFUND | DISPUTE_ONLY | null/空=继承全局 */
+    refundPolicy?: string | null;
+    /** 生效策略（已解析全局默认） */
+    effectiveRefundPolicy?: string;
+    /** 锁机停售 */
+    salesLocked?: boolean;
+    replenishmentInProgress?: boolean;
 }
 export interface DeviceSlot {
     deviceId: string;
@@ -94,11 +101,13 @@ export interface ProfitSharingStatus {
 export interface OrderSummary {
     orderId: string;
     sessionId?: string;
-    userId?: string;
+    userId?: string | number;
     deviceId?: string;
     totalAmountCents: number;
     status?: string;
+    payChannel?: string;
     lineCount?: number;
+    lineSummary?: string;
     createdAt?: string;
 }
 export interface DisputeSummary {
@@ -248,7 +257,33 @@ export interface MerchantSettlementOverview {
     pendingSplitCount: number;
     settledMonthCents: number;
     failedSplitCount: number;
+    profitSharing?: ProfitSharingStatus;
     recentFailures?: RevenueSplit[];
+}
+export interface MerchantDailySettlement {
+    date: string;
+    orderCount: number;
+    grossCents: number;
+    platformCents: number;
+    merchantCents: number;
+    settledCents: number;
+    pendingCents: number;
+    failedCount: number;
+}
+export interface MerchantSettlementBatch {
+    batchNo: string;
+    merchantId: string;
+    merchantName?: string;
+    settleAfter?: string;
+    settledAt?: string;
+    orderCount: number;
+    grossCents: number;
+    platformCents: number;
+    merchantCents: number;
+    settledCents: number;
+    pendingCents: number;
+    failedCount: number;
+    batchStatus: string;
 }
 export interface AccountDto {
     userId?: string | number;
@@ -327,6 +362,27 @@ export interface FileDisputeRequest {
     reason: string;
     category?: string;
     priority?: string;
+    evidenceFileIds?: number[];
+}
+export interface FileAttachmentDto {
+    fileId: number;
+    fileName?: string;
+    contentType?: string;
+    fileSize?: number;
+    url?: string;
+}
+export interface OrderRefundRequest {
+    reason: string;
+    evidenceFileIds?: number[];
+}
+export interface OrderRefundResultDto {
+    orderId: string;
+    sessionId?: string;
+    ticketId?: string;
+    status: string;
+    refundedCents: number;
+    payChannel?: string;
+    message?: string;
 }
 export interface DeviceFaultReportRequest {
     issueType: string;
@@ -369,6 +425,7 @@ export interface DisputeTicketDto {
     resolutionItems?: OrderLineDto[];
     category?: string;
     priority?: string;
+    evidence?: FileAttachmentDto[];
 }
 export interface SessionCartRequest {
     items: {
@@ -402,6 +459,11 @@ export interface OrderDetailDto {
     balanceBeforeCents?: number;
     balanceAfterCents?: number;
     totalAmountCents: number;
+    couponDiscountCents?: number;
+    originalAmountCents?: number;
+    pointsEarned?: number;
     lines?: OrderLineDto[];
     createdAt?: string;
+    /** 柜机生效退款策略：AUTO_REFUND | DISPUTE_ONLY */
+    refundPolicy?: string;
 }

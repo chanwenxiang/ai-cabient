@@ -88,8 +88,9 @@ public class AdminDashboardController {
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size,
             @RequestParam(name = "q", required = false) String q,
-            @RequestParam(name = "online", required = false) String online) {
-        return ApiResponse.ok(adminService.listDevicesPaged(operatorId(request), page, size, q, online));
+            @RequestParam(name = "online", required = false) String online,
+            @RequestParam(name = "salesLocked", required = false) Boolean salesLocked) {
+        return ApiResponse.ok(adminService.listDevicesPaged(operatorId(request), page, size, q, online, salesLocked));
     }
 
     @RequiresPermissions("ops:device:edit")
@@ -171,9 +172,13 @@ public class AdminDashboardController {
     @GetMapping(value = "/orders/export", produces = "text/csv")
     public ResponseEntity<byte[]> exportOrders(
             HttpServletRequest request,
-            @RequestParam(name = "deviceId", required = false) String deviceId) {
-        byte[] csv = adminService.exportOrdersCsv(operatorId(request), deviceId);
-        return csvAttachment("orders.csv", csv);
+            @RequestParam(name = "deviceId", required = false) String deviceId,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "mode", required = false, defaultValue = "orders") String mode) {
+        byte[] csv = adminService.exportOrdersCsv(operatorId(request), deviceId, status, mode);
+        String filename = "lines".equalsIgnoreCase(mode) || "product".equalsIgnoreCase(mode)
+                ? "order-lines.csv" : "orders.csv";
+        return csvAttachment(filename, csv);
     }
 
     @RequiresPermissions("ops:order:list")

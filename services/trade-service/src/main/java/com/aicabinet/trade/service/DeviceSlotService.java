@@ -724,7 +724,7 @@ public class DeviceSlotService {
         return new AdminDeviceDto(
                 d.getDeviceId(), d.getDeviceName(), d.getDeviceType(), d.getOnlineStatus(),
                 d.getMerchantId(), merchantName, null, null, d.getUpdatedAt(), false,
-                d.getRefundPolicy(), effective
+                d.getRefundPolicy(), effective, d.salesLockedEnabled()
         );
     }
 

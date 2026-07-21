@@ -32,6 +32,9 @@ export interface DeviceInfo {
   refundPolicy?: string | null;
   /** 生效策略（已解析全局默认） */
   effectiveRefundPolicy?: string;
+  /** 锁机停售 */
+  salesLocked?: boolean;
+  replenishmentInProgress?: boolean;
 }
 
 export interface DeviceSlot {

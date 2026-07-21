@@ -32,6 +32,23 @@
             :class="{ 'is-clickable': canAccessPath('/devices') }"
             :role="canAccessPath('/devices') ? 'button' : undefined"
             :tabindex="canAccessPath('/devices') ? 0 : undefined"
+            @click="goPath('/devices', { salesLocked: 'false' })"
+            @keydown.enter="goPath('/devices', { salesLocked: 'false' })"
+          >
+            <div class="stat-label">在售货柜</div>
+            <div class="stat-value">{{ workbench?.devicesOnSale ?? '-' }}</div>
+            <div class="stat-hint">
+              停售 {{ workbench?.devicesSalesLocked ?? 0 }}
+              <template v-if="canAccessPath('/devices')"> · 查看设备</template>
+            </div>
+          </div>
+        </el-col>
+        <el-col :xs="12" :sm="6">
+          <div
+            class="stat-tile"
+            :class="{ 'is-clickable': canAccessPath('/devices') }"
+            :role="canAccessPath('/devices') ? 'button' : undefined"
+            :tabindex="canAccessPath('/devices') ? 0 : undefined"
             @click="goPath('/devices')"
             @keydown.enter="goPath('/devices')"
           >
@@ -77,20 +94,6 @@
               </template>
               <template v-else>{{ totalIssues ? `其它待办 ${totalIssues}` : '运行正常' }}</template>
             </div>
-          </div>
-        </el-col>
-        <el-col :xs="12" :sm="6">
-          <div
-            class="stat-tile"
-            :class="{ 'is-clickable': canAccessPath('/sessions') }"
-            :role="canAccessPath('/sessions') ? 'button' : undefined"
-            :tabindex="canAccessPath('/sessions') ? 0 : undefined"
-            @click="goPath('/sessions')"
-            @keydown.enter="goPath('/sessions')"
-          >
-            <div class="stat-label">进行中会话</div>
-            <div class="stat-value">{{ stats.sessionActive || 0 }}</div>
-            <div class="stat-hint">{{ canAccessPath('/sessions') ? '查看开门记录' : '今日快照' }}</div>
           </div>
         </el-col>
       </el-row>
@@ -239,6 +242,9 @@ interface OpsWorkbench {
   reconciliationMismatches?: number;
   splitExceptions?: number;
   inTransitOverdue?: number;
+  devicesOnSale?: number;
+  devicesSalesLocked?: number;
+  pendingUnpaidOrders?: number;
   actionItems?: OpsActionItem[];
 }
 
@@ -267,6 +273,18 @@ const quickLinks = computed<QuickLink[]>(() => [
     query: { status: 'OPEN' }
   },
   { label: '待审争议', count: workbench.value?.openDisputes || 0, path: '/disputes', query: { status: 'OPEN' } },
+  {
+    label: '待支付订单',
+    count: workbench.value?.pendingUnpaidOrders || 0,
+    path: '/orders',
+    query: { status: 'PENDING' }
+  },
+  {
+    label: '停售货柜',
+    count: workbench.value?.devicesSalesLocked || 0,
+    path: '/devices',
+    query: { salesLocked: 'true' }
+  },
   {
     label: '离线设备',
     count: workbench.value?.offlineDevices || 0,

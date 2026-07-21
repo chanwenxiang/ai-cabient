@@ -5,15 +5,31 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">订单管理</span>
-            <span class="hint">按设备 / 状态筛选；详情可退款，设备与会话可跳转</span>
+            <span class="hint">支付 / 退款状态分列；支持按订单或按商品行导出</span>
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:order:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-dropdown v-hasPermi="['ops:order:export']" trigger="click" @command="onExportMode">
+            <el-button>{{ exportButtonLabel }}<span class="export-caret"> ▾</span></el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="orders">按订单导出</el-dropdown-item>
+                <el-dropdown-item command="lines">按商品导出</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
     </template>
+
+    <el-tabs v-model="statusTab" class="status-tabs" @tab-change="onStatusTab">
+      <el-tab-pane label="全部" name="ALL" />
+      <el-tab-pane label="待支付" name="PENDING" />
+      <el-tab-pane label="已支付" name="PAID" />
+      <el-tab-pane label="已退款" name="REFUNDED" />
+      <el-tab-pane label="已关闭" name="CANCELLED" />
+    </el-tabs>
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="设备">
@@ -24,11 +40,6 @@
           style="width: 160px"
           @keyup.enter="search"
         />
-      </el-form-item>
-      <el-form-item label="状态">
-        <el-select v-model="status" clearable placeholder="全部" style="width: 140px" @change="search">
-          <el-option v-for="o in statusOptions" :key="o.value" :label="o.label" :value="o.value" />
-        </el-select>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="search">查询</el-button>
@@ -81,10 +92,24 @@
               <span v-else class="muted">-</span>
             </template>
           </el-table-column>
-          <el-table-column label="状态" width="100" align="center">
+          <el-table-column label="订单状态" width="100" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="orderStatusType(row.status)">
                 {{ dictLabel('order_status', row.status) || row.status || '-' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="支付状态" width="96" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" :type="paymentStatusType(row.status)" effect="plain">
+                {{ paymentStatusLabel(row.status) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="退款状态" width="96" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" :type="row.status === 'REFUNDED' ? 'warning' : 'info'" effect="plain">
+                {{ row.status === 'REFUNDED' ? '已退款' : '无' }}
               </el-tag>
             </template>
           </el-table-column>
@@ -219,7 +244,7 @@ import { onActivated, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh, View, Wallet } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -237,6 +262,7 @@ const loading = ref(false);
 const refundingId = ref('');
 const deviceId = ref('');
 const status = ref('');
+const statusTab = ref('ALL');
 const items = ref<OrderSummary[]>([]);
 const page = ref(1);
 const size = ref(20);
@@ -244,14 +270,13 @@ const total = ref(0);
 const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detail = ref<any>(null);
-const statusOptions = dictOptions('order_status');
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<OrderSummary>((r) => r.orderId);
 
 const { onExport: exportSelectedCsv } = useListCsv({
   filePrefix: '订单',
-  headers: ['订单号', '会话', '用户ID', '设备', '状态', '支付渠道', '商品行', '金额', '创建时间'],
+  headers: ['订单号', '会话', '用户ID', '设备', '订单状态', '支付状态', '退款状态', '支付渠道', '商品行', '金额', '创建时间'],
   toRows: () =>
     pickSelected(items.value).map((row) => [
       row.orderId,
@@ -259,6 +284,8 @@ const { onExport: exportSelectedCsv } = useListCsv({
       row.userId,
       row.deviceId,
       dictLabel('order_status', row.status) || row.status,
+      paymentStatusLabel(row.status),
+      row.status === 'REFUNDED' ? '已退款' : '无',
       dictLabel('pay_channel', row.payChannel) || row.payChannel || '-',
       row.lineCount,
       money(row.totalAmountCents),
@@ -266,19 +293,21 @@ const { onExport: exportSelectedCsv } = useListCsv({
     ])
 });
 
-async function onExport() {
+async function onExportMode(mode: string) {
   const selected = pickSelected(items.value);
-  if (selected.length && selected.length < items.value.length) {
+  if (mode === 'orders' && selected.length && selected.length < items.value.length) {
     exportSelectedCsv();
     return;
   }
   try {
     const q = new URLSearchParams();
     if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
+    if (status.value) q.set('status', status.value);
+    q.set('mode', mode === 'lines' ? 'lines' : 'orders');
     const qs = q.toString();
     await downloadAuthFile(
-      `/api/v2/ops/admin/orders/export${qs ? `?${qs}` : ''}`,
-      csvFileName('订单')
+      `/api/v2/ops/admin/orders/export?${qs}`,
+      csvFileName(mode === 'lines' ? '订单商品行' : '订单')
     );
     ElMessage.success('已导出');
   } catch (e) {
@@ -295,6 +324,21 @@ function orderStatusType(s?: string) {
   if (s === 'CANCELLED' || s === 'REFUNDED') return 'info';
   if (s === 'FAILED') return 'danger';
   return 'warning';
+}
+
+function paymentStatusLabel(s?: string) {
+  if (s === 'PAID' || s === 'COMPLETED') return '已支付';
+  if (s === 'REFUNDED') return '已退款';
+  if (s === 'CANCELLED') return '已关闭';
+  if (s === 'PENDING') return '待支付';
+  return s ? dictLabel('order_status', s) || s : '-';
+}
+
+function paymentStatusType(s?: string) {
+  if (s === 'PAID' || s === 'COMPLETED') return 'success';
+  if (s === 'PENDING') return 'warning';
+  if (s === 'REFUNDED') return 'info';
+  return 'info';
 }
 
 function canRefund(s?: string) {
@@ -383,6 +427,15 @@ function syncRouteQuery() {
   router.replace({ query });
 }
 
+function onStatusTab(name: string | number) {
+  const tab = String(name);
+  statusTab.value = tab;
+  status.value = tab === 'ALL' ? '' : tab;
+  page.value = 1;
+  syncRouteQuery();
+  load();
+}
+
 async function load() {
   loading.value = true;
   try {
@@ -408,6 +461,7 @@ function search() {
 function reset() {
   deviceId.value = '';
   status.value = '';
+  statusTab.value = 'ALL';
   page.value = 1;
   syncRouteQuery();
   load();
@@ -425,7 +479,10 @@ function applyRouteQuery() {
   }
   if (typeof route.query.status === 'string' && route.query.status !== status.value) {
     status.value = route.query.status;
+    statusTab.value = route.query.status || 'ALL';
     changed = true;
+  } else if (!route.query.status && statusTab.value !== 'ALL') {
+    statusTab.value = 'ALL';
   }
   return changed;
 }
@@ -503,6 +560,13 @@ onActivated(() => {
 }
 .muted {
   color: var(--el-text-color-secondary);
+}
+.status-tabs {
+  margin: 0 0 8px;
+}
+.export-caret {
+  opacity: 0.7;
+  margin-left: 2px;
 }
 .section-title {
   margin: 16px 0 8px;

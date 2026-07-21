@@ -4,6 +4,7 @@ import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.domain.CabinetOrderLine;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DisputeTicket;
 import com.aicabinet.trade.domain.RechargeOrder;
@@ -373,6 +374,10 @@ public class AdminDashboardService {
         long staleSessions = countStaleSessions(scopedDevices);
         long splitExceptions = countSplitExceptions(scopedDevices);
         long inTransitOverdue = countInTransitOverdue(scopedDevices);
+        List<DeviceInfo> scopedDeviceList = merchantScopeService.allowedDevices(operatorId);
+        long devicesSalesLocked = scopedDeviceList.stream().filter(DeviceInfo::salesLockedEnabled).count();
+        long devicesOnSale = scopedDeviceList.size() - devicesSalesLocked;
+        long pendingUnpaidOrders = queryOrders(operatorId, null, "PENDING", PageRequest.of(0, 1)).getTotalElements();
         return new OpsWorkbenchDto(
                 countOpenDisputes(scopedDevices),
                 disputeSlaService.countOverdue(),
@@ -384,7 +389,10 @@ public class AdminDashboardService {
                 reconciliationRepository.countByStatus("MISMATCH"),
                 splitExceptions,
                 inTransitOverdue,
-                items.stream().limit(30).toList()
+                items.stream().limit(30).toList(),
+                devicesOnSale,
+                devicesSalesLocked,
+                pendingUnpaidOrders
         );
     }
 
@@ -584,6 +592,11 @@ public class AdminDashboardService {
 
     public PageResult<AdminDeviceDto> listDevicesPaged(Long operatorId, int page, int size,
                                                          String q, String online) {
+        return listDevicesPaged(operatorId, page, size, q, online, null);
+    }
+
+    public PageResult<AdminDeviceDto> listDevicesPaged(Long operatorId, int page, int size,
+                                                         String q, String online, Boolean salesLocked) {
         permissionService.requirePermission(operatorId, "ops:device:list");
         List<DeviceInfo> devices = merchantScopeService.allowedDevices(operatorId);
         Set<String> replenishing = replenishingDeviceIds();
@@ -601,6 +614,9 @@ public class AdminDashboardService {
                 .map(d -> toDeviceDto(d, sessionByDevice.get(d.getDeviceId()), replenishing.contains(d.getDeviceId())))
                 .filter(d -> {
                     if (!onlineFilter.isEmpty() && !onlineFilter.equalsIgnoreCase(String.valueOf(d.onlineStatus()))) {
+                        return false;
+                    }
+                    if (salesLocked != null && d.salesLocked() != salesLocked) {
                         return false;
                     }
                     if (kw.isEmpty()) {
@@ -961,19 +977,58 @@ public class AdminDashboardService {
 
     @Transactional(readOnly = true)
     public byte[] exportOrdersCsv(Long operatorId, String deviceId) {
+        return exportOrdersCsv(operatorId, deviceId, null, "orders");
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportOrdersCsv(Long operatorId, String deviceId, String status, String mode) {
         permissionService.requirePermission(operatorId, "ops:order:export");
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<CabinetOrder> page = queryOrders(operatorId, deviceId, pageable);
+        Page<CabinetOrder> page = queryOrders(operatorId, deviceId, status, pageable);
+        boolean byLines = mode != null && (mode.equalsIgnoreCase("lines") || mode.equalsIgnoreCase("product"));
+        if (byLines) {
+            StringBuilder sb = new StringBuilder(
+                    "orderId,deviceId,status,skuId,skuName,quantity,unitPriceCents,lineAmountCents,createdAt\n");
+            for (CabinetOrder o : page.getContent()) {
+                List<CabinetOrderLine> lines = orderLineRepository.findByOrderId(o.getOrderId());
+                if (lines.isEmpty()) {
+                    sb.append(csv(o.getOrderId())).append(',')
+                            .append(csv(o.getDeviceId())).append(',')
+                            .append(csv(o.getStatus())).append(',')
+                            .append(',').append(',').append("0,0,0,")
+                            .append(csv(String.valueOf(o.getCreatedAt()))).append('\n');
+                    continue;
+                }
+                for (CabinetOrderLine line : lines) {
+                    sb.append(csv(o.getOrderId())).append(',')
+                            .append(csv(o.getDeviceId())).append(',')
+                            .append(csv(o.getStatus())).append(',')
+                            .append(csv(line.getSkuId())).append(',')
+                            .append(csv(line.getSkuName())).append(',')
+                            .append(line.getQuantity()).append(',')
+                            .append(line.getUnitPriceCents()).append(',')
+                            .append(line.getLineAmountCents()).append(',')
+                            .append(csv(String.valueOf(o.getCreatedAt()))).append('\n');
+                }
+            }
+            return sb.toString().getBytes(StandardCharsets.UTF_8);
+        }
         Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(
                 page.getContent().stream().map(CabinetOrder::getOrderId).toList());
-        StringBuilder sb = new StringBuilder("orderId,sessionId,userId,deviceId,totalAmountCents,status,lineCount,createdAt\n");
+        StringBuilder sb = new StringBuilder(
+                "orderId,sessionId,userId,deviceId,totalAmountCents,status,payChannel,lineCount,createdAt\n");
         for (CabinetOrder o : page.getContent()) {
+            String payChannel = o.getPayChannel();
+            if (o.getPaymentOperationId() != null && o.getPaymentOperationId().startsWith("BL-")) {
+                payChannel = "BALANCE";
+            }
             sb.append(csv(o.getOrderId())).append(',')
                     .append(csv(o.getSessionId())).append(',')
                     .append(o.getUserId()).append(',')
                     .append(csv(o.getDeviceId())).append(',')
                     .append(o.getTotalAmountCents()).append(',')
                     .append(csv(o.getStatus())).append(',')
+                    .append(csv(payChannel)).append(',')
                     .append(qtyByOrder.getOrDefault(o.getOrderId(), 0)).append(',')
                     .append(csv(String.valueOf(o.getCreatedAt()))).append('\n');
         }
@@ -1329,7 +1384,8 @@ public class AdminDashboardService {
                 d.getUpdatedAt(),
                 replenishmentInProgress,
                 d.getRefundPolicy(),
-                refundPolicyService.resolveForDevice(d.getDeviceId()).name()
+                refundPolicyService.resolveForDevice(d.getDeviceId()).name(),
+                d.salesLockedEnabled()
         );
     }
 

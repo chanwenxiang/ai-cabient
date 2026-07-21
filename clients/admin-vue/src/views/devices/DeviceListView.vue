@@ -5,10 +5,26 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">设备管理</span>
-            <span class="hint">在离线筛选、退款策略与运维详情入口</span>
+            <span class="hint">在离线 / 停售筛选；可批量锁机停售或解锁营业</span>
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button
+            v-hasPermi="['ops:device:edit']"
+            type="danger"
+            plain
+            :disabled="!selectedKeys.length"
+            :loading="batchCmdLoading === 'LOCK'"
+            @click="batchCommand('LOCK')"
+          >批量停售</el-button>
+          <el-button
+            v-hasPermi="['ops:device:edit']"
+            type="success"
+            plain
+            :disabled="!selectedKeys.length"
+            :loading="batchCmdLoading === 'UNLOCK'"
+            @click="batchCommand('UNLOCK')"
+          >批量恢复</el-button>
           <el-button v-hasPermi="['ops:device:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button type="primary" :icon="Refresh" :loading="loading" @click="load(false)">刷新</el-button>
         </div>
@@ -29,6 +45,12 @@
         <el-select v-model="onlineFilter" clearable placeholder="全部" style="width: 120px" @change="search">
           <el-option label="在线" value="ONLINE" />
           <el-option label="离线" value="OFFLINE" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="运营态">
+        <el-select v-model="salesLockedFilter" clearable placeholder="全部" style="width: 120px" @change="search">
+          <el-option label="在售" value="false" />
+          <el-option label="停售" value="true" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -65,6 +87,13 @@
             <template #default="{ row }">
               <el-tag :type="row.onlineStatus === 'ONLINE' ? 'success' : 'info'" size="small">
                 {{ dictLabel('online_status', row.onlineStatus) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="运营态" width="88" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.salesLocked ? 'danger' : 'success'" size="small">
+                {{ row.salesLocked ? '停售' : '在售' }}
               </el-tag>
             </template>
           </el-table-column>
@@ -163,7 +192,7 @@
 import { computed, onActivated, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh, Setting, View } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
@@ -179,10 +208,12 @@ const auth = useAuthStore();
 const loading = ref(false);
 const keyword = ref('');
 const onlineFilter = ref('');
+const salesLockedFilter = ref('');
 const devices = ref<DeviceInfo[]>([]);
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
+const batchCmdLoading = ref('');
 const policyVisible = ref(false);
 const policySaving = ref(false);
 const policyForm = reactive({
@@ -200,7 +231,7 @@ function policyLabel(policy?: string | null) {
   return '自助退款';
 }
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
+const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection, selectedKeys } =
   useTableSelection<DeviceInfo>((r) => r.deviceId);
 
 const policyHint = computed(() => {
@@ -216,13 +247,14 @@ const policyHint = computed(() => {
 
 const { onExport } = useListCsv({
   filePrefix: '设备',
-  headers: ['设备编号', '名称', '类型', '状态', '商户编号', '商户', '退款方式', '最近会话', '会话状态', '更新时间'],
+  headers: ['设备编号', '名称', '类型', '在线', '运营态', '商户编号', '商户', '退款方式', '最近会话', '会话状态', '更新时间'],
   toRows: () =>
     pickSelected(devices.value).map((row) => [
       row.deviceId,
       row.deviceName,
       dictLabel('device_type', row.deviceType),
       dictLabel('online_status', row.onlineStatus),
+      row.salesLocked ? '停售' : '在售',
       row.merchantId,
       row.merchantName,
       `${policyLabel(effectivePolicy(row))}${row.refundPolicy ? '' : '(全局)'}`,
@@ -231,6 +263,53 @@ const { onExport } = useListCsv({
       formatDateTime(row.updatedAt)
     ])
 });
+
+async function batchCommand(command: 'LOCK' | 'UNLOCK') {
+  const targets = devices.value.filter((d) => selectedKeys.value.map(String).includes(d.deviceId));
+  if (!targets.length) {
+    ElMessage.warning('请先勾选设备');
+    return;
+  }
+  const label = command === 'LOCK' ? '锁机停售' : '解锁营业';
+  try {
+    await ElMessageBox.confirm(
+      `将对 ${targets.length} 台设备执行「${label}」，确认继续？`,
+      label,
+      { type: 'warning', confirmButtonText: '确认', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  batchCmdLoading.value = command;
+  let ok = 0;
+  let fail = 0;
+  try {
+    for (const row of targets) {
+      try {
+        const result = await api.request<{ salesLocked?: boolean }>(
+          `/api/v2/ops/admin/devices/${encodeURIComponent(row.deviceId)}/commands`,
+          'POST',
+          { command, reason: `batch-${command.toLowerCase()}` }
+        );
+        const idx = devices.value.findIndex((d) => d.deviceId === row.deviceId);
+        if (idx >= 0) {
+          devices.value[idx] = {
+            ...devices.value[idx],
+            salesLocked: result.salesLocked ?? command === 'LOCK'
+          };
+        }
+        ok += 1;
+      } catch {
+        fail += 1;
+      }
+    }
+    if (fail === 0) ElMessage.success(`已${label} ${ok} 台`);
+    else ElMessage.warning(`${label}完成：成功 ${ok}，失败 ${fail}`);
+    clearSelection();
+  } finally {
+    batchCmdLoading.value = '';
+  }
+}
 
 function goDetail(row: DeviceInfo) {
   if (!row?.deviceId) return;
@@ -301,6 +380,7 @@ function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (keyword.value.trim()) query.keyword = keyword.value.trim();
   if (onlineFilter.value) query.online = onlineFilter.value;
+  if (salesLockedFilter.value) query.salesLocked = salesLockedFilter.value;
   router.replace({ query });
 }
 
@@ -313,6 +393,7 @@ async function load(showToast = false) {
     });
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
     if (onlineFilter.value) q.set('online', onlineFilter.value);
+    if (salesLockedFilter.value) q.set('salesLocked', salesLockedFilter.value);
     const data = await api.request<PageResult<DeviceInfo>>(`/api/v2/ops/admin/devices?${q}`, 'GET');
     devices.value = data.items || [];
     total.value = data.total || 0;
@@ -333,6 +414,7 @@ function search() {
 function reset() {
   keyword.value = '';
   onlineFilter.value = '';
+  salesLockedFilter.value = '';
   page.value = 1;
   syncRouteQuery();
   load(false);
@@ -350,6 +432,10 @@ function applyRouteQuery() {
   }
   if (typeof route.query.keyword === 'string' && route.query.keyword !== keyword.value) {
     keyword.value = route.query.keyword;
+    changed = true;
+  }
+  if (typeof route.query.salesLocked === 'string' && route.query.salesLocked !== salesLockedFilter.value) {
+    salesLockedFilter.value = route.query.salesLocked;
     changed = true;
   }
   return changed;

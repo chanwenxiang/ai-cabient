@@ -17,16 +17,6 @@
       </template>
 
       <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
-        <el-form-item label="状态">
-          <el-select v-model="status" clearable placeholder="全部" style="width: 140px" @change="search">
-            <el-option
-              v-for="item in dictOptions('exception_status')"
-              :key="item.value"
-              :label="item.label"
-              :value="item.value"
-            />
-          </el-select>
-        </el-form-item>
         <el-form-item label="级别">
           <el-select v-model="severity" clearable placeholder="全部" style="width: 120px" @change="search">
             <el-option
@@ -42,6 +32,14 @@
           <el-button @click="reset">重置</el-button>
         </el-form-item>
       </el-form>
+
+      <el-tabs v-model="status" class="status-tabs" @tab-change="onStatusTab">
+        <el-tab-pane :label="`待处理 (${statusCounts.OPEN})`" name="OPEN" />
+        <el-tab-pane :label="`处理中 (${statusCounts.PROCESSING})`" name="PROCESSING" />
+        <el-tab-pane :label="`已处理 (${statusCounts.RESOLVED})`" name="RESOLVED" />
+        <el-tab-pane :label="`已关闭 (${statusCounts.CLOSED})`" name="CLOSED" />
+        <el-tab-pane label="全部" name="ALL" />
+      </el-tabs>
 
       <div class="table-scroll">
         <div class="table-scroll-inner" style="min-width: 1180px">
@@ -291,7 +289,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onDeactivated, onMounted, ref, watch } from 'vue';
+import { computed, onActivated, onDeactivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { CircleCheck, Refresh, UserFilled, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -345,6 +343,7 @@ const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const items = ref<OpsException[]>([]);
+const statusCounts = reactive({ OPEN: 0, PROCESSING: 0, RESOLVED: 0, CLOSED: 0 });
 const drawer = ref(false);
 const detailLoading = ref(false);
 const detail = ref<OpsDetail | null>(null);
@@ -380,7 +379,7 @@ const { onExport } = useListCsv({
 
 const emptyHint = computed(() =>
   status.value === 'OPEN'
-    ? '当前无待处理异常，可清空状态筛选查看历史'
+    ? '当前无待处理异常，可切换「全部」查看历史'
     : '暂无异常'
 );
 
@@ -432,21 +431,49 @@ function goOrders(device?: string) {
 
 function syncRouteQuery() {
   const query: Record<string, string> = {};
-  if (status.value) query.status = status.value;
+  if (status.value && status.value !== 'ALL') query.status = status.value;
   if (severity.value) query.severity = severity.value;
   router.replace({ query });
+}
+
+async function refreshStatusCounts() {
+  const keys = ['OPEN', 'PROCESSING', 'RESOLVED', 'CLOSED'] as const;
+  await Promise.all(
+    keys.map(async (key) => {
+      try {
+        const q = new URLSearchParams({ page: '0', size: '1', status: key });
+        if (severity.value) q.set('severity', severity.value);
+        const data = await api.request<PageResult<OpsException>>(`/api/v2/ops/admin/exceptions?${q}`, 'GET');
+        statusCounts[key] = data.total || 0;
+      } catch {
+        /* keep previous */
+      }
+    })
+  );
+}
+
+function onStatusTab(name: string | number) {
+  status.value = String(name);
+  page.value = 1;
+  syncRouteQuery();
+  load();
 }
 
 async function load() {
   loading.value = true;
   try {
     const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
-    if (status.value) q.set('status', status.value);
+    const apiStatus = status.value === 'ALL' ? '' : status.value;
+    if (apiStatus) q.set('status', apiStatus);
     if (severity.value) q.set('severity', severity.value);
     const data = await api.request<PageResult<OpsException>>(`/api/v2/ops/admin/exceptions?${q}`, 'GET');
     items.value = data.items || [];
     total.value = data.total || 0;
+    if (apiStatus && apiStatus in statusCounts) {
+      statusCounts[apiStatus as keyof typeof statusCounts] = data.total || 0;
+    }
     clearSelection();
+    void refreshStatusCounts();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -712,6 +739,7 @@ onMounted(async () => {
 .link-cell:hover { text-decoration: underline; }
 .link-cell.mono { font-family: var(--app-font-mono); font-size: 12px; }
 .muted { color: var(--el-text-color-secondary); }
+.status-tabs { margin: 0 0 10px; }
 .drawer-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
 .section-title { margin: 16px 0 8px; font-size: 14px; color: var(--layout-text); }
 .action-detail { color: var(--layout-muted); margin-top: 5px; white-space: pre-wrap; }
