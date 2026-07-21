@@ -19,6 +19,20 @@
       </div>
     </template>
 
+    <el-alert
+      type="warning"
+      :closable="false"
+      show-icon
+      class="risk-alert"
+      title="风险商品提示"
+      description="体积过小或过薄的商品易被遮挡/误识别，可能导致少扣或多扣。上架前请确认识别映射与阈值，并优先安排人工抽检。"
+    />
+
+    <el-tabs v-model="saleTab" class="status-tabs" @tab-change="onSaleTab">
+      <el-tab-pane label="在售商品" name="ACTIVE" />
+      <el-tab-pane label="所有商品" name="ALL" />
+    </el-tabs>
+
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="关键词">
         <el-input
@@ -38,6 +52,14 @@
       <el-form-item>
         <el-button type="primary" @click="search">查询</el-button>
         <el-button @click="resetFilters">重置</el-button>
+        <el-button
+          v-hasPermi="['ops:sku:edit']"
+          type="danger"
+          plain
+          :disabled="!selectedKeys.length"
+          :loading="batchDelisting"
+          @click="batchDelist"
+        >批量下架</el-button>
       </el-form-item>
     </el-form>
 
@@ -197,7 +219,7 @@
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, Upload, CircleCheck } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -207,6 +229,7 @@ import { useAuthStore } from '@/stores/auth';
 import type {
   DevRecognitionPreviewDto,
   SkuCatalog,
+  UpsertSkuRequest,
   UpsertSkuVisionEnrollmentRequest
 } from '@aicabinet/shared-types';
 
@@ -222,14 +245,17 @@ const saving = ref(false);
 const testing = ref(false);
 const suggestingClass = ref(false);
 const suggestingImage = ref(false);
+const batchDelisting = ref(false);
 const items = ref<SkuCatalog[]>([]);
 const keyword = ref('');
 const enrollmentFilter = ref('');
+const saleTab = ref('ACTIVE');
 const page = ref(1);
 const size = ref(20);
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();
   return items.value.filter((row) => {
+    if (saleTab.value === 'ACTIVE' && row.status !== 'ACTIVE') return false;
     if (enrollmentFilter.value && row.visionEnrollmentStatus !== enrollmentFilter.value) return false;
     if (!q) return true;
     return [row.skuId, row.skuName, row.yoloClassName, row.category, row.status]
@@ -240,12 +266,81 @@ const paged = computed(() => {
   const start = (page.value - 1) * size.value;
   return filtered.value.slice(start, start + size.value);
 });
-watch([keyword, enrollmentFilter], () => {
+watch([keyword, enrollmentFilter, saleTab], () => {
   page.value = 1;
 });
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
+const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection, selectedKeys } =
   useTableSelection<SkuCatalog>((r) => r.skuId);
+
+function onSaleTab() {
+  clearSelection();
+}
+
+function toUpsertBody(row: SkuCatalog, status: string): UpsertSkuRequest {
+  return {
+    skuId: row.skuId,
+    skuName: row.skuName || row.skuId,
+    priceCents: row.priceCents || 1,
+    weightGrams: row.weightGrams,
+    visionEnabled: row.visionEnabled ?? true,
+    imageUrl: row.imageUrl,
+    description: row.description,
+    category: row.category,
+    barcode: row.barcode,
+    status,
+    shelfLifeDays: row.shelfLifeDays,
+    nearExpiryDays: row.nearExpiryDays,
+    blockSaleDaysBeforeExpiry: row.blockSaleDaysBeforeExpiry,
+    storageType: row.storageType,
+    purchaseCostCents: row.purchaseCostCents,
+    nearExpiryPriceCents: row.nearExpiryPriceCents,
+    minChargeConfidence: row.minChargeConfidence,
+    yoloClassName: row.yoloClassName,
+    visionEnrollmentStatus: row.visionEnrollmentStatus as UpsertSkuRequest['visionEnrollmentStatus'],
+    detectionMinConfidence: row.detectionMinConfidence,
+    referenceImageUrlsJson: row.referenceImageUrlsJson
+  };
+}
+
+async function batchDelist() {
+  const targets = items.value.filter(
+    (d) => selectedKeys.value.map(String).includes(d.skuId) && d.status === 'ACTIVE'
+  );
+  if (!targets.length) {
+    ElMessage.warning('请勾选在售商品');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认将 ${targets.length} 个商品下架？下架后不再出现在在售列表。`,
+      '批量下架',
+      { type: 'warning', confirmButtonText: '确认下架' }
+    );
+  } catch {
+    return;
+  }
+  batchDelisting.value = true;
+  let ok = 0;
+  let fail = 0;
+  try {
+    for (const row of targets) {
+      try {
+        await api.request(`/api/v2/ops/admin/skus/${encodeURIComponent(row.skuId)}`, 'PUT', toUpsertBody(row, 'INACTIVE'));
+        const idx = items.value.findIndex((x) => x.skuId === row.skuId);
+        if (idx >= 0) items.value[idx] = { ...items.value[idx], status: 'INACTIVE' };
+        ok += 1;
+      } catch {
+        fail += 1;
+      }
+    }
+    if (fail === 0) ElMessage.success(`已下架 ${ok} 个商品`);
+    else ElMessage.warning(`下架完成：成功 ${ok}，失败 ${fail}`);
+    clearSelection();
+  } finally {
+    batchDelisting.value = false;
+  }
+}
 
 const enrollmentStatusByLabel: Record<string, string> = {
   草稿: 'DRAFT',
@@ -600,6 +695,7 @@ function search() {
 function resetFilters() {
   keyword.value = '';
   enrollmentFilter.value = '';
+  saleTab.value = 'ACTIVE';
   page.value = 1;
   syncRouteQuery();
 }
@@ -639,6 +735,8 @@ onActivated(() => {
 </script>
 
 <style scoped>
+.risk-alert { margin: 0 0 12px; }
+.status-tabs { margin: 0 0 10px; }
 .page-card-head {
   display: flex;
   justify-content: space-between;

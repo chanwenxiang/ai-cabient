@@ -69,11 +69,14 @@
                       </el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column label="签到" width="88" align="center">
+                  <el-table-column label="签到" min-width="160" align="center">
                     <template #default="scope">
-                      <el-tag :type="scope.row.checkInAt ? 'success' : 'info'" size="small">
-                        {{ scope.row.checkInAt ? '已签到' : '未签到' }}
-                      </el-tag>
+                      <div class="check-in-cell">
+                        <el-tag :type="scope.row.checkInAt ? 'success' : 'info'" size="small">
+                          {{ scope.row.checkInAt ? '已签到' : '未签到' }}
+                        </el-tag>
+                        <small v-if="formatCheckInGps(scope.row)" class="gps-text">{{ formatCheckInGps(scope.row) }}</small>
+                      </div>
                     </template>
                   </el-table-column>
                   <el-table-column label="出库单" width="100" align="center">
@@ -623,6 +626,14 @@ function deviceOnline(deviceId?: string) {
   return String(d?.onlineStatus || '').toUpperCase() === 'ONLINE';
 }
 
+function formatCheckInGps(row: Row) {
+  if (!row?.checkInAt) return '';
+  const lat = row.checkInLat;
+  const lng = row.checkInLng;
+  if (lat == null || lng == null || Number.isNaN(Number(lat)) || Number.isNaN(Number(lng))) return '';
+  return `${Number(lat).toFixed(4)},${Number(lng).toFixed(4)}`;
+}
+
 function canOpenRestock(task: Row) {
   if (!task?.taskId || !task?.deviceId) return false;
   if (['COMPLETED', 'CANCELLED'].includes(String(task.status || ''))) return false;
@@ -876,6 +887,8 @@ onActivated(() => {
 .device-link-cell small { color: var(--layout-muted); font-size: 11px; font-family: var(--app-font-mono); }
 .device-link-cell:hover strong { text-decoration: underline; }
 .muted { color: var(--layout-muted); font-size: 13px; }
+.check-in-cell { display: grid; gap: 4px; justify-items: center; line-height: 1.3; }
+.gps-text { color: var(--layout-muted); font-size: 11px; font-family: var(--app-font-mono); }
 .online-tag { margin-left: 6px; vertical-align: middle; }
 .shortage-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 .plan-hint { margin-top: 6px; font-size: 12px; color: var(--el-color-warning); line-height: 1.4; }

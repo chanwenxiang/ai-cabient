@@ -16,6 +16,15 @@
       </div>
     </template>
 
+    <el-alert
+      type="info"
+      :closable="false"
+      show-icon
+      class="t1-alert"
+      title="T+1 结算说明"
+      description="对账按 T+1 结算节奏核对渠道流水与平台订单；当日交易通常次日可完整对账。差异笔数标红请优先处理。"
+    />
+
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="渠道">
         <el-select v-model="channel" clearable placeholder="全部" style="width: 140px" @change="search">
@@ -42,6 +51,12 @@
         <el-button @click="reset">重置</el-button>
       </el-form-item>
     </el-form>
+
+    <div class="kpi-tags">
+      <el-tag size="small" type="info">批次 {{ totalCount }}</el-tag>
+      <el-tag size="small" type="danger">差异 {{ mismatchBatchCount }}</el-tag>
+      <el-tag size="small" type="success">匹配 {{ matchedBatchCount }}</el-tag>
+    </div>
 
     <div class="table-scroll">
       <div class="table-scroll-inner" style="min-width: 960px">
@@ -196,6 +211,12 @@ const runForm = reactive({ date: '', channel: 'WECHAT' });
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<Row>((r) => r.reconId);
 
+const totalCount = computed(() => items.value.length);
+const mismatchBatchCount = computed(() =>
+  items.value.filter((row) => (row.mismatchCount ?? 0) > 0 || row.status === 'MISMATCH').length
+);
+const matchedBatchCount = computed(() => totalCount.value - mismatchBatchCount.value);
+
 const { onExport } = useListCsv({
   filePrefix: '对账',
   headers: ['对账ID', '日期', '渠道', '状态', '差异笔数', '创建时间'],
@@ -329,6 +350,14 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.t1-alert { margin: 0 0 12px; }
+.kpi-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0 0 12px;
+}
 .recon-cell {
   appearance: none;
   border: 0;
