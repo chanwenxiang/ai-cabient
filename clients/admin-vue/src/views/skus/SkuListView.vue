@@ -75,7 +75,9 @@
           class="report-table sku-table"
           @selection-change="onSelectionChange"
         >
-          <template #empty><el-empty description="暂无商品" /></template>
+          <template #empty>
+            <el-empty :description="skuEmptyText" />
+          </template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="商品" min-width="180" class-name="col-text">
             <template #default="{ row }">
@@ -261,6 +263,14 @@ const filtered = computed(() => {
     return [row.skuId, row.skuName, row.yoloClassName, row.category, row.status]
       .some((x) => String(x || '').toLowerCase().includes(q));
   });
+});
+const skuEmptyText = computed(() => {
+  if (saleTab.value === 'ACTIVE') {
+    if (keyword.value.trim() || enrollmentFilter.value) return '在售列表无匹配商品，可清空筛选或切换到「所有商品」';
+    return '暂无在售商品，可切换到「所有商品」查看已下架项';
+  }
+  if (keyword.value.trim() || enrollmentFilter.value) return '无匹配商品';
+  return '暂无商品';
 });
 const paged = computed(() => {
   const start = (page.value - 1) * size.value;

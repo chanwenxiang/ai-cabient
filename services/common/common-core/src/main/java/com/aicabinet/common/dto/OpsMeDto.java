@@ -8,5 +8,9 @@ public record OpsMeDto(
         String phoneNumber,
         String name,
         List<String> roleNames,
-        int permissionCount
+        int permissionCount,
+        /** true = 全局可见；false = 仅绑定商户下设备 */
+        boolean globalDataScope,
+        List<String> merchantIds,
+        List<String> merchantNames
 ) {}

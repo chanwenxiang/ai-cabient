@@ -25,6 +25,7 @@
 
     <el-descriptions :column="1" border class="profile-desc">
       <el-descriptions-item label="角色">{{ auth.roleText || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="数据范围">{{ auth.dataScopeText }}</el-descriptions-item>
       <el-descriptions-item label="权限数">
         {{ auth.profile?.permissionCount ?? permissions.length }}
       </el-descriptions-item>

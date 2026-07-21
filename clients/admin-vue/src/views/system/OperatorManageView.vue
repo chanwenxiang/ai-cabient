@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">运营账号</span>
-            <span class="hint">按手机号筛选；可分配角色与商户范围</span>
+            <span class="hint">按手机号筛选；可分配角色与商户数据范围（绑定后仅可见对应设备）</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -67,7 +67,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="角色" min-width="180" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="角色" min-width="160" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <template v-if="(row.roleNames || []).length">
                 <el-tag
@@ -81,6 +81,23 @@
                 </el-tag>
               </template>
               <span v-else class="muted">未分配</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="数据范围" min-width="180" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">
+              <template v-if="(row.merchantNames || row.merchantIds || []).length">
+                <el-tag
+                  v-for="(name, idx) in (row.merchantNames || row.merchantIds)"
+                  :key="(row.merchantIds || [])[idx] || name"
+                  size="small"
+                  type="warning"
+                  effect="plain"
+                  class="role-tag"
+                >
+                  {{ name }}
+                </el-tag>
+              </template>
+              <el-tag v-else size="small" type="success" effect="plain">全局</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="操作" width="120" class-name="col-action" align="center">
@@ -158,10 +175,19 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="merchantDlg" title="商户范围" width="520px" destroy-on-close>
+    <el-dialog v-model="merchantDlg" title="商户范围（设备数据范围）" width="560px" destroy-on-close>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        class="scope-alert"
+        title="数据范围说明"
+        description="勾选商户后，该账号仅可见这些商户下的设备及相关订单/补货/看板数据。不勾选任何商户 = 全局可见（admin 角色始终全局）。"
+      />
       <el-checkbox-group v-model="merchantIds" class="merchant-group">
         <el-checkbox v-for="m in merchants" :key="m.merchantId" :label="m.merchantId">
           {{ m.merchantName }}（{{ m.merchantId }}）
+          <span class="muted">· {{ m.deviceCount ?? 0 }} 台设备</span>
         </el-checkbox>
       </el-checkbox-group>
       <template #footer>
@@ -202,11 +228,14 @@ interface OperatorRow {
   status?: string;
   roleNames?: string[];
   roleIds?: number[];
+  merchantIds?: string[];
+  merchantNames?: string[];
 }
 
 interface MerchantRow {
   merchantId: string;
   merchantName: string;
+  deviceCount?: number;
 }
 
 const loading = ref(false);
@@ -247,7 +276,7 @@ const statusByLabel: Record<string, string> = {
 
 const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
   filePrefix: '运营账号',
-  headers: ['用户ID', '姓名', '手机号', '密码', '状态', '角色'],
+  headers: ['用户ID', '姓名', '手机号', '密码', '状态', '角色', '数据范围'],
   toRows: () =>
     pickSelected(operators.value).map((row) => [
       row.userId,
@@ -255,7 +284,10 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
       row.phoneNumber,
       '',
       row.status === 'ACTIVE' ? '正常' : '停用',
-      (row.roleNames || []).join('、') || '未分配'
+      (row.roleNames || []).join('、') || '未分配',
+      (row.merchantNames || row.merchantIds || []).length
+        ? (row.merchantNames || row.merchantIds || []).join('、')
+        : '全局'
     ]),
   onImportRows: async (rows) => {
     let ok = 0;
@@ -486,6 +518,7 @@ async function saveMerchants() {
     );
     ElMessage.success('商户范围已更新');
     merchantDlg.value = false;
+    await loadOperators();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -531,6 +564,7 @@ onActivated(() => {
 }
 .role-tag { margin: 0 4px 4px 0; }
 .muted { color: var(--el-text-color-secondary); }
+.scope-alert { margin-bottom: 12px; }
 .hidden-input { display: none; }
 .merchant-group { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow: auto; }
 </style>

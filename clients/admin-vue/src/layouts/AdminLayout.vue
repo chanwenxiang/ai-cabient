@@ -110,6 +110,7 @@
               <div class="user-text">
                 <span class="user-name">{{ auth.displayName }}</span>
                 <span class="user-detail">{{ auth.phone }} · {{ auth.roleText }}</span>
+                <span class="user-scope">{{ auth.dataScopeText }}</span>
               </div>
             </div>
             <template #dropdown>
@@ -561,6 +562,15 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.user-scope {
+  display: block;
+  font-size: 10px;
+  color: var(--layout-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.9;
 }
 @media (max-width: 900px) {
   .title-block {

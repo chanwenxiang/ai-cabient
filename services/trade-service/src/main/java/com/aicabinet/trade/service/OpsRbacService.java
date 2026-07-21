@@ -441,12 +441,22 @@ public class OpsRbacService {
                 .map(r -> r.getRoleName())
                 .toList();
         int permCount = permissionRepository.findPermCodesByUserId(operatorId).size();
+        boolean global = merchantScopeService.isGlobalScope(operatorId);
+        List<String> merchantIds = global
+                ? List.of()
+                : userMerchantRepository.findByIdUserId(operatorId).stream()
+                        .map(m -> m.getId().getMerchantId())
+                        .toList();
+        List<String> merchantNames = resolveMerchantNames(merchantIds);
         return new OpsMeDto(
                 operatorId,
                 user.getPhoneNumber(),
                 user.getName(),
                 roleNames,
-                permCount
+                permCount,
+                global,
+                merchantIds,
+                merchantNames
         );
     }
 
@@ -458,14 +468,33 @@ public class OpsRbacService {
                 .flatMap(id -> roleRepository.findById(id).stream())
                 .map(r -> r.getRoleName())
                 .toList();
+        List<String> merchantIds = userMerchantRepository.findByIdUserId(user.getUserId()).stream()
+                .map(m -> m.getId().getMerchantId())
+                .toList();
+        List<String> merchantNames = resolveMerchantNames(merchantIds);
         return new OpsOperatorDto(
                 user.getUserId(),
                 user.getPhoneNumber(),
                 user.getName(),
                 user.getStatus() == null || user.getStatus().isBlank() ? "ACTIVE" : user.getStatus(),
                 roleNames,
-                roleIds
+                roleIds,
+                merchantIds,
+                merchantNames
         );
+    }
+
+    private List<String> resolveMerchantNames(List<String> merchantIds) {
+        if (merchantIds == null || merchantIds.isEmpty()) {
+            return List.of();
+        }
+        return merchantIds.stream()
+                .map(id -> merchantRepository.findById(id)
+                        .map(m -> m.getMerchantName() == null || m.getMerchantName().isBlank()
+                                ? id
+                                : m.getMerchantName())
+                        .orElse(id))
+                .toList();
     }
 
     private void ensureOperatorAccount(Long userId) {

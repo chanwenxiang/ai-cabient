@@ -11,6 +11,9 @@ export interface OpsProfile {
   name?: string;
   roleNames?: string[];
   permissionCount?: number;
+  globalDataScope?: boolean;
+  merchantIds?: string[];
+  merchantNames?: string[];
 }
 
 export const useAuthStore = defineStore('auth', () => {
@@ -21,6 +24,15 @@ export const useAuthStore = defineStore('auth', () => {
 
   const displayName = computed(() => profile.value?.name || '运营账号');
   const roleText = computed(() => (profile.value?.roleNames || []).join('、') || '未分配角色');
+  const dataScopeText = computed(() => {
+    const p = profile.value;
+    if (!p) return '数据范围未知';
+    if (p.globalDataScope !== false) return '全局数据范围';
+    const names = (p.merchantNames || []).filter(Boolean);
+    if (names.length) return `商户范围：${names.join('、')}`;
+    const ids = p.merchantIds || [];
+    return ids.length ? `商户范围：${ids.join('、')}` : '已限定（无商户）';
+  });
 
   async function login(phoneNumber: string, password: string) {
     const data = await api.loginByPassword(phoneNumber, password);
@@ -57,13 +69,19 @@ export const useAuthStore = defineStore('auth', () => {
         name?: string;
         roleNames?: string[];
         permissionCount?: number;
+        globalDataScope?: boolean;
+        merchantIds?: string[];
+        merchantNames?: string[];
       }>('/api/v2/ops/admin/rbac/me', 'GET');
       profile.value = {
         userId: String(me.userId),
         phoneNumber: me.phoneNumber,
         name: me.name,
         roleNames: me.roleNames,
-        permissionCount: me.permissionCount
+        permissionCount: me.permissionCount,
+        globalDataScope: me.globalDataScope !== false,
+        merchantIds: me.merchantIds || [],
+        merchantNames: me.merchantNames || []
       };
       userId.value = String(me.userId);
       if (me.phoneNumber) {
@@ -117,6 +135,7 @@ export const useAuthStore = defineStore('auth', () => {
     profile,
     displayName,
     roleText,
+    dataScopeText,
     login,
     logout,
     loadPermissions,
