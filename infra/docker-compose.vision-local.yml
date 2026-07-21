@@ -1,0 +1,39 @@
+# Phase 1：无自有标注时的 Retail-OS 冷启动（服务端本地 YOLO）
+# 不改变默认 apps 的 mock/E2E 行为；需要真实本地识别时叠加本文件。
+#
+# 前置：vision-service/models/retail-os-v2.0.0.pt 已存在
+#   （或运行 ..\scripts\download-retail-os-model.ps1）
+#
+# 用法（在 infra/ 目录；本机 Windows 全栈常用 full + win-ports，宿主机端口多为 18082）：
+#   docker compose -p ai-cabinet `
+#     -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.full.yml `
+#     -f docker-compose.vision-local.yml `
+#     --env-file .env --profile apps build vision-service
+#   docker compose -p ai-cabinet `
+#     -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.full.yml `
+#     -f docker-compose.vision-local.yml `
+#     --env-file .env --profile apps up -d vision-service
+# 验收：Invoke-RestMethod http://127.0.0.1:18082/health  （或未改端口时 :8082）
+
+# 说明：
+# - VISION_FORCE_REAL=true：失败进 need_review，不静默 mock SKU（可保留 MOCK_ENABLED=true 以免强 API Key 门槛）
+# - 主链路纯 YOLO，不走 DeepSeek
+# - 映射依赖 Flyway V61 YOLO_RETAIL；准确率不等于生产自训模型
+
+services:
+  vision-service:
+    build:
+      context: ..
+      dockerfile: infra/docker/vision-service.Dockerfile
+      args:
+        INSTALL_ML: "true"
+        SKU_MODEL_FILE: retail-os-v2.0.0.pt
+    environment:
+      RECOGNIZER_BACKEND: yolo
+      VISION_FORCE_REAL: "true"
+      YOLO_RECOGNITION_MODE: delta
+      YOLO_MODEL_PATH: /app/models/retail-os-v2.0.0.pt
+      YOLO_MODEL_VERSION: retail-os-v2.0.0
+      YOLO_AUTO_DOWNLOAD: "false"
+      YOLO_CONF: ${YOLO_CONF:-0.45}
+      YOLO_REVIEW_CONF: ${YOLO_REVIEW_CONF:-0.72}

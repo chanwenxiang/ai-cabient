@@ -39,13 +39,14 @@ demo/
 | 模式 | 环境变量 | 行为 |
 |------|----------|------|
 | 开发 mock | `MOCK_ENABLED=true`（默认） | 识别失败时返回 mock SKU，便于全栈联调 |
-| 真实识别 | `infra/.env.vision-dev` 或 `VISION_FORCE_REAL=true` | 失败进人工审核，不静默 mock |
+| 冷启动本地 YOLO | `infra/.env.vision-dev` 或 `docker-compose.vision-local.yml`（Retail-OS + `VISION_FORCE_REAL`） | 无自有标注时的服务端真推理；映射 `YOLO_RETAIL`；非生产准确率 |
+| 真实识别 | `VISION_FORCE_REAL=true` 或 `MOCK_ENABLED=false` | 失败进人工审核，不静默 mock |
 | 单帧 | `YOLO_RECOGNITION_MODE=single_frame` | 视频中间帧检测 |
 | 差异（推荐） | `YOLO_RECOGNITION_MODE=delta` | 开门首帧 vs 关门末帧 SKU 差异 |
 
 可选 **重力传感器融合**：视觉与重力 SKU 数量不一致时强制 `need_review`（`GravitySettlementHelper`）。
 
-柜机端本地推理为阶段 D 规划，见 [`edge/android-app/docs/EDGE_VISION_INFERENCE.md`](../edge/android-app/docs/EDGE_VISION_INFERENCE.md)。
+无自有标注时的冷启动步骤见 [`VISION_SKU_MODEL.md`](VISION_SKU_MODEL.md) §0。柜机端本地推理为阶段 D，见 [`edge/android-app/docs/EDGE_VISION_INFERENCE.md`](../edge/android-app/docs/EDGE_VISION_INFERENCE.md)。
 
 ## 商业落地要点
 

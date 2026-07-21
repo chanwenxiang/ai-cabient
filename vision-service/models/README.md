@@ -6,8 +6,8 @@
 
 | 文件 | 说明 |
 |------|------|
-| `retail-os-v2.0.0.pt` | Retail-OS 76 类货架 SKU（delta 本地识别，见 scripts/download-retail-os-model.ps1） |
-| `retail-os-v2.0.0.manifest.json` | 76 类 class_names |
+| `retail-os-v2.0.0.pt` | Retail-OS 76 类货架 SKU（**Phase 1 冷启动**本地识别，见 `scripts/download-retail-os-model.ps1` / `docs/VISION_SKU_MODEL.md` §0） |
+| `retail-os-v2.0.0.manifest.json` | 76 类 class_names + `mapping_source=YOLO_RETAIL` |
 | `cabinet-skus-v1.0.0.pt` | 自训 SKU 专用检测模型 |
 | `cabinet-skus-v1.0.0.manifest.json` | 版本、SHA256、类别列表 |
 | `yolov8n.pt` | 通用 COCO 基线（仅开发/预发链路验证） |

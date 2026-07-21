@@ -6,11 +6,61 @@
 
 | 阶段 | 模型 | 映射 | 资金 |
 |------|------|------|------|
-| 开发 | `yolov8n.pt` + COCO | `YOLO_COCO` | mock 余额 |
-| 预发 | `yolov8n.pt` 或早期 SKU 模型 | 混合 | 测试余额 |
+| 开发 mock | （无 ML） | — | mock 余额 |
+| **冷启动（无自有标注）** | **`retail-os-v2.0.0.pt`** | **`YOLO_RETAIL`（V61）** | 演示/测试；**非真钱准确率** |
+| 预发 | `yolov8n` 或早期 SKU | 混合 | 测试余额 |
 | 灰度/生产 | **`cabinet-skus-v*.pt`** | **`YOLO_SKU`** | 真实扣款前须 §10 准确率达标 |
 
-**禁止** 用通用 COCO 模型 + `bottle→SKU` 映射做生产真实资金结算。
+**禁止** 用通用 COCO 模型 + `bottle→SKU` 映射做生产真实资金结算。  
+**禁止** 把 Retail-OS 冷启动当成生产结算准确率已达标。
+
+---
+
+## 0. 无自有数据：Retail-OS 冷启动（Phase 1）
+
+新项目往往没有柜内实拍与标注。此时先跑通**服务端本地 YOLO**（与竞品主路径同构），再用公开货架图验收；自训放到有柜有货之后。
+
+| 项 | 值 |
+|----|-----|
+| 权重 | `vision-service/models/retail-os-v2.0.0.pt`（已有则跳过下载） |
+| 下载 | `.\scripts\download-retail-os-model.ps1`（失败可用 `-UseHfShelfFallback` 单类兜底） |
+| 映射 | Flyway `V61__retail_os_vision_mapping.sql` → `YOLO_RETAIL` |
+| 后端 | `RECOGNIZER_BACKEND=yolo`（主链路不用 DeepSeek） |
+| 真实推理 | `VISION_FORCE_REAL=true`（失败 → `need_review`，不静默假 SKU） |
+
+**宿主机 uvicorn**
+
+```powershell
+.\scripts\load-vision-dev-env.ps1   # 加载 infra/.env.vision-dev
+cd vision-service
+# 需已 pip install -r requirements-ml.txt
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --port 8082
+```
+
+**Docker（本仓库 Windows 全栈常用 full.yml，宿主机端口 18082）**
+
+```powershell
+cd infra
+docker compose -p ai-cabinet `
+  -f docker-compose.full.yml -f docker-compose.win-ports.yml -f docker-compose.vision-local.yml `
+  --env-file .env build vision-service
+docker compose -p ai-cabinet `
+  -f docker-compose.full.yml -f docker-compose.win-ports.yml -f docker-compose.vision-local.yml `
+  --env-file .env up -d vision-service
+```
+
+也可仅设 `.env`：`VISION_INSTALL_ML=true`、`VISION_FORCE_REAL=true`、`RECOGNIZER_BACKEND=yolo` 后按原 full 栈重建。
+
+**验收（无柜内实拍）**
+
+| 检查 | 期望 |
+|------|------|
+| `GET :18082/health`（Windows full 栈）或 `:8082` | `yolo_loaded=true`，`vision_force_real=true`，`recognizer_backend=yolo`，`model_version=retail-os-v2.0.0` |
+| 上传识别 | 使用**真实货架/商品照片**；仓库内 `datasets/cabinet-retail-v1` 的 `retail_*` 多为色块占位图，Retail-OS **不会**检出，属正常 |
+| 无检出 / 低置信 | `items=[]` 且 `need_review=true`，**不会**静默返回 mock SKU |
+| 映射 | trade `GET /internal/v1/vision/mappings` 含 `YOLO_RETAIL`（V61，约 13 条演示映射） |
+
+有柜有货后：按下文采集标注 → 自训 `cabinet-skus-v1.0.0.pt` → 切 `YOLO_SKU`，才进入真钱门禁。
 
 ---
 
@@ -141,9 +191,12 @@ copy vision-service\models\cabinet-skus-v1.0.0.pt infra\models\production\
 
 | 文件 | 说明 |
 |------|------|
+| `infra/docker-compose.vision-local.yml` | Phase 1 Retail-OS 冷启动 Compose 叠加 |
+| `infra/.env.vision-dev` | 宿主机本地 YOLO 环境 |
 | `infra/docker-compose.production.yml` | 生产 Compose 叠加 |
 | `infra/.env.production.example` | 生产 env 模板 |
 | `infra/docker/vision-service.Dockerfile` | ML + SKU 模型烘焙 |
+| `scripts/download-retail-os-model.ps1` | Retail-OS 权重下载 |
 | `scripts/verify-vision-model.ps1` | 模型/映射门禁 |
 | `scripts/package-vision-model.ps1` | 复制权重到部署目录 |
 | `docs/PRODUCTION.md` | 全栈生产指南 |

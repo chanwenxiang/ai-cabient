@@ -279,6 +279,8 @@ VISION_INSTALL_ML=true
 
 然后 `docker compose ... build vision-service`。ML 层会先装 CPU 版 torch 并带 `--retries 5`。
 
+**Phase 1 冷启动（无自有标注，Retail-OS）**：叠加 `docker-compose.vision-local.yml`，见 [`docs/VISION_SKU_MODEL.md`](../docs/VISION_SKU_MODEL.md) §0。宿主机可用 `..\scripts\load-vision-dev-env.ps1` + `infra/.env.vision-dev.example`。
+
 ---
 
 ## 文件说明
@@ -287,7 +289,9 @@ VISION_INSTALL_ML=true
 |------|------|
 | `docker-compose.yml` | PostgreSQL、Redis、EMQX、MinIO、Redpanda、Gateway、监控 |
 | `docker-compose.apps.yml` | trade / device / vision 应用服务（profile: `apps`）、healthcheck、depends_on |
+| `docker-compose.vision-local.yml` | Phase 1 Retail-OS 本地 YOLO 叠加（INSTALL_ML + FORCE_REAL） |
 | `.env.example` | 环境变量模板 |
+| `.env.vision-dev.example` | 宿主机真实 YOLO 环境模板 |
 | `up.ps1` | 全栈启动脚本（`-Build` / `-Down` / `-Prod`） |
 | `gateway/nginx.conf` | 本地开发 gateway（转发 host.docker.internal） |
 | `gateway/nginx.compose.conf` | 全栈 gateway（转发 trade-service 容器） |
