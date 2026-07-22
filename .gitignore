@@ -57,6 +57,9 @@ infra/.env
 **/.pytest_cache/
 *.pyc
 
+# device-service local MQTT persistence / locks
+services/device-service/data/
+
 # OS junk
 .DS_Store
 Thumbs.db
