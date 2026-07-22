@@ -49,14 +49,16 @@
             :class="{ 'is-clickable': canAccessPath('/devices') }"
             :role="canAccessPath('/devices') ? 'button' : undefined"
             :tabindex="canAccessPath('/devices') ? 0 : undefined"
-            @click="goPath('/devices')"
-            @keydown.enter="goPath('/devices')"
+            @click="goDevicesByOnlineRate"
+            @keydown.enter="goDevicesByOnlineRate"
           >
             <div class="stat-label">设备在线率</div>
             <div class="stat-value">{{ onlineRate.toFixed(1) }}%</div>
             <div class="stat-hint">
               {{ stats.deviceOnline || 0 }} / {{ stats.deviceTotal || 0 }} 台
-              <template v-if="canAccessPath('/devices')"> · 查看设备</template>
+              <template v-if="canAccessPath('/devices')">
+                · {{ (workbench?.offlineDevices || 0) > 0 ? '查看离线' : '查看设备' }}
+              </template>
             </div>
           </div>
         </el-col>
@@ -294,7 +296,8 @@ const quickLinks = computed<QuickLink[]>(() => [
   {
     label: '待上传',
     count: workbench.value?.waitingUploads || stats.value.sessionWaitingUpload || 0,
-    path: '/upload-queue'
+    path: '/upload-queue',
+    query: { stuck: '1' }
   },
   { label: '低库存', count: workbench.value?.lowStockItems || 0, path: '/replenishment', query: { tab: 'shortage' } },
   {
@@ -303,7 +306,12 @@ const quickLinks = computed<QuickLink[]>(() => [
     path: '/replenishment',
     query: { tab: 'routes' }
   },
-  { label: '异常会话', count: workbench.value?.staleSessions || 0, path: '/sessions' },
+  {
+    label: '异常会话',
+    count: workbench.value?.staleSessions || 0,
+    path: '/sessions',
+    query: { stuck: '1' }
+  },
   {
     label: '对账差异',
     count: workbench.value?.reconciliationMismatches || 0,
@@ -320,7 +328,7 @@ const quickLinks = computed<QuickLink[]>(() => [
     label: '签收超时',
     count: workbench.value?.inTransitOverdue || 0,
     path: '/warehouse',
-    query: { tab: 'transit' }
+    query: { tab: 'transit', overdue: '1' }
   }
 ]);
 
@@ -448,6 +456,11 @@ function goExceptions() {
   goPath('/exceptions', { status: 'OPEN' });
 }
 
+function goDevicesByOnlineRate() {
+  const offline = workbench.value?.offlineDevices || 0;
+  goPath('/devices', offline > 0 ? { online: 'OFFLINE' } : { online: 'ONLINE' });
+}
+
 function queryOf(row: OpsActionItem): Record<string, string> {
   const q: Record<string, string> = {};
   if (row.deviceId) q.deviceId = row.deviceId;
@@ -467,17 +480,18 @@ function goAction(row: OpsActionItem) {
       router.push({ path: '/disputes', query: { status: 'OPEN', ...q } });
       return;
     case 'UPLOAD_STUCK':
-      router.push({ path: '/upload-queue', query: q });
+      router.push({ path: '/upload-queue', query: { stuck: '1', ...q } });
       return;
     case 'SESSION_STALE':
-      router.push({ path: '/sessions', query: { ...q, state: 'SHOPPING' } });
+      // Do not force SHOPPING — stale scan covers WAITING_UPLOAD / RECOGNIZING / SETTLING.
+      router.push({ path: '/sessions', query: { stuck: '1', ...q } });
       return;
     case 'LOW_STOCK':
     case 'REPLENISHMENT':
       router.push({ path: '/replenishment', query: { tab: row.type === 'LOW_STOCK' ? 'shortage' : 'routes', ...q } });
       return;
     case 'IN_TRANSIT_OVERDUE':
-      router.push({ path: '/warehouse', query: { tab: 'transit', ...q } });
+      router.push({ path: '/warehouse', query: { tab: 'transit', overdue: '1', ...q } });
       return;
     case 'RECON_MISMATCH':
     case 'RECONCILIATION_MISMATCH':

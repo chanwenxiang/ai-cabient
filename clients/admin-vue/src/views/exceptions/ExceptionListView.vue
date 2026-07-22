@@ -6,7 +6,7 @@
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
               <span class="title">异常中心</span>
-              <span class="hint">默认看待处理；超时标红；设备 / 会话 / 订单可跳转</span>
+              <span class="hint">默认看待处理；SLA 超时标红、即将到期标黄；「仅超时」为服务端过滤；可播会话录像</span>
             </div>
           </div>
           <div class="page-card-head__actions">
@@ -27,11 +27,25 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="SLA">
+          <el-checkbox v-model="overdueOnly" @change="onOverdueToggle">仅超时</el-checkbox>
+        </el-form-item>
         <el-form-item>
           <el-button type="primary" @click="search">查询</el-button>
           <el-button @click="reset">重置</el-button>
         </el-form-item>
       </el-form>
+
+      <el-alert
+        v-if="overdueOnly ? total > 0 : pageOverdueCount > 0"
+        type="error"
+        :closable="false"
+        show-icon
+        class="sla-banner"
+        :title="overdueOnly
+          ? `共 ${total} 条已超时（服务端过滤，分页准确）`
+          : `本页 ${pageOverdueCount} 条已超时，可勾选「仅超时」查看全部`"
+      />
 
       <el-tabs v-model="status" class="status-tabs" @tab-change="onStatusTab">
         <el-tab-pane :label="`待处理 (${statusCounts.OPEN})`" name="OPEN" />
@@ -45,7 +59,7 @@
         <div class="table-scroll-inner" style="min-width: 1180px">
           <el-table
             v-loading="loading"
-            :data="items"
+            :data="displayItems"
             stripe
             border
             class="report-table"
@@ -117,11 +131,20 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="SLA" width="150" class-name="col-text">
+            <el-table-column label="SLA" min-width="168" class-name="col-text">
               <template #default="{ row }">
-                <el-tag v-if="row.slaOverdue" type="danger" size="small">已超时</el-tag>
-                <span v-else-if="row.slaDueAt" class="cell-datetime">{{ formatDateTime(row.slaDueAt) }}</span>
-                <span v-else class="muted">-</span>
+                <div class="sla-cell">
+                  <template v-if="row.slaOverdue">
+                    <el-tag type="danger" size="small">已超时</el-tag>
+                    <small class="sla-meta danger">超 {{ formatDurationSince(row.slaDueAt) }}</small>
+                  </template>
+                  <template v-else-if="row.slaDueAt">
+                    <el-tag v-if="isSlaDueSoon(row.slaDueAt)" type="warning" size="small">即将到期</el-tag>
+                    <span class="cell-datetime">{{ formatDateTime(row.slaDueAt) }}</span>
+                    <small class="sla-meta">剩 {{ formatDurationUntil(row.slaDueAt) }}</small>
+                  </template>
+                  <span v-else class="muted">-</span>
+                </div>
               </template>
             </el-table-column>
             <el-table-column label="负责人" width="88" class-name="col-text">
@@ -216,11 +239,31 @@
           </el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ formatDateTime(detail.exception.createdAt) }}</el-descriptions-item>
           <el-descriptions-item label="SLA截止">
-            <el-tag v-if="detail.exception.slaOverdue" type="danger" size="small">已超时</el-tag>
-            <span v-else>{{ formatDateTime(detail.exception.slaDueAt) || '-' }}</span>
+            <div class="sla-cell">
+              <template v-if="detail.exception.slaOverdue">
+                <el-tag type="danger" size="small">已超时</el-tag>
+                <small class="sla-meta danger">超 {{ formatDurationSince(detail.exception.slaDueAt) }}</small>
+              </template>
+              <template v-else-if="detail.exception.slaDueAt">
+                <el-tag v-if="isSlaDueSoon(detail.exception.slaDueAt)" type="warning" size="small">即将到期</el-tag>
+                <span>{{ formatDateTime(detail.exception.slaDueAt) }}</span>
+                <small class="sla-meta">剩 {{ formatDurationUntil(detail.exception.slaDueAt) }}</small>
+              </template>
+              <span v-else>-</span>
+            </div>
           </el-descriptions-item>
           <el-descriptions-item label="更新时间">{{ formatDateTime(detail.exception.updatedAt) }}</el-descriptions-item>
         </el-descriptions>
+
+        <div v-if="detail.exception.sessionId" class="drawer-actions drawer-actions--review">
+          <el-button
+            v-if="auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload')"
+            type="warning"
+            :loading="videoLoading"
+            @click="playVideo(detail.exception.sessionId)"
+          >播放会话录像</el-button>
+          <el-button @click="goSessions(detail.exception.deviceId)">开门记录</el-button>
+        </div>
 
         <div v-if="canHandle && detail.exception.status !== 'RESOLVED'" class="drawer-actions">
           <el-button type="primary" @click="addNote">添加备注</el-button>
@@ -291,12 +334,13 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { CircleCheck, Refresh, UserFilled, View } from '@element-plus/icons-vue';
+import { CircleCheck, Refresh, UserFilled, VideoCamera, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
+import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, dictTagType, formatOpsActionDetail } from '@aicabinet/shared-dict';
@@ -306,6 +350,7 @@ import { formatDateTime } from '@aicabinet/shared-uni/format';
 const route = useRoute();
 const router = useRouter();
 const { canAccessPath, goPath } = useNavAccess();
+const { playSessionVideo } = useSessionVideo();
 const auth = useAuthStore();
 const canHandle = computed(
   () => auth.hasPerm('ops:exception:handle')
@@ -337,8 +382,10 @@ interface OpsDetail { exception: OpsException; actions: OpsAction[] }
 interface Sku { skuId: string; skuName: string; priceCents: number }
 
 const loading = ref(false);
+const videoLoading = ref(false);
 const status = ref('OPEN');
 const severity = ref('');
+const overdueOnly = ref(false);
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
@@ -356,11 +403,26 @@ const skus = ref<Sku[]>([]);
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<OpsException>((r) => r.exceptionId);
 
+const displayItems = computed(() => {
+  // Overdue filter/sort is server-side when overdueOnly; otherwise soft-sort current page.
+  if (overdueOnly.value) return items.value;
+  return [...items.value].sort((a, b) => {
+    const ao = a.slaOverdue ? 1 : 0;
+    const bo = b.slaOverdue ? 1 : 0;
+    if (ao !== bo) return bo - ao;
+    const ad = a.slaDueAt ? Date.parse(a.slaDueAt) : Number.POSITIVE_INFINITY;
+    const bd = b.slaDueAt ? Date.parse(b.slaDueAt) : Number.POSITIVE_INFINITY;
+    return ad - bd;
+  });
+});
+
+const pageOverdueCount = computed(() => items.value.filter((r) => r.slaOverdue).length);
+
 const { onExport } = useListCsv({
   filePrefix: '异常',
   headers: ['异常编号', '级别', '类型', '异常', '设备', '会话', '订单', '用户', '状态', 'SLA截止', '超时', '负责人', '创建时间'],
   toRows: () =>
-    pickSelected(items.value).map((row) => [
+    pickSelected(displayItems.value).map((row) => [
       row.exceptionId,
       dictLabel('exception_severity', row.severity),
       dictLabel('exception_type', row.exceptionType),
@@ -377,14 +439,51 @@ const { onExport } = useListCsv({
     ])
 });
 
-const emptyHint = computed(() =>
-  status.value === 'OPEN'
+const emptyHint = computed(() => {
+  if (overdueOnly.value) return '当前筛选下无超时异常，可关闭「仅超时」或切换状态';
+  return status.value === 'OPEN'
     ? '当前无待处理异常，可切换「全部」查看历史'
-    : '暂无异常'
-);
+    : '暂无异常';
+});
+
+const DUE_SOON_MS = 2 * 60 * 60 * 1000;
+
+function isSlaDueSoon(dueAt?: string) {
+  if (!dueAt) return false;
+  const due = Date.parse(dueAt);
+  if (Number.isNaN(due)) return false;
+  const left = due - Date.now();
+  return left > 0 && left <= DUE_SOON_MS;
+}
+
+function formatDurationParts(ms: number) {
+  const abs = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(abs / 3600);
+  const m = Math.floor((abs % 3600) / 60);
+  if (h >= 48) return `${Math.floor(h / 24)} 天`;
+  if (h > 0) return `${h} 小时 ${m} 分`;
+  if (m > 0) return `${m} 分钟`;
+  return '不到 1 分钟';
+}
+
+function formatDurationUntil(dueAt?: string) {
+  if (!dueAt) return '-';
+  const due = Date.parse(dueAt);
+  if (Number.isNaN(due)) return '-';
+  return formatDurationParts(due - Date.now());
+}
+
+function formatDurationSince(dueAt?: string) {
+  if (!dueAt) return '-';
+  const due = Date.parse(dueAt);
+  if (Number.isNaN(due)) return '-';
+  return formatDurationParts(Date.now() - due);
+}
 
 function rowClassName({ row }: { row: OpsException }) {
-  return row.slaOverdue ? 'is-overdue' : '';
+  if (row.slaOverdue) return 'is-overdue';
+  if (isSlaDueSoon(row.slaDueAt)) return 'is-due-soon';
+  return '';
 }
 
 function exceptionActions(row: OpsException): TableAction[] {
@@ -394,6 +493,9 @@ function exceptionActions(row: OpsException): TableAction[] {
   }
   if (canHandle.value && row.status !== 'RESOLVED') {
     acts.push({ key: 'resolve', label: '解决', icon: CircleCheck, type: 'success' });
+  }
+  if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
+    acts.push({ key: 'video', label: '录像', icon: VideoCamera, type: 'warning', overflow: true });
   }
   acts.push({
     key: 'detail',
@@ -409,6 +511,16 @@ function onExceptionAction(key: string, row: OpsException) {
   if (key === 'detail') openDetail(row);
   else if (key === 'claim') claim(row);
   else if (key === 'resolve') resolve(row);
+  else if (key === 'video') playVideo(row.sessionId);
+}
+
+async function playVideo(sessionId?: string) {
+  videoLoading.value = true;
+  try {
+    await playSessionVideo(sessionId);
+  } finally {
+    videoLoading.value = false;
+  }
 }
 
 function goDevice(id: string) {
@@ -433,6 +545,7 @@ function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (status.value && status.value !== 'ALL') query.status = status.value;
   if (severity.value) query.severity = severity.value;
+  if (overdueOnly.value) query.overdue = '1';
   router.replace({ query });
 }
 
@@ -466,10 +579,11 @@ async function load() {
     const apiStatus = status.value === 'ALL' ? '' : status.value;
     if (apiStatus) q.set('status', apiStatus);
     if (severity.value) q.set('severity', severity.value);
+    if (overdueOnly.value) q.set('overdue', '1');
     const data = await api.request<PageResult<OpsException>>(`/api/v2/ops/admin/exceptions?${q}`, 'GET');
     items.value = data.items || [];
     total.value = data.total || 0;
-    if (apiStatus && apiStatus in statusCounts) {
+    if (!overdueOnly.value && apiStatus && apiStatus in statusCounts) {
       statusCounts[apiStatus as keyof typeof statusCounts] = data.total || 0;
     }
     clearSelection();
@@ -481,6 +595,12 @@ async function load() {
   }
 }
 
+function onOverdueToggle() {
+  page.value = 1;
+  syncRouteQuery();
+  load();
+}
+
 function search() {
   page.value = 1;
   syncRouteQuery();
@@ -489,6 +609,7 @@ function search() {
 function reset() {
   status.value = 'OPEN';
   severity.value = '';
+  overdueOnly.value = false;
   page.value = 1;
   syncRouteQuery();
   load();
@@ -647,6 +768,7 @@ function applyRouteQuery() {
   let changed = false;
   const qStatus = typeof route.query.status === 'string' ? route.query.status : '';
   const qSeverity = typeof route.query.severity === 'string' ? route.query.severity : '';
+  const qOverdue = route.query.overdue === '1' || route.query.overdue === 'true';
   // Keep default OPEN when query omits status (matches page default).
   const nextStatus = qStatus || 'OPEN';
   if (nextStatus !== status.value) {
@@ -655,6 +777,10 @@ function applyRouteQuery() {
   }
   if (qSeverity !== severity.value) {
     severity.value = qSeverity;
+    changed = true;
+  }
+  if (qOverdue !== overdueOnly.value) {
+    overdueOnly.value = qOverdue;
     changed = true;
   }
   return changed;
@@ -667,7 +793,7 @@ async function reloadFromRouteQuery() {
 }
 
 watch(
-  () => [route.query.status, route.query.severity] as const,
+  () => [route.query.status, route.query.severity, route.query.overdue] as const,
   () => {
     void reloadFromRouteQuery();
   }
@@ -740,12 +866,20 @@ onMounted(async () => {
 .link-cell.mono { font-family: var(--app-font-mono); font-size: 12px; }
 .muted { color: var(--el-text-color-secondary); }
 .status-tabs { margin: 0 0 10px; }
+.sla-banner { margin-bottom: 10px; }
+.sla-cell { display: grid; gap: 2px; line-height: 1.35; }
+.sla-meta { color: var(--el-text-color-secondary); font-size: 11px; }
+.sla-meta.danger { color: var(--el-color-danger); }
 .drawer-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
+.drawer-actions--review { margin-top: 12px; margin-bottom: 0; }
 .section-title { margin: 16px 0 8px; font-size: 14px; color: var(--layout-text); }
 .action-detail { color: var(--layout-muted); margin-top: 5px; white-space: pre-wrap; }
 .manual-lines { display: flex; flex-direction: column; gap: 12px; margin: 18px 0; }
 .manual-line { display: flex; align-items: center; gap: 10px; }
 :deep(.el-table .is-overdue > td.el-table__cell) {
   background: color-mix(in srgb, var(--el-color-danger) 6%, transparent) !important;
+}
+:deep(.el-table .is-due-soon > td.el-table__cell) {
+  background: color-mix(in srgb, var(--el-color-warning) 7%, transparent) !important;
 }
 </style>

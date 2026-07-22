@@ -5,11 +5,12 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">补货调度</span>
-            <span class="hint">路线 / 要货 / 缺货；任务可「补货开门」（绑定任务，非运维远程开门）</span>
+            <span class="hint">路线 / 履约取证 / 要货 / 缺货；签到 GPS、用时与理货明细可核对现场履约</span>
           </div>
           <div class="kpi-tags">
             <el-tag size="small" type="info">待执行 {{ plannedCount }}</el-tag>
             <el-tag size="small" type="warning">待处理设备 {{ pendingTaskCount }}</el-tag>
+            <el-tag size="small" type="success">已履约 {{ fulfilledCount }}</el-tag>
             <el-tag size="small">要货 {{ requests.length }}</el-tag>
             <el-tag v-if="focusDeviceId" size="small" type="success" closable @close="clearDeviceFocus">
               设备 {{ focusDeviceId }}
@@ -69,7 +70,12 @@
                       </el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column label="签到" min-width="160" align="center">
+                  <el-table-column label="人员" width="88" align="center">
+                    <template #default="scope">
+                      <span class="mono">{{ scope.row.assigneeUserId || row.assigneeUserId || '-' }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="签到" min-width="150" align="center">
                     <template #default="scope">
                       <div class="check-in-cell">
                         <el-tag :type="scope.row.checkInAt ? 'success' : 'info'" size="small">
@@ -79,23 +85,34 @@
                       </div>
                     </template>
                   </el-table-column>
-                  <el-table-column label="出库单" width="100" align="center">
+                  <el-table-column label="用时" width="88" align="center">
+                    <template #default="scope">{{ formatTaskDuration(scope.row) }}</template>
+                  </el-table-column>
+                  <el-table-column label="完成" width="148" class-name="col-text">
+                    <template #default="scope">
+                      <span class="cell-datetime">{{ scope.row.completedAt ? formatDateTime(scope.row.completedAt) : '-' }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="出库单" width="88" align="center">
                     <template #default="scope">
                       <el-tag v-if="scope.row.outboundId" size="small" type="warning">#{{ scope.row.outboundId }}</el-tag>
                       <span v-else class="muted">现场</span>
                     </template>
                   </el-table-column>
-                  <el-table-column prop="notes" label="说明" min-width="140" show-overflow-tooltip />
-                  <el-table-column v-if="canEdit" label="操作" width="120" align="center">
+                  <el-table-column label="操作" :width="canEdit ? 168 : 88" align="center">
                     <template #default="scope">
+                      <el-button link type="primary" @click="openTaskLines(scope.row)">明细</el-button>
                       <el-button
-                        v-if="canOpenRestock(scope.row)"
+                        v-if="canEdit && canOpenRestock(scope.row)"
                         link
                         type="primary"
                         :loading="openDoorLoading === scope.row.taskId"
                         @click="openRestockDoor(scope.row)"
-                      >补货开门</el-button>
-                      <span v-else class="muted">{{ openDoorHint(scope.row) }}</span>
+                      >开门</el-button>
+                      <span
+                        v-else-if="canEdit && openDoorHint(scope.row) !== '-'"
+                        class="muted"
+                      >{{ openDoorHint(scope.row) }}</span>
                     </template>
                   </el-table-column>
                   <template #empty><el-empty description="该路线暂无设备任务" :image-size="48" /></template>
@@ -136,6 +153,83 @@
             </template>
           </el-table-column>
           <template #empty><el-empty description="暂无补货路线" /></template>
+            </el-table>
+          </div>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane label="履约记录" name="fulfillment">
+        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="page = 1">
+          <el-form-item label="状态">
+            <el-select v-model="fulfillmentStatus" clearable placeholder="全部" style="width: 140px" @change="page = 1">
+              <el-option label="已完成" value="COMPLETED" />
+              <el-option label="进行中" value="IN_PROGRESS" />
+              <el-option label="待执行" value="PENDING" />
+              <el-option label="已取消" value="CANCELLED" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+        <div class="table-scroll">
+          <div class="table-scroll-inner" style="min-width: 1080px">
+            <el-table
+              v-loading="loading"
+              :data="pagedFulfillment"
+              stripe
+              border
+              class="report-table"
+              row-key="taskId"
+              :empty-text="fulfillmentEmptyText"
+            >
+              <el-table-column label="任务" width="88" class-name="col-text">
+                <template #default="{ row }">
+                  <span class="cell-id">#{{ row.taskId }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="设备" min-width="180" class-name="col-text">
+                <template #default="{ row }">
+                  <button type="button" class="device-link-cell" @click="goDevice(row.deviceId)">
+                    <strong>{{ deviceName(row.deviceId) }}</strong>
+                    <small>{{ row.deviceId }}</small>
+                  </button>
+                </template>
+              </el-table-column>
+              <el-table-column label="路线" min-width="140" class-name="col-text" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.routeName || row.routeId || '-' }}</template>
+              </el-table-column>
+              <el-table-column label="状态" width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="dictTagType(row.status)" size="small">
+                    {{ dictLabel('replenishment_task_status', row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="人员" width="88" align="center">
+                <template #default="{ row }">
+                  <span class="mono">{{ row.assigneeUserId || '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="签到 / GPS" min-width="160" align="center">
+                <template #default="{ row }">
+                  <div class="check-in-cell">
+                    <span class="cell-datetime">{{ row.checkInAt ? formatDateTime(row.checkInAt) : '未签到' }}</span>
+                    <small v-if="formatCheckInGps(row)" class="gps-text">{{ formatCheckInGps(row) }}</small>
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="用时" width="88" align="center">
+                <template #default="{ row }">{{ formatTaskDuration(row) }}</template>
+              </el-table-column>
+              <el-table-column label="完成时间" width="168" class-name="col-text">
+                <template #default="{ row }">
+                  <span class="cell-datetime">{{ row.completedAt ? formatDateTime(row.completedAt) : '-' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="100" align="center" class-name="col-action">
+                <template #default="{ row }">
+                  <el-button link type="primary" @click="openTaskLines(row)">理货明细</el-button>
+                </template>
+              </el-table-column>
+              <template #empty><el-empty description="暂无履约记录" /></template>
             </el-table>
           </div>
         </div>
@@ -252,6 +346,68 @@
       />
     </div>
 
+    <el-drawer
+      v-model="linesDrawer"
+      :title="linesDrawerTitle"
+      size="520px"
+      destroy-on-close
+      append-to-body
+    >
+      <div v-loading="linesLoading" class="lines-drawer">
+        <el-descriptions v-if="linesTask" :column="1" border size="small" class="lines-meta">
+          <el-descriptions-item label="设备">{{ deviceName(linesTask.deviceId) }}（{{ linesTask.deviceId }}）</el-descriptions-item>
+          <el-descriptions-item label="人员">{{ linesTask.assigneeUserId || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="签到">
+            {{ linesTask.checkInAt ? formatDateTime(linesTask.checkInAt) : '未签到' }}
+            <span v-if="formatCheckInGps(linesTask)" class="gps-inline"> · {{ formatCheckInGps(linesTask) }}</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="用时">{{ formatTaskDuration(linesTask) }}</el-descriptions-item>
+          <el-descriptions-item label="完成">
+            {{ linesTask.completedAt ? formatDateTime(linesTask.completedAt) : '-' }}
+          </el-descriptions-item>
+          <el-descriptions-item v-if="linesTask.notes" label="说明">{{ linesTask.notes }}</el-descriptions-item>
+        </el-descriptions>
+        <el-alert
+          class="lines-photo-hint"
+          type="info"
+          :closable="false"
+          show-icon
+          title="现场照片"
+          description="当前版本未采集补货现场照片；可凭签到 GPS、用时与上架明细核对履约。"
+        />
+        <el-table :data="taskLines" stripe border size="small" empty-text="暂无理货明细（未上架或未确认）">
+          <el-table-column label="类型" width="88" align="center">
+            <template #default="{ row }">{{ lineTypeLabel(row.lineType) }}</template>
+          </el-table-column>
+          <el-table-column label="商品" min-width="120" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="mono">{{ row.skuId || '-' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="quantity" label="数量" width="72" align="center" />
+          <el-table-column label="货道" width="88" align="center">
+            <template #default="{ row }">{{ row.slotId || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="批次" min-width="100" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.batchNo || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="效期" width="110" align="center">
+            <template #default="{ row }">{{ row.expiryDate || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="已入账" width="80" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.applied ? 'success' : 'info'" size="small">
+                {{ row.applied ? '是' : '否' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div v-if="taskLines.length" class="lines-summary">
+          合计上架 {{ restockQtyTotal }} 件 · {{ taskLines.length }} 行
+        </div>
+      </div>
+    </el-drawer>
+
     <el-dialog
       v-model="planDialog"
       title="规划补货路线"
@@ -352,10 +508,15 @@ const tab = ref('routes');
 const page = ref(1);
 const size = ref(20);
 const focusDeviceId = ref('');
+const fulfillmentStatus = ref('');
 const routes = ref<Row[]>([]);
 const requests = ref<Row[]>([]);
 const devices = ref<Row[]>([]);
 const shortages = ref<Row[]>([]);
+const linesDrawer = ref(false);
+const linesLoading = ref(false);
+const linesTask = ref<Row | null>(null);
+const taskLines = ref<Row[]>([]);
 
 const shortageDevices = computed(() =>
   [...new Set(shortages.value.map((s) => s.deviceId).filter(Boolean))]
@@ -379,6 +540,36 @@ const pendingTaskCount = computed(() =>
     .flatMap((item) => item.tasks || [])
     .filter((item) => ['PENDING', 'IN_PROGRESS'].includes(item.status)).length
 );
+const fulfillmentTasks = computed(() => {
+  const id = focusDeviceId.value.trim();
+  const status = fulfillmentStatus.value;
+  const rows: Row[] = [];
+  for (const routeRow of routes.value) {
+    for (const task of routeRow.tasks || []) {
+      if (id && task.deviceId !== id) continue;
+      if (status && String(task.status || '') !== status) continue;
+      rows.push({
+        ...task,
+        routeId: routeRow.routeId,
+        routeName: routeRow.routeName,
+        assigneeUserId: task.assigneeUserId || routeRow.assigneeUserId
+      });
+    }
+  }
+  return rows.sort((a, b) => {
+    const ta = Date.parse(String(a.completedAt || a.checkInAt || a.createdAt || 0)) || 0;
+    const tb = Date.parse(String(b.completedAt || b.checkInAt || b.createdAt || 0)) || 0;
+    return tb - ta;
+  });
+});
+const fulfilledCount = computed(
+  () => routes.value.flatMap((r) => r.tasks || []).filter((t) => String(t.status) === 'COMPLETED').length
+);
+const fulfillmentEmptyText = computed(() => {
+  if (focusDeviceId.value.trim()) return `设备 ${focusDeviceId.value} 暂无履约记录`;
+  if (fulfillmentStatus.value) return '当前筛选下暂无履约记录';
+  return '暂无履约记录';
+});
 const filteredRoutes = computed(() => {
   const id = focusDeviceId.value.trim();
   if (!id) return routes.value;
@@ -392,19 +583,29 @@ const routesEmptyText = computed(() =>
 
 function slicePage<T>(rows: T[]) {
   const start = (page.value - 1) * size.value;
-  return rows.slice(start, start + size.value);
+  return rows.slice(start, page.value * size.value);
 }
 
 const tabTotal = computed(() => {
   if (tab.value === 'requests') return requests.value.length;
   if (tab.value === 'shortage') return shortages.value.length;
+  if (tab.value === 'fulfillment') return fulfillmentTasks.value.length;
   return filteredRoutes.value.length;
 });
 const pagedRoutes = computed(() => slicePage(filteredRoutes.value));
 const pagedRequests = computed(() => slicePage(requests.value));
 const pagedShortages = computed(() => slicePage(shortages.value));
+const pagedFulfillment = computed(() => slicePage(fulfillmentTasks.value));
+const linesDrawerTitle = computed(() =>
+  linesTask.value?.taskId ? `理货明细 · 任务 #${linesTask.value.taskId}` : '理货明细'
+);
+const restockQtyTotal = computed(() =>
+  taskLines.value
+    .filter((l) => String(l.lineType || 'RESTOCK').toUpperCase() === 'RESTOCK')
+    .reduce((sum, l) => sum + (Number(l.quantity) || 0), 0)
+);
 
-watch([tab, focusDeviceId], () => {
+watch([tab, focusDeviceId, fulfillmentStatus], () => {
   page.value = 1;
 });
 
@@ -437,6 +638,7 @@ const {
 const exportButtonLabel = computed(() => {
   if (tab.value === 'requests') return requestsExportLabel.value;
   if (tab.value === 'shortage') return shortageExportLabel.value;
+  if (tab.value === 'fulfillment') return '导出履约记录';
   return routesExportLabel.value;
 });
 
@@ -450,6 +652,24 @@ const { onExport: exportRoutes } = useListCsv({
       row.tasks?.length || 0,
       row.plannedDate || '',
       dictLabel('replenishment_route_status', row.status)
+    ])
+});
+
+const { onExport: exportFulfillment } = useListCsv({
+  filePrefix: '履约记录',
+  headers: ['任务', '设备编号', '设备名称', '路线', '状态', '人员', '签到时间', 'GPS', '用时', '完成时间'],
+  toRows: () =>
+    fulfillmentTasks.value.map((row) => [
+      row.taskId,
+      row.deviceId || '',
+      deviceName(row.deviceId),
+      row.routeName || row.routeId || '',
+      dictLabel('replenishment_task_status', row.status),
+      row.assigneeUserId || '',
+      row.checkInAt ? formatDateTime(row.checkInAt) : '',
+      formatCheckInGps(row),
+      formatTaskDuration(row),
+      row.completedAt ? formatDateTime(row.completedAt) : ''
     ])
 });
 
@@ -484,6 +704,10 @@ const { onExport: exportShortages } = useListCsv({
 async function onExport() {
   if (tab.value === 'shortage') {
     exportShortages();
+    return;
+  }
+  if (tab.value === 'fulfillment') {
+    exportFulfillment();
     return;
   }
   if (tab.value === 'requests') {
@@ -572,7 +796,12 @@ function clearDeviceFocus() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (route.query.tab === 'routes' || route.query.tab === 'requests' || route.query.tab === 'shortage') {
+  if (
+    route.query.tab === 'routes'
+    || route.query.tab === 'requests'
+    || route.query.tab === 'shortage'
+    || route.query.tab === 'fulfillment'
+  ) {
     if (tab.value !== String(route.query.tab)) {
       tab.value = String(route.query.tab);
       changed = true;
@@ -632,6 +861,50 @@ function formatCheckInGps(row: Row) {
   const lng = row.checkInLng;
   if (lat == null || lng == null || Number.isNaN(Number(lat)) || Number.isNaN(Number(lng))) return '';
   return `${Number(lat).toFixed(4)},${Number(lng).toFixed(4)}`;
+}
+
+function parseInstantMs(value: unknown) {
+  if (value == null || value === '') return null;
+  const ms = Date.parse(String(value));
+  return Number.isFinite(ms) ? ms : null;
+}
+
+function formatTaskDuration(row: Row) {
+  const start = parseInstantMs(row?.checkInAt);
+  if (start == null) return '-';
+  const end = parseInstantMs(row?.completedAt) ?? (['COMPLETED', 'CANCELLED'].includes(String(row?.status || ''))
+    ? start
+    : Date.now());
+  const mins = Math.max(0, Math.round((end - start) / 60000));
+  if (mins < 60) return `${mins} 分`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m ? `${h} 时 ${m} 分` : `${h} 时`;
+}
+
+function lineTypeLabel(type?: string) {
+  const code = String(type || 'RESTOCK').toUpperCase();
+  if (code === 'RESTOCK') return '上架';
+  if (code === 'REMOVE' || code === 'PULL') return '下架';
+  return code;
+}
+
+async function openTaskLines(task: Row) {
+  if (!task?.taskId) return;
+  linesTask.value = task;
+  taskLines.value = [];
+  linesDrawer.value = true;
+  linesLoading.value = true;
+  try {
+    taskLines.value = await api.request<Row[]>(
+      `/api/v2/ops/admin/replenishment/tasks/${task.taskId}/lines`,
+      'GET'
+    ) || [];
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '理货明细加载失败');
+  } finally {
+    linesLoading.value = false;
+  }
 }
 
 function canOpenRestock(task: Row) {
@@ -889,6 +1162,13 @@ onActivated(() => {
 .muted { color: var(--layout-muted); font-size: 13px; }
 .check-in-cell { display: grid; gap: 4px; justify-items: center; line-height: 1.3; }
 .gps-text { color: var(--layout-muted); font-size: 11px; font-family: var(--app-font-mono); }
+.gps-inline { color: var(--layout-muted); font-family: var(--app-font-mono); font-size: 12px; }
+.mono { font-family: var(--app-font-mono); font-size: 12px; }
+.cell-datetime { font-variant-numeric: tabular-nums; }
+.lines-drawer { display: grid; gap: 12px; }
+.lines-meta { margin-bottom: 0; }
+.lines-photo-hint { margin: 0; }
+.lines-summary { color: var(--layout-muted); font-size: 13px; }
 .online-tag { margin-left: 6px; vertical-align: middle; }
 .shortage-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
 .plan-hint { margin-top: 6px; font-size: 12px; color: var(--el-color-warning); line-height: 1.4; }

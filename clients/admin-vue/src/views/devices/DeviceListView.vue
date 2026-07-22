@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">设备管理</span>
-            <span class="hint">在离线 / 停售筛选；可批量锁机停售或解锁营业</span>
+            <span class="hint">运营状态看板：在线 / 离线 / 在售 / 停售一键筛选；可批量锁机停售或解锁营业</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -31,6 +31,41 @@
       </div>
     </template>
 
+    <div class="ops-board" role="group" aria-label="设备运营状态看板">
+      <button
+        v-for="tile in boardTiles"
+        :key="tile.key"
+        type="button"
+        class="ops-board__tile"
+        :class="{
+          active: boardTab === tile.key,
+          warn: tile.warn && boardCounts[tile.key] > 0
+        }"
+        @click="selectBoard(tile.key)"
+      >
+        <span class="ops-board__label">{{ tile.label }}</span>
+        <span class="ops-board__value">{{ boardCounts[tile.key] }}</span>
+        <span v-if="tile.hint" class="ops-board__hint">{{ tile.hint }}</span>
+      </button>
+    </div>
+
+    <el-alert
+      v-if="attentionCount > 0 && boardTab === 'ALL'"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="ops-banner"
+      :title="`需关注 ${attentionCount} 台：离线 ${boardCounts.OFFLINE} · 停售 ${boardCounts.LOCKED}（点击看板筛选）`"
+    />
+
+    <el-tabs v-model="boardTab" class="status-tabs" @tab-change="onBoardTab">
+      <el-tab-pane :label="`全部 (${boardCounts.ALL})`" name="ALL" />
+      <el-tab-pane :label="`在线 (${boardCounts.ONLINE})`" name="ONLINE" />
+      <el-tab-pane :label="`离线 (${boardCounts.OFFLINE})`" name="OFFLINE" />
+      <el-tab-pane :label="`在售 (${boardCounts.ON_SALE})`" name="ON_SALE" />
+      <el-tab-pane :label="`停售 (${boardCounts.LOCKED})`" name="LOCKED" />
+    </el-tabs>
+
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="关键词">
         <el-input
@@ -40,18 +75,6 @@
           style="width: 220px"
           @keyup.enter="search"
         />
-      </el-form-item>
-      <el-form-item label="状态">
-        <el-select v-model="onlineFilter" clearable placeholder="全部" style="width: 120px" @change="search">
-          <el-option label="在线" value="ONLINE" />
-          <el-option label="离线" value="OFFLINE" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="运营态">
-        <el-select v-model="salesLockedFilter" clearable placeholder="全部" style="width: 120px" @change="search">
-          <el-option label="在售" value="false" />
-          <el-option label="停售" value="true" />
-        </el-select>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="search">查询</el-button>
@@ -202,13 +225,14 @@ import { useAuthStore } from '@/stores/auth';
 import type { DeviceInfo, PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
+type BoardTab = 'ALL' | 'ONLINE' | 'OFFLINE' | 'ON_SALE' | 'LOCKED';
+
 const router = useRouter();
 const route = useRoute();
 const auth = useAuthStore();
 const loading = ref(false);
 const keyword = ref('');
-const onlineFilter = ref('');
-const salesLockedFilter = ref('');
+const boardTab = ref<BoardTab>('ALL');
 const devices = ref<DeviceInfo[]>([]);
 const page = ref(1);
 const size = ref(20);
@@ -216,11 +240,60 @@ const total = ref(0);
 const batchCmdLoading = ref('');
 const policyVisible = ref(false);
 const policySaving = ref(false);
+const boardCounts = reactive({
+  ALL: 0,
+  ONLINE: 0,
+  OFFLINE: 0,
+  ON_SALE: 0,
+  LOCKED: 0
+});
+const boardTiles: { key: BoardTab; label: string; hint?: string; warn?: boolean }[] = [
+  { key: 'ALL', label: '全部设备' },
+  { key: 'ONLINE', label: '在线', hint: '心跳正常' },
+  { key: 'OFFLINE', label: '离线', hint: '需巡检', warn: true },
+  { key: 'ON_SALE', label: '在售', hint: '可营业' },
+  { key: 'LOCKED', label: '停售', hint: '已锁机', warn: true }
+];
 const policyForm = reactive({
   deviceId: '',
   deviceLabel: '',
   refundPolicy: 'INHERIT'
 });
+
+const attentionCount = computed(() => boardCounts.OFFLINE + boardCounts.LOCKED);
+
+function boardQuery(tab: BoardTab): { online?: string; salesLocked?: string } {
+  switch (tab) {
+    case 'ONLINE':
+      return { online: 'ONLINE' };
+    case 'OFFLINE':
+      return { online: 'OFFLINE' };
+    case 'ON_SALE':
+      return { salesLocked: 'false' };
+    case 'LOCKED':
+      return { salesLocked: 'true' };
+    default:
+      return {};
+  }
+}
+
+function tabFromRouteQuery(): BoardTab {
+  if (typeof route.query.online === 'string') {
+    const online = route.query.online.toUpperCase();
+    if (online === 'ONLINE' || online === 'OFFLINE') return online;
+  }
+  if (typeof route.query.salesLocked === 'string') {
+    if (route.query.salesLocked === 'true') return 'LOCKED';
+    if (route.query.salesLocked === 'false') return 'ON_SALE';
+  }
+  if (typeof route.query.tab === 'string') {
+    const tab = route.query.tab.toUpperCase();
+    if (tab === 'ONLINE' || tab === 'OFFLINE' || tab === 'ON_SALE' || tab === 'LOCKED' || tab === 'ALL') {
+      return tab as BoardTab;
+    }
+  }
+  return 'ALL';
+}
 
 function effectivePolicy(row: DeviceInfo) {
   return row.effectiveRefundPolicy || row.refundPolicy || 'AUTO_REFUND';
@@ -379,9 +452,49 @@ async function savePolicy() {
 function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (keyword.value.trim()) query.keyword = keyword.value.trim();
-  if (onlineFilter.value) query.online = onlineFilter.value;
-  if (salesLockedFilter.value) query.salesLocked = salesLockedFilter.value;
+  const filters = boardQuery(boardTab.value);
+  if (filters.online) query.online = filters.online;
+  if (filters.salesLocked) query.salesLocked = filters.salesLocked;
   router.replace({ query });
+}
+
+async function refreshBoardCounts() {
+  const specs: { key: BoardTab; online?: string; salesLocked?: string }[] = [
+    { key: 'ALL' },
+    { key: 'ONLINE', online: 'ONLINE' },
+    { key: 'OFFLINE', online: 'OFFLINE' },
+    { key: 'ON_SALE', salesLocked: 'false' },
+    { key: 'LOCKED', salesLocked: 'true' }
+  ];
+  await Promise.all(
+    specs.map(async (spec) => {
+      try {
+        const q = new URLSearchParams({ page: '0', size: '1' });
+        if (keyword.value.trim()) q.set('q', keyword.value.trim());
+        if (spec.online) q.set('online', spec.online);
+        if (spec.salesLocked) q.set('salesLocked', spec.salesLocked);
+        const data = await api.request<PageResult<DeviceInfo>>(`/api/v2/ops/admin/devices?${q}`, 'GET');
+        boardCounts[spec.key] = data.total || 0;
+      } catch {
+        /* keep previous */
+      }
+    })
+  );
+}
+
+function selectBoard(tab: BoardTab) {
+  if (boardTab.value === tab) return;
+  boardTab.value = tab;
+  page.value = 1;
+  syncRouteQuery();
+  load(false);
+}
+
+function onBoardTab(name: string | number) {
+  boardTab.value = String(name) as BoardTab;
+  page.value = 1;
+  syncRouteQuery();
+  load(false);
 }
 
 async function load(showToast = false) {
@@ -392,12 +505,17 @@ async function load(showToast = false) {
       size: String(size.value)
     });
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
-    if (onlineFilter.value) q.set('online', onlineFilter.value);
-    if (salesLockedFilter.value) q.set('salesLocked', salesLockedFilter.value);
+    const filters = boardQuery(boardTab.value);
+    if (filters.online) q.set('online', filters.online);
+    if (filters.salesLocked) q.set('salesLocked', filters.salesLocked);
     const data = await api.request<PageResult<DeviceInfo>>(`/api/v2/ops/admin/devices?${q}`, 'GET');
     devices.value = data.items || [];
     total.value = data.total || 0;
+    if (boardTab.value in boardCounts) {
+      boardCounts[boardTab.value] = data.total || 0;
+    }
     clearSelection();
+    void refreshBoardCounts();
     if (showToast) ElMessage.success('已刷新');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -413,8 +531,7 @@ function search() {
 }
 function reset() {
   keyword.value = '';
-  onlineFilter.value = '';
-  salesLockedFilter.value = '';
+  boardTab.value = 'ALL';
   page.value = 1;
   syncRouteQuery();
   load(false);
@@ -426,16 +543,14 @@ function onSizeChange() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (typeof route.query.online === 'string' && route.query.online !== onlineFilter.value) {
-    onlineFilter.value = route.query.online;
+  const nextTab = tabFromRouteQuery();
+  if (nextTab !== boardTab.value) {
+    boardTab.value = nextTab;
     changed = true;
   }
-  if (typeof route.query.keyword === 'string' && route.query.keyword !== keyword.value) {
-    keyword.value = route.query.keyword;
-    changed = true;
-  }
-  if (typeof route.query.salesLocked === 'string' && route.query.salesLocked !== salesLockedFilter.value) {
-    salesLockedFilter.value = route.query.salesLocked;
+  const nextKeyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
+  if (nextKeyword !== keyword.value) {
+    keyword.value = nextKeyword;
     changed = true;
   }
   return changed;
@@ -481,6 +596,66 @@ onActivated(() => {
 .page-card-head__actions {
   display: flex;
   gap: 8px;
+}
+.ops-board {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.ops-board__tile {
+  appearance: none;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+  display: grid;
+  gap: 2px;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  color: inherit;
+  font: inherit;
+  min-width: 0;
+}
+.ops-board__tile:hover,
+.ops-board__tile:focus-visible {
+  border-color: var(--el-color-primary-light-5);
+  outline: none;
+}
+.ops-board__tile.active {
+  border-color: var(--el-color-primary);
+  background: color-mix(in srgb, var(--el-color-primary) 8%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--el-color-primary) 35%, transparent);
+}
+.ops-board__tile.warn:not(.active) {
+  border-color: color-mix(in srgb, var(--el-color-warning) 45%, var(--el-border-color-lighter));
+  background: color-mix(in srgb, var(--el-color-warning) 8%, transparent);
+}
+.ops-board__tile.warn.active {
+  border-color: var(--el-color-warning);
+  background: color-mix(in srgb, var(--el-color-warning) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--el-color-warning) 40%, transparent);
+}
+.ops-board__label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.ops-board__value {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+.ops-board__hint {
+  font-size: 11px;
+  color: var(--el-text-color-placeholder);
+}
+.ops-banner {
+  margin-bottom: 10px;
+}
+.status-tabs {
+  margin: 0 0 10px;
 }
 .device-cell {
   appearance: none;
@@ -538,5 +713,15 @@ onActivated(() => {
 }
 .muted {
   color: var(--el-text-color-secondary);
+}
+@media (max-width: 900px) {
+  .ops-board {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .ops-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 </style>

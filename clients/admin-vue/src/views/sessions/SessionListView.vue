@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">开门记录</span>
-            <span class="hint">按设备 / 会话状态筛选；可看时间线、跳转设备与订单</span>
+            <span class="hint">按设备 / 会话状态筛选；活跃态超过 {{ STALE_MINUTES }} 分钟高亮滞留，便于日间跟进</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -31,23 +31,40 @@
         </el-select>
       </el-form-item>
       <el-form-item>
+        <el-checkbox v-model="stuckOnly" @change="onStuckToggle">仅滞留</el-checkbox>
+      </el-form-item>
+      <el-form-item>
         <el-button type="primary" @click="search">查询</el-button>
         <el-button @click="reset">重置</el-button>
       </el-form-item>
     </el-form>
 
+    <el-alert
+      v-if="stuckOnly ? total > 0 : pageStuckCount > 0"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="sla-banner"
+      :title="stuckOnly
+        ? `当前筛选共 ${total} 条滞留会话（活跃态超过 ${STALE_MINUTES} 分钟）`
+        : `本页 ${pageStuckCount} 条可能滞留，可勾选「仅滞留」或从工作台「异常会话」进入`"
+    />
+
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 1080px">
+      <div class="table-scroll-inner" style="min-width: 1180px">
         <el-table
           v-loading="loading"
-          :data="items"
+          :data="displayItems"
           stripe
           border
           class="report-table"
           row-key="sessionId"
+          :row-class-name="rowClassName"
           @selection-change="onSelectionChange"
         >
-          <template #empty><el-empty description="暂无开门记录" /></template>
+          <template #empty>
+            <el-empty :description="stuckOnly ? `当前无超过 ${STALE_MINUTES} 分钟的滞留会话` : '暂无开门记录'" />
+          </template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="会话" min-width="160" class-name="col-text">
             <template #default="{ row }">
@@ -88,13 +105,32 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="失败原因" min-width="140" class-name="col-text" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.failureReason || '-' }}</template>
-          </el-table-column>
-          <el-table-column label="创建时间" width="160" class-name="col-text">
+          <el-table-column label="等待原因" min-width="160" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
-              <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
+              <span>{{ waitReason(row) }}</span>
             </template>
+          </el-table-column>
+          <el-table-column label="滞留 / SLA" width="148" class-name="col-text">
+            <template #default="{ row }">
+              <div v-if="isActiveState(row.state)" class="sla-cell">
+                <template v-if="isStuck(row)">
+                  <el-tag type="danger" size="small">已滞留</el-tag>
+                  <small class="sla-meta danger">超 {{ formatAge(overdueMs(row)) }}</small>
+                </template>
+                <template v-else-if="isDueSoon(row)">
+                  <el-tag type="warning" size="small">临近 SLA</el-tag>
+                  <small class="sla-meta">已等 {{ formatAge(ageMs(row)) }}</small>
+                </template>
+                <template v-else>
+                  <span class="cell-datetime">已等 {{ formatAge(ageMs(row)) }}</span>
+                  <small class="sla-meta">SLA {{ STALE_MINUTES }} 分</small>
+                </template>
+              </div>
+              <span v-else class="muted">-</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="失败原因" min-width="120" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.failureReason || row.failReason || '-' }}</template>
           </el-table-column>
           <el-table-column label="更新时间" width="160" class-name="col-text">
             <template #default="{ row }">
@@ -164,6 +200,12 @@
         </el-timeline>
         <div class="tl-actions">
           <el-button
+            v-if="timelineRow.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))"
+            type="warning"
+            :loading="videoLoading"
+            @click="playVideo(timelineRow.sessionId)"
+          >播放录像</el-button>
+          <el-button
             v-if="timelineRow.deviceId && canAccessPath('/upload-queue')"
             @click="goPath('/upload-queue', { deviceId: timelineRow.deviceId })"
           >录像上传队列</el-button>
@@ -179,7 +221,7 @@
 </template>
 
 <script setup lang="ts">
-import { onActivated, onMounted, ref } from 'vue';
+import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { CircleClose, Clock, CopyDocument, Refresh, View, VideoCamera } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -188,6 +230,7 @@ import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
+import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
@@ -201,6 +244,7 @@ interface SessionRow {
   state?: string;
   orderId?: string;
   failureReason?: string;
+  failReason?: string;
   openTime?: string;
   closeTime?: string;
   uploadStatus?: string;
@@ -208,12 +252,30 @@ interface SessionRow {
   updatedAt?: string;
 }
 
+/** Align with AdminDashboardService STALE_SESSION_MINUTES. */
+const STALE_MINUTES = 30;
+const STALE_MS = STALE_MINUTES * 60 * 1000;
+const DUE_SOON_MS = 10 * 60 * 1000;
+const ACTIVE_STATES = new Set([
+  'OPENING',
+  'OPEN',
+  'DOOR_OPEN',
+  'SHOPPING',
+  'WAITING_UPLOAD',
+  'RECOGNIZING',
+  'SETTLING'
+]);
+
 const route = useRoute();
 const { router, canAccessPath, goPath } = useNavAccess();
+const { playSessionVideo } = useSessionVideo();
 const auth = useAuthStore();
 const loading = ref(false);
+const videoLoading = ref(false);
 const deviceId = ref('');
 const state = ref('');
+const stuckOnly = ref(false);
+const focusSessionId = ref('');
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
@@ -225,26 +287,41 @@ const stateOptions = dictOptions('session_state');
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<SessionRow>((r) => r.sessionId);
 
+const displayItems = computed(() => {
+  const list = [...items.value];
+  if (stuckOnly.value) return list;
+  return list.sort((a, b) => {
+    const as = isStuck(a) ? 1 : 0;
+    const bs = isStuck(b) ? 1 : 0;
+    if (as !== bs) return bs - as;
+    return ageMs(b) - ageMs(a);
+  });
+});
+
+const pageStuckCount = computed(() => items.value.filter((r) => isStuck(r)).length);
+
 const { onExport: exportSelectedCsv } = useListCsv({
   filePrefix: '开门记录',
-  headers: ['会话ID', '用户', '设备', '订单', '状态', '失败原因', '创建时间', '更新时间'],
+  headers: ['会话ID', '用户', '设备', '订单', '状态', '等待原因', '滞留分钟', '是否滞留', '失败原因', '更新时间'],
   toRows: () =>
-    pickSelected(items.value).map((row) => [
+    pickSelected(displayItems.value).map((row) => [
       row.sessionId,
       row.userId,
       row.deviceId,
       row.orderId,
       dictLabel('session_state', row.state),
-      row.failureReason,
-      formatDateTime(row.createdAt),
+      waitReason(row),
+      String(Math.floor(ageMs(row) / 60000)),
+      isStuck(row) ? '是' : '否',
+      row.failureReason || row.failReason || '',
       formatDateTime(row.updatedAt)
     ])
 });
 
 async function onExport() {
-  const selected = pickSelected(items.value);
+  const selected = pickSelected(displayItems.value);
   // 有勾选时导出勾选项；否则走服务端 F 码导出（当前筛选条件）
-  if (selected.length && selected.length < items.value.length) {
+  if (selected.length && selected.length < displayItems.value.length) {
     exportSelectedCsv();
     return;
   }
@@ -263,6 +340,77 @@ async function onExport() {
   }
 }
 
+function isActiveState(s?: string) {
+  return !!s && ACTIVE_STATES.has(s);
+}
+
+function parseTs(value?: string) {
+  if (!value) return NaN;
+  const t = Date.parse(value);
+  return Number.isNaN(t) ? NaN : t;
+}
+
+function ageMs(row: SessionRow) {
+  const t = parseTs(row.updatedAt);
+  return Number.isNaN(t) ? 0 : Math.max(0, Date.now() - t);
+}
+
+function overdueMs(row: SessionRow) {
+  return Math.max(0, ageMs(row) - STALE_MS);
+}
+
+function remainMs(row: SessionRow) {
+  return Math.max(0, STALE_MS - ageMs(row));
+}
+
+function isStuck(row: SessionRow) {
+  return isActiveState(row.state) && ageMs(row) >= STALE_MS;
+}
+
+function isDueSoon(row: SessionRow) {
+  if (!isActiveState(row.state) || isStuck(row)) return false;
+  const left = remainMs(row);
+  return left > 0 && left <= DUE_SOON_MS;
+}
+
+function formatAge(ms: number) {
+  const abs = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(abs / 3600);
+  const m = Math.floor((abs % 3600) / 60);
+  if (h >= 48) return `${Math.floor(h / 24)} 天`;
+  if (h > 0) return `${h} 小时 ${m} 分`;
+  if (m > 0) return `${m} 分钟`;
+  return '不到 1 分钟';
+}
+
+function waitReason(row: SessionRow) {
+  const s = String(row.state || '').toUpperCase();
+  const upload = String(row.uploadStatus || '').toUpperCase();
+  const stuck = isStuck(row);
+  if (s === 'WAITING_UPLOAD') {
+    if (upload === 'FAILED') return '录像上传失败，待设备侧重试';
+    if (upload === 'UPLOADING') return stuck ? '上传中断或极慢' : '等待录像上传完成';
+    if (upload === 'LOCAL_QUEUED') return stuck ? '本地排队超时，可能弱网/离线' : '设备本地排队待推送';
+    return stuck ? '关门后长期待上传' : '关门后等待录像上报';
+  }
+  if (s === 'RECOGNIZING') return stuck ? '识别滞留，需人工跟进' : '视觉识别处理中';
+  if (s === 'SETTLING') return stuck ? '结算滞留，需核对扣款' : '订单结算中';
+  if (s === 'SHOPPING' || s === 'OPEN' || s === 'DOOR_OPEN') {
+    return stuck ? '长时间未关门' : '购物中 / 柜门开启';
+  }
+  if (s === 'OPENING') return stuck ? '开门指令超时' : '开门指令下发中';
+  if (row.failureReason || row.failReason) return row.failureReason || row.failReason || '-';
+  return isActiveState(row.state) ? '会话处理中' : '-';
+}
+
+function rowClassName({ row }: { row: SessionRow }) {
+  const classes: string[] = [];
+  if (isStuck(row)) classes.push('is-overdue');
+  else if (isDueSoon(row)) classes.push('is-due-soon');
+  if (focusSessionId.value && row.sessionId === focusSessionId.value) classes.push('is-focus');
+  return classes.join(' ');
+}
+
 function canCancel(s?: string) {
   return !!s && !['COMPLETED', 'CANCELLED', 'FAILED'].includes(s);
 }
@@ -271,7 +419,7 @@ function sessionStateType(s?: string) {
   if (s === 'COMPLETED') return 'success';
   if (s === 'CANCELLED') return 'info';
   if (s === 'FAILED') return 'danger';
-  if (s === 'SHOPPING' || s === 'OPEN' || s === 'DOOR_OPEN') return 'warning';
+  if (s === 'SHOPPING' || s === 'OPEN' || s === 'DOOR_OPEN' || s === 'WAITING_UPLOAD') return 'warning';
   return '';
 }
 
@@ -281,6 +429,9 @@ function sessionActions(row: SessionRow): TableAction[] {
   ];
   if (row.deviceId && canAccessPath('/devices')) {
     acts.push({ key: 'device', label: '看设备', icon: View, type: 'info' });
+  }
+  if (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload')) {
+    acts.push({ key: 'play', label: '播放录像', icon: VideoCamera, type: 'warning' });
   }
   acts.push({ key: 'copy', label: '复制会话ID', icon: CopyDocument, type: 'info', overflow: true });
   if (row.deviceId && canAccessPath('/upload-queue')) {
@@ -313,8 +464,9 @@ function sessionTimeline(row: SessionRow) {
   if (row.orderId) {
     steps.push({ label: '生成订单', time: formatDateTime(row.updatedAt), type: 'success', detail: row.orderId });
   }
-  if (row.failureReason) {
-    steps.push({ label: '失败', time: formatDateTime(row.updatedAt), type: 'danger', detail: row.failureReason });
+  const fail = row.failureReason || row.failReason;
+  if (fail) {
+    steps.push({ label: '失败', time: formatDateTime(row.updatedAt), type: 'danger', detail: fail });
   }
   steps.push({
     label: `当前：${dictLabel('session_state', row.state)}`,
@@ -344,6 +496,10 @@ async function onAction(key: string, row: SessionRow) {
     goPath(`/devices/${encodeURIComponent(row.deviceId)}`);
     return;
   }
+  if (key === 'play') {
+    await playVideo(row.sessionId);
+    return;
+  }
   if (key === 'copy') {
     try {
       await navigator.clipboard.writeText(row.sessionId);
@@ -362,23 +518,53 @@ async function onAction(key: string, row: SessionRow) {
   }
 }
 
+async function playVideo(sessionId?: string) {
+  videoLoading.value = true;
+  try {
+    await playSessionVideo(sessionId);
+  } finally {
+    videoLoading.value = false;
+  }
+}
+
 function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (deviceId.value.trim()) query.deviceId = deviceId.value.trim();
   if (state.value) query.state = state.value;
+  if (stuckOnly.value) query.stuck = '1';
+  if (focusSessionId.value) query.sessionId = focusSessionId.value;
   router.replace({ query });
+}
+
+async function maybeOpenFocusedSession() {
+  if (!focusSessionId.value) return;
+  const hit = items.value.find((r) => r.sessionId === focusSessionId.value);
+  if (hit) {
+    await nextTick();
+    openTimeline(hit);
+  }
 }
 
 async function load() {
   loading.value = true;
   try {
-    const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
+    const fetchSize = stuckOnly.value ? Math.max(size.value, 100) : size.value;
+    const q = new URLSearchParams({ page: String(page.value - 1), size: String(fetchSize) });
     if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
     if (state.value) q.set('state', state.value);
     const data = await api.request<PageResult<SessionRow>>(`/api/v2/ops/admin/sessions?${q}`, 'GET');
-    items.value = data.items;
-    total.value = data.total;
+    let rows = data.items;
+    if (stuckOnly.value) {
+      rows = rows.filter((r) => isStuck(r)).sort((a, b) => ageMs(b) - ageMs(a));
+      total.value = rows.length;
+      const start = (page.value - 1) * size.value;
+      items.value = rows.slice(start, start + size.value);
+    } else {
+      items.value = rows;
+      total.value = data.total;
+    }
     clearSelection();
+    await maybeOpenFocusedSession();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -392,9 +578,17 @@ function search() {
   load();
 }
 
+function onStuckToggle() {
+  page.value = 1;
+  syncRouteQuery();
+  load();
+}
+
 function reset() {
   deviceId.value = '';
   state.value = '';
+  stuckOnly.value = false;
+  focusSessionId.value = '';
   page.value = 1;
   syncRouteQuery();
   load();
@@ -425,19 +619,45 @@ function applyRouteQuery() {
   if (typeof route.query.state === 'string' && route.query.state !== state.value) {
     state.value = route.query.state;
     changed = true;
+  } else if (!route.query.state && state.value && route.query.stuck) {
+    // keep state when only stuck deep-link
+  }
+  const qStuck = route.query.stuck === '1' || route.query.stuck === 'true';
+  if (qStuck !== stuckOnly.value) {
+    stuckOnly.value = qStuck;
+    changed = true;
+  }
+  if (typeof route.query.sessionId === 'string') {
+    if (route.query.sessionId !== focusSessionId.value) {
+      focusSessionId.value = route.query.sessionId;
+      changed = true;
+    }
+  } else if (focusSessionId.value) {
+    focusSessionId.value = '';
+    changed = true;
   }
   return changed;
 }
+
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+  await load();
+}
+
+watch(
+  () => [route.query.deviceId, route.query.state, route.query.stuck, route.query.sessionId] as const,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
 
 onMounted(() => {
   applyRouteQuery();
   load();
 });
 onActivated(() => {
-  if (applyRouteQuery()) {
-    page.value = 1;
-    load();
-  }
+  void reloadFromRouteQuery();
 });
 </script>
 
@@ -454,6 +674,10 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.sla-banner { margin-bottom: 10px; }
+.sla-cell { display: grid; gap: 2px; line-height: 1.35; }
+.sla-meta { color: var(--el-text-color-secondary); font-size: 11px; }
+.sla-meta.danger { color: var(--el-color-danger); }
 .link-cell {
   appearance: none;
   border: 0;
@@ -471,4 +695,14 @@ onActivated(() => {
 .mb12 { margin-bottom: 12px; }
 .tl-detail { margin-top: 4px; font-size: 12px; color: var(--el-text-color-secondary); }
 .tl-actions { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+:deep(.el-table .is-overdue > td.el-table__cell) {
+  background: color-mix(in srgb, var(--el-color-danger) 6%, transparent) !important;
+}
+:deep(.el-table .is-due-soon > td.el-table__cell) {
+  background: color-mix(in srgb, var(--el-color-warning) 7%, transparent) !important;
+}
+:deep(.el-table .is-focus > td.el-table__cell) {
+  outline: 1px solid color-mix(in srgb, var(--el-color-primary) 45%, transparent);
+  outline-offset: -1px;
+}
 </style>

@@ -196,6 +196,12 @@
 
           <div class="drawer-actions">
             <el-button
+              v-if="detail.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))"
+              type="warning"
+              :loading="videoLoading"
+              @click="playVideo(detail.sessionId)"
+            >播放会话录像</el-button>
+            <el-button
               v-if="canRefund(detail.status) && auth.hasPerm('ops:order:refund')"
               type="danger"
               :loading="refundingId === detail.orderId"
@@ -242,13 +248,14 @@
 <script setup lang="ts">
 import { onActivated, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { Refresh, View, Wallet } from '@element-plus/icons-vue';
+import { Refresh, VideoCamera, View, Wallet } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
+import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { OrderSummary, PageResult } from '@aicabinet/shared-types';
@@ -257,8 +264,10 @@ import { csvFileName } from '@/utils/csv';
 
 const route = useRoute();
 const { router, goPath } = useNavAccess();
+const { playSessionVideo } = useSessionVideo();
 const auth = useAuthStore();
 const loading = ref(false);
+const videoLoading = ref(false);
 const refundingId = ref('');
 const deviceId = ref('');
 const status = ref('');
@@ -347,6 +356,9 @@ function canRefund(s?: string) {
 
 function rowActions(row: OrderSummary): TableAction[] {
   const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
+  if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
+    actions.push({ key: 'video', label: '录像', icon: VideoCamera, type: 'warning', overflow: true });
+  }
   if (canRefund(row.status) && auth.hasPerm('ops:order:refund')) {
     actions.push({
       key: 'refund',
@@ -362,6 +374,16 @@ function rowActions(row: OrderSummary): TableAction[] {
 function onRowAction(key: string, row: OrderSummary) {
   if (key === 'detail') openDetail(row);
   if (key === 'refund') refundOrder(row);
+  if (key === 'video') playVideo(row.sessionId);
+}
+
+async function playVideo(sessionId?: string) {
+  videoLoading.value = true;
+  try {
+    await playSessionVideo(sessionId);
+  } finally {
+    videoLoading.value = false;
+  }
 }
 
 function goDevice(id: string) {

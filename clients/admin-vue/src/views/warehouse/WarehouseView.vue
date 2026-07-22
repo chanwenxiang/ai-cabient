@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">仓库</span>
-            <span class="hint">仓库 / 供应商 / 库存 / 采购与退货</span>
+            <span class="hint">{{ pageHint }}</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -110,7 +110,29 @@
           <el-option label="已发运" value="SHIPPED" />
         </el-select>
       </el-form-item>
+      <el-form-item v-if="tab === 'transit' && focusDeviceId" label="设备">
+        <el-tag closable type="info" @close="clearFocusDevice">{{ focusDeviceId }}</el-tag>
+      </el-form-item>
+      <el-form-item v-if="tab === 'transit'" label="签收">
+        <el-checkbox
+          v-model="overdueOnly"
+          data-testid="transit-overdue-only"
+          @change="onOverdueToggle"
+        >仅超时</el-checkbox>
+      </el-form-item>
     </el-form>
+
+    <el-alert
+      v-if="tab === 'transit' && overdueTransitCount > 0"
+      type="error"
+      :closable="false"
+      show-icon
+      class="sla-banner"
+      data-testid="transit-overdue-banner"
+      :title="overdueOnly
+        ? `共 ${overdueTransitCount} 条签收超时（发运超 ${TRANSIT_OVERDUE_HOURS} 小时未签收）`
+        : `共 ${overdueTransitCount} 条签收超时，可勾选「仅超时」聚焦处理`"
+    />
 
     <el-tabs v-model="tab" @tab-change="onTabChange">
       <el-tab-pane label="仓库概览" name="warehouses">
@@ -412,6 +434,8 @@
               border
               table-layout="auto"
               :row-key="transitRowKey"
+              :row-class-name="transitRowClassName"
+              :empty-text="transitEmptyHint"
               @selection-change="onSelectionChange"
             >
           <el-table-column type="selection" width="48" />
@@ -433,10 +457,28 @@
               <el-tag :type="dictTagType(row.status)" size="small">{{ dictLabel('in_transit_status', row.status) }}</el-tag>
             </template>
           </el-table-column>
+          <el-table-column label="在途 / SLA" min-width="160" class-name="col-text">
+            <template #default="{ row }">
+              <div class="sla-cell">
+                <template v-if="isTransitOverdue(row)">
+                  <el-tag type="danger" size="small">签收超时</el-tag>
+                  <small class="sla-meta danger">超 {{ formatAge(transitOverdueMs(row)) }}</small>
+                </template>
+                <template v-else-if="isTransitDueSoon(row)">
+                  <el-tag type="warning" size="small">临近超时</el-tag>
+                  <small class="sla-meta">已运 {{ formatAge(transitAgeMs(row)) }} · 剩 {{ formatAge(transitRemainMs(row)) }}</small>
+                </template>
+                <template v-else>
+                  <span class="cell-datetime">已运 {{ formatAge(transitAgeMs(row)) }}</span>
+                  <small class="sla-meta">SLA {{ TRANSIT_OVERDUE_HOURS }} 小时</small>
+                </template>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column label="发运时间" min-width="170">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
-          <template #empty><el-empty description="暂无在途" /></template>
+          <template #empty><el-empty :description="transitEmptyHint" /></template>
             </el-table>
           </div>
         </div>
@@ -840,6 +882,12 @@ const keyword = ref('');
 const filterWarehouseId = ref('');
 /** 默认「待处理」：有明细的 DRAFT + PICKED，避免历史草稿淹没操作列 */
 const filterOutboundStatus = ref<string>('actionable');
+/** Matches AdminDashboardService.IN_TRANSIT_OVERDUE_HOURS */
+const TRANSIT_OVERDUE_HOURS = 24;
+const TRANSIT_OVERDUE_MS = TRANSIT_OVERDUE_HOURS * 3600 * 1000;
+const TRANSIT_DUE_SOON_MS = 4 * 3600 * 1000;
+const overdueOnly = ref(false);
+const focusDeviceId = ref('');
 const warehouses = ref<Row[]>([]);
 const suppliers = ref<Row[]>([]);
 const purchaseOrders = ref<Row[]>([]);
@@ -879,8 +927,15 @@ const receiveForm = reactive<Row>({ purchaseOrderId: null, notes: '', lines: [] 
 const returnForm = reactive<Row>({ purchaseOrderId: null, notes: '', lines: [] });
 const inboundForm = reactive<Row>({ warehouseId: '', refNo: '', notes: '', lines: [] });
 
+const pageHint = computed(() => {
+  if (tab.value === 'transit') {
+    return `在途签收 SLA ${TRANSIT_OVERDUE_HOURS} 小时；超时标红，可勾选「仅超时」`;
+  }
+  return '仓库 / 供应商 / 库存 / 采购与退货';
+});
+
 const showFilterBar = computed(() =>
-  ['suppliers', 'purchase', 'returns', 'inventory', 'movements', 'outbounds'].includes(tab.value)
+  ['suppliers', 'purchase', 'returns', 'inventory', 'movements', 'outbounds', 'transit'].includes(tab.value)
 );
 const activeSuppliers = computed(() => suppliers.value.filter((s) => s.status === 'ACTIVE'));
 const activeWarehouses = computed(() => warehouses.value.filter((w) => (w.status || 'ACTIVE') === 'ACTIVE'));
@@ -957,6 +1012,115 @@ function onOutboundStatusFilter() {
   selectedKeys.value = [];
 }
 
+function parseTs(value: unknown) {
+  if (value == null || value === '') return Number.NaN;
+  if (typeof value === 'number') return value;
+  const t = Date.parse(String(value));
+  return Number.isNaN(t) ? Number.NaN : t;
+}
+
+function transitCreatedMs(row: Row) {
+  return parseTs(row.createdAt);
+}
+
+function transitAgeMs(row: Row) {
+  const t = transitCreatedMs(row);
+  return Number.isNaN(t) ? 0 : Math.max(0, Date.now() - t);
+}
+
+function transitRemainMs(row: Row) {
+  const t = transitCreatedMs(row);
+  if (Number.isNaN(t)) return TRANSIT_OVERDUE_MS;
+  return Math.max(0, t + TRANSIT_OVERDUE_MS - Date.now());
+}
+
+function transitOverdueMs(row: Row) {
+  const t = transitCreatedMs(row);
+  if (Number.isNaN(t)) return 0;
+  return Math.max(0, Date.now() - (t + TRANSIT_OVERDUE_MS));
+}
+
+function isTransitOverdue(row: Row) {
+  const t = transitCreatedMs(row);
+  if (Number.isNaN(t)) return false;
+  return Date.now() - t >= TRANSIT_OVERDUE_MS;
+}
+
+function isTransitDueSoon(row: Row) {
+  if (isTransitOverdue(row)) return false;
+  const left = transitRemainMs(row);
+  return left > 0 && left <= TRANSIT_DUE_SOON_MS;
+}
+
+function formatAge(ms: number) {
+  const abs = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(abs / 3600);
+  const m = Math.floor((abs % 3600) / 60);
+  if (h >= 48) return `${Math.floor(h / 24)} 天`;
+  if (h > 0) return `${h} 小时 ${m} 分`;
+  if (m > 0) return `${m} 分钟`;
+  return '不到 1 分钟';
+}
+
+function transitRowClassName({ row }: { row: Row }) {
+  const classes: string[] = [];
+  if (isTransitOverdue(row)) classes.push('is-overdue');
+  else if (isTransitDueSoon(row)) classes.push('is-due-soon');
+  if (focusDeviceId.value && row.deviceId === focusDeviceId.value) classes.push('is-focus');
+  return classes.join(' ');
+}
+
+const filteredInTransit = computed(() => {
+  let list = [...inTransit.value];
+  if (focusDeviceId.value) {
+    list = list.filter((r) => r.deviceId === focusDeviceId.value);
+  }
+  if (overdueOnly.value) {
+    list = list.filter((r) => isTransitOverdue(r));
+  }
+  return list.sort((a, b) => {
+    const ao = isTransitOverdue(a) ? 0 : 1;
+    const bo = isTransitOverdue(b) ? 0 : 1;
+    if (ao !== bo) return ao - bo;
+    const at = transitCreatedMs(a);
+    const bt = transitCreatedMs(b);
+    if (Number.isNaN(at) && Number.isNaN(bt)) return 0;
+    if (Number.isNaN(at)) return 1;
+    if (Number.isNaN(bt)) return -1;
+    return at - bt;
+  });
+});
+
+const overdueTransitCount = computed(() => {
+  let list = inTransit.value;
+  if (focusDeviceId.value) {
+    list = list.filter((r) => r.deviceId === focusDeviceId.value);
+  }
+  return list.filter((r) => isTransitOverdue(r)).length;
+});
+
+const transitEmptyHint = computed(() => {
+  if (overdueOnly.value) {
+    return focusDeviceId.value
+      ? `设备 ${focusDeviceId.value} 无超过 ${TRANSIT_OVERDUE_HOURS} 小时的签收超时`
+      : `当前无超过 ${TRANSIT_OVERDUE_HOURS} 小时的签收超时`;
+  }
+  if (focusDeviceId.value) return `设备 ${focusDeviceId.value} 暂无在途`;
+  return '暂无在途';
+});
+
+function onOverdueToggle() {
+  page.value = 1;
+  selectedKeys.value = [];
+  syncRouteQuery();
+}
+
+function clearFocusDevice() {
+  focusDeviceId.value = '';
+  page.value = 1;
+  syncRouteQuery();
+}
+
 function slicePage<T>(rows: T[]) {
   const start = (page.value - 1) * size.value;
   return rows.slice(start, start + size.value);
@@ -973,7 +1137,7 @@ const tabSource = computed(() => {
     case 'outbounds':
       return filteredOutbounds.value;
     case 'transit':
-      return inTransit.value;
+      return filteredInTransit.value;
     case 'inventory':
       return inventory.value;
     case 'movements':
@@ -988,7 +1152,7 @@ const pagedSuppliers = computed(() => slicePage(filteredSuppliers.value));
 const pagedPurchaseOrders = computed(() => slicePage(filteredPurchaseOrders.value));
 const pagedPurchaseReturns = computed(() => slicePage(filteredPurchaseReturns.value));
 const pagedOutbounds = computed(() => slicePage(filteredOutbounds.value));
-const pagedInTransit = computed(() => slicePage(inTransit.value));
+const pagedInTransit = computed(() => slicePage(filteredInTransit.value));
 const pagedInventory = computed(() => slicePage(inventory.value));
 const pagedMovements = computed(() => slicePage(movements.value));
 
@@ -996,7 +1160,7 @@ watch(tab, () => {
   page.value = 1;
   selectedKeys.value = [];
 });
-watch([keyword, filterWarehouseId], () => {
+watch([keyword, filterWarehouseId, overdueOnly, focusDeviceId], () => {
   page.value = 1;
 });
 
@@ -1132,15 +1296,17 @@ const { onExport: exportOutbounds } = useListCsv({
 
 const { onExport: exportTransit } = useListCsv({
   filePrefix: '在途',
-  headers: ['出库单', '目标设备', '商品', '批次', '数量', '状态', '发运时间'],
+  headers: ['出库单', '目标设备', '商品', '批次', '数量', '状态', '在途时长', '是否超时', '发运时间'],
   toRows: () =>
-    pickSelected(inTransit.value).map((row) => [
+    pickSelected(filteredInTransit.value).map((row) => [
       row.outboundId,
       deviceName(row.deviceId),
       skuName(row.skuId),
       row.batchNo || '',
       row.quantity,
       dictLabel('in_transit_status', row.status),
+      formatAge(transitAgeMs(row)),
+      isTransitOverdue(row) ? '是' : '否',
       formatDateTime(row.createdAt)
     ])
 });
@@ -1381,9 +1547,11 @@ async function loadTab(name: string, force = false) {
 function onTabChange(name: string | number) {
   page.value = 1;
   const next = String(name);
-  if (route.query.tab !== next) {
-    router.replace({ query: { ...route.query, tab: next } });
+  if (next !== 'transit') {
+    overdueOnly.value = false;
+    focusDeviceId.value = '';
   }
+  syncRouteQuery(next);
   loadTab(next);
 }
 function reloadCurrent() {
@@ -1747,6 +1915,37 @@ async function saveInbound() {
   }
 }
 
+function syncRouteQuery(nextTab = tab.value) {
+  const query: Record<string, string> = { ...Object.fromEntries(
+    Object.entries(route.query)
+      .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+      .filter(([k]) => !['tab', 'overdue', 'deviceId'].includes(k))
+  ) };
+  if (nextTab && nextTab !== 'warehouses') query.tab = nextTab;
+  if (nextTab === 'transit') {
+    if (overdueOnly.value) query.overdue = '1';
+    if (focusDeviceId.value) query.deviceId = focusDeviceId.value;
+  }
+  const same =
+    String(route.query.tab || '') === String(query.tab || '')
+    && String(route.query.overdue || '') === String(query.overdue || '')
+    && String(route.query.deviceId || '') === String(query.deviceId || '');
+  if (!same) {
+    router.replace({ query });
+  }
+}
+
+function applyQueryFilters() {
+  const qOverdue = route.query.overdue === '1' || route.query.overdue === 'true';
+  if (qOverdue !== overdueOnly.value) {
+    overdueOnly.value = qOverdue;
+  }
+  const qDevice = typeof route.query.deviceId === 'string' ? route.query.deviceId : '';
+  if (qDevice !== focusDeviceId.value) {
+    focusDeviceId.value = qDevice;
+  }
+}
+
 function applyTabFromQuery() {
   const qTab = typeof route.query.tab === 'string' ? route.query.tab : '';
   const allowed = [
@@ -1754,6 +1953,12 @@ function applyTabFromQuery() {
   ];
   if (allowed.includes(qTab) && tab.value !== qTab) {
     tab.value = qTab;
+  }
+  if (tab.value === 'transit') {
+    applyQueryFilters();
+  } else {
+    overdueOnly.value = false;
+    focusDeviceId.value = '';
   }
 }
 
@@ -1768,9 +1973,10 @@ onActivated(() => {
 });
 
 watch(
-  () => route.query.tab,
+  () => [route.query.tab, route.query.overdue, route.query.deviceId] as const,
   () => {
     applyTabFromQuery();
+    if (tab.value === 'transit') loadTab('transit', false);
   }
 );
 </script>
@@ -1814,6 +2020,20 @@ watch(
 :deep(.outbound-row--actionable) > td {
   background: color-mix(in srgb, var(--app-primary, #0f766e) 8%, transparent);
 }
+:deep(.el-table .is-overdue > td.el-table__cell) {
+  background: color-mix(in srgb, var(--el-color-danger) 6%, transparent) !important;
+}
+:deep(.el-table .is-due-soon > td.el-table__cell) {
+  background: color-mix(in srgb, var(--el-color-warning) 7%, transparent) !important;
+}
+:deep(.el-table .is-focus > td.el-table__cell) {
+  outline: 1px solid color-mix(in srgb, var(--app-primary, #0f766e) 35%, transparent);
+}
+.sla-banner { margin: 0 0 12px; }
+.sla-cell { display: grid; gap: 2px; line-height: 1.35; }
+.sla-meta { color: var(--el-text-color-secondary); font-size: 11px; }
+.sla-meta.danger { color: var(--el-color-danger); }
+.cell-datetime { font-variant-numeric: tabular-nums; }
 .muted, .tip { color: var(--layout-muted); font-size: 13px; }
 .tip { margin: 0 0 8px; }
 .positive { color: #059669; font-weight: 700; }

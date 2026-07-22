@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.OpsException;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -35,16 +36,32 @@ public interface OpsExceptionMapper extends BaseTradeMapper<OpsException> {
     }
 
     default Page<OpsException> findFiltered(String status, String severity, Pageable pageable) {
+        return findFiltered(status, severity, false, pageable);
+    }
+
+    default Page<OpsException> findFiltered(String status, String severity, boolean overdueOnly, Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<OpsException>(
             pageable.getPageNumber() + 1L, pageable.getPageSize());
     var query = Wrappers.<OpsException>lambdaQuery();
-    if (status != null && !status.isBlank()) {
+    if (overdueOnly) {
+        Instant now = Instant.now();
+        if (status != null && !status.isBlank()) {
+            query.eq(OpsException::getStatus, status);
+        } else {
+            query.in(OpsException::getStatus, List.of("OPEN", "PROCESSING"));
+        }
+        query.isNotNull(OpsException::getSlaDueAt).lt(OpsException::getSlaDueAt, now);
+    } else if (status != null && !status.isBlank()) {
         query.eq(OpsException::getStatus, status);
     }
     if (severity != null && !severity.isBlank()) {
         query.eq(OpsException::getSeverity, severity);
     }
-    query.orderByDesc(OpsException::getCreatedAt);
+    if (overdueOnly) {
+        query.orderByAsc(OpsException::getSlaDueAt).orderByDesc(OpsException::getCreatedAt);
+    } else {
+        query.orderByDesc(OpsException::getCreatedAt);
+    }
     var result = selectPage(mpPage, query);
     return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }

@@ -79,20 +79,26 @@ public class OpsExceptionService {
     }
 
     @Transactional(readOnly = true)
-    public PageResult<OpsExceptionDto> list(Long operatorId, String status, String severity, int page, int size) {
+    public PageResult<OpsExceptionDto> list(Long operatorId, String status, String severity,
+                                            boolean overdueOnly, int page, int size) {
         requireExceptionRead(operatorId);
         var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
         String statusFilter = status == null || status.isBlank() ? null : status.trim().toUpperCase();
         String severityFilter = severity == null || severity.isBlank() ? null : severity.trim().toUpperCase();
-        var result = repository.findFiltered(statusFilter, severityFilter, pageable);
+        var result = repository.findFiltered(statusFilter, severityFilter, overdueOnly, pageable);
         return new PageResult<>(result.getContent().stream().map(this::toDto).toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements());
     }
 
-    /** @deprecated Prefer {@link #list(Long, String, String, int, int)} with severity. */
+    @Transactional(readOnly = true)
+    public PageResult<OpsExceptionDto> list(Long operatorId, String status, String severity, int page, int size) {
+        return list(operatorId, status, severity, false, page, size);
+    }
+
+    /** @deprecated Prefer {@link #list(Long, String, String, boolean, int, int)} with severity/overdue. */
     @Transactional(readOnly = true)
     public PageResult<OpsExceptionDto> list(Long operatorId, String status, int page, int size) {
-        return list(operatorId, status, null, page, size);
+        return list(operatorId, status, null, false, page, size);
     }
 
     @Transactional(readOnly = true)

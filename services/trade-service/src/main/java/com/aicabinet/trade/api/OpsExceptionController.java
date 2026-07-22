@@ -21,9 +21,10 @@ public class OpsExceptionController {
     @GetMapping public ApiResponse<PageResult<OpsExceptionDto>> list(HttpServletRequest request,
             @RequestParam(required=false) String status,
             @RequestParam(required=false) String severity,
+            @RequestParam(required=false) String overdue,
             @RequestParam(defaultValue="0") int page,
             @RequestParam(defaultValue="20") int size) {
-        return ApiResponse.ok(service.list(operator(request), status, severity, page, size));
+        return ApiResponse.ok(service.list(operator(request), status, severity, parseFlag(overdue), page, size));
     }
     @RequiresPermissions(value = {"ops:exception:list", "ops:exception:handle"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/{id}") public ApiResponse<OpsExceptionDetailDto> detail(HttpServletRequest request,
@@ -103,4 +104,10 @@ public class OpsExceptionController {
         return ApiResponse.ok(service.resolve(operator(request), id, body.resolution()));
     }
     private Long operator(HttpServletRequest request) { return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID); }
+
+    private static boolean parseFlag(String raw) {
+        if (raw == null || raw.isBlank()) return false;
+        String v = raw.trim();
+        return "1".equals(v) || "true".equalsIgnoreCase(v) || "yes".equalsIgnoreCase(v);
+    }
 }
