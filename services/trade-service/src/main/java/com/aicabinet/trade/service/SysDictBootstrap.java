@@ -149,6 +149,10 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "RECOGNITION_UNAVAILABLE", "识别服务不可用", "BALANCE_INSUFFICIENT", "余额不足",
                 "SETTLEMENT_FAILED", "结算失败", "SETTLEMENT_STUCK", "结算滞留",
                 "INVENTORY_MISMATCH", "库存差异", "SLOT_DISCREPANCY", "货道账实差异")));
+        map.put("device_fault_code", t("设备故障码", m(
+                "OFFLINE_TIMEOUT", "离线超时", "TEMP_ABNORMAL", "温度异常",
+                "DOOR_STUCK", "门锁异常", "CAMERA_FAULT", "摄像头故障",
+                "NETWORK_UNSTABLE", "网络不稳", "POWER_FAULT", "供电异常")));
         map.put("ops_exception_action", t("异常操作", m(
                 "OPS_EXCEPTION_CLAIM", "领取异常", "OPS_EXCEPTION_TRANSFER", "转派异常",
                 "OPS_EXCEPTION_NOTE", "添加备注", "OPS_EXCEPTION_RETRY", "重试识别/结算",

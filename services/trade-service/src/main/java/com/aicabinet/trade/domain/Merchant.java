@@ -31,6 +31,8 @@ public class Merchant {
 
     private boolean allowMerchantPricingEdit = false;
 
+    private String parentMerchantId;
+
     private Instant createdAt;
 
     private Instant updatedAt;
@@ -57,6 +59,8 @@ public String getMerchantId() { return merchantId; }
     public void setAllowMerchantPlanogramEdit(boolean allowMerchantPlanogramEdit) { this.allowMerchantPlanogramEdit = allowMerchantPlanogramEdit; }
     public boolean isAllowMerchantPricingEdit() { return allowMerchantPricingEdit; }
     public void setAllowMerchantPricingEdit(boolean allowMerchantPricingEdit) { this.allowMerchantPricingEdit = allowMerchantPricingEdit; }
+    public String getParentMerchantId() { return parentMerchantId; }
+    public void setParentMerchantId(String parentMerchantId) { this.parentMerchantId = parentMerchantId; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

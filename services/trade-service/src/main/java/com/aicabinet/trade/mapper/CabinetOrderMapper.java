@@ -119,6 +119,13 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
     return selectList(Wrappers.<CabinetOrder>lambdaQuery().in(CabinetOrder::getDeviceId, deviceIds).gt(CabinetOrder::getCreatedAt, since));
     }
 
+    default List<CabinetOrder> findByStatusAndCreatedAtBefore(String status, Instant cutoff) {
+        return selectList(Wrappers.<CabinetOrder>lambdaQuery()
+                .eq(CabinetOrder::getStatus, status)
+                .lt(CabinetOrder::getCreatedAt, cutoff)
+                .orderByAsc(CabinetOrder::getCreatedAt));
+    }
+
         long sumTotalAmountByDeviceIdIn(@Param("deviceIds") Collection<String> deviceIds);
 
 

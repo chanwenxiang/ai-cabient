@@ -438,6 +438,11 @@ public class SessionService {
             transition(session, SessionState.COMPLETED);
             log.info("session completed session={} order={}", session.getSessionId(), order.orderId());
             cabinetMetrics.recordSettlementSuccess();
+            if ("PENDING".equalsIgnoreCase(order.status())) {
+                opsExceptionService.report("BALANCE_INSUFFICIENT", "HIGH", session.getDeviceId(),
+                        session.getSessionId(), order.orderId(), session.getUserId(),
+                        "订单待支付", "余额不足，已生成待支付订单，可催付或关单");
+            }
         } catch (DisputeRequiredException e) {
             transition(session, SessionState.DISPUTED);
             opsExceptionService.report("RECOGNITION_FAILED", "HIGH", session.getDeviceId(),
@@ -447,6 +452,7 @@ public class SessionService {
             cabinetMetrics.recordSettlementFailure();
             return toDto(session);
         } catch (BalanceInsufficientException e) {
+            // 兼容旧路径：若结算仍抛余额不足且未落单，则进争议
             session.setFailReason(e.getMessage());
             transition(session, SessionState.DISPUTED);
             opsExceptionService.report("BALANCE_INSUFFICIENT", "HIGH", session.getDeviceId(),
@@ -507,6 +513,11 @@ public class SessionService {
             session.setOrderId(order.orderId());
             transition(session, SessionState.COMPLETED);
             log.info("async session completed session={} order={}", sessionId, order.orderId());
+            if ("PENDING".equalsIgnoreCase(order.status())) {
+                opsExceptionService.report("BALANCE_INSUFFICIENT", "HIGH", session.getDeviceId(),
+                        session.getSessionId(), order.orderId(), session.getUserId(),
+                        "订单待支付", "余额不足，已生成待支付订单，可催付或关单");
+            }
         } catch (DisputeRequiredException e) {
             transition(session, SessionState.DISPUTED);
             opsExceptionService.report("RECOGNITION_FAILED", "HIGH", session.getDeviceId(),

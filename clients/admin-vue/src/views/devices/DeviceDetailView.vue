@@ -129,7 +129,25 @@
               {{ metrics?.appVersion || '-' }} / {{ metrics?.firmwareVersion || '-' }}
             </el-descriptions-item>
             <el-descriptions-item label="目标温度">
-              {{ metrics?.targetTempC != null ? `${metrics.targetTempC}°C` : '-' }}
+              <div class="temp-set-row">
+                <el-input-number
+                  v-model="tempDraft"
+                  :min="-30"
+                  :max="30"
+                  :step="1"
+                  size="small"
+                  controls-position="right"
+                />
+                <span class="muted">°C</span>
+                <el-button
+                  v-hasPermi="['ops:device:edit']"
+                  type="primary"
+                  size="small"
+                  plain
+                  :loading="cmdLoading === 'SET_TEMP'"
+                  @click="setTargetTemp"
+                >下发温度</el-button>
+              </div>
             </el-descriptions-item>
             <el-descriptions-item label="温度上报">
               <span class="cell-datetime">{{ formatDateTime(metrics?.tempReportedAt) || '-' }}</span>
@@ -312,6 +330,7 @@ const loading = ref(false);
 const applying = ref(false);
 const saving = ref(false);
 const cmdLoading = ref('');
+const tempDraft = ref<number | undefined>(undefined);
 const tab = ref('overview');
 const device = ref<DeviceRow | null>(null);
 const metrics = ref<Metrics | null>(null);
@@ -337,6 +356,7 @@ async function loadDetail() {
   device.value = detail.device;
   metrics.value = detail.metrics;
   slots.value = detail.slots || [];
+  tempDraft.value = detail.metrics?.targetTempC != null ? detail.metrics.targetTempC : undefined;
 }
 
 async function loadRelated() {
@@ -397,6 +417,38 @@ async function sendCommand(command: string) {
   } catch (e: any) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '指令失败');
+    }
+  } finally {
+    cmdLoading.value = '';
+  }
+}
+
+async function setTargetTemp() {
+  if (tempDraft.value == null || Number.isNaN(tempDraft.value)) {
+    ElMessage.warning('请填写目标温度');
+    return;
+  }
+  try {
+    const { value: reason } = await ElMessageBox.prompt(
+      `确认将目标温度设为 ${tempDraft.value}°C 并下发柜机？`,
+      '设置目标温度',
+      {
+        inputValue: '运营设温',
+        inputValidator: (v) => !!String(v || '').trim() || '必须填写原因',
+        confirmButtonText: '确认下发'
+      }
+    );
+    cmdLoading.value = 'SET_TEMP';
+    const result = await api.request<{ message?: string }>(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/commands`,
+      'POST',
+      { command: 'SET_TEMP', reason, targetTempC: tempDraft.value }
+    );
+    ElMessage.success(result.message || '温度已下发');
+    await loadDetail();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '设温失败');
     }
   } finally {
     cmdLoading.value = '';
@@ -505,6 +557,12 @@ onMounted(async () => {
   color: var(--el-text-color-secondary);
 }
 .cmd-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+.temp-set-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .muted { color: var(--el-text-color-placeholder); font-size: 13px; }
 .slot-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
 .section-title { margin: 16px 0 8px; font-size: 14px; font-weight: 600; }

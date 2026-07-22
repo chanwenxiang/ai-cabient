@@ -351,17 +351,50 @@ public class SettlementService {
         deviceValidationService.ensureSettlementAllowed(session.getDeviceId());
         CabinetOrder order = buildOrder(session, items);
         CouponService.BestCoupon appliedCoupon = selectBestCouponForOrder(order);
+        boolean unpaid = false;
         if (!userValidationService.canChargeViaPasswordFree(session.getUserId(), session.getEntryChannel())) {
-            userValidationService.validateSufficientBalanceForCharge(session.getUserId(), order.getTotalAmountCents());
+            try {
+                userValidationService.validateSufficientBalanceForCharge(
+                        session.getUserId(), order.getTotalAmountCents());
+            } catch (BalanceInsufficientException e) {
+                unpaid = true;
+                // 优惠券等到补扣成功再核销，避免关单占券
+                appliedCoupon = null;
+            }
         }
         var batchBySku = inventoryService.deductForOrder(
                 session.getDeviceId(), items, session.getSessionId(), session.getGravityDeltas());
         applyBatchNos(order, batchBySku);
         order.setInventoryDeducted(true);
+        order.setStatus(unpaid ? "PENDING" : "PAID");
         // Persist order before charge/coupon mark — payment_operation & user_coupon FK to cabinet_order
         orderRepository.save(order);
         persistOrderLines(order);
-        orderPaymentService.chargeOrder(order);
+
+        if (unpaid) {
+            session.setOrderId(order.getOrderId());
+            sessionRepository.save(session);
+            videoArchiveService.archiveAfterSettlement(session, order.getLines());
+            log.info("unpaid order created session={} order={} amount={}",
+                    session.getSessionId(), order.getOrderId(), order.getTotalAmountCents());
+            return toDto(order);
+        }
+
+        try {
+            orderPaymentService.chargeOrder(order);
+        } catch (ResponseStatusException e) {
+            if (isInsufficientBalance(e)) {
+                order.setStatus("PENDING");
+                orderRepository.save(order);
+                session.setOrderId(order.getOrderId());
+                sessionRepository.save(session);
+                videoArchiveService.archiveAfterSettlement(session, order.getLines());
+                log.info("unpaid order after charge fail session={} order={} amount={}",
+                        session.getSessionId(), order.getOrderId(), order.getTotalAmountCents());
+                return toDto(order);
+            }
+            throw e;
+        }
         orderRepository.save(order);
         if (appliedCoupon != null) {
             couponService.markUsed(
@@ -389,6 +422,14 @@ public class SettlementService {
                 session.getSessionId(), order.getOrderId(), order.getTotalAmountCents(),
                 order.getCouponDiscountCents(), order.getPayChannel());
         return toDto(order);
+    }
+
+    private static boolean isInsufficientBalance(ResponseStatusException e) {
+        if (e.getStatusCode() != HttpStatus.PRECONDITION_FAILED) {
+            return false;
+        }
+        String reason = e.getReason();
+        return reason != null && (reason.contains("余额") || reason.toLowerCase().contains("insufficient"));
     }
 
     /** Pick best coupon and rewrite payable; caller must markUsed after order is persisted (FK). */

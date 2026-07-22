@@ -138,7 +138,7 @@
         <text class="shopping-banner-sub">{{ shoppingBannerSub }}</text>
       </view>
       <view class="catalog-notice">
-        <text>本柜商品价目仅供参考，实付以关门识别为准</text>
+        <text>本柜价目仅供参考，请直接取货；实付以关门识别为准，无需在小程序点选商品</text>
       </view>
 
       <scroll-view scroll-y class="product-scroll" :show-scrollbar="false" enhanced>
@@ -396,11 +396,30 @@ function payReady(acc: AccountDto) {
 }
 
 onLoad(async (opts) => {
-  const launch = parseLaunchOptions((opts || {}) as Record<string, string>);
+  let launch = parseLaunchOptions((opts || {}) as Record<string, string>);
+  // H5：兼容 ?deviceId= / hash 查询（柜门二维码 deep link）
+  if (!launch.deviceId && typeof window !== 'undefined') {
+    try {
+      const fromSearch = parseLaunchOptions(
+        Object.fromEntries(new URLSearchParams(window.location.search).entries())
+      );
+      if (fromSearch.deviceId) {
+        launch = fromSearch;
+      } else if (window.location.hash.includes('deviceId=')) {
+        const hashQuery = window.location.hash.split('?')[1] || '';
+        const fromHash = parseLaunchOptions(Object.fromEntries(new URLSearchParams(hashQuery).entries()));
+        if (fromHash.deviceId) launch = fromHash;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
   if (launch.channel) {
     entryChannel.value = resolveEntryChannel(launch.channel);
   }
   if (launch.deviceId) {
+    // 深链优先进入全屏开门态，减少落地页停留
+    enteringFlow.value = true;
     await startShoppingFlow(launch.deviceId, launch.channel);
   }
 });

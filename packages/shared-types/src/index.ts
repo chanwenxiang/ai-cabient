@@ -77,6 +77,7 @@ export interface MerchantDto {
   deviceCount?: number;
   allowMerchantPlanogramEdit?: boolean;
   allowMerchantPricingEdit?: boolean;
+  parentMerchantId?: string | null;
 }
 
 export interface RevenueSplit {

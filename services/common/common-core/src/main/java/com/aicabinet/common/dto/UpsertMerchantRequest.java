@@ -13,5 +13,6 @@ public record UpsertMerchantRequest(
         String status,
         String remark,
         Boolean allowMerchantPlanogramEdit,
-        Boolean allowMerchantPricingEdit
+        Boolean allowMerchantPricingEdit,
+        String parentMerchantId
 ) {}

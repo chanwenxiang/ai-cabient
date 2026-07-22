@@ -24,15 +24,21 @@ public class DevicePresenceService {
     private final DeviceTemperatureReadingMapper temperatureReadingRepository;
     private final CabinetMetrics cabinetMetrics;
     private final OpsExceptionService opsExceptionService;
+    private final SystemConfigService systemConfigService;
+    private final AdminAuditService auditService;
 
     public DevicePresenceService(DeviceInfoMapper deviceRepository,
                                  DeviceTemperatureReadingMapper temperatureReadingRepository,
                                  CabinetMetrics cabinetMetrics,
-                                 OpsExceptionService opsExceptionService) {
+                                 OpsExceptionService opsExceptionService,
+                                 SystemConfigService systemConfigService,
+                                 AdminAuditService auditService) {
         this.deviceRepository = deviceRepository;
         this.temperatureReadingRepository = temperatureReadingRepository;
         this.cabinetMetrics = cabinetMetrics;
         this.opsExceptionService = opsExceptionService;
+        this.systemConfigService = systemConfigService;
+        this.auditService = auditService;
     }
 
     @Transactional
@@ -87,7 +93,33 @@ public class DevicePresenceService {
                             null, null, "设备离线", "连续 " + OFFLINE_AFTER_MINUTES + " 分钟未收到心跳");
                     log.info("device marked offline device={}", d.getDeviceId());
                 });
+        autoLockLongOfflineDevices();
         cabinetMetrics.refreshDeviceGauges(deviceRepository);
+    }
+
+    /** 离线超过配置分钟数后自动锁机停售（需运营手动解锁）。 */
+    private void autoLockLongOfflineDevices() {
+        int lockAfterMinutes = systemConfigService.getInt(
+                SystemConfigService.DEVICE_OFFLINE_AUTO_LOCK_MINUTES, 10);
+        if (lockAfterMinutes <= 0) {
+            return;
+        }
+        Instant lockCutoff = Instant.now().minus(lockAfterMinutes, ChronoUnit.MINUTES);
+        deviceRepository.findAll().stream()
+                .filter(d -> "OFFLINE".equalsIgnoreCase(d.getOnlineStatus()))
+                .filter(d -> !d.salesLockedEnabled())
+                .filter(d -> d.getUpdatedAt() != null && d.getUpdatedAt().isBefore(lockCutoff))
+                .forEach(d -> {
+                    d.setSalesLocked(true);
+                    deviceRepository.save(d);
+                    opsExceptionService.report("DEVICE_FAULT", "HIGH", d.getDeviceId(), null,
+                            null, null, "离线超时自动停售",
+                            "设备离线超过 " + lockAfterMinutes + " 分钟，已自动锁机（故障码 OFFLINE_TIMEOUT）");
+                    auditService.record(0L, "DEVICE_AUTO_LOCK_OFFLINE", "DEVICE", d.getDeviceId(),
+                            "minutes=" + lockAfterMinutes);
+                    log.info("device auto sales-locked after offline device={} minutes={}",
+                            d.getDeviceId(), lockAfterMinutes);
+                });
     }
 
     private DeviceInfo registerUnknown(String deviceId) {

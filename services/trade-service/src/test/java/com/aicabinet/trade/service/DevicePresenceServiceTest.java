@@ -23,6 +23,8 @@ class DevicePresenceServiceTest {
         DeviceTemperatureReadingMapper temperatures = mock(DeviceTemperatureReadingMapper.class);
         CabinetMetrics metrics = mock(CabinetMetrics.class);
         OpsExceptionService exceptions = mock(OpsExceptionService.class);
+        SystemConfigService systemConfig = mock(SystemConfigService.class);
+        AdminAuditService audit = mock(AdminAuditService.class);
         DeviceInfo device = new DeviceInfo();
         device.setDeviceId("CAB-001");
         device.setDeviceName("Demo");
@@ -32,7 +34,8 @@ class DevicePresenceServiceTest {
         when(devices.findById("CAB-001")).thenReturn(Optional.of(device));
         when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        DevicePresenceService service = new DevicePresenceService(devices, temperatures, metrics, exceptions);
+        DevicePresenceService service = new DevicePresenceService(
+                devices, temperatures, metrics, exceptions, systemConfig, audit);
         service.heartbeat("CAB-001", "0.9.0", null, null);
 
         assertTrue(device.getUpdatedAt() != null && !device.getUpdatedAt().isBefore(before));

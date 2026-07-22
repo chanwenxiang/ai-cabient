@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">商户分账</span>
-            <span class="hint">商户权限与抽成配置；分账明细可提交微信分账</span>
+            <span class="hint">商户组织树、抽成配置；分账明细可提交微信分账</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -18,6 +18,41 @@
     </template>
 
     <el-tabs v-model="tab" @tab-change="onTabChange">
+      <el-tab-pane label="组织树" name="org">
+        <el-alert
+          type="info"
+          :closable="false"
+          show-icon
+          title="上级商户可见全部下级货柜。运营账号绑定上级后，数据范围自动包含下级组织。"
+          class="status-banner"
+        />
+        <div class="org-toolbar">
+          <el-button v-if="canEdit" type="primary" @click="openOrgEdit()">新建商户</el-button>
+          <el-button :icon="Refresh" :loading="loadingMerchants" @click="loadMerchants">刷新</el-button>
+        </div>
+        <el-tree
+          v-loading="loadingMerchants"
+          :data="merchantTree"
+          node-key="merchantId"
+          default-expand-all
+          :props="{ label: 'label', children: 'children' }"
+          class="org-tree"
+        >
+          <template #default="{ data }">
+            <div class="org-node">
+              <div class="org-node__meta">
+                <strong>{{ data.merchantName || data.merchantId }}</strong>
+                <small>{{ data.merchantId }} · 设备 {{ data.deviceCount || 0 }}</small>
+              </div>
+              <div class="org-node__actions">
+                <el-button v-if="canEdit" link type="primary" @click.stop="openOrgEdit(data)">编辑</el-button>
+                <el-button v-if="canEdit" link @click.stop="openAssignDevices(data)">挂载货柜</el-button>
+              </div>
+            </div>
+          </template>
+        </el-tree>
+      </el-tab-pane>
+
       <el-tab-pane label="商户列表" name="merchants">
         <div class="table-scroll">
           <div class="table-scroll-inner" style="min-width: 920px">
@@ -206,6 +241,59 @@
         <el-button type="primary" :loading="acting" @click="confirmSubmit">确认提交</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="orgDialog" :title="orgForm.editing ? '编辑商户组织' : '新建商户'" width="520px" destroy-on-close>
+      <el-form label-position="top">
+        <el-form-item label="商户 ID">
+          <el-input v-model="orgForm.merchantId" :disabled="orgForm.editing" placeholder="如 MCH-EAST" />
+        </el-form-item>
+        <el-form-item label="名称">
+          <el-input v-model="orgForm.merchantName" placeholder="组织 / 商户名称" />
+        </el-form-item>
+        <el-form-item label="上级商户">
+          <el-select v-model="orgForm.parentMerchantId" clearable filterable placeholder="无上级（根节点）" style="width: 100%">
+            <el-option
+              v-for="m in parentOptions"
+              :key="m.merchantId"
+              :label="`${m.merchantName}（${m.merchantId}）`"
+              :value="m.merchantId"
+              :disabled="m.merchantId === orgForm.merchantId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="抽成（bps，1000=10%）">
+          <el-input-number v-model="orgForm.platformRateBps" :min="0" :max="10000" :step="100" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="orgDialog = false">取消</el-button>
+        <el-button type="primary" :loading="orgSaving" @click="saveOrg">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="assignDialog" title="挂载货柜到商户" width="560px" destroy-on-close>
+      <p class="dialog-hint">将设备归属到 <strong>{{ assignTarget?.merchantName || assignTarget?.merchantId }}</strong></p>
+      <el-select
+        v-model="assignDeviceIds"
+        multiple
+        filterable
+        collapse-tags
+        collapse-tags-tooltip
+        placeholder="选择货柜"
+        style="width: 100%"
+      >
+        <el-option
+          v-for="d in allDevices"
+          :key="d.deviceId"
+          :label="`${d.deviceName || d.deviceId}${d.merchantId ? ` · 当前 ${d.merchantId}` : ''}`"
+          :value="d.deviceId"
+        />
+      </el-select>
+      <template #footer>
+        <el-button @click="assignDialog = false">取消</el-button>
+        <el-button type="primary" :loading="assignSaving" @click="saveAssignDevices">保存归属</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -229,7 +317,7 @@ const auth = useAuthStore();
 const canEdit = computed(() => auth.hasPerm('ops:merchant:edit'));
 const canSplit = computed(() => auth.hasPerm('ops:merchant:split'));
 
-const tab = ref('merchants');
+const tab = ref('org');
 const loading = ref(false);
 const loadingMerchants = ref(false);
 const loadingStatus = ref(false);
@@ -246,6 +334,46 @@ const psStatus = ref<ProfitSharingStatus | null>(null);
 const submitDialog = ref(false);
 const wxTransactionId = ref('');
 const current = ref<RevenueSplit | null>(null);
+
+const orgDialog = ref(false);
+const orgSaving = ref(false);
+const orgForm = ref({
+  editing: false,
+  merchantId: '',
+  merchantName: '',
+  parentMerchantId: '' as string | null,
+  platformRateBps: 1000
+});
+const assignDialog = ref(false);
+const assignSaving = ref(false);
+const assignTarget = ref<MerchantDto | null>(null);
+const assignDeviceIds = ref<string[]>([]);
+const allDevices = ref<{ deviceId: string; deviceName?: string; merchantId?: string }[]>([]);
+
+type OrgNode = MerchantDto & { label: string; children: OrgNode[] };
+
+const merchantTree = computed(() => {
+  const map = new Map<string, OrgNode>();
+  for (const m of merchants.value) {
+    map.set(m.merchantId, {
+      ...m,
+      label: m.merchantName || m.merchantId,
+      children: []
+    });
+  }
+  const roots: OrgNode[] = [];
+  for (const node of map.values()) {
+    const parentId = node.parentMerchantId || '';
+    if (parentId && map.has(parentId) && parentId !== node.merchantId) {
+      map.get(parentId)!.children.push(node);
+    } else {
+      roots.push(node);
+    }
+  }
+  return roots;
+});
+
+const parentOptions = computed(() => merchants.value);
 
 const {
   onSelectionChange: onMerchantsSelectionChange,
@@ -476,6 +604,7 @@ async function toggleFlag(row: MerchantDto, kind: 'planogram' | 'pricing', value
       wechatReceiverId: row.wechatReceiverId,
       status: row.status,
       remark: row.remark,
+      parentMerchantId: row.parentMerchantId ?? '',
       allowMerchantPlanogramEdit: kind === 'planogram' ? value : row.allowMerchantPlanogramEdit,
       allowMerchantPricingEdit: kind === 'pricing' ? value : row.allowMerchantPricingEdit
     });
@@ -487,9 +616,114 @@ async function toggleFlag(row: MerchantDto, kind: 'planogram' | 'pricing', value
   }
 }
 
+function openOrgEdit(row?: MerchantDto) {
+  if (row) {
+    orgForm.value = {
+      editing: true,
+      merchantId: row.merchantId,
+      merchantName: row.merchantName || '',
+      parentMerchantId: row.parentMerchantId || '',
+      platformRateBps: row.platformRateBps ?? 1000
+    };
+  } else {
+    orgForm.value = {
+      editing: false,
+      merchantId: '',
+      merchantName: '',
+      parentMerchantId: '',
+      platformRateBps: 1000
+    };
+  }
+  orgDialog.value = true;
+}
+
+async function saveOrg() {
+  const f = orgForm.value;
+  if (!f.merchantId.trim() || !f.merchantName.trim()) {
+    ElMessage.warning('请填写商户 ID 与名称');
+    return;
+  }
+  orgSaving.value = true;
+  try {
+    const existing = merchants.value.find((m) => m.merchantId === f.merchantId.trim());
+    await api.request('/api/v2/ops/admin/merchants', 'POST', {
+      merchantId: f.merchantId.trim(),
+      merchantName: f.merchantName.trim(),
+      contactPhone: existing?.contactPhone,
+      platformRateBps: f.platformRateBps,
+      wechatReceiverId: existing?.wechatReceiverId,
+      status: existing?.status || 'ACTIVE',
+      remark: existing?.remark,
+      parentMerchantId: f.parentMerchantId || '',
+      allowMerchantPlanogramEdit: existing?.allowMerchantPlanogramEdit ?? false,
+      allowMerchantPricingEdit: existing?.allowMerchantPricingEdit ?? false
+    });
+    ElMessage.success('已保存组织');
+    orgDialog.value = false;
+    await loadMerchants();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    orgSaving.value = false;
+  }
+}
+
+async function openAssignDevices(row: MerchantDto) {
+  assignTarget.value = row;
+  assignDialog.value = true;
+  try {
+    if (!allDevices.value.length) {
+      allDevices.value = await api.request('/api/v2/ops/admin/devices?page=0&size=200', 'GET').then((page: any) =>
+        page?.items || page || []
+      );
+    }
+    assignDeviceIds.value = allDevices.value
+      .filter((d) => d.merchantId === row.merchantId)
+      .map((d) => d.deviceId);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载设备失败');
+  }
+}
+
+async function saveAssignDevices() {
+  if (!assignTarget.value) return;
+  assignSaving.value = true;
+  try {
+    const targetId = assignTarget.value.merchantId;
+    const selected = new Set(assignDeviceIds.value);
+    const jobs: Promise<unknown>[] = [];
+    for (const d of allDevices.value) {
+      const shouldBelong = selected.has(d.deviceId);
+      const belongs = d.merchantId === targetId;
+      if (shouldBelong && !belongs) {
+        jobs.push(
+          api.request(`/api/v2/ops/admin/devices/${encodeURIComponent(d.deviceId)}`, 'PATCH', {
+            merchantId: targetId
+          })
+        );
+      } else if (!shouldBelong && belongs) {
+        jobs.push(
+          api.request(`/api/v2/ops/admin/devices/${encodeURIComponent(d.deviceId)}`, 'PATCH', {
+            merchantId: ''
+          })
+        );
+      }
+    }
+    await Promise.all(jobs);
+    ElMessage.success('货柜归属已更新');
+    assignDialog.value = false;
+    allDevices.value = [];
+    await loadMerchants();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    assignSaving.value = false;
+  }
+}
+
 function applyRouteQuery() {
   let changed = false;
-  if (route.query.tab === 'merchants' || route.query.tab === 'splits') {
+  if (route.query.tab === 'merchants' || route.query.tab === 'splits' || route.query.tab === 'org') {
     if (tab.value !== String(route.query.tab)) {
       tab.value = String(route.query.tab);
       changed = true;
@@ -559,4 +793,22 @@ onActivated(() => {
 .muted { color: var(--layout-muted); font-size: 13px; }
 .dialog-hint { margin: 0 0 12px; color: var(--layout-muted); line-height: 1.5; }
 .dialog-hint code { font-size: 12px; }
+.org-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+.org-tree {
+  padding: 8px 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  min-height: 240px;
+}
+.org-node {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 8px;
+}
+.org-node__meta { display: grid; gap: 2px; min-width: 0; }
+.org-node__meta small { color: var(--el-text-color-secondary); font-size: 12px; }
+.org-node__actions { display: flex; gap: 4px; flex-shrink: 0; }
 </style>

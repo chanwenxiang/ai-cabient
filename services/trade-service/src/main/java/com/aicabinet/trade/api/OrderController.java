@@ -8,6 +8,7 @@ import com.aicabinet.common.dto.OrderSummaryDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.service.OrderService;
+import com.aicabinet.trade.service.UnpaidOrderService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,9 +24,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class OrderController {
 
     private final OrderService orderService;
+    private final UnpaidOrderService unpaidOrderService;
 
-    public OrderController(OrderService orderService) {
+    public OrderController(OrderService orderService, UnpaidOrderService unpaidOrderService) {
         this.orderService = orderService;
+        this.unpaidOrderService = unpaidOrderService;
     }
 
     @GetMapping
@@ -43,6 +46,14 @@ public class OrderController {
             @PathVariable("orderId") String orderId) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return ApiResponse.ok(orderService.getMyOrder(userId, orderId));
+    }
+
+    @PostMapping("/{orderId}/pay")
+    public ApiResponse<OrderDto> payPending(
+            HttpServletRequest request,
+            @PathVariable("orderId") String orderId) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(unpaidOrderService.collectByUser(userId, orderId));
     }
 
     @PostMapping("/{orderId}/refund")

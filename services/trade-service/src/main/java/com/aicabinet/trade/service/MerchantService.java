@@ -101,6 +101,24 @@ public class MerchantService {
         if (request.allowMerchantPricingEdit() != null) {
             merchant.setAllowMerchantPricingEdit(request.allowMerchantPricingEdit());
         }
+        String parentId = blankToNull(request.parentMerchantId());
+        if (parentId != null) {
+            if (parentId.equals(merchantId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级商户不能是自己");
+            }
+            Merchant parent = merchantRepository.findById(parentId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级商户不存在"));
+            merchantScopeService.requireMerchantAccess(operatorId, parentId);
+            // 禁止成环：parent 不能落在自己的下级树里
+            Set<String> descendants = merchantScopeService.expandWithDescendants(Set.of(merchantId));
+            if (descendants.contains(parentId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "上级商户不能落在本节点下级");
+            }
+            merchant.setParentMerchantId(parent.getMerchantId());
+        } else if (request.parentMerchantId() != null) {
+            // 显式传空串：清空上级
+            merchant.setParentMerchantId(null);
+        }
         merchantRepository.save(merchant);
         auditService.record(operatorId, isNew ? "MERCHANT_CREATE" : "MERCHANT_UPDATE",
                 "MERCHANT", merchantId, merchant.getMerchantName());
@@ -235,6 +253,7 @@ public class MerchantService {
                 m.getPlatformRateBps(), m.getWechatReceiverId(), m.getStatus(),
                 m.getRemark(), deviceCount,
                 m.isAllowMerchantPlanogramEdit(), m.isAllowMerchantPricingEdit(),
+                m.getParentMerchantId(),
                 m.getCreatedAt(), m.getUpdatedAt());
     }
 

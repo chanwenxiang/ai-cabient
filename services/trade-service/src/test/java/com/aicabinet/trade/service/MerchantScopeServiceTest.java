@@ -7,6 +7,7 @@ import com.aicabinet.trade.domain.OpsUserRole;
 import com.aicabinet.trade.domain.OpsUserRoleId;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OpsRoleMapper;
 import com.aicabinet.trade.mapper.OpsUserMerchantMapper;
 import com.aicabinet.trade.mapper.OpsUserRoleMapper;
@@ -24,6 +25,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -43,6 +45,8 @@ class MerchantScopeServiceTest {
     @Mock
     private DeviceInfoMapper deviceRepository;
     @Mock
+    private MerchantMapper merchantRepository;
+    @Mock
     private CabinetMetrics cabinetMetrics;
 
     private MerchantScopeService merchantScopeService;
@@ -50,7 +54,9 @@ class MerchantScopeServiceTest {
     @BeforeEach
     void setUp() {
         merchantScopeService = new MerchantScopeService(
-                userMerchantRepository, userRoleRepository, roleRepository, deviceRepository, cabinetMetrics);
+                userMerchantRepository, userRoleRepository, roleRepository,
+                deviceRepository, merchantRepository, cabinetMetrics);
+        lenient().when(merchantRepository.findAll()).thenReturn(List.of());
     }
 
     @Test

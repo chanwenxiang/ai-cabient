@@ -909,6 +909,7 @@ public class MerchantPortalService {
                 m.getPlatformRateBps(), m.getWechatReceiverId(), m.getStatus(),
                 m.getRemark(), deviceCount,
                 m.isAllowMerchantPlanogramEdit(), m.isAllowMerchantPricingEdit(),
+                m.getParentMerchantId(),
                 m.getCreatedAt(), m.getUpdatedAt()
         );
     }

@@ -183,11 +183,12 @@
     <el-drawer
       v-if="detailVisible"
       v-model="detailVisible"
-      title="争议工单详情"
-      size="520px"
+      title="争议审单工作台"
+      size="880px"
       append-to-body
       destroy-on-close
-      @closed="resolveFeedback = null"
+      class="dispute-workbench"
+      @closed="onDetailClosed"
     >
       <el-alert
         v-if="resolveFeedback"
@@ -198,101 +199,146 @@
         :closable="false"
         class="resolve-feedback"
       />
-      <el-descriptions v-if="selected" :column="1" border size="small">
-        <el-descriptions-item label="工单">
-          <span class="cell-id">{{ selected.ticketId }}</span>
-        </el-descriptions-item>
-        <el-descriptions-item label="会话">
-          <button
-            v-if="selected.sessionId"
-            type="button"
-            class="link-cell mono"
-            @click="goSessions(selected.deviceId)"
-          >{{ selected.sessionId }}</button>
-          <span v-else>-</span>
-        </el-descriptions-item>
-        <el-descriptions-item label="设备">
-          <button
-            v-if="selected.deviceId"
-            type="button"
-            class="link-cell"
-            @click="goDevice(selected.deviceId)"
-          >{{ selected.deviceId }}</button>
-          <span v-else>-</span>
-        </el-descriptions-item>
-        <el-descriptions-item label="原因">
-          <div class="reason-block">
-            <span>{{ selected.reason || '-' }}</span>
-            <el-tag
-              v-if="confidenceHint(selected)"
-              size="small"
-              :type="reviewChipType(selected)"
-              effect="plain"
-            >
-              {{ confidenceHint(selected) }}
-            </el-tag>
+
+      <div v-if="selected" class="workbench-grid">
+        <section class="workbench-media">
+          <div class="items-title">会话录像</div>
+          <div v-if="embedVideoUrl" class="video-wrap">
+            <video :src="embedVideoUrl" controls playsinline class="session-video" />
           </div>
-        </el-descriptions-item>
-        <el-descriptions-item v-if="selected.detectedClasses?.length" label="检出类">
-          <div class="detected-classes">
-            {{ selected.detectedClasses.join('、') }}
+          <el-empty v-else-if="!videoLoading" description="暂无录像或加载失败" :image-size="72" />
+          <div v-else class="video-loading">录像加载中…</div>
+          <div class="drawer-actions drawer-actions--review">
             <el-button
-              v-if="selected.reviewCode === 'UNMAPPED' || selected.detectedClasses.length"
+              v-if="selected.sessionId"
+              type="warning"
+              :loading="videoLoading"
+              @click="loadEmbedVideo(selected.sessionId, true)"
+            >重新加载录像</el-button>
+            <el-button
+              v-if="selected.sessionId"
               link
               type="primary"
-              @click="goVisionMapping(selected)"
-            >去映射</el-button>
+              @click="playVideo(selected.sessionId)"
+            >新窗口打开</el-button>
+            <el-button
+              v-if="selected.deviceId && canAccessPath('/exceptions')"
+              @click="goExceptions(selected.deviceId)"
+            >异常中心</el-button>
+            <el-button
+              v-if="selected.orderId || selected.deviceId"
+              @click="goOrders(selected.deviceId)"
+            >关联订单</el-button>
           </div>
-        </el-descriptions-item>
-        <el-descriptions-item label="已扣金额">¥{{ money(selected.billedAmountCents) }}</el-descriptions-item>
-        <el-descriptions-item label="状态">
-          <el-tag v-if="resolveFeedback || selected.status !== 'OPEN'" type="success" effect="light" size="small">
-            {{ resolveFeedback ? '已处理' : dictLabel('dispute_status', selected.status) }}
-          </el-tag>
-          <el-tag v-else size="small" type="warning">
-            {{ dictLabel('dispute_status', selected.status) }}
-          </el-tag>
-        </el-descriptions-item>
-        <el-descriptions-item v-if="selected.resolvedAt" label="处理时间">
-          {{ formatDateTime(selected.resolvedAt) }}
-        </el-descriptions-item>
-        <el-descriptions-item v-if="selected.orderId" label="关联订单">
-          <button type="button" class="link-cell mono" @click="goOrders(selected.deviceId)">
-            {{ selected.orderId }}
-          </button>
-        </el-descriptions-item>
-      </el-descriptions>
+        </section>
 
-      <div v-if="selected?.suggestedItems?.length" class="items-block">
-        <div class="items-title">识别建议清单</div>
-        <el-table :data="selected.suggestedItems" size="small" stripe border>
-          <el-table-column prop="skuName" label="商品" min-width="120" class-name="col-text" />
-          <el-table-column prop="skuId" label="SKU" min-width="100" class-name="col-text" show-overflow-tooltip />
-          <el-table-column prop="quantity" label="数量" width="72" align="center" />
-          <el-table-column label="单价" width="88" align="right">
-            <template #default="{ row }">¥{{ money(row.unitPriceCents) }}</template>
-          </el-table-column>
-        </el-table>
-      </div>
+        <section class="workbench-meta">
+          <el-descriptions :column="1" border size="small">
+            <el-descriptions-item label="工单">
+              <span class="cell-id">{{ selected.ticketId }}</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="会话">
+              <button
+                v-if="selected.sessionId"
+                type="button"
+                class="link-cell mono"
+                @click="goSessions(selected.deviceId)"
+              >{{ selected.sessionId }}</button>
+              <span v-else>-</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="设备">
+              <button
+                v-if="selected.deviceId"
+                type="button"
+                class="link-cell"
+                @click="goDevice(selected.deviceId)"
+              >{{ selected.deviceId }}</button>
+              <span v-else>-</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="原因">
+              <div class="reason-block">
+                <span>{{ selected.reason || '-' }}</span>
+                <el-tag
+                  v-if="confidenceHint(selected)"
+                  size="small"
+                  :type="reviewChipType(selected)"
+                  effect="plain"
+                >
+                  {{ confidenceHint(selected) }}
+                </el-tag>
+              </div>
+            </el-descriptions-item>
+            <el-descriptions-item v-if="selected.detectedClasses?.length" label="检出类">
+              <div class="detected-classes">
+                {{ selected.detectedClasses.join('、') }}
+                <el-button
+                  v-if="selected.reviewCode === 'UNMAPPED' || selected.detectedClasses.length"
+                  link
+                  type="primary"
+                  @click="goVisionMapping(selected)"
+                >去映射</el-button>
+              </div>
+            </el-descriptions-item>
+            <el-descriptions-item label="已扣金额">¥{{ money(selected.billedAmountCents) }}</el-descriptions-item>
+            <el-descriptions-item label="状态">
+              <el-tag v-if="resolveFeedback || selected.status !== 'OPEN'" type="success" effect="light" size="small">
+                {{ resolveFeedback ? '已处理' : dictLabel('dispute_status', selected.status) }}
+              </el-tag>
+              <el-tag v-else size="small" type="warning">
+                {{ dictLabel('dispute_status', selected.status) }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item v-if="selected.resolvedAt" label="处理时间">
+              {{ formatDateTime(selected.resolvedAt) }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="selected.orderId" label="关联订单">
+              <button type="button" class="link-cell mono" @click="goOrders(selected.deviceId)">
+                {{ selected.orderId }}
+              </button>
+            </el-descriptions-item>
+          </el-descriptions>
 
-      <div v-if="selected" class="drawer-actions drawer-actions--review">
-        <el-button
-          v-if="selected.sessionId"
-          type="warning"
-          :loading="videoLoading"
-          @click="playVideo(selected.sessionId)"
-        >播放会话录像</el-button>
-        <el-button
-          v-if="selected.deviceId && canAccessPath('/exceptions')"
-          @click="goExceptions(selected.deviceId)"
-        >异常中心</el-button>
-        <el-button
-          v-if="selected.orderId || selected.deviceId"
-          @click="goOrders(selected.deviceId)"
-        >关联订单</el-button>
+          <div v-if="selected.suggestedItems?.length" class="items-block">
+            <div class="items-title">识别建议（只读）</div>
+            <el-table :data="selected.suggestedItems" size="small" stripe border>
+              <el-table-column prop="skuName" label="商品" min-width="120" class-name="col-text" />
+              <el-table-column prop="skuId" label="SKU" min-width="100" class-name="col-text" show-overflow-tooltip />
+              <el-table-column prop="quantity" label="数量" width="72" align="center" />
+              <el-table-column label="单价" width="88" align="right">
+                <template #default="{ row }">¥{{ money(row.unitPriceCents) }}</template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </section>
       </div>
 
       <div v-if="selected?.status === 'OPEN'" class="drawer-actions">
+        <div class="items-block adjust-block">
+          <div class="items-title">调整明细（落账依据）</div>
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+            title="对照左侧录像修改 SKU / 数量后，用「按调整明细落账」写回账单差额。"
+            class="suggest-alert"
+          />
+          <div class="manual-lines">
+            <div v-for="(line, index) in draftLines" :key="index" class="manual-line">
+              <el-select v-model="line.skuId" filterable placeholder="选择商品" style="flex: 1">
+                <el-option
+                  v-for="sku in skus"
+                  :key="sku.skuId"
+                  :label="`${sku.skuName}（¥${((sku.priceCents || 0) / 100).toFixed(2)}）`"
+                  :value="sku.skuId"
+                />
+              </el-select>
+              <el-input-number v-model="line.quantity" :min="1" :max="99" />
+              <el-button type="danger" link @click="draftLines.splice(index, 1)">删除</el-button>
+            </div>
+            <el-button @click="draftLines.push({ skuId: '', quantity: 1 })">添加商品</el-button>
+            <el-button link type="primary" @click="resetDraftFromSuggested">从识别建议填充</el-button>
+          </div>
+        </div>
         <div class="ai-suggest-block">
           <div class="items-title">DeepSeek 辅助识别</div>
           <input ref="disputeImageInput" type="file" accept="image/*" class="hidden-input" @change="onDisputeImagePick" />
@@ -319,9 +365,9 @@
           v-hasPermi="['ops:dispute:resolve']"
           type="success"
           :loading="resolving"
-          :disabled="!confirmItems.length"
-          @click="resolveSelected('CONFIRM')"
-        >确认扣款</el-button>
+          :disabled="!draftConfirmItems.length"
+          @click="resolveSelected('ADJUST')"
+        >按调整明细落账</el-button>
         <el-button
           v-hasPermi="['ops:dispute:resolve']"
           type="danger"
@@ -358,12 +404,16 @@ interface ResolveDisputeResultDto {
   message?: string;
 }
 
+type SkuOption = { skuId: string; skuName: string; priceCents?: number };
+
 const route = useRoute();
 const router = useRouter();
 const { canAccessPath, goPath } = useNavAccess();
-const { playSessionVideo } = useSessionVideo();
+const { playSessionVideo, fetchSessionVideoBlob } = useSessionVideo();
 const loading = ref(false);
 const videoLoading = ref(false);
+const embedVideoUrl = ref('');
+let embedVideoRevoke: (() => void) | null = null;
 const status = ref('OPEN');
 const categoryTab = ref('ALL');
 const reviewCodeTab = ref('ALL');
@@ -378,6 +428,8 @@ const suggestingDispute = ref(false);
 const disputeSuggestHint = ref('');
 const disputeImageInput = ref<HTMLInputElement | null>(null);
 const resolveFeedback = ref<{ message: string } | null>(null);
+const skus = ref<SkuOption[]>([]);
+const draftLines = ref<{ skuId: string; quantity: number }[]>([]);
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<DisputeTicketDto>((r) => r.ticketId);
@@ -412,11 +464,60 @@ const emptyHint = computed(() => {
 
 const hasPriorBill = computed(() => (selected.value?.billedAmountCents || 0) > 0);
 
-const confirmItems = computed(() =>
-  (selected.value?.suggestedItems || [])
-    .filter((line: OrderLineDto) => line.skuId && (line.quantity || 0) > 0)
-    .map((line: OrderLineDto) => ({ skuId: line.skuId, quantity: line.quantity }))
+const draftConfirmItems = computed(() =>
+  draftLines.value
+    .filter((line) => line.skuId && (line.quantity || 0) > 0)
+    .map((line) => ({ skuId: line.skuId, quantity: line.quantity }))
 );
+
+function resetDraftFromSuggested() {
+  const suggested = selected.value?.suggestedItems || [];
+  draftLines.value = suggested
+    .filter((line: OrderLineDto) => line.skuId && (line.quantity || 0) > 0)
+    .map((line: OrderLineDto) => ({ skuId: String(line.skuId), quantity: Number(line.quantity) || 1 }));
+  if (!draftLines.value.length) {
+    draftLines.value = [{ skuId: '', quantity: 1 }];
+  }
+}
+
+async function ensureSkusLoaded() {
+  if (skus.value.length) return;
+  try {
+    skus.value = await api.request<SkuOption[]>('/api/v2/ops/admin/skus', 'GET');
+  } catch {
+    skus.value = [];
+  }
+}
+
+function clearEmbedVideo() {
+  if (embedVideoRevoke) {
+    embedVideoRevoke();
+    embedVideoRevoke = null;
+  }
+  embedVideoUrl.value = '';
+}
+
+function onDetailClosed() {
+  resolveFeedback.value = null;
+  clearEmbedVideo();
+  draftLines.value = [];
+}
+
+async function loadEmbedVideo(sessionId?: string, force = false) {
+  if (!sessionId) return;
+  if (embedVideoUrl.value && !force) return;
+  videoLoading.value = true;
+  try {
+    clearEmbedVideo();
+    const { url, revoke } = await fetchSessionVideoBlob(sessionId);
+    embedVideoUrl.value = url;
+    embedVideoRevoke = revoke;
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '录像加载失败');
+  } finally {
+    videoLoading.value = false;
+  }
+}
 
 function money(cents?: number) {
   return ((cents || 0) / 100).toFixed(2);
@@ -528,6 +629,9 @@ function openDetail(row: DisputeTicketDto) {
   disputeSuggestHint.value = '';
   selected.value = row;
   detailVisible.value = true;
+  resetDraftFromSuggested();
+  void ensureSkusLoaded();
+  if (row.sessionId) void loadEmbedVideo(row.sessionId);
 }
 
 function triggerDisputeImage() {
@@ -572,6 +676,7 @@ async function onDisputeImagePick(ev: Event) {
           lineAmountCents: 0
         }))
       };
+      resetDraftFromSuggested();
     }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : 'DeepSeek 建议失败');
@@ -601,13 +706,18 @@ function applyResolvedTicket(result: ResolveDisputeResultDto) {
   resolveFeedback.value = { message: result.message || '争议已结案' };
 }
 
-async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM') {
+async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST') {
   if (!selected.value || resolving.value) return;
-  const action = resolutionType === 'KEEP'
-    ? '维持原账单'
-    : resolutionType === 'WAIVE'
-      ? '免单并退回全部已扣余额'
-      : '按识别建议清单确认扣款';
+  const action =
+    resolutionType === 'KEEP'
+      ? '维持原账单'
+      : resolutionType === 'WAIVE'
+        ? '免单并退回全部已扣余额'
+        : '按调整明细落账（可能补扣或退差）';
+  if ((resolutionType === 'ADJUST' || resolutionType === 'CONFIRM') && !draftConfirmItems.value.length) {
+    ElMessage.warning('请先填写至少一行有效商品');
+    return;
+  }
   await ElMessageBox.confirm(`确认${action}？该操作会写入资金与审计记录。`, '确认争议处理', {
     type: resolutionType === 'WAIVE' ? 'warning' : 'info',
     confirmButtonText: '确认处理',
@@ -620,7 +730,8 @@ async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM') {
       'POST',
       {
         resolutionType,
-        items: resolutionType === 'CONFIRM' ? confirmItems.value : []
+        items:
+          resolutionType === 'ADJUST' || resolutionType === 'CONFIRM' ? draftConfirmItems.value : []
       }
     );
     applyResolvedTicket(result);
@@ -732,6 +843,7 @@ onActivated(async () => {
   detailVisible.value = false;
   selected.value = null;
   resolveFeedback.value = null;
+  clearEmbedVideo();
   if (applyRouteQuery()) {
     page.value = 1;
     await load(false);
@@ -740,6 +852,7 @@ onActivated(async () => {
 onDeactivated(() => {
   detailVisible.value = false;
   selected.value = null;
+  clearEmbedVideo();
 });
 onMounted(async () => {
   applyRouteQuery();
@@ -819,4 +932,37 @@ onMounted(async () => {
 .ai-suggest-block { width: 100%; margin-bottom: 12px; }
 .suggest-alert { margin-top: 8px; }
 .hidden-input { display: none; }
+.workbench-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.1fr) minmax(280px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.workbench-media,
+.workbench-meta { min-width: 0; }
+.video-wrap {
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0f172a;
+}
+.session-video {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  background: #0f172a;
+}
+.video-loading {
+  padding: 48px 12px;
+  text-align: center;
+  color: var(--el-text-color-secondary);
+  border: 1px dashed var(--el-border-color);
+  border-radius: 8px;
+}
+.adjust-block { width: 100%; }
+.manual-lines { display: grid; gap: 10px; margin-top: 10px; }
+.manual-line { display: flex; gap: 8px; align-items: center; }
+@media (max-width: 900px) {
+  .workbench-grid { grid-template-columns: 1fr; }
+}
 </style>

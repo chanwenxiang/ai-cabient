@@ -228,6 +228,23 @@
               @click="playVideo(detail.sessionId)"
             >播放会话录像</el-button>
             <el-button
+              v-if="detail.status === 'PENDING' && auth.hasPerm('ops:order:remind')"
+              type="warning"
+              @click="remindOrder(detail)"
+            >催付</el-button>
+            <el-button
+              v-if="detail.status === 'PENDING' && (auth.hasPerm('ops:order:remind') || auth.hasPerm('ops:order:cancel') || auth.hasPerm('ops:order:refund'))"
+              type="success"
+              plain
+              @click="collectUnpaid(detail)"
+            >补扣收款</el-button>
+            <el-button
+              v-if="detail.status === 'PENDING' && auth.hasPerm('ops:order:cancel')"
+              type="danger"
+              plain
+              @click="cancelUnpaid(detail)"
+            >关单</el-button>
+            <el-button
               v-if="canRefund(detail.status) && auth.hasPerm('ops:order:refund')"
               type="danger"
               :loading="refundingId === detail.orderId"
@@ -274,7 +291,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { CopyDocument, Link, Refresh, VideoCamera, View, Wallet } from '@element-plus/icons-vue';
+import { CopyDocument, Link, Refresh, VideoCamera, View, Wallet, Bell, CircleClose, Coin } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
@@ -424,6 +441,15 @@ function orderRowClass({ row }: { row: OrderSummary }) {
 function rowActions(row: OrderSummary): TableAction[] {
   const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
   if (row.status === 'PENDING') {
+    if (auth.hasPerm('ops:order:remind')) {
+      actions.push({ key: 'remind', label: '催付', icon: Bell, type: 'warning' });
+    }
+    if (auth.hasPerm('ops:order:remind') || auth.hasPerm('ops:order:cancel') || auth.hasPerm('ops:order:refund')) {
+      actions.push({ key: 'collect', label: '补扣', icon: Coin, overflow: true });
+    }
+    if (auth.hasPerm('ops:order:cancel')) {
+      actions.push({ key: 'cancel', label: '关单', icon: CircleClose, type: 'danger', overflow: true });
+    }
     actions.push({ key: 'copy', label: '复制单号', icon: CopyDocument, overflow: true });
     if (row.sessionId) {
       actions.push({ key: 'session', label: '会话', icon: Link, overflow: true });
@@ -450,6 +476,9 @@ function onRowAction(key: string, row: OrderSummary) {
   if (key === 'video') playVideo(row.sessionId);
   if (key === 'copy') copyOrderId(row.orderId);
   if (key === 'session') goSessions(row.deviceId);
+  if (key === 'remind') remindOrder(row);
+  if (key === 'cancel') cancelUnpaid(row);
+  if (key === 'collect') collectUnpaid(row);
 }
 
 async function copyOrderId(orderId?: string) {
@@ -525,6 +554,83 @@ async function refundOrder(row: { orderId: string; status?: string }) {
     }
   } finally {
     refundingId.value = '';
+  }
+}
+
+async function remindOrder(row: { orderId: string }) {
+  try {
+    await ElMessageBox.confirm(`向用户发送订单 ${row.orderId} 的催付提醒？`, '催付', {
+      confirmButtonText: '发送催付',
+      type: 'warning'
+    });
+    const result = await api.request<{ message?: string; notified?: boolean }>(
+      `/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}/remind`,
+      'POST'
+    );
+    ElMessage.success(result.message || '催付已处理');
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '催付失败');
+    }
+  }
+}
+
+async function collectUnpaid(row: { orderId: string }) {
+  try {
+    await ElMessageBox.confirm(
+      `确认对订单 ${row.orderId} 立即补扣？需用户余额/免密足够。`,
+      '补扣收款',
+      { confirmButtonText: '确认补扣', type: 'warning' }
+    );
+    await api.request(`/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}/collect`, 'POST');
+    ElMessage.success('补扣成功');
+    if (detailOpen.value && detail.value?.orderId === row.orderId) {
+      await openDetail(row as OrderSummary);
+    }
+    await load();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '补扣失败');
+    }
+  }
+}
+
+async function cancelUnpaid(row: { orderId: string }) {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `关闭待支付订单 ${row.orderId} 将回滚库存。可选同时拉黑用户。`,
+      '关闭待支付',
+      {
+        inputPlaceholder: '关单原因（至少4字）',
+        inputValidator: (v) => !!String(v || '').trim() && String(v).trim().length >= 4 || '请填写至少4字原因',
+        confirmButtonText: '仅关单',
+        distinguishCancelAndClose: true,
+        type: 'warning'
+      }
+    );
+    let blacklist = false;
+    try {
+      await ElMessageBox.confirm('是否同时拉黑该用户 30 天？', '风控联动', {
+        confirmButtonText: '关单并拉黑',
+        cancelButtonText: '仅关单',
+        type: 'warning'
+      });
+      blacklist = true;
+    } catch (inner: any) {
+      if (inner !== 'cancel' && inner !== 'close') throw inner;
+    }
+    const result = await api.request<{ message?: string }>(
+      `/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}/cancel`,
+      'POST',
+      { reason: String(value).trim(), blacklist }
+    );
+    ElMessage.success(result.message || '已关单');
+    detailOpen.value = false;
+    await load();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '关单失败');
+    }
   }
 }
 

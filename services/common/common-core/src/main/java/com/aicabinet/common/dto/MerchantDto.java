@@ -15,6 +15,7 @@ public record MerchantDto(
         long deviceCount,
         boolean allowMerchantPlanogramEdit,
         boolean allowMerchantPricingEdit,
+        String parentMerchantId,
         Instant createdAt,
         Instant updatedAt
 ) {}

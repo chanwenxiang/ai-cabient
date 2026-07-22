@@ -51,6 +51,7 @@ public class AdminDeviceOpsService {
             case "LOCK" -> lock(operatorId, device, reason, true);
             case "UNLOCK" -> lock(operatorId, device, reason, false);
             case "REBOOT" -> reboot(operatorId, device, reason);
+            case "SET_TEMP" -> setTemp(operatorId, device, reason, request.targetTempC());
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的指令: " + cmd);
         };
     }
@@ -102,5 +103,33 @@ public class AdminDeviceOpsService {
                 reason + "; commandId=" + commandId);
         return new DeviceOpsCommandResultDto(device.getDeviceId(), "REBOOT", commandId,
                 "重启指令已下发", device.salesLockedEnabled());
+    }
+
+    private DeviceOpsCommandResultDto setTemp(Long operatorId, DeviceInfo device, String reason,
+                                              Integer targetTempC) {
+        if (targetTempC == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写目标温度");
+        }
+        if (targetTempC < -30 || targetTempC > 30) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "目标温度应在 -30°C ~ 30°C 之间");
+        }
+        device.setTargetTempC(targetTempC);
+        deviceRepository.save(device);
+        String commandId = "LOCAL-" + UUID.randomUUID().toString().substring(0, 8);
+        String message = "目标温度已保存为 " + targetTempC + "°C";
+        if ("ONLINE".equalsIgnoreCase(device.getOnlineStatus())) {
+            try {
+                commandId = deviceClient.requestSetTargetTemp(device.getDeviceId(), targetTempC);
+                message = "已向柜机下发目标温度 " + targetTempC + "°C";
+            } catch (Exception e) {
+                message = "设置已保存，柜机指令下发失败（请确认 device-service 在线）";
+            }
+        } else {
+            message = "设置已保存，柜机离线时请上线后重新下发";
+        }
+        auditService.record(operatorId, "DEVICE_SET_TEMP", "DEVICE", device.getDeviceId(),
+                reason + "; targetTempC=" + targetTempC + "; commandId=" + commandId);
+        return new DeviceOpsCommandResultDto(device.getDeviceId(), "SET_TEMP", commandId,
+                message, device.salesLockedEnabled());
     }
 }

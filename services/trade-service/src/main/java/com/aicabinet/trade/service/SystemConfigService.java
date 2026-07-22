@@ -26,6 +26,12 @@ public class SystemConfigService {
     public static final String SETTLEMENT_MIN_CONFIDENCE = "settlement.min_confidence";
     public static final String DISPUTE_AUTO_OPEN = "dispute.auto_open";
     public static final String REFUND_DEFAULT_POLICY = "refund.default_policy";
+    /** 待支付订单超时自动关单小时数；0=关闭自动关单。 */
+    public static final String UNPAID_AUTO_CANCEL_HOURS = "order.unpaid.auto_cancel_hours";
+    /** 超时关单时是否自动拉黑用户。 */
+    public static final String UNPAID_AUTO_BLACKLIST = "order.unpaid.auto_blacklist";
+    /** 设备离线超过该分钟数后自动锁机停售；0=不自动锁机。 */
+    public static final String DEVICE_OFFLINE_AUTO_LOCK_MINUTES = "device.offline.auto_sales_lock_minutes";
 
     private final SystemConfigMapper repository;
     private final SecurityProperties securityProperties;
@@ -51,6 +57,28 @@ public class SystemConfigService {
                 .map(SystemConfig::getConfigValue)
                 .filter(v -> !v.isBlank())
                 .orElse(defaultValue);
+    }
+
+    @Transactional(readOnly = true)
+    public int getInt(String key, int defaultValue) {
+        String raw = getValue(key, null);
+        if (raw == null || raw.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public boolean getBoolean(String key, boolean defaultValue) {
+        String raw = getValue(key, null);
+        if (raw == null || raw.isBlank()) {
+            return defaultValue;
+        }
+        return "true".equalsIgnoreCase(raw.trim()) || "1".equals(raw.trim());
     }
 
     @Transactional(readOnly = true)
@@ -110,6 +138,12 @@ public class SystemConfigService {
         upsertIfAbsent(DISPUTE_AUTO_OPEN, "true", "识别低置信是否自动开争议工单");
         upsertIfAbsent(REFUND_DEFAULT_POLICY, "AUTO_REFUND",
                 "全局默认退款策略：AUTO_REFUND=自助退款；DISPUTE_ONLY=仅申诉、运营审核后退款");
+        upsertIfAbsent(UNPAID_AUTO_CANCEL_HOURS, "48",
+                "待支付订单超时自动关单小时数；0=关闭");
+        upsertIfAbsent(UNPAID_AUTO_BLACKLIST, "false",
+                "待支付超时关单时是否自动拉黑用户");
+        upsertIfAbsent(DEVICE_OFFLINE_AUTO_LOCK_MINUTES, "10",
+                "设备离线超过该分钟数后自动锁机停售；0=不自动锁机");
     }
 
     private void upsertIfAbsent(String key, String value, String description) {

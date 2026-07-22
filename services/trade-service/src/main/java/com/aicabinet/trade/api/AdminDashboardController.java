@@ -7,6 +7,7 @@ import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.AdminDashboardService;
 import com.aicabinet.trade.service.AdminDeviceOpsService;
 import com.aicabinet.trade.service.DisputeService;
+import com.aicabinet.trade.service.UnpaidOrderService;
 import com.aicabinet.trade.support.CacheService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -26,15 +27,18 @@ public class AdminDashboardController {
     private final CacheService cacheService;
     private final DisputeService disputeService;
     private final AdminDeviceOpsService deviceOpsService;
+    private final UnpaidOrderService unpaidOrderService;
 
     public AdminDashboardController(AdminDashboardService adminService,
                                     CacheService cacheService,
                                     DisputeService disputeService,
-                                    AdminDeviceOpsService deviceOpsService) {
+                                    AdminDeviceOpsService deviceOpsService,
+                                    UnpaidOrderService unpaidOrderService) {
         this.adminService = adminService;
         this.cacheService = cacheService;
         this.disputeService = disputeService;
         this.deviceOpsService = deviceOpsService;
+        this.unpaidOrderService = unpaidOrderService;
     }
 
     @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
@@ -248,6 +252,32 @@ public class AdminDashboardController {
             @PathVariable("orderId") String orderId,
             @Valid @RequestBody OrderRefundRequest body) {
         return ApiResponse.ok(disputeService.refundByOperator(operatorId(request), orderId, body));
+    }
+
+    @RequiresPermissions("ops:order:remind")
+    @PostMapping("/orders/{orderId}/remind")
+    public ApiResponse<UnpaidOrderActionResultDto> remindUnpaidOrder(
+            HttpServletRequest request,
+            @PathVariable("orderId") String orderId) {
+        return ApiResponse.ok(unpaidOrderService.remind(operatorId(request), orderId));
+    }
+
+    @RequiresPermissions("ops:order:cancel")
+    @PostMapping("/orders/{orderId}/cancel")
+    public ApiResponse<UnpaidOrderActionResultDto> cancelUnpaidOrder(
+            HttpServletRequest request,
+            @PathVariable("orderId") String orderId,
+            @Valid @RequestBody CancelUnpaidOrderRequest body) {
+        return ApiResponse.ok(unpaidOrderService.cancel(operatorId(request), orderId, body));
+    }
+
+    @RequiresPermissions(value = {"ops:order:remind", "ops:order:cancel", "ops:order:refund"},
+            logical = RequiresPermissions.Logical.OR)
+    @PostMapping("/orders/{orderId}/collect")
+    public ApiResponse<OrderDto> collectUnpaidOrder(
+            HttpServletRequest request,
+            @PathVariable("orderId") String orderId) {
+        return ApiResponse.ok(unpaidOrderService.collect(operatorId(request), orderId));
     }
 
     @RequiresPermissions("ops:sku:list")
