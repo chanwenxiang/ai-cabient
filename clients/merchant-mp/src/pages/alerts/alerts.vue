@@ -3,6 +3,12 @@
     <view v-if="loading" class="card">加载中…</view>
     <view v-else-if="error" class="card"><text class="err">{{ error }}</text></view>
     <view v-else>
+      <view v-if="preferredId" class="pref-bar">
+        <text>常驻柜优先：{{ preferredId }}</text>
+        <text class="pref-toggle" @click="onlyPreferred = !onlyPreferred">
+          {{ onlyPreferred ? '显示全部' : '仅看常驻' }}
+        </text>
+      </view>
       <view class="kpi-grid">
         <view class="kpi-card dispute"><text class="n">{{ counts.disputes }}</text><text class="l">争议</text></view>
         <view class="kpi-card offline"><text class="n">{{ counts.offline }}</text><text class="l">离线</text></view>
@@ -10,11 +16,11 @@
         <view class="kpi-card expiry"><text class="n">{{ counts.expiry }}</text><text class="l">临期</text></view>
       </view>
 
-      <view v-for="(a, i) in items" :key="i" class="card alert-card" @click="handleItem(a)">
+      <view v-for="(a, i) in visibleItems" :key="i" class="card alert-card" @click="handleItem(a)">
         <text class="tag" :class="tagClass(a.type)">{{ a.typeLabel }}</text>
         <text class="title">{{ a.title }}</text>
         <text v-if="a.detail" class="meta">{{ a.detail }}</text>
-        <text v-if="a.deviceId" class="action">查看柜机 ›</text>
+        <text v-if="actionHint(a)" class="action">{{ actionHint(a) }}</text>
         <button
           v-if="canResolveInventory && a.exceptionId && isInventoryException(a.type)"
           class="resolve-btn"
@@ -23,7 +29,7 @@
         >完成库存核对</button>
       </view>
       <empty-state
-        v-if="!items.length"
+        v-if="!visibleItems.length"
         icon="✅"
         title="暂无待办事项"
         hint="争议、离线、低库存与临期告警都会集中显示在这里"
@@ -40,6 +46,7 @@ import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi, alertTypeLabel, merchantAlertTitle } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
+import { getPreferredDeviceId } from '@/utils/preferred-device';
 import type { MerchantMe } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -48,15 +55,43 @@ const canResolveInventory = computed(() => hasPerm(me.value, 'merchant:inventory
 
 const loading = ref(true);
 const error = ref('');
+const preferredId = ref('');
+const onlyPreferred = ref(false);
 const counts = ref({ disputes: 0, offline: 0, lowStock: 0, expiry: 0 });
-const items = ref<{ type: string; typeLabel: string; title: string; detail: string; deviceId?: string; ticketId?: string; exceptionId?: string }[]>([]);
+const items = ref<
+  {
+    type: string;
+    typeLabel: string;
+    title: string;
+    detail: string;
+    deviceId?: string;
+    ticketId?: string;
+    exceptionId?: string;
+  }[]
+>([]);
+
+const visibleItems = computed(() => {
+  if (!onlyPreferred.value || !preferredId.value) return items.value;
+  return items.value.filter((a) => !a.deviceId || a.deviceId === preferredId.value);
+});
 
 function tagClass(type: string) {
   if (type === 'DISPUTE') return 'dispute';
   if (type === 'DEVICE_OFFLINE') return 'offline';
   if (type === 'LOW_STOCK') return 'stock';
   if (type === 'EXPIRY') return 'expiry';
+  if (type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') return 'stock';
   return 'default';
+}
+
+function actionHint(item: { type: string; deviceId?: string; ticketId?: string }) {
+  const type = String(item.type || '').toUpperCase();
+  if (type === 'DISPUTE') return item.ticketId ? '去处理争议 ›' : '查看争议 ›';
+  if (type === 'EXPIRY') return '去处理临期任务 ›';
+  if (type === 'LOW_STOCK') return '去发起要货 ›';
+  if (type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') return '去补货任务 ›';
+  if (item.deviceId) return '查看柜机 ›';
+  return '';
 }
 
 async function load() {
@@ -74,14 +109,19 @@ async function load() {
     uni.switchTab({ url: '/pages/home/home' });
     return;
   }
+  preferredId.value = getPreferredDeviceId();
   loading.value = true;
   try {
-    const [wb, exceptionPage] = await Promise.all([merchantApi.workbench(), merchantApi.exceptions('OPEN')]);
+    const [wb, exceptionPage, expiryRows] = await Promise.all([
+      merchantApi.workbench(),
+      merchantApi.exceptions('OPEN'),
+      merchantApi.expiryAlerts().catch(() => [])
+    ]);
     counts.value = {
       disputes: wb.openDisputes || 0,
       offline: wb.offlineDevices || 0,
       lowStock: wb.lowStockItems || 0,
-      expiry: wb.expiryAlerts || 0
+      expiry: wb.expiryAlerts || (expiryRows || []).length || 0
     };
     const workbenchItems = (wb.actionItems || []).map((a) => ({
       type: a.type,
@@ -99,7 +139,23 @@ async function load() {
       deviceId: a.deviceId,
       exceptionId: a.exceptionId
     }));
-    items.value = [...exceptionItems, ...workbenchItems].slice(0, 20);
+    const expiryItems = (expiryRows || [])
+      .filter((e) => String(e.status || 'OPEN').toUpperCase() === 'OPEN')
+      .map((e) => ({
+        type: 'EXPIRY',
+        typeLabel: alertTypeLabel('EXPIRY'),
+        title: `${e.skuId || '商品'} · 临期/过期 ${e.quantity || 0} 件`,
+        detail: [e.deviceId, e.batchNo, e.reason].filter(Boolean).join(' · '),
+        deviceId: e.deviceId
+      }));
+    // Prefer structured expiry rows; keep workbench EXPIRY only if no expiry API rows
+    const hasExpiryApi = expiryItems.length > 0;
+    const merged = [
+      ...exceptionItems,
+      ...workbenchItems.filter((a) => !(hasExpiryApi && String(a.type).toUpperCase() === 'EXPIRY')),
+      ...expiryItems
+    ];
+    items.value = merged.slice(0, 30);
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
@@ -107,9 +163,26 @@ async function load() {
   }
 }
 
-function handleItem(item: { deviceId?: string }) {
+function handleItem(item: { type?: string; deviceId?: string; ticketId?: string }) {
+  const type = String(item.type || '').toUpperCase();
+  if (type === 'DISPUTE') {
+    uni.navigateTo({ url: '/pages/disputes/disputes' });
+    return;
+  }
+  if (type === 'EXPIRY' || type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') {
+    const q = item.deviceId ? `?deviceId=${encodeURIComponent(item.deviceId)}` : '';
+    uni.navigateTo({ url: `/pages/replenishment/replenishment${q}` });
+    return;
+  }
+  if (type === 'LOW_STOCK') {
+    const q = item.deviceId ? `?deviceId=${encodeURIComponent(item.deviceId)}` : '';
+    uni.navigateTo({ url: `/pages/request/request${q}` });
+    return;
+  }
   if (item.deviceId) {
-    uni.navigateTo({ url: `/pages/device-detail/device-detail?id=${encodeURIComponent(item.deviceId)}` });
+    uni.navigateTo({
+      url: `/pages/device-detail/device-detail?id=${encodeURIComponent(item.deviceId)}`
+    });
   }
 }
 
@@ -154,6 +227,18 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 </script>
 
 <style scoped>
+.pref-bar {
+  margin: 12rpx 12rpx 0;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  background: #ecfdf5;
+  color: #0f766e;
+  font-size: 24rpx;
+  display: flex;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+.pref-toggle { color: #64748b; text-decoration: underline; }
 .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; margin: 12rpx; }
 .kpi-card { border-radius: 16rpx; padding: 24rpx; text-align: center; }
 .kpi-card.dispute { background: #fef2f2; }

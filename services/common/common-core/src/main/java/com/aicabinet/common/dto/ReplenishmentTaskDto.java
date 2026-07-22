@@ -13,6 +13,8 @@ public record ReplenishmentTaskDto(
         Instant checkInAt,
         Double checkInLat,
         Double checkInLng,
+        /** Distance from check-in GPS to device coordinates, meters; null if either side missing. */
+        Double checkInDistanceM,
         Long requestId,
         Long outboundId,
         Instant createdAt

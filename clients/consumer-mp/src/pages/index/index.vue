@@ -29,17 +29,27 @@
           <text class="resume-sub">{{ lastDeviceName || lastDeviceId }}</text>
         </view>
 
-        <view v-if="landingError" class="landing-error">
+        <view v-if="landingError" class="landing-error" :class="'kind-' + landingErrorKind">
           <view class="error-icon">!</view>
           <view class="error-copy">
-            <text class="error-title">暂时无法开门</text>
+            <text class="error-title">{{ landingErrorTitle }}</text>
             <text class="error-detail">{{ landingError }}</text>
             <view class="error-actions">
               <text
-                v-if="lastFailedDeviceId"
+                v-if="landingErrorKind === 'balance'"
+                class="error-action primary"
+                @click="goRechargeFromError"
+              >去充值</text>
+              <text
+                v-else-if="lastFailedDeviceId"
                 class="error-action primary"
                 @click="retryLastOpen"
               >重试开门</text>
+              <text
+                v-if="landingErrorKind === 'device_not_found'"
+                class="error-action"
+                @click="onScan"
+              >重新扫码</text>
               <text class="error-action" @click="landingError = ''; showManual = true">换一台</text>
             </view>
           </view>
@@ -232,7 +242,7 @@ import {
 } from '@/utils/consumer-api';
 import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrcode';
 import { sessionStateHint, sessionStateLabel, sessionStateTone } from '@aicabinet/shared-uni/session-labels';
-import { formatError } from '@aicabinet/shared-uni/format';
+import { classifyOpenError, formatError, type OpenErrorKind } from '@aicabinet/shared-uni/format';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
 import { productEmoji, productThumb } from '@/utils/product-thumb';
@@ -264,6 +274,7 @@ const opening = ref(false);
 const cancelling = ref(false);
 const pollError = ref('');
 const landingError = ref('');
+const landingErrorKind = ref<OpenErrorKind>('other');
 const lastFailedDeviceId = ref('');
 const lastFailedChannel = ref<string | null>(null);
 const reviewSessionId = ref(String(uni.getStorageSync('last_disputed_session_id') || ''));
@@ -296,6 +307,19 @@ const sessionActive = computed(() =>
 );
 
 const showLanding = computed(() => !scanned.value && !enteringFlow.value);
+
+const landingErrorTitle = computed(() => {
+  switch (landingErrorKind.value) {
+    case 'balance':
+      return '余额不足';
+    case 'device_not_found':
+      return '柜机不存在';
+    case 'rate_limit':
+      return '开门过于频繁';
+    default:
+      return '暂时无法开门';
+  }
+});
 
 const canReopen = computed(() =>
   scanned.value && !!deviceId.value && !sessionActive.value && !opening.value && !enteringFlow.value
@@ -451,7 +475,7 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
   const cabinetId = id.trim().toUpperCase();
   if (!cabinetId || opening.value || enteringFlow.value) return;
   if (!/^[A-Z0-9][A-Z0-9_-]{1,63}$/.test(cabinetId)) {
-    landingError.value = '柜机编号无效，请扫描柜门二维码或输入如 CAB-001。';
+    setLandingError('柜机编号无效，请扫描柜门二维码或输入如 CAB-001。', 'device_not_found');
     lastFailedDeviceId.value = '';
     uni.showToast({ title: '柜机编号无效', icon: 'none' });
     return;
@@ -462,6 +486,7 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
 
   enteringFlow.value = true;
   landingError.value = '';
+  landingErrorKind.value = 'other';
 
   if (!(await requireConsumerAuth('扫码开门需先完成微信授权'))) {
     enteringFlow.value = false;
@@ -482,10 +507,22 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
       deviceId.value = '';
       lastFailedDeviceId.value = cabinetId;
       lastFailedChannel.value = entryChannel.value;
-      landingError.value = deviceStatusText.value && deviceStatusText.value !== '离线'
-        ? deviceStatusText.value
-        : '该柜机当前离线或编号无效，请确认柜号后重试，或更换其他柜机。';
-      uni.showToast({ title: '柜机离线，请换一台或稍后再试', icon: 'none' });
+      const statusMsg = deviceStatusText.value || '';
+      const kind = classifyOpenError({ message: statusMsg, status: /不存在|编号/.test(statusMsg) ? 404 : 0 });
+      if (kind === 'device_not_found') {
+        setLandingError(formatError({ message: statusMsg, status: 404 }), 'device_not_found');
+      } else {
+        setLandingError(
+          statusMsg && statusMsg !== '离线'
+            ? statusMsg
+            : '该柜机当前离线，请稍后再试或更换其他柜机。',
+          'other'
+        );
+      }
+      uni.showToast({
+        title: kind === 'device_not_found' ? '柜机不存在' : '柜机离线，请换一台或稍后再试',
+        icon: 'none'
+      });
       return;
     }
     productsLoading.value = true;
@@ -510,7 +547,9 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
       deviceId.value = '';
       lastFailedDeviceId.value = cabinetId;
       lastFailedChannel.value = entryChannel.value;
-      landingError.value = formatError(sessionResult.reason);
+      const reason = sessionResult.reason;
+      const kind = classifyOpenError(reason);
+      setLandingError(formatError(reason), kind);
       uni.showToast({ title: landingError.value, icon: 'none' });
       return;
     }
@@ -526,6 +565,16 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
     opening.value = false;
     enteringFlow.value = false;
   }
+}
+
+function setLandingError(message: string, kind: OpenErrorKind = 'other') {
+  landingError.value = message;
+  landingErrorKind.value = kind;
+}
+
+function goRechargeFromError() {
+  landingError.value = '';
+  uni.navigateTo({ url: '/pages/recharge/recharge' });
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
@@ -664,6 +713,7 @@ function onScan() {
       }
       if (!parsed.deviceId) {
         landingError.value = '无法识别柜机二维码，请扫描柜门上的专用码，或手动输入柜机编号。';
+        landingErrorKind.value = 'device_not_found';
         uni.showToast({ title: '无法识别柜机二维码', icon: 'none' });
         return;
       }
@@ -688,6 +738,7 @@ function confirmDevice() {
   const id = parsed.deviceId || raw.trim().toUpperCase();
   if (!id) {
     landingError.value = '请输入柜机编号，例如 CAB-001。';
+    landingErrorKind.value = 'device_not_found';
     uni.showToast({ title: '请输入柜机编号', icon: 'none' });
     return;
   }
@@ -719,8 +770,13 @@ async function refreshDeviceStatus() {
     else if (s.busy) deviceStatusText.value = '使用中';
     else deviceStatusText.value = '在线 · 可再次开门';
   } catch (e) {
+    const kind = classifyOpenError(e);
     deviceOffline.value = true;
     deviceStatusText.value = formatError(e);
+    if (kind === 'device_not_found') {
+      // 与「离线」区分：编号错误时展示柜机不存在文案
+      deviceStatusText.value = formatError(e);
+    }
   }
 }
 
@@ -1487,7 +1543,7 @@ function stopDevicePoll() {
 <style scoped>
 .landing{padding:0;background:#f5c842}.landing-head{padding-top:52rpx;text-align:center}.brand{font-size:58rpx}.tagline{font-size:31rpx}.hero-illustration{top:150rpx}
 .resume-card{margin-top:22rpx;padding:24rpx 28rpx;border-left:6rpx solid #ea580c;border-radius:22rpx;box-shadow:0 12rpx 34rpx rgba(92,61,30,.1)}.resume-title{color:#ea580c}.resume-sub{color:#7a5a32}
-.landing-error{display:flex;align-items:flex-start;gap:18rpx;margin-top:20rpx;padding:22rpx;border:1rpx solid #fecaca;border-radius:20rpx;background:rgba(255,247,247,.94);box-shadow:0 9rpx 24rpx rgba(220,38,38,.07)}.error-icon{display:flex;flex:0 0 42rpx;height:42rpx;align-items:center;justify-content:center;border-radius:50%;color:#fff;background:#ef4444;font-weight:800}.error-copy{min-width:0;flex:1}.error-title,.error-detail{display:block}.error-title{color:#991b1b;font-size:25rpx;font-weight:700}.error-detail{margin-top:6rpx;color:#b45353;font-size:22rpx;line-height:1.5}.error-actions{display:flex;flex-wrap:wrap;gap:16rpx;margin-top:14rpx}.error-action{padding:8rpx 18rpx;border-radius:999rpx;border:1rpx solid #f0b4b4;color:#9f1239;font-size:22rpx;background:#fff}.error-action.primary{border-color:#059669;color:#047857;background:#ecfdf5}.error-close{padding:0 5rpx;color:#b98b8b;font-size:34rpx;line-height:1}
+.landing-error{display:flex;align-items:flex-start;gap:18rpx;margin-top:20rpx;padding:22rpx;border:1rpx solid #fecaca;border-radius:20rpx;background:rgba(255,247,247,.94);box-shadow:0 9rpx 24rpx rgba(220,38,38,.07)}.landing-error.kind-balance{border-color:#fcd34d;background:rgba(255,251,235,.96);box-shadow:0 9rpx 24rpx rgba(217,119,6,.08)}.landing-error.kind-balance .error-icon{background:#f59e0b}.landing-error.kind-balance .error-title{color:#92400e}.landing-error.kind-balance .error-detail{color:#b45309}.landing-error.kind-device_not_found{border-color:#cbd5e1;background:rgba(248,250,252,.96)}.landing-error.kind-device_not_found .error-icon{background:#64748b}.landing-error.kind-device_not_found .error-title{color:#334155}.landing-error.kind-device_not_found .error-detail{color:#475569}.error-icon{display:flex;flex:0 0 42rpx;height:42rpx;align-items:center;justify-content:center;border-radius:50%;color:#fff;background:#ef4444;font-weight:800}.error-copy{min-width:0;flex:1}.error-title,.error-detail{display:block}.error-title{color:#991b1b;font-size:25rpx;font-weight:700}.error-detail{margin-top:6rpx;color:#b45353;font-size:22rpx;line-height:1.5}.error-actions{display:flex;flex-wrap:wrap;gap:16rpx;margin-top:14rpx}.error-action{padding:8rpx 18rpx;border-radius:999rpx;border:1rpx solid #f0b4b4;color:#9f1239;font-size:22rpx;background:#fff}.error-action.primary{border-color:#059669;color:#047857;background:#ecfdf5}.error-close{padding:0 5rpx;color:#b98b8b;font-size:34rpx;line-height:1}
 .scan-circle-inner{width:228rpx;height:228rpx;box-shadow:0 18rpx 52rpx rgba(234,88,12,.4)}.scan-circle-text{font-size:36rpx}.landing-foot{padding-bottom:22rpx}.manual-link{color:#9a7b4f}
 .device-bar{margin:18rpx 20rpx 0;padding:25rpx;border:1rpx solid #edf2ef;border-radius:22rpx;box-shadow:0 9rpx 28rpx rgba(15,23,42,.055)}.device-status{margin-top:7rpx;font-weight:600}.catalog-notice{margin:14rpx 20rpx 0;padding:18rpx 20rpx;border:1rpx solid #fde7a9;border-radius:15rpx;background:#fffbeb}.product-grid{padding:0 20rpx;gap:18rpx}.product-cell{width:calc(50% - 9rpx);padding:15rpx;border:1rpx solid #eef2f0;border-radius:22rpx;box-shadow:0 9rpx 26rpx rgba(15,23,42,.055)}.product-thumb{height:210rpx;border-radius:17rpx}.product-name{font-size:27rpx;font-weight:600;color:#26342d}.product-price{color:#047857;font-size:34rpx}.cart-bar{border-top:0;box-shadow:0 -10rpx 32rpx rgba(15,23,42,.08);padding:18rpx 24rpx}.cart-cta{background:linear-gradient(135deg,#059669,#0d9488);box-shadow:0 8rpx 22rpx rgba(5,150,105,.22)}
 .flow-overlay{background:radial-gradient(circle at 50% 35%,#ecfdf5,#fff 55%)}.flow-spinner{width:132rpx;height:132rpx;border-width:10rpx;box-shadow:0 16rpx 44rpx rgba(5,150,105,.13)}.flow-title{font-size:44rpx;color:#173026}.flow-device{padding:10rpx 18rpx;border-radius:999rpx;background:#ecfdf5;font-weight:600}

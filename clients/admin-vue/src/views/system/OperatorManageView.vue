@@ -182,7 +182,7 @@
         show-icon
         class="scope-alert"
         title="数据范围说明"
-        description="勾选商户后，该账号仅可见这些商户下的设备及相关订单/补货/看板数据。不勾选任何商户 = 全局可见（admin 角色始终全局）。"
+        description="勾选商户后，该账号仅可见这些商户下的设备及相关订单/补货/看板数据。不勾选任何商户 = 全局可见（admin 角色始终全局）。单柜机级绑定尚未开放，范围按商户下全部设备生效。"
       />
       <el-checkbox-group v-model="merchantIds" class="merchant-group">
         <el-checkbox v-for="m in merchants" :key="m.merchantId" :label="m.merchantId">

@@ -4,10 +4,12 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.CommercialFlowService;
+import com.aicabinet.trade.service.FileAttachmentService;
 import com.aicabinet.trade.service.OpsCommercialFacade;
 import com.aicabinet.trade.service.OpsCsvExportService;
 import com.aicabinet.trade.service.ProcurementService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpHeaders;
@@ -15,6 +17,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
@@ -27,15 +30,18 @@ public class OpsCommercialController {
     private final CommercialFlowService commercialFlowService;
     private final ProcurementService procurementService;
     private final OpsCsvExportService csvExportService;
+    private final FileAttachmentService fileAttachmentService;
 
     public OpsCommercialController(OpsCommercialFacade facade,
                                    CommercialFlowService commercialFlowService,
                                    ProcurementService procurementService,
-                                   OpsCsvExportService csvExportService) {
+                                   OpsCsvExportService csvExportService,
+                                   FileAttachmentService fileAttachmentService) {
         this.facade = facade;
         this.commercialFlowService = commercialFlowService;
         this.procurementService = procurementService;
         this.csvExportService = csvExportService;
+        this.fileAttachmentService = fileAttachmentService;
     }
 
     @RequiresPermissions("ops:admin")
@@ -289,6 +295,33 @@ public class OpsCommercialController {
     }
 
     @RequiresPermissions("ops:replenishment:list")
+    @GetMapping("/replenishment/tasks/{taskId}/evidence")
+    public ApiResponse<List<FileAttachmentDto>> listTaskEvidence(
+            HttpServletRequest request,
+            @PathVariable Long taskId) {
+        List<FileAttachmentDto> items = fileAttachmentService.listReplenishmentEvidence(taskId).stream()
+                .map(d -> FileAttachmentDto.of(
+                        d.fileId(),
+                        d.fileName(),
+                        d.contentType(),
+                        d.fileSize(),
+                        "/api/v2/ops/admin/replenishment/tasks/" + taskId + "/evidence/" + d.fileId()))
+                .toList();
+        return ApiResponse.ok(items);
+    }
+
+    @RequiresPermissions("ops:replenishment:list")
+    @GetMapping("/replenishment/tasks/{taskId}/evidence/{fileId}")
+    public void streamTaskEvidence(
+            HttpServletRequest request,
+            @PathVariable Long taskId,
+            @PathVariable Long fileId,
+            HttpServletResponse response) throws IOException {
+        fileAttachmentService.stream(
+                fileAttachmentService.requireReplenishmentEvidence(taskId, fileId), response);
+    }
+
+    @RequiresPermissions("ops:replenishment:list")
     @GetMapping("/devices/{deviceId}/lots")
     public ApiResponse<List<DeviceSkuLotDto>> deviceLots(
             HttpServletRequest request,
@@ -352,6 +385,16 @@ public class OpsCommercialController {
     @GetMapping("/expiry/alerts")
     public ApiResponse<List<PullOffTaskDto>> expiryAlerts(HttpServletRequest request) {
         return ApiResponse.ok(facade.listExpiryAlerts(operatorId(request)));
+    }
+
+    @RequiresPermissions("ops:replenishment:edit")
+    @PostMapping("/expiry/alerts/{taskId}/create-replenishment")
+    public ApiResponse<ReplenishmentRouteDto> createFromExpiry(
+            HttpServletRequest request,
+            @PathVariable Long taskId,
+            @RequestBody(required = false) CreateFromExpiryRequest body) {
+        return ApiResponse.ok(facade.createTaskFromExpiry(
+                operatorId(request), taskId, body != null ? body : new CreateFromExpiryRequest(null, null)));
     }
 
     @RequiresPermissions("ops:replenishment:list")

@@ -36,12 +36,14 @@ public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
     return c == null ? 0 : c;
     }
 
-    default Page<DisputeTicket> search( @Param("status") String status, @Param("sessionId") String sessionId, @Param("deviceId") String deviceId, Pageable pageable) {
+    default Page<DisputeTicket> search( @Param("status") String status, @Param("sessionId") String sessionId, @Param("deviceId") String deviceId, @Param("category") String category, @Param("reviewCode") String reviewCode, Pageable pageable) {
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<DisputeTicket>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
         var q = Wrappers.<DisputeTicket>lambdaQuery()
                 .eq(status != null && !status.isEmpty(), DisputeTicket::getStatus, status)
                 .eq(sessionId != null && !sessionId.isEmpty(), DisputeTicket::getSessionId, sessionId)
+                .eq(category != null && !category.isEmpty(), DisputeTicket::getCategory, category)
+                .eq(reviewCode != null && !reviewCode.isEmpty(), DisputeTicket::getReviewCode, reviewCode)
                 .orderByDesc(DisputeTicket::getCreatedAt);
         var result = selectPage(mpPage, q);
         return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
@@ -49,12 +51,14 @@ public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
 
         List<DisputeTicket> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
 
-    default Page<DisputeTicket> searchByDeviceIds( @Param("status") String status, @Param("sessionId") String sessionId, @Param("deviceIds") Collection<String> deviceIds, Pageable pageable) {
+    default Page<DisputeTicket> searchByDeviceIds( @Param("status") String status, @Param("sessionId") String sessionId, @Param("deviceIds") Collection<String> deviceIds, @Param("category") String category, @Param("reviewCode") String reviewCode, Pageable pageable) {
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<DisputeTicket>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
         var q = Wrappers.<DisputeTicket>lambdaQuery()
                 .eq(status != null && !status.isEmpty(), DisputeTicket::getStatus, status)
                 .eq(sessionId != null && !sessionId.isEmpty(), DisputeTicket::getSessionId, sessionId)
+                .eq(category != null && !category.isEmpty(), DisputeTicket::getCategory, category)
+                .eq(reviewCode != null && !reviewCode.isEmpty(), DisputeTicket::getReviewCode, reviewCode)
                 .orderByDesc(DisputeTicket::getCreatedAt);
         var result = selectPage(mpPage, q);
         return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());

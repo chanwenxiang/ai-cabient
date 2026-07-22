@@ -324,7 +324,7 @@ public class MerchantPortalController {
     @GetMapping("/replenishment/tasks/{taskId}/lines")
     public ApiResponse<List<ReplenishmentTaskLineDto>> replenishmentTaskLines(
             HttpServletRequest request, @PathVariable Long taskId) {
-        return ApiResponse.ok(merchantPortalService.getReplenishmentTaskLines(userId(request), taskId));
+        return ApiResponse.ok(merchantReplenishmentService.getTaskLines(userId(request), taskId));
     }
 
     @RequiresPermissions("merchant:replenishment:request")
@@ -358,6 +358,32 @@ public class MerchantPortalController {
     public ApiResponse<ReplenishmentTaskDto> completeReplenishmentTask(
             HttpServletRequest request, @PathVariable Long taskId) {
         return ApiResponse.ok(merchantReplenishmentService.completeTask(userId(request), taskId));
+    }
+
+    @RequiresPermissions("merchant:replenishment:request")
+    @PostMapping(value = "/replenishment/tasks/{taskId}/evidence", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<FileAttachmentDto> uploadReplenishmentEvidence(
+            HttpServletRequest request,
+            @PathVariable Long taskId,
+            @RequestPart("file") org.springframework.web.multipart.MultipartFile file) {
+        return ApiResponse.ok(merchantReplenishmentService.uploadTaskEvidence(userId(request), taskId, file));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/replenishment/tasks/{taskId}/evidence")
+    public ApiResponse<List<FileAttachmentDto>> listReplenishmentEvidence(
+            HttpServletRequest request, @PathVariable Long taskId) {
+        return ApiResponse.ok(merchantReplenishmentService.listTaskEvidence(userId(request), taskId));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/replenishment/tasks/{taskId}/evidence/{fileId}")
+    public void streamReplenishmentEvidence(
+            HttpServletRequest request,
+            @PathVariable Long taskId,
+            @PathVariable Long fileId,
+            jakarta.servlet.http.HttpServletResponse response) throws java.io.IOException {
+        merchantReplenishmentService.streamTaskEvidence(userId(request), taskId, fileId, response);
     }
 
     @RequiresPermissions("merchant:replenishment:view")

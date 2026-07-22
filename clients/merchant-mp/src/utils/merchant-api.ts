@@ -1,6 +1,41 @@
 import { API_BASE_URL } from '@/config/api';
 import { clearDictOverrides, dictLabel } from '@aicabinet/shared-dict';
 
+export type MerchantReplenishmentSuggest = {
+  deviceId?: string;
+  skuId: string;
+  currentQty?: number;
+  capacity?: number;
+  lowThreshold?: number;
+  suggestQty: number;
+  inTransitQty?: number;
+  suggestReason?: string;
+};
+
+export type MerchantReplenishmentRequestLine = {
+  lineId?: number;
+  skuId: string;
+  skuName?: string;
+  suggestedQty?: number;
+  requestedQty: number;
+};
+
+export type MerchantReplenishmentRequest = {
+  requestId: number;
+  merchantId?: string;
+  merchantName?: string;
+  deviceId: string;
+  deviceName?: string;
+  status: string;
+  notes?: string;
+  submittedAt?: string;
+  reviewedAt?: string;
+  rejectReason?: string;
+  replenishmentTaskId?: number;
+  outboundId?: number;
+  lines?: MerchantReplenishmentRequestLine[];
+};
+
 export function getToken() {
   return uni.getStorageSync('merchant_token') || '';
 }
@@ -66,6 +101,74 @@ export function merchantLogin(phone: string, password: string) {
   });
 }
 
+export function uploadReplenishmentEvidenceFile(
+  taskId: number,
+  filePath: string
+): Promise<import('@aicabinet/shared-types').FileAttachmentDto> {
+  return new Promise((resolve, reject) => {
+    if (!getToken()) {
+      reject(new Error('请先登录'));
+      return;
+    }
+    uni.uploadFile({
+      url: `${API_BASE_URL}/api/v2/merchant/replenishment/tasks/${taskId}/evidence`,
+      filePath,
+      name: 'file',
+      header: { Authorization: 'Bearer ' + getToken() },
+      timeout: 30_000,
+      success(res) {
+        try {
+          const body = JSON.parse(String(res.data || '{}')) as {
+            code?: number;
+            message?: string;
+            data?: import('@aicabinet/shared-types').FileAttachmentDto;
+          };
+          if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0 && body.data) {
+            resolve(body.data);
+            return;
+          }
+          reject(new Error(body?.message || `上传失败 (${res.statusCode})`));
+        } catch {
+          reject(new Error('上传响应解析失败'));
+        }
+      },
+      fail(err) {
+        reject(new Error(err.errMsg || '网络错误'));
+      }
+    });
+  });
+}
+
+/** Auth-aware download for evidence stream URLs (image tags cannot send Bearer). */
+export function downloadReplenishmentEvidenceFile(
+  taskId: number,
+  fileId: number
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const token = getToken();
+    if (!token) {
+      reject(new Error('请先登录'));
+      return;
+    }
+    const url = `${API_BASE_URL}/api/v2/merchant/replenishment/tasks/${taskId}/evidence/${fileId}`;
+    uni.downloadFile({
+      url,
+      header: { Authorization: 'Bearer ' + token },
+      timeout: 30_000,
+      success(res) {
+        if (res.statusCode >= 200 && res.statusCode < 300 && res.tempFilePath) {
+          resolve(res.tempFilePath);
+          return;
+        }
+        reject(new Error(`下载失败 (${res.statusCode})`));
+      },
+      fail(err) {
+        reject(new Error(err.errMsg || '下载失败'));
+      }
+    });
+  });
+}
+
 export const merchantApi = {
   me: () => request<import('@aicabinet/shared-types').MerchantMe>('/api/v2/merchant/me'),
   stats: () => request<Record<string, number>>('/api/v2/merchant/stats'),
@@ -87,6 +190,16 @@ export const merchantApi = {
   updatePricing: (skuId: string, body: { deviceId: string; priceCents: number | null }) =>
     request(`/api/v2/merchant/pricing/skus/${encodeURIComponent(skuId)}`, 'PATCH', body),
   workbench: () => request<import('@aicabinet/shared-types').MerchantWorkbench>('/api/v2/merchant/workbench'),
+  notifyPrefs: () =>
+    request<{ wxBound: boolean; enabledAlertTypes: string[] }>('/api/v2/merchant/notify/prefs'),
+  notifyWxBind: (code: string) =>
+    request<{ wxBound: boolean; enabledAlertTypes: string[] }>('/api/v2/merchant/notify/wx-bind', 'POST', {
+      code
+    }),
+  notifySubscribe: (alertTypes: string[]) =>
+    request<{ wxBound: boolean; enabledAlertTypes: string[] }>('/api/v2/merchant/notify/subscribe', 'POST', {
+      alertTypes
+    }),
   exceptions: (status = 'OPEN') => request<{ items: Array<{ exceptionId:string; exceptionType:string; title:string; detail?:string; deviceId?:string }> }>(`/api/v2/merchant/exceptions?status=${encodeURIComponent(status)}`),
   resolveInventoryException: (id: string, resolution: string) =>
     request(`/api/v2/merchant/exceptions/${encodeURIComponent(id)}/resolve`, 'POST', { resolution }),
@@ -117,7 +230,23 @@ export const merchantApi = {
   exportDeviceReportsUrl: () => `${API_BASE_URL}/api/v2/merchant/device-reports/export`,
   skuSales: (days = 30) => request<import('@aicabinet/shared-types').MerchantSkuSales[]>(`/api/v2/merchant/analytics/sku-sales?days=${days}`),
   replenishmentSuggestions: (deviceId: string) =>
-    request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`),
+    request<MerchantReplenishmentSuggest[]>(
+      `/api/v2/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`
+    ),
+  replenishmentRequests: (status?: string, deviceId?: string) => {
+    const q = new URLSearchParams();
+    if (status) q.set('status', status);
+    if (deviceId) q.set('deviceId', deviceId);
+    const qs = q.toString();
+    return request<MerchantReplenishmentRequest[]>(
+      `/api/v2/merchant/replenishment/requests${qs ? `?${qs}` : ''}`
+    );
+  },
+  submitReplenishmentRequest: (body: {
+    deviceId: string;
+    notes?: string;
+    lines: { skuId: string; requestedQty: number }[];
+  }) => request<MerchantReplenishmentRequest>('/api/v2/merchant/replenishment/requests', 'POST', body),
   replenishmentTasks: (status?: string) =>
     request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/tasks${status ? `?status=${encodeURIComponent(status)}` : ''}`),
   replenishmentTaskLines: (taskId: number) =>
@@ -134,6 +263,27 @@ export const merchantApi = {
     request(`/api/v2/merchant/replenishment/tasks/${taskId}/lines`, 'POST', { lines }),
   completeReplenishmentTask: (taskId: number) =>
     request(`/api/v2/merchant/replenishment/tasks/${taskId}/complete`, 'POST'),
+  listReplenishmentEvidence: (taskId: number) =>
+    request<import('@aicabinet/shared-types').FileAttachmentDto[]>(
+      `/api/v2/merchant/replenishment/tasks/${taskId}/evidence`
+    ),
+  uploadReplenishmentEvidence: (taskId: number, filePath: string) =>
+    uploadReplenishmentEvidenceFile(taskId, filePath),
+  downloadReplenishmentEvidence: (taskId: number, fileId: number) =>
+    downloadReplenishmentEvidenceFile(taskId, fileId),
+  expiryAlerts: () =>
+    request<
+      {
+        taskId?: number;
+        deviceId: string;
+        skuId?: string;
+        batchNo?: string;
+        quantity?: number;
+        reason?: string;
+        status?: string;
+        restockHeadroom?: number;
+      }[]
+    >('/api/v2/merchant/expiry-alerts'),
   disputes: (status?: string) => {
     const q = status ? `?status=${encodeURIComponent(status)}` : '';
     return request<{ items?: MerchantDisputeTicket[]; total?: number } | MerchantDisputeTicket[]>(

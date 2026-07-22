@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="page">
     <view v-if="loading && !meName" class="card"><text>加载中…</text></view>
     <view v-else-if="error && !meName" class="card"><text class="err">{{ error }}</text></view>
@@ -54,6 +54,7 @@
           <text class="section">今日补货</text>
           <text class="section-more" @click="goReplenishment()">全部 ›</text>
         </view>
+        <text v-if="preferredId" class="pref-tip">常驻柜 {{ preferredId }} 优先置顶</text>
         <view v-if="taskPreviewLoading" class="empty-inline">任务加载中…</view>
         <view v-else-if="!taskPreview.length" class="empty-inline empty-actions">
           <text class="empty-title">暂无待处理补货任务</text>
@@ -71,7 +72,10 @@
           @click="goReplenishment(task.deviceId, task.taskId)"
         >
           <view class="task-copy">
-            <text class="task-name">{{ deviceLabel(task.deviceId) }}</text>
+            <text class="task-name">
+              {{ deviceLabel(task.deviceId) }}
+              <text v-if="preferredId && task.deviceId === preferredId" class="pref-mark">常驻</text>
+            </text>
             <text class="task-meta">{{ task.deviceId }} · {{ statusLabel(task.status) }}</text>
           </view>
           <text class="task-go">去补货 ›</text>
@@ -92,9 +96,12 @@
         </view>
       </view>
 
-      <view v-if="canPricing || canSettlements || canDisputes || canBusiness" class="ops-block">
+      <view v-if="canPricing || canSettlements || canDisputes || canBusiness || canReplenishment" class="ops-block">
         <text class="ops-title">经营工具</text>
         <view class="ops-grid">
+          <view v-if="canReplenishment" class="ops-card" @click="goRequest">
+            <text class="ops-label">要货申请</text>
+          </view>
           <view v-if="canPricing" class="ops-card" @click="goPricing">
             <text class="ops-label">点位定价</text>
           </view>
@@ -143,12 +150,14 @@ import { computed, ref } from 'vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
+import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { dictLabel } from '@aicabinet/shared-dict';
 import type { MerchantMe } from '@aicabinet/shared-types';
 
 type TaskRow = { taskId: number; deviceId: string; status: string };
 
 const { me, refresh: refreshMe } = useMerchantMe();
+const preferredId = ref(getPreferredDeviceId());
 const canReplenishment = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 const canDevices = computed(() => hasPerm(me.value, 'merchant:devices:list'));
 const canAlerts = computed(() => hasPerm(me.value, 'merchant:alerts:view'));
@@ -214,6 +223,10 @@ function goReplenishment(deviceId?: string, taskId?: number) {
   if (taskId) params.push(`taskId=${taskId}`);
   const q = params.length ? `?${params.join('&')}` : '';
   uni.navigateTo({ url: `/pages/replenishment/replenishment${q}` });
+}
+
+function goRequest() {
+  uni.navigateTo({ url: '/pages/request/request' });
 }
 
 function goPricing() {
@@ -318,6 +331,18 @@ async function load() {
         (workbench.lowStockItems || 0) +
         (workbench.expiryAlerts || 0)
       : 0;
+    try {
+      if (pendingCount.value > 0) {
+        uni.setTabBarBadge({
+          index: 2,
+          text: pendingCount.value > 99 ? '99+' : String(pendingCount.value)
+        });
+      } else {
+        uni.removeTabBarBadge({ index: 2 });
+      }
+    } catch {
+      /* H5 / non-tab context */
+    }
     actionItems.value = canAlerts.value ? (workbench.actionItems || []).slice(0, 3) : [];
     trendBars.value = canFinanceKpi.value
       ? days.map((d) => ({
@@ -335,8 +360,16 @@ async function load() {
 
     const taskRows = (tasks as TaskRow[]) || [];
     const openTasks = taskRows.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
-    pendingTaskCount.value = canReplenishment.value ? openTasks.length : 0;
-    taskPreview.value = canReplenishment.value ? openTasks.slice(0, 5) : [];
+    preferredId.value = getPreferredDeviceId();
+    const preferred = preferredId.value;
+    const sorted = preferred
+      ? [
+          ...openTasks.filter((t) => t.deviceId === preferred),
+          ...openTasks.filter((t) => t.deviceId !== preferred)
+        ]
+      : openTasks;
+    pendingTaskCount.value = canReplenishment.value ? sorted.length : 0;
+    taskPreview.value = canReplenishment.value ? sorted.slice(0, 5) : [];
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
@@ -458,6 +491,12 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .section { font-weight: 700; font-size: 30rpx; color: #0f172a; }
 .section-more { color: #0f766e; font-size: 24rpx; }
+.pref-tip {
+  display: block;
+  margin: 0 0 12rpx;
+  font-size: 22rpx;
+  color: #0f766e;
+}
 .empty-inline {
   padding: 28rpx 0 8rpx;
   text-align: center;
@@ -496,6 +535,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .task-row:first-of-type { border-top: 0; }
 .task-copy { flex: 1; min-width: 0; }
 .task-name { display: block; font-size: 28rpx; font-weight: 600; color: #0f172a; }
+.pref-mark {
+  margin-left: 10rpx;
+  padding: 2rpx 10rpx;
+  border-radius: 8rpx;
+  background: #ccfbf1;
+  color: #0f766e;
+  font-size: 20rpx;
+  font-weight: 700;
+}
 .task-meta { display: block; margin-top: 4rpx; font-size: 22rpx; color: #94a3b8; }
 .task-go { color: #0f766e; font-size: 26rpx; font-weight: 600; }
 

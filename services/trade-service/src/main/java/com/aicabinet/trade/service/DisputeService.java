@@ -117,8 +117,15 @@ public class DisputeService {
                                          String reason) {
         return disputeRepository.findBySessionId(session.getSessionId())
                 .map(this::toDto)
-                .orElseGet(() -> saveOpenTicket(session.getUserId(), session.getSessionId(), reason,
-                        toJson(recognition.items()), "RECOGNITION", priorityForRecognition(recognition)));
+                .orElseGet(() -> saveOpenTicket(
+                        session.getUserId(),
+                        session.getSessionId(),
+                        reason,
+                        toJson(recognition.items()),
+                        "RECOGNITION",
+                        priorityForRecognition(recognition),
+                        reviewCodeFor(recognition, reason),
+                        toJson(recognition.detectedClasses() != null ? recognition.detectedClasses() : List.of())));
     }
 
     @Transactional
@@ -135,7 +142,7 @@ public class DisputeService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DISPUTE_ALREADY_EXISTS);
         }
         DisputeTicketDto dto = saveOpenTicket(userId, session.getSessionId(), request.reason().trim(), "[]",
-                normalizeCategory(request.category()), normalizePriority(request.priority()));
+                normalizeCategory(request.category()), normalizePriority(request.priority()), null, null);
         fileAttachmentService.bindEvidenceToDispute(userId, dto.ticketId(), request.evidenceFileIds());
         session.setState(SessionState.DISPUTED);
         sessionRepository.save(session);
@@ -201,7 +208,9 @@ public class DisputeService {
                     reason,
                     "[]",
                     "USER_APPEAL",
-                    "NORMAL");
+                    "NORMAL",
+                    null,
+                    null);
             ticket = disputeRepository.findById(created.ticketId()).orElseThrow();
         } else if ("RESOLVED".equals(ticket.getStatus()) || "CLOSED".equals(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "关联争议已结案，无法再次退款");
@@ -246,7 +255,8 @@ public class DisputeService {
     }
 
     private DisputeTicketDto saveOpenTicket(Long userId, String sessionId, String reason, String itemsJson,
-                                            String category, String priority) {
+                                            String category, String priority,
+                                            String reviewCode, String detectedClassesJson) {
         DisputeTicket ticket = new DisputeTicket();
         ticket.setTicketId(newTicketId());
         ticket.setSessionId(sessionId);
@@ -255,6 +265,12 @@ public class DisputeService {
         ticket.setCategory(category);
         ticket.setPriority(priority);
         ticket.setItems(itemsJson);
+        if (reviewCode != null && !reviewCode.isBlank()) {
+            ticket.setReviewCode(reviewCode.trim().toUpperCase());
+        }
+        if (detectedClassesJson != null && !detectedClassesJson.isBlank() && !"null".equals(detectedClassesJson)) {
+            ticket.setDetectedClasses(detectedClassesJson);
+        }
         Instant now = Instant.now();
         ticket.setSlaDueAt(now.plus(disputeSlaProperties.hours(), ChronoUnit.HOURS));
         disputeRepository.save(ticket);
@@ -281,7 +297,8 @@ public class DisputeService {
 
     @Transactional(readOnly = true)
     public PageResult<DisputeTicketDto> listTickets(Long operatorId, int page, int size,
-                                                    String status, String sessionId, String deviceId) {
+                                                    String status, String sessionId, String deviceId,
+                                                    String category, String reviewCode) {
         permissionService.requirePermission(operatorId, "ops:dispute");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, deviceId);
@@ -290,10 +307,12 @@ public class DisputeService {
             result = Page.empty(pageable);
         } else if (deviceScope != null) {
             result = disputeRepository.searchByDeviceIds(
-                    blankToNull(status), blankToNull(sessionId), deviceScope, pageable);
+                    blankToNull(status), blankToNull(sessionId), deviceScope, blankToNull(category),
+                    blankToNull(reviewCode), pageable);
         } else {
             result = disputeRepository.search(
-                    blankToNull(status), blankToNull(sessionId), blankToNull(deviceId), pageable);
+                    blankToNull(status), blankToNull(sessionId), blankToNull(deviceId), blankToNull(category),
+                    blankToNull(reviewCode), pageable);
         }
         return new PageResult<>(
                 result.getContent().stream().map(this::toDto).toList(),
@@ -525,7 +544,9 @@ public class DisputeService {
                 ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining,
                 ticket.getCategory(), ticket.getPriority(), ticket.getOperatorNote(),
                 ticket.getClosedAt(), ticket.getReopenedAt(), loadMessages(ticket.getTicketId()),
-                fileAttachmentService.listDisputeEvidence(ticket.getTicketId()));
+                fileAttachmentService.listDisputeEvidence(ticket.getTicketId()),
+                resolveReviewCode(ticket),
+                parseDetectedClasses(ticket.getDetectedClasses()));
     }
 
     @Transactional(readOnly = true)
@@ -592,9 +613,11 @@ public class DisputeService {
                 ticket.getStatus(), suggested, resolved, ticket.getCreatedAt(), ticket.getResolvedAt(),
                 null, null, sessionState, orderId, billedAmountCents,
                 ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining,
-                ticket.getCategory(), null, null,
+                ticket.getCategory(), ticket.getPriority(), ticket.getOperatorNote(),
                 ticket.getClosedAt(), ticket.getReopenedAt(), List.of(),
-                fileAttachmentService.listDisputeEvidence(ticket.getTicketId()));
+                fileAttachmentService.listDisputeEvidence(ticket.getTicketId()),
+                resolveReviewCode(ticket),
+                parseDetectedClasses(ticket.getDetectedClasses()));
     }
 
     private DisputeTicket requireTicket(String ticketId) {
@@ -733,6 +756,49 @@ public class DisputeService {
             return "HIGH";
         }
         return recognition.overallConfidence() < 0.6f ? "HIGH" : "NORMAL";
+    }
+
+    static String reviewCodeFor(VisionServiceClient.RecognitionResult recognition, String reason) {
+        List<String> detected = recognition != null && recognition.detectedClasses() != null
+                ? recognition.detectedClasses() : List.of();
+        boolean emptyItems = recognition == null
+                || recognition.items() == null
+                || recognition.items().isEmpty();
+        String r = reason != null ? reason : "";
+        if (emptyItems && !detected.isEmpty()) {
+            return "UNMAPPED";
+        }
+        if (emptyItems || r.contains("未识别")) {
+            return "EMPTY";
+        }
+        if (r.contains("置信") || r.contains("阈值")) {
+            return "LOW_CONF";
+        }
+        if (r.contains("白名单") || r.contains("视觉状态") || r.contains("未登记")) {
+            return "WHITELIST";
+        }
+        return "NEED_REVIEW";
+    }
+
+    private static String resolveReviewCode(DisputeTicket ticket) {
+        if (ticket.getReviewCode() != null && !ticket.getReviewCode().isBlank()) {
+            return ticket.getReviewCode().trim().toUpperCase();
+        }
+        if (!"RECOGNITION".equals(ticket.getCategory())) {
+            return null;
+        }
+        return reviewCodeFor(null, ticket.getReason());
+    }
+
+    private List<String> parseDetectedClasses(String raw) {
+        if (raw == null || raw.isBlank() || "null".equals(raw) || "[]".equals(raw.trim())) {
+            return List.of();
+        }
+        try {
+            return objectMapper.readValue(raw, new TypeReference<List<String>>() {});
+        } catch (Exception e) {
+            return List.of();
+        }
     }
 
     private static String trimToNull(String value) {

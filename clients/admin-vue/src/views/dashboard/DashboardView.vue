@@ -274,12 +274,12 @@ const quickLinks = computed<QuickLink[]>(() => [
     path: '/exceptions',
     query: { status: 'OPEN' }
   },
-  { label: '待审争议', count: workbench.value?.openDisputes || 0, path: '/disputes', query: { status: 'OPEN' } },
+  { label: '待审争议', count: workbench.value?.openDisputes || 0, path: '/disputes', query: { status: 'OPEN', category: 'RECOGNITION' } },
   {
     label: '待支付订单',
     count: workbench.value?.pendingUnpaidOrders || 0,
     path: '/orders',
-    query: { status: 'PENDING' }
+    query: { status: 'PENDING', overdue: '1' }
   },
   {
     label: '停售货柜',
@@ -300,6 +300,7 @@ const quickLinks = computed<QuickLink[]>(() => [
     query: { stuck: '1' }
   },
   { label: '低库存', count: workbench.value?.lowStockItems || 0, path: '/replenishment', query: { tab: 'shortage' } },
+  { label: '临期下架', count: 0, path: '/replenishment', query: { tab: 'expiry' } },
   {
     label: '补货任务',
     count: workbench.value?.pendingReplenishments || 0,

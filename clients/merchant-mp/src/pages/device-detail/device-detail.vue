@@ -8,6 +8,16 @@
         <text class="title">{{ deviceName }}</text>
         <text class="meta">{{ deviceId }} · {{ online ? '在线' : '离线' }}</text>
         <text class="meta">当前 {{ currentTemp }} / 目标 {{ targetTemp }}</text>
+        <view class="pref-row" @click="togglePreferred">
+          <text class="pref-star" :class="{ on: isPreferred }">★</text>
+          <text>{{ isPreferred ? '常驻柜（点击取消）' : '设为常驻柜' }}</text>
+        </view>
+        <view
+          v-if="canRequest"
+          class="btn-primary"
+          style="margin-top:16px"
+          @click="goRequest"
+        >发起要货</view>
       </view>
 
       <view v-if="canEditDevice" class="card">
@@ -50,6 +60,11 @@ import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { merchantApi, hasPerm } from '@/utils/merchant-api';
 import { useMerchantMe, canEditPlanogramForMerchant } from '@/composables/useMerchantMe';
+import {
+  clearPreferredDeviceId,
+  getPreferredDeviceId,
+  setPreferredDeviceId
+} from '@/utils/preferred-device';
 import type { DeviceSlot, MerchantMe } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -68,10 +83,12 @@ const saving = ref(false);
 const savingSlots = ref(false);
 const slots = ref<DeviceSlot[]>([]);
 const slotPar = ref<Record<string, string>>({});
+const isPreferred = ref(false);
 
 const canView = computed(() => hasPerm(me.value, 'merchant:devices:detail'));
 const canEditDevice = computed(() => hasPerm(me.value, 'merchant:devices:edit'));
 const canEditSlots = computed(() => canEditPlanogramForMerchant(me.value, merchantId.value));
+const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
 
 onLoad((opts) => {
   if (!uni.getStorageSync('merchant_token')) {
@@ -117,11 +134,31 @@ async function loadDetail() {
       par[s.slotCode] = String(s.parLevel);
     });
     slotPar.value = par;
+    isPreferred.value = getPreferredDeviceId() === deviceId.value;
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
   }
+}
+
+function togglePreferred() {
+  if (!deviceId.value) return;
+  if (isPreferred.value) {
+    clearPreferredDeviceId();
+    isPreferred.value = false;
+    uni.showToast({ title: '已取消常驻', icon: 'none' });
+    return;
+  }
+  setPreferredDeviceId(deviceId.value);
+  isPreferred.value = true;
+  uni.showToast({ title: '已设为常驻柜', icon: 'success' });
+}
+
+function goRequest() {
+  uni.navigateTo({
+    url: `/pages/request/request?deviceId=${encodeURIComponent(deviceId.value)}`
+  });
 }
 
 async function saveSettings() {
@@ -173,6 +210,16 @@ async function saveSlots() {
 .title { font-size: 32rpx; font-weight: 600; display: block; }
 .section { font-weight: 600; }
 .row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
+.pref-row {
+  margin-top: 16rpx;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  font-size: 26rpx;
+  color: #0f766e;
+}
+.pref-star { color: #cbd5e1; font-size: 32rpx; }
+.pref-star.on { color: #f59e0b; }
 .input { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin: 8px 0; }
 .input-sm { width: 100%; font-size: 22rpx; margin-top: 4rpx; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px; }
 .slot-code { font-weight: 600; display: block; }

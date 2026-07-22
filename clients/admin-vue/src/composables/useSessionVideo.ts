@@ -1,32 +1,45 @@
 import { ElMessage } from 'element-plus';
 
-/** Stream session video via authenticated ops API and open in a new tab. */
+export type SessionVideoLoadResult = {
+  url: string;
+  revoke: () => void;
+};
+
+/** Stream session video via authenticated ops API. */
 export function useSessionVideo() {
-  async function playSessionVideo(sessionId?: string | null) {
+  async function fetchSessionVideoBlob(sessionId?: string | null): Promise<SessionVideoLoadResult> {
     const id = String(sessionId || '').trim();
     if (!id) {
-      ElMessage.warning('无关联会话，无法播放录像');
-      return;
+      throw new Error('无关联会话，无法播放录像');
     }
     const token = localStorage.getItem('admin_token');
+    const res = await fetch(
+      `${window.location.origin}/api/v2/ops/admin/sessions/${encodeURIComponent(id)}/video`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    );
+    if (!res.ok) {
+      if (res.status === 404) throw new Error('录像尚未上传或不存在');
+      if (res.status === 403) throw new Error('无录像查看权限');
+      throw new Error(`播放失败（HTTP ${res.status}）`);
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    return {
+      url,
+      revoke: () => URL.revokeObjectURL(url)
+    };
+  }
+
+  /** Open video in a new tab (list row / overflow actions). */
+  async function playSessionVideo(sessionId?: string | null) {
     try {
-      const res = await fetch(
-        `${window.location.origin}/api/v2/ops/admin/sessions/${encodeURIComponent(id)}/video`,
-        { headers: token ? { Authorization: `Bearer ${token}` } : {} }
-      );
-      if (!res.ok) {
-        if (res.status === 404) throw new Error('录像尚未上传或不存在');
-        if (res.status === 403) throw new Error('无录像查看权限');
-        throw new Error(`播放失败（HTTP ${res.status}）`);
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
+      const { url, revoke } = await fetchSessionVideoBlob(sessionId);
       window.open(url, '_blank');
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      window.setTimeout(revoke, 60_000);
     } catch (e) {
       ElMessage.error(e instanceof Error ? e.message : '播放失败');
     }
   }
 
-  return { playSessionVideo };
+  return { playSessionVideo, fetchSessionVideoBlob };
 }

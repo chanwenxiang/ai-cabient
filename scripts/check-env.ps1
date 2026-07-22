@@ -75,6 +75,25 @@ function Invoke-EnvCheck([hashtable]$Env, [string]$Mode) {
         if ($Env["VISION_INSTALL_ML"] -eq "false") {
             $warnings += "VISION_INSTALL_ML=false — staging vision may fail without YOLO in image"
         }
+        $balanceOnly = $Env["CHECKOUT_BALANCE_ONLY"] -eq "true"
+        if ($balanceOnly) {
+            if ($Env["AICABINET_MOCK_ENABLED"] -eq "true") {
+                $errors += "CHECKOUT_BALANCE_ONLY=true requires AICABINET_MOCK_ENABLED=false"
+            }
+            if ($Env["RECON_MOCK_ENABLED"] -ne "true") {
+                $warnings += "CHECKOUT_BALANCE_ONLY without RECON_MOCK_ENABLED=true needs WeChat bill credentials"
+            }
+            $warnings += "Balance-only staging: WeChat Pay/MiniApp secrets not required yet"
+        } else {
+            foreach ($key in @("WECHAT_APP_ID", "WECHAT_MCH_ID", "WECHAT_API_V3_KEY")) {
+                if (-not $Env[$key]) {
+                    $warnings += "$key empty — set CHECKOUT_BALANCE_ONLY=true for no-merchant soak, or fill WeChat Pay"
+                }
+            }
+        }
+        if ($Env["VISION_MOCK_ENABLED"] -ne "false" -and -not $Env["VISION_MOCK_ENABLED"]) {
+            $warnings += "VISION_MOCK_ENABLED unset — staging compose defaults to false"
+        }
     }
 
     if ($Mode -eq "prod") {

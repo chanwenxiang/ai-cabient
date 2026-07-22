@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">订单管理</span>
-            <span class="hint">支付 / 退款状态分列；支持按订单或按商品行导出</span>
+            <span class="hint">支付 / 退款状态分列；待支付支持账龄追缴；可按订单或按商品行导出</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -41,24 +41,39 @@
           @keyup.enter="search"
         />
       </el-form-item>
+      <el-form-item v-if="statusTab === 'PENDING'">
+        <el-checkbox v-model="overdueOnly" @change="onOverdueToggle">仅超时未付（≥30 分钟）</el-checkbox>
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="search">查询</el-button>
         <el-button @click="reset">重置</el-button>
       </el-form-item>
     </el-form>
 
+    <el-alert
+      v-if="statusTab === 'PENDING' && overdueOnly"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="chase-banner"
+      :title="`本页 ${displayItems.length} 条超时未付（账龄 ≥ 30 分钟，按账龄降序）`"
+    />
+
     <div class="table-scroll">
       <div class="table-scroll-inner" style="min-width: 1100px">
         <el-table
           v-loading="loading"
-          :data="items"
+          :data="displayItems"
           stripe
           border
           class="report-table"
           row-key="orderId"
+          :row-class-name="orderRowClass"
           @selection-change="onSelectionChange"
         >
-          <template #empty><el-empty description="暂无订单" /></template>
+          <template #empty>
+            <el-empty :description="statusTab === 'PENDING' && overdueOnly ? '无超时未付订单' : '暂无订单'" />
+          </template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="订单号" min-width="168" class-name="col-text">
             <template #default="{ row }">
@@ -130,6 +145,17 @@
           </el-table-column>
           <el-table-column label="金额" width="110" align="right" class-name="col-money">
             <template #default="{ row }">¥{{ money(row.totalAmountCents) }}</template>
+          </el-table-column>
+          <el-table-column
+            v-if="statusTab === 'PENDING'"
+            label="账龄"
+            width="110"
+            align="center"
+            class-name="col-text"
+          >
+            <template #default="{ row }">
+              <span :class="{ 'is-overdue-age': isUnpaidOverdue(row) }">{{ formatOrderAge(row.createdAt) }}</span>
+            </template>
           </el-table-column>
           <el-table-column label="创建时间" width="172" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
@@ -246,9 +272,9 @@
 </template>
 
 <script setup lang="ts">
-import { onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
-import { Refresh, VideoCamera, View, Wallet } from '@element-plus/icons-vue';
+import { CopyDocument, Link, Refresh, VideoCamera, View, Wallet } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
@@ -262,6 +288,8 @@ import type { OrderSummary, PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
 
+const UNPAID_OVERDUE_MS = 30 * 60 * 1000;
+
 const route = useRoute();
 const { router, goPath } = useNavAccess();
 const { playSessionVideo } = useSessionVideo();
@@ -272,6 +300,7 @@ const refundingId = ref('');
 const deviceId = ref('');
 const status = ref('');
 const statusTab = ref('ALL');
+const overdueOnly = ref(false);
 const items = ref<OrderSummary[]>([]);
 const page = ref(1);
 const size = ref(20);
@@ -279,6 +308,17 @@ const total = ref(0);
 const detailOpen = ref(false);
 const detailLoading = ref(false);
 const detail = ref<any>(null);
+
+const displayItems = computed(() => {
+  let list = [...items.value];
+  if (statusTab.value === 'PENDING') {
+    if (overdueOnly.value) {
+      list = list.filter((row) => isUnpaidOverdue(row));
+    }
+    list.sort((a, b) => orderAgeMs(b.createdAt) - orderAgeMs(a.createdAt));
+  }
+  return list;
+});
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<OrderSummary>((r) => r.orderId);
@@ -354,8 +394,41 @@ function canRefund(s?: string) {
   return s === 'PAID' || s === 'COMPLETED' || s === 'DISPUTED';
 }
 
+function orderAgeMs(createdAt?: string) {
+  if (!createdAt) return 0;
+  const t = new Date(createdAt).getTime();
+  if (Number.isNaN(t)) return 0;
+  return Math.max(0, Date.now() - t);
+}
+
+function isUnpaidOverdue(row: OrderSummary) {
+  return row.status === 'PENDING' && orderAgeMs(row.createdAt) >= UNPAID_OVERDUE_MS;
+}
+
+function formatOrderAge(createdAt?: string) {
+  const ms = orderAgeMs(createdAt);
+  if (!ms) return '-';
+  const mins = Math.floor(ms / 60000);
+  if (mins < 60) return `${mins} 分钟`;
+  const hours = Math.floor(mins / 60);
+  const rem = mins % 60;
+  if (hours < 48) return rem ? `${hours} 小时 ${rem} 分` : `${hours} 小时`;
+  const days = Math.floor(hours / 24);
+  return `${days} 天`;
+}
+
+function orderRowClass({ row }: { row: OrderSummary }) {
+  return isUnpaidOverdue(row) ? 'is-unpaid-overdue' : '';
+}
+
 function rowActions(row: OrderSummary): TableAction[] {
   const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
+  if (row.status === 'PENDING') {
+    actions.push({ key: 'copy', label: '复制单号', icon: CopyDocument, overflow: true });
+    if (row.sessionId) {
+      actions.push({ key: 'session', label: '会话', icon: Link, overflow: true });
+    }
+  }
   if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
     actions.push({ key: 'video', label: '录像', icon: VideoCamera, type: 'warning', overflow: true });
   }
@@ -375,6 +448,19 @@ function onRowAction(key: string, row: OrderSummary) {
   if (key === 'detail') openDetail(row);
   if (key === 'refund') refundOrder(row);
   if (key === 'video') playVideo(row.sessionId);
+  if (key === 'copy') copyOrderId(row.orderId);
+  if (key === 'session') goSessions(row.deviceId);
+}
+
+async function copyOrderId(orderId?: string) {
+  const id = String(orderId || '').trim();
+  if (!id) return;
+  try {
+    await navigator.clipboard.writeText(id);
+    ElMessage.success('订单号已复制');
+  } catch {
+    ElMessage.warning(id);
+  }
 }
 
 async function playVideo(sessionId?: string) {
@@ -446,6 +532,7 @@ function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (deviceId.value.trim()) query.deviceId = deviceId.value.trim();
   if (status.value) query.status = status.value;
+  if (statusTab.value === 'PENDING' && overdueOnly.value) query.overdue = '1';
   router.replace({ query });
 }
 
@@ -453,9 +540,15 @@ function onStatusTab(name: string | number) {
   const tab = String(name);
   statusTab.value = tab;
   status.value = tab === 'ALL' ? '' : tab;
+  if (tab !== 'PENDING') overdueOnly.value = false;
   page.value = 1;
   syncRouteQuery();
   load();
+}
+
+function onOverdueToggle() {
+  page.value = 1;
+  syncRouteQuery();
 }
 
 async function load() {
@@ -484,6 +577,7 @@ function reset() {
   deviceId.value = '';
   status.value = '';
   statusTab.value = 'ALL';
+  overdueOnly.value = false;
   page.value = 1;
   syncRouteQuery();
   load();
@@ -505,6 +599,11 @@ function applyRouteQuery() {
     changed = true;
   } else if (!route.query.status && statusTab.value !== 'ALL') {
     statusTab.value = 'ALL';
+  }
+  const wantOverdue = route.query.overdue === '1' || route.query.overdue === 'true';
+  if (statusTab.value === 'PENDING' && wantOverdue !== overdueOnly.value) {
+    overdueOnly.value = wantOverdue;
+    changed = true;
   }
   return changed;
 }
@@ -582,6 +681,11 @@ onActivated(() => {
 }
 .muted {
   color: var(--el-text-color-secondary);
+}
+.chase-banner { margin: 0 0 10px; }
+.is-overdue-age { color: var(--el-color-danger); font-weight: 600; }
+:deep(.el-table .is-unpaid-overdue > td.el-table__cell) {
+  background: color-mix(in srgb, var(--el-color-warning) 8%, transparent) !important;
 }
 .status-tabs {
   margin: 0 0 8px;

@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">争议审核</span>
-            <span class="hint">默认待审核；可维持账单 / 确认扣款 / 免单退款</span>
+            <span class="hint">识别争议可按低置信 / 未映射 / 空识别分拣；可维持账单 / 确认扣款 / 免单退款</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -14,6 +14,26 @@
         </div>
       </div>
     </template>
+
+    <el-tabs v-model="categoryTab" class="status-tabs" @tab-change="onCategoryTab">
+      <el-tab-pane label="全部类型" name="ALL" />
+      <el-tab-pane label="识别争议" name="RECOGNITION" />
+    </el-tabs>
+
+    <el-radio-group
+      v-if="categoryTab === 'RECOGNITION'"
+      v-model="reviewCodeTab"
+      size="small"
+      class="review-code-tabs"
+      @change="onReviewCodeTab"
+    >
+      <el-radio-button value="ALL">全部识别</el-radio-button>
+      <el-radio-button value="LOW_CONF">低置信</el-radio-button>
+      <el-radio-button value="UNMAPPED">未映射</el-radio-button>
+      <el-radio-button value="EMPTY">空识别</el-radio-button>
+      <el-radio-button value="NEED_REVIEW">需复核</el-radio-button>
+      <el-radio-button value="WHITELIST">白名单</el-radio-button>
+    </el-radio-group>
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="状态">
@@ -45,11 +65,22 @@
           @selection-change="onSelectionChange"
         >
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="工单" min-width="180" class-name="col-text">
+          <el-table-column label="工单" min-width="200" class-name="col-text">
             <template #default="{ row }">
               <button type="button" class="ticket-cell" @click="openDetail(row)">
                 <strong>{{ row.reason || row.ticketId }}</strong>
                 <small>{{ row.ticketId }}</small>
+                <el-tag
+                  v-if="confidenceHint(row)"
+                  size="small"
+                  :type="reviewChipType(row)"
+                  effect="plain"
+                  class="reason-chip"
+                >{{ confidenceHint(row) }}</el-tag>
+                <div v-if="row.detectedClasses?.length" class="detected-classes">
+                  检出类：{{ row.detectedClasses.slice(0, 4).join('、') }}
+                  <template v-if="row.detectedClasses.length > 4">…</template>
+                </div>
               </button>
             </template>
           </el-table-column>
@@ -123,11 +154,12 @@
               <span class="cell-datetime">{{ formatDateTime(row.resolvedAt) || '-' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="88" class-name="col-action" align="center">
+          <el-table-column label="操作" width="100" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
-                :actions="[{ key: 'detail', label: '详情', icon: View, type: 'primary' }]"
-                @action="() => openDetail(row)"
+                :actions="rowActions(row)"
+                :max-primary="2"
+                @action="(key) => onRowAction(key, row)"
               />
             </template>
           </el-table-column>
@@ -188,7 +220,30 @@
           >{{ selected.deviceId }}</button>
           <span v-else>-</span>
         </el-descriptions-item>
-        <el-descriptions-item label="原因">{{ selected.reason || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="原因">
+          <div class="reason-block">
+            <span>{{ selected.reason || '-' }}</span>
+            <el-tag
+              v-if="confidenceHint(selected)"
+              size="small"
+              :type="reviewChipType(selected)"
+              effect="plain"
+            >
+              {{ confidenceHint(selected) }}
+            </el-tag>
+          </div>
+        </el-descriptions-item>
+        <el-descriptions-item v-if="selected.detectedClasses?.length" label="检出类">
+          <div class="detected-classes">
+            {{ selected.detectedClasses.join('、') }}
+            <el-button
+              v-if="selected.reviewCode === 'UNMAPPED' || selected.detectedClasses.length"
+              link
+              type="primary"
+              @click="goVisionMapping(selected)"
+            >去映射</el-button>
+          </div>
+        </el-descriptions-item>
         <el-descriptions-item label="已扣金额">¥{{ money(selected.billedAmountCents) }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag v-if="resolveFeedback || selected.status !== 'OPEN'" type="success" effect="light" size="small">
@@ -218,6 +273,23 @@
             <template #default="{ row }">¥{{ money(row.unitPriceCents) }}</template>
           </el-table-column>
         </el-table>
+      </div>
+
+      <div v-if="selected" class="drawer-actions drawer-actions--review">
+        <el-button
+          v-if="selected.sessionId"
+          type="warning"
+          :loading="videoLoading"
+          @click="playVideo(selected.sessionId)"
+        >播放会话录像</el-button>
+        <el-button
+          v-if="selected.deviceId && canAccessPath('/exceptions')"
+          @click="goExceptions(selected.deviceId)"
+        >异常中心</el-button>
+        <el-button
+          v-if="selected.orderId || selected.deviceId"
+          @click="goOrders(selected.deviceId)"
+        >关联订单</el-button>
       </div>
 
       <div v-if="selected?.status === 'OPEN'" class="drawer-actions">
@@ -265,13 +337,14 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Refresh, View } from '@element-plus/icons-vue';
+import { Link, Refresh, VideoCamera, View, Warning } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
-import TableActions from '@/components/TableActions.vue';
+import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
+import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import type { DevRecognitionPreviewDto, DisputeTicketDto, OrderLineDto, PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -288,8 +361,12 @@ interface ResolveDisputeResultDto {
 const route = useRoute();
 const router = useRouter();
 const { canAccessPath, goPath } = useNavAccess();
+const { playSessionVideo } = useSessionVideo();
 const loading = ref(false);
+const videoLoading = ref(false);
 const status = ref('OPEN');
+const categoryTab = ref('ALL');
+const reviewCodeTab = ref('ALL');
 const items = ref<DisputeTicketDto[]>([]);
 const page = ref(1);
 const size = ref(20);
@@ -324,11 +401,14 @@ const { onExport } = useListCsv({
     ])
 });
 
-const emptyHint = computed(() =>
-  status.value === 'OPEN'
+const emptyHint = computed(() => {
+  if (categoryTab.value === 'RECOGNITION' && reviewCodeTab.value !== 'ALL') {
+    return `当前无「${confidenceHint({ reviewCode: reviewCodeTab.value, category: 'RECOGNITION' })}」待审工单`;
+  }
+  return status.value === 'OPEN'
     ? '当前无待审核工单，可切换「已结案」查看历史'
-    : '暂无数据'
-);
+    : '暂无数据';
+});
 
 const hasPriorBill = computed(() => (selected.value?.billedAmountCents || 0) > 0);
 
@@ -349,6 +429,77 @@ function disputeStatusType(s?: string) {
   return '';
 }
 
+function confidenceHint(row?: DisputeTicketDto | null | { reviewCode?: string; category?: string; reason?: string }) {
+  if (!row) return '';
+  const code = String(row.reviewCode || '').toUpperCase();
+  if (code === 'LOW_CONF') return '低置信';
+  if (code === 'UNMAPPED') return '未映射';
+  if (code === 'EMPTY') return '空识别';
+  if (code === 'WHITELIST') return '白名单';
+  if (code === 'NEED_REVIEW') return '需复核';
+  const text = `${row.reason || ''} ${row.category || ''}`;
+  if (row.category === 'RECOGNITION' || /识别|置信|未映射|存疑/.test(text)) {
+    if (/低置信|置信度|阈值/.test(text)) return '低置信';
+    if (/未映射|检出类/.test(text)) return '未映射';
+    if (/未识别/.test(text)) return '空识别';
+    if (/白名单|视觉状态/.test(text)) return '白名单';
+    if (row.category === 'RECOGNITION') return '识别争议';
+  }
+  return '';
+}
+
+function reviewChipType(row?: DisputeTicketDto | null) {
+  const code = String(row?.reviewCode || '').toUpperCase();
+  if (code === 'LOW_CONF' || code === 'EMPTY') return 'danger';
+  if (code === 'UNMAPPED' || code === 'WHITELIST') return 'warning';
+  return 'info';
+}
+
+function rowActions(row: DisputeTicketDto): TableAction[] {
+  const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
+  if (row.sessionId) {
+    actions.push({ key: 'video', label: '录像', icon: VideoCamera, type: 'warning', overflow: true });
+  }
+  if (row.reviewCode === 'UNMAPPED' || (row.detectedClasses && row.detectedClasses.length)) {
+    actions.push({ key: 'mapping', label: '去映射', icon: Link, overflow: true });
+  }
+  if (row.deviceId && canAccessPath('/exceptions')) {
+    actions.push({ key: 'exception', label: '异常', icon: Warning, overflow: true });
+  }
+  if (row.orderId || row.deviceId) {
+    actions.push({ key: 'order', label: '订单', icon: Link, overflow: true });
+  }
+  return actions;
+}
+
+function onRowAction(key: string, row: DisputeTicketDto) {
+  if (key === 'detail') openDetail(row);
+  if (key === 'video') playVideo(row.sessionId);
+  if (key === 'exception') goExceptions(row.deviceId);
+  if (key === 'order') goOrders(row.deviceId);
+  if (key === 'mapping') goVisionMapping(row);
+}
+
+function goVisionMapping(row?: DisputeTicketDto | null) {
+  if (!canAccessPath('/vision-mappings')) {
+    ElMessage.warning('无识别映射访问权限');
+    return;
+  }
+  const query: Record<string, string> = {};
+  const cls = row?.detectedClasses?.[0];
+  if (cls) query.keyword = cls;
+  goPath('/vision-mappings', query);
+}
+
+async function playVideo(sessionId?: string) {
+  videoLoading.value = true;
+  try {
+    await playSessionVideo(sessionId);
+  } finally {
+    videoLoading.value = false;
+  }
+}
+
 function goDevice(id: string) {
   if (!canAccessPath('/devices')) {
     ElMessage.warning('无访问权限');
@@ -365,6 +516,11 @@ function goOrders(device?: string) {
   const query: Record<string, string> = {};
   if (device) query.deviceId = device;
   goPath('/orders', query);
+}
+function goExceptions(device?: string) {
+  const query: Record<string, string> = { status: 'OPEN' };
+  if (device) query.deviceId = device;
+  goPath('/exceptions', query);
 }
 
 function openDetail(row: DisputeTicketDto) {
@@ -479,7 +635,25 @@ async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM') {
 function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (status.value) query.status = status.value;
+  if (categoryTab.value && categoryTab.value !== 'ALL') query.category = categoryTab.value;
+  if (categoryTab.value === 'RECOGNITION' && reviewCodeTab.value && reviewCodeTab.value !== 'ALL') {
+    query.reviewCode = reviewCodeTab.value;
+  }
   router.replace({ query });
+}
+
+function onCategoryTab(name: string | number) {
+  categoryTab.value = String(name);
+  if (categoryTab.value !== 'RECOGNITION') reviewCodeTab.value = 'ALL';
+  page.value = 1;
+  syncRouteQuery();
+  load(false);
+}
+
+function onReviewCodeTab() {
+  page.value = 1;
+  syncRouteQuery();
+  load(false);
 }
 
 async function load(showToast = false) {
@@ -490,6 +664,12 @@ async function load(showToast = false) {
       size: String(size.value),
       status: status.value || 'OPEN'
     });
+    if (categoryTab.value && categoryTab.value !== 'ALL') {
+      q.set('category', categoryTab.value);
+    }
+    if (categoryTab.value === 'RECOGNITION' && reviewCodeTab.value && reviewCodeTab.value !== 'ALL') {
+      q.set('reviewCode', reviewCodeTab.value);
+    }
     const data = await api.request<PageResult<DisputeTicketDto>>(`/api/v2/ops/disputes?${q}`, 'GET');
     items.value = data.items || [];
     total.value = data.total || 0;
@@ -515,6 +695,8 @@ function search() {
 
 function reset() {
   status.value = 'OPEN';
+  categoryTab.value = 'ALL';
+  reviewCodeTab.value = 'ALL';
   page.value = 1;
   syncRouteQuery();
   load(false);
@@ -525,6 +707,23 @@ function applyRouteQuery() {
   if (typeof route.query.status === 'string' && route.query.status !== status.value) {
     status.value = route.query.status;
     changed = true;
+  }
+  if (typeof route.query.category === 'string') {
+    const next = route.query.category || 'ALL';
+    if (next !== categoryTab.value) {
+      categoryTab.value = next === 'RECOGNITION' ? 'RECOGNITION' : next === 'ALL' ? 'ALL' : next;
+      changed = true;
+    }
+  }
+  if (typeof route.query.reviewCode === 'string') {
+    const next = route.query.reviewCode || 'ALL';
+    if (next !== reviewCodeTab.value) {
+      reviewCodeTab.value = next;
+      if (next !== 'ALL') categoryTab.value = 'RECOGNITION';
+      changed = true;
+    }
+  } else if (reviewCodeTab.value !== 'ALL' && !route.query.reviewCode) {
+    // keep
   }
   return changed;
 }
@@ -587,6 +786,15 @@ onMounted(async () => {
   font-size: 11px;
   font-family: var(--app-font-mono);
 }
+.reason-chip { margin-top: 4px; justify-self: start; }
+.review-code-tabs { margin: 0 0 12px; }
+.detected-classes {
+  margin-top: 4px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.reason-block { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .ticket-cell:hover strong { text-decoration: underline; }
 .link-cell {
   appearance: none;
@@ -604,6 +812,8 @@ onMounted(async () => {
 .muted { color: var(--el-text-color-secondary); }
 .resolve-feedback { margin-bottom: 16px; }
 .drawer-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.drawer-actions--review { margin-top: 16px; margin-bottom: 0; }
+.status-tabs { margin: 0 0 10px; }
 .items-block { margin-top: 20px; }
 .items-title { font-weight: 600; margin-bottom: 8px; }
 .ai-suggest-block { width: 100%; margin-bottom: 12px; }

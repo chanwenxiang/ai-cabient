@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="page">
     <view class="profile-header">
       <view class="avatar">{{ avatarText }}</view>
@@ -35,6 +35,31 @@
         </view>
         <text class="menu-arrow">›</text>
       </view>
+    </view>
+
+    <view v-if="canAlerts" class="section-label">消息提醒</view>
+    <view v-if="canAlerts" class="menu-list notify-card">
+      <view class="notify-head">
+        <view class="menu-text">
+          <text class="menu-title">微信订阅提醒</text>
+          <text class="menu-desc">{{ wxBound ? '已绑定微信，可接收待办推送' : '绑定微信后可接收待办推送（开发环境可模拟）' }}</text>
+        </view>
+        <button class="bind-btn" size="mini" :loading="notifyBusy" @click="onBindWx">
+          {{ wxBound ? '重新绑定' : '开启提醒' }}
+        </button>
+      </view>
+      <view class="notify-types">
+        <label v-for="t in alertTypeOptions" :key="t.value" class="notify-type">
+          <switch
+            :checked="enabledTypes.includes(t.value)"
+            color="#0f766e"
+            :data-type="t.value"
+            @change="onSwitchChange"
+          />
+          <text>{{ t.label }}</text>
+        </label>
+      </view>
+      <button class="save-btn" :loading="notifyBusy" @click="onSaveSubscribe">保存提醒偏好</button>
     </view>
 
     <view v-if="canPricing || canSettlements || canDisputes || canBusiness" class="section-label">经营工具</view>
@@ -88,7 +113,8 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import { clearSession, hasPerm } from '@/utils/merchant-api';
+import { clearSession, hasPerm, merchantApi } from '@/utils/merchant-api';
+import { MERCHANT_ALERT_TYPES, requestMerchantSubscribe, wxLoginCode } from '@/utils/notify';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { MerchantMe } from '@aicabinet/shared-types';
 
@@ -97,6 +123,10 @@ const meName = ref('');
 const merchantNames = ref('');
 const phone = ref('');
 const avatarText = computed(() => (meName.value || '商').slice(0, 1));
+const notifyBusy = ref(false);
+const wxBound = ref(false);
+const enabledTypes = ref<string[]>([]);
+const alertTypeOptions = MERCHANT_ALERT_TYPES;
 
 const canReplenishment = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 const canDevices = computed(() => hasPerm(me.value, 'merchant:devices:list'));
@@ -107,6 +137,17 @@ const canDisputes = computed(() => hasPerm(me.value, 'merchant:disputes:list'));
 const canBusiness = computed(
   () => hasPerm(me.value, 'merchant:reports:view') || hasPerm(me.value, 'merchant:analytics:view')
 );
+
+async function loadNotifyPrefs() {
+  if (!canAlerts.value) return;
+  try {
+    const prefs = await merchantApi.notifyPrefs();
+    wxBound.value = !!prefs.wxBound;
+    enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
+  } catch {
+    /* ignore — page still usable */
+  }
+}
 
 onShow(async () => {
   if (!uni.getStorageSync('merchant_token')) {
@@ -122,7 +163,57 @@ onShow(async () => {
   meName.value = profile.displayName || profile.phoneNumber || '商户';
   merchantNames.value = (profile.merchants || []).map((m) => m.merchantName).join('、') || '未绑定';
   phone.value = profile.phoneNumber || '';
+  await loadNotifyPrefs();
 });
+
+function onToggleType(type: string, on: boolean) {
+  const set = new Set(enabledTypes.value);
+  if (on) set.add(type);
+  else set.delete(type);
+  enabledTypes.value = [...set];
+}
+
+function onSwitchChange(e: { detail?: { value?: boolean }; currentTarget?: { dataset?: { type?: string } }; target?: { dataset?: { type?: string } } }) {
+  const type = e.currentTarget?.dataset?.type || e.target?.dataset?.type || '';
+  if (!type) return;
+  onToggleType(type, !!e.detail?.value);
+}
+
+async function onBindWx() {
+  notifyBusy.value = true;
+  try {
+    await requestMerchantSubscribe();
+    const code = await wxLoginCode();
+    const prefs = await merchantApi.notifyWxBind(code);
+    wxBound.value = !!prefs.wxBound;
+    enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
+    uni.showToast({ title: '已绑定微信提醒', icon: 'success' });
+  } catch (e) {
+    uni.showToast({
+      title: e instanceof Error ? e.message : '绑定失败',
+      icon: 'none'
+    });
+  } finally {
+    notifyBusy.value = false;
+  }
+}
+
+async function onSaveSubscribe() {
+  notifyBusy.value = true;
+  try {
+    await requestMerchantSubscribe();
+    const prefs = await merchantApi.notifySubscribe(enabledTypes.value);
+    enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
+    uni.showToast({ title: '提醒偏好已保存', icon: 'success' });
+  } catch (e) {
+    uni.showToast({
+      title: e instanceof Error ? e.message : '保存失败',
+      icon: 'none'
+    });
+  } finally {
+    notifyBusy.value = false;
+  }
+}
 
 function goPricing() {
   uni.navigateTo({ url: '/pages/pricing/pricing' });
@@ -231,6 +322,41 @@ function onLogout() {
 .menu-title { font-size: 30rpx; font-weight: 600; display: block; color: #1e293b; }
 .menu-desc { font-size: 24rpx; color: #94a3b8; display: block; margin-top: 4rpx; }
 .menu-arrow { color: #cbd5e1; font-size: 36rpx; }
+.notify-card {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 24rpx;
+  margin: 0 24rpx 12rpx;
+}
+.notify-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16rpx;
+  margin-bottom: 16rpx;
+}
+.bind-btn {
+  flex-shrink: 0;
+  background: #ecfdf5;
+  color: #0f766e;
+  border: none;
+  font-size: 22rpx;
+}
+.notify-types { display: grid; gap: 12rpx; }
+.notify-type {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  font-size: 26rpx;
+  color: #334155;
+}
+.save-btn {
+  margin-top: 20rpx;
+  background: #0f766e;
+  color: #fff;
+  border: none;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+}
 .danger { color: #ef4444; }
 .danger-cell { background: #fffafa; }
 .danger-cell .menu-icon { background: #fff1f0; }

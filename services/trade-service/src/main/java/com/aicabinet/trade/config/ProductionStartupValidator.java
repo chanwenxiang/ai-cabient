@@ -28,6 +28,7 @@ public class ProductionStartupValidator {
     private final ProfitSharingProperties profitSharingProperties;
     private final PayScoreProperties payScoreProperties;
     private final ReconciliationProperties reconciliationProperties;
+    private final CheckoutProperties checkoutProperties;
 
     public ProductionStartupValidator(Environment environment,
                                       SecurityProperties securityProperties,
@@ -41,7 +42,8 @@ public class ProductionStartupValidator {
                                       CorsProperties corsProperties,
                                       ProfitSharingProperties profitSharingProperties,
                                       PayScoreProperties payScoreProperties,
-                                      ReconciliationProperties reconciliationProperties) {
+                                      ReconciliationProperties reconciliationProperties,
+                                      CheckoutProperties checkoutProperties) {
         this.environment = environment;
         this.securityProperties = securityProperties;
         this.stagingProperties = stagingProperties;
@@ -55,6 +57,7 @@ public class ProductionStartupValidator {
         this.profitSharingProperties = profitSharingProperties;
         this.payScoreProperties = payScoreProperties;
         this.reconciliationProperties = reconciliationProperties;
+        this.checkoutProperties = checkoutProperties;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -62,6 +65,9 @@ public class ProductionStartupValidator {
         if (!isStrictProfile()) {
             if (securityProperties.mockEnabled()) {
                 log.warn("Running with mock-enabled=true (dev mode). Do not use in production.");
+            }
+            if (checkoutProperties.balanceOnly()) {
+                log.info("CHECKOUT_BALANCE_ONLY=true — settlement uses wallet balance only (no live WeChat charge required).");
             }
             return;
         }
@@ -79,6 +85,9 @@ public class ProductionStartupValidator {
 
         if (isStagingProfile()) {
             log.warn("Staging mode active — WeChat Pay/MiniApp validation skipped; use prod profile before go-live");
+            if (checkoutProperties.balanceOnly()) {
+                log.info("Staging CHECKOUT_BALANCE_ONLY=true — suitable for no-merchant balance-only soak tests");
+            }
             validateReconciliationConfig(false);
         } else {
             if (!weChatPayProperties.isConfigured()) {

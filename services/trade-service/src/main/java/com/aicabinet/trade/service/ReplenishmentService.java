@@ -14,6 +14,10 @@ import com.aicabinet.trade.domain.DeviceSkuInventoryId;
 
 import com.aicabinet.trade.domain.DeviceSkuLot;
 
+import com.aicabinet.trade.domain.MerchantReplenishmentRequest;
+
+import com.aicabinet.trade.domain.MerchantReplenishmentRequestLine;
+
 import com.aicabinet.trade.domain.PullOffTask;
 
 import com.aicabinet.trade.domain.ReplenishmentRoute;
@@ -28,6 +32,10 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
 
 import com.aicabinet.trade.mapper.DeviceSkuLotMapper;
+
+import com.aicabinet.trade.mapper.MerchantReplenishmentRequestLineMapper;
+
+import com.aicabinet.trade.mapper.MerchantReplenishmentRequestMapper;
 
 import com.aicabinet.trade.mapper.PullOffTaskMapper;
 
@@ -53,7 +61,10 @@ import java.time.Instant;
 
 import java.time.LocalDate;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+
+import java.util.Map;
 
 
 
@@ -91,6 +102,10 @@ public class ReplenishmentService {
 
     private final SessionService sessionService;
 
+    private final MerchantReplenishmentRequestMapper merchantRequestRepository;
+
+    private final MerchantReplenishmentRequestLineMapper merchantRequestLineRepository;
+
 
 
     public ReplenishmentService(DeviceSkuInventoryMapper inventoryRepository,
@@ -115,7 +130,9 @@ public class ReplenishmentService {
                                 DeviceInfoMapper deviceRepository,
                                 DeviceSlotService deviceSlotService,
                                 InTransitService inTransitService,
-                                @org.springframework.context.annotation.Lazy SessionService sessionService) {
+                                @org.springframework.context.annotation.Lazy SessionService sessionService,
+                                MerchantReplenishmentRequestMapper merchantRequestRepository,
+                                MerchantReplenishmentRequestLineMapper merchantRequestLineRepository) {
 
         this.inventoryRepository = inventoryRepository;
 
@@ -140,6 +157,8 @@ public class ReplenishmentService {
         this.deviceSlotService = deviceSlotService;
         this.inTransitService = inTransitService;
         this.sessionService = sessionService;
+        this.merchantRequestRepository = merchantRequestRepository;
+        this.merchantRequestLineRepository = merchantRequestLineRepository;
 
     }
 
@@ -320,6 +339,83 @@ public class ReplenishmentService {
     @Transactional(readOnly = true)
     public List<SlotReplenishmentSuggestDto> suggestSlotsForDevice(String deviceId) {
         return deviceSlotService.suggestSlotsForDevice(deviceId);
+    }
+
+    /**
+     * 历史空任务回填：关联要货单且尚无任何任务行时，按要货数量 seed。
+     */
+    @Transactional
+    public int ensureSeededFromLinkedRequest(Long taskId) {
+        if (taskId == null) {
+            return 0;
+        }
+        ReplenishmentTask task = taskRepository.findById(taskId).orElse(null);
+        if (task == null || task.getRequestId() == null) {
+            return 0;
+        }
+        if (!taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId).isEmpty()) {
+            return 0;
+        }
+        Map<String, Integer> skuQty = new LinkedHashMap<>();
+        for (MerchantReplenishmentRequestLine line : merchantRequestLineRepository
+                .findByRequestIdOrderByLineIdAsc(task.getRequestId())) {
+            if (line.getSkuId() == null || line.getSkuId().isBlank()) {
+                continue;
+            }
+            skuQty.merge(line.getSkuId(), Math.max(0, line.getRequestedQty()), Integer::sum);
+        }
+        return seedDraftRestockLines(taskId, task.getDeviceId(), skuQty);
+    }
+
+    /**
+     * 无仓配出库时：按要货 SKU 数量生成现场 RESTOCK 行（有货道容量则分配 slot，否则仍落无货道行便于商户执行）。
+     * 已有任务行时跳过，避免覆盖人工录入。
+     */
+    @Transactional
+    public int seedDraftRestockLines(Long taskId, String deviceId, Map<String, Integer> skuQty) {
+        if (taskId == null || deviceId == null || skuQty == null || skuQty.isEmpty()) {
+            return 0;
+        }
+        if (!taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId).isEmpty()) {
+            return 0;
+        }
+        int created = 0;
+        for (Map.Entry<String, Integer> entry : skuQty.entrySet()) {
+            String skuId = entry.getKey();
+            int need = entry.getValue() == null ? 0 : Math.max(0, entry.getValue());
+            if (skuId == null || skuId.isBlank() || need <= 0) {
+                continue;
+            }
+            List<DeviceSlotService.SlotRestockAllocation> allocations =
+                    deviceSlotService.allocateRestockQuantity(deviceId, skuId, need);
+            int allocated = 0;
+            for (DeviceSlotService.SlotRestockAllocation alloc : allocations) {
+                ReplenishmentTaskLine line = new ReplenishmentTaskLine();
+                line.setTaskId(taskId);
+                line.setLineType("RESTOCK");
+                line.setSkuId(skuId);
+                line.setQuantity(alloc.quantity());
+                line.setSlotId(alloc.slotCode());
+                line.setApplied(false);
+                taskLineRepository.save(line);
+                allocated += alloc.quantity();
+                created++;
+            }
+            int remain = need - allocated;
+            if (remain > 0) {
+                ReplenishmentTaskLine line = new ReplenishmentTaskLine();
+                line.setTaskId(taskId);
+                line.setLineType("RESTOCK");
+                line.setSkuId(skuId);
+                line.setQuantity(remain);
+                line.setApplied(false);
+                taskLineRepository.save(line);
+                created++;
+                log.warn("seedDraftRestockLines: {} units without slot headroom task={} sku={}",
+                        remain, taskId, skuId);
+            }
+        }
+        return created;
     }
 
     /** 出库发运后：按出库行自动生成补货任务行（不覆盖已录入的未应用行）。 */
@@ -565,6 +661,7 @@ public class ReplenishmentService {
             if (sessionService != null) {
                 sessionService.closeRestockSessionsForTask(taskId, "补货任务已完成，自动关闭开门会话");
             }
+            markLinkedRequestCompleted(task);
             return toTaskDto(task);
         }
 
@@ -624,8 +721,23 @@ public class ReplenishmentService {
         if (sessionService != null) {
             sessionService.closeRestockSessionsForTask(taskId, "补货任务已完成，自动关闭开门会话");
         }
+        markLinkedRequestCompleted(task);
         return toTaskDto(task);
 
+    }
+
+    /** 关联要货单：任务完成后置 COMPLETED（仅 ACCEPTED → COMPLETED）。 */
+    private void markLinkedRequestCompleted(ReplenishmentTask task) {
+        if (task == null || task.getRequestId() == null || merchantRequestRepository == null) {
+            return;
+        }
+        merchantRequestRepository.findById(task.getRequestId()).ifPresent(req -> {
+            if (!"ACCEPTED".equalsIgnoreCase(req.getStatus())) {
+                return;
+            }
+            req.setStatus("COMPLETED");
+            merchantRequestRepository.save(req);
+        });
     }
 
     /** 出库行 → 货道分配：优先沿用出库明细货道，并按当前余量截断。 */
@@ -912,6 +1024,79 @@ public class ReplenishmentService {
 
 
 
+
+    @Transactional
+    public ReplenishmentRouteDto createTaskFromPullOff(Long operatorId, Long pullOffTaskId,
+                                                       CreateFromExpiryRequest request) {
+        PullOffTask pull = pullOffTaskRepository.findById(pullOffTaskId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "临期告警不存在"));
+        if (!"OPEN".equalsIgnoreCase(pull.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "该临期告警已处理");
+        }
+        String lineType = request != null && request.lineType() != null
+                ? request.lineType().trim().toUpperCase(java.util.Locale.ROOT)
+                : "PULL_OFF";
+        if (!"PULL_OFF".equals(lineType) && !"RESTOCK".equals(lineType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "lineType 仅支持 PULL_OFF 或 RESTOCK");
+        }
+        Long assignee = request != null ? request.assigneeUserId() : null;
+
+        int qty = Math.max(1, pull.getQuantity());
+        String slotId = null;
+        if ("RESTOCK".equals(lineType)) {
+            int headroom = deviceSlotService.totalHeadroomForSku(pull.getDeviceId(), pull.getSkuId());
+            if (headroom <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "该商品货道已满，无法创建补货任务；请改用「下架任务」腾出库存后再补");
+            }
+            if (qty > headroom) {
+                qty = headroom;
+            }
+            List<DeviceSlotService.SlotRestockAllocation> alloc =
+                    deviceSlotService.allocateRestockQuantity(pull.getDeviceId(), pull.getSkuId(), qty);
+            if (!alloc.isEmpty()) {
+                slotId = alloc.get(0).slotCode();
+                qty = alloc.stream().mapToInt(DeviceSlotService.SlotRestockAllocation::quantity).sum();
+            }
+        }
+
+        ReplenishmentRoute route = new ReplenishmentRoute();
+        route.setRouteName("临期-" + pull.getDeviceId() + "-" + pull.getSkuId());
+        route.setAssigneeUserId(assignee != null ? assignee : operatorId);
+        route.setPlannedDate(LocalDate.now());
+        route.setStatus("PLANNED");
+        route = routeRepository.save(route);
+
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setRouteId(route.getRouteId());
+        task.setDeviceId(pull.getDeviceId());
+        task.setAssigneeUserId(route.getAssigneeUserId());
+        task.setStatus("PENDING");
+        task.setNotes("from-expiry:" + pull.getTaskId()
+                + (pull.getReason() != null ? " " + pull.getReason() : ""));
+        task = taskRepository.save(task);
+
+        ReplenishmentTaskLine line = new ReplenishmentTaskLine();
+        line.setTaskId(task.getTaskId());
+        line.setLineType(lineType);
+        line.setSkuId(pull.getSkuId());
+        line.setBatchNo(pull.getBatchNo());
+        line.setQuantity(qty);
+        if (slotId != null) {
+            line.setSlotId(slotId);
+        }
+        line.setApplied(false);
+        taskLineRepository.save(line);
+
+        pull.setStatus("RESOLVED");
+        pull.setResolvedAt(Instant.now());
+        pullOffTaskRepository.save(pull);
+
+        return toRouteDto(route);
+    }
+
+
+
     private DeviceInventoryDto toInventoryDto(DeviceSkuInventory inv) {
 
         return new DeviceInventoryDto(
@@ -965,14 +1150,24 @@ public class ReplenishmentService {
 
 
     private ReplenishmentTaskDto toTaskDto(ReplenishmentTask t) {
-
         return new ReplenishmentTaskDto(
                 t.getTaskId(), t.getRouteId(), t.getDeviceId(), t.getAssigneeUserId(),
                 t.getStatus(), t.getNotes(), t.getCompletedAt(),
                 t.getCheckInAt(), t.getCheckInLat(), t.getCheckInLng(),
+                resolveCheckInDistanceM(t),
                 t.getRequestId(), t.getOutboundId(), t.getCreatedAt()
         );
+    }
 
+    private Double resolveCheckInDistanceM(ReplenishmentTask t) {
+        if (t.getCheckInLat() == null || t.getCheckInLng() == null || t.getDeviceId() == null) {
+            return null;
+        }
+        DeviceInfo device = deviceRepository.findById(t.getDeviceId()).orElse(null);
+        if (device == null || device.getLatitude() == null || device.getLongitude() == null) {
+            return null;
+        }
+        return haversineMeters(device.getLatitude(), device.getLongitude(), t.getCheckInLat(), t.getCheckInLng());
     }
 
 
@@ -1010,17 +1205,17 @@ public class ReplenishmentService {
 
 
     private PullOffTaskDto toPullOffDto(PullOffTask task) {
-
+        int headroom = 0;
+        try {
+            headroom = deviceSlotService.totalHeadroomForSku(task.getDeviceId(), task.getSkuId());
+        } catch (Exception ignored) {
+            headroom = 0;
+        }
         return new PullOffTaskDto(
-
                 task.getTaskId(), task.getDeviceId(), task.getSkuId(), task.getLotId(),
-
                 task.getBatchNo(), task.getQuantity(), task.getReason(), task.getStatus(),
-
-                task.getCreatedAt()
-
+                task.getCreatedAt(), Math.max(0, headroom)
         );
-
     }
 
 }

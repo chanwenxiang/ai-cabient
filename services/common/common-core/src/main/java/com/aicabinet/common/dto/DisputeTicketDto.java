@@ -27,5 +27,7 @@ public record DisputeTicketDto(
         Instant closedAt,
         Instant reopenedAt,
         List<DisputeMessageDto> messages,
-        List<FileAttachmentDto> evidence
+        List<FileAttachmentDto> evidence,
+        String reviewCode,
+        List<String> detectedClasses
 ) {}

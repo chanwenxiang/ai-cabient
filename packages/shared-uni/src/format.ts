@@ -58,16 +58,36 @@ export function fmtMoney(cents?: number) {
   return '¥' + (cents / 100).toFixed(2);
 }
 
+export type OpenErrorKind = 'balance' | 'device_not_found' | 'rate_limit' | 'other';
+
+function errorText(err: unknown): string {
+  if (!err) return '';
+  if (typeof err === 'string') return err;
+  const e = err as { message?: string; errMsg?: string };
+  return String(e.message || e.errMsg || '');
+}
+
+export function classifyOpenError(err: unknown): OpenErrorKind {
+  const e = err as { status?: number; message?: string; errMsg?: string } | null;
+  const msg = errorText(err);
+  if (e?.status === 429 || /too many door open|过于频繁/i.test(msg)) return 'rate_limit';
+  if (e?.status === 404 || /设备不存在|柜机不存在|device not found|编号无效|检查设备编号|检查柜机编号/i.test(msg)) {
+    return 'device_not_found';
+  }
+  if (/余额不足|请先充值|insufficient balance|BALANCE/i.test(msg)) return 'balance';
+  return 'other';
+}
+
 export function formatError(err: unknown): string {
   if (!err) return '未知错误';
+  const kind = classifyOpenError(err);
+  if (kind === 'rate_limit') return '开门过于频繁，请稍后再试';
+  if (kind === 'balance') return '余额不足，请先充值后再开门（建议 ≥ ¥5，或开通免密支付）';
+  if (kind === 'device_not_found') return '柜机不存在或编号有误，请重新扫描柜门二维码';
   if (typeof err === 'string') return err;
-  const e = err as { status?: number; message?: string; errMsg?: string };
-  if (e.status === 429) return '开门过于频繁，请稍后再试';
+  const e = err as { message?: string; errMsg?: string };
   if (e.message) {
     const msg = String(e.message);
-    if (/too many door open/i.test(msg)) return '开门过于频繁，请稍后再试';
-    if (/余额|balance/i.test(msg)) return '余额不足，请先充值';
-    if (/device not found/i.test(msg)) return '柜机不存在，请检查柜机编号';
     if (/[\u4e00-\u9fff]/.test(msg)) return msg;
     return '操作失败，请稍后重试';
   }

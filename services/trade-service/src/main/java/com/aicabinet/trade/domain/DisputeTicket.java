@@ -45,6 +45,12 @@ public class DisputeTicket {
 
     private Instant reopenedAt;
 
+    /** LOW_CONF / EMPTY / UNMAPPED / NEED_REVIEW / WHITELIST */
+    private String reviewCode;
+
+    /** JSON array of vision detected class names (unmapped hints). */
+    private String detectedClasses;
+
 public String getTicketId() { return ticketId; }
     public void setTicketId(String ticketId) { this.ticketId = ticketId; }
     public String getSessionId() { return sessionId; }
@@ -76,4 +82,8 @@ public String getTicketId() { return ticketId; }
     public void setClosedAt(Instant closedAt) { this.closedAt = closedAt; }
     public Instant getReopenedAt() { return reopenedAt; }
     public void setReopenedAt(Instant reopenedAt) { this.reopenedAt = reopenedAt; }
+    public String getReviewCode() { return reviewCode; }
+    public void setReviewCode(String reviewCode) { this.reviewCode = reviewCode; }
+    public String getDetectedClasses() { return detectedClasses; }
+    public void setDetectedClasses(String detectedClasses) { this.detectedClasses = detectedClasses; }
 }

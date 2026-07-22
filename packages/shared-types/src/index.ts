@@ -461,6 +461,9 @@ export interface DisputeTicketDto {
   category?: string;
   priority?: string;
   evidence?: FileAttachmentDto[];
+  /** LOW_CONF | EMPTY | UNMAPPED | NEED_REVIEW | WHITELIST */
+  reviewCode?: string;
+  detectedClasses?: string[];
 }
 
 export interface SessionCartRequest {

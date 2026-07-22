@@ -11,7 +11,8 @@
             <el-tag size="small" type="info">待执行 {{ plannedCount }}</el-tag>
             <el-tag size="small" type="warning">待处理设备 {{ pendingTaskCount }}</el-tag>
             <el-tag size="small" type="success">已履约 {{ fulfilledCount }}</el-tag>
-            <el-tag size="small">要货 {{ requests.length }}</el-tag>
+            <el-tag size="small">要货待审 {{ pendingRequestCount }}</el-tag>
+            <el-tag size="small" type="danger">临期 {{ expiryAlerts.length }}</el-tag>
             <el-tag v-if="focusDeviceId" size="small" type="success" closable @close="clearDeviceFocus">
               设备 {{ focusDeviceId }}
             </el-tag>
@@ -81,7 +82,14 @@
                         <el-tag :type="scope.row.checkInAt ? 'success' : 'info'" size="small">
                           {{ scope.row.checkInAt ? '已签到' : '未签到' }}
                         </el-tag>
-                        <small v-if="formatCheckInGps(scope.row)" class="gps-text">{{ formatCheckInGps(scope.row) }}</small>
+                        <el-tag
+                          v-if="scope.row.checkInAt && !checkInHasGps(scope.row)"
+                          size="small"
+                          type="warning"
+                          effect="plain"
+                        >无定位</el-tag>
+                        <small v-else-if="formatCheckInGps(scope.row)" class="gps-text">{{ formatCheckInGps(scope.row) }}</small>
+                        <small v-if="formatCheckInDistance(scope.row)" class="gps-text">{{ formatCheckInDistance(scope.row) }}</small>
                       </div>
                     </template>
                   </el-table-column>
@@ -168,6 +176,14 @@
               <el-option label="已取消" value="CANCELLED" />
             </el-select>
           </el-form-item>
+          <el-form-item>
+            <el-checkbox
+              v-model="fulfillmentUnassignedOnly"
+              @change="page = 1"
+            >
+              仅待分配货道{{ unassignedHintCount ? ` (${unassignedHintCount})` : '' }}
+            </el-checkbox>
+          </el-form-item>
         </el-form>
         <div class="table-scroll">
           <div class="table-scroll-inner" style="min-width: 1080px">
@@ -196,11 +212,21 @@
               <el-table-column label="路线" min-width="140" class-name="col-text" show-overflow-tooltip>
                 <template #default="{ row }">{{ row.routeName || row.routeId || '-' }}</template>
               </el-table-column>
-              <el-table-column label="状态" width="100" align="center">
+              <el-table-column label="状态" width="148" align="center">
                 <template #default="{ row }">
-                  <el-tag :type="dictTagType(row.status)" size="small">
-                    {{ dictLabel('replenishment_task_status', row.status) }}
-                  </el-tag>
+                  <div class="status-stack">
+                    <el-tag :type="dictTagType(row.status)" size="small">
+                      {{ dictLabel('replenishment_task_status', row.status) }}
+                    </el-tag>
+                    <el-tag
+                      v-if="taskUnassignedHint[row.taskId]"
+                      type="danger"
+                      size="small"
+                      effect="plain"
+                    >
+                      待分配
+                    </el-tag>
+                  </div>
                 </template>
               </el-table-column>
               <el-table-column label="人员" width="88" align="center">
@@ -212,7 +238,12 @@
                 <template #default="{ row }">
                   <div class="check-in-cell">
                     <span class="cell-datetime">{{ row.checkInAt ? formatDateTime(row.checkInAt) : '未签到' }}</span>
-                    <small v-if="formatCheckInGps(row)" class="gps-text">{{ formatCheckInGps(row) }}</small>
+                    <small
+                      v-if="formatCheckInGps(row)"
+                      class="gps-text"
+                      :class="{ 'gps-missing': row.checkInAt && !checkInHasGps(row) }"
+                    >{{ formatCheckInGps(row) }}</small>
+                    <small v-if="formatCheckInDistance(row)" class="gps-text">{{ formatCheckInDistance(row) }}</small>
                   </div>
                 </template>
               </el-table-column>
@@ -224,9 +255,16 @@
                   <span class="cell-datetime">{{ row.completedAt ? formatDateTime(row.completedAt) : '-' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="100" align="center" class-name="col-action">
+              <el-table-column label="操作" width="120" align="center" class-name="col-action">
                 <template #default="{ row }">
-                  <el-button link type="primary" @click="openTaskLines(row)">理货明细</el-button>
+                  <el-button link type="primary" @click="openTaskLines(row)">
+                    理货明细
+                    <el-badge
+                      v-if="taskUnassignedHint[row.taskId]"
+                      is-dot
+                      class="lines-dot"
+                    />
+                  </el-button>
                 </template>
               </el-table-column>
               <template #empty><el-empty description="暂无履约记录" /></template>
@@ -236,6 +274,16 @@
       </el-tab-pane>
 
       <el-tab-pane label="商户要货" name="requests">
+        <div class="shortage-toolbar">
+          <el-radio-group v-model="requestStatusFilter" size="small" @change="page = 1">
+            <el-radio-button value="SUBMITTED">待审核</el-radio-button>
+            <el-radio-button value="ACCEPTED">已接单</el-radio-button>
+            <el-radio-button value="COMPLETED">已完成</el-radio-button>
+            <el-radio-button value="REJECTED">已驳回</el-radio-button>
+            <el-radio-button value="ALL">全部</el-radio-button>
+          </el-radio-group>
+          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+        </div>
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
@@ -259,6 +307,11 @@
               </button>
             </template>
           </el-table-column>
+          <el-table-column label="明细" min-width="220" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span>{{ formatRequestLines(row) }}</span>
+            </template>
+          </el-table-column>
           <el-table-column label="状态" width="110" align="center">
             <template #default="{ row }">
               <el-tag :type="dictTagType(row.status)" size="small">
@@ -266,23 +319,39 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="提交时间" width="168" class-name="col-text">
+          <el-table-column label="驳回原因" min-width="160" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
-              <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="140" class-name="col-action" align="center">
-            <template #default="{ row }">
-              <TableActions
-                v-if="row.status === 'SUBMITTED'"
-                :actions="requestActions"
-                @action="(k) => onRequestAction(row, String(k))"
-              />
-
+              <span v-if="row.rejectReason" class="reject-reason">{{ row.rejectReason }}</span>
               <span v-else class="muted">-</span>
             </template>
           </el-table-column>
-          <template #empty><el-empty description="暂无待处理要货申请" /></template>
+          <el-table-column label="补货任务" width="110" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.replenishmentTaskId"
+                link
+                type="primary"
+                @click="goRequestTask(row)"
+              >#{{ row.replenishmentTaskId }}</el-button>
+              <span v-else class="muted">-</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="提交时间" width="168" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-datetime">{{ formatDateTime(row.submittedAt || row.createdAt) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column v-if="canEdit" label="操作" width="160" class-name="col-action" align="center">
+            <template #default="{ row }">
+              <TableActions
+                v-if="requestActionsFor(row).length"
+                :actions="requestActionsFor(row)"
+                @action="(k) => onRequestAction(row, String(k))"
+              />
+              <span v-else class="muted">-</span>
+            </template>
+          </el-table-column>
+          <template #empty><el-empty :description="requestsEmptyText" /></template>
             </el-table>
           </div>
         </div>
@@ -334,6 +403,87 @@
           </div>
         </div>
       </el-tab-pane>
+
+      <el-tab-pane label="临期下架" name="expiry">
+        <div class="shortage-toolbar">
+          <el-alert
+            type="warning"
+            :closable="false"
+            show-icon
+            title="临期批次建议优先下架或换新；可跳转仓库批次或按设备规划补货。"
+            class="expiry-hint"
+          />
+          <el-button :icon="Refresh" :loading="expiryLoading" @click="loadExpiryAlerts">刷新临期</el-button>
+        </div>
+        <div class="table-scroll">
+          <div class="table-scroll-inner">
+            <el-table
+              v-loading="expiryLoading"
+              :data="pagedExpiry"
+              stripe
+              border
+              empty-text="当前无临期下架任务"
+              row-key="taskId"
+              @selection-change="onExpirySelectionChange"
+            >
+              <el-table-column type="selection" width="48" align="center" />
+              <el-table-column label="设备" min-width="180" class-name="col-text">
+                <template #default="{ row }">
+                  <button type="button" class="device-link-cell" @click="goDevice(row.deviceId)">
+                    <strong>{{ deviceName(row.deviceId) }}</strong>
+                    <small>{{ row.deviceId }}</small>
+                  </button>
+                </template>
+              </el-table-column>
+              <el-table-column prop="skuId" label="商品 SKU" min-width="140" class-name="col-text" show-overflow-tooltip />
+              <el-table-column prop="batchNo" label="批次" min-width="120" class-name="col-text" show-overflow-tooltip />
+              <el-table-column prop="lotId" label="批次 ID" min-width="120" class-name="col-text" show-overflow-tooltip />
+              <el-table-column prop="quantity" label="数量" width="80" align="center" />
+              <el-table-column label="原因" min-width="160" class-name="col-text" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.reason || '临期' }}</template>
+              </el-table-column>
+              <el-table-column label="状态" width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag size="small" type="warning">{{ row.status || 'OPEN' }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="创建时间" width="168" class-name="col-text">
+                <template #default="{ row }">
+                  <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="240" align="center" class-name="col-action">
+                <template #default="{ row }">
+                  <el-button
+                    v-if="canEdit"
+                    link
+                    type="danger"
+                    :loading="expiryActingId === row.taskId"
+                    @click="createFromExpiry(row, 'PULL_OFF')"
+                  >下架任务</el-button>
+                  <el-tooltip
+                    :disabled="expiryRestockEnabled(row)"
+                    content="货道已满，请先下架腾出库存后再补货"
+                    placement="top"
+                  >
+                    <span class="expiry-restock-wrap">
+                      <el-button
+                        v-if="canEdit"
+                        link
+                        type="primary"
+                        :disabled="!expiryRestockEnabled(row)"
+                        :loading="expiryActingId === row.taskId"
+                        @click="createFromExpiry(row, 'RESTOCK')"
+                      >补货任务</el-button>
+                    </span>
+                  </el-tooltip>
+                  <el-button link type="primary" @click="goWarehouse(row.deviceId)">仓库</el-button>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
+      </el-tab-pane>
     </el-tabs>
     <div class="page-pager">
       <el-pagination
@@ -359,7 +509,12 @@
           <el-descriptions-item label="人员">{{ linesTask.assigneeUserId || '-' }}</el-descriptions-item>
           <el-descriptions-item label="签到">
             {{ linesTask.checkInAt ? formatDateTime(linesTask.checkInAt) : '未签到' }}
-            <span v-if="formatCheckInGps(linesTask)" class="gps-inline"> · {{ formatCheckInGps(linesTask) }}</span>
+            <span
+              v-if="formatCheckInGps(linesTask)"
+              class="gps-inline"
+              :class="{ 'gps-missing': !checkInHasGps(linesTask) }"
+            > · {{ formatCheckInGps(linesTask) }}</span>
+            <span v-if="formatCheckInDistance(linesTask)" class="gps-inline"> · {{ formatCheckInDistance(linesTask) }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="用时">{{ formatTaskDuration(linesTask) }}</el-descriptions-item>
           <el-descriptions-item label="完成">
@@ -373,20 +528,61 @@
           :closable="false"
           show-icon
           title="现场照片"
-          description="当前版本未采集补货现场照片；可凭签到 GPS、用时与上架明细核对履约。"
+          :description="taskEvidence.length
+            ? `已采集 ${taskEvidence.length} 张（商户端上传）`
+            : '尚未采集现场照片；可凭签到 GPS、用时与上架明细核对履约。'"
         />
+        <div v-if="taskEvidence.length" class="evidence-grid">
+          <div v-for="f in taskEvidence" :key="f.fileId" class="evidence-item">
+            <button
+              v-if="f.previewUrl"
+              type="button"
+              class="evidence-thumb"
+              @click="openEvidencePreview(f)"
+            >
+              <img :src="f.previewUrl" :alt="f.fileName || `文件 #${f.fileId}`" />
+            </button>
+            <div class="evidence-meta">
+              <span class="mono">{{ f.fileName || `文件 #${f.fileId}` }}</span>
+              <span class="meta">{{ formatFileSize(f.fileSize) }}</span>
+            </div>
+          </div>
+        </div>
         <el-table :data="taskLines" stripe border size="small" empty-text="暂无理货明细（未上架或未确认）">
           <el-table-column label="类型" width="88" align="center">
             <template #default="{ row }">{{ lineTypeLabel(row.lineType) }}</template>
           </el-table-column>
-          <el-table-column label="商品" min-width="120" show-overflow-tooltip>
+          <el-table-column label="商品" min-width="110" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="mono">{{ row.skuId || '-' }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="quantity" label="数量" width="72" align="center" />
-          <el-table-column label="货道" width="88" align="center">
-            <template #default="{ row }">{{ row.slotId || '-' }}</template>
+          <el-table-column label="货道" min-width="150" align="center">
+            <template #default="{ row }">
+              <el-select
+                v-if="canAssignSlot(row)"
+                v-model="row.slotId"
+                clearable
+                filterable
+                size="small"
+                placeholder="待分配"
+                style="width: 130px"
+                @change="(v: string | null) => onSlotAssign(row, v)"
+              >
+                <el-option
+                  v-for="opt in slotOptionsForLine(row)"
+                  :key="opt.slotCode"
+                  :label="`${opt.slotCode} · 余${opt.room}`"
+                  :value="opt.slotCode"
+                  :disabled="opt.room <= 0 && opt.slotCode !== row.slotId"
+                />
+              </el-select>
+              <template v-else>
+                <el-tag v-if="!row.slotId && isRestockLine(row)" type="warning" size="small">待分配</el-tag>
+                <span v-else>{{ row.slotId || '-' }}</span>
+              </template>
+            </template>
           </el-table-column>
           <el-table-column label="批次" min-width="100" show-overflow-tooltip>
             <template #default="{ row }">{{ row.batchNo || '-' }}</template>
@@ -403,7 +599,22 @@
           </el-table-column>
         </el-table>
         <div v-if="taskLines.length" class="lines-summary">
-          合计上架 {{ restockQtyTotal }} 件 · {{ taskLines.length }} 行
+          <span>合计上架 {{ restockQtyTotal }} 件 · {{ taskLines.length }} 行</span>
+          <el-tag v-if="unassignedRestockCount" type="warning" size="small" class="unassigned-badge">
+            待分配 {{ unassignedRestockCount }}
+          </el-tag>
+        </div>
+        <div
+          v-if="canEdit && linesTask && String(linesTask.status) !== 'COMPLETED' && editablePendingLines.length"
+          class="lines-actions"
+        >
+          <el-button
+            type="primary"
+            :loading="slotSaving"
+            :disabled="!!unassignedRestockCount"
+            @click="saveTaskSlots"
+          >保存货道分配</el-button>
+          <span v-if="unassignedRestockCount" class="lines-action-hint">请先为待分配行选择货道</span>
         </div>
       </div>
     </el-drawer>
@@ -479,7 +690,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Check, Close, Refresh } from '@element-plus/icons-vue';
+import { Check, Close, Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
@@ -502,6 +713,8 @@ const canEdit = computed(() => auth.hasPerm('ops:replenishment:edit'));
 const loading = ref(false);
 const saving = ref(false);
 const shortageLoading = ref(false);
+const expiryLoading = ref(false);
+const expiryActingId = ref<number | null>(null);
 const openDoorLoading = ref<number | null>(null);
 const cancelRouteLoading = ref<number | null>(null);
 const tab = ref('routes');
@@ -509,14 +722,24 @@ const page = ref(1);
 const size = ref(20);
 const focusDeviceId = ref('');
 const fulfillmentStatus = ref('');
+const fulfillmentUnassignedOnly = ref(false);
+const requestStatusFilter = ref('SUBMITTED');
 const routes = ref<Row[]>([]);
-const requests = ref<Row[]>([]);
+const allRequests = ref<Row[]>([]);
 const devices = ref<Row[]>([]);
 const shortages = ref<Row[]>([]);
+const expiryAlerts = ref<Row[]>([]);
 const linesDrawer = ref(false);
 const linesLoading = ref(false);
+const slotSaving = ref(false);
 const linesTask = ref<Row | null>(null);
 const taskLines = ref<Row[]>([]);
+const deviceSlots = ref<Row[]>([]);
+const taskUnassignedHint = ref<Record<number, boolean>>({});
+const taskEvidence = ref<
+  { fileId: number; fileName?: string; fileSize?: number; contentType?: string; previewUrl?: string }[]
+>([]);
+const evidenceObjectUrls = ref<string[]>([]);
 
 const shortageDevices = computed(() =>
   [...new Set(shortages.value.map((s) => s.deviceId).filter(Boolean))]
@@ -532,6 +755,28 @@ const selectedDevicesWithoutShortage = computed(() =>
   planForm.deviceIds.filter((id) => !shortageDevices.value.includes(id))
 );
 
+const requests = computed(() => {
+  const status = requestStatusFilter.value;
+  if (!status || status === 'ALL') return allRequests.value;
+  return allRequests.value.filter((r) => String(r.status || '') === status);
+});
+const pendingRequestCount = computed(
+  () => allRequests.value.filter((r) => String(r.status || '') === 'SUBMITTED').length
+);
+const requestsEmptyText = computed(() => {
+  switch (requestStatusFilter.value) {
+    case 'ACCEPTED':
+      return '暂无已接单要货';
+    case 'COMPLETED':
+      return '暂无已完成要货';
+    case 'REJECTED':
+      return '暂无已驳回要货';
+    case 'ALL':
+      return '暂无要货申请';
+    default:
+      return '暂无待处理要货申请';
+  }
+});
 const plannedCount = computed(() =>
   routes.value.filter((item) => ['PLANNED', 'IN_PROGRESS'].includes(item.status)).length
 );
@@ -540,7 +785,7 @@ const pendingTaskCount = computed(() =>
     .flatMap((item) => item.tasks || [])
     .filter((item) => ['PENDING', 'IN_PROGRESS'].includes(item.status)).length
 );
-const fulfillmentTasks = computed(() => {
+const fulfillmentTasksBase = computed(() => {
   const id = focusDeviceId.value.trim();
   const status = fulfillmentStatus.value;
   const rows: Row[] = [];
@@ -562,11 +807,19 @@ const fulfillmentTasks = computed(() => {
     return tb - ta;
   });
 });
+const fulfillmentTasks = computed(() => {
+  if (!fulfillmentUnassignedOnly.value) return fulfillmentTasksBase.value;
+  return fulfillmentTasksBase.value.filter((t) => taskUnassignedHint.value[Number(t.taskId)]);
+});
+const unassignedHintCount = computed(
+  () => fulfillmentTasksBase.value.filter((t) => taskUnassignedHint.value[Number(t.taskId)]).length
+);
 const fulfilledCount = computed(
   () => routes.value.flatMap((r) => r.tasks || []).filter((t) => String(t.status) === 'COMPLETED').length
 );
 const fulfillmentEmptyText = computed(() => {
   if (focusDeviceId.value.trim()) return `设备 ${focusDeviceId.value} 暂无履约记录`;
+  if (fulfillmentUnassignedOnly.value) return '暂无待分配货道的开放任务';
   if (fulfillmentStatus.value) return '当前筛选下暂无履约记录';
   return '暂无履约记录';
 });
@@ -589,12 +842,14 @@ function slicePage<T>(rows: T[]) {
 const tabTotal = computed(() => {
   if (tab.value === 'requests') return requests.value.length;
   if (tab.value === 'shortage') return shortages.value.length;
+  if (tab.value === 'expiry') return expiryAlerts.value.length;
   if (tab.value === 'fulfillment') return fulfillmentTasks.value.length;
   return filteredRoutes.value.length;
 });
 const pagedRoutes = computed(() => slicePage(filteredRoutes.value));
 const pagedRequests = computed(() => slicePage(requests.value));
 const pagedShortages = computed(() => slicePage(shortages.value));
+const pagedExpiry = computed(() => slicePage(expiryAlerts.value));
 const pagedFulfillment = computed(() => slicePage(fulfillmentTasks.value));
 const linesDrawerTitle = computed(() =>
   linesTask.value?.taskId ? `理货明细 · 任务 #${linesTask.value.taskId}` : '理货明细'
@@ -604,15 +859,88 @@ const restockQtyTotal = computed(() =>
     .filter((l) => String(l.lineType || 'RESTOCK').toUpperCase() === 'RESTOCK')
     .reduce((sum, l) => sum + (Number(l.quantity) || 0), 0)
 );
+const editableRestockLines = computed(() =>
+  taskLines.value.filter(
+    (l) =>
+      !l.applied &&
+      String(l.lineType || 'RESTOCK').toUpperCase() === 'RESTOCK' &&
+      String(linesTask.value?.status || '') !== 'COMPLETED'
+  )
+);
+const editablePendingLines = computed(() =>
+  taskLines.value.filter(
+    (l) => !l.applied && String(linesTask.value?.status || '') !== 'COMPLETED'
+  )
+);
+const unassignedRestockCount = computed(
+  () => editableRestockLines.value.filter((l) => !String(l.slotId || '').trim()).length
+);
 
-watch([tab, focusDeviceId, fulfillmentStatus], () => {
+function isRestockLine(row: Row) {
+  return String(row.lineType || 'RESTOCK').toUpperCase() === 'RESTOCK';
+}
+
+function canAssignSlot(row: Row) {
+  return (
+    canEdit.value &&
+    !!linesTask.value &&
+    String(linesTask.value.status || '') !== 'COMPLETED' &&
+    !row.applied &&
+    isRestockLine(row)
+  );
+}
+
+function slotRoom(slot: Row) {
+  const maxLevel = Number(slot.maxLevel) || 0;
+  const bookQty = Number(slot.bookQty) || 0;
+  if (maxLevel <= 0) return 99;
+  return Math.max(0, maxLevel - bookQty);
+}
+
+function slotOptionsForLine(row: Row) {
+  const skuId = String(row.skuId || '');
+  return deviceSlots.value
+    .filter((s) => s.enabled !== false)
+    .filter((s) => !s.assignedSkuId || String(s.assignedSkuId) === skuId)
+    .map((s) => ({
+      slotCode: String(s.slotCode || '').toUpperCase(),
+      room: slotRoom(s)
+    }))
+    .filter((s) => !!s.slotCode)
+    .sort((a, b) => b.room - a.room || a.slotCode.localeCompare(b.slotCode));
+}
+
+function onSlotAssign(row: Row, slotCode: string | null | undefined) {
+  const code = String(slotCode || '').trim().toUpperCase();
+  row.slotId = code || undefined;
+  if (!code) return;
+  const opt = slotOptionsForLine(row).find((o) => o.slotCode === code);
+  if (opt && Number(row.quantity) > opt.room) {
+    row.quantity = opt.room;
+    ElMessage.info(`已按货道余量调至 ${opt.room}`);
+  }
+}
+
+watch([tab, focusDeviceId, fulfillmentStatus, fulfillmentUnassignedOnly, requestStatusFilter], () => {
   page.value = 1;
+});
+
+watch(linesDrawer, (open) => {
+  if (!open) revokeEvidencePreviews();
 });
 
 const requestActions: TableAction[] = [
   { key: 'accept', label: '接单', icon: Check, type: 'primary' },
   { key: 'reject', label: '驳回', icon: Close, type: 'danger' }
 ];
+
+function requestActionsFor(row: Row): TableAction[] {
+  if (row.status === 'SUBMITTED') return requestActions;
+  if (row.replenishmentTaskId && (row.status === 'ACCEPTED' || row.status === 'COMPLETED')) {
+    return [{ key: 'view-task', label: '查看任务', icon: View, type: 'primary' }];
+  }
+  return [];
+}
 
 const {
   onSelectionChange: onRoutesSelectionChange,
@@ -635,9 +963,17 @@ const {
   clearSelection: clearShortageSelection
 } = useTableSelection<Row>((r) => r.slotKey || `${r.deviceId}-${r.slotCode}`);
 
+const {
+  onSelectionChange: onExpirySelectionChange,
+  pickSelected: pickExpiry,
+  exportButtonLabel: expiryExportLabel,
+  clearSelection: clearExpirySelection
+} = useTableSelection<Row>((r) => r.taskId || `${r.deviceId}-${r.lotId}-${r.skuId}`);
+
 const exportButtonLabel = computed(() => {
   if (tab.value === 'requests') return requestsExportLabel.value;
   if (tab.value === 'shortage') return shortageExportLabel.value;
+  if (tab.value === 'expiry') return expiryExportLabel.value;
   if (tab.value === 'fulfillment') return '导出履约记录';
   return routesExportLabel.value;
 });
@@ -657,7 +993,7 @@ const { onExport: exportRoutes } = useListCsv({
 
 const { onExport: exportFulfillment } = useListCsv({
   filePrefix: '履约记录',
-  headers: ['任务', '设备编号', '设备名称', '路线', '状态', '人员', '签到时间', 'GPS', '用时', '完成时间'],
+  headers: ['任务', '设备编号', '设备名称', '路线', '状态', '人员', '签到时间', 'GPS', '距柜机', '用时', '完成时间'],
   toRows: () =>
     fulfillmentTasks.value.map((row) => [
       row.taskId,
@@ -668,6 +1004,7 @@ const { onExport: exportFulfillment } = useListCsv({
       row.assigneeUserId || '',
       row.checkInAt ? formatDateTime(row.checkInAt) : '',
       formatCheckInGps(row),
+      formatCheckInDistance(row),
       formatTaskDuration(row),
       row.completedAt ? formatDateTime(row.completedAt) : ''
     ])
@@ -675,14 +1012,15 @@ const { onExport: exportFulfillment } = useListCsv({
 
 const { onExport: exportRequests } = useListCsv({
   filePrefix: '商户要货',
-  headers: ['要货单', '商户', '目标设备', '状态', '提交时间'],
+  headers: ['要货单', '商户', '目标设备', '状态', '驳回原因', '提交时间'],
   toRows: () =>
     pickRequests(requests.value).map((row) => [
       row.requestId,
       row.merchantName || '',
       deviceName(row.deviceId),
       dictLabel('replenishment_request_status', row.status),
-      formatDateTime(row.createdAt)
+      row.rejectReason || '',
+      formatDateTime(row.submittedAt || row.createdAt)
     ])
 });
 
@@ -701,9 +1039,30 @@ const { onExport: exportShortages } = useListCsv({
     ])
 });
 
+const { onExport: exportExpiry } = useListCsv({
+  filePrefix: '临期下架',
+  headers: ['任务', '设备', 'SKU', '批次', '批次ID', '数量', '原因', '状态', '创建时间'],
+  toRows: () =>
+    pickExpiry(expiryAlerts.value).map((row) => [
+      row.taskId,
+      row.deviceId,
+      row.skuId,
+      row.batchNo || '',
+      row.lotId || '',
+      row.quantity,
+      row.reason || '临期',
+      row.status || '',
+      formatDateTime(row.createdAt)
+    ])
+});
+
 async function onExport() {
   if (tab.value === 'shortage') {
     exportShortages();
+    return;
+  }
+  if (tab.value === 'expiry') {
+    exportExpiry();
     return;
   }
   if (tab.value === 'fulfillment') {
@@ -801,6 +1160,7 @@ function applyRouteQuery() {
     || route.query.tab === 'requests'
     || route.query.tab === 'shortage'
     || route.query.tab === 'fulfillment'
+    || route.query.tab === 'expiry'
   ) {
     if (tab.value !== String(route.query.tab)) {
       tab.value = String(route.query.tab);
@@ -849,6 +1209,29 @@ async function loadShortage() {
   }
 }
 
+async function loadExpiryAlerts() {
+  expiryLoading.value = true;
+  try {
+    const list = await api.request<Row[]>('/api/v2/ops/admin/expiry/alerts', 'GET');
+    let rows = list || [];
+    if (focusDeviceId.value.trim()) {
+      rows = rows.filter((x) => x.deviceId === focusDeviceId.value.trim());
+    }
+    expiryAlerts.value = rows;
+    clearExpirySelection();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '临期告警加载失败');
+  } finally {
+    expiryLoading.value = false;
+  }
+}
+
+function goWarehouse(deviceId?: string) {
+  const query: Record<string, string> = {};
+  if (deviceId) query.deviceId = deviceId;
+  goPath('/warehouse', query);
+}
+
 function deviceOnline(deviceId?: string) {
   if (!deviceId) return false;
   const d = devices.value.find((item) => item.deviceId === deviceId);
@@ -859,8 +1242,26 @@ function formatCheckInGps(row: Row) {
   if (!row?.checkInAt) return '';
   const lat = row.checkInLat;
   const lng = row.checkInLng;
-  if (lat == null || lng == null || Number.isNaN(Number(lat)) || Number.isNaN(Number(lng))) return '';
+  if (lat == null || lng == null || Number.isNaN(Number(lat)) || Number.isNaN(Number(lng))) {
+    return '无定位';
+  }
   return `${Number(lat).toFixed(4)},${Number(lng).toFixed(4)}`;
+}
+
+function formatCheckInDistance(row: Row) {
+  if (!row?.checkInAt || !checkInHasGps(row)) return '';
+  const dist = row.checkInDistanceM;
+  if (dist == null || Number.isNaN(Number(dist))) return '';
+  const meters = Math.round(Number(dist));
+  if (meters < 1000) return `距柜机 ${meters}m`;
+  return `距柜机 ${(meters / 1000).toFixed(1)}km`;
+}
+
+function checkInHasGps(row: Row) {
+  if (!row?.checkInAt) return false;
+  const lat = row.checkInLat;
+  const lng = row.checkInLng;
+  return lat != null && lng != null && !Number.isNaN(Number(lat)) && !Number.isNaN(Number(lng));
 }
 
 function parseInstantMs(value: unknown) {
@@ -885,26 +1286,183 @@ function formatTaskDuration(row: Row) {
 function lineTypeLabel(type?: string) {
   const code = String(type || 'RESTOCK').toUpperCase();
   if (code === 'RESTOCK') return '上架';
-  if (code === 'REMOVE' || code === 'PULL') return '下架';
+  if (code === 'PULL_OFF' || code === 'REMOVE' || code === 'PULL') return '下架';
   return code;
+}
+
+function formatFileSize(size?: number) {
+  if (size == null || size <= 0) return '-';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function expiryRestockEnabled(row: Row) {
+  const headroom = Number(row?.restockHeadroom);
+  return Number.isFinite(headroom) ? headroom > 0 : true;
+}
+
+async function createFromExpiry(row: Row, lineType: 'PULL_OFF' | 'RESTOCK') {
+  if (!row?.taskId || expiryActingId.value != null) return;
+  if (lineType === 'RESTOCK' && !expiryRestockEnabled(row)) {
+    ElMessage.warning('货道已满，请先下架腾出库存后再补货');
+    return;
+  }
+  expiryActingId.value = Number(row.taskId);
+  try {
+    const route = await api.request<{ routeId?: number; tasks?: { taskId?: number }[] }>(
+      `/api/v2/ops/admin/expiry/alerts/${row.taskId}/create-replenishment`,
+      'POST',
+      { lineType }
+    );
+    ElMessage.success(
+      lineType === 'PULL_OFF'
+        ? `已生成下架任务 #${route?.tasks?.[0]?.taskId || route?.routeId || ''}`
+        : `已生成补货任务 #${route?.tasks?.[0]?.taskId || route?.routeId || ''}`
+    );
+    await loadExpiryAlerts();
+    await load();
+    tab.value = 'routes';
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '生成任务失败');
+  } finally {
+    expiryActingId.value = null;
+  }
 }
 
 async function openTaskLines(task: Row) {
   if (!task?.taskId) return;
   linesTask.value = task;
   taskLines.value = [];
+  deviceSlots.value = [];
+  revokeEvidencePreviews();
+  taskEvidence.value = [];
   linesDrawer.value = true;
   linesLoading.value = true;
   try {
-    taskLines.value = await api.request<Row[]>(
-      `/api/v2/ops/admin/replenishment/tasks/${task.taskId}/lines`,
-      'GET'
-    ) || [];
+    const [lines, evidence, slots] = await Promise.all([
+      api.request<Row[]>(`/api/v2/ops/admin/replenishment/tasks/${task.taskId}/lines`, 'GET'),
+      api.request<{ fileId: number; fileName?: string; fileSize?: number; contentType?: string }[]>(
+        `/api/v2/ops/admin/replenishment/tasks/${task.taskId}/evidence`,
+        'GET'
+      ).catch(() => []),
+      task.deviceId
+        ? api
+            .request<Row[]>(
+              `/api/v2/ops/admin/devices/${encodeURIComponent(String(task.deviceId))}/slots`,
+              'GET'
+            )
+            .catch(() => [])
+        : Promise.resolve([])
+    ]);
+    taskLines.value = (lines || []).map((l) => ({ ...l }));
+    deviceSlots.value = slots || [];
+    taskEvidence.value = evidence || [];
+    const unassigned = (lines || []).some(
+      (l) =>
+        !l.applied &&
+        String(l.lineType || 'RESTOCK').toUpperCase() === 'RESTOCK' &&
+        !String(l.slotId || '').trim()
+    );
+    taskUnassignedHint.value = {
+      ...taskUnassignedHint.value,
+      [Number(task.taskId)]: unassigned && String(task.status) !== 'COMPLETED'
+    };
+    await loadEvidencePreviews(task.taskId, taskEvidence.value);
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '理货明细加载失败');
   } finally {
     linesLoading.value = false;
   }
+}
+
+async function saveTaskSlots() {
+  if (!linesTask.value?.taskId || slotSaving.value) return;
+  if (unassignedRestockCount.value) {
+    ElMessage.warning('请先为待分配行选择货道');
+    return;
+  }
+  const pending = editablePendingLines.value;
+  if (!pending.length) {
+    ElMessage.info('没有可保存的明细行');
+    return;
+  }
+  slotSaving.value = true;
+  try {
+    const saved = await api.request<Row[]>(
+      `/api/v2/ops/admin/replenishment/tasks/${linesTask.value.taskId}/lines`,
+      'POST',
+      {
+        lines: pending.map((l) => ({
+          lineType: l.lineType || 'RESTOCK',
+          skuId: l.skuId,
+          batchNo: l.batchNo || null,
+          productionDate: l.productionDate || null,
+          expiryDate: l.expiryDate || null,
+          quantity: Number(l.quantity) || 0,
+          slotId: String(l.slotId || '').trim().toUpperCase() || null,
+          applied: false
+        }))
+      }
+    );
+    taskLines.value = saved || [];
+    taskUnassignedHint.value = {
+      ...taskUnassignedHint.value,
+      [Number(linesTask.value.taskId)]: false
+    };
+    ElMessage.success('货道已保存');
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '保存货道失败');
+  } finally {
+    slotSaving.value = false;
+  }
+}
+
+function revokeEvidencePreviews() {
+  for (const url of evidenceObjectUrls.value) {
+    URL.revokeObjectURL(url);
+  }
+  evidenceObjectUrls.value = [];
+}
+
+async function loadEvidencePreviews(
+  taskId: number,
+  files: { fileId: number; fileName?: string; fileSize?: number; contentType?: string; previewUrl?: string }[]
+) {
+  const token = localStorage.getItem('admin_token');
+  const base = window.location.origin;
+  const next: typeof files = [];
+  const urls: string[] = [];
+  for (const f of files) {
+    const item = { ...f };
+    const looksImage =
+      String(f.contentType || '').startsWith('image/') ||
+      /\.(png|jpe?g|gif|webp|bmp)$/i.test(String(f.fileName || ''));
+    if (looksImage) {
+      try {
+        const res = await fetch(
+          `${base}/api/v2/ops/admin/replenishment/tasks/${taskId}/evidence/${f.fileId}`,
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        );
+        if (res.ok) {
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          urls.push(url);
+          item.previewUrl = url;
+        }
+      } catch {
+        /* list-only fallback */
+      }
+    }
+    next.push(item);
+  }
+  evidenceObjectUrls.value = urls;
+  taskEvidence.value = next;
+}
+
+function openEvidencePreview(f: { previewUrl?: string; fileName?: string }) {
+  if (!f.previewUrl) return;
+  window.open(f.previewUrl, '_blank');
 }
 
 function canOpenRestock(task: Row) {
@@ -1038,10 +1596,31 @@ async function createPlan() {
 
 async function onRequestAction(row: Row, key: string) {
   try {
+    if (key === 'view-task') {
+      await goRequestTask(row);
+      return;
+    }
     if (key === 'accept') {
-      await ElMessageBox.confirm(`确认接单要货 ${row.requestId}？`, '接单', { type: 'warning' });
-      await api.request(`/api/v2/ops/admin/replenishment/requests/${row.requestId}/accept`, 'POST');
-      ElMessage.success('已接单');
+      const linesPreview = formatRequestLines(row);
+      await ElMessageBox.confirm(
+        `确认接单要货 #${row.requestId}？\n设备：${deviceName(row.deviceId)}（${row.deviceId}）\n明细：${linesPreview}`,
+        '接单',
+        { type: 'warning', confirmButtonText: '确认接单' }
+      );
+      const accepted = await api.request<{
+        requestId?: number;
+        outboundId?: number | null;
+        replenishmentTaskId?: number | null;
+      }>(`/api/v2/ops/admin/replenishment/requests/${row.requestId}/accept`, 'POST');
+      if (accepted?.outboundId) {
+        ElMessage.success(
+          `已接单，出库 #${accepted.outboundId}，补货任务 #${accepted.replenishmentTaskId ?? '-'}`
+        );
+      } else {
+        ElMessage.success(
+          `已接单，无仓配库存，已建现场补货任务 #${accepted?.replenishmentTaskId ?? '-'}`
+        );
+      }
     } else if (key === 'reject') {
       const { value } = await ElMessageBox.prompt('请填写驳回原因', '驳回要货', {
         inputValidator: (v) => !!String(v || '').trim() || '必须填写原因',
@@ -1061,17 +1640,65 @@ async function onRequestAction(row: Row, key: string) {
   }
 }
 
+function findTaskById(taskId: number | string | undefined | null): Row | null {
+  if (taskId == null || taskId === '') return null;
+  const id = Number(taskId);
+  for (const routeRow of routes.value) {
+    for (const task of routeRow.tasks || []) {
+      if (Number(task.taskId) === id) {
+        return {
+          ...task,
+          routeId: routeRow.routeId,
+          routeName: routeRow.routeName,
+          assigneeUserId: task.assigneeUserId || routeRow.assigneeUserId
+        };
+      }
+    }
+  }
+  return null;
+}
+
+async function goRequestTask(row: Row) {
+  const taskId = row.replenishmentTaskId;
+  if (!taskId) {
+    ElMessage.info('该要货尚未关联补货任务');
+    return;
+  }
+  let task = findTaskById(taskId);
+  if (!task) {
+    await load();
+    task = findTaskById(taskId);
+  }
+  if (!task) {
+    ElMessage.warning(`未找到补货任务 #${taskId}，请到履约记录中查找`);
+    tab.value = 'fulfillment';
+    syncRouteQuery();
+    return;
+  }
+  tab.value = 'fulfillment';
+  syncRouteQuery();
+  await openTaskLines(task);
+}
+
+function formatRequestLines(row: Row) {
+  const lines = (row.lines || []) as { skuName?: string; skuId?: string; requestedQty?: number }[];
+  if (!lines.length) return '无明细';
+  return lines
+    .map((l) => `${l.skuName || l.skuId || '-'}×${l.requestedQty ?? 0}`)
+    .join('、');
+}
+
 async function load() {
   loading.value = true;
   try {
     const [r, req, devicePage, disc] = await Promise.all([
       api.request<Row[]>('/api/v2/ops/admin/replenishment/routes', 'GET'),
-      api.request<Row[]>('/api/v2/ops/admin/replenishment/requests?status=SUBMITTED', 'GET'),
+      api.request<Row[]>('/api/v2/ops/admin/replenishment/requests?status=ALL', 'GET'),
       api.request<PageResult<Row>>('/api/v2/ops/admin/devices?page=0&size=200', 'GET'),
       api.request<Row[]>('/api/v2/ops/admin/slots/discrepancies', 'GET').catch(() => [])
     ]);
     routes.value = r || [];
-    requests.value = req || [];
+    allRequests.value = req || [];
     devices.value = devicePage?.items || [];
     clearRoutesSelection();
     clearRequestsSelection();
@@ -1102,11 +1729,49 @@ async function load() {
     }
     shortages.value = list;
     clearShortageSelection();
+    await loadExpiryAlerts();
+    void prefetchUnassignedHints();
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '补货数据加载失败');
   } finally {
     loading.value = false;
   }
+}
+
+/** 履约开放任务：预拉明细，标出待分配货道红点（最多 24 个，避免打爆接口） */
+async function prefetchUnassignedHints() {
+  const open = fulfillmentTasksBase.value
+    .filter((t) => {
+      const st = String(t.status || '');
+      return t.taskId && st !== 'COMPLETED' && st !== 'CANCELLED';
+    })
+    .slice(0, 24);
+  if (!open.length) return;
+  const next: Record<number, boolean> = { ...taskUnassignedHint.value };
+  const chunkSize = 6;
+  for (let i = 0; i < open.length; i += chunkSize) {
+    const chunk = open.slice(i, i + chunkSize);
+    await Promise.all(
+      chunk.map(async (task) => {
+        const taskId = Number(task.taskId);
+        try {
+          const lines = await api.request<Row[]>(
+            `/api/v2/ops/admin/replenishment/tasks/${taskId}/lines`,
+            'GET'
+          );
+          next[taskId] = (lines || []).some(
+            (l) =>
+              !l.applied &&
+              String(l.lineType || 'RESTOCK').toUpperCase() === 'RESTOCK' &&
+              !String(l.slotId || '').trim()
+          );
+        } catch {
+          /* keep previous hint */
+        }
+      })
+    );
+  }
+  taskUnassignedHint.value = next;
 }
 
 onMounted(() => {
@@ -1163,14 +1828,72 @@ onActivated(() => {
 .check-in-cell { display: grid; gap: 4px; justify-items: center; line-height: 1.3; }
 .gps-text { color: var(--layout-muted); font-size: 11px; font-family: var(--app-font-mono); }
 .gps-inline { color: var(--layout-muted); font-family: var(--app-font-mono); font-size: 12px; }
+.gps-missing { color: var(--el-color-warning); font-weight: 600; font-family: inherit; }
 .mono { font-family: var(--app-font-mono); font-size: 12px; }
 .cell-datetime { font-variant-numeric: tabular-nums; }
 .lines-drawer { display: grid; gap: 12px; }
 .lines-meta { margin-bottom: 0; }
 .lines-photo-hint { margin: 0; }
-.lines-summary { color: var(--layout-muted); font-size: 13px; }
+.evidence-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+  margin: 0 0 12px;
+}
+.evidence-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--el-fill-color-blank);
+}
+.evidence-thumb {
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--el-fill-color-light);
+  cursor: zoom-in;
+}
+.evidence-thumb img {
+  display: block;
+  width: 100%;
+  height: 96px;
+  object-fit: cover;
+}
+.evidence-meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.evidence-item .meta { color: var(--el-text-color-secondary); font-size: 12px; }
+.lines-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--layout-muted);
+  font-size: 13px;
+}
+.reject-reason { color: var(--el-color-danger); font-size: 13px; }
+.unassigned-badge { margin-left: 2px; }
+.lines-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+.lines-action-hint { font-size: 12px; color: var(--el-color-warning); }
+.lines-dot { margin-left: 4px; vertical-align: super; }
+.status-stack {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
 .online-tag { margin-left: 6px; vertical-align: middle; }
 .shortage-toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.expiry-hint { flex: 1; min-width: 240px; margin: 0; }
+.expiry-restock-wrap { display: inline-flex; vertical-align: middle; }
 .plan-hint { margin-top: 6px; font-size: 12px; color: var(--el-color-warning); line-height: 1.4; }
 .plan-form { margin-top: 4px; }
 .plan-device-list {

@@ -32,9 +32,12 @@ public class DisputeController {
             @RequestParam(name = "size", defaultValue = "20") int size,
             @RequestParam(name = "status", required = false) String status,
             @RequestParam(name = "sessionId", required = false) String sessionId,
-            @RequestParam(name = "deviceId", required = false) String deviceId) {
+            @RequestParam(name = "deviceId", required = false) String deviceId,
+            @RequestParam(name = "category", required = false) String category,
+            @RequestParam(name = "reviewCode", required = false) String reviewCode) {
         Long operatorId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return ApiResponse.ok(disputeService.listTickets(operatorId, page, size, status, sessionId, deviceId));
+        return ApiResponse.ok(disputeService.listTickets(
+                operatorId, page, size, status, sessionId, deviceId, category, reviewCode));
     }
 
     @RequiresPermissions("ops:dispute:resolve")

@@ -147,7 +147,11 @@ export function request<T>(
           resolve(body.data as T);
           return;
         }
-        reject(new Error(body?.message || `请求失败 (${res.statusCode})`));
+        const err = new Error(body?.message || `请求失败 (${res.statusCode})`) as Error & {
+          status?: number;
+        };
+        err.status = res.statusCode;
+        reject(err);
       },
       fail(err) {
         reject(new Error(formatRequestError(err.errMsg, path)));

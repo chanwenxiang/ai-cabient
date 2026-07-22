@@ -17,6 +17,14 @@ public interface MerchantReplenishmentRequestMapper extends BaseTradeMapper<Merc
     return selectList(Wrappers.<MerchantReplenishmentRequest>lambdaQuery().eq(MerchantReplenishmentRequest::getStatus, status).orderByAsc(MerchantReplenishmentRequest::getSubmittedAt));
     }
 
+    default List<MerchantReplenishmentRequest> findByStatusOrderBySubmittedAtDesc(String status) {
+    return selectList(Wrappers.<MerchantReplenishmentRequest>lambdaQuery().eq(MerchantReplenishmentRequest::getStatus, status).orderByDesc(MerchantReplenishmentRequest::getSubmittedAt));
+    }
+
+    default List<MerchantReplenishmentRequest> findAllOrderBySubmittedAtDesc() {
+    return selectList(Wrappers.<MerchantReplenishmentRequest>lambdaQuery().orderByDesc(MerchantReplenishmentRequest::getSubmittedAt));
+    }
+
     default List<MerchantReplenishmentRequest> findByMerchantIdInOrderBySubmittedAtDesc(Collection<String> merchantIds) {
     return selectList(Wrappers.<MerchantReplenishmentRequest>lambdaQuery().in(MerchantReplenishmentRequest::getMerchantId, merchantIds).orderByDesc(MerchantReplenishmentRequest::getSubmittedAt));
     }

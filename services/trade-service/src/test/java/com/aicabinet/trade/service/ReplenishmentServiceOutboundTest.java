@@ -43,7 +43,7 @@ class ReplenishmentServiceOutboundTest {
         replenishmentService = new ReplenishmentService(
                 null, null, taskRepository, taskLineRepository, null, null, null, null,
                 new ObjectMapper(), warehouseService, null, deviceSlotService, inTransitService,
-                sessionService);
+                sessionService, null, null);
     }
 
     @Test
@@ -175,6 +175,7 @@ class ReplenishmentServiceOutboundTest {
         when(taskRepository.findById(20L)).thenReturn(java.util.Optional.of(task));
         when(taskLineRepository.findByTaskIdAndAppliedFalse(20L)).thenReturn(List.of(line));
         when(inTransitService.hasOpenForDevice(200L, "CAB-001")).thenReturn(false);
+        when(warehouseService.hasOutboundLinesForDevice(200L, "CAB-001")).thenReturn(true);
 
         assertThrows(ResponseStatusException.class,
                 () -> replenishmentService.completeTask(100000001L, 20L));

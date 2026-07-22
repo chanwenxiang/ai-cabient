@@ -11,5 +11,7 @@ public record PullOffTaskDto(
         int quantity,
         String reason,
         String status,
-        Instant createdAt
+        Instant createdAt,
+        /** Remaining restock capacity for this SKU on the device; 0 means RESTOCK should be disabled. */
+        int restockHeadroom
 ) {}

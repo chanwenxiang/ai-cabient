@@ -7,6 +7,7 @@ param(
     [string]$DeviceUrl = "http://localhost:8081",
     [string]$EnvFile = "",
     [switch]$Prod,
+    [switch]$BalanceOnly,
     [switch]$SkipBuild,
     [switch]$SkipTests,
     [switch]$SkipAdminBuild,
@@ -115,16 +116,33 @@ Write-Host ""
 
 Test-RequiredFile "docs\PRODUCTION.md" "Production runbook"
 Test-RequiredFile "docs\MODULES.md" "Module index"
+Test-RequiredFile "docs\production-launch-checklist.md" "Launch checklist"
 Test-RequiredFile "infra\.env.production.example" "Production env template"
+Test-RequiredFile "infra\.env.staging.example" "Staging env template"
 Test-RequiredFile "infra\docker\trade-service.Dockerfile" "Trade Dockerfile"
 Test-RequiredFile "infra\docker\device-service.Dockerfile" "Device Dockerfile"
 Test-RequiredFile "scripts\deploy-production.ps1" "Production deploy script"
 Test-RequiredFile "scripts\verify-vision-model.ps1" "Vision model verification script"
 Test-RequiredFile "docs\VISION_SKU_MODEL.md" "SKU vision model runbook"
 Test-RequiredFile "infra\docker-compose.production.yml" "Production compose overlay"
+Test-RequiredFile "infra\docker-compose.staging.yml" "Staging compose overlay"
 Test-RequiredFile "scripts\e2e-shopping.ps1" "Shopping E2E script"
 Test-RepositoryUtf8
 
+if ($BalanceOnly -or $EnvFile) {
+    $envPathForMode = if ($EnvFile) {
+        if ([System.IO.Path]::IsPathRooted($EnvFile)) { $EnvFile } else { Join-Path $Root $EnvFile }
+    } else { $null }
+    $balanceFlag = $BalanceOnly
+    if ($envPathForMode -and (Test-Path $envPathForMode)) {
+        Get-Content $envPathForMode | ForEach-Object {
+            if ($_ -match '^\s*CHECKOUT_BALANCE_ONLY\s*=\s*true\s*$') { $balanceFlag = $true }
+        }
+    }
+    if ($balanceFlag) {
+        Add-Result "PASS" "Balance-only mode" "WeChat merchant certs not required; keep RECON_MOCK_ENABLED=true"
+    }
+}
 $latestMigration = Get-LatestMigrationNumber
 if ($null -eq $latestMigration) {
     Add-Result "FAIL" "Flyway migrations" "no migration files found"

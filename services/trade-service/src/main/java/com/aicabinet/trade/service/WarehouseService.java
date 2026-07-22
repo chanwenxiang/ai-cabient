@@ -285,11 +285,24 @@ public class WarehouseService {
         return Math.min(rawSuggest, deviceSlotService.totalHeadroomForSku(deviceId, skuId));
     }
 
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public WarehouseOutboundDto createOutboundFromLines(Long routeId, String deviceId, Long assigneeUserId,
                                                         java.util.Map<String, Integer> skuQty, String warehouseId) {
-        if (skuQty == null || skuQty.isEmpty()) {
+        Long outboundId = tryCreateOutboundFromLines(routeId, deviceId, assigneeUserId, skuQty, warehouseId);
+        if (outboundId == null) {
             throw badRequest("outbound lines required");
+        }
+        return getOutbound(outboundId);
+    }
+
+    /**
+     * 按 SKU 要货量尝试生成出库单；仓库无可用库存时返回 null（不抛错、不污染外层事务）。
+     */
+    @Transactional
+    public Long tryCreateOutboundFromLines(Long routeId, String deviceId, Long assigneeUserId,
+                                           java.util.Map<String, Integer> skuQty, String warehouseId) {
+        if (skuQty == null || skuQty.isEmpty()) {
+            return null;
         }
         String wh = resolveWarehouseId(warehouseId);
         WarehouseOutbound outbound = new WarehouseOutbound();
@@ -309,9 +322,9 @@ public class WarehouseService {
         }
         if (allocatedLines <= 0) {
             outboundRepository.deleteById(outbound.getOutboundId());
-            throw badRequest("outbound lines required");
+            return null;
         }
-        return getOutbound(outbound.getOutboundId());
+        return outbound.getOutboundId();
     }
 
     @Transactional

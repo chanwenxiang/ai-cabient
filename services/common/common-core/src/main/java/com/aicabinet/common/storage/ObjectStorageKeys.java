@@ -65,6 +65,17 @@ public final class ObjectStorageKeys {
         return String.format(Locale.ROOT, "dispute-evidence/%s/user-%d/%s%s", date, userId, token, ext);
     }
 
+    /** 补货现场取证图。 */
+    public static String replenishmentEvidenceKey(long taskId, long userId, String fileToken, String extension) {
+        ZonedDateTime zdt = Instant.now().atZone(ZONE);
+        String date = String.format(
+                Locale.ROOT, "%04d/%02d/%02d", zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+        String token = sanitize(fileToken, "file");
+        String ext = normalizeExtension(extension);
+        return String.format(
+                Locale.ROOT, "replenishment-evidence/%s/task-%d/user-%d/%s%s", date, taskId, userId, token, ext);
+    }
+
     private static String prefix(
             String root,
             String deviceId,

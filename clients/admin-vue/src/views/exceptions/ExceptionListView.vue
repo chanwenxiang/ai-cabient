@@ -182,9 +182,10 @@
       v-if="drawer"
       v-model="drawer"
       title="异常处理详情"
-      size="560px"
+      size="640px"
       append-to-body
       destroy-on-close
+      @closed="clearInlineVideo"
     >
       <div v-loading="detailLoading" v-if="detail">
         <el-descriptions :column="1" border size="small">
@@ -255,14 +256,42 @@
           <el-descriptions-item label="更新时间">{{ formatDateTime(detail.exception.updatedAt) }}</el-descriptions-item>
         </el-descriptions>
 
-        <div v-if="detail.exception.sessionId" class="drawer-actions drawer-actions--review">
-          <el-button
-            v-if="auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload')"
+        <div v-if="detail.exception.sessionId" class="review-panel">
+          <div class="review-panel__head">
+            <h3 class="section-title section-title--inline">会话录像审单</h3>
+            <div class="drawer-actions drawer-actions--tight">
+              <el-button
+                v-if="auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload')"
+                type="warning"
+                :loading="videoLoading"
+                @click="loadInlineVideo(detail.exception.sessionId)"
+              >{{ inlineVideoUrl ? '重新加载录像' : '加载会话录像' }}</el-button>
+              <el-button
+                v-if="inlineVideoUrl"
+                link
+                type="primary"
+                @click="playVideo(detail.exception.sessionId)"
+              >新窗口打开</el-button>
+              <el-button @click="goSessions(detail.exception.deviceId)">开门记录</el-button>
+            </div>
+          </div>
+          <div v-if="inlineVideoUrl" class="review-video-wrap">
+            <video
+              class="review-video"
+              :src="inlineVideoUrl"
+              controls
+              playsinline
+              preload="metadata"
+            />
+          </div>
+          <el-alert
+            v-else-if="inlineVideoError"
             type="warning"
-            :loading="videoLoading"
-            @click="playVideo(detail.exception.sessionId)"
-          >播放会话录像</el-button>
-          <el-button @click="goSessions(detail.exception.deviceId)">开门记录</el-button>
+            :closable="false"
+            show-icon
+            :title="inlineVideoError"
+          />
+          <p v-else class="muted review-hint">加载录像后可在本抽屉内对照画面，再执行下方处置。</p>
         </div>
 
         <div v-if="canHandle && detail.exception.status !== 'RESOLVED'" class="drawer-actions">
@@ -350,7 +379,7 @@ import { formatDateTime } from '@aicabinet/shared-uni/format';
 const route = useRoute();
 const router = useRouter();
 const { canAccessPath, goPath } = useNavAccess();
-const { playSessionVideo } = useSessionVideo();
+const { playSessionVideo, fetchSessionVideoBlob } = useSessionVideo();
 const auth = useAuthStore();
 const canHandle = computed(
   () => auth.hasPerm('ops:exception:handle')
@@ -383,6 +412,9 @@ interface Sku { skuId: string; skuName: string; priceCents: number }
 
 const loading = ref(false);
 const videoLoading = ref(false);
+const inlineVideoUrl = ref('');
+const inlineVideoError = ref('');
+let inlineVideoRevoke: (() => void) | null = null;
 const status = ref('OPEN');
 const severity = ref('');
 const overdueOnly = ref(false);
@@ -523,6 +555,30 @@ async function playVideo(sessionId?: string) {
   }
 }
 
+function clearInlineVideo() {
+  if (inlineVideoRevoke) {
+    inlineVideoRevoke();
+    inlineVideoRevoke = null;
+  }
+  inlineVideoUrl.value = '';
+  inlineVideoError.value = '';
+}
+
+async function loadInlineVideo(sessionId?: string) {
+  clearInlineVideo();
+  videoLoading.value = true;
+  try {
+    const { url, revoke } = await fetchSessionVideoBlob(sessionId);
+    inlineVideoUrl.value = url;
+    inlineVideoRevoke = revoke;
+  } catch (e) {
+    inlineVideoError.value = e instanceof Error ? e.message : '播放失败';
+    ElMessage.error(inlineVideoError.value);
+  } finally {
+    videoLoading.value = false;
+  }
+}
+
 function goDevice(id: string) {
   if (!canAccessPath('/devices')) {
     ElMessage.warning('无访问权限');
@@ -635,10 +691,18 @@ async function resolve(row: OpsException) {
   await load();
 }
 async function openDetail(row: OpsException) {
+  clearInlineVideo();
   drawer.value = true;
   detailLoading.value = true;
   try {
     detail.value = await api.request<OpsDetail>(`/api/v2/ops/admin/exceptions/${row.exceptionId}`, 'GET');
+    const sid = detail.value?.exception?.sessionId;
+    if (
+      sid &&
+      (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))
+    ) {
+      void loadInlineVideo(sid);
+    }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '详情加载失败');
   } finally {
@@ -871,7 +935,36 @@ onMounted(async () => {
 .sla-meta { color: var(--el-text-color-secondary); font-size: 11px; }
 .sla-meta.danger { color: var(--el-color-danger); }
 .drawer-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
-.drawer-actions--review { margin-top: 12px; margin-bottom: 0; }
+.drawer-actions--tight { margin: 0; }
+.review-panel {
+  margin: 14px 0 4px;
+  padding: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--el-fill-color-blank) 70%, transparent);
+}
+.review-panel__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.section-title--inline { margin: 0; }
+.review-video-wrap {
+  margin-top: 8px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #0f172a;
+}
+.review-video {
+  display: block;
+  width: 100%;
+  max-height: 280px;
+  background: #0f172a;
+}
+.review-hint { margin: 4px 0 0; font-size: 12px; }
 .section-title { margin: 16px 0 8px; font-size: 14px; color: var(--layout-text); }
 .action-detail { color: var(--layout-muted); margin-top: 5px; white-space: pre-wrap; }
 .manual-lines { display: flex; flex-direction: column; gap: 12px; margin: 18px 0; }

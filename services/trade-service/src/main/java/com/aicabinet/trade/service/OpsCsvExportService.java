@@ -85,13 +85,14 @@ public class OpsCsvExportService {
 
     public byte[] exportReplenishmentRequestsCsv(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:replenishment:export");
-        StringBuilder sb = new StringBuilder("requestId,merchantId,merchantName,deviceId,status,submittedAt\n");
-        for (MerchantReplenishmentRequestDto r : merchantReplenishmentService.listRequestsForOps(operatorId, null)) {
+        StringBuilder sb = new StringBuilder("requestId,merchantId,merchantName,deviceId,status,rejectReason,submittedAt\n");
+        for (MerchantReplenishmentRequestDto r : merchantReplenishmentService.listRequestsForOps(operatorId, "ALL")) {
             sb.append(csv(String.valueOf(r.requestId()))).append(',')
                     .append(csv(r.merchantId())).append(',')
                     .append(csv(r.merchantName())).append(',')
                     .append(csv(r.deviceId())).append(',')
                     .append(csv(r.status())).append(',')
+                    .append(csv(r.rejectReason())).append(',')
                     .append(csv(String.valueOf(r.submittedAt()))).append('\n');
         }
         return bytes(sb);

@@ -33,6 +33,7 @@ public class FileAttachmentService {
 
     public static final String REF_PENDING = "PENDING_DISPUTE";
     public static final String REF_DISPUTE = "DISPUTE";
+    public static final String REF_REPLENISHMENT = "REPLENISHMENT_TASK";
     private static final long MAX_BYTES = 5 * 1024 * 1024L;
     private static final int MAX_EVIDENCE = 5;
     private static final Set<String> ALLOWED_TYPES = Set.of(
@@ -135,6 +136,60 @@ public class FileAttachmentService {
                 .toList();
     }
 
+    @Transactional
+    public FileAttachmentDto uploadReplenishmentEvidence(Long userId, Long taskId, MultipartFile file) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录");
+        }
+        if (taskId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "任务不存在");
+        }
+        long existing = fileAttachmentMapper.findByRef(REF_REPLENISHMENT, String.valueOf(taskId)).size();
+        if (existing >= MAX_EVIDENCE) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "最多上传 " + MAX_EVIDENCE + " 张现场照片");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择图片");
+        }
+        if (file.getSize() > MAX_BYTES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "单张图片不能超过 5MB");
+        }
+        String contentType = normalizeContentType(file.getContentType(), file.getOriginalFilename());
+        if (!ALLOWED_TYPES.contains(contentType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
+        }
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
+        }
+        String ext = extensionFor(contentType, file.getOriginalFilename());
+        String token = UUID.randomUUID().toString().replace("-", "");
+        String objectKey = ObjectStorageKeys.replenishmentEvidenceKey(taskId, userId, token, ext);
+        String storagePath = minioVideoService.putObject(objectKey, bytes, contentType)
+                .orElseGet(() -> writeLocal(objectKey, bytes));
+        FileAttachment row = new FileAttachment();
+        row.setRefType(REF_REPLENISHMENT);
+        row.setRefId(String.valueOf(taskId));
+        row.setFileName(safeName(file.getOriginalFilename(), token + ext));
+        row.setFileSize((long) bytes.length);
+        row.setContentType(contentType);
+        row.setStoragePath(storagePath);
+        row.setStorageBucket(storagePath.startsWith("minio://") ? minioProperties.bucket() : "local");
+        row.setUploadedBy(userId);
+        row.setCreatedAt(Instant.now());
+        fileAttachmentMapper.insert(row);
+        return toDto(row);
+    }
+
+    @Transactional(readOnly = true)
+    public List<FileAttachmentDto> listReplenishmentEvidence(Long taskId) {
+        return fileAttachmentMapper.findByRef(REF_REPLENISHMENT, String.valueOf(taskId)).stream()
+                .map(this::toDto)
+                .toList();
+    }
+
     @Transactional(readOnly = true)
     public FileAttachment requireReadable(Long requesterId, Long fileId, boolean operator) {
         FileAttachment row = fileAttachmentMapper.selectById(fileId);
@@ -145,6 +200,17 @@ public class FileAttachmentService {
             return row;
         }
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权查看该附件");
+    }
+
+    @Transactional(readOnly = true)
+    public FileAttachment requireReplenishmentEvidence(Long taskId, Long fileId) {
+        FileAttachment row = fileAttachmentMapper.selectById(fileId);
+        if (row == null
+                || !REF_REPLENISHMENT.equals(row.getRefType())
+                || !String.valueOf(taskId).equals(row.getRefId())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "附件不存在");
+        }
+        return row;
     }
 
     public void stream(FileAttachment row, HttpServletResponse response) throws IOException {
@@ -169,7 +235,12 @@ public class FileAttachmentService {
     }
 
     public FileAttachmentDto toDto(FileAttachment row) {
-        String url = "/api/v2/disputes/evidence/" + row.getFileId();
+        String url;
+        if (REF_REPLENISHMENT.equals(row.getRefType())) {
+            url = "/api/v2/merchant/replenishment/tasks/" + row.getRefId() + "/evidence/" + row.getFileId();
+        } else {
+            url = "/api/v2/disputes/evidence/" + row.getFileId();
+        }
         return FileAttachmentDto.of(row.getFileId(), row.getFileName(), row.getContentType(), row.getFileSize(), url);
     }
 

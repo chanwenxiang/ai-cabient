@@ -50,3 +50,15 @@
 - 账本、订单和库存日终差异为 0，或全部进入可追踪异常。
 - 关键服务连续灰度运行至少 14 天，无未闭环 P0 事故。
 
+## 本地 / 预发：余额-only 无 mock 联调（无需微信商户密钥）
+
+在尚未配置真实微信进件时，可用下列组合验证开门→识别→结算→争议闭环，避免「看起来像生产但仍在 mock」：
+
+1. `AICABINET_MOCK_ENABLED=false`（关支付/短信 mock；短信需配置 `SMS_WEBHOOK_URL`，可用 `scripts/sms-webhook-mock.py`）
+2. `CHECKOUT_BALANCE_ONLY=true`（结算仅走余额，不强制 live 微信预下单）
+3. `RECON_MOCK_ENABLED=true`（无微信账单时保持对账 mock）
+4. 消费者端使用 **生产构建**（`npm run build:mp-weixin`）验收：不应出现「验证码 123456 / 模拟充值」文案；开发构建（`DEV`）才显示联调入口
+5. Vision：另设 `MOCK_ENABLED=false` + 挂载柜机 SKU 模型（见 `docs/VISION_SKU_MODEL.md`）
+
+说明：正式 `prod` profile 仍要求微信 V3 / 小程序配置；本路径只用于预发验证业务闭环，不能替代真钱进件。
+

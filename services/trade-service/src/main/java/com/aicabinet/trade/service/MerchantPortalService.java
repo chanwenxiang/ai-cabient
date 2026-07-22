@@ -489,9 +489,9 @@ public class MerchantPortalService {
             result = Page.empty(pageable);
         } else if (deviceScope != null) {
             result = disputeRepository.searchByDeviceIds(
-                    blankToNull(status), null, deviceScope, pageable);
+                    blankToNull(status), null, deviceScope, null, null, pageable);
         } else {
-            result = disputeRepository.search(blankToNull(status), null, blankToNull(deviceId), pageable);
+            result = disputeRepository.search(blankToNull(status), null, blankToNull(deviceId), null, null, pageable);
         }
         return new PageResult<>(
                 result.getContent().stream().map(this::toMerchantDisputeSummary).toList(),
@@ -529,9 +529,18 @@ public class MerchantPortalService {
         Set<String> allowed = merchantScopeService.allowedDeviceIds(userId);
         return pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN").stream()
                 .filter(t -> inDeviceScope(allowed, t.getDeviceId()))
-                .map(t -> new PullOffTaskDto(
-                        t.getTaskId(), t.getDeviceId(), t.getSkuId(), t.getLotId(),
-                        t.getBatchNo(), t.getQuantity(), t.getReason(), t.getStatus(), t.getCreatedAt()))
+                .map(t -> {
+                    int headroom = 0;
+                    try {
+                        headroom = deviceSlotService.totalHeadroomForSku(t.getDeviceId(), t.getSkuId());
+                    } catch (Exception ignored) {
+                        headroom = 0;
+                    }
+                    return new PullOffTaskDto(
+                            t.getTaskId(), t.getDeviceId(), t.getSkuId(), t.getLotId(),
+                            t.getBatchNo(), t.getQuantity(), t.getReason(), t.getStatus(), t.getCreatedAt(),
+                            Math.max(0, headroom));
+                })
                 .toList();
     }
 
@@ -935,8 +944,26 @@ public class MerchantPortalService {
                 t.getTaskId(), t.getRouteId(), t.getDeviceId(), t.getAssigneeUserId(),
                 t.getStatus(), t.getNotes(), t.getCompletedAt(),
                 t.getCheckInAt(), t.getCheckInLat(), t.getCheckInLng(),
+                resolveCheckInDistanceM(t),
                 t.getRequestId(), t.getOutboundId(), t.getCreatedAt()
         );
+    }
+
+    private Double resolveCheckInDistanceM(ReplenishmentTask t) {
+        if (t.getCheckInLat() == null || t.getCheckInLng() == null || t.getDeviceId() == null) {
+            return null;
+        }
+        DeviceInfo device = deviceRepository.findById(t.getDeviceId()).orElse(null);
+        if (device == null || device.getLatitude() == null || device.getLongitude() == null) {
+            return null;
+        }
+        double r = 6371000;
+        double dLat = Math.toRadians(t.getCheckInLat() - device.getLatitude());
+        double dLon = Math.toRadians(t.getCheckInLng() - device.getLongitude());
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
+                + Math.cos(Math.toRadians(device.getLatitude())) * Math.cos(Math.toRadians(t.getCheckInLat()))
+                * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return r * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
     private ReplenishmentTaskLineDto toReplenishmentLineDto(ReplenishmentTaskLine line) {

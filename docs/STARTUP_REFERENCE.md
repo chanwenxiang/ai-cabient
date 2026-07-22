@@ -45,12 +45,17 @@
 
 ### Windows MinIO 端口（Hyper-V 预留）
 
-若宿主机排除段包含 9000（如 `8940–9039`），`ai-cabinet-minio-1` 会停在 Created，报错 `bind: An attempt was made to access a socket in a way forbidden by its access permissions`。解决：
+若宿主机排除段包含 9000（如 `8905–9004`），`ai-cabinet-minio-1` 会报错
+`bind: An attempt was made to access a socket in a way forbidden by its access permissions`。
+注意：`netstat` **可能看不到占用**——这是系统预留段，不是进程监听。用
+`netsh interface ipv4 show excludedportrange protocol=tcp` 确认。
+
+解决：
 
 ```powershell
 cd infra
-# .env 已含 MINIO_PUBLIC_ENDPOINT=http://localhost:19000 时：
-docker compose -f docker-compose.full.yml -f docker-compose.win-ports.yml up -d minio minio-init
+# .env 使用 MINIO_PUBLIC_ENDPOINT=http://localhost:19000 与 MINIO_API_PORT=19000：
+docker compose -f docker-compose.full.yml -f docker-compose.win-ports.yml up -d
 ```
 
 | 项 | URL |

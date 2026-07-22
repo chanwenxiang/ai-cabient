@@ -1,8 +1,11 @@
 # 预发/试点：接近 prod 的安全与 SMS 实链路；视觉 mock 关闭，需 YOLO（VISION_INSTALL_ML=true）
+# 无微信进件时默认余额-only + 对账 mock（可用 RECON_MOCK_ENABLED / CHECKOUT_BALANCE_ONLY 覆盖）
 aicabinet:
   security:
     mock-enabled: false
   staging-mode: true
+  checkout:
+    balance-only: ${CHECKOUT_BALANCE_ONLY:true}
   auth:
     sms:
       mock-code: "000000"
@@ -11,7 +14,7 @@ aicabinet:
   wechat-miniapp:
     enabled: false
   reconciliation:
-    mock-enabled: false
+    mock-enabled: ${RECON_MOCK_ENABLED:true}
     scheduled-enabled: false
 
 logging:

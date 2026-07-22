@@ -9,19 +9,45 @@
     <view v-else>
       <view class="filters">
         <input v-model="keyword" class="search" placeholder="搜索柜机名称或编号" />
-        <view class="chips"><text v-for="f in filters" :key="f.value" class="chip" :class="{ active: filter === f.value }" @click="filter = f.value">{{ f.label }} {{ countFor(f.value) }}</text></view>
+        <view class="chips">
+          <text
+            v-for="f in filters"
+            :key="f.value"
+            class="chip"
+            :class="{ active: filter === f.value }"
+            @click="filter = f.value"
+          >{{ f.label }} {{ countFor(f.value) }}</text>
+          <text
+            class="chip"
+            :class="{ active: onlyPreferred }"
+            @click="toggleOnlyPreferred"
+          >常驻柜 {{ preferredId ? '1' : '0' }}</text>
+        </view>
+        <view v-if="preferredId" class="pref-hint">
+          <text>常驻：{{ preferredLabel }}</text>
+          <text class="pref-clear" @click="clearPreferred">清除</text>
+        </view>
       </view>
-      <view v-for="d in visibleDevices" :key="d.deviceId" class="card device-card" @click="goDetail(d.deviceId)">
-        <view class="device-left">
+      <view v-for="d in visibleDevices" :key="d.deviceId" class="card device-card">
+        <view class="device-left" @click="goDetail(d.deviceId)">
           <view class="online-dot" :class="d.online ? 'on' : 'off'" />
           <view>
             <text class="name">{{ d.deviceName || d.deviceId }}</text>
             <text class="meta">{{ d.deviceId }}</text>
           </view>
         </view>
-        <text :class="d.online ? 'status-on' : 'status-off'">{{ d.online ? '在线' : '离线' }}</text>
+        <view class="device-right">
+          <text
+            class="star"
+            :class="{ on: preferredId === d.deviceId }"
+            @click.stop="togglePreferred(d.deviceId)"
+          >★</text>
+          <text :class="d.online ? 'status-on' : 'status-off'" @click="goDetail(d.deviceId)">
+            {{ d.online ? '在线' : '离线' }}
+          </text>
+        </view>
       </view>
-      <view v-if="!visibleDevices.length" class="card empty">{{ devices.length ? '没有符合条件的柜机' : '暂无柜机' }}</view>
+      <view v-if="!visibleDevices.length" class="card empty">{{ emptyHint }}</view>
     </view>
   </view>
 </template>
@@ -32,6 +58,11 @@ import { computed, ref } from 'vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
+import {
+  clearPreferredDeviceId,
+  getPreferredDeviceId,
+  setPreferredDeviceId
+} from '@/utils/preferred-device';
 import type { DeviceInfo, MerchantMe } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -44,23 +75,70 @@ const error = ref('');
 const devices = ref<(DeviceInfo & { online?: boolean })[]>([]);
 const keyword = ref('');
 const filter = ref<'all' | 'online' | 'offline'>('all');
+const preferredId = ref('');
+const onlyPreferred = ref(false);
 const filters = [
   { label: '全部', value: 'all' as const },
   { label: '在线', value: 'online' as const },
   { label: '离线', value: 'offline' as const }
 ];
+
+const preferredLabel = computed(() => {
+  const hit = devices.value.find((d) => d.deviceId === preferredId.value);
+  return hit?.deviceName || preferredId.value || '未设置';
+});
+
 const visibleDevices = computed(() => {
   const q = keyword.value.trim().toLowerCase();
-  return devices.value.filter((d) => {
+  const list = devices.value.filter((d) => {
     const statusMatch = filter.value === 'all' || (filter.value === 'online' ? d.online : !d.online);
     const keywordMatch = !q || `${d.deviceName || ''} ${d.deviceId}`.toLowerCase().includes(q);
-    return statusMatch && keywordMatch;
+    const preferredMatch = !onlyPreferred.value || d.deviceId === preferredId.value;
+    return statusMatch && keywordMatch && preferredMatch;
   });
+  if (!preferredId.value) return list;
+  return [...list].sort((a, b) => {
+    if (a.deviceId === preferredId.value) return -1;
+    if (b.deviceId === preferredId.value) return 1;
+    return 0;
+  });
+});
+
+const emptyHint = computed(() => {
+  if (onlyPreferred.value && preferredId.value) return '常驻柜不在当前筛选结果中';
+  return devices.value.length ? '没有符合条件的柜机' : '暂无柜机';
 });
 
 function countFor(value: 'all' | 'online' | 'offline') {
   if (value === 'all') return devices.value.length;
-  return devices.value.filter((d) => value === 'online' ? d.online : !d.online).length;
+  return devices.value.filter((d) => (value === 'online' ? d.online : !d.online)).length;
+}
+
+function toggleOnlyPreferred() {
+  if (!preferredId.value) {
+    uni.showToast({ title: '先点 ★ 设常驻柜', icon: 'none' });
+    return;
+  }
+  onlyPreferred.value = !onlyPreferred.value;
+}
+
+function togglePreferred(id: string) {
+  if (preferredId.value === id) {
+    clearPreferredDeviceId();
+    preferredId.value = '';
+    onlyPreferred.value = false;
+    uni.showToast({ title: '已取消常驻', icon: 'none' });
+    return;
+  }
+  setPreferredDeviceId(id);
+  preferredId.value = id;
+  uni.showToast({ title: '已设为常驻柜', icon: 'success' });
+}
+
+function clearPreferred() {
+  clearPreferredDeviceId();
+  preferredId.value = '';
+  onlyPreferred.value = false;
 }
 
 async function load() {
@@ -68,6 +146,7 @@ async function load() {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
+  preferredId.value = getPreferredDeviceId();
   try {
     await refreshMe();
   } catch {
@@ -112,6 +191,8 @@ async function onScan() {
       uni.showToast({ title: '未找到该柜机或无权限', icon: 'none' });
       return;
     }
+    setPreferredDeviceId(id);
+    preferredId.value = id;
     goDetail(id);
   } finally {
     scanning.value = false;
@@ -142,13 +223,24 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .replenish-btn { background: #fff; color: #0f766e; border: 1rpx solid #99f6e4; }
 .scan-btn::after, .replenish-btn::after { border: none; }
 .device-card { display: flex; justify-content: space-between; align-items: center; }
+.device-right { display: flex; align-items: center; gap: 16rpx; }
+.star { color: #cbd5e1; font-size: 36rpx; padding: 8rpx; }
+.star.on { color: #f59e0b; }
 .filters { position: sticky; top: 0; z-index: 2; background: #f0fdfa; padding: 16rpx 24rpx 12rpx; }
 .search { height: 72rpx; box-sizing: border-box; background: #fff; border: 1rpx solid #ccfbf1; border-radius: 36rpx; padding: 0 28rpx; font-size: 26rpx; }
-.chips { display: flex; gap: 12rpx; margin-top: 14rpx; }
+.chips { display: flex; gap: 12rpx; margin-top: 14rpx; flex-wrap: wrap; }
 .chip { padding: 10rpx 24rpx; border-radius: 28rpx; color: #64748b; background: #fff; font-size: 23rpx; }
 .chip.active { color: #fff; background: #0f766e; }
+.pref-hint {
+  margin-top: 12rpx;
+  display: flex;
+  justify-content: space-between;
+  font-size: 22rpx;
+  color: #0f766e;
+}
+.pref-clear { color: #64748b; }
 .empty { text-align: center; color: #64748b; }
-.device-left { display: flex; align-items: center; gap: 16rpx; }
+.device-left { display: flex; align-items: center; gap: 16rpx; flex: 1; }
 .online-dot { width: 16rpx; height: 16rpx; border-radius: 50%; }
 .online-dot.on { background: #16a34a; box-shadow: 0 0 8rpx rgba(22,163,74,0.5); }
 .online-dot.off { background: #cbd5e1; }

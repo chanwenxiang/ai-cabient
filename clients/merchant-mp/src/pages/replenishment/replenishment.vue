@@ -4,7 +4,7 @@
       <view class="hero-orb orb-one" /><view class="hero-orb orb-two" />
       <text class="eyebrow">现场补货</text>
       <text class="title">补货任务</text>
-      <text class="subtitle">扫码到柜 → 签到 → 开门 → 核对上架</text>
+      <text class="subtitle">{{ heroSubtitle }}</text>
       <view class="stats">
         <view>
           <text class="stat-value">{{ pendingCount }}</text>
@@ -17,9 +17,19 @@
       </view>
       <view class="hero-actions">
         <button class="scan-pill" :loading="scanning" @click="onScan">扫码找柜</button>
+        <button class="clear-pill" @click="goRequest">要货</button>
+        <button
+          v-if="preferredId && filterDeviceId !== preferredId"
+          class="clear-pill"
+          @click="usePreferredDevice"
+        >常驻柜</button>
         <button v-if="filterDeviceId" class="clear-pill" @click="clearDeviceFilter">清除筛选</button>
       </view>
-      <text v-if="filterDeviceId" class="filter-tip">当前筛选：{{ filterDeviceId }}</text>
+      <text v-if="filterDeviceId" class="filter-tip">
+        当前筛选：{{ filterDeviceId }}
+        <text v-if="filterDeviceId === preferredId">（常驻柜）</text>
+      </text>
+      <text v-else-if="preferredId" class="filter-tip muted">常驻柜 {{ preferredId }} · 点「常驻柜」快速筛选</text>
       <view v-if="!loading && pendingCount === 0" class="idle-tip">
         <text class="idle-title">今日暂无待补货</text>
         <text class="idle-desc">可扫码巡柜查看缺货，或切换「已完成」回顾记录；新任务由调度下发</text>
@@ -70,13 +80,7 @@
       </view>
       <view v-if="task.notes" class="task-note">{{ task.notes }}</view>
       <button class="detail-btn" @click="openTask(task)">
-        {{
-          task.status === 'COMPLETED'
-            ? '查看完成明细'
-            : task.checkInAt
-              ? '继续补货'
-              : '开始补货'
-        }}
+        {{ taskActionLabel(task) }}
       </button>
     </view>
 
@@ -105,7 +109,7 @@
           </view>
           <view class="step" :class="stepClass(4)">
             <text class="step-num">{{ selected?.status === 'COMPLETED' ? '✓' : '4' }}</text>
-            <text class="step-label">上架</text>
+            <text class="step-label">{{ detailIsPullOff ? '下架' : '上架' }}</text>
           </view>
         </view>
 
@@ -124,25 +128,60 @@
           data-testid="replenish-open-door"
           :disabled="submitting"
           @click="openDoor"
-        >{{ doorOpened ? '再次开门' : '补货开门' }}</button>
-        <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">只读查看 — 需补货操作权限方可签到/开门/上架</text>
-        <text v-if="doorOpened && openSessionId" class="door-tip">已开门 · 会话 {{ openSessionId }} · 关门后继续核对上架</text>
+        >{{ doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门' }}</button>
+        <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">
+          只读查看 — 需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
+        </text>
+        <text v-if="doorOpened && openSessionId" class="door-tip">
+          已开门 · 会话 {{ openSessionId }} · 关门后继续核对{{ detailIsPullOff ? '下架' : '上架' }}
+        </text>
 
         <view class="section-heading">
           <view>
-            <text class="section-title">本次补货商品</text>
+            <text class="section-title">现场照片</text>
+            <text class="section-subtitle">{{ selected?.checkInAt ? '最多 5 张，便于后台核对履约' : '签到后可拍照留存，最多 5 张' }}</text>
+          </view>
+          <text class="line-count">{{ evidenceItems.length }} 张</text>
+        </view>
+        <view class="evidence-row">
+          <image
+            v-for="(item, idx) in evidenceItems"
+            :key="item.fileId || item.localPath || idx"
+            class="evidence-thumb"
+            :src="item.localPath"
+            mode="aspectFill"
+            @click="previewEvidence(idx)"
+          />
+          <view
+            v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt && evidenceItems.length < 5"
+            class="evidence-add"
+            @click="addEvidence"
+          >+</view>
+          <text
+            v-else-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
+            class="evidence-hint"
+          >签到后可拍照</text>
+        </view>
+
+        <view class="section-heading">
+          <view>
+            <text class="section-title">{{ detailIsPullOff ? '本次下架商品' : '本次补货商品' }}</text>
             <text class="section-subtitle">{{
-              selected?.outboundId
-                ? `仓配出库 #${selected.outboundId} · 核对后完成将签收在途`
-                : '请逐项核对商品、批次和货道'
+              detailIsPullOff
+                ? '请逐项核对下架数量与批次'
+                : selected?.outboundId
+                  ? `仓配出库 #${selected.outboundId} · 核对后完成将签收在途`
+                  : '请逐项核对商品、批次和货道'
             }}</text>
           </view>
           <text class="line-count">{{ lines.length }} 项</text>
         </view>
         <view v-if="detailLoading" class="empty small">明细加载中…</view>
         <view v-else-if="!lines.length" class="empty small lines-empty">
-          <view class="lines-empty-title">暂无补货明细</view>
-          <view class="lines-empty-tip">可先开门上架；有出库明细时会显示在此核对</view>
+          <view class="lines-empty-title">{{ detailIsPullOff ? '暂无下架明细' : '暂无补货明细' }}</view>
+          <view class="lines-empty-tip">
+            {{ detailIsPullOff ? '可先开门执行下架；有任务明细时会显示在此核对' : '可先开门上架；有出库明细时会显示在此核对' }}
+          </view>
         </view>
         <view
           v-for="line in lines"
@@ -168,10 +207,34 @@
           <view class="line-meta">
             <text>批次 {{ line.batchNo || '-' }}</text>
             <text>货道 {{ line.slotId || '待分配' }}</text>
+            <text class="line-type">{{ lineTypeLabel(line.lineType) }}</text>
+          </view>
+          <view
+            v-if="
+              canRequest
+                && selected?.status !== 'COMPLETED'
+                && !linesConfirmed
+                && !line.applied
+                && !isPullOffType(line.lineType)
+                && !line.slotId
+            "
+            class="slot-pick"
+          >
+            <text class="slot-pick-label">选择货道</text>
+            <view v-if="slotOptionsFor(line).length" class="slot-chips">
+              <text
+                v-for="opt in slotOptionsFor(line)"
+                :key="opt.slotCode"
+                class="slot-chip"
+                :class="{ disabled: opt.room <= 0, active: line.slotId === opt.slotCode }"
+                @click="assignSlot(line, opt)"
+              >{{ opt.slotCode }} · 余{{ opt.room }}</text>
+            </view>
+            <text v-else class="slot-empty">暂无可用货道，请先腾出容量或将数量调为 0</text>
           </view>
           <view class="line-meta">
             <text>到期 {{ line.expiryDate || '-' }}</text>
-            <text>{{ line.applied ? '已入柜' : '待上架' }}</text>
+            <text>{{ lineStatusLabel(line) }}</text>
           </view>
           <view
             v-if="selected?.status !== 'COMPLETED' && line.slotId && slotHint(line)"
@@ -195,10 +258,14 @@
             data-testid="replenish-complete"
             :disabled="submitting || !lines.length || !linesConfirmed"
             @click="completeTask"
-          >确认全部上架</button>
+          >{{ detailIsPullOff ? '确认全部下架' : '确认全部上架' }}</button>
         </view>
         <view v-if="selected?.status === 'COMPLETED'" class="complete-banner">
-          任务已完成，商品库存和在途状态已同步更新
+          {{
+            detailIsPullOff
+              ? '任务已完成，下架库存已同步更新'
+              : '任务已完成，商品库存和在途状态已同步更新'
+          }}
         </view>
       </view>
     </view>
@@ -248,10 +315,13 @@ import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
+import { getPreferredDeviceId } from '@/utils/preferred-device';
+import type { DeviceSlot } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canReplenish = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
+const preferredId = ref(getPreferredDeviceId());
 
 type Task = {
   taskId: number;
@@ -288,10 +358,46 @@ const detailVisible = ref(false);
 const selected = ref<Task | null>(null);
 const lines = ref<Line[]>([]);
 const linesConfirmed = ref(false);
+const evidenceItems = ref<{ localPath: string; fileId?: number }[]>([]);
 const doorOpened = ref(false);
 const openSessionId = ref('');
 /** slotCode -> { maxLevel, bookQty } */
 const slotCaps = ref<Record<string, { maxLevel: number; bookQty: number }>>({});
+const deviceSlotsList = ref<DeviceSlot[]>([]);
+
+const heroSubtitle = computed(() => '扫码到柜 → 签到 → 开门 → 核对履约');
+const detailIsPullOff = computed(() => {
+  if (!lines.value.length) {
+    const notes = String(selected.value?.notes || '');
+    return /from-expiry|PULL_OFF|下架/i.test(notes);
+  }
+  return lines.value.every((l) => isPullOffType(l.lineType));
+});
+
+function isPullOffType(type?: string) {
+  const code = String(type || 'RESTOCK').toUpperCase();
+  return code === 'PULL_OFF' || code === 'REMOVE' || code === 'PULL';
+}
+
+function lineTypeLabel(type?: string) {
+  return isPullOffType(type) ? '下架' : '上架';
+}
+
+function lineStatusLabel(line: Line) {
+  if (line.applied) return isPullOffType(line.lineType) ? '已下架' : '已入柜';
+  return isPullOffType(line.lineType) ? '待下架' : '待上架';
+}
+
+function taskLooksPullOff(task: Task) {
+  return /from-expiry|PULL_OFF|下架/i.test(String(task.notes || ''));
+}
+
+function taskActionLabel(task: Task) {
+  if (task.status === 'COMPLETED') return '查看完成明细';
+  const pull = taskLooksPullOff(task);
+  if (task.checkInAt) return pull ? '继续下架' : '继续补货';
+  return pull ? '开始下架' : '开始补货';
+}
 
 type ConfirmDialogState = {
   visible: boolean;
@@ -404,8 +510,28 @@ function readHashQuery(key: string): string | undefined {
   return m ? decodeURIComponent(m[1]) : undefined;
 }
 
+function usePreferredDevice() {
+  const id = preferredId.value;
+  if (!id) return;
+  filterDeviceId.value = id.trim().toUpperCase();
+  status.value = '';
+  void load();
+}
+
+function goRequest() {
+  const q = filterDeviceId.value
+    ? `?deviceId=${encodeURIComponent(filterDeviceId.value)}`
+    : '';
+  uni.navigateTo({ url: `/pages/request/request${q}` });
+}
+
 onLoad((opts) => {
   applyRouteQuery(opts as Record<string, string | undefined>);
+  // 无深链柜机时，默认筛常驻柜（仅首次进入，不覆盖用户「清除筛选」）
+  if (!filterDeviceId.value) {
+    const preferred = getPreferredDeviceId();
+    if (preferred) filterDeviceId.value = preferred.trim().toUpperCase();
+  }
 });
 
 function deviceName(id?: string) {
@@ -565,15 +691,56 @@ function syncTaskInList(task: Task) {
   }
 }
 
+async function addEvidence() {
+  if (!selected.value || !canRequest.value) return;
+  if (!selected.value.checkInAt) {
+    uni.showToast({ title: '请先签到再拍照', icon: 'none' });
+    return;
+  }
+  if (evidenceItems.value.length >= 5) {
+    uni.showToast({ title: '最多 5 张', icon: 'none' });
+    return;
+  }
+  const paths = await new Promise<string[]>((resolve) => {
+    uni.chooseImage({
+      count: 5 - evidenceItems.value.length,
+      sizeType: ['compressed'],
+      sourceType: ['album', 'camera'],
+      success: (res) => resolve(res.tempFilePaths || []),
+      fail: () => resolve([])
+    });
+  });
+  for (const path of paths) {
+    try {
+      const uploaded = await merchantApi.uploadReplenishmentEvidence(selected.value.taskId, path);
+      evidenceItems.value.push({ localPath: path, fileId: uploaded.fileId });
+    } catch (e) {
+      uni.showToast({
+        title: e instanceof Error ? e.message : '上传失败',
+        icon: 'none'
+      });
+      break;
+    }
+  }
+}
+
+function previewEvidence(index: number) {
+  const urls = evidenceItems.value.map((i) => i.localPath).filter(Boolean);
+  if (!urls.length) return;
+  uni.previewImage({ urls, current: urls[index] || urls[0] });
+}
+
 async function openTask(task: Task) {
   // 打开前用列表最新状态（签到后避免仍用旧 checkInAt）
   const fromList = allTasks.value.find((t) => t.taskId === task.taskId);
   selected.value = { ...(fromList || task) };
   detailVisible.value = true;
   linesConfirmed.value = selected.value.status === 'COMPLETED';
+  evidenceItems.value = [];
   restoreDoorState(selected.value.taskId);
   detailLoading.value = true;
   slotCaps.value = {};
+  deviceSlotsList.value = [];
   try {
     // 再拉一次任务列表，确保签到/状态与明细一致
     try {
@@ -584,13 +751,28 @@ async function openTask(task: Task) {
     } catch {
       /* keep selected */
     }
-    const [taskLines, slots] = await Promise.all([
+    const [taskLines, slots, evidence] = await Promise.all([
       merchantApi.replenishmentTaskLines(task.taskId) as Promise<Line[]>,
-      merchantApi.deviceSlots(task.deviceId).catch(() => [])
+      merchantApi.deviceSlots(task.deviceId).catch(() => [] as DeviceSlot[]),
+      merchantApi.listReplenishmentEvidence(task.taskId).catch(() => [])
     ]);
     lines.value = taskLines;
+    deviceSlotsList.value = (slots || []) as DeviceSlot[];
+    const mapped = await Promise.all(
+      (evidence || []).map(async (f) => {
+        const fileId = f.fileId;
+        if (!fileId) return { localPath: f.url || '', fileId };
+        try {
+          const localPath = await merchantApi.downloadReplenishmentEvidence(task.taskId, fileId);
+          return { localPath, fileId };
+        } catch {
+          return { localPath: f.url || '', fileId };
+        }
+      })
+    );
+    evidenceItems.value = mapped;
     const map: Record<string, { maxLevel: number; bookQty: number }> = {};
-    for (const s of slots as { slotCode?: string; maxLevel?: number; bookQty?: number }[]) {
+    for (const s of deviceSlotsList.value) {
       const code = String(s.slotCode || '').toUpperCase();
       if (!code) continue;
       map[code] = {
@@ -606,14 +788,47 @@ async function openTask(task: Task) {
   }
 }
 
+function slotOptionsFor(line: Line) {
+  return deviceSlotsList.value
+    .filter((s) => s.enabled !== false)
+    .filter((s) => !s.assignedSkuId || s.assignedSkuId === line.skuId)
+    .map((s) => {
+      const slotCode = String(s.slotCode || '').toUpperCase();
+      const maxLevel = Number(s.maxLevel) || 0;
+      const bookQty = Number(s.bookQty) || 0;
+      const room = maxLevel > 0 ? Math.max(0, maxLevel - bookQty) : 99;
+      return { slotCode, room, label: s.assignedSkuName || slotCode };
+    })
+    .filter((s) => !!s.slotCode)
+    .sort((a, b) => b.room - a.room || a.slotCode.localeCompare(b.slotCode));
+}
+
+function assignSlot(line: Line, opt: { slotCode: string; room: number }) {
+  if (!opt.slotCode) return;
+  if (opt.room <= 0) {
+    uni.showToast({ title: '该货道已满', icon: 'none' });
+    return;
+  }
+  line.slotId = opt.slotCode;
+  if ((Number(line.quantity) || 0) > opt.room) {
+    line.quantity = opt.room;
+  }
+  linesConfirmed.value = false;
+}
+
 function slotHeadroom(line: Line): number {
   const code = String(line.slotId || '').toUpperCase();
+  if (!code) {
+    const rooms = slotOptionsFor(line).map((o) => o.room).filter((n) => n > 0);
+    return rooms.length ? Math.max(...rooms) : 0;
+  }
   const cap = slotCaps.value[code];
   if (!cap || cap.maxLevel <= 0) return 99;
   return Math.max(0, cap.maxLevel - cap.bookQty);
 }
 
 function slotHint(line: Line): string {
+  if (isPullOffType(line.lineType)) return '';
   const code = String(line.slotId || '').toUpperCase();
   const cap = slotCaps.value[code];
   if (!cap || cap.maxLevel <= 0) return '';
@@ -702,7 +917,7 @@ async function openDoor() {
     return;
   }
   const ok = await askConfirm({
-    title: doorOpened.value ? '再次开门' : '补货开门',
+    title: doorOpened.value ? '再次开门' : detailIsPullOff.value ? '下架开门' : '补货开门',
     content: '将下发开门指令，本次为补货会话，不会按购物扣款。请确认人在柜前。',
     confirmText: '开门',
     cancelText: '取消'
@@ -735,15 +950,19 @@ function adjustQty(line: Line, delta: number) {
   if (linesConfirmed.value || line.applied || selected.value?.status === 'COMPLETED') return;
   const cur = Number(line.quantity) || 0;
   if (delta > 0) {
-    const room = slotHeadroom(line);
-    if (cur >= room) {
-      uni.showToast({
-        title: room <= 0 ? '货道已满，无法再加' : `最多再补 ${room}`,
-        icon: 'none'
-      });
+    if (!isPullOffType(line.lineType)) {
+      const room = slotHeadroom(line);
+      if (cur >= room) {
+        uni.showToast({
+          title: room <= 0 ? '货道已满，无法再加' : `最多再补 ${room}`,
+          icon: 'none'
+        });
+        return;
+      }
+      line.quantity = Math.min(room, cur + delta);
       return;
     }
-    line.quantity = Math.min(room, cur + delta);
+    line.quantity = cur + delta;
     return;
   }
   line.quantity = Math.max(0, cur + delta);
@@ -752,7 +971,7 @@ function adjustQty(line: Line, delta: number) {
 function clampLinesToCapacity() {
   let changed = false;
   for (const line of lines.value) {
-    if (line.applied) continue;
+    if (line.applied || isPullOffType(line.lineType)) continue;
     const room = slotHeadroom(line);
     const qty = Number(line.quantity) || 0;
     if (qty > room) {
@@ -770,7 +989,7 @@ async function confirmLines() {
     return;
   }
   const over = lines.value.filter(
-    (l) => !l.applied && (Number(l.quantity) || 0) > slotHeadroom(l)
+    (l) => !l.applied && !isPullOffType(l.lineType) && (Number(l.quantity) || 0) > slotHeadroom(l)
   );
   if (over.length) {
     const ok = await askConfirm({
@@ -785,6 +1004,11 @@ async function confirmLines() {
   const positive = lines.value.filter((l) => (Number(l.quantity) || 0) > 0);
   if (!positive.length) {
     uni.showToast({ title: '调低后无有效数量，请换货道或取消该行', icon: 'none' });
+    return;
+  }
+  const unassigned = positive.filter((l) => !isPullOffType(l.lineType) && !String(l.slotId || '').trim());
+  if (unassigned.length) {
+    uni.showToast({ title: '请先为待分配行选择货道', icon: 'none' });
     return;
   }
   submitting.value = true;
@@ -829,15 +1053,30 @@ async function completeTask() {
   if (!doorOpened.value) {
     const cont = await askConfirm({
       title: '尚未开门',
-      content: '还未下发补货开门。若已现场开门完成上架，仍可继续确认完成。',
+      content: detailIsPullOff.value
+        ? '还未下发下架开门。若已现场开门完成下架，仍可继续确认完成。'
+        : '还未下发补货开门。若已现场开门完成上架，仍可继续确认完成。',
       confirmText: '继续完成',
       cancelText: '去开门'
     });
     if (!cont) return;
   }
+  if (evidenceItems.value.length === 0) {
+    const photoOk = await askConfirm({
+      title: '未上传照片',
+      content: detailIsPullOff.value
+        ? '建议先拍照留存下架证据，确认仍要完成任务？'
+        : '建议先拍照留存补货证据，确认仍要完成任务？',
+      confirmText: '仍完成',
+      cancelText: '去拍照'
+    });
+    if (!photoOk) return;
+  }
   const ok = await askConfirm({
-    title: '确认全部上架',
-    content: '完成后将更新柜机库存并签收在途商品，请确认商品、批次和货道无误。',
+    title: detailIsPullOff.value ? '确认全部下架' : '确认全部上架',
+    content: detailIsPullOff.value
+      ? '完成后将扣减柜机库存，请确认下架商品、批次和数量无误。'
+      : '完成后将更新柜机库存并签收在途商品，请确认商品、批次和货道无误。',
     confirmText: '确认完成',
     cancelText: '取消'
   });
@@ -854,7 +1093,7 @@ async function completeTask() {
     }
     doorOpened.value = false;
     openSessionId.value = '';
-    uni.showToast({ title: '补货完成', icon: 'success' });
+    uni.showToast({ title: detailIsPullOff.value ? '下架完成' : '补货完成', icon: 'success' });
     await load();
     const fresh = allTasks.value.find((t) => t.taskId === taskId);
     if (fresh) selected.value = { ...fresh };
@@ -865,7 +1104,10 @@ async function completeTask() {
   }
 }
 
-onShow(load);
+onShow(() => {
+  preferredId.value = getPreferredDeviceId();
+  void load();
+});
 onPullDownRefresh(load);
 </script>
 
@@ -941,6 +1183,7 @@ onPullDownRefresh(load);
   font-size: 22rpx;
   opacity: 0.85;
 }
+.filter-tip.muted { opacity: 0.7; }
 .idle-tip {
   position: relative;
   margin-top: 18rpx;
@@ -1000,6 +1243,13 @@ onPullDownRefresh(load);
 }
 .status.completed { color: #166534; background: #dcfce7; }
 .task-meta, .line-meta { margin-top: 16rpx; color: #64748b; font-size: 22rpx; }
+.line-type {
+  color: #0f766e;
+  background: #ecfdf5;
+  padding: 2rpx 10rpx;
+  border-radius: 999rpx;
+  font-size: 20rpx;
+}
 .line-cap {
   margin-top: 12rpx;
   padding: 10rpx 14rpx;
@@ -1010,6 +1260,16 @@ onPullDownRefresh(load);
 }
 .line-cap.warn { color: #b45309; background: #fffbeb; }
 .line-cap.full { color: #b91c1c; background: #fef2f2; }
+.slot-pick { margin-top: 12rpx; }
+.slot-pick-label { display: block; font-size: 22rpx; color: #0f766e; margin-bottom: 8rpx; font-weight: 600; }
+.slot-chips { display: flex; flex-wrap: wrap; gap: 10rpx; }
+.slot-chip {
+  padding: 8rpx 16rpx; border-radius: 999rpx; background: #ecfdf5; color: #0f766e;
+  font-size: 22rpx; border: 1rpx solid #99f6e4;
+}
+.slot-chip.active { background: #0f766e; color: #fff; border-color: #0f766e; }
+.slot-chip.disabled { opacity: 0.4; background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0; }
+.slot-empty { font-size: 22rpx; color: #b91c1c; }
 .task-note {
   margin-top: 16rpx;
   padding: 16rpx;
@@ -1194,6 +1454,33 @@ onPullDownRefresh(load);
   margin-right: 16rpx;
 }
 .product-copy { flex: 1; min-width: 0; }
+.evidence-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-bottom: 20rpx;
+}
+.evidence-thumb,
+.evidence-add {
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 16rpx;
+  background: #ecfdf5;
+}
+.evidence-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2rpx dashed #99f6e4;
+  color: #0f766e;
+  font-size: 48rpx;
+  font-weight: 600;
+}
+.evidence-hint {
+  align-self: center;
+  font-size: 22rpx;
+  color: #94a3b8;
+}
 .action-dock {
   position: sticky;
   bottom: 0;
