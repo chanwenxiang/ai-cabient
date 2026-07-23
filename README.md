@@ -103,7 +103,7 @@ curl -X POST http://localhost:8080/api/v2/sessions \
 | trade-service | 8080 |
 | device-service | 8081 |
 | vision-service | 8082 |
-| EMQX MQTT | 11883 |
+| EMQX MQTT | **11883**（默认 Hyper-V 安全端口；本机若冲突可在 `infra/.env` 设 `EMQX_MQTT_PORT=12883`） |
 | EMQX Dashboard | 28083 |
 | API Gateway | 80 |
 | PostgreSQL | **15433** |

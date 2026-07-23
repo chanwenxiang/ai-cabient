@@ -95,6 +95,35 @@ class OrderPaymentIdempotencyTest {
                 eq(10001L), eq(200), eq("REFUND"), eq("O-REF-2"), any(), eq("duplicate test"));
     }
 
+    @Test
+    void mockWeChatRefund_creditsWalletLedger() {
+        CabinetOrder order = order("O-WX-REF", 10001L, 500, "WECHAT");
+        when(paymentOperationRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+
+        service.refundOrder(order, 500, "dispute waive");
+
+        verify(balanceLedgerService, times(1)).change(
+                eq(10001L), eq(500), eq("REFUND"), eq("O-WX-REF"),
+                org.mockito.ArgumentMatchers.contains(":wallet"),
+                org.mockito.ArgumentMatchers.contains("模拟支付退回余额"));
+        verify(paymentOperationRepository).save(any(PaymentOperation.class));
+    }
+
+    @Test
+    void mockAlipayRefund_creditsWalletLedger() {
+        CabinetOrder order = order("O-ALI-REF", 10001L, 300, "ALIPAY");
+        when(paymentOperationRepository.findByIdempotencyKey(any())).thenReturn(Optional.empty());
+        when(alipayPayClient.isConfigured()).thenReturn(false);
+
+        service.refundOrder(order, 300, "dispute waive");
+
+        verify(balanceLedgerService, times(1)).change(
+                eq(10001L), eq(300), eq("REFUND"), eq("O-ALI-REF"),
+                org.mockito.ArgumentMatchers.contains(":wallet"),
+                org.mockito.ArgumentMatchers.contains("模拟支付退回余额"));
+        verify(paymentOperationRepository).save(any(PaymentOperation.class));
+    }
+
     private CabinetOrder order(String orderId, long userId, int amountCents, String channel) {
         CabinetOrder order = new CabinetOrder();
         order.setOrderId(orderId);

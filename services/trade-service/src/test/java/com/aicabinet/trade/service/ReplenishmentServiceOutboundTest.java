@@ -243,6 +243,41 @@ class ReplenishmentServiceOutboundTest {
         verify(taskLineRepository, never()).save(any());
     }
 
+    @Test
+    void createTaskFromPullOff_restock_rejectsWhenHeadroomZero() {
+        PullOffTask pull = openPull(79L, "CAB-001", "SKU-DEMO-001", 3, "B-FULL");
+        when(pullOffTaskRepository.findById(79L)).thenReturn(java.util.Optional.of(pull));
+        when(deviceSlotService.hasSkuSlots("CAB-001", "SKU-DEMO-001")).thenReturn(true);
+        when(deviceSlotService.totalHeadroomForSku("CAB-001", "SKU-DEMO-001")).thenReturn(0);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> replenishmentService.createTaskFromPullOff(
+                        100000001L, 79L, new CreateFromExpiryRequest("RESTOCK", null)));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason() != null && ex.getReason().contains("货道已满"));
+        verify(taskLineRepository, never()).save(any());
+        verify(routeRepository, never()).save(any());
+    }
+
+    @Test
+    void createTaskFromPullOff_restock_rejectsWhenAllocEmpty() {
+        PullOffTask pull = openPull(80L, "CAB-001", "SKU-DEMO-001", 2, null);
+        when(pullOffTaskRepository.findById(80L)).thenReturn(java.util.Optional.of(pull));
+        when(deviceSlotService.hasSkuSlots("CAB-001", "SKU-DEMO-001")).thenReturn(true);
+        when(deviceSlotService.totalHeadroomForSku("CAB-001", "SKU-DEMO-001")).thenReturn(2);
+        when(deviceSlotService.allocateRestockQuantity("CAB-001", "SKU-DEMO-001", 2))
+                .thenReturn(List.of());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> replenishmentService.createTaskFromPullOff(
+                        100000001L, 80L, new CreateFromExpiryRequest("RESTOCK", null)));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason() != null && ex.getReason().contains("货道已满"));
+        verify(taskLineRepository, never()).save(any());
+    }
+
     private static PullOffTask openPull(long id, String deviceId, String skuId, int qty, String batchNo) {
         PullOffTask pull = new PullOffTask();
         try {

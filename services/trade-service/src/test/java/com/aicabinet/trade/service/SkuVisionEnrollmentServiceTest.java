@@ -76,6 +76,21 @@ class SkuVisionEnrollmentServiceTest {
     }
 
     @Test
+    void advanceEnrollment_shouldMoveDraftToMapping() {
+        SkuCatalog sku = baseSku("SKU-DRAFT", "DRAFT", "cola_demo");
+        when(skuCatalogRepository.findById("SKU-DRAFT")).thenReturn(Optional.of(sku));
+        when(yoloRepository.existsById("cola_demo")).thenReturn(true);
+        when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var row = service.advanceEnrollment(9L, "SKU-DRAFT");
+
+        assertEquals("MAPPING", row.sku().visionEnrollmentStatus());
+        assertEquals("TESTED", row.nextStatus());
+        assertFalse(row.mappingEffective());
+        assertEquals(SkuVisionEnrollmentService.MODEL_PIPELINE_WAITING, row.modelPipelineStatus());
+    }
+
+    @Test
     void advanceEnrollment_shouldMoveMappingToTested() {
         SkuCatalog sku = baseSku("SKU-A", "MAPPING", "cola_demo");
         when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(sku));

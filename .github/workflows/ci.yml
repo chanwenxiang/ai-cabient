@@ -2,9 +2,9 @@
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, dev]
   pull_request:
-    branches: [main]
+    branches: [main, develop, dev]
 
 jobs:
   build:
@@ -50,6 +50,13 @@ jobs:
         run: mvn compile -pl services/device-service -am
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:15433/aicabinet
+
+      - name: Vision mock unit tests (pytest, no YOLO weights)
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          PYTHONPATH=vision-service pytest -q vision-service/tests/test_delta_recognizer.py
+        working-directory: ${{ github.workspace }}
 
       - name: Upload test results
         if: always()

@@ -136,6 +136,32 @@ class WarehouseServiceTest {
         verify(outboundRepository, never()).deleteById(anyLong());
     }
 
+    @Test
+    void tryCreateOutboundFromLines_fefo_deductsNearerExpiryFirst() {
+        stubOutboundSave(504L);
+        WarehouseInventory near = inventoryLot("SKU-1", "NEAR", 2, LocalDate.now().plusDays(10));
+        WarehouseInventory far = inventoryLot("SKU-1", "FAR", 10, LocalDate.now().plusMonths(6));
+        // Repository contract: already ordered by expiry ASC
+        when(inventoryRepository.findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(
+                WarehouseService.DEFAULT_WAREHOUSE_ID, "SKU-1")).thenReturn(List.of(near, far));
+        when(outboundLineRepository.sumAllocatedQty(
+                WarehouseService.DEFAULT_WAREHOUSE_ID, "SKU-1", "NEAR")).thenReturn(0);
+        when(outboundLineRepository.sumAllocatedQty(
+                WarehouseService.DEFAULT_WAREHOUSE_ID, "SKU-1", "FAR")).thenReturn(0);
+
+        Long id = warehouseService.tryCreateOutboundFromLines(
+                4L, null, 100L, new LinkedHashMap<>(Map.of("SKU-1", 5)), null);
+
+        assertEquals(504L, id);
+        ArgumentCaptor<WarehouseOutboundLine> lineCaptor = ArgumentCaptor.forClass(WarehouseOutboundLine.class);
+        verify(outboundLineRepository, times(2)).save(lineCaptor.capture());
+        List<WarehouseOutboundLine> lines = lineCaptor.getAllValues();
+        assertEquals("NEAR", lines.get(0).getBatchNo());
+        assertEquals(2, lines.get(0).getQuantity());
+        assertEquals("FAR", lines.get(1).getBatchNo());
+        assertEquals(3, lines.get(1).getQuantity());
+    }
+
     private void stubOutboundSave(long outboundId) {
         when(outboundRepository.save(any(WarehouseOutbound.class))).thenAnswer(inv -> {
             WarehouseOutbound o = inv.getArgument(0);
@@ -158,11 +184,15 @@ class WarehouseServiceTest {
     }
 
     private static WarehouseInventory inventoryLot(String skuId, String batchNo, int qty) {
+        return inventoryLot(skuId, batchNo, qty, LocalDate.now().plusMonths(6));
+    }
+
+    private static WarehouseInventory inventoryLot(String skuId, String batchNo, int qty, LocalDate expiryDate) {
         WarehouseInventory lot = new WarehouseInventory();
         lot.setWarehouseId(WarehouseService.DEFAULT_WAREHOUSE_ID);
         lot.setSkuId(skuId);
         lot.setBatchNo(batchNo);
-        lot.setExpiryDate(LocalDate.now().plusMonths(6));
+        lot.setExpiryDate(expiryDate);
         lot.setQuantity(qty);
         return lot;
     }

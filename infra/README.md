@@ -251,10 +251,13 @@ Docker Desktop 在 Windows 上常因 **Hyper-V 动态端口保留**（例如 `18
 
 本项目已将宿主机映射改为 **11883 / 18883 / 28083**（可在 `.env` 中通过 `EMQX_MQTT_PORT` 等覆盖）。容器内仍使用 `emqx:1883`，Compose 内服务无需改配置。
 
+部分 Windows 环境上 **11883 仍可能落在 Hyper-V 保留段**，本地常见改用 **12883**（`EMQX_MQTT_PORT=12883`）。`scripts/check-ports.ps1` 会同时探测 11883 与 12883。宿主机 MQTT URL 需与 `.env` 一致（例如脚本默认 `tcp://localhost:11883`，覆盖后改为 `12883`）。
+
 查看本机保留端口：
 
 ```powershell
 netsh interface ipv4 show excludedportrange protocol=tcp
+.\scripts\check-ports.ps1
 ```
 
 若仍冲突，在 `.env` 中把 `EMQX_MQTT_PORT` 改到未被保留的范围后 `docker compose up -d emqx`。
