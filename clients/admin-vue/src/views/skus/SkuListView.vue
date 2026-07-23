@@ -25,8 +25,24 @@
       show-icon
       class="risk-alert"
       title="识别入驻说明（无真实算法版）"
-      description="流程：草稿/映射中 → 识别测试 → 转生产。转生产只表示运营侧映射生效可结算；尚未接入真实 YOLO 训练时，视觉仍为演示/mock，低置信与 mock 结果会进争议审单，不会当作生产精度静默扣款。"
+      :description="pipelineHint"
     />
+
+    <div class="enroll-steps">
+      <div
+        v-for="(step, idx) in enrollmentSteps"
+        :key="step.status"
+        class="enroll-step"
+        :class="{ active: enrollmentFilter === step.status }"
+        @click="filterByEnrollment(step.status)"
+      >
+        <span class="enroll-step__idx">{{ idx + 1 }}</span>
+        <div class="enroll-step__body">
+          <strong>{{ step.label }}</strong>
+          <small>{{ step.description }}</small>
+        </div>
+      </div>
+    </div>
 
     <el-alert
       type="warning"
@@ -120,6 +136,16 @@
               </el-tag>
             </template>
           </el-table-column>
+          <el-table-column label="映射/模型" min-width="150" align="center">
+            <template #default="{ row }">
+              <div class="pipe-cell">
+                <el-tag size="small" :type="rowMeta(row)?.mappingEffective ? 'success' : 'info'">
+                  {{ rowMeta(row)?.mappingEffective ? '映射已生效' : '映射未生效' }}
+                </el-tag>
+                <el-tag size="small" type="warning" effect="plain">等待真实模型</el-tag>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column label="商品状态" width="96" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
@@ -133,7 +159,7 @@
           <el-table-column label="检测阈值" width="96" align="center">
             <template #default="{ row }">{{ formatConfidence(row.detectionMinConfidence ?? 0.5) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="132" class-name="col-action" align="center">
+          <el-table-column label="操作" width="168" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 :actions="skuActions(row)"
@@ -187,6 +213,15 @@
           <el-select v-model="enrollForm.visionEnrollmentStatus" style="width: 100%">
             <el-option v-for="s in enrollmentStatuses" :key="s" :label="enrollmentLabel(s)" :value="s" />
           </el-select>
+          <div class="field-hint">建议走「保存 → 识别测试 → 推进状态」；勿跳过抽检直接生产。</div>
+        </el-form-item>
+        <el-form-item label="参考图 URL">
+          <el-input
+            v-model="enrollForm.referenceImageUrls"
+            type="textarea"
+            :rows="2"
+            placeholder="可选，逗号或换行分隔；用于采集闭环留档（训练管线 stub）"
+          />
         </el-form-item>
         <el-form-item label="检测阈值">
           <el-slider v-model="enrollForm.detectionPercent" :min="10" :max="100" show-input />
@@ -197,11 +232,19 @@
       </el-form>
       <template #footer>
         <el-button @click="enrollDialog = false">取消</el-button>
-        <el-button v-if="canEnroll" type="primary" :loading="saving" @click="saveEnroll">保存</el-button>
+        <el-button v-if="canEnroll" type="primary" :loading="saving" @click="saveEnroll">保存采集</el-button>
       </template>
     </el-dialog>
 
     <el-dialog v-model="testDialog" :title="`识别测试 · ${testForm.skuName}`" width="560px">
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        class="risk-alert"
+        title="抽检说明"
+        description="当前识别多为 mock/演示；预览后可推进到「已测试」。转生产只生效映射，模型侧仍显示「等待真实模型」。"
+      />
       <el-form label-width="96px">
         <el-form-item label="设备 ID">
           <el-input v-model="testForm.deviceId" placeholder="例如 CAB-001" />
@@ -220,6 +263,13 @@
       </el-table>
       <template #footer>
         <el-button @click="testDialog = false">关闭</el-button>
+        <el-button
+          v-if="canEnroll && testPreview && testForm.status !== 'TESTED' && testForm.status !== 'PRODUCTION'"
+          type="success"
+          plain
+          :loading="advancing"
+          @click="markTestedFromPreview"
+        >标记已测试</el-button>
         <el-button type="primary" :loading="testing" :disabled="!testImageFile" @click="runTest">预览识别</el-button>
       </template>
     </el-dialog>
@@ -229,17 +279,18 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { EditPen, Refresh, Upload, CircleCheck } from '@element-plus/icons-vue';
+import { EditPen, Refresh, Upload, CircleCheck, ArrowRight } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
-import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import { useAuthStore } from '@/stores/auth';
 import type {
   DevRecognitionPreviewDto,
   SkuCatalog,
+  SkuVisionEnrollmentPipeline,
+  SkuVisionEnrollmentRow,
   UpsertSkuRequest,
   UpsertSkuVisionEnrollmentRequest
 } from '@aicabinet/shared-types';
@@ -251,13 +302,25 @@ const auth = useAuthStore();
 const canEnroll = computed(
   () => auth.hasPerm('ops:sku:edit') && auth.hasPerm('ops:vision:edit')
 );
+const canVisionEdit = computed(() => auth.hasPerm('ops:vision:edit'));
 const loading = ref(false);
 const saving = ref(false);
+const advancing = ref(false);
 const testing = ref(false);
 const suggestingClass = ref(false);
 const suggestingImage = ref(false);
 const batchDelisting = ref(false);
 const items = ref<SkuCatalog[]>([]);
+const rowBySku = ref<Record<string, SkuVisionEnrollmentRow>>({});
+const pipelineHint = ref(
+  '流程：草稿/映射中 → 识别测试 → 转生产。转生产只表示运营侧映射生效；尚未接入真实 YOLO 训练时，视觉仍为演示/mock，低置信与 mock 结果会进争议审单。'
+);
+const enrollmentSteps = ref<SkuVisionEnrollmentPipeline['steps']>([
+  { status: 'DRAFT', label: '草稿', description: '录入商品基本信息' },
+  { status: 'MAPPING', label: '映射中', description: '绑定类名与阈值' },
+  { status: 'TESTED', label: '已测试', description: '完成识别抽检' },
+  { status: 'PRODUCTION', label: '生产', description: '映射生效（等待真实模型）' }
+]);
 const keyword = ref('');
 const enrollmentFilter = ref('');
 const saleTab = ref('ACTIVE');
@@ -457,6 +520,7 @@ const enrollForm = reactive({
   priceCents: 350,
   yoloClassName: '',
   imageUrl: '',
+  referenceImageUrls: '',
   visionEnrollmentStatus: 'MAPPING',
   detectionPercent: 50,
   chargePercent: 92
@@ -465,6 +529,7 @@ const enrollForm = reactive({
 const testForm = reactive({
   skuId: '',
   skuName: '',
+  status: '' as string,
   deviceId: 'CAB-DEMO-001'
 });
 
@@ -498,15 +563,52 @@ function enrollmentTagType(status?: string) {
   return 'info';
 }
 
+function rowMeta(row: SkuCatalog) {
+  return rowBySku.value[row.skuId];
+}
+
+function filterByEnrollment(status: string) {
+  enrollmentFilter.value = enrollmentFilter.value === status ? '' : status;
+  search();
+}
+
+function urlsToJson(raw: string) {
+  const parts = raw
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.length ? JSON.stringify(parts) : undefined;
+}
+
+function jsonToUrls(raw?: string) {
+  if (!raw?.trim()) return '';
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.filter(Boolean).join('\n');
+  } catch {
+    /* plain text */
+  }
+  return raw;
+}
+
 function skuActions(row: SkuCatalog): TableAction[] {
   const acts: TableAction[] = [];
   if (canEnroll.value) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
   }
-  if (ENABLE_TEST_TOOLS) {
+  if (canEnroll.value || canVisionEdit.value) {
     acts.push({ key: 'test', label: '识别测试', icon: Upload, type: 'warning' });
   }
-  if (canEnroll.value && row.visionEnrollmentStatus !== 'PRODUCTION') {
+  const meta = rowMeta(row);
+  if (canVisionEdit.value && meta?.nextStatus) {
+    acts.push({
+      key: 'advance',
+      label: meta.nextStatus === 'PRODUCTION' ? '转生产' : `推进到${enrollmentLabel(meta.nextStatus)}`,
+      icon: meta.nextStatus === 'PRODUCTION' ? CircleCheck : ArrowRight,
+      type: 'success',
+      overflow: true
+    });
+  } else if (canEnroll.value && row.visionEnrollmentStatus !== 'PRODUCTION') {
     acts.push({ key: 'production', label: '转生产', icon: CircleCheck, type: 'success', overflow: true });
   }
   return acts;
@@ -515,6 +617,7 @@ function skuActions(row: SkuCatalog): TableAction[] {
 function onSkuAction(key: string, row: SkuCatalog) {
   if (key === 'edit') openEnroll(row);
   else if (key === 'test') openTest(row);
+  else if (key === 'advance') advanceRow(row);
   else if (key === 'production') markProduction(row);
 }
 
@@ -527,6 +630,7 @@ function openEnroll(row?: SkuCatalog) {
     enrollForm.priceCents = row.priceCents;
     enrollForm.yoloClassName = row.yoloClassName || '';
     enrollForm.imageUrl = row.imageUrl || '';
+    enrollForm.referenceImageUrls = jsonToUrls(row.referenceImageUrlsJson);
     enrollForm.visionEnrollmentStatus = row.visionEnrollmentStatus || 'MAPPING';
     enrollForm.detectionPercent = Math.round((row.detectionMinConfidence ?? 0.5) * 100);
     enrollForm.chargePercent = Math.round((row.minChargeConfidence ?? 0.92) * 100);
@@ -537,6 +641,7 @@ function openEnroll(row?: SkuCatalog) {
     enrollForm.priceCents = 350;
     enrollForm.yoloClassName = '';
     enrollForm.imageUrl = '';
+    enrollForm.referenceImageUrls = '';
     enrollForm.visionEnrollmentStatus = 'MAPPING';
     enrollForm.detectionPercent = 50;
     enrollForm.chargePercent = 92;
@@ -547,6 +652,7 @@ function openEnroll(row?: SkuCatalog) {
 function openTest(row: SkuCatalog) {
   testForm.skuId = row.skuId;
   testForm.skuName = row.skuName;
+  testForm.status = row.visionEnrollmentStatus || 'DRAFT';
   testPreview.value = null;
   testImageFile.value = null;
   if (testImageInput.value) testImageInput.value.value = '';
@@ -616,6 +722,7 @@ async function saveEnroll() {
   }
   saving.value = true;
   try {
+    const referenceImageUrlsJson = urlsToJson(enrollForm.referenceImageUrls);
     const body: UpsertSkuVisionEnrollmentRequest = {
       sku: {
         skuId: enrollForm.skuId.trim(),
@@ -627,11 +734,13 @@ async function saveEnroll() {
         minChargeConfidence: enrollForm.chargePercent / 100,
         yoloClassName: enrollForm.yoloClassName.trim(),
         visionEnrollmentStatus: enrollForm.visionEnrollmentStatus,
-        detectionMinConfidence: enrollForm.detectionPercent / 100
+        detectionMinConfidence: enrollForm.detectionPercent / 100,
+        referenceImageUrlsJson
       },
       yoloClassName: enrollForm.yoloClassName.trim(),
       visionEnrollmentStatus: enrollForm.visionEnrollmentStatus,
       detectionMinConfidence: enrollForm.detectionPercent / 100,
+      referenceImageUrlsJson,
       mappingSource: 'YOLO_SKU'
     };
     const updated = await api.request<SkuCatalog>('/api/v2/ops/admin/sku-vision/enroll', 'POST', body);
@@ -641,10 +750,52 @@ async function saveEnroll() {
     items.value.sort((a, b) => a.skuId.localeCompare(b.skuId));
     enrollDialog.value = false;
     ElMessage.success('已保存商品与识别配置');
+    await load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
     saving.value = false;
+  }
+}
+
+async function applyRowUpdate(updated: SkuVisionEnrollmentRow) {
+  const sku = updated.sku;
+  const idx = items.value.findIndex((i) => i.skuId === sku.skuId);
+  if (idx >= 0) items.value[idx] = sku;
+  rowBySku.value = { ...rowBySku.value, [sku.skuId]: updated };
+}
+
+async function advanceRow(row: SkuCatalog) {
+  const meta = rowMeta(row);
+  const next = meta?.nextStatus;
+  if (!next) {
+    ElMessage.info('已处于生产状态（映射已生效，仍等待真实模型）');
+    return;
+  }
+  try {
+    if (next === 'PRODUCTION') {
+      await ElMessageBox.confirm(
+        '转生产表示映射对结算白名单生效。当前无真实模型训练管线时，识别仍可能为 mock/人工复核。确认继续？',
+        '转生产确认',
+        { type: 'warning', confirmButtonText: '确认转生产' }
+      );
+    }
+    advancing.value = true;
+    const updated = await api.request<SkuVisionEnrollmentRow>(
+      `/api/v2/ops/admin/sku-vision/${encodeURIComponent(row.skuId)}/advance`,
+      'POST'
+    );
+    await applyRowUpdate(updated);
+    ElMessage.success(
+      next === 'PRODUCTION'
+        ? `${row.skuName} 映射已生效（等待真实模型接入）`
+        : `${row.skuName} 已推进到「${enrollmentLabel(updated.sku.visionEnrollmentStatus)}」`
+    );
+  } catch (e) {
+    if (e === 'cancel') return;
+    ElMessage.error(e instanceof Error ? e.message : '推进失败');
+  } finally {
+    advancing.value = false;
   }
 }
 
@@ -662,9 +813,30 @@ async function markProduction(row: SkuCatalog) {
     const idx = items.value.findIndex((i) => i.skuId === row.skuId);
     if (idx >= 0) items.value[idx] = updated;
     ElMessage.success(`${row.skuName} 映射已生效（等待真实模型接入）`);
+    await load();
   } catch (e) {
     if (e === 'cancel') return;
     ElMessage.error(e instanceof Error ? e.message : '更新失败');
+  }
+}
+
+async function markTestedFromPreview() {
+  if (!testForm.skuId) return;
+  advancing.value = true;
+  try {
+    const updated = await api.request<SkuCatalog>(
+      `/api/v2/ops/admin/sku-vision/${encodeURIComponent(testForm.skuId)}/status?status=TESTED`,
+      'PATCH'
+    );
+    const idx = items.value.findIndex((i) => i.skuId === updated.skuId);
+    if (idx >= 0) items.value[idx] = updated;
+    testForm.status = 'TESTED';
+    ElMessage.success('已标记为已测试，可继续转生产（映射生效 / 等待真实模型）');
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '更新失败');
+  } finally {
+    advancing.value = false;
   }
 }
 
@@ -677,7 +849,10 @@ async function runTest() {
   try {
     testPreview.value = await uploadMultipart<DevRecognitionPreviewDto>(
       '/api/v2/ops/recognition-preview',
-      { image: testImageFile.value }
+      {
+        image: testImageFile.value,
+        ...(testForm.deviceId.trim() ? { deviceId: testForm.deviceId.trim() } : {})
+      }
     );
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '识别失败');
@@ -741,7 +916,18 @@ function applyRouteQuery() {
 async function load() {
   loading.value = true;
   try {
-    items.value = await api.request<SkuCatalog[]>('/api/v2/ops/admin/sku-vision', 'GET');
+    const [rows, pipeline] = await Promise.all([
+      api.request<SkuVisionEnrollmentRow[]>('/api/v2/ops/admin/sku-vision/rows', 'GET'),
+      api.request<SkuVisionEnrollmentPipeline>('/api/v2/ops/admin/sku-vision/pipeline', 'GET').catch(() => null)
+    ]);
+    items.value = rows.map((r) => r.sku);
+    const map: Record<string, SkuVisionEnrollmentRow> = {};
+    for (const r of rows) map[r.sku.skuId] = r;
+    rowBySku.value = map;
+    if (pipeline) {
+      pipelineHint.value = pipeline.modelPipelineHint || pipelineHint.value;
+      if (pipeline.steps?.length) enrollmentSteps.value = pipeline.steps;
+    }
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -762,6 +948,60 @@ onActivated(() => {
 <style scoped>
 .risk-alert { margin: 0 0 12px; }
 .status-tabs { margin: 0 0 10px; }
+.enroll-steps {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 12px;
+}
+.enroll-step {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+  cursor: pointer;
+  text-align: left;
+}
+.enroll-step.active {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+.enroll-step__idx {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--el-color-primary);
+  flex: none;
+}
+.enroll-step__body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.enroll-step__body strong { font-size: 13px; line-height: 1.3; }
+.enroll-step__body small {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.pipe-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+}
+@media (max-width: 960px) {
+  .enroll-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 .page-card-head {
   display: flex;
   justify-content: space-between;
@@ -805,6 +1045,6 @@ onActivated(() => {
   width: 100%;
 }
 .hidden-input { display: none; }
-.field-hint { color: var(--layout-muted); font-size: 13px; }
+.field-hint { color: var(--layout-muted); font-size: 13px; margin-top: 4px; }
 .test-table { margin-top: 12px; font-size: 14px; }
 </style>

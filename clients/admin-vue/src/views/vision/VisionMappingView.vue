@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">识别映射</span>
-            <span class="hint">YOLO 类名 → SKU；建档请在「商品与识别」维护</span>
+            <span class="hint">YOLO 类名 → SKU；建档请在「商品与识别」维护。生产=映射生效，模型侧仍为等待真实训练</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -64,6 +64,23 @@
               </div>
             </template>
           </el-table-column>
+          <el-table-column label="入驻状态" width="110" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" :type="enrollmentTagType(row.visionEnrollmentStatus)">
+                {{ enrollmentLabel(row.visionEnrollmentStatus) }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="映射/模型" min-width="140" align="center">
+            <template #default="{ row }">
+              <div class="pipe-cell">
+                <el-tag size="small" :type="row.mappingEffective ? 'success' : 'info'">
+                  {{ row.mappingEffective ? '映射已生效' : '映射未生效' }}
+                </el-tag>
+                <el-tag size="small" type="warning" effect="plain">等待真实模型</el-tag>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column label="最低置信度" width="120" align="center">
             <template #default="{ row }">{{ formatConfidence(row.minConfidence) }}</template>
           </el-table-column>
@@ -99,6 +116,9 @@ interface YoloMappingRow {
   skuId?: string;
   skuName?: string;
   minConfidence?: number | string;
+  visionEnrollmentStatus?: string;
+  mappingEffective?: boolean;
+  modelPipelineStatus?: string;
 }
 
 const route = useRoute();
@@ -146,6 +166,22 @@ function formatConfidence(v?: number | string) {
   const n = Number(v);
   if (Number.isNaN(n)) return String(v);
   return n <= 1 ? `${Math.round(n * 100)}%` : String(n);
+}
+
+function enrollmentLabel(status?: string) {
+  const map: Record<string, string> = {
+    DRAFT: '草稿',
+    MAPPING: '映射中',
+    TESTED: '已测试',
+    PRODUCTION: '生产'
+  };
+  return map[status || ''] || status || '—';
+}
+
+function enrollmentTagType(status?: string) {
+  if (status === 'PRODUCTION') return 'success';
+  if (status === 'TESTED') return 'warning';
+  return 'info';
 }
 
 function syncRouteQuery() {
@@ -221,5 +257,11 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
   font-size: 11px;
   font-family: var(--app-font-mono);
+}
+.pipe-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
 }
 </style>

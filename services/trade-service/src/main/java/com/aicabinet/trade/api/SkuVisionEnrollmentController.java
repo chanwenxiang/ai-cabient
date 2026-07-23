@@ -2,6 +2,8 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.SkuCatalogDto;
+import com.aicabinet.common.dto.SkuVisionEnrollmentPipelineDto;
+import com.aicabinet.common.dto.SkuVisionEnrollmentRowDto;
 import com.aicabinet.common.dto.UpsertSkuVisionEnrollmentRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
@@ -26,6 +28,19 @@ public class SkuVisionEnrollmentController {
         return ApiResponse.ok(enrollmentService.listSkusWithVision(operatorId(request)));
     }
 
+    /** 入驻列表（含映射是否生效、模型管线 stub 状态、下一步动作）。 */
+    @RequiresPermissions("ops:sku:list")
+    @GetMapping("/rows")
+    public ApiResponse<java.util.List<SkuVisionEnrollmentRowDto>> listRows(HttpServletRequest request) {
+        return ApiResponse.ok(enrollmentService.listEnrollmentRows(operatorId(request)));
+    }
+
+    @RequiresPermissions("ops:sku:list")
+    @GetMapping("/pipeline")
+    public ApiResponse<SkuVisionEnrollmentPipelineDto> pipeline(HttpServletRequest request) {
+        return ApiResponse.ok(enrollmentService.pipelineMeta(operatorId(request)));
+    }
+
     @RequiresPermissions(value = {"ops:sku:edit", "ops:vision:edit"}, logical = RequiresPermissions.Logical.AND)
     @PostMapping("/enroll")
     public ApiResponse<SkuCatalogDto> enroll(
@@ -41,6 +56,15 @@ public class SkuVisionEnrollmentController {
             @PathVariable("skuId") String skuId,
             @RequestParam("status") String status) {
         return ApiResponse.ok(enrollmentService.updateEnrollmentStatus(operatorId(request), skuId, status));
+    }
+
+    /** 按 DRAFT→MAPPING→TESTED→PRODUCTION 顺序推进一档。 */
+    @RequiresPermissions("ops:vision:edit")
+    @PostMapping("/{skuId}/advance")
+    public ApiResponse<SkuVisionEnrollmentRowDto> advance(
+            HttpServletRequest request,
+            @PathVariable("skuId") String skuId) {
+        return ApiResponse.ok(enrollmentService.advanceEnrollment(operatorId(request), skuId));
     }
 
     @RequiresPermissions(value = {"ops:sku:list", "ops:vision:edit"}, logical = RequiresPermissions.Logical.OR)

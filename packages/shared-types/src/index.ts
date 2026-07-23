@@ -156,6 +156,21 @@ export interface SkuCatalog {
   createdAt?: string;
 }
 
+export interface SkuVisionEnrollmentRow {
+  sku: SkuCatalog;
+  mappingEffective: boolean;
+  modelPipelineStatus: string;
+  nextAction: string;
+  nextStatus?: string | null;
+}
+
+export interface SkuVisionEnrollmentPipeline {
+  modelPipelineStatus: string;
+  modelPipelineHint: string;
+  statusOrder: string[];
+  steps: Array<{ status: string; label: string; description: string }>;
+}
+
 export interface UpsertSkuRequest {
   skuId: string;
   skuName: string;

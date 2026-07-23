@@ -28,7 +28,7 @@ public class OpsRecognitionController {
         this.recognitionTestService = recognitionTestService;
     }
 
-    @RequiresPermissions("ops:sku:demo")
+    @RequiresPermissions(value = {"ops:sku:demo", "ops:vision:edit", "ops:sku:edit"}, logical = RequiresPermissions.Logical.OR)
     @PostMapping(value = "/recognition-preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<DevRecognitionPreviewDto> preview(
             HttpServletRequest request,

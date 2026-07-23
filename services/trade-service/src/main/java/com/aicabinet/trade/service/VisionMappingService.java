@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.UpsertAliyunMappingRequest;
 import com.aicabinet.common.dto.UpsertYoloMappingRequest;
 import com.aicabinet.trade.domain.AliyunCategoryMapping;
+import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.domain.SkuVisionMapping;
 import com.aicabinet.trade.mapper.AliyunCategoryMappingMapper;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
@@ -14,6 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class VisionMappingService {
@@ -109,9 +112,23 @@ public class VisionMappingService {
     }
 
     private VisionMappingsDto buildDto() {
+        Map<String, SkuCatalog> skuById = skuCatalogRepository.findAll().stream()
+                .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s, (a, b) -> a));
         List<YoloMappingDto> yolo = yoloRepository.findAll().stream()
-                .map(m -> new YoloMappingDto(
-                        m.getClassName(), m.getSkuId(), m.getMinConfidence(), m.getMappingSource()))
+                .map(m -> {
+                    SkuCatalog sku = skuById.get(m.getSkuId());
+                    String enrollment = sku != null ? sku.getVisionEnrollmentStatus() : null;
+                    boolean effective = enrollment != null && "PRODUCTION".equalsIgnoreCase(enrollment);
+                    return new YoloMappingDto(
+                            m.getClassName(),
+                            m.getSkuId(),
+                            m.getMinConfidence(),
+                            m.getMappingSource(),
+                            sku != null ? sku.getSkuName() : null,
+                            enrollment,
+                            effective,
+                            SkuVisionEnrollmentService.MODEL_PIPELINE_WAITING);
+                })
                 .toList();
         List<AliyunMappingDto> aliyun = aliyunRepository.findAll().stream()
                 .map(m -> new AliyunMappingDto(
@@ -120,7 +137,21 @@ public class VisionMappingService {
         return new VisionMappingsDto(yolo, aliyun);
     }
 
-    public record YoloMappingDto(String className, String skuId, float minConfidence, String mappingSource) {}
+    public record YoloMappingDto(
+            String className,
+            String skuId,
+            float minConfidence,
+            String mappingSource,
+            String skuName,
+            String visionEnrollmentStatus,
+            boolean mappingEffective,
+            String modelPipelineStatus
+    ) {
+        public YoloMappingDto(String className, String skuId, float minConfidence, String mappingSource) {
+            this(className, skuId, minConfidence, mappingSource, null, null, false,
+                    SkuVisionEnrollmentService.MODEL_PIPELINE_WAITING);
+        }
+    }
 
     public record AliyunMappingDto(String categoryId, String categoryName, String skuId, float minConfidence) {}
 

@@ -3,6 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.DeviceVisionContextDto;
 import com.aicabinet.common.dto.SkuCatalogDto;
 import com.aicabinet.common.dto.SkuVisionContextItemDto;
+import com.aicabinet.common.dto.SkuVisionEnrollmentPipelineDto;
+import com.aicabinet.common.dto.SkuVisionEnrollmentRowDto;
 import com.aicabinet.common.dto.UpsertSkuRequest;
 import com.aicabinet.common.dto.UpsertSkuVisionEnrollmentRequest;
 import com.aicabinet.trade.client.VisionServiceClient;
@@ -25,11 +27,19 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /** 商品主数据与 YOLO 识别映射一体化录入、设备 SKU 白名单。 */
 @Service
 public class SkuVisionEnrollmentService {
+
+    public static final String MODEL_PIPELINE_WAITING = "WAITING_REAL_MODEL";
+    public static final String MODEL_PIPELINE_HINT =
+            "真实 YOLO 训练与权重发布尚未接入；「生产」仅表示运营映射对结算白名单生效，识别仍可能为 mock/人工复核。";
+
+    private static final List<String> STATUS_ORDER = List.of("DRAFT", "MAPPING", "TESTED", "PRODUCTION");
+    private static final Set<String> ALLOWED_STATUS = Set.copyOf(STATUS_ORDER);
 
     private final SkuCatalogMapper skuCatalogRepository;
     private final SkuVisionMappingMapper yoloRepository;
@@ -66,6 +76,34 @@ public class SkuVisionEnrollmentService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<SkuVisionEnrollmentRowDto> listEnrollmentRows(Long operatorId) {
+        permissionService.requirePermission(operatorId, "ops:sku:list");
+        return skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
+                .map(this::toEnrollmentRow)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public SkuVisionEnrollmentPipelineDto pipelineMeta(Long operatorId) {
+        permissionService.requirePermission(operatorId, "ops:sku:list");
+        return new SkuVisionEnrollmentPipelineDto(
+                MODEL_PIPELINE_WAITING,
+                MODEL_PIPELINE_HINT,
+                STATUS_ORDER,
+                List.of(
+                        new SkuVisionEnrollmentPipelineDto.StatusStepDto(
+                                "DRAFT", "草稿", "录入商品基本信息，尚未绑定识别类名"),
+                        new SkuVisionEnrollmentPipelineDto.StatusStepDto(
+                                "MAPPING", "映射中", "已绑定 YOLO 类名与阈值，等待识别抽检"),
+                        new SkuVisionEnrollmentPipelineDto.StatusStepDto(
+                                "TESTED", "已测试", "运营已完成识别预览抽检（可为 mock）"),
+                        new SkuVisionEnrollmentPipelineDto.StatusStepDto(
+                                "PRODUCTION", "生产（映射生效）", "进入结算白名单；模型侧仍为等待真实训练")
+                )
+        );
+    }
+
     @Transactional
     public SkuCatalogDto enrollSku(Long operatorId, UpsertSkuVisionEnrollmentRequest request) {
         permissionService.requirePermission(operatorId, "ops:sku:edit");
@@ -97,10 +135,37 @@ public class SkuVisionEnrollmentService {
     public SkuCatalogDto updateEnrollmentStatus(Long operatorId, String skuId, String status) {
         permissionService.requirePermission(operatorId, "ops:vision:edit");
         SkuCatalog sku = requireSku(skuId);
-        sku.setVisionEnrollmentStatus(normalizeStatus(status));
+        String next = normalizeStatus(status);
+        assertAllowedStatus(next);
+        if ("PRODUCTION".equals(next) || "TESTED".equals(next) || "MAPPING".equals(next)) {
+            requireMappedClass(sku);
+        }
+        sku.setVisionEnrollmentStatus(next);
         skuCatalogRepository.save(sku);
-        auditService.record(operatorId, "SKU_VISION_STATUS", "SKU", skuId, status);
+        auditService.record(operatorId, "SKU_VISION_STATUS", "SKU", skuId,
+                next + " pipeline=" + MODEL_PIPELINE_WAITING);
         return sku.toDto();
+    }
+
+    /** 按固定顺序推进：DRAFT→MAPPING→TESTED→PRODUCTION。 */
+    @Transactional
+    public SkuVisionEnrollmentRowDto advanceEnrollment(Long operatorId, String skuId) {
+        permissionService.requirePermission(operatorId, "ops:vision:edit");
+        SkuCatalog sku = requireSku(skuId);
+        String current = normalizeStatus(sku.getVisionEnrollmentStatus());
+        String next = nextStatus(current);
+        if (next == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "已处于生产状态，无需再推进（模型管线仍为 " + MODEL_PIPELINE_WAITING + "）");
+        }
+        if ("MAPPING".equals(next) || "TESTED".equals(next) || "PRODUCTION".equals(next)) {
+            requireMappedClass(sku);
+        }
+        sku.setVisionEnrollmentStatus(next);
+        skuCatalogRepository.save(sku);
+        auditService.record(operatorId, "SKU_VISION_ADVANCE", "SKU", skuId,
+                current + "→" + next + " pipeline=" + MODEL_PIPELINE_WAITING);
+        return toEnrollmentRow(sku);
     }
 
     @Transactional(readOnly = true)
@@ -275,6 +340,57 @@ public class SkuVisionEnrollmentService {
 
     private static String normalizeStatus(String status) {
         return status == null ? "DRAFT" : status.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static void assertAllowedStatus(String status) {
+        if (!ALLOWED_STATUS.contains(status)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "无效识别状态，允许: " + String.join("/", STATUS_ORDER));
+        }
+    }
+
+    private static String nextStatus(String current) {
+        int idx = STATUS_ORDER.indexOf(current);
+        if (idx < 0) {
+            return "MAPPING";
+        }
+        if (idx >= STATUS_ORDER.size() - 1) {
+            return null;
+        }
+        return STATUS_ORDER.get(idx + 1);
+    }
+
+    private void requireMappedClass(SkuCatalog sku) {
+        if (sku.getYoloClassName() == null || sku.getYoloClassName().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "请先保存识别类名映射后再推进状态");
+        }
+        if (!yoloRepository.existsById(sku.getYoloClassName().trim())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "识别类名尚未写入映射表，请先保存「商品与识别」入驻");
+        }
+    }
+
+    private SkuVisionEnrollmentRowDto toEnrollmentRow(SkuCatalog sku) {
+        String status = normalizeStatus(sku.getVisionEnrollmentStatus());
+        boolean mappingEffective = "PRODUCTION".equals(status)
+                && sku.getYoloClassName() != null
+                && !sku.getYoloClassName().isBlank();
+        String next = nextStatus(status);
+        String nextAction = switch (status) {
+            case "DRAFT" -> "保存类名映射并推进到「映射中」";
+            case "MAPPING" -> "完成识别抽检后推进到「已测试」";
+            case "TESTED" -> "确认转生产（映射生效，仍等待真实模型）";
+            case "PRODUCTION" -> "映射已生效；等待真实模型训练接入";
+            default -> "检查识别入驻状态";
+        };
+        return new SkuVisionEnrollmentRowDto(
+                sku.toDto(),
+                mappingEffective,
+                MODEL_PIPELINE_WAITING,
+                nextAction,
+                next
+        );
     }
 
     private static String trimToNull(String value) {

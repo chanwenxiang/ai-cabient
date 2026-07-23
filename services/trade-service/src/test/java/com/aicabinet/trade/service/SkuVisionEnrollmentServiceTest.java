@@ -1,0 +1,161 @@
+package com.aicabinet.trade.service;
+
+import com.aicabinet.common.dto.UpsertSkuRequest;
+import com.aicabinet.common.dto.UpsertSkuVisionEnrollmentRequest;
+import com.aicabinet.trade.client.VisionServiceClient;
+import com.aicabinet.trade.config.StagingProperties;
+import com.aicabinet.trade.domain.SkuCatalog;
+import com.aicabinet.trade.domain.SkuVisionMapping;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.aicabinet.trade.mapper.SkuVisionMappingMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class SkuVisionEnrollmentServiceTest {
+
+    @Mock private SkuCatalogMapper skuCatalogRepository;
+    @Mock private SkuVisionMappingMapper yoloRepository;
+    @Mock private DeviceSlotService deviceSlotService;
+    @Mock private PermissionService permissionService;
+    @Mock private AdminAuditService auditService;
+    @Mock private VisionServiceClient visionServiceClient;
+
+    private SkuVisionEnrollmentService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new SkuVisionEnrollmentService(
+                skuCatalogRepository,
+                yoloRepository,
+                deviceSlotService,
+                permissionService,
+                auditService,
+                new StagingProperties(false, false),
+                new ObjectMapper(),
+                visionServiceClient);
+    }
+
+    @Test
+    void enrollSku_shouldPersistCatalogAndMapping() {
+        when(skuCatalogRepository.findById("SKU-NEW-001")).thenReturn(Optional.empty());
+        when(yoloRepository.findById("cola_demo")).thenReturn(Optional.empty());
+        when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(yoloRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var req = new UpsertSkuVisionEnrollmentRequest(
+                new UpsertSkuRequest(
+                        "SKU-NEW-001", "可乐演示", 350, null, true, null, null, null, null, "ACTIVE",
+                        null, null, null, null, null, null, 0.92f, "cola_demo", "MAPPING", 0.5f, null),
+                "cola_demo", "MAPPING", 0.5f, null, "YOLO_SKU");
+
+        var dto = service.enrollSku(1L, req);
+
+        assertEquals("SKU-NEW-001", dto.skuId());
+        assertEquals("MAPPING", dto.visionEnrollmentStatus());
+        assertEquals("cola_demo", dto.yoloClassName());
+        verify(permissionService).requirePermission(1L, "ops:sku:edit");
+        verify(permissionService).requirePermission(1L, "ops:vision:edit");
+        ArgumentCaptor<SkuVisionMapping> mapCap = ArgumentCaptor.forClass(SkuVisionMapping.class);
+        verify(yoloRepository).save(mapCap.capture());
+        assertEquals("cola_demo", mapCap.getValue().getClassName());
+        assertEquals("SKU-NEW-001", mapCap.getValue().getSkuId());
+    }
+
+    @Test
+    void advanceEnrollment_shouldMoveMappingToTested() {
+        SkuCatalog sku = baseSku("SKU-A", "MAPPING", "cola_demo");
+        when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(sku));
+        when(yoloRepository.existsById("cola_demo")).thenReturn(true);
+        when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var row = service.advanceEnrollment(9L, "SKU-A");
+
+        assertEquals("TESTED", row.sku().visionEnrollmentStatus());
+        assertEquals("PRODUCTION", row.nextStatus());
+        assertEquals(SkuVisionEnrollmentService.MODEL_PIPELINE_WAITING, row.modelPipelineStatus());
+        assertFalse(row.mappingEffective());
+    }
+
+    @Test
+    void advanceEnrollment_toProduction_shouldMarkMappingEffective() {
+        SkuCatalog sku = baseSku("SKU-B", "TESTED", "cola_demo");
+        when(skuCatalogRepository.findById("SKU-B")).thenReturn(Optional.of(sku));
+        when(yoloRepository.existsById("cola_demo")).thenReturn(true);
+        when(skuCatalogRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var row = service.advanceEnrollment(9L, "SKU-B");
+
+        assertEquals("PRODUCTION", row.sku().visionEnrollmentStatus());
+        assertTrue(row.mappingEffective());
+        assertNull(row.nextStatus());
+        assertEquals(SkuVisionEnrollmentService.MODEL_PIPELINE_WAITING, row.modelPipelineStatus());
+    }
+
+    @Test
+    void advanceEnrollment_shouldRejectWhenAlreadyProduction() {
+        SkuCatalog sku = baseSku("SKU-C", "PRODUCTION", "cola_demo");
+        when(skuCatalogRepository.findById("SKU-C")).thenReturn(Optional.of(sku));
+
+        assertThrows(ResponseStatusException.class, () -> service.advanceEnrollment(1L, "SKU-C"));
+    }
+
+    @Test
+    void updateEnrollmentStatus_shouldRequireExistingMapping() {
+        SkuCatalog sku = baseSku("SKU-D", "DRAFT", "missing_class");
+        when(skuCatalogRepository.findById("SKU-D")).thenReturn(Optional.of(sku));
+        when(yoloRepository.existsById("missing_class")).thenReturn(false);
+
+        assertThrows(ResponseStatusException.class,
+                () -> service.updateEnrollmentStatus(1L, "SKU-D", "MAPPING"));
+    }
+
+    @Test
+    void pipelineMeta_shouldExposeWaitingRealModel() {
+        var meta = service.pipelineMeta(1L);
+        assertEquals(SkuVisionEnrollmentService.MODEL_PIPELINE_WAITING, meta.modelPipelineStatus());
+        assertEquals(4, meta.steps().size());
+        assertEquals(List.of("DRAFT", "MAPPING", "TESTED", "PRODUCTION"), meta.statusOrder());
+    }
+
+    @Test
+    void listEnrollmentRows_shouldAnnotateProduction() {
+        SkuCatalog prod = baseSku("SKU-P", "PRODUCTION", "cola_demo");
+        SkuCatalog draft = baseSku("SKU-Q", "DRAFT", null);
+        when(skuCatalogRepository.findAllByOrderBySkuIdAsc()).thenReturn(List.of(prod, draft));
+
+        var rows = service.listEnrollmentRows(1L);
+
+        assertEquals(2, rows.size());
+        assertTrue(rows.get(0).mappingEffective());
+        assertFalse(rows.get(1).mappingEffective());
+        assertEquals(SkuVisionEnrollmentService.MODEL_PIPELINE_WAITING, rows.get(0).modelPipelineStatus());
+    }
+
+    private static SkuCatalog baseSku(String id, String status, String className) {
+        SkuCatalog sku = new SkuCatalog();
+        sku.setSkuId(id);
+        sku.setSkuName(id);
+        sku.setPriceCents(300);
+        sku.setStatus("ACTIVE");
+        sku.setVisionEnabled(true);
+        sku.setVisionEnrollmentStatus(status);
+        sku.setYoloClassName(className);
+        sku.setDetectionMinConfidence(0.5f);
+        sku.setMinChargeConfidence(0.92f);
+        return sku;
+    }
+}
