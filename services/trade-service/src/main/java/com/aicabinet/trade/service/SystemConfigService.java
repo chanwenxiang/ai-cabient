@@ -94,10 +94,14 @@ public class SystemConfigService {
         boolean wechatOk = weChatPayProperties.isConfigured() || securityProperties.mockEnabled();
         map.put("wechatRechargeEnabled", String.valueOf(wechatOk));
         map.put("wechatPayLive", String.valueOf(weChatPayProperties.isConfigured()));
+        map.put("alipayPayLive", String.valueOf(alipayProperties.isConfigured()));
         // 支付分开门：显式开启或 mock 时前端展示一键开通
         map.put("payScoreSignEnabled",
                 String.valueOf(payScoreProperties.enabled() || securityProperties.mockEnabled()));
         map.put("refundDefaultPolicy", getValue(REFUND_DEFAULT_POLICY, "AUTO_REFUND"));
+        map.put("paymentModeHint", securityProperties.mockEnabled()
+                ? "模拟支付（无真实进件）；充值可一键到账，订单退款退回余额"
+                : "真实/沙箱支付");
         return map;
     }
 

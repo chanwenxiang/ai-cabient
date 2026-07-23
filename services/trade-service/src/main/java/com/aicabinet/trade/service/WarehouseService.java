@@ -6,7 +6,6 @@ import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -297,6 +296,7 @@ public class WarehouseService {
 
     /**
      * 按 SKU 要货量尝试生成出库单；仓库无可用库存时返回 null（不抛错、不污染外层事务）。
+     * 部分库存时尽力分配并保留出库单（requireFull=false），避免 409 导致外层接单事务 rollback-only。
      */
     @Transactional
     public Long tryCreateOutboundFromLines(Long routeId, String deviceId, Long assigneeUserId,
@@ -318,7 +318,7 @@ public class WarehouseService {
                 continue;
             }
             allocatedLines += allocateFefoToOutbound(
-                    outbound.getOutboundId(), wh, deviceId, entry.getKey(), entry.getValue(), true);
+                    outbound.getOutboundId(), wh, deviceId, entry.getKey(), entry.getValue(), false);
         }
         if (allocatedLines <= 0) {
             outboundRepository.deleteById(outbound.getOutboundId());

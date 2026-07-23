@@ -129,7 +129,7 @@ class SettlementDisputeTest {
     }
 
     @Test
-    void balanceInsufficient_beforeInventory_escalatesWithoutSideEffects() {
+    void balanceInsufficient_createsUnpaidOrder_withoutPaymentCharge() {
         ShoppingSession session = new ShoppingSession();
         session.setSessionId("S-BAL-SETTLE");
         session.setUserId(10001L);
@@ -142,17 +142,74 @@ class SettlementDisputeTest {
 
         when(orderRepository.findBySessionId("S-BAL-SETTLE")).thenReturn(java.util.Optional.empty());
         when(securityProperties.mockEnabled()).thenReturn(true);
+        when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(gravityHelper.toRecognizedItems(any())).thenReturn(
                 List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 0.9f)));
         when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
         when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
+        when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(false);
         org.mockito.Mockito.doThrow(new BalanceInsufficientException(ApiMessages.INSUFFICIENT_BALANCE))
                 .when(userValidationService).validateSufficientBalanceForCharge(10001L, 700);
+        when(inventoryService.deductForOrder(any(), any(), any(), any())).thenReturn(java.util.Map.of());
+        when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        assertThrows(BalanceInsufficientException.class,
-                () -> settlementService.processRecognitionResult(session,
-                        new VisionServiceClient.RecognitionResult("T-1", List.of(), 0.9f, false, "mock", List.of())));
+        var order = settlementService.processRecognitionResult(session,
+                new VisionServiceClient.RecognitionResult("T-1", List.of(), 0.9f, false, "yolov8", List.of()));
 
-        verifyNoInteractions(inventoryService, orderPaymentService, revenueSplitService);
+        org.junit.jupiter.api.Assertions.assertEquals("PENDING", order.status());
+        verifyNoInteractions(orderPaymentService, revenueSplitService);
+    }
+
+    @Test
+    void mockModelVersion_escalatesToDispute_evenInMockMode() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-MOCK-GATE");
+        session.setUserId(13800138000L);
+        session.setDeviceId("CAB-001");
+
+        when(orderRepository.findBySessionId("S-MOCK-GATE")).thenReturn(java.util.Optional.empty());
+        when(securityProperties.mockEnabled()).thenReturn(true);
+        when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
+
+        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.92f));
+        var recognition = new VisionServiceClient.RecognitionResult(
+                "T-mock", items, 0.92f, false, "mock-v1", List.of());
+
+        assertThrows(DisputeRequiredException.class,
+                () -> settlementService.processRecognitionResult(session, recognition, true));
+
+        verify(disputeService).createTicket(eq(session), any(VisionServiceClient.RecognitionResult.class),
+                eq("模拟/兜底识别结果，非生产精度，需人工审核"));
+        verifyNoInteractions(orderPaymentService, inventoryService);
+    }
+
+    @Test
+    void gravityMismatch_escalatesEvenWithStagingGravitySettle() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-MISMATCH");
+        session.setUserId(13800138000L);
+        session.setDeviceId("CAB-001");
+        session.setGravityDeltas("[{\"skuId\":\"SKU-DEMO-001\",\"delta\":-1}]");
+
+        when(orderRepository.findBySessionId("S-MISMATCH")).thenReturn(java.util.Optional.empty());
+        when(securityProperties.mockEnabled()).thenReturn(false);
+        when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> {
+            VisionServiceClient.RecognitionResult vision = inv.getArgument(1);
+            return new VisionServiceClient.RecognitionResult(
+                    vision.taskId(), vision.items(), vision.overallConfidence(), true,
+                    vision.modelVersion() + "+gravity-mismatch", vision.detectedClasses());
+        });
+
+        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 0.95f));
+        var recognition = new VisionServiceClient.RecognitionResult(
+                "T-2", items, 0.95f, false, "yolov8", List.of("bottle"));
+
+        assertThrows(DisputeRequiredException.class,
+                () -> settlementService.processRecognitionResult(session, recognition, true));
+
+        verify(disputeService).createTicket(eq(session), any(VisionServiceClient.RecognitionResult.class),
+                eq("视觉与重力数量不一致，需人工审核"));
+        verifyNoInteractions(orderPaymentService);
     }
 }

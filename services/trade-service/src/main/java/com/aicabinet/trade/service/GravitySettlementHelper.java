@@ -174,16 +174,18 @@ public class GravitySettlementHelper {
 
             }
 
+            // 重力可填明细，但视觉为空不等于生产级识别：强制人工审核，禁止静默高置信扣款。
             float gravityConf = gravityItems.stream()
                     .map(VisionServiceClient.RecognizedItem::confidence)
                     .max(Float::compare)
                     .orElse(0.98f);
+            log.info("vision empty; gravity fill items={} → need_review", gravityItems.size());
             return new VisionServiceClient.RecognitionResult(
                     vision.taskId(),
                     gravityItems,
                     gravityConf,
-                    false,
-                    vision.modelVersion() + "+gravity",
+                    true,
+                    vision.modelVersion() + "+gravity-fill",
                     vision.detectedClasses()
             );
 

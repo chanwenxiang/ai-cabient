@@ -248,8 +248,9 @@ class YoloRecognizer:
     def _decide_need_review(self, counts: dict[str, int], overall: float) -> bool:
         if not counts:
             return True
-        if MOCK_ENABLED and not VISION_FORCE_REAL:
-            return False
+        # Mock/demo 输出不算生产精度：低置信一律进复核；禁止 MOCK_ENABLED 时跳过阈值。
+        if get_force_need_review():
+            return True
         return overall < REVIEW_CONF_THRESHOLD
 
     def _inventory_snapshot(self, session_id: str, video_uri: str | None,
@@ -278,7 +279,8 @@ class YoloRecognizer:
             items=items,
             overall_confidence=0.95,
             model_version="inventory-snapshot-mock",
-            need_review=False,
+            # 账面快照 mock 仍需复核，避免被当成生产识别精度。
+            need_review=True,
         )
 
     def _on_failure(
@@ -308,11 +310,9 @@ class YoloRecognizer:
     def _mock(self, session_id: str, video_uri: str | None, need_review: bool | None = None,
               device_id: str | None = None) -> RecognitionOutput:
         if need_review is None:
-            if get_force_need_review():
-                need_review = True
-            else:
-                need_review = False if MOCK_ENABLED else not video_uri
-        conf = 0.92 if video_uri and not need_review else 0.75
+            # mock-v1 / fallback 明确非生产精度：默认 need_review，由运营审单或 trade 演示重力路径处理。
+            need_review = True
+        conf = 0.75 if need_review else (0.92 if video_uri else 0.75)
         sku_id = fetch_default_sku(device_id) if MOCK_ENABLED else MOCK_SKU
         return RecognitionOutput(
             items=[RecognizedItem(sku_id=sku_id, quantity=1, confidence=conf)],

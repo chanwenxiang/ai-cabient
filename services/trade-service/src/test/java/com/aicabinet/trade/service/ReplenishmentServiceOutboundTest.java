@@ -1,5 +1,8 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.CreateFromExpiryRequest;
+import com.aicabinet.trade.domain.PullOffTask;
+import com.aicabinet.trade.domain.ReplenishmentRoute;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ReplenishmentTaskLine;
 import com.aicabinet.trade.domain.WarehouseOutboundLine;
@@ -11,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
@@ -24,9 +28,13 @@ import static org.mockito.Mockito.*;
 class ReplenishmentServiceOutboundTest {
 
     @Mock
+    private ReplenishmentRouteMapper routeRepository;
+    @Mock
     private ReplenishmentTaskMapper taskRepository;
     @Mock
     private ReplenishmentTaskLineMapper taskLineRepository;
+    @Mock
+    private PullOffTaskMapper pullOffTaskRepository;
     @Mock
     private WarehouseService warehouseService;
     @Mock
@@ -41,7 +49,7 @@ class ReplenishmentServiceOutboundTest {
     @BeforeEach
     void setUp() {
         replenishmentService = new ReplenishmentService(
-                null, null, taskRepository, taskLineRepository, null, null, null, null,
+                null, routeRepository, taskRepository, taskLineRepository, null, null, null, pullOffTaskRepository,
                 new ObjectMapper(), warehouseService, null, deviceSlotService, inTransitService,
                 sessionService, null, null);
     }
@@ -182,5 +190,73 @@ class ReplenishmentServiceOutboundTest {
 
         verify(taskLineRepository, never()).save(any());
         verify(warehouseService, never()).markDeviceHandoverReceived(anyLong(), anyString());
+    }
+
+    @Test
+    void createTaskFromPullOff_restock_createsOneLinePerSlotAllocation() {
+        PullOffTask pull = openPull(77L, "CAB-001", "SKU-DEMO-001", 5, "B-EXP");
+        when(pullOffTaskRepository.findById(77L)).thenReturn(java.util.Optional.of(pull));
+        when(deviceSlotService.hasSkuSlots("CAB-001", "SKU-DEMO-001")).thenReturn(true);
+        when(deviceSlotService.totalHeadroomForSku("CAB-001", "SKU-DEMO-001")).thenReturn(10);
+        when(deviceSlotService.allocateRestockQuantity("CAB-001", "SKU-DEMO-001", 5))
+                .thenReturn(List.of(
+                        new DeviceSlotService.SlotRestockAllocation("A1", 3),
+                        new DeviceSlotService.SlotRestockAllocation("A2", 2)));
+        when(routeRepository.save(any(ReplenishmentRoute.class))).thenAnswer(inv -> {
+            ReplenishmentRoute r = inv.getArgument(0);
+            r.setRouteId(900L);
+            return r;
+        });
+        when(taskRepository.save(any(ReplenishmentTask.class))).thenAnswer(inv -> {
+            ReplenishmentTask t = inv.getArgument(0);
+            t.setTaskId(901L);
+            return t;
+        });
+        when(taskRepository.findByRouteId(900L)).thenReturn(List.of());
+
+        replenishmentService.createTaskFromPullOff(
+                100000001L, 77L, new CreateFromExpiryRequest("RESTOCK", null));
+
+        ArgumentCaptor<ReplenishmentTaskLine> lineCaptor = ArgumentCaptor.forClass(ReplenishmentTaskLine.class);
+        verify(taskLineRepository, times(2)).save(lineCaptor.capture());
+        List<ReplenishmentTaskLine> lines = lineCaptor.getAllValues();
+        assertEquals(5, lines.stream().mapToInt(ReplenishmentTaskLine::getQuantity).sum());
+        assertTrue(lines.stream().anyMatch(l -> "A1".equals(l.getSlotId()) && l.getQuantity() == 3));
+        assertTrue(lines.stream().anyMatch(l -> "A2".equals(l.getSlotId()) && l.getQuantity() == 2));
+        assertTrue(lines.stream().allMatch(l -> "RESTOCK".equals(l.getLineType())));
+        assertEquals("RESOLVED", pull.getStatus());
+        verify(pullOffTaskRepository).save(pull);
+    }
+
+    @Test
+    void createTaskFromPullOff_restock_rejectsUnboundSku() {
+        PullOffTask pull = openPull(78L, "CAB-001", "SKU-UNBOUND", 2, null);
+        when(pullOffTaskRepository.findById(78L)).thenReturn(java.util.Optional.of(pull));
+        when(deviceSlotService.hasSkuSlots("CAB-001", "SKU-UNBOUND")).thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> replenishmentService.createTaskFromPullOff(
+                        100000001L, 78L, new CreateFromExpiryRequest("RESTOCK", null)));
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.getStatusCode());
+        assertTrue(ex.getReason() != null && ex.getReason().contains("未绑定货道"));
+        verify(taskLineRepository, never()).save(any());
+    }
+
+    private static PullOffTask openPull(long id, String deviceId, String skuId, int qty, String batchNo) {
+        PullOffTask pull = new PullOffTask();
+        try {
+            var field = PullOffTask.class.getDeclaredField("taskId");
+            field.setAccessible(true);
+            field.set(pull, id);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException(e);
+        }
+        pull.setDeviceId(deviceId);
+        pull.setSkuId(skuId);
+        pull.setQuantity(qty);
+        pull.setBatchNo(batchNo);
+        pull.setStatus("OPEN");
+        return pull;
     }
 }

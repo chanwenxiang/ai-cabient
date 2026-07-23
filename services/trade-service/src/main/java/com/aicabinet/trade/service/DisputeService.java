@@ -765,6 +765,18 @@ public class DisputeService {
                 || recognition.items() == null
                 || recognition.items().isEmpty();
         String r = reason != null ? reason : "";
+        String version = recognition != null && recognition.modelVersion() != null
+                ? recognition.modelVersion().toLowerCase() : "";
+        if (version.contains("gravity-mismatch") || r.contains("视觉与重力")) {
+            return "GRAVITY_MISMATCH";
+        }
+        if (version.contains("mock") || version.contains("fallback")
+                || r.contains("模拟") || r.contains("非生产精度")) {
+            return "MOCK";
+        }
+        if (version.contains("gravity-fill") || r.contains("仅有重力")) {
+            return "GRAVITY_FILL";
+        }
         if (emptyItems && !detected.isEmpty()) {
             return "UNMAPPED";
         }

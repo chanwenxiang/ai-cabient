@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">商品与识别</span>
-            <span class="hint">YOLO 类名映射与识别阈值；支持导入与新建</span>
+            <span class="hint">采集类名映射 → 测试 → 转生产；当前无真实训练管线时，「生产」仅表示映射生效，识别仍可能走 mock/人工复核</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -18,6 +18,15 @@
         </div>
       </div>
     </template>
+
+    <el-alert
+      type="info"
+      :closable="false"
+      show-icon
+      class="risk-alert"
+      title="识别入驻说明（无真实算法版）"
+      description="流程：草稿/映射中 → 识别测试 → 转生产。转生产只表示运营侧映射生效可结算；尚未接入真实 YOLO 训练时，视觉仍为演示/mock，低置信与 mock 结果会进争议审单，不会当作生产精度静默扣款。"
+    />
 
     <el-alert
       type="warning"
@@ -641,14 +650,20 @@ async function saveEnroll() {
 
 async function markProduction(row: SkuCatalog) {
   try {
+    await ElMessageBox.confirm(
+      '转生产表示映射对结算白名单生效。当前无真实模型训练管线时，识别仍可能为 mock/人工复核，不会当作生产精度静默扣款。确认继续？',
+      '转生产确认',
+      { type: 'warning', confirmButtonText: '确认转生产' }
+    );
     const updated = await api.request<SkuCatalog>(
       `/api/v2/ops/admin/sku-vision/${encodeURIComponent(row.skuId)}/status?status=PRODUCTION`,
       'PATCH'
     );
     const idx = items.value.findIndex((i) => i.skuId === row.skuId);
     if (idx >= 0) items.value[idx] = updated;
-    ElMessage.success(`${row.skuName} 已标记为生产识别`);
+    ElMessage.success(`${row.skuName} 映射已生效（等待真实模型接入）`);
   } catch (e) {
+    if (e === 'cancel') return;
     ElMessage.error(e instanceof Error ? e.message : '更新失败');
   }
 }

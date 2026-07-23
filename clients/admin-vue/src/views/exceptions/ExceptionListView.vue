@@ -6,7 +6,7 @@
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
               <span class="title">异常中心</span>
-              <span class="hint">默认看待处理；SLA 超时标红、即将到期标黄；「仅超时」为服务端过滤；可播会话录像</span>
+              <span class="hint">默认看待处理；抽屉内同屏对照录像改 SKU 后一键落账/免单；SLA 超时标红</span>
             </div>
           </div>
           <div class="page-card-head__actions">
@@ -181,90 +181,49 @@
     <el-drawer
       v-if="drawer"
       v-model="drawer"
-      title="异常处理详情"
-      size="640px"
+      title="异常审单工作台"
+      size="880px"
       append-to-body
       destroy-on-close
-      @closed="clearInlineVideo"
+      class="exception-workbench"
+      @closed="onDrawerClosed"
     >
       <div v-loading="detailLoading" v-if="detail">
-        <el-descriptions :column="1" border size="small">
-          <el-descriptions-item label="异常编号">
-            <span class="cell-id">{{ detail.exception.exceptionId }}</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="异常类型">
-            <el-tag type="info" size="small">{{ dictLabel('exception_type', detail.exception.exceptionType) }}</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="严重级别">
-            <el-tag :type="dictTagType(detail.exception.severity)" size="small">
-              {{ dictLabel('exception_severity', detail.exception.severity) }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="处理状态">
-            <el-tag :type="dictTagType(detail.exception.status)" size="small">
-              {{ dictLabel('exception_status', detail.exception.status) }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="异常内容">{{ detail.exception.title }}</el-descriptions-item>
-          <el-descriptions-item label="详细信息">{{ detail.exception.detail || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="关联设备">
-            <button
-              v-if="detail.exception.deviceId"
-              type="button"
-              class="link-cell"
-              @click="goDevice(detail.exception.deviceId)"
-            >{{ detail.exception.deviceId }}</button>
-            <span v-else>-</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="关联会话">
-            <button
-              v-if="detail.exception.sessionId"
-              type="button"
-              class="link-cell mono"
-              @click="goSessions(detail.exception.deviceId)"
-            >{{ detail.exception.sessionId }}</button>
-            <span v-else>-</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="关联订单">
-            <button
-              v-if="detail.exception.orderId"
-              type="button"
-              class="link-cell mono"
-              @click="goOrders(detail.exception.deviceId)"
-            >{{ detail.exception.orderId }}</button>
-            <span v-else>-</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="用户">{{ detail.exception.userId || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="负责人">
-            {{ detail.exception.assigneeUserId ? `用户 ${detail.exception.assigneeUserId}` : '未领取' }}
-          </el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ formatDateTime(detail.exception.createdAt) }}</el-descriptions-item>
-          <el-descriptions-item label="SLA截止">
-            <div class="sla-cell">
-              <template v-if="detail.exception.slaOverdue">
-                <el-tag type="danger" size="small">已超时</el-tag>
-                <small class="sla-meta danger">超 {{ formatDurationSince(detail.exception.slaDueAt) }}</small>
-              </template>
-              <template v-else-if="detail.exception.slaDueAt">
-                <el-tag v-if="isSlaDueSoon(detail.exception.slaDueAt)" type="warning" size="small">即将到期</el-tag>
-                <span>{{ formatDateTime(detail.exception.slaDueAt) }}</span>
-                <small class="sla-meta">剩 {{ formatDurationUntil(detail.exception.slaDueAt) }}</small>
-              </template>
-              <span v-else>-</span>
-            </div>
-          </el-descriptions-item>
-          <el-descriptions-item label="更新时间">{{ formatDateTime(detail.exception.updatedAt) }}</el-descriptions-item>
-        </el-descriptions>
+        <el-alert
+          v-if="resolveFeedback"
+          type="success"
+          title="已处理"
+          :description="resolveFeedback"
+          show-icon
+          :closable="false"
+          class="resolve-feedback"
+        />
 
-        <div v-if="detail.exception.sessionId" class="review-panel">
-          <div class="review-panel__head">
-            <h3 class="section-title section-title--inline">会话录像审单</h3>
-            <div class="drawer-actions drawer-actions--tight">
+        <div class="workbench-grid">
+          <section class="workbench-media">
+            <div class="items-title">会话录像</div>
+            <div v-if="inlineVideoUrl" class="review-video-wrap">
+              <video
+                class="review-video"
+                :src="inlineVideoUrl"
+                controls
+                playsinline
+                preload="metadata"
+              />
+            </div>
+            <el-empty
+              v-else-if="!videoLoading && detail.exception.sessionId"
+              description="暂无录像或尚未加载"
+              :image-size="72"
+            />
+            <el-empty v-else-if="!detail.exception.sessionId" description="无关联会话" :image-size="72" />
+            <div v-else class="video-loading">录像加载中…</div>
+            <div v-if="detail.exception.sessionId" class="drawer-actions drawer-actions--tight">
               <el-button
                 v-if="auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload')"
                 type="warning"
                 :loading="videoLoading"
-                @click="loadInlineVideo(detail.exception.sessionId)"
+                @click="loadInlineVideo(detail.exception.sessionId, true)"
               >{{ inlineVideoUrl ? '重新加载录像' : '加载会话录像' }}</el-button>
               <el-button
                 v-if="inlineVideoUrl"
@@ -273,25 +232,131 @@
                 @click="playVideo(detail.exception.sessionId)"
               >新窗口打开</el-button>
               <el-button @click="goSessions(detail.exception.deviceId)">开门记录</el-button>
+              <el-button
+                v-if="detail.exception.sessionId && canAccessPath('/disputes')"
+                @click="goDisputes(detail.exception.sessionId)"
+              >打开争议审单</el-button>
             </div>
-          </div>
-          <div v-if="inlineVideoUrl" class="review-video-wrap">
-            <video
-              class="review-video"
-              :src="inlineVideoUrl"
-              controls
-              playsinline
-              preload="metadata"
+            <el-alert
+              v-if="inlineVideoError"
+              type="warning"
+              :closable="false"
+              show-icon
+              :title="inlineVideoError"
+              class="suggest-alert"
             />
-          </div>
+          </section>
+
+          <section class="workbench-meta">
+            <el-descriptions :column="1" border size="small">
+              <el-descriptions-item label="异常编号">
+                <span class="cell-id">{{ detail.exception.exceptionId }}</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="异常类型">
+                <el-tag type="info" size="small">{{ dictLabel('exception_type', detail.exception.exceptionType) }}</el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="严重级别">
+                <el-tag :type="dictTagType(detail.exception.severity)" size="small">
+                  {{ dictLabel('exception_severity', detail.exception.severity) }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="处理状态">
+                <el-tag :type="dictTagType(detail.exception.status)" size="small">
+                  {{ dictLabel('exception_status', detail.exception.status) }}
+                </el-tag>
+              </el-descriptions-item>
+              <el-descriptions-item label="异常内容">{{ detail.exception.title }}</el-descriptions-item>
+              <el-descriptions-item label="详细信息">{{ detail.exception.detail || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="关联设备">
+                <button
+                  v-if="detail.exception.deviceId"
+                  type="button"
+                  class="link-cell"
+                  @click="goDevice(detail.exception.deviceId)"
+                >{{ detail.exception.deviceId }}</button>
+                <span v-else>-</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="关联会话">
+                <button
+                  v-if="detail.exception.sessionId"
+                  type="button"
+                  class="link-cell mono"
+                  @click="goSessions(detail.exception.deviceId)"
+                >{{ detail.exception.sessionId }}</button>
+                <span v-else>-</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="关联订单">
+                <button
+                  v-if="detail.exception.orderId"
+                  type="button"
+                  class="link-cell mono"
+                  @click="goOrders(detail.exception.deviceId)"
+                >{{ detail.exception.orderId }}</button>
+                <span v-else>-</span>
+              </el-descriptions-item>
+              <el-descriptions-item label="SLA截止">
+                <div class="sla-cell">
+                  <template v-if="detail.exception.slaOverdue">
+                    <el-tag type="danger" size="small">已超时</el-tag>
+                    <small class="sla-meta danger">超 {{ formatDurationSince(detail.exception.slaDueAt) }}</small>
+                  </template>
+                  <template v-else-if="detail.exception.slaDueAt">
+                    <el-tag v-if="isSlaDueSoon(detail.exception.slaDueAt)" type="warning" size="small">即将到期</el-tag>
+                    <span>{{ formatDateTime(detail.exception.slaDueAt) }}</span>
+                    <small class="sla-meta">剩 {{ formatDurationUntil(detail.exception.slaDueAt) }}</small>
+                  </template>
+                  <span v-else>-</span>
+                </div>
+              </el-descriptions-item>
+            </el-descriptions>
+          </section>
+        </div>
+
+        <div
+          v-if="canHandle && detail.exception.status !== 'RESOLVED' && canManualSettle && canManualResolve(detail.exception)"
+          class="adjust-block"
+        >
+          <div class="items-title">调整明细（落账依据）</div>
           <el-alert
-            v-else-if="inlineVideoError"
-            type="warning"
+            type="info"
             :closable="false"
             show-icon
-            :title="inlineVideoError"
+            title="对照左侧录像修改 SKU / 数量后，用「按调整明细落账」写回账单；也可免单退款。"
+            class="suggest-alert"
           />
-          <p v-else class="muted review-hint">加载录像后可在本抽屉内对照画面，再执行下方处置。</p>
+          <div class="manual-lines">
+            <div v-for="(line, index) in manualLines" :key="index" class="manual-line">
+              <el-select v-model="line.skuId" filterable placeholder="选择商品" style="flex:1">
+                <el-option
+                  v-for="sku in skus"
+                  :key="sku.skuId"
+                  :label="`${sku.skuName}（¥${(sku.priceCents / 100).toFixed(2)}）`"
+                  :value="sku.skuId"
+                />
+              </el-select>
+              <el-input-number v-model="line.quantity" :min="1" :max="99" />
+              <el-button type="danger" link @click="manualLines.splice(index, 1)">删除</el-button>
+            </div>
+            <el-button @click="manualLines.push({ skuId: '', quantity: 1 })">添加商品</el-button>
+          </div>
+          <el-input
+            v-model="manualReason"
+            type="textarea"
+            :rows="2"
+            maxlength="500"
+            show-word-limit
+            placeholder="必须填写判断依据和处理原因"
+            class="manual-reason"
+          />
+          <div class="drawer-actions">
+            <el-button
+              type="success"
+              :loading="manualSubmitting"
+              :disabled="!manualConfirmItems.length"
+              @click="submitManualResolve"
+            >按调整明细落账</el-button>
+            <el-button type="danger" plain :loading="manualSubmitting" @click="waiveOrder">免单/全额退回</el-button>
+          </div>
         </div>
 
         <div v-if="canHandle && detail.exception.status !== 'RESOLVED'" class="drawer-actions">
@@ -299,17 +364,10 @@
           <el-button @click="transfer">转派</el-button>
           <el-button v-if="canRetry(detail.exception)" type="warning" @click="retryException">重试识别/结算</el-button>
           <el-button
-            v-if="canManualSettle && canManualResolve(detail.exception)"
-            type="success"
-            @click="openManualResolve"
-          >人工确认商品</el-button>
-          <el-button
-            v-if="canManualSettle && canManualResolve(detail.exception)"
+            v-if="detail.exception.sessionId && auth.hasPerm('ops:session:cancel')"
             type="danger"
-            plain
-            @click="waiveOrder"
-          >免单/全额退回</el-button>
-          <el-button v-if="detail.exception.sessionId && auth.hasPerm('ops:session:cancel')" type="danger" @click="cancelSession">取消会话并释放设备</el-button>
+            @click="cancelSession"
+          >取消会话并释放设备</el-button>
         </div>
 
         <h3 class="section-title">处理记录</h3>
@@ -326,37 +384,6 @@
         </el-timeline>
       </div>
     </el-drawer>
-
-    <el-dialog v-model="manualDialog" title="人工确认商品与结算金额" width="640px">
-      <el-alert type="warning" :closable="false" title="提交后可能产生首次扣款、补扣或余额退差，并同步变更库存。" />
-      <div class="manual-lines">
-        <div v-for="(line, index) in manualLines" :key="index" class="manual-line">
-          <el-select v-model="line.skuId" filterable placeholder="选择商品" style="flex:1">
-            <el-option
-              v-for="sku in skus"
-              :key="sku.skuId"
-              :label="`${sku.skuName}（¥${(sku.priceCents / 100).toFixed(2)}）`"
-              :value="sku.skuId"
-            />
-          </el-select>
-          <el-input-number v-model="line.quantity" :min="1" :max="99" />
-          <el-button type="danger" link @click="manualLines.splice(index, 1)">删除</el-button>
-        </div>
-        <el-button @click="manualLines.push({ skuId: '', quantity: 1 })">添加商品</el-button>
-      </div>
-      <el-input
-        v-model="manualReason"
-        type="textarea"
-        :rows="3"
-        maxlength="500"
-        show-word-limit
-        placeholder="必须填写判断依据和处理原因"
-      />
-      <template #footer>
-        <el-button @click="manualDialog = false">取消</el-button>
-        <el-button type="primary" :loading="manualSubmitting" @click="submitManualResolve">确认商品并结算</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -426,11 +453,15 @@ const statusCounts = reactive({ OPEN: 0, PROCESSING: 0, RESOLVED: 0, CLOSED: 0 }
 const drawer = ref(false);
 const detailLoading = ref(false);
 const detail = ref<OpsDetail | null>(null);
-const manualDialog = ref(false);
 const manualSubmitting = ref(false);
 const manualReason = ref('');
 const manualLines = ref<{ skuId: string; quantity: number }[]>([{ skuId: '', quantity: 1 }]);
 const skus = ref<Sku[]>([]);
+const resolveFeedback = ref('');
+
+const manualConfirmItems = computed(() =>
+  manualLines.value.filter((line) => line.skuId && line.quantity > 0)
+);
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<OpsException>((r) => r.exceptionId);
@@ -564,7 +595,16 @@ function clearInlineVideo() {
   inlineVideoError.value = '';
 }
 
-async function loadInlineVideo(sessionId?: string) {
+function onDrawerClosed() {
+  clearInlineVideo();
+  resolveFeedback.value = '';
+  manualReason.value = '';
+  manualLines.value = [{ skuId: '', quantity: 1 }];
+}
+
+async function loadInlineVideo(sessionId?: string, force = false) {
+  if (!sessionId) return;
+  if (inlineVideoUrl.value && !force) return;
   clearInlineVideo();
   videoLoading.value = true;
   try {
@@ -595,6 +635,15 @@ function goOrders(device?: string) {
   const query: Record<string, string> = {};
   if (device) query.deviceId = device;
   goPath('/orders', query);
+}
+function goDisputes(sessionId?: string) {
+  if (!canAccessPath('/disputes')) {
+    ElMessage.warning('无争议审核访问权限');
+    return;
+  }
+  const query: Record<string, string> = { category: 'RECOGNITION' };
+  if (sessionId) query.sessionId = sessionId;
+  goPath('/disputes', query);
 }
 
 function syncRouteQuery() {
@@ -692,10 +741,21 @@ async function resolve(row: OpsException) {
 }
 async function openDetail(row: OpsException) {
   clearInlineVideo();
+  resolveFeedback.value = '';
+  manualReason.value = '';
+  manualLines.value = [{ skuId: '', quantity: 1 }];
   drawer.value = true;
   detailLoading.value = true;
   try {
     detail.value = await api.request<OpsDetail>(`/api/v2/ops/admin/exceptions/${row.exceptionId}`, 'GET');
+    if (
+      canManualSettle.value &&
+      detail.value?.exception &&
+      canManualResolve(detail.value.exception) &&
+      !skus.value.length
+    ) {
+      skus.value = await api.request<Sku[]>('/api/v2/ops/admin/skus', 'GET');
+    }
     const sid = detail.value?.exception?.sessionId;
     if (
       sid &&
@@ -774,15 +834,9 @@ async function retryException() {
 function canManualResolve(item: OpsException) {
   return !!item.sessionId && ['BALANCE_INSUFFICIENT', 'RECOGNITION_UNAVAILABLE', 'RECOGNITION_FAILED', 'SETTLEMENT_FAILED'].includes(item.exceptionType);
 }
-async function openManualResolve() {
-  if (!skus.value.length) skus.value = await api.request<Sku[]>('/api/v2/ops/admin/skus', 'GET');
-  manualLines.value = [{ skuId: '', quantity: 1 }];
-  manualReason.value = '';
-  manualDialog.value = true;
-}
 async function submitManualResolve() {
   if (!detail.value) return;
-  const lines = manualLines.value.filter((line) => line.skuId && line.quantity > 0);
+  const lines = manualConfirmItems.value;
   if (!lines.length) {
     ElMessage.warning('请至少选择一个商品');
     return;
@@ -803,8 +857,8 @@ async function submitManualResolve() {
       reason: manualReason.value.trim(),
       idempotencyKey: `ops-manual-${detail.value.exception.exceptionId}-${Date.now()}`
     });
-    manualDialog.value = false;
-    ElMessage.success('人工商品清单已结算');
+    resolveFeedback.value = '人工商品清单已结算并结案';
+    ElMessage.success(resolveFeedback.value);
     await Promise.all([load(), refreshDetail()]);
   } finally {
     manualSubmitting.value = false;
@@ -818,14 +872,20 @@ async function waiveOrder() {
     confirmButtonText: '确认免单',
     inputValidator: (v) => !!String(v || '').trim() || '必须填写免单原因'
   });
-  await api.request(`/api/v2/ops/admin/exceptions/${item.exceptionId}/manual-resolve`, 'POST', {
-    resolutionType: 'WAIVE',
-    items: [],
-    reason: value,
-    idempotencyKey: `ops-waive-${item.exceptionId}`
-  });
-  ElMessage.success('免单处理完成');
-  await Promise.all([load(), refreshDetail()]);
+  manualSubmitting.value = true;
+  try {
+    await api.request(`/api/v2/ops/admin/exceptions/${item.exceptionId}/manual-resolve`, 'POST', {
+      resolutionType: 'WAIVE',
+      items: [],
+      reason: value,
+      idempotencyKey: `ops-waive-${item.exceptionId}`
+    });
+    resolveFeedback.value = '免单处理完成';
+    ElMessage.success(resolveFeedback.value);
+    await Promise.all([load(), refreshDetail()]);
+  } finally {
+    manualSubmitting.value = false;
+  }
 }
 
 function applyRouteQuery() {
@@ -866,13 +926,14 @@ watch(
 onActivated(async () => {
   drawer.value = false;
   detail.value = null;
-  manualDialog.value = false;
+  resolveFeedback.value = '';
   await reloadFromRouteQuery();
 });
 onDeactivated(() => {
   drawer.value = false;
   detail.value = null;
-  manualDialog.value = false;
+  resolveFeedback.value = '';
+  clearInlineVideo();
 });
 onMounted(async () => {
   applyRouteQuery();
@@ -935,25 +996,39 @@ onMounted(async () => {
 .sla-meta { color: var(--el-text-color-secondary); font-size: 11px; }
 .sla-meta.danger { color: var(--el-color-danger); }
 .drawer-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
-.drawer-actions--tight { margin: 0; }
-.review-panel {
-  margin: 14px 0 4px;
+.drawer-actions--tight { margin: 8px 0 0; }
+.resolve-feedback { margin-bottom: 16px; }
+.workbench-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.workbench-media,
+.workbench-meta { min-width: 0; }
+.items-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: var(--layout-text);
+}
+.video-loading {
+  padding: 24px 0;
+  text-align: center;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+.suggest-alert { margin: 8px 0 12px; }
+.adjust-block {
+  margin: 12px 0 4px;
   padding: 12px;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 8px;
   background: color-mix(in srgb, var(--el-fill-color-blank) 70%, transparent);
 }
-.review-panel__head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-.section-title--inline { margin: 0; }
+.manual-reason { margin-top: 8px; }
 .review-video-wrap {
-  margin-top: 8px;
+  margin-top: 4px;
   border-radius: 6px;
   overflow: hidden;
   background: #0f172a;
@@ -961,14 +1036,16 @@ onMounted(async () => {
 .review-video {
   display: block;
   width: 100%;
-  max-height: 280px;
+  max-height: 320px;
   background: #0f172a;
 }
-.review-hint { margin: 4px 0 0; font-size: 12px; }
 .section-title { margin: 16px 0 8px; font-size: 14px; color: var(--layout-text); }
 .action-detail { color: var(--layout-muted); margin-top: 5px; white-space: pre-wrap; }
-.manual-lines { display: flex; flex-direction: column; gap: 12px; margin: 18px 0; }
+.manual-lines { display: flex; flex-direction: column; gap: 12px; margin: 12px 0; }
 .manual-line { display: flex; align-items: center; gap: 10px; }
+@media (max-width: 900px) {
+  .workbench-grid { grid-template-columns: 1fr; }
+}
 :deep(.el-table .is-overdue > td.el-table__cell) {
   background: color-mix(in srgb, var(--el-color-danger) 6%, transparent) !important;
 }

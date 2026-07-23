@@ -48,17 +48,27 @@
       :loading="loading"
       @click="onAlipayRecharge"
     >
-      {{ loading ? '跳转中…' : selectedAmount ? `支付宝沙箱 ¥${(selectedAmount / 100).toFixed(0)}` : '支付宝沙箱' }}
+      {{
+        loading
+          ? '处理中…'
+          : selectedAmount
+            ? `${alipayPayLive ? '支付宝沙箱' : '支付宝模拟充值'} ¥${(selectedAmount / 100).toFixed(0)}`
+            : alipayPayLive
+              ? '支付宝沙箱'
+              : '支付宝模拟充值'
+      }}
     </button>
 
     <view v-if="!wechatPayLive && !wechatRechargeEnabled && !(devTools && mockEnabled)" class="channel-hint">
       <text>暂未开通在线充值，请联系现场运营或开通微信支付分后免密开门。</text>
     </view>
     <view v-else-if="devTools" class="channel-hint">
-      <text v-if="wechatPayLive">已配置真实微信商户。</text>
+      <text v-if="paymentModeHint">{{ paymentModeHint }}</text>
+      <text v-else-if="wechatPayLive">已配置真实微信商户。</text>
       <text v-else-if="wechatRechargeEnabled">开发：微信通道为 mock 即时到账。</text>
       <text v-if="mockEnabled"> 模拟到账仅本地联调。</text>
-      <text v-if="alipayRechargeEnabled"> 支付宝沙箱可跳转收银台。</text>
+      <text v-if="alipayRechargeEnabled && alipayPayLive"> 支付宝沙箱可跳转收银台。</text>
+      <text v-else-if="alipayRechargeEnabled"> 支付宝 mock 与微信一致，一键到账（无需进件）。</text>
     </view>
     <view v-else class="channel-hint">
       <text>余额可用于未开通免密时的开门兜底；推荐优先开通微信支付分。</text>
@@ -101,7 +111,7 @@
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
-import { openAlipayPrepay, resumePendingRechargeIfAny, runWeChatRecharge, savePendingRechargeOrder } from '@/utils/recharge';
+import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import { dictLabel } from '@aicabinet/shared-dict';
 import {
@@ -130,6 +140,8 @@ const records = ref<any[]>([]);
 const alipayRechargeEnabled = ref(false);
 const wechatRechargeEnabled = ref(false);
 const wechatPayLive = ref(false);
+const alipayPayLive = ref(false);
+const paymentModeHint = ref('');
 const mockEnabled = ref(false);
 
 const pendingCount = computed(() => records.value.filter((r) => r.status === 'PENDING').length);
@@ -165,6 +177,8 @@ async function loadConfig() {
     mockEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
     alipayRechargeEnabled.value = resolveSandboxRecharge(cfg?.alipayRechargeEnabled);
     wechatPayLive.value = cfg?.wechatPayLive === 'true';
+    alipayPayLive.value = cfg?.alipayPayLive === 'true';
+    paymentModeHint.value = cfg?.paymentModeHint || '';
     wechatRechargeEnabled.value = resolveWechatRechargeVisible({
       wechatRechargeEnabled: cfg?.wechatRechargeEnabled,
       wechatPayLive: cfg?.wechatPayLive
@@ -174,6 +188,8 @@ async function loadConfig() {
     alipayRechargeEnabled.value = false;
     wechatRechargeEnabled.value = showDevTools();
     wechatPayLive.value = false;
+    alipayPayLive.value = false;
+    paymentModeHint.value = '';
   }
 }
 
@@ -306,12 +322,14 @@ async function onAlipayRecharge() {
   loading.value = true;
   try {
     const key = `alipay-recharge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const prepay = await consumerApi.createRechargePrepay('ALIPAY', selectedAmount.value, key);
-    if (!prepay.alipayPay?.payFormHtml && !prepay.alipayPay?.payUrl) {
-      throw new Error('未获取到支付宝支付链接，请检查沙箱配置');
+    const { mode } = await runAlipayRecharge(selectedAmount.value, key);
+    if (mode === 'live') {
+      uni.showToast({ title: '请在支付宝完成支付', icon: 'none' });
+      return;
     }
-    savePendingRechargeOrder(prepay.orderId);
-    openAlipayPrepay(prepay.alipayPay);
+    uni.showToast({ title: '支付宝模拟充值成功', icon: 'success' });
+    await loadBalance();
+    await loadRecords();
   } catch (e: any) {
     uni.showToast({ title: e?.message || '支付宝下单失败', icon: 'none' });
   } finally {

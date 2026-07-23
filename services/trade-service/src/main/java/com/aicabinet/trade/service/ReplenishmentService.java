@@ -1042,8 +1042,12 @@ public class ReplenishmentService {
         Long assignee = request != null ? request.assigneeUserId() : null;
 
         int qty = Math.max(1, pull.getQuantity());
-        String slotId = null;
+        List<DeviceSlotService.SlotRestockAllocation> restockAllocs = List.of();
         if ("RESTOCK".equals(lineType)) {
+            if (!deviceSlotService.hasSkuSlots(pull.getDeviceId(), pull.getSkuId())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "该商品未绑定货道，无法创建补货任务；请先在货道配置中绑定 SKU");
+            }
             int headroom = deviceSlotService.totalHeadroomForSku(pull.getDeviceId(), pull.getSkuId());
             if (headroom <= 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -1052,11 +1056,10 @@ public class ReplenishmentService {
             if (qty > headroom) {
                 qty = headroom;
             }
-            List<DeviceSlotService.SlotRestockAllocation> alloc =
-                    deviceSlotService.allocateRestockQuantity(pull.getDeviceId(), pull.getSkuId(), qty);
-            if (!alloc.isEmpty()) {
-                slotId = alloc.get(0).slotCode();
-                qty = alloc.stream().mapToInt(DeviceSlotService.SlotRestockAllocation::quantity).sum();
+            restockAllocs = deviceSlotService.allocateRestockQuantity(pull.getDeviceId(), pull.getSkuId(), qty);
+            if (restockAllocs.isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "该商品货道已满，无法创建补货任务；请改用「下架任务」腾出库存后再补");
             }
         }
 
@@ -1076,17 +1079,29 @@ public class ReplenishmentService {
                 + (pull.getReason() != null ? " " + pull.getReason() : ""));
         task = taskRepository.save(task);
 
-        ReplenishmentTaskLine line = new ReplenishmentTaskLine();
-        line.setTaskId(task.getTaskId());
-        line.setLineType(lineType);
-        line.setSkuId(pull.getSkuId());
-        line.setBatchNo(pull.getBatchNo());
-        line.setQuantity(qty);
-        if (slotId != null) {
-            line.setSlotId(slotId);
+        if ("RESTOCK".equals(lineType)) {
+            // 与 seedDraftRestockLines 一致：每个货道分配单独一行，避免把总量写进首槽导致超填
+            for (DeviceSlotService.SlotRestockAllocation alloc : restockAllocs) {
+                ReplenishmentTaskLine line = new ReplenishmentTaskLine();
+                line.setTaskId(task.getTaskId());
+                line.setLineType(lineType);
+                line.setSkuId(pull.getSkuId());
+                line.setBatchNo(pull.getBatchNo());
+                line.setQuantity(alloc.quantity());
+                line.setSlotId(alloc.slotCode());
+                line.setApplied(false);
+                taskLineRepository.save(line);
+            }
+        } else {
+            ReplenishmentTaskLine line = new ReplenishmentTaskLine();
+            line.setTaskId(task.getTaskId());
+            line.setLineType(lineType);
+            line.setSkuId(pull.getSkuId());
+            line.setBatchNo(pull.getBatchNo());
+            line.setQuantity(qty);
+            line.setApplied(false);
+            taskLineRepository.save(line);
         }
-        line.setApplied(false);
-        taskLineRepository.save(line);
 
         pull.setStatus("RESOLVED");
         pull.setResolvedAt(Instant.now());

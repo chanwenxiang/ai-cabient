@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">争议审核</span>
-            <span class="hint">识别争议可按低置信 / 未映射 / 空识别分拣；可维持账单 / 确认扣款 / 免单退款</span>
+            <span class="hint">识别争议可按低置信 / 模拟识别 / 重力错配分拣；同屏对照录像改 SKU 后一键落账或免单</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -29,6 +29,9 @@
     >
       <el-radio-button value="ALL">全部识别</el-radio-button>
       <el-radio-button value="LOW_CONF">低置信</el-radio-button>
+      <el-radio-button value="MOCK">模拟识别</el-radio-button>
+      <el-radio-button value="GRAVITY_MISMATCH">重力错配</el-radio-button>
+      <el-radio-button value="GRAVITY_FILL">重力回填</el-radio-button>
       <el-radio-button value="UNMAPPED">未映射</el-radio-button>
       <el-radio-button value="EMPTY">空识别</el-radio-button>
       <el-radio-button value="NEED_REVIEW">需复核</el-radio-button>
@@ -233,6 +236,14 @@
         </section>
 
         <section class="workbench-meta">
+          <el-alert
+            v-if="selected.reviewCode === 'MOCK' || /模拟|非生产精度/.test(selected.reason || '')"
+            type="warning"
+            :closable="false"
+            show-icon
+            title="当前为模拟/兜底识别，不是生产级视觉精度；请对照录像人工确认后再落账。"
+            class="suggest-alert"
+          />
           <el-descriptions :column="1" border size="small">
             <el-descriptions-item label="工单">
               <span class="cell-id">{{ selected.ticketId }}</span>
@@ -417,6 +428,7 @@ let embedVideoRevoke: (() => void) | null = null;
 const status = ref('OPEN');
 const categoryTab = ref('ALL');
 const reviewCodeTab = ref('ALL');
+const sessionFilter = ref('');
 const items = ref<DisputeTicketDto[]>([]);
 const page = ref(1);
 const size = ref(20);
@@ -534,12 +546,18 @@ function confidenceHint(row?: DisputeTicketDto | null | { reviewCode?: string; c
   if (!row) return '';
   const code = String(row.reviewCode || '').toUpperCase();
   if (code === 'LOW_CONF') return '低置信';
+  if (code === 'MOCK') return '模拟识别';
+  if (code === 'GRAVITY_MISMATCH') return '重力错配';
+  if (code === 'GRAVITY_FILL') return '重力回填';
   if (code === 'UNMAPPED') return '未映射';
   if (code === 'EMPTY') return '空识别';
   if (code === 'WHITELIST') return '白名单';
   if (code === 'NEED_REVIEW') return '需复核';
   const text = `${row.reason || ''} ${row.category || ''}`;
-  if (row.category === 'RECOGNITION' || /识别|置信|未映射|存疑/.test(text)) {
+  if (row.category === 'RECOGNITION' || /识别|置信|未映射|存疑|模拟|重力/.test(text)) {
+    if (/模拟|非生产精度|mock/i.test(text)) return '模拟识别';
+    if (/视觉与重力|重力.*不一致|错配/.test(text)) return '重力错配';
+    if (/仅有重力|重力信号/.test(text)) return '重力回填';
     if (/低置信|置信度|阈值/.test(text)) return '低置信';
     if (/未映射|检出类/.test(text)) return '未映射';
     if (/未识别/.test(text)) return '空识别';
@@ -551,8 +569,8 @@ function confidenceHint(row?: DisputeTicketDto | null | { reviewCode?: string; c
 
 function reviewChipType(row?: DisputeTicketDto | null) {
   const code = String(row?.reviewCode || '').toUpperCase();
-  if (code === 'LOW_CONF' || code === 'EMPTY') return 'danger';
-  if (code === 'UNMAPPED' || code === 'WHITELIST') return 'warning';
+  if (code === 'LOW_CONF' || code === 'EMPTY' || code === 'GRAVITY_MISMATCH') return 'danger';
+  if (code === 'MOCK' || code === 'GRAVITY_FILL' || code === 'UNMAPPED' || code === 'WHITELIST') return 'warning';
   return 'info';
 }
 
@@ -750,6 +768,7 @@ function syncRouteQuery() {
   if (categoryTab.value === 'RECOGNITION' && reviewCodeTab.value && reviewCodeTab.value !== 'ALL') {
     query.reviewCode = reviewCodeTab.value;
   }
+  if (sessionFilter.value) query.sessionId = sessionFilter.value;
   router.replace({ query });
 }
 
@@ -781,6 +800,7 @@ async function load(showToast = false) {
     if (categoryTab.value === 'RECOGNITION' && reviewCodeTab.value && reviewCodeTab.value !== 'ALL') {
       q.set('reviewCode', reviewCodeTab.value);
     }
+    if (sessionFilter.value) q.set('sessionId', sessionFilter.value);
     const data = await api.request<PageResult<DisputeTicketDto>>(`/api/v2/ops/disputes?${q}`, 'GET');
     items.value = data.items || [];
     total.value = data.total || 0;
@@ -808,6 +828,7 @@ function reset() {
   status.value = 'OPEN';
   categoryTab.value = 'ALL';
   reviewCodeTab.value = 'ALL';
+  sessionFilter.value = '';
   page.value = 1;
   syncRouteQuery();
   load(false);
@@ -835,6 +856,13 @@ function applyRouteQuery() {
     }
   } else if (reviewCodeTab.value !== 'ALL' && !route.query.reviewCode) {
     // keep
+  }
+  if (typeof route.query.sessionId === 'string') {
+    const next = route.query.sessionId || '';
+    if (next !== sessionFilter.value) {
+      sessionFilter.value = next;
+      changed = true;
+    }
   }
   return changed;
 }

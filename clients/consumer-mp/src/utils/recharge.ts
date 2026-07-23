@@ -226,3 +226,26 @@ export async function runWeChatRecharge(amountCents: number, idempotencyKey: str
   await consumerApi.confirmMockRecharge(prepay.orderId);
   return { orderId: prepay.orderId, mode: 'mock' };
 }
+
+/**
+ * 支付宝充值：
+ * - live：跳转表单/链接（沙箱进件）
+ * - mock：预下单后走统一 mock-success 即时到账（无真实进件）
+ */
+export async function runAlipayRecharge(amountCents: number, idempotencyKey: string): Promise<{
+  orderId: string;
+  mode: 'mock' | 'live';
+}> {
+  const prepay = await consumerApi.createRechargePrepay('ALIPAY', amountCents, idempotencyKey);
+  const mode = String(prepay.debugInfo?.mode || '').toLowerCase() === 'live' ? 'live' : 'mock';
+  if (mode === 'live') {
+    if (!prepay.alipayPay?.payFormHtml && !prepay.alipayPay?.payUrl) {
+      throw new Error('未获取到支付宝支付链接，请检查沙箱配置');
+    }
+    savePendingRechargeOrder(prepay.orderId);
+    openAlipayPrepay(prepay.alipayPay);
+    return { orderId: prepay.orderId, mode };
+  }
+  await consumerApi.confirmMockRecharge(prepay.orderId);
+  return { orderId: prepay.orderId, mode: 'mock' };
+}

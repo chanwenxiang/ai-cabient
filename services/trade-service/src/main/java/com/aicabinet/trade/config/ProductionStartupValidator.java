@@ -64,7 +64,14 @@ public class ProductionStartupValidator {
     public void validateProductionConfig() {
         if (!isStrictProfile()) {
             if (securityProperties.mockEnabled()) {
-                log.warn("Running with mock-enabled=true (dev mode). Do not use in production.");
+                log.warn("Running with mock-enabled=true (dev/demo). Settlement mock is NOT production accuracy; "
+                        + "mock/low-conf/gravity-mismatch routes to need_review.");
+            }
+            String visionMock = environment.getProperty("VISION_MOCK_ENABLED",
+                    environment.getProperty("MOCK_ENABLED", ""));
+            if ("true".equalsIgnoreCase(visionMock) || visionMock.isBlank() && securityProperties.mockEnabled()) {
+                log.warn("Vision mock likely enabled (VISION_MOCK_ENABLED/MOCK_ENABLED). "
+                        + "Demo recognition must not be treated as production accuracy; use docker-compose.production.yml for go-live.");
             }
             if (checkoutProperties.balanceOnly()) {
                 log.info("CHECKOUT_BALANCE_ONLY=true — settlement uses wallet balance only (no live WeChat charge required).");

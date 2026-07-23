@@ -186,7 +186,10 @@ public class OrderPaymentService {
         }
         if (securityProperties.mockEnabled()) {
             recordOperation(order, "REFUND", amountCents, PayChannels.WECHAT, idemKey, null, reason);
-            log.info("wechat mock order refund order={} amount={} (原路退回零钱)", order.getOrderId(), amountCents);
+            // Mock 支付分未真实扣款时，退款记入余额，保证争议免单/退差在演示链路可见。
+            balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",
+                    order.getOrderId(), idemKey + ":wallet", reasonOrDefault(reason) + "（模拟支付退回余额）");
+            log.info("wechat mock order refund order={} amount={} credited to wallet", order.getOrderId(), amountCents);
             return;
         }
         balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",
@@ -203,7 +206,9 @@ public class OrderPaymentService {
         }
         if (securityProperties.mockEnabled()) {
             recordOperation(order, "REFUND", amountCents, PayChannels.ALIPAY, idemKey, null, reason);
-            log.info("alipay mock order refund order={} amount={}", order.getOrderId(), amountCents);
+            balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",
+                    order.getOrderId(), idemKey + ":wallet", reasonOrDefault(reason) + "（模拟支付退回余额）");
+            log.info("alipay mock order refund order={} amount={} credited to wallet", order.getOrderId(), amountCents);
             return;
         }
         balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",

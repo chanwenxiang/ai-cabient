@@ -56,7 +56,7 @@ class GravitySettlementHelperTest {
     }
 
     @Test
-    void reconcile_fallsBackToGravityWhenVisionEmpty() {
+    void reconcile_fallsBackToGravityWhenVisionEmpty_forcesReview() {
         var vision = new VisionServiceClient.RecognitionResult(
                 "T-3",
                 List.of(),
@@ -71,7 +71,7 @@ class GravitySettlementHelperTest {
         );
         assertEquals(1, result.items().size());
         assertEquals("SKU-DEMO-001", result.items().get(0).skuId());
-        assertFalse(result.needReview());
-        assertTrue(result.modelVersion().contains("+gravity"));
+        assertTrue(result.needReview());
+        assertTrue(result.modelVersion().contains("+gravity-fill"));
     }
 }

@@ -151,16 +151,20 @@ public class SettlementService {
         sessionRepository.save(session);
 
         recognition = withGravityFallback(session, recognition);
+        recognition = forceReviewIfMockOrMismatch(recognition);
 
         // Honor explicit vision need_review even in local mock mode (dispute E2E toggle).
         // Previously mock cart settle short-circuited before this check, so force-review never fired.
         if (recognition.needReview()) {
-            OrderDto stagingOrder = tryStagingGravitySettle(session);
-            if (stagingOrder != null) {
-                return stagingOrder;
+            // 重力错配 / mock 识别：禁止 staging 静默扣款（演示精度 ≠ 生产精度）
+            if (!blocksSilentSettle(recognition)) {
+                OrderDto stagingOrder = tryStagingGravitySettle(session);
+                if (stagingOrder != null) {
+                    return stagingOrder;
+                }
             }
-            // 本地 mock：无视频时 vision 常标 need_review；有重力/购物车扣减时仍按演示结算，避免必进争议
-            if (allowDevFallback && securityProperties.mockEnabled()) {
+            // 本地 mock：仅「非错配/非 mock 标称」且有重力扣减时按演示结算；错配与 mock-v1 一律进审单
+            if (allowDevFallback && securityProperties.mockEnabled() && !blocksSilentSettle(recognition)) {
                 List<VisionServiceClient.RecognizedItem> cartItems =
                         gravityHelper.toRecognizedItems(session.getGravityDeltas());
                 if (!cartItems.isEmpty()) {
@@ -169,10 +173,14 @@ public class SettlementService {
                     return finalizeOrder(session, cartItems);
                 }
             }
-            escalateToDispute(session, recognition, "识别结果需人工审核");
+            escalateToDispute(session, recognition, reviewReasonFor(recognition));
         }
 
         if (allowDevFallback && securityProperties.mockEnabled()) {
+            // mock 标称结果不可当作生产精度自动扣款
+            if (blocksSilentSettle(recognition)) {
+                escalateToDispute(session, recognition, reviewReasonFor(recognition));
+            }
             List<VisionServiceClient.RecognizedItem> cartItems =
                     gravityHelper.toRecognizedItems(session.getGravityDeltas());
             if (cartItems.isEmpty() && recognition.items() != null && !recognition.items().isEmpty()) {
@@ -231,6 +239,44 @@ public class SettlementService {
     private VisionServiceClient.RecognitionResult withGravityFallback(ShoppingSession session,
                                                                       VisionServiceClient.RecognitionResult recognition) {
         return gravityHelper.reconcileWithGravity(session.getGravityDeltas(), recognition);
+    }
+
+    /** mock / gravity-mismatch / gravity-fill 不得静默按「生产精度」扣款。 */
+    static boolean blocksSilentSettle(VisionServiceClient.RecognitionResult recognition) {
+        String version = recognition.modelVersion() != null ? recognition.modelVersion().toLowerCase() : "";
+        return version.contains("mock")
+                || version.contains("fallback")
+                || version.contains("gravity-mismatch")
+                || version.contains("gravity-fill");
+    }
+
+    private static VisionServiceClient.RecognitionResult forceReviewIfMockOrMismatch(
+            VisionServiceClient.RecognitionResult recognition) {
+        if (recognition == null || recognition.needReview() || !blocksSilentSettle(recognition)) {
+            return recognition;
+        }
+        return new VisionServiceClient.RecognitionResult(
+                recognition.taskId(),
+                recognition.items(),
+                recognition.overallConfidence(),
+                true,
+                recognition.modelVersion(),
+                recognition.detectedClasses()
+        );
+    }
+
+    static String reviewReasonFor(VisionServiceClient.RecognitionResult recognition) {
+        String version = recognition.modelVersion() != null ? recognition.modelVersion().toLowerCase() : "";
+        if (version.contains("gravity-mismatch")) {
+            return "视觉与重力数量不一致，需人工审核";
+        }
+        if (version.contains("gravity-fill")) {
+            return "视觉为空，仅有重力信号（非生产识别精度），需人工审核";
+        }
+        if (version.contains("mock") || version.contains("fallback")) {
+            return "模拟/兜底识别结果，非生产精度，需人工审核";
+        }
+        return "识别结果需人工审核";
     }
 
     private void escalateToDispute(ShoppingSession session,

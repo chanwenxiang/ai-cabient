@@ -143,8 +143,8 @@
       >
         <text class="menu-icon">💙</text>
         <view class="menu-text">
-          <text class="menu-title">支付宝沙箱充值</text>
-          <text class="menu-desc">跳转沙箱收银台充 ¥20</text>
+          <text class="menu-title">{{ mockRechargeEnabled ? '支付宝模拟充值' : '支付宝沙箱充值' }}</text>
+          <text class="menu-desc">{{ mockRechargeEnabled ? 'mock 预下单即时到账 ¥20（无需进件）' : '跳转沙箱收银台充 ¥20' }}</text>
         </view>
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
       </view>
@@ -191,10 +191,9 @@ import { clearConsumerSession, consumerApi, ensureConsumerAuth, getConsumerToken
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { isPayReady, payReadyHint } from '@/utils/account';
 import {
-  openAlipayPrepay,
   resumePendingRechargeIfAny,
-  runWeChatRecharge,
-  savePendingRechargeOrder
+  runAlipayRecharge,
+  runWeChatRecharge
 } from '@/utils/recharge';
 import {
   resolveMockEnabled,
@@ -351,11 +350,14 @@ async function onWeChatRecharge() {
 
 async function onAlipayRecharge() {
   if (rechargeLoading.value) return;
+  const isMock = mockRechargeEnabled.value;
   const confirmed = await new Promise<boolean>((resolve) =>
     uni.showModal({
-      title: '支付宝沙箱充值',
-      content: '将跳转支付宝沙箱支付页充值 ¥20.00 余额。',
-      confirmText: '去支付',
+      title: isMock ? '支付宝模拟充值' : '支付宝沙箱充值',
+      content: isMock
+        ? '将模拟支付宝充值 ¥20.00 到余额（无需进件，不会真实扣款）。'
+        : '将跳转支付宝沙箱支付页充值 ¥20.00 余额。',
+      confirmText: isMock ? '确认到账' : '去支付',
       success: (res) => resolve(!!res.confirm),
       fail: () => resolve(false)
     })
@@ -364,12 +366,13 @@ async function onAlipayRecharge() {
   rechargeLoading.value = true;
   try {
     const key = `alipay-recharge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const prepay = await consumerApi.createRechargePrepay('ALIPAY', 2000, key);
-    if (!prepay.alipayPay?.payFormHtml && !prepay.alipayPay?.payUrl) {
-      throw new Error('未获取到支付宝支付链接，请检查沙箱配置');
+    const { mode } = await runAlipayRecharge(2000, key);
+    if (mode === 'live') {
+      uni.showToast({ title: '请在支付宝完成支付', icon: 'none' });
+      return;
     }
-    savePendingRechargeOrder(prepay.orderId);
-    openAlipayPrepay(prepay.alipayPay);
+    await refreshAccount();
+    uni.showToast({ title: '支付宝模拟充值成功', icon: 'success' });
   } catch (error) {
     uni.showToast({ title: error instanceof Error ? error.message : '充值失败', icon: 'none' });
   } finally {

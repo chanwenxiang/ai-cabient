@@ -100,7 +100,7 @@
             :disabled="busy"
             @click="onAlipayRecharge"
           >
-            {{ busy ? '跳转中…' : '支付宝沙箱充值 ¥20' }}
+            {{ busy ? '处理中…' : (mockRechargeEnabled ? '支付宝模拟充值 ¥20' : '支付宝沙箱充值 ¥20') }}
           </button>
           <view class="support-link" @click="goRechargePage">去充值页选择金额 ›</view>
         </view>
@@ -123,7 +123,7 @@ import {
   payReadyHint,
   type EntryChannel
 } from '@/utils/account';
-import { openAlipayPrepay, runWeChatRecharge, savePendingRechargeOrder } from '@/utils/recharge';
+import { runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
 import {
   resolveMockEnabled,
   resolveSandboxRecharge,
@@ -291,12 +291,13 @@ async function onAlipayRecharge() {
   err.value = '';
   try {
     const key = `prep-alipay-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const prepay = await consumerApi.createRechargePrepay('ALIPAY', 2000, key);
-    if (!prepay.alipayPay?.payFormHtml && !prepay.alipayPay?.payUrl) {
-      throw new Error('未获取到支付宝支付链接');
+    const { mode } = await runAlipayRecharge(2000, key);
+    if (mode === 'live') {
+      uni.showToast({ title: '请在支付宝完成支付', icon: 'none' });
+      return;
     }
-    savePendingRechargeOrder(prepay.orderId);
-    openAlipayPrepay(prepay.alipayPay);
+    await refreshAccount();
+    uni.showToast({ title: '支付宝模拟充值成功', icon: 'success' });
   } catch (error) {
     err.value = error instanceof Error ? error.message : '充值失败';
   } finally {
