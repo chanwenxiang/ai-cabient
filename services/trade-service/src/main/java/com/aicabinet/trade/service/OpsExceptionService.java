@@ -5,6 +5,7 @@ import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.OpsExceptionActionDto;
 import com.aicabinet.common.dto.OpsExceptionDetailDto;
 import com.aicabinet.trade.domain.OpsException;
+import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.AdminAuditLogMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.common.dto.ResolveDisputeRequest;
@@ -270,6 +271,7 @@ public class OpsExceptionService {
                     .toList();
             var settled = settlementService.confirmDisputedItems(session, recognized);
             session.setOrderId(settled.order().orderId());
+            item.setOrderId(settled.order().orderId());
             result = "人工确认商品，原金额=" + settled.originalAmountCents()
                     + " 分，最终金额=" + settled.finalAmountCents()
                     + " 分，差额=" + settled.adjustmentCents() + " 分；原因=" + reason;
@@ -280,6 +282,10 @@ public class OpsExceptionService {
         session.setFailReason(null);
         sessionRepository.save(session);
         disputeService.closeOpenTicketForSession(operatorId, session.getSessionId(), type, lines);
+        if ((item.getOrderId() == null || item.getOrderId().isBlank())
+                && session.getOrderId() != null && !session.getOrderId().isBlank()) {
+            item.setOrderId(session.getOrderId());
+        }
         item.setAssigneeUserId(operatorId);
         item.setStatus("RESOLVED");
         item.setResolution(trim(result));
@@ -303,8 +309,17 @@ public class OpsExceptionService {
         Instant sla = i.getSlaDueAt();
         boolean open = "OPEN".equals(i.getStatus()) || "PROCESSING".equals(i.getStatus());
         boolean overdue = open && sla != null && Instant.now().isAfter(sla);
+        String orderId = i.getOrderId();
+        // 审单落账后会话已有 orderId，但历史异常行可能未回写；列表展示时从会话补齐
+        if ((orderId == null || orderId.isBlank())
+                && i.getSessionId() != null && !i.getSessionId().isBlank()) {
+            orderId = sessionRepository.findById(i.getSessionId())
+                    .map(ShoppingSession::getOrderId)
+                    .filter(id -> id != null && !id.isBlank())
+                    .orElse(null);
+        }
         return new OpsExceptionDto(i.getExceptionId(), i.getExceptionType(),
-            i.getSeverity(), i.getStatus(), i.getDeviceId(), i.getSessionId(), i.getOrderId(), i.getUserId(),
+            i.getSeverity(), i.getStatus(), i.getDeviceId(), i.getSessionId(), orderId, i.getUserId(),
             i.getTitle(), i.getDetail(), i.getAssigneeUserId(), i.getResolution(), i.getCreatedAt(), i.getUpdatedAt(),
             i.getResolvedAt(), sla, overdue);
     }

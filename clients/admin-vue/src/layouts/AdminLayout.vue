@@ -632,6 +632,8 @@ onUnmounted(() => {
   /* 只纵向滚；横向交给表格自身，避免双滚动条 */
   overflow-x: hidden;
   overflow-y: auto;
+  /* 切页时滚动条显隐不再挤动内容宽度，减轻窗口抖动 */
+  scrollbar-gutter: stable;
   background: var(--layout-bg);
   color: var(--layout-text);
   overscroll-behavior: contain;

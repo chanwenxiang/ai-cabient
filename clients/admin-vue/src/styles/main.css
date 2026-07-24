@@ -316,7 +316,10 @@ button, input, textarea, select { font: inherit; }
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .filter-bar,
-.layout-main-scroll > .page-card > .el-card__body > .el-form {
+.layout-main-scroll > .page-card > .el-card__body > .el-form,
+.layout-main-scroll > .page-card > .el-card__body > .el-alert,
+.layout-main-scroll > .page-card > .el-card__body > .status-tabs,
+.layout-main-scroll > .page-card > .el-card__body > .review-code-tabs {
   flex-shrink: 0;
 }
 
@@ -325,7 +328,23 @@ button, input, textarea, select { font: inherit; }
   min-height: 200px;
 }
 
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs {
+/*
+ * 筛选型 status-tabs：仅 tab 头、pane 为空，与表单/表格是兄弟节点。
+ * 不可套用下方「内容包裹型 tabs」的 flex:1 + overflow:hidden，否则会被压成细条。
+ */
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs.status-tabs {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+  display: block;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs.status-tabs > .el-tabs__content {
+  display: none;
+}
+
+/* 内容包裹型 tabs（商户/仓库等）：tab pane 内含表格，铺满剩余高度 */
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -333,17 +352,17 @@ button, input, textarea, select { font: inherit; }
   overflow: hidden;
 }
 
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs > .el-tabs__header {
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__header {
   flex-shrink: 0;
 }
 
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs > .el-tabs__content {
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
 }
 
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs > .el-tabs__content > .el-tab-pane {
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content > .el-tab-pane {
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -351,12 +370,12 @@ button, input, textarea, select { font: inherit; }
   overflow: hidden;
 }
 
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs .table-scroll {
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll {
   flex: 1 1 auto;
   min-height: 160px;
 }
 
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs .page-pager {
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .page-pager {
   flex-shrink: 0;
   margin-top: 12px;
 }
@@ -483,8 +502,9 @@ button, input, textarea, select { font: inherit; }
 .filter-bar--compact {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   gap: 8px 12px;
+  min-height: 40px;
 }
 
 .filter-bar--compact .el-form-item {
