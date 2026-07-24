@@ -1,4 +1,6 @@
 # One-click demo smoke: mock vision need_review → dispute settle (WAIVE) → mock recharge ¥20
+# reviewCode: prefers MOCK list filter; VISION_FORCE_REAL + force-need-review often yields GRAVITY_FILL (accepted).
+# Layout/orderId follow-up (filters height + RESOLVED exception orderId): scripts/admin-layout-smoke.ps1
 # Usage:
 #   powershell -File scripts/e2e-demo-smoke.ps1
 #   powershell -File scripts/e2e-demo-smoke.ps1 -Resolution CONFIRM

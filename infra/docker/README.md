@@ -4,13 +4,16 @@
 
 ## trade-service 与运营后台
 
-`trade-service` 镜像在构建阶段执行 **Maven 全量 `package`**（不要加 `-Dskip.admin.build`）：
+`trade-service.Dockerfile` 默认使用 **`-Pskip-admin-ui`**，把宿主机已构建的 `services/trade-service/src/main/resources/static/admin/` 打进 JAR（避免 BuildKit 缓存导致运营台 CSS/JS 陈旧）。
 
-1. `frontend-maven-plugin` 在容器内安装 Node 24.18，执行 `npm install` + `npm run build`
-2. 产物写入 `static/admin/` 并打进 Spring Boot JAR
-3. 运行时访问 `http://<host>/admin/index.html`，与后端同域、版本一致
+改 `clients/admin-vue` 后请先构建再打镜像：
 
-本地若已手动 `npm run build`，Docker 构建仍会重新打包，以镜像内构建结果为准。
+```powershell
+npm --prefix clients/admin-vue run build
+docker build -f infra/docker/trade-service.Dockerfile -t ai-cabinet/trade-service:latest .
+```
+
+运行时经网关访问 `http://<host>/admin/index.html`，与后端同域。若需容器内重新跑 Node/`frontend-maven-plugin`，去掉 Dockerfile 中的 `-Pskip-admin-ui`。
 
 ## 构建
 
