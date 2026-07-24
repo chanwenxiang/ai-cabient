@@ -1,5 +1,6 @@
 <template>
-  <el-card shadow="never" class="page-card report-page">
+  <div class="page-fill">
+    <el-card shadow="never" class="page-card report-page">
       <template #header>
         <div class="page-card-head">
           <div class="page-card-head__meta">
@@ -383,6 +384,7 @@
         </el-timeline>
       </div>
     </el-drawer>
+  </div>
 </template>
 
 <script setup lang="ts">

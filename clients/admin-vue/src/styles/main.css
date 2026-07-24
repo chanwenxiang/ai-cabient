@@ -288,8 +288,18 @@ button, input, textarea, select { font: inherit; }
 /*
  * 列表页单卡片：随主区宽高等比铺满（窗口放大 / 浏览器缩放后不再四周留白）。
  * 多卡片页（如工作台）根节点是 div，不受影响。
+ * .page-fill：抽屉等同页根包装（KeepAlive 需单根），其内 page-card 同样铺满。
  */
-.layout-main-scroll > .page-card {
+.layout-main-scroll > .page-fill {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.layout-main-scroll > .page-card,
+.layout-main-scroll > .page-fill > .page-card {
   flex: 1 1 auto;
   align-self: stretch;
   margin-bottom: 0;
@@ -298,16 +308,24 @@ button, input, textarea, select { font: inherit; }
   min-height: 0;
 }
 
-.layout-main-scroll > .page-card.el-card {
+/* 切页时纵向滚动条显隐不再挤动内容宽度，减轻视口抖动 */
+.layout-main-scroll {
+  scrollbar-gutter: stable;
+}
+
+.layout-main-scroll > .page-card.el-card,
+.layout-main-scroll > .page-fill > .page-card.el-card {
   /* Element Plus card 本身已是 flex column */
   height: 100%;
 }
 
-.layout-main-scroll > .page-card > .el-card__header {
+.layout-main-scroll > .page-card > .el-card__header,
+.layout-main-scroll > .page-fill > .page-card > .el-card__header {
   flex-shrink: 0;
 }
 
-.layout-main-scroll > .page-card > .el-card__body {
+.layout-main-scroll > .page-card > .el-card__body,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -319,11 +337,17 @@ button, input, textarea, select { font: inherit; }
 .layout-main-scroll > .page-card > .el-card__body > .el-form,
 .layout-main-scroll > .page-card > .el-card__body > .el-alert,
 .layout-main-scroll > .page-card > .el-card__body > .status-tabs,
-.layout-main-scroll > .page-card > .el-card__body > .review-code-tabs {
+.layout-main-scroll > .page-card > .el-card__body > .review-code-tabs,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .filter-bar,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-form,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-alert,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .status-tabs,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .review-code-tabs {
   flex-shrink: 0;
 }
 
-.layout-main-scroll > .page-card > .el-card__body > .table-scroll {
+.layout-main-scroll > .page-card > .el-card__body > .table-scroll,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll {
   flex: 1 1 auto;
   min-height: 200px;
 }
@@ -332,19 +356,22 @@ button, input, textarea, select { font: inherit; }
  * 筛选型 status-tabs：仅 tab 头、pane 为空，与表单/表格是兄弟节点。
  * 不可套用下方「内容包裹型 tabs」的 flex:1 + overflow:hidden，否则会被压成细条。
  */
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs.status-tabs {
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs.status-tabs,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs.status-tabs {
   flex: 0 0 auto;
   min-height: auto;
   overflow: visible;
   display: block;
 }
 
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs.status-tabs > .el-tabs__content {
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs.status-tabs > .el-tabs__content,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs.status-tabs > .el-tabs__content {
   display: none;
 }
 
 /* 内容包裹型 tabs（商户/仓库等）：tab pane 内含表格，铺满剩余高度 */
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) {
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs),
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
@@ -352,17 +379,20 @@ button, input, textarea, select { font: inherit; }
   overflow: hidden;
 }
 
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__header {
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__header,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__header {
   flex-shrink: 0;
 }
 
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content {
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content {
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
 }
 
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content > .el-tab-pane {
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content > .el-tab-pane,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content > .el-tab-pane {
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -370,17 +400,20 @@ button, input, textarea, select { font: inherit; }
   overflow: hidden;
 }
 
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll {
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll {
   flex: 1 1 auto;
   min-height: 160px;
 }
 
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .page-pager {
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .page-pager,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .page-pager {
   flex-shrink: 0;
   margin-top: 12px;
 }
 
-.layout-main-scroll > .page-card > .el-card__body > .page-pager {
+.layout-main-scroll > .page-card > .el-card__body > .page-pager,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .page-pager {
   flex-shrink: 0;
   margin-top: 12px;
 }

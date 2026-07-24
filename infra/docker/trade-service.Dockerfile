@@ -27,10 +27,10 @@ COPY clients/admin-vue/src clients/admin-vue/src
 COPY services/common/common-core/src services/common/common-core/src
 COPY services/trade-service/src services/trade-service/src
 
+# 使用宿主机已构建的 static/admin（vite outDir），避免 BuildKit frontend 缓存导致运营台 CSS/JS 陈旧。
+# 改 admin-vue 后请先在仓库根执行: npm --prefix clients/admin-vue run build
 RUN --mount=type=cache,target=/root/.m2,sharing=locked \
-    --mount=type=cache,target=/root/.npm,sharing=locked \
-    --mount=type=cache,target=/build/services/trade-service/target/frontend,sharing=locked \
-    mvn package -DskipTests -pl services/trade-service -am -B
+    mvn package -DskipTests -pl services/trade-service -am -B -Pskip-admin-ui
 
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
