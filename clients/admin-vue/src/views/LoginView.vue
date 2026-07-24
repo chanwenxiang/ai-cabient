@@ -43,7 +43,7 @@
         <el-button type="primary" native-type="submit" :loading="loading" class="submit-btn">登录</el-button>
         <p v-if="err" class="err" role="alert">{{ err }}</p>
       </el-form>
-      <p v-if="ENABLE_TEST_TOOLS" class="hint">演示：13900000001 / 123456</p>
+        <p v-if="ENABLE_TEST_TOOLS" class="hint">演示：运营 13900000001 / 财务 13900000002 · 密码 123456</p>
     </div>
   </div>
 </template>

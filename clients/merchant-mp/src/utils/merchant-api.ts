@@ -63,7 +63,7 @@ export function request<T>(
       header,
       success(res) {
         const body = res.data as { code?: number; message?: string; data?: T };
-        if (res.statusCode === 401 || res.statusCode === 403) {
+        if (res.statusCode === 401) {
           clearSession();
           const pages = getCurrentPages();
           const route = pages[pages.length - 1]?.route || '';
@@ -71,6 +71,10 @@ export function request<T>(
             uni.reLaunch({ url: '/pages/login/login' });
           }
           reject(new Error(body?.message || '登录已失效，请重新登录'));
+          return;
+        }
+        if (res.statusCode === 403) {
+          reject(new Error(body?.message || '权限不足'));
           return;
         }
         if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0) {

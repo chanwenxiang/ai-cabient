@@ -73,12 +73,15 @@ export async function downloadAuthFile(path: string, fallbackName: string) {
   const res = await fetch(`${getBaseUrl()}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {}
   });
-  if (res.status === 401 || res.status === 403) {
+  if (res.status === 401) {
     clearSession();
     if (!window.location.hash.includes('/login')) {
       window.location.hash = '#/login';
     }
-    throw new Error(res.status === 403 ? '权限不足' : '登录已失效');
+    throw new Error('登录已失效');
+  }
+  if (res.status === 403) {
+    throw new Error('权限不足');
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({} as { message?: string }));

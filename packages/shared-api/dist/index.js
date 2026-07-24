@@ -23,10 +23,14 @@ export class ApiClient {
             if (ok)
                 return this.request(path, method, body, auth, true);
         }
-        if (res.status === 401 || res.status === 403) {
+        // 401 = session invalid → clear & redirect. 403 = missing permission for this API only.
+        if (res.status === 401) {
             this.clearSession();
             this.onUnauthorized?.();
-            throw new Error(json.message || (res.status === 403 ? '权限不足' : '登录已失效'));
+            throw new Error(json.message || '登录已失效');
+        }
+        if (res.status === 403) {
+            throw new Error(json.message || '权限不足');
         }
         if (!res.ok || json.code !== 0) {
             throw new Error(json.message || `请求失败 (${res.status})`);

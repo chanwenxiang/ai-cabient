@@ -486,6 +486,12 @@ async function loadStatus() {
 }
 
 async function loadSplits() {
+  if (!canSplit.value) {
+    splits.value = [];
+    splitTotal.value = 0;
+    splitsLoaded.value = true;
+    return;
+  }
   loading.value = true;
   try {
     const q = new URLSearchParams({

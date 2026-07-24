@@ -519,9 +519,11 @@ async function load() {
     const [s, wb, ex] = await Promise.all([
       api.request<OpsStats>('/api/v2/ops/admin/stats', 'GET'),
       api.request<OpsWorkbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null),
-      api
-        .request<PageResult<{ exceptionId: string }>>('/api/v2/ops/admin/exceptions?status=OPEN&page=0&size=1', 'GET')
-        .catch(() => null)
+      canAccessPath('/exceptions')
+        ? api
+            .request<PageResult<{ exceptionId: string }>>('/api/v2/ops/admin/exceptions?status=OPEN&page=0&size=1', 'GET')
+            .catch(() => null)
+        : Promise.resolve(null)
     ]);
     stats.value = s;
     workbench.value = wb;
