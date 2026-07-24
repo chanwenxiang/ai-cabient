@@ -597,7 +597,11 @@ public class MerchantPortalService {
         long failedCount = splitRepository.countByMerchantIdInAndStatusIn(merchantIds, FAILED_SPLIT_STATUSES);
         Map<String, String> merchantNames = merchantRepository.findAll().stream()
                 .filter(m -> merchantIds.contains(m.getMerchantId()))
-                .collect(Collectors.toMap(Merchant::getMerchantId, Merchant::getMerchantName));
+                .collect(Collectors.toMap(
+                        Merchant::getMerchantId,
+                        m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
+                                m.getMerchantId(), m.getMerchantName()),
+                        (a, b) -> a));
         List<RevenueSplitDto> recentFailures = splitRepository
                 .findTop5ByMerchantIdInAndStatusInOrderByCreatedAtDesc(merchantIds, FAILED_SPLIT_STATUSES)
                 .stream()
@@ -635,7 +639,11 @@ public class MerchantPortalService {
         Instant to = parseDateEnd(toDate != null ? toDate : LocalDate.now().toString());
         Map<String, String> merchantNames = merchantRepository.findAll().stream()
                 .filter(m -> merchantIds.contains(m.getMerchantId()))
-                .collect(Collectors.toMap(Merchant::getMerchantId, Merchant::getMerchantName));
+                .collect(Collectors.toMap(
+                        Merchant::getMerchantId,
+                        m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
+                                m.getMerchantId(), m.getMerchantName()),
+                        (a, b) -> a));
         return splitRepository.aggregateBatchByMerchants(merchantIds, from, to).stream()
                 .map(row -> toBatchSettlement(row, merchantNames))
                 .toList();
@@ -651,7 +659,11 @@ public class MerchantPortalService {
         Set<String> merchantIds = merchantScopeService.allowedMerchantIds(userId);
         Map<String, String> merchantNames = merchantRepository.findAll().stream()
                 .filter(m -> merchantIds.contains(m.getMerchantId()))
-                .collect(Collectors.toMap(Merchant::getMerchantId, Merchant::getMerchantName));
+                .collect(Collectors.toMap(
+                        Merchant::getMerchantId,
+                        m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
+                                m.getMerchantId(), m.getMerchantName()),
+                        (a, b) -> a));
         return splitRepository.findByMerchantIdInAndSettlementBatchNoOrderByCreatedAtDesc(
                         merchantIds, batchNo.trim()).stream()
                 .map(s -> toSplitDto(s, merchantNames.get(s.getMerchantId())))
@@ -694,7 +706,11 @@ public class MerchantPortalService {
 
         Map<String, String> merchantNames = merchantRepository.findAll().stream()
                 .filter(m -> allowed.contains(m.getMerchantId()))
-                .collect(Collectors.toMap(Merchant::getMerchantId, Merchant::getMerchantName));
+                .collect(Collectors.toMap(
+                        Merchant::getMerchantId,
+                        m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
+                                m.getMerchantId(), m.getMerchantName()),
+                        (a, b) -> a));
         return new PageResult<>(
                 result.getContent().stream()
                         .map(s -> toSplitDto(s, merchantNames.get(s.getMerchantId())))
@@ -734,7 +750,11 @@ public class MerchantPortalService {
                 resolveSplitRangeStart(fromDate), resolveSplitRangeEnd(toDate), pageable);
         Map<String, String> merchantNames = merchantRepository.findAll().stream()
                 .filter(m -> allowed.contains(m.getMerchantId()))
-                .collect(Collectors.toMap(Merchant::getMerchantId, Merchant::getMerchantName));
+                .collect(Collectors.toMap(
+                        Merchant::getMerchantId,
+                        m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
+                                m.getMerchantId(), m.getMerchantName()),
+                        (a, b) -> a));
         StringBuilder sb = new StringBuilder(
                 "splitId,orderId,merchantId,merchantName,deviceId,grossCents,platformCents,merchantCents,status,createdAt\n");
         for (OrderRevenueSplit s : page.getContent()) {
@@ -879,7 +899,11 @@ public class MerchantPortalService {
                         (a, b) -> a.getCreatedAt().isAfter(b.getCreatedAt()) ? a : b
                 ));
         Map<String, String> merchantNames = merchantRepository.findAll().stream()
-                .collect(Collectors.toMap(Merchant::getMerchantId, Merchant::getMerchantName));
+                .collect(Collectors.toMap(
+                        Merchant::getMerchantId,
+                        m -> com.aicabinet.trade.support.MerchantNameSupport.resolve(
+                                m.getMerchantId(), m.getMerchantName()),
+                        (a, b) -> a));
 
         return devices.stream()
                 .map(d -> toDeviceDto(d, activeByDevice.get(d.getDeviceId()),

@@ -47,7 +47,7 @@ class SessionServiceRecoveryTest {
     void setUp() {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
-                gravityHelper, restockSnapshotService, null, opsExceptionService, userInfoRepository, null);
+                gravityHelper, restockSnapshotService, null, opsExceptionService, userInfoRepository, null, null);
     }
 
     @Test

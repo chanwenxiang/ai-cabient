@@ -75,8 +75,26 @@ public class RevenueSplitService {
             split.setStatus("ACCRUED");
         }
         splitRepository.save(split);
-        log.info("revenue split order={} merchant={} gross={} platform={} merchantShare={}",
+        log.info("分账记账 order={} merchant={} gross={} platform={} merchantShare={}",
                 order.getOrderId(), merchant.getMerchantId(), gross, platform, merchantShare);
         return Optional.of(split);
+    }
+
+    /**
+     * 订单全额退款后冲正分账：已有分账记录改为 VOIDED，避免账本仍显示应分金额。
+     */
+    @Transactional
+    public void voidSplitOnFullRefund(String orderId) {
+        if (orderId == null || orderId.isBlank()) {
+            return;
+        }
+        splitRepository.findByOrderId(orderId).ifPresent(split -> {
+            if ("VOIDED".equalsIgnoreCase(split.getStatus()) || "REVERSED".equalsIgnoreCase(split.getStatus())) {
+                return;
+            }
+            split.setStatus("VOIDED");
+            splitRepository.save(split);
+            log.info("分账已冲正（全额退款） order={} splitId={}", orderId, split.getSplitId());
+        });
     }
 }

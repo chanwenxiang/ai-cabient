@@ -82,8 +82,11 @@ docker compose -f docker-compose.full.yml -f docker-compose.win-ports.yml up -d
 | 角色 | 手机号 | 验证码 | userId | 说明 |
 |------|--------|--------|--------|------|
 | **消费者** | `13800138000` | `123456` | 10001 | 余额 100 元，开门购物 |
-| **运营员** | `13900000001` | `123456` | 100000001 | 运营控制台、争议审核 |
-| **财务** | `13900000002` | `123456` | 100000007 | 对账 / 分账 / 财务毛利 |
+| **超级管理员** | `13900000001` | `123456` | 100000001 | 运营控制台全权限 |
+| **财务** | `13900000002` | `123456` | 100000007 | 财务毛利 / 对账 / 商户分账 |
+| **运营人员** | `13900000003` | `123456` | 100000008 | 设备 / 订单 / 争议 / 异常 |
+| **补货员** | `13900000004` | `123456` | 100000009 | 补货调度 / 仓库 |
+| **只读** | `13900000005` | `123456` | 100000010 | 列表只读 |
 | **商户管理员** | `13800138001` | `123456` | 100000002 | 商户小程序 |
 
 - 登录接口：`POST /api/v2/auth/login`
@@ -126,6 +129,18 @@ docker compose -f docker-compose.full.yml -f docker-compose.win-ports.yml up -d
 ```
 
 一键脚本：`.\scripts\verify-local.ps1`
+
+---
+
+## 四（补）、Gateway 502 / 间歇不可用（ENV-02）
+
+全栈 Docker 下入口为 `http://localhost`（Nginx gateway）。若出现 **502 Bad Gateway**：
+
+1. 确认 `trade-service` / `device-service` 容器 healthy：`docker compose -f infra/docker-compose.full.yml ps`
+2. 查看 gateway 上游：`docker compose -f infra/docker-compose.full.yml logs gateway --tail 80`
+3. 常见原因：trade 刚重启、Flyway 迁移中、或上游端口未就绪 — 等待 30～60 秒后重试
+4. 仍失败时重启 gateway：`docker compose -f infra/docker-compose.full.yml restart gateway`
+5. 直连排查：`http://localhost:18080/actuator/health`（绕过 Nginx）
 
 ---
 

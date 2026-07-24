@@ -152,6 +152,7 @@ import { useMerchantMe } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { dictLabel } from '@aicabinet/shared-dict';
+import { formatMerchantNames } from '@/utils/merchant-display';
 import type { MerchantMe } from '@aicabinet/shared-types';
 
 type TaskRow = { taskId: number; deviceId: string; status: string };
@@ -274,9 +275,11 @@ function hydrateFromCache() {
   }
   if (cached.displayName || cached.phoneNumber) {
     meName.value = cached.displayName || cached.phoneNumber || '同事';
-    merchantNames.value = (cached.merchants || []).map((m) => m.merchantName).join('、') || '未绑定商户';
+    merchantNames.value = formatMerchantNames(cached.merchants);
   }
 }
+
+/** 过滤编码损坏的商户名（????），避免问候语乱码。见 utils/merchant-display。 */
 
 async function load() {
   if (!uni.getStorageSync('merchant_token')) {
@@ -295,7 +298,7 @@ async function load() {
       me.value = profile;
     }
     meName.value = profile.displayName || profile.phoneNumber || '同事';
-    merchantNames.value = (profile.merchants || []).map((m) => m.merchantName).join('、') || '未绑定商户';
+    merchantNames.value = formatMerchantNames(profile.merchants);
 
     const [s, trend, workbench, devices, tasks] = await Promise.all([
       merchantApi.stats() as Promise<Record<string, number>>,

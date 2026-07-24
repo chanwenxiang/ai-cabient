@@ -3,6 +3,7 @@
     <el-breadcrumb v-if="!compact" separator="/" class="app-breadcrumb">
       <el-breadcrumb-item :to="{ path: homePath }">首页</el-breadcrumb-item>
       <el-breadcrumb-item v-if="group">{{ group }}</el-breadcrumb-item>
+      <el-breadcrumb-item v-if="section">{{ section }}</el-breadcrumb-item>
       <el-breadcrumb-item v-if="parentTitle" :to="parentPath">{{ parentTitle }}</el-breadcrumb-item>
       <el-breadcrumb-item>{{ currentTitle }}</el-breadcrumb-item>
     </el-breadcrumb>
@@ -24,9 +25,18 @@ const compact = ref(false);
 
 const nav = computed(() => {
   const hit = findNavByPath(route.path);
-  if (hit) return hit as { group?: string; title?: string; parentTitle?: string; parentPath?: string };
+  if (hit) {
+    return hit as {
+      group?: string;
+      section?: string;
+      title?: string;
+      parentTitle?: string;
+      parentPath?: string;
+    };
+  }
   return {
     group: (route.meta.group as string) || '',
+    section: route.meta.section as string | undefined,
     title: (route.meta.title as string) || route.path,
     parentTitle: route.meta.parentTitle as string | undefined,
     parentPath: route.meta.parentPath as string | undefined
@@ -34,6 +44,7 @@ const nav = computed(() => {
 });
 
 const group = computed(() => nav.value.group);
+const section = computed(() => nav.value.section);
 const currentTitle = computed(() => nav.value.title || (route.meta.title as string));
 const parentTitle = computed(() => nav.value.parentTitle);
 const parentPath = computed(() => nav.value.parentPath);
@@ -41,6 +52,7 @@ const parentPath = computed(() => nav.value.parentPath);
 const fullTrail = computed(() => {
   const parts = ['首页'];
   if (group.value) parts.push(group.value);
+  if (section.value) parts.push(section.value);
   if (parentTitle.value) parts.push(parentTitle.value);
   parts.push(currentTitle.value);
   return parts.join(' / ');

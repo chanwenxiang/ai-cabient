@@ -67,6 +67,7 @@ public class SessionService {
     private final OpsExceptionService opsExceptionService;
     private final UserInfoMapper userInfoRepository;
     private final CabinetOrderMapper orderRepository;
+    private final DisputeService disputeService;
 
     public SessionService(ShoppingSessionMapper repository,
                           DeviceServiceClient deviceClient,
@@ -81,7 +82,8 @@ public class SessionService {
                           @Lazy SessionService self,
                           OpsExceptionService opsExceptionService,
                           UserInfoMapper userInfoRepository,
-                          CabinetOrderMapper orderRepository) {
+                          CabinetOrderMapper orderRepository,
+                          @Lazy DisputeService disputeService) {
         this.repository = repository;
         this.deviceClient = deviceClient;
         this.userValidationService = userValidationService;
@@ -96,6 +98,7 @@ public class SessionService {
         this.opsExceptionService = opsExceptionService;
         this.userInfoRepository = userInfoRepository;
         this.orderRepository = orderRepository;
+        this.disputeService = disputeService;
     }
 
     @Transactional
@@ -755,9 +758,15 @@ public class SessionService {
                 .forEach(s -> {
                     try {
                         SessionState from = s.getState();
+                        String failReason = "识别超时，已转人工审核，本次暂未扣款";
                         if (from.canTransitionTo(SessionState.DISPUTED)) {
-                            s.setFailReason("识别超时，已转人工审核，本次暂未扣款");
+                            s.setFailReason(failReason);
                             transition(s, SessionState.DISPUTED);
+                            try {
+                                disputeService.createTimeoutTicket(s, failReason);
+                            } catch (Exception ticketEx) {
+                                log.warn("超时争议单创建失败 session={}", s.getSessionId(), ticketEx);
+                            }
                         } else if (from.canTransitionTo(SessionState.FAILED)) {
                             s.setFailReason("识别超时");
                             transition(s, SessionState.FAILED);
@@ -770,10 +779,10 @@ public class SessionService {
                         opsExceptionService.report("RECOGNITION_TIMEOUT", "HIGH", s.getDeviceId(),
                                 s.getSessionId(), s.getOrderId(), s.getUserId(),
                                 "识别超时", "关门后超过10分钟未完成识别结算");
-                        log.warn("recognizing session escalated session={} from={} to={}",
+                        log.warn("识别超时会话已升级 session={} from={} to={}",
                                 s.getSessionId(), from, s.getState());
                     } catch (Exception e) {
-                        log.warn("failed to escalate stale session={}", s.getSessionId(), e);
+                        log.warn("识别超时升级失败 session={}", s.getSessionId(), e);
                     }
                 });
     }

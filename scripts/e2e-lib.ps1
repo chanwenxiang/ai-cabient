@@ -1,5 +1,34 @@
 # Shared E2E helpers: API client, device cleanup, MQTT shopping flow
 
+function Get-E2eLockPath {
+    return (Join-Path $env:TEMP "ai-cabinet-e2e.lock")
+}
+
+function Enter-E2eLock {
+    param([int]$TimeoutSec = 600, [string]$Owner = "e2e")
+    $path = Get-E2eLockPath
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        try {
+            $fs = [System.IO.File]::Open($path, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
+            $bytes = [Text.Encoding]::UTF8.GetBytes("$Owner pid=$PID at=$(Get-Date -Format o)")
+            $fs.Write($bytes, 0, $bytes.Length)
+            $fs.Flush()
+            return $fs
+        } catch {
+            Start-Sleep -Seconds 2
+        }
+    }
+    throw "E2E lock busy after ${TimeoutSec}s ($path). Another smoke/script may be running."
+}
+
+function Exit-E2eLock {
+    param($LockHandle)
+    if ($null -eq $LockHandle) { return }
+    try { $LockHandle.Close() } catch { }
+    try { Remove-Item -Force (Get-E2eLockPath) -ErrorAction SilentlyContinue } catch { }
+}
+
 function Get-E2eBaseUrl {
     param([string]$Fallback = "http://localhost:18080")
     if (-not [string]::IsNullOrWhiteSpace($env:E2E_BASE_URL)) {
@@ -180,7 +209,9 @@ function Clear-E2eDeviceBlockingSessions {
     $inList = ($states | ForEach-Object { "'$_'" }) -join ","
     $sql = @"
 UPDATE shopping_session
-SET state = 'CANCELLED', updated_at = NOW()
+SET state = 'CANCELLED',
+    fail_reason = COALESCE(NULLIF(fail_reason, ''), 'e2e-cleanup'),
+    updated_at = NOW()
 WHERE device_id = '$DeviceId'
   AND state IN ($inList);
 
@@ -362,55 +393,75 @@ function Invoke-E2eMqttShopping {
         Start-Sleep -Seconds 1
     }
 
-    Write-Host "==> Create session (MQTT unlock)"
-    $idempotencyKey = "e2e-session-$([guid]::NewGuid().ToString('N'))"
-    $session = $null
-    for ($attempt = 1; $attempt -le 5; $attempt++) {
-        try {
-            $session = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/sessions" -Headers $Auth -Body @{
-                deviceId       = $DeviceId
-                idempotencyKey = $idempotencyKey
+    # Outer retry: concurrent Clear-E2e / missed MQTT ACK can CANCEL an OPENING session.
+    $sessionId = $null
+    $final = $null
+    $usedFallback = $false
+    $userId = 0
+    for ($round = 1; $round -le 3; $round++) {
+        Write-Host "==> Create session (MQTT unlock) attempt $round/3"
+        $idempotencyKey = "e2e-session-$([guid]::NewGuid().ToString('N'))"
+        $session = $null
+        for ($attempt = 1; $attempt -le 5; $attempt++) {
+            try {
+                $session = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/sessions" -Headers $Auth -Body @{
+                    deviceId       = $DeviceId
+                    idempotencyKey = $idempotencyKey
+                }
+                break
+            } catch {
+                if ($_.Exception.Message -notmatch 'status=409' -or $attempt -eq 5) { throw }
+                Write-Host "    device busy (409); clearing sessions and retry $attempt/5"
+                Clear-E2eDeviceBlockingSessions -DeviceId $DeviceId | Out-Null
+                Start-Sleep -Seconds 2
+                $idempotencyKey = "e2e-session-$([guid]::NewGuid().ToString('N'))"
             }
-            break
-        } catch {
-            if ($_.Exception.Message -notmatch 'status=409' -or $attempt -eq 5) { throw }
-            Write-Host "    device busy (409); clearing sessions and retry $attempt/5"
+        }
+        $sessionId = $session.sessionId
+        try { $userId = [long]$session.userId } catch { $userId = 0 }
+        Write-Host "    sessionId=$sessionId state=$($session.state) idempotencyKey=$idempotencyKey"
+
+        # MQTT unlock should move OPENING -> SHOPPING quickly. If the simulator missed
+        # OPEN_DOOR (common after broker blips), inject internal door close to finish.
+        $progress = Wait-E2eSessionLeftStates -BaseUrl $BaseUrl -SessionId $sessionId -Auth $Auth `
+            -States @("CREATED", "OPENING") -TimeoutSec 20
+        Write-Host "    progress state=$progress"
+        $usedFallback = $false
+        if ($progress -eq "CANCELLED") {
+            Write-Warning "session cancelled while OPENING (likely concurrent cleanup); retry round $round/3"
             Clear-E2eDeviceBlockingSessions -DeviceId $DeviceId | Out-Null
             Start-Sleep -Seconds 2
-            $idempotencyKey = "e2e-session-$([guid]::NewGuid().ToString('N'))"
+            continue
         }
-    }
-    $sessionId = $session.sessionId
-    $userId = 0
-    try { $userId = [long]$session.userId } catch { $userId = 0 }
-    Write-Host "    sessionId=$sessionId state=$($session.state) idempotencyKey=$idempotencyKey"
+        if ($progress -in @("CREATED", "OPENING")) {
+            Write-Warning "MQTT unlock stalled at $progress; injecting internal door close fallback"
+            Invoke-E2eInternalDoorClose -BaseUrl $BaseUrl -SessionId $sessionId -DeviceId $DeviceId `
+                -UserId $userId -InternalApiKey $InternalApiKey | Out-Null
+            $usedFallback = $true
+        }
 
-    # MQTT unlock should move OPENING -> SHOPPING quickly. If the simulator missed
-    # OPEN_DOOR (common after broker blips), inject internal door close to finish.
-    $progress = Wait-E2eSessionLeftStates -BaseUrl $BaseUrl -SessionId $sessionId -Auth $Auth `
-        -States @("CREATED", "OPENING") -TimeoutSec 15
-    Write-Host "    progress state=$progress"
-    $usedFallback = $false
-    if ($progress -in @("CREATED", "OPENING")) {
-        Write-Warning "MQTT unlock stalled at $progress; injecting internal door close fallback"
-        Invoke-E2eInternalDoorClose -BaseUrl $BaseUrl -SessionId $sessionId -DeviceId $DeviceId `
-            -UserId $userId -InternalApiKey $InternalApiKey | Out-Null
-        $usedFallback = $true
-    }
-
-    $final = Wait-E2eSessionTerminal -BaseUrl $BaseUrl -SessionId $sessionId -Auth $Auth
-    if ($final -notin @("COMPLETED", "DISPUTED")) {
-        # One more fallback attempt if we somehow never left OPENING
-        if ($final -in @("CREATED", "OPENING", $null) -or -not $usedFallback) {
-            $cur = (Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/sessions/$sessionId" -Headers $Auth).state
-            if ($cur -in @("CREATED", "OPENING", "SHOPPING", "RECOGNIZING", "WAITING_UPLOAD", "SETTLING")) {
-                Write-Warning "session still $cur after wait; retrying internal door close"
-                Invoke-E2eInternalDoorClose -BaseUrl $BaseUrl -SessionId $sessionId -DeviceId $DeviceId `
-                    -UserId $userId -InternalApiKey $InternalApiKey | Out-Null
-                $usedFallback = $true
-                $final = Wait-E2eSessionTerminal -BaseUrl $BaseUrl -SessionId $sessionId -Auth $Auth -MaxPolls 20
+        $final = Wait-E2eSessionTerminal -BaseUrl $BaseUrl -SessionId $sessionId -Auth $Auth
+        if ($final -notin @("COMPLETED", "DISPUTED")) {
+            # One more fallback attempt if we somehow never left OPENING
+            if ($final -in @("CREATED", "OPENING", $null) -or -not $usedFallback) {
+                $cur = (Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/sessions/$sessionId" -Headers $Auth).state
+                if ($cur -in @("CREATED", "OPENING", "SHOPPING", "RECOGNIZING", "WAITING_UPLOAD", "SETTLING")) {
+                    Write-Warning "session still $cur after wait; retrying internal door close"
+                    Invoke-E2eInternalDoorClose -BaseUrl $BaseUrl -SessionId $sessionId -DeviceId $DeviceId `
+                        -UserId $userId -InternalApiKey $InternalApiKey | Out-Null
+                    $usedFallback = $true
+                    $final = Wait-E2eSessionTerminal -BaseUrl $BaseUrl -SessionId $sessionId -Auth $Auth -MaxPolls 20
+                }
             }
         }
+        if ($final -in @("COMPLETED", "DISPUTED")) { break }
+        if ($final -eq "CANCELLED" -and $round -lt 3) {
+            Write-Warning "session ended CANCELLED; retry round $($round + 1)/3"
+            Clear-E2eDeviceBlockingSessions -DeviceId $DeviceId | Out-Null
+            Start-Sleep -Seconds 2
+            continue
+        }
+        throw "session did not finish via MQTT path, state=$final"
     }
     if ($final -notin @("COMPLETED", "DISPUTED")) {
         throw "session did not finish via MQTT path, state=$final"

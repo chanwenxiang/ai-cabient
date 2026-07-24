@@ -21,23 +21,29 @@ import java.util.stream.Collectors;
 public class InventoryService {
 
     private static final Logger log = LoggerFactory.getLogger(InventoryService.class);
+    /** 单柜库存扣减锁租约（秒） */
+    private static final long INV_LOCK_LEASE_SECONDS = 30;
+    private static final long INV_LOCK_WAIT_SECONDS = 5;
 
     private final DeviceSkuInventoryMapper inventoryRepository;
     private final InventoryLotService inventoryLotService;
     private final DeviceSlotService deviceSlotService;
     private final GravitySettlementHelper gravityHelper;
     private final DeviceValidationService deviceValidationService;
+    private final DistributedLockService lockService;
 
     public InventoryService(DeviceSkuInventoryMapper inventoryRepository,
                             InventoryLotService inventoryLotService,
                             DeviceSlotService deviceSlotService,
                             GravitySettlementHelper gravityHelper,
-                            DeviceValidationService deviceValidationService) {
+                            DeviceValidationService deviceValidationService,
+                            DistributedLockService lockService) {
         this.inventoryRepository = inventoryRepository;
         this.inventoryLotService = inventoryLotService;
         this.deviceSlotService = deviceSlotService;
         this.gravityHelper = gravityHelper;
         this.deviceValidationService = deviceValidationService;
+        this.lockService = lockService;
     }
 
     /** 扣减库存，有批次时 FEFO；返回 skuId -> 主批次号。 */
@@ -55,6 +61,19 @@ public class InventoryService {
     @Transactional
     public Map<String, String> deductForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items,
                                               String refId, String gravityDeltasJson) {
+        String lockKey = "inv:" + deviceId;
+        if (!lockService.tryLock(lockKey, INV_LOCK_LEASE_SECONDS, INV_LOCK_WAIT_SECONDS)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "库存繁忙，请稍后重试");
+        }
+        try {
+            return doDeductForOrder(deviceId, items, refId, gravityDeltasJson);
+        } finally {
+            lockService.unlock(lockKey);
+        }
+    }
+
+    private Map<String, String> doDeductForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items,
+                                                 String refId, String gravityDeltasJson) {
         deviceValidationService.ensureSettlementAllowed(deviceId);
         List<GravityDeltaRequest.GravityDeltaItem> gravityDeltas = gravityHelper.parse(gravityDeltasJson);
         if ((items == null || items.isEmpty())
@@ -157,13 +176,13 @@ public class InventoryService {
         });
         int next = inv.getQuantity() + delta;
         if (next < 0) {
-            log.warn("inventory underflow device={} sku={} qty={} delta={}", deviceId, skuId, inv.getQuantity(), delta);
+            log.warn("库存不足 device={} sku={} qty={} delta={}", deviceId, skuId, inv.getQuantity(), delta);
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "inventory insufficient for sku=" + skuId + " qty=" + inv.getQuantity() + " delta=" + delta);
+                    "库存不足 sku=" + skuId + " 当前=" + inv.getQuantity() + " 变更=" + delta);
         }
         inv.setQuantity(next);
         inventoryRepository.save(inv);
-        log.info("inventory updated device={} sku={} qty={}", deviceId, skuId, next);
+        log.info("库存已更新 device={} sku={} qty={}", deviceId, skuId, next);
     }
 
     private static Map<String, Integer> toQtyMap(List<VisionServiceClient.RecognizedItem> items) {

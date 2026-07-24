@@ -274,7 +274,7 @@ const quickLinks = computed<QuickLink[]>(() => [
     path: '/exceptions',
     query: { status: 'OPEN' }
   },
-  { label: '待审争议', count: workbench.value?.openDisputes || 0, path: '/disputes', query: { status: 'OPEN', category: 'RECOGNITION' } },
+  { label: '待审争议', count: workbench.value?.openDisputes || 0, path: '/disputes', query: { status: 'OPEN' } },
   {
     label: '待支付订单',
     count: workbench.value?.pendingUnpaidOrders || 0,

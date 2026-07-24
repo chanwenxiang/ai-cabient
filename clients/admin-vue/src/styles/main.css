@@ -142,6 +142,30 @@ button, input, textarea, select { font: inherit; }
   padding: 4px 6px;
 }
 
+/*
+ * 主数据 / 树表列：全局 cell 默认居中+nowrap 会压平树缩进、叠双行名称。
+ * 列上挂 class-name / label-class-name = col-text | col-money 即可恢复。
+ */
+.layout-main-scroll .el-table th.col-text > .cell,
+.layout-main-scroll .el-table td.col-text > .cell,
+.page-card .el-table th.col-text > .cell,
+.page-card .el-table td.col-text > .cell {
+  text-align: left;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.35;
+}
+
+.layout-main-scroll .el-table th.col-money > .cell,
+.layout-main-scroll .el-table td.col-money > .cell,
+.page-card .el-table th.col-money > .cell,
+.page-card .el-table td.col-money > .cell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 .page-card > .el-card__header {
   overflow: visible;
 }

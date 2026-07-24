@@ -167,12 +167,32 @@ class ReplenishmentServiceOutboundTest {
     }
 
     @Test
+    void completeTask_rejectsWithoutCheckIn() {
+        ReplenishmentTask task = new ReplenishmentTask();
+        task.setTaskId(21L);
+        task.setDeviceId("CAB-001");
+        task.setStatus("IN_PROGRESS");
+        task.setCheckInAt(null);
+
+        when(taskRepository.findById(21L)).thenReturn(java.util.Optional.of(task));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> replenishmentService.completeTask(100000001L, 21L));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertTrue(ex.getReason() != null && ex.getReason().contains("签到"));
+
+        verify(taskLineRepository, never()).findByTaskIdAndAppliedFalse(anyLong());
+        verify(taskLineRepository, never()).save(any());
+    }
+
+    @Test
     void completeTask_rejectsOutboundTaskWhenNotInTransit() {
         ReplenishmentTask task = new ReplenishmentTask();
         task.setTaskId(20L);
         task.setDeviceId("CAB-001");
         task.setOutboundId(200L);
         task.setStatus("IN_PROGRESS");
+        task.setCheckInAt(java.time.Instant.parse("2026-07-24T06:00:00Z"));
 
         ReplenishmentTaskLine line = new ReplenishmentTaskLine();
         line.setTaskId(20L);

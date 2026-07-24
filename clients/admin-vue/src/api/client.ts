@@ -13,6 +13,7 @@ export function clearSession() {
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(EXPIRES_KEY);
   localStorage.removeItem('admin_permissions');
+  localStorage.removeItem('admin_phone');
 }
 
 export const api = new ApiClient({
@@ -43,7 +44,14 @@ export function applyLoginSession(data: { token: string; userId: string; expires
 }
 
 export function isLoggedIn() {
-  return !!localStorage.getItem(TOKEN_KEY);
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return false;
+  const expiresAt = Number(localStorage.getItem(EXPIRES_KEY) || 0);
+  if (expiresAt > 0 && Date.now() >= expiresAt) {
+    clearSession();
+    return false;
+  }
+  return true;
 }
 
 /** Compatibility helpers for views that expect `{ data }` wrappers. */

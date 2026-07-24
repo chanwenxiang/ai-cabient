@@ -13,52 +13,66 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
+/**
+ * 通用幂等表（{@code idempotency_key}）辅助服务。
+ * <p>
+ * <b>资金相关路径的幂等真源是业务表唯一键</b>：
+ * {@code shopping_session.idempotency_key}、
+ * {@code recharge_order.idempotency_key}、
+ * {@code payment_operation.idempotency_key}。
+ * 不要再并行写入本表，以免与业务表不一致（BE-002）。
+ * <p>
+ * 开门 / 充值 / 扣款请优先使用上述业务键。本服务仅保留给缺少专用唯一列的运营类接口。
+ *
+ * @deprecated 请优先使用业务表唯一键；仅运营工具可选使用。
+ */
+@Deprecated
 @Service
 public class IdempotencyService {
-    
+
     private static final Logger log = LoggerFactory.getLogger(IdempotencyService.class);
-    
+
     @Autowired
     private IdempotencyKeyMapper repository;
-    
+
     @Autowired
     private ObjectMapper objectMapper;
-    
+
     private static final int DEFAULT_EXPIRE_HOURS = 24;
-    
+
     @Transactional(readOnly = true)
     public <T> Optional<T> checkIdempotency(String idempotencyKey, Class<T> responseType) {
         Optional<IdempotencyKey> key = repository.findById(idempotencyKey);
-        
+
         if (key.isEmpty()) {
             return Optional.empty();
         }
-        
+
         IdempotencyKey entity = key.get();
-        
+
         if (entity.getExpireAt().isBefore(Instant.now())) {
-            log.info("楠炲倻鐡戦柨顔煎嚒鏉╁洦婀?key={}", idempotencyKey);
+            log.info("幂等键已过期 key={}", idempotencyKey);
             return Optional.empty();
         }
-        
+
         if (entity.getResponseData() != null && responseType != Void.class) {
             try {
                 T response = objectMapper.readValue(
-                    entity.getResponseData().toString(), 
-                    responseType
+                        entity.getResponseData().toString(),
+                        responseType
                 );
-                log.info("楠炲倻鐡戦柨顔兼嚒娑?key={}", idempotencyKey);
+                log.info("幂等命中 key={}", idempotencyKey);
                 return Optional.of(response);
             } catch (Exception e) {
-                log.error("鐟欙絾鐎界紓鎾崇摠閸濆秴绨叉径杈Е key={}", idempotencyKey, e);
+                log.error("幂等响应反序列化失败 key={}", idempotencyKey, e);
                 return Optional.empty();
             }
         }
-        
-        log.info("楠炲倻鐡戦柨顔兼嚒娑擃叏绱濋弮鐘电处鐎涙ê鎼锋惔?key={}", idempotencyKey);
+
+        log.info("幂等键存在但无响应体 key={}", idempotencyKey);
         return Optional.empty();
     }
-    
+
     @Transactional
     public void saveIdempotency(String idempotencyKey, String businessType, String businessId, Object response) {
         IdempotencyKey entity = new IdempotencyKey();
@@ -66,27 +80,28 @@ public class IdempotencyService {
         entity.setBusinessType(businessType);
         entity.setBusinessId(businessId);
         entity.setExpireAt(Instant.now().plus(DEFAULT_EXPIRE_HOURS, ChronoUnit.HOURS));
-        
+
         if (response != null) {
             try {
                 entity.setResponseData(objectMapper.valueToTree(response));
             } catch (Exception e) {
-                log.error("鎼村繐鍨崠鏍ф惙鎼存柨銇戠拹?key={}", idempotencyKey, e);
+                log.error("幂等响应序列化失败 key={}", idempotencyKey, e);
             }
         }
-        
+
         repository.save(entity);
-        log.info("娣囨繂鐡ㄩ獮鍌滅搼闁?key={} businessType={} businessId={}", idempotencyKey, businessType, businessId);
+        log.info("幂等键已保存 key={} businessType={} businessId={}",
+                idempotencyKey, businessType, businessId);
     }
-    
+
     @Transactional
     public void saveIdempotency(String idempotencyKey, String businessType, String businessId) {
         saveIdempotency(idempotencyKey, businessType, businessId, null);
     }
-    
+
     @Transactional
     public void deleteIdempotency(String idempotencyKey) {
         repository.deleteById(idempotencyKey);
-        log.info("閸掔娀娅庨獮鍌滅搼闁?key={}", idempotencyKey);
+        log.info("幂等键已删除 key={}", idempotencyKey);
     }
 }

@@ -1,19 +1,15 @@
+import { dictLabel } from '@aicabinet/shared-dict';
 import { fmtMoney, formatError, orderStatusLabel } from './format';
 
 export { fmtMoney, formatError, orderStatusLabel };
 
-const SESSION_STATE_LABEL: Record<string, string> = {
-  CREATED: '已创建',
-  OPENING: '开门中',
-  SHOPPING: '购物中，取货后请关门',
-  RECOGNIZING: '识别中',
-  WAITING_UPLOAD: '等待上传视频',
-  SETTLING: '结算中',
-  COMPLETED: '已完成',
-  DISPUTED: '待人工审核',
-  FAILED: '失败',
-  CANCELLED: '已取消'
-};
+/**
+ * 会话状态短标签：与 shared-dict 的 session_state 对齐，避免三端文案漂移。
+ * 更长的引导语放在 sessionStateHint。
+ */
+export function sessionStateLabel(state?: string) {
+  return state ? dictLabel('session_state', state) : '-';
+}
 
 const SESSION_STATE_HINT: Record<string, string> = {
   CREATED: '正在准备开门，请稍候',
@@ -27,10 +23,6 @@ const SESSION_STATE_HINT: Record<string, string> = {
   FAILED: '购物未完成，请检查余额或稍后重试',
   CANCELLED: '会话已取消'
 };
-
-export function sessionStateLabel(state?: string) {
-  return (state && SESSION_STATE_LABEL[state]) || '-';
-}
 
 export function sessionStateHint(state?: string) {
   return (state && SESSION_STATE_HINT[state]) || '';

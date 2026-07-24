@@ -1,28 +1,17 @@
-import { setDictOverrides, clearDictOverrides } from '@aicabinet/shared-dict';
+import { setDictOverrides, clearDictOverrides, buildOverridesFromRuntime } from '@aicabinet/shared-dict';
 import { getConsumerToken, request } from '@/utils/consumer-api';
 
-interface RuntimePayload {
-  itemsByType?: Record<string, { dictValue: string; dictLabel: string; status?: string }[]>;
-}
-
+/** 登录后拉取运营字典覆盖；失败时保留编译期默认文案。 */
 export async function loadRuntimeDict() {
   if (!getConsumerToken()) {
     clearDictOverrides();
     return;
   }
   try {
-    const data = await request<RuntimePayload>('/api/v2/dicts/runtime', 'GET');
-    const map: Record<string, Record<string, string>> = {};
-    for (const [type, rows] of Object.entries(data?.itemsByType || {})) {
-      map[type] = {};
-      for (const row of rows || []) {
-        if (row.status && row.status !== 'ACTIVE') continue;
-        map[type][row.dictValue] = row.dictLabel;
-      }
-    }
-    setDictOverrides(map);
+    const data = await request('/api/v2/dicts/runtime', 'GET');
+    setDictOverrides(buildOverridesFromRuntime(data as Parameters<typeof buildOverridesFromRuntime>[0]));
   } catch {
-    // keep compile-time DICT defaults
+    // 保留编译期 DICT 默认文案
   }
 }
 

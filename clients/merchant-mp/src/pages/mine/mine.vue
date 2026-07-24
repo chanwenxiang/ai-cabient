@@ -117,6 +117,7 @@ import { clearSession, hasPerm, merchantApi } from '@/utils/merchant-api';
 import { MERCHANT_ALERT_TYPES, requestMerchantSubscribe, wxLoginCode } from '@/utils/notify';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { MerchantMe } from '@aicabinet/shared-types';
+import { formatMerchantNames } from '@/utils/merchant-display';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const meName = ref('');
@@ -161,7 +162,7 @@ onShow(async () => {
   }
   const profile = me.value || ((uni.getStorageSync('merchant_me') || {}) as MerchantMe);
   meName.value = profile.displayName || profile.phoneNumber || '商户';
-  merchantNames.value = (profile.merchants || []).map((m) => m.merchantName).join('、') || '未绑定';
+  merchantNames.value = formatMerchantNames(profile.merchants, '未绑定');
   phone.value = profile.phoneNumber || '';
   await loadNotifyPrefs();
 });

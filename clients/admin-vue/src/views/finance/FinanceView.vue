@@ -1,5 +1,18 @@
 <template>
   <div v-loading="loading" class="finance-page">
+    <el-result
+      v-if="loadError"
+      icon="warning"
+      :title="loadError"
+      sub-title="如需查看财务数据，请联系管理员开通权限后重试"
+    >
+      <template #extra>
+        <el-button type="primary" :loading="loading" @click="load">重试</el-button>
+        <el-button @click="goPath('/')">返回工作台</el-button>
+      </template>
+    </el-result>
+
+    <template v-else>
     <el-card class="page-card" shadow="never">
       <template #header>
         <div class="page-card-head">
@@ -123,6 +136,7 @@
         </div>
       </div>
     </ChartPanel>
+    </template>
   </div>
 </template>
 
@@ -179,6 +193,7 @@ interface FinanceReport {
 const { router, canAccessPath, goPath } = useNavAccess();
 const route = useRoute();
 const loading = ref(false);
+const loadError = ref('');
 const days = ref(parseDays(route.query.days));
 const chartKind = ref<ChartKind>('area');
 const stats = ref<FinanceStats>({});
@@ -282,6 +297,7 @@ const chartSvg = computed(() => {
 
 async function load() {
   loading.value = true;
+  loadError.value = '';
   try {
     const data = await api.request<FinanceReport>(`/api/v2/ops/admin/finance/report?days=${days.value}`, 'GET');
     stats.value = data.summary || {};
@@ -289,7 +305,9 @@ async function load() {
     topSkus.value = data.topSkus || [];
     clearTopSkusSelection();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    const message = e instanceof Error ? e.message : '加载失败';
+    loadError.value = message;
+    ElMessage.error(message);
   } finally {
     loading.value = false;
   }

@@ -43,7 +43,11 @@
         <el-button type="primary" native-type="submit" :loading="loading" class="submit-btn">登录</el-button>
         <p v-if="err" class="err" role="alert">{{ err }}</p>
       </el-form>
-        <p v-if="ENABLE_TEST_TOOLS" class="hint">演示：运营 13900000001 / 财务 13900000002 · 密码 123456</p>
+        <p v-if="ENABLE_TEST_TOOLS" class="hint">
+          演示账号（密码均为 123456）：<br />
+          超管 13900000001 · 财务 13900000002 · 运营 13900000003<br />
+          补货 13900000004 · 只读 13900000005
+        </p>
     </div>
   </div>
 </template>
@@ -89,7 +93,10 @@ async function onSubmit() {
   err.value = '';
   try {
     await auth.login(normalizedPhone, password.value);
-    const redirect = (route.query.redirect as string) || '/dashboard';
+    const rawRedirect = typeof route.query.redirect === 'string' ? route.query.redirect : '';
+    const redirect = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')
+      ? rawRedirect
+      : '/dashboard';
     router.replace(redirect);
   } catch (e) {
     err.value = e instanceof Error ? e.message : '登录失败';

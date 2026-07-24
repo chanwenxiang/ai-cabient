@@ -39,6 +39,7 @@ class PaymentServiceTest {
     @Mock private AlipayPayClient alipayPayClient;
     @Mock private AlipayNotifyService alipayNotifyService;
     @Mock private BalanceLedgerService balanceLedgerService;
+    @Mock private SystemConfigService systemConfigService;
 
     private PaymentService paymentService;
     private WeChatPayProperties weChatPayProperties;
@@ -55,7 +56,7 @@ class PaymentServiceTest {
                 rechargeOrderRepository, userInfoRepository, userAccountRepository,
                 weChatPayProperties, alipayProperties, securityProperties,
                 weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
-                balanceLedgerService);
+                balanceLedgerService, systemConfigService);
     }
 
     @Test
@@ -118,6 +119,32 @@ class PaymentServiceTest {
         assertEquals("PAID", second.status());
         assertEquals("BL001", order.getPaymentOperationId());
         verify(balanceLedgerService, times(1)).change(anyLong(), anyInt(), anyString(), anyString(), anyString(), anyString());
+    }
+
+    @Test
+    void handleWeChatNotify_forgedSignature_doesNotCredit() {
+        when(notifyService.parseAndVerify(anyString(), anyString(), anyString(), anyString(), anyString()))
+                .thenThrow(new IllegalArgumentException(com.aicabinet.trade.support.ApiMessages.INVALID_WECHAT_NOTIFY));
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> paymentService.handleWeChatNotify("{}", "1", "n", "bad-sig", "serial"));
+        assertEquals(com.aicabinet.trade.support.ApiMessages.INVALID_WECHAT_NOTIFY, ex.getMessage());
+
+        verifyNoInteractions(rechargeOrderRepository, balanceLedgerService);
+    }
+
+    @Test
+    void autoCancelExpiredPending_cancelsOldPendingOrders() {
+        RechargeOrder old = pendingOrder("R-OLD", 10001L);
+        when(systemConfigService.getInt(SystemConfigService.RECHARGE_AUTO_CANCEL_MINUTES, 30)).thenReturn(30);
+        when(rechargeOrderRepository.findByStatusAndCreatedAtBefore(eq("PENDING"), any()))
+                .thenReturn(java.util.List.of(old));
+
+        int n = paymentService.autoCancelExpiredPending();
+
+        assertEquals(1, n);
+        assertEquals("CANCELLED", old.getStatus());
+        verify(rechargeOrderRepository).save(old);
     }
 
     private static RechargeOrder pendingOrder(String id, Long userId) {

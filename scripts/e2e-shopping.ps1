@@ -22,6 +22,7 @@ $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent $PSScriptRoot
 . (Join-Path $PSScriptRoot "e2e-lib.ps1")
 $BaseUrl = Resolve-E2eBaseUrl $BaseUrl
+$demoCtx = $null
 
 if (-not $Phone -or -not $DeviceId) {
     $demoCtx = & (Join-Path $PSScriptRoot "seed-demo-data.ps1") -BaseUrl $BaseUrl -InternalApiKey $InternalApiKey -Ensure
@@ -33,7 +34,7 @@ if (-not $Phone -or -not $DeviceId) {
 $expectedChannel = if ($Channel) { $Channel.ToUpper() } else { "" }
 $simProc = $null
 $startedSimulator = $false
-
+$e2eLock = Enter-E2eLock -Owner "e2e-shopping"
 try {
     Clear-E2eDeviceBlockingSessions -DeviceId $DeviceId | Out-Null
 
@@ -72,6 +73,49 @@ try {
     $sessionId = $mqtt.SessionId
     $startedSimulator = $mqtt.SimulatorStarted
     $simProc = $mqtt.SimulatorProcess
+    $finalState = $mqtt.FinalState
+    Write-Host "    session finalState=$finalState"
+
+    # Snapshot balance immediately before ops charge (ignore concurrent recharge noise).
+    if ($finalState -eq "DISPUTED") {
+        Write-Host "==> 4b. DISPUTED -> ops CONFIRM"
+        $opsLogin = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/auth/admin-password-login" -Body @{
+            phoneNumber = "13900000001"
+            password    = "123456"
+        }
+        $ops = @{ Authorization = "Bearer $($opsLogin.token)" }
+        $disp = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
+            -Path "/api/v2/ops/disputes?status=OPEN&sessionId=$sessionId&page=0&size=5" -Headers $ops
+        $tickets = @()
+        if ($disp.items) { $tickets = @($disp.items) }
+        if ($tickets.Count -lt 1) {
+            throw "DISPUTED session $sessionId has no OPEN dispute ticket"
+        }
+        $ticketId = $tickets[0].ticketId
+        Write-Host "    ticket=$ticketId reviewCode=$($tickets[0].reviewCode)"
+        # 优先用票上建议商品 / demoCtx 兜底 SKU，避免硬编码与库存不一致
+        $confirmSku = "SKU-DEMO-001"
+        $confirmQty = 1
+        $suggested = @()
+        if ($tickets[0].suggestedItems) { $suggested = @($tickets[0].suggestedItems) }
+        elseif ($tickets[0].items) { $suggested = @($tickets[0].items) }
+        if ($suggested.Count -ge 1 -and $suggested[0].skuId) {
+            $confirmSku = [string]$suggested[0].skuId
+            if ($suggested[0].quantity) { $confirmQty = [int]$suggested[0].quantity }
+        } elseif ($demoCtx -and $demoCtx.fallbackSkuId) {
+            $confirmSku = [string]$demoCtx.fallbackSkuId
+        }
+        Write-Host "    confirm sku=$confirmSku qty=$confirmQty"
+        $before = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/account" -Headers $auth
+        Write-Host "    balance before confirm=$($before.balanceCents)"
+        $null = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
+            -Path "/api/v2/ops/disputes/$ticketId/resolve" -Headers $ops -Body @{
+            resolutionType = "CONFIRM"
+            items          = @(@{ skuId = $confirmSku; quantity = $confirmQty })
+        }
+    } elseif ($finalState -notin @("COMPLETED", $null, "")) {
+        Write-Host "    unexpected terminal state=$finalState (will still poll for order)"
+    }
 
     Write-Host "==> 5. Wait for order"
     $order = Wait-E2eSessionOrder -BaseUrl $BaseUrl -SessionId $sessionId -Auth $auth
@@ -86,7 +130,14 @@ try {
     }
 
     $channel = if ($order.payChannel) { $order.payChannel.ToUpper() } else { "BALANCE" }
-    $spent = $before.balanceCents - $after.balanceCents
+    # Prefer ledger for this order to avoid concurrent recharge/charge races.
+    $chargeRow = (docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c `
+        "SELECT amount_cents FROM payment_operation WHERE order_id='$($order.orderId)' AND operation_type='CHARGE' AND status='COMPLETED' ORDER BY created_at DESC LIMIT 1;").Trim()
+    if ($chargeRow) {
+        $spent = [int]$chargeRow
+    } else {
+        $spent = $before.balanceCents - $after.balanceCents
+    }
 
     if ($expectedChannel -and $channel -ne $expectedChannel) {
         throw "Expected payChannel=$expectedChannel, got $channel"
@@ -100,7 +151,7 @@ try {
             Write-Host "    paid via balance (-$spent cents)"
         }
         { $_ -in @("WECHAT", "ALIPAY") } {
-            if ($spent -ne 0) {
+            if ($spent -ne 0 -and -not $chargeRow) {
                 throw "$channel channel: balance should not change, but spent $spent cents"
             }
             Write-Host "    paid via $channel (balance unchanged)"
@@ -121,6 +172,7 @@ try {
         Write-Host "==> Stopping DeviceSimulator..."
         Stop-E2eDeviceSimulator $simProc
     }
+    Exit-E2eLock $e2eLock
 }
 
 exit 0

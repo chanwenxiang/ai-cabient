@@ -107,7 +107,7 @@
                       <span v-else class="muted">现场</span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="操作" :width="canEdit ? 168 : 88" align="center">
+                  <el-table-column label="操作" :width="canEdit ? 220 : 88" align="center">
                     <template #default="scope">
                       <el-button link type="primary" @click="openTaskLines(scope.row)">明细</el-button>
                       <el-button
@@ -117,8 +117,15 @@
                         :loading="openDoorLoading === scope.row.taskId"
                         @click="openRestockDoor(scope.row)"
                       >开门</el-button>
+                      <el-button
+                        v-if="canEdit && canCompleteTask(scope.row)"
+                        link
+                        type="success"
+                        :loading="completeLoading === scope.row.taskId"
+                        @click="completeRestockTask(scope.row)"
+                      >完成上架</el-button>
                       <span
-                        v-else-if="canEdit && openDoorHint(scope.row) !== '-'"
+                        v-else-if="canEdit && openDoorHint(scope.row) !== '-' && !canCompleteTask(scope.row)"
                         class="muted"
                       >{{ openDoorHint(scope.row) }}</span>
                     </template>
@@ -716,6 +723,7 @@ const shortageLoading = ref(false);
 const expiryLoading = ref(false);
 const expiryActingId = ref<number | null>(null);
 const openDoorLoading = ref<number | null>(null);
+const completeLoading = ref<number | null>(null);
 const cancelRouteLoading = ref<number | null>(null);
 const tab = ref('routes');
 const page = ref(1);
@@ -1471,6 +1479,13 @@ function canOpenRestock(task: Row) {
   return !!task.checkInAt && deviceOnline(task.deviceId);
 }
 
+/** 已签到且未完成的任务可「完成上架」（后端亦校验签到）。 */
+function canCompleteTask(task: Row) {
+  if (!task?.taskId) return false;
+  if (['COMPLETED', 'CANCELLED'].includes(String(task.status || ''))) return false;
+  return !!task.checkInAt;
+}
+
 function openDoorHint(task: Row) {
   if (['COMPLETED', 'CANCELLED'].includes(String(task.status || ''))) return '-';
   if (!task.checkInAt) return '需先签到';
@@ -1554,6 +1569,33 @@ async function openRestockDoor(task: Row) {
     });
   } finally {
     openDoorLoading.value = null;
+  }
+}
+
+async function completeRestockTask(task: Row) {
+  if (!task?.taskId) return;
+  if (!task.checkInAt) {
+    ElMessage.warning('请先到店签到后再完成上架');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认完成任务 #${task.taskId}（${deviceName(task.deviceId)}）上架？\n未签到将被后端拒绝；完成后将写入库存。`,
+      '完成上架',
+      { type: 'warning', confirmButtonText: '确认完成' }
+    );
+  } catch {
+    return;
+  }
+  completeLoading.value = task.taskId;
+  try {
+    await api.request(`/api/v2/ops/admin/replenishment/tasks/${task.taskId}/complete`, 'POST');
+    ElMessage.success(`任务 #${task.taskId} 已完成上架`);
+    await load();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '完成上架失败');
+  } finally {
+    completeLoading.value = null;
   }
 }
 

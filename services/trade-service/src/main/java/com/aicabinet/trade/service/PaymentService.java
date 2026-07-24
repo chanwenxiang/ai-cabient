@@ -33,6 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -53,6 +55,7 @@ public class PaymentService {
     private final AlipayPayClient alipayPayClient;
     private final AlipayNotifyService alipayNotifyService;
     private final BalanceLedgerService balanceLedgerService;
+    private final SystemConfigService systemConfigService;
 
     public PaymentService(RechargeOrderMapper rechargeOrderRepository,
                           UserInfoMapper userInfoRepository,
@@ -65,7 +68,8 @@ public class PaymentService {
                           WeChatPayNotifyService notifyService,
                           AlipayPayClient alipayPayClient,
                           AlipayNotifyService alipayNotifyService,
-                          BalanceLedgerService balanceLedgerService) {
+                          BalanceLedgerService balanceLedgerService,
+                          SystemConfigService systemConfigService) {
         this.rechargeOrderRepository = rechargeOrderRepository;
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
@@ -78,6 +82,7 @@ public class PaymentService {
         this.alipayPayClient = alipayPayClient;
         this.alipayNotifyService = alipayNotifyService;
         this.balanceLedgerService = balanceLedgerService;
+        this.systemConfigService = systemConfigService;
     }
 
     @Transactional
@@ -317,6 +322,45 @@ public class PaymentService {
         rechargeOrderRepository.save(order);
         log.info("recharge cancelled orderId={}", orderId);
         return toDto(order);
+    }
+
+    /**
+     * 超时未支付的充值单自动取消（先向渠道关单/同步，避免已支付漏入账）。
+     */
+    @Transactional
+    public int autoCancelExpiredPending() {
+        int minutes = systemConfigService.getInt(SystemConfigService.RECHARGE_AUTO_CANCEL_MINUTES, 30);
+        if (minutes <= 0) {
+            return 0;
+        }
+        Instant cutoff = Instant.now().minus(minutes, ChronoUnit.MINUTES);
+        List<RechargeOrder> expired = rechargeOrderRepository.findByStatusAndCreatedAtBefore("PENDING", cutoff);
+        int n = 0;
+        for (RechargeOrder order : expired) {
+            try {
+                syncPendingOrder(order);
+                if (!"PENDING".equals(order.getStatus())) {
+                    continue;
+                }
+                if (PayChannels.ALIPAY.equalsIgnoreCase(order.getChannel())) {
+                    cancelPendingAlipay(order);
+                } else {
+                    cancelPendingWeChat(order);
+                }
+                if ("PAID".equals(order.getStatus())) {
+                    continue;
+                }
+                order.setStatus("CANCELLED");
+                rechargeOrderRepository.save(order);
+                n++;
+            } catch (Exception ex) {
+                log.warn("auto cancel recharge failed orderId={}", order.getOrderId(), ex);
+            }
+        }
+        if (n > 0) {
+            log.info("auto cancelled pending recharge orders count={} minutes={}", n, minutes);
+        }
+        return n;
     }
 
     @Transactional

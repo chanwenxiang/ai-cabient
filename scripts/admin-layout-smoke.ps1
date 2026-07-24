@@ -101,7 +101,7 @@ const { chromium } = require("playwright");
 
     await page.goto(base + "/admin/index.html#/exceptions", { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(800);
-    const tab = page.getByRole("tab", { name: /已解决|RESOLVED/i });
+    const tab = page.getByRole("tab", { name: /已处理|已解决|RESOLVED/i });
     if (await tab.count()) {
       await tab.first().click();
       await page.waitForTimeout(1200);

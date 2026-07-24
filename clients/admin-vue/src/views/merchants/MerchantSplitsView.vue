@@ -35,6 +35,8 @@
           :data="merchantTree"
           node-key="merchantId"
           default-expand-all
+          :indent="20"
+          :expand-on-click-node="false"
           :props="{ label: 'label', children: 'children' }"
           class="org-tree"
         >
@@ -370,6 +372,13 @@ const merchantTree = computed(() => {
       roots.push(node);
     }
   }
+  const sortRec = (nodes: OrgNode[]) => {
+    nodes.sort((a, b) =>
+      String(a.merchantName || a.merchantId).localeCompare(String(b.merchantName || b.merchantId), 'zh')
+    );
+    nodes.forEach((n) => n.children.length && sortRec(n.children));
+  };
+  sortRec(roots);
   return roots;
 });
 
@@ -806,6 +815,23 @@ onActivated(() => {
   border-radius: 8px;
   min-height: 240px;
 }
+/* 默认节点高度过矮，双行文案会叠到下一行；放开高度并保证缩进层级可见 */
+.org-tree :deep(.el-tree-node__content) {
+  height: auto !important;
+  min-height: 48px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  align-items: center;
+}
+.org-tree :deep(.el-tree-node__expand-icon) {
+  align-self: center;
+  padding: 6px;
+}
+.org-tree :deep(.el-tree-node__label) {
+  flex: 1;
+  overflow: visible;
+  width: 100%;
+}
 .org-node {
   flex: 1;
   display: flex;
@@ -813,8 +839,25 @@ onActivated(() => {
   justify-content: space-between;
   gap: 12px;
   padding-right: 8px;
+  min-width: 0;
+  width: 100%;
 }
-.org-node__meta { display: grid; gap: 2px; min-width: 0; }
-.org-node__meta small { color: var(--el-text-color-secondary); font-size: 12px; }
+.org-node__meta {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  line-height: 1.35;
+}
+.org-node__meta strong {
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.org-node__meta small {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.3;
+}
 .org-node__actions { display: flex; gap: 4px; flex-shrink: 0; }
 </style>

@@ -791,9 +791,9 @@ async function load(showToast = false) {
   try {
     const q = new URLSearchParams({
       page: String(page.value - 1),
-      size: String(size.value),
-      status: status.value || 'OPEN'
+      size: String(size.value)
     });
+    if (status.value) q.set('status', status.value);
     if (categoryTab.value && categoryTab.value !== 'ALL') {
       q.set('category', categoryTab.value);
     }

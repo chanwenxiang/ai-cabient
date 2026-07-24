@@ -121,11 +121,29 @@ public class DisputeService {
                         session.getUserId(),
                         session.getSessionId(),
                         reason,
-                        toJson(recognition.items()),
+                        toJson(recognition != null && recognition.items() != null ? recognition.items() : List.of()),
                         "RECOGNITION",
-                        priorityForRecognition(recognition),
-                        reviewCodeFor(recognition, reason),
-                        toJson(recognition.detectedClasses() != null ? recognition.detectedClasses() : List.of())));
+                        recognition != null ? priorityForRecognition(recognition) : "HIGH",
+                        recognition != null ? reviewCodeFor(recognition, reason) : "TIMEOUT",
+                        toJson(recognition != null && recognition.detectedClasses() != null
+                                ? recognition.detectedClasses() : List.of())));
+    }
+
+    /** 会话卡在上传/识别/结算：无视觉结果时开争议单，避免静默扣款。 */
+    @Transactional
+    public DisputeTicketDto createTimeoutTicket(ShoppingSession session, String reason) {
+        String safeReason = reason != null && !reason.isBlank()
+                ? reason
+                : "识别超时，已转人工审核，本次暂未扣款";
+        return createTicket(session,
+                new VisionServiceClient.RecognitionResult(
+                        session.getRecognitionTaskId(),
+                        List.of(),
+                        0f,
+                        true,
+                        "timeout",
+                        List.of()),
+                safeReason);
     }
 
     @Transactional
@@ -335,6 +353,15 @@ public class DisputeService {
         merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
 
         String resolutionType = normalizeResolutionType(request.resolutionType());
+        if (("ADJUST".equals(resolutionType) || "CONFIRM".equals(resolutionType))
+                && (request == null || request.items() == null || request.items().isEmpty())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
+        }
+        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
+            if ("REFUNDED".equals(order.getStatus()) && !"WAIVE".equals(resolutionType) && !"KEEP".equals(resolutionType)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_ALREADY_REFUNDED);
+            }
+        });
         ResolveDisputeResultDto result = switch (resolutionType) {
             case "KEEP" -> resolveKeep(operatorId, ticket, session);
             case "WAIVE" -> resolveWaive(operatorId, ticket, session);
@@ -412,6 +439,15 @@ public class DisputeService {
         if ("OPEN".equals(ticket.getStatus())) {
             return toDto(ticket);
         }
+        if (!"RESOLVED".equals(ticket.getStatus()) && !"CLOSED".equals(ticket.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.TICKET_ALREADY_RESOLVED);
+        }
+        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
+            if ("REFUNDED".equals(order.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "已退款订单不可重新打开争议，避免重复退款");
+            }
+        });
         ticket.setStatus("OPEN");
         ticket.setPriority(normalizePriority(request != null ? request.priority() : ticket.getPriority()));
         ticket.setOperatorNote(trimToNull(request != null ? request.note() : null));
@@ -463,10 +499,14 @@ public class DisputeService {
                                                  ShoppingSession session,
                                                  ResolveDisputeRequest request,
                                                  String resolutionType) {
-        var manualItems = request.items().stream()
-                .filter(i -> i.quantity() > 0)
+        var lines = request.items() == null ? List.<ResolveDisputeRequest.ManualLineItem>of() : request.items();
+        var manualItems = lines.stream()
+                .filter(i -> i != null && i.quantity() > 0)
                 .map(i -> new VisionServiceClient.RecognizedItem(i.skuId(), i.quantity(), 1.0f))
                 .toList();
+        if (manualItems.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
+        }
         SettlementService.ConfirmDisputeResult settled =
                 settlementService.confirmDisputedItems(session, manualItems);
 
@@ -537,15 +577,18 @@ public class DisputeService {
         if ("OPEN".equals(ticket.getStatus()) && ticket.getSlaDueAt() != null && !slaOverdue) {
             slaHoursRemaining = ChronoUnit.HOURS.between(now, ticket.getSlaDueAt());
         }
+        String reviewCode = resolveReviewCode(ticket);
+        String displayReason = com.aicabinet.trade.support.MerchantNameSupport.disputeReason(
+                reviewCode, ticket.getReason());
         return new DisputeTicketDto(
-                ticket.getTicketId(), ticket.getSessionId(), deviceId, ticket.getReason(),
+                ticket.getTicketId(), ticket.getSessionId(), deviceId, displayReason,
                 ticket.getStatus(), suggested, resolved, ticket.getCreatedAt(), ticket.getResolvedAt(),
                 videoUri, previewUrl, sessionState, orderId, billedAmountCents,
                 ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining,
                 ticket.getCategory(), ticket.getPriority(), ticket.getOperatorNote(),
                 ticket.getClosedAt(), ticket.getReopenedAt(), loadMessages(ticket.getTicketId()),
                 fileAttachmentService.listDisputeEvidence(ticket.getTicketId()),
-                resolveReviewCode(ticket),
+                reviewCode,
                 parseDetectedClasses(ticket.getDetectedClasses()));
     }
 
@@ -608,15 +651,18 @@ public class DisputeService {
         if ("OPEN".equals(ticket.getStatus()) && ticket.getSlaDueAt() != null && !slaOverdue) {
             slaHoursRemaining = ChronoUnit.HOURS.between(now, ticket.getSlaDueAt());
         }
+        String reviewCode = resolveReviewCode(ticket);
+        String displayReason = com.aicabinet.trade.support.MerchantNameSupport.disputeReason(
+                reviewCode, ticket.getReason());
         return new DisputeTicketDto(
-                ticket.getTicketId(), ticket.getSessionId(), deviceId, ticket.getReason(),
+                ticket.getTicketId(), ticket.getSessionId(), deviceId, displayReason,
                 ticket.getStatus(), suggested, resolved, ticket.getCreatedAt(), ticket.getResolvedAt(),
                 null, null, sessionState, orderId, billedAmountCents,
                 ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining,
                 ticket.getCategory(), ticket.getPriority(), ticket.getOperatorNote(),
                 ticket.getClosedAt(), ticket.getReopenedAt(), List.of(),
                 fileAttachmentService.listDisputeEvidence(ticket.getTicketId()),
-                resolveReviewCode(ticket),
+                reviewCode,
                 parseDetectedClasses(ticket.getDetectedClasses()));
     }
 

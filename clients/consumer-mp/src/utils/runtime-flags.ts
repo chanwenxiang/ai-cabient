@@ -19,7 +19,8 @@ export function resolveMockEnabled(flag?: string): boolean {
   if (!isDevBuild) return false;
   if (flag === 'true') return true;
   if (flag === 'false') return false;
-  return true;
+  // 未下发配置时不默认开启，避免「我的」误露模拟充值
+  return false;
 }
 
 /** 支付宝沙箱充值：仅开发构建且后端开启时展示 */
@@ -28,12 +29,12 @@ export function resolveSandboxRecharge(flag?: string): boolean {
   return flag === 'true';
 }
 
-/** 微信充值入口：生产仅 live；开发允许 mock 通道 */
+/** 微信充值入口：生产仅 live；开发仅在后端显式开启或 live 时展示 */
 export function resolveWechatRechargeVisible(opts: {
   wechatRechargeEnabled?: string;
   wechatPayLive?: string;
 }): boolean {
   if (opts.wechatPayLive === 'true') return true;
   if (!isDevBuild) return false;
-  return opts.wechatRechargeEnabled === 'true' || isDevBuild;
+  return opts.wechatRechargeEnabled === 'true';
 }

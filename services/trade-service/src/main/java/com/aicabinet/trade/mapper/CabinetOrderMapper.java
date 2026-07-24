@@ -134,5 +134,4 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
 
         long sumTotalAmountByDeviceIdInBetween( @Param("deviceIds") Collection<String> deviceIds, @Param("start") Instant start, @Param("end") Instant end);
 
-
 }

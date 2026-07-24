@@ -19,8 +19,8 @@
 |------|------|------|----------|
 | 微信支付未对接 | PaymentService.java | 无法真实收费 | 配置商户号、API密钥 |
 | 支付宝支付未对接 | PaymentService.java | 无法真实收费 | 配置应用ID、密钥 |
-| 验证码固定为123456 | AuthService.java | 安全漏洞 | 接入短信服务 |
-| Mock充值按钮可见 | consumer-mp/mine.vue:113 | 测试数据泄露 | 环境变量控制 |
+| 验证码固定为123456 | AuthService.java | 安全漏洞 | 接入短信服务（挂起，外部依赖） |
+| Mock充值按钮可见 | consumer-mp/mine.vue | 测试数据泄露 | ✅ 已门控：仅 DEV 且后端 `mockEnabled=true`；生产构建强制关闭 |
 
 ### 2.3 硬件对接
 | 问题 | 服务 | 影响 | 解决方案 |
@@ -68,21 +68,21 @@
 | 问题 | 位置 | 影响 | 修复方案 |
 |------|------|------|----------|
 | 余额不足时开门逻辑不完善 | open-prep-drawer.vue | 可能导致无法开门 | 完善余额判断逻辑 |
-| 关门后结算超时处理 | SessionService.java | 可能挂单 | 添加超时自动处理 |
-| 争议订单状态流转 | DisputeService.java | 状态可能错乱 | 完善状态机 |
+| 关门后结算超时处理 | SessionService.java | 可能挂单 | ✅ WAITING_UPLOAD/RECOGNIZING/SETTLING 超时转争议并开单 |
+| 争议订单状态流转 | DisputeService.java | 状态可能错乱 | ✅ 二次结案拒绝；已退款不可 CONFIRM/重开；CONFIRM 必填商品 |
 
 ### 4.2 支付流程
 | 问题 | 位置 | 影响 | 修复方案 |
 |------|------|------|----------|
 | 支付回调验签不完整 | PaymentService.java | 可能伪造支付 | 完善验签逻辑 |
-| 充值超时未取消订单 | RechargeOrder.java | 可能重复充值 | 添加订单超时取消 |
-| 分账时机不对 | RevenueSplitService.java | 可能分账失败 | 调整分账时机 |
+| 充值超时未取消订单 | RechargeOrder.java / PaymentService | 可能重复充值 | ✅ 已修复：`RechargeOrderScheduler` + `autoCancelExpiredPending`（默认 30 分钟） |
+| 分账时机不对 | RevenueSplitService.java | 可能分账失败 | ✅ 全额退款时 `voidSplitOnFullRefund` 冲正为 VOIDED |
 
 ### 4.3 库存流程
 | 问题 | 位置 | 影响 | 修复方案 |
 |------|------|------|----------|
-| 库存同步延迟 | InventoryService.java | 可能超卖 | 添加库存锁定 |
-| 补货确认流程不完整 | ReplenishmentService.java | 补货可能遗漏 | 完善确认流程 |
+| 库存同步延迟 | InventoryService.java | 可能超卖 | ✅ 已加设备级分布式锁 + 不足抛冲突 |
+| 补货确认流程不完整 | ReplenishmentService.java | 补货可能遗漏 | ✅ 完成上架前强制签到（409）+ 运营台「完成上架」+ 商户端签到门控 |
 | 批次过期处理 | InventoryLotService.java | 可能销售过期商品 | 添加过期预警 |
 
 ---
@@ -104,9 +104,9 @@
 | ID | 问题 | 文件 | 状态 |
 |----|------|------|------|
 | BE-001 | 生产环境mock未关闭校验 | ProductionStartupValidator.java | ✅ 已实现 |
-| BE-002 | 幂等性key重复问题 | IdempotencyService.java | ⏳ 待验证 |
-| BE-003 | 分布式锁超时释放 | DistributedLockService.java | ⏳ 待验证 |
-| BE-004 | 数据一致性校验不完整 | DataConsistencyService.java | ⏳ 待验证 |
+| BE-002 | 幂等性key重复问题 | IdempotencyService.java | ✅ 已消歧：资金路径以业务表唯一键为准；通用幂等服务已 `@Deprecated` |
+| BE-003 | 分布式锁超时释放 | DistributedLockService.java | ✅ 已校验：强制租约 >0 + 单测覆盖加锁/解锁 |
+| BE-004 | 数据一致性校验不完整 | DataConsistencyService.java | ✅ 订单/支付/库存巡检 + FAIL 去重 + 显式修复；单测覆盖 |
 
 ---
 
@@ -170,9 +170,9 @@
 ### 8.1 支付流程验证
 - [ ] 真实微信支付扣款成功
 - [ ] 真实支付宝支付扣款成功
-- [ ] 支付回调验签通过
-- [ ] 充值超时自动取消
-- [ ] 幂等性验证通过
+- [x] 支付回调验签通过（单测：伪造签名拒绝入账）
+- [x] 充值超时自动取消
+- [x] 幂等性验证通过（会话/充值/payment_operation 表级唯一键）
 
 ### 8.2 购物流程验证
 - [ ] 扫码开门成功

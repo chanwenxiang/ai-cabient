@@ -72,6 +72,7 @@
             <text class="balance-val">¥{{ balanceYuan }}</text>
           </view>
           <text class="balance-warning">{{ payReadyHintText }}</text>
+          <text v-if="balanceInsufficient" class="balance-warning">余额不足 ¥5，请先充值或开通免密后再开门</text>
           <button
             v-if="wechatPayLive || (devTools && wechatRechargeEnabled)"
             class="btn-wechat"
@@ -179,17 +180,21 @@ consumerApi.consumerPublicConfig().then((cfg) => {
   });
   payScoreSignEnabled.value = cfg?.payScoreSignEnabled !== 'false';
 }).catch(() => {
-  mockRechargeEnabled.value = resolveMockEnabled();
+  mockRechargeEnabled.value = false;
   alipayRechargeEnabled.value = false;
-  wechatRechargeEnabled.value = showDevTools();
+  wechatRechargeEnabled.value = false;
   wechatPayLive.value = false;
   payScoreSignEnabled.value = true;
 });
 
 const entryChannel = computed(() => normalizeEntryChannel(props.entryChannel) || pickedChannel.value);
+/** 与后端 CabinetConstants.MIN_BALANCE_CENTS（¥5）及 isPayReady 对齐，余额不足不可完成开门准备 */
 const balanceYuan = computed(() => ((account.value?.balanceCents || 0) / 100).toFixed(2));
 const payReady = computed(() => isPayReady(account.value, entryChannel.value));
 const payReadyHintText = computed(() => payReadyHint(account.value, entryChannel.value));
+const balanceInsufficient = computed(
+  () => !!account.value && !payReady.value && (account.value.balanceCents || 0) < 500
+);
 const payDesc = computed(() => {
   const c = entryChannel.value;
   if (c === 'WECHAT') return '推荐开通微信支付分：关门后自动扣款，无需每次确认。';

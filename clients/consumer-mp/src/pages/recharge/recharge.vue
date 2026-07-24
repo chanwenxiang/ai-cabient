@@ -184,9 +184,9 @@ async function loadConfig() {
       wechatPayLive: cfg?.wechatPayLive
     });
   } catch {
-    mockEnabled.value = resolveMockEnabled();
+    mockEnabled.value = false;
     alipayRechargeEnabled.value = false;
-    wechatRechargeEnabled.value = showDevTools();
+    wechatRechargeEnabled.value = false;
     wechatPayLive.value = false;
     alipayPayLive.value = false;
     paymentModeHint.value = '';

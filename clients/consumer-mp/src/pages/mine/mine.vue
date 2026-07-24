@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="mine-page">
     <view class="profile-header">
       <view class="profile-orb orb-a" /><view class="profile-orb orb-b" />
@@ -238,9 +238,9 @@ onShow(async () => {
       wechatPayLive: cfg?.wechatPayLive
     });
   } catch {
-    mockRechargeEnabled.value = resolveMockEnabled();
+    mockRechargeEnabled.value = false;
     alipayRechargeEnabled.value = false;
-    wechatRechargeEnabled.value = showDevTools();
+    wechatRechargeEnabled.value = false;
     wechatPayLive.value = false;
   }
   if (!authed.value) {

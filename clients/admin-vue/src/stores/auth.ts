@@ -48,9 +48,17 @@ export const useAuthStore = defineStore('auth', () => {
       const perms = await api.request<string[]>('/api/v2/ops/admin/rbac/me/permissions', 'GET');
       permissions.value = perms || [];
       localStorage.setItem(PERM_KEY, JSON.stringify(permissions.value));
-    } catch {
-      permissions.value = [];
-      localStorage.setItem(PERM_KEY, '[]');
+    } catch (e) {
+      // 401 already clears session via ApiClient; keep token only for soft failures
+      const msg = e instanceof Error ? e.message : '';
+      if (/401|登录|未授权|失效/i.test(msg) || !isLoggedIn()) {
+        permissions.value = [];
+        localStorage.setItem(PERM_KEY, '[]');
+        return;
+      }
+      // Keep last-known perms from localStorage if soft-fail (network blip)
+      const cached = JSON.parse(localStorage.getItem(PERM_KEY) || '[]') as string[];
+      permissions.value = cached;
     }
   }
 

@@ -385,7 +385,8 @@ public class SettlementService {
                     orderPaymentService.refundOrder(order, amount, "争议免单退款");
                     order.setStatus("REFUNDED");
                     orderRepository.save(order);
-                    log.info("dispute waive session={} order={} refund={} channel={}",
+                    revenueSplitService.voidSplitOnFullRefund(order.getOrderId());
+                    log.info("争议免单退款 session={} order={} refund={} channel={}",
                             session.getSessionId(), order.getOrderId(), amount, order.getPayChannel());
                     return amount;
                 })

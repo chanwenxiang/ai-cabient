@@ -1,28 +1,27 @@
 <template>
   <el-container class="layout-main">
-    <el-aside :width="settings.sidebarCollapsed ? '64px' : '220px'" class="sidebar">
+    <el-aside :width="sidebarCollapsed ? '64px' : '220px'" class="sidebar">
       <div
         class="brand"
         role="button"
         tabindex="0"
-        :class="{ collapsed: settings.sidebarCollapsed }"
-        :title="settings.sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
-        :aria-label="settings.sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
-        @click="settings.toggleSidebarCollapsed()"
-        @keydown.enter.prevent="settings.toggleSidebarCollapsed()"
-        @keydown.space.prevent="settings.toggleSidebarCollapsed()"
+        :class="{ collapsed: sidebarCollapsed }"
+        :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+        :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+        @click="toggleSidebar"
+        @keydown.enter.prevent="toggleSidebar"
+        @keydown.space.prevent="toggleSidebar"
       >
-        <el-icon class="brand-toggle"><Expand v-if="settings.sidebarCollapsed" /><Fold v-else /></el-icon>
-        <span class="brand-text" :class="{ hidden: settings.sidebarCollapsed }">AI开门柜 OPS</span>
-        <span class="brand-mini" :class="{ hidden: !settings.sidebarCollapsed }">柜</span>
+        <el-icon class="brand-toggle"><Expand v-if="sidebarCollapsed" /><Fold v-else /></el-icon>
+        <span class="brand-text" :class="{ hidden: sidebarCollapsed }">AI开门柜 OPS</span>
+        <span class="brand-mini" :class="{ hidden: !sidebarCollapsed }">柜</span>
       </div>
       <el-scrollbar class="sidebar-scroll">
         <el-menu
           v-model:openeds="openedMenus"
           :default-active="active"
           router
-          unique-opened
-          :collapse="settings.sidebarCollapsed"
+          :collapse="sidebarCollapsed"
           :collapse-transition="false"
           :background-color="sidebarBg"
           :text-color="sidebarText"
@@ -31,51 +30,20 @@
           @open="onSubMenuOpen"
           @close="onSubMenuClose"
         >
-          <el-menu-item v-if="auth.hasPerm('ops:dashboard:view')" index="/dashboard" title="运营工作台" aria-label="运营工作台">
-            <el-icon><Odometer /></el-icon>
-            <template #title>运营工作台</template>
-          </el-menu-item>
-          <el-menu-item v-if="auth.hasPerm('ops:analytics:view')" index="/analytics" title="数据分析" aria-label="数据分析">
-            <el-icon><DataAnalysis /></el-icon>
-            <template #title>数据分析</template>
-          </el-menu-item>
-          <el-menu-item v-if="auth.hasPerm('ops:report:device')" index="/reports" title="设备报表" aria-label="设备报表">
-            <el-icon><DataBoard /></el-icon>
-            <template #title>设备报表</template>
-          </el-menu-item>
-          <el-menu-item v-if="auth.hasPerm('ops:finance:view')" index="/finance" title="财务毛利" aria-label="财务毛利">
-            <el-icon><Money /></el-icon>
-            <template #title>财务毛利</template>
-          </el-menu-item>
-          <el-sub-menu v-for="group in sidebarGroups" :key="group.key" :index="group.key">
-            <template #title>
-              <el-icon><component :is="group.icon" /></el-icon>
-              <span>{{ group.label }}</span>
-            </template>
-            <el-menu-item
-              v-for="item in group.items"
-              :key="item.path"
-              :index="item.path"
-              :title="item.title"
-              :aria-label="item.title"
-            >
-              <el-icon><component :is="item.icon" /></el-icon>
-              <template #title>{{ item.title }}</template>
-            </el-menu-item>
-          </el-sub-menu>
+          <SidebarMenuTree :nodes="sidebarTree" />
         </el-menu>
       </el-scrollbar>
-      <button type="button" class="sidebar-foot" @click="settings.toggleSidebarCollapsed()">
-        <el-icon><DArrowLeft v-if="!settings.sidebarCollapsed" /><DArrowRight v-else /></el-icon>
-        <span v-if="!settings.sidebarCollapsed">收起</span>
+      <button type="button" class="sidebar-foot" @click="toggleSidebar">
+        <el-icon><DArrowLeft v-if="!sidebarCollapsed" /><DArrowRight v-else /></el-icon>
+        <span v-if="!sidebarCollapsed">收起</span>
       </button>
     </el-aside>
 
     <el-container class="layout-content" direction="vertical">
       <el-header class="topbar">
         <div class="topbar-left">
-          <el-button text :title="settings.sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'" @click="settings.toggleSidebarCollapsed()">
-            <el-icon><Expand v-if="settings.sidebarCollapsed" /><Fold v-else /></el-icon>
+          <el-button text :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'" @click="toggleSidebar">
+            <el-icon><Expand v-if="sidebarCollapsed" /><Fold v-else /></el-icon>
           </el-button>
           <div class="title-block">
             <AppBreadcrumb />
@@ -177,14 +145,15 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  Fold, Expand, Odometer, DataAnalysis, DataBoard, Money, Brush, DArrowLeft, DArrowRight
+  Fold, Expand, Brush, DArrowLeft, DArrowRight
 } from '@element-plus/icons-vue';
-import { buildSidebarGroups, sidebarGroupKeyForPath } from '@/config/sidebar';
+import { buildSidebarTree, sidebarOpenKeysForPath } from '@/config/sidebar';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
 import { PRIMARY_OPTIONS, useSettingsStore } from '@/stores/settings';
 import AppBreadcrumb from '@/components/AppBreadcrumb.vue';
 import GlobalSearch from '@/components/GlobalSearch.vue';
+import SidebarMenuTree from '@/components/SidebarMenuTree.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -198,12 +167,41 @@ const openedMenus = ref<string[]>([]);
 const OPENED_MENUS_KEY = 'admin_vue_sidebar_openeds';
 const tagMenu = ref({ visible: false, x: 0, y: 0, path: '' });
 const compactViewport = ref(false);
+/** 窄屏自动收起时，用户临时展开不写 localStorage */
+const userExpandedInCompact = ref(false);
 
-const sidebarGroups = computed(() => buildSidebarGroups((item) => auth.canAccessNav(item)));
+const sidebarCollapsed = computed(() => {
+  if (compactViewport.value && !userExpandedInCompact.value) return true;
+  return settings.sidebarCollapsed;
+});
+
+function toggleSidebar() {
+  if (compactViewport.value) {
+    userExpandedInCompact.value = !userExpandedInCompact.value;
+    return;
+  }
+  settings.toggleSidebarCollapsed();
+}
+
+const sidebarTree = computed(() => buildSidebarTree((item) => auth.canAccessNav(item)));
 const active = computed(() => (route.path.startsWith('/devices') ? '/devices' : route.path));
 const userInitial = computed(() => (auth.displayName || '运').slice(0, 1));
 const sidebarBg = computed(() => (settings.theme === 'dark' ? '#111827' : '#1e293b'));
 const sidebarText = computed(() => '#cbd5e1');
+
+function collectDirKeys(nodes: ReturnType<typeof buildSidebarTree>): Set<string> {
+  const keys = new Set<string>();
+  const walk = (list: typeof nodes) => {
+    for (const node of list) {
+      if (node.children?.length) {
+        keys.add(node.key);
+        walk(node.children);
+      }
+    }
+  };
+  walk(nodes);
+  return keys;
+}
 
 function readOpenedMenus(): string[] {
   try {
@@ -225,38 +223,50 @@ function syncOpenedMenusForRoute(path: string, collapsed: boolean) {
     openedMenus.value = [];
     return;
   }
-  const groupKey = sidebarGroupKeyForPath(path);
-  if (groupKey) {
-    openedMenus.value = [groupKey];
+  const routeKeys = sidebarOpenKeysForPath(path);
+  if (routeKeys.length) {
+    openedMenus.value = routeKeys;
     persistOpenedMenus(openedMenus.value);
     return;
   }
-  const stored = readOpenedMenus().filter((key) => sidebarGroups.value.some((group) => group.key === key));
-  openedMenus.value = stored.length ? [stored[0]] : [];
+  const valid = collectDirKeys(sidebarTree.value);
+  const stored = readOpenedMenus().filter((key) => valid.has(key));
+  openedMenus.value = stored;
 }
 
 function onSubMenuOpen(key: string) {
-  openedMenus.value = [key];
+  const next = new Set(openedMenus.value);
+  // 同级唯一展开：关掉同前缀的兄弟目录，保留祖先
+  const parent = key.includes(':') ? key.slice(0, key.lastIndexOf(':')) : null;
+  for (const opened of [...next]) {
+    if (opened === key) continue;
+    if (parent) {
+      if (opened.startsWith(`${parent}:`) && opened !== key) next.delete(opened);
+    } else if (!opened.includes(':')) {
+      next.delete(opened);
+    }
+  }
+  next.add(key);
+  if (parent) next.add(parent);
+  openedMenus.value = [...next];
   persistOpenedMenus(openedMenus.value);
 }
 
 function onSubMenuClose(key: string) {
-  if (openedMenus.value.includes(key)) {
-    openedMenus.value = openedMenus.value.filter((item) => item !== key);
-    persistOpenedMenus(openedMenus.value);
-  }
+  if (!openedMenus.value.includes(key)) return;
+  openedMenus.value = openedMenus.value.filter(
+    (item) => item !== key && !item.startsWith(`${key}:`)
+  );
+  persistOpenedMenus(openedMenus.value);
 }
 
 watch(
   () => route.path,
-  (path) => syncOpenedMenusForRoute(path, settings.sidebarCollapsed),
+  (path) => syncOpenedMenusForRoute(path, sidebarCollapsed.value),
   { immediate: true }
 );
 
-watch(
-  () => settings.sidebarCollapsed,
-  (collapsed) => syncOpenedMenusForRoute(route.path, collapsed)
-);
+watch(sidebarCollapsed, (collapsed) => syncOpenedMenusForRoute(route.path, collapsed));
 
 watch(
   () => route.path,
@@ -381,8 +391,8 @@ function onSettingCommand(cmd: string) {
 
 function syncSidebarWithViewport() {
   const compact = window.innerWidth <= 1200;
-  if (compact && !compactViewport.value && !settings.sidebarCollapsed) {
-    settings.toggleSidebarCollapsed();
+  if (!compact) {
+    userExpandedInCompact.value = false;
   }
   compactViewport.value = compact;
 }
@@ -663,7 +673,13 @@ onUnmounted(() => {
   background-color: rgba(255, 255, 255, 0.06) !important;
 }
 :deep(.el-sub-menu .el-menu-item) {
-  padding-left: 48px !important;
+  min-height: 44px;
+}
+:deep(.el-sub-menu .el-sub-menu > .el-sub-menu__title) {
+  padding-left: 40px !important;
+}
+:deep(.el-sub-menu .el-sub-menu .el-menu-item) {
+  padding-left: 56px !important;
 }
 :deep(.el-sub-menu__title), :deep(.el-menu-item) { height: 44px; }
 :deep(.sidebar-scroll .el-scrollbar__view) { padding-bottom: 8px; }
@@ -676,6 +692,13 @@ onUnmounted(() => {
 }
 .sidebar-menu-popper .el-menu {
   min-width: 180px;
+}
+.sidebar-menu-popper .el-sub-menu .el-menu-item {
+  min-height: 40px;
+  padding-left: 28px !important;
+}
+.sidebar-menu-popper .el-sub-menu__title {
+  font-weight: 600;
 }
 .tag-context-menu {
   position: fixed;

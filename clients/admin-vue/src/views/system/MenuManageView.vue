@@ -35,15 +35,23 @@
           :data="tableRows"
           row-key="permissionId"
           default-expand-all
+          :indent="22"
           :tree-props="{ children: 'children' }"
           stripe
           border
-          class="report-table"
+          class="report-table menu-tree-table"
           @selection-change="onSelectionChange"
         >
           <template #empty><el-empty description="暂无菜单" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="名称" min-width="180" class-name="col-text" align="left" header-align="left">
+          <el-table-column
+            label="名称"
+            min-width="220"
+            class-name="col-text"
+            label-class-name="col-text"
+            align="left"
+            header-align="left"
+          >
             <template #default="{ row }">
               <div class="name-cell">
                 <strong>{{ row.permName }}</strong>
@@ -403,11 +411,29 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.name-cell { display: grid; gap: 2px; line-height: 1.35; }
+.name-cell { display: inline-grid; gap: 2px; line-height: 1.35; vertical-align: middle; }
 .name-cell strong { font-weight: 650; }
 .name-cell small {
   color: var(--el-text-color-secondary);
   font-size: 11px;
   font-family: var(--app-font-mono);
+}
+/* 树表：行高随双行名称撑开，缩进占位不被裁切 */
+:deep(.menu-tree-table .el-table__cell) {
+  vertical-align: middle;
+}
+:deep(.menu-tree-table .el-table__indent),
+:deep(.menu-tree-table .el-table__placeholder),
+:deep(.menu-tree-table .el-table__expand-icon) {
+  display: inline-block;
+  vertical-align: middle;
+}
+:deep(.menu-tree-table td.col-text > .cell) {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 2px;
+  white-space: normal;
+  overflow: visible;
 }
 </style>

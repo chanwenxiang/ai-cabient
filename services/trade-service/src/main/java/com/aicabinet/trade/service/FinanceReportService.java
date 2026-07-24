@@ -80,7 +80,7 @@ public class FinanceReportService {
 
     @Transactional(readOnly = true)
     public FinanceReportDto report(Long operatorId, int days) {
-        int window = Math.min(Math.max(days, 1), 30);
+        int window = Math.min(Math.max(days, 1), 90);
         FinanceStatsDto summary = stats(operatorId);
         Set<String> deviceIds = merchantScopeService.allowedDeviceIds(operatorId);
         List<FinanceDailyDto> daily = new ArrayList<>();

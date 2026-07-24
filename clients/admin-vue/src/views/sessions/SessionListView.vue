@@ -15,6 +15,11 @@
       </div>
     </template>
 
+    <el-tabs v-model="statusTab" class="status-tabs" @tab-change="onStatusTab">
+      <el-tab-pane label="全部" name="ALL" />
+      <el-tab-pane v-for="o in stateOptions" :key="o.value" :label="o.label" :name="o.value" />
+    </el-tabs>
+
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="设备">
         <el-input
@@ -24,11 +29,6 @@
           style="width: 160px"
           @keyup.enter="search"
         />
-      </el-form-item>
-      <el-form-item label="状态">
-        <el-select v-model="state" clearable placeholder="全部" style="width: 140px" @change="search">
-          <el-option v-for="o in stateOptions" :key="o.value" :label="o.label" :value="o.value" />
-        </el-select>
       </el-form-item>
       <el-form-item>
         <el-checkbox v-model="stuckOnly" @change="onStuckToggle">仅滞留</el-checkbox>
@@ -273,7 +273,9 @@ const auth = useAuthStore();
 const loading = ref(false);
 const videoLoading = ref(false);
 const deviceId = ref('');
-const state = ref('');
+const statusTab = ref('ALL');
+/** API 状态筛选项：与 statusTab 同源，ALL 时为空字符串 */
+const stateFilter = computed(() => (statusTab.value === 'ALL' ? '' : statusTab.value));
 const stuckOnly = ref(false);
 const focusSessionId = ref('');
 const page = ref(1);
@@ -328,7 +330,7 @@ async function onExport() {
   try {
     const q = new URLSearchParams();
     if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
-    if (state.value) q.set('state', state.value);
+    if (stateFilter.value) q.set('state', stateFilter.value);
     const qs = q.toString();
     await downloadAuthFile(
       `/api/v2/ops/admin/sessions/export${qs ? `?${qs}` : ''}`,
@@ -530,7 +532,7 @@ async function playVideo(sessionId?: string) {
 function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (deviceId.value.trim()) query.deviceId = deviceId.value.trim();
-  if (state.value) query.state = state.value;
+  if (stateFilter.value) query.state = stateFilter.value;
   if (stuckOnly.value) query.stuck = '1';
   if (focusSessionId.value) query.sessionId = focusSessionId.value;
   router.replace({ query });
@@ -548,19 +550,36 @@ async function maybeOpenFocusedSession() {
 async function load() {
   loading.value = true;
   try {
-    const fetchSize = stuckOnly.value ? Math.max(size.value, 100) : size.value;
-    const q = new URLSearchParams({ page: String(page.value - 1), size: String(fetchSize) });
-    if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
-    if (state.value) q.set('state', state.value);
-    const data = await api.request<PageResult<SessionRow>>(`/api/v2/ops/admin/sessions?${q}`, 'GET');
-    let rows = data.items;
     if (stuckOnly.value) {
-      rows = rows.filter((r) => isStuck(r)).sort((a, b) => ageMs(b) - ageMs(a));
-      total.value = rows.length;
+      // No server-side stuck filter yet: scan recent pages then paginate locally.
+      const pageSize = 100;
+      const maxScan = 500;
+      const stuck: SessionRow[] = [];
+      let apiPage = 0;
+      let scanned = 0;
+      let serverTotal = Number.POSITIVE_INFINITY;
+      while (scanned < maxScan && scanned < serverTotal) {
+        const q = new URLSearchParams({ page: String(apiPage), size: String(pageSize) });
+        if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
+        if (stateFilter.value) q.set('state', stateFilter.value);
+        const data = await api.request<PageResult<SessionRow>>(`/api/v2/ops/admin/sessions?${q}`, 'GET');
+        const batch = data.items || [];
+        serverTotal = data.total ?? batch.length;
+        stuck.push(...batch.filter((r) => isStuck(r)));
+        scanned += batch.length;
+        if (!batch.length || batch.length < pageSize) break;
+        apiPage += 1;
+      }
+      stuck.sort((a, b) => ageMs(b) - ageMs(a));
+      total.value = stuck.length;
       const start = (page.value - 1) * size.value;
-      items.value = rows.slice(start, start + size.value);
+      items.value = stuck.slice(start, start + size.value);
     } else {
-      items.value = rows;
+      const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
+      if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
+      if (stateFilter.value) q.set('state', stateFilter.value);
+      const data = await api.request<PageResult<SessionRow>>(`/api/v2/ops/admin/sessions?${q}`, 'GET');
+      items.value = data.items;
       total.value = data.total;
     }
     clearSelection();
@@ -578,6 +597,13 @@ function search() {
   load();
 }
 
+function onStatusTab(name: string | number) {
+  statusTab.value = String(name);
+  page.value = 1;
+  syncRouteQuery();
+  load();
+}
+
 function onStuckToggle() {
   page.value = 1;
   syncRouteQuery();
@@ -586,7 +612,7 @@ function onStuckToggle() {
 
 function reset() {
   deviceId.value = '';
-  state.value = '';
+  statusTab.value = 'ALL';
   stuckOnly.value = false;
   focusSessionId.value = '';
   page.value = 1;
@@ -616,11 +642,16 @@ function applyRouteQuery() {
     deviceId.value = route.query.deviceId;
     changed = true;
   }
-  if (typeof route.query.state === 'string' && route.query.state !== state.value) {
-    state.value = route.query.state;
+  if (typeof route.query.state === 'string' && route.query.state !== stateFilter.value) {
+    statusTab.value = route.query.state || 'ALL';
     changed = true;
-  } else if (!route.query.state && state.value && route.query.stuck) {
-    // keep state when only stuck deep-link
+  } else if (!route.query.state && stateFilter.value && route.query.stuck) {
+    // 仅 stuck 深链时保留当前状态 Tab
+  } else if (!route.query.state && stateFilter.value && !route.query.stuck) {
+    statusTab.value = 'ALL';
+    changed = true;
+  } else if (!route.query.state && !stateFilter.value && statusTab.value !== 'ALL') {
+    statusTab.value = 'ALL';
   }
   const qStuck = route.query.stuck === '1' || route.query.stuck === 'true';
   if (qStuck !== stuckOnly.value) {
@@ -674,6 +705,7 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.status-tabs { margin: 0 0 10px; }
 .sla-banner { margin-bottom: 10px; }
 .sla-cell { display: grid; gap: 2px; line-height: 1.35; }
 .sla-meta { color: var(--el-text-color-secondary); font-size: 11px; }

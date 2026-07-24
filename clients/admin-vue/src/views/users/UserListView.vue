@@ -4,8 +4,8 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">灰度用户</span>
-            <span class="hint">按手机号 / 姓名 / ID 筛选；余额右对齐</span>
+            <span class="title">用户余额</span>
+            <span class="hint">按手机号 / 姓名 / ID 筛选；余额右对齐；有权限可调整余额</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -45,7 +45,7 @@
         >
           <template #empty><el-empty description="暂无用户" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="用户" min-width="160" class-name="col-text">
+          <el-table-column label="用户" min-width="160" class-name="col-text" label-class-name="col-text" align="left" header-align="left">
             <template #default="{ row }">
               <div class="user-cell">
                 <strong>{{ row.name || row.phoneNumber || row.userId }}</strong>
@@ -53,7 +53,7 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="手机号" width="140" class-name="col-text">
+          <el-table-column label="手机号" width="140" class-name="col-text" label-class-name="col-text" align="left" header-align="left">
             <template #default="{ row }">{{ row.phoneNumber || '-' }}</template>
           </el-table-column>
           <el-table-column label="角色" width="110" align="center">
@@ -69,7 +69,13 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="余额" width="120" align="right" class-name="col-money">
+          <el-table-column
+            label="余额"
+            width="120"
+            align="right"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
             <template #default="{ row }">¥{{ ((row.balanceCents || 0) / 100).toFixed(2) }}</template>
           </el-table-column>
           <el-table-column label="注册时间" width="168" class-name="col-text">
@@ -80,12 +86,18 @@
           <el-table-column
             v-if="canAdjust || canVerify"
             label="操作"
-            width="140"
+            width="168"
             class-name="col-action"
+            label-class-name="col-action"
             align="center"
           >
             <template #default="{ row }">
-              <TableActions :actions="userActions(row)" @action="(key) => onUserAction(key, row)" />
+              <TableActions
+                v-if="userActions(row).length"
+                :actions="userActions(row)"
+                @action="(key) => onUserAction(key, row)"
+              />
+              <span v-else class="muted">-</span>
             </template>
           </el-table-column>
         </el-table>
@@ -117,7 +129,6 @@ import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
-import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -134,16 +145,17 @@ interface UserRow {
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
-const canAdjust = computed(() => ENABLE_TEST_TOOLS && auth.hasPerm('ops:user:balance'));
+/** 运营「余额调整」按权限展示，不再绑测试开关（避免生产构建操作列空白）。 */
+const canAdjust = computed(() => auth.hasPerm('ops:user:balance'));
 const canVerify = computed(() => auth.hasPerm('ops:user:verify'));
 
 function userActions(row: UserRow): TableAction[] {
   const acts: TableAction[] = [];
+  if (canAdjust.value) {
+    acts.push({ key: 'adjust', label: '调整余额', icon: Wallet, type: 'primary' });
+  }
   if (canVerify.value && !row.verified) {
     acts.push({ key: 'verify', label: '核验实名', icon: CircleCheck, type: 'success' });
-  }
-  if (canAdjust.value) {
-    acts.push({ key: 'adjust', label: '调整余额', icon: Wallet, type: 'primary', overflow: true });
   }
   return acts;
 }
@@ -184,7 +196,7 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<UserRow>((r) => r.userId);
 
 const { onExport } = useListCsv({
-  filePrefix: '灰度用户',
+  filePrefix: '用户余额',
   headers: ['用户ID', '手机号', '姓名', '角色', '实名', '余额', '注册时间'],
   toRows: () =>
     pickSelected(items.value).map((row) => [

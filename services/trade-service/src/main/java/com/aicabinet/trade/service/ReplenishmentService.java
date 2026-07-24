@@ -635,6 +635,12 @@ public class ReplenishmentService {
 
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_TASK_NOT_FOUND));
 
+        // 未完成任务必须先签到，避免远程误点完成导致库存虚增
+        if (!"COMPLETED".equals(task.getStatus()) && task.getCheckInAt() == null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    ApiMessages.REPLENISHMENT_COMPLETE_CHECK_IN_REQUIRED);
+        }
+
         if ("COMPLETED".equals(task.getStatus())) {
             // 任务已完成但出库仍在途（先完成任务、后发运的联调顺序）时，补签收；
             // 仅当任务本身无明细时按出库行回写，避免与已上架任务行重复加库存

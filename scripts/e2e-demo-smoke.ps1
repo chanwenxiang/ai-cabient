@@ -28,6 +28,9 @@ $BaseUrl = Resolve-E2eBaseUrl $BaseUrl
 if ([string]::IsNullOrWhiteSpace($VisionUrl)) { $VisionUrl = Get-E2eVisionUrl }
 if ([string]::IsNullOrWhiteSpace($VisionApiKey)) { $VisionApiKey = Get-E2eVisionApiKey }
 
+$e2eLock = Enter-E2eLock -Owner "e2e-demo-smoke"
+try {
+# --- body continues below; closing brace added at file end via second patch ---
 function Get-ConsumerAuth {
     $login = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/auth/password-login" -Body @{
         phoneNumber = $ConsumerPhone
@@ -143,7 +146,7 @@ if ($Resolution -eq "CONFIRM") {
 $resolve = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
     -Path "/api/v2/ops/disputes/$ticketId/resolve" -Headers $ops -Body $body
 Write-Host "    resolve result type=$($resolve.resolutionType) message=$($resolve.message)"
-Assert-True ($resolve.resolutionType -eq $Resolution -or $null -ne $resolve) "dispute resolve accepted"
+Assert-True ($resolve.resolutionType -eq $Resolution) "争议结案类型应为 $Resolution，实际=$($resolve.resolutionType)"
 
 $after = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
     -Path "/api/v2/ops/disputes?sessionId=$sessionId&page=0&size=5" -Headers $ops
@@ -176,4 +179,7 @@ if (-not $SkipRecharge) {
 
 Write-Host ""
 Write-Host "OK demo smoke passed ticket=$ticketId session=$sessionId"
+} finally {
+    Exit-E2eLock $e2eLock
+}
 exit 0

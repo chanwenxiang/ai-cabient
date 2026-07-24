@@ -43,4 +43,11 @@ public interface RechargeOrderMapper extends BaseTradeMapper<RechargeOrder> {
                 .orderByAsc(RechargeOrder::getCreatedAt));
     }
 
+    default List<RechargeOrder> findByStatusAndCreatedAtBefore(String status, Instant cutoff) {
+        return selectList(Wrappers.<RechargeOrder>lambdaQuery()
+                .eq(RechargeOrder::getStatus, status)
+                .lt(RechargeOrder::getCreatedAt, cutoff)
+                .orderByAsc(RechargeOrder::getCreatedAt));
+    }
+
 }

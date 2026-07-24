@@ -212,4 +212,27 @@ class SettlementDisputeTest {
                 eq("视觉与重力数量不一致，需人工审核"));
         verifyNoInteractions(orderPaymentService);
     }
+
+    @Test
+    void gravityFill_escalatesToDispute_noSilentCharge() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-GRAVITY-FILL");
+        session.setUserId(13800138000L);
+        session.setDeviceId("CAB-001");
+
+        when(orderRepository.findBySessionId("S-GRAVITY-FILL")).thenReturn(java.util.Optional.empty());
+        when(securityProperties.mockEnabled()).thenReturn(true);
+        when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
+
+        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.9f));
+        var recognition = new VisionServiceClient.RecognitionResult(
+                "T-gf", items, 0.9f, true, "gravity-fill", List.of());
+
+        assertThrows(DisputeRequiredException.class,
+                () -> settlementService.processRecognitionResult(session, recognition, true));
+
+        verify(disputeService).createTicket(eq(session), any(VisionServiceClient.RecognitionResult.class),
+                eq("视觉为空，仅有重力信号（非生产识别精度），需人工审核"));
+        verifyNoInteractions(orderPaymentService, inventoryService);
+    }
 }

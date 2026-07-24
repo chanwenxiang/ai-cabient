@@ -34,7 +34,7 @@ import java.util.UUID;
  *   <li>{@code AICABINET_SIM_APP_VERSION=0.9.0} — OTA 检查用版本号</li>
  * </ul>
  */
-public class DeviceSimulator implements MqttCallback {
+public class DeviceSimulator implements MqttCallbackExtended {
 
     /** 1x1 JPEG；无素材或上传失败回退时写入桶内，避免会话挂空 minio:// URI。 */
     private static final byte[] PLACEHOLDER_JPEG = new byte[]{
@@ -72,12 +72,17 @@ public class DeviceSimulator implements MqttCallback {
         options.setCleanSession(true);
         client.setCallback(this);
         client.connect(options);
-        client.subscribe(MqttTopics.command(deviceId), 1);
-        System.out.println("[simulator] listening on " + MqttTopics.command(deviceId));
+        subscribeCommands();
         logVideoConfig();
         checkOta();
         publishHeartbeat();
         startHeartbeatLoop();
+    }
+
+    private void subscribeCommands() throws MqttException {
+        String topic = MqttTopics.command(deviceId);
+        client.subscribe(topic, 1);
+        System.out.println("[simulator] subscribed " + topic);
     }
 
     private void logVideoConfig() {
@@ -149,6 +154,20 @@ public class DeviceSimulator implements MqttCallback {
     @Override
     public void connectionLost(Throwable cause) {
         System.err.println("[simulator] connection lost: " + cause.getMessage());
+    }
+
+    @Override
+    public void connectComplete(boolean reconnect, String serverURI) {
+        try {
+            subscribeCommands();
+            System.out.println("[simulator] " + (reconnect ? "re" : "") + "connected to " + serverURI
+                    + ", resubscribed commands");
+            if (reconnect) {
+                publishHeartbeat();
+            }
+        } catch (MqttException e) {
+            System.err.println("[simulator] failed to resubscribe after reconnect: " + e.getMessage());
+        }
     }
 
     @Override
@@ -469,7 +488,7 @@ public class DeviceSimulator implements MqttCallback {
     }
 
     private static long shoppingDelayMs() {
-        return Long.parseLong(env("AICABINET_SIM_SHOPPING_MS", "30000"));
+        return Long.parseLong(env("AICABINET_SIM_SHOPPING_MS", "20000"));
     }
 
     private static boolean offlineUploadEnabled() {

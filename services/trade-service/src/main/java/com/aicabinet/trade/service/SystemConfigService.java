@@ -30,6 +30,8 @@ public class SystemConfigService {
     public static final String UNPAID_AUTO_CANCEL_HOURS = "order.unpaid.auto_cancel_hours";
     /** 超时关单时是否自动拉黑用户。 */
     public static final String UNPAID_AUTO_BLACKLIST = "order.unpaid.auto_blacklist";
+    /** 待支付充值单超时自动取消分钟数；0=关闭。 */
+    public static final String RECHARGE_AUTO_CANCEL_MINUTES = "recharge.pending.auto_cancel_minutes";
     /** 设备离线超过该分钟数后自动锁机停售；0=不自动锁机。 */
     public static final String DEVICE_OFFLINE_AUTO_LOCK_MINUTES = "device.offline.auto_sales_lock_minutes";
 
@@ -146,6 +148,8 @@ public class SystemConfigService {
                 "待支付订单超时自动关单小时数；0=关闭");
         upsertIfAbsent(UNPAID_AUTO_BLACKLIST, "false",
                 "待支付超时关单时是否自动拉黑用户");
+        upsertIfAbsent(RECHARGE_AUTO_CANCEL_MINUTES, "30",
+                "待支付充值单超时自动取消分钟数；0=关闭");
         upsertIfAbsent(DEVICE_OFFLINE_AUTO_LOCK_MINUTES, "10",
                 "设备离线超过该分钟数后自动锁机停售；0=不自动锁机");
     }

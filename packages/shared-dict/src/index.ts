@@ -19,6 +19,27 @@ export function clearDictOverrides() {
   runtimeOverrides = {};
 }
 
+/** /api/v2/dicts/runtime 响应体（仅取 ACTIVE 项）。 */
+export type RuntimeDictPayload = {
+  itemsByType?: Record<string, { dictValue?: string; dictLabel?: string; status?: string }[]>;
+};
+
+/** 将 runtime 字典转为 setDictOverrides 可用的 value→label 映射。 */
+export function buildOverridesFromRuntime(
+  payload: RuntimeDictPayload | null | undefined
+): Record<string, Record<string, string>> {
+  const map: Record<string, Record<string, string>> = {};
+  for (const [type, rows] of Object.entries(payload?.itemsByType || {})) {
+    map[type] = {};
+    for (const row of rows || []) {
+      if (row.status && row.status !== 'ACTIVE') continue;
+      if (!row.dictValue) continue;
+      map[type][row.dictValue] = row.dictLabel || row.dictValue;
+    }
+  }
+  return map;
+}
+
 export const DICT = {
   device_type: { AI_CABINET_V1: 'AI智能柜 V1' },
   session_state: {

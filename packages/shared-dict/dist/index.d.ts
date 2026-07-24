@@ -1,5 +1,15 @@
 export declare function setDictOverrides(map: Record<string, Record<string, string>> | null | undefined): void;
 export declare function clearDictOverrides(): void;
+/** /api/v2/dicts/runtime 响应体（仅取 ACTIVE 项）。 */
+export type RuntimeDictPayload = {
+    itemsByType?: Record<string, {
+        dictValue?: string;
+        dictLabel?: string;
+        status?: string;
+    }[]>;
+};
+/** 将 runtime 字典转为 setDictOverrides 可用的 value→label 映射。 */
+export declare function buildOverridesFromRuntime(payload: RuntimeDictPayload | null | undefined): Record<string, Record<string, string>>;
 export declare const DICT: {
     readonly device_type: {
         readonly AI_CABINET_V1: "AI智能柜 V1";
