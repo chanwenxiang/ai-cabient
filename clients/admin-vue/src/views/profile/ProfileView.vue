@@ -54,7 +54,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { useAuthStore } from '@/stores/auth';
@@ -81,6 +81,9 @@ async function reload() {
 }
 
 onMounted(() => reload());
+onActivated(() => {
+  void reload();
+});
 </script>
 
 <style scoped>

@@ -1163,17 +1163,16 @@ function clearDeviceFocus() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (
-    route.query.tab === 'routes'
-    || route.query.tab === 'requests'
-    || route.query.tab === 'shortage'
-    || route.query.tab === 'fulfillment'
-    || route.query.tab === 'expiry'
-  ) {
-    if (tab.value !== String(route.query.tab)) {
-      tab.value = String(route.query.tab);
+  const allowed = ['routes', 'requests', 'shortage', 'fulfillment', 'expiry'] as const;
+  const qTab = typeof route.query.tab === 'string' ? route.query.tab : '';
+  if (allowed.includes(qTab as (typeof allowed)[number])) {
+    if (tab.value !== qTab) {
+      tab.value = qTab;
       changed = true;
     }
+  } else if (!qTab && tab.value !== 'routes') {
+    tab.value = 'routes';
+    changed = true;
   }
   const nextFocus = typeof route.query.deviceId === 'string' ? route.query.deviceId : '';
   if (focusDeviceId.value !== nextFocus) {
@@ -1235,7 +1234,7 @@ async function loadExpiryAlerts() {
 }
 
 function goWarehouse(deviceId?: string) {
-  const query: Record<string, string> = {};
+  const query: Record<string, string> = { tab: 'transit' };
   if (deviceId) query.deviceId = deviceId;
   goPath('/warehouse', query);
 }
@@ -1816,16 +1815,26 @@ async function prefetchUnassignedHints() {
   taskUnassignedHint.value = next;
 }
 
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+  await load();
+}
+
+watch(
+  () => [route.query.tab, route.query.deviceId] as const,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
+
 onMounted(() => {
   applyRouteQuery();
   syncRouteQuery();
   load();
 });
 onActivated(() => {
-  if (applyRouteQuery()) {
-    page.value = 1;
-    load();
-  }
+  void reloadFromRouteQuery();
 });
 </script>
 

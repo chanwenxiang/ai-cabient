@@ -1,9 +1,21 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { api, applyLoginSession, isLoggedIn, clearSession } from '@/api/client';
+import { api, applyLoginSession, isLoggedIn, isSessionSoftExpired, clearSession } from '@/api/client';
 import { loadRuntimeDict, resetRuntimeDict } from '@/stores/dict-runtime';
 
 const PERM_KEY = 'admin_permissions';
+
+function readCachedPermissions(): string[] {
+  try {
+    const raw = localStorage.getItem(PERM_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string') : [];
+  } catch {
+    localStorage.removeItem(PERM_KEY);
+    return [];
+  }
+}
 
 export interface OpsProfile {
   userId: string;
@@ -18,7 +30,7 @@ export interface OpsProfile {
 
 export const useAuthStore = defineStore('auth', () => {
   const userId = ref(localStorage.getItem('admin_userId') || '');
-  const permissions = ref<string[]>(JSON.parse(localStorage.getItem(PERM_KEY) || '[]'));
+  const permissions = ref<string[]>(readCachedPermissions());
   const phone = ref(localStorage.getItem('admin_phone') || '');
   const profile = ref<OpsProfile | null>(null);
 
@@ -57,8 +69,7 @@ export const useAuthStore = defineStore('auth', () => {
         return;
       }
       // Keep last-known perms from localStorage if soft-fail (network blip)
-      const cached = JSON.parse(localStorage.getItem(PERM_KEY) || '[]') as string[];
-      permissions.value = cached;
+      permissions.value = readCachedPermissions();
     }
   }
 
@@ -132,6 +143,13 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function restore() {
     if (!isLoggedIn()) return false;
+    if (isSessionSoftExpired()) {
+      const ok = await api.refreshSilently();
+      if (!ok) {
+        logout();
+        return false;
+      }
+    }
     await Promise.all([loadPermissions(), loadProfile(), loadRuntimeDict()]);
     return true;
   }

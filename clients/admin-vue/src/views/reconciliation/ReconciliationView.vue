@@ -180,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -250,9 +250,11 @@ function syncRouteQuery() {
 async function load() {
   loading.value = true;
   try {
-    const q = new URLSearchParams({ page: '0', size: '50' });
+    // API returns full channel list for ~30 days (ignores page/size); filter status client-side.
+    const q = new URLSearchParams();
     if (channel.value) q.set('channel', channel.value);
-    const rows = await api.request<Row[]>(`/api/v2/ops/admin/reconciliation?${q}`, 'GET');
+    const qs = q.toString();
+    const rows = await api.request<Row[]>(`/api/v2/ops/admin/reconciliation${qs ? `?${qs}` : ''}`, 'GET');
     items.value = (rows || []).filter((row) =>
       statusFilter.value ? row.status === statusFilter.value : true
     );
@@ -313,16 +315,30 @@ async function openDetail(row: Row) {
 
 function applyRouteQuery() {
   let changed = false;
-  if (typeof route.query.status === 'string' && route.query.status !== statusFilter.value) {
-    statusFilter.value = route.query.status;
+  const qStatus = typeof route.query.status === 'string' ? route.query.status : '';
+  if (qStatus !== statusFilter.value) {
+    statusFilter.value = qStatus;
     changed = true;
   }
-  if (typeof route.query.channel === 'string' && route.query.channel !== channel.value) {
-    channel.value = route.query.channel;
+  const qChannel = typeof route.query.channel === 'string' ? route.query.channel : '';
+  if (qChannel !== channel.value) {
+    channel.value = qChannel;
     changed = true;
   }
   return changed;
 }
+
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  await load();
+}
+
+watch(
+  () => [route.query.status, route.query.channel] as const,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
 
 onMounted(() => {
   runForm.date = localDate();
@@ -331,9 +347,7 @@ onMounted(() => {
   load();
 });
 onActivated(() => {
-  if (applyRouteQuery()) {
-    load();
-  }
+  void reloadFromRouteQuery();
 });
 </script>
 

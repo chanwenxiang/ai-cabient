@@ -68,7 +68,7 @@ export class ApiClient {
     this.refreshPromise = (async () => {
       try {
         const data = await this.request<LoginResponse>('/api/v2/auth/refresh', 'POST', undefined, true, true);
-        this.setToken(data.token, data.userId);
+        this.setToken(data.token, data.userId, data.expiresInSeconds);
         return true;
       } catch {
         return false;

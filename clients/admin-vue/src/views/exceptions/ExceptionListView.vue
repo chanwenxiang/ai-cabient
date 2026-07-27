@@ -105,7 +105,7 @@
                   v-if="row.sessionId"
                   type="button"
                   class="link-cell mono"
-                  @click="goSessions(row.deviceId)"
+                  @click="goSessions(row.deviceId, row.sessionId)"
                 >{{ row.sessionId }}</button>
                 <span v-else class="muted">-</span>
               </template>
@@ -231,7 +231,7 @@
                 type="primary"
                 @click="playVideo(detail.exception.sessionId)"
               >新窗口打开</el-button>
-              <el-button @click="goSessions(detail.exception.deviceId)">开门记录</el-button>
+              <el-button @click="goSessions(detail.exception.deviceId, detail.exception.sessionId)">开门记录</el-button>
               <el-button
                 v-if="detail.exception.sessionId && canAccessPath('/disputes')"
                 @click="goDisputes(detail.exception.sessionId)"
@@ -281,7 +281,7 @@
                   v-if="detail.exception.sessionId"
                   type="button"
                   class="link-cell mono"
-                  @click="goSessions(detail.exception.deviceId)"
+                  @click="goSessions(detail.exception.deviceId, detail.exception.sessionId)"
                 >{{ detail.exception.sessionId }}</button>
                 <span v-else>-</span>
               </el-descriptions-item>
@@ -626,9 +626,10 @@ function goDevice(id: string) {
   }
   router.push(`/devices/${encodeURIComponent(id)}`);
 }
-function goSessions(device?: string) {
+function goSessions(device?: string, sessionId?: string) {
   const query: Record<string, string> = {};
   if (device) query.deviceId = device;
+  if (sessionId) query.sessionId = sessionId;
   goPath('/sessions', query);
 }
 function goOrders(device?: string) {
@@ -725,19 +726,31 @@ function onSizeChange() {
 }
 
 async function claim(row: OpsException) {
-  await api.request(`/api/v2/ops/admin/exceptions/${row.exceptionId}/claim`, 'POST');
-  ElMessage.success('已领取');
-  await load();
+  try {
+    await api.request(`/api/v2/ops/admin/exceptions/${row.exceptionId}/claim`, 'POST');
+    ElMessage.success('已领取');
+    await load();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '领取失败');
+    }
+  }
 }
 async function resolve(row: OpsException) {
-  const { value } = await ElMessageBox.prompt('请填写处理结果，记录将进入审计日志', '解决异常', {
-    inputValidator: (v) => !!String(v || '').trim() || '必须填写处理结果',
-    confirmButtonText: '确认解决',
-    cancelButtonText: '取消'
-  });
-  await api.request(`/api/v2/ops/admin/exceptions/${row.exceptionId}/resolve`, 'POST', { resolution: value });
-  ElMessage.success('异常已解决');
-  await load();
+  try {
+    const { value } = await ElMessageBox.prompt('请填写处理结果，记录将进入审计日志', '解决异常', {
+      inputValidator: (v) => !!String(v || '').trim() || '必须填写处理结果',
+      confirmButtonText: '确认解决',
+      cancelButtonText: '取消'
+    });
+    await api.request(`/api/v2/ops/admin/exceptions/${row.exceptionId}/resolve`, 'POST', { resolution: value });
+    ElMessage.success('异常已解决');
+    await load();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '解决失败');
+    }
+  }
 }
 async function openDetail(row: OpsException) {
   clearInlineVideo();
@@ -774,45 +787,63 @@ async function refreshDetail() {
 }
 async function addNote() {
   if (!detail.value) return;
-  const { value } = await ElMessageBox.prompt('请输入处理备注', '添加备注', {
-    inputValidator: (v) => !!String(v || '').trim() || '备注不能为空'
-  });
-  await api.request(`/api/v2/ops/admin/exceptions/${detail.value.exception.exceptionId}/notes`, 'POST', { note: value });
-  ElMessage.success('备注已记录');
-  await refreshDetail();
+  try {
+    const { value } = await ElMessageBox.prompt('请输入处理备注', '添加备注', {
+      inputValidator: (v) => !!String(v || '').trim() || '备注不能为空'
+    });
+    await api.request(`/api/v2/ops/admin/exceptions/${detail.value.exception.exceptionId}/notes`, 'POST', { note: value });
+    ElMessage.success('备注已记录');
+    await refreshDetail();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '添加备注失败');
+    }
+  }
 }
 async function transfer() {
   if (!detail.value) return;
-  const { value } = await ElMessageBox.prompt('请输入接收人的用户 ID', '转派异常', {
-    inputPattern: /^\d+$/,
-    inputErrorMessage: '请输入有效用户 ID'
-  });
-  await api.request(`/api/v2/ops/admin/exceptions/${detail.value.exception.exceptionId}/transfer`, 'POST', {
-    assigneeUserId: Number(value),
-    reason: '运营工作台转派'
-  });
-  ElMessage.success('已转派');
-  await Promise.all([load(), refreshDetail()]);
+  try {
+    const { value } = await ElMessageBox.prompt('请输入接收人的用户 ID', '转派异常', {
+      inputPattern: /^\d+$/,
+      inputErrorMessage: '请输入有效用户 ID'
+    });
+    await api.request(`/api/v2/ops/admin/exceptions/${detail.value.exception.exceptionId}/transfer`, 'POST', {
+      assigneeUserId: Number(value),
+      reason: '运营工作台转派'
+    });
+    ElMessage.success('已转派');
+    await Promise.all([load(), refreshDetail()]);
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '转派失败');
+    }
+  }
 }
 async function cancelSession() {
   if (!detail.value) return;
   const item = detail.value.exception;
-  const { value } = await ElMessageBox.prompt(
-    `将终止会话 ${item.sessionId} 并释放设备 ${item.deviceId || '-'}，请填写原因`,
-    '危险操作确认',
-    {
-      type: 'warning',
-      confirmButtonText: '确认终止',
-      cancelButtonText: '取消',
-      inputValidator: (v) => !!String(v || '').trim() || '必须填写原因'
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `将终止会话 ${item.sessionId} 并释放设备 ${item.deviceId || '-'}，请填写原因`,
+      '危险操作确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确认终止',
+        cancelButtonText: '取消',
+        inputValidator: (v) => !!String(v || '').trim() || '必须填写原因'
+      }
+    );
+    await api.request(`/api/v2/ops/admin/exceptions/${item.exceptionId}/cancel-session`, 'POST', {
+      reason: value,
+      idempotencyKey: `ops-cancel-${item.exceptionId}`
+    });
+    ElMessage.success('会话已终止，设备占用已释放');
+    await Promise.all([load(), refreshDetail()]);
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '终止会话失败');
     }
-  );
-  await api.request(`/api/v2/ops/admin/exceptions/${item.exceptionId}/cancel-session`, 'POST', {
-    reason: value,
-    idempotencyKey: `ops-cancel-${item.exceptionId}`
-  });
-  ElMessage.success('会话已终止，设备占用已释放');
-  await Promise.all([load(), refreshDetail()]);
+  }
 }
 function canRetry(item: OpsException) {
   return !!item.sessionId && ['RECOGNITION_UNAVAILABLE', 'RECOGNITION_FAILED', 'SETTLEMENT_FAILED'].includes(item.exceptionType);
@@ -820,16 +851,22 @@ function canRetry(item: OpsException) {
 async function retryException() {
   if (!detail.value) return;
   const item = detail.value.exception;
-  await ElMessageBox.confirm(`将重新处理会话 ${item.sessionId}，系统仍会执行订单、库存和余额幂等校验。`, '确认重试', {
-    type: 'warning',
-    confirmButtonText: '开始重试'
-  });
-  await api.request(`/api/v2/ops/admin/exceptions/${item.exceptionId}/retry`, 'POST', {
-    reason: '运营人工触发重试',
-    idempotencyKey: `ops-retry-${item.exceptionId}-${Date.now()}`
-  });
-  ElMessage.success('重试请求已执行');
-  await Promise.all([load(), refreshDetail()]);
+  try {
+    await ElMessageBox.confirm(`将重新处理会话 ${item.sessionId}，系统仍会执行订单、库存和余额幂等校验。`, '确认重试', {
+      type: 'warning',
+      confirmButtonText: '开始重试'
+    });
+    await api.request(`/api/v2/ops/admin/exceptions/${item.exceptionId}/retry`, 'POST', {
+      reason: '运营人工触发重试',
+      idempotencyKey: `ops-retry-${item.exceptionId}-${Date.now()}`
+    });
+    ElMessage.success('重试请求已执行');
+    await Promise.all([load(), refreshDetail()]);
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '重试失败');
+    }
+  }
 }
 function canManualResolve(item: OpsException) {
   return !!item.sessionId && ['BALANCE_INSUFFICIENT', 'RECOGNITION_UNAVAILABLE', 'RECOGNITION_FAILED', 'SETTLEMENT_FAILED'].includes(item.exceptionType);
@@ -845,10 +882,16 @@ async function submitManualResolve() {
     ElMessage.warning('必须填写处理原因');
     return;
   }
-  await ElMessageBox.confirm('确认按当前商品清单结算？系统将自动计算补扣或退差金额。', '资金操作二次确认', {
-    type: 'warning',
-    confirmButtonText: '确认结算'
-  });
+  try {
+    await ElMessageBox.confirm('确认按当前商品清单结算？系统将自动计算补扣或退差金额。', '资金操作二次确认', {
+      type: 'warning',
+      confirmButtonText: '确认结算'
+    });
+  } catch (e: any) {
+    if (e === 'cancel' || e === 'close') return;
+    ElMessage.error(e instanceof Error ? e.message : '确认失败');
+    return;
+  }
   manualSubmitting.value = true;
   try {
     await api.request(`/api/v2/ops/admin/exceptions/${detail.value.exception.exceptionId}/manual-resolve`, 'POST', {
@@ -860,6 +903,8 @@ async function submitManualResolve() {
     resolveFeedback.value = '人工商品清单已结算并结案';
     ElMessage.success(resolveFeedback.value);
     await Promise.all([load(), refreshDetail()]);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '人工结算失败');
   } finally {
     manualSubmitting.value = false;
   }
@@ -867,22 +912,32 @@ async function submitManualResolve() {
 async function waiveOrder() {
   if (!detail.value) return;
   const item = detail.value.exception;
-  const { value } = await ElMessageBox.prompt('该操作会取消本次消费并退回已经扣除的余额，请填写免单原因。', '免单与全额退款', {
-    type: 'warning',
-    confirmButtonText: '确认免单',
-    inputValidator: (v) => !!String(v || '').trim() || '必须填写免单原因'
-  });
+  let reason = '';
+  try {
+    const { value } = await ElMessageBox.prompt('该操作会取消本次消费并退回已经扣除的余额，请填写免单原因。', '免单与全额退款', {
+      type: 'warning',
+      confirmButtonText: '确认免单',
+      inputValidator: (v) => !!String(v || '').trim() || '必须填写免单原因'
+    });
+    reason = value;
+  } catch (e: any) {
+    if (e === 'cancel' || e === 'close') return;
+    ElMessage.error(e instanceof Error ? e.message : '确认失败');
+    return;
+  }
   manualSubmitting.value = true;
   try {
     await api.request(`/api/v2/ops/admin/exceptions/${item.exceptionId}/manual-resolve`, 'POST', {
       resolutionType: 'WAIVE',
       items: [],
-      reason: value,
+      reason,
       idempotencyKey: `ops-waive-${item.exceptionId}`
     });
     resolveFeedback.value = '免单处理完成';
     ElMessage.success(resolveFeedback.value);
     await Promise.all([load(), refreshDetail()]);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '免单失败');
   } finally {
     manualSubmitting.value = false;
   }

@@ -299,14 +299,18 @@ const quickLinks = computed<QuickLink[]>(() => [
     path: '/upload-queue',
     query: { stuck: '1' }
   },
-  { label: '低库存', count: workbench.value?.lowStockItems || 0, path: '/replenishment', query: { tab: 'shortage' } },
-  { label: '临期下架', count: 0, path: '/replenishment', query: { tab: 'expiry' } },
-  {
-    label: '补货任务',
-    count: workbench.value?.pendingReplenishments || 0,
-    path: '/replenishment',
-    query: { tab: 'routes' }
-  },
+          {
+            label: '低库存',
+            count: workbench.value?.lowStockItems || 0,
+            path: '/replenishment',
+            query: { tab: 'shortage' }
+          },
+          {
+            label: '补货任务',
+            count: workbench.value?.pendingReplenishments || 0,
+            path: '/replenishment',
+            query: { tab: 'routes' }
+          },
   {
     label: '异常会话',
     count: workbench.value?.staleSessions || 0,

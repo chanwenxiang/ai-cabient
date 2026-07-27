@@ -167,7 +167,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -347,6 +347,9 @@ function applyRouteQuery() {
   if (typeof route.query.deviceId === 'string' && route.query.deviceId !== deviceId.value) {
     deviceId.value = route.query.deviceId;
     changed = true;
+  } else if (!route.query.deviceId && deviceId.value) {
+    deviceId.value = '';
+    changed = true;
   }
   const qStuck = route.query.stuck === '1' || route.query.stuck === 'true';
   if (qStuck !== stuckOnly.value) {
@@ -365,29 +368,77 @@ function applyRouteQuery() {
   return changed;
 }
 
-async function load() {
-  loading.value = true;
-  try {
-    // Soft stuck filter is client-side (API has no stuck flag); scan first 100 waiting rows.
-    const fetchSize = stuckOnly.value ? Math.max(size.value, 100) : size.value;
+async function scanWaitingPages(
+  predicate: (row: SessionRow) => boolean,
+  opts?: { findFirst?: string }
+): Promise<{ matched: SessionRow[]; found?: SessionRow }> {
+  const pageSize = 100;
+  const maxScan = 500;
+  const matched: SessionRow[] = [];
+  let found: SessionRow | undefined;
+  let apiPage = 0;
+  let scanned = 0;
+  let serverTotal = Number.POSITIVE_INFINITY;
+  while (scanned < maxScan && scanned < serverTotal) {
     const q = new URLSearchParams({
-      page: stuckOnly.value ? '0' : String(page.value - 1),
-      size: String(fetchSize),
+      page: String(apiPage),
+      size: String(pageSize),
       state: 'WAITING_UPLOAD'
     });
     if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
     const data = await api.request<PageResult<SessionRow>>(`/api/v2/ops/admin/sessions?${q}`, 'GET');
-    let rows = data.items;
+    const batch = data.items || [];
+    serverTotal = data.total ?? batch.length;
+    for (const row of batch) {
+      if (opts?.findFirst && row.sessionId === opts.findFirst) found = row;
+      if (predicate(row)) matched.push(row);
+    }
+    scanned += batch.length;
+    if (opts?.findFirst && found) break;
+    if (!batch.length || batch.length < pageSize) break;
+    apiPage += 1;
+  }
+  return { matched, found };
+}
+
+async function maybeScrollToFocus() {
+  if (!focusSessionId.value) return;
+  await nextTick();
+  document
+    .querySelector('.report-table .is-focus')
+    ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+
+async function load() {
+  loading.value = true;
+  try {
+    // Soft stuck filter is client-side (API has no stuck flag); scan recent waiting pages.
     if (stuckOnly.value) {
-      rows = rows.filter((r) => isStuck(r)).sort((a, b) => ageMs(b) - ageMs(a));
-      total.value = rows.length;
+      const { matched } = await scanWaitingPages((r) => isStuck(r));
+      matched.sort((a, b) => ageMs(b) - ageMs(a));
+      total.value = matched.length;
       const start = (page.value - 1) * size.value;
-      items.value = rows.slice(start, start + size.value);
+      items.value = matched.slice(start, start + size.value);
     } else {
-      items.value = rows;
-      total.value = data.total;
+      const q = new URLSearchParams({
+        page: String(page.value - 1),
+        size: String(size.value),
+        state: 'WAITING_UPLOAD'
+      });
+      if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
+      const data = await api.request<PageResult<SessionRow>>(`/api/v2/ops/admin/sessions?${q}`, 'GET');
+      items.value = data.items || [];
+      total.value = data.total ?? 0;
+    }
+    const sid = focusSessionId.value.trim();
+    if (sid && !items.value.some((r) => r.sessionId === sid)) {
+      const { found } = await scanWaitingPages(() => false, { findFirst: sid });
+      if (found) {
+        items.value = [found, ...items.value.filter((r) => r.sessionId !== found.sessionId)];
+      }
     }
     clearSelection();
+    await maybeScrollToFocus();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {

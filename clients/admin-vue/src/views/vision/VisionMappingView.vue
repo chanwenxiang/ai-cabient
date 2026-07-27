@@ -153,7 +153,7 @@ const { onExport } = useListCsv({
   filePrefix: 'YOLO识别映射',
   headers: ['类别', 'SKU', '商品名', '最低置信度'],
   toRows: () =>
-    pickSelected(yoloMappings.value).map((row) => [
+    pickSelected(filtered.value).map((row) => [
       row.className ?? '',
       row.skuId ?? '',
       row.skuName ?? '',
@@ -191,11 +191,13 @@ function syncRouteQuery() {
 }
 
 function applyRouteQuery() {
-  if (typeof route.query.keyword === 'string' && route.query.keyword !== keyword.value) {
-    keyword.value = route.query.keyword;
-    return true;
+  let changed = false;
+  const qKeyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
+  if (qKeyword !== keyword.value) {
+    keyword.value = qKeyword;
+    changed = true;
   }
-  return false;
+  return changed;
 }
 
 function search() {
@@ -229,12 +231,24 @@ async function load() {
   }
 }
 
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+}
+
+watch(
+  () => route.query.keyword,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
+
 onMounted(() => {
   applyRouteQuery();
   load();
 });
 onActivated(() => {
-  applyRouteQuery();
+  void reloadFromRouteQuery();
 });
 </script>
 

@@ -18,8 +18,9 @@
       </div>
       <el-scrollbar class="sidebar-scroll">
         <el-menu
-          v-model:openeds="openedMenus"
+          :key="menuRenderKey"
           :default-active="active"
+          :default-openeds="openedMenus"
           router
           :collapse="sidebarCollapsed"
           :collapse-transition="false"
@@ -164,7 +165,10 @@ const MAX_TAGS = 12;
 const tags = ref<{ path: string; title: string }[]>([]);
 const tagsScrollRef = ref<HTMLElement | null>(null);
 const openedMenus = ref<string[]>([]);
+const menuEpoch = ref(0);
 const OPENED_MENUS_KEY = 'admin_vue_sidebar_openeds';
+/** Remount when route-driven openeds change — Element Plus only reads default-openeds on mount. */
+const menuRenderKey = computed(() => `m${menuEpoch.value}-${sidebarCollapsed.value ? 'c' : 'e'}`);
 const tagMenu = ref({ visible: false, x: 0, y: 0, path: '' });
 const compactViewport = ref(false);
 /** 窄屏自动收起时，用户临时展开不写 localStorage */
@@ -220,23 +224,31 @@ function persistOpenedMenus(keys: string[]) {
 
 function syncOpenedMenusForRoute(path: string, collapsed: boolean) {
   if (collapsed) {
-    openedMenus.value = [];
+    if (openedMenus.value.length) {
+      openedMenus.value = [];
+      menuEpoch.value += 1;
+    }
     return;
   }
   const routeKeys = sidebarOpenKeysForPath(path);
+  let next: string[];
   if (routeKeys.length) {
-    openedMenus.value = routeKeys;
-    persistOpenedMenus(openedMenus.value);
-    return;
+    next = routeKeys;
+    persistOpenedMenus(next);
+  } else {
+    const valid = collectDirKeys(sidebarTree.value);
+    next = readOpenedMenus().filter((key) => valid.has(key));
   }
-  const valid = collectDirKeys(sidebarTree.value);
-  const stored = readOpenedMenus().filter((key) => valid.has(key));
-  openedMenus.value = stored;
+  const prev = openedMenus.value.join('\0');
+  const joined = next.join('\0');
+  if (prev === joined) return;
+  openedMenus.value = next;
+  menuEpoch.value += 1;
 }
 
 function onSubMenuOpen(key: string) {
   const next = new Set(openedMenus.value);
-  // 同级唯一展开：关掉同前缀的兄弟目录，保留祖先
+  // 同级唯一展开（勿用 EP unique-opened：会禁止「一级+二级」同时展开）
   const parent = key.includes(':') ? key.slice(0, key.lastIndexOf(':')) : null;
   for (const opened of [...next]) {
     if (opened === key) continue;
@@ -248,8 +260,13 @@ function onSubMenuOpen(key: string) {
   }
   next.add(key);
   if (parent) next.add(parent);
-  openedMenus.value = [...next];
-  persistOpenedMenus(openedMenus.value);
+  const list = [...next];
+  const prev = openedMenus.value.join('\0');
+  const joined = list.join('\0');
+  openedMenus.value = list;
+  persistOpenedMenus(list);
+  // Remount so default-openeds applies sibling close (EP only reads it on mount)
+  if (prev !== joined) menuEpoch.value += 1;
 }
 
 function onSubMenuClose(key: string) {

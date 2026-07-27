@@ -626,13 +626,15 @@ function onSizeChange() {
 }
 
 async function cancelSession(sessionId: string) {
-  await ElMessageBox.confirm('确认取消该会话？', '取消会话');
   try {
+    await ElMessageBox.confirm('确认取消该会话？', '取消会话');
     await api.request(`/api/v2/ops/admin/sessions/${encodeURIComponent(sessionId)}/cancel`, 'POST');
     ElMessage.success('已取消');
     load();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '操作失败');
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '操作失败');
+    }
   }
 }
 

@@ -19,10 +19,11 @@ export function clearSession() {
 export const api = new ApiClient({
   baseUrl: getBaseUrl(),
   getToken: () => localStorage.getItem(TOKEN_KEY),
-  setToken: (token: string, userId: string) => {
+  setToken: (token: string, userId: string, expiresInSeconds?: number) => {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(USER_KEY, userId);
-    localStorage.setItem(EXPIRES_KEY, String(Date.now() + 30 * 60 * 1000));
+    const ms = (expiresInSeconds ?? 1800) * 1000;
+    localStorage.setItem(EXPIRES_KEY, String(Date.now() + ms));
   },
   clearSession,
   onUnauthorized: () => {
@@ -43,15 +44,15 @@ export function applyLoginSession(data: { token: string; userId: string; expires
   localStorage.setItem(EXPIRES_KEY, String(Date.now() + ms));
 }
 
+/** Token present — do not wipe on client clock expiry; ApiClient refresh handles 401. */
 export function isLoggedIn() {
-  const token = localStorage.getItem(TOKEN_KEY);
-  if (!token) return false;
+  return Boolean(localStorage.getItem(TOKEN_KEY));
+}
+
+/** True when a local expiry was recorded and has passed (soft-expired; refresh may still work). */
+export function isSessionSoftExpired() {
   const expiresAt = Number(localStorage.getItem(EXPIRES_KEY) || 0);
-  if (expiresAt > 0 && Date.now() >= expiresAt) {
-    clearSession();
-    return false;
-  }
-  return true;
+  return expiresAt > 0 && Date.now() >= expiresAt;
 }
 
 /** Compatibility helpers for views that expect `{ data }` wrappers. */

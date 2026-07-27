@@ -148,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onActivated, onMounted, ref } from 'vue';
+import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Key, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, type ElTree } from 'element-plus';
@@ -245,7 +245,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
   filePrefix: '角色',
   headers: ['角色ID', '角色名称', '权限字符', '状态', '权限数', '备注'],
   toRows: () =>
-    pickSelected(roles.value).map((row) => [
+    pickSelected(filteredRoles.value).map((row) => [
       row.roleId,
       row.roleName,
       row.roleKey,
@@ -277,6 +277,7 @@ async function loadRoles() {
   loading.value = true;
   try {
     roles.value = await api.request<RoleRow[]>('/api/v2/ops/admin/rbac/roles', 'GET');
+    clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载角色失败');
   } finally {
@@ -402,16 +403,29 @@ function resetFilters() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (typeof route.query.keyword === 'string' && route.query.keyword !== keyword.value) {
-    keyword.value = route.query.keyword;
+  const qKeyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
+  if (qKeyword !== keyword.value) {
+    keyword.value = qKeyword;
     changed = true;
   }
-  if (typeof route.query.status === 'string' && route.query.status !== statusFilter.value) {
-    statusFilter.value = route.query.status;
+  const qStatus = typeof route.query.status === 'string' ? route.query.status : '';
+  if (qStatus !== statusFilter.value) {
+    statusFilter.value = qStatus;
     changed = true;
   }
   return changed;
 }
+
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+}
+
+watch(
+  () => [route.query.keyword, route.query.status] as const,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
 
 onMounted(async () => {
   applyRouteQuery();
@@ -419,7 +433,7 @@ onMounted(async () => {
   loadPermTree().catch(() => undefined);
 });
 onActivated(() => {
-  applyRouteQuery();
+  void reloadFromRouteQuery();
 });
 </script>
 

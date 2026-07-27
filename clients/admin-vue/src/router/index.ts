@@ -3,6 +3,7 @@ import { isLoggedIn } from '@/api/client';
 import { findNavByPath } from '@/config/menu';
 import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import { useAuthStore } from '@/stores/auth';
+import { safeRedirectPath } from '@/utils/safe-redirect';
 
 const bizChildren: any[] = [
   { path: 'dashboard', name: 'dashboard', component: () => import('@/views/dashboard/DashboardView.vue'), meta: { title: '运营工作台', group: '概览' } },
@@ -72,10 +73,7 @@ const router = createRouter({
 
 router.beforeEach(async (to) => {
   if (to.name === 'login' && isLoggedIn()) {
-    const redirect = typeof to.query.redirect === 'string' && to.query.redirect.startsWith('/')
-      ? to.query.redirect
-      : '/dashboard';
-    return { path: redirect };
+    return { path: safeRedirectPath(to.query.redirect) };
   }
   if (to.meta.public) return true;
   if (!isLoggedIn()) return { name: 'login', query: { redirect: to.fullPath } };

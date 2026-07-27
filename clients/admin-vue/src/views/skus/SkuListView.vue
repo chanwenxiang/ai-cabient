@@ -106,7 +106,11 @@
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="商品" min-width="180" class-name="col-text">
             <template #default="{ row }">
-              <button type="button" class="sku-cell" @click="openEnroll(row)">
+              <button
+                type="button"
+                class="sku-cell"
+                @click="canEnroll ? openEnroll(row) : ElMessage.info('当前账号无商品编辑权限')"
+              >
                 <strong>{{ row.skuName || row.skuId }}</strong>
                 <small>{{ row.skuId }}</small>
               </button>
@@ -196,7 +200,7 @@
         <el-form-item label="识别类名" required>
           <div class="inline-field">
             <el-input v-model="enrollForm.yoloClassName" placeholder="例如 cola_330ml（英文类名）" />
-            <el-button :loading="suggestingClass" @click="suggestClassNameIfEmpty">规则建议</el-button>
+            <el-button :loading="suggestingClass" @click="suggestClassName(true)">规则建议</el-button>
           </div>
         </el-form-item>
         <el-form-item label="主图地址">
@@ -357,6 +361,7 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection, sele
 
 function onSaleTab() {
   clearSelection();
+  syncRouteQuery();
 }
 
 function toUpsertBody(row: SkuCatalog, status: string): UpsertSkuRequest {
@@ -477,6 +482,11 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
       const visionEnrollmentStatus =
         enrollmentStatusByLabel[row['识别状态'] || row.visionEnrollmentStatus] || 'MAPPING';
       const status = skuStatusByLabel[row['商品状态'] || row.status] || 'ACTIVE';
+      const costRaw = row['成本'] ?? row.purchaseCostYuan;
+      const purchaseCostCents =
+        costRaw != null && String(costRaw).trim() !== ''
+          ? Math.round((Number(costRaw) || 0) * 100)
+          : undefined;
       const body: UpsertSkuVisionEnrollmentRequest = {
         sku: {
           skuId,
@@ -485,6 +495,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
           visionEnabled: true,
           status,
           category: (row['类目'] || row.category || '').trim() || undefined,
+          purchaseCostCents,
           minChargeConfidence: parseConfidence(row['扣款阈值'] || row.minChargeConfidence, 0.92),
           yoloClassName,
           visionEnrollmentStatus,
@@ -660,18 +671,35 @@ function openTest(row: SkuCatalog) {
 }
 
 async function suggestClassNameIfEmpty() {
+  await suggestClassName(false);
+}
+
+async function suggestClassName(forceReplace: boolean) {
   if (!enrollForm.skuName.trim()) return;
+  if (!forceReplace && enrollForm.yoloClassName.trim()) return;
   suggestingClass.value = true;
   try {
     const data = await api.request<{ yoloClassName: string }>(
       `/api/v2/ops/admin/sku-vision/suggest-class-name?skuName=${encodeURIComponent(enrollForm.skuName)}`,
       'GET'
     );
-    if (!enrollForm.yoloClassName.trim()) {
-      enrollForm.yoloClassName = data.yoloClassName;
+    if (!forceReplace && enrollForm.yoloClassName.trim()) return;
+    if (forceReplace && enrollForm.yoloClassName.trim() && enrollForm.yoloClassName.trim() !== data.yoloClassName) {
+      try {
+        await ElMessageBox.confirm(
+          `将识别类名替换为「${data.yoloClassName}」？`,
+          '覆盖类名',
+          { confirmButtonText: '替换', cancelButtonText: '取消', type: 'warning' }
+        );
+      } catch {
+        return;
+      }
     }
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '建议失败');
+    enrollForm.yoloClassName = data.yoloClassName;
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '建议失败');
+    }
   } finally {
     suggestingClass.value = false;
   }
@@ -723,14 +751,27 @@ async function saveEnroll() {
   saving.value = true;
   try {
     const referenceImageUrlsJson = urlsToJson(enrollForm.referenceImageUrls);
+    const skuId = enrollForm.skuId.trim();
+    const existing = items.value.find((i) => i.skuId === skuId);
     const body: UpsertSkuVisionEnrollmentRequest = {
       sku: {
-        skuId: enrollForm.skuId.trim(),
+        skuId,
         skuName: enrollForm.skuName.trim(),
         priceCents: enrollForm.priceCents,
         visionEnabled: true,
         imageUrl: enrollForm.imageUrl || undefined,
-        status: 'ACTIVE',
+        // Preserve catalog fields not editable in this dialog (avoid wipe/reactivate)
+        status: existing?.status || 'ACTIVE',
+        category: existing?.category,
+        barcode: existing?.barcode,
+        purchaseCostCents: existing?.purchaseCostCents,
+        weightGrams: existing?.weightGrams,
+        description: existing?.description,
+        shelfLifeDays: existing?.shelfLifeDays,
+        nearExpiryDays: existing?.nearExpiryDays,
+        blockSaleDaysBeforeExpiry: existing?.blockSaleDaysBeforeExpiry,
+        storageType: existing?.storageType,
+        nearExpiryPriceCents: existing?.nearExpiryPriceCents,
         minChargeConfidence: enrollForm.chargePercent / 100,
         yoloClassName: enrollForm.yoloClassName.trim(),
         visionEnrollmentStatus: enrollForm.visionEnrollmentStatus,
@@ -822,6 +863,11 @@ async function markProduction(row: SkuCatalog) {
 
 async function markTestedFromPreview() {
   if (!testForm.skuId) return;
+  const matched = testPreview.value?.items?.some((item) => item.skuId === testForm.skuId);
+  if (!matched) {
+    ElMessage.warning('预览结果未包含当前商品，请更换图片或检查识别类名后再标记');
+    return;
+  }
   advancing.value = true;
   try {
     const updated = await api.request<SkuCatalog>(
@@ -884,6 +930,7 @@ function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (keyword.value.trim()) query.keyword = keyword.value.trim();
   if (enrollmentFilter.value) query.enrollment = enrollmentFilter.value;
+  if (saleTab.value && saleTab.value !== 'ACTIVE') query.sale = saleTab.value;
   router.replace({ query });
 }
 
@@ -902,12 +949,19 @@ function resetFilters() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (typeof route.query.keyword === 'string' && route.query.keyword !== keyword.value) {
-    keyword.value = route.query.keyword;
+  const qKeyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
+  if (qKeyword !== keyword.value) {
+    keyword.value = qKeyword;
     changed = true;
   }
-  if (typeof route.query.enrollment === 'string' && route.query.enrollment !== enrollmentFilter.value) {
-    enrollmentFilter.value = route.query.enrollment;
+  const qEnrollment = typeof route.query.enrollment === 'string' ? route.query.enrollment : '';
+  if (qEnrollment !== enrollmentFilter.value) {
+    enrollmentFilter.value = qEnrollment;
+    changed = true;
+  }
+  const qSale = typeof route.query.sale === 'string' && route.query.sale ? route.query.sale : 'ACTIVE';
+  if (qSale !== saleTab.value) {
+    saleTab.value = qSale;
     changed = true;
   }
   return changed;
@@ -936,12 +990,24 @@ async function load() {
   }
 }
 
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+}
+
+watch(
+  () => [route.query.keyword, route.query.enrollment, route.query.sale] as const,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
+
 onMounted(() => {
   applyRouteQuery();
   load();
 });
 onActivated(() => {
-  applyRouteQuery();
+  void reloadFromRouteQuery();
 });
 </script>
 

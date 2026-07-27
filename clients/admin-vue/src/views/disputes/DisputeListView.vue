@@ -49,6 +49,16 @@
           />
         </el-select>
       </el-form-item>
+      <el-form-item v-if="sessionFilter" label="会话">
+        <el-input
+          v-model="sessionFilter"
+          clearable
+          placeholder="会话 ID"
+          style="width: 200px"
+          @clear="search"
+          @keyup.enter="search"
+        />
+      </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="search">查询</el-button>
         <el-button @click="reset">重置</el-button>
@@ -104,7 +114,7 @@
                 v-if="row.sessionId"
                 type="button"
                 class="link-cell mono"
-                @click="goSessions(row.deviceId)"
+                @click="goSessions(row.deviceId, row.sessionId)"
               >{{ row.sessionId }}</button>
               <span v-else class="muted">-</span>
             </template>
@@ -213,13 +223,13 @@
           <div v-else class="video-loading">录像加载中…</div>
           <div class="drawer-actions drawer-actions--review">
             <el-button
-              v-if="selected.sessionId"
+              v-if="selected.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))"
               type="warning"
               :loading="videoLoading"
               @click="loadEmbedVideo(selected.sessionId, true)"
             >重新加载录像</el-button>
             <el-button
-              v-if="selected.sessionId"
+              v-if="selected.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))"
               link
               type="primary"
               @click="playVideo(selected.sessionId)"
@@ -253,7 +263,7 @@
                 v-if="selected.sessionId"
                 type="button"
                 class="link-cell mono"
-                @click="goSessions(selected.deviceId)"
+                @click="goSessions(selected.deviceId, selected.sessionId)"
               >{{ selected.sessionId }}</button>
               <span v-else>-</span>
             </el-descriptions-item>
@@ -419,7 +429,7 @@ type SkuOption = { skuId: string; skuName: string; priceCents?: number };
 
 const route = useRoute();
 const router = useRouter();
-const { canAccessPath, goPath } = useNavAccess();
+const { auth, canAccessPath, goPath } = useNavAccess();
 const { playSessionVideo, fetchSessionVideoBlob } = useSessionVideo();
 const loading = ref(false);
 const videoLoading = ref(false);
@@ -576,7 +586,7 @@ function reviewChipType(row?: DisputeTicketDto | null) {
 
 function rowActions(row: DisputeTicketDto): TableAction[] {
   const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
-  if (row.sessionId) {
+  if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
     actions.push({ key: 'video', label: '录像', icon: VideoCamera, type: 'warning', overflow: true });
   }
   if (row.reviewCode === 'UNMAPPED' || (row.detectedClasses && row.detectedClasses.length)) {
@@ -626,9 +636,10 @@ function goDevice(id: string) {
   }
   router.push(`/devices/${encodeURIComponent(id)}`);
 }
-function goSessions(device?: string) {
+function goSessions(device?: string, sessionId?: string) {
   const query: Record<string, string> = {};
   if (device) query.deviceId = device;
+  if (sessionId) query.sessionId = sessionId;
   goPath('/sessions', query);
 }
 function goOrders(device?: string) {
@@ -649,7 +660,9 @@ function openDetail(row: DisputeTicketDto) {
   detailVisible.value = true;
   resetDraftFromSuggested();
   void ensureSkusLoaded();
-  if (row.sessionId) void loadEmbedVideo(row.sessionId);
+  if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
+    void loadEmbedVideo(row.sessionId);
+  }
 }
 
 function triggerDisputeImage() {
@@ -736,11 +749,17 @@ async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'A
     ElMessage.warning('请先填写至少一行有效商品');
     return;
   }
-  await ElMessageBox.confirm(`确认${action}？该操作会写入资金与审计记录。`, '确认争议处理', {
-    type: resolutionType === 'WAIVE' ? 'warning' : 'info',
-    confirmButtonText: '确认处理',
-    cancelButtonText: '取消'
-  });
+  try {
+    await ElMessageBox.confirm(`确认${action}？该操作会写入资金与审计记录。`, '确认争议处理', {
+      type: resolutionType === 'WAIVE' ? 'warning' : 'info',
+      confirmButtonText: '确认处理',
+      cancelButtonText: '取消'
+    });
+  } catch (e: any) {
+    if (e === 'cancel' || e === 'close') return;
+    ElMessage.error(e instanceof Error ? e.message : '确认失败');
+    return;
+  }
   resolving.value = true;
   try {
     const result = await api.request<ResolveDisputeResultDto>(

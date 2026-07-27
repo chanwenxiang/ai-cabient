@@ -353,15 +353,17 @@ async function onToggleStatus(row: any) {
 async function batchDisable() {
   const targets = list.value.filter((r) => selectedIds.value.includes(r.activityId) && isEnabled(r.status));
   if (!targets.length) return ElMessage.warning('请勾选已启用的活动');
-  await ElMessageBox.confirm(`确认停用选中的 ${targets.length} 个活动？`, '批量停用');
   try {
+    await ElMessageBox.confirm(`确认停用选中的 ${targets.length} 个活动？`, '批量停用');
     for (const row of targets) {
       await api.request(`/api/v2/ops/promotions/${row.activityId}/stop`, 'POST');
     }
     ElMessage.success(`已停用 ${targets.length} 个活动`);
     await load();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '批量停用失败');
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '批量停用失败');
+    }
   }
 }
 
@@ -380,8 +382,8 @@ function toExportRows(items: any[]) {
 
 function onExport() {
   const rows = selectedIds.value.length
-    ? list.value.filter((r) => selectedIds.value.includes(r.activityId))
-    : list.value;
+    ? filtered.value.filter((r) => selectedIds.value.includes(r.activityId))
+    : filtered.value;
   if (!rows.length) return ElMessage.warning('暂无数据可导出');
   downloadCsv(csvFileName('营销活动'), CSV_HEADERS, toExportRows(rows));
   ElMessage.success(`已导出 ${rows.length} 条`);
@@ -473,23 +475,37 @@ function resetFilters() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (typeof route.query.keyword === 'string' && route.query.keyword !== keyword.value) {
-    keyword.value = route.query.keyword;
+  const qKeyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
+  if (qKeyword !== keyword.value) {
+    keyword.value = qKeyword;
     changed = true;
   }
-  if (typeof route.query.status === 'string' && route.query.status !== statusFilter.value) {
-    statusFilter.value = route.query.status;
+  const qStatus = typeof route.query.status === 'string' ? route.query.status : '';
+  if (qStatus !== statusFilter.value) {
+    statusFilter.value = qStatus;
     changed = true;
   }
   return changed;
 }
+
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+}
+
+watch(
+  () => [route.query.keyword, route.query.status] as const,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
 
 onMounted(() => {
   applyRouteQuery();
   load();
 });
 onActivated(() => {
-  applyRouteQuery();
+  void reloadFromRouteQuery();
 });
 </script>
 

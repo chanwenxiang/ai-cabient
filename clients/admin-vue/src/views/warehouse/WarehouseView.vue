@@ -1948,11 +1948,17 @@ function applyQueryFilters() {
 
 function applyTabFromQuery() {
   const qTab = typeof route.query.tab === 'string' ? route.query.tab : '';
+  const qDevice = typeof route.query.deviceId === 'string' ? route.query.deviceId : '';
   const allowed = [
     'warehouses', 'suppliers', 'purchase', 'returns', 'outbounds', 'transit', 'inventory', 'movements'
   ];
   if (allowed.includes(qTab) && tab.value !== qTab) {
     tab.value = qTab;
+  } else if (!qTab && qDevice) {
+    // deviceId deep-link without tab → in-transit (replenishment / dashboard)
+    if (tab.value !== 'transit') tab.value = 'transit';
+  } else if (!qTab && tab.value !== 'warehouses' && !qDevice) {
+    // keep current tab when user switched locally; only reset when query fully cleared
   }
   if (tab.value === 'transit') {
     applyQueryFilters();
@@ -1969,14 +1975,14 @@ onMounted(async () => {
 
 onActivated(() => {
   applyTabFromQuery();
-  loadTab(tab.value, false);
+  loadTab(tab.value, true);
 });
 
 watch(
   () => [route.query.tab, route.query.overdue, route.query.deviceId] as const,
   () => {
     applyTabFromQuery();
-    if (tab.value === 'transit') loadTab('transit', false);
+    loadTab(tab.value, true);
   }
 );
 </script>

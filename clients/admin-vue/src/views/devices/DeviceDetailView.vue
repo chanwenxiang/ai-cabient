@@ -208,11 +208,11 @@
               </template>
             </el-table-column>
             <el-table-column label="操作" width="88" class-name="col-action" align="center">
-              <template #default>
+              <template #default="{ row }">
                 <TableActions
                   v-if="canAccessPath('/sessions')"
                   :actions="[{ key: 'sessions', label: '查看', icon: View, type: 'primary' }]"
-                  @action="() => goPath('/sessions', { deviceId })"
+                  @action="() => goPath('/sessions', row.sessionId ? { deviceId, sessionId: row.sessionId } : { deviceId })"
                 />
                 <span v-else class="muted">—</span>
               </template>
@@ -240,7 +240,7 @@
               </template>
             </el-table-column>
             <el-table-column label="操作" width="88" class-name="col-action" align="center">
-              <template #default>
+              <template #default="{ row }">
                 <TableActions
                   v-if="canAccessPath('/orders')"
                   :actions="[{ key: 'orders', label: '查看', icon: View, type: 'primary' }]"
@@ -275,7 +275,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -526,6 +526,10 @@ onMounted(async () => {
   } finally {
     loading.value = false;
   }
+});
+
+onActivated(() => {
+  void reload();
 });
 </script>
 

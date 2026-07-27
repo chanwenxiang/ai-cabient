@@ -140,7 +140,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Delete, EditPen, Plus, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -352,13 +352,15 @@ async function save() {
 }
 
 async function onRemove(row: PermRow) {
-  await ElMessageBox.confirm(`确认停用「${row.permName}」？`, '停用菜单', { type: 'warning' });
   try {
+    await ElMessageBox.confirm(`确认停用「${row.permName}」？`, '停用菜单', { type: 'warning' });
     await api.request(`/api/v2/ops/admin/rbac/permissions/${row.permissionId}`, 'DELETE');
     ElMessage.success('已停用');
     await load();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '停用失败');
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '停用失败');
+    }
   }
 }
 
@@ -372,8 +374,9 @@ function syncRouteQuery() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (typeof route.query.type === 'string' && route.query.type !== typeFilter.value) {
-    typeFilter.value = route.query.type;
+  const qType = typeof route.query.type === 'string' ? route.query.type : '';
+  if (qType !== typeFilter.value) {
+    typeFilter.value = qType;
     changed = true;
   }
   const ops = route.query.opsOnly !== '0';
@@ -389,12 +392,23 @@ function applyRouteQuery() {
   return changed;
 }
 
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+}
+
+watch(
+  () => [route.query.type, route.query.opsOnly, route.query.inactive] as const,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
+
 onMounted(() => {
   applyRouteQuery();
   load();
 });
 onActivated(() => {
-  applyRouteQuery();
+  void reloadFromRouteQuery();
 });
 </script>
 

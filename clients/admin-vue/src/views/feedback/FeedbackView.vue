@@ -134,7 +134,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { ChatDotRound, Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -187,8 +187,9 @@ function syncRouteQuery() {
 }
 
 function applyRouteQuery() {
-  if (typeof route.query.status === 'string' && route.query.status !== status.value) {
-    status.value = route.query.status;
+  const qStatus = typeof route.query.status === 'string' ? route.query.status : '';
+  if (qStatus !== status.value) {
+    status.value = qStatus;
     return true;
   }
   return false;
@@ -246,8 +247,21 @@ onMounted(() => {
   applyRouteQuery();
   load();
 });
+
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  await load();
+}
+
+watch(
+  () => route.query.status,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
+
 onActivated(() => {
-  if (applyRouteQuery()) load();
+  void reloadFromRouteQuery();
 });
 </script>
 

@@ -199,7 +199,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Delete, EditPen, Key, OfficeBuilding, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -346,7 +346,12 @@ function onRowAction(key: string, row: OperatorRow) {
 }
 
 async function loadRoles() {
-  roles.value = await api.request<RoleRow[]>('/api/v2/ops/admin/rbac/roles', 'GET');
+  try {
+    roles.value = await api.request<RoleRow[]>('/api/v2/ops/admin/rbac/roles', 'GET');
+  } catch (e) {
+    roles.value = [];
+    ElMessage.error(e instanceof Error ? e.message : '加载角色失败');
+  }
 }
 
 async function loadMerchants() {
@@ -380,8 +385,9 @@ function syncRouteQuery() {
 }
 
 function applyRouteQuery() {
-  if (typeof route.query.phone === 'string' && route.query.phone !== phone.value) {
-    phone.value = route.query.phone;
+  const qPhone = typeof route.query.phone === 'string' ? route.query.phone : '';
+  if (qPhone !== phone.value) {
+    phone.value = qPhone;
     return true;
   }
   return false;
@@ -457,13 +463,15 @@ async function saveForm() {
 }
 
 async function onDisable(row: OperatorRow) {
-  await ElMessageBox.confirm(`确认停用账号「${row.name || row.phoneNumber}」？`, '停用账号', { type: 'warning' });
   try {
+    await ElMessageBox.confirm(`确认停用账号「${row.name || row.phoneNumber}」？`, '停用账号', { type: 'warning' });
     await api.request(`/api/v2/ops/admin/rbac/operators/${row.userId}`, 'DELETE');
     ElMessage.success('已停用');
     await loadOperators();
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '停用失败');
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '停用失败');
+    }
   }
 }
 
@@ -530,15 +538,25 @@ async function reload() {
   await Promise.all([loadRoles(), loadMerchants(), loadOperators()]);
 }
 
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+  await loadOperators();
+}
+
+watch(
+  () => route.query.phone,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
+
 onMounted(() => {
   applyRouteQuery();
   reload();
 });
 onActivated(() => {
-  if (applyRouteQuery()) {
-    page.value = 1;
-    loadOperators();
-  }
+  void reloadFromRouteQuery();
 });
 </script>
 

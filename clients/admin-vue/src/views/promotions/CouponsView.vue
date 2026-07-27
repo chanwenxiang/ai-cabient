@@ -276,7 +276,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
   filePrefix: '优惠券',
   headers: CSV_HEADERS,
   toRows: () =>
-    pickSelected(list.value).map((row) => [
+    pickSelected(filtered.value).map((row) => [
       row.couponName,
       typeMap[row.couponType] || row.couponType,
       yuan(row.denominationCents),
@@ -448,23 +448,37 @@ function resetFilters() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (typeof route.query.keyword === 'string' && route.query.keyword !== keyword.value) {
-    keyword.value = route.query.keyword;
+  const qKeyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
+  if (qKeyword !== keyword.value) {
+    keyword.value = qKeyword;
     changed = true;
   }
-  if (typeof route.query.status === 'string' && route.query.status !== statusFilter.value) {
-    statusFilter.value = route.query.status;
+  const qStatus = typeof route.query.status === 'string' ? route.query.status : '';
+  if (qStatus !== statusFilter.value) {
+    statusFilter.value = qStatus;
     changed = true;
   }
   return changed;
 }
+
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+}
+
+watch(
+  () => [route.query.keyword, route.query.status] as const,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
 
 onMounted(() => {
   applyRouteQuery();
   load();
 });
 onActivated(() => {
-  applyRouteQuery();
+  void reloadFromRouteQuery();
 });
 </script>
 

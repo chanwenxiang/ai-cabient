@@ -120,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { CircleCheck, Refresh, Wallet } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -217,30 +217,59 @@ function syncRouteQuery() {
 }
 
 function applyRouteQuery() {
-  if (typeof route.query.keyword === 'string' && route.query.keyword !== keyword.value) {
-    keyword.value = route.query.keyword;
+  const qKeyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
+  if (qKeyword !== keyword.value) {
+    keyword.value = qKeyword;
     return true;
   }
   return false;
 }
 
+/** API accepts phone/name/role/verified — not free-text `q`. Map keyword accordingly. */
+function classifyKeyword(raw: string): { phone?: string; name?: string; userId?: string } {
+  const t = raw.trim();
+  if (!t) return {};
+  if (/^1\d{10}$/.test(t)) return { phone: t };
+  if (/^\d+$/.test(t)) return { userId: t };
+  return { name: t };
+}
+
+async function findUserById(userId: string): Promise<UserRow | null> {
+  const pageSize = 100;
+  const maxScan = 500;
+  let apiPage = 0;
+  let scanned = 0;
+  let serverTotal = Number.POSITIVE_INFINITY;
+  while (scanned < maxScan && scanned < serverTotal) {
+    const q = new URLSearchParams({ page: String(apiPage), size: String(pageSize) });
+    const data = await api.request<PageResult<UserRow>>(`/api/v2/ops/admin/users?${q}`, 'GET');
+    const batch = data.items || [];
+    serverTotal = data.total ?? batch.length;
+    const hit = batch.find((u) => String(u.userId) === userId);
+    if (hit) return hit;
+    scanned += batch.length;
+    if (!batch.length || batch.length < pageSize) break;
+    apiPage += 1;
+  }
+  return null;
+}
+
 async function load() {
   loading.value = true;
   try {
-    const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
-    if (keyword.value.trim()) q.set('q', keyword.value.trim());
-    const data = await api.request<PageResult<UserRow>>(`/api/v2/ops/admin/users?${q}`, 'GET');
-    let list = data.items || [];
-    const kw = keyword.value.trim().toLowerCase();
-    if (kw) {
-      list = list.filter((u) =>
-        [u.userId, u.phoneNumber, u.name, u.role].some((x) =>
-          String(x || '').toLowerCase().includes(kw)
-        )
-      );
+    const classified = classifyKeyword(keyword.value);
+    if (classified.userId) {
+      const hit = await findUserById(classified.userId);
+      items.value = hit ? [hit] : [];
+      total.value = hit ? 1 : 0;
+    } else {
+      const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
+      if (classified.phone) q.set('phone', classified.phone);
+      if (classified.name) q.set('name', classified.name);
+      const data = await api.request<PageResult<UserRow>>(`/api/v2/ops/admin/users?${q}`, 'GET');
+      items.value = data.items || [];
+      total.value = data.total || 0;
     }
-    items.value = list;
-    total.value = data.total || list.length;
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -300,15 +329,25 @@ async function adjust(row: UserRow) {
   }
 }
 
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+  await load();
+}
+
+watch(
+  () => route.query.keyword,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
+
 onMounted(() => {
   applyRouteQuery();
   load();
 });
 onActivated(() => {
-  if (applyRouteQuery()) {
-    page.value = 1;
-    load();
-  }
+  void reloadFromRouteQuery();
 });
 </script>
 

@@ -80,7 +80,7 @@
       </div>
     </div>
 
-    <div v-if="!mineOnly" class="page-pager">
+    <div class="page-pager">
       <el-pagination
         v-model:current-page="page"
         v-model:page-size="size"
@@ -88,7 +88,7 @@
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next"
         background
-        @current-change="load"
+        @current-change="onPageChange"
         @size-change="onSizeChange"
       />
     </div>
@@ -96,7 +96,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -153,13 +153,7 @@ const size = ref(20);
 const total = ref(0);
 const items = ref<AuditRow[]>([]);
 
-const displayItems = computed(() => {
-  return items.value.filter((row) => {
-    if (actionFilter.value && row.action !== actionFilter.value) return false;
-    if (targetFilter.value && row.targetType !== targetFilter.value) return false;
-    return true;
-  });
-});
+const displayItems = computed(() => items.value);
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<AuditRow>((r) => r.logId);
@@ -188,6 +182,12 @@ function targetLabel(type?: string) {
   return TARGET_LABELS[type] || type;
 }
 
+function matchFilters(row: AuditRow) {
+  if (actionFilter.value && row.action !== actionFilter.value) return false;
+  if (targetFilter.value && row.targetType !== targetFilter.value) return false;
+  return true;
+}
+
 function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (mineOnly.value) query.mine = '1';
@@ -203,28 +203,62 @@ function applyRouteQuery() {
     mineOnly.value = mine;
     changed = true;
   }
-  if (typeof route.query.action === 'string' && route.query.action !== actionFilter.value) {
-    actionFilter.value = route.query.action;
+  const qAction = typeof route.query.action === 'string' ? route.query.action : '';
+  if (qAction !== actionFilter.value) {
+    actionFilter.value = qAction;
     changed = true;
   }
-  if (typeof route.query.target === 'string' && route.query.target !== targetFilter.value) {
-    targetFilter.value = route.query.target;
+  const qTarget = typeof route.query.target === 'string' ? route.query.target : '';
+  if (qTarget !== targetFilter.value) {
+    targetFilter.value = qTarget;
     changed = true;
   }
   return changed;
 }
 
+async function scanAuditPages(): Promise<AuditRow[]> {
+  const pageSize = 100;
+  const maxScan = 500;
+  const all: AuditRow[] = [];
+  let apiPage = 0;
+  let scanned = 0;
+  let serverTotal = Number.POSITIVE_INFINITY;
+  while (scanned < maxScan && scanned < serverTotal) {
+    const q = new URLSearchParams({ page: String(apiPage), size: String(pageSize) });
+    const data = await api.request<PageResult<AuditRow>>(`/api/v2/ops/admin/audit-logs?${q}`, 'GET');
+    const batch = data.items || [];
+    serverTotal = data.total ?? batch.length;
+    all.push(...batch);
+    scanned += batch.length;
+    if (!batch.length || batch.length < pageSize) break;
+    apiPage += 1;
+  }
+  return all;
+}
+
 async function load() {
   loading.value = true;
   try {
-    if (mineOnly.value) {
-      items.value = await api.request<AuditRow[]>('/api/v2/ops/admin/audit-logs/recent?size=50&mine=true', 'GET');
-      total.value = items.value.length;
+    const needScan = mineOnly.value || !!actionFilter.value || !!targetFilter.value;
+    if (needScan) {
+      let rows: AuditRow[] = [];
+      if (mineOnly.value) {
+        rows = await api.request<AuditRow[]>(
+          '/api/v2/ops/admin/audit-logs/recent?size=100&mine=true',
+          'GET'
+        );
+      } else {
+        rows = await scanAuditPages();
+      }
+      const filtered = rows.filter(matchFilters);
+      total.value = filtered.length;
+      const start = (page.value - 1) * size.value;
+      items.value = filtered.slice(start, start + size.value);
     } else {
       const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
       const data = await api.request<PageResult<AuditRow>>(`/api/v2/ops/admin/audit-logs?${q}`, 'GET');
-      items.value = data.items;
-      total.value = data.total;
+      items.value = data.items || [];
+      total.value = data.total || 0;
     }
     clearSelection();
   } catch (e) {
@@ -237,13 +271,13 @@ async function load() {
 function search() {
   page.value = 1;
   syncRouteQuery();
-  // Client-side filters apply via displayItems; still reload for mine toggle consistency
   load();
 }
 
 function reset() {
   actionFilter.value = '';
   targetFilter.value = '';
+  mineOnly.value = false;
   page.value = 1;
   syncRouteQuery();
   load();
@@ -255,20 +289,34 @@ function onMineChange() {
   load();
 }
 
+function onPageChange() {
+  void load();
+}
+
 function onSizeChange() {
   page.value = 1;
   load();
 }
+
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+  await load();
+}
+
+watch(
+  () => [route.query.mine, route.query.action, route.query.target] as const,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
 
 onMounted(() => {
   applyRouteQuery();
   load();
 });
 onActivated(() => {
-  if (applyRouteQuery()) {
-    page.value = 1;
-    load();
-  }
+  void reloadFromRouteQuery();
 });
 </script>
 

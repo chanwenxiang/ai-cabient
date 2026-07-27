@@ -13,7 +13,7 @@
           <el-button v-hasPermi="['ops:announcement:import']" @click="onDownloadTemplate(['示例公告', '公告正文', '全部', '普通', '已发布', ''])">导入模板</el-button>
           <el-button v-hasPermi="['ops:announcement:import']" :loading="importing" @click="triggerImport">导入</el-button>
           <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
-          <el-button v-hasPermi="['ops:announcement:create']" type="primary" @click="showCreate = true">发布公告</el-button>
+          <el-button v-hasPermi="['ops:announcement:create']" type="primary" @click="openCreate">发布公告</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -241,7 +241,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
   filePrefix: '公告',
   headers: CSV_HEADERS,
   toRows: () =>
-    pickSelected(list.value).map((row) => [
+    pickSelected(filtered.value).map((row) => [
       row.title,
       row.content || '',
       scopeMap[row.targetScope] || row.targetScope,
@@ -278,16 +278,19 @@ function syncRouteQuery() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (typeof route.query.keyword === 'string' && route.query.keyword !== keyword.value) {
-    keyword.value = route.query.keyword;
+  const qKeyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
+  if (qKeyword !== keyword.value) {
+    keyword.value = qKeyword;
     changed = true;
   }
-  if (typeof route.query.status === 'string' && route.query.status !== statusFilter.value) {
-    statusFilter.value = route.query.status;
+  const qStatus = typeof route.query.status === 'string' ? route.query.status : '';
+  if (qStatus !== statusFilter.value) {
+    statusFilter.value = qStatus;
     changed = true;
   }
-  if (typeof route.query.priority === 'string' && route.query.priority !== priorityFilter.value) {
-    priorityFilter.value = route.query.priority;
+  const qPriority = typeof route.query.priority === 'string' ? route.query.priority : '';
+  if (qPriority !== priorityFilter.value) {
+    priorityFilter.value = qPriority;
     changed = true;
   }
   return changed;
@@ -353,6 +356,11 @@ function onRowAction(key: string, row: any) {
   else if (key === 'archive') onArchive(row);
 }
 
+function openCreate() {
+  form.value = { title: '', content: '', targetScope: 'ALL', priority: 'NORMAL' };
+  showCreate.value = true;
+}
+
 async function onPublishSubmit() {
   if (!form.value.title.trim() || !form.value.content.trim()) {
     ElMessage.warning('请填写公告标题和内容');
@@ -411,8 +419,21 @@ onMounted(() => {
   applyRouteQuery();
   load();
 });
+
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+}
+
+watch(
+  () => [route.query.keyword, route.query.status, route.query.priority] as const,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
+
 onActivated(() => {
-  applyRouteQuery();
+  void reloadFromRouteQuery();
 });
 </script>
 

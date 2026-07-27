@@ -87,6 +87,9 @@
                 empty-text="请选择左侧字典类型"
                 @selection-change="onSelectionChange"
               >
+                <template #empty>
+                  <el-empty :description="selected ? '暂无字典项' : '请先选择左侧字典类型'" :image-size="64" />
+                </template>
                 <el-table-column type="selection" width="48" align="center" />
                 <el-table-column label="字典项" min-width="180" class-name="col-text">
                   <template #default="{ row }">
@@ -152,7 +155,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useListCsv } from '@/composables/useListCsv';
@@ -184,6 +188,8 @@ const saving = ref(false);
 const types = ref<DictTypeRow[]>([]);
 const items = ref<DictItemRow[]>([]);
 const selected = ref<DictTypeRow | null>(null);
+const route = useRoute();
+const router = useRouter();
 const typeQuery = ref('');
 const typeDlg = ref(false);
 const itemDlg = ref(false);
@@ -264,10 +270,36 @@ async function loadItems() {
   }
 }
 
-function onSelectType(row: DictTypeRow | null) {
+function syncRouteQuery() {
+  const query: Record<string, string> = {};
+  if (selected.value?.dictType) query.type = selected.value.dictType;
+  router.replace({ query });
+}
+
+function onSelectType(row: DictTypeRow | null, opts?: { sync?: boolean }) {
   selected.value = row;
   clearSelection();
   loadItems();
+  if (opts?.sync !== false) syncRouteQuery();
+}
+
+function applyRouteQuery() {
+  const qType = typeof route.query.type === 'string' ? route.query.type : '';
+  if (!qType) return false;
+  if (selected.value?.dictType === qType) return false;
+  const hit = types.value.find((t) => t.dictType === qType);
+  if (hit) {
+    onSelectType(hit, { sync: false });
+    return true;
+  }
+  return false;
+}
+
+async function reloadFromRouteQuery() {
+  if (!types.value.length) await loadTypes();
+  if (!applyRouteQuery() && !selected.value && types.value.length) {
+    onSelectType(types.value[0]);
+  }
 }
 
 function openType(row?: DictTypeRow) {
@@ -333,19 +365,31 @@ async function saveItem() {
 }
 
 async function removeItem(row: DictItemRow) {
-  await ElMessageBox.confirm(`确认删除字典项「${row.dictLabel}」？`, '删除确认');
   try {
+    await ElMessageBox.confirm(`确认删除字典项「${row.dictLabel}」？`, '删除确认');
     await api.request(`/api/v2/ops/admin/dicts/items/${row.dictDataId}`, 'DELETE');
     ElMessage.success('已删除');
     await Promise.all([loadItems(), loadTypes(), loadRuntimeDict()]);
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '删除失败');
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '删除失败');
+    }
   }
 }
 
+watch(
+  () => route.query.type,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
+
 onMounted(async () => {
   await loadTypes();
-  if (types.value.length) onSelectType(types.value[0]);
+  if (!applyRouteQuery() && types.value.length) onSelectType(types.value[0]);
+});
+onActivated(() => {
+  void reloadFromRouteQuery();
 });
 </script>
 

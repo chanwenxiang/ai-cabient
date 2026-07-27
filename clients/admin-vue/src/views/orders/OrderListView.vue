@@ -88,7 +88,7 @@
                 v-if="row.sessionId"
                 type="button"
                 class="link-cell mono"
-                @click="goSessions(row.deviceId)"
+                @click="goSessions(row.deviceId, row.sessionId)"
               >{{ row.sessionId }}</button>
               <span v-else class="muted">-</span>
             </template>
@@ -197,7 +197,7 @@
                 v-if="detail.sessionId"
                 type="button"
                 class="link-cell mono"
-                @click="goSessions(detail.deviceId)"
+                @click="goSessions(detail.deviceId, detail.sessionId)"
               >{{ detail.sessionId }}</button>
               <span v-else>-</span>
             </el-descriptions-item>
@@ -289,7 +289,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { CopyDocument, Link, Refresh, VideoCamera, View, Wallet, Bell, CircleClose, Coin } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -318,6 +318,7 @@ const deviceId = ref('');
 const status = ref('');
 const statusTab = ref('ALL');
 const overdueOnly = ref(false);
+const focusOrderId = ref('');
 const items = ref<OrderSummary[]>([]);
 const page = ref(1);
 const size = ref(20);
@@ -329,6 +330,7 @@ const detail = ref<any>(null);
 const displayItems = computed(() => {
   let list = [...items.value];
   if (statusTab.value === 'PENDING') {
+    // overdueOnly: load() already scans; keep filter as safety net for mixed pages
     if (overdueOnly.value) {
       list = list.filter((row) => isUnpaidOverdue(row));
     }
@@ -440,6 +442,10 @@ function orderRowClass({ row }: { row: OrderSummary }) {
 
 function rowActions(row: OrderSummary): TableAction[] {
   const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
+  actions.push({ key: 'copy', label: '复制单号', icon: CopyDocument, overflow: true });
+  if (row.sessionId) {
+    actions.push({ key: 'session', label: '会话', icon: Link, overflow: true });
+  }
   if (row.status === 'PENDING') {
     if (auth.hasPerm('ops:order:remind')) {
       actions.push({ key: 'remind', label: '催付', icon: Bell, type: 'warning' });
@@ -449,10 +455,6 @@ function rowActions(row: OrderSummary): TableAction[] {
     }
     if (auth.hasPerm('ops:order:cancel')) {
       actions.push({ key: 'cancel', label: '关单', icon: CircleClose, type: 'danger', overflow: true });
-    }
-    actions.push({ key: 'copy', label: '复制单号', icon: CopyDocument, overflow: true });
-    if (row.sessionId) {
-      actions.push({ key: 'session', label: '会话', icon: Link, overflow: true });
     }
   }
   if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
@@ -475,7 +477,7 @@ function onRowAction(key: string, row: OrderSummary) {
   if (key === 'refund') refundOrder(row);
   if (key === 'video') playVideo(row.sessionId);
   if (key === 'copy') copyOrderId(row.orderId);
-  if (key === 'session') goSessions(row.deviceId);
+  if (key === 'session') goSessions(row.deviceId, row.sessionId);
   if (key === 'remind') remindOrder(row);
   if (key === 'cancel') cancelUnpaid(row);
   if (key === 'collect') collectUnpaid(row);
@@ -505,9 +507,10 @@ function goDevice(id: string) {
   goPath(`/devices/${encodeURIComponent(id)}`);
 }
 
-function goSessions(device?: string) {
+function goSessions(device?: string, sessionId?: string) {
   const query: Record<string, string> = {};
   if (device) query.deviceId = device;
+  if (sessionId) query.sessionId = sessionId;
   goPath('/sessions', query);
 }
 
@@ -639,6 +642,7 @@ function syncRouteQuery() {
   if (deviceId.value.trim()) query.deviceId = deviceId.value.trim();
   if (status.value) query.status = status.value;
   if (statusTab.value === 'PENDING' && overdueOnly.value) query.overdue = '1';
+  if (focusOrderId.value) query.orderId = focusOrderId.value;
   router.replace({ query });
 }
 
@@ -661,13 +665,39 @@ function onOverdueToggle() {
 async function load() {
   loading.value = true;
   try {
-    const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
-    if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
-    if (status.value) q.set('status', status.value);
-    const data = await api.request<PageResult<OrderSummary>>(`/api/v2/ops/admin/orders?${q}`, 'GET');
-    items.value = data.items || [];
-    total.value = data.total || 0;
+    if (overdueOnly.value && statusTab.value === 'PENDING') {
+      // No server overdue filter yet: scan recent PENDING pages then paginate locally.
+      const pageSize = 100;
+      const maxScan = 500;
+      const overdue: OrderSummary[] = [];
+      let apiPage = 0;
+      let scanned = 0;
+      let serverTotal = Number.POSITIVE_INFINITY;
+      while (scanned < maxScan && scanned < serverTotal) {
+        const q = new URLSearchParams({ page: String(apiPage), size: String(pageSize), status: 'PENDING' });
+        if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
+        const data = await api.request<PageResult<OrderSummary>>(`/api/v2/ops/admin/orders?${q}`, 'GET');
+        const batch = data.items || [];
+        serverTotal = data.total ?? batch.length;
+        overdue.push(...batch.filter((r) => isUnpaidOverdue(r)));
+        scanned += batch.length;
+        if (!batch.length || batch.length < pageSize) break;
+        apiPage += 1;
+      }
+      overdue.sort((a, b) => orderAgeMs(b.createdAt) - orderAgeMs(a.createdAt));
+      total.value = overdue.length;
+      const start = (page.value - 1) * size.value;
+      items.value = overdue.slice(start, start + size.value);
+    } else {
+      const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
+      if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
+      if (status.value) q.set('status', status.value);
+      const data = await api.request<PageResult<OrderSummary>>(`/api/v2/ops/admin/orders?${q}`, 'GET');
+      items.value = data.items || [];
+      total.value = data.total || 0;
+    }
     clearSelection();
+    await maybeOpenFocusedOrder();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -685,6 +715,7 @@ function reset() {
   status.value = '';
   statusTab.value = 'ALL';
   overdueOnly.value = false;
+  focusOrderId.value = '';
   page.value = 1;
   syncRouteQuery();
   load();
@@ -699,31 +730,85 @@ function applyRouteQuery() {
   if (typeof route.query.deviceId === 'string' && route.query.deviceId !== deviceId.value) {
     deviceId.value = route.query.deviceId;
     changed = true;
+  } else if (!route.query.deviceId && deviceId.value) {
+    deviceId.value = '';
+    changed = true;
   }
   if (typeof route.query.status === 'string' && route.query.status !== status.value) {
     status.value = route.query.status;
     statusTab.value = route.query.status || 'ALL';
     changed = true;
-  } else if (!route.query.status && statusTab.value !== 'ALL') {
+  } else if (!route.query.status && (statusTab.value !== 'ALL' || status.value)) {
     statusTab.value = 'ALL';
+    status.value = '';
+    if (overdueOnly.value) {
+      overdueOnly.value = false;
+    }
+    changed = true;
   }
   const wantOverdue = route.query.overdue === '1' || route.query.overdue === 'true';
-  if (statusTab.value === 'PENDING' && wantOverdue !== overdueOnly.value) {
-    overdueOnly.value = wantOverdue;
+  if (statusTab.value === 'PENDING') {
+    if (wantOverdue !== overdueOnly.value) {
+      overdueOnly.value = wantOverdue;
+      changed = true;
+    }
+  } else if (overdueOnly.value) {
+    overdueOnly.value = false;
+    changed = true;
+  }
+  if (typeof route.query.orderId === 'string') {
+    if (route.query.orderId !== focusOrderId.value) {
+      focusOrderId.value = route.query.orderId;
+      changed = true;
+    }
+  } else if (focusOrderId.value) {
+    focusOrderId.value = '';
     changed = true;
   }
   return changed;
+}
+
+async function maybeOpenFocusedOrder() {
+  const oid = focusOrderId.value.trim();
+  if (!oid) return;
+  const hit = items.value.find((r) => r.orderId === oid);
+  if (hit) {
+    await openDetail(hit);
+    return;
+  }
+  try {
+    detailOpen.value = true;
+    detailLoading.value = true;
+    detail.value = null;
+    detail.value = await api.request(`/api/v2/ops/admin/orders/${encodeURIComponent(oid)}`, 'GET');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '订单详情加载失败');
+    detailOpen.value = false;
+  } finally {
+    detailLoading.value = false;
+  }
 }
 
 onMounted(() => {
   applyRouteQuery();
   load();
 });
-onActivated(() => {
-  if (applyRouteQuery()) {
-    page.value = 1;
-    load();
+
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+  await load();
+}
+
+watch(
+  () => [route.query.deviceId, route.query.status, route.query.overdue, route.query.orderId] as const,
+  () => {
+    void reloadFromRouteQuery();
   }
+);
+
+onActivated(() => {
+  void reloadFromRouteQuery();
 });
 </script>
 

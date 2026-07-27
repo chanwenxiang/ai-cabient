@@ -120,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh, RefreshLeft } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -240,26 +240,38 @@ function onSizeChange() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (typeof route.query.status === 'string' && route.query.status !== status.value) {
-    status.value = route.query.status;
+  const qStatus = typeof route.query.status === 'string' ? route.query.status : '';
+  if (qStatus !== status.value) {
+    status.value = qStatus;
     changed = true;
   }
-  if (typeof route.query.userId === 'string' && route.query.userId !== userId.value) {
-    userId.value = route.query.userId;
+  const qUserId = typeof route.query.userId === 'string' ? route.query.userId : '';
+  if (qUserId !== userId.value) {
+    userId.value = qUserId;
     changed = true;
   }
   return changed;
 }
+
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+  await load();
+}
+
+watch(
+  () => [route.query.status, route.query.userId] as const,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
 
 onMounted(() => {
   applyRouteQuery();
   load();
 });
 onActivated(() => {
-  if (applyRouteQuery()) {
-    page.value = 1;
-    load();
-  }
+  void reloadFromRouteQuery();
 });
 </script>
 

@@ -164,7 +164,7 @@
                     v-if="row.orderId"
                     type="button"
                     class="link-cell mono"
-                    @click="goOrders()"
+                    @click="goOrder(row.orderId)"
                   >{{ row.orderId }}</button>
                   <span v-else class="muted">-</span>
                 </template>
@@ -300,7 +300,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh, RefreshRight, Upload } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -439,8 +439,10 @@ function onExport() {
   else exportMerchants();
 }
 
-function goOrders() {
-  goPath('/orders');
+function goOrder(orderId?: string) {
+  const id = String(orderId || '').trim();
+  if (id) goPath('/orders', { orderId: id });
+  else goPath('/orders');
 }
 
 function splitTagType(s: string) {
@@ -738,18 +740,39 @@ async function saveAssignDevices() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (route.query.tab === 'merchants' || route.query.tab === 'splits' || route.query.tab === 'org') {
-    if (tab.value !== String(route.query.tab)) {
-      tab.value = String(route.query.tab);
+  const qTab = typeof route.query.tab === 'string' ? route.query.tab : '';
+  if (qTab === 'merchants' || qTab === 'splits' || qTab === 'org') {
+    if (tab.value !== qTab) {
+      tab.value = qTab;
       changed = true;
     }
+  } else if (!qTab && tab.value !== 'org') {
+    tab.value = 'org';
+    changed = true;
   }
-  if (typeof route.query.status === 'string' && route.query.status !== status.value) {
-    status.value = route.query.status;
+  const qStatus = typeof route.query.status === 'string' ? route.query.status : '';
+  if (qStatus !== status.value) {
+    status.value = qStatus;
     changed = true;
   }
   return changed;
 }
+
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  if (tab.value === 'splits') {
+    await Promise.all([loadSplits(), loadStatus()]);
+  } else {
+    await loadMerchants();
+  }
+}
+
+watch(
+  () => [route.query.tab, route.query.status] as const,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
 
 onMounted(() => {
   applyRouteQuery();
@@ -761,12 +784,7 @@ onMounted(() => {
   }
 });
 onActivated(() => {
-  if (applyRouteQuery()) {
-    if (tab.value === 'splits') {
-      loadSplits();
-      loadStatus();
-    }
-  }
+  void reloadFromRouteQuery();
 });
 </script>
 

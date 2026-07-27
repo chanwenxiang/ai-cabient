@@ -160,7 +160,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Delete, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -270,8 +270,10 @@ function syncRouteQuery() {
 }
 
 function applyRouteQuery() {
-  if (typeof route.query.tab === 'string' && route.query.tab !== tab.value) {
-    tab.value = route.query.tab === 'blacklist' ? 'blacklist' : 'events';
+  const qTab = typeof route.query.tab === 'string' ? route.query.tab : '';
+  const next = qTab === 'blacklist' ? 'blacklist' : 'events';
+  if (next !== tab.value) {
+    tab.value = next;
     return true;
   }
   return false;
@@ -383,16 +385,26 @@ async function removeBlacklist(row: Row) {
   }
 }
 
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  if (tab.value === 'blacklist') await loadBlacklist();
+  else await loadEvents();
+}
+
+watch(
+  () => route.query.tab,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
+
 onMounted(() => {
   applyRouteQuery();
   if (tab.value === 'blacklist') loadBlacklist();
   else loadEvents();
 });
 onActivated(() => {
-  if (applyRouteQuery()) {
-    if (tab.value === 'blacklist') loadBlacklist();
-    else loadEvents();
-  }
+  void reloadFromRouteQuery();
 });
 </script>
 

@@ -24,6 +24,7 @@
             autocomplete="username"
             placeholder="请输入11位手机号"
             size="large"
+            :disabled="loading"
             @input="err = ''"
             @keyup.enter="focusPassword"
           />
@@ -37,10 +38,11 @@
             autocomplete="current-password"
             placeholder="请输入登录密码"
             size="large"
+            :disabled="loading"
             @input="err = ''"
           />
         </el-form-item>
-        <el-button type="primary" native-type="submit" :loading="loading" class="submit-btn">登录</el-button>
+        <el-button type="primary" native-type="submit" :loading="loading" :disabled="loading" class="submit-btn">登录</el-button>
         <p v-if="err" class="err" role="alert">{{ err }}</p>
       </el-form>
         <p v-if="ENABLE_TEST_TOOLS" class="hint">
@@ -57,6 +59,7 @@ import { nextTick, onMounted, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
+import { safeRedirectPath } from '@/utils/safe-redirect';
 import loginBgUrl from '@/assets/login-bg.svg';
 
 const phone = ref(ENABLE_TEST_TOOLS ? '13900000001' : '');
@@ -93,11 +96,7 @@ async function onSubmit() {
   err.value = '';
   try {
     await auth.login(normalizedPhone, password.value);
-    const rawRedirect = typeof route.query.redirect === 'string' ? route.query.redirect : '';
-    const redirect = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')
-      ? rawRedirect
-      : '/dashboard';
-    router.replace(redirect);
+    router.replace(safeRedirectPath(route.query.redirect));
   } catch (e) {
     err.value = e instanceof Error ? e.message : '登录失败';
   } finally {

@@ -173,7 +173,7 @@ const {
   filePrefix: '参数配置',
   headers: ['配置键', '配置值', '说明', '更新时间'],
   toRows: () =>
-    pickSelected(items.value).map((row) => [
+    pickSelected(filtered.value).map((row) => [
       row.configKey,
       row.configValue,
       row.description || '',
@@ -204,8 +204,9 @@ function syncRouteQuery() {
 }
 
 function applyRouteQuery() {
-  if (typeof route.query.keyword === 'string' && route.query.keyword !== keyword.value) {
-    keyword.value = route.query.keyword;
+  const qKeyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
+  if (qKeyword !== keyword.value) {
+    keyword.value = qKeyword;
     return true;
   }
   return false;
@@ -276,8 +277,21 @@ onMounted(() => {
   applyRouteQuery();
   load();
 });
+
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+}
+
+watch(
+  () => route.query.keyword,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
+
 onActivated(() => {
-  applyRouteQuery();
+  void reloadFromRouteQuery();
 });
 </script>
 
