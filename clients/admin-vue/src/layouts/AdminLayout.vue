@@ -18,6 +18,7 @@
       </div>
       <el-scrollbar class="sidebar-scroll">
         <el-menu
+          ref="menuRef"
           :key="menuRenderKey"
           :default-active="active"
           :default-openeds="openedMenus"
@@ -145,6 +146,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import type { MenuInstance } from 'element-plus';
 import {
   Fold, Expand, Brush, DArrowLeft, DArrowRight
 } from '@element-plus/icons-vue';
@@ -164,11 +166,12 @@ const settings = useSettingsStore();
 const MAX_TAGS = 12;
 const tags = ref<{ path: string; title: string }[]>([]);
 const tagsScrollRef = ref<HTMLElement | null>(null);
+const menuRef = ref<MenuInstance>();
 const openedMenus = ref<string[]>([]);
 const menuEpoch = ref(0);
+/** Ignore @close while remounting — destroy fires close and would wipe openeds. */
+const ignoreMenuClose = ref(false);
 const OPENED_MENUS_KEY = 'admin_vue_sidebar_openeds';
-/** Remount when route-driven openeds change — Element Plus only reads default-openeds on mount. */
-const menuRenderKey = computed(() => `m${menuEpoch.value}-${sidebarCollapsed.value ? 'c' : 'e'}`);
 const tagMenu = ref({ visible: false, x: 0, y: 0, path: '' });
 const compactViewport = ref(false);
 /** 窄屏自动收起时，用户临时展开不写 localStorage */
@@ -178,6 +181,9 @@ const sidebarCollapsed = computed(() => {
   if (compactViewport.value && !userExpandedInCompact.value) return true;
   return settings.sidebarCollapsed;
 });
+
+/** Remount only for route/collapse — EP reads default-openeds on mount. Do not remount on @open. */
+const menuRenderKey = computed(() => `m${menuEpoch.value}-${sidebarCollapsed.value ? 'c' : 'e'}`);
 
 function toggleSidebar() {
   if (compactViewport.value) {
@@ -222,11 +228,19 @@ function persistOpenedMenus(keys: string[]) {
   localStorage.setItem(OPENED_MENUS_KEY, JSON.stringify(keys));
 }
 
+function remountMenu(nextOpeneds: string[]) {
+  ignoreMenuClose.value = true;
+  openedMenus.value = nextOpeneds;
+  menuEpoch.value += 1;
+  nextTick(() => {
+    ignoreMenuClose.value = false;
+  });
+}
+
 function syncOpenedMenusForRoute(path: string, collapsed: boolean) {
   if (collapsed) {
     if (openedMenus.value.length) {
-      openedMenus.value = [];
-      menuEpoch.value += 1;
+      remountMenu([]);
     }
     return;
   }
@@ -242,34 +256,48 @@ function syncOpenedMenusForRoute(path: string, collapsed: boolean) {
   const prev = openedMenus.value.join('\0');
   const joined = next.join('\0');
   if (prev === joined) return;
-  openedMenus.value = next;
-  menuEpoch.value += 1;
+  remountMenu(next);
 }
 
 function onSubMenuOpen(key: string) {
-  const next = new Set(openedMenus.value);
   // 同级唯一展开（勿用 EP unique-opened：会禁止「一级+二级」同时展开）
   const parent = key.includes(':') ? key.slice(0, key.lastIndexOf(':')) : null;
-  for (const opened of [...next]) {
-    if (opened === key) continue;
-    if (parent) {
-      if (opened.startsWith(`${parent}:`) && opened !== key) next.delete(opened);
-    } else if (!opened.includes(':')) {
-      next.delete(opened);
+  const next = new Set<string>();
+
+  if (parent) {
+    for (const opened of openedMenus.value) {
+      if (opened === parent || opened === key || opened.startsWith(`${key}:`)) {
+        next.add(opened);
+      } else if (opened.startsWith(`${parent}:`)) {
+        // drop sibling sections
+      } else {
+        next.add(opened);
+      }
     }
+    next.add(parent);
+    next.add(key);
+  } else {
+    for (const opened of openedMenus.value) {
+      if (opened === key || opened.startsWith(`${key}:`)) next.add(opened);
+    }
+    next.add(key);
   }
-  next.add(key);
-  if (parent) next.add(parent);
+
+  const prevKeys = new Set(openedMenus.value);
   const list = [...next];
-  const prev = openedMenus.value.join('\0');
-  const joined = list.join('\0');
   openedMenus.value = list;
   persistOpenedMenus(list);
-  // Remount so default-openeds applies sibling close (EP only reads it on mount)
-  if (prev !== joined) menuEpoch.value += 1;
+  // Close removed keys via EP API — remounting here races with @close and snaps back to route keys
+  const menu = menuRef.value;
+  if (menu) {
+    for (const keyToClose of prevKeys) {
+      if (!next.has(keyToClose)) menu.close(keyToClose);
+    }
+  }
 }
 
 function onSubMenuClose(key: string) {
+  if (ignoreMenuClose.value) return;
   if (!openedMenus.value.includes(key)) return;
   openedMenus.value = openedMenus.value.filter(
     (item) => item !== key && !item.startsWith(`${key}:`)

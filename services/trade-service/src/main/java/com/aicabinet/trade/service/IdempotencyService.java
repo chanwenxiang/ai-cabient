@@ -22,11 +22,9 @@ import java.util.Optional;
  * {@code payment_operation.idempotency_key}。
  * 不要再并行写入本表，以免与业务表不一致（BE-002）。
  * <p>
- * 开门 / 充值 / 扣款请优先使用上述业务键。本服务仅保留给缺少专用唯一列的运营类接口。
- *
- * @deprecated 请优先使用业务表唯一键；仅运营工具可选使用。
+ * 开门 / 充值 / 扣款请优先使用上述业务键。本服务仅保留给缺少专用唯一列的运营类接口，
+ * 新代码不应再注入本类。
  */
-@Deprecated
 @Service
 public class IdempotencyService {
 

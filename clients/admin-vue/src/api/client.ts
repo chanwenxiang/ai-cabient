@@ -13,6 +13,7 @@ export function clearSession() {
   localStorage.removeItem(USER_KEY);
   localStorage.removeItem(EXPIRES_KEY);
   localStorage.removeItem('admin_permissions');
+  localStorage.removeItem('admin_active_nav');
   localStorage.removeItem('admin_phone');
 }
 

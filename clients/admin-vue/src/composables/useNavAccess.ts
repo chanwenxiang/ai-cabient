@@ -10,7 +10,7 @@ export function useNavAccess() {
 
   function canAccessPath(path: string) {
     const nav = findNavByPath(path);
-    return !nav?.perm || auth.hasPerm(nav.perm);
+    return !nav?.perm || auth.canAccessNav(nav);
   }
 
   function firstAccessiblePath(candidates: string[] = ['/dashboard', '/devices', '/orders', '/profile']) {

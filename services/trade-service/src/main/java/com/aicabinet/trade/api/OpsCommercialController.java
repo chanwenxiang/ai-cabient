@@ -744,6 +744,12 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.myPermissions(operatorId(request)));
     }
 
+    /** ACTIVE 菜单/目录权限码，供前端侧栏与路由按停用状态过滤（不受 ops:admin 旁路影响）。 */
+    @GetMapping("/rbac/me/nav")
+    public ApiResponse<java.util.Set<String>> myActiveNav(HttpServletRequest request) {
+        return ApiResponse.ok(facade.activeNavPermissions(operatorId(request)));
+    }
+
     @GetMapping("/rbac/me")
     public ApiResponse<OpsMeDto> myProfile(HttpServletRequest request) {
         return ApiResponse.ok(facade.myProfile(operatorId(request)));

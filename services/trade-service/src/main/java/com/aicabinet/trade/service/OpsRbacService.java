@@ -428,6 +428,23 @@ public class OpsRbacService {
         return permissionService.listPermCodes(operatorId);
     }
 
+    /**
+     * 系统中状态为 ACTIVE 的菜单/目录权限码，用于侧栏与路由门禁。
+     * 停用菜单后即使持有 ops:admin 也不应再出现在导航中。
+     */
+    @Transactional(readOnly = true)
+    public Set<String> activeNavPermissions(Long operatorId) {
+        permissionService.requireOperator(operatorId);
+        return permissionRepository.findByStatusOrderBySortOrderAsc("ACTIVE").stream()
+                .filter(p -> {
+                    String t = p.getPermType();
+                    return "C".equals(t) || "M".equals(t);
+                })
+                .map(OpsPermission::getPermCode)
+                .filter(code -> code != null && !code.isBlank())
+                .collect(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new));
+    }
+
     @Transactional(readOnly = true)
     public OpsMeDto myProfile(Long operatorId) {
         permissionService.requireOperator(operatorId);

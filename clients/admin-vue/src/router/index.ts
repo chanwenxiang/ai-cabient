@@ -83,10 +83,10 @@ router.beforeEach(async (to) => {
     await auth.restore();
   }
   const nav = findNavByPath(to.path);
-  if (nav?.perm && !auth.hasPerm(nav.perm)) {
+  if (nav?.perm && !auth.canAccessNav(nav)) {
     const fallback = ['/dashboard', '/devices', '/orders', '/profile'].find((p) => {
       const item = findNavByPath(p);
-      return !item?.perm || auth.hasPerm(item.perm);
+      return !item?.perm || auth.canAccessNav(item);
     });
     return { path: fallback || '/profile' };
   }

@@ -4,6 +4,7 @@ import { api, applyLoginSession, isLoggedIn, isSessionSoftExpired, clearSession 
 import { loadRuntimeDict, resetRuntimeDict } from '@/stores/dict-runtime';
 
 const PERM_KEY = 'admin_permissions';
+const NAV_KEY = 'admin_active_nav';
 
 function readCachedPermissions(): string[] {
   try {
@@ -13,6 +14,18 @@ function readCachedPermissions(): string[] {
     return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string') : [];
   } catch {
     localStorage.removeItem(PERM_KEY);
+    return [];
+  }
+}
+
+function readCachedActiveNav(): string[] {
+  try {
+    const raw = localStorage.getItem(NAV_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string') : [];
+  } catch {
+    localStorage.removeItem(NAV_KEY);
     return [];
   }
 }
@@ -31,6 +44,9 @@ export interface OpsProfile {
 export const useAuthStore = defineStore('auth', () => {
   const userId = ref(localStorage.getItem('admin_userId') || '');
   const permissions = ref<string[]>(readCachedPermissions());
+  /** ACTIVE 菜单/目录权限码（系统级，停用后对所有人含超管隐藏导航） */
+  const activeNavPerms = ref<string[]>(readCachedActiveNav());
+  const activeNavLoaded = ref(readCachedActiveNav().length > 0);
   const phone = ref(localStorage.getItem('admin_phone') || '');
   const profile = ref<OpsProfile | null>(null);
 
@@ -52,7 +68,7 @@ export const useAuthStore = defineStore('auth', () => {
     userId.value = data.userId;
     phone.value = phoneNumber;
     localStorage.setItem('admin_phone', phoneNumber);
-    await Promise.all([loadPermissions(), loadProfile(), loadRuntimeDict()]);
+    await Promise.all([loadPermissions(), loadActiveNav(), loadProfile(), loadRuntimeDict()]);
   }
 
   async function loadPermissions() {
@@ -73,10 +89,33 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  /** Re-fetch permissions (+ profile) after role edits; drives reactive v-hasPermi. */
+  async function loadActiveNav() {
+    try {
+      const codes = await api.request<string[]>('/api/v2/ops/admin/rbac/me/nav', 'GET');
+      activeNavPerms.value = codes || [];
+      activeNavLoaded.value = true;
+      localStorage.setItem(NAV_KEY, JSON.stringify(activeNavPerms.value));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      if (/401|登录|未授权|失效/i.test(msg) || !isLoggedIn()) {
+        activeNavPerms.value = [];
+        activeNavLoaded.value = false;
+        localStorage.setItem(NAV_KEY, '[]');
+        return;
+      }
+      // Soft-fail: keep cache; if never loaded, don't block all nav
+      const cached = readCachedActiveNav();
+      if (cached.length) {
+        activeNavPerms.value = cached;
+        activeNavLoaded.value = true;
+      }
+    }
+  }
+
+  /** Re-fetch permissions (+ profile + active menus) after role/menu edits. */
   async function refreshPermissions() {
     if (!isLoggedIn()) return false;
-    await Promise.all([loadPermissions(), loadProfile()]);
+    await Promise.all([loadPermissions(), loadActiveNav(), loadProfile()]);
     return true;
   }
 
@@ -118,8 +157,11 @@ export const useAuthStore = defineStore('auth', () => {
     resetRuntimeDict();
     userId.value = '';
     permissions.value = [];
+    activeNavPerms.value = [];
+    activeNavLoaded.value = false;
     phone.value = '';
     profile.value = null;
+    localStorage.removeItem(NAV_KEY);
   }
 
   function hasPerm(code?: string | null) {
@@ -136,9 +178,17 @@ export const useAuthStore = defineStore('auth', () => {
     return false;
   }
 
+  /** 菜单是否在系统中启用（ACTIVE）。超管也不能绕过停用菜单。 */
+  function isNavMenuActive(perm?: string | null) {
+    if (!perm) return true;
+    if (!activeNavLoaded.value) return true;
+    return activeNavPerms.value.includes(perm);
+  }
+
   function canAccessNav(item: { perm?: string } | null | undefined) {
     if (!item) return false;
-    return hasPerm(item.perm);
+    if (!hasPerm(item.perm)) return false;
+    return isNavMenuActive(item.perm);
   }
 
   async function restore() {
@@ -150,13 +200,15 @@ export const useAuthStore = defineStore('auth', () => {
         return false;
       }
     }
-    await Promise.all([loadPermissions(), loadProfile(), loadRuntimeDict()]);
+    await Promise.all([loadPermissions(), loadActiveNav(), loadProfile(), loadRuntimeDict()]);
     return true;
   }
 
   return {
     userId,
     permissions,
+    activeNavPerms,
+    activeNavLoaded,
     phone,
     profile,
     displayName,
@@ -165,9 +217,11 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     logout,
     loadPermissions,
+    loadActiveNav,
     loadProfile,
     refreshPermissions,
     hasPerm,
+    isNavMenuActive,
     canAccessNav,
     restore
   };

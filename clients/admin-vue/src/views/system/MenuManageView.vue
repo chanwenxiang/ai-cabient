@@ -11,6 +11,7 @@
         <div class="page-card-head__actions">
           <el-switch v-model="opsOnly" active-text="仅运营" @change="syncRouteQuery" />
           <el-switch v-model="showInactive" active-text="含停用" @change="syncRouteQuery" />
+          <span class="hint-inline">停用后侧栏隐藏；勾选「含停用」可找回</span>
           <el-button v-hasPermi="['ops:rbac:menu:add']" type="primary" @click="openCreate()">新增</el-button>
           <el-button v-hasPermi="['ops:rbac:menu:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
@@ -142,7 +143,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Delete, EditPen, Plus, Refresh } from '@element-plus/icons-vue';
+import { Delete, EditPen, Plus, Refresh, CircleCheck } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
@@ -196,6 +197,9 @@ function menuActions(row: PermRow): TableAction[] {
   if (auth.hasPerm('ops:rbac:menu:remove') && row.status === 'ACTIVE') {
     acts.push({ key: 'remove', label: '停用', icon: Delete, type: 'danger', overflow: true });
   }
+  if (auth.hasPerm('ops:rbac:menu:edit') && row.status !== 'ACTIVE') {
+    acts.push({ key: 'enable', label: '启用', icon: CircleCheck, type: 'success', overflow: true });
+  }
   return acts;
 }
 
@@ -203,6 +207,7 @@ function onMenuAction(key: string, row: PermRow) {
   if (key === 'edit') openEdit(row);
   else if (key === 'add') openCreate(row.permissionId);
   else if (key === 'remove') onRemove(row);
+  else if (key === 'enable') onEnable(row);
 }
 
 function depthHint(row: PermRow) {
@@ -344,6 +349,7 @@ async function save() {
     }
     dlg.value = false;
     await load();
+    await auth.refreshPermissions();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -353,13 +359,41 @@ async function save() {
 
 async function onRemove(row: PermRow) {
   try {
-    await ElMessageBox.confirm(`确认停用「${row.permName}」？`, '停用菜单', { type: 'warning' });
+    await ElMessageBox.confirm(
+      `确认停用「${row.permName}」？停用后侧栏将隐藏，可在「含停用」中启用。`,
+      '停用菜单',
+      { type: 'warning' }
+    );
     await api.request(`/api/v2/ops/admin/rbac/permissions/${row.permissionId}`, 'DELETE');
-    ElMessage.success('已停用');
+    ElMessage.success('已停用（侧栏已隐藏，勾选「含停用」可查看）');
+    showInactive.value = true;
+    syncRouteQuery();
     await load();
+    await auth.refreshPermissions();
   } catch (e: any) {
     if (e !== 'cancel' && e !== 'close') {
       ElMessage.error(e instanceof Error ? e.message : '停用失败');
+    }
+  }
+}
+
+async function onEnable(row: PermRow) {
+  try {
+    await ElMessageBox.confirm(`确认启用「${row.permName}」？`, '启用菜单', { type: 'info' });
+    await api.request(`/api/v2/ops/admin/rbac/permissions/${row.permissionId}`, 'PUT', {
+      parentId: row.parentId || 0,
+      permName: row.permName,
+      permType: row.permType,
+      path: row.permType === 'F' ? null : row.path || null,
+      sortOrder: row.sortOrder ?? 0,
+      status: 'ACTIVE'
+    });
+    ElMessage.success('已启用');
+    await load();
+    await auth.refreshPermissions();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '启用失败');
     }
   }
 }
@@ -425,6 +459,12 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.hint-inline {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  max-width: 220px;
+  line-height: 1.3;
+}
 .name-cell { display: inline-grid; gap: 2px; line-height: 1.35; vertical-align: middle; }
 .name-cell strong { font-weight: 650; }
 .name-cell small {

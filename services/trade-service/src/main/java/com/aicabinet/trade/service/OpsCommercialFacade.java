@@ -428,6 +428,10 @@ public class OpsCommercialFacade {
         return rbacService.myPermissions(operatorId);
     }
 
+    public java.util.Set<String> activeNavPermissions(Long operatorId) {
+        return rbacService.activeNavPermissions(operatorId);
+    }
+
     public OpsMeDto myProfile(Long operatorId) {
         return rbacService.myProfile(operatorId);
     }
