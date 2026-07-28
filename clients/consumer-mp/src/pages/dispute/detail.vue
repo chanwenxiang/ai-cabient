@@ -83,7 +83,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import { consumerApi, getConsumerToken } from '@/utils/consumer-api';
+import { consumerApi, getConsumerToken, requireConsumerAuth } from '@/utils/consumer-api';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import { absoluteEvidenceUrl } from '@/utils/dispute-evidence';
 import { fmtMoney, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
@@ -117,7 +117,7 @@ onShow(() => {
   const pages = getCurrentPages();
   const cur = pages[pages.length - 1] as { options?: Record<string, string> } | undefined;
   applyQuery({ ...readHashQuery(), ...(cur?.options || {}) });
-  reload();
+  void bootstrap();
   loadServicePhone();
 });
 
@@ -146,6 +146,26 @@ function applyQuery(opts?: Record<string, string>) {
   if (opts.sessionId) sessionId.value = String(opts.sessionId);
 }
 
+function disputeRedirectPath() {
+  const q = [
+    ticketId.value ? `ticketId=${encodeURIComponent(ticketId.value)}` : '',
+    sessionId.value ? `sessionId=${encodeURIComponent(sessionId.value)}` : ''
+  ]
+    .filter(Boolean)
+    .join('&');
+  return `/pages/dispute/detail${q ? `?${q}` : ''}`;
+}
+
+async function bootstrap() {
+  if (!(await requireConsumerAuth('查看审核详情需先完成登录', disputeRedirectPath()))) {
+    loading.value = false;
+    error.value = '请先登录后查看审核详情';
+    ticket.value = null;
+    return;
+  }
+  await reload();
+}
+
 async function loadServicePhone() {
   try {
     const cfg = await consumerApi.consumerPublicConfig();
@@ -156,27 +176,50 @@ async function loadServicePhone() {
 }
 
 async function reload() {
+  if (!getConsumerToken()) {
+    error.value = '请先登录后查看审核详情';
+    ticket.value = null;
+    loading.value = false;
+    return;
+  }
+  if (!ticketId.value && !sessionId.value) {
+    error.value = '缺少审核单参数';
+    ticket.value = null;
+    loading.value = false;
+    return;
+  }
   loading.value = true;
   error.value = '';
   try {
-    const list = await consumerApi.listMyDisputes();
-    let found: DisputeTicketDto | null = null;
-    if (ticketId.value) {
-      found = list.find((d) => d.ticketId === ticketId.value) || null;
-    }
-    if (!found && sessionId.value) {
-      found = list.find((d) => d.sessionId === sessionId.value) || null;
-    }
-    if (!found) {
-      ticket.value = null;
-      error.value = '未找到该审核单，可能已归档或尚未生成';
-      return;
-    }
+    const found = await consumerApi.getMyDispute({
+      ticketId: ticketId.value || undefined,
+      sessionId: sessionId.value || undefined
+    });
     ticket.value = found;
     sessionId.value = found.sessionId || sessionId.value;
     ticketId.value = found.ticketId || ticketId.value;
   } catch (e) {
-    error.value = e instanceof Error ? e.message : '加载失败';
+    // 旧后端无 detail 接口时回退列表查找
+    try {
+      const list = await consumerApi.listMyDisputes();
+      let found: DisputeTicketDto | null = null;
+      if (ticketId.value) {
+        found = list.find((d) => d.ticketId === ticketId.value) || null;
+      }
+      if (!found && sessionId.value) {
+        found = list.find((d) => d.sessionId === sessionId.value) || null;
+      }
+      if (!found) {
+        ticket.value = null;
+        error.value = e instanceof Error ? e.message : '未找到该审核单，可能已归档或尚未生成';
+        return;
+      }
+      ticket.value = found;
+      sessionId.value = found.sessionId || sessionId.value;
+      ticketId.value = found.ticketId || ticketId.value;
+    } catch (e2) {
+      error.value = e2 instanceof Error ? e2.message : '加载失败';
+    }
   } finally {
     loading.value = false;
   }

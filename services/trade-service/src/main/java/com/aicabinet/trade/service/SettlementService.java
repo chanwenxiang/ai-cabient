@@ -156,8 +156,8 @@ public class SettlementService {
         // Honor explicit vision need_review even in local mock mode (dispute E2E toggle).
         // Previously mock cart settle short-circuited before this check, so force-review never fired.
         if (recognition.needReview()) {
-            // 重力错配 / mock 识别：禁止 staging 静默扣款（演示精度 ≠ 生产精度）
-            if (!blocksSilentSettle(recognition)) {
+            // 沙箱：gravity-fill（视觉空+重力有货）允许按重力结算；错配 / 纯 mock 仍禁止静默扣款
+            if (!blocksSilentSettle(recognition) || allowsSandboxGravityFillSettle(recognition)) {
                 OrderDto stagingOrder = tryStagingGravitySettle(session);
                 if (stagingOrder != null) {
                     return stagingOrder;
@@ -177,8 +177,14 @@ public class SettlementService {
         }
 
         if (allowDevFallback && securityProperties.mockEnabled()) {
-            // mock 标称结果不可当作生产精度自动扣款
+            // mock 标称结果不可当作生产精度自动扣款；沙箱 gravity-fill 除外
             if (blocksSilentSettle(recognition)) {
+                if (allowsSandboxGravityFillSettle(recognition)) {
+                    OrderDto stagingOrder = tryStagingGravitySettle(session);
+                    if (stagingOrder != null) {
+                        return stagingOrder;
+                    }
+                }
                 escalateToDispute(session, recognition, reviewReasonFor(recognition));
             }
             List<VisionServiceClient.RecognizedItem> cartItems =
@@ -234,6 +240,18 @@ public class SettlementService {
         }
         log.info("staging gravity settle session={} items={}", session.getSessionId(), gravityItems.size());
         return finalizeOrder(session, gravityItems);
+    }
+
+    /**
+     * 沙箱重力兜底仅放行「视觉为空、重力补全」(gravity-fill)。
+     * gravity-mismatch / 纯 mock 仍须人工审核。
+     */
+    private boolean allowsSandboxGravityFillSettle(VisionServiceClient.RecognitionResult recognition) {
+        if (!stagingProperties.stagingMode() && !stagingProperties.gravityFallbackSettle()) {
+            return false;
+        }
+        String version = recognition.modelVersion() != null ? recognition.modelVersion().toLowerCase() : "";
+        return version.contains("gravity-fill") && !version.contains("gravity-mismatch");
     }
 
     private VisionServiceClient.RecognitionResult withGravityFallback(ShoppingSession session,

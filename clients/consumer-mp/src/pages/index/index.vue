@@ -74,14 +74,14 @@
           <text class="scan-tip">对准柜门二维码，即可开门取货</text>
         </view>
 
-        <view v-if="devTools" class="landing-foot">
+        <view v-if="showManualEntry" class="landing-foot">
           <text
             class="manual-link"
             role="button"
             data-testid="manual-device-toggle"
             @click="showManual = !showManual"
           >
-            {{ showManual ? '收起' : '开发：手动输入柜机编号' }}
+            {{ showManual ? '收起' : manualEntryLabel }}
           </text>
           <view v-if="showManual" class="manual-form">
             <input
@@ -119,7 +119,7 @@
         </view>
       </view>
 
-      <view v-if="reviewSessionId" class="settlement-review-card" :class="'tone-' + reviewCopy.tone">
+      <view v-if="reviewSessionId && !sessionActive" class="settlement-review-card" :class="'tone-' + reviewCopy.tone">
         <view class="review-icon" :class="'tone-' + reviewCopy.tone">{{ reviewCopy.icon }}</view>
         <view class="review-copy">
           <text class="review-title">{{ reviewCopy.title }}</text>
@@ -253,6 +253,13 @@ import { showDevTools } from '@/utils/runtime-flags';
 import type { AccountDto, DeviceProduct, DisputeTicketDto, SessionDto } from '@aicabinet/shared-types';
 
 const devTools = showDevTools();
+/** H5 无可靠扫码时始终提供手输；微信小程序仅开发构建显示 */
+const isH5 = ref(false);
+// #ifdef H5
+isH5.value = true;
+// #endif
+const showManualEntry = computed(() => devTools || isH5.value);
+const manualEntryLabel = computed(() => (isH5.value ? '手动输入柜机编号' : '开发：手动输入柜机编号'));
 
 const deviceInput = ref('');
 const deviceId = ref('');
@@ -314,6 +321,10 @@ const landingErrorTitle = computed(() => {
       return '余额不足';
     case 'device_not_found':
       return '柜机不存在';
+    case 'device_paused':
+      return '柜机暂停营业';
+    case 'device_busy':
+      return '柜机正忙';
     case 'rate_limit':
       return '开门过于频繁';
     default:
@@ -436,7 +447,12 @@ onShow(async () => {
     const reopen = uni.getStorageSync('reopen_device_id');
     if (reopen) {
       uni.removeStorageSync('reopen_device_id');
-      await startShoppingFlow(reopen);
+      const ch = uni.getStorageSync('reopen_entry_channel');
+      if (ch) {
+        uni.removeStorageSync('reopen_entry_channel');
+        entryChannel.value = resolveEntryChannel(ch);
+      }
+      await startShoppingFlow(reopen, ch || undefined);
       return;
     }
     restoreActiveSession();
@@ -508,6 +524,11 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
   landingErrorKind.value = 'other';
 
   if (!(await requireConsumerAuth('扫码开门需先完成微信授权'))) {
+    // 登录成功回到首页后由 onShow 读取 reopen_device_id 续开
+    uni.setStorageSync('reopen_device_id', cabinetId);
+    if (entryChannel.value) {
+      uni.setStorageSync('reopen_entry_channel', entryChannel.value);
+    }
     enteringFlow.value = false;
     return;
   }
@@ -516,30 +537,50 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
     return;
   }
 
-  opening.value = true;
+    opening.value = true;
   deviceId.value = cabinetId;
   scanned.value = true;
   try {
-    await refreshDeviceStatus();
-    if (deviceOffline.value) {
+    const status = await consumerApi.deviceStatus(cabinetId);
+    deviceName.value = status.deviceName || cabinetId;
+    const online = status.online === true || (status.onlineStatus || '').toUpperCase() === 'ONLINE';
+    const reason = String(status.busyReason || '').toUpperCase();
+    deviceOffline.value = !online;
+    if (!online) {
+      deviceStatusText.value = '离线';
+    } else if (status.available === false && reason === 'LOCKED') {
+      deviceStatusText.value = '暂停营业';
+    } else if (status.available === false && reason === 'REPLENISHMENT') {
+      deviceStatusText.value = '补货中';
+    } else if (status.available === false || reason === 'SESSION') {
+      deviceStatusText.value = '使用中';
+    } else {
+      deviceStatusText.value = '在线 · 可开门';
+    }
+
+    if (!online || status.available === false) {
       scanned.value = false;
       deviceId.value = '';
       lastFailedDeviceId.value = cabinetId;
       lastFailedChannel.value = entryChannel.value;
-      const statusMsg = deviceStatusText.value || '';
-      const kind = classifyOpenError({ message: statusMsg, status: /不存在|编号/.test(statusMsg) ? 404 : 0 });
-      if (kind === 'device_not_found') {
-        setLandingError(formatError({ message: statusMsg, status: 404 }), 'device_not_found');
-      } else {
-        setLandingError(
-          statusMsg && statusMsg !== '离线'
-            ? statusMsg
-            : '该柜机当前离线，请稍后再试或更换其他柜机。',
-          'other'
-        );
+      let kind: OpenErrorKind = 'other';
+      let msg = deviceStatusText.value;
+      if (!online) {
+        kind = 'other';
+        msg = '该柜机当前离线，请稍后再试或更换其他柜机。';
+      } else if (reason === 'LOCKED') {
+        kind = 'device_paused';
+        msg = '柜机已暂停营业，请稍后再试或换一台';
+      } else if (reason === 'REPLENISHMENT') {
+        kind = 'device_busy';
+        msg = '柜机正在补货，请稍后再试';
+      } else if (reason === 'SESSION') {
+        kind = 'device_busy';
+        msg = '柜机正在被使用，请稍后再试';
       }
+      setLandingError(msg, kind);
       uni.showToast({
-        title: kind === 'device_not_found' ? '柜机不存在' : '柜机离线，请换一台或稍后再试',
+        title: kind === 'device_paused' ? '柜机暂停营业' : kind === 'device_busy' ? '柜机正忙' : '暂时无法开门',
         icon: 'none'
       });
       return;
@@ -664,8 +705,9 @@ async function refreshReviewState() {
     reviewSessionId.value = sid;
     reviewTicket.value = ticket;
   } catch {
-    reviewSessionId.value = sid;
-    reviewTicket.value = { sessionId: sid, status: 'OPEN' };
+    // 弱网不造假票，避免误显示「审核中」；保留 storage 供下次 onShow 重试
+    reviewSessionId.value = '';
+    reviewTicket.value = null;
   }
 }
 
@@ -733,12 +775,18 @@ function onScan() {
       if (!parsed.deviceId) {
         landingError.value = '无法识别柜机二维码，请扫描柜门上的专用码，或手动输入柜机编号。';
         landingErrorKind.value = 'device_not_found';
+        if (showManualEntry.value) showManual.value = true;
         uni.showToast({ title: '无法识别柜机二维码', icon: 'none' });
         return;
       }
       startShoppingFlow(parsed.deviceId, parsed.channel);
     },
     fail() {
+      if (isH5.value) {
+        showManual.value = true;
+        uni.showToast({ title: '浏览器请手动输入柜机编号', icon: 'none' });
+        return;
+      }
       uni.showToast({ title: '扫码取消或失败', icon: 'none' });
     }
   });
@@ -781,21 +829,30 @@ async function refreshDeviceStatus() {
   try {
     const s = await consumerApi.deviceStatus(deviceId.value);
     deviceName.value = s.deviceName || deviceId.value;
-    const online = (s.onlineStatus || '').toUpperCase() === 'ONLINE';
+    const online = s.online === true || (s.onlineStatus || '').toUpperCase() === 'ONLINE';
+    const reason = String(s.busyReason || '').toUpperCase();
+    const unavailable = s.available === false;
+    // 仅真正离线视为 offline；暂停营业/占用走业务错误，避免误报「离线」
     deviceOffline.value = !online;
-    if (!online) deviceStatusText.value = '离线';
-    else if (state.value === 'SHOPPING') deviceStatusText.value = '门已开 · 购物中';
-    else if (state.value === 'CREATED' || state.value === 'OPENING') deviceStatusText.value = '正在开门';
-    else if (s.busy) deviceStatusText.value = '使用中';
-    else deviceStatusText.value = '在线 · 可再次开门';
+    if (!online) {
+      deviceStatusText.value = '离线';
+    } else if (state.value === 'SHOPPING') {
+      deviceStatusText.value = '门已开 · 购物中';
+    } else if (state.value === 'CREATED' || state.value === 'OPENING') {
+      deviceStatusText.value = '正在开门';
+    } else if (unavailable && reason === 'LOCKED') {
+      deviceStatusText.value = '暂停营业';
+    } else if (unavailable && reason === 'REPLENISHMENT') {
+      deviceStatusText.value = '补货中';
+    } else if (unavailable || s.busy || reason === 'SESSION') {
+      deviceStatusText.value = '使用中';
+    } else {
+      deviceStatusText.value = '在线 · 可开门';
+    }
   } catch (e) {
     const kind = classifyOpenError(e);
-    deviceOffline.value = true;
+    deviceOffline.value = kind !== 'device_paused' && kind !== 'device_busy';
     deviceStatusText.value = formatError(e);
-    if (kind === 'device_not_found') {
-      // 与「离线」区分：编号错误时展示柜机不存在文案
-      deviceStatusText.value = formatError(e);
-    }
   }
 }
 
@@ -912,6 +969,15 @@ async function finishSession(sessionState: string, sid: string) {
     void refreshReviewState();
     void requestDisputeSubscribe();
     uni.showToast({ title: '识别完成，账单待人工确认', icon: 'none' });
+    // 无订单时直接进审核详情，避免只停在首页提示卡
+    setTimeout(() => {
+      uni.navigateTo({
+        url: `/pages/dispute/detail?sessionId=${encodeURIComponent(sid)}`,
+        fail: () => {
+          /* 首页审核卡仍可点 */
+        }
+      });
+    }, 600);
   }
 }
 
@@ -989,9 +1055,11 @@ function startPoll() {
         await finishSession(s.state, sid);
       } else if (['FAILED', 'CANCELLED'].includes(s.state)) {
         stopPoll();
+        const hint = sessionStateHint(s.state) || (s.state === 'CANCELLED' ? '会话已取消' : '购物未完成');
         uni.removeStorageSync('active_session_id');
         clearOpenAttempt();
         clearSessionUi();
+        uni.showToast({ title: hint, icon: 'none', duration: 2800 });
       }
     } catch (e) {
       pollError.value = formatError(e);

@@ -90,8 +90,10 @@ function onSubmit() {
   err.value = '';
   ensureConsumerAuth().then(async (ok) => {
     if (!ok) {
-      err.value = '请先完成微信授权';
       submitting.value = false;
+      uni.navigateTo({
+        url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/report/report')
+      });
       return;
     }
     try {

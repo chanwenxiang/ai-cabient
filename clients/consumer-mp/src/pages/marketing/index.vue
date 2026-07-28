@@ -61,7 +61,7 @@ import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import {
   consumerApi,
-  ensureConsumerAuth,
+  requireConsumerAuth,
   type MarketingBannerDto,
   type MarketingCampaignDto
 } from '@/utils/consumer-api';
@@ -120,7 +120,7 @@ async function onCampaignClick(c: MarketingCampaignDto) {
     openPath('/pages/coupons/coupons');
     return;
   }
-  if (!(await ensureConsumerAuth())) return;
+  if (!(await requireConsumerAuth('领取活动需先完成登录', '/pages/marketing/index'))) return;
   claimingId.value = c.id;
   try {
     const coupon = await consumerApi.claimCampaign(c.id);

@@ -301,7 +301,7 @@ async function onAlipayRecharge() {
       uni.showToast({ title: '请在支付宝完成支付', icon: 'none' });
       return;
     }
-    await refreshAccount();
+    account.value = await consumerApi.account();
     uni.showToast({ title: '支付宝模拟充值成功', icon: 'success' });
   } catch (error) {
     err.value = error instanceof Error ? error.message : '充值失败';

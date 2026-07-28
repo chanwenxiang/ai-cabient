@@ -94,7 +94,9 @@ async function onSubmit() {
   }
   if (submitting.value) return;
   if (!(await ensureConsumerAuth())) {
-    err.value = '请先完成微信授权';
+    uni.navigateTo({
+      url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/feedback/feedback')
+    });
     return;
   }
   submitting.value = true;

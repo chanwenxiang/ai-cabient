@@ -127,7 +127,7 @@ const error = ref('');
 const authed = ref(false);
 const orders = ref<OrderSummary[]>([]);
 const disputes = ref<DisputeTicketDto[]>([]);
-const filter = ref<'all' | 'paid' | 'pending' | 'issue' | 'refunded'>('all');
+const filter = ref<'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelled'>('all');
 type TimeRange = 'all' | 'today' | '7d' | '30d';
 const timeRange = ref<TimeRange>('all');
 const reviewingDisputes = computed(() =>
@@ -138,7 +138,8 @@ const filters = [
   { label: '已完成', value: 'paid' as const },
   { label: '处理中', value: 'pending' as const },
   { label: '有疑问', value: 'issue' as const },
-  { label: '已退款', value: 'refunded' as const }
+  { label: '已退款', value: 'refunded' as const },
+  { label: '已取消', value: 'cancelled' as const }
 ];
 const timeFilters = [
   { label: '全部时间', value: 'all' as const },
@@ -175,14 +176,15 @@ function matchesTimeRange(createdAt: string | undefined, range: TimeRange) {
   return true;
 }
 
-function matchesFilter(order: OrderSummary, value: 'all' | 'paid' | 'pending' | 'issue' | 'refunded') {
+function matchesFilter(order: OrderSummary, value: 'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelled') {
   if (value === 'paid') return order.status === 'PAID' || order.status === 'COMPLETED';
   if (value === 'pending') return order.status === 'PENDING' || order.status === 'PROCESSING';
   if (value === 'issue') return order.status === 'DISPUTED' || order.status === 'FAILED';
-  if (value === 'refunded') return order.status === 'REFUNDED';
+  if (value === 'refunded') return order.status === 'REFUNDED' || order.status === 'PARTIAL_REFUNDED';
+  if (value === 'cancelled') return order.status === 'CANCELLED';
   return true;
 }
-function countBy(value: 'all' | 'paid' | 'pending' | 'issue' | 'refunded') {
+function countBy(value: 'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelled') {
   return orders.value.filter(
     (order) => matchesFilter(order, value) && matchesTimeRange(order.createdAt, timeRange.value)
   ).length;
@@ -220,6 +222,7 @@ function chipClass(status?: string) {
   if (status === 'PENDING' || status === 'PROCESSING') return 'pending';
   if (status === 'DISPUTED' || status === 'FAILED') return 'disputed';
   if (status === 'REFUNDED') return 'refunded';
+  if (status === 'CANCELLED') return 'cancelled';
   return 'default';
 }
 
@@ -525,6 +528,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .chip.pending { background: #fff8e6; color: #d97706; }
 .chip.disputed { background: #ffecec; color: #ef4444; }
 .chip.refunded { background: #fff3e0; color: #ea580c; }
+.chip.cancelled { background: #f3f4f6; color: #6b7280; }
 .chip.default { background: #f0f0f0; color: #888; }
 .order-mid {
   display: flex;

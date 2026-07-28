@@ -302,16 +302,36 @@ export async function ensureConsumerAuth(): Promise<boolean> {
   // #endif
 }
 
-export function requireConsumerAuth(message = '请先完成微信授权'): Promise<boolean> {
+function currentPagePath(): string {
+  try {
+    const pages = getCurrentPages();
+    const cur = pages[pages.length - 1] as { route?: string; options?: Record<string, string> } | undefined;
+    if (!cur?.route) return '/pages/index/index';
+    const base = '/' + cur.route;
+    const opts = cur.options || {};
+    const qs = Object.keys(opts)
+      .filter((k) => opts[k] != null && opts[k] !== '')
+      .map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(String(opts[k]))}`)
+      .join('&');
+    return qs ? `${base}?${qs}` : base;
+  } catch {
+    return '/pages/index/index';
+  }
+}
+
+export function requireConsumerAuth(message = '请先完成微信授权', redirect?: string): Promise<boolean> {
   return ensureConsumerAuth().then((ok) => {
     if (!ok) {
+      const target = redirect || currentPagePath();
       uni.showModal({
         title: '需要授权',
         content: message,
         confirmText: '去验证',
         success(res) {
           if (res.confirm) {
-            uni.navigateTo({ url: '/pages/login/login' });
+            uni.navigateTo({
+              url: '/pages/login/login?redirect=' + encodeURIComponent(target)
+            });
           }
         }
       });
@@ -406,6 +426,17 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').DisputeTicketDto>('/api/v2/disputes', 'POST', body),
   listMyDisputes: () =>
     request<import('@aicabinet/shared-types').DisputeTicketDto[]>('/api/v2/disputes/mine'),
+  getMyDispute: (opts: { ticketId?: string; sessionId?: string }) => {
+    const q = [
+      opts.ticketId ? `ticketId=${encodeURIComponent(opts.ticketId)}` : '',
+      opts.sessionId ? `sessionId=${encodeURIComponent(opts.sessionId)}` : ''
+    ]
+      .filter(Boolean)
+      .join('&');
+    return request<import('@aicabinet/shared-types').DisputeTicketDto>(
+      `/api/v2/disputes/mine/detail${q ? `?${q}` : ''}`
+    );
+  },
   uploadDisputeEvidence: (filePath: string) => uploadDisputeEvidenceFile(filePath),
   refundOrder: (orderId: string, body: import('@aicabinet/shared-types').OrderRefundRequest) =>
     request<import('@aicabinet/shared-types').OrderRefundResultDto>(

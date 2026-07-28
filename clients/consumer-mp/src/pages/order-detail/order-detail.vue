@@ -72,7 +72,7 @@
         <button class="btn-outline" @click="goHelp">帮助与客服</button>
       </view>
 
-      <view class="support" @click="callSupport">客服电话: 400-888-0018 ›</view>
+      <view class="support" @click="callSupport">客服电话: {{ supportPhoneDisplay }} ›</view>
     </view>
 
     <view v-if="showDispute" class="dispute-mask" @click="closeDispute">
@@ -159,11 +159,27 @@ const refundDone = ref(false);
 const reasonChips = DISPUTE_REASON_CHIPS;
 const selectedCategory = ref('USER_APPEAL');
 const evidence = ref<LocalEvidence[]>([]);
+const supportPhoneDisplay = ref('400-888-0018');
+const supportPhoneDial = ref('4008880018');
 
 onLoad(async (opt: any) => {
   orderId.value = opt?.orderId || '';
+  void loadSupportPhone();
   await reload();
 });
+
+async function loadSupportPhone() {
+  try {
+    const cfg = await consumerApi.consumerPublicConfig();
+    const phone = String(cfg?.servicePhone || cfg?.['consumer.service_phone'] || '').trim();
+    if (phone) {
+      supportPhoneDisplay.value = phone;
+      supportPhoneDial.value = phone.replace(/[^\d+]/g, '');
+    }
+  } catch {
+    /* keep defaults */
+  }
+}
 
 async function reload() {
   if (!orderId.value) {
@@ -200,14 +216,19 @@ const statusTitle = computed(() => {
     COMPLETED: '交易完成',
     REFUNDED: '已退款',
     DISPUTED: '争议处理中',
-    FAILED: '交易失败'
+    FAILED: '交易失败',
+    CANCELLED: '已取消',
+    PENDING: '处理中',
+    PROCESSING: '处理中'
   };
   return map[order.value?.status || ''] || '已完成';
 });
 
 const canDispute = computed(() => {
   const s = order.value?.status;
-  return !!order.value?.sessionId && !disputeFiled.value && s !== 'REFUNDED' && s !== 'DISPUTED';
+  if (!order.value?.sessionId || disputeFiled.value) return false;
+  if (s === 'REFUNDED' || s === 'DISPUTED' || s === 'CANCELLED' || s === 'FAILED') return false;
+  return s === 'PAID' || s === 'COMPLETED';
 });
 
 const autoRefundEnabled = computed(() => order.value?.refundPolicy !== 'DISPUTE_ONLY');
@@ -218,7 +239,7 @@ const canRefund = computed(() => {
     autoRefundEnabled.value &&
     !!order.value?.orderId &&
     !refundDone.value &&
-    (s === 'PAID' || s === 'COMPLETED' || s === 'DISPUTED')
+    (s === 'PAID' || s === 'COMPLETED')
   );
 });
 
@@ -230,6 +251,7 @@ const statusDetail = computed(() => {
   }
   if (order.value?.status === 'REFUNDED') return '已退款至原支付渠道或账户余额';
   if (order.value?.status === 'DISPUTED') return '账单审核中，请耐心等待';
+  if (order.value?.status === 'CANCELLED') return '本次购物已取消，未产生扣款';
   return '';
 });
 
@@ -244,7 +266,17 @@ function formatTime(t: string) {
 }
 
 function playVideo() {
-  if (videoUrl.value) uni.previewImage({ urls: [videoUrl.value], current: 0 });
+  if (!videoUrl.value) return;
+  // #ifdef H5
+  if (typeof window !== 'undefined') {
+    window.open(videoUrl.value, '_blank');
+    return;
+  }
+  // #endif
+  uni.setClipboardData({
+    data: videoUrl.value,
+    success: () => uni.showToast({ title: '视频链接已复制，请到浏览器打开', icon: 'none' })
+  });
 }
 
 function openDispute() {
@@ -379,8 +411,8 @@ function goHelp() {
 
 function callSupport() {
   uni.makePhoneCall({
-    phoneNumber: '4008880018',
-    fail: () => uni.showToast({ title: '请拨打 400-888-0018', icon: 'none' })
+    phoneNumber: supportPhoneDial.value,
+    fail: () => uni.showToast({ title: `请拨打 ${supportPhoneDisplay.value}`, icon: 'none' })
   });
 }
 </script>

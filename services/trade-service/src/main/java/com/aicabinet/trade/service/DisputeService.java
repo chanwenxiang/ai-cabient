@@ -306,6 +306,28 @@ public class DisputeService {
                 .stream().map(this::toDto).toList();
     }
 
+    /**
+     * 消费者按 ticketId 或 sessionId 查询本人争议单；非本人返回 404，避免枚举泄露。
+     */
+    @Transactional(readOnly = true)
+    public DisputeTicketDto getMyTicket(Long userId, String ticketId, String sessionId) {
+        DisputeTicket ticket = null;
+        if (ticketId != null && !ticketId.isBlank()) {
+            ticket = disputeRepository.findById(ticketId.trim()).orElse(null);
+        }
+        if (ticket == null && sessionId != null && !sessionId.isBlank()) {
+            ticket = disputeRepository.findBySessionId(sessionId.trim()).orElse(null);
+        }
+        if (ticket == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND);
+        }
+        ShoppingSession session = sessionRepository.findById(ticket.getSessionId()).orElse(null);
+        if (session == null || session.getUserId() == null || !session.getUserId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND);
+        }
+        return toDto(ticket);
+    }
+
     @Transactional(readOnly = true)
     public List<DisputeTicketDto> listOpenTickets(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:dispute");

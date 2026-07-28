@@ -83,12 +83,18 @@
             <view class="row">
               <input
                 class="input flex"
+                type="number"
+                maxlength="6"
                 :value="code"
                 placeholder="请输入验证码"
                 @input="code = eventInputValue($event)"
               />
-              <view class="btn-code" :class="{ disabled: !!codeCooldown }" @click="onSendCode">
-                {{ codeCooldown ? codeCooldown + 's' : '获取验证码' }}
+              <view
+                class="btn-code"
+                :class="{ disabled: !!codeCooldown || sendingCode }"
+                @click="onSendCode"
+              >
+                {{ sendingCode ? '发送中…' : codeCooldown ? codeCooldown + 's' : '获取验证码' }}
               </view>
             </view>
           </view>
@@ -113,7 +119,7 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { ref } from 'vue';
 import {
   consumerPasswordLogin,
@@ -127,21 +133,48 @@ import { showDevTools } from '@/utils/runtime-flags';
 import loginBgUrl from '@/static/login-bg.png';
 
 const redirect = ref('/pages/index/index');
-const showPhoneForm = ref(false);
+// H5 无法微信静默授权，默认展开手机号，减少多点一次
+const showPhoneForm = ref(typeof window !== 'undefined');
 const mode = ref<'password' | 'sms'>('sms');
 const phone = ref(import.meta.env.DEV ? '13800138000' : '');
 const password = ref('');
 const code = ref(import.meta.env.DEV ? '123456' : '');
 const loading = ref(false);
+const sendingCode = ref(false);
 const wxMode = ref(false);
 const err = ref('');
 const codeCooldown = ref(0);
 const isDev = showDevTools();
 let codeTimer: ReturnType<typeof setInterval> | null = null;
 
+function clearCodeTimer() {
+  if (codeTimer) {
+    clearInterval(codeTimer);
+    codeTimer = null;
+  }
+}
+
 onLoad((opts) => {
-  if (opts?.redirect) redirect.value = decodeURIComponent(String(opts.redirect));
+  if (opts?.redirect) redirect.value = decodeRedirectParam(String(opts.redirect));
 });
+
+onUnload(() => clearCodeTimer());
+
+/** uni-app H5 可能对 query 二次编码，循环解码直到稳定 */
+function decodeRedirectParam(raw: string) {
+  let cur = String(raw || '').trim();
+  for (let i = 0; i < 3; i++) {
+    try {
+      const next = decodeURIComponent(cur);
+      if (next === cur) break;
+      cur = next;
+    } catch {
+      break;
+    }
+  }
+  if (!cur.startsWith('/')) cur = '/' + cur.replace(/^\/+/, '');
+  return cur || '/pages/index/index';
+}
 
 function finishLogin() {
   const target = redirect.value.split('?')[0];
@@ -185,7 +218,7 @@ async function onWxLogin() {
 }
 
 async function onSendCode() {
-  if (codeCooldown.value) return;
+  if (codeCooldown.value || sendingCode.value) return;
   let phoneNum = phone.value.trim();
   if (!phoneNum) phoneNum = readDomFieldValue('input');
   phone.value = phoneNum;
@@ -193,16 +226,21 @@ async function onSendCode() {
     err.value = '请输入11位有效手机号';
     return;
   }
+  sendingCode.value = true;
+  err.value = '';
   try {
     await sendSmsCode(phoneNum);
+    clearCodeTimer();
     codeCooldown.value = 60;
     codeTimer = setInterval(() => {
       codeCooldown.value -= 1;
-      if (codeCooldown.value <= 0 && codeTimer) clearInterval(codeTimer);
+      if (codeCooldown.value <= 0) clearCodeTimer();
     }, 1000);
     uni.showToast({ title: '验证码已发送', icon: 'none' });
   } catch (e) {
     err.value = e instanceof Error ? e.message : '发送失败';
+  } finally {
+    sendingCode.value = false;
   }
 }
 
@@ -225,9 +263,12 @@ async function onLogin() {
     }
   } else {
     let sms = code.value.trim();
-    // 避免误读手机号输入框：优先已有 code
     if (!sms) {
       err.value = '请输入验证码';
+      return;
+    }
+    if (!/^\d{4,6}$/.test(sms)) {
+      err.value = '请输入4-6位验证码';
       return;
     }
     code.value = sms;
@@ -391,7 +432,7 @@ async function onLogin() {
 }
 .login-spacer {
   flex: 1;
-  min-height: 120rpx;
+  min-height: 48rpx;
 }
 .form-card {
   flex-shrink: 0;

@@ -58,7 +58,13 @@ export function fmtMoney(cents?: number) {
   return '¥' + (cents / 100).toFixed(2);
 }
 
-export type OpenErrorKind = 'balance' | 'device_not_found' | 'rate_limit' | 'other';
+export type OpenErrorKind =
+  | 'balance'
+  | 'device_not_found'
+  | 'device_paused'
+  | 'device_busy'
+  | 'rate_limit'
+  | 'other';
 
 function errorText(err: unknown): string {
   if (!err) return '';
@@ -75,6 +81,8 @@ export function classifyOpenError(err: unknown): OpenErrorKind {
     return 'device_not_found';
   }
   if (/余额不足|请先充值|insufficient balance|BALANCE/i.test(msg)) return 'balance';
+  if (/暂停营业|已锁机|sales.?lock|LOCKED/i.test(msg)) return 'device_paused';
+  if (/补货|使用中|占用|SESSION|REPLENISHMENT|正在购物/i.test(msg)) return 'device_busy';
   return 'other';
 }
 
@@ -84,6 +92,8 @@ export function formatError(err: unknown): string {
   if (kind === 'rate_limit') return '开门过于频繁，请稍后再试';
   if (kind === 'balance') return '余额不足，请先充值后再开门（建议 ≥ ¥5，或开通免密支付）';
   if (kind === 'device_not_found') return '柜机不存在或编号有误，请重新扫描柜门二维码';
+  if (kind === 'device_paused') return '柜机已暂停营业，请稍后再试或换一台';
+  if (kind === 'device_busy') return '柜机正在使用或补货中，请稍后再试';
   if (typeof err === 'string') return err;
   const e = err as { message?: string; errMsg?: string };
   if (e.message) {

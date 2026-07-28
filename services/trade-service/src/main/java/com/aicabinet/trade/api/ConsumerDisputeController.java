@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
@@ -44,6 +45,15 @@ public class ConsumerDisputeController {
     public ApiResponse<List<DisputeTicketDto>> mine(HttpServletRequest request) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return ApiResponse.ok(disputeService.listMyTickets(userId));
+    }
+
+    @GetMapping("/mine/detail")
+    public ApiResponse<DisputeTicketDto> mineDetail(
+            HttpServletRequest request,
+            @RequestParam(name = "ticketId", required = false) String ticketId,
+            @RequestParam(name = "sessionId", required = false) String sessionId) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(disputeService.getMyTicket(userId, ticketId, sessionId));
     }
 
     @PostMapping

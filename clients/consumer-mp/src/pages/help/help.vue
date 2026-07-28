@@ -10,7 +10,7 @@
       <view class="support-row" @click="callSupport">
         <view>
           <text class="support-label">客服热线</text>
-          <text class="support-value">400-888-0018</text>
+          <text class="support-value">{{ supportPhoneDisplay }}</text>
         </view>
         <text class="support-action">拨打</text>
       </view>
@@ -50,9 +50,12 @@
 </template>
 
 <script setup lang="ts">
+import { onShow } from '@dcloudio/uni-app';
 import { ref } from 'vue';
+import { consumerApi } from '@/utils/consumer-api';
 
-const SUPPORT_PHONE = '4008880018';
+const supportPhoneDisplay = ref('400-888-0018');
+const supportPhoneDial = ref('4008880018');
 const openIdx = ref<number | null>(0);
 
 const faqs = [
@@ -82,14 +85,27 @@ const faqs = [
   }
 ];
 
+onShow(async () => {
+  try {
+    const cfg = await consumerApi.consumerPublicConfig();
+    const phone = String(cfg?.servicePhone || cfg?.['consumer.service_phone'] || '').trim();
+    if (phone) {
+      supportPhoneDisplay.value = phone;
+      supportPhoneDial.value = phone.replace(/[^\d+]/g, '');
+    }
+  } catch {
+    /* keep defaults */
+  }
+});
+
 function toggle(idx: number) {
   openIdx.value = openIdx.value === idx ? null : idx;
 }
 
 function callSupport() {
   uni.makePhoneCall({
-    phoneNumber: SUPPORT_PHONE,
-    fail: () => uni.showToast({ title: '请拨打 400-888-0018', icon: 'none' })
+    phoneNumber: supportPhoneDial.value,
+    fail: () => uni.showToast({ title: `请拨打 ${supportPhoneDisplay.value}`, icon: 'none' })
   });
 }
 

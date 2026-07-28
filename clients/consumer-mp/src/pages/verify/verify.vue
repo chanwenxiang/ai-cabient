@@ -95,7 +95,9 @@ onShow(async () => {
   err.value = '';
   const ok = await ensureConsumerAuth();
   if (!ok) {
-    uni.showToast({ title: '请先完成微信授权', icon: 'none' });
+    uni.navigateTo({
+      url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/verify/verify')
+    });
     return;
   }
   try {

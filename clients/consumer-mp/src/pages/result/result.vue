@@ -98,6 +98,7 @@
             <view v-for="(img, idx) in evidence" :key="img.localPath + idx" class="evidence-item">
               <image class="evidence-img" :src="previewEvidenceSrc(img)" mode="aspectFill" />
               <text class="evidence-del" @click="removeEvidence(idx)">×</text>
+              <text v-if="img.uploading" class="evidence-uploading">上传中</text>
             </view>
             <view v-if="evidence.length < 5" class="evidence-add" @click="onAddEvidence">+</view>
           </view>
@@ -120,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
@@ -144,6 +145,7 @@ const error = ref('');
 const order = ref<OrderDetailDto | null>(null);
 const statusLabel = ref('');
 let sessionId = '';
+let loadedKey = '';
 const deviceId = ref('');
 const showDispute = ref(false);
 const refundMode = ref(false);
@@ -174,15 +176,59 @@ const payChannelText = computed(() => {
 });
 
 onLoad((opts) => {
-  sessionId = (opts?.sessionId as string) || '';
-  const orderId = (opts?.orderId as string) || '';
-  if (orderId) loadByOrderId(orderId);
-  else if (sessionId) loadBySession(sessionId);
-  else {
-    error.value = '缺少订单信息';
-    loading.value = false;
-  }
+  void bootstrap(opts as Record<string, string>);
 });
+
+onShow(() => {
+  // H5 同页换 query 时 onLoad 不重跑，需从 hash / page options 再读
+  const pages = getCurrentPages();
+  const cur = pages[pages.length - 1] as { options?: Record<string, string> } | undefined;
+  void bootstrap({ ...readHashQuery(), ...(cur?.options || {}) });
+});
+
+function readHashQuery(): Record<string, string> {
+  // #ifdef H5
+  try {
+    const hash = window.location.hash || '';
+    const q = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
+    const params = new URLSearchParams(q);
+    return {
+      sessionId: params.get('sessionId') || '',
+      orderId: params.get('orderId') || ''
+    };
+  } catch {
+    return {};
+  }
+  // #endif
+  // #ifndef H5
+  return {};
+  // #endif
+}
+
+async function bootstrap(opts?: Record<string, string>) {
+  const nextSession = String(opts?.sessionId || '').trim();
+  const nextOrder = String(opts?.orderId || '').trim();
+  const key = `${nextOrder}|${nextSession}`;
+  if (key === loadedKey && (order.value || error.value)) return;
+  loadedKey = key;
+  sessionId = nextSession;
+  order.value = null;
+  error.value = '';
+  disputeFiled.value = false;
+  refundDone.value = false;
+  showDispute.value = false;
+  loading.value = true;
+  if (nextOrder) {
+    await loadByOrderId(nextOrder);
+    return;
+  }
+  if (nextSession) {
+    await loadBySession(nextSession);
+    return;
+  }
+  error.value = '缺少订单信息';
+  loading.value = false;
+}
 
 async function loadBySession(sid: string) {
   try {
@@ -190,6 +236,11 @@ async function loadBySession(sid: string) {
     deviceId.value = sess.deviceId || '';
     order.value = await consumerApi.getSessionOrder(sid);
     statusLabel.value = orderStatusLabel(order.value?.status);
+    if (order.value?.status === 'DISPUTED') disputeFiled.value = true;
+    if (order.value?.status === 'REFUNDED') {
+      refundDone.value = true;
+      disputeFiled.value = true;
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
@@ -203,6 +254,11 @@ async function loadByOrderId(oid: string) {
     statusLabel.value = orderStatusLabel(order.value?.status);
     sessionId = order.value?.sessionId || sessionId;
     deviceId.value = order.value?.deviceId || deviceId.value;
+    if (order.value?.status === 'DISPUTED') disputeFiled.value = true;
+    if (order.value?.status === 'REFUNDED') {
+      refundDone.value = true;
+      disputeFiled.value = true;
+    }
   } catch (e) {
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
@@ -258,6 +314,10 @@ async function submitDispute() {
     uni.showToast({ title: '请至少填写 4 个字', icon: 'none' });
     return;
   }
+  if (evidence.value.some((e) => e.uploading)) {
+    uni.showToast({ title: '图片仍在上传', icon: 'none' });
+    return;
+  }
   disputeLoading.value = true;
   try {
     await consumerApi.fileDispute({
@@ -286,6 +346,10 @@ async function submitRefund() {
   }
   if (reason.length < 4) {
     uni.showToast({ title: '请至少填写 4 字退款原因', icon: 'none' });
+    return;
+  }
+  if (evidence.value.some((e) => e.uploading)) {
+    uni.showToast({ title: '图片仍在上传', icon: 'none' });
     return;
   }
   const confirmed = await new Promise<boolean>((resolve) =>
@@ -321,6 +385,10 @@ function continueShop() {
   if (id) {
     uni.setStorageSync('reopen_device_id', id);
   }
+  uni.switchTab({ url: '/pages/index/index' });
+}
+
+function goHome() {
   uni.switchTab({ url: '/pages/index/index' });
 }
 
@@ -424,6 +492,7 @@ function goHelp() {
 .evidence-item { position: relative; width: 120rpx; height: 120rpx; }
 .evidence-img { width: 120rpx; height: 120rpx; border-radius: 10rpx; background: #f3f4f6; }
 .evidence-del { position: absolute; top: -8rpx; right: -8rpx; width: 32rpx; height: 32rpx; border-radius: 50%; background: #111; color: #fff; text-align: center; line-height: 32rpx; font-size: 22rpx; }
+.evidence-uploading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); color: #fff; font-size: 20rpx; border-radius: 10rpx; }
 .evidence-add { width: 120rpx; height: 120rpx; border-radius: 10rpx; border: 2rpx dashed #d1d5db; color: #9ca3af; font-size: 40rpx; display: flex; align-items: center; justify-content: center; }
 .dispute-done { text-align: center; font-size: 26rpx; color: #07c160; padding: 8rpx 0; }
 .btn-hover { opacity: 0.85; }

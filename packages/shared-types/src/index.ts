@@ -386,9 +386,14 @@ export interface DeviceStatusDto {
   deviceId: string;
   deviceName?: string;
   onlineStatus?: string;
+  online?: boolean;
   available?: boolean;
   busy?: boolean;
   replenishmentMode?: boolean;
+  activeSessionId?: string | null;
+  activeSessionState?: string | null;
+  /** NONE | SESSION | REPLENISHMENT | LOCKED */
+  busyReason?: string;
   message?: string;
 }
 
