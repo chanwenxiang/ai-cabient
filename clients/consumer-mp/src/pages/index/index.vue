@@ -523,24 +523,22 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
   landingError.value = '';
   landingErrorKind.value = 'other';
 
-  if (!(await requireConsumerAuth('扫码开门需先完成微信授权'))) {
-    // 登录成功回到首页后由 onShow 读取 reopen_device_id 续开
-    uni.setStorageSync('reopen_device_id', cabinetId);
-    if (entryChannel.value) {
-      uni.setStorageSync('reopen_entry_channel', entryChannel.value);
+  try {
+    if (!(await requireConsumerAuth('扫码开门需先完成微信授权'))) {
+      // 登录成功回到首页后由 onShow 读取 reopen_device_id 续开
+      uni.setStorageSync('reopen_device_id', cabinetId);
+      if (entryChannel.value) {
+        uni.setStorageSync('reopen_entry_channel', entryChannel.value);
+      }
+      return;
     }
-    enteringFlow.value = false;
-    return;
-  }
-  if (!(await ensureCanOpenDoor())) {
-    enteringFlow.value = false;
-    return;
-  }
+    if (!(await ensureCanOpenDoor())) {
+      return;
+    }
 
     opening.value = true;
-  deviceId.value = cabinetId;
-  scanned.value = true;
-  try {
+    deviceId.value = cabinetId;
+    scanned.value = true;
     const status = await consumerApi.deviceStatus(cabinetId);
     deviceName.value = status.deviceName || cabinetId;
     const online = status.online === true || (status.onlineStatus || '').toUpperCase() === 'ONLINE';
@@ -607,9 +605,9 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
       deviceId.value = '';
       lastFailedDeviceId.value = cabinetId;
       lastFailedChannel.value = entryChannel.value;
-      const reason = sessionResult.reason;
-      const kind = classifyOpenError(reason);
-      setLandingError(formatError(reason), kind);
+      const failReason = sessionResult.reason;
+      const kind = classifyOpenError(failReason);
+      setLandingError(formatError(failReason), kind);
       uni.showToast({ title: landingError.value, icon: 'none' });
       return;
     }
@@ -620,6 +618,9 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
     uni.setStorageSync('active_session_id', s.sessionId);
     applySessionView(s);
     startPoll();
+  } catch (e) {
+    setLandingError(formatError(e), 'other');
+    uni.showToast({ title: formatError(e), icon: 'none' });
   } finally {
     productsLoading.value = false;
     opening.value = false;
@@ -734,14 +735,20 @@ function goReviewDetail() {
 }
 
 function ensureCanOpenDoor(): Promise<boolean> {
-  return consumerApi.account().then((acc) => {
-    if (acc.operator || (acc.verified && payReady(acc))) return true;
-    prepAccount.value = acc;
-    showPrepDrawer.value = true;
-    return new Promise<boolean>((resolve) => {
-      prepResolve = resolve;
+  return consumerApi
+    .account()
+    .then((acc) => {
+      if (acc.operator || (acc.verified && payReady(acc))) return true;
+      prepAccount.value = acc;
+      showPrepDrawer.value = true;
+      return new Promise<boolean>((resolve) => {
+        prepResolve = resolve;
+      });
+    })
+    .catch((e) => {
+      uni.showToast({ title: formatError(e) || '账户信息加载失败', icon: 'none' });
+      return false;
     });
-  });
 }
 
 function onPrepDone(channel?: EntryChannel | null) {

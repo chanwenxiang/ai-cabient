@@ -66,6 +66,39 @@ export function previewEvidenceSrc(item: LocalEvidence): string {
   return item.localPath || absoluteEvidenceUrl(item.url);
 }
 
+const evidenceLocalCache = new Map<string, string>();
+
+/**
+ * 带 Authorization 下载证据图到本地临时路径，避免把 token 拼进 image URL。
+ * 下载失败时才回退 query access_token（兼容后端 AuthInterceptor）。
+ */
+export function fetchEvidenceLocalPath(url?: string): Promise<string> {
+  const abs = absoluteEvidenceUrl(url);
+  if (!abs) return Promise.resolve('');
+  const cached = evidenceLocalCache.get(abs);
+  if (cached) return Promise.resolve(cached);
+  const token = getConsumerToken();
+  return new Promise((resolve) => {
+    uni.downloadFile({
+      url: abs,
+      header: token ? { Authorization: 'Bearer ' + token } : {},
+      success: (res) => {
+        if (res.statusCode >= 200 && res.statusCode < 300 && res.tempFilePath) {
+          evidenceLocalCache.set(abs, res.tempFilePath);
+          resolve(res.tempFilePath);
+          return;
+        }
+        resolve(token ? withAccessToken(abs, token) : abs);
+      },
+      fail: () => resolve(token ? withAccessToken(abs, token) : abs)
+    });
+  });
+}
+
+function withAccessToken(url: string, token: string) {
+  return `${url}${url.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(token)}`;
+}
+
 export function removeEvidenceAt(items: LocalEvidence[], index: number): LocalEvidence[] {
   return items.filter((_, i) => i !== index);
 }

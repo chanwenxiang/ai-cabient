@@ -236,7 +236,9 @@ const statusTitle = computed(() => {
 const canDispute = computed(() => {
   const s = order.value?.status;
   if (!order.value?.sessionId || disputeFiled.value) return false;
-  if (s === 'REFUNDED' || s === 'DISPUTED' || s === 'CANCELLED' || s === 'FAILED') return false;
+  if (s === 'REFUNDED' || s === 'PARTIAL_REFUNDED' || s === 'DISPUTED' || s === 'CANCELLED' || s === 'FAILED') {
+    return false;
+  }
   return s === 'PAID' || s === 'COMPLETED';
 });
 
@@ -259,6 +261,7 @@ const statusDetail = computed(() => {
       : '关门自动扣款成功，如有疑问请提交账单申诉，由运营审核后退款';
   }
   if (order.value?.status === 'REFUNDED') return '已退款至原支付渠道或账户余额';
+  if (order.value?.status === 'PARTIAL_REFUNDED') return '本单已部分退款，可在账单明细中核对金额';
   if (order.value?.status === 'DISPUTED') return '账单审核中，请耐心等待';
   if (order.value?.status === 'CANCELLED') return '本次购物已取消，未产生扣款';
   return '';

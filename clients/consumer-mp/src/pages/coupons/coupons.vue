@@ -96,7 +96,7 @@ async function load() {
 }
 
 function typeText(t: string) {
-  const map: Record<string, string> = { AMOUNT_OFF: '满减券', PERCENT_OFF: '折扣券', FREE_SHIPPING: '免运费', EXCHANGE: '兑换券' };
+  const map: Record<string, string> = { AMOUNT_OFF: '满减券', PERCENT_OFF: '折扣券', FREE_SHIPPING: '立减券', EXCHANGE: '兑换券' };
   return map[t] || t;
 }
 

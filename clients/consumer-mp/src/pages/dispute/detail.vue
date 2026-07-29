@@ -40,9 +40,9 @@
             v-for="img in ticket.evidence"
             :key="img.fileId"
             class="evidence-img"
-            :src="evidencePreview(img.url)"
+            :src="evidenceSrc(img)"
             mode="aspectFill"
-            @click="previewEvidence(img.url)"
+            @click="previewEvidence(img)"
           />
         </view>
       </view>
@@ -94,9 +94,9 @@ import { computed, ref } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { consumerApi, getConsumerToken, requireConsumerAuth } from '@/utils/consumer-api';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
-import { absoluteEvidenceUrl } from '@/utils/dispute-evidence';
+import { fetchEvidenceLocalPath } from '@/utils/dispute-evidence';
 import { fmtMoney, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
-import type { DisputeTicketDto, OrderLineDto } from '@aicabinet/shared-types';
+import type { DisputeTicketDto, FileAttachmentDto, OrderLineDto } from '@aicabinet/shared-types';
 
 const loading = ref(true);
 const error = ref('');
@@ -104,6 +104,8 @@ const ticket = ref<DisputeTicketDto | null>(null);
 const sessionId = ref('');
 const ticketId = ref('');
 const servicePhone = ref('400-888-0018');
+/** fileId/url -> 本地临时路径，避免 image src 带 token */
+const evidenceLocalSrc = ref<Record<string, string>>({});
 
 const copy = computed(() => consumerDisputeReviewCopy(ticket.value));
 const isResolved = computed(() => ticket.value?.status === 'RESOLVED');
@@ -207,6 +209,7 @@ async function reload() {
     ticket.value = found;
     sessionId.value = found.sessionId || sessionId.value;
     ticketId.value = found.ticketId || ticketId.value;
+    void hydrateEvidencePreviews();
   } catch (e) {
     // 旧后端无 detail 接口时回退列表查找
     try {
@@ -226,12 +229,40 @@ async function reload() {
       ticket.value = found;
       sessionId.value = found.sessionId || sessionId.value;
       ticketId.value = found.ticketId || ticketId.value;
+      void hydrateEvidencePreviews();
     } catch (e2) {
       error.value = e2 instanceof Error ? e2.message : '加载失败';
     }
   } finally {
     loading.value = false;
   }
+}
+
+function evidenceKey(img: FileAttachmentDto) {
+  return String(img.fileId || img.url || '');
+}
+
+function evidenceSrc(img: FileAttachmentDto) {
+  const key = evidenceKey(img);
+  return (key && evidenceLocalSrc.value[key]) || '';
+}
+
+async function hydrateEvidencePreviews() {
+  const list = ticket.value?.evidence || [];
+  if (!list.length) {
+    evidenceLocalSrc.value = {};
+    return;
+  }
+  const next: Record<string, string> = { ...evidenceLocalSrc.value };
+  await Promise.all(
+    list.map(async (img) => {
+      const key = evidenceKey(img);
+      if (!key || next[key]) return;
+      const local = await fetchEvidenceLocalPath(img.url);
+      if (local) next[key] = local;
+    })
+  );
+  evidenceLocalSrc.value = next;
 }
 
 function fmtLine(line: OrderLineDto) {
@@ -264,19 +295,11 @@ function contactOps() {
   uni.makePhoneCall({ phoneNumber: servicePhone.value });
 }
 
-function evidencePreview(url?: string) {
-  const abs = absoluteEvidenceUrl(url);
-  if (!abs) return '';
-  const token = getConsumerToken();
-  if (!token) return abs;
-  return `${abs}${abs.includes('?') ? '&' : '?'}access_token=${encodeURIComponent(token)}`;
-}
-
-function previewEvidence(url?: string) {
-  const src = evidencePreview(url);
+function previewEvidence(img: FileAttachmentDto) {
+  const src = evidenceSrc(img);
   if (!src) return;
   const list = (ticket.value?.evidence || [])
-    .map((e) => evidencePreview(e.url))
+    .map((e) => evidenceSrc(e))
     .filter(Boolean);
   uni.previewImage({ urls: list.length ? list : [src], current: src });
 }
