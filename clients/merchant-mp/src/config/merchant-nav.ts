@@ -1,0 +1,85 @@
+/** 商户小程序固定导航（主流：前端写死 + 权限/功能包裁剪，不读运营菜单树） */
+export type MerchantPack = 'field' | 'biz' | 'team';
+
+export interface MerchantNavItem {
+  key: string;
+  title: string;
+  desc?: string;
+  /** tab 页或分包路径 */
+  url: string;
+  tab?: boolean;
+  perm: string | string[];
+  pack: MerchantPack;
+  icon?: string;
+}
+
+export const MERCHANT_FIELD_NAV: MerchantNavItem[] = [
+  {
+    key: 'replenishment',
+    title: '补货任务',
+    desc: '扫码到柜 · 签到 · 核对上架',
+    url: '/pages/replenishment/replenishment',
+    perm: 'merchant:replenishment:view',
+    pack: 'field',
+    icon: '📦'
+  },
+  {
+    key: 'devices',
+    title: '柜机管理',
+    desc: '在线状态 · 货道库存',
+    url: '/pages/devices/devices',
+    tab: true,
+    perm: 'merchant:devices:list',
+    pack: 'field',
+    icon: '🗄️'
+  },
+  {
+    key: 'alerts',
+    title: '待办事项',
+    desc: '缺货 · 临期 · 离线 · 争议',
+    url: '/pages/alerts/alerts',
+    tab: true,
+    perm: 'merchant:alerts:view',
+    pack: 'field',
+    icon: '🔔'
+  }
+];
+
+export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
+  {
+    key: 'pricing',
+    title: '点位定价',
+    desc: '按柜机调整 SKU 售价',
+    url: '/pages/pricing/pricing',
+    perm: 'merchant:pricing:view',
+    pack: 'biz',
+    icon: '¥'
+  },
+  {
+    key: 'settlements',
+    title: '结算对账',
+    desc: '日结与对账单导出',
+    url: '/pages/settlements/settlements',
+    perm: 'merchant:settlements:view',
+    pack: 'biz',
+    icon: '📑'
+  },
+  {
+    key: 'disputes',
+    title: '争议处理',
+    desc: '消费者账单申诉',
+    url: '/pages/disputes/disputes',
+    perm: 'merchant:disputes:list',
+    pack: 'biz',
+    icon: '⚖️'
+  },
+  {
+    key: 'business',
+    title: '经营分析',
+    desc: '营收、毛利与商品表现',
+    url: '/pages/business/business',
+    perm: ['merchant:reports:view', 'merchant:analytics:view'],
+    pack: 'biz',
+    icon: '📈'
+  }
+];

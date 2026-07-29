@@ -80,6 +80,18 @@
                                     "navigationBarTitleText":  "争议处理"
                                 },
                       "path":  "pages/disputes/disputes"
+                  },
+                  {
+                      "path":  "pages/revenue-share/index",
+                      "style":  {
+                                    "navigationBarTitleText":  "分账说明"
+                                }
+                  },
+                  {
+                      "path":  "pages/revenue-share/withdraw",
+                      "style":  {
+                                    "navigationBarTitleText":  "提现说明"
+                                }
                   }
               ],
     "tabBar":  {

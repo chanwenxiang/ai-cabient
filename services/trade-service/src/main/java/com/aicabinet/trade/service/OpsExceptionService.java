@@ -105,10 +105,13 @@ public class OpsExceptionService {
     @Transactional(readOnly = true)
     public PageResult<OpsExceptionDto> listForDevices(Set<String> deviceIds, String status, int page, int size) {
         var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
-        if (deviceIds == null || deviceIds.isEmpty()) return new PageResult<>(List.of(), page, size, 0);
-        var result = status == null || status.isBlank()
+        if (deviceIds != null && deviceIds.isEmpty()) return new PageResult<>(List.of(), page, size, 0);
+        String statusFilter = status == null || status.isBlank() ? null : status.trim().toUpperCase();
+        var result = deviceIds == null
+                ? repository.findFiltered(statusFilter, null, false, pageable)
+                : (statusFilter == null
                 ? repository.findByDeviceIdInOrderByCreatedAtDesc(deviceIds, pageable)
-                : repository.findByDeviceIdInAndStatusOrderByCreatedAtDesc(deviceIds, status.trim().toUpperCase(), pageable);
+                : repository.findByDeviceIdInAndStatusOrderByCreatedAtDesc(deviceIds, statusFilter, pageable));
         return new PageResult<>(result.getContent().stream().map(this::toDto).toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements());
     }

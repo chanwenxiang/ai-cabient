@@ -47,6 +47,80 @@ export function clearSession() {
   clearDictOverrides();
 }
 
+/** 401 时清会话并跳转登录 */
+export function handleUnauthorized(message?: string) {
+  clearSession();
+  const pages = getCurrentPages();
+  const route = pages[pages.length - 1]?.route || '';
+  if (!route.includes('login')) {
+    uni.reLaunch({ url: '/pages/login/login' });
+  }
+  return new Error(message || '登录已失效，请重新登录');
+}
+
+/**
+ * 带鉴权的文件下载（导出/证据等）。
+ * 成功返回 tempFilePath；失败抛错。
+ */
+export function downloadAuthedFile(url: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const token = getToken();
+    if (!token) {
+      reject(new Error('请先登录'));
+      return;
+    }
+    uni.downloadFile({
+      url,
+      header: { Authorization: 'Bearer ' + token },
+      timeout: 60_000,
+      success(res) {
+        if (res.statusCode === 401) {
+          reject(handleUnauthorized());
+          return;
+        }
+        if (res.statusCode >= 200 && res.statusCode < 300 && res.tempFilePath) {
+          resolve(res.tempFilePath);
+          return;
+        }
+        reject(new Error(`下载失败 (${res.statusCode})`));
+      },
+      fail(err) {
+        reject(new Error(err.errMsg || '下载失败'));
+      }
+    });
+  });
+}
+
+/**
+ * 打开已下载的导出文件；H5 上 openDocument 常失败，回退为触发浏览器下载。
+ */
+export function openExportedFile(tempFilePath: string, fileName = 'export.xlsx'): Promise<void> {
+  return new Promise((resolve) => {
+    uni.openDocument({
+      filePath: tempFilePath,
+      showMenu: true,
+      success() {
+        resolve();
+      },
+      fail() {
+        if (typeof document !== 'undefined') {
+          const a = document.createElement('a');
+          a.href = tempFilePath;
+          a.download = fileName;
+          a.rel = 'noopener';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          resolve();
+          return;
+        }
+        uni.showToast({ title: '文件已下载，请从文件管理打开', icon: 'none' });
+        resolve();
+      }
+    });
+  });
+}
+
 export function request<T>(
   path: string,
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET',
@@ -61,16 +135,11 @@ export function request<T>(
       method: method as UniApp.RequestOptions['method'],
       data: data as UniApp.RequestOptions['data'],
       header,
+      timeout: 20_000,
       success(res) {
         const body = res.data as { code?: number; message?: string; data?: T };
         if (res.statusCode === 401) {
-          clearSession();
-          const pages = getCurrentPages();
-          const route = pages[pages.length - 1]?.route || '';
-          if (!route.includes('login')) {
-            uni.reLaunch({ url: '/pages/login/login' });
-          }
-          reject(new Error(body?.message || '登录已失效，请重新登录'));
+          reject(handleUnauthorized(body?.message));
           return;
         }
         if (res.statusCode === 403) {
@@ -121,6 +190,10 @@ export function uploadReplenishmentEvidenceFile(
       header: { Authorization: 'Bearer ' + getToken() },
       timeout: 30_000,
       success(res) {
+        if (res.statusCode === 401) {
+          reject(handleUnauthorized());
+          return;
+        }
         try {
           const body = JSON.parse(String(res.data || '{}')) as {
             code?: number;
@@ -148,29 +221,8 @@ export function downloadReplenishmentEvidenceFile(
   taskId: number,
   fileId: number
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const token = getToken();
-    if (!token) {
-      reject(new Error('请先登录'));
-      return;
-    }
-    const url = `${API_BASE_URL}/api/v2/merchant/replenishment/tasks/${taskId}/evidence/${fileId}`;
-    uni.downloadFile({
-      url,
-      header: { Authorization: 'Bearer ' + token },
-      timeout: 30_000,
-      success(res) {
-        if (res.statusCode >= 200 && res.statusCode < 300 && res.tempFilePath) {
-          resolve(res.tempFilePath);
-          return;
-        }
-        reject(new Error(`下载失败 (${res.statusCode})`));
-      },
-      fail(err) {
-        reject(new Error(err.errMsg || '下载失败'));
-      }
-    });
-  });
+  const url = `${API_BASE_URL}/api/v2/merchant/replenishment/tasks/${taskId}/evidence/${fileId}`;
+  return downloadAuthedFile(url);
 }
 
 export const merchantApi = {
@@ -192,7 +244,11 @@ export const merchantApi = {
       `/api/v2/merchant/pricing/skus${deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : ''}`
     ),
   updatePricing: (skuId: string, body: { deviceId: string; priceCents: number | null }) =>
-    request(`/api/v2/merchant/pricing/skus/${encodeURIComponent(skuId)}`, 'PATCH', body),
+    request<import('@aicabinet/shared-types').MerchantSkuPricing>(
+      `/api/v2/merchant/pricing/skus/${encodeURIComponent(skuId)}`,
+      'PATCH',
+      body
+    ),
   workbench: () => request<import('@aicabinet/shared-types').MerchantWorkbench>('/api/v2/merchant/workbench'),
   notifyPrefs: () =>
     request<{ wxBound: boolean; enabledAlertTypes: string[] }>('/api/v2/merchant/notify/prefs'),
@@ -204,7 +260,53 @@ export const merchantApi = {
     request<{ wxBound: boolean; enabledAlertTypes: string[] }>('/api/v2/merchant/notify/subscribe', 'POST', {
       alertTypes
     }),
-  exceptions: (status = 'OPEN') => request<{ items: Array<{ exceptionId:string; exceptionType:string; title:string; detail?:string; deviceId?:string }> }>(`/api/v2/merchant/exceptions?status=${encodeURIComponent(status)}`),
+  exceptions: (status = 'OPEN', page = 0, size = 100) =>
+    request<{
+      items: Array<{
+        exceptionId: string;
+        exceptionType: string;
+        title: string;
+        detail?: string;
+        deviceId?: string;
+      }>;
+      total: number;
+    }>(
+      `/api/v2/merchant/exceptions?status=${encodeURIComponent(status)}&page=${page}&size=${size}`
+    ),
+  /** OPEN + PROCESSING；按页拉满，返回去重后的 items 与合计 total */
+  openExceptions: async (pageSize = 100) => {
+    type ExRow = {
+      exceptionId: string;
+      exceptionType: string;
+      title: string;
+      detail?: string;
+      deviceId?: string;
+    };
+    const size = Math.min(Math.max(pageSize, 1), 100);
+    const mergePages = async (status: string) => {
+      const first = await merchantApi.exceptions(status, 0, size);
+      const items: ExRow[] = [...(first.items || [])];
+      const total = first.total ?? items.length;
+      const pages = Math.ceil(total / size);
+      for (let p = 1; p < pages; p++) {
+        const next = await merchantApi.exceptions(status, p, size);
+        items.push(...(next.items || []));
+      }
+      return { items, total };
+    };
+    const [open, processing] = await Promise.all([
+      mergePages('OPEN'),
+      mergePages('PROCESSING').catch(() => ({ items: [] as ExRow[], total: 0 }))
+    ]);
+    const byId = new Map<string, ExRow>();
+    for (const row of [...open.items, ...processing.items]) {
+      if (row?.exceptionId) byId.set(row.exceptionId, row);
+    }
+    return {
+      items: [...byId.values()],
+      total: (open.total || 0) + (processing.total || 0)
+    };
+  },
   resolveInventoryException: (id: string, resolution: string) =>
     request(`/api/v2/merchant/exceptions/${encodeURIComponent(id)}/resolve`, 'POST', { resolution }),
   analytics: (days = 30) => request<import('@aicabinet/shared-types').MerchantAnalyticsOverview>(`/api/v2/merchant/analytics/overview?days=${days}`),
@@ -288,10 +390,11 @@ export const merchantApi = {
         restockHeadroom?: number;
       }[]
     >('/api/v2/merchant/expiry-alerts'),
-  disputes: (status?: string) => {
-    const q = status ? `?status=${encodeURIComponent(status)}` : '';
+  disputes: (status?: string, page = 0, size = 100) => {
+    const q = new URLSearchParams({ page: String(page), size: String(size) });
+    if (status) q.set('status', status);
     return request<{ items?: MerchantDisputeTicket[]; total?: number } | MerchantDisputeTicket[]>(
-      `/api/v2/merchant/disputes${q}`
+      `/api/v2/merchant/disputes?${q}`
     );
   },
   disputeDetail: (ticketId: string) =>
@@ -337,7 +440,12 @@ export function hasPerm(me: import('@aicabinet/shared-types').MerchantMe | null,
 /** 商户端展示用：运营字典「设备」在商户侧统一为「柜机」 */
 const MERCHANT_ALERT_TYPE_LABELS: Record<string, string> = {
   DEVICE_OFFLINE: '柜机离线',
-  DEVICE_FAULT: '柜机故障'
+  DEVICE_FAULT: '柜机故障',
+  REPLENISHMENT: '补货任务',
+  REPLENISHMENT_REQUIRED: '需补货',
+  LOW_STOCK: '低库存',
+  EXPIRY: '临期',
+  DISPUTE: '消费争议'
 };
 
 export function alertTypeLabel(type: string) {

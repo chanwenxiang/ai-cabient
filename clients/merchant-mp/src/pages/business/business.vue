@@ -36,8 +36,8 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
-import { getToken, hasPerm, merchantApi } from '@/utils/merchant-api';
+import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import { getToken, hasPerm, merchantApi, downloadAuthedFile, openExportedFile } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { MerchantAnalyticsOverview, MerchantMe, MerchantSettlementOverview, MerchantSkuSales } from '@aicabinet/shared-types';
 
@@ -51,6 +51,7 @@ const periods = [7, 30, 90];
 const days = ref(30);
 const loading = ref(true);
 const error = ref('');
+let loadSeq = 0;
 const analytics = ref<MerchantAnalyticsOverview>({ days: 30, revenueCents: 0, cogsCents: 0, grossMarginCents: 0, writeOffCostCents: 0, topSkus: [] });
 const settlement = ref<MerchantSettlementOverview>({ pendingAmountCents: 0, pendingSplitCount: 0, settledMonthCents: 0, failedSplitCount: 0 });
 const marginRate = computed(() => analytics.value.revenueCents ? `${(analytics.value.grossMarginCents / analytics.value.revenueCents * 100).toFixed(1)}%` : '—');
@@ -58,16 +59,18 @@ const money = (cents = 0) => `¥${(cents / 100).toFixed(2)}`;
 function skuMarginRate(sku: MerchantSkuSales) { return sku.revenueCents ? `${(sku.grossMarginCents / sku.revenueCents * 100).toFixed(1)}%` : '—'; }
 
 async function ensureAccess() {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!getToken()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return false;
   }
   try {
     await refreshMe();
   } catch {
+    if (!getToken()) return false;
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
   }
   if (!canViewBusiness.value) {
+    loading.value = false;
     uni.showToast({ title: '无经营分析权限', icon: 'none' });
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return false;
@@ -75,26 +78,35 @@ async function ensureAccess() {
   return true;
 }
 
-async function load() {
-  if (!(await ensureAccess())) return;
-  loading.value = true;
+async function load(soft = false) {
+  const seq = ++loadSeq;
+  if (!(await ensureAccess())) {
+    if (seq === loadSeq) loading.value = false;
+    return;
+  }
+  if (seq !== loadSeq) return;
+  if (!soft || !analytics.value.topSkus?.length) loading.value = true;
   error.value = '';
   try {
-    [analytics.value, settlement.value] = await Promise.all([
+    const [a, s] = await Promise.all([
       merchantApi.analytics(days.value),
       merchantApi.settlements()
     ]);
+    if (seq !== loadSeq) return;
+    analytics.value = a;
+    settlement.value = s;
   } catch (e) {
+    if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
-    loading.value = false;
+    if (seq === loadSeq) loading.value = false;
   }
 }
 
 function changeDays(value: number) {
   if (days.value === value) return;
   days.value = value;
-  load();
+  void load(true);
 }
 
 function onExport() {
@@ -103,28 +115,22 @@ function onExport() {
     return;
   }
   const url = merchantApi.exportDeviceReportsUrl();
-  const token = getToken();
-  uni.downloadFile({
-    url,
-    header: token ? { Authorization: `Bearer ${token}` } : {},
-    success(res) {
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        uni.showToast({ title: '导出成功', icon: 'success' });
-        if (res.tempFilePath) {
-          uni.openDocument({ filePath: res.tempFilePath, showMenu: true }).catch(() => undefined);
-        }
-      } else {
-        uni.showToast({ title: '导出失败', icon: 'none' });
-      }
-    },
-    fail() {
-      uni.showToast({ title: '导出失败', icon: 'none' });
-    }
-  });
+  void downloadAuthedFile(url)
+    .then(async (tempFilePath) => {
+      await openExportedFile(tempFilePath, `device-reports-${days.value}d.xlsx`);
+      uni.showToast({ title: '导出成功', icon: 'success' });
+    })
+    .catch((e) => {
+      uni.showToast({ title: e instanceof Error ? e.message : '导出失败', icon: 'none' });
+    });
 }
 
-onLoad(load);
-onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
+onLoad(() => void load(false));
+onShow(() => {
+  // 返回本页时静默刷新（含首次为空的场景）
+  if (!loading.value) void load(true);
+});
+onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 </script>
 
 <style scoped>

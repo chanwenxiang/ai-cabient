@@ -9,29 +9,19 @@
       </view>
     </view>
 
-    <view v-if="canReplenishment || canDevices || canAlerts" class="section-label">现场作业</view>
-    <view v-if="canReplenishment || canDevices || canAlerts" class="menu-list">
-      <view v-if="canReplenishment" class="menu-cell highlight" @click="goReplenishment">
-        <text class="menu-icon">📦</text>
+    <view v-if="fieldNav.length" class="section-label">现场作业</view>
+    <view v-if="fieldNav.length" class="menu-list">
+      <view
+        v-for="item in fieldNav"
+        :key="item.key"
+        class="menu-cell"
+        :class="{ highlight: item.key === 'replenishment' }"
+        @click="goNav(item)"
+      >
+        <text class="menu-icon">{{ item.icon }}</text>
         <view class="menu-text">
-          <text class="menu-title">补货任务</text>
-          <text class="menu-desc">扫码到柜 · 签到 · 核对上架</text>
-        </view>
-        <text class="menu-arrow">›</text>
-      </view>
-      <view v-if="canDevices" class="menu-cell" @click="goDevices">
-        <text class="menu-icon">🗄️</text>
-        <view class="menu-text">
-          <text class="menu-title">柜机管理</text>
-          <text class="menu-desc">在线状态 · 货道库存</text>
-        </view>
-        <text class="menu-arrow">›</text>
-      </view>
-      <view v-if="canAlerts" class="menu-cell" @click="goAlerts">
-        <text class="menu-icon">🔔</text>
-        <view class="menu-text">
-          <text class="menu-title">待办事项</text>
-          <text class="menu-desc">缺货 · 临期 · 离线 · 争议</text>
+          <text class="menu-title">{{ item.title }}</text>
+          <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
         </view>
         <text class="menu-arrow">›</text>
       </view>
@@ -53,8 +43,7 @@
           <switch
             :checked="enabledTypes.includes(t.value)"
             color="#0f766e"
-            :data-type="t.value"
-            @change="onSwitchChange"
+            @change="(e) => onToggleType(t.value, !!e.detail.value)"
           />
           <text>{{ t.label }}</text>
         </label>
@@ -62,37 +51,13 @@
       <button class="save-btn" :loading="notifyBusy" @click="onSaveSubscribe">保存提醒偏好</button>
     </view>
 
-    <view v-if="canPricing || canSettlements || canDisputes || canBusiness" class="section-label">经营工具</view>
-    <view v-if="canPricing || canSettlements || canDisputes || canBusiness" class="menu-list">
-      <view v-if="canPricing" class="menu-cell" @click="goPricing">
-        <text class="menu-icon">¥</text>
+    <view v-if="bizNav.length" class="section-label">经营工具</view>
+    <view v-if="bizNav.length" class="menu-list">
+      <view v-for="item in bizNav" :key="item.key" class="menu-cell" @click="goNav(item)">
+        <text class="menu-icon">{{ item.icon }}</text>
         <view class="menu-text">
-          <text class="menu-title">点位定价</text>
-          <text class="menu-desc">按柜机调整 SKU 售价</text>
-        </view>
-        <text class="menu-arrow">›</text>
-      </view>
-      <view v-if="canSettlements" class="menu-cell" @click="goSettlements">
-        <text class="menu-icon">📑</text>
-        <view class="menu-text">
-          <text class="menu-title">结算对账</text>
-          <text class="menu-desc">日结与对账单导出</text>
-        </view>
-        <text class="menu-arrow">›</text>
-      </view>
-      <view v-if="canDisputes" class="menu-cell" @click="goDisputes">
-        <text class="menu-icon">⚖️</text>
-        <view class="menu-text">
-          <text class="menu-title">争议处理</text>
-          <text class="menu-desc">消费者账单申诉</text>
-        </view>
-        <text class="menu-arrow">›</text>
-      </view>
-      <view v-if="canBusiness" class="menu-cell" @click="goBusiness">
-        <text class="menu-icon">📈</text>
-        <view class="menu-text">
-          <text class="menu-title">经营分析</text>
-          <text class="menu-desc">营收、毛利与商品表现</text>
+          <text class="menu-title">{{ item.title }}</text>
+          <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
         </view>
         <text class="menu-arrow">›</text>
       </view>
@@ -113,9 +78,10 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import { clearSession, hasPerm, merchantApi } from '@/utils/merchant-api';
+import { clearSession, merchantApi } from '@/utils/merchant-api';
 import { MERCHANT_ALERT_TYPES, requestMerchantSubscribe, wxLoginCode } from '@/utils/notify';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { canAccessNav, useMerchantMe } from '@/composables/useMerchantMe';
+import { MERCHANT_BIZ_NAV, MERCHANT_FIELD_NAV, type MerchantNavItem } from '@/config/merchant-nav';
 import type { MerchantMe } from '@aicabinet/shared-types';
 import { formatMerchantNames } from '@/utils/merchant-display';
 
@@ -129,15 +95,17 @@ const wxBound = ref(false);
 const enabledTypes = ref<string[]>([]);
 const alertTypeOptions = MERCHANT_ALERT_TYPES;
 
-const canReplenishment = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
-const canDevices = computed(() => hasPerm(me.value, 'merchant:devices:list'));
-const canAlerts = computed(() => hasPerm(me.value, 'merchant:alerts:view'));
-const canPricing = computed(() => hasPerm(me.value, 'merchant:pricing:view'));
-const canSettlements = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
-const canDisputes = computed(() => hasPerm(me.value, 'merchant:disputes:list'));
-const canBusiness = computed(
-  () => hasPerm(me.value, 'merchant:reports:view') || hasPerm(me.value, 'merchant:analytics:view')
-);
+const fieldNav = computed(() => MERCHANT_FIELD_NAV.filter((i) => canAccessNav(me.value, i)));
+const bizNav = computed(() => MERCHANT_BIZ_NAV.filter((i) => canAccessNav(me.value, i)));
+const canAlerts = computed(() => fieldNav.value.some((i) => i.key === 'alerts'));
+
+function goNav(item: MerchantNavItem) {
+  if (item.tab) {
+    uni.switchTab({ url: item.url });
+    return;
+  }
+  uni.navigateTo({ url: item.url });
+}
 
 async function loadNotifyPrefs() {
   if (!canAlerts.value) return;
@@ -158,6 +126,7 @@ onShow(async () => {
   try {
     await refreshMe();
   } catch {
+    if (!uni.getStorageSync('merchant_token')) return;
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
   }
   const profile = me.value || ((uni.getStorageSync('merchant_me') || {}) as MerchantMe);
@@ -172,12 +141,6 @@ function onToggleType(type: string, on: boolean) {
   if (on) set.add(type);
   else set.delete(type);
   enabledTypes.value = [...set];
-}
-
-function onSwitchChange(e: { detail?: { value?: boolean }; currentTarget?: { dataset?: { type?: string } }; target?: { dataset?: { type?: string } } }) {
-  const type = e.currentTarget?.dataset?.type || e.target?.dataset?.type || '';
-  if (!type) return;
-  onToggleType(type, !!e.detail?.value);
 }
 
 async function onBindWx() {
@@ -214,28 +177,6 @@ async function onSaveSubscribe() {
   } finally {
     notifyBusy.value = false;
   }
-}
-
-function goPricing() {
-  uni.navigateTo({ url: '/pages/pricing/pricing' });
-}
-function goBusiness() {
-  uni.navigateTo({ url: '/pages/business/business' });
-}
-function goReplenishment() {
-  uni.navigateTo({ url: '/pages/replenishment/replenishment' });
-}
-function goSettlements() {
-  uni.navigateTo({ url: '/pages/settlements/settlements' });
-}
-function goDisputes() {
-  uni.navigateTo({ url: '/pages/disputes/disputes' });
-}
-function goDevices() {
-  uni.switchTab({ url: '/pages/devices/devices' });
-}
-function goAlerts() {
-  uni.switchTab({ url: '/pages/alerts/alerts' });
 }
 
 function onLogout() {

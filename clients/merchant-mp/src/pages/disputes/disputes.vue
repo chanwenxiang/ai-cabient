@@ -21,7 +21,14 @@
       <text>暂无{{ activeTabLabel }}争议</text>
     </view>
     <view v-else>
-      <view v-for="item in list" :key="item.ticketId" class="card" @click="onDetail(item)">
+      <view
+        v-for="item in list"
+        :key="item.ticketId"
+        class="card"
+        hover-class="card-hover"
+        role="button"
+        @click="onDetail(item)"
+      >
         <view class="card-header">
           <text class="card-id">#{{ shortId(item.ticketId) }}</text>
           <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
@@ -33,19 +40,26 @@
         </view>
         <view v-if="item.lastMessage" class="card-msg"><text>{{ item.lastMessage }}</text></view>
         <view class="card-action">
-          <text v-if="canReplyTicket(item)" class="reply-hint" @click.stop="onReply(item)">回复 ›</text>
-          <text v-else>查看详情 ›</text>
+          <text
+            v-if="canReplyTicket(item)"
+            class="reply-hint"
+            @click.stop="onReply(item)"
+          >回复 ›</text>
+          <text v-else class="reply-hint">查看详情 ›</text>
         </view>
       </view>
+      <text v-if="listTruncated" class="trunc-hint">仅显示前 {{ list.length }} 条，共 {{ listTotal }} 条</text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi, type MerchantDisputeTicket } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
+import { promptText } from '@/utils/text-prompt';
 import type { MerchantMe } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -62,10 +76,16 @@ const activeTab = ref('OPEN');
 const loading = ref(false);
 const error = ref('');
 const list = ref<MerchantDisputeTicket[]>([]);
+let loadSeq = 0;
+const listTotal = ref(0);
 
 const activeTabLabel = computed(() => tabs.find((t) => t.key === activeTab.value)?.label || '');
+const listTruncated = computed(
+  () => listTotal.value > 0 && list.value.length > 0 && listTotal.value > list.value.length
+);
 
 onShow(() => load());
+onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
 function switchTab(key: string) {
   activeTab.value = key;
@@ -81,9 +101,15 @@ async function load() {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
+  const seq = ++loadSeq;
   try {
     await refreshMe();
   } catch {
+    if (!uni.getStorageSync('merchant_token')) return;
+    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  if (seq !== loadSeq) return;
+  if (!me.value) {
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
   }
   if (!canListDisputes.value) {
@@ -94,17 +120,22 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const res = await merchantApi.disputes(activeTab.value);
+    const res = await merchantApi.disputes(activeTab.value, 0, 100);
+    if (seq !== loadSeq) return;
     if (Array.isArray(res)) {
       list.value = res;
+      listTotal.value = res.length;
     } else {
       list.value = res?.items || [];
+      listTotal.value = res?.total ?? list.value.length;
     }
   } catch (e) {
+    if (seq !== loadSeq) return;
     list.value = [];
+    listTotal.value = 0;
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
-    loading.value = false;
+    if (seq === loadSeq) loading.value = false;
   }
 }
 
@@ -119,8 +150,7 @@ function shortId(id?: string) {
 }
 
 function formatTime(t?: string) {
-  if (!t) return '';
-  return t.substring(0, 16).replace('T', ' ');
+  return formatDateTimeShort(t) || '';
 }
 
 function onDetail(item: MerchantDisputeTicket) {
@@ -155,31 +185,28 @@ function onDetail(item: MerchantDisputeTicket) {
   });
 }
 
-function onReply(item: MerchantDisputeTicket) {
+async function onReply(item: MerchantDisputeTicket) {
   if (!canReply.value) {
     uni.showToast({ title: '无回复权限', icon: 'none' });
     return;
   }
-  uni.showModal({
+  const body = await promptText({
     title: '回复争议',
-    editable: true,
-    placeholderText: '填写商户回复内容',
-    success: async (res) => {
-      if (!res.confirm) return;
-      const body = (res.content || '').trim();
-      if (!body) {
-        uni.showToast({ title: '请填写回复内容', icon: 'none' });
-        return;
-      }
-      try {
-        await merchantApi.disputeReply(item.ticketId, body);
-        uni.showToast({ title: '已回复', icon: 'success' });
-        await load();
-      } catch (e) {
-        uni.showToast({ title: e instanceof Error ? e.message : '回复失败', icon: 'none' });
-      }
-    }
+    hint: '回复内容将同步给消费者与运营',
+    placeholder: '填写商户回复内容',
+    required: true,
+    requiredMessage: '请填写回复内容',
+    maxLength: 200,
+    testId: 'dispute-reply-prompt'
   });
+  if (body == null) return;
+  try {
+    await merchantApi.disputeReply(item.ticketId, body);
+    uni.showToast({ title: '已回复', icon: 'success' });
+    await load();
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '回复失败', icon: 'none' });
+  }
 }
 </script>
 
@@ -201,8 +228,18 @@ function onReply(item: MerchantDisputeTicket) {
   font-size: 26rpx;
 }
 .retry::after { border: none; }
-.card { background: #fff; border-radius: 16rpx; padding: 24rpx; margin-bottom: 16rpx; border: 1rpx solid #e2e8f0; }
+.card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 16rpx;
+  border: 1rpx solid #e2e8f0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.card-hover { background: #f8fafc !important; }
 .card-header { display: flex; justify-content: space-between; margin-bottom: 10rpx; }
+.card-id, .card-status, .card-title, .card-meta, .card-msg { pointer-events: none; }
 .card-id { font-size: 22rpx; color: #94a3b8; }
 .card-status { font-size: 22rpx; color: #92400e; background: #fef3c7; padding: 4rpx 12rpx; border-radius: 999rpx; }
 .card-status.RESOLVED, .card-status.resolved { color: #166534; background: #dcfce7; }
@@ -211,4 +248,11 @@ function onReply(item: MerchantDisputeTicket) {
 .card-msg { margin-top: 12rpx; padding: 12rpx; background: #f8fafc; border-radius: 12rpx; font-size: 24rpx; color: #475569; }
 .card-action { margin-top: 12rpx; text-align: right; color: #0f766e; font-size: 24rpx; }
 .reply-hint { font-weight: 600; }
+.trunc-hint {
+  display: block;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 22rpx;
+  padding: 8rpx 0 24rpx;
+}
 </style>

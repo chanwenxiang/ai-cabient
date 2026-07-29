@@ -101,6 +101,15 @@ public class MerchantService {
         if (request.allowMerchantPricingEdit() != null) {
             merchant.setAllowMerchantPricingEdit(request.allowMerchantPricingEdit());
         }
+        if (request.packFieldEnabled() != null) {
+            merchant.setPackFieldEnabled(request.packFieldEnabled());
+        }
+        if (request.packBizEnabled() != null) {
+            merchant.setPackBizEnabled(request.packBizEnabled());
+        }
+        if (request.packTeamEnabled() != null) {
+            merchant.setPackTeamEnabled(request.packTeamEnabled());
+        }
         String parentId = blankToNull(request.parentMerchantId());
         if (parentId != null) {
             if (parentId.equals(merchantId)) {
@@ -253,6 +262,7 @@ public class MerchantService {
                 m.getPlatformRateBps(), m.getWechatReceiverId(), m.getStatus(),
                 m.getRemark(), deviceCount,
                 m.isAllowMerchantPlanogramEdit(), m.isAllowMerchantPricingEdit(),
+                m.isPackFieldEnabled(), m.isPackBizEnabled(), m.isPackTeamEnabled(),
                 m.getParentMerchantId(),
                 m.getCreatedAt(), m.getUpdatedAt());
     }

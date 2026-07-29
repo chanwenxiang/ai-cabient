@@ -23,7 +23,7 @@ public class MerchantAnalyticsService {
 
     private final PermissionService permissionService;
     private final MerchantPortalGuard merchantPortalGuard;
-    private final MerchantScopeService merchantScopeService;
+    private final MerchantFeaturePackService merchantFeaturePackService;
     private final CabinetOrderLineMapper lineRepository;
     private final InventoryWriteOffMapper writeOffRepository;
     private final PullOffTaskMapper pullOffTaskRepository;
@@ -33,7 +33,7 @@ public class MerchantAnalyticsService {
 
     public MerchantAnalyticsService(PermissionService permissionService,
                                     MerchantPortalGuard merchantPortalGuard,
-                                    MerchantScopeService merchantScopeService,
+                                    MerchantFeaturePackService merchantFeaturePackService,
                                     CabinetOrderLineMapper lineRepository,
                                     InventoryWriteOffMapper writeOffRepository,
                                     PullOffTaskMapper pullOffTaskRepository,
@@ -42,7 +42,7 @@ public class MerchantAnalyticsService {
                                     DeviceSkuInventoryMapper inventoryRepository) {
         this.permissionService = permissionService;
         this.merchantPortalGuard = merchantPortalGuard;
-        this.merchantScopeService = merchantScopeService;
+        this.merchantFeaturePackService = merchantFeaturePackService;
         this.lineRepository = lineRepository;
         this.writeOffRepository = writeOffRepository;
         this.pullOffTaskRepository = pullOffTaskRepository;
@@ -82,7 +82,7 @@ public class MerchantAnalyticsService {
     @Transactional(readOnly = true)
     public List<MerchantSkuVelocityDto> velocity(Long userId, String deviceId) {
         requireAnalytics(userId);
-        merchantScopeService.requireDeviceAccess(userId, deviceId);
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.BIZ);
         Map<String, SalesVelocityService.SkuVelocity> velocities = salesVelocityService.velocityBySku(deviceId);
         if (velocities.isEmpty()) {
             return List.of();
@@ -166,9 +166,10 @@ public class MerchantAnalyticsService {
     }
 
     private Set<String> requireScopedDevices(Long userId) {
-        Set<String> allowed = merchantScopeService.allowedDeviceIds(userId);
+        Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
         if (allowed == null) {
-            return merchantScopeService.allowedDevices(userId).stream()
+            return merchantFeaturePackService.allowedDevicesForPack(userId, MerchantFeaturePacks.BIZ).stream()
                     .map(d -> d.getDeviceId())
                     .collect(Collectors.toSet());
         }
@@ -178,7 +179,7 @@ public class MerchantAnalyticsService {
     private Set<String> resolveDeviceFilter(Long userId, String deviceId) {
         if (deviceId != null && !deviceId.isBlank()) {
             String dev = deviceId.trim();
-            merchantScopeService.requireDeviceAccess(userId, dev);
+            merchantFeaturePackService.requireDevicePack(userId, dev, MerchantFeaturePacks.BIZ);
             return Set.of(dev);
         }
         return requireScopedDevices(userId);

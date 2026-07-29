@@ -63,7 +63,14 @@
         <button class="empty-scan" @click="onScan">扫码到柜</button>
       </view>
     </view>
-    <view v-for="task in tasks" :key="task.taskId" class="task-card">
+    <view
+      v-for="task in tasks"
+      :key="task.taskId"
+      class="task-card"
+      hover-class="task-card-hover"
+      role="button"
+      @click="openTask(task)"
+    >
       <view class="task-accent" />
       <view class="task-head">
         <view>
@@ -79,9 +86,9 @@
         <text>{{ formatTime(task.createdAt) }}</text>
       </view>
       <view v-if="task.notes" class="task-note">{{ task.notes }}</view>
-      <button class="detail-btn" @click="openTask(task)">
+      <view class="detail-btn">
         {{ taskActionLabel(task) }}
-      </button>
+      </view>
     </view>
 
     <view v-if="detailVisible" class="mask" @click.self="closeDetail">
@@ -100,11 +107,11 @@
             <text class="step-label">签到</text>
           </view>
           <view class="step" :class="stepClass(2)">
-            <text class="step-num">{{ selected?.status === 'COMPLETED' || doorOpened ? '✓' : '2' }}</text>
+            <text class="step-num">{{ selected?.status === 'COMPLETED' || doorOpened || currentStep() > 2 ? '✓' : '2' }}</text>
             <text class="step-label">开门</text>
           </view>
           <view class="step" :class="stepClass(3)">
-            <text class="step-num">{{ selected?.status === 'COMPLETED' || linesConfirmed ? '✓' : '3' }}</text>
+            <text class="step-num">{{ selected?.status === 'COMPLETED' || linesConfirmed || currentStep() > 3 ? '✓' : '3' }}</text>
             <text class="step-label">核对</text>
           </view>
           <view class="step" :class="stepClass(4)">
@@ -308,7 +315,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed, nextTick, ref } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
@@ -345,16 +352,21 @@ type Line = {
 };
 
 const loading = ref(false);
+let loadSeq = 0;
 const detailLoading = ref(false);
 const submitting = ref(false);
 const scanning = ref(false);
 const status = ref('');
 const filterDeviceId = ref('');
 const focusTaskId = ref<number | null>(null);
+/** Deep-link query applied once; cleared so onShow/load won't reopen the same task. */
+let pendingDeepLink = false;
 const allTasks = ref<Task[]>([]);
 const devices = ref<Record<string, unknown>[]>([]);
 const skus = ref<Record<string, unknown>[]>([]);
 const detailVisible = ref(false);
+/** 避免「点卡片打开」同一轮点击落到遮罩上立刻关掉 */
+const sheetCloseArmed = ref(false);
 const selected = ref<Task | null>(null);
 const lines = ref<Line[]>([]);
 const linesConfirmed = ref(false);
@@ -460,12 +472,19 @@ const statusOptions = computed(() => [
 const tasks = computed(() => {
   let rows = allTasks.value.filter((t) => t.status !== 'CANCELLED');
   if (filterDeviceId.value) {
-    rows = rows.filter((t) => t.deviceId === filterDeviceId.value);
+    const key = filterDeviceId.value.trim().toUpperCase();
+    rows = rows.filter((t) => String(t.deviceId || '').trim().toUpperCase() === key);
   }
   if (status.value) {
     rows = rows.filter((t) => t.status === status.value);
   }
-  return rows;
+  const preferred = preferredId.value;
+  if (!preferred || filterDeviceId.value) return rows;
+  return [...rows].sort((a, b) => {
+    if (a.deviceId === preferred) return -1;
+    if (b.deviceId === preferred) return 1;
+    return 0;
+  });
 });
 
 const pendingCount = computed(
@@ -492,22 +511,40 @@ const emptyHint = computed(() => {
 function applyRouteQuery(opts?: Record<string, string | undefined>) {
   const deviceId = opts?.deviceId || readHashQuery('deviceId');
   const taskIdRaw = opts?.taskId || readHashQuery('taskId');
+  let changed = false;
   if (deviceId) {
     filterDeviceId.value = String(deviceId).trim().toUpperCase();
+    changed = true;
   }
   if (taskIdRaw) {
     const id = Number(taskIdRaw);
-    if (Number.isFinite(id) && id > 0) focusTaskId.value = id;
+    if (Number.isFinite(id) && id > 0) {
+      focusTaskId.value = id;
+      changed = true;
+    }
   }
   if (deviceId || taskIdRaw) {
     status.value = '';
   }
+  if (changed) pendingDeepLink = true;
 }
 
 function readHashQuery(key: string): string | undefined {
   if (typeof location === 'undefined') return undefined;
   const m = location.hash.match(new RegExp(`[?&]${key}=([^&]+)`));
   return m ? decodeURIComponent(m[1]) : undefined;
+}
+
+/** Strip deviceId/taskId from H5 hash so back/onShow won't re-apply the deep link. */
+function clearDeepLinkQuery() {
+  pendingDeepLink = false;
+  focusTaskId.value = null;
+  if (typeof location === 'undefined' || typeof history === 'undefined') return;
+  const hash = location.hash || '';
+  const qIndex = hash.indexOf('?');
+  if (qIndex < 0) return;
+  const path = hash.slice(0, qIndex);
+  history.replaceState(null, '', `${location.pathname}${location.search}${path}`);
 }
 
 function usePreferredDevice() {
@@ -527,11 +564,7 @@ function goRequest() {
 
 onLoad((opts) => {
   applyRouteQuery(opts as Record<string, string | undefined>);
-  // 无深链柜机时，默认筛常驻柜（仅首次进入，不覆盖用户「清除筛选」）
-  if (!filterDeviceId.value) {
-    const preferred = getPreferredDeviceId();
-    if (preferred) filterDeviceId.value = preferred.trim().toUpperCase();
-  }
+  preferredId.value = getPreferredDeviceId();
 });
 
 function deviceName(id?: string) {
@@ -561,18 +594,28 @@ async function load() {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
+  const seq = ++loadSeq;
   try {
     await refreshMe();
   } catch {
-    me.value = (uni.getStorageSync('merchant_me') as import('@aicabinet/shared-types').MerchantMe) || null;
+    if (!uni.getStorageSync('merchant_token')) return;
+    // 接口抖动时保留内存/本地缓存，避免误判无权限
+    me.value =
+      me.value ||
+      (uni.getStorageSync('merchant_me') as import('@aicabinet/shared-types').MerchantMe) ||
+      null;
+  }
+  if (seq !== loadSeq) return;
+  if (!me.value) {
+    me.value =
+      (uni.getStorageSync('merchant_me') as import('@aicabinet/shared-types').MerchantMe) || null;
   }
   if (!canReplenish.value) {
     uni.showToast({ title: '无补货权限', icon: 'none' });
     uni.switchTab({ url: '/pages/home/home' });
     return;
   }
-  // H5 同页改 query 时 onLoad 不重跑，每次刷新都同步深链
-  applyRouteQuery();
+  // Deep link is applied in onLoad only — do not re-read hash on every onShow
   loading.value = true;
   try {
     const [taskRows, deviceRows, skuRows] = await Promise.all([
@@ -580,25 +623,30 @@ async function load() {
       merchantApi.devices(),
       merchantApi.pricing().catch(() => [] as Record<string, unknown>[])
     ]);
+    if (seq !== loadSeq) return;
     allTasks.value = taskRows as Task[];
     devices.value = deviceRows as Record<string, unknown>[];
     skus.value = (skuRows || []) as Record<string, unknown>[];
 
-    // 深链 / 扫柜进入：优先按 taskId 打开（即使详情已打开也要切换）
+    // Consume deep link once (扫柜 / 工作台入口)
     let open: Task | undefined;
     const wantedTaskId = focusTaskId.value;
-    if (focusTaskId.value) {
+    if (pendingDeepLink && focusTaskId.value) {
       open = allTasks.value.find(
         (t) => t.taskId === focusTaskId.value && t.status !== 'CANCELLED'
       );
       focusTaskId.value = null;
-    } else if (!detailVisible.value && filterDeviceId.value) {
+    } else if (pendingDeepLink && !detailVisible.value && filterDeviceId.value) {
+      const key = filterDeviceId.value.trim().toUpperCase();
       open = allTasks.value.find(
         (t) =>
-          t.deviceId === filterDeviceId.value &&
+          String(t.deviceId || '').trim().toUpperCase() === key &&
           t.status !== 'COMPLETED' &&
           t.status !== 'CANCELLED'
       );
+    }
+    if (pendingDeepLink) {
+      clearDeepLinkQuery();
     }
     if (open) {
       await openTask(open);
@@ -606,10 +654,13 @@ async function load() {
       uni.showToast({ title: `任务 #${wantedTaskId} 不可用或已取消`, icon: 'none' });
     }
   } catch (error) {
+    if (seq !== loadSeq) return;
     uni.showToast({ title: error instanceof Error ? error.message : '加载失败', icon: 'none' });
   } finally {
-    loading.value = false;
-    uni.stopPullDownRefresh();
+    if (seq === loadSeq) {
+      loading.value = false;
+      uni.stopPullDownRefresh();
+    }
   }
 }
 
@@ -619,6 +670,7 @@ function changeStatus(value: string) {
 
 function clearDeviceFilter() {
   filterDeviceId.value = '';
+  clearDeepLinkQuery();
 }
 
 async function onScan() {
@@ -627,10 +679,14 @@ async function onScan() {
   try {
     const id = await scanCabinetDeviceId();
     if (!id) return;
-    filterDeviceId.value = id;
+    const key = id.trim().toUpperCase();
+    filterDeviceId.value = key;
     status.value = '';
     const open = allTasks.value.find(
-      (t) => t.deviceId === id && t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
+      (t) =>
+        String(t.deviceId || '').trim().toUpperCase() === key &&
+        t.status !== 'COMPLETED' &&
+        t.status !== 'CANCELLED'
     );
     if (open) {
       await openTask(open);
@@ -734,6 +790,7 @@ async function openTask(task: Task) {
   // 打开前用列表最新状态（签到后避免仍用旧 checkInAt）
   const fromList = allTasks.value.find((t) => t.taskId === task.taskId);
   selected.value = { ...(fromList || task) };
+  sheetCloseArmed.value = false;
   detailVisible.value = true;
   linesConfirmed.value = selected.value.status === 'COMPLETED';
   evidenceItems.value = [];
@@ -741,6 +798,10 @@ async function openTask(task: Task) {
   detailLoading.value = true;
   slotCaps.value = {};
   deviceSlotsList.value = [];
+  await nextTick();
+  setTimeout(() => {
+    sheetCloseArmed.value = true;
+  }, 280);
   try {
     // 再拉一次任务列表，确保签到/状态与明细一致
     try {
@@ -839,7 +900,39 @@ function slotHint(line: Line): string {
 }
 
 function closeDetail() {
-  if (!submitting.value) detailVisible.value = false;
+  if (!sheetCloseArmed.value) return;
+  if (!submitting.value) {
+    detailVisible.value = false;
+    sheetCloseArmed.value = false;
+    clearDeepLinkQuery();
+  }
+}
+
+/** H5 浏览器常挂起权限弹窗；小程序偶发超时 — 超时后走无定位签到 */
+function getLocationWithTimeout(timeoutMs = 5000): Promise<UniApp.GetLocationSuccess> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(new Error('定位超时'));
+    }, timeoutMs);
+    uni.getLocation({
+      type: 'gcj02',
+      success(res) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        resolve(res);
+      },
+      fail(err) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(err instanceof Error ? err : new Error(String((err as { errMsg?: string })?.errMsg || '定位失败')));
+      }
+    });
+  });
 }
 
 async function checkIn() {
@@ -852,22 +945,19 @@ async function checkIn() {
   let body: Record<string, number> = {};
   let locationOk = false;
   try {
-    const location = await new Promise<UniApp.GetLocationSuccess>((resolve, reject) =>
-      uni.getLocation({ type: 'gcj02', success: resolve, fail: reject })
-    );
+    const location = await getLocationWithTimeout(5000);
     body = { latitude: location.latitude, longitude: location.longitude };
     locationOk = true;
   } catch {
+    submitting.value = false;
     const cont = await askConfirm({
       title: '定位失败',
       content: '无法获取当前位置，仍可继续签到，但无法校验是否到店。是否继续？',
       confirmText: '继续签到',
       cancelText: '取消'
     });
-    if (!cont) {
-      submitting.value = false;
-      return;
-    }
+    if (!cont) return;
+    submitting.value = true;
   }
   try {
     selected.value = (await merchantApi.checkInReplenishmentTask(selected.value.taskId, body)) as Task;
@@ -1215,7 +1305,10 @@ onPullDownRefresh(load);
   background: #fff;
   border: 1rpx solid #e2e8f0;
   box-shadow: 0 8rpx 30rpx rgba(15, 118, 110, 0.08);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
+.task-card-hover { background: #f8fafc !important; opacity: 0.96; }
 .task-accent {
   position: absolute;
   left: 0;
@@ -1223,6 +1316,7 @@ onPullDownRefresh(load);
   bottom: 0;
   width: 6rpx;
   background: linear-gradient(#10b981, #0d9488);
+  pointer-events: none;
 }
 .task-head, .task-meta, .line-main, .line-meta, .sheet-head {
   display: flex;
@@ -1230,6 +1324,7 @@ onPullDownRefresh(load);
   justify-content: space-between;
   gap: 18rpx;
 }
+.device-name, .device-code, .status, .task-meta, .task-note { pointer-events: none; }
 .device-name, .device-code { display: block; }
 .device-name { font-size: 30rpx; font-weight: 700; color: #0f172a; }
 .device-code { margin-top: 4rpx; color: #94a3b8; font-size: 21rpx; }
@@ -1284,6 +1379,12 @@ onPullDownRefresh(load);
   border-radius: 18rpx;
   font-size: 27rpx;
   font-weight: 700;
+}
+.detail-btn {
+  display: block;
+  padding: 22rpx 0;
+  text-align: center;
+  pointer-events: none;
 }
 .detail-btn, .primary-btn { color: #fff; background: #0f766e; }
 .secondary-btn { color: #0f766e; background: #ccfbf1; }

@@ -5,7 +5,10 @@
       <button v-if="canReplenishment" class="replenish-btn" @click="goReplenishment">补货任务</button>
     </view>
     <view v-if="loading" class="card">加载中…</view>
-    <view v-else-if="error" class="card"><text class="err">{{ error }}</text></view>
+    <view v-else-if="error" class="card">
+      <text class="err">{{ error }}</text>
+      <button class="retry" size="mini" @click="load">重试</button>
+    </view>
     <view v-else>
       <view class="filters">
         <input v-model="keyword" class="search" placeholder="搜索柜机名称或编号" />
@@ -28,8 +31,15 @@
           <text class="pref-clear" @click="clearPreferred">清除</text>
         </view>
       </view>
-      <view v-for="d in visibleDevices" :key="d.deviceId" class="card device-card">
-        <view class="device-left" @click="goDetail(d.deviceId)">
+      <view
+        v-for="d in visibleDevices"
+        :key="d.deviceId"
+        class="card device-card"
+        hover-class="device-card-hover"
+        role="button"
+        @click="goDetail(d.deviceId)"
+      >
+        <view class="device-left">
           <view class="online-dot" :class="d.online ? 'on' : 'off'" />
           <view>
             <text class="name">{{ d.deviceName || d.deviceId }}</text>
@@ -42,7 +52,7 @@
             :class="{ on: preferredId === d.deviceId }"
             @click.stop="togglePreferred(d.deviceId)"
           >★</text>
-          <text :class="d.online ? 'status-on' : 'status-off'" @click="goDetail(d.deviceId)">
+          <text :class="d.online ? 'status-on' : 'status-off'">
             {{ d.online ? '在线' : '离线' }}
           </text>
         </view>
@@ -72,6 +82,7 @@ const canReplenishment = computed(() => hasPerm(me.value, 'merchant:replenishmen
 const loading = ref(true);
 const scanning = ref(false);
 const error = ref('');
+let loadSeq = 0;
 const devices = ref<(DeviceInfo & { online?: boolean })[]>([]);
 const keyword = ref('');
 const filter = ref<'all' | 'online' | 'offline'>('all');
@@ -146,10 +157,16 @@ async function load() {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
+  const seq = ++loadSeq;
   preferredId.value = getPreferredDeviceId();
   try {
     await refreshMe();
   } catch {
+    if (!uni.getStorageSync('merchant_token')) return;
+    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  if (seq !== loadSeq) return;
+  if (!me.value) {
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
   }
   if (!canListDevices.value) {
@@ -158,13 +175,16 @@ async function load() {
     return;
   }
   loading.value = true;
+  error.value = '';
   try {
     const list = await merchantApi.devices();
+    if (seq !== loadSeq) return;
     devices.value = list.map((d) => ({ ...d, online: (d.onlineStatus || '').toUpperCase() === 'ONLINE' }));
   } catch (e) {
+    if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
-    loading.value = false;
+    if (seq === loadSeq) loading.value = false;
   }
 }
 
@@ -186,14 +206,15 @@ async function onScan() {
   try {
     const id = await scanCabinetDeviceId();
     if (!id) return;
-    const hit = devices.value.find((d) => d.deviceId === id);
+    const key = id.trim().toUpperCase();
+    const hit = devices.value.find((d) => String(d.deviceId || '').trim().toUpperCase() === key);
     if (!hit) {
       uni.showToast({ title: '未找到该柜机或无权限', icon: 'none' });
       return;
     }
-    setPreferredDeviceId(id);
-    preferredId.value = id;
-    goDetail(id);
+    setPreferredDeviceId(hit.deviceId);
+    preferredId.value = hit.deviceId;
+    goDetail(hit.deviceId);
   } finally {
     scanning.value = false;
   }
@@ -222,10 +243,18 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .scan-btn { background: #0f766e; color: #fff; }
 .replenish-btn { background: #fff; color: #0f766e; border: 1rpx solid #99f6e4; }
 .scan-btn::after, .replenish-btn::after { border: none; }
-.device-card { display: flex; justify-content: space-between; align-items: center; }
+.device-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.device-card-hover { background: #f8fafc !important; opacity: 0.96; }
 .device-right { display: flex; align-items: center; gap: 16rpx; }
-.star { color: #cbd5e1; font-size: 36rpx; padding: 8rpx; }
+.star { color: #cbd5e1; font-size: 36rpx; padding: 8rpx; position: relative; z-index: 1; }
 .star.on { color: #f59e0b; }
+.name, .meta, .status-on, .status-off, .online-dot { pointer-events: none; }
 .filters { position: sticky; top: 0; z-index: 2; background: #f0fdfa; padding: 16rpx 24rpx 12rpx; }
 .search { height: 72rpx; box-sizing: border-box; background: #fff; border: 1rpx solid #ccfbf1; border-radius: 36rpx; padding: 0 28rpx; font-size: 26rpx; }
 .chips { display: flex; gap: 12rpx; margin-top: 14rpx; flex-wrap: wrap; }
@@ -247,5 +276,6 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .name { font-weight: 600; display: block; font-size: 28rpx; }
 .status-on { color: #16a34a; font-weight: 600; font-size: 26rpx; }
 .status-off { color: #94a3b8; font-size: 26rpx; }
-.err { color: #ef4444; }
+.err { color: #ef4444; display: block; }
+.retry { margin-top: 16rpx; background: #0f766e; color: #fff; border-radius: 28rpx; }
 </style>

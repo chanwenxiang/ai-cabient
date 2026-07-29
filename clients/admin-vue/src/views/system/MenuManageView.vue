@@ -5,13 +5,16 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">菜单管理</span>
-            <span class="hint">目录 / 菜单 / 按钮树；默认仅运营权限</span>
+            <span class="hint">运营侧栏由 ACTIVE 菜单控制。商户树仅用于角色授权与 API 鉴权；小程序导航固定，能力由「商户与分账 → 功能包」裁剪。</span>
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-switch v-model="opsOnly" active-text="仅运营" @change="syncRouteQuery" />
+          <el-radio-group v-model="scope" size="small" @change="syncRouteQuery">
+            <el-radio-button value="ops">运营侧栏</el-radio-button>
+            <el-radio-button value="merchant">商户权限</el-radio-button>
+            <el-radio-button value="all">全部</el-radio-button>
+          </el-radio-group>
           <el-switch v-model="showInactive" active-text="含停用" @change="syncRouteQuery" />
-          <span class="hint-inline">停用后侧栏隐藏；勾选「含停用」可找回</span>
           <el-button v-hasPermi="['ops:rbac:menu:add']" type="primary" @click="openCreate()">新增</el-button>
           <el-button v-hasPermi="['ops:rbac:menu:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
@@ -20,6 +23,16 @@
     </template>
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent>
+      <el-form-item label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="名称 / 权限标识 / 路由"
+          style="width: 220px"
+          @clear="syncRouteQuery"
+          @keyup.enter="syncRouteQuery"
+        />
+      </el-form-item>
       <el-form-item label="类型">
         <el-select v-model="typeFilter" clearable placeholder="全部" style="width: 120px" @change="syncRouteQuery">
           <el-option label="目录 M" value="M" />
@@ -27,11 +40,18 @@
           <el-option label="按钮 F" value="F" />
         </el-select>
       </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="syncRouteQuery">查询</el-button>
+        <el-button @click="resetFilters">重置</el-button>
+        <el-button link type="primary" @click="setExpandAll(true)">展开</el-button>
+        <el-button link type="primary" @click="setExpandAll(false)">收起</el-button>
+      </el-form-item>
     </el-form>
 
     <div class="table-scroll">
       <div class="table-scroll-inner" style="min-width: 900px">
         <el-table
+          ref="tableRef"
           v-loading="loading"
           :data="tableRows"
           row-key="permissionId"
@@ -47,17 +67,14 @@
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column
             label="名称"
-            min-width="220"
+            min-width="200"
             class-name="col-text"
             label-class-name="col-text"
             align="left"
             header-align="left"
           >
             <template #default="{ row }">
-              <div class="name-cell">
-                <strong>{{ row.permName }}</strong>
-                <small class="cell-id">{{ row.permCode }}</small>
-              </div>
+              <strong class="name-only">{{ row.permName }}</strong>
             </template>
           </el-table-column>
           <el-table-column label="类型" width="88" align="center">
@@ -65,10 +82,10 @@
               <el-tag :type="typeTag(row.permType)" size="small">{{ typeText(row.permType) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="权限标识" min-width="180" class-name="col-text">
+          <el-table-column label="权限标识" min-width="200" class-name="col-text">
             <template #default="{ row }"><span class="cell-id">{{ row.permCode }}</span></template>
           </el-table-column>
-          <el-table-column label="路由" min-width="120" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="路由" min-width="140" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.path || '-' }}</template>
           </el-table-column>
           <el-table-column prop="sortOrder" label="排序" width="72" align="center" />
@@ -97,7 +114,7 @@
               v-for="p in parentOptions"
               :key="p.permissionId"
               :value="p.permissionId"
-              :label="`${'　'.repeat(depthHint(p))}[${typeText(p.permType)}] ${p.permName}`"
+              :label="parentOptionLabel(p)"
             />
           </el-select>
         </el-form-item>
@@ -115,7 +132,7 @@
           <el-input
             v-model="form.permCode"
             :disabled="!!form.permissionId"
-            placeholder="如 ops:device:list"
+            :placeholder="scope === 'merchant' ? '如 merchant:devices:list' : '如 ops:device:list'"
             maxlength="128"
           />
         </el-form-item>
@@ -141,10 +158,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Delete, EditPen, Plus, Refresh, CircleCheck } from '@element-plus/icons-vue';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox, type TableInstance } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -152,15 +169,19 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { buildPermTree, flattenForParentSelect, type PermRow } from '@/utils/rbac-tree';
 
+type MenuScope = 'ops' | 'merchant' | 'all';
+
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const loading = ref(false);
 const saving = ref(false);
 const typeFilter = ref('');
-const opsOnly = ref(true);
+const keyword = ref('');
+const scope = ref<MenuScope>('ops');
 const showInactive = ref(false);
 const tree = ref<PermRow[]>([]);
+const tableRef = ref<TableInstance>();
 const dlg = ref(false);
 const form = ref({
   permissionId: null as number | null,
@@ -171,6 +192,18 @@ const form = ref({
   path: '',
   sortOrder: 0,
   status: 'ACTIVE'
+});
+
+const depthMap = computed(() => {
+  const map = new Map<number, number>();
+  const walk = (nodes: PermRow[], depth: number) => {
+    for (const n of nodes) {
+      map.set(n.permissionId, depth);
+      if (n.children?.length) walk(n.children, depth + 1);
+    }
+  };
+  walk(tree.value, 0);
+  return map;
 });
 
 const parentOptions = computed(() =>
@@ -184,6 +217,11 @@ function typeText(t: string) {
 }
 function typeTag(t: string) {
   return t === 'M' ? 'warning' : t === 'C' ? 'success' : 'info';
+}
+
+function parentOptionLabel(p: PermRow) {
+  const depth = depthMap.value.get(p.permissionId) ?? 0;
+  return `${'— '.repeat(depth)}[${typeText(p.permType)}] ${p.permName} (${p.permCode})`;
 }
 
 function menuActions(row: PermRow): TableAction[] {
@@ -210,31 +248,46 @@ function onMenuAction(key: string, row: PermRow) {
   else if (key === 'enable') onEnable(row);
 }
 
-function depthHint(row: PermRow) {
-  let d = 0;
-  let pid = row.parentId;
-  const map = new Map<number, PermRow>();
-  const walk = (nodes: PermRow[]) => nodes.forEach((n) => { map.set(n.permissionId, n); if (n.children) walk(n.children); });
-  walk(tree.value);
-  while (pid && map.has(pid)) {
-    d += 1;
-    pid = map.get(pid)!.parentId;
-    if (d > 6) break;
-  }
-  return d;
+function codeInScope(code: string, s: MenuScope): boolean {
+  if (s === 'all') return true;
+  if (s === 'ops') return code === 'ops' || code.startsWith('ops:');
+  return code === 'merchant' || code.startsWith('merchant:');
 }
 
-function filterTree(nodes: PermRow[], type: string, inactive: boolean, onlyOps: boolean): PermRow[] {
+function matchesKeyword(n: PermRow, q: string): boolean {
+  if (!q) return true;
+  return (
+    n.permName.toLowerCase().includes(q) ||
+    n.permCode.toLowerCase().includes(q) ||
+    (n.path || '').toLowerCase().includes(q)
+  );
+}
+
+function filterTree(
+  nodes: PermRow[],
+  type: string,
+  inactive: boolean,
+  s: MenuScope,
+  q: string
+): PermRow[] {
   const walk = (list: PermRow[]): PermRow[] =>
     list
       .map((n) => {
-        if (onlyOps && !n.permCode.startsWith('ops')) return null;
+        if (!codeInScope(n.permCode, s)) return null;
         const children = n.children?.length ? walk(n.children) : [];
+        const selfMatch = matchesKeyword(n, q);
         const typeOk = !type || n.permType === type || children.length > 0;
         const statusOk = inactive || n.status === 'ACTIVE' || children.length > 0;
-        if (typeOk && statusOk) {
-          const keepSelf = (!type || n.permType === type) && (inactive || n.status === 'ACTIVE');
-          return keepSelf || children.length ? { ...n, children } : null;
+        const keywordOk = !q || selfMatch || children.length > 0;
+        if (typeOk && statusOk && keywordOk) {
+          const keepSelf =
+            (!type || n.permType === type) &&
+            (inactive || n.status === 'ACTIVE') &&
+            (!q || selfMatch || children.length > 0);
+          // 关键词命中子孙时保留祖先作为骨架，即使祖先自身不匹配类型筛选
+          if (keepSelf || children.length) {
+            return { ...n, children };
+          }
         }
         return null;
       })
@@ -243,7 +296,7 @@ function filterTree(nodes: PermRow[], type: string, inactive: boolean, onlyOps: 
 }
 
 const tableRows = computed(() =>
-  filterTree(tree.value, typeFilter.value, showInactive.value, opsOnly.value)
+  filterTree(tree.value, typeFilter.value, showInactive.value, scope.value, keyword.value.trim().toLowerCase())
 );
 
 function flattenTableRows(nodes: PermRow[]): PermRow[] {
@@ -256,6 +309,15 @@ function flattenTableRows(nodes: PermRow[]): PermRow[] {
   };
   walk(nodes);
   return out;
+}
+
+function setExpandAll(expand: boolean) {
+  const rows = flattenTableRows(tableRows.value);
+  nextTick(() => {
+    for (const row of rows) {
+      tableRef.value?.toggleRowExpansion(row, expand);
+    }
+  });
 }
 
 const { onSelectionChange, pickSelected, exportButtonLabel } = useTableSelection<PermRow>(
@@ -292,10 +354,11 @@ async function load() {
 }
 
 function openCreate(parentId = 0) {
+  const prefix = scope.value === 'merchant' ? 'merchant:' : scope.value === 'ops' ? 'ops:' : '';
   form.value = {
     permissionId: null,
     parentId,
-    permCode: '',
+    permCode: prefix,
     permName: '',
     permType: 'C',
     path: '',
@@ -360,12 +423,12 @@ async function save() {
 async function onRemove(row: PermRow) {
   try {
     await ElMessageBox.confirm(
-      `确认停用「${row.permName}」？停用后侧栏将隐藏，可在「含停用」中启用。`,
+      `确认停用「${row.permName}」？停用后该权限码对用户失效（运营侧栏会隐藏对应项；商户端 API 亦不可用）。可在「含停用」中启用。`,
       '停用菜单',
       { type: 'warning' }
     );
     await api.request(`/api/v2/ops/admin/rbac/permissions/${row.permissionId}`, 'DELETE');
-    ElMessage.success('已停用（侧栏已隐藏，勾选「含停用」可查看）');
+    ElMessage.success('已停用（勾选「含停用」可查看并启用）');
     showInactive.value = true;
     syncRouteQuery();
     await load();
@@ -398,24 +461,44 @@ async function onEnable(row: PermRow) {
   }
 }
 
+function parseScope(q: typeof route.query): MenuScope {
+  const s = typeof q.scope === 'string' ? q.scope : '';
+  if (s === 'merchant' || s === 'all' || s === 'ops') return s;
+  // 兼容旧 query：opsOnly=0 表示全部
+  if (q.opsOnly === '0') return 'all';
+  return 'ops';
+}
+
 function syncRouteQuery() {
   const query: Record<string, string> = {};
+  if (scope.value !== 'ops') query.scope = scope.value;
   if (typeFilter.value) query.type = typeFilter.value;
-  if (!opsOnly.value) query.opsOnly = '0';
+  if (keyword.value.trim()) query.q = keyword.value.trim();
   if (showInactive.value) query.inactive = '1';
   router.replace({ query });
 }
 
+function resetFilters() {
+  typeFilter.value = '';
+  keyword.value = '';
+  syncRouteQuery();
+}
+
 function applyRouteQuery() {
   let changed = false;
+  const nextScope = parseScope(route.query);
+  if (nextScope !== scope.value) {
+    scope.value = nextScope;
+    changed = true;
+  }
   const qType = typeof route.query.type === 'string' ? route.query.type : '';
   if (qType !== typeFilter.value) {
     typeFilter.value = qType;
     changed = true;
   }
-  const ops = route.query.opsOnly !== '0';
-  if (ops !== opsOnly.value) {
-    opsOnly.value = ops;
+  const qKw = typeof route.query.q === 'string' ? route.query.q : '';
+  if (qKw !== keyword.value) {
+    keyword.value = qKw;
     changed = true;
   }
   const inactive = route.query.inactive === '1' || route.query.inactive === 'true';
@@ -426,14 +509,14 @@ function applyRouteQuery() {
   return changed;
 }
 
-async function reloadFromRouteQuery() {
-  if (!applyRouteQuery()) return;
+function reloadFromRouteQuery() {
+  applyRouteQuery();
 }
 
 watch(
-  () => [route.query.type, route.query.opsOnly, route.query.inactive] as const,
+  () => [route.query.scope, route.query.opsOnly, route.query.type, route.query.q, route.query.inactive] as const,
   () => {
-    void reloadFromRouteQuery();
+    reloadFromRouteQuery();
   }
 );
 
@@ -442,7 +525,7 @@ onMounted(() => {
   load();
 });
 onActivated(() => {
-  void reloadFromRouteQuery();
+  reloadFromRouteQuery();
 });
 </script>
 
@@ -454,25 +537,17 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
+.page-card-head__meta { min-width: 0; flex: 1; }
 .page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
 .title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.45; max-width: 52rem; }
 .page-card-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.hint-inline {
+.name-only { font-weight: 650; }
+.cell-id {
   color: var(--el-text-color-secondary);
   font-size: 12px;
-  max-width: 220px;
-  line-height: 1.3;
-}
-.name-cell { display: inline-grid; gap: 2px; line-height: 1.35; vertical-align: middle; }
-.name-cell strong { font-weight: 650; }
-.name-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
   font-family: var(--app-font-mono);
 }
-/* 树表：行高随双行名称撑开，缩进占位不被裁切 */
 :deep(.menu-tree-table .el-table__cell) {
   vertical-align: middle;
 }

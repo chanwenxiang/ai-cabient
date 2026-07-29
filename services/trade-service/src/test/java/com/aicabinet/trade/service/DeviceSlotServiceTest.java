@@ -41,7 +41,8 @@ class DeviceSlotServiceTest {
     void validateRestockLine_withinCapacity_passes() {
         DeviceSlot slot = slot("A1", "SKU-DEMO-001", 8);
         when(slotRepository.findById(new DeviceSlotId(DEVICE_ID, "A1"))).thenReturn(Optional.of(slot));
-        when(lotRepository.sumBookQtyBySlot(DEVICE_ID)).thenReturn(List.of(new Object[][]{{"A1", 6}}));
+        when(lotRepository.sumBookQtyBySlot(DEVICE_ID))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{"A1", 6}));
 
         assertDoesNotThrow(() ->
                 deviceSlotService.validateRestockLine(DEVICE_ID, "A1", "SKU-DEMO-001", 2));
@@ -51,11 +52,12 @@ class DeviceSlotServiceTest {
     void validateRestockLine_exceedsMaxLevel_rejects() {
         DeviceSlot slot = slot("A1", "SKU-DEMO-001", 8);
         when(slotRepository.findById(new DeviceSlotId(DEVICE_ID, "A1"))).thenReturn(Optional.of(slot));
-        when(lotRepository.sumBookQtyBySlot(DEVICE_ID)).thenReturn(List.of(new Object[][]{{"A1", 6}}));
+        when(lotRepository.sumBookQtyBySlot(DEVICE_ID))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{"A1", 6}));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
                 deviceSlotService.validateRestockLine(DEVICE_ID, "A1", "SKU-DEMO-001", 3));
-        assertTrue(ex.getReason().contains("exceeds max"));
+        assertTrue(ex.getReason().contains("容量不足"));
     }
 
     @Test
@@ -65,7 +67,7 @@ class DeviceSlotServiceTest {
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
                 deviceSlotService.validateRestockLine(DEVICE_ID, "A1", "SKU-OTHER", 1));
-        assertTrue(ex.getReason().contains("assigned to sku"));
+        assertTrue(ex.getReason().contains("已绑定"));
     }
 
     @Test

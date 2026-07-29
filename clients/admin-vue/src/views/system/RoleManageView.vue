@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">角色管理</span>
-            <span class="hint">角色与权限字符；可分配菜单权限</span>
+            <span class="hint">角色与权限字符；商户权限码用于 API/角色授权，不驱动小程序导航</span>
           </div>
         </div>
         <div class="page-card-head__actions">

@@ -15,11 +15,14 @@ public class PermissionService {
 
     private final OpsPermissionMapper permissionRepository;
     private final OpsUserRoleMapper userRoleRepository;
+    private final MerchantFeaturePackService merchantFeaturePackService;
 
     public PermissionService(OpsPermissionMapper permissionRepository,
-                           OpsUserRoleMapper userRoleRepository) {
+                           OpsUserRoleMapper userRoleRepository,
+                           MerchantFeaturePackService merchantFeaturePackService) {
         this.permissionRepository = permissionRepository;
         this.userRoleRepository = userRoleRepository;
+        this.merchantFeaturePackService = merchantFeaturePackService;
     }
 
     public void requireOperator(Long userId) {
@@ -62,25 +65,33 @@ public class PermissionService {
         if (permCode == null || permCode.isBlank()) {
             return false;
         }
-        if (perms.contains(permCode)) {
-            return true;
-        }
-        // 若依风格分段通配：ops:rbac:role:add ← ops:rbac:role:* / ops:rbac:* / ops:*
-        String[] segments = permCode.split(":");
-        for (int i = segments.length - 1; i >= 1; i--) {
-            StringBuilder wildcard = new StringBuilder();
-            for (int j = 0; j < i; j++) {
-                if (j > 0) {
-                    wildcard.append(':');
+        boolean matched = perms.contains(permCode);
+        if (!matched) {
+            // 若依风格分段通配：ops:rbac:role:add ← ops:rbac:role:* / ops:rbac:* / ops:*
+            String[] segments = permCode.split(":");
+            for (int i = segments.length - 1; i >= 1; i--) {
+                StringBuilder wildcard = new StringBuilder();
+                for (int j = 0; j < i; j++) {
+                    if (j > 0) {
+                        wildcard.append(':');
+                    }
+                    wildcard.append(segments[j]);
                 }
-                wildcard.append(segments[j]);
-            }
-            wildcard.append(":*");
-            if (perms.contains(wildcard.toString())) {
-                return true;
+                wildcard.append(":*");
+                if (perms.contains(wildcard.toString())) {
+                    matched = true;
+                    break;
+                }
             }
         }
-        return false;
+        if (!matched) {
+            return false;
+        }
+        // 商户能力：RBAC ∧ 平台功能包
+        if (permCode.startsWith("merchant:")) {
+            return merchantFeaturePackService.isPermEnabledForUser(userId, permCode);
+        }
+        return true;
     }
 
     public boolean hasAnyPermission(Long userId, String... permCodes) {

@@ -205,7 +205,7 @@ public class AdminDashboardService {
         List<OpsActionItemDto> items = new java.util.ArrayList<>();
 
         List<DisputeTicket> openDisputes = disputeRepository
-                .findTop10ByStatusOrderBySlaDueAtAscCreatedAtAsc("OPEN").stream()
+                .findByStatusOrderByCreatedAtDesc("OPEN").stream()
                 .filter(d -> inDeviceScope(scopedDevices, sessionDeviceId(d.getSessionId())))
                 .toList();
         openDisputes.forEach(d -> items.add(new OpsActionItemDto(
@@ -223,7 +223,7 @@ public class AdminDashboardService {
         )));
 
         List<ShoppingSession> waitingUploads = sessionRepository
-                .findTop10ByStateOrderByUpdatedAtAsc(SessionState.WAITING_UPLOAD).stream()
+                .findByStateOrderByUpdatedAtAsc(SessionState.WAITING_UPLOAD).stream()
                 .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
                 .toList();
         waitingUploads.forEach(s -> items.add(new OpsActionItemDto(
@@ -241,7 +241,7 @@ public class AdminDashboardService {
         )));
 
         List<DeviceInfo> offlineDevices = deviceRepository
-                .findTop10ByOnlineStatusNotOrderByUpdatedAtAsc("ONLINE").stream()
+                .findByOnlineStatusNot("ONLINE").stream()
                 .filter(d -> inDeviceScope(scopedDevices, d.getDeviceId()))
                 .toList();
         offlineDevices.forEach(d -> items.add(new OpsActionItemDto(
@@ -261,7 +261,6 @@ public class AdminDashboardService {
 
         inventoryRepository.findLowStock().stream()
                 .filter(i -> inDeviceScope(scopedDevices, i.getId().getDeviceId()))
-                .limit(10)
                 .forEach(i -> items.add(new OpsActionItemDto(
                         "LOW_STOCK",
                         "MEDIUM",
@@ -276,7 +275,7 @@ public class AdminDashboardService {
                         null
                 )));
 
-        replenishmentTaskRepository.findTop10ByStatusInOrderByCreatedAtAsc(List.of("PENDING", "IN_PROGRESS")).stream()
+        replenishmentTaskRepository.findByStatusIn(List.of("PENDING", "IN_PROGRESS")).stream()
                 .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
                 .forEach(t -> items.add(new OpsActionItemDto(
                         "REPLENISHMENT",
@@ -389,7 +388,7 @@ public class AdminDashboardService {
                 reconciliationRepository.countByStatus("MISMATCH"),
                 splitExceptions,
                 inTransitOverdue,
-                items.stream().limit(30).toList(),
+                items.stream().limit(100).toList(),
                 devicesOnSale,
                 devicesSalesLocked,
                 pendingUnpaidOrders

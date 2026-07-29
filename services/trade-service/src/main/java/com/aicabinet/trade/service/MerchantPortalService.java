@@ -76,6 +76,7 @@ public class MerchantPortalService {
     private final WeChatPayProperties weChatPayProperties;
     private final OperatorUserIdAllocator operatorUserIdAllocator;
     private final MerchantSelfServiceGate merchantSelfServiceGate;
+    private final MerchantFeaturePackService merchantFeaturePackService;
 
     public MerchantPortalService(MerchantFinanceService merchantFinanceService,
                                  PermissionService permissionService,
@@ -107,7 +108,8 @@ public class MerchantPortalService {
                                  ProfitSharingProperties profitSharingProperties,
                                  WeChatPayProperties weChatPayProperties,
                                  OperatorUserIdAllocator operatorUserIdAllocator,
-                                 MerchantSelfServiceGate merchantSelfServiceGate) {
+                                 MerchantSelfServiceGate merchantSelfServiceGate,
+                                 MerchantFeaturePackService merchantFeaturePackService) {
         this.merchantFinanceService = merchantFinanceService;
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
@@ -139,6 +141,7 @@ public class MerchantPortalService {
         this.weChatPayProperties = weChatPayProperties;
         this.operatorUserIdAllocator = operatorUserIdAllocator;
         this.merchantSelfServiceGate = merchantSelfServiceGate;
+        this.merchantFeaturePackService = merchantFeaturePackService;
     }
 
     @Transactional(readOnly = true)
@@ -153,18 +156,24 @@ public class MerchantPortalService {
                 .filter(m -> allowed.contains(m.getMerchantId()))
                 .map(m -> toMerchantDto(m, deviceCounts.getOrDefault(m.getMerchantId(), 0L)))
                 .toList();
-        List<String> permissions = permissionRepository.findPermCodesByUserId(userId).stream()
-                .filter(p -> p.startsWith("merchant:"))
-                .sorted()
-                .toList();
+        List<String> permissions = merchantFeaturePackService.filterPermissions(
+                userId,
+                permissionRepository.findPermCodesByUserId(userId).stream()
+                        .filter(p -> p.startsWith("merchant:"))
+                        .sorted()
+                        .toList());
         boolean canEditPricing = merchants.stream().anyMatch(MerchantDto::allowMerchantPricingEdit);
-        return new MerchantMeDto(user.getUserId(), user.getPhoneNumber(), user.getName(), merchants, permissions, canEditPricing);
+        List<String> enabledPacks = merchantFeaturePackService.enabledPacksList(userId);
+        return new MerchantMeDto(
+                user.getUserId(), user.getPhoneNumber(), user.getName(),
+                merchants, permissions, canEditPricing, enabledPacks);
     }
 
     @Transactional(readOnly = true)
     public MerchantDashboardStatsDto getStats(Long userId) {
         merchantPortalGuard.requireAccess(userId);
-        List<DeviceInfo> devices = merchantScopeService.allowedDevices(userId);
+        List<DeviceInfo> devices = merchantFeaturePackService.allowedDevicesForPack(
+                userId, MerchantFeaturePacks.FIELD);
         Set<String> deviceIds = devices.stream().map(DeviceInfo::getDeviceId).collect(Collectors.toSet());
         int online = (int) devices.stream().filter(d -> "ONLINE".equalsIgnoreCase(d.getOnlineStatus())).count();
         int offline = devices.size() - online;
@@ -183,12 +192,23 @@ public class MerchantPortalService {
         Instant startOfDay = LocalDate.now(ZoneId.systemDefault())
                 .atStartOfDay(ZoneId.systemDefault()).toInstant();
 
-        long ordersToday = deviceIds.isEmpty() ? 0
-                : orderRepository.countByDeviceIdInAndCreatedAtAfter(deviceIds, startOfDay);
-        long revenueToday = deviceIds.isEmpty() ? 0
-                : orderRepository.sumTotalAmountByDeviceIdInSince(deviceIds, startOfDay);
+        Set<String> bizDeviceIds = merchantFeaturePackService.allowedDeviceIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
+        if (bizDeviceIds == null) {
+            bizDeviceIds = deviceRepository.findAll().stream()
+                    .map(DeviceInfo::getDeviceId)
+                    .collect(Collectors.toSet());
+        }
+        long ordersToday = bizDeviceIds.isEmpty() ? 0
+                : orderRepository.countByDeviceIdInAndCreatedAtAfter(bizDeviceIds, startOfDay);
+        long revenueToday = bizDeviceIds.isEmpty() ? 0
+                : orderRepository.sumTotalAmountByDeviceIdInSince(bizDeviceIds, startOfDay);
 
-        Set<String> merchantIds = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
+        if (merchantIds == null) {
+            merchantIds = Set.of();
+        }
         long incomeToday = merchantIds.isEmpty() ? 0
                 : splitRepository.sumMerchantCentsByMerchantIdInSince(merchantIds, startOfDay);
         long incomeTotal = merchantIds.isEmpty() ? 0
@@ -220,8 +240,10 @@ public class MerchantPortalService {
         LocalDate start = today.minusDays(window - 1L);
         Instant since = start.atStartOfDay(zone).toInstant();
 
-        Set<String> deviceIds = merchantScopeService.allowedDeviceIds(userId);
-        Set<String> merchantIds = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> deviceIds = merchantFeaturePackService.allowedDeviceIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
+        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
 
         Map<LocalDate, long[]> orderBuckets = new LinkedHashMap<>();
         for (int i = 0; i < window; i++) {
@@ -263,18 +285,24 @@ public class MerchantPortalService {
     public MerchantWorkbenchDto getWorkbench(Long userId) {
         permissionService.requirePermission(userId, "merchant:alerts:view");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> deviceIds = merchantScopeService.allowedDeviceIds(userId);
-        Set<String> merchantIds = merchantScopeService.allowedMerchantIds(userId);
-        if (deviceIds != null && deviceIds.isEmpty()) {
+        Set<String> deviceIds = merchantFeaturePackService.allowedDeviceIdsForPack(
+                userId, MerchantFeaturePacks.FIELD);
+        Set<String> bizDeviceIds = merchantFeaturePackService.allowedDeviceIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
+        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
+        if (deviceIds != null && deviceIds.isEmpty()
+                && bizDeviceIds != null && bizDeviceIds.isEmpty()
+                && merchantIds != null && merchantIds.isEmpty()) {
             return new MerchantWorkbenchDto(0, 0, 0, 0, 0, 0, List.of());
         }
 
         List<OpsActionItemDto> items = new ArrayList<>();
 
-        long openDisputes = deviceIds == null ? disputeRepository.countByStatus("OPEN")
-                : disputeRepository.countOpenByDeviceIds(deviceIds);
-        disputeRepository.findTop10ByStatusOrderBySlaDueAtAscCreatedAtAsc("OPEN").stream()
-                .filter(d -> inDeviceScope(deviceIds, sessionDeviceId(d.getSessionId())))
+        long openDisputes = bizDeviceIds == null ? disputeRepository.countByStatus("OPEN")
+                : (bizDeviceIds.isEmpty() ? 0 : disputeRepository.countOpenByDeviceIds(bizDeviceIds));
+        disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN").stream()
+                .filter(d -> inDeviceScope(bizDeviceIds, sessionDeviceId(d.getSessionId())))
                 .forEach(d -> items.add(new OpsActionItemDto(
                         "DISPUTE", "HIGH", "待审核争议",
                         formatDisputeReason(d.getReason()),
@@ -282,7 +310,7 @@ public class MerchantPortalService {
                         null, null, d.getCreatedAt(), d.getSlaDueAt())));
 
         long offline = 0;
-        for (DeviceInfo d : deviceRepository.findTop10ByOnlineStatusNotOrderByUpdatedAtAsc("ONLINE")) {
+        for (DeviceInfo d : deviceRepository.findByOnlineStatusNot("ONLINE")) {
             if (!inDeviceScope(deviceIds, d.getDeviceId())) continue;
             offline++;
             items.add(new OpsActionItemDto(
@@ -314,14 +342,16 @@ public class MerchantPortalService {
                     task.getTaskId(), task.getCreatedAt(), null));
         }
 
-        List<SlotDiscrepancyAlertDto> discrepancies = deviceSlotService.listDiscrepancyAlerts(userId, null);
+        List<SlotDiscrepancyAlertDto> discrepancies = deviceSlotService.listDiscrepancyAlerts(userId, null).stream()
+                .filter(a -> inDeviceScope(deviceIds, a.deviceId()))
+                .toList();
         discrepancies.forEach(a -> items.add(new OpsActionItemDto(
                 "SLOT_DISCREPANCY", "MEDIUM", "货道账实差异",
                 a.slotCode() + " 账面 " + a.bookQty() + " 实测 " + a.physicalQty(),
                 a.deviceId(), null, null, a.assignedSkuId(),
                 null, a.lastPhysicalAt(), null)));
 
-        replenishmentTaskRepository.findTop10ByStatusInOrderByCreatedAtAsc(List.of("PENDING", "IN_PROGRESS")).stream()
+        replenishmentTaskRepository.findByStatusIn(List.of("PENDING", "IN_PROGRESS")).stream()
                 .filter(t -> inDeviceScope(deviceIds, t.getDeviceId()))
                 .forEach(t -> items.add(new OpsActionItemDto(
                         "REPLENISHMENT", "MEDIUM", "补货任务进行中",
@@ -338,7 +368,7 @@ public class MerchantPortalService {
         return new MerchantWorkbenchDto(
                 openDisputes, offline, lowStock, expiry,
                 discrepancies.size(), pendingSplits,
-                items.stream().limit(20).toList()
+                items.stream().limit(100).toList()
         );
     }
 
@@ -346,13 +376,14 @@ public class MerchantPortalService {
     public List<MerchantDeviceDto> listDevices(Long userId) {
         permissionService.requirePermission(userId, "merchant:devices:list");
         merchantPortalGuard.requireAccess(userId);
-        return buildDeviceDtos(merchantScopeService.allowedDevices(userId));
+        return buildDeviceDtos(merchantFeaturePackService.allowedDevicesForPack(userId, MerchantFeaturePacks.FIELD));
     }
 
     @Transactional(readOnly = true)
     public DeviceDetailDto getDeviceDetail(Long userId, String deviceId) {
         permissionService.requirePermission(userId, "merchant:devices:detail");
         merchantPortalGuard.requireAccess(userId);
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
         return deviceSlotService.getDeviceDetail(userId, deviceId);
     }
 
@@ -360,7 +391,7 @@ public class MerchantPortalService {
     public MerchantDeviceSettingsDto getDeviceSettings(Long userId, String deviceId) {
         permissionService.requirePermission(userId, "merchant:devices:detail");
         merchantPortalGuard.requireAccess(userId);
-        merchantScopeService.requireDeviceAccess(userId, deviceId);
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
         DeviceInfo device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
         return toDeviceSettings(device);
@@ -371,7 +402,7 @@ public class MerchantPortalService {
                                                           UpdateMerchantDeviceSettingsRequest request) {
         permissionService.requirePermission(userId, "merchant:devices:edit");
         merchantPortalGuard.requireAccess(userId);
-        merchantScopeService.requireDeviceAccess(userId, deviceId);
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
         DeviceInfo device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
 
@@ -421,7 +452,7 @@ public class MerchantPortalService {
     public List<DeviceTemperatureReadingDto> getTemperatureHistory(Long userId, String deviceId, int hours) {
         permissionService.requirePermission(userId, "merchant:temp:history");
         merchantPortalGuard.requireAccess(userId);
-        merchantScopeService.requireDeviceAccess(userId, deviceId);
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
         int clampedHours = Math.min(Math.max(hours, 1), 168);
         Instant since = Instant.now().minus(clampedHours, ChronoUnit.HOURS);
         return temperatureReadingRepository.findByDeviceIdSince(deviceId, since).stream()
@@ -439,7 +470,7 @@ public class MerchantPortalService {
                 .filter(s -> ACTIVE_STATES.contains(s.getState()))
                 .collect(Collectors.toMap(ShoppingSession::getDeviceId, s -> s, (a, b) -> a));
 
-        return merchantScopeService.allowedDevices(userId).stream()
+        return merchantFeaturePackService.allowedDevicesForPack(userId, MerchantFeaturePacks.BIZ).stream()
                 .map(d -> {
                     String id = d.getDeviceId();
                     return new MerchantDeviceReportDto(
@@ -473,7 +504,7 @@ public class MerchantPortalService {
         merchantPortalGuard.requireAccess(userId);
         CabinetOrder order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        merchantScopeService.requireDeviceAccess(userId, order.getDeviceId());
+        merchantFeaturePackService.requireDevicePack(userId, order.getDeviceId(), MerchantFeaturePacks.BIZ);
         return settlementService.getOrderBySession(order.getSessionId());
     }
 
@@ -483,7 +514,8 @@ public class MerchantPortalService {
         permissionService.requirePermission(userId, "merchant:disputes:list");
         merchantPortalGuard.requireAccess(userId);
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
-        Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(userId, deviceId);
+        Collection<String> deviceScope = merchantFeaturePackService.intersectDeviceFilterForPack(
+                userId, deviceId, MerchantFeaturePacks.BIZ);
         Page<DisputeTicket> result;
         if (deviceScope != null && deviceScope.isEmpty()) {
             result = Page.empty(pageable);
@@ -503,7 +535,8 @@ public class MerchantPortalService {
     public List<DeviceInventoryDto> listInventory(Long userId, String deviceId, boolean lowStockOnly) {
         permissionService.requirePermission(userId, "merchant:inventory:view");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantScopeService.allowedDeviceIds(userId);
+        Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
+                userId, MerchantFeaturePacks.FIELD);
         if (allowed != null && allowed.isEmpty()) {
             return List.of();
         }
@@ -526,7 +559,8 @@ public class MerchantPortalService {
     public List<PullOffTaskDto> listExpiryAlerts(Long userId) {
         permissionService.requirePermission(userId, "merchant:inventory:view");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantScopeService.allowedDeviceIds(userId);
+        Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
+                userId, MerchantFeaturePacks.FIELD);
         return pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN").stream()
                 .filter(t -> inDeviceScope(allowed, t.getDeviceId()))
                 .map(t -> {
@@ -548,14 +582,22 @@ public class MerchantPortalService {
     public List<SlotDiscrepancyAlertDto> listSlotDiscrepancies(Long userId, String deviceId) {
         permissionService.requirePermission(userId, "merchant:inventory:view");
         merchantPortalGuard.requireAccess(userId);
-        return deviceSlotService.listDiscrepancyAlerts(userId, deviceId);
+        Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
+                userId, MerchantFeaturePacks.FIELD);
+        return deviceSlotService.listDiscrepancyAlerts(userId, deviceId).stream()
+                .filter(a -> inDeviceScope(allowed, a.deviceId()))
+                .toList();
     }
 
     @Transactional
     public List<MerchantDto> updateProfile(Long userId, UpdateMerchantProfileRequest request) {
         permissionService.requirePermission(userId, "merchant:profile:edit");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> allowed = merchantFeaturePackService.allowedMerchantIdsForPack(
+                userId, MerchantFeaturePacks.TEAM);
+        if (allowed == null || allowed.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "该商户未开通对应功能包");
+        }
         List<Merchant> merchants = merchantRepository.findAll().stream()
                 .filter(m -> allowed.contains(m.getMerchantId()))
                 .toList();
@@ -584,7 +626,7 @@ public class MerchantPortalService {
     public MerchantSettlementOverviewDto getSettlementOverview(Long userId) {
         permissionService.requirePermission(userId, "merchant:settlements:view");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> merchantIds = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
         if (merchantIds == null || merchantIds.isEmpty()) {
             return new MerchantSettlementOverviewDto(0, 0, 0, 0, buildProfitSharingStatus(), List.of());
         }
@@ -616,7 +658,7 @@ public class MerchantPortalService {
     public List<MerchantDailySettlementDto> listDailySettlements(Long userId, String fromDate, String toDate) {
         permissionService.requirePermission(userId, "merchant:settlements:view");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> merchantIds = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
         if (merchantIds == null || merchantIds.isEmpty()) {
             return List.of();
         }
@@ -631,7 +673,7 @@ public class MerchantPortalService {
     public List<MerchantSettlementBatchDto> listSettlementBatches(Long userId, String fromDate, String toDate) {
         permissionService.requirePermission(userId, "merchant:settlements:view");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> merchantIds = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
         if (merchantIds == null || merchantIds.isEmpty()) {
             return List.of();
         }
@@ -656,7 +698,7 @@ public class MerchantPortalService {
         if (batchNo == null || batchNo.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "批次号不能为空");
         }
-        Set<String> merchantIds = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
         Map<String, String> merchantNames = merchantRepository.findAll().stream()
                 .filter(m -> merchantIds.contains(m.getMerchantId()))
                 .collect(Collectors.toMap(
@@ -695,7 +737,7 @@ public class MerchantPortalService {
                                                  String status, String fromDate, String toDate) {
         permissionService.requirePermission(userId, "merchant:splits:list");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> allowed = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         Instant from = resolveSplitRangeStart(fromDate);
         Instant to = resolveSplitRangeEnd(toDate);
@@ -742,7 +784,7 @@ public class MerchantPortalService {
     public byte[] exportSplitsCsv(Long userId, String status, String fromDate, String toDate) {
         permissionService.requirePermission(userId, "merchant:reports:export");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> allowed = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.BIZ);
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT);
         Page<OrderRevenueSplit> page = splitRepository.searchByMerchants(
                 allowed, normalizedStatus(blankToNull(status)) != null
@@ -796,12 +838,14 @@ public class MerchantPortalService {
     public List<ReplenishmentTaskDto> listReplenishmentTasks(Long userId, String status, String deviceId) {
         permissionService.requirePermission(userId, "merchant:replenishment:view");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantScopeService.allowedDeviceIds(userId);
+        Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
+                userId, MerchantFeaturePacks.FIELD);
         if (allowed != null && allowed.isEmpty()) {
             return List.of();
         }
         if (deviceId != null && !deviceId.isBlank()) {
-            merchantScopeService.requireDeviceAccess(userId, deviceId.trim());
+            merchantFeaturePackService.requireDevicePack(
+                    userId, deviceId.trim(), MerchantFeaturePacks.FIELD);
         }
         List<String> statuses = status != null && !status.isBlank()
                 ? List.of(status.trim().toUpperCase())
@@ -821,7 +865,8 @@ public class MerchantPortalService {
         merchantPortalGuard.requireAccess(userId);
         ReplenishmentTask task = replenishmentTaskRepository.findById(taskId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
-        merchantScopeService.requireDeviceAccess(userId, task.getDeviceId());
+        merchantFeaturePackService.requireDevicePack(
+                userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
         return replenishmentTaskLineRepository.findByTaskIdOrderByLineIdAsc(taskId).stream()
                 .map(this::toReplenishmentLineDto)
                 .toList();
@@ -831,7 +876,11 @@ public class MerchantPortalService {
     public List<MerchantUserDto> listTeamUsers(Long userId) {
         permissionService.requirePermission(userId, "merchant:users:list");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> merchants = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> merchants = merchantFeaturePackService.allowedMerchantIdsForPack(
+                userId, MerchantFeaturePacks.TEAM);
+        if (merchants == null || merchants.isEmpty()) {
+            return List.of();
+        }
         Set<Long> userIds = userMerchantRepository.findByMerchantIdIn(merchants).stream()
                 .map(m -> m.getId().getUserId())
                 .collect(Collectors.toSet());
@@ -860,7 +909,11 @@ public class MerchantPortalService {
         if (userInfoRepository.findByPhoneNumber(phone).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该手机号已注册");
         }
-        Set<String> merchants = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> merchants = merchantFeaturePackService.allowedMerchantIdsForPack(
+                userId, MerchantFeaturePacks.TEAM);
+        if (merchants == null || merchants.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "该商户未开通对应功能包");
+        }
         long newUserId = operatorUserIdAllocator.nextId();
 
         UserInfo user = new UserInfo();
@@ -912,12 +965,14 @@ public class MerchantPortalService {
     }
 
     private Page<CabinetOrder> queryOrders(Long userId, String deviceId, Pageable pageable) {
-        Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(userId, deviceId);
+        Collection<String> deviceScope = merchantFeaturePackService.intersectDeviceFilterForPack(
+                userId, deviceId, MerchantFeaturePacks.BIZ);
         if (deviceScope != null && deviceScope.isEmpty()) {
             return Page.empty(pageable);
         }
         if (deviceId != null && !deviceId.isBlank()) {
-            merchantScopeService.requireDeviceAccess(userId, deviceId.trim());
+            merchantFeaturePackService.requireDevicePack(
+                    userId, deviceId.trim(), MerchantFeaturePacks.BIZ);
             return orderRepository.findByDeviceIdOrderByCreatedAtDesc(deviceId.trim(), pageable);
         }
         if (deviceScope != null) {
@@ -933,6 +988,7 @@ public class MerchantPortalService {
                 m.getPlatformRateBps(), m.getWechatReceiverId(), m.getStatus(),
                 m.getRemark(), deviceCount,
                 m.isAllowMerchantPlanogramEdit(), m.isAllowMerchantPricingEdit(),
+                m.isPackFieldEnabled(), m.isPackBizEnabled(), m.isPackTeamEnabled(),
                 m.getParentMerchantId(),
                 m.getCreatedAt(), m.getUpdatedAt()
         );
@@ -1095,29 +1151,33 @@ public class MerchantPortalService {
 
     private MerchantDailySettlementDto toDailySettlement(Object[] row) {
         return new MerchantDailySettlementDto(
-                String.valueOf(row[0]),
-                toLong(row[1]), toLong(row[2]), toLong(row[3]), toLong(row[4]),
-                toLong(row[5]), toLong(row[6]), toLong(row[7])
+                String.valueOf(at(row, 0)),
+                toLong(at(row, 1)), toLong(at(row, 2)), toLong(at(row, 3)), toLong(at(row, 4)),
+                toLong(at(row, 5)), toLong(at(row, 6)), toLong(at(row, 7))
         );
     }
 
     private MerchantSettlementBatchDto toBatchSettlement(Object[] row, Map<String, String> merchantNames) {
-        String batchNo = row[0] != null ? String.valueOf(row[0]) : null;
-        String merchantId = row[1] != null ? String.valueOf(row[1]) : null;
-        LocalDate settleAfter = toLocalDate(row[2]);
-        Instant settledAt = toInstant(row[3]);
-        long orderCount = toLong(row[4]);
-        long gross = toLong(row[5]);
-        long platform = toLong(row[6]);
-        long merchant = toLong(row[7]);
-        long settled = toLong(row[8]);
-        long pending = toLong(row[9]);
-        long failed = toLong(row[10]);
+        String batchNo = at(row, 0) != null ? String.valueOf(at(row, 0)) : null;
+        String merchantId = at(row, 1) != null ? String.valueOf(at(row, 1)) : null;
+        LocalDate settleAfter = toLocalDate(at(row, 2));
+        Instant settledAt = toInstant(at(row, 3));
+        long orderCount = toLong(at(row, 4));
+        long gross = toLong(at(row, 5));
+        long platform = toLong(at(row, 6));
+        long merchant = toLong(at(row, 7));
+        long settled = toLong(at(row, 8));
+        long pending = toLong(at(row, 9));
+        long failed = toLong(at(row, 10));
         String status = failed > 0 ? "PARTIAL_FAILED" : (pending > 0 ? "PENDING" : "SETTLED");
         return new MerchantSettlementBatchDto(
                 batchNo, merchantId, merchantNames.get(merchantId), settleAfter, settledAt,
                 orderCount, gross, platform, merchant, settled, pending, failed, status
         );
+    }
+
+    private static Object at(Object[] row, int index) {
+        return row != null && index >= 0 && index < row.length ? row[index] : null;
     }
 
     private static long toLong(Object value) {
@@ -1140,7 +1200,23 @@ public class MerchantPortalService {
         if (value instanceof java.sql.Date d) {
             return d.toLocalDate();
         }
-        return LocalDate.parse(String.valueOf(value));
+        if (value instanceof java.sql.Timestamp t) {
+            return t.toLocalDateTime().toLocalDate();
+        }
+        if (value instanceof java.time.LocalDateTime ldt) {
+            return ldt.toLocalDate();
+        }
+        if (value instanceof java.time.OffsetDateTime odt) {
+            return odt.toLocalDate();
+        }
+        if (value instanceof Instant i) {
+            return LocalDate.ofInstant(i, ZoneId.systemDefault());
+        }
+        String raw = String.valueOf(value).trim();
+        if (raw.length() >= 10 && raw.charAt(4) == '-' && raw.charAt(7) == '-') {
+            return LocalDate.parse(raw.substring(0, 10));
+        }
+        return null;
     }
 
     private static Instant toInstant(Object value) {
@@ -1153,7 +1229,25 @@ public class MerchantPortalService {
         if (value instanceof java.sql.Timestamp t) {
             return t.toInstant();
         }
-        return Instant.parse(String.valueOf(value));
+        if (value instanceof java.time.OffsetDateTime odt) {
+            return odt.toInstant();
+        }
+        if (value instanceof java.time.LocalDateTime ldt) {
+            return ldt.atZone(ZoneId.systemDefault()).toInstant();
+        }
+        if (value instanceof Number n) {
+            long epoch = n.longValue();
+            return Instant.ofEpochMilli(epoch < 100_000_000_000L ? epoch * 1000L : epoch);
+        }
+        String raw = String.valueOf(value).trim();
+        if (raw.isEmpty() || raw.matches("^\\d{1,2}$")) {
+            return null;
+        }
+        try {
+            return Instant.parse(raw);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private String sessionDeviceId(String sessionId) {

@@ -77,6 +77,12 @@ export interface MerchantDto {
   deviceCount?: number;
   allowMerchantPlanogramEdit?: boolean;
   allowMerchantPricingEdit?: boolean;
+  /** 功能包：现场作业 */
+  packFieldEnabled?: boolean;
+  /** 功能包：经营工具 */
+  packBizEnabled?: boolean;
+  /** 功能包：团队与设置 */
+  packTeamEnabled?: boolean;
   parentMerchantId?: string | null;
 }
 
@@ -240,6 +246,8 @@ export interface MerchantMe {
   merchants: MerchantDto[];
   permissions: string[];
   canEditPricing?: boolean;
+  /** 绑定商户功能包并集：field / biz / team */
+  enabledPacks?: string[];
 }
 
 export interface MerchantWorkbench {

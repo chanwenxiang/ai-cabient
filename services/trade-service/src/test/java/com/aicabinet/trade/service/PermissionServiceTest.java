@@ -15,6 +15,10 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -29,11 +33,17 @@ class PermissionServiceTest {
     @Mock
     private OpsUserRoleMapper userRoleRepository;
 
+    @Mock
+    private MerchantFeaturePackService merchantFeaturePackService;
+
     private PermissionService permissionService;
 
     @BeforeEach
     void setUp() {
-        permissionService = new PermissionService(permissionRepository, userRoleRepository);
+        permissionService = new PermissionService(
+                permissionRepository, userRoleRepository, merchantFeaturePackService);
+        lenient().when(merchantFeaturePackService.isPermEnabledForUser(anyLong(), anyString()))
+                .thenReturn(true);
     }
 
     @Test

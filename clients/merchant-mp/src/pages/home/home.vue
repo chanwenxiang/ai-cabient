@@ -69,6 +69,8 @@
           v-for="task in taskPreview"
           :key="task.taskId"
           class="task-row"
+          hover-class="task-row-hover"
+          role="button"
           @click="goReplenishment(task.deviceId, task.taskId)"
         >
           <view class="task-copy">
@@ -87,7 +89,13 @@
           <text class="section">优先待办</text>
           <text class="section-more">查看全部 ›</text>
         </view>
-        <view v-for="item in actionItems" :key="item.type + item.title" class="todo-row">
+        <view
+          v-for="item in actionItems"
+          :key="item.type + item.title"
+          class="todo-row"
+          hover-class="todo-row-hover"
+          @click.stop="goTab('/pages/alerts/alerts')"
+        >
           <text class="todo-dot" />
           <view class="todo-copy">
             <text class="todo-title">{{ item.title }}</text>
@@ -148,27 +156,40 @@
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
-import { useMerchantMe } from '@/composables/useMerchantMe';
+import { canAccessNav, hasPack, useMerchantMe } from '@/composables/useMerchantMe';
+import { MERCHANT_BIZ_NAV, MERCHANT_FIELD_NAV } from '@/config/merchant-nav';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { formatMerchantNames } from '@/utils/merchant-display';
+import { setAlertsTabBadge } from '@/utils/todo-badge';
+import { mergeTodoItems } from '@/utils/todo-list';
 import type { MerchantMe } from '@aicabinet/shared-types';
 
 type TaskRow = { taskId: number; deviceId: string; status: string };
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const preferredId = ref(getPreferredDeviceId());
-const canReplenishment = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
-const canDevices = computed(() => hasPerm(me.value, 'merchant:devices:list'));
-const canAlerts = computed(() => hasPerm(me.value, 'merchant:alerts:view'));
-const canPricing = computed(() => hasPerm(me.value, 'merchant:pricing:view'));
-const canSettlements = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
-const canDisputes = computed(() => hasPerm(me.value, 'merchant:disputes:list'));
-const canBusiness = computed(
-  () => hasPerm(me.value, 'merchant:reports:view') || hasPerm(me.value, 'merchant:analytics:view')
+
+function fieldOk(key: string) {
+  const item = MERCHANT_FIELD_NAV.find((i) => i.key === key);
+  return !!item && canAccessNav(me.value, item);
+}
+function bizOk(key: string) {
+  const item = MERCHANT_BIZ_NAV.find((i) => i.key === key);
+  return !!item && canAccessNav(me.value, item);
+}
+
+const canReplenishment = computed(() => fieldOk('replenishment'));
+const canDevices = computed(() => fieldOk('devices'));
+const canAlerts = computed(() => fieldOk('alerts'));
+const canPricing = computed(() => bizOk('pricing'));
+const canSettlements = computed(() => bizOk('settlements'));
+const canDisputes = computed(() => bizOk('disputes'));
+const canBusiness = computed(() => bizOk('business'));
+const canTrend = computed(
+  () => hasPack(me.value, 'biz') && hasPerm(me.value, 'merchant:trend:view')
 );
-const canTrend = computed(() => hasPerm(me.value, 'merchant:trend:view'));
 const canFinanceKpi = computed(
   () =>
     canBusiness.value ||
@@ -252,17 +273,10 @@ async function onScan() {
   try {
     const deviceId = await scanCabinetDeviceId();
     if (!deviceId) return;
-    // 有待补货任务则进补货，否则进柜机详情
-    const openTask = taskPreview.value.find(
-      (t) => t.deviceId === deviceId && t.status !== 'COMPLETED' && t.status !== 'CANCELLED'
-    );
-    if (openTask) {
-      goReplenishment(deviceId, openTask.taskId);
-    } else {
-      uni.navigateTo({
-        url: `/pages/device-detail/device-detail?id=${encodeURIComponent(deviceId)}`
-      });
-    }
+    // 扫码到柜：统一进柜机详情（库存/要货/补货入口都在详情页），避免有任务时劫持到补货页导致返回栈错乱
+    uni.navigateTo({
+      url: `/pages/device-detail/device-detail?id=${encodeURIComponent(deviceId)}`
+    });
   } finally {
     scanning.value = false;
   }
@@ -281,26 +295,32 @@ function hydrateFromCache() {
 
 /** 过滤编码损坏的商户名（????），避免问候语乱码。见 utils/merchant-display。 */
 
+let loadSeq = 0;
+
 async function load() {
   if (!uni.getStorageSync('merchant_token')) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
+  const seq = ++loadSeq;
   hydrateFromCache();
   loading.value = !meName.value;
+  taskPreviewLoading.value = canReplenishment.value;
   error.value = '';
   try {
     let profile: MerchantMe;
     try {
       profile = await refreshMe();
     } catch {
+      if (!uni.getStorageSync('merchant_token')) return;
       profile = (uni.getStorageSync('merchant_me') as MerchantMe) || ({} as MerchantMe);
       me.value = profile;
     }
+    if (seq !== loadSeq) return;
     meName.value = profile.displayName || profile.phoneNumber || '同事';
     merchantNames.value = formatMerchantNames(profile.merchants);
 
-    const [s, trend, workbench, devices, tasks] = await Promise.all([
+    const [s, trend, workbench, exceptionPage, expiryRows, devices, tasks] = await Promise.all([
       merchantApi.stats() as Promise<Record<string, number>>,
       canTrend.value
         ? (merchantApi.trend(7) as Promise<{ last7Days?: { date: string; revenueCents: number }[] }>)
@@ -312,13 +332,19 @@ async function load() {
             openDisputes: 0,
             lowStockItems: 0,
             expiryAlerts: 0,
+            slotDiscrepancies: 0,
             actionItems: []
           }),
+      canAlerts.value
+        ? merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 }))
+        : Promise.resolve({ items: [], total: 0 }),
+      canAlerts.value ? merchantApi.expiryAlerts().catch(() => []) : Promise.resolve([]),
       canDevices.value || canReplenishment.value
         ? merchantApi.devices()
         : Promise.resolve([]),
       canReplenishment.value ? merchantApi.replenishmentTasks() : Promise.resolve([])
     ]);
+    if (seq !== loadSeq) return;
 
     const days = trend.last7Days || [];
     const maxRev = Math.max(...days.map((d) => d.revenueCents), 1);
@@ -328,25 +354,21 @@ async function load() {
     offlineCount.value = canAlerts.value
       ? workbench.offlineDevices || 0
       : Number(s.deviceOffline || 0);
-    pendingCount.value = canAlerts.value
-      ? (workbench.openDisputes || 0) +
-        (workbench.offlineDevices || 0) +
-        (workbench.lowStockItems || 0) +
-        (workbench.expiryAlerts || 0)
-      : 0;
-    try {
-      if (pendingCount.value > 0) {
-        uni.setTabBarBadge({
-          index: 2,
-          text: pendingCount.value > 99 ? '99+' : String(pendingCount.value)
-        });
-      } else {
-        uni.removeTabBarBadge({ index: 2 });
-      }
-    } catch {
-      /* H5 / non-tab context */
-    }
-    actionItems.value = canAlerts.value ? (workbench.actionItems || []).slice(0, 3) : [];
+    // 与待办页同一合并口径，保证首页数字 / Tab 角标 / 列表条数一致
+    const mergedTodos = canAlerts.value
+      ? mergeTodoItems({
+          exceptions: exceptionPage.items || [],
+          actionItems: workbench.actionItems || [],
+          expiryRows: expiryRows || []
+        })
+      : [];
+    pendingCount.value = mergedTodos.length;
+    setAlertsTabBadge(pendingCount.value);
+    actionItems.value = canAlerts.value ? mergedTodos.slice(0, 3).map((a) => ({
+      type: a.type,
+      title: a.title,
+      detail: a.detail
+    })) : [];
     trendBars.value = canFinanceKpi.value
       ? days.map((d) => ({
           date: d.date,
@@ -365,19 +387,23 @@ async function load() {
     const openTasks = taskRows.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
     preferredId.value = getPreferredDeviceId();
     const preferred = preferredId.value;
-    const sorted = preferred
+    const preferredKey = String(preferred || '').trim().toUpperCase();
+    const sorted = preferredKey
       ? [
-          ...openTasks.filter((t) => t.deviceId === preferred),
-          ...openTasks.filter((t) => t.deviceId !== preferred)
+          ...openTasks.filter((t) => String(t.deviceId || '').trim().toUpperCase() === preferredKey),
+          ...openTasks.filter((t) => String(t.deviceId || '').trim().toUpperCase() !== preferredKey)
         ]
       : openTasks;
     pendingTaskCount.value = canReplenishment.value ? sorted.length : 0;
     taskPreview.value = canReplenishment.value ? sorted.slice(0, 5) : [];
   } catch (e) {
+    if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
-    loading.value = false;
-    taskPreviewLoading.value = false;
+    if (seq === loadSeq) {
+      loading.value = false;
+      taskPreviewLoading.value = false;
+    }
   }
 }
 
@@ -534,8 +560,12 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   align-items: center;
   padding: 20rpx 0;
   border-top: 1rpx solid #f1f5f9;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
+.task-row-hover { opacity: 0.72; }
 .task-row:first-of-type { border-top: 0; }
+.task-copy, .task-name, .task-meta, .task-go, .pref-mark { pointer-events: none; }
 .task-copy { flex: 1; min-width: 0; }
 .task-name { display: block; font-size: 28rpx; font-weight: 600; color: #0f172a; }
 .pref-mark {
@@ -551,6 +581,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .task-go { color: #0f766e; font-size: 26rpx; font-weight: 600; }
 
 .todo-row { display: flex; align-items: flex-start; padding: 14rpx 0; border-top: 1rpx solid #f1f5f9; }
+.todo-row-hover { opacity: 0.72; }
 .todo-dot {
   width: 12rpx;
   height: 12rpx;

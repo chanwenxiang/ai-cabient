@@ -114,7 +114,7 @@ public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSpl
             @org.springframework.data.repository.query.Param("to") Instant to);
 
     default List<Object[]> aggregateDailyByMerchants(Collection<String> merchantIds, Instant from, Instant to) {
-        return toObjectRows(_aggregateDailyByMerchants(merchantIds, from, to));
+        return ColumnMapRows.toObjectRows(_aggregateDailyByMerchants(merchantIds, from, to), 8);
     }
 
     java.util.List<java.util.LinkedHashMap<String, Object>> _aggregateBatchByMerchants(
@@ -123,18 +123,7 @@ public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSpl
             @org.springframework.data.repository.query.Param("to") Instant to);
 
     default List<Object[]> aggregateBatchByMerchants(Collection<String> merchantIds, Instant from, Instant to) {
-        return toObjectRows(_aggregateBatchByMerchants(merchantIds, from, to));
-    }
-
-    private static List<Object[]> toObjectRows(java.util.List<java.util.LinkedHashMap<String, Object>> rows) {
-        if (rows == null || rows.isEmpty()) {
-            return List.of();
-        }
-        java.util.ArrayList<Object[]> out = new java.util.ArrayList<>(rows.size());
-        for (java.util.Map<String, Object> row : rows) {
-            out.add(row.values().toArray());
-        }
-        return out;
+        return ColumnMapRows.toObjectRows(_aggregateBatchByMerchants(merchantIds, from, to), 11);
     }
 
 }

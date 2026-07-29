@@ -15,6 +15,9 @@ public record MerchantDto(
         long deviceCount,
         boolean allowMerchantPlanogramEdit,
         boolean allowMerchantPricingEdit,
+        boolean packFieldEnabled,
+        boolean packBizEnabled,
+        boolean packTeamEnabled,
         String parentMerchantId,
         Instant createdAt,
         Instant updatedAt

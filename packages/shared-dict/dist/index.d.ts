@@ -234,6 +234,15 @@ export declare const DICT: {
         readonly PENDING: "待处理";
         readonly FAILED: "失败";
     };
+    readonly settlement_batch_status: {
+        readonly PENDING: "待结算";
+        readonly PROCESSING: "结算中";
+        readonly SETTLED: "已结算";
+        readonly PAID: "已支付";
+        readonly FAILED: "失败";
+        readonly PARTIAL_FAILED: "部分失败";
+        readonly COMPLETED: "已完成";
+    };
     readonly sku_status: {
         readonly ACTIVE: "在售";
         readonly INACTIVE: "停用";

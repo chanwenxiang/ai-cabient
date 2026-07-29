@@ -12,12 +12,18 @@
           <text class="pref-star" :class="{ on: isPreferred }">★</text>
           <text>{{ isPreferred ? '常驻柜（点击取消）' : '设为常驻柜' }}</text>
         </view>
-        <view
-          v-if="canRequest"
-          class="btn-primary"
-          style="margin-top:16px"
-          @click="goRequest"
-        >发起要货</view>
+        <view class="action-row">
+          <view
+            v-if="canReplenishView"
+            class="btn-primary action-btn"
+            @click="goReplenishment"
+          >补货任务</view>
+          <view
+            v-if="canRequest"
+            class="btn-primary action-btn"
+            @click="goRequest"
+          >发起要货</view>
+        </view>
       </view>
 
       <view v-if="canEditDevice" class="card">
@@ -37,7 +43,7 @@
           <view v-for="s in slots" :key="s.slotCode" class="slot-cell">
             <text class="slot-code">{{ s.slotCode }}</text>
             <text>{{ s.assignedSkuName || '空' }}</text>
-            <text class="meta">库存 {{ s.bookQty }}/{{ s.parLevel }}</text>
+            <text class="meta">库存 {{ s.bookQty }}/{{ s.maxLevel || s.parLevel }}</text>
             <input
               v-if="canEditSlots"
               v-model="slotPar[s.slotCode]"
@@ -70,6 +76,7 @@ import type { DeviceSlot, MerchantMe } from '@aicabinet/shared-types';
 const { me, refresh: refreshMe } = useMerchantMe();
 const loading = ref(true);
 const error = ref('');
+let loadSeq = 0;
 const deviceId = ref('');
 const merchantId = ref('');
 const deviceName = ref('');
@@ -88,6 +95,7 @@ const isPreferred = ref(false);
 const canView = computed(() => hasPerm(me.value, 'merchant:devices:detail'));
 const canEditDevice = computed(() => hasPerm(me.value, 'merchant:devices:edit'));
 const canEditSlots = computed(() => canEditPlanogramForMerchant(me.value, merchantId.value));
+const canReplenishView = computed(() => hasPerm(me.value, 'merchant:replenishment:view'));
 const canRequest = computed(() => hasPerm(me.value, 'merchant:replenishment:request'));
 
 onLoad((opts) => {
@@ -95,7 +103,11 @@ onLoad((opts) => {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
-  deviceId.value = decodeURIComponent((opts?.id as string) || '');
+  try {
+    deviceId.value = decodeURIComponent((opts?.id as string) || '');
+  } catch {
+    deviceId.value = String(opts?.id || '');
+  }
   if (!deviceId.value) {
     error.value = '柜机不存在';
     loading.value = false;
@@ -105,11 +117,14 @@ onLoad((opts) => {
 });
 
 async function loadDetail() {
+  const seq = ++loadSeq;
   try {
     await refreshMe();
   } catch {
+    if (!uni.getStorageSync('merchant_token')) return;
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
   }
+  if (seq !== loadSeq) return;
   if (!canView.value) {
     loading.value = false;
     uni.showToast({ title: '无柜机详情权限', icon: 'none' });
@@ -117,8 +132,10 @@ async function loadDetail() {
     return;
   }
   loading.value = true;
+  error.value = '';
   try {
     const settings = await merchantApi.deviceSettings(deviceId.value);
+    if (seq !== loadSeq) return;
     merchantId.value = (settings.merchantId as string) || '';
     deviceName.value = (settings.deviceName as string) || deviceId.value;
     online.value = ((settings.onlineStatus as string) || '').toUpperCase() === 'ONLINE';
@@ -128,17 +145,21 @@ async function loadDetail() {
     formTargetTemp.value = settings.targetTempC != null ? String(settings.targetTempC) : '';
     formRemark.value = (settings.opsRemark as string) || '';
     const list = await merchantApi.deviceSlots(deviceId.value);
+    if (seq !== loadSeq) return;
     slots.value = list;
     const par: Record<string, string> = {};
     list.forEach((s) => {
-      par[s.slotCode] = String(s.parLevel);
+      par[s.slotCode] = s.parLevel != null ? String(s.parLevel) : '';
     });
     slotPar.value = par;
-    isPreferred.value = getPreferredDeviceId() === deviceId.value;
+    isPreferred.value =
+      String(getPreferredDeviceId() || '').trim().toUpperCase() ===
+      String(deviceId.value || '').trim().toUpperCase();
   } catch (e) {
+    if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
-    loading.value = false;
+    if (seq === loadSeq) loading.value = false;
   }
 }
 
@@ -155,6 +176,12 @@ function togglePreferred() {
   uni.showToast({ title: '已设为常驻柜', icon: 'success' });
 }
 
+function goReplenishment() {
+  uni.navigateTo({
+    url: `/pages/replenishment/replenishment?deviceId=${encodeURIComponent(deviceId.value)}`
+  });
+}
+
 function goRequest() {
   uni.navigateTo({
     url: `/pages/request/request?deviceId=${encodeURIComponent(deviceId.value)}`
@@ -167,7 +194,14 @@ async function saveSettings() {
     deviceName: formName.value.trim() || null,
     opsRemark: formRemark.value.trim() || null
   };
-  if (formTargetTemp.value !== '') body.targetTempC = parseInt(formTargetTemp.value, 10);
+  if (formTargetTemp.value !== '') {
+    const temp = Number.parseInt(formTargetTemp.value, 10);
+    if (!Number.isFinite(temp)) {
+      uni.showToast({ title: '目标温度须为整数', icon: 'none' });
+      return;
+    }
+    body.targetTempC = temp;
+  }
   saving.value = true;
   try {
     await merchantApi.updateDeviceSettings(deviceId.value, body);
@@ -182,17 +216,35 @@ async function saveSettings() {
 
 async function saveSlots() {
   if (savingSlots.value) return;
-  const body = slots.value.map((s) => ({
-    slotCode: s.slotCode,
-    rowNo: s.rowNo,
-    colNo: s.colNo,
-    slotType: s.slotType,
-    assignedSkuId: s.assignedSkuId,
-    parLevel: parseInt(slotPar.value[s.slotCode] || String(s.parLevel), 10),
-    minLevel: s.minLevel,
-    maxLevel: s.maxLevel,
-    enabled: s.enabled
-  }));
+  const body: {
+    slotCode: string;
+    rowNo: number;
+    colNo: number;
+    slotType: string;
+    assignedSkuId?: string;
+    parLevel: number;
+    minLevel?: number;
+    maxLevel?: number;
+    enabled?: boolean;
+  }[] = [];
+  for (const s of slots.value) {
+    const par = Number.parseInt(slotPar.value[s.slotCode] || String(s.parLevel), 10);
+    if (!Number.isFinite(par) || par < 0) {
+      uni.showToast({ title: `货道 ${s.slotCode} 容量无效`, icon: 'none' });
+      return;
+    }
+    body.push({
+      slotCode: s.slotCode,
+      rowNo: s.rowNo,
+      colNo: s.colNo,
+      slotType: s.slotType,
+      assignedSkuId: s.assignedSkuId,
+      parLevel: par,
+      minLevel: s.minLevel,
+      maxLevel: s.maxLevel,
+      enabled: s.enabled
+    });
+  }
   savingSlots.value = true;
   try {
     await merchantApi.upsertSlots(deviceId.value, body);
@@ -223,5 +275,11 @@ async function saveSlots() {
 .input { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin: 8px 0; }
 .input-sm { width: 100%; font-size: 22rpx; margin-top: 4rpx; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px; }
 .slot-code { font-weight: 600; display: block; }
+.action-row {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+.action-btn { flex: 1; margin-top: 0; }
 .err { color: #ef4444; }
 </style>

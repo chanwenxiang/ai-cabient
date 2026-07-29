@@ -10,6 +10,11 @@
       </picker>
     </view>
 
+    <view v-if="loadError" class="banner-err">
+      <text>{{ loadError }}</text>
+      <text class="banner-retry" @click="load">重试</text>
+    </view>
+
     <view class="summary-card">
       <view class="summary-row">
         <text class="summary-label">区间营收</text>
@@ -61,12 +66,13 @@
 
     <view class="section">
       <text class="section-title">结算批次</text>
+      <view v-if="batchWarn" class="section-warn">{{ batchWarn }}</view>
       <view v-if="loading" class="loading-inline">批次加载中…</view>
       <template v-else>
         <view v-for="b in batches" :key="b.batchNo" class="device-row">
           <view class="device-info">
             <text class="device-name">{{ b.batchNo }}</text>
-            <text class="device-orders">{{ b.batchStatus }} · {{ b.orderCount }} 笔</text>
+            <text class="device-orders">{{ batchStatusLabel(b.batchStatus) }} · {{ b.orderCount }} 笔</text>
           </view>
           <text class="device-amount">¥{{ (b.merchantCents / 100).toFixed(2) }}</text>
         </view>
@@ -87,10 +93,11 @@
 </template>
 
 <script setup lang="ts">
-import { onShow } from '@dcloudio/uni-app';
+import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
-import { getToken, hasPerm, merchantApi } from '@/utils/merchant-api';
+import { dictLabel } from '@aicabinet/shared-dict';
+import { hasPerm, merchantApi, downloadAuthedFile, openExportedFile, getToken } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { MerchantDailySettlement, MerchantMe, MerchantSettlementBatch } from '@aicabinet/shared-types';
 
@@ -98,8 +105,33 @@ const { me, refresh: refreshMe } = useMerchantMe();
 const canViewSettlements = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
 const canExport = computed(() => hasPerm(me.value, 'merchant:settlements:export'));
 
-const today = new Date().toISOString().substring(0, 10);
-const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString().substring(0, 10);
+function localDateISO(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function batchStatusLabel(status?: string) {
+  if (!status) return '-';
+  const key = status.toUpperCase();
+  const fallback: Record<string, string> = {
+    PENDING: '待结算',
+    PROCESSING: '结算中',
+    SETTLED: '已结算',
+    PAID: '已支付',
+    FAILED: '失败',
+    PARTIAL_FAILED: '部分失败',
+    COMPLETED: '已完成'
+  };
+  const fromDict = dictLabel('settlement_batch_status', status);
+  // dictLabel returns the raw code when type/code is missing — prefer Chinese fallback then.
+  if (fromDict && fromDict.toUpperCase() !== key) return fromDict;
+  return fallback[key] || status;
+}
+
+const today = localDateISO(new Date());
+const sevenDaysAgo = localDateISO(new Date(Date.now() - 7 * 86400000));
 
 const startDate = ref(sevenDaysAgo);
 const endDate = ref(today);
@@ -114,33 +146,80 @@ const daily = ref<MerchantDailySettlement[]>([]);
 const batches = ref<MerchantSettlementBatch[]>([]);
 const profitNote = ref('');
 const loading = ref(false);
+const loadError = ref('');
+const batchWarn = ref('');
+let loadSeq = 0;
 
 onShow(() => load());
+onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
 async function load() {
-  if (!uni.getStorageSync('merchant_token')) {
+  if (!getToken()) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
+  // 日期非法时先短路，避免无意义的 refreshMe / 接口等待
+  if (startDate.value > endDate.value) {
+    loadError.value = '开始日期不能晚于结束日期';
+    daily.value = [];
+    batches.value = [];
+    summary.value = { gross: '0.00', platformFee: '0.00', merchantIncome: '0.00', pending: '0.00', settledMonth: '0.00' };
+    profitNote.value = '';
+    loading.value = false;
+    return;
+  }
+  const seq = ++loadSeq;
   try {
     await refreshMe();
   } catch {
-    me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+    if (!getToken()) return;
+    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
   }
+  if (seq !== loadSeq) return;
   if (!canViewSettlements.value) {
     uni.showToast({ title: '无结算权限', icon: 'none' });
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return;
   }
   loading.value = true;
+  loadError.value = '';
+  batchWarn.value = '';
   try {
-    const [overview, days, batchList] = await Promise.all([
+    const [overviewRes, daysRes, batchRes] = await Promise.allSettled([
       merchantApi.settlements(),
       merchantApi.dailySettlements(startDate.value, endDate.value),
       merchantApi.settlementBatches(startDate.value, endDate.value)
     ]);
-    daily.value = days || [];
-    batches.value = batchList || [];
+    if (seq !== loadSeq) return;
+
+    if (overviewRes.status === 'rejected' && daysRes.status === 'rejected') {
+      throw overviewRes.reason instanceof Error
+        ? overviewRes.reason
+        : new Error('结算数据加载失败');
+    }
+
+    const days = daysRes.status === 'fulfilled' ? daysRes.value || [] : [];
+    daily.value = days;
+    if (daysRes.status === 'rejected') {
+      loadError.value =
+        daysRes.reason instanceof Error ? daysRes.reason.message : '按日汇总加载失败';
+    }
+
+    if (batchRes.status === 'fulfilled') {
+      batches.value = batchRes.value || [];
+    } else {
+      batches.value = [];
+      batchWarn.value =
+        batchRes.reason instanceof Error ? batchRes.reason.message : '结算批次加载失败';
+    }
+
+    const overview =
+      overviewRes.status === 'fulfilled'
+        ? overviewRes.value
+        : ({ pendingAmountCents: 0, settledMonthCents: 0 } as Awaited<
+            ReturnType<typeof merchantApi.settlements>
+          >);
+
     const gross = days.reduce((s, d) => s + (d.grossCents || 0), 0);
     const platform = days.reduce((s, d) => s + (d.platformCents || 0), 0);
     const merchant = days.reduce((s, d) => s + (d.merchantCents || 0), 0);
@@ -152,10 +231,12 @@ async function load() {
       settledMonth: ((overview.settledMonthCents || 0) / 100).toFixed(2)
     };
     profitNote.value = overview.profitSharing?.note || '';
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '加载失败', icon: 'none' });
+  } catch (e: unknown) {
+    if (seq !== loadSeq) return;
+    loadError.value = e instanceof Error ? e.message : '加载失败';
+    uni.showToast({ title: loadError.value, icon: 'none' });
   } finally {
-    loading.value = false;
+    if (seq === loadSeq) loading.value = false;
   }
 }
 
@@ -164,25 +245,19 @@ function onExport() {
     uni.showToast({ title: '无导出权限', icon: 'none' });
     return;
   }
+  if (startDate.value > endDate.value) {
+    uni.showToast({ title: '开始日期不能晚于结束日期', icon: 'none' });
+    return;
+  }
   const url = merchantApi.exportSettlementsUrl(startDate.value, endDate.value);
-  const token = getToken();
-  uni.downloadFile({
-    url,
-    header: token ? { Authorization: `Bearer ${token}` } : {},
-    success(res) {
-      if (res.statusCode >= 200 && res.statusCode < 300) {
-        uni.showToast({ title: '导出成功', icon: 'success' });
-        if (res.tempFilePath) {
-          uni.openDocument({ filePath: res.tempFilePath, showMenu: true }).catch(() => undefined);
-        }
-      } else {
-        uni.showToast({ title: '导出失败', icon: 'none' });
-      }
-    },
-    fail() {
-      uni.showToast({ title: '导出失败', icon: 'none' });
-    }
-  });
+  void downloadAuthedFile(url)
+    .then(async (tempFilePath) => {
+      await openExportedFile(tempFilePath, `settlements-${startDate.value}-${endDate.value}.xlsx`);
+      uni.showToast({ title: '导出成功', icon: 'success' });
+    })
+    .catch((e) => {
+      uni.showToast({ title: e instanceof Error ? e.message : '导出失败', icon: 'none' });
+    });
 }
 </script>
 
@@ -200,6 +275,26 @@ function onExport() {
 .tip-card { background: #ecfdf5; border-radius: 12rpx; padding: 20rpx; margin-bottom: 20rpx; }
 .tip-text { font-size: 24rpx; color: #0f766e; display: block; line-height: 1.5; }
 .tip-meta { font-size: 22rpx; color: #64748b; margin-top: 8rpx; display: block; }
+.banner-err {
+  margin-bottom: 16rpx;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 24rpx;
+  display: flex;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+.banner-retry { color: #0f766e; font-weight: 600; }
+.section-warn {
+  margin-bottom: 12rpx;
+  padding: 12rpx 16rpx;
+  border-radius: 10rpx;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 22rpx;
+}
 .section { background: #fff; border-radius: 16rpx; padding: 24rpx; margin-bottom: 20rpx; }
 .section-title { font-size: 28rpx; font-weight: 600; margin-bottom: 16rpx; display: block; }
 .device-row { display: flex; justify-content: space-between; align-items: center; padding: 14rpx 0; border-bottom: 1rpx solid #f0fdfa; }

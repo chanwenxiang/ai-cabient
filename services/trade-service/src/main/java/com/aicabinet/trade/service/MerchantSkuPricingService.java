@@ -25,33 +25,33 @@ public class MerchantSkuPricingService {
     private final DeviceSkuInventoryMapper inventoryRepository;
     private final SkuCatalogMapper skuCatalogRepository;
     private final DeviceInfoMapper deviceRepository;
-    private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
     private final MerchantPortalGuard merchantPortalGuard;
     private final AdminAuditService auditService;
     private final AdminAuditLogMapper auditLogRepository;
     private final MerchantSelfServiceGate merchantSelfServiceGate;
+    private final MerchantFeaturePackService merchantFeaturePackService;
 
     public MerchantSkuPricingService(DeviceSkuPriceMapper priceRepository,
                                      DeviceSkuInventoryMapper inventoryRepository,
                                      SkuCatalogMapper skuCatalogRepository,
                                      DeviceInfoMapper deviceRepository,
-                                     MerchantScopeService merchantScopeService,
                                      PermissionService permissionService,
                                      MerchantPortalGuard merchantPortalGuard,
                                      AdminAuditService auditService,
                                      AdminAuditLogMapper auditLogRepository,
-                                     MerchantSelfServiceGate merchantSelfServiceGate) {
+                                     MerchantSelfServiceGate merchantSelfServiceGate,
+                                     MerchantFeaturePackService merchantFeaturePackService) {
         this.priceRepository = priceRepository;
         this.inventoryRepository = inventoryRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.deviceRepository = deviceRepository;
-        this.merchantScopeService = merchantScopeService;
         this.permissionService = permissionService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.auditService = auditService;
         this.auditLogRepository = auditLogRepository;
         this.merchantSelfServiceGate = merchantSelfServiceGate;
+        this.merchantFeaturePackService = merchantFeaturePackService;
     }
 
     @Transactional(readOnly = true)
@@ -68,14 +68,15 @@ public class MerchantSkuPricingService {
     public List<MerchantSkuPricingDto> listPricing(Long userId, String deviceId) {
         permissionService.requirePermission(userId, "merchant:pricing:view");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> allowedDevices = merchantScopeService.allowedDeviceIds(userId);
+        Set<String> allowedDevices = merchantFeaturePackService.allowedDeviceIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
         if (allowedDevices != null && allowedDevices.isEmpty()) {
             return List.of();
         }
         if (deviceId != null && !deviceId.isBlank()) {
-            merchantScopeService.requireDeviceAccess(userId, deviceId.trim());
+            merchantFeaturePackService.requireDevicePack(userId, deviceId.trim(), MerchantFeaturePacks.BIZ);
         }
-        List<DeviceInfo> devices = merchantScopeService.allowedDevices(userId).stream()
+        List<DeviceInfo> devices = merchantFeaturePackService.allowedDevicesForPack(userId, MerchantFeaturePacks.BIZ).stream()
                 .filter(d -> deviceId == null || deviceId.isBlank() || deviceId.trim().equals(d.getDeviceId()))
                 .toList();
         if (devices.isEmpty()) {
@@ -140,7 +141,7 @@ public class MerchantSkuPricingService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备 ID 不能为空");
         }
         String deviceId = request.deviceId().trim();
-        merchantScopeService.requireDeviceAccess(userId, deviceId);
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.BIZ);
         SkuCatalog sku = skuCatalogRepository.findById(skuId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SKU_NOT_FOUND));
         DeviceInfo device = deviceRepository.findById(deviceId)
@@ -192,9 +193,11 @@ public class MerchantSkuPricingService {
         merchantPortalGuard.requireAccess(userId);
         String requestedDeviceId = normalize(deviceId);
         String requestedSkuId = normalize(skuId);
-        Set<String> allowedDeviceIds = merchantScopeService.allowedDeviceIds(userId);
+        Set<String> allowedDeviceIds = merchantFeaturePackService.allowedDeviceIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
         if (requestedDeviceId != null) {
-            merchantScopeService.requireDeviceAccess(userId, requestedDeviceId);
+            merchantFeaturePackService.requireDevicePack(
+                    userId, requestedDeviceId, MerchantFeaturePacks.BIZ);
         }
         return auditLogRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(0, 200)).stream()
                 .filter(l -> "MERCHANT_SKU_PRICE".equals(l.getAction()))

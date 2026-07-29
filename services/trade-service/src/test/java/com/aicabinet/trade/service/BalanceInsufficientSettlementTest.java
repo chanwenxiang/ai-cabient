@@ -8,6 +8,7 @@ import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.metrics.CabinetMetrics;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,8 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +39,7 @@ class BalanceInsufficientSettlementTest {
     @Mock GravitySettlementHelper gravityHelper;
     @Mock RestockSnapshotService restockSnapshotService;
     @Mock OpsExceptionService opsExceptionService;
+    @Mock CabinetOrderMapper orderRepository;
 
     private SessionService service;
 
@@ -47,7 +47,7 @@ class BalanceInsufficientSettlementTest {
     void setUp() {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
-                gravityHelper, restockSnapshotService, null, opsExceptionService, null, null, null);
+                gravityHelper, restockSnapshotService, null, opsExceptionService, null, orderRepository, null);
     }
 
     @Test
@@ -93,6 +93,7 @@ class BalanceInsufficientSettlementTest {
         when(settlementService.settle(session)).thenReturn(new OrderDto(
                 "O-EXACT", "S-BAL-03", 13800138000L, "CAB-001", 600,
                 List.of(), "PAID", "BALANCE", null, 1100, 500, null));
+        when(orderRepository.findById("O-EXACT")).thenReturn(Optional.empty());
 
         var result = service.settleAfterClose("S-BAL-03");
 

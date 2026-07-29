@@ -51,6 +51,10 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
     return selectList(Wrappers.<ShoppingSession>lambdaQuery().eq(ShoppingSession::getState, state).orderByAsc(ShoppingSession::getUpdatedAt).last("LIMIT 10"));
     }
 
+    default List<ShoppingSession> findByStateOrderByUpdatedAtAsc(SessionState state) {
+    return selectList(Wrappers.<ShoppingSession>lambdaQuery().eq(ShoppingSession::getState, state).orderByAsc(ShoppingSession::getUpdatedAt));
+    }
+
     default Page<ShoppingSession> findByDeviceIdAndStateOrderByCreatedAtDesc(String deviceId, SessionState state, Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<ShoppingSession>(
             pageable.getPageNumber() + 1L, pageable.getPageSize());

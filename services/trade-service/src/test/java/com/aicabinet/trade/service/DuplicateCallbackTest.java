@@ -10,6 +10,7 @@ import com.aicabinet.trade.config.VisionAsyncProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.metrics.CabinetMetrics;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DisputeTicketMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.support.ApiMessages;
@@ -47,6 +48,7 @@ class DuplicateCallbackTest {
     @Mock DisputeTicketMapper disputeRepository;
     @Mock PermissionService permissionService;
     @Mock RiskControlService riskControlService;
+    @Mock CabinetOrderMapper orderRepository;
 
     private SessionService sessionService;
     private DisputeService disputeService;
@@ -55,10 +57,10 @@ class DuplicateCallbackTest {
     void setUp() {
         sessionService = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
-                gravityHelper, restockSnapshotService, null, opsExceptionService, null, null, null);
+                gravityHelper, restockSnapshotService, null, opsExceptionService, null, orderRepository, null);
         disputeService = new DisputeService(
                 disputeRepository, null, repository, null, null, null, null, null,
-                riskControlService, permissionService, null, null, null,
+                riskControlService, permissionService, null, null, null, null,
                 new DisputeSlaProperties(24, 12, "", false), null, opsExceptionService, null, null);
     }
 
@@ -72,6 +74,7 @@ class DuplicateCallbackTest {
         when(settlementService.settle(recognizing)).thenReturn(new OrderDto(
                 "O-DUP-01", "S-DUP-01", 7L, "CAB-001", 500,
                 List.of(), "PAID", "BALANCE", null, 1000, 500, null));
+        when(orderRepository.findById("O-DUP-01")).thenReturn(Optional.empty());
 
         sessionService.settleAfterClose("S-DUP-01");
         var second = sessionService.settleAfterClose("S-DUP-01");

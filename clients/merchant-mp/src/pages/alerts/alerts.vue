@@ -1,7 +1,10 @@
 <template>
   <view>
     <view v-if="loading" class="card">加载中…</view>
-    <view v-else-if="error" class="card"><text class="err">{{ error }}</text></view>
+    <view v-else-if="error" class="card">
+      <text class="err">{{ error }}</text>
+      <button class="retry" size="mini" @click="load">重试</button>
+    </view>
     <view v-else>
       <view v-if="preferredId" class="pref-bar">
         <text>常驻柜优先：{{ preferredId }}</text>
@@ -10,13 +13,20 @@
         </text>
       </view>
       <view class="kpi-grid">
-        <view class="kpi-card dispute"><text class="n">{{ counts.disputes }}</text><text class="l">争议</text></view>
-        <view class="kpi-card offline"><text class="n">{{ counts.offline }}</text><text class="l">离线</text></view>
-        <view class="kpi-card stock"><text class="n">{{ counts.lowStock }}</text><text class="l">低库存</text></view>
+        <view class="kpi-card dispute"><text class="n">{{ counts.disputes }}</text><text class="l">审核</text></view>
+        <view class="kpi-card offline"><text class="n">{{ counts.offline }}</text><text class="l">故障</text></view>
+        <view class="kpi-card stock"><text class="n">{{ counts.lowStock }}</text><text class="l">库存</text></view>
         <view class="kpi-card expiry"><text class="n">{{ counts.expiry }}</text><text class="l">临期</text></view>
       </view>
 
-      <view v-for="(a, i) in visibleItems" :key="i" class="card alert-card" @click="handleItem(a)">
+      <view
+        v-for="(a, i) in visibleItems"
+        :key="a.exceptionId || a.ticketId || `${a.type}-${a.deviceId}-${i}`"
+        class="card alert-card"
+        hover-class="alert-card-hover"
+        role="button"
+        @click="handleItem(a)"
+      >
         <text class="tag" :class="tagClass(a.type)">{{ a.typeLabel }}</text>
         <text class="title">{{ a.title }}</text>
         <text v-if="a.detail" class="meta">{{ a.detail }}</text>
@@ -44,9 +54,12 @@
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
-import { hasPerm, merchantApi, alertTypeLabel, merchantAlertTitle } from '@/utils/merchant-api';
+import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
+import { promptText } from '@/utils/text-prompt';
+import { setAlertsTabBadge } from '@/utils/todo-badge';
+import { mergeTodoItems } from '@/utils/todo-list';
 import type { MerchantMe } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -69,6 +82,7 @@ const items = ref<
     exceptionId?: string;
   }[]
 >([]);
+let loadSeq = 0;
 
 const visibleItems = computed(() => {
   if (!onlyPreferred.value || !preferredId.value) return items.value;
@@ -87,11 +101,13 @@ function tagClass(type: string) {
 function actionHint(item: { type: string; deviceId?: string; ticketId?: string }) {
   const type = String(item.type || '').toUpperCase();
   if (type === 'DISPUTE') return item.ticketId ? '去处理争议 ›' : '查看争议 ›';
+  if (type.startsWith('RECOGNITION')) return item.deviceId ? '查看柜机 ›' : '查看争议 ›';
   if (type === 'EXPIRY') return '去处理临期任务 ›';
   if (type === 'LOW_STOCK') return '去发起要货 ›';
   if (type === 'REPLENISHMENT' || type === 'REPLENISHMENT_REQUIRED') return '去补货任务 ›';
+  if (type === 'DEVICE_OFFLINE' || type === 'DEVICE_FAULT') return '查看柜机 ›';
   if (item.deviceId) return '查看柜机 ›';
-  return '';
+  return '查看详情 ›';
 }
 
 async function load() {
@@ -99,9 +115,15 @@ async function load() {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
+  const seq = ++loadSeq;
   try {
     await refreshMe();
   } catch {
+    if (!uni.getStorageSync('merchant_token')) return;
+    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  if (seq !== loadSeq) return;
+  if (!me.value) {
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
   }
   if (!canViewAlerts.value) {
@@ -111,61 +133,67 @@ async function load() {
   }
   preferredId.value = getPreferredDeviceId();
   loading.value = true;
+  error.value = '';
   try {
     const [wb, exceptionPage, expiryRows] = await Promise.all([
       merchantApi.workbench(),
-      merchantApi.exceptions('OPEN'),
+      merchantApi.openExceptions(100),
       merchantApi.expiryAlerts().catch(() => [])
     ]);
+    if (seq !== loadSeq) return;
+    const deduped = mergeTodoItems({
+      exceptions: exceptionPage.items || [],
+      actionItems: wb.actionItems || [],
+      expiryRows: expiryRows || []
+    });
+    items.value = deduped;
+    const typeOf = (t: string) => String(t || '').toUpperCase();
+    const audit = deduped.filter(
+      (a) => typeOf(a.type) === 'DISPUTE' || typeOf(a.type).startsWith('RECOGNITION')
+    ).length;
+    const fault = deduped.filter((a) =>
+      ['DEVICE_OFFLINE', 'DEVICE_FAULT', 'DOOR_OPEN_TOO_LONG'].includes(typeOf(a.type))
+    ).length;
+    const stock = deduped.filter((a) =>
+      ['LOW_STOCK', 'SLOT_DISCREPANCY', 'INVENTORY_MISMATCH', 'REPLENISHMENT', 'REPLENISHMENT_REQUIRED'].includes(
+        typeOf(a.type)
+      )
+    ).length;
+    const expiry = deduped.filter((a) => typeOf(a.type) === 'EXPIRY').length;
     counts.value = {
-      disputes: wb.openDisputes || 0,
-      offline: wb.offlineDevices || 0,
-      lowStock: wb.lowStockItems || 0,
-      expiry: wb.expiryAlerts || (expiryRows || []).length || 0
+      disputes: audit,
+      offline: fault,
+      lowStock: stock,
+      expiry
     };
-    const workbenchItems = (wb.actionItems || []).map((a) => ({
-      type: a.type,
-      typeLabel: alertTypeLabel(a.type),
-      title: merchantAlertTitle(a.type, a.title),
-      detail: merchantAlertTitle(a.type, a.detail || ''),
-      deviceId: a.deviceId,
-      ticketId: a.ticketId
-    }));
-    const exceptionItems = (exceptionPage.items || []).map((a) => ({
-      type: a.exceptionType,
-      typeLabel: alertTypeLabel(a.exceptionType),
-      title: merchantAlertTitle(a.exceptionType, a.title),
-      detail: merchantAlertTitle(a.exceptionType, a.detail || ''),
-      deviceId: a.deviceId,
-      exceptionId: a.exceptionId
-    }));
-    const expiryItems = (expiryRows || [])
-      .filter((e) => String(e.status || 'OPEN').toUpperCase() === 'OPEN')
-      .map((e) => ({
-        type: 'EXPIRY',
-        typeLabel: alertTypeLabel('EXPIRY'),
-        title: `${e.skuId || '商品'} · 临期/过期 ${e.quantity || 0} 件`,
-        detail: [e.deviceId, e.batchNo, e.reason].filter(Boolean).join(' · '),
-        deviceId: e.deviceId
-      }));
-    // Prefer structured expiry rows; keep workbench EXPIRY only if no expiry API rows
-    const hasExpiryApi = expiryItems.length > 0;
-    const merged = [
-      ...exceptionItems,
-      ...workbenchItems.filter((a) => !(hasExpiryApi && String(a.type).toUpperCase() === 'EXPIRY')),
-      ...expiryItems
-    ];
-    items.value = merged.slice(0, 30);
+    setAlertsTabBadge(deduped.length);
   } catch (e) {
+    if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
-    loading.value = false;
+    if (seq === loadSeq) loading.value = false;
   }
 }
 
-function handleItem(item: { type?: string; deviceId?: string; ticketId?: string }) {
+function handleItem(item: {
+  type?: string;
+  deviceId?: string;
+  ticketId?: string;
+  exceptionId?: string;
+}) {
   const type = String(item.type || '').toUpperCase();
   if (type === 'DISPUTE') {
+    uni.navigateTo({ url: '/pages/disputes/disputes' });
+    return;
+  }
+  if (type.startsWith('RECOGNITION')) {
+    // 识别存疑：有柜机则看柜机详情，否则进争议列表继续处理
+    if (item.deviceId) {
+      uni.navigateTo({
+        url: `/pages/device-detail/device-detail?id=${encodeURIComponent(item.deviceId)}`
+      });
+      return;
+    }
     uni.navigateTo({ url: '/pages/disputes/disputes' });
     return;
   }
@@ -183,7 +211,9 @@ function handleItem(item: { type?: string; deviceId?: string; ticketId?: string 
     uni.navigateTo({
       url: `/pages/device-detail/device-detail?id=${encodeURIComponent(item.deviceId)}`
     });
+    return;
   }
+  uni.showToast({ title: '暂无跳转目标', icon: 'none' });
 }
 
 function goDevices() {
@@ -191,35 +221,34 @@ function goDevices() {
 }
 
 function isInventoryException(type: string) {
-  return ['INVENTORY_MISMATCH', 'LOW_STOCK', 'REPLENISHMENT_REQUIRED'].includes(type);
+  return ['INVENTORY_MISMATCH', 'LOW_STOCK', 'REPLENISHMENT_REQUIRED'].includes(
+    String(type || '').toUpperCase()
+  );
 }
 
-function resolveInventory(item: { exceptionId?: string; deviceId?: string }) {
+async function resolveInventory(item: { exceptionId?: string; deviceId?: string }) {
   if (!item.exceptionId) return;
   if (!canResolveInventory.value) {
     uni.showToast({ title: '无库存处理权限', icon: 'none' });
     return;
   }
-  uni.showModal({
+  const resolution = await promptText({
     title: '确认完成库存核对',
-    editable: true,
-    placeholderText: '填写盘点结果或补货说明',
-    success: async (res) => {
-      const resolution = (res.content || '').trim();
-      if (!res.confirm) return;
-      if (!resolution) {
-        uni.showToast({ title: '必须填写处理结果', icon: 'none' });
-        return;
-      }
-      try {
-        await merchantApi.resolveInventoryException(item.exceptionId!, resolution);
-        uni.showToast({ title: '库存异常已处理', icon: 'success' });
-        await load();
-      } catch (e) {
-        uni.showToast({ title: e instanceof Error ? e.message : '处理失败', icon: 'none' });
-      }
-    }
+    hint: '请填写盘点结果或补货说明，便于后台留痕',
+    placeholder: '填写盘点结果或补货说明',
+    required: true,
+    requiredMessage: '必须填写处理结果',
+    maxLength: 200,
+    testId: 'inventory-resolve-prompt'
   });
+  if (resolution == null) return;
+  try {
+    await merchantApi.resolveInventoryException(item.exceptionId!, resolution);
+    uni.showToast({ title: '库存异常已处理', icon: 'success' });
+    await load();
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '处理失败', icon: 'none' });
+  }
 }
 
 onShow(load);
@@ -247,16 +276,26 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .kpi-card.expiry { background: #ecfdf5; }
 .n { font-size: 40rpx; font-weight: 700; display: block; }
 .l { font-size: 22rpx; color: #64748b; }
-.alert-card { margin-top: 0; }
-.tag { font-size: 20rpx; padding: 4rpx 12rpx; border-radius: 6rpx; margin-right: 8rpx; }
+.alert-card {
+  margin-top: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.alert-card-hover {
+  background: #f8fafc !important;
+  opacity: 0.96;
+}
+.tag { font-size: 20rpx; padding: 4rpx 12rpx; border-radius: 6rpx; margin-right: 8rpx; pointer-events: none; }
 .tag.dispute { background: #fecaca; color: #dc2626; }
 .tag.offline { background: #e2e8f0; color: #475569; }
 .tag.stock { background: #fde68a; color: #d97706; }
 .tag.expiry { background: #a7f3d0; color: #059669; }
 .tag.default { background: #e2e8f0; color: #64748b; }
-.title { font-weight: 600; display: block; margin-top: 8rpx; }
-.action { color: #0f766e; font-size: 24rpx; display: block; margin-top: 12rpx; }
-.err { color: #ef4444; }
+.title { font-weight: 600; display: block; margin-top: 8rpx; pointer-events: none; }
+.meta { pointer-events: none; }
+.action { color: #0f766e; font-size: 24rpx; display: block; margin-top: 12rpx; pointer-events: none; }
+.err { color: #ef4444; display: block; }
+.retry { margin-top: 16rpx; background: #0f766e; color: #fff; border-radius: 28rpx; }
 .resolve-btn { margin-top: 14rpx; background: #0f766e; color: #fff; border: 0; }
 .empty-btn {
   margin: 0;

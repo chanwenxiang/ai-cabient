@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 public class MerchantReplenishmentService {
 
     private final PermissionService permissionService;
-    private final MerchantScopeService merchantScopeService;
+    private final MerchantFeaturePackService merchantFeaturePackService;
     private final MerchantPortalGuard merchantPortalGuard;
     private final ReplenishmentService replenishmentService;
     private final OpsService opsService;
@@ -36,7 +36,7 @@ public class MerchantReplenishmentService {
     private final FileAttachmentService fileAttachmentService;
 
     public MerchantReplenishmentService(PermissionService permissionService,
-                                        MerchantScopeService merchantScopeService,
+                                        MerchantFeaturePackService merchantFeaturePackService,
                                         MerchantPortalGuard merchantPortalGuard,
                                         ReplenishmentService replenishmentService,
                                         OpsService opsService,
@@ -52,7 +52,7 @@ public class MerchantReplenishmentService {
                                         ReplenishmentTaskMapper taskRepository,
                                         FileAttachmentService fileAttachmentService) {
         this.permissionService = permissionService;
-        this.merchantScopeService = merchantScopeService;
+        this.merchantFeaturePackService = merchantFeaturePackService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.replenishmentService = replenishmentService;
         this.opsService = opsService;
@@ -76,7 +76,7 @@ public class MerchantReplenishmentService {
         if (deviceId == null || deviceId.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备 ID 不能为空");
         }
-        merchantScopeService.requireDeviceAccess(userId, deviceId.trim());
+        merchantFeaturePackService.requireDevicePack(userId, deviceId.trim(), MerchantFeaturePacks.FIELD);
         return replenishmentService.suggestForDevice(deviceId.trim());
     }
 
@@ -95,7 +95,7 @@ public class MerchantReplenishmentService {
         merchantPortalGuard.requireAccess(userId);
         ReplenishmentTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
-        merchantScopeService.requireDeviceAccess(userId, task.getDeviceId());
+        merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
         replenishmentService.ensureSeededFromLinkedRequest(taskId);
         return replenishmentService.listTaskLines(taskId);
     }
@@ -138,7 +138,7 @@ public class MerchantReplenishmentService {
         merchantPortalGuard.requireAccess(userId);
         ReplenishmentTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
-        merchantScopeService.requireDeviceAccess(userId, task.getDeviceId());
+        merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
         return task;
     }
 
@@ -146,18 +146,18 @@ public class MerchantReplenishmentService {
     public List<MerchantReplenishmentRequestDto> listRequests(Long userId, String status, String deviceId) {
         permissionService.requirePermission(userId, "merchant:replenishment:view");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> allowedDevices = merchantScopeService.allowedDeviceIds(userId);
+        Set<String> allowedDevices = merchantFeaturePackService.allowedDeviceIdsForPack(userId, MerchantFeaturePacks.FIELD);
         if (allowedDevices != null && allowedDevices.isEmpty()) {
             return List.of();
         }
         if (deviceId != null && !deviceId.isBlank()) {
-            merchantScopeService.requireDeviceAccess(userId, deviceId.trim());
+            merchantFeaturePackService.requireDevicePack(userId, deviceId.trim(), MerchantFeaturePacks.FIELD);
         }
         List<MerchantReplenishmentRequest> rows;
         if (allowedDevices != null) {
             rows = requestRepository.findByDeviceIdInOrderBySubmittedAtDesc(allowedDevices);
         } else {
-            Set<String> merchants = merchantScopeService.allowedMerchantIds(userId);
+            Set<String> merchants = merchantFeaturePackService.allowedMerchantIdsForPack(userId, MerchantFeaturePacks.FIELD);
             rows = requestRepository.findByMerchantIdInOrderBySubmittedAtDesc(merchants);
         }
         String statusFilter = blankToNull(status);
@@ -174,7 +174,7 @@ public class MerchantReplenishmentService {
         permissionService.requirePermission(userId, "merchant:replenishment:view");
         merchantPortalGuard.requireAccess(userId);
         MerchantReplenishmentRequest request = requireRequest(requestId);
-        merchantScopeService.requireDeviceAccess(userId, request.getDeviceId());
+        merchantFeaturePackService.requireDevicePack(userId, request.getDeviceId(), MerchantFeaturePacks.FIELD);
         return toRequestDto(request);
     }
 
@@ -189,7 +189,7 @@ public class MerchantReplenishmentService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请至少选择一种商品");
         }
         String deviceId = body.deviceId().trim();
-        merchantScopeService.requireDeviceAccess(userId, deviceId);
+        merchantFeaturePackService.requireDevicePack(userId, deviceId, MerchantFeaturePacks.FIELD);
         DeviceInfo device = deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
         if (device.getMerchantId() == null || device.getMerchantId().isBlank()) {
@@ -369,7 +369,7 @@ public class MerchantReplenishmentService {
         merchantPortalGuard.requireAccess(userId);
         ReplenishmentTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
-        merchantScopeService.requireDeviceAccess(userId, task.getDeviceId());
+        merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
         return fileAttachmentService.uploadReplenishmentEvidence(userId, taskId, file);
     }
 
@@ -379,7 +379,7 @@ public class MerchantReplenishmentService {
         merchantPortalGuard.requireAccess(userId);
         ReplenishmentTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
-        merchantScopeService.requireDeviceAccess(userId, task.getDeviceId());
+        merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
         return fileAttachmentService.listReplenishmentEvidence(taskId);
     }
 
@@ -390,7 +390,7 @@ public class MerchantReplenishmentService {
         merchantPortalGuard.requireAccess(userId);
         ReplenishmentTask task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "补货任务不存在"));
-        merchantScopeService.requireDeviceAccess(userId, task.getDeviceId());
+        merchantFeaturePackService.requireDevicePack(userId, task.getDeviceId(), MerchantFeaturePacks.FIELD);
         FileAttachment row = fileAttachmentService.requireReplenishmentEvidence(taskId, fileId);
         fileAttachmentService.stream(row, response);
     }

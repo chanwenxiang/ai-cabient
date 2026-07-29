@@ -3,10 +3,8 @@ package com.aicabinet.trade.mapper;
 import com.aicabinet.trade.domain.DeviceSkuLot;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -69,14 +67,6 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
     List<LinkedHashMap<String, Object>> _sumBookQtyBySlot(@Param("deviceId") String deviceId);
 
     default List<Object[]> sumBookQtyBySlot(String deviceId) {
-        List<LinkedHashMap<String, Object>> rows = _sumBookQtyBySlot(deviceId);
-        if (rows == null || rows.isEmpty()) {
-            return List.of();
-        }
-        List<Object[]> out = new ArrayList<>(rows.size());
-        for (Map<String, Object> row : rows) {
-            out.add(row.values().toArray());
-        }
-        return out;
+        return ColumnMapRows.toObjectRows(_sumBookQtyBySlot(deviceId), 2);
     }
 }

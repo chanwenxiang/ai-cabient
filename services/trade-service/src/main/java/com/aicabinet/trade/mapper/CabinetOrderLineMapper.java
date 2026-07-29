@@ -2,7 +2,6 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.CabinetOrderLine;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -52,7 +51,7 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
             @Param("deviceId") String deviceId, @Param("since") Instant since);
 
     default List<Object[]> sumSoldQtyBySkuSince(String deviceId, Instant since) {
-        return toObjectRows(_sumSoldQtyBySkuSince(deviceId, since));
+        return ColumnMapRows.toObjectRows(_sumSoldQtyBySkuSince(deviceId, since), 2);
     }
 
     long sumCogsBetween(@Param("start") Instant start, @Param("end") Instant end);
@@ -60,14 +59,14 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
     List<LinkedHashMap<String, Object>> _skuBreakdownSince(@Param("since") Instant since);
 
     default List<Object[]> skuBreakdownSince(Instant since) {
-        return toObjectRows(_skuBreakdownSince(since));
+        return ColumnMapRows.toObjectRows(_skuBreakdownSince(since), 5);
     }
 
     List<LinkedHashMap<String, Object>> _skuBreakdownByDevicesSince(
             @Param("deviceIds") Collection<String> deviceIds, @Param("since") Instant since);
 
     default List<Object[]> skuBreakdownByDevicesSince(Collection<String> deviceIds, Instant since) {
-        return toObjectRows(_skuBreakdownByDevicesSince(deviceIds, since));
+        return ColumnMapRows.toObjectRows(_skuBreakdownByDevicesSince(deviceIds, since), 5);
     }
 
     long sumCogsByDeviceIdsSince(
@@ -80,15 +79,4 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
             @Param("deviceIds") Collection<String> deviceIds,
             @Param("start") Instant start,
             @Param("end") Instant end);
-
-    private static List<Object[]> toObjectRows(List<LinkedHashMap<String, Object>> rows) {
-        if (rows == null || rows.isEmpty()) {
-            return List.of();
-        }
-        List<Object[]> out = new ArrayList<>(rows.size());
-        for (Map<String, Object> row : rows) {
-            out.add(row.values().toArray());
-        }
-        return out;
-    }
 }

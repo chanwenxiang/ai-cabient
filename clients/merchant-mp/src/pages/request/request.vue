@@ -66,7 +66,14 @@
       <view v-if="listLoading" class="empty-inline">加载中…</view>
       <view v-else-if="listError" class="empty-inline err">{{ listError }}</view>
       <view v-else-if="!requests.length" class="empty-inline">暂无要货申请</view>
-      <view v-for="req in requests" :key="req.requestId" class="card req-card">
+      <view
+        v-for="req in requests"
+        :key="req.requestId"
+        class="card req-card"
+        :class="{ clickable: canGoReplenish(req) }"
+        :hover-class="canGoReplenish(req) ? 'req-card-hover' : ''"
+        @click="onRequestCard(req)"
+      >
         <view class="row-between">
           <text class="req-id">#{{ req.requestId }}</text>
           <text class="status" :class="(req.status || '').toLowerCase()">
@@ -85,16 +92,16 @@
         <view
           v-if="req.status === 'ACCEPTED' && req.replenishmentTaskId"
           class="detail-btn"
-          @click="goReplenish(req)"
-        >去补货</view>
+        >去补货 ›</view>
       </view>
+      <text v-if="requests.length >= 100" class="trunc-hint">已加载 {{ requests.length }} 条申请</text>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { onLoad, onShow } from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { dictLabel } from '@aicabinet/shared-dict';
 import {
   hasPerm,
@@ -133,6 +140,9 @@ const deviceLabels = computed(() =>
 );
 
 const draftLoading = ref(false);
+const listLoading = ref(false);
+let draftSeq = 0;
+let listSeq = 0;
 const draftLines = ref<DraftLine[]>([]);
 const notes = ref('');
 const submitting = ref(false);
@@ -145,7 +155,6 @@ const statusTabs = [
   { value: 'REJECTED', label: '已驳回' }
 ];
 const listStatus = ref('');
-const listLoading = ref(false);
 const listError = ref('');
 const requests = ref<MerchantReplenishmentRequest[]>([]);
 
@@ -168,6 +177,10 @@ onShow(() => {
   if (mode.value === 'list') void loadRequests();
 });
 
+onPullDownRefresh(() => {
+  void bootstrap().finally(() => uni.stopPullDownRefresh());
+});
+
 watch(selectedDeviceId, (id, prev) => {
   if (id && id !== prev && mode.value === 'create') void loadDraft();
 });
@@ -176,10 +189,12 @@ async function bootstrap(preferDeviceId?: string) {
   try {
     await refreshMe();
   } catch {
+    if (!uni.getStorageSync('merchant_token')) return;
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
   }
   if (!canView.value) {
     uni.showToast({ title: '无补货查看权限', icon: 'none' });
+    uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return;
   }
   try {
@@ -189,7 +204,10 @@ async function bootstrap(preferDeviceId?: string) {
     devices.value = [];
   }
   const prefer = preferDeviceId || preferredId.value;
-  const idx = devices.value.findIndex((d) => d.deviceId === prefer);
+  const preferKey = String(prefer || '').trim().toUpperCase();
+  const idx = preferKey
+    ? devices.value.findIndex((d) => String(d.deviceId || '').trim().toUpperCase() === preferKey)
+    : -1;
   deviceIndex.value = idx >= 0 ? idx : 0;
   if (mode.value === 'create') await loadDraft();
   else await loadRequests();
@@ -215,12 +233,14 @@ async function loadDraft() {
     draftLines.value = [];
     return;
   }
+  const seq = ++draftSeq;
   draftLoading.value = true;
   try {
     const [suggest, slots] = await Promise.all([
       merchantApi.replenishmentSuggestions(deviceId).catch(() => [] as MerchantReplenishmentSuggest[]),
       merchantApi.deviceSlots(deviceId).catch(() => [] as DeviceSlot[])
     ]);
+    if (seq !== draftSeq) return;
     const suggestMap = new Map<string, MerchantReplenishmentSuggest>();
     for (const s of suggest || []) {
       if (!s?.skuId) continue;
@@ -267,15 +287,17 @@ async function loadDraft() {
         selected: (sug.suggestQty || 0) > 0
       });
     }
+    if (seq !== draftSeq) return;
     draftLines.value = [...bySku.values()].sort((a, b) => {
       if (a.selected !== b.selected) return a.selected ? -1 : 1;
       return b.suggestQty - a.suggestQty;
     });
   } catch (e) {
+    if (seq !== draftSeq) return;
     draftLines.value = [];
     uni.showToast({ title: e instanceof Error ? e.message : '建议加载失败', icon: 'none' });
   } finally {
-    draftLoading.value = false;
+    if (seq === draftSeq) draftLoading.value = false;
   }
 }
 
@@ -322,15 +344,19 @@ async function submit() {
 
 async function loadRequests() {
   if (!canView.value) return;
+  const seq = ++listSeq;
   listLoading.value = true;
   listError.value = '';
   try {
-    requests.value = (await merchantApi.replenishmentRequests(listStatus.value || undefined)) || [];
+    const rows = (await merchantApi.replenishmentRequests(listStatus.value || undefined)) || [];
+    if (seq !== listSeq) return;
+    requests.value = rows;
   } catch (e) {
+    if (seq !== listSeq) return;
     listError.value = e instanceof Error ? e.message : '加载失败';
     requests.value = [];
   } finally {
-    listLoading.value = false;
+    if (seq === listSeq) listLoading.value = false;
   }
 }
 
@@ -340,6 +366,15 @@ function formatTime(value?: string) {
   if (Number.isNaN(d.getTime())) return String(value);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function canGoReplenish(req: MerchantReplenishmentRequest) {
+  return req.status === 'ACCEPTED' && !!req.replenishmentTaskId;
+}
+
+function onRequestCard(req: MerchantReplenishmentRequest) {
+  if (!canGoReplenish(req)) return;
+  goReplenish(req);
 }
 
 function goReplenish(req: MerchantReplenishmentRequest) {
@@ -370,6 +405,13 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 .hint { font-size: 22rpx; color: #0f766e; margin-top: 10rpx; }
 .row-between { display: flex; justify-content: space-between; align-items: center; }
 .empty-inline { padding: 24rpx 0; text-align: center; color: #94a3b8; font-size: 24rpx; }
+.trunc-hint {
+  display: block;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 22rpx;
+  padding: 8rpx 0 16rpx;
+}
 .line-row {
   display: flex; align-items: center; gap: 14rpx; padding: 16rpx 0;
   border-top: 1rpx solid #f1f5f9;
@@ -407,6 +449,8 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 }
 .filter.active { background: #ccfbf1; color: #0f766e; border-color: #99f6e4; font-weight: 600; }
 .req-card { display: flex; flex-direction: column; gap: 8rpx; }
+.req-card.clickable { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.req-card-hover { background: #f8fafc !important; }
 .req-id { font-size: 22rpx; color: #94a3b8; }
 .status {
   font-size: 22rpx; padding: 4rpx 12rpx; border-radius: 999rpx;
@@ -421,6 +465,14 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 }
 .reject { font-size: 22rpx; color: #b91c1c; }
 .notes { font-size: 22rpx; color: #64748b; }
+.req-card.clickable .req-id,
+.req-card.clickable .status,
+.req-card.clickable .sku-name,
+.req-card.clickable .sku-meta,
+.req-card.clickable .lines,
+.req-card.clickable .reject,
+.req-card.clickable .notes,
+.req-card.clickable .detail-btn { pointer-events: none; }
 .detail-btn {
   margin-top: 12rpx; align-self: flex-start; padding: 12rpx 28rpx; border-radius: 999rpx;
   background: #0f766e; color: #fff; font-size: 24rpx; font-weight: 600;

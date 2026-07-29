@@ -178,6 +178,15 @@ export const DICT = {
         MERCHANT_OPS_EXCEPTION_RESOLVE: '商家处理异常'
     },
     reconciliation_status: { MATCHED: '已平账', MISMATCH: '存在差异', PENDING: '待处理', FAILED: '失败' },
+    settlement_batch_status: {
+        PENDING: '待结算',
+        PROCESSING: '结算中',
+        SETTLED: '已结算',
+        PAID: '已支付',
+        FAILED: '失败',
+        PARTIAL_FAILED: '部分失败',
+        COMPLETED: '已完成'
+    },
     sku_status: { ACTIVE: '在售', INACTIVE: '停用', DISABLED: '禁售' },
     order_status: {
         PENDING: '待支付', PROCESSING: '处理中', PAID: '已支付', COMPLETED: '已完成',

@@ -31,6 +31,15 @@ public class Merchant {
 
     private boolean allowMerchantPricingEdit = false;
 
+    /** 功能包：现场作业 */
+    private boolean packFieldEnabled = true;
+
+    /** 功能包：经营工具 */
+    private boolean packBizEnabled = true;
+
+    /** 功能包：团队与设置 */
+    private boolean packTeamEnabled = true;
+
     private String parentMerchantId;
 
     private Instant createdAt;
@@ -59,6 +68,12 @@ public String getMerchantId() { return merchantId; }
     public void setAllowMerchantPlanogramEdit(boolean allowMerchantPlanogramEdit) { this.allowMerchantPlanogramEdit = allowMerchantPlanogramEdit; }
     public boolean isAllowMerchantPricingEdit() { return allowMerchantPricingEdit; }
     public void setAllowMerchantPricingEdit(boolean allowMerchantPricingEdit) { this.allowMerchantPricingEdit = allowMerchantPricingEdit; }
+    public boolean isPackFieldEnabled() { return packFieldEnabled; }
+    public void setPackFieldEnabled(boolean packFieldEnabled) { this.packFieldEnabled = packFieldEnabled; }
+    public boolean isPackBizEnabled() { return packBizEnabled; }
+    public void setPackBizEnabled(boolean packBizEnabled) { this.packBizEnabled = packBizEnabled; }
+    public boolean isPackTeamEnabled() { return packTeamEnabled; }
+    public void setPackTeamEnabled(boolean packTeamEnabled) { this.packTeamEnabled = packTeamEnabled; }
     public String getParentMerchantId() { return parentMerchantId; }
     public void setParentMerchantId(String parentMerchantId) { this.parentMerchantId = parentMerchantId; }
     public Instant getCreatedAt() { return createdAt; }

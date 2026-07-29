@@ -65,6 +65,7 @@ public class DisputeService {
     private final RiskControlService riskControlService;
     private final PermissionService permissionService;
     private final MerchantScopeService merchantScopeService;
+    private final MerchantFeaturePackService merchantFeaturePackService;
     private final MerchantPortalGuard merchantPortalGuard;
     private final SkuCatalogMapper skuCatalogRepository;
     private final DisputeSlaProperties disputeSlaProperties;
@@ -84,6 +85,7 @@ public class DisputeService {
                           RiskControlService riskControlService,
                           PermissionService permissionService,
                           MerchantScopeService merchantScopeService,
+                          MerchantFeaturePackService merchantFeaturePackService,
                           MerchantPortalGuard merchantPortalGuard,
                           SkuCatalogMapper skuCatalogRepository,
                           DisputeSlaProperties disputeSlaProperties,
@@ -102,6 +104,7 @@ public class DisputeService {
         this.riskControlService = riskControlService;
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
+        this.merchantFeaturePackService = merchantFeaturePackService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.skuCatalogRepository = skuCatalogRepository;
         this.disputeSlaProperties = disputeSlaProperties;
@@ -698,7 +701,8 @@ public class DisputeService {
         if (session == null || session.getDeviceId() == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND);
         }
-        merchantScopeService.requireDeviceAccess(userId, session.getDeviceId());
+        merchantFeaturePackService.requireDevicePack(
+                userId, session.getDeviceId(), MerchantFeaturePacks.BIZ);
     }
 
     private List<DisputeMessageDto> loadMessages(String ticketId) {

@@ -31,7 +31,7 @@ public class MerchantFinanceService {
     private static final List<String> FAILED_SPLIT_STATUSES = List.of("WECHAT_FAILED", "FAILED");
 
     private final PermissionService permissionService;
-    private final MerchantScopeService merchantScopeService;
+    private final MerchantFeaturePackService merchantFeaturePackService;
     private final MerchantPortalGuard merchantPortalGuard;
     private final CabinetOrderMapper orderRepository;
     private final OrderRevenueSplitMapper splitRepository;
@@ -42,7 +42,7 @@ public class MerchantFinanceService {
     private final WeChatPayProperties weChatPayProperties;
 
     public MerchantFinanceService(PermissionService permissionService,
-                                  MerchantScopeService merchantScopeService,
+                                  MerchantFeaturePackService merchantFeaturePackService,
                                   MerchantPortalGuard merchantPortalGuard,
                                   CabinetOrderMapper orderRepository,
                                   OrderRevenueSplitMapper splitRepository,
@@ -52,7 +52,7 @@ public class MerchantFinanceService {
                                   ProfitSharingProperties profitSharingProperties,
                                   WeChatPayProperties weChatPayProperties) {
         this.permissionService = permissionService;
-        this.merchantScopeService = merchantScopeService;
+        this.merchantFeaturePackService = merchantFeaturePackService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.orderRepository = orderRepository;
         this.splitRepository = splitRepository;
@@ -81,7 +81,7 @@ public class MerchantFinanceService {
         merchantPortalGuard.requireAccess(userId);
         CabinetOrder order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        merchantScopeService.requireDeviceAccess(userId, order.getDeviceId());
+        merchantFeaturePackService.requireDevicePack(userId, order.getDeviceId(), MerchantFeaturePacks.BIZ);
         return settlementService.getOrderBySession(order.getSessionId());
     }
 
@@ -108,7 +108,8 @@ public class MerchantFinanceService {
     public MerchantSettlementOverviewDto getSettlementOverview(Long userId) {
         permissionService.requirePermission(userId, "merchant:settlements:view");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> merchantIds = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
         if (merchantIds == null || merchantIds.isEmpty()) {
             return new MerchantSettlementOverviewDto(0, 0, 0, 0, buildProfitSharingStatus(), List.of());
         }
@@ -136,7 +137,8 @@ public class MerchantFinanceService {
     public List<MerchantDailySettlementDto> listDailySettlements(Long userId, String fromDate, String toDate) {
         permissionService.requirePermission(userId, "merchant:settlements:view");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> merchantIds = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
         if (merchantIds == null || merchantIds.isEmpty()) {
             return List.of();
         }
@@ -151,7 +153,8 @@ public class MerchantFinanceService {
     public List<MerchantSettlementBatchDto> listSettlementBatches(Long userId, String fromDate, String toDate) {
         permissionService.requirePermission(userId, "merchant:settlements:view");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> merchantIds = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
         if (merchantIds == null || merchantIds.isEmpty()) {
             return List.of();
         }
@@ -172,7 +175,8 @@ public class MerchantFinanceService {
         if (batchNo == null || batchNo.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "批次号不能为空");
         }
-        Set<String> merchantIds = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> merchantIds = merchantFeaturePackService.allowedMerchantIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
         Map<String, String> merchantNames = merchantRepository.findAll().stream()
                 .filter(m -> merchantIds.contains(m.getMerchantId()))
                 .collect(Collectors.toMap(Merchant::getMerchantId, Merchant::getMerchantName));
@@ -207,7 +211,8 @@ public class MerchantFinanceService {
                                                   String status, String fromDate, String toDate) {
         permissionService.requirePermission(userId, "merchant:splits:list");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> allowed = merchantFeaturePackService.allowedMerchantIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
         if (allowed == null || allowed.isEmpty()) {
             return new PageResult<>(List.of(), page, size, 0);
         }
@@ -234,7 +239,8 @@ public class MerchantFinanceService {
     public byte[] exportSplitsCsv(Long userId, String status, String fromDate, String toDate) {
         permissionService.requirePermission(userId, "merchant:reports:export");
         merchantPortalGuard.requireAccess(userId);
-        Set<String> allowed = merchantScopeService.allowedMerchantIds(userId);
+        Set<String> allowed = merchantFeaturePackService.allowedMerchantIdsForPack(
+                userId, MerchantFeaturePacks.BIZ);
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT);
         String normalized = status != null && !status.isBlank() ? status.trim().toUpperCase() : "";
         Page<OrderRevenueSplit> page = splitRepository.searchByMerchants(
@@ -261,12 +267,13 @@ public class MerchantFinanceService {
     }
 
     private Page<CabinetOrder> queryOrders(Long userId, String deviceId, Pageable pageable) {
-        Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(userId, deviceId);
+        Collection<String> deviceScope = merchantFeaturePackService.intersectDeviceFilterForPack(
+                userId, deviceId, MerchantFeaturePacks.BIZ);
         if (deviceScope != null && deviceScope.isEmpty()) {
             return Page.empty(pageable);
         }
         if (deviceId != null && !deviceId.isBlank()) {
-            merchantScopeService.requireDeviceAccess(userId, deviceId.trim());
+            merchantFeaturePackService.requireDevicePack(userId, deviceId.trim(), MerchantFeaturePacks.BIZ);
             return orderRepository.findByDeviceIdOrderByCreatedAtDesc(deviceId.trim(), pageable);
         }
         if (deviceScope != null) {
@@ -292,29 +299,33 @@ public class MerchantFinanceService {
 
     private MerchantDailySettlementDto toDailySettlement(Object[] row) {
         return new MerchantDailySettlementDto(
-                String.valueOf(row[0]),
-                toLong(row[1]), toLong(row[2]), toLong(row[3]), toLong(row[4]),
-                toLong(row[5]), toLong(row[6]), toLong(row[7])
+                String.valueOf(at(row, 0)),
+                toLong(at(row, 1)), toLong(at(row, 2)), toLong(at(row, 3)), toLong(at(row, 4)),
+                toLong(at(row, 5)), toLong(at(row, 6)), toLong(at(row, 7))
         );
     }
 
     private MerchantSettlementBatchDto toBatchSettlement(Object[] row, Map<String, String> merchantNames) {
-        String batchNo = row[0] != null ? String.valueOf(row[0]) : null;
-        String merchantId = row[1] != null ? String.valueOf(row[1]) : null;
-        LocalDate settleAfter = toLocalDate(row[2]);
-        Instant settledAt = toInstant(row[3]);
-        long orderCount = toLong(row[4]);
-        long gross = toLong(row[5]);
-        long platform = toLong(row[6]);
-        long merchant = toLong(row[7]);
-        long settled = toLong(row[8]);
-        long pending = toLong(row[9]);
-        long failed = toLong(row[10]);
+        String batchNo = at(row, 0) != null ? String.valueOf(at(row, 0)) : null;
+        String merchantId = at(row, 1) != null ? String.valueOf(at(row, 1)) : null;
+        LocalDate settleAfter = toLocalDate(at(row, 2));
+        Instant settledAt = toInstant(at(row, 3));
+        long orderCount = toLong(at(row, 4));
+        long gross = toLong(at(row, 5));
+        long platform = toLong(at(row, 6));
+        long merchant = toLong(at(row, 7));
+        long settled = toLong(at(row, 8));
+        long pending = toLong(at(row, 9));
+        long failed = toLong(at(row, 10));
         String status = failed > 0 ? "PARTIAL_FAILED" : (pending > 0 ? "PENDING" : "SETTLED");
         return new MerchantSettlementBatchDto(
                 batchNo, merchantId, merchantNames.get(merchantId), settleAfter, settledAt,
                 orderCount, gross, platform, merchant, settled, pending, failed, status
         );
+    }
+
+    private static Object at(Object[] row, int index) {
+        return row != null && index >= 0 && index < row.length ? row[index] : null;
     }
 
     private ProfitSharingStatusDto buildProfitSharingStatus() {
@@ -361,7 +372,23 @@ public class MerchantFinanceService {
         if (value instanceof java.sql.Date d) {
             return d.toLocalDate();
         }
-        return LocalDate.parse(String.valueOf(value));
+        if (value instanceof java.sql.Timestamp t) {
+            return t.toLocalDateTime().toLocalDate();
+        }
+        if (value instanceof java.time.LocalDateTime ldt) {
+            return ldt.toLocalDate();
+        }
+        if (value instanceof java.time.OffsetDateTime odt) {
+            return odt.toLocalDate();
+        }
+        if (value instanceof Instant i) {
+            return LocalDate.ofInstant(i, ZoneId.systemDefault());
+        }
+        String raw = String.valueOf(value).trim();
+        if (raw.length() >= 10 && raw.charAt(4) == '-' && raw.charAt(7) == '-') {
+            return LocalDate.parse(raw.substring(0, 10));
+        }
+        return null;
     }
 
     private static Instant toInstant(Object value) {
@@ -374,7 +401,26 @@ public class MerchantFinanceService {
         if (value instanceof java.sql.Timestamp t) {
             return t.toInstant();
         }
-        return Instant.parse(String.valueOf(value));
+        if (value instanceof java.time.OffsetDateTime odt) {
+            return odt.toInstant();
+        }
+        if (value instanceof java.time.LocalDateTime ldt) {
+            return ldt.atZone(ZoneId.systemDefault()).toInstant();
+        }
+        if (value instanceof Number n) {
+            long epoch = n.longValue();
+            // tolerate seconds vs millis
+            return Instant.ofEpochMilli(epoch < 100_000_000_000L ? epoch * 1000L : epoch);
+        }
+        String raw = String.valueOf(value).trim();
+        if (raw.isEmpty() || raw.matches("^\\d{1,2}$")) {
+            return null;
+        }
+        try {
+            return Instant.parse(raw);
+        } catch (Exception ignored) {
+            return null;
+        }
     }
 
     private static String csv(String value) {

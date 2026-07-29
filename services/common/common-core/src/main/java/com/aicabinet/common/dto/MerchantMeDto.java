@@ -8,5 +8,7 @@ public record MerchantMeDto(
         String displayName,
         List<MerchantDto> merchants,
         List<String> permissions,
-        boolean canEditPricing
+        boolean canEditPricing,
+        /** 绑定商户功能包并集：field / biz / team */
+        List<String> enabledPacks
 ) {}

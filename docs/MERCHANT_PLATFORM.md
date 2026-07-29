@@ -4,14 +4,30 @@
 
 商户 API 前缀 `/api/v2/merchant/**`。数据范围由 `ops_user_merchant` 绑定决定；未绑定商户的运营账号视为全局（admin 角色始终全局）。
 
+## 平台能力分层（主流）
+
+| 层级 | 谁控制 | 说明 |
+|------|--------|------|
+| 功能包 | 平台（商户与分账） | `pack_field/biz/team_enabled`：现场作业 / 经营工具 / 团队与设置 |
+| 自助写开关 | 平台 | `allow_merchant_planogram_edit` / `allow_merchant_pricing_edit`（需对应功能包开启） |
+| 角色权限 | 运营 RBAC | `merchant:*`；菜单管理中的商户树**仅用于授权**，不驱动小程序导航 |
+| 小程序导航 | 前端固定 | `pages.json` + `config/merchant-nav.ts`，按 `hasPerm ∧ 功能包` 裁剪 |
+
+`GET /api/v2/merchant/me` 返回 `enabledPacks`（绑定商户**并集**：任一范围内商户开包则 UI/鉴权可见该包）与已按功能包过滤的 `permissions`。API 鉴权同样要求 RBAC ∧ 功能包。
+
+**数据查询按商户自身开包裁剪**（与并集鉴权不同）：订单/结算/定价等经营数据只返回 `pack_biz_enabled=true` 的商户及其柜机；现场作业、团队同理。关闭父商户功能包**不会级联**到子商户，需分别配置。
+
 ## 平台自助开关
 
 | 开关 | 字段 | 默认 | 说明 |
 |------|------|------|------|
+| 现场作业包 | `pack_field_enabled` | `true` | 柜机 / 补货 / 待办 / 库存 |
+| 经营工具包 | `pack_biz_enabled` | `true` | 订单 / 结算 / 定价 / 争议 / 分析 |
+| 团队设置包 | `pack_team_enabled` | `true` | 商户设置 / 团队成员 |
 | 允许商户改货道 | `allow_merchant_planogram_edit` | `false` | 关闭时 GET 货道可读，PUT 返回 403 |
 | 允许商户改价 | `allow_merchant_pricing_edit` | `false` | 关闭时 GET 定价可读，PATCH 返回 403 |
 
-运营在 **admin-vue → 商户分账** 为每个商户切换开关。Demo 库 `MCH-DEFAULT` 在 `V50` 迁移中默认开启两开关。
+运营在 **admin-vue → 商户与分账** 为每个商户切换。Demo 库 `MCH-DEFAULT` 在 `V50` 迁移中默认开启两写开关；功能包默认全开（`V122`）。
 
 前端还需 RBAC：`merchant:slots:edit` / `merchant:pricing:edit`。`GET /me` 返回 `canEditPricing`（任一绑定商户开启改价）。
 
@@ -53,11 +69,12 @@
 
 ## 数据隔离 (M5)
 
-`MerchantScopeService` + `MerchantPortalGuard`：
+`MerchantScopeService` + `MerchantFeaturePackService` + `MerchantPortalGuard`：
 
 1. **门户 Guard**：须 `merchant:portal:access`，且不能是全局运营账号。
-2. **设备范围**：`requireDeviceAccess` 校验 `device_info.merchant_id ∈ ops_user_merchant`。
-3. **跨租户**：MCH-DEFAULT 用户访问 `CAB-OTHER` → HTTP 403。
+2. **设备范围**：绑定商户含下级树；再按功能包过滤到「该商户已开对应包」的柜机。
+3. **跨租户**：MCH-DEFAULT 用户访问 `CAB-OTHER`（他商户）→ HTTP 403。
+4. **关包隔离**：父商户关经营包、子商户仍开时，父柜机订单/定价 403，子柜机仍可读。
 
 ## API 清单
 

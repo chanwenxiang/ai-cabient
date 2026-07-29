@@ -71,6 +71,13 @@ export interface MerchantDto {
     deviceCount?: number;
     allowMerchantPlanogramEdit?: boolean;
     allowMerchantPricingEdit?: boolean;
+    /** 功能包：现场作业 */
+    packFieldEnabled?: boolean;
+    /** 功能包：经营工具 */
+    packBizEnabled?: boolean;
+    /** 功能包：团队与设置 */
+    packTeamEnabled?: boolean;
+    parentMerchantId?: string | null;
 }
 export interface RevenueSplit {
     splitId: string;
@@ -143,6 +150,23 @@ export interface SkuCatalog {
     referenceImageUrlsJson?: string;
     createdAt?: string;
 }
+export interface SkuVisionEnrollmentRow {
+    sku: SkuCatalog;
+    mappingEffective: boolean;
+    modelPipelineStatus: string;
+    nextAction: string;
+    nextStatus?: string | null;
+}
+export interface SkuVisionEnrollmentPipeline {
+    modelPipelineStatus: string;
+    modelPipelineHint: string;
+    statusOrder: string[];
+    steps: Array<{
+        status: string;
+        label: string;
+        description: string;
+    }>;
+}
 export interface UpsertSkuRequest {
     skuId: string;
     skuName: string;
@@ -207,6 +231,8 @@ export interface MerchantMe {
     merchants: MerchantDto[];
     permissions: string[];
     canEditPricing?: boolean;
+    /** 绑定商户功能包并集：field / biz / team */
+    enabledPacks?: string[];
 }
 export interface MerchantWorkbench {
     openDisputes: number;
@@ -344,9 +370,14 @@ export interface DeviceStatusDto {
     deviceId: string;
     deviceName?: string;
     onlineStatus?: string;
+    online?: boolean;
     available?: boolean;
     busy?: boolean;
     replenishmentMode?: boolean;
+    activeSessionId?: string | null;
+    activeSessionState?: string | null;
+    /** NONE | SESSION | REPLENISHMENT | LOCKED */
+    busyReason?: string;
     message?: string;
 }
 export interface DeviceProduct {
@@ -426,6 +457,9 @@ export interface DisputeTicketDto {
     category?: string;
     priority?: string;
     evidence?: FileAttachmentDto[];
+    /** LOW_CONF | EMPTY | UNMAPPED | NEED_REVIEW | WHITELIST */
+    reviewCode?: string;
+    detectedClasses?: string[];
 }
 export interface SessionCartRequest {
     items: {

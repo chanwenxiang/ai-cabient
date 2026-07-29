@@ -4,8 +4,8 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">商户分账</span>
-            <span class="hint">商户组织树、抽成配置；分账明细可提交微信分账</span>
+            <span class="title">商户与分账</span>
+            <span class="hint">组织树、功能包与自助写开关；分账明细可提交微信分账。功能包关闭后对应小程序入口与 API 一并失效。</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -56,6 +56,13 @@
       </el-tab-pane>
 
       <el-tab-pane label="商户列表" name="merchants">
+        <el-alert
+          type="info"
+          :closable="false"
+          show-icon
+          title="功能包按商户独立控制（关闭父商户不会自动级联到子商户）；与角色权限同时生效。改货道/改价为包内细粒度写开关。"
+          class="status-banner"
+        />
         <div class="table-scroll">
           <div class="table-scroll-inner" style="min-width: 920px">
             <el-table
@@ -80,22 +87,55 @@
               <el-table-column label="抽成" width="96" align="right">
                 <template #default="{ row }">{{ (row.platformRateBps / 100).toFixed(1) }}%</template>
               </el-table-column>
-              <el-table-column label="商户改货道" width="120" align="center">
+              <el-table-column label="现场作业" width="100" align="center">
+                <template #default="{ row }">
+                  <el-switch
+                    :model-value="row.packFieldEnabled !== false"
+                    :disabled="!canEdit"
+                    :aria-label="`${row.merchantName}功能包：现场作业`"
+                    title="功能包：柜机 / 补货 / 待办 / 库存"
+                    @change="(v: boolean) => toggleFlag(row, 'packField', v)"
+                  />
+                </template>
+              </el-table-column>
+              <el-table-column label="经营工具" width="100" align="center">
+                <template #default="{ row }">
+                  <el-switch
+                    :model-value="row.packBizEnabled !== false"
+                    :disabled="!canEdit"
+                    :aria-label="`${row.merchantName}功能包：经营工具`"
+                    title="功能包：订单 / 结算 / 定价 / 争议 / 分析"
+                    @change="(v: boolean) => toggleFlag(row, 'packBiz', v)"
+                  />
+                </template>
+              </el-table-column>
+              <el-table-column label="团队设置" width="100" align="center">
+                <template #default="{ row }">
+                  <el-switch
+                    :model-value="row.packTeamEnabled !== false"
+                    :disabled="!canEdit"
+                    :aria-label="`${row.merchantName}功能包：团队与设置`"
+                    title="功能包：商户设置 / 团队成员"
+                    @change="(v: boolean) => toggleFlag(row, 'packTeam', v)"
+                  />
+                </template>
+              </el-table-column>
+              <el-table-column label="商户改货道" width="110" align="center">
                 <template #default="{ row }">
                   <el-switch
                     :model-value="row.allowMerchantPlanogramEdit"
-                    :disabled="!canEdit"
+                    :disabled="!canEdit || row.packFieldEnabled === false"
                     :aria-label="`${row.merchantName}允许修改货道`"
                     :title="`${row.merchantName}：允许修改货道`"
                     @change="(v: boolean) => toggleFlag(row, 'planogram', v)"
                   />
                 </template>
               </el-table-column>
-              <el-table-column label="商户改价" width="120" align="center">
+              <el-table-column label="商户改价" width="100" align="center">
                 <template #default="{ row }">
                   <el-switch
                     :model-value="row.allowMerchantPricingEdit"
-                    :disabled="!canEdit"
+                    :disabled="!canEdit || row.packBizEnabled === false"
                     :aria-label="`${row.merchantName}允许修改价格`"
                     :title="`${row.merchantName}：允许修改价格`"
                     @change="(v: boolean) => toggleFlag(row, 'pricing', v)"
@@ -404,12 +444,15 @@ const exportButtonLabel = computed(() =>
 
 const { onExport: exportMerchants } = useListCsv({
   filePrefix: '商户',
-  headers: ['商户编号', '名称', '抽成', '商户改货道', '商户改价', '设备数'],
+  headers: ['商户编号', '名称', '抽成', '现场作业', '经营工具', '团队设置', '商户改货道', '商户改价', '设备数'],
   toRows: () =>
     pickMerchants(merchants.value).map((row) => [
       row.merchantId,
       row.merchantName,
       `${(row.platformRateBps / 100).toFixed(1)}%`,
+      row.packFieldEnabled !== false ? '是' : '否',
+      row.packBizEnabled !== false ? '是' : '否',
+      row.packTeamEnabled !== false ? '是' : '否',
       row.allowMerchantPlanogramEdit ? '是' : '否',
       row.allowMerchantPricingEdit ? '是' : '否',
       row.deviceCount ?? 0
@@ -610,7 +653,11 @@ async function doRefresh(row: RevenueSplit) {
   }
 }
 
-async function toggleFlag(row: MerchantDto, kind: 'planogram' | 'pricing', value: boolean) {
+async function toggleFlag(
+  row: MerchantDto,
+  kind: 'planogram' | 'pricing' | 'packField' | 'packBiz' | 'packTeam',
+  value: boolean
+) {
   if (!canEdit.value) return;
   try {
     await api.request('/api/v2/ops/admin/merchants', 'POST', {
@@ -623,10 +670,16 @@ async function toggleFlag(row: MerchantDto, kind: 'planogram' | 'pricing', value
       remark: row.remark,
       parentMerchantId: row.parentMerchantId ?? '',
       allowMerchantPlanogramEdit: kind === 'planogram' ? value : row.allowMerchantPlanogramEdit,
-      allowMerchantPricingEdit: kind === 'pricing' ? value : row.allowMerchantPricingEdit
+      allowMerchantPricingEdit: kind === 'pricing' ? value : row.allowMerchantPricingEdit,
+      packFieldEnabled: kind === 'packField' ? value : row.packFieldEnabled !== false,
+      packBizEnabled: kind === 'packBiz' ? value : row.packBizEnabled !== false,
+      packTeamEnabled: kind === 'packTeam' ? value : row.packTeamEnabled !== false
     });
     if (kind === 'planogram') row.allowMerchantPlanogramEdit = value;
-    else row.allowMerchantPricingEdit = value;
+    else if (kind === 'pricing') row.allowMerchantPricingEdit = value;
+    else if (kind === 'packField') row.packFieldEnabled = value;
+    else if (kind === 'packBiz') row.packBizEnabled = value;
+    else row.packTeamEnabled = value;
     ElMessage.success('已更新');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '更新失败');
@@ -673,7 +726,10 @@ async function saveOrg() {
       remark: existing?.remark,
       parentMerchantId: f.parentMerchantId || '',
       allowMerchantPlanogramEdit: existing?.allowMerchantPlanogramEdit ?? false,
-      allowMerchantPricingEdit: existing?.allowMerchantPricingEdit ?? false
+      allowMerchantPricingEdit: existing?.allowMerchantPricingEdit ?? false,
+      packFieldEnabled: existing?.packFieldEnabled !== false,
+      packBizEnabled: existing?.packBizEnabled !== false,
+      packTeamEnabled: existing?.packTeamEnabled !== false
     });
     ElMessage.success('已保存组织');
     orgDialog.value = false;
