@@ -1,11 +1,42 @@
 <template>
   <view class="page-root">
     <view class="date-bar">
-      <picker mode="date" :value="startDate" @change="(e: any) => { startDate = e.detail.value; load(); }">
+      <!-- H5：原生 date 用浏览器浮层日历，避免 uni-picker 窄屏把年列表撑进页面 -->
+      <input
+        v-if="isH5"
+        class="date-input"
+        type="date"
+        :value="startDate"
+        :max="endDate"
+        @change="onStartDate"
+      />
+      <picker
+        v-else
+        mode="date"
+        :value="startDate"
+        :start="pickerStart"
+        :end="endDate"
+        @change="onStartDate"
+      >
         <text class="date-text">{{ startDate }}</text>
       </picker>
       <text class="date-sep">至</text>
-      <picker mode="date" :value="endDate" @change="(e: any) => { endDate = e.detail.value; load(); }">
+      <input
+        v-if="isH5"
+        class="date-input"
+        type="date"
+        :value="endDate"
+        :min="startDate"
+        @change="onEndDate"
+      />
+      <picker
+        v-else
+        mode="date"
+        :value="endDate"
+        :start="startDate"
+        :end="pickerEnd"
+        @change="onEndDate"
+      >
         <text class="date-text">{{ endDate }}</text>
       </picker>
     </view>
@@ -104,6 +135,10 @@ import type { MerchantDailySettlement, MerchantMe, MerchantSettlementBatch } fro
 const { me, refresh: refreshMe } = useMerchantMe();
 const canViewSettlements = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
 const canExport = computed(() => hasPerm(me.value, 'merchant:settlements:export'));
+const isH5 = typeof document !== 'undefined';
+/** 小程序 picker 限制可选年份，避免滚轮过长 */
+const pickerStart = '2020-01-01';
+const pickerEnd = '2035-12-31';
 
 function localDateISO(d: Date) {
   const y = d.getFullYear();
@@ -149,6 +184,24 @@ const loading = ref(false);
 const loadError = ref('');
 const batchWarn = ref('');
 let loadSeq = 0;
+
+function readDateEvent(e: { detail?: { value?: string }; target?: { value?: string } }) {
+  return String(e?.detail?.value ?? e?.target?.value ?? '').trim();
+}
+
+function onStartDate(e: { detail?: { value?: string }; target?: { value?: string } }) {
+  const v = readDateEvent(e);
+  if (!v) return;
+  startDate.value = v;
+  void load();
+}
+
+function onEndDate(e: { detail?: { value?: string }; target?: { value?: string } }) {
+  const v = readDateEvent(e);
+  if (!v) return;
+  endDate.value = v;
+  void load();
+}
 
 onShow(() => load());
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
@@ -263,9 +316,44 @@ function onExport() {
 
 <style scoped>
 .page-root { padding: 20rpx; background: #f0fdfa; min-height: 100vh; }
-.date-bar { display: flex; align-items: center; justify-content: center; gap: 16rpx; background: #fff; border-radius: 16rpx; padding: 20rpx; margin-bottom: 20rpx; }
+.date-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 16rpx 20rpx;
+  margin-bottom: 20rpx;
+  overflow: hidden;
+  max-height: 96rpx;
+  position: relative;
+  z-index: 2;
+}
 .date-text { font-size: 28rpx; color: #0f766e; font-weight: 500; }
-.date-sep { color: #999; }
+.date-input {
+  flex: 1;
+  min-width: 0;
+  max-width: 280rpx;
+  height: 56rpx;
+  line-height: 56rpx;
+  text-align: center;
+  font-size: 26rpx;
+  color: #0f766e;
+  font-weight: 500;
+  background: #f0fdfa;
+  border: 1rpx solid #ccfbf1;
+  border-radius: 12rpx;
+  padding: 0 12rpx;
+  box-sizing: border-box;
+}
+.date-sep { color: #999; flex-shrink: 0; }
+/* 兜底：若仍混入 uni picker 系统输入，禁止把年列表撑进文档流 */
+.date-bar :deep(.uni-picker-system_input),
+.date-bar :deep(input.uni-input-input) {
+  max-height: 56rpx !important;
+  overflow: hidden !important;
+}
 .summary-card { background: linear-gradient(135deg, #0f766e, #134e4a); border-radius: 16rpx; padding: 30rpx; margin-bottom: 20rpx; }
 .summary-row { display: flex; justify-content: space-between; padding: 12rpx 0; }
 .summary-row.total { border-top: 1rpx solid rgba(255,255,255,.2); margin-top: 10rpx; padding-top: 20rpx; }

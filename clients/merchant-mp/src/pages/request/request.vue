@@ -401,6 +401,8 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 .picker {
   padding: 18rpx 20rpx; border-radius: 12rpx; background: #f8fafc; border: 1rpx solid #e2e8f0;
   font-size: 28rpx; color: #0f172a;
+  overflow: hidden;
+  max-height: 88rpx;
 }
 .hint { font-size: 22rpx; color: #0f766e; margin-top: 10rpx; }
 .row-between { display: flex; justify-content: space-between; align-items: center; }

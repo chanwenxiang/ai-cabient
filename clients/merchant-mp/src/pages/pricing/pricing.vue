@@ -214,7 +214,12 @@ async function savePrice(p: MerchantSkuPricing) {
 </script>
 
 <style scoped>
-.picker { padding: 8px 0; font-weight: 600; }
+.picker {
+  padding: 8px 0;
+  font-weight: 600;
+  overflow: hidden;
+  max-height: 48px;
+}
 .warn { color: #d97706; display: block; margin-top: 8rpx; }
 .row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16rpx; }
 .row-main { flex: 1; min-width: 0; }

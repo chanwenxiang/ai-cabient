@@ -185,7 +185,7 @@
       size="880px"
       append-to-body
       destroy-on-close
-      class="exception-workbench"
+      class="exception-workbench drawer-workbench"
       @closed="onDrawerClosed"
     >
       <div v-loading="detailLoading" v-if="detail">

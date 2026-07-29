@@ -555,6 +555,7 @@
             </div>
           </div>
         </div>
+        <div class="table-scroll">
         <el-table :data="taskLines" stripe border size="small" empty-text="暂无理货明细（未上架或未确认）">
           <el-table-column label="类型" width="88" align="center">
             <template #default="{ row }">{{ lineTypeLabel(row.lineType) }}</template>
@@ -605,6 +606,7 @@
             </template>
           </el-table-column>
         </el-table>
+        </div>
         <div v-if="taskLines.length" class="lines-summary">
           <span>合计上架 {{ restockQtyTotal }} 件 · {{ taskLines.length }} 行</span>
           <el-tag v-if="unassignedRestockCount" type="warning" size="small" class="unassigned-badge">

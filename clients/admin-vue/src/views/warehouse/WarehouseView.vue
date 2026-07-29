@@ -663,6 +663,7 @@
     </el-dialog>
 
     <el-dialog v-model="receiveDialog" title="采购收货" width="700px" destroy-on-close>
+      <div class="table-scroll">
       <el-table :data="receiveForm.lines" class="receive-table">
         <el-table-column label="商品" min-width="180">
           <template #default="{ row }">
@@ -677,6 +678,7 @@
           </template>
         </el-table-column>
       </el-table>
+      </div>
       <el-input v-model="receiveForm.notes" type="textarea" placeholder="收货备注" style="margin-top: 12px" />
       <template #footer>
         <el-button @click="receiveDialog = false">取消</el-button>
@@ -706,6 +708,7 @@
           <el-input v-model="returnForm.notes" type="textarea" placeholder="退货备注" />
         </el-form-item>
       </el-form>
+      <div class="table-scroll">
       <el-table :data="returnForm.lines" class="receive-table">
         <el-table-column label="商品" min-width="180">
           <template #default="{ row }">
@@ -721,6 +724,7 @@
           </template>
         </el-table-column>
       </el-table>
+      </div>
       <template #footer>
         <el-button @click="returnDialog = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="saveReturn">确认退货</el-button>

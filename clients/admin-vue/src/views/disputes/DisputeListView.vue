@@ -200,7 +200,7 @@
       size="880px"
       append-to-body
       destroy-on-close
-      class="dispute-workbench"
+      class="dispute-workbench drawer-workbench"
       @closed="onDetailClosed"
     >
       <el-alert

@@ -1464,6 +1464,9 @@ onPullDownRefresh(load);
   background: #f8fafc;
 }
 .step-row.four { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 380px) {
+  .step-row.four { grid-template-columns: repeat(2, 1fr); gap: 12rpx 8rpx; }
+}
 .door-tip {
   display: block;
   margin-top: 12rpx;

@@ -71,6 +71,21 @@ button, input, textarea, select { font: inherit; }
   max-width: calc(100vw - 32px);
 }
 
+/* 抽屉同理：880px 等工作台在窄屏会被撑出横向滚动 */
+.el-drawer {
+  max-width: 100vw !important;
+}
+
+.el-drawer__body {
+  overflow: auto;
+}
+
+@media (max-width: 920px) {
+  .el-drawer.drawer-workbench {
+    width: 100vw !important;
+  }
+}
+
 :root {
   --sidebar-width: 220px;
   --header-height: 56px;
