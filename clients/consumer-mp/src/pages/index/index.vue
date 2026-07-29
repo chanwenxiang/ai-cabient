@@ -161,7 +161,7 @@
                 mode="aspectFill"
                 @error="onThumbError(p.skuId)"
               />
-              <text v-else class="product-emoji">{{ productEmoji(p) }}</text>
+              <text v-else class="product-mark">{{ productGlyph(p) }}</text>
             </view>
             <text class="product-name">{{ p.skuName }}</text>
             <text class="product-price">¥{{ (p.priceCents / 100).toFixed(2) }}</text>
@@ -245,7 +245,7 @@ import { sessionStateHint, sessionStateLabel, sessionStateTone } from '@aicabine
 import { classifyOpenError, formatError, type OpenErrorKind } from '@aicabinet/shared-uni/format';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
-import { productEmoji, productThumb } from '@/utils/product-thumb';
+import { productGlyph, productThumb } from '@/utils/product-thumb';
 import heroIllustration from '@/static/login-bg.png';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import { delay, requestDisputeSubscribe, requestOrderSubscribe, showBillToast, showDisputeResolvedToast } from '@/utils/notify';
@@ -429,8 +429,7 @@ onLoad(async (opts) => {
     entryChannel.value = resolveEntryChannel(launch.channel);
   }
   if (launch.deviceId) {
-    // 深链优先进入全屏开门态，减少落地页停留
-    enteringFlow.value = true;
+    // 深链直接开门；进入态由 startShoppingFlow 自行管理，勿提前置位以免被守卫短路
     await startShoppingFlow(launch.deviceId, launch.channel);
   }
 });
@@ -1450,7 +1449,17 @@ function stopDevicePoll() {
 .product-thumb.cat-food { background: linear-gradient(135deg, #fff2e8, #ffbb96); }
 .product-thumb.cat-default { background: #f5f5f5; }
 .product-img { width: 100%; height: 100%; }
-.product-emoji { font-size: 72rpx; line-height: 1; }
+.product-mark {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 24rpx;
+  background: rgba(255, 255, 255, 0.72);
+  color: #047857;
+  font-size: 40rpx;
+  font-weight: 800;
+  line-height: 96rpx;
+  text-align: center;
+}
 .product-name {
   font-size: 26rpx;
   color: #191919;

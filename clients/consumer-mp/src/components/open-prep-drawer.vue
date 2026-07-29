@@ -355,25 +355,29 @@ function onCancel() {
   z-index: 200;
   display: flex;
   align-items: flex-end;
+  justify-content: center;
 }
 .drawer-panel {
   width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
   background: #fff;
-  border-radius: 24rpx 24rpx 0 0;
-  padding: 16rpx 32rpx calc(32rpx + env(safe-area-inset-bottom));
+  border-radius: 30rpx 30rpx 0 0;
+  padding: 18rpx 32rpx calc(34rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
+  box-shadow: 0 -18rpx 55rpx rgba(15, 23, 42, 0.2);
 }
 .drawer-handle {
   width: 64rpx;
   height: 8rpx;
-  background: #e5e5e5;
+  background: #cbd5e1;
   border-radius: 4rpx;
   margin: 0 auto 24rpx;
 }
 .drawer-title {
-  font-size: 34rpx;
+  font-size: 36rpx;
   font-weight: 700;
-  color: #191919;
+  color: #1b3027;
   display: block;
   text-align: center;
 }
@@ -411,8 +415,13 @@ function onCancel() {
   align-items: center;
   justify-content: center;
   font-weight: 600;
+  box-shadow: 0 0 0 6rpx #f4f7f5;
 }
-.prep-step.done .prep-dot { background: #07c160; color: #fff; }
+.prep-step.done .prep-dot {
+  background: linear-gradient(135deg, #059669, #0d9488);
+  color: #fff;
+  box-shadow: 0 0 0 6rpx #d1fae5;
+}
 .prep-line {
   width: 80rpx;
   height: 4rpx;
@@ -428,8 +437,9 @@ function onCancel() {
   margin-bottom: 8rpx;
 }
 .input {
-  background: #f7f7f7;
-  border-radius: 12rpx;
+  background: #f8faf9;
+  border: 1rpx solid #e3eae6;
+  border-radius: 17rpx;
   padding: 22rpx 24rpx;
   margin-bottom: 20rpx;
   font-size: 30rpx;
@@ -451,13 +461,14 @@ function onCancel() {
 .balance-val { color: #191919; font-weight: 600; }
 .btn-primary {
   margin: 0;
-  background: #07c160;
+  background: linear-gradient(135deg, #059669, #0d9488);
   color: #fff;
-  border-radius: 12rpx;
+  border-radius: 44rpx;
   font-size: 32rpx;
   font-weight: 600;
   line-height: 88rpx;
   height: 88rpx;
+  box-shadow: 0 9rpx 24rpx rgba(5, 150, 105, 0.2);
 }
 .btn-primary::after { border: none; }
 .btn-alipay {
@@ -549,7 +560,4 @@ function onCancel() {
   margin-top: 24rpx;
   padding: 12rpx 0;
 }
-</style>
-<style scoped>
-.drawer-mask{justify-content:center}.drawer-panel{max-width:520px;padding:18rpx 32rpx calc(34rpx + env(safe-area-inset-bottom));border-radius:30rpx 30rpx 0 0;box-shadow:0 -18rpx 55rpx rgba(15,23,42,.2)}.drawer-handle{background:#cbd5e1}.drawer-title{font-size:36rpx;color:#1b3027}.prep-dot{box-shadow:0 0 0 6rpx #f4f7f5}.prep-step.done .prep-dot{background:linear-gradient(135deg,#059669,#0d9488);box-shadow:0 0 0 6rpx #d1fae5}.input{border:1rpx solid #e3eae6;border-radius:17rpx;background:#f8faf9}.btn-primary{border-radius:44rpx;background:linear-gradient(135deg,#059669,#0d9488);box-shadow:0 9rpx 24rpx rgba(5,150,105,.2)}
 </style>

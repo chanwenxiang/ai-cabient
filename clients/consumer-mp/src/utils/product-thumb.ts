@@ -10,17 +10,27 @@ const LOCAL_SKU_IMAGES: Record<string, string> = {
   'SKU-NOODLE-001': '/static/sku/noodle.png'
 };
 
-const CATEGORY_EMOJI: Record<string, string> = {
-  饮料: '🥤',
-  零食: '🍟',
-  乳品: '🥛',
-  方便食品: '🍜'
+const CATEGORY_GLYPH: Record<string, string> = {
+  饮料: '饮',
+  零食: '零',
+  乳品: '乳',
+  方便食品: '面'
 };
 
 export function productThumb(p: DeviceProduct): string {
   return LOCAL_SKU_IMAGES[p.skuId] || '';
 }
 
+/** Short Chinese mark when no local thumb image is available. */
+export function productGlyph(p: DeviceProduct): string {
+  const fromCat = CATEGORY_GLYPH[p.category || ''];
+  if (fromCat) return fromCat;
+  const name = String(p.skuName || '').trim();
+  if (name) return name.slice(0, 1);
+  return '品';
+}
+
+/** @deprecated use productGlyph */
 export function productEmoji(p: DeviceProduct): string {
-  return CATEGORY_EMOJI[p.category || ''] || '🛒';
+  return productGlyph(p);
 }
