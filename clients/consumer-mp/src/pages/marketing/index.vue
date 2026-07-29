@@ -16,7 +16,7 @@
     <view class="entry" @click="goCoupons">
       <view>
         <text class="entry-title">我的优惠券</text>
-        <text class="entry-sub">{{ couponCount }} 张可用 · 结算时自动选用最优券抵扣</text>
+        <text class="entry-sub">{{ couponEntrySub }}</text>
       </view>
       <text class="entry-arrow">›</text>
     </view>
@@ -57,10 +57,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import {
   consumerApi,
+  getConsumerToken,
   requireConsumerAuth,
   type MarketingBannerDto,
   type MarketingCampaignDto
@@ -69,18 +70,25 @@ import {
 const banners = ref<MarketingBannerDto[]>([]);
 const campaigns = ref<MarketingCampaignDto[]>([]);
 const couponCount = ref(0);
+const authed = ref(false);
 const loading = ref(false);
 const claimingId = ref<number | null>(null);
+
+const couponEntrySub = computed(() =>
+  authed.value
+    ? `${couponCount.value} 张可用 · 结算时自动选用最优券抵扣`
+    : '登录后查看可用优惠券 · 结算时自动选用最优券'
+);
 
 onShow(() => load());
 
 async function load() {
   loading.value = true;
+  authed.value = !!getConsumerToken();
   try {
-    const [b, c, count] = await Promise.all([
+    const [b, c] = await Promise.all([
       consumerApi.marketingBanners(),
-      consumerApi.marketingCampaigns(),
-      consumerApi.couponCount()
+      consumerApi.marketingCampaigns()
     ]);
     banners.value = b?.length ? b : [{
       id: 0,
@@ -91,7 +99,15 @@ async function load() {
       ctaPath: '/pages/member/exchange'
     }];
     campaigns.value = c || [];
-    couponCount.value = Number(count) || 0;
+    if (authed.value) {
+      try {
+        couponCount.value = Number(await consumerApi.couponCount()) || 0;
+      } catch {
+        couponCount.value = 0;
+      }
+    } else {
+      couponCount.value = 0;
+    }
   } catch (e: any) {
     banners.value = [];
     campaigns.value = [];

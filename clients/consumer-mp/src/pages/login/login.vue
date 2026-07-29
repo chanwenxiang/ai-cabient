@@ -1,5 +1,5 @@
 <template>
-  <view class="login-wrap">
+  <view class="login-wrap" :class="{ 'phone-open': showPhoneForm }">
     <view class="login-bg-scene" aria-hidden="true">
       <image class="login-illustration login-illustration-anim" :src="loginBgUrl" mode="widthFix" />
       <view class="anim-orb anim-orb-a" />
@@ -17,7 +17,7 @@
         </view>
       </view>
 
-      <view class="login-spacer" />
+      <view class="login-spacer" :class="{ compact: showPhoneForm }" />
 
       <view class="form-card">
         <text class="title">登录后继续</text>
@@ -303,8 +303,24 @@ async function onLogin() {
 .login-wrap {
   position: relative;
   min-height: 100vh;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: hidden;
   background: #f5c842;
+}
+.login-wrap.phone-open {
+  overflow-y: auto;
+}
+.login-wrap.phone-open .hero {
+  padding-top: 28rpx;
+}
+.login-wrap.phone-open .brand {
+  font-size: 48rpx;
+}
+.login-wrap.phone-open .tagline {
+  font-size: 26rpx;
+}
+.login-wrap.phone-open .login-content {
+  min-height: auto;
 }
 .login-bg-scene {
   position: absolute;
@@ -434,6 +450,11 @@ async function onLogin() {
   flex: 1;
   min-height: 48rpx;
 }
+.login-spacer.compact {
+  flex: 0 0 auto;
+  min-height: 12rpx;
+  max-height: 24rpx;
+}
 .form-card {
   flex-shrink: 0;
   padding: 36rpx 32rpx 40rpx;
@@ -441,6 +462,18 @@ async function onLogin() {
   background: rgba(255, 248, 225, 0.94);
   border: 2rpx solid rgba(245, 158, 11, 0.22);
   box-shadow: 0 -8rpx 40rpx rgba(234, 88, 12, 0.1), 0 16rpx 48rpx rgba(146, 64, 14, 0.08);
+}
+.phone-open .form-card {
+  padding-top: 28rpx;
+}
+.phone-open .field {
+  margin-bottom: 16rpx;
+}
+.phone-open .subtitle {
+  margin-bottom: 20rpx;
+}
+.phone-open .divider {
+  margin: 20rpx 0 16rpx;
 }
 .title {
   font-size: 36rpx;
@@ -483,6 +516,8 @@ async function onLogin() {
   background: rgba(180, 83, 9, 0.2);
 }
 .divider-toggle {
+  position: relative;
+  z-index: 1;
   flex-shrink: 0;
   min-width: 200rpx;
   min-height: 72rpx;
@@ -491,7 +526,7 @@ async function onLogin() {
   align-items: center;
   justify-content: center;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.55);
+  background: #fff8e1;
   border: 2rpx solid rgba(180, 83, 9, 0.22);
   box-sizing: border-box;
   cursor: pointer;
