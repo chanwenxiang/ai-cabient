@@ -87,4 +87,33 @@ class RestockSnapshotServiceTest {
         verify(deviceSlotService).allocateSkuCountsToSlots(
                 eq("CAB-001"), eq(Map.of("SKU-1", 4)), eq("VISION"), eq("S-RESTOCK-2"));
     }
+
+    @Test
+    void applySnapshot_skuGravityNegative_distributesAcrossSlotsOnce() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-RESTOCK-3");
+        session.setDeviceId("CAB-001");
+        session.setGravityDeltas("[{\"skuId\":\"SKU-1\",\"delta\":-1}]");
+
+        var delta = new GravityDeltaRequest.GravityDeltaItem("SKU-1", -1, null);
+        when(gravityHelper.parse(any())).thenReturn(List.of(delta));
+        when(gravityHelper.hasSlotSpecificDeltas(any())).thenReturn(false);
+        when(deviceSlotService.listEnabledSlotsForSku("CAB-001", "SKU-1")).thenReturn(List.of(
+                new DeviceSlotService.SlotBookView("A1", 20),
+                new DeviceSlotService.SlotBookView("A2", 20)));
+        when(deviceSlotService.loadBookQtyBySlot("CAB-001")).thenReturn(Map.of("A1", 10, "A2", 4));
+        when(deviceSlotService.applyPhysicalSnapshot(eq("CAB-001"), anyMap(), eq("GRAVITY_SKU"), eq("S-RESTOCK-3")))
+                .thenReturn(2);
+
+        int updated = restockSnapshotService.applySnapshot(session);
+
+        assertEquals(2, updated);
+        ArgumentCaptor<Map<String, Integer>> physicalCaptor = ArgumentCaptor.forClass(Map.class);
+        verify(deviceSlotService).applyPhysicalSnapshot(
+                eq("CAB-001"), physicalCaptor.capture(), eq("GRAVITY_SKU"), eq("S-RESTOCK-3"));
+        Map<String, Integer> physical = physicalCaptor.getValue();
+        assertEquals(9, physical.get("A1"));
+        assertEquals(4, physical.get("A2"));
+        verifyNoInteractions(visionClient);
+    }
 }

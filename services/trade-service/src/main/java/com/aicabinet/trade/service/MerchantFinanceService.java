@@ -34,6 +34,7 @@ public class MerchantFinanceService {
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final MerchantPortalGuard merchantPortalGuard;
     private final CabinetOrderMapper orderRepository;
+    private final CabinetOrderLineMapper orderLineRepository;
     private final OrderRevenueSplitMapper splitRepository;
     private final MerchantMapper merchantRepository;
     private final SettlementService settlementService;
@@ -45,6 +46,7 @@ public class MerchantFinanceService {
                                   MerchantFeaturePackService merchantFeaturePackService,
                                   MerchantPortalGuard merchantPortalGuard,
                                   CabinetOrderMapper orderRepository,
+                                  CabinetOrderLineMapper orderLineRepository,
                                   OrderRevenueSplitMapper splitRepository,
                                   MerchantMapper merchantRepository,
                                   SettlementService settlementService,
@@ -55,6 +57,7 @@ public class MerchantFinanceService {
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.merchantPortalGuard = merchantPortalGuard;
         this.orderRepository = orderRepository;
+        this.orderLineRepository = orderLineRepository;
         this.splitRepository = splitRepository;
         this.merchantRepository = merchantRepository;
         this.settlementService = settlementService;
@@ -69,8 +72,12 @@ public class MerchantFinanceService {
         merchantPortalGuard.requireAccess(userId);
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         Page<CabinetOrder> result = queryOrders(userId, deviceId, pageable);
+        Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(
+                result.getContent().stream().map(CabinetOrder::getOrderId).toList());
         return new PageResult<>(
-                result.getContent().stream().map(this::toMerchantOrderSummary).toList(),
+                result.getContent().stream()
+                        .map(o -> toMerchantOrderSummary(o, qtyByOrder.getOrDefault(o.getOrderId(), 0)))
+                        .toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements()
         );
     }
@@ -91,6 +98,8 @@ public class MerchantFinanceService {
         merchantPortalGuard.requireAccess(userId);
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<CabinetOrder> page = queryOrders(userId, deviceId, pageable);
+        Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(
+                page.getContent().stream().map(CabinetOrder::getOrderId).toList());
         StringBuilder sb = new StringBuilder("orderId,sessionId,deviceId,totalAmountCents,status,lineCount,createdAt\n");
         for (CabinetOrder o : page.getContent()) {
             sb.append(csv(o.getOrderId())).append(',')
@@ -98,7 +107,7 @@ public class MerchantFinanceService {
                     .append(csv(o.getDeviceId())).append(',')
                     .append(o.getTotalAmountCents()).append(',')
                     .append(csv(o.getStatus())).append(',')
-                    .append(o.getLines().size()).append(',')
+                    .append(qtyByOrder.getOrDefault(o.getOrderId(), 0)).append(',')
                     .append(csv(String.valueOf(o.getCreatedAt()))).append('\n');
         }
         return sb.toString().getBytes(StandardCharsets.UTF_8);
@@ -282,9 +291,10 @@ public class MerchantFinanceService {
         return orderRepository.findAllByOrderByCreatedAtDesc(pageable);
     }
 
-    private MerchantOrderSummaryDto toMerchantOrderSummary(CabinetOrder o) {
+    /** lineCount 口径与运营侧一致：商品件数（quantity 合计），非行数。 */
+    private MerchantOrderSummaryDto toMerchantOrderSummary(CabinetOrder o, int itemQty) {
         return new MerchantOrderSummaryDto(o.getOrderId(), o.getSessionId(), o.getDeviceId(),
-                o.getTotalAmountCents(), o.getStatus(), o.getLines().size(), o.getCreatedAt());
+                o.getTotalAmountCents(), o.getStatus(), itemQty, o.getCreatedAt());
     }
 
     private RevenueSplitDto toSplitDto(OrderRevenueSplit s, String merchantName) {

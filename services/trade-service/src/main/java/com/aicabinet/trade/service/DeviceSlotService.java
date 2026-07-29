@@ -221,6 +221,106 @@ public class DeviceSlotService {
         }
     }
 
+    /**
+     * 批次无 slotId 时：按 SKU 绑定货道分摊销售件数并扣减实测。
+     * 多货道时优先从账面较高的货道扣。
+     */
+    @Transactional
+    public void applyPhysicalAfterSkuSale(String deviceId, Map<String, Integer> skuQtySold, String refId) {
+        if (skuQtySold == null || skuQtySold.isEmpty()) {
+            return;
+        }
+        Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
+        Map<String, Integer> slotQtySold = new LinkedHashMap<>();
+        for (Map.Entry<String, Integer> entry : skuQtySold.entrySet()) {
+            int remaining = entry.getValue() != null ? entry.getValue() : 0;
+            if (remaining <= 0 || entry.getKey() == null || entry.getKey().isBlank()) {
+                continue;
+            }
+            List<DeviceSlot> slots = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
+                    .filter(s -> s.isEnabled() && entry.getKey().equals(s.getAssignedSkuId()))
+                    .sorted((a, b) -> Integer.compare(
+                            bookBySlot.getOrDefault(b.getId().getSlotCode(), 0),
+                            bookBySlot.getOrDefault(a.getId().getSlotCode(), 0)))
+                    .toList();
+            if (slots.isEmpty()) {
+                continue;
+            }
+            for (DeviceSlot slot : slots) {
+                if (remaining <= 0) {
+                    break;
+                }
+                String code = slot.getId().getSlotCode();
+                int book = bookBySlot.getOrDefault(code, 0);
+                int take = (slots.size() == 1 || book <= 0) ? remaining : Math.min(book, remaining);
+                slotQtySold.merge(code, take, Integer::sum);
+                remaining -= take;
+            }
+            if (remaining > 0) {
+                slotQtySold.merge(slots.get(0).getId().getSlotCode(), remaining, Integer::sum);
+            }
+        }
+        applyPhysicalAfterSale(deviceId, slotQtySold, refId);
+    }
+
+    /** 退货/免单回库后同步货道实测（已有实测值则加回）。 */
+    @Transactional
+    public void applyPhysicalAfterRestore(String deviceId, Map<String, Integer> slotQtyRestored, String refId) {
+        if (slotQtyRestored == null || slotQtyRestored.isEmpty()) {
+            return;
+        }
+        Instant now = Instant.now();
+        int updated = 0;
+        for (Map.Entry<String, Integer> entry : slotQtyRestored.entrySet()) {
+            int qty = entry.getValue() != null ? entry.getValue() : 0;
+            if (qty <= 0) {
+                continue;
+            }
+            String slotCode = entry.getKey().trim().toUpperCase();
+            DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode)).orElse(null);
+            if (slot == null || slot.getLastPhysicalQty() == null) {
+                continue;
+            }
+            slot.setLastPhysicalQty(slot.getLastPhysicalQty() + qty);
+            slot.setLastPhysicalAt(now);
+            slotRepository.save(slot);
+            updated++;
+        }
+        if (updated > 0) {
+            log.info("physical after restore device={} ref={} slots={}", deviceId, refId, updated);
+        }
+    }
+
+    /**
+     * 退货批次无 slotId 时：按 SKU 绑定货道分摊回加实测。
+     */
+    @Transactional
+    public void applyPhysicalAfterSkuRestore(String deviceId, Map<String, Integer> skuQtyRestored, String refId) {
+        if (skuQtyRestored == null || skuQtyRestored.isEmpty()) {
+            return;
+        }
+        Map<String, Integer> bookBySlot = loadBookQtyBySlot(deviceId);
+        Map<String, Integer> slotQty = new LinkedHashMap<>();
+        for (Map.Entry<String, Integer> entry : skuQtyRestored.entrySet()) {
+            int remaining = entry.getValue() != null ? entry.getValue() : 0;
+            if (remaining <= 0 || entry.getKey() == null || entry.getKey().isBlank()) {
+                continue;
+            }
+            List<DeviceSlot> slots = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
+                    .filter(s -> s.isEnabled() && entry.getKey().equals(s.getAssignedSkuId()))
+                    .sorted((a, b) -> Integer.compare(
+                            bookBySlot.getOrDefault(b.getId().getSlotCode(), 0),
+                            bookBySlot.getOrDefault(a.getId().getSlotCode(), 0)))
+                    .toList();
+            if (slots.isEmpty()) {
+                continue;
+            }
+            String code = slots.get(0).getId().getSlotCode();
+            slotQty.merge(code, remaining, Integer::sum);
+        }
+        applyPhysicalAfterRestore(deviceId, slotQty, refId);
+    }
+
     /** 视觉 SKU 总量按货道账面比例分摊到各货道实测。 */
     @Transactional
     public int allocateSkuCountsToSlots(String deviceId, Map<String, Integer> skuTotals,

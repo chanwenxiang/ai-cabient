@@ -158,12 +158,18 @@ public class InventoryLotService {
     }
 
     @Transactional
-    public void restoreToBatch(String deviceId, String skuId, String batchNo, int quantity, String refType, String refId) {
+    public String restoreToBatch(String deviceId, String skuId, String batchNo, int quantity, String refType, String refId) {
         if (quantity <= 0) {
-            return;
+            return null;
         }
         DeviceSkuLot lot = lotRepository.findByDeviceIdAndSkuIdAndBatchNo(deviceId, skuId, batchNo)
                 .orElseGet(() -> createFallbackLot(deviceId, skuId, batchNo));
+        if (lot.getSlotId() == null || lot.getSlotId().isBlank()) {
+            String primarySlot = resolvePrimarySlotCode(deviceId, skuId);
+            if (primarySlot != null) {
+                lot.setSlotId(primarySlot);
+            }
+        }
         lot.setQuantity(lot.getQuantity() + quantity);
         if ("DEPLETED".equals(lot.getStatus()) || "BLOCKED".equals(lot.getStatus())) {
             lot.setStatus(resolveLotStatus(lot));
@@ -171,6 +177,7 @@ public class InventoryLotService {
         lotRepository.save(lot);
         recordMovement(deviceId, skuId, batchNo, "REFUND", quantity, refType, refId, null);
         syncAggregateInventory(deviceId, skuId);
+        return lot.getSlotId();
     }
 
     @Transactional
@@ -449,7 +456,37 @@ public class InventoryLotService {
         lot.setBatchNo(batchNo);
         lot.setExpiryDate(LocalDate.now().plusDays(365));
         lot.setStatus("ON_SALE");
+        lot.setQuantity(0);
+        lot.setSlotId(resolvePrimarySlotCode(deviceId, skuId));
         return lot;
+    }
+
+    /** 回库无货道时绑定该 SKU 账面最多的启用货道，避免账面/实测分叉。 */
+    private String resolvePrimarySlotCode(String deviceId, String skuId) {
+        List<DeviceSlot> slots = slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId).stream()
+                .filter(s -> s.isEnabled() && skuId.equals(s.getAssignedSkuId()))
+                .toList();
+        if (slots.isEmpty()) {
+            return null;
+        }
+        Map<String, Integer> bookBySlot = new LinkedHashMap<>();
+        for (Object[] row : lotRepository.sumBookQtyBySlot(deviceId)) {
+            if (row == null || row.length < 2 || row[0] == null || row[1] == null) {
+                continue;
+            }
+            bookBySlot.merge(String.valueOf(row[0]), ((Number) row[1]).intValue(), Integer::sum);
+        }
+        String best = null;
+        int bestQty = -1;
+        for (DeviceSlot slot : slots) {
+            String code = slot.getId().getSlotCode();
+            int book = bookBySlot.getOrDefault(code, 0);
+            if (book > bestQty) {
+                bestQty = book;
+                best = code;
+            }
+        }
+        return best != null ? best : slots.get(0).getId().getSlotCode();
     }
 
     private void recordMovement(String deviceId, String skuId, String batchNo,

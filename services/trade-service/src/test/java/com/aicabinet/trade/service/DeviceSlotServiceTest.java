@@ -11,10 +11,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -105,6 +107,33 @@ class DeviceSlotServiceTest {
         assertEquals(1, result.size());
         assertEquals("A1", result.get(0).slotCode());
         assertEquals(2, result.get(0).quantity());
+    }
+
+    @Test
+    void applyPhysicalAfterSkuSale_decrementsSingleAssignedSlot() {
+        DeviceSlot a1 = slot("A1", "SKU-DEMO-001", 20);
+        a1.setLastPhysicalQty(14);
+        when(slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(DEVICE_ID)).thenReturn(List.of(a1));
+        when(lotRepository.sumBookQtyBySlot(DEVICE_ID))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{"A1", 13}));
+        when(slotRepository.findById(new DeviceSlotId(DEVICE_ID, "A1"))).thenReturn(Optional.of(a1));
+
+        deviceSlotService.applyPhysicalAfterSkuSale(DEVICE_ID, Map.of("SKU-DEMO-001", 1), "S-1");
+
+        assertEquals(13, a1.getLastPhysicalQty());
+        verify(slotRepository).save(a1);
+    }
+
+    @Test
+    void applyPhysicalAfterRestore_incrementsPhysical() {
+        DeviceSlot a1 = slot("A1", "SKU-DEMO-001", 20);
+        a1.setLastPhysicalQty(11);
+        when(slotRepository.findById(new DeviceSlotId(DEVICE_ID, "A1"))).thenReturn(Optional.of(a1));
+
+        deviceSlotService.applyPhysicalAfterRestore(DEVICE_ID, Map.of("A1", 1), "REFUND");
+
+        assertEquals(12, a1.getLastPhysicalQty());
+        verify(slotRepository).save(a1);
     }
 
     private static DeviceSlot slot(String slotCode, String skuId, int maxLevel) {

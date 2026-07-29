@@ -29,5 +29,12 @@ public interface DataConsistencyRecordMapper extends BaseTradeMapper<DataConsist
                 .orderByDesc(DataConsistencyRecord::getId));
     }
 
+    default List<DataConsistencyRecord> findByCheckTypeAndStatus(String checkType, String status) {
+        return selectList(Wrappers.<DataConsistencyRecord>lambdaQuery()
+                .eq(DataConsistencyRecord::getCheckType, checkType)
+                .eq(DataConsistencyRecord::getStatus, status)
+                .orderByDesc(DataConsistencyRecord::getId));
+    }
+
     List<DataConsistencyRecord> findByCheckedAtBetween(Instant start, Instant end);
 }

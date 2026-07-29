@@ -61,6 +61,7 @@ import java.time.Instant;
 
 import java.time.LocalDate;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 
@@ -710,10 +711,20 @@ public class ReplenishmentService {
         task.setCompletedAt(Instant.now());
 
         if (expectReceive) {
-            // 任务无明细时，按仓配出库行回写柜机库存（避免只改在途状态、库存不动）
+            // 仓配在途签收：按出库行上架；若已有现场 RESTOCK 行，则只补「SKU 差额」，避免重复加可乐又漏掉水。
+            Map<String, Integer> appliedBySku = new HashMap<>();
+            for (ReplenishmentTaskLine line : taskLineRepository.findByTaskIdOrderByLineIdAsc(taskId)) {
+                if (!"RESTOCK".equalsIgnoreCase(line.getLineType()) || !line.isApplied()) {
+                    continue;
+                }
+                appliedBySku.merge(line.getSkuId(), line.getQuantity(), Integer::sum);
+            }
+            int fromOutbound = restockFromOutboundLines(
+                    task, operatorId, "OB-" + task.getOutboundId(), appliedBySku);
             if (pending.isEmpty()) {
-                appliedRestockQty = restockFromOutboundLines(
-                        task, operatorId, "OB-" + task.getOutboundId());
+                appliedRestockQty = fromOutbound;
+            } else {
+                appliedRestockQty += fromOutbound;
             }
             inTransitService.receiveForDevice(task.getOutboundId(), task.getDeviceId());
             // 按实际上架数量签收：不足则 PARTIAL
@@ -749,37 +760,62 @@ public class ReplenishmentService {
     /** 出库行 → 货道分配：优先沿用出库明细货道，并按当前余量截断。 */
     private List<DeviceSlotService.SlotRestockAllocation> resolveOutboundSlotAllocations(
             String deviceId, WarehouseOutboundLine ol) {
-        if (ol.getQuantity() <= 0) {
+        return resolveOutboundSlotAllocations(deviceId, ol, ol.getQuantity());
+    }
+
+    private List<DeviceSlotService.SlotRestockAllocation> resolveOutboundSlotAllocations(
+            String deviceId, WarehouseOutboundLine ol, int quantity) {
+        if (quantity <= 0) {
             return List.of();
         }
         if (ol.getSlotId() != null && !ol.getSlotId().isBlank()) {
             String slot = ol.getSlotId().trim().toUpperCase();
             int room = deviceSlotService.headroomForSlot(deviceId, slot);
-            int take = Math.min(ol.getQuantity(), room);
+            int take = Math.min(quantity, room);
             if (take <= 0) {
                 return List.of();
             }
             return List.of(new DeviceSlotService.SlotRestockAllocation(slot, take));
         }
-        return deviceSlotService.allocateRestockQuantity(deviceId, ol.getSkuId(), ol.getQuantity());
+        return deviceSlotService.allocateRestockQuantity(deviceId, ol.getSkuId(), quantity);
     }
 
     /** 无任务明细时按出库行（含货道/容量）回写柜机，返回实际上架件数。 */
     private int restockFromOutboundLines(ReplenishmentTask task, Long operatorId, String refId) {
+        return restockFromOutboundLines(task, operatorId, refId, Map.of());
+    }
+
+    /**
+     * 按出库行上架；{@code alreadyAppliedBySku} 表示同任务已通过现场行上架的数量，按 SKU 扣减后只补差额。
+     */
+    private int restockFromOutboundLines(ReplenishmentTask task, Long operatorId, String refId,
+                                         Map<String, Integer> alreadyAppliedBySku) {
+        Map<String, Integer> remainingCredit = new HashMap<>();
+        if (alreadyAppliedBySku != null) {
+            remainingCredit.putAll(alreadyAppliedBySku);
+        }
         int received = 0;
         for (var ol : warehouseService.outboundLinesForDevice(task.getOutboundId(), task.getDeviceId())) {
             if (ol.getQuantity() <= 0) {
                 continue;
             }
+            int credit = remainingCredit.getOrDefault(ol.getSkuId(), 0);
+            int need = ol.getQuantity() - credit;
+            if (credit > 0) {
+                remainingCredit.put(ol.getSkuId(), Math.max(0, credit - ol.getQuantity()));
+            }
+            if (need <= 0) {
+                continue;
+            }
             List<DeviceSlotService.SlotRestockAllocation> allocations =
-                    resolveOutboundSlotAllocations(task.getDeviceId(), ol);
+                    resolveOutboundSlotAllocations(task.getDeviceId(), ol, need);
             if (allocations.isEmpty()) {
                 // 无货道绑定时仍按出库数量回写（兼容旧柜）
                 if (!deviceSlotService.hasSkuSlots(task.getDeviceId(), ol.getSkuId())) {
                     inventoryLotService.addRestock(
                             task.getDeviceId(), ol.getSkuId(), ol.getBatchNo(), null,
-                            ol.getExpiryDate(), ol.getQuantity(), null, operatorId, refId);
-                    received += ol.getQuantity();
+                            ol.getExpiryDate(), need, null, operatorId, refId);
+                    received += need;
                 }
                 continue;
             }

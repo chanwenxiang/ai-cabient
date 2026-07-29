@@ -355,6 +355,12 @@ public class SettlementService {
                 .map(l -> new VisionServiceClient.RecognizedItem(l.getSkuId(), l.getQuantity(),
                         l.getConfidence() != null ? l.getConfidence() : 1f))
                 .toList();
+        var batchBySku = order.getLines().stream()
+                .filter(l -> l.getBatchNo() != null && !l.getBatchNo().isBlank())
+                .collect(java.util.stream.Collectors.toMap(
+                        com.aicabinet.trade.domain.CabinetOrderLine::getSkuId,
+                        com.aicabinet.trade.domain.CabinetOrderLine::getBatchNo,
+                        (a, b) -> a));
 
         int original = order.getTotalAmountCents();
         applyItemsToOrder(order, items);
@@ -362,14 +368,17 @@ public class SettlementService {
         int delta = finalTotal - original;
 
         if (order.isInventoryDeducted()) {
-            inventoryService.adjustForOrder(session.getDeviceId(), oldItems, items);
+            inventoryService.adjustForOrder(session.getDeviceId(), oldItems, items, batchBySku);
         } else {
-            var batchBySku = inventoryService.deductForOrder(
+            var deductedBatches = inventoryService.deductForOrder(
                     session.getDeviceId(), items, session.getSessionId(), session.getGravityDeltas());
-            applyBatchNos(order, batchBySku);
+            applyBatchNos(order, deductedBatches);
             order.setInventoryDeducted(true);
         }
         orderPaymentService.applyPaymentDelta(order, delta);
+        if ("DISPUTED".equals(order.getStatus())) {
+            order.setStatus("PAID");
+        }
         orderRepository.save(order);
         replaceOrderLines(order);
         log.info("dispute adjust session={} order={} original={} final={} delta={}",

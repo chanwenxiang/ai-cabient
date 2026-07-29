@@ -399,6 +399,13 @@ public class DisputeService {
 
         session.setState(SessionState.COMPLETED);
         sessionRepository.save(session);
+        // 三端一致：结案后订单不得再挂 DISPUTED（免单已是 REFUNDED；维持/确认应回到 PAID）
+        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
+            if ("DISPUTED".equals(order.getStatus())) {
+                order.setStatus("PAID");
+                orderRepository.save(order);
+            }
+        });
         return result;
     }
 

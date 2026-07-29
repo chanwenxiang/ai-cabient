@@ -14,8 +14,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 定时资金/库存一致性巡检（BE-004）。
@@ -62,6 +64,11 @@ public class DataConsistencyService {
 
     @Scheduled(fixedDelay = 300000)
     public void performConsistencyCheck() {
+        runConsistencyCheck();
+    }
+
+    /** 立即巡检（运营手动触发 / 联调）。返回当前仍为 FAIL 的条数。 */
+    public int runConsistencyCheck() {
         try {
             log.info("开始数据一致性巡检");
             checkOrderConsistency();
@@ -71,6 +78,8 @@ public class DataConsistencyService {
         } catch (Exception e) {
             log.error("数据一致性巡检中断: {}", e.getMessage());
         }
+        List<DataConsistencyRecord> failed = getFailedChecks();
+        return failed == null ? 0 : failed.size();
     }
 
     /** PAID 订单头金额 vs 明细行合计。 */
@@ -80,32 +89,51 @@ public class DataConsistencyService {
                 + "WHERE o.status = 'PAID' GROUP BY o.order_id, o.total_amount_cents "
                 + "HAVING o.total_amount_cents != COALESCE(SUM(ol.line_amount_cents), 0)";
 
+        Set<String> failing = new HashSet<>();
         for (Map<String, Object> row : jdbcTemplate.queryForList(sql)) {
+            String orderId = String.valueOf(row.get("order_id"));
+            failing.add(orderId);
             recordInconsistency("ORDER_AMOUNT", "cabinet_order",
-                    String.valueOf(row.get("order_id")),
+                    orderId,
                     String.valueOf(row.get("total_amount_cents")),
                     String.valueOf(row.get("calculated_total")));
         }
+        resolveStaleFailures("ORDER_AMOUNT", failing);
     }
 
     /**
-     * 成功扣款流水 vs 订单金额。
-     * 仅比对 CHARGE/ADJUST_CHARGE 且 COMPLETED，避免退款流水误报。
+     * 净入账（COMPLETED CHARGE/ADJUST_CHARGE − REFUND）vs 订单应付。
+     * PAID 比对订单头；REFUNDED 期望净额为 0（全额退），避免改单退差价误报。
      */
     void checkPaymentConsistency() {
-        String sql = "SELECT po.order_id, po.amount_cents, o.total_amount_cents "
-                + "FROM payment_operation po "
-                + "JOIN cabinet_order o ON po.order_id = o.order_id "
-                + "WHERE po.status = 'COMPLETED' "
-                + "AND po.operation_type IN ('CHARGE', 'ADJUST_CHARGE') "
-                + "AND po.amount_cents != o.total_amount_cents";
+        String sql = "SELECT o.order_id, "
+                + "CASE WHEN o.status = 'REFUNDED' THEN 0 ELSE o.total_amount_cents END AS expected_cents, "
+                + "COALESCE(SUM(CASE "
+                + "  WHEN po.operation_type IN ('CHARGE', 'ADJUST_CHARGE') THEN po.amount_cents "
+                + "  WHEN po.operation_type = 'REFUND' THEN -po.amount_cents "
+                + "  ELSE 0 END), 0) AS net_paid "
+                + "FROM cabinet_order o "
+                + "JOIN payment_operation po ON po.order_id = o.order_id "
+                + "AND po.status = 'COMPLETED' "
+                + "AND po.operation_type IN ('CHARGE', 'ADJUST_CHARGE', 'REFUND') "
+                + "WHERE o.status IN ('PAID', 'REFUNDED') "
+                + "GROUP BY o.order_id, o.status, o.total_amount_cents "
+                + "HAVING CASE WHEN o.status = 'REFUNDED' THEN 0 ELSE o.total_amount_cents END "
+                + "<> COALESCE(SUM(CASE "
+                + "  WHEN po.operation_type IN ('CHARGE', 'ADJUST_CHARGE') THEN po.amount_cents "
+                + "  WHEN po.operation_type = 'REFUND' THEN -po.amount_cents "
+                + "  ELSE 0 END), 0)";
 
+        Set<String> failing = new HashSet<>();
         for (Map<String, Object> row : jdbcTemplate.queryForList(sql)) {
+            String orderId = String.valueOf(row.get("order_id"));
+            failing.add(orderId);
             recordInconsistency("PAYMENT_AMOUNT", "payment_operation",
-                    String.valueOf(row.get("order_id")),
-                    String.valueOf(row.get("total_amount_cents")),
-                    String.valueOf(row.get("amount_cents")));
+                    orderId,
+                    String.valueOf(row.get("expected_cents")),
+                    String.valueOf(row.get("net_paid")));
         }
+        resolveStaleFailures("PAYMENT_AMOUNT", failing);
     }
 
     /**
@@ -121,12 +149,39 @@ public class DataConsistencyService {
                 + "GROUP BY i.device_id, i.sku_id, i.quantity "
                 + "HAVING i.quantity <> COALESCE(SUM(l.quantity), 0)";
 
+        Set<String> failing = new HashSet<>();
         for (Map<String, Object> row : jdbcTemplate.queryForList(sql)) {
             String key = row.get("device_id") + "|" + row.get("sku_id");
+            failing.add(key);
             recordInconsistency("INVENTORY_MISMATCH", "device_sku_inventory",
                     key,
                     String.valueOf(row.get("expected_qty")),
                     String.valueOf(row.get("lot_qty")));
+        }
+        resolveStaleFailures("INVENTORY_MISMATCH", failing);
+    }
+
+    /** 本轮未再检出的 FAIL 标记为 FIXED，避免历史误报常驻 failCount。 */
+    void resolveStaleFailures(String checkType, Set<String> stillFailing) {
+        try {
+            List<DataConsistencyRecord> open = consistencyRepository
+                    .findByCheckTypeAndStatus(checkType, STATUS_FAIL);
+            if (open == null || open.isEmpty()) {
+                return;
+            }
+            Instant now = Instant.now();
+            for (DataConsistencyRecord record : open) {
+                if (stillFailing != null && stillFailing.contains(record.getCheckKey())) {
+                    continue;
+                }
+                record.setStatus(STATUS_FIXED);
+                record.setFixedAt(now);
+                consistencyRepository.save(record);
+                log.info("一致性误报已自动关闭 type={} key={} recordId={}",
+                        checkType, record.getCheckKey(), record.getId());
+            }
+        } catch (Exception e) {
+            log.error("关闭过期一致性 FAIL 失败 type={}: {}", checkType, e.getMessage());
         }
     }
 
@@ -191,9 +246,58 @@ public class DataConsistencyService {
     private boolean applyFix(DataConsistencyRecord record) {
         switch (record.getCheckType()) {
             case "ORDER_AMOUNT" -> {
-                String sql = "UPDATE cabinet_order SET total_amount_cents = CAST(? AS INT) WHERE order_id = ?";
-                jdbcTemplate.update(sql, record.getActualValue(), record.getCheckKey());
-                return true;
+                // 资金口径：若已有 COMPLETED CHARGE/ADJUST_CHARGE 与订单头一致，则改明细对齐头金额；
+                // 否则（无有效扣款）才把头金额改为明细合计，避免改写已入账金额导致三端/支付不一致。
+                String orderId = record.getCheckKey();
+                Integer header = jdbcTemplate.query(
+                        "SELECT total_amount_cents FROM cabinet_order WHERE order_id = ?",
+                        rs -> rs.next() ? rs.getInt(1) : null,
+                        orderId);
+                if (header == null) {
+                    return false;
+                }
+                Integer paid = jdbcTemplate.query(
+                        "SELECT COALESCE(SUM(CASE "
+                                + "WHEN operation_type IN ('CHARGE', 'ADJUST_CHARGE') THEN amount_cents "
+                                + "WHEN operation_type = 'REFUND' THEN -amount_cents "
+                                + "ELSE 0 END), 0) "
+                                + "FROM payment_operation "
+                                + "WHERE order_id = ? AND status = 'COMPLETED' "
+                                + "AND operation_type IN ('CHARGE', 'ADJUST_CHARGE', 'REFUND')",
+                        rs -> rs.next() ? rs.getInt(1) : null,
+                        orderId);
+                Integer lineSum = jdbcTemplate.query(
+                        "SELECT COALESCE(SUM(line_amount_cents), 0) FROM cabinet_order_line WHERE order_id = ?",
+                        rs -> rs.next() ? rs.getInt(1) : 0,
+                        orderId);
+                Integer lineCount = jdbcTemplate.query(
+                        "SELECT COUNT(*) FROM cabinet_order_line WHERE order_id = ?",
+                        rs -> rs.next() ? rs.getInt(1) : 0,
+                        orderId);
+
+                if (paid != null && paid.equals(header)) {
+                    if (lineCount != null && lineCount == 1 && lineSum != null && !lineSum.equals(header)) {
+                        jdbcTemplate.update(
+                                "UPDATE cabinet_order_line SET line_amount_cents = ?, "
+                                        + "unit_price_cents = CASE WHEN quantity > 0 THEN ? / quantity ELSE ? END "
+                                        + "WHERE order_id = ?",
+                                header, header, header, orderId);
+                        return true;
+                    }
+                    if (lineCount != null && lineCount == 0) {
+                        // 无明细时不臆造 SKU，留给人工补行
+                        return false;
+                    }
+                    return false;
+                }
+
+                if (lineSum != null && lineSum > 0) {
+                    jdbcTemplate.update(
+                            "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?",
+                            lineSum, orderId);
+                    return true;
+                }
+                return false;
             }
             case "INVENTORY_MISMATCH" -> {
                 // checkKey = deviceId|skuId；修复为批次合计（actual）

@@ -15,6 +15,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -67,8 +68,10 @@ class DataConsistencyServiceTest {
     }
 
     @Test
-    void checkPaymentConsistency_onlyCompletedChargeTypes() {
+    void checkPaymentConsistency_usesNetPaidAgainstOrder() {
         when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
 
         service.checkPaymentConsistency();
 
@@ -78,6 +81,29 @@ class DataConsistencyServiceTest {
         assertTrue(sql.contains("COMPLETED"));
         assertTrue(sql.contains("CHARGE"));
         assertTrue(sql.contains("ADJUST_CHARGE"));
+        assertTrue(sql.contains("REFUND"));
+        assertTrue(sql.contains("net_paid") || sql.contains("-po.amount_cents"));
+        assertTrue(sql.contains("REFUNDED"));
+    }
+
+    @Test
+    void resolveStaleFailures_marksMissingKeysFixed() {
+        DataConsistencyRecord stale = new DataConsistencyRecord();
+        stale.setId(1793L);
+        stale.setCheckType("PAYMENT_AMOUNT");
+        stale.setCheckKey("OLD-ORDER");
+        stale.setStatus(DataConsistencyService.STATUS_FAIL);
+
+        when(consistencyRepository.findByCheckTypeAndStatus(
+                "PAYMENT_AMOUNT", DataConsistencyService.STATUS_FAIL))
+                .thenReturn(List.of(stale));
+
+        service.resolveStaleFailures("PAYMENT_AMOUNT", Set.of("OTHER"));
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository).save(captor.capture());
+        assertEquals(DataConsistencyService.STATUS_FIXED, captor.getValue().getStatus());
+        assertNotNull(captor.getValue().getFixedAt());
     }
 
     @Test
@@ -87,6 +113,8 @@ class DataConsistencyServiceTest {
         ));
         when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
                 anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
 
         service.checkOrderConsistency();
 
@@ -99,24 +127,58 @@ class DataConsistencyServiceTest {
     }
 
     @Test
-    void fixInconsistency_updatesOrderAmountAndMarksFixed() {
+    void fixInconsistency_whenPaidMatchesHeader_alignsSingleLine() {
         DataConsistencyRecord record = new DataConsistencyRecord();
         record.setId(3L);
         record.setCheckType("ORDER_AMOUNT");
         record.setCheckKey("O-FIX");
-        record.setActualValue("120");
+        record.setExpectedValue("150");
+        record.setActualValue("350");
         record.setStatus(DataConsistencyService.STATUS_FAIL);
 
         when(consistencyRepository.findById(3L)).thenReturn(java.util.Optional.of(record));
-        when(jdbcTemplate.update(
-                eq("UPDATE cabinet_order SET total_amount_cents = CAST(? AS INT) WHERE order_id = ?"),
-                eq("120"),
-                eq("O-FIX"))).thenReturn(1);
+        when(jdbcTemplate.query(startsWith("SELECT total_amount_cents"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-FIX")))
+                .thenReturn(150);
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(CASE"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-FIX")))
+                .thenReturn(150);
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(line_amount_cents)"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-FIX")))
+                .thenReturn(350);
+        when(jdbcTemplate.query(startsWith("SELECT COUNT(*)"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-FIX")))
+                .thenReturn(1);
+        when(jdbcTemplate.update(startsWith("UPDATE cabinet_order_line"), any(), any(), any(), eq("O-FIX")))
+                .thenReturn(1);
 
         assertTrue(service.fixInconsistency(3L));
         assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
         assertNotNull(record.getFixedAt());
         verify(consistencyRepository).save(record);
+    }
+
+    @Test
+    void fixInconsistency_withoutPayment_updatesHeaderToLineSum() {
+        DataConsistencyRecord record = new DataConsistencyRecord();
+        record.setId(5L);
+        record.setCheckType("ORDER_AMOUNT");
+        record.setCheckKey("O-NOPAY");
+        record.setActualValue("120");
+        record.setStatus(DataConsistencyService.STATUS_FAIL);
+
+        when(consistencyRepository.findById(5L)).thenReturn(java.util.Optional.of(record));
+        when(jdbcTemplate.query(startsWith("SELECT total_amount_cents"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-NOPAY")))
+                .thenReturn(100);
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(CASE"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-NOPAY")))
+                .thenReturn(null);
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(line_amount_cents)"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-NOPAY")))
+                .thenReturn(120);
+        when(jdbcTemplate.query(startsWith("SELECT COUNT(*)"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-NOPAY")))
+                .thenReturn(1);
+        when(jdbcTemplate.update(
+                eq("UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?"),
+                eq(120),
+                eq("O-NOPAY"))).thenReturn(1);
+
+        assertTrue(service.fixInconsistency(5L));
+        assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
     }
 
     @Test

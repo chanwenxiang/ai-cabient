@@ -109,9 +109,27 @@ public class RestockSnapshotService {
                 int book = bookBySlot.getOrDefault(primary.slotCode(), 0);
                 physical.put(primary.slotCode(), Math.max(0, book + netDelta));
             } else {
-                for (DeviceSlotService.SlotBookView slot : slots) {
+                int remaining = -netDelta;
+                List<DeviceSlotService.SlotBookView> ordered = slots.stream()
+                        .sorted((a, b) -> Integer.compare(
+                                bookBySlot.getOrDefault(b.slotCode(), 0),
+                                bookBySlot.getOrDefault(a.slotCode(), 0)))
+                        .toList();
+                for (DeviceSlotService.SlotBookView slot : ordered) {
                     int book = bookBySlot.getOrDefault(slot.slotCode(), 0);
-                    physical.put(slot.slotCode(), Math.max(0, book + netDelta));
+                    if (remaining <= 0) {
+                        physical.putIfAbsent(slot.slotCode(), book);
+                        continue;
+                    }
+                    int take = ordered.size() == 1 || book <= 0
+                            ? remaining
+                            : Math.min(book, remaining);
+                    physical.put(slot.slotCode(), Math.max(0, book - take));
+                    remaining -= take;
+                }
+                if (remaining > 0 && !ordered.isEmpty()) {
+                    String code = ordered.get(0).slotCode();
+                    physical.put(code, Math.max(0, physical.getOrDefault(code, 0) - remaining));
                 }
             }
         }

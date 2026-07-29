@@ -488,24 +488,12 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public PageResult<MerchantOrderSummaryDto> listOrders(Long userId, int page, int size, String deviceId) {
-        permissionService.requirePermission(userId, "merchant:orders:list");
-        merchantPortalGuard.requireAccess(userId);
-        Pageable pageable = PageRequest.of(page, Math.min(size, 100));
-        Page<CabinetOrder> result = queryOrders(userId, deviceId, pageable);
-        return new PageResult<>(
-                result.getContent().stream().map(this::toMerchantOrderSummary).toList(),
-                result.getNumber(), result.getSize(), result.getTotalElements()
-        );
+        return merchantFinanceService.listOrders(userId, page, size, deviceId);
     }
 
     @Transactional(readOnly = true)
     public OrderDto getOrder(Long userId, String orderId) {
-        permissionService.requirePermission(userId, "merchant:orders:list");
-        merchantPortalGuard.requireAccess(userId);
-        CabinetOrder order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        merchantFeaturePackService.requireDevicePack(userId, order.getDeviceId(), MerchantFeaturePacks.BIZ);
-        return settlementService.getOrderBySession(order.getSessionId());
+        return merchantFinanceService.getOrder(userId, orderId);
     }
 
     @Transactional(readOnly = true)
@@ -763,21 +751,7 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public byte[] exportOrdersCsv(Long userId, String deviceId) {
-        permissionService.requirePermission(userId, "merchant:reports:export");
-        merchantPortalGuard.requireAccess(userId);
-        Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<CabinetOrder> page = queryOrders(userId, deviceId, pageable);
-        StringBuilder sb = new StringBuilder("orderId,sessionId,deviceId,totalAmountCents,status,lineCount,createdAt\n");
-        for (CabinetOrder o : page.getContent()) {
-            sb.append(csv(o.getOrderId())).append(',')
-                    .append(csv(o.getSessionId())).append(',')
-                    .append(csv(o.getDeviceId())).append(',')
-                    .append(o.getTotalAmountCents()).append(',')
-                    .append(csv(o.getStatus())).append(',')
-                    .append(o.getLines().size()).append(',')
-                    .append(csv(String.valueOf(o.getCreatedAt()))).append('\n');
-        }
-        return sb.toString().getBytes(StandardCharsets.UTF_8);
+        return merchantFinanceService.exportOrdersCsv(userId, deviceId);
     }
 
     @Transactional(readOnly = true)
@@ -964,23 +938,6 @@ public class MerchantPortalService {
                 .toList();
     }
 
-    private Page<CabinetOrder> queryOrders(Long userId, String deviceId, Pageable pageable) {
-        Collection<String> deviceScope = merchantFeaturePackService.intersectDeviceFilterForPack(
-                userId, deviceId, MerchantFeaturePacks.BIZ);
-        if (deviceScope != null && deviceScope.isEmpty()) {
-            return Page.empty(pageable);
-        }
-        if (deviceId != null && !deviceId.isBlank()) {
-            merchantFeaturePackService.requireDevicePack(
-                    userId, deviceId.trim(), MerchantFeaturePacks.BIZ);
-            return orderRepository.findByDeviceIdOrderByCreatedAtDesc(deviceId.trim(), pageable);
-        }
-        if (deviceScope != null) {
-            return orderRepository.findByDeviceIdInOrderByCreatedAtDesc(deviceScope, pageable);
-        }
-        return orderRepository.findAllByOrderByCreatedAtDesc(pageable);
-    }
-
     private MerchantDto toMerchantDto(Merchant m, long deviceCount) {
         return new MerchantDto(
                 m.getMerchantId(), m.getMerchantName(), m.getContactPhone(),
@@ -1081,13 +1038,6 @@ public class MerchantPortalService {
             return false;
         }
         return Math.abs(d.getCurrentTempC() - d.getTargetTempC()) > 3;
-    }
-
-    private MerchantOrderSummaryDto toMerchantOrderSummary(CabinetOrder o) {
-        return new MerchantOrderSummaryDto(
-                o.getOrderId(), o.getSessionId(), o.getDeviceId(),
-                o.getTotalAmountCents(), o.getStatus(), o.getLines().size(), o.getCreatedAt()
-        );
     }
 
     private MerchantDisputeSummaryDto toMerchantDisputeSummary(DisputeTicket ticket) {

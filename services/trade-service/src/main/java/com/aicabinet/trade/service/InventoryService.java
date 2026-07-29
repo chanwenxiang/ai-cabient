@@ -82,6 +82,7 @@ public class InventoryService {
         }
         Map<String, String> batchBySku = new HashMap<>();
         Map<String, Integer> slotQtySold = new HashMap<>();
+        Map<String, Integer> skuQtySold = new HashMap<>();
         if (items == null || items.isEmpty()) {
             return batchBySku;
         }
@@ -89,6 +90,7 @@ public class InventoryService {
             if (item.quantity() <= 0) {
                 continue;
             }
+            skuQtySold.merge(item.skuId(), item.quantity(), Integer::sum);
             if (inventoryLotService.hasSellableLots(deviceId, item.skuId())) {
                 InventoryLotService.FefoDeductResult result = inventoryLotService.deductFefo(
                         deviceId, item.skuId(), item.quantity(), "ORDER", refId);
@@ -98,7 +100,11 @@ public class InventoryService {
                 applyDelta(deviceId, item.skuId(), -item.quantity());
             }
         }
-        deviceSlotService.applyPhysicalAfterSale(deviceId, slotQtySold, refId);
+        if (!slotQtySold.isEmpty()) {
+            deviceSlotService.applyPhysicalAfterSale(deviceId, slotQtySold, refId);
+        } else {
+            deviceSlotService.applyPhysicalAfterSkuSale(deviceId, skuQtySold, refId);
+        }
         return batchBySku;
     }
 
@@ -128,19 +134,33 @@ public class InventoryService {
         if (items == null || items.isEmpty()) {
             return;
         }
+        Map<String, Integer> slotQtyRestored = new HashMap<>();
+        Map<String, Integer> skuQtyRestored = new HashMap<>();
         for (VisionServiceClient.RecognizedItem item : items) {
             if (item.quantity() <= 0) {
                 continue;
             }
+            skuQtyRestored.merge(item.skuId(), item.quantity(), Integer::sum);
             String batch = batchBySku != null ? batchBySku.get(item.skuId()) : null;
+            String slotId;
             if (batch != null && !batch.isBlank()) {
-                inventoryLotService.restoreToBatch(deviceId, item.skuId(), batch, item.quantity(), "ORDER", null);
+                slotId = inventoryLotService.restoreToBatch(
+                        deviceId, item.skuId(), batch, item.quantity(), "ORDER", null);
             } else if (inventoryLotService.hasSellableLots(deviceId, item.skuId())) {
-                inventoryLotService.restoreToBatch(deviceId, item.skuId(),
+                slotId = inventoryLotService.restoreToBatch(deviceId, item.skuId(),
                         "ADJ-" + item.skuId(), item.quantity(), "ORDER", null);
             } else {
                 applyDelta(deviceId, item.skuId(), item.quantity());
+                slotId = null;
             }
+            if (slotId != null && !slotId.isBlank()) {
+                slotQtyRestored.merge(slotId.trim().toUpperCase(), item.quantity(), Integer::sum);
+            }
+        }
+        if (!slotQtyRestored.isEmpty()) {
+            deviceSlotService.applyPhysicalAfterRestore(deviceId, slotQtyRestored, "REFUND");
+        } else {
+            deviceSlotService.applyPhysicalAfterSkuRestore(deviceId, skuQtyRestored, "REFUND");
         }
     }
 
@@ -148,6 +168,14 @@ public class InventoryService {
     public void adjustForOrder(String deviceId,
                                List<VisionServiceClient.RecognizedItem> oldItems,
                                List<VisionServiceClient.RecognizedItem> newItems) {
+        adjustForOrder(deviceId, oldItems, newItems, Map.of());
+    }
+
+    @Transactional
+    public void adjustForOrder(String deviceId,
+                               List<VisionServiceClient.RecognizedItem> oldItems,
+                               List<VisionServiceClient.RecognizedItem> newItems,
+                               Map<String, String> batchBySku) {
         Map<String, Integer> oldQty = toQtyMap(oldItems);
         Map<String, Integer> newQty = toQtyMap(newItems);
         for (String skuId : unionKeys(oldQty, newQty)) {
@@ -158,8 +186,15 @@ public class InventoryService {
             if (delta > 0) {
                 deductForOrder(deviceId, List.of(new VisionServiceClient.RecognizedItem(skuId, delta, 1f)));
             } else {
+                Map<String, String> restoreBatch = Map.of();
+                if (batchBySku != null) {
+                    String batch = batchBySku.get(skuId);
+                    if (batch != null && !batch.isBlank()) {
+                        restoreBatch = Map.of(skuId, batch);
+                    }
+                }
                 restoreForOrder(deviceId,
-                        List.of(new VisionServiceClient.RecognizedItem(skuId, -delta, 1f)), Map.of());
+                        List.of(new VisionServiceClient.RecognizedItem(skuId, -delta, 1f)), restoreBatch);
             }
         }
     }
