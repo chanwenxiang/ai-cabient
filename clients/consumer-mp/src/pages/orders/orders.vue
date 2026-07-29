@@ -75,7 +75,13 @@
         </scroll-view>
       </view>
 
-      <scroll-view scroll-y class="list" :show-scrollbar="false">
+      <scroll-view
+        scroll-y
+        class="list"
+        :show-scrollbar="false"
+        lower-threshold="120"
+        @scrolltolower="loadMore"
+      >
         <view v-for="o in visibleOrders" :key="o.orderId" class="order-card" @click="goDetail(o)">
           <view class="order-top">
             <view class="order-meta">
@@ -101,6 +107,9 @@
           <text class="empty-title">当前筛选暂无订单</text>
           <text class="empty-desc">可切换时间或状态再试</text>
         </view>
+        <view v-if="loadingMore" class="load-more">加载中…</view>
+        <view v-else-if="hasMore && orders.length" class="load-more hint" @click="loadMore">上拉加载更多</view>
+        <view v-else-if="orders.length && !hasMore" class="load-more hint">没有更多了</view>
         <view class="list-foot">
           <view class="foot-actions">
             <text class="foot-btn" @click="goReport">故障报修</text>
@@ -123,10 +132,14 @@ import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import type { DisputeTicketDto, OrderSummary } from '@aicabinet/shared-types';
 
 const loading = ref(true);
+const loadingMore = ref(false);
 const error = ref('');
 const authed = ref(false);
 const orders = ref<OrderSummary[]>([]);
 const disputes = ref<DisputeTicketDto[]>([]);
+const pageIndex = ref(0);
+const hasMore = ref(false);
+const PAGE_SIZE = 20;
 const filter = ref<'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelled'>('all');
 type TimeRange = 'all' | 'today' | '7d' | '30d';
 const timeRange = ref<TimeRange>('all');
@@ -261,6 +274,8 @@ async function onAuth() {
 async function load() {
   loading.value = true;
   error.value = '';
+  pageIndex.value = 0;
+  hasMore.value = false;
   await ensureConsumerAuth();
   authed.value = !!getConsumerToken();
   if (!authed.value) {
@@ -269,10 +284,13 @@ async function load() {
   }
   try {
     const [page, mine] = await Promise.all([
-      consumerApi.listOrders(0, 100),
+      consumerApi.listOrders(0, PAGE_SIZE),
       consumerApi.listMyDisputes()
     ]);
     orders.value = page.items || [];
+    const total = Number(page.total ?? 0);
+    hasMore.value = orders.value.length < total;
+    pageIndex.value = 0;
     disputes.value = mine || [];
     const lastSid = String(uni.getStorageSync('last_disputed_session_id') || '');
     if (lastSid) {
@@ -288,6 +306,30 @@ async function load() {
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadMore() {
+  if (!authed.value || loading.value || loadingMore.value || !hasMore.value) return;
+  loadingMore.value = true;
+  try {
+    const nextPage = pageIndex.value + 1;
+    const page = await consumerApi.listOrders(nextPage, PAGE_SIZE);
+    const items = page.items || [];
+    if (!items.length) {
+      hasMore.value = false;
+      return;
+    }
+    const seen = new Set(orders.value.map((o) => o.orderId));
+    const appended = items.filter((o) => o.orderId && !seen.has(o.orderId));
+    orders.value = orders.value.concat(appended);
+    pageIndex.value = nextPage;
+    const total = Number(page.total ?? 0);
+    hasMore.value = orders.value.length < total && items.length >= PAGE_SIZE;
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
+  } finally {
+    loadingMore.value = false;
   }
 }
 
@@ -558,6 +600,13 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .order-time { font-size: 22rpx; color: #a1aaa5; }
 .order-hint { font-size: 24rpx; color: #059669; font-weight: 600; }
+.load-more {
+  padding: 20rpx 0 8rpx;
+  text-align: center;
+  font-size: 24rpx;
+  color: #94a3b8;
+}
+.load-more.hint { color: #64748b; }
 .list-foot { padding: 28rpx 24rpx 60rpx; text-align: center; }
 .foot-link { font-size: 26rpx; color: #576b95; }
 .foot-actions { display: flex; gap: 20rpx; justify-content: center; flex-wrap: wrap; }
