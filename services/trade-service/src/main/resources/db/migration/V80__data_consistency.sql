@@ -1,23 +1,5 @@
-﻿-- V80: 数据一致性管理
-
-CREATE TABLE IF NOT EXISTS data_change_log (
-    id BIGSERIAL PRIMARY KEY,
-    table_name VARCHAR(64) NOT NULL,
-    record_id VARCHAR(64) NOT NULL,
-    operation VARCHAR(16) NOT NULL,
-    old_value JSONB,
-    new_value JSONB,
-    changed_by VARCHAR(64),
-    changed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    verified BOOLEAN NOT NULL DEFAULT FALSE,
-    verified_at TIMESTAMPTZ
-);
-
-CREATE INDEX IF NOT EXISTS idx_data_change_table ON data_change_log (table_name, record_id);
-CREATE INDEX IF NOT EXISTS idx_data_change_time ON data_change_log (changed_at);
-CREATE INDEX IF NOT EXISTS idx_data_change_verified ON data_change_log (verified) WHERE verified = FALSE;
-
-COMMENT ON TABLE data_change_log IS '数据变更日志表';
+﻿-- V80: 数据一致性检查记录
+-- data_change_log 已由 V73 创建（列名不同），此处不再重复建表。
 
 CREATE TABLE IF NOT EXISTS data_consistency_record (
     id BIGSERIAL PRIMARY KEY,
