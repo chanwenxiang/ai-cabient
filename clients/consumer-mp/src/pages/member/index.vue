@@ -16,7 +16,7 @@
           <view class="progress-fill" :style="{ width: progressWidth }" />
         </view>
         <text class="progress-text">
-          <text v-if="profile?.nextLevelName">距 {{ profile.nextLevelName }} 还差约 ¥{{ profile.pointsToNextLevel }} 消费 · 积分倍率 {{ profile.pointsRate }}x</text>
+          <text v-if="profile?.nextLevelName">距{{ profile.nextLevelName }}还差约 ¥{{ profile.pointsToNextLevel }} 消费 · 积分倍率 {{ profile.pointsRate }}x</text>
           <text v-else>已达最高等级 · 积分倍率 {{ profile?.pointsRate || 1 }}x</text>
         </text>
       </view>
@@ -222,16 +222,30 @@ function goMarketing() {
 .redeem-card {
   display: inline-flex;
   flex-direction: column;
-  width: 200rpx;
+  width: 248rpx;
   margin-right: 16rpx;
   padding: 22rpx 18rpx;
   border-radius: 20rpx;
   background: linear-gradient(180deg, #f0fdf4, #fff);
   border: 1rpx solid #d1fae5;
   vertical-align: top;
+  box-sizing: border-box;
 }
 .redeem-emoji { font-size: 40rpx; }
-.redeem-title { margin-top: 10rpx; font-size: 24rpx; font-weight: 650; color: #14532d; white-space: normal; }
+.redeem-title {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  font-weight: 650;
+  color: #14532d;
+  white-space: normal;
+  word-break: break-word;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.35;
+  min-height: 64rpx;
+}
 .redeem-cost { margin-top: 8rpx; font-size: 22rpx; color: #059669; font-weight: 700; }
 .redeem-empty {
   display: inline-flex;

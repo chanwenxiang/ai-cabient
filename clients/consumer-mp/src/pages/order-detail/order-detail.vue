@@ -18,7 +18,7 @@
         <text class="section-title">商品清单</text>
         <view v-for="item in (order?.lines || [])" :key="item.skuId" class="item-row">
           <view class="item-info">
-            <text class="item-name">{{ item.skuName }}</text>
+            <text class="item-name">{{ item.skuName || item.skuId || '商品' }}</text>
             <text class="item-qty">x{{ item.quantity }}</text>
           </view>
           <text class="item-price">¥{{ (item.lineAmountCents / 100).toFixed(2) }}</text>
@@ -206,7 +206,15 @@ async function reload() {
 }
 
 const statusIcon = computed(() => {
-  const map: Record<string, string> = { paid: '✓', refunded: '↩', disputed: '!', failed: '✕' };
+  const map: Record<string, string> = {
+    paid: '✓',
+    completed: '✓',
+    refunded: '↩',
+    partial_refunded: '↩',
+    disputed: '!',
+    failed: '✕',
+    cancelled: '—'
+  };
   return map[(order.value?.status || '').toLowerCase()] || '✓';
 });
 
@@ -215,13 +223,14 @@ const statusTitle = computed(() => {
     PAID: '交易完成',
     COMPLETED: '交易完成',
     REFUNDED: '已退款',
+    PARTIAL_REFUNDED: '部分退款',
     DISPUTED: '争议处理中',
     FAILED: '交易失败',
     CANCELLED: '已取消',
     PENDING: '处理中',
     PROCESSING: '处理中'
   };
-  return map[order.value?.status || ''] || '已完成';
+  return map[order.value?.status || ''] || '订单详情';
 });
 
 const canDispute = computed(() => {

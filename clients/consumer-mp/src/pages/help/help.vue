@@ -1,7 +1,6 @@
 <template>
   <view class="page">
     <view class="hero">
-      <text class="hero-title">帮助中心</text>
       <text class="hero-sub">常见问题与客服入口，快速解决购物疑问</text>
     </view>
 
@@ -130,18 +129,11 @@ function goOrders() {
   background: linear-gradient(180deg, #ecfdf5 0%, #f7f7f7 28%);
 }
 .hero {
-  padding: 12rpx 8rpx 28rpx;
-}
-.hero-title {
-  display: block;
-  font-size: 40rpx;
-  font-weight: 800;
-  color: #065f46;
+  padding: 8rpx 8rpx 20rpx;
 }
 .hero-sub {
   display: block;
-  margin-top: 8rpx;
-  font-size: 24rpx;
+  font-size: 26rpx;
   color: #6b7280;
   line-height: 1.5;
 }

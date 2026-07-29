@@ -197,8 +197,9 @@ function deviceDisplay(deviceId?: string) {
   if (!deviceId) return '智能柜';
   const lastId = uni.getStorageSync('last_device_id');
   const lastName = uni.getStorageSync('last_device_name');
-  if (lastId === deviceId && lastName) return lastName;
-  return deviceId === 'CAB-001' ? '测试柜-001' : '智能零售柜';
+  if (lastId === deviceId && lastName) return String(lastName);
+  // 无点位名时展示真实柜机编号，避免「测试柜」等硬编码演示文案
+  return deviceId;
 }
 function orderSummaryText(o: OrderSummary) {
   const n = o.lineCount || 0;
@@ -221,7 +222,7 @@ function chipClass(status?: string) {
   if (status === 'PAID' || status === 'COMPLETED') return 'paid';
   if (status === 'PENDING' || status === 'PROCESSING') return 'pending';
   if (status === 'DISPUTED' || status === 'FAILED') return 'disputed';
-  if (status === 'REFUNDED') return 'refunded';
+  if (status === 'REFUNDED' || status === 'PARTIAL_REFUNDED') return 'refunded';
   if (status === 'CANCELLED') return 'cancelled';
   return 'default';
 }

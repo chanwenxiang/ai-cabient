@@ -3,7 +3,7 @@
     <view v-if="loading" class="state"><text class="meta">加载中…</text></view>
     <view v-else-if="error" class="state">
       <text class="err">{{ error }}</text>
-      <button class="btn-primary" @click="reload">重试</button>
+      <button class="btn-primary" @click="bootstrap">重试</button>
     </view>
     <view v-else-if="ticket">
       <view class="hero" :class="'tone-' + copy.tone">
@@ -17,11 +17,11 @@
         <text class="reason">{{ copy.detail }}</text>
         <view v-if="ticket.deviceId" class="info-row">
           <text class="info-label">柜机</text>
-          <text class="info-value mono">{{ ticket.deviceId }}</text>
+          <text class="info-value">{{ ticket.deviceId }}</text>
         </view>
         <view class="info-row">
           <text class="info-label">购物单号</text>
-          <text class="info-value mono">{{ ticket.sessionId }}</text>
+          <text class="info-value mono">{{ shortId(ticket.sessionId) }}</text>
         </view>
         <view v-if="ticket.createdAt" class="info-row">
           <text class="info-label">提交时间</text>
@@ -72,9 +72,18 @@
       </view>
 
       <view class="actions">
-        <button v-if="ticket.orderId" class="btn-primary" @click="goOrder">查看账单订单</button>
-        <button class="btn-ghost" @click="goOrders">返回订单列表</button>
-        <button class="btn-ghost subtle" @click="contactOps">联系运营</button>
+        <button
+          v-if="ticket.orderId"
+          class="btn-primary"
+          hover-class="btn-hover"
+          @click="goOrder"
+        >查看账单订单</button>
+        <button
+          :class="ticket.orderId ? 'btn-ghost' : 'btn-primary'"
+          hover-class="btn-hover"
+          @click="goOrders"
+        >返回订单列表</button>
+        <text class="contact-link" @click="contactOps">联系客服 {{ servicePhone }}</text>
       </view>
     </view>
   </view>
@@ -230,6 +239,11 @@ function fmtLine(line: OrderLineDto) {
   return fmtMoney(cents);
 }
 
+function shortId(id?: string) {
+  if (!id) return '-';
+  return id.length > 14 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
+}
+
 function formatTime(v?: string) {
   return formatDateTimeMinute(v);
 }
@@ -311,12 +325,19 @@ function previewEvidence(url?: string) {
 }
 .bill-label { font-size: 28rpx; color: #64748b; }
 .bill-amount { font-size: 40rpx; font-weight: 800; color: #047857; }
-.actions { padding: 28rpx 24rpx; display: flex; flex-direction: column; gap: 16rpx; }
+.actions { padding: 28rpx 24rpx 8rpx; display: flex; flex-direction: column; gap: 16rpx; }
 .btn-primary, .btn-ghost {
   margin: 0; height: 88rpx; line-height: 88rpx; border-radius: 44rpx; font-size: 30rpx;
 }
 .btn-primary { background: linear-gradient(135deg, #059669, #0d9488); color: #fff; font-weight: 700; }
 .btn-primary::after, .btn-ghost::after { border: none; }
-.btn-ghost { background: #fff; color: #53645b; border: 1rpx solid #e4ebe7; }
-.btn-ghost.subtle { color: #94a3b8; }
+.btn-ghost { background: #fff; color: #334155; border: 1rpx solid #e2e8f0; }
+.btn-hover { opacity: 0.88; }
+.contact-link {
+  display: block;
+  text-align: center;
+  padding: 12rpx 0 8rpx;
+  font-size: 26rpx;
+  color: #64748b;
+}
 </style>
