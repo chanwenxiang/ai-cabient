@@ -35,26 +35,26 @@
 
     <view class="quick-grid">
       <view class="quick-item" @click="goOrders">
-        <text class="quick-icon">📋</text>
+        <text class="quick-icon">订</text>
         <text class="quick-label">订单</text>
       </view>
       <view class="quick-item" @click="goCoupons">
-        <text class="quick-icon">🎫</text>
+        <text class="quick-icon">券</text>
         <text class="quick-label">优惠券</text>
       </view>
       <view class="quick-item" @click="goMember">
-        <text class="quick-icon">👑</text>
+        <text class="quick-icon">会</text>
         <text class="quick-label">会员</text>
       </view>
       <view class="quick-item" @click="goRecharge">
-        <text class="quick-icon">💰</text>
+        <text class="quick-icon">充</text>
         <text class="quick-label">充值</text>
       </view>
     </view>
 
     <view class="menu-list">
       <view class="menu-cell" @click="goIndex">
-        <text class="menu-icon">🛒</text>
+        <text class="menu-icon">购</text>
         <view class="menu-text">
           <text class="menu-title">开门购物</text>
           <text class="menu-desc">扫码开门，取货即走</text>
@@ -62,7 +62,7 @@
         <text class="menu-arrow">›</text>
       </view>
       <view class="menu-cell" @click="goMarketing">
-        <text class="menu-icon">🔥</text>
+        <text class="menu-icon">热</text>
         <view class="menu-text">
           <text class="menu-title">热门活动</text>
           <text class="menu-desc">满减 · 新客礼 · 积分兑好礼</text>
@@ -70,7 +70,7 @@
         <text class="menu-arrow">›</text>
       </view>
       <view v-if="authed" class="menu-cell" @click="toggleTransactions">
-        <text class="menu-icon">💳</text>
+        <text class="menu-icon">余</text>
         <view class="menu-text">
           <text class="menu-title">余额明细</text>
           <text class="menu-desc">购物扣款、退款与充值记录</text>
@@ -94,7 +94,7 @@
         </view>
       </view>
       <view class="menu-cell" @click="goHelp">
-        <text class="menu-icon">❓</text>
+        <text class="menu-icon">助</text>
         <view class="menu-text">
           <text class="menu-title">帮助与客服</text>
           <text class="menu-desc">常见问题、热线与账单申诉说明</text>
@@ -102,7 +102,7 @@
         <text class="menu-arrow">›</text>
       </view>
       <view class="menu-cell" @click="goReport">
-        <text class="menu-icon">🔧</text>
+        <text class="menu-icon">修</text>
         <view class="menu-text">
           <text class="menu-title">故障报修</text>
           <text class="menu-desc">打不开门、关不上门等</text>
@@ -110,7 +110,7 @@
         <text class="menu-arrow">›</text>
       </view>
       <view class="menu-cell" @click="goFeedback">
-        <text class="menu-icon">💬</text>
+        <text class="menu-icon">馈</text>
         <view class="menu-text">
           <text class="menu-title">意见反馈</text>
           <text class="menu-desc">投诉、建议或表扬</text>
@@ -128,7 +128,7 @@
         :class="{ disabled: rechargeLoading }"
         @click="onWeChatRecharge"
       >
-        <text class="menu-icon">💚</text>
+        <text class="menu-icon">微</text>
         <view class="menu-text">
           <text class="menu-title">{{ wechatPayLive ? '微信支付充值' : '微信模拟充值' }}</text>
           <text class="menu-desc">{{ wechatPayLive ? '调起真实微信支付' : 'mock 预下单即时到账 ¥20' }}</text>
@@ -141,7 +141,7 @@
         :class="{ disabled: rechargeLoading }"
         @click="onAlipayRecharge"
       >
-        <text class="menu-icon">💙</text>
+        <text class="menu-icon">支</text>
         <view class="menu-text">
           <text class="menu-title">{{ mockRechargeEnabled ? '支付宝模拟充值' : '支付宝沙箱充值' }}</text>
           <text class="menu-desc">{{ mockRechargeEnabled ? 'mock 预下单即时到账 ¥20（无需进件）' : '跳转沙箱收银台充 ¥20' }}</text>
@@ -154,7 +154,7 @@
         :class="{ disabled: rechargeLoading }"
         @click="onMockRecharge"
       >
-        <text class="menu-icon">🧪</text>
+        <text class="menu-icon">模</text>
         <view class="menu-text">
           <text class="menu-title">模拟充值</text>
           <text class="menu-desc">本地发放余额，不真实扣款</text>
@@ -162,7 +162,7 @@
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
       </view>
       <view class="menu-cell" @click="goLogin">
-        <text class="menu-icon">📱</text>
+        <text class="menu-icon">号</text>
         <view class="menu-text">
           <text class="menu-title">手机号验证（兜底）</text>
           <text class="menu-desc">短信 / 密码登录</text>
@@ -173,7 +173,7 @@
 
     <view v-if="authed" class="menu-list logout-wrap">
       <view class="menu-cell danger-cell" @click="onLogout">
-        <text class="menu-icon">🚪</text>
+        <text class="menu-icon">出</text>
         <view class="menu-text">
           <text class="menu-title danger">退出登录</text>
         </view>
@@ -574,7 +574,9 @@ function onLogout() {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 34rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #059669;
 }
 .quick-label { font-size: 24rpx; color: #223029; font-weight: 500; }
 
@@ -604,7 +606,9 @@ function onLogout() {
   justify-content: center;
   border-radius: 19rpx;
   background: #f0fdf4;
-  font-size: 34rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #059669;
 }
 .menu-text { flex: 1; min-width: 0; }
 .menu-title { font-size: 28rpx; font-weight: 650; color: #223029; display: block; }
@@ -619,7 +623,7 @@ function onLogout() {
 .menu-arrow { color: #ccc; font-size: 36rpx; }
 .danger { color: #fa5151; }
 .danger-cell { background: #fffafa; }
-.danger-cell .menu-icon { background: #fff1f0; }
+.danger-cell .menu-icon { background: #fff1f0; color: #ef4444; }
 .transaction-list {
   background: #fff;
   border-radius: 22rpx;

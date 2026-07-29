@@ -8,7 +8,7 @@
 
     <view v-if="loading" class="loading"><text>加载中…</text></view>
     <view v-else-if="loadError" class="empty-card">
-      <text class="empty-icon">⚠️</text>
+      <text class="empty-icon">!</text>
       <text class="empty-text">优惠券加载失败</text>
       <text class="empty-hint">{{ loadError }}</text>
       <view class="empty-actions">
@@ -16,7 +16,7 @@
       </view>
     </view>
     <view v-else-if="!list.length" class="empty-card">
-      <text class="empty-icon">🎫</text>
+      <text class="empty-icon">券</text>
       <text class="empty-text">{{ emptyTitle }}</text>
       <text class="empty-hint">{{ emptyHint }}</text>
       <view class="empty-actions">
@@ -119,7 +119,18 @@ function goMarketing() {
 .tab { flex: 1; text-align: center; padding: 20rpx 0; font-size: 26rpx; color: #666; }
 .tab.active { color: #07c160; font-weight: 600; border-bottom: 4rpx solid #07c160; }
 .loading, .empty-card { text-align: center; padding: 80rpx 0; }
-.empty-icon { font-size: 80rpx; display: block; margin-bottom: 16rpx; }
+.empty-icon {
+  width: 88rpx;
+  height: 88rpx;
+  margin: 0 auto 16rpx;
+  border-radius: 24rpx;
+  background: #f0fdf4;
+  color: #059669;
+  font-size: 36rpx;
+  font-weight: 700;
+  line-height: 88rpx;
+  display: block;
+}
 .empty-text { font-size: 30rpx; font-weight: 700; color: #223029; display: block; }
 .empty-hint { font-size: 24rpx; color: #849087; margin-top: 8rpx; display: block; padding: 0 40rpx; line-height: 1.5; }
 .empty-actions { display: flex; flex-direction: column; align-items: center; gap: 16rpx; margin-top: 32rpx; }

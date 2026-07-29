@@ -24,22 +24,22 @@
 
     <view class="quick-grid">
       <view class="quick" @click="goExchange">
-        <text class="quick-emoji">🎁</text>
+        <text class="quick-mark">礼</text>
         <text class="quick-title">积分兑换</text>
         <text class="quick-desc">兑优惠券</text>
       </view>
       <view class="quick" @click="goHistory">
-        <text class="quick-emoji">📒</text>
+        <text class="quick-mark">明</text>
         <text class="quick-title">积分明细</text>
         <text class="quick-desc">收支一览</text>
       </view>
       <view class="quick" @click="goCoupons">
-        <text class="quick-emoji">🎫</text>
+        <text class="quick-mark">券</text>
         <text class="quick-title">我的券</text>
         <text class="quick-desc">{{ couponCount }} 张可用</text>
       </view>
       <view class="quick" @click="goMarketing">
-        <text class="quick-emoji">🔥</text>
+        <text class="quick-mark">热</text>
         <text class="quick-title">热门活动</text>
         <text class="quick-desc">本周上新</text>
       </view>
@@ -52,7 +52,7 @@
       </view>
       <scroll-view scroll-x class="redeem-scroll" :show-scrollbar="false">
         <view v-for="item in redeemPreview" :key="item.itemId" class="redeem-card" @click="goExchange">
-          <text class="redeem-emoji">{{ item.coverEmoji }}</text>
+          <text class="redeem-mark">{{ uiGlyph(item.coverEmoji, '礼') }}</text>
           <text class="redeem-title">{{ item.title }}</text>
           <text class="redeem-cost">{{ item.pointsCost }} 积分</text>
         </view>
@@ -68,7 +68,7 @@
       <text class="section-title">会员权益</text>
       <view class="benefit-list">
         <view v-for="b in benefits" :key="b.title" class="benefit-row">
-          <text class="benefit-emoji">{{ b.emoji }}</text>
+          <text class="benefit-mark">{{ b.mark }}</text>
           <view class="benefit-copy">
             <text class="benefit-title">{{ b.title }}</text>
             <text class="benefit-desc">{{ b.desc }}</text>
@@ -99,6 +99,7 @@ import {
   type MemberProfileDto,
   type PointsRedeemItemDto
 } from '@/utils/consumer-api';
+import { uiGlyph } from '@/utils/ui-glyph';
 
 const profile = ref<MemberProfileDto | null>(null);
 const redeemPreview = ref<PointsRedeemItemDto[]>([]);
@@ -110,9 +111,9 @@ const progressWidth = computed(() => `${Math.min(100, Math.max(0, profile.value?
 const benefits = computed(() => {
   const rate = profile.value?.pointsRate || 1;
   return [
-    { emoji: '⭐', title: '购物返积分', desc: `当前 ${rate}x，关门结算自动到账` },
-    { emoji: '🎁', title: '积分兑券', desc: '100 积分起兑立减券，开门立减' },
-    { emoji: '🧊', title: '活动优先', desc: '会员专享满减与新客礼，活动页直达' }
+    { mark: '积', title: '购物返积分', desc: `当前 ${rate}x，关门结算自动到账` },
+    { mark: '券', title: '积分兑券', desc: '100 积分起兑立减券，开门立减' },
+    { mark: '优', title: '活动优先', desc: '会员专享满减与新客礼，活动页直达' }
   ];
 });
 
@@ -204,7 +205,19 @@ function goMarketing() {
   text-align: center;
   box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.05);
 }
-.quick-emoji { display: block; font-size: 34rpx; }
+.quick-mark {
+  display: inline-flex;
+  width: 56rpx;
+  height: 56rpx;
+  margin: 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16rpx;
+  background: #f0fdf4;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #059669;
+}
 .quick-title { display: block; margin-top: 8rpx; font-size: 24rpx; font-weight: 650; color: #1f2a24; }
 .quick-desc { display: block; margin-top: 4rpx; font-size: 20rpx; color: #8a968e; }
 
@@ -231,7 +244,19 @@ function goMarketing() {
   vertical-align: top;
   box-sizing: border-box;
 }
-.redeem-emoji { font-size: 40rpx; }
+.redeem-mark {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 16rpx;
+  background: #fff;
+  border: 1rpx solid #d1fae5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #059669;
+}
 .redeem-title {
   margin-top: 10rpx;
   font-size: 24rpx;
@@ -263,7 +288,19 @@ function goMarketing() {
 
 .benefit-row { display: flex; gap: 18rpx; padding: 18rpx 0; border-bottom: 1rpx solid #f0f2f1; }
 .benefit-row:last-child { border-bottom: 0; }
-.benefit-emoji { font-size: 34rpx; }
+.benefit-mark {
+  width: 56rpx;
+  height: 56rpx;
+  flex-shrink: 0;
+  border-radius: 16rpx;
+  background: #f0fdf4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #059669;
+}
 .benefit-title { display: block; font-size: 28rpx; font-weight: 650; color: #223029; }
 .benefit-desc { display: block; margin-top: 6rpx; font-size: 22rpx; color: #849087; }
 

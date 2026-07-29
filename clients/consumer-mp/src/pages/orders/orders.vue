@@ -59,7 +59,7 @@
               class="filter-chip"
               :class="{ active: filter === f.value }"
               @click="filter = f.value"
-            >{{ f.label }} {{ countBy(f.value) }}</text>
+            >{{ f.label }}{{ filterCountSuffix(f.value) }}</text>
           </view>
         </scroll-view>
         <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false">
@@ -139,6 +139,7 @@ const orders = ref<OrderSummary[]>([]);
 const disputes = ref<DisputeTicketDto[]>([]);
 const pageIndex = ref(0);
 const hasMore = ref(false);
+const ordersTotal = ref(0);
 const PAGE_SIZE = 20;
 const filter = ref<'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelled'>('all');
 type TimeRange = 'all' | 'today' | '7d' | '30d';
@@ -201,6 +202,17 @@ function countBy(value: 'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'can
   return orders.value.filter(
     (order) => matchesFilter(order, value) && matchesTimeRange(order.createdAt, timeRange.value)
   ).length;
+}
+
+/** Avoid showing partial page counts as if they were globals while more pages remain. */
+function filterCountSuffix(value: 'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelled') {
+  if (hasMore.value) {
+    if (value === 'all' && timeRange.value === 'all' && ordersTotal.value > 0) {
+      return ` ${ordersTotal.value}`;
+    }
+    return '';
+  }
+  return ` ${countBy(value)}`;
 }
 function shortId(id?: string) {
   if (!id) return '-';
@@ -276,6 +288,7 @@ async function load() {
   error.value = '';
   pageIndex.value = 0;
   hasMore.value = false;
+  ordersTotal.value = 0;
   await ensureConsumerAuth();
   authed.value = !!getConsumerToken();
   if (!authed.value) {
@@ -289,6 +302,7 @@ async function load() {
     ]);
     orders.value = page.items || [];
     const total = Number(page.total ?? 0);
+    ordersTotal.value = total;
     hasMore.value = orders.value.length < total;
     pageIndex.value = 0;
     disputes.value = mine || [];

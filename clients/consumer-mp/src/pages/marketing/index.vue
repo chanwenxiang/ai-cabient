@@ -8,7 +8,7 @@
             <text class="banner-sub">{{ b.subtitle }}</text>
             <text class="banner-cta">立即查看 ›</text>
           </view>
-          <text class="banner-emoji">{{ b.emoji }}</text>
+          <text class="banner-mark">{{ uiGlyph(b.emoji, '惠') }}</text>
         </view>
       </swiper-item>
     </swiper>
@@ -29,11 +29,11 @@
       <text class="entry-arrow">›</text>
     </view>
 
-    <view class="section-title">热门活动</view>
+    <view class="section-title">进行中</view>
     <view v-if="loading" class="empty">加载中…</view>
     <empty-state
       v-else-if="!campaigns.length"
-      icon="🔥"
+      icon="热"
       title="暂无进行中活动"
       hint="可先去积分兑券，或扫码开门购物"
     >
@@ -42,7 +42,7 @@
     </empty-state>
     <view v-else>
       <view v-for="c in campaigns" :key="c.id" class="campaign" @click="onCampaignClick(c)">
-        <view class="campaign-badge" :class="'tone-' + c.coverColor">{{ c.coverEmoji }} {{ c.typeLabel }}</view>
+        <view class="campaign-badge" :class="'tone-' + c.coverColor">{{ c.typeLabel }}</view>
         <text class="campaign-title">{{ c.title }}</text>
         <text class="campaign-desc">{{ c.description }}</text>
         <view class="campaign-foot">
@@ -66,6 +66,7 @@ import {
   type MarketingBannerDto,
   type MarketingCampaignDto
 } from '@/utils/consumer-api';
+import { uiGlyph } from '@/utils/ui-glyph';
 
 const banners = ref<MarketingBannerDto[]>([]);
 const campaigns = ref<MarketingCampaignDto[]>([]);
@@ -95,7 +96,7 @@ async function load() {
       title: '积分兑好礼',
       subtitle: '100 积分起兑优惠券',
       tone: 'mint',
-      emoji: '⭐',
+      emoji: '积',
       ctaPath: '/pages/member/exchange'
     }];
     campaigns.value = c || [];
@@ -203,7 +204,19 @@ function formatRange(start?: string, end?: string) {
 .banner-title { display: block; font-size: 40rpx; font-weight: 800; }
 .banner-sub { display: block; margin-top: 10rpx; font-size: 24rpx; opacity: 0.9; max-width: 420rpx; }
 .banner-cta { display: inline-block; margin-top: 22rpx; padding: 8rpx 18rpx; border-radius: 999rpx; background: rgba(255,255,255,0.2); font-size: 22rpx; }
-.banner-emoji { font-size: 88rpx; opacity: 0.9; }
+.banner-mark {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 28rpx;
+  background: rgba(255, 255, 255, 0.18);
+  border: 2rpx solid rgba(255, 255, 255, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40rpx;
+  font-weight: 800;
+  color: #fff;
+}
 
 .entry {
   display: flex;

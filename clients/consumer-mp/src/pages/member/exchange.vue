@@ -9,7 +9,7 @@
     <view v-if="loading" class="empty">加载中…</view>
     <empty-state
       v-else-if="!items.length"
-      icon="🎁"
+      icon="礼"
       title="暂无可兑好礼"
       hint="购物结算会自动返积分，攒够后再来兑券"
     >
@@ -19,7 +19,7 @@
     <view v-else class="grid">
       <view v-for="item in items" :key="item.itemId" class="card">
         <view class="card-top">
-          <text class="emoji">{{ item.coverEmoji }}</text>
+          <text class="mark">{{ uiGlyph(item.coverEmoji, '礼') }}</text>
           <text class="stock">余 {{ item.stockLeft }}</text>
         </view>
         <text class="title">{{ item.title }}</text>
@@ -56,6 +56,7 @@ import {
   ensureConsumerAuth,
   type PointsRedeemItemDto
 } from '@/utils/consumer-api';
+import { uiGlyph } from '@/utils/ui-glyph';
 
 const items = ref<PointsRedeemItemDto[]>([]);
 const available = ref(0);
@@ -142,7 +143,18 @@ function goShop() {
   box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.05);
 }
 .card-top { display: flex; justify-content: space-between; align-items: center; }
-.emoji { font-size: 44rpx; }
+.mark {
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 16rpx;
+  background: #f0fdf4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #059669;
+}
 .stock { font-size: 20rpx; color: #94a3b8; }
 .title { display: block; margin-top: 12rpx; font-size: 28rpx; font-weight: 700; color: #1b3027; }
 .sub { display: block; margin-top: 6rpx; font-size: 22rpx; color: #849087; }

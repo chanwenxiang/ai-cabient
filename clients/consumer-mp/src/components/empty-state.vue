@@ -34,9 +34,16 @@ withDefaults(defineProps<{
   padding: 48rpx 24rpx;
 }
 .empty-icon {
-  font-size: 72rpx;
-  line-height: 1;
+  width: 88rpx;
+  height: 88rpx;
   margin-bottom: 16rpx;
+  border-radius: 24rpx;
+  background: #f0fdf4;
+  color: #059669;
+  font-size: 36rpx;
+  font-weight: 700;
+  line-height: 88rpx;
+  text-align: center;
 }
 .empty-title {
   font-size: 30rpx;
