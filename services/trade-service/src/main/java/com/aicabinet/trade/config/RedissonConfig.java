@@ -10,13 +10,13 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RedissonConfig {
     
-    @Value("${redis.host:localhost}")
+    @Value("${spring.data.redis.host:localhost}")
     private String host;
     
-    @Value("${redis.port:6379}")
+    @Value("${spring.data.redis.port:6379}")
     private String port;
     
-    @Value("${redis.password:}")
+    @Value("${spring.data.redis.password:}")
     private String password;
     
     @Bean(destroyMethod = "shutdown")
