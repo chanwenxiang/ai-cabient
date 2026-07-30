@@ -68,4 +68,6 @@ desktop.ini
 # Local scratch
 patch.txt
 *.log
+infra/docker-rebuild.log
+.batch*.json
 )
