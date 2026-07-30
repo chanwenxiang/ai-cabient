@@ -619,8 +619,8 @@ async function load() {
   loading.value = true;
   try {
     const [taskRows, deviceRows, skuRows] = await Promise.all([
-      merchantApi.replenishmentTasks(),
-      merchantApi.devices(),
+      merchantApi.replenishmentTasks().catch(() => [] as Record<string, unknown>[]),
+      merchantApi.devices().catch(() => [] as Record<string, unknown>[]),
       merchantApi.pricing().catch(() => [] as Record<string, unknown>[])
     ]);
     if (seq !== loadSeq) return;

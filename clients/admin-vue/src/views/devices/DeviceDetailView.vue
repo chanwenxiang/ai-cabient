@@ -361,27 +361,32 @@ async function loadDetail() {
 
 async function loadRelated() {
   const [sess, ord] = await Promise.all([
-    api.request<PageResult<any>>(
-      `/api/v2/ops/admin/sessions?page=0&size=8&deviceId=${encodeURIComponent(deviceId)}`,
-      'GET'
-    ),
-    api.request<PageResult<any>>(
-      `/api/v2/ops/admin/orders?page=0&size=8&deviceId=${encodeURIComponent(deviceId)}`,
-      'GET'
-    )
+    api
+      .request<PageResult<any>>(
+        `/api/v2/ops/admin/sessions?page=0&size=8&deviceId=${encodeURIComponent(deviceId)}`,
+        'GET'
+      )
+      .catch(() => ({ items: [] as any[] })),
+    api
+      .request<PageResult<any>>(
+        `/api/v2/ops/admin/orders?page=0&size=8&deviceId=${encodeURIComponent(deviceId)}`,
+        'GET'
+      )
+      .catch(() => ({ items: [] as any[] }))
   ]);
   sessions.value = sess.items || [];
   orders.value = ord.items || [];
 }
 
 async function loadSkus() {
-  skus.value = await api.request<SkuCatalog[]>('/api/v2/ops/admin/skus', 'GET');
+  skus.value = await api.request<SkuCatalog[]>('/api/v2/ops/admin/skus', 'GET').catch(() => []);
 }
 
 async function reload() {
   loading.value = true;
   try {
-    await Promise.all([loadDetail(), loadRelated()]);
+    await loadDetail();
+    await Promise.all([loadRelated(), loadSkus()]);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -520,7 +525,8 @@ async function saveSlot() {
 onMounted(async () => {
   loading.value = true;
   try {
-    await Promise.all([loadDetail(), loadRelated(), loadSkus()]);
+    await loadDetail();
+    await Promise.all([loadRelated(), loadSkus()]);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {

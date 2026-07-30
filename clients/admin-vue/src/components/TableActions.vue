@@ -133,14 +133,18 @@ const more = computed(() => {
   height: 32px;
   margin: 0;
   padding: 0;
-  border: 1px solid var(--layout-border, #334155);
+  border: 1px solid var(--layout-border, #ebeef5);
   border-radius: 8px;
   /* 实心底：避免 fixed 操作列上半透明按钮透视出时间文字 */
-  background: var(--layout-card, #1a2332);
-  color: var(--layout-text, #e2e8f0);
+  background: var(--layout-card, #ffffff);
+  color: var(--layout-muted, #64748b);
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.15s ease,
     box-shadow 0.15s ease;
+}
+.action-icon-btn.is-primary {
+  color: var(--app-primary, #0f766e);
+  border-color: color-mix(in srgb, var(--app-primary, #0f766e) 35%, var(--layout-border, #ebeef5));
 }
 .action-icon-btn.is-with-label {
   width: auto;
@@ -157,43 +161,43 @@ const more = computed(() => {
 .action-icon-btn:hover:not(:disabled),
 .action-icon-btn:focus-visible:not(:disabled) {
   color: var(--app-primary, #0f766e);
-  background: color-mix(in srgb, var(--app-primary, #0f766e) 28%, var(--layout-card, #1a2332));
-  border-color: color-mix(in srgb, var(--app-primary, #0f766e) 55%, var(--layout-border, #334155));
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, #0f766e) 22%, transparent);
+  background: color-mix(in srgb, var(--app-primary, #0f766e) 12%, var(--layout-card, #ffffff));
+  border-color: color-mix(in srgb, var(--app-primary, #0f766e) 45%, var(--layout-border, #ebeef5));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-primary, #0f766e) 18%, transparent);
   transform: translateY(-1px);
   outline: none;
 }
 .action-icon-wrap:hover .action-icon-btn.is-primary:not(:disabled),
 .action-icon-btn.is-primary:hover:not(:disabled),
 .action-icon-btn.is-primary:focus-visible:not(:disabled) {
-  color: #5eead4;
-  background: color-mix(in srgb, #14b8a6 32%, var(--layout-card, #1a2332));
-  border-color: color-mix(in srgb, #14b8a6 55%, var(--layout-border, #334155));
-  box-shadow: 0 0 0 2px color-mix(in srgb, #14b8a6 20%, transparent);
+  color: var(--app-primary, #0f766e);
+  background: color-mix(in srgb, var(--app-primary, #0f766e) 16%, var(--layout-card, #ffffff));
+  border-color: color-mix(in srgb, var(--app-primary, #0f766e) 55%, var(--layout-border, #ebeef5));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--app-primary, #0f766e) 20%, transparent);
 }
 .action-icon-wrap:hover .action-icon-btn.is-success:not(:disabled),
 .action-icon-btn.is-success:hover:not(:disabled),
 .action-icon-btn.is-success:focus-visible:not(:disabled) {
-  color: #34d399;
-  background: color-mix(in srgb, #34d399 28%, var(--layout-card, #1a2332));
-  border-color: color-mix(in srgb, #34d399 50%, var(--layout-border, #334155));
-  box-shadow: 0 0 0 2px color-mix(in srgb, #34d399 18%, transparent);
+  color: #059669;
+  background: color-mix(in srgb, #10b981 14%, var(--layout-card, #ffffff));
+  border-color: color-mix(in srgb, #10b981 45%, var(--layout-border, #ebeef5));
+  box-shadow: 0 0 0 1px color-mix(in srgb, #10b981 16%, transparent);
 }
 .action-icon-wrap:hover .action-icon-btn.is-warning:not(:disabled),
 .action-icon-btn.is-warning:hover:not(:disabled),
 .action-icon-btn.is-warning:focus-visible:not(:disabled) {
-  color: #fbbf24;
-  background: color-mix(in srgb, #fbbf24 28%, var(--layout-card, #1a2332));
-  border-color: color-mix(in srgb, #fbbf24 50%, var(--layout-border, #334155));
-  box-shadow: 0 0 0 2px color-mix(in srgb, #fbbf24 18%, transparent);
+  color: #d97706;
+  background: color-mix(in srgb, #f59e0b 14%, var(--layout-card, #ffffff));
+  border-color: color-mix(in srgb, #f59e0b 45%, var(--layout-border, #ebeef5));
+  box-shadow: 0 0 0 1px color-mix(in srgb, #f59e0b 16%, transparent);
 }
 .action-icon-wrap:hover .action-icon-btn.is-danger:not(:disabled),
 .action-icon-btn.is-danger:hover:not(:disabled),
 .action-icon-btn.is-danger:focus-visible:not(:disabled) {
-  color: #f87171;
-  background: color-mix(in srgb, #f87171 28%, var(--layout-card, #1a2332));
-  border-color: color-mix(in srgb, #f87171 50%, var(--layout-border, #334155));
-  box-shadow: 0 0 0 2px color-mix(in srgb, #f87171 18%, transparent);
+  color: #dc2626;
+  background: color-mix(in srgb, #ef4444 12%, var(--layout-card, #ffffff));
+  border-color: color-mix(in srgb, #ef4444 45%, var(--layout-border, #ebeef5));
+  box-shadow: 0 0 0 1px color-mix(in srgb, #ef4444 16%, transparent);
 }
 .action-icon-btn:disabled {
   opacity: 0.4;

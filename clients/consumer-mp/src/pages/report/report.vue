@@ -147,13 +147,15 @@ function onSubmit() {
 }
 .btn-primary {
   margin: 0;
-  background: #07c160;
+  background: linear-gradient(135deg, #059669, #0d9488);
   color: #fff;
-  border-radius: 12rpx;
+  border-radius: 44rpx;
   font-size: 32rpx;
   font-weight: 600;
   line-height: 88rpx;
   height: 88rpx;
+  border: none;
+  box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
 }
 .btn-primary::after { border: none; }
 .btn-hover { opacity: 0.85; }

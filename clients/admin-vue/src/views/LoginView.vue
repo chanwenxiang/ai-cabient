@@ -138,8 +138,8 @@ async function onSubmit() {
   position: absolute;
   inset: -40%;
   background-image:
-    linear-gradient(rgba(56, 189, 248, 0.07) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(56, 189, 248, 0.07) 1px, transparent 1px);
+    linear-gradient(rgba(20, 184, 166, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(20, 184, 166, 0.08) 1px, transparent 1px);
   background-size: 48px 48px;
   animation: gridDrift 24s linear infinite;
 }
@@ -153,7 +153,7 @@ async function onSubmit() {
   left: 18%;
   width: 320px;
   height: 320px;
-  background: rgba(56, 189, 248, 0.22);
+  background: rgba(15, 118, 110, 0.28);
   animation: orbPulseA 10s ease-in-out infinite;
 }
 .fx-orb-b {
@@ -161,7 +161,7 @@ async function onSubmit() {
   right: 12%;
   width: 280px;
   height: 280px;
-  background: rgba(34, 211, 238, 0.18);
+  background: rgba(45, 212, 191, 0.2);
   animation: orbPulseB 12s ease-in-out infinite;
 }
 .fx-scan {
@@ -169,8 +169,8 @@ async function onSubmit() {
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.55), transparent);
-  box-shadow: 0 0 24px rgba(56, 189, 248, 0.35);
+  background: linear-gradient(90deg, transparent, rgba(45, 212, 191, 0.55), transparent);
+  box-shadow: 0 0 24px rgba(15, 118, 110, 0.35);
   animation: scanLine 7s linear infinite;
   opacity: 0.7;
 }
@@ -218,7 +218,7 @@ async function onSubmit() {
   max-width: 400px;
   padding: 36px 32px 28px;
   border-radius: 16px;
-  border: 1px solid rgba(56, 189, 248, 0.28);
+  border: 1px solid rgba(45, 212, 191, 0.28);
   backdrop-filter: blur(16px);
   background: rgba(15, 23, 42, 0.78);
   box-shadow: 0 24px 64px rgba(2, 6, 23, 0.45), inset 0 1px 0 rgba(148, 163, 184, 0.12);
@@ -264,7 +264,7 @@ async function onSubmit() {
 .login-card :deep(.el-input__wrapper) {
   border-radius: 10px;
   background: rgba(30, 41, 59, 0.85);
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.22) inset;
+  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.22) inset;
   padding: 4px 12px;
 }
 .login-card :deep(.el-input__inner) {
@@ -274,10 +274,10 @@ async function onSubmit() {
   color: #64748b;
 }
 .login-card :deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.38) inset;
+  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.38) inset;
 }
 .login-card :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.5) inset;
+  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.55) inset;
 }
 .login-card :deep(.el-input__password) {
   color: #94a3b8;

@@ -608,7 +608,7 @@ async function onLogin() {
 }
 .btn-primary {
   margin-top: 12rpx;
-  background: linear-gradient(135deg, #f59e0b, #ea580c);
+  background: linear-gradient(135deg, #059669, #0d9488);
   color: #fff;
   border-radius: 44rpx;
   height: 96rpx;
@@ -616,7 +616,7 @@ async function onLogin() {
   text-align: center;
   font-size: 30rpx;
   font-weight: 600;
-  box-shadow: 0 10rpx 28rpx rgba(234, 88, 12, 0.28);
+  box-shadow: 0 10rpx 28rpx rgba(5, 150, 105, 0.28);
 }
 .btn-primary.disabled,
 .btn-code.disabled {
@@ -626,7 +626,7 @@ async function onLogin() {
 .btn-ghost {
   margin-top: 20rpx;
   text-align: center;
-  color: #b45309;
+  color: #047857;
   font-size: 28rpx;
   padding: 8rpx;
 }

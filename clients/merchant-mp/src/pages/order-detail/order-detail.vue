@@ -164,12 +164,21 @@ function goDisputes() {
 </script>
 
 <style scoped>
-.page-root { min-height: 100vh; background: #f1f5f9; padding: 24rpx; box-sizing: border-box; }
+.page-root { min-height: 100vh; background: #f0fdfa; padding: 24rpx; box-sizing: border-box; }
 .loading, .empty { text-align: center; padding: 80rpx 24rpx; color: #64748b; font-size: 28rpx; }
 .err { color: #b91c1c; display: block; margin-bottom: 20rpx; }
 .retry {
-  display: inline-block; margin-top: 12rpx; padding: 12rpx 32rpx;
-  border-radius: 999rpx; background: #0f766e; color: #fff; font-size: 26rpx;
+  display: inline-block;
+  margin-top: 12rpx;
+  padding: 0 36rpx;
+  min-height: 72rpx;
+  line-height: 72rpx;
+  border-radius: 999rpx;
+  background: linear-gradient(135deg, #134e4a, #0f766e);
+  color: #fff;
+  font-size: 26rpx;
+  font-weight: 600;
+  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
 }
 .retry::after { border: none; }
 .status-bar {
@@ -207,9 +216,28 @@ function goDisputes() {
 .muted { color: #94a3b8; font-size: 26rpx; padding: 12rpx 0; }
 .actions { display: flex; flex-direction: column; gap: 16rpx; margin-top: 8rpx; }
 .btn-primary, .btn-outline {
-  border-radius: 999rpx; font-size: 28rpx; padding: 18rpx 0;
+  width: 100%;
+  display: block;
+  box-sizing: border-box;
+  border-radius: 44rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  min-height: 88rpx;
+  line-height: 88rpx;
+  padding: 0 32rpx;
 }
-.btn-primary { background: #0f766e; color: #fff; }
-.btn-outline { background: #fff; color: #0f766e; border: 1rpx solid #99f6e4; }
+.btn-primary {
+  background: linear-gradient(135deg, #134e4a, #0f766e);
+  color: #fff;
+  border: none;
+  box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.22);
+}
+.btn-outline {
+  background: #fff;
+  color: #0f766e;
+  border: 2rpx solid #0f766e;
+  min-height: 80rpx;
+  line-height: 80rpx;
+}
 .btn-primary::after, .btn-outline::after { border: none; }
 </style>

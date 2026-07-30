@@ -439,9 +439,19 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   border: 1rpx solid #e2e8f0; font-size: 26rpx; box-sizing: border-box;
 }
 .btn-primary {
-  margin-top: 8rpx; background: linear-gradient(135deg, #134e4a, #0f766e); color: #fff;
-  border-radius: 14rpx; padding: 24rpx; text-align: center; font-weight: 600; font-size: 30rpx;
+  margin-top: 8rpx;
+  background: linear-gradient(135deg, #134e4a, #0f766e);
+  color: #fff;
+  border-radius: 44rpx;
+  padding: 0;
+  min-height: 88rpx;
+  line-height: 88rpx;
+  text-align: center;
+  font-weight: 600;
+  font-size: 30rpx;
+  box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.22);
 }
+.btn-primary::after { border: none; }
 .btn-primary.disabled { opacity: 0.45; }
 .err { color: #b91c1c; font-size: 24rpx; text-align: center; }
 .filters { display: flex; flex-wrap: wrap; gap: 10rpx; margin-bottom: 4rpx; }

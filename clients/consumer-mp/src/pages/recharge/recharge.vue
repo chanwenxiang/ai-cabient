@@ -340,26 +340,40 @@ async function onAlipayRecharge() {
 
 <style scoped>
 .page-root { padding: 20rpx; background: #f7f7f7; min-height: 100vh; box-sizing: border-box; }
-.balance-card { background: linear-gradient(135deg, #07c160, #06ad56); border-radius: 20rpx; padding: 40rpx; text-align: center; margin-bottom: 30rpx; }
+.balance-card { background: linear-gradient(135deg, #059669, #0d9488); border-radius: 20rpx; padding: 40rpx; text-align: center; margin-bottom: 30rpx; }
 .bal-label { color: rgba(255,255,255,.8); font-size: 28rpx; }
 .bal-amount { color: #fff; font-size: 72rpx; font-weight: 700; margin-top: 10rpx; display: block; }
 .amount-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20rpx; margin-bottom: 30rpx; }
 .amount-card { background: #fff; border-radius: 16rpx; padding: 30rpx 20rpx; text-align: center; border: 2rpx solid #eee; }
-.amount-card.selected { border-color: #07c160; background: #f0fff4; }
+.amount-card.selected { border-color: #059669; background: #ecfdf5; }
 .amount-value { font-size: 40rpx; font-weight: 700; color: #333; }
 .amount-bonus { font-size: 22rpx; color: #ff6b35; margin-top: 8rpx; display: block; }
-.btn-primary { width: 100%; height: 88rpx; line-height: 88rpx; background: #07c160; color: #fff; border-radius: 44rpx; font-size: 30rpx; border: none; margin-bottom: 16rpx; }
+.btn-primary {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: linear-gradient(135deg, #059669, #0d9488);
+  color: #fff;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+  border: none;
+  margin-bottom: 16rpx;
+  box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
+}
 .btn-primary[disabled] { opacity: 0.5; }
 .btn-wechat {
   width: 100%;
   height: 88rpx;
   line-height: 88rpx;
-  background: #07c160;
+  background: linear-gradient(135deg, #059669, #0d9488);
   color: #fff;
   border-radius: 44rpx;
   font-size: 30rpx;
+  font-weight: 600;
   border: none;
   margin-bottom: 16rpx;
+  box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
 }
 .btn-wechat[disabled] { opacity: 0.5; }
 .btn-alipay {

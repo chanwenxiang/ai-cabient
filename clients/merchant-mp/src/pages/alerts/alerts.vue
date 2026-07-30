@@ -136,8 +136,15 @@ async function load() {
   error.value = '';
   try {
     const [wb, exceptionPage, expiryRows] = await Promise.all([
-      merchantApi.workbench(),
-      merchantApi.openExceptions(100),
+      merchantApi.workbench().catch(() => ({
+        offlineDevices: 0,
+        openDisputes: 0,
+        lowStockItems: 0,
+        expiryAlerts: 0,
+        slotDiscrepancies: 0,
+        actionItems: [] as { type?: string; title?: string; detail?: string; deviceId?: string; ticketId?: string; exceptionId?: string }[]
+      })),
+      merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 })),
       merchantApi.expiryAlerts().catch(() => [])
     ]);
     if (seq !== loadSeq) return;
@@ -295,7 +302,16 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .meta { pointer-events: none; }
 .action { color: #0f766e; font-size: 24rpx; display: block; margin-top: 12rpx; pointer-events: none; }
 .err { color: #ef4444; display: block; }
-.retry { margin-top: 16rpx; background: #0f766e; color: #fff; border-radius: 28rpx; }
+.retry {
+  margin-top: 16rpx;
+  background: linear-gradient(135deg, #134e4a, #0f766e);
+  color: #fff;
+  border-radius: 44rpx;
+  font-weight: 600;
+  border: none;
+  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
+}
+.retry::after { border: none; }
 .resolve-btn { margin-top: 14rpx; background: #0f766e; color: #fff; border: 0; }
 .empty-btn {
   margin: 0;

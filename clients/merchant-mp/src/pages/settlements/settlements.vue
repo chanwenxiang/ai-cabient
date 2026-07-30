@@ -391,5 +391,17 @@ function onExport() {
 .device-amount { font-size: 28rpx; font-weight: 600; }
 .loading-inline { font-size: 24rpx; color: #94a3b8; padding: 24rpx 0; text-align: center; }
 .actions { padding: 20rpx 0; }
-.btn-outline { width: 100%; height: 72rpx; line-height: 72rpx; border: 2rpx solid #0f766e; color: #0f766e; border-radius: 36rpx; background: #fff; font-size: 28rpx; text-align: center; }
+.btn-outline {
+  width: 100%;
+  height: 80rpx;
+  line-height: 80rpx;
+  border: 2rpx solid #0f766e;
+  color: #0f766e;
+  border-radius: 44rpx;
+  background: #fff;
+  font-size: 28rpx;
+  font-weight: 600;
+  text-align: center;
+}
+.btn-outline::after { border: none; }
 </style>

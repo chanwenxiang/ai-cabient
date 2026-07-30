@@ -32,6 +32,18 @@ export const PRIMARY_OPTIONS = [
   { id: 'orange', label: '橙色', color: PRIMARY_COLORS.orange }
 ] as const;
 
+function mixHex(hex: string, target: string, weight: number): string {
+  const parse = (h: string) => {
+    const n = h.replace('#', '');
+    return [parseInt(n.slice(0, 2), 16), parseInt(n.slice(2, 4), 16), parseInt(n.slice(4, 6), 16)];
+  };
+  const [r1, g1, b1] = parse(hex);
+  const [r2, g2, b2] = parse(target);
+  const w = Math.min(1, Math.max(0, weight));
+  const to = (v: number) => v.toString(16).padStart(2, '0');
+  return `#${to(Math.round(r1 + (r2 - r1) * w))}${to(Math.round(g1 + (g2 - g1) * w))}${to(Math.round(b1 + (b2 - b1) * w))}`;
+}
+
 function applyDom(theme: ThemeMode, fontSize: FontSize, primaryId: string) {
   const root = document.documentElement;
   root.setAttribute('data-theme', theme);
@@ -39,6 +51,12 @@ function applyDom(theme: ThemeMode, fontSize: FontSize, primaryId: string) {
   const color = PRIMARY_COLORS[primaryId] || PRIMARY_COLORS.teal;
   root.style.setProperty('--app-primary', color);
   root.style.setProperty('--el-color-primary', color);
+  root.style.setProperty('--el-color-primary-light-3', mixHex(color, '#ffffff', 0.3));
+  root.style.setProperty('--el-color-primary-light-5', mixHex(color, '#ffffff', 0.5));
+  root.style.setProperty('--el-color-primary-light-7', mixHex(color, '#ffffff', 0.7));
+  root.style.setProperty('--el-color-primary-light-8', mixHex(color, '#ffffff', 0.8));
+  root.style.setProperty('--el-color-primary-light-9', mixHex(color, '#ffffff', 0.9));
+  root.style.setProperty('--el-color-primary-dark-2', mixHex(color, '#000000', 0.2));
 }
 
 export const useSettingsStore = defineStore('settings', () => {

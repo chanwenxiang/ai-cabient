@@ -235,12 +235,15 @@ function goOrders() {
   margin-top: 20rpx;
   height: 80rpx;
   line-height: 80rpx;
-  border-radius: 40rpx;
-  background: #ea580c;
+  border-radius: 44rpx;
+  background: linear-gradient(135deg, #059669, #0d9488);
   color: #fff;
   font-size: 28rpx;
+  font-weight: 600;
   border: none;
+  box-shadow: 0 8rpx 20rpx rgba(5, 150, 105, 0.2);
 }
+.tip-btn::after { border: none; }
 .btn-hover {
   opacity: 0.88;
 }

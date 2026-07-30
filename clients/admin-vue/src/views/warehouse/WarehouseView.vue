@@ -1497,8 +1497,22 @@ async function ensureMeta() {
 async function loadWarehouses() {
   warehouses.value = await api.request<Row[]>('/api/v2/ops/admin/warehouse/list', 'GET');
 }
+async function loadWarehousesSoft() {
+  try {
+    await loadWarehouses();
+  } catch {
+    /* 筛选用元数据失败时保留旧列表，不拖垮库存/出库主数据 */
+  }
+}
 async function loadSuppliers() {
   suppliers.value = await api.request<Row[]>('/api/v2/ops/admin/suppliers', 'GET');
+}
+async function loadSuppliersSoft() {
+  try {
+    await loadSuppliers();
+  } catch {
+    /* 采购/退货筛选项可选 */
+  }
 }
 async function loadPurchase() {
   purchaseOrders.value = await api.request<Row[]>('/api/v2/ops/admin/purchase-orders', 'GET');
@@ -1529,16 +1543,16 @@ async function loadTab(name: string, force = false) {
     if (name === 'warehouses') await loadWarehouses();
     else if (name === 'suppliers') await loadSuppliers();
     else if (name === 'purchase') {
-      await Promise.all([loadPurchase(), loadSuppliers(), loadWarehouses()]);
+      await Promise.all([loadPurchase(), loadSuppliersSoft(), loadWarehousesSoft()]);
     } else if (name === 'returns') {
-      await Promise.all([loadReturns(), loadPurchase(), loadSuppliers(), loadWarehouses()]);
+      await Promise.all([loadReturns(), loadPurchase().catch(() => {}), loadSuppliersSoft(), loadWarehousesSoft()]);
     } else if (name === 'outbounds') {
-      await Promise.all([loadOutbounds(), loadWarehouses()]);
+      await Promise.all([loadOutbounds(), loadWarehousesSoft()]);
     } else if (name === 'transit') await loadTransit();
     else if (name === 'inventory') {
-      await Promise.all([loadInventory(), loadWarehouses()]);
+      await Promise.all([loadInventory(), loadWarehousesSoft()]);
     } else if (name === 'movements') {
-      await Promise.all([loadMovements(), loadWarehouses()]);
+      await Promise.all([loadMovements(), loadWarehousesSoft()]);
     }
     loadedTabs.value.add(name);
   } catch (e) {
@@ -1638,7 +1652,7 @@ async function saveSupplier() {
 }
 
 async function openPurchase() {
-  await Promise.all([loadSuppliers(), loadWarehouses(), ensureMeta()]);
+  await Promise.all([loadSuppliersSoft(), loadWarehousesSoft(), ensureMeta()]);
   Object.assign(purchaseForm, {
     supplierId: activeSuppliers.value[0]?.supplierId || '',
     warehouseId: activeWarehouses.value[0]?.warehouseId || '',
@@ -1718,7 +1732,12 @@ async function saveReceive() {
 }
 
 async function openReturn() {
-  await Promise.all([loadPurchase(), loadSuppliers(), loadWarehouses(), ensureMeta()]);
+  await Promise.all([
+    loadPurchase().catch(() => {}),
+    loadSuppliersSoft(),
+    loadWarehousesSoft(),
+    ensureMeta()
+  ]);
   const first = returnablePurchaseOrders.value[0];
   Object.assign(returnForm, {
     purchaseOrderId: first?.purchaseOrderId || null,
@@ -1885,7 +1904,7 @@ async function submitOutboundConfirm() {
 }
 
 async function openInbound() {
-  await Promise.all([loadWarehouses(), ensureMeta()]);
+  await Promise.all([loadWarehousesSoft(), ensureMeta()]);
   Object.assign(inboundForm, {
     warehouseId: filterWarehouseId.value || activeWarehouses.value[0]?.warehouseId || '',
     refNo: '',

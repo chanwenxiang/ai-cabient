@@ -1734,10 +1734,13 @@ function formatRequestLines(row: Row) {
 async function load() {
   loading.value = true;
   try {
+    // devices / discrepancies 可能对补货员等窄权限角色 403；勿与路线/要货绑死在同一 Promise.all
     const [r, req, devicePage, disc] = await Promise.all([
       api.request<Row[]>('/api/v2/ops/admin/replenishment/routes', 'GET'),
       api.request<Row[]>('/api/v2/ops/admin/replenishment/requests?status=ALL', 'GET'),
-      api.request<PageResult<Row>>('/api/v2/ops/admin/devices?page=0&size=200', 'GET'),
+      api
+        .request<PageResult<Row>>('/api/v2/ops/admin/devices?page=0&size=200', 'GET')
+        .catch(() => ({ items: [] as Row[], page: 0, size: 0, total: 0 })),
       api.request<Row[]>('/api/v2/ops/admin/slots/discrepancies', 'GET').catch(() => [])
     ]);
     routes.value = r || [];

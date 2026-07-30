@@ -157,13 +157,15 @@ async function onSubmit() {
 .counter { display: block; text-align: right; font-size: 22rpx; color: #bbb; margin-bottom: 12rpx; }
 .btn-primary {
   margin: 16rpx 0 0;
-  background: #07c160;
+  background: linear-gradient(135deg, #059669, #0d9488);
   color: #fff;
-  border-radius: 12rpx;
+  border-radius: 44rpx;
   font-size: 32rpx;
   font-weight: 600;
   line-height: 88rpx;
   height: 88rpx;
+  border: none;
+  box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
 }
 .btn-primary[disabled] { opacity: 0.55; }
 .btn-primary::after { border: none; }

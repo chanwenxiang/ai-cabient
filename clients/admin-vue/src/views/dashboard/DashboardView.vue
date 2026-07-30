@@ -520,8 +520,9 @@ function goAction(row: OpsActionItem) {
 async function load() {
   loading.value = true;
   try {
+    // 窄权限角色（如补货员）可能对 stats/workbench 403；勿互相拖垮
     const [s, wb, ex] = await Promise.all([
-      api.request<OpsStats>('/api/v2/ops/admin/stats', 'GET'),
+      api.request<OpsStats>('/api/v2/ops/admin/stats', 'GET').catch(() => null),
       api.request<OpsWorkbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null),
       canAccessPath('/exceptions')
         ? api
@@ -529,7 +530,11 @@ async function load() {
             .catch(() => null)
         : Promise.resolve(null)
     ]);
-    stats.value = s;
+    if (!s && !wb) {
+      ElMessage.error('工作台数据加载失败');
+      return;
+    }
+    stats.value = s || {};
     workbench.value = wb;
     openExceptionCount.value = ex?.total || 0;
   } catch (e) {

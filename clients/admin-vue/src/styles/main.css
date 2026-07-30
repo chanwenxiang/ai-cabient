@@ -62,6 +62,29 @@ html, body, #app {
 * { box-sizing: border-box; }
 button, input, textarea, select { font: inherit; }
 
+/* Element Plus 按钮：圆角与主色权重与后台卡片一致 */
+.el-button {
+  --el-border-radius-base: 8px;
+  font-weight: 500;
+}
+.el-button--primary {
+  font-weight: 600;
+  --el-button-bg-color: var(--el-color-primary);
+  --el-button-border-color: var(--el-color-primary);
+  --el-button-hover-bg-color: var(--el-color-primary-light-3);
+  --el-button-hover-border-color: var(--el-color-primary-light-3);
+  --el-button-active-bg-color: var(--el-color-primary-dark-2);
+  --el-button-active-border-color: var(--el-color-primary-dark-2);
+}
+.el-button--primary.is-plain {
+  --el-button-bg-color: var(--el-color-primary-light-9);
+  --el-button-border-color: var(--el-color-primary-light-5);
+  --el-button-text-color: var(--el-color-primary);
+  --el-button-hover-bg-color: var(--el-color-primary);
+  --el-button-hover-border-color: var(--el-color-primary);
+  --el-button-hover-text-color: #fff;
+}
+
 /* 所有弹窗在窄窗口内保留安全边距，避免固定像素宽度溢出屏幕。 */
 .el-dialog {
   max-width: calc(100vw - 32px);

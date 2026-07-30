@@ -125,17 +125,21 @@ function onDetail(item: MerchantOrderSummary) {
 </script>
 
 <style scoped>
-.page-root { min-height: 100vh; background: #f1f5f9; padding: 24rpx; box-sizing: border-box; }
+.page-root { min-height: 100vh; background: #f0fdfa; padding: 24rpx; box-sizing: border-box; }
 .loading, .empty { text-align: center; padding: 80rpx 24rpx; color: #64748b; font-size: 28rpx; }
 .err { color: #b91c1c; display: block; margin-bottom: 20rpx; }
 .retry {
   display: inline-block;
   margin-top: 12rpx;
-  padding: 12rpx 32rpx;
+  padding: 0 36rpx;
+  min-height: 72rpx;
+  line-height: 72rpx;
   border-radius: 999rpx;
-  background: #0f766e;
+  background: linear-gradient(135deg, #134e4a, #0f766e);
   color: #fff;
   font-size: 26rpx;
+  font-weight: 600;
+  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
 }
 .retry::after { border: none; }
 .card {

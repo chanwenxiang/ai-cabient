@@ -295,7 +295,7 @@ export const merchantApi = {
       return { items, total };
     };
     const [open, processing] = await Promise.all([
-      mergePages('OPEN'),
+      mergePages('OPEN').catch(() => ({ items: [] as ExRow[], total: 0 })),
       mergePages('PROCESSING').catch(() => ({ items: [] as ExRow[], total: 0 }))
     ]);
     const byId = new Map<string, ExRow>();

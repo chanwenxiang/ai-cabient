@@ -284,10 +284,13 @@ async function onReply(item: MerchantDisputeTicket) {
   width: 200rpx;
   height: 72rpx;
   line-height: 72rpx;
-  border-radius: 36rpx;
-  background: #0f766e;
+  border-radius: 44rpx;
+  background: linear-gradient(135deg, #134e4a, #0f766e);
   color: #fff;
   font-size: 26rpx;
+  font-weight: 600;
+  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
+  border: none;
 }
 .retry::after { border: none; }
 .card {

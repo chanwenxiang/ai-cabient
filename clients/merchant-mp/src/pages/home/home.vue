@@ -321,12 +321,21 @@ async function load() {
     merchantNames.value = formatMerchantNames(profile.merchants);
 
     const [s, trend, workbench, exceptionPage, expiryRows, devices, tasks] = await Promise.all([
-      merchantApi.stats() as Promise<Record<string, number>>,
+      merchantApi.stats().catch(() => ({} as Record<string, number>)),
       canTrend.value
-        ? (merchantApi.trend(7) as Promise<{ last7Days?: { date: string; revenueCents: number }[] }>)
+        ? (merchantApi.trend(7) as Promise<{ last7Days?: { date: string; revenueCents: number }[] }>).catch(
+            () => ({ last7Days: [] })
+          )
         : Promise.resolve({ last7Days: [] }),
       canAlerts.value
-        ? merchantApi.workbench()
+        ? merchantApi.workbench().catch(() => ({
+            offlineDevices: 0,
+            openDisputes: 0,
+            lowStockItems: 0,
+            expiryAlerts: 0,
+            slotDiscrepancies: 0,
+            actionItems: []
+          }))
         : Promise.resolve({
             offlineDevices: 0,
             openDisputes: 0,
@@ -340,9 +349,9 @@ async function load() {
         : Promise.resolve({ items: [], total: 0 }),
       canAlerts.value ? merchantApi.expiryAlerts().catch(() => []) : Promise.resolve([]),
       canDevices.value || canReplenishment.value
-        ? merchantApi.devices()
+        ? merchantApi.devices().catch(() => [])
         : Promise.resolve([]),
-      canReplenishment.value ? merchantApi.replenishmentTasks() : Promise.resolve([])
+      canReplenishment.value ? merchantApi.replenishmentTasks().catch(() => []) : Promise.resolve([])
     ]);
     if (seq !== loadSeq) return;
 

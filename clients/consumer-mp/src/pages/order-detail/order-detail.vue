@@ -438,7 +438,7 @@ function callSupport() {
 .status-bar { display: flex; align-items: center; background: #fff; border-radius: 16rpx; padding: 30rpx; margin-bottom: 20rpx; }
 .status-bar.status-paid, .status-bar.status-completed { background: linear-gradient(135deg, #e8f5e9, #fff); }
 .status-bar.status-refunded { background: linear-gradient(135deg, #fff3e0, #fff); }
-.status-icon { width: 60rpx; height: 60rpx; border-radius: 30rpx; display: flex; align-items: center; justify-content: center; font-size: 32rpx; font-weight: 700; margin-right: 20rpx; background: #07c160; color: #fff; flex-shrink: 0; }
+.status-icon { width: 60rpx; height: 60rpx; border-radius: 30rpx; display: flex; align-items: center; justify-content: center; font-size: 32rpx; font-weight: 700; margin-right: 20rpx; background: linear-gradient(135deg, #059669, #0d9488); color: #fff; flex-shrink: 0; }
 .status-bar.status-refunded .status-icon { background: #ff9500; }
 .status-title { font-size: 32rpx; font-weight: 600; display: block; }
 .status-detail { font-size: 24rpx; color: #666; margin-top: 4rpx; display: block; }
@@ -450,24 +450,66 @@ function callSupport() {
 .item-price { font-size: 28rpx; font-weight: 500; }
 .total-row { display: flex; justify-content: space-between; padding: 20rpx 0 0; }
 .total-row.pay { padding-top: 12rpx; border-top: 1rpx solid #eee; margin-top: 8rpx; }
-.total-row.pay .total-amount { color: #07c160; font-size: 34rpx; }
+.total-row.pay .total-amount { color: #059669; font-size: 34rpx; }
 .total-label { font-size: 28rpx; font-weight: 600; }
 .total-amount { font-size: 36rpx; font-weight: 700; color: #ff3b30; }
 .points-row { display: flex; justify-content: space-between; padding: 10rpx 0 4rpx; }
 .points-label { font-size: 26rpx; color: #849087; }
 .points-amount { font-size: 28rpx; font-weight: 700; color: #d97706; }
 .discount-row { display: flex; justify-content: space-between; padding: 8rpx 0; }
-.discount-label { font-size: 24rpx; color: #07c160; }
-.discount-amount { font-size: 24rpx; color: #07c160; }
+.discount-label { font-size: 24rpx; color: #059669; }
+.discount-amount { font-size: 24rpx; color: #059669; }
 .info-row { display: flex; justify-content: space-between; padding: 12rpx 0; }
 .info-label { font-size: 26rpx; color: #666; }
 .info-value { font-size: 26rpx; color: #333; }
 .mono { font-family: monospace; font-size: 22rpx; }
 .actions { display: flex; flex-direction: column; gap: 20rpx; padding: 10rpx 0; }
-.btn-primary { height: 80rpx; line-height: 80rpx; border: none; color: #fff; border-radius: 40rpx; background: #07c160; font-size: 28rpx; text-align: center; }
-.btn-outline { height: 72rpx; line-height: 72rpx; border: 2rpx solid #07c160; color: #07c160; border-radius: 36rpx; background: #fff; font-size: 28rpx; text-align: center; }
-.btn-outline.danger { border-color: #f97316; color: #c2410c; }
-.btn-refund { height: 80rpx; line-height: 80rpx; border: none; color: #fff; border-radius: 40rpx; background: #ef4444; font-size: 28rpx; font-weight: 600; text-align: center; }
+.btn-primary {
+  width: 100%;
+  display: block;
+  box-sizing: border-box;
+  height: 88rpx;
+  line-height: 88rpx;
+  border: none;
+  color: #fff;
+  border-radius: 44rpx;
+  background: linear-gradient(135deg, #059669, #0d9488);
+  font-size: 28rpx;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
+}
+.btn-outline {
+  width: 100%;
+  display: block;
+  box-sizing: border-box;
+  height: 80rpx;
+  line-height: 80rpx;
+  border: 2rpx solid #059669;
+  color: #059669;
+  border-radius: 44rpx;
+  background: #fff;
+  font-size: 28rpx;
+  font-weight: 600;
+  text-align: center;
+}
+.btn-outline.danger { border-color: #ef4444; color: #b91c1c; }
+.btn-refund {
+  width: 100%;
+  display: block;
+  box-sizing: border-box;
+  height: 88rpx;
+  line-height: 88rpx;
+  border: none;
+  color: #fff;
+  border-radius: 44rpx;
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+  font-size: 28rpx;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 8rpx 24rpx rgba(239, 68, 68, 0.22);
+}
+.btn-primary::after, .btn-outline::after, .btn-refund::after, .btn-submit::after { border: none; }
 .support { text-align: center; padding: 30rpx; color: #059669; font-size: 24rpx; }
 .dispute-mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100; display: flex; align-items: flex-end; }
 .dispute-panel { width: 100%; max-height: 90vh; overflow-y: auto; background: #fff; border-radius: 24rpx 24rpx 0 0; padding: 32rpx 28rpx calc(32rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }

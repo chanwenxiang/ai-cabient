@@ -277,5 +277,14 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .status-on { color: #16a34a; font-weight: 600; font-size: 26rpx; }
 .status-off { color: #94a3b8; font-size: 26rpx; }
 .err { color: #ef4444; display: block; }
-.retry { margin-top: 16rpx; background: #0f766e; color: #fff; border-radius: 28rpx; }
+.retry {
+  margin-top: 16rpx;
+  background: linear-gradient(135deg, #134e4a, #0f766e);
+  color: #fff;
+  border-radius: 44rpx;
+  font-weight: 600;
+  border: none;
+  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
+}
+.retry::after { border: none; }
 </style>

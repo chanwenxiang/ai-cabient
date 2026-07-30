@@ -89,12 +89,16 @@ async function load(soft = false) {
   error.value = '';
   try {
     const [a, s] = await Promise.all([
-      merchantApi.analytics(days.value),
-      merchantApi.settlements()
+      merchantApi.analytics(days.value).catch(() => null),
+      merchantApi.settlements().catch(() => null)
     ]);
     if (seq !== loadSeq) return;
-    analytics.value = a;
-    settlement.value = s;
+    if (!a && !s) {
+      error.value = '经营数据加载失败';
+      return;
+    }
+    analytics.value = a || analytics.value;
+    settlement.value = s || settlement.value;
   } catch (e) {
     if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';
@@ -140,7 +144,12 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 .period.active { background:#0f766e; color:#fff; }
 .state { margin:24rpx; padding:80rpx 24rpx; text-align:center; background:#fff; border-radius:20rpx; color:#64748b; }
 .error{display:block;color:#dc2626}
-.retry{margin-top:24rpx;width:220rpx;background:#0f766e;color:#fff;border-radius:40rpx}
+.retry{
+  margin-top:24rpx;width:220rpx;height:72rpx;line-height:72rpx;
+  background:linear-gradient(135deg,#134e4a,#0f766e);color:#fff;border-radius:44rpx;
+  font-weight:600;box-shadow:0 8rpx 20rpx rgba(15,118,110,.2);border:none;
+}
+.retry::after{border:none}
 .hero { margin:12rpx 24rpx; padding:32rpx; border-radius:24rpx; color:#fff; background:linear-gradient(135deg,#134e4a,#0f766e 65%,#14b8a6); }
 .hero-label{display:block;font-size:24rpx;opacity:.8}
 .hero-value{display:block;font-size:56rpx;font-weight:800;margin-top:8rpx}
@@ -165,7 +174,18 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 .risk-title{display:block;color:#c2410c;font-weight:700}
 .risk-desc{display:block;color:#9a3412;font-size:23rpx;margin-top:6rpx}
 .actions { padding: 12rpx 24rpx 24rpx; }
-.btn-outline { width: 100%; height: 72rpx; line-height: 72rpx; border: 2rpx solid #0f766e; color: #0f766e; border-radius: 36rpx; background: #fff; font-size: 28rpx; text-align: center; }
+.btn-outline {
+  width: 100%;
+  height: 80rpx;
+  line-height: 80rpx;
+  border: 2rpx solid #0f766e;
+  color: #0f766e;
+  border-radius: 44rpx;
+  background: #fff;
+  font-size: 28rpx;
+  font-weight: 600;
+  text-align: center;
+}
 .btn-outline::after { border: none; }
 .card { margin: 12rpx 24rpx; padding: 24rpx; background: #fff; border-radius: 18rpx; }
 </style>
