@@ -17,6 +17,7 @@ import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -179,9 +180,12 @@ public class OrderPaymentService {
     private void refundWeChat(CabinetOrder order, int amountCents, String reason, String idemKey) {
         if (weChatPayProperties.isConfigured() && order.getPayTradeNo() != null) {
             String outRefundNo = deterministicRefundNo(idemKey);
-            weChatPayClient.createRefund(order.getOrderId(), outRefundNo, amountCents, order.getTotalAmountCents(), reasonOrDefault(reason));
+            // 微信退款 total 必须是原支付单金额；改单后 order.total 可能已变，不能直接用
+            int totalCents = resolveOriginalChargeTotalCents(order, amountCents);
+            weChatPayClient.createRefund(order.getOrderId(), outRefundNo, amountCents, totalCents, reasonOrDefault(reason));
             recordOperation(order, "REFUND", amountCents, PayChannels.WECHAT, idemKey, outRefundNo, reason);
-            log.info("wechat order refund order={} amount={} (原路退回零钱)", order.getOrderId(), amountCents);
+            log.info("wechat order refund order={} amount={} total={} (原路退回零钱)",
+                    order.getOrderId(), amountCents, totalCents);
             return;
         }
         if (securityProperties.mockEnabled()) {
@@ -270,5 +274,24 @@ public class OrderPaymentService {
             return "DEFAULT";
         }
         return Integer.toUnsignedString(reason.hashCode(), 36).toUpperCase();
+    }
+
+    /**
+     * 微信退款接口要求 total=原支付金额。取本单 COMPLETED CHARGE 合计；
+     * 无流水时回退到 max(当前订单额, 本次退款额)。
+     */
+    private int resolveOriginalChargeTotalCents(CabinetOrder order, int refundCents) {
+        int charged = paymentOperationRepository.selectList(
+                        Wrappers.<PaymentOperation>lambdaQuery()
+                                .eq(PaymentOperation::getOrderId, order.getOrderId())
+                                .eq(PaymentOperation::getStatus, "COMPLETED")
+                                .eq(PaymentOperation::getOperationType, "CHARGE"))
+                .stream()
+                .mapToInt(PaymentOperation::getAmountCents)
+                .sum();
+        if (charged <= 0) {
+            charged = Math.max(order.getTotalAmountCents(), refundCents);
+        }
+        return Math.max(charged, refundCents);
     }
 }

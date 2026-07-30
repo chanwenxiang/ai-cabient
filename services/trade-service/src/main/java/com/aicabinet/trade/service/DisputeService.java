@@ -497,6 +497,13 @@ public class DisputeService {
         }
         session.setState(SessionState.DISPUTED);
         sessionRepository.save(session);
+        // 三端一致：重开争议时订单也应回到 DISPUTED（与消费者申诉 fileByConsumer 对齐）
+        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
+            if ("PAID".equals(order.getStatus()) || "COMPLETED".equals(order.getStatus())) {
+                order.setStatus("DISPUTED");
+                orderRepository.save(order);
+            }
+        });
         disputeRepository.save(ticket);
         auditService.record(operatorId, "DISPUTE_REOPEN", "DISPUTE", ticketId,
                 "session=" + ticket.getSessionId());

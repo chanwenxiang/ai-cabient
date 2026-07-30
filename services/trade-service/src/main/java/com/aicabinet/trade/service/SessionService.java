@@ -637,6 +637,13 @@ public class SessionService {
             if (session.getCloseTime() == null) {
                 session.setCloseTime(Instant.now());
             }
+            // 任务结束时尽力回写实测，减少货道差异误报
+            try {
+                restockSnapshotService.applySnapshot(session);
+            } catch (Exception e) {
+                log.warn("restock auto-close snapshot failed session={} task={}",
+                        session.getSessionId(), taskId, e);
+            }
             session.setState(SessionState.COMPLETED);
             repository.save(session);
             cabinetMetrics.recordSessionState(SessionState.COMPLETED);
@@ -757,6 +764,11 @@ public class SessionService {
                 })
                 .forEach(s -> {
                     try {
+                        // 补货会话不走消费者争议：超时尽力快照后关闭，避免误建争议单
+                        if (DeviceValidationService.isRestockSession(s)) {
+                            closeStaleRestockRecognizing(s);
+                            return;
+                        }
                         SessionState from = s.getState();
                         String failReason = "识别超时，已转人工审核，本次暂未扣款";
                         if (from.canTransitionTo(SessionState.DISPUTED)) {
@@ -785,6 +797,26 @@ public class SessionService {
                         log.warn("识别超时升级失败 session={}", s.getSessionId(), e);
                     }
                 });
+    }
+
+    private void closeStaleRestockRecognizing(ShoppingSession session) {
+        session.setFailReason("补货识别超时自动关闭");
+        if (session.getCloseTime() == null) {
+            session.setCloseTime(Instant.now());
+        }
+        try {
+            restockSnapshotService.applySnapshot(session);
+        } catch (Exception e) {
+            log.warn("补货超时快照失败 session={}，仍关闭会话", session.getSessionId(), e);
+        }
+        session.setState(SessionState.COMPLETED);
+        repository.save(session);
+        cabinetMetrics.recordSessionState(SessionState.COMPLETED);
+        opsExceptionService.report("RESTOCK_RECOGNITION_TIMEOUT", "MEDIUM", session.getDeviceId(),
+                session.getSessionId(), session.getOrderId(), session.getUserId(),
+                "补货识别超时", "补货关门后超过10分钟未完成货道快照");
+        log.warn("restock recognizing session expired session={} device={}",
+                session.getSessionId(), session.getDeviceId());
     }
 
     private void requireSessionOwner(Long userId, ShoppingSession session) {

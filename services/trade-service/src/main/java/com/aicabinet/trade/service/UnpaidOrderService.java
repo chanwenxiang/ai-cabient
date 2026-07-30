@@ -207,14 +207,16 @@ public class UnpaidOrderService {
 
     private void markPaid(CabinetOrder order) {
         hydrate(order);
+        // 创建 PENDING 时未占券；补扣时再选最优券后扣款并核销
+        CouponService.BestCoupon applied = applyBestCouponForCollect(order);
         orderPaymentService.chargeOrder(order);
         order.setStatus("PAID");
         orderRepository.save(order);
-        if (order.getCouponId() != null && order.getCouponDiscountCents() > 0) {
+        if (applied != null) {
             try {
                 couponService.markUsed(
                         order.getUserId(),
-                        order.getCouponId(),
+                        applied.couponId(),
                         order.getOrderId(),
                         order.getDeviceId(),
                         order.getCouponDiscountCents());
@@ -228,6 +230,32 @@ public class UnpaidOrderService {
         } catch (Exception ex) {
             log.warn("member points on collect failed order={}", order.getOrderId(), ex);
         }
+    }
+
+    private CouponService.BestCoupon applyBestCouponForCollect(CabinetOrder order) {
+        if (order.getUserId() == null || order.getTotalAmountCents() <= 0) {
+            return null;
+        }
+        if (order.getCouponId() != null && order.getCouponDiscountCents() > 0) {
+            // 兼容旧数据：PENDING 上已带券字段则沿用
+            return new CouponService.BestCoupon(
+                    order.getCouponId(), order.getCouponDiscountCents(), null);
+        }
+        int subtotal = order.getOriginalAmountCents() > 0
+                ? order.getOriginalAmountCents()
+                : order.getTotalAmountCents();
+        order.setOriginalAmountCents(subtotal);
+        order.setTotalAmountCents(subtotal);
+        var best = couponService.selectBestCoupon(order.getUserId(), subtotal);
+        if (best.isEmpty()) {
+            return null;
+        }
+        var pick = best.get();
+        int discount = Math.min(pick.discountCents(), subtotal);
+        order.setCouponId(pick.couponId());
+        order.setCouponDiscountCents(discount);
+        order.setTotalAmountCents(Math.max(0, subtotal - discount));
+        return pick;
     }
 
     private void restoreInventory(CabinetOrder order) {

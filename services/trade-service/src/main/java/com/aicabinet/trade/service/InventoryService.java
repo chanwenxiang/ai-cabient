@@ -165,20 +165,29 @@ public class InventoryService {
     }
 
     @Transactional
-    public void adjustForOrder(String deviceId,
+    public Map<String, String> adjustForOrder(String deviceId,
                                List<VisionServiceClient.RecognizedItem> oldItems,
                                List<VisionServiceClient.RecognizedItem> newItems) {
-        adjustForOrder(deviceId, oldItems, newItems, Map.of());
+        return adjustForOrder(deviceId, oldItems, newItems, Map.of());
     }
 
     /**
      * 改单库存差量：多扣则继续 FEFO 扣减；少扣则按原批次（batchBySku）优先回库，与货道实测同步。
+     * 返回应写回订单行的 sku→batch（保留原批次；新扣减 SKU 用 FEFO 主批次补齐）。
      */
     @Transactional
-    public void adjustForOrder(String deviceId,
+    public Map<String, String> adjustForOrder(String deviceId,
                                List<VisionServiceClient.RecognizedItem> oldItems,
                                List<VisionServiceClient.RecognizedItem> newItems,
                                Map<String, String> batchBySku) {
+        Map<String, String> resultBatches = new HashMap<>();
+        if (batchBySku != null) {
+            batchBySku.forEach((sku, batch) -> {
+                if (sku != null && batch != null && !batch.isBlank()) {
+                    resultBatches.put(sku, batch);
+                }
+            });
+        }
         Map<String, Integer> oldQty = toQtyMap(oldItems);
         Map<String, Integer> newQty = toQtyMap(newItems);
         for (String skuId : unionKeys(oldQty, newQty)) {
@@ -187,7 +196,11 @@ public class InventoryService {
                 continue;
             }
             if (delta > 0) {
-                deductForOrder(deviceId, List.of(new VisionServiceClient.RecognizedItem(skuId, delta, 1f)));
+                Map<String, String> deducted = deductForOrder(
+                        deviceId, List.of(new VisionServiceClient.RecognizedItem(skuId, delta, 1f)));
+                if (deducted != null) {
+                    deducted.forEach(resultBatches::putIfAbsent);
+                }
             } else {
                 Map<String, String> restoreBatch = Map.of();
                 if (batchBySku != null) {
@@ -200,6 +213,7 @@ public class InventoryService {
                         List.of(new VisionServiceClient.RecognizedItem(skuId, -delta, 1f)), restoreBatch);
             }
         }
+        return resultBatches;
     }
 
     private void applyDelta(String deviceId, String skuId, int delta) {

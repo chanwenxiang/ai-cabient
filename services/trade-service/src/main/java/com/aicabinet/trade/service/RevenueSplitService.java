@@ -97,4 +97,43 @@ public class RevenueSplitService {
             log.info("分账已冲正（全额退款） order={} splitId={}", orderId, split.getSplitId());
         });
     }
+
+    /**
+     * 争议改单后按新订单金额重算分账（仅未终态账本可改；已提交微信/已冲正则跳过）。
+     */
+    @Transactional
+    public void resyncSplitForOrder(CabinetOrder order) {
+        if (order == null || order.getOrderId() == null || order.getOrderId().isBlank()) {
+            return;
+        }
+        var existing = splitRepository.findByOrderId(order.getOrderId());
+        if (existing.isEmpty()) {
+            if (order.getTotalAmountCents() > 0) {
+                recordSplit(order);
+            }
+            return;
+        }
+        OrderRevenueSplit split = existing.get();
+        String status = split.getStatus() == null ? "" : split.getStatus().toUpperCase();
+        if ("VOIDED".equals(status) || "REVERSED".equals(status)
+                || "WECHAT_SUBMITTED".equals(status) || "SUCCESS".equals(status)
+                || "SETTLED".equals(status)) {
+            log.info("skip split resync order={} status={}", order.getOrderId(), split.getStatus());
+            return;
+        }
+        Merchant merchant = merchantRepository.findById(split.getMerchantId()).orElse(null);
+        int rateBps = merchant != null ? merchant.getPlatformRateBps() : 0;
+        long gross = Math.max(0, order.getTotalAmountCents());
+        long platform = gross * rateBps / 10_000L;
+        long merchantShare = gross - platform;
+        split.setGrossCents(gross);
+        split.setPlatformCents(platform);
+        split.setMerchantCents(merchantShare);
+        if (gross <= 0) {
+            split.setStatus("VOIDED");
+        }
+        splitRepository.save(split);
+        log.info("分账已按改单重算 order={} gross={} platform={} merchantShare={}",
+                order.getOrderId(), gross, platform, merchantShare);
+    }
 }

@@ -368,7 +368,9 @@ public class SettlementService {
         int delta = finalTotal - original;
 
         if (order.isInventoryDeducted()) {
-            inventoryService.adjustForOrder(session.getDeviceId(), oldItems, items, batchBySku);
+            var adjustedBatches = inventoryService.adjustForOrder(
+                    session.getDeviceId(), oldItems, items, batchBySku);
+            applyBatchNos(order, adjustedBatches);
         } else {
             var deductedBatches = inventoryService.deductForOrder(
                     session.getDeviceId(), items, session.getSessionId(), session.getGravityDeltas());
@@ -379,6 +381,9 @@ public class SettlementService {
         // 三端一致：确认/改单后退出争议态（DisputeService 结案兜底也会对齐）
         if ("DISPUTED".equals(order.getStatus())) {
             order.setStatus("PAID");
+        }
+        if (delta != 0) {
+            revenueSplitService.resyncSplitForOrder(order);
         }
         orderRepository.save(order);
         replaceOrderLines(order);
@@ -433,8 +438,9 @@ public class SettlementService {
                         session.getUserId(), order.getTotalAmountCents());
             } catch (BalanceInsufficientException e) {
                 unpaid = true;
-                // 优惠券等到补扣成功再核销，避免关单占券
+                // 优惠券等到补扣成功再核销，避免关单占券；同时清掉订单上的券字段，防止未占券却按折后价落 PENDING
                 appliedCoupon = null;
+                clearCouponSelection(order);
             }
         }
         var batchBySku = inventoryService.deductForOrder(
@@ -459,6 +465,8 @@ public class SettlementService {
             orderPaymentService.chargeOrder(order);
         } catch (ResponseStatusException e) {
             if (isInsufficientBalance(e)) {
+                // 扣款失败转待支付：同样不占券，补扣时再选
+                clearCouponSelection(order);
                 order.setStatus("PENDING");
                 orderRepository.save(order);
                 session.setOrderId(order.getOrderId());
@@ -526,6 +534,18 @@ public class SettlementService {
         log.info("auto applied coupon order={} couponId={} discount={} payable={}",
                 order.getOrderId(), pick.couponId(), discount, order.getTotalAmountCents());
         return pick;
+    }
+
+    /** 待支付不占券：还原应付为折前金额并清空券字段。 */
+    private static void clearCouponSelection(CabinetOrder order) {
+        int original = order.getOriginalAmountCents();
+        if (original <= 0) {
+            original = order.getTotalAmountCents() + Math.max(0, order.getCouponDiscountCents());
+        }
+        order.setCouponId(null);
+        order.setCouponDiscountCents(0);
+        order.setTotalAmountCents(Math.max(0, original));
+        order.setOriginalAmountCents(Math.max(0, original));
     }
 
     private void applyItemsToOrder(CabinetOrder order, List<VisionServiceClient.RecognizedItem> items) {
