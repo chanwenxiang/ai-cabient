@@ -78,6 +78,7 @@ class DataConsistencyServiceTest {
         ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
         verify(jdbcTemplate).queryForList(sqlCaptor.capture());
         String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("LEFT JOIN payment_operation") || sql.contains("LEFT JOIN"));
         assertTrue(sql.contains("COMPLETED"));
         assertTrue(sql.contains("CHARGE"));
         assertTrue(sql.contains("ADJUST_CHARGE"));
@@ -194,5 +195,17 @@ class DataConsistencyServiceTest {
         assertFalse(service.fixInconsistency(4L));
         assertEquals(DataConsistencyService.STATUS_FAIL, record.getStatus());
         verify(jdbcTemplate, never()).update(anyString(), any(), any());
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(4L);
+        assertFalse(outcome.fixed());
+        assertTrue(outcome.message().contains("退款") || outcome.message().contains("调账"));
+    }
+
+    @Test
+    void fixInconsistencyDetailed_missingRecord() {
+        when(consistencyRepository.findById(99L)).thenReturn(java.util.Optional.empty());
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(99L);
+        assertFalse(outcome.fixed());
+        assertEquals("记录不存在", outcome.message());
     }
 }

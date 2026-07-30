@@ -6,12 +6,16 @@ import com.aicabinet.trade.domain.DataConsistencyRecord;
 import com.aicabinet.trade.service.DataConsistencyService;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 运营侧数据一致性巡检 / 显式修复（三端金额、库存对齐）。
+ * <p>
+ * 响应字段约定（稳定）：
+ * <ul>
+ *   <li>run → {@code failCount}, {@code failures}</li>
+ *   <li>fix → {@code recordId}, {@code fixed}, {@code message}</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/api/v2/ops/admin/consistency")
@@ -35,23 +39,22 @@ public class DataConsistencyController {
             "ops:consistency:run", "ops:consistency:list", "ops:order:list", "ops:finance:view"
     }, logical = RequiresPermissions.Logical.OR)
     @PostMapping("/run")
-    public ApiResponse<Map<String, Object>> run() {
+    public ApiResponse<RunResponse> run() {
         int failCount = consistencyService.runConsistencyCheck();
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("failCount", failCount);
-        body.put("failures", consistencyService.getFailedChecks());
-        return ApiResponse.ok(body);
+        List<DataConsistencyRecord> failures = consistencyService.getFailedChecks();
+        return ApiResponse.ok(new RunResponse(failCount, failures));
     }
 
     @RequiresPermissions(value = {
             "ops:consistency:fix", "ops:order:refund"
     }, logical = RequiresPermissions.Logical.OR)
     @PostMapping("/{recordId}/fix")
-    public ApiResponse<Map<String, Object>> fix(@PathVariable Long recordId) {
-        boolean fixed = consistencyService.fixInconsistency(recordId);
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("recordId", recordId);
-        body.put("fixed", fixed);
-        return ApiResponse.ok(body);
+    public ApiResponse<FixResponse> fix(@PathVariable Long recordId) {
+        DataConsistencyService.FixOutcome outcome = consistencyService.fixInconsistencyDetailed(recordId);
+        return ApiResponse.ok(new FixResponse(recordId, outcome.fixed(), outcome.message()));
     }
+
+    public record RunResponse(int failCount, List<DataConsistencyRecord> failures) {}
+
+    public record FixResponse(long recordId, boolean fixed, String message) {}
 }

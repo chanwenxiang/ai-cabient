@@ -376,6 +376,7 @@ public class SettlementService {
             order.setInventoryDeducted(true);
         }
         orderPaymentService.applyPaymentDelta(order, delta);
+        // 三端一致：确认/改单后退出争议态（DisputeService 结案兜底也会对齐）
         if ("DISPUTED".equals(order.getStatus())) {
             order.setStatus("PAID");
         }

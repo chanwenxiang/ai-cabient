@@ -273,7 +273,7 @@ public class DeviceSlotService {
         int updated = 0;
         for (Map.Entry<String, Integer> entry : slotQtyRestored.entrySet()) {
             int qty = entry.getValue() != null ? entry.getValue() : 0;
-            if (qty <= 0) {
+            if (qty <= 0 || entry.getKey() == null || entry.getKey().isBlank()) {
                 continue;
             }
             String slotCode = entry.getKey().trim().toUpperCase();

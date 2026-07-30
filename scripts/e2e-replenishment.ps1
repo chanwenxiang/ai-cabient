@@ -2,7 +2,10 @@
 # Usage:
 #   .\scripts\e2e-replenishment.ps1
 #   .\scripts\e2e-replenishment.ps1 -BaseUrl http://localhost:18080
-#   .\scripts\e2e-replenishment.ps1 -FieldOnly   # skip warehouse; submit a field RESTOCK line
+#   .\scripts\e2e-replenishment.ps1 -FieldOnly   # 现场补货线；若 plan 已挂出库单仍须 pick/ship，否则 complete 409
+#
+# 注意：-FieldOnly 不是「跳过出库」，而是「允许在无计划明细时提交现场 RESTOCK」。
+# 运营 plan 常会同步生成 outbound；完成任务前必须把关联出库单发运。
 
 param(
     [string]$BaseUrl = "",
@@ -162,11 +165,18 @@ if ($lines.Count -eq 0) {
         Write-Warning "Slot lookup failed: $_"
     }
 
+    if (-not $pickSku -and $SkuId -and $SlotId) {
+        $pickSku = $SkuId
+        $pickSlot = $SlotId
+        Write-Host "    fallback to -SkuId/-SlotId params: slot=$pickSlot sku=$pickSku"
+    }
+
     if ($pickSku -and $pickSlot) {
         $expiry = (Get-Date).AddMonths(6).ToString("yyyy-MM-dd")
-        Write-Host "    submitting field RESTOCK line sku=$pickSku slot=$pickSlot qty=1 expiry=$expiry"
+        $qty = [Math]::Max(1, $Quantity)
+        Write-Host "    submitting field RESTOCK line sku=$pickSku slot=$pickSlot qty=$qty expiry=$expiry"
         $json = @"
-{"lines":[{"lineType":"RESTOCK","skuId":"$pickSku","batchNo":"E2E-$today","productionDate":null,"expiryDate":"$expiry","quantity":1,"slotId":"$pickSlot","applied":false}]}
+{"lines":[{"lineType":"RESTOCK","skuId":"$pickSku","batchNo":"E2E-$today","productionDate":null,"expiryDate":"$expiry","quantity":$qty,"slotId":"$pickSlot","applied":false}]}
 "@
         $uri = "$BaseUrl/api/v2/merchant/replenishment/tasks/$taskId/lines"
         $resp = Invoke-RestMethod -Method POST -Uri $uri -Headers $mchAuth `
@@ -197,6 +207,10 @@ if (-not $found) {
 }
 
 Write-Host ""
-$pathLabel = if ($useWarehouse -and $outboundId) { "warehouse" } else { "field-only" }
+$pathLabel = if ($useWarehouse -and $outboundId) {
+    if ($FieldOnly) { "field+shipped-outbound" } else { "warehouse" }
+} else {
+    "field-only"
+}
 Write-Host "OK replenishment E2E passed ($pathLabel) taskId=$taskId sessionId=$sessionId"
 exit 0

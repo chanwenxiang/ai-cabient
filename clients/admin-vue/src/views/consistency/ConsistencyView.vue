@@ -31,7 +31,7 @@
     </div>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 960px">
+      <div class="table-scroll-inner" style="min-width: 1080px">
         <el-table v-loading="loading" :data="items" stripe border class="report-table" row-key="id">
           <template #empty>
             <el-empty description="当前无 FAIL 记录，点击「立即巡检」可再跑一轮" />
@@ -41,9 +41,18 @@
               <el-tag size="small" :type="typeTag(row.checkType)">{{ typeLabel(row.checkType) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="键" min-width="180" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="键" min-width="200" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
-              <code class="mono">{{ row.checkKey }}</code>
+              <el-button
+                v-if="keyLink(row)"
+                type="primary"
+                link
+                class="key-link"
+                @click="openKey(row)"
+              >
+                <code class="mono">{{ row.checkKey }}</code>
+              </el-button>
+              <code v-else class="mono">{{ row.checkKey }}</code>
             </template>
           </el-table-column>
           <el-table-column prop="tableName" label="表" width="140" class-name="col-text" show-overflow-tooltip />
@@ -53,6 +62,12 @@
           <el-table-column label="实际" min-width="100" align="right" class-name="col-text">
             <template #default="{ row }">
               <span class="is-mismatch">{{ row.actualValue }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="说明" min-width="160" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span v-if="row.errorMessage" class="err-msg">{{ row.errorMessage }}</span>
+              <span v-else class="muted">—</span>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="90" align="center">
@@ -87,6 +102,7 @@
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
@@ -111,6 +127,13 @@ type RunResult = {
   failures?: Row[];
 };
 
+type FixResult = {
+  recordId: number;
+  fixed: boolean;
+  message?: string;
+};
+
+const router = useRouter();
 const auth = useAuthStore();
 const canRun = computed(
   () =>
@@ -159,6 +182,27 @@ function isFixable(t: string) {
   return t === 'ORDER_AMOUNT' || t === 'INVENTORY_MISMATCH';
 }
 
+function keyLink(row: Row): 'order' | 'device' | null {
+  if (!row.checkKey) return null;
+  if (row.checkType === 'ORDER_AMOUNT' || row.checkType === 'PAYMENT_AMOUNT') return 'order';
+  if (row.checkType === 'INVENTORY_MISMATCH' && row.checkKey.includes('|')) return 'device';
+  return null;
+}
+
+function openKey(row: Row) {
+  const kind = keyLink(row);
+  if (kind === 'order') {
+    void router.push({ path: '/orders', query: { orderId: row.checkKey } });
+    return;
+  }
+  if (kind === 'device') {
+    const deviceId = row.checkKey.split('|', 2)[0];
+    if (deviceId) {
+      void router.push({ path: `/devices/${encodeURIComponent(deviceId)}`, query: { id: deviceId } });
+    }
+  }
+}
+
 async function load() {
   loading.value = true;
   try {
@@ -198,15 +242,12 @@ async function fixRow(row: Row) {
   }
   fixingId.value = row.id;
   try {
-    const res = await api.request<{ recordId: number; fixed: boolean }>(
-      `/api/v2/ops/admin/consistency/${row.id}/fix`,
-      'POST'
-    );
+    const res = await api.request<FixResult>(`/api/v2/ops/admin/consistency/${row.id}/fix`, 'POST');
     if (res?.fixed) {
-      ElMessage.success('已修复');
+      ElMessage.success(res.message || '已修复');
       await load();
     } else {
-      ElMessage.warning('未能自动修复（可能需人工补明细）');
+      ElMessage.warning(res?.message || '未能自动修复（可能需人工补明细）');
     }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '修复失败');
@@ -224,9 +265,18 @@ onActivated(load);
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12px;
 }
+.key-link {
+  padding: 0;
+  height: auto;
+  vertical-align: baseline;
+}
 .is-mismatch {
   color: var(--el-color-danger);
   font-weight: 600;
+}
+.err-msg {
+  color: var(--el-text-color-regular);
+  font-size: 12px;
 }
 .muted {
   color: var(--el-text-color-placeholder);

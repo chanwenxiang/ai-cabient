@@ -171,6 +171,9 @@ public class InventoryService {
         adjustForOrder(deviceId, oldItems, newItems, Map.of());
     }
 
+    /**
+     * 改单库存差量：多扣则继续 FEFO 扣减；少扣则按原批次（batchBySku）优先回库，与货道实测同步。
+     */
     @Transactional
     public void adjustForOrder(String deviceId,
                                List<VisionServiceClient.RecognizedItem> oldItems,
