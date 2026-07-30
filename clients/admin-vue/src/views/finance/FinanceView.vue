@@ -23,10 +23,20 @@
             </div>
           </div>
           <div class="page-card-head__actions">
+            <el-button type="primary" plain :loading="solidifying" @click="solidifyYesterday">固化昨日毛利</el-button>
             <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
           </div>
         </div>
       </template>
+
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        class="margin-lock-alert"
+        title="毛利固化规则"
+        description="今日数据实时计算；历史日在日切后固化，固化后即使修改采购成本也不回溯。可手动「固化昨日毛利」。日资金账单见「资金账单」菜单。"
+      />
 
       <el-row :gutter="12" class="kpi-row">
         <el-col v-for="item in kpiTiles" :key="item.label" :xs="12" :sm="8" :md="4">
@@ -89,7 +99,7 @@
       </ChartPanel>
     </div>
 
-    <ChartPanel :title="`商品毛利 TOP · 近 ${days} 天`" compact class="sku-panel">
+    <ChartPanel :title="`商品毛利排行 · 近 ${days} 天`" compact class="sku-panel">
       <template #actions>
         <el-button v-hasPermi="['ops:finance:export']" @click="onExportTopSkus">{{ topSkusExportLabel }}</el-button>
         <el-button v-if="canAccessPath('/skus')" link type="primary" @click="goPath('/skus')">商品管理</el-button>
@@ -193,6 +203,7 @@ interface FinanceReport {
 const { router, canAccessPath, goPath } = useNavAccess();
 const route = useRoute();
 const loading = ref(false);
+const solidifying = ref(false);
 const loadError = ref('');
 const days = ref(parseDays(route.query.days));
 const chartKind = ref<ChartKind>('area');
@@ -313,6 +324,19 @@ async function load() {
   }
 }
 
+async function solidifyYesterday() {
+  solidifying.value = true;
+  try {
+    await api.request('/api/v2/ops/admin/finance/margin-locks/solidify', 'POST');
+    ElMessage.success('昨日毛利已固化');
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '固化失败');
+  } finally {
+    solidifying.value = false;
+  }
+}
+
 watch(
   () => route.query.days,
   (raw) => {
@@ -370,6 +394,7 @@ onMounted(load);
   margin-right: 8px;
 }
 .kpi-row { margin-bottom: 4px; }
+.margin-lock-alert { margin-bottom: 12px; }
 .kpi-tile {
   background: var(--el-fill-color-light);
   border: 1px solid var(--layout-border);

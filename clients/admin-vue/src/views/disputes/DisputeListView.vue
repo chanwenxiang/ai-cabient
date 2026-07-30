@@ -361,10 +361,10 @@
           </div>
         </div>
         <div class="ai-suggest-block">
-          <div class="items-title">DeepSeek 辅助识别</div>
+          <div class="items-title">智能识别建议</div>
           <input ref="disputeImageInput" type="file" accept="image/*" class="hidden-input" @change="onDisputeImagePick" />
           <el-button size="small" :loading="suggestingDispute" @click="triggerDisputeImage">
-            上传关键帧获取 SKU 建议
+            上传关键帧获取商品建议
           </el-button>
           <el-alert
             v-if="disputeSuggestHint"
@@ -402,7 +402,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onDeactivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onDeactivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Link, Refresh, VideoCamera, View, Warning } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -711,7 +711,7 @@ async function onDisputeImagePick(ev: Event) {
       resetDraftFromSuggested();
     }
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : 'DeepSeek 建议失败');
+    ElMessage.error(e instanceof Error ? e.message : '智能识别建议失败');
   } finally {
     suggestingDispute.value = false;
     input.value = '';
@@ -856,9 +856,13 @@ function reset() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (typeof route.query.status === 'string' && route.query.status !== status.value) {
-    status.value = route.query.status;
-    changed = true;
+  const allowedStatus = new Set(['OPEN', 'RESOLVED', 'CLOSED']);
+  if (typeof route.query.status === 'string' && route.query.status) {
+    const next = route.query.status.trim().toUpperCase();
+    if (allowedStatus.has(next) && next !== status.value) {
+      status.value = next;
+      changed = true;
+    }
   }
   if (typeof route.query.category === 'string') {
     const next = route.query.category || 'ALL';
@@ -887,15 +891,32 @@ function applyRouteQuery() {
   return changed;
 }
 
+async function reloadFromRouteQuery() {
+  if (!applyRouteQuery()) return;
+  page.value = 1;
+  await load(false);
+}
+
+watch(
+  () =>
+    [
+      route.query.status,
+      route.query.category,
+      route.query.reviewCode,
+      route.query.sessionId,
+      route.query.ticketId
+    ] as const,
+  () => {
+    void reloadFromRouteQuery();
+  }
+);
+
 onActivated(async () => {
   detailVisible.value = false;
   selected.value = null;
   resolveFeedback.value = null;
   clearEmbedVideo();
-  if (applyRouteQuery()) {
-    page.value = 1;
-    await load(false);
-  }
+  await reloadFromRouteQuery();
 });
 onDeactivated(() => {
   detailVisible.value = false;

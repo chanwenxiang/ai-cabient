@@ -1,4 +1,5 @@
 import type { ApiResponse, LoginResponse } from '@aicabinet/shared-types';
+import { localizeApiMessage } from '@aicabinet/shared-uni/format';
 
 export type HttpAdapter = (input: {
   url: string;
@@ -51,13 +52,13 @@ export class ApiClient {
     if (res.status === 401) {
       this.clearSession();
       this.onUnauthorized?.();
-      throw new Error(json.message || '登录已失效');
+      throw new Error(localizeApiMessage(json.message, '登录已失效'));
     }
     if (res.status === 403) {
-      throw new Error(json.message || '权限不足');
+      throw new Error(localizeApiMessage(json.message, '权限不足'));
     }
     if (!res.ok || json.code !== 0) {
-      throw new Error(json.message || `请求失败 (${res.status})`);
+      throw new Error(localizeApiMessage(json.message, `请求失败 (${res.status})`));
     }
     return json.data;
   }

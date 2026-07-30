@@ -159,7 +159,12 @@ public class DisputeService {
         if (session.getState() != SessionState.COMPLETED && session.getState() != SessionState.DISPUTED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_STATE_INVALID);
         }
-        if (disputeRepository.findBySessionId(session.getSessionId()).isPresent()) {
+        var existing = disputeRepository.findBySessionId(session.getSessionId());
+        if (existing.isPresent()) {
+            String st = existing.get().getStatus();
+            if ("RESOLVED".equalsIgnoreCase(st) || "CLOSED".equalsIgnoreCase(st)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DISPUTE_APPEAL_CLOSED);
+            }
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.DISPUTE_ALREADY_EXISTS);
         }
         DisputeTicketDto dto = saveOpenTicket(userId, session.getSessionId(), request.reason().trim(), "[]",

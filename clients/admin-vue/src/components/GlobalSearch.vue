@@ -2,7 +2,7 @@
   <div class="global-search">
     <el-input
       v-model="keyword"
-      placeholder="全局搜索页面 (Ctrl+K)"
+      placeholder="搜索页面名称或关键词 (Ctrl+K)"
       :prefix-icon="Search"
       clearable
       class="search-input"
@@ -35,7 +35,7 @@
           @click="go(item.path)"
         >
           <span class="result-title">{{ item.title }}</span>
-          <span class="result-meta">{{ item.group }} · {{ item.path }}</span>
+          <span class="result-meta">{{ item.group }}{{ item.section ? ` · ${item.section}` : '' }}</span>
         </div>
         <el-empty v-if="keyword && !results.length" description="无匹配页面" :image-size="64" />
         <div v-if="!keyword" class="hint">可搜索：设备、订单、争议、对账、个人中心等</div>

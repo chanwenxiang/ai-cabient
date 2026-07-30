@@ -96,6 +96,23 @@
           @click="sendCommand('REBOOT')"
         >重启设备</el-button>
       </div>
+
+      <div class="cmd-section-label">柜机策略锁</div>
+      <el-form v-if="policy" label-width="120px" class="policy-form" @submit.prevent>
+        <el-form-item label="营业锁机">
+          <el-switch v-model="policy.salesLocked" :disabled="!canEditDevice" @change="() => savePolicy()" />
+        </el-form-item>
+        <el-form-item label="价格锁">
+          <el-switch v-model="policy.priceLocked" :disabled="!canEditDevice" @change="() => savePolicy()" />
+        </el-form-item>
+        <el-form-item label="禁改 SKU">
+          <el-switch v-model="policy.skuEditForbidden" :disabled="!canEditDevice" @change="() => savePolicy()" />
+        </el-form-item>
+        <el-form-item label="禁售">
+          <el-switch v-model="policy.saleForbidden" :disabled="!canEditDevice" @change="() => savePolicy()" />
+        </el-form-item>
+      </el-form>
+
       <div class="cmd-section-label">补货入口</div>
       <div class="cmd-bar">
         <el-button v-if="canAccessPath('/replenishment')" @click="goReplenish">缺货建议</el-button>
@@ -326,6 +343,7 @@ const auth = useAuthStore();
 const { router, canAccessPath, goPath } = useNavAccess();
 const deviceId = route.params.id as string;
 const canEditSlots = computed(() => auth.hasPerm('ops:device:edit'));
+const canEditDevice = computed(() => auth.hasPerm('ops:device:edit'));
 const loading = ref(false);
 const applying = ref(false);
 const saving = ref(false);
@@ -334,6 +352,13 @@ const tempDraft = ref<number | undefined>(undefined);
 const tab = ref('overview');
 const device = ref<DeviceRow | null>(null);
 const metrics = ref<Metrics | null>(null);
+const policy = ref<{
+  deviceId: string;
+  salesLocked: boolean;
+  priceLocked: boolean;
+  skuEditForbidden: boolean;
+  saleForbidden: boolean;
+} | null>(null);
 const slots = ref<DeviceSlot[]>([]);
 const skus = ref<SkuCatalog[]>([]);
 const sessions = ref<any[]>([]);
@@ -357,6 +382,35 @@ async function loadDetail() {
   metrics.value = detail.metrics;
   slots.value = detail.slots || [];
   tempDraft.value = detail.metrics?.targetTempC != null ? detail.metrics.targetTempC : undefined;
+  try {
+    policy.value = await api.request(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/policy`,
+      'GET'
+    );
+  } catch {
+    policy.value = {
+      deviceId,
+      salesLocked: !!detail.metrics?.salesLocked,
+      priceLocked: false,
+      skuEditForbidden: false,
+      saleForbidden: false
+    };
+  }
+}
+
+async function savePolicy() {
+  if (!policy.value || !canEditDevice.value) return;
+  try {
+    policy.value = await api.request(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/policy`,
+      'PUT',
+      policy.value
+    );
+    ElMessage.success('策略已更新');
+    await loadDetail();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '策略保存失败');
+  }
 }
 
 async function loadRelated() {

@@ -4,7 +4,7 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">OTA 版本</span>
+            <span class="title">固件版本</span>
             <span class="hint">设备端应用版本发布与灰度</span>
           </div>
         </div>
@@ -18,7 +18,7 @@
     <div class="table-scroll">
       <div class="table-scroll-inner" style="min-width: 960px">
         <el-table v-loading="loading" :data="items" stripe border class="report-table" row-key="releaseId">
-          <template #empty><el-empty description="暂无 OTA 版本" /></template>
+          <template #empty><el-empty description="暂无固件版本" /></template>
           <el-table-column prop="appVersion" label="版本" min-width="120" class-name="col-text" />
           <el-table-column prop="channel" label="渠道" width="100" class-name="col-text" />
           <el-table-column prop="status" label="状态" width="100" align="center" />
@@ -40,13 +40,13 @@
     </div>
   </el-card>
 
-  <el-dialog v-model="dialog" title="发布 OTA 版本" width="520px" destroy-on-close>
+  <el-dialog v-model="dialog" title="发布固件版本" width="520px" destroy-on-close>
     <el-form label-width="110px">
       <el-form-item label="版本号" required>
         <el-input v-model="form.appVersion" placeholder="例如 1.2.0" />
       </el-form-item>
       <el-form-item label="渠道">
-        <el-input v-model="form.channel" placeholder="stable / beta" />
+        <el-input v-model="form.channel" placeholder="稳定版 / 测试版（stable / beta）" />
       </el-form-item>
       <el-form-item label="下载地址" required>
         <el-input v-model="form.downloadUrl" placeholder="https://..." />

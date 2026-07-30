@@ -9,6 +9,8 @@ import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OpsRoleMapper;
+import com.aicabinet.trade.mapper.OpsUserDeviceScopeMapper;
+import com.aicabinet.trade.mapper.OpsUserDeviceScopePrefMapper;
 import com.aicabinet.trade.mapper.OpsUserMerchantMapper;
 import com.aicabinet.trade.mapper.OpsUserRoleMapper;
 import com.aicabinet.trade.support.ApiMessages;
@@ -47,6 +49,10 @@ class MerchantScopeServiceTest {
     @Mock
     private MerchantMapper merchantRepository;
     @Mock
+    private OpsUserDeviceScopeMapper deviceScopeMapper;
+    @Mock
+    private OpsUserDeviceScopePrefMapper deviceScopePrefMapper;
+    @Mock
     private CabinetMetrics cabinetMetrics;
 
     private MerchantScopeService merchantScopeService;
@@ -55,8 +61,9 @@ class MerchantScopeServiceTest {
     void setUp() {
         merchantScopeService = new MerchantScopeService(
                 userMerchantRepository, userRoleRepository, roleRepository,
-                deviceRepository, merchantRepository, cabinetMetrics);
+                deviceRepository, merchantRepository, deviceScopeMapper, deviceScopePrefMapper, cabinetMetrics);
         lenient().when(merchantRepository.findAll()).thenReturn(List.of());
+        lenient().when(deviceScopePrefMapper.findById(org.mockito.ArgumentMatchers.anyLong())).thenReturn(Optional.empty());
     }
 
     @Test

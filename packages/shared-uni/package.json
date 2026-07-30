@@ -6,7 +6,8 @@
   "exports": {
     "./qrcode": "./src/qrcode.ts",
     "./format": "./src/format.ts",
-    "./session-labels": "./src/session-labels.ts"
+    "./session-labels": "./src/session-labels.ts",
+    "./theme.css": "./src/theme.css"
   },
   "dependencies": {
     "@aicabinet/shared-dict": "workspace:*"

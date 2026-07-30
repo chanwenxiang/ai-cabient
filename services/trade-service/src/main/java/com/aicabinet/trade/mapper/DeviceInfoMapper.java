@@ -31,4 +31,11 @@ public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
     return selectList(Wrappers.<DeviceInfo>lambdaQuery().in(DeviceInfo::getMerchantId, merchantIds));
     }
 
+    default List<DeviceInfo> findByDeviceIdIn(Collection<String> deviceIds) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<DeviceInfo>lambdaQuery().in(DeviceInfo::getDeviceId, deviceIds));
+    }
+
 }

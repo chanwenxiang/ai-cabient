@@ -43,13 +43,13 @@
           <view v-for="s in slots" :key="s.slotCode" class="slot-cell">
             <text class="slot-code">{{ s.slotCode }}</text>
             <text>{{ s.assignedSkuName || '空' }}</text>
-            <text class="meta">库存 {{ s.bookQty }}/{{ s.maxLevel || s.parLevel }}</text>
+            <text class="meta">库存 {{ s.bookQty }}/{{ s.maxLevel || s.parLevel || '-' }}</text>
             <input
               v-if="canEditSlots"
               v-model="slotPar[s.slotCode]"
               class="input-sm"
               type="number"
-              placeholder="par"
+              placeholder="目标库存"
             />
           </view>
         </view>

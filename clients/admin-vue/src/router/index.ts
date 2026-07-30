@@ -10,7 +10,10 @@ const bizChildren: any[] = [
   { path: 'analytics', name: 'analytics', component: () => import('@/views/analytics/AnalyticsView.vue'), meta: { title: '数据分析', group: '概览' } },
   { path: 'reports', name: 'reports', component: () => import('@/views/reports/DeviceReportView.vue'), meta: { title: '设备报表', group: '概览' } },
   { path: 'finance', name: 'finance', component: () => import('@/views/finance/FinanceView.vue'), meta: { title: '财务毛利', group: '概览' } },
+  { path: 'fund-bills', name: 'fund-bills', component: () => import('@/views/finance/FundBillView.vue'), meta: { title: '资金账单', group: '运营' } },
+  { path: 'sales-reports', name: 'sales-reports', component: () => import('@/views/reports/SalesReportsView.vue'), meta: { title: '销售报表', group: '概览' } },
   { path: 'devices', name: 'devices', component: () => import('@/views/devices/DeviceListView.vue'), meta: { title: '设备管理', group: '业务' } },
+  { path: 'device-ops', name: 'device-ops', component: () => import('@/views/devices/DeviceOpsMonitorView.vue'), meta: { title: '设备运维', group: '业务' } },
   { path: 'devices/:id', name: 'device-detail', component: () => import('@/views/devices/DeviceDetailView.vue'), meta: { title: '设备详情', group: '业务', parentTitle: '设备管理', parentPath: '/devices' } },
   { path: 'sessions', name: 'sessions', component: () => import('@/views/sessions/SessionListView.vue'), meta: { title: '开门记录', group: '业务' } },
   { path: 'videos', redirect: '/upload-queue' },
@@ -27,9 +30,11 @@ const bizChildren: any[] = [
   { path: 'warehouse', name: 'warehouse', component: () => import('@/views/warehouse/WarehouseView.vue'), meta: { title: '仓库', group: '运营' } },
   { path: 'recharges', name: 'recharges', component: () => import('@/views/recharges/RechargeListView.vue'), meta: { title: '充值管理', group: '运营' } },
   { path: 'users', name: 'users', component: () => import('@/views/users/UserListView.vue'), meta: { title: '用户余额', group: '运营' } },
+  { path: 'phone-verify', name: 'phone-verify', component: () => import('@/views/users/PhoneVerifyView.vue'), meta: { title: '手机验证', group: '运营' } },
+  { path: 'commercial-hub', name: 'commercial-hub', component: () => import('@/views/commercial/CommercialHubView.vue'), meta: { title: '商业化中心', group: '运营' } },
   { path: 'vision-mappings', name: 'vision-mappings', component: () => import('@/views/vision/VisionMappingView.vue'), meta: { title: '识别映射', group: '业务' } },
-  { path: 'ota', name: 'ota', component: () => import('@/views/ota/OtaView.vue'), meta: { title: 'OTA 版本', group: '运营' } },
-  { path: 'sla', name: 'sla', component: () => import('@/views/sla/SlaView.vue'), meta: { title: 'SLA 监控', group: '运营' } },
+  { path: 'ota', name: 'ota', component: () => import('@/views/ota/OtaView.vue'), meta: { title: '固件版本', group: '运营' } },
+  { path: 'sla', name: 'sla', component: () => import('@/views/sla/SlaView.vue'), meta: { title: '服务时限监控', group: '运营' } },
   { path: 'risk', name: 'risk', component: () => import('@/views/risk/RiskView.vue'), meta: { title: '风控', group: '运营' } },
   { path: 'operators', name: 'operators', component: () => import('@/views/system/OperatorManageView.vue'), meta: { title: '运营账号', group: '系统' } },
   { path: 'roles', name: 'roles', component: () => import('@/views/system/RoleManageView.vue'), meta: { title: '角色管理', group: '系统' } },
@@ -52,7 +57,7 @@ if (ENABLE_TEST_TOOLS) {
     path: 'recognition-demo',
     name: 'recognition-demo',
     component: () => import('@/views/vision/RecognitionDemoView.vue'),
-    meta: { title: '识别 Demo', group: '业务' }
+    meta: { title: '识别演示', group: '业务' }
   });
 }
 

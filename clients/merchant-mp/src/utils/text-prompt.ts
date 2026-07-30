@@ -117,8 +117,7 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
           padding: 24px 20px;
           box-sizing: border-box;
           background: rgba(15, 23, 42, 0.55);
-          font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC",
-            "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+          font-family: var(--app-font, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif);
           -webkit-font-smoothing: antialiased;
         }
         #${HOST_ID} .mtp-card {

@@ -83,6 +83,8 @@ public final class ApiMessages {
     public static final String TICKET_NOT_FOUND = "争议工单不存在";
     public static final String TICKET_ALREADY_RESOLVED = "工单已处理";
     public static final String DISPUTE_ALREADY_EXISTS = "该会话已有申诉工单";
+    /** 已结案 / 已关闭后消费者再次申诉。 */
+    public static final String DISPUTE_APPEAL_CLOSED = "本单已结案，不可再申诉";
     public static final String DISPUTE_ITEMS_REQUIRED = "请至少选择一件商品";
     public static final String DISPUTE_RESOLUTION_TYPE_REQUIRED = "请指定结案方式（KEEP/WAIVE/CONFIRM/ADJUST）";
     public static final String ORDER_ALREADY_REFUNDED = "订单已退款";

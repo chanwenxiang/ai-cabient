@@ -21,7 +21,7 @@
       :closable="false"
       show-icon
       title="本页为设备录像上传状态队列，不是人工上传入口"
-      description="购物会话关门后，设备/边缘端会自动上传录像到对象存储；此处仅查询待上传、上传中、失败会话，并可预览已上传文件。SLA 与工作台「录像滞留」一致（30 分钟）。"
+      description="购物会话关门后，设备/边缘端会自动上传录像到对象存储；此处仅查询待上传、上传中、失败会话，并可预览已上传文件。处理时限与工作台「录像滞留」一致（30 分钟）。"
     />
 
     <el-alert
@@ -113,7 +113,7 @@
               <span>{{ waitReason(row) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="滞留 / SLA" width="150" class-name="col-text">
+          <el-table-column label="滞留 / 时限" width="150" class-name="col-text">
             <template #default="{ row }">
               <div class="sla-cell">
                 <template v-if="isStuck(row)">
@@ -121,12 +121,12 @@
                   <small class="sla-meta danger">超 {{ formatAge(overdueMs(row)) }}</small>
                 </template>
                 <template v-else-if="isDueSoon(row)">
-                  <el-tag type="warning" size="small">临近 SLA</el-tag>
+                  <el-tag type="warning" size="small">临近时限</el-tag>
                   <small class="sla-meta">已等 {{ formatAge(ageMs(row)) }} · 剩 {{ formatAge(remainMs(row)) }}</small>
                 </template>
                 <template v-else>
                   <span class="cell-datetime">已等 {{ formatAge(ageMs(row)) }}</span>
-                  <small class="sla-meta">SLA {{ SLA_MINUTES }} 分</small>
+                  <small class="sla-meta">时限 {{ SLA_MINUTES }} 分</small>
                 </template>
               </div>
             </template>
@@ -322,7 +322,7 @@ function waitReason(row: SessionRow) {
     case 'NONE':
       return stuck ? '关门后长期无上传状态上报' : '待设备上报上传状态';
     default:
-      return stuck ? '上传状态未推进，已超过 SLA' : '关门后等待录像上传';
+      return stuck ? '上传状态未推进，已超过处理时限' : '关门后等待录像上传';
   }
 }
 

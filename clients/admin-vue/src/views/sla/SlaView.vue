@@ -4,7 +4,7 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">SLA 监控</span>
+            <span class="title">服务时限监控</span>
             <span class="hint">开门成功率、识别耗时与设备在线率</span>
           </div>
         </div>
@@ -14,7 +14,7 @@
       </div>
     </template>
 
-    <el-empty v-if="!loading && !data" description="暂无 SLA 数据" />
+    <el-empty v-if="!loading && !data" description="暂无服务时限数据" />
     <template v-else>
       <el-row :gutter="12" class="stat-row">
         <el-col :xs="12" :sm="8" :md="6">
@@ -77,7 +77,7 @@
         <el-descriptions-item label="24h 识别均耗时">
           {{ data.realtime.avgRecognizeMs24h ?? 0 }} ms
         </el-descriptions-item>
-        <el-descriptions-item label="争议 SLA 达标率">
+        <el-descriptions-item label="争议时限达标率">
           {{ pct(data.realtime.disputeSlaCompliance24h) }}
         </el-descriptions-item>
         <el-descriptions-item label="开放争议">

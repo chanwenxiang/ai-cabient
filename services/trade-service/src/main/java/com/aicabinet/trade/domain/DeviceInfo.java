@@ -48,6 +48,15 @@ public class DeviceInfo {
     /** 营业锁机：禁止消费者开门 */
     private Boolean salesLocked;
 
+    /** 价格锁：禁止改价 */
+    private Boolean priceLocked;
+
+    /** 禁止改 SKU / 货道商品 */
+    private Boolean skuEditForbidden;
+
+    /** 禁售（策略层，通常伴随营业锁机） */
+    private Boolean saleForbidden;
+
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private Instant updatedAt;
 
@@ -88,6 +97,12 @@ public class DeviceInfo {
     public Boolean getSalesLocked() { return salesLocked; }
     public void setSalesLocked(Boolean salesLocked) { this.salesLocked = salesLocked; }
     public boolean salesLockedEnabled() { return Boolean.TRUE.equals(salesLocked); }
+    public Boolean getPriceLocked() { return priceLocked; }
+    public void setPriceLocked(Boolean priceLocked) { this.priceLocked = priceLocked; }
+    public Boolean getSkuEditForbidden() { return skuEditForbidden; }
+    public void setSkuEditForbidden(Boolean skuEditForbidden) { this.skuEditForbidden = skuEditForbidden; }
+    public Boolean getSaleForbidden() { return saleForbidden; }
+    public void setSaleForbidden(Boolean saleForbidden) { this.saleForbidden = saleForbidden; }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
     public void markHeartbeatReceived() { updatedAt = Instant.now(); }

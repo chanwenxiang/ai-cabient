@@ -4,8 +4,8 @@
       <div class="page-card-head">
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
-            <span class="title">识别 Demo</span>
-            <span class="hint">上传商品图，YOLO 识别后匹配 SKU 名称与价格</span>
+            <span class="title">识别演示</span>
+            <span class="hint">上传商品图，识别后匹配商品名称与价格</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -81,7 +81,7 @@
           </div>
 
           <el-descriptions v-else :column="1" border size="small" class="meta-block">
-            <el-descriptions-item label="YOLO 检测类">
+            <el-descriptions-item label="检测类名">
               {{ (result.detectedClasses || []).join('、') || '无' }}
             </el-descriptions-item>
           </el-descriptions>

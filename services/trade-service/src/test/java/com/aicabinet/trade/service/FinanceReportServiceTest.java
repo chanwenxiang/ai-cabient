@@ -24,6 +24,7 @@ class FinanceReportServiceTest {
         CabinetOrderLineMapper lines = mock(CabinetOrderLineMapper.class);
         InventoryWriteOffMapper writeOffs = mock(InventoryWriteOffMapper.class);
         MerchantScopeService scope = mock(MerchantScopeService.class);
+        FundBillService fundBill = mock(FundBillService.class);
         Set<String> devices = Set.of("CAB-1");
         when(scope.allowedDeviceIds(7L)).thenReturn(devices);
         when(orders.sumTotalAmountByDeviceIdInSince(any(), any())).thenReturn(1_000L);
@@ -33,7 +34,7 @@ class FinanceReportServiceTest {
         when(orders.countByDeviceIdInAndCreatedAtAfter(any(), any())).thenReturn(4L);
         when(orders.sumTotalAmountByDeviceIdIn(devices)).thenReturn(10_000L);
 
-        FinanceStatsDto result = new FinanceReportService(orders, lines, writeOffs, scope).stats(7L);
+        FinanceStatsDto result = new FinanceReportService(orders, lines, writeOffs, scope, fundBill).stats(7L);
 
         assertEquals(1_000L, result.revenueTodayCents());
         assertEquals(400L, result.grossMarginTodayCents());
@@ -48,9 +49,10 @@ class FinanceReportServiceTest {
         CabinetOrderLineMapper lines = mock(CabinetOrderLineMapper.class);
         InventoryWriteOffMapper writeOffs = mock(InventoryWriteOffMapper.class);
         MerchantScopeService scope = mock(MerchantScopeService.class);
+        FundBillService fundBill = mock(FundBillService.class);
         when(scope.allowedDeviceIds(8L)).thenReturn(Set.of());
 
-        FinanceStatsDto result = new FinanceReportService(orders, lines, writeOffs, scope).stats(8L);
+        FinanceStatsDto result = new FinanceReportService(orders, lines, writeOffs, scope, fundBill).stats(8L);
 
         assertEquals(0L, result.revenueTodayCents());
         assertEquals(0L, result.orderToday());

@@ -9,13 +9,16 @@ onLaunch(() => {
 </script>
 
 <style>
+@import '@aicabinet/shared-uni/theme.css';
+
 page {
   --brand: #0f766e;
   --brand-deep: #134e4a;
   --brand-soft: #99f6e4;
   --brand-tint: #ccfbf1;
+  height: 100%;
   background: #f0fdfa;
-  font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--app-font);
   color: #0f172a;
 }
 
@@ -106,5 +109,21 @@ button::after {
 }
 .uni-modal .uni-modal__bd {
   color: #0f172a !important;
+}
+
+/* 桌面浏览器：与消费者端一致的手机框预览 */
+@media (min-width: 600px) {
+  uni-page-body {
+    width: 520px;
+    height: calc(100vh - 36px);
+    min-height: calc(100vh - 36px);
+    margin: 18px auto;
+    border-radius: 28px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    box-shadow: 0 22px 70px rgba(15, 23, 42, 0.14);
+    background: #f0fdfa;
+  }
 }
 </style>

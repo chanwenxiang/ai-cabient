@@ -70,7 +70,7 @@
     </view>
 
     <view class="tip-card">
-      <text class="tip-text">分账由平台定期提交至微信收款账户，商户端不支持自主提现。</text>
+      <text class="tip-text">T+1 结算：当日支付流水通常次日完成入账；分账由平台定期提交至微信收款账户，商户端不支持自主提现。</text>
       <text v-if="profitNote" class="tip-meta">{{ profitNote }}</text>
     </view>
 
@@ -81,7 +81,10 @@
         <view v-for="d in daily" :key="d.date" class="device-row">
           <view class="device-info">
             <text class="device-name">{{ d.date }}</text>
-            <text class="device-orders">{{ d.orderCount }} 笔 · 待分 ¥{{ (d.pendingCents / 100).toFixed(2) }}</text>
+            <text class="device-orders">
+              {{ d.orderCount }} 笔 · 实付 ¥{{ (d.grossCents / 100).toFixed(2) }} · 抽成 ¥{{ (d.platformCents / 100).toFixed(2) }}
+            </text>
+            <text class="device-orders">待分 ¥{{ (d.pendingCents / 100).toFixed(2) }} · 已结 ¥{{ (d.settledCents / 100).toFixed(2) }}</text>
           </view>
           <text class="device-amount">¥{{ (d.merchantCents / 100).toFixed(2) }}</text>
         </view>

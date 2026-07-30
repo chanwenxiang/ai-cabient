@@ -1,0 +1,246 @@
+package com.aicabinet.trade.api;
+
+import com.aicabinet.common.dto.*;
+import com.aicabinet.trade.auth.AuthInterceptor;
+import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.CompetitiveGapService;
+import com.aicabinet.trade.service.FundBillService;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Map;
+
+@RestController
+@RequestMapping("/api/v2/ops/admin")
+public class OpsGapFeaturesController {
+
+    private final FundBillService fundBillService;
+    private final CompetitiveGapService gapService;
+
+    public OpsGapFeaturesController(FundBillService fundBillService, CompetitiveGapService gapService) {
+        this.fundBillService = fundBillService;
+        this.gapService = gapService;
+    }
+
+    // ---- M1 fund ----
+
+    @RequiresPermissions("ops:fund:list")
+    @GetMapping("/fund/daily-bills")
+    public ApiResponse<List<FundDailyBillDto>> dailyBills(
+            HttpServletRequest request,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
+        return ApiResponse.ok(fundBillService.listDailyBills(operatorId(request), fromDate, toDate));
+    }
+
+    @RequiresPermissions("ops:fund:list")
+    @GetMapping("/fund/ledger")
+    public ApiResponse<PageResult<FundLedgerEntryDto>> ledger(
+            HttpServletRequest request,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate,
+            @RequestParam(required = false) String financialType,
+            @RequestParam(required = false) String direction,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(fundBillService.listLedger(
+                operatorId(request), fromDate, toDate, financialType, direction, page, size));
+    }
+
+    @RequiresPermissions("ops:fund:export")
+    @GetMapping(value = "/fund/daily-bills/export", produces = "text/csv")
+    public ResponseEntity<byte[]> exportDailyBills(
+            HttpServletRequest request,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
+        byte[] csv = fundBillService.exportDailyBillsCsv(operatorId(request), fromDate, toDate);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"fund-daily-bills.csv\"")
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .body(csv);
+    }
+
+    @RequiresPermissions("ops:finance:view")
+    @GetMapping("/finance/margin-locks")
+    public ApiResponse<List<FinanceMarginLockDto>> marginLocks(
+            HttpServletRequest request,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
+        return ApiResponse.ok(fundBillService.listMarginLocks(operatorId(request), fromDate, toDate));
+    }
+
+    @RequiresPermissions("ops:finance:view")
+    @PostMapping("/finance/margin-locks/solidify")
+    public ApiResponse<FinanceMarginLockDto> solidifyMargin(
+            HttpServletRequest request,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate bizDate) {
+        return ApiResponse.ok(fundBillService.solidifyMargin(operatorId(request), bizDate));
+    }
+
+    // ---- M2 ----
+
+    @RequiresPermissions("ops:rbac:assign")
+    @GetMapping("/rbac/users/{userId}/devices")
+    public ApiResponse<OpsUserDeviceScopeDto> userDevices(HttpServletRequest request, @PathVariable Long userId) {
+        return ApiResponse.ok(gapService.getUserDeviceScope(operatorId(request), userId));
+    }
+
+    @RequiresPermissions("ops:rbac:assign")
+    @PutMapping("/rbac/users/{userId}/devices")
+    public ApiResponse<OpsUserDeviceScopeDto> assignDevices(
+            HttpServletRequest request,
+            @PathVariable Long userId,
+            @RequestBody OpsUserDeviceScopeDto body) {
+        return ApiResponse.ok(gapService.assignUserDeviceScope(operatorId(request), userId, body));
+    }
+
+    @RequiresPermissions("ops:merchant:list")
+    @GetMapping("/merchants/{merchantId}/ops-config")
+    public ApiResponse<MerchantOpsConfigDto> getOpsConfig(HttpServletRequest request, @PathVariable String merchantId) {
+        return ApiResponse.ok(gapService.getOpsConfig(operatorId(request), merchantId));
+    }
+
+    @RequiresPermissions("ops:merchant:edit")
+    @PutMapping("/merchants/{merchantId}/ops-config")
+    public ApiResponse<MerchantOpsConfigDto> saveOpsConfig(
+            HttpServletRequest request,
+            @PathVariable String merchantId,
+            @RequestBody MerchantOpsConfigDto body) {
+        return ApiResponse.ok(gapService.saveOpsConfig(operatorId(request), merchantId, body));
+    }
+
+    @RequiresPermissions("ops:merchant:list")
+    @GetMapping("/merchant-role-templates")
+    public ApiResponse<List<MerchantRoleTemplateDto>> roleTemplates(HttpServletRequest request) {
+        return ApiResponse.ok(gapService.listRoleTemplates(operatorId(request)));
+    }
+
+    // ---- M3 ----
+
+    @RequiresPermissions("ops:device-ops:list")
+    @GetMapping("/device-ops/events")
+    public ApiResponse<PageResult<DeviceOpsEventDto>> deviceOpsEvents(
+            HttpServletRequest request,
+            @RequestParam(required = false) String eventType,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(gapService.listDeviceOpsEvents(operatorId(request), eventType, page, size));
+    }
+
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/policy")
+    public ApiResponse<DevicePolicyDto> getPolicy(HttpServletRequest request, @PathVariable String deviceId) {
+        return ApiResponse.ok(gapService.getDevicePolicy(operatorId(request), deviceId));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PutMapping("/devices/{deviceId}/policy")
+    public ApiResponse<DevicePolicyDto> updatePolicy(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @RequestBody DevicePolicyDto body) {
+        return ApiResponse.ok(gapService.updateDevicePolicy(operatorId(request), deviceId, body));
+    }
+
+    // ---- M4 ----
+
+    @RequiresPermissions("ops:sales-report:list")
+    @GetMapping("/sales-reports")
+    public ApiResponse<List<SalesReportRowDto>> salesReports(
+            HttpServletRequest request,
+            @RequestParam(defaultValue = "PRODUCT") String dim,
+            @RequestParam(required = false) String fromDate,
+            @RequestParam(required = false) String toDate) {
+        return ApiResponse.ok(gapService.salesReport(operatorId(request), dim, fromDate, toDate));
+    }
+
+    @RequiresPermissions("ops:phone-verify:list")
+    @GetMapping("/phone-verify/logs")
+    public ApiResponse<PageResult<PhoneVerifyLogDto>> phoneVerifyLogs(
+            HttpServletRequest request,
+            @RequestParam(required = false) String phone,
+            @RequestParam(required = false) String channel,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        return ApiResponse.ok(gapService.listPhoneVerify(operatorId(request), phone, channel, page, size));
+    }
+
+    @RequiresPermissions("ops:phone-verify:list")
+    @PostMapping("/phone-verify/logs")
+    public ApiResponse<PhoneVerifyLogDto> createPhoneVerify(
+            HttpServletRequest request,
+            @RequestBody PhoneVerifyLogDto body) {
+        return ApiResponse.ok(gapService.recordPhoneVerify(operatorId(request), body));
+    }
+
+    // ---- M5 ----
+
+    @RequiresPermissions("ops:commercial-hub:list")
+    @GetMapping("/commercial/onboarding")
+    public ApiResponse<List<MerchantOnboardingDto>> onboarding(HttpServletRequest request) {
+        return ApiResponse.ok(gapService.listOnboarding(operatorId(request)));
+    }
+
+    @RequiresPermissions("ops:commercial-hub:list")
+    @PostMapping("/commercial/onboarding")
+    public ApiResponse<MerchantOnboardingDto> upsertOnboarding(
+            HttpServletRequest request,
+            @RequestBody MerchantOnboardingDto body) {
+        return ApiResponse.ok(gapService.upsertOnboarding(operatorId(request), body));
+    }
+
+    @RequiresPermissions("ops:commercial-hub:list")
+    @GetMapping("/commercial/stored-value/{merchantId}")
+    public ApiResponse<PlatformStoredValueDto> storedValue(HttpServletRequest request, @PathVariable String merchantId) {
+        return ApiResponse.ok(gapService.getStoredValue(operatorId(request), merchantId));
+    }
+
+    @RequiresPermissions("ops:commercial-hub:list")
+    @PostMapping("/commercial/stored-value/{merchantId}/recharge")
+    public ApiResponse<PlatformStoredValueDto> rechargeStoredValue(
+            HttpServletRequest request,
+            @PathVariable String merchantId,
+            @RequestBody Map<String, Object> body) {
+        long amount = body.get("amountCents") instanceof Number n ? n.longValue() : 0L;
+        String phone = body.get("notifyPhone") == null ? null : String.valueOf(body.get("notifyPhone"));
+        return ApiResponse.ok(gapService.rechargeStoredValue(operatorId(request), merchantId, amount, phone));
+    }
+
+    @RequiresPermissions("ops:commercial-hub:list")
+    @PutMapping("/commercial/stored-value/{merchantId}/warn")
+    public ApiResponse<PlatformStoredValueDto> warnStoredValue(
+            HttpServletRequest request,
+            @PathVariable String merchantId,
+            @RequestBody Map<String, Object> body) {
+        long warn = body.get("warnThresholdCents") instanceof Number n ? n.longValue() : 0L;
+        String phone = body.get("notifyPhone") == null ? null : String.valueOf(body.get("notifyPhone"));
+        return ApiResponse.ok(gapService.updateStoredValueWarn(operatorId(request), merchantId, warn, phone));
+    }
+
+    @RequiresPermissions("ops:commercial-hub:list")
+    @GetMapping("/commercial/compute/{merchantId}")
+    public ApiResponse<RecognitionComputeDto> compute(HttpServletRequest request, @PathVariable String merchantId) {
+        return ApiResponse.ok(gapService.getCompute(operatorId(request), merchantId));
+    }
+
+    @RequiresPermissions("ops:commercial-hub:list")
+    @PostMapping("/commercial/compute/{merchantId}/grant")
+    public ApiResponse<RecognitionComputeDto> grantCompute(
+            HttpServletRequest request,
+            @PathVariable String merchantId,
+            @RequestBody Map<String, Object> body) {
+        long gained = body.get("gained") instanceof Number n ? n.longValue() : 0L;
+        return ApiResponse.ok(gapService.grantCompute(operatorId(request), merchantId, gained));
+    }
+
+    private Long operatorId(HttpServletRequest request) {
+        return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+    }
+}

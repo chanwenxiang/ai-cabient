@@ -62,6 +62,21 @@ export const DICT = {
     FAILED: '上传失败'
   },
   dispute_status: { OPEN: '待审核', RESOLVED: '已结案', CLOSED: '已关闭' },
+  dispute_category: {
+    USER_APPEAL: '用户申诉',
+    RECOGNITION: '识别争议',
+    VIDEO_MISSING: '录像缺失',
+    PAYMENT: '支付相关',
+    INVENTORY: '库存相关',
+    BILL: '账单争议',
+    OTHER: '其他'
+  },
+  dispute_priority: {
+    LOW: '低',
+    NORMAL: '普通',
+    HIGH: '高',
+    URGENT: '紧急'
+  },
   pay_channel: { WECHAT: '微信', ALIPAY: '支付宝', MOCK: '其他', BALANCE: '余额', UNKNOWN: '未知' },
   recharge_status: {
     CREATED: '已创建',
@@ -223,8 +238,15 @@ export function dictLabel(type: DictType | string, code: string | null | undefin
   const override = runtimeOverrides[type]?.[key] ?? runtimeOverrides[type]?.[String(code || '')];
   if (override) return override;
   const map = (DICT as Record<string, Record<string, string>>)[type];
-  if (!map) return code || '-';
-  return map[key] ?? map[code as string] ?? code ?? '-';
+  if (!map) {
+    // 无字典类型时，避免把 SCREAMING_SNAKE 英文码直接露出给用户
+    if (code && /^[A-Z][A-Z0-9_]*$/.test(String(code))) return '未知';
+    return code || '-';
+  }
+  const hit = map[key] ?? map[code as string];
+  if (hit) return hit;
+  if (code && /^[A-Z][A-Z0-9_]*$/.test(String(code))) return '未知';
+  return code ?? '-';
 }
 
 export function dictOptions(type: DictType | string): { value: string; label: string }[] {

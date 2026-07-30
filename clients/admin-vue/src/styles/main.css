@@ -1,4 +1,5 @@
 @import './chart-panel.css';
+@import '@aicabinet/shared-uni/theme.css';
 
 :root,
 [data-theme='light'] {
@@ -53,7 +54,7 @@ html, body, #app {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  font-family: var(--app-font, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif);
+  font-family: var(--app-font);
   font-size: 14px;
   color: var(--layout-text);
   background: var(--layout-bg);
@@ -85,13 +86,45 @@ button, input, textarea, select { font: inherit; }
   --el-button-hover-text-color: #fff;
 }
 
-/* 所有弹窗在窄窗口内保留安全边距，避免固定像素宽度溢出屏幕。 */
+/*
+ * 弹窗宽度：
+ * - Element Plus Dialog 默认 --el-dialog-width:50%，宽屏会拉成「长条」
+ * - MessageBox 默认 width:100%，若 max-width 被放大也会铺满
+ * 统一收成可读宽度；页面用 width="xxxpx" 时仍可按需加宽（受 max-width 上限约束）
+ */
 .el-dialog {
-  max-width: calc(100vw - 32px);
+  --el-dialog-width: 480px;
+  max-width: min(720px, calc(100vw - 48px));
+  margin-left: auto;
+  margin-right: auto;
 }
 
+.el-dialog.is-align-center,
+.el-overlay-dialog .el-dialog {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 超宽工作台弹窗可加 class="dialog-wide"（采购明细等） */
+.el-dialog.dialog-wide {
+  --el-dialog-width: 880px;
+  max-width: min(960px, calc(100vw - 32px));
+}
+
+/*
+ * MessageBox：EP 源码是 width:100% + max-width:420px。
+ * 必须用固定宽度 + !important，避免被全局 max-width 或其它规则再次撑开。
+ */
 .el-message-box {
-  max-width: calc(100vw - 32px);
+  --el-messagebox-width: 420px !important;
+  width: min(420px, calc(100vw - 48px)) !important;
+  max-width: min(420px, calc(100vw - 48px)) !important;
+  box-sizing: border-box;
+}
+
+.el-message-box.app-message-box {
+  width: min(420px, calc(100vw - 48px)) !important;
+  max-width: min(420px, calc(100vw - 48px)) !important;
 }
 
 /* 抽屉同理：880px 等工作台在窄屏会被撑出横向滚动 */
@@ -112,8 +145,6 @@ button, input, textarea, select { font: inherit; }
 :root {
   --sidebar-width: 220px;
   --header-height: 56px;
-  --app-font: "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-  --app-font-mono: "Cascadia Code", "Consolas", "SF Mono", ui-monospace, monospace;
 }
 
 .layout-main {

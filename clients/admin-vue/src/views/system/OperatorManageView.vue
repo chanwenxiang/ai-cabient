@@ -182,7 +182,7 @@
         show-icon
         class="scope-alert"
         title="数据范围说明"
-        description="勾选商户后，该账号仅可见这些商户下的设备及相关订单/补货/看板数据。不勾选任何商户 = 全局可见（admin 角色始终全局）。单柜机级绑定尚未开放，范围按商户下全部设备生效。"
+        description="勾选商户后，该账号仅可见这些商户下的设备及相关订单/补货/看板数据。不勾选任何商户 = 全局可见（admin 角色始终全局）。可再通过「货柜范围」限定到部分柜机。"
       />
       <el-checkbox-group v-model="merchantIds" class="merchant-group">
         <el-checkbox v-for="m in merchants" :key="m.merchantId" :label="m.merchantId">
@@ -195,13 +195,37 @@
         <el-button type="primary" :loading="saving" @click="saveMerchants">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="deviceDlg" title="货柜范围" width="640px" destroy-on-close>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        class="scope-alert"
+        title="人员货柜范围"
+        description="全部货柜 = 商户范围内所有柜；部分货柜 = 仅勾选柜机可见（理货员常用）。"
+      />
+      <el-radio-group v-model="deviceScopeMode" style="margin: 12px 0">
+        <el-radio value="ALL">全部货柜</el-radio>
+        <el-radio value="PARTIAL">部分货柜</el-radio>
+      </el-radio-group>
+      <el-checkbox-group v-if="deviceScopeMode === 'PARTIAL'" v-model="deviceIds" class="merchant-group">
+        <el-checkbox v-for="d in allDevices" :key="d.deviceId" :label="d.deviceId">
+          {{ d.deviceName || d.deviceId }}（{{ d.deviceId }}）
+        </el-checkbox>
+      </el-checkbox-group>
+      <template #footer>
+        <el-button @click="deviceDlg = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveDevices">保存</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Delete, EditPen, Key, OfficeBuilding, Refresh } from '@element-plus/icons-vue';
+import { Delete, EditPen, Key, Monitor, OfficeBuilding, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
@@ -250,9 +274,13 @@ const total = ref(0);
 const formDlg = ref(false);
 const roleDlg = ref(false);
 const merchantDlg = ref(false);
+const deviceDlg = ref(false);
+const merchantIds = ref<string[]>([]);
+const deviceIds = ref<string[]>([]);
+const deviceScopeMode = ref('ALL');
+const allDevices = ref<{ deviceId: string; deviceName?: string }[]>([]);
 const currentUserId = ref<number | null>(null);
 const roleIds = ref<number[]>([]);
-const merchantIds = ref<string[]>([]);
 const form = ref({
   userId: null as number | null,
   name: '',
@@ -329,8 +357,9 @@ function rowActions(row: OperatorRow): TableAction[] {
   if (auth.hasPerm('ops:rbac:assign:role')) {
     acts.push({ key: 'roles', label: '分配角色', icon: Key, type: 'success' });
   }
-  if (auth.hasPerm('ops:rbac:assign:merchant')) {
+  if (auth.hasPerm('ops:rbac:assign:merchant') || auth.hasPerm('ops:rbac:assign:device') || auth.hasPerm('ops:rbac:assign')) {
     acts.push({ key: 'merchants', label: '商户范围', icon: OfficeBuilding, overflow: true });
+    acts.push({ key: 'devices', label: '货柜范围', icon: Monitor, overflow: true });
   }
   if (auth.hasPerm('ops:rbac:assign:disable') && row.status === 'ACTIVE' && row.userId !== Number(auth.userId)) {
     acts.push({ key: 'disable', label: '停用', icon: Delete, type: 'danger', overflow: true });
@@ -342,6 +371,7 @@ function onRowAction(key: string, row: OperatorRow) {
   if (key === 'edit') openEdit(row);
   else if (key === 'roles') openRoles(row);
   else if (key === 'merchants') openMerchants(row);
+  else if (key === 'devices') openDevices(row);
   else if (key === 'disable') onDisable(row);
 }
 
@@ -527,6 +557,43 @@ async function saveMerchants() {
     ElMessage.success('商户范围已更新');
     merchantDlg.value = false;
     await loadOperators();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function openDevices(row: OperatorRow) {
+  currentUserId.value = row.userId;
+  try {
+    if (!allDevices.value.length) {
+      const list = await api.request<{ items: any[] }>('/api/v2/ops/admin/devices?page=0&size=200', 'GET');
+      allDevices.value = (list.items || []).map((d: any) => ({ deviceId: d.deviceId, deviceName: d.deviceName }));
+    }
+    const data = await api.request<{ scopeMode: string; deviceIds: string[] }>(
+      `/api/v2/ops/admin/rbac/users/${row.userId}/devices`,
+      'GET'
+    );
+    deviceScopeMode.value = data.scopeMode || 'ALL';
+    deviceIds.value = [...(data.deviceIds || [])];
+    deviceDlg.value = true;
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载货柜范围失败');
+  }
+}
+
+async function saveDevices() {
+  if (currentUserId.value == null) return;
+  saving.value = true;
+  try {
+    await api.request(`/api/v2/ops/admin/rbac/users/${currentUserId.value}/devices`, 'PUT', {
+      userId: currentUserId.value,
+      scopeMode: deviceScopeMode.value,
+      deviceIds: deviceScopeMode.value === 'PARTIAL' ? deviceIds.value : []
+    });
+    ElMessage.success('货柜范围已更新');
+    deviceDlg.value = false;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {

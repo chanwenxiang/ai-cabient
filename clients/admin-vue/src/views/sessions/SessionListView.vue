@@ -110,7 +110,7 @@
               <span>{{ waitReason(row) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="滞留 / SLA" width="148" class-name="col-text">
+          <el-table-column label="滞留 / 时限" width="148" class-name="col-text">
             <template #default="{ row }">
               <div v-if="isActiveState(row.state)" class="sla-cell">
                 <template v-if="isStuck(row)">
@@ -118,12 +118,12 @@
                   <small class="sla-meta danger">超 {{ formatAge(overdueMs(row)) }}</small>
                 </template>
                 <template v-else-if="isDueSoon(row)">
-                  <el-tag type="warning" size="small">临近 SLA</el-tag>
+                  <el-tag type="warning" size="small">临近时限</el-tag>
                   <small class="sla-meta">已等 {{ formatAge(ageMs(row)) }}</small>
                 </template>
                 <template v-else>
                   <span class="cell-datetime">已等 {{ formatAge(ageMs(row)) }}</span>
-                  <small class="sla-meta">SLA {{ STALE_MINUTES }} 分</small>
+                  <small class="sla-meta">时限 {{ STALE_MINUTES }} 分</small>
                 </template>
               </div>
               <span v-else class="muted">-</span>

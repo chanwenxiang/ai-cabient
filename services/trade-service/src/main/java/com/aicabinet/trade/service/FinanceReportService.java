@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.InventoryWriteOffMapper;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,15 +24,18 @@ public class FinanceReportService {
     private final CabinetOrderLineMapper lineRepository;
     private final InventoryWriteOffMapper writeOffRepository;
     private final MerchantScopeService merchantScopeService;
+    private final FundBillService fundBillService;
 
     public FinanceReportService(CabinetOrderMapper orderRepository,
                                 CabinetOrderLineMapper lineRepository,
                                 InventoryWriteOffMapper writeOffRepository,
-                                MerchantScopeService merchantScopeService) {
+                                MerchantScopeService merchantScopeService,
+                                @Lazy FundBillService fundBillService) {
         this.orderRepository = orderRepository;
         this.lineRepository = lineRepository;
         this.writeOffRepository = writeOffRepository;
         this.merchantScopeService = merchantScopeService;
+        this.fundBillService = fundBillService;
     }
 
     @Transactional(readOnly = true)
@@ -87,6 +91,19 @@ public class FinanceReportService {
         LocalDate today = LocalDate.now(ZONE);
         for (int i = window - 1; i >= 0; i--) {
             LocalDate day = today.minusDays(i);
+            if (!day.equals(today)) {
+                FinanceMarginLockDto locked = fundBillService.marginForDay(operatorId, day);
+                if (locked != null && locked.locked()) {
+                    daily.add(new FinanceDailyDto(
+                            day.toString(),
+                            locked.revenueCents(),
+                            locked.cogsCents(),
+                            locked.marginCents(),
+                            locked.writeOffCents()
+                    ));
+                    continue;
+                }
+            }
             Instant start = day.atStartOfDay(ZONE).toInstant();
             Instant end = day.plusDays(1).atStartOfDay(ZONE).toInstant();
             long revenue = deviceIds == null

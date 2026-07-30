@@ -118,7 +118,7 @@
       />
     </div>
 
-    <el-dialog v-model="showCreate" title="发布公告" width="600px" destroy-on-close>
+    <el-dialog v-model="showCreate" title="发布公告" width="480px" destroy-on-close>
       <el-form :model="form" label-width="80px">
         <el-form-item label="标题" required>
           <el-input v-model="form.title" maxlength="100" show-word-limit />
@@ -147,7 +147,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="previewVisible" title="公告详情" width="600px" destroy-on-close>
+    <el-dialog v-model="previewVisible" title="公告详情" width="480px" destroy-on-close>
       <el-descriptions v-if="previewRow" :column="2" border>
         <el-descriptions-item label="标题" :span="2">{{ previewRow.title }}</el-descriptions-item>
         <el-descriptions-item label="优先级">{{ priorityMap[previewRow.priority] || previewRow.priority }}</el-descriptions-item>

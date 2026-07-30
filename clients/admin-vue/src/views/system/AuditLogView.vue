@@ -55,7 +55,7 @@
             <template #default="{ row }">
               <div class="name-cell">
                 <strong>{{ row.operatorName || row.operatorPhone || row.operatorId || '-' }}</strong>
-                <small v-if="row.operatorId">ID {{ row.operatorId }}</small>
+                <small v-if="row.operatorId">编号 {{ row.operatorId }}</small>
               </div>
             </template>
           </el-table-column>
@@ -174,12 +174,12 @@ const { onExport } = useListCsv({
 
 function actionLabel(action?: string) {
   if (!action) return '-';
-  return ACTION_LABELS[action] || action;
+  return ACTION_LABELS[action] || (/^[A-Z][A-Z0-9_]*$/.test(action) ? '其他操作' : action);
 }
 
 function targetLabel(type?: string) {
   if (!type) return '-';
-  return TARGET_LABELS[type] || type;
+  return TARGET_LABELS[type] || (/^[A-Z][A-Z0-9_]*$/.test(type) ? '其他对象' : type);
 }
 
 function matchFilters(row: AuditRow) {

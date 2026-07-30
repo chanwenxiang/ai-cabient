@@ -6,10 +6,11 @@
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
               <span class="title">异常中心</span>
-              <span class="hint">默认看待处理；抽屉内同屏对照录像改 SKU 后一键落账/免单；SLA 超时标红</span>
+              <span class="hint">交易履约异常（录像结算）；设备离线/锁机等请看「设备运维」</span>
             </div>
           </div>
           <div class="page-card-head__actions">
+            <el-button v-if="canAccessPath('/device-ops')" @click="goPath('/device-ops')">设备运维</el-button>
             <el-button v-hasPermi="['ops:exception:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
             <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
           </div>
@@ -27,7 +28,7 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="SLA">
+        <el-form-item label="时限">
           <el-checkbox v-model="overdueOnly" @change="onOverdueToggle">仅超时</el-checkbox>
         </el-form-item>
         <el-form-item>
@@ -131,7 +132,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="SLA" min-width="168" class-name="col-text">
+            <el-table-column label="处理时限" min-width="168" class-name="col-text">
               <template #default="{ row }">
                 <div class="sla-cell">
                   <template v-if="row.slaOverdue">
@@ -294,7 +295,7 @@
                 >{{ detail.exception.orderId }}</button>
                 <span v-else>-</span>
               </el-descriptions-item>
-              <el-descriptions-item label="SLA截止">
+              <el-descriptions-item label="时限截止">
                 <div class="sla-cell">
                   <template v-if="detail.exception.slaOverdue">
                     <el-tag type="danger" size="small">已超时</el-tag>
@@ -483,7 +484,7 @@ const pageOverdueCount = computed(() => items.value.filter((r) => r.slaOverdue).
 
 const { onExport } = useListCsv({
   filePrefix: '异常',
-  headers: ['异常编号', '级别', '类型', '异常', '设备', '会话', '订单', '用户', '状态', 'SLA截止', '超时', '负责人', '创建时间'],
+  headers: ['异常编号', '级别', '类型', '异常', '设备', '会话', '订单', '用户', '状态', '时限截止', '超时', '负责人', '创建时间'],
   toRows: () =>
     pickSelected(displayItems.value).map((row) => [
       row.exceptionId,

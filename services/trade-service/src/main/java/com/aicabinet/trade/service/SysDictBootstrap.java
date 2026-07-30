@@ -97,6 +97,11 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "NONE", "无需上传", "LOCAL_QUEUED", "待上传", "UPLOADING", "上传中",
                 "UPLOADED", "已上传", "FAILED", "上传失败")));
         map.put("dispute_status", t("争议状态", m("OPEN", "待审核", "RESOLVED", "已结案", "CLOSED", "已关闭")));
+        map.put("dispute_category", t("争议分类", m(
+                "USER_APPEAL", "用户申诉", "RECOGNITION", "识别争议", "VIDEO_MISSING", "录像缺失",
+                "PAYMENT", "支付相关", "INVENTORY", "库存相关", "BILL", "账单争议", "OTHER", "其他")));
+        map.put("dispute_priority", t("争议优先级", m(
+                "LOW", "低", "NORMAL", "普通", "HIGH", "高", "URGENT", "紧急")));
         map.put("pay_channel", t("支付渠道", m(
                 "WECHAT", "微信", "ALIPAY", "支付宝", "MOCK", "其他", "BALANCE", "余额", "UNKNOWN", "未知")));
         map.put("split_status", t("分账状态", m(

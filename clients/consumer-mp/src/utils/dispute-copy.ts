@@ -1,4 +1,5 @@
 import type { DisputeTicketDto } from '@aicabinet/shared-types';
+import { localizeDisputeReason } from '@aicabinet/shared-uni/format';
 
 export interface ConsumerDisputeReviewCopy {
   icon: string;
@@ -21,36 +22,12 @@ function isRecognitionSucceeded(reason: string) {
   return /置信度|识别结果需人工|未识别到商品|识别到：|confidence|manual review/i.test(reason);
 }
 
-function isMostlyEnglish(text: string) {
-  if (!text) return false;
-  const letters = (text.match(/[A-Za-z]/g) || []).length;
-  const cjk = (text.match(/[\u4e00-\u9fff]/g) || []).length;
-  return letters >= 8 && cjk === 0;
-}
-
 const GENERIC_MANUAL_REVIEW =
   '商品识别结果需要人工确认，本次暂未扣款。审核完成后会生成账单。';
 
 /** 将后端/测试 reason 转成消费者可读中文，避免露出内部/英文话术 */
 export function localizeConsumerDisputeReason(reason?: string | null): string {
-  const r = (reason || '').trim();
-  if (!r) return '';
-  if (/recognition needs manual review/i.test(r) || /no charge yet/i.test(r)) {
-    return GENERIC_MANUAL_REVIEW;
-  }
-  if (/confidence/i.test(r) && /threshold|below|manual/i.test(r)) {
-    return '部分商品识别置信度不足，需人工确认后再扣款。';
-  }
-  if (/timeout|识别超时|STIMEOUT/i.test(r)) {
-    return '识别超时，本次暂未扣款，工作人员正在核对账单。';
-  }
-  if (isInternalStagingReason(r)) {
-    return GENERIC_MANUAL_REVIEW;
-  }
-  if (isMostlyEnglish(r)) {
-    return GENERIC_MANUAL_REVIEW;
-  }
-  return r;
+  return localizeDisputeReason(reason);
 }
 
 /** 消费者端：争议/人工审核卡片文案（与后端 ticket.reason 对齐） */
@@ -58,7 +35,7 @@ export function consumerDisputeReviewCopy(
   ticket?: Pick<DisputeTicketDto, 'reason' | 'status'> | null
 ): ConsumerDisputeReviewCopy {
   const raw = (ticket?.reason || '').trim();
-  const reason = localizeConsumerDisputeReason(raw);
+  const reason = localizeDisputeReason(raw);
 
   if (ticket?.status === 'RESOLVED') {
     return {
@@ -91,4 +68,24 @@ export function consumerDisputeReviewCopy(
     detail: reason || GENERIC_MANUAL_REVIEW,
     tone: 'wait'
   };
+}
+
+/** 消费者提交申诉/退款失败时的友好文案（覆盖后端 409 等冲突提示） */
+export function consumerAppealErrorMessage(error: unknown, fallback = '提交失败'): string {
+  const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
+  const msg = (raw || '').trim();
+  if (!msg) return fallback;
+  if (
+    /本单已结案|不可再申诉|申诉通道已关闭|通道已关闭|关联争议已结案|无法再次退款/i.test(msg)
+  ) {
+    return '本单已结案，不可再申诉';
+  }
+  if (/该会话已有申诉|已有申诉工单|已有进行中的申诉/i.test(msg)) {
+    return '本单已有申诉，请等待审核结果';
+  }
+  if (/未开启自助退款|仅可申诉/i.test(msg)) {
+    return msg;
+  }
+  if (/[\u4e00-\u9fff]/.test(msg)) return msg;
+  return fallback;
 }

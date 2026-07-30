@@ -1,5 +1,6 @@
 import type { LoginResponse } from '@aicabinet/shared-types';
 import { clearDictOverrides } from '@aicabinet/shared-dict';
+import { localizeApiMessage } from '@aicabinet/shared-uni/format';
 import { API_BASE_URL } from '@/config/api';
 import { isDevBuild } from '@/utils/runtime-flags';
 
@@ -19,7 +20,7 @@ function formatRequestError(errMsg: string | undefined, path: string) {
       : '网络不太稳定，请稍后再试';
     // #endif
   }
-  return raw;
+  return localizeApiMessage(raw);
 }
 const TOKEN_KEY = 'consumer_token';
 const USER_KEY = 'consumer_user_id';
@@ -140,14 +141,16 @@ export function request<T>(
         }
         if (res.statusCode === 401 || res.statusCode === 403) {
           clearConsumerSession();
-          reject(new Error(body?.message || '登录已失效'));
+          reject(new Error(localizeApiMessage(body?.message, '登录已失效')));
           return;
         }
         if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0) {
           resolve(body.data as T);
           return;
         }
-        const err = new Error(body?.message || `请求失败 (${res.statusCode})`) as Error & {
+        const err = new Error(
+          localizeApiMessage(body?.message, `请求失败 (${res.statusCode})`)
+        ) as Error & {
           status?: number;
         };
         err.status = res.statusCode;
@@ -185,7 +188,7 @@ export function uploadDisputeEvidenceFile(
             resolve(body.data);
             return;
           }
-          reject(new Error(body?.message || `上传失败 (${res.statusCode})`));
+          reject(new Error(localizeApiMessage(body?.message, `上传失败 (${res.statusCode})`)));
         } catch {
           reject(new Error('上传响应解析失败'));
         }

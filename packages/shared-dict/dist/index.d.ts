@@ -38,6 +38,21 @@ export declare const DICT: {
         readonly RESOLVED: "已结案";
         readonly CLOSED: "已关闭";
     };
+    readonly dispute_category: {
+        readonly USER_APPEAL: "用户申诉";
+        readonly RECOGNITION: "识别争议";
+        readonly VIDEO_MISSING: "录像缺失";
+        readonly PAYMENT: "支付相关";
+        readonly INVENTORY: "库存相关";
+        readonly BILL: "账单争议";
+        readonly OTHER: "其他";
+    };
+    readonly dispute_priority: {
+        readonly LOW: "低";
+        readonly NORMAL: "普通";
+        readonly HIGH: "高";
+        readonly URGENT: "紧急";
+    };
     readonly pay_channel: {
         readonly WECHAT: "微信";
         readonly ALIPAY: "支付宝";
@@ -255,6 +270,7 @@ export declare const DICT: {
         readonly COMPLETED: "已完成";
         readonly DISPUTED: "争议中";
         readonly REFUNDED: "已退款";
+        readonly PARTIAL_REFUNDED: "部分退款";
         readonly FAILED: "处理失败";
         readonly CANCELLED: "已取消";
     };

@@ -1,0 +1,9 @@
+/**
+ * 三端统一字体：中文优先，避免 Segoe UI / Roboto / Helvetica 主导观感不一致。
+ * 运营后台、商户 H5、消费者 H5 共用同一套变量。
+ */
+:root {
+  --app-font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei",
+    "Noto Sans SC", "Source Han Sans SC", sans-serif;
+  --app-font-mono: "SF Mono", "Cascadia Mono", "Consolas", "Sarasa Mono SC", ui-monospace, monospace;
+}

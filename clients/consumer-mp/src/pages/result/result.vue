@@ -132,6 +132,7 @@ import {
   appendChipToReason,
   type DisputeReasonChip
 } from '@/utils/dispute-form';
+import { consumerAppealErrorMessage } from '@/utils/dispute-copy';
 import {
   pickAndUploadEvidence,
   evidenceFileIds,
@@ -364,7 +365,7 @@ async function submitDispute() {
     }
     uni.showToast({ title: '申诉已提交', icon: 'success' });
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '提交失败', icon: 'none' });
+    uni.showToast({ title: consumerAppealErrorMessage(e, '提交失败'), icon: 'none' });
   } finally {
     disputeLoading.value = false;
   }
@@ -407,7 +408,7 @@ async function submitRefund() {
     statusLabel.value = '已退款';
     uni.showToast({ title: result.message || '退款成功', icon: 'success' });
   } catch (e) {
-    uni.showToast({ title: e instanceof Error ? e.message : '退款失败', icon: 'none' });
+    uni.showToast({ title: consumerAppealErrorMessage(e, '退款失败'), icon: 'none' });
   } finally {
     refundLoading.value = false;
   }

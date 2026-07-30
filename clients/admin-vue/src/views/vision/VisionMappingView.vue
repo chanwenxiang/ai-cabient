@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">识别映射</span>
-            <span class="hint">YOLO 类名 → SKU；建档请在「商品与识别」维护。生产=映射生效，模型侧仍为等待真实训练</span>
+            <span class="hint">识别类名 → 商品；建档请在「商品与识别」维护。生产=映射生效，模型侧仍为等待真实训练</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -44,7 +44,7 @@
           row-key="className"
           @selection-change="onSelectionChange"
         >
-          <template #empty><el-empty description="暂无 YOLO 映射" /></template>
+          <template #empty><el-empty description="暂无识别类名映射" /></template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="类别" min-width="160" class-name="col-text">
             <template #default="{ row }">
@@ -150,7 +150,7 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<YoloMappingRow>((r) => r.className || `${r.skuId}`);
 
 const { onExport } = useListCsv({
-  filePrefix: 'YOLO识别映射',
+  filePrefix: '识别类名映射',
   headers: ['类别', 'SKU', '商品名', '最低置信度'],
   toRows: () =>
     pickSelected(filtered.value).map((row) => [

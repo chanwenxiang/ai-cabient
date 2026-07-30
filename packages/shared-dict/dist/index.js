@@ -53,6 +53,21 @@ export const DICT = {
         FAILED: '上传失败'
     },
     dispute_status: { OPEN: '待审核', RESOLVED: '已结案', CLOSED: '已关闭' },
+    dispute_category: {
+        USER_APPEAL: '用户申诉',
+        RECOGNITION: '识别争议',
+        VIDEO_MISSING: '录像缺失',
+        PAYMENT: '支付相关',
+        INVENTORY: '库存相关',
+        BILL: '账单争议',
+        OTHER: '其他'
+    },
+    dispute_priority: {
+        LOW: '低',
+        NORMAL: '普通',
+        HIGH: '高',
+        URGENT: '紧急'
+    },
     pay_channel: { WECHAT: '微信', ALIPAY: '支付宝', MOCK: '其他', BALANCE: '余额', UNKNOWN: '未知' },
     recharge_status: {
         CREATED: '已创建',
@@ -190,7 +205,8 @@ export const DICT = {
     sku_status: { ACTIVE: '在售', INACTIVE: '停用', DISABLED: '禁售' },
     order_status: {
         PENDING: '待支付', PROCESSING: '处理中', PAID: '已支付', COMPLETED: '已完成',
-        DISPUTED: '争议中', REFUNDED: '已退款', FAILED: '处理失败', CANCELLED: '已取消'
+        DISPUTED: '争议中', REFUNDED: '已退款', PARTIAL_REFUNDED: '部分退款',
+        FAILED: '处理失败', CANCELLED: '已取消'
     }
 };
 const STATUS_TAGS = {
@@ -208,9 +224,18 @@ export function dictLabel(type, code) {
     if (override)
         return override;
     const map = DICT[type];
-    if (!map)
+    if (!map) {
+        // 无字典类型时，避免把 SCREAMING_SNAKE 英文码直接露出给用户
+        if (code && /^[A-Z][A-Z0-9_]*$/.test(String(code)))
+            return '未知';
         return code || '-';
-    return map[key] ?? map[code] ?? code ?? '-';
+    }
+    const hit = map[key] ?? map[code];
+    if (hit)
+        return hit;
+    if (code && /^[A-Z][A-Z0-9_]*$/.test(String(code)))
+        return '未知';
+    return code ?? '-';
 }
 export function dictOptions(type) {
     const override = runtimeOverrides[type];

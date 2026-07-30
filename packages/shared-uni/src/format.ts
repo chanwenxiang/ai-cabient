@@ -94,15 +94,75 @@ export function formatError(err: unknown): string {
   if (kind === 'device_not_found') return '柜机不存在或编号有误，请重新扫描柜门二维码';
   if (kind === 'device_paused') return '柜机已暂停营业，请稍后再试或换一台';
   if (kind === 'device_busy') return '柜机正在使用或补货中，请稍后再试';
-  if (typeof err === 'string') return err;
+  if (typeof err === 'string') return localizeApiMessage(err);
   const e = err as { message?: string; errMsg?: string };
-  if (e.message) {
-    const msg = String(e.message);
-    if (/[\u4e00-\u9fff]/.test(msg)) return msg;
-    return '操作失败，请稍后重试';
-  }
-  if (e.errMsg) return String(e.errMsg);
+  if (e.message) return localizeApiMessage(String(e.message));
+  if (e.errMsg) return localizeApiMessage(String(e.errMsg));
   return '请求失败';
+}
+
+/**
+ * 将后端 / SDK 英文或技术错误文案转为用户可读中文。
+ * 已含中文的业务提示原样返回。
+ */
+export function localizeApiMessage(message?: string | null, fallback = '操作失败，请稍后重试'): string {
+  const msg = String(message || '').trim();
+  if (!msg) return fallback;
+  if (/[\u4e00-\u9fff]/.test(msg)) return msg;
+
+  if (/requestPayment:fail\s*cancel|cancel.*payment|user cancel/i.test(msg)) {
+    return '已取消支付';
+  }
+  if (/request:fail|timeout|network|ERR_NETWORK|Failed to fetch|ECONN/i.test(msg)) {
+    return '网络异常，请稍后重试';
+  }
+  if (/unauthorized|token.*(expired|invalid)|login.*(required|expired)/i.test(msg)) {
+    return '登录已失效，请重新登录';
+  }
+  if (/forbidden|permission|access denied/i.test(msg)) {
+    return '权限不足';
+  }
+  if (/not found|404/i.test(msg)) {
+    return '未找到相关数据';
+  }
+  if (/conflict|already exists|duplicate/i.test(msg)) {
+    return '操作冲突，请刷新后重试';
+  }
+  if (/too many|rate limit|429/i.test(msg)) {
+    return '操作过于频繁，请稍后再试';
+  }
+  if (/internal|server error|500/i.test(msg)) {
+    return '服务暂时不可用，请稍后重试';
+  }
+  // 纯英文技术码（如 SESSION_STATE_INVALID）不直接展示
+  if (/^[A-Z][A-Z0-9_ .\-:()]+$/.test(msg)) {
+    return fallback;
+  }
+  return fallback;
+}
+
+/** 将争议 reason / 内部英文话术转为可读中文（商户/消费者列表共用） */
+export function localizeDisputeReason(reason?: string | null): string {
+  const r = (reason || '').trim();
+  if (!r) return '';
+  if (/recognition needs manual review/i.test(r) || /no charge yet/i.test(r)) {
+    return '商品识别结果需要人工确认，本次暂未扣款。审核完成后会生成账单。';
+  }
+  if (/confidence/i.test(r) && /threshold|below|manual/i.test(r)) {
+    return '部分商品识别置信度不足，需人工确认后再扣款。';
+  }
+  if (/timeout|识别超时|STIMEOUT/i.test(r)) {
+    return '识别超时，本次暂未扣款，工作人员正在核对账单。';
+  }
+  if (/非生产|重力信号|仅有重力|重力回填|模拟\/兜底|模拟识别|gravity-fill|gravity-mismatch|mock-v/i.test(r)) {
+    return '商品识别结果需要人工确认，本次暂未扣款。审核完成后会生成账单。';
+  }
+  const letters = (r.match(/[A-Za-z]/g) || []).length;
+  const cjk = (r.match(/[\u4e00-\u9fff]/g) || []).length;
+  if (letters >= 8 && cjk === 0) {
+    return '商品识别结果需要人工确认，本次暂未扣款。审核完成后会生成账单。';
+  }
+  return r;
 }
 
 export function orderStatusLabel(status?: string) {

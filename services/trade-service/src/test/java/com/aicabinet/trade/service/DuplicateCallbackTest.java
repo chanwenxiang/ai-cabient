@@ -112,6 +112,20 @@ class DuplicateCallbackTest {
         assertEquals(ApiMessages.DISPUTE_ALREADY_EXISTS, ex.getReason());
     }
 
+    @Test
+    void resolvedConsumerAppeal_returnsClosedMessage() {
+        ShoppingSession session = session("S-DUP-04", SessionState.COMPLETED);
+        com.aicabinet.trade.domain.DisputeTicket ticket = new com.aicabinet.trade.domain.DisputeTicket();
+        ticket.setStatus("RESOLVED");
+        when(repository.findById("S-DUP-04")).thenReturn(Optional.of(session));
+        when(disputeRepository.findBySessionId("S-DUP-04")).thenReturn(Optional.of(ticket));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> disputeService.fileByConsumer(7L, new FileDisputeRequest("S-DUP-04", "再申诉", "BILL", "NORMAL")));
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+        assertEquals(ApiMessages.DISPUTE_APPEAL_CLOSED, ex.getReason());
+    }
+
     private ShoppingSession session(String id, SessionState state) {
         ShoppingSession session = new ShoppingSession();
         session.setSessionId(id);

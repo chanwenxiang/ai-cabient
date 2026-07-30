@@ -148,6 +148,76 @@
         </div>
       </el-tab-pane>
 
+      <el-tab-pane label="运营配置" name="ops-config">
+        <el-alert
+          type="info"
+          :closable="false"
+          show-icon
+          class="status-banner"
+          title="组织级备货/理货策略；变更前请通知理货员。"
+        />
+        <el-form inline class="filter-bar">
+          <el-form-item label="商户">
+            <el-select v-model="opsConfigMerchantId" filterable placeholder="选择商户" style="width: 280px" @change="loadOpsConfig">
+              <el-option
+                v-for="m in merchants"
+                :key="m.merchantId"
+                :label="`${m.merchantName} (${m.merchantId})`"
+                :value="m.merchantId"
+              />
+            </el-select>
+          </el-form-item>
+        </el-form>
+        <el-form v-if="opsConfig" label-width="140px" style="max-width: 640px">
+          <el-form-item label="备货类型">
+            <el-radio-group v-model="opsConfig.stockingType">
+              <el-radio value="CAPACITY">容量</el-radio>
+              <el-radio value="SALES">销量</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="缺货阈值%">
+            <el-input-number v-model="opsConfig.stockoutThresholdPct" :min="1" :max="100" />
+          </el-form-item>
+          <el-form-item label="理货模式">
+            <el-radio-group v-model="opsConfig.tallyMode">
+              <el-radio value="INDEPENDENT">盘点补货独立</el-radio>
+              <el-radio value="ONCE">一次性盘点补货</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="使用备货单">
+            <el-switch v-model="opsConfig.useStockingList" />
+          </el-form-item>
+          <el-form-item label="补货输入">
+            <el-radio-group v-model="opsConfig.replenishInputType">
+              <el-radio value="ADD_QTY">补充数量</el-radio>
+              <el-radio value="AFTER_QTY">补后数量</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item label="盘点拍照">
+            <el-switch v-model="opsConfig.photoStocktake" />
+          </el-form-item>
+          <el-form-item label="补货拍照">
+            <el-switch v-model="opsConfig.photoReplenish" />
+          </el-form-item>
+          <el-form-item label="进行中订单上限">
+            <el-radio-group v-model="opsConfig.maxInflightOrders">
+              <el-radio :value="0">0</el-radio>
+              <el-radio :value="1">1</el-radio>
+              <el-radio :value="2">2</el-radio>
+            </el-radio-group>
+          </el-form-item>
+          <el-form-item>
+            <el-button v-if="canEdit" type="primary" :loading="savingOpsConfig" @click="saveOpsConfig">保存配置</el-button>
+          </el-form-item>
+        </el-form>
+        <el-divider content-position="left">商户侧推荐岗位</el-divider>
+        <el-table :data="roleTemplates" stripe border>
+          <el-table-column prop="templateName" label="岗位" width="120" />
+          <el-table-column prop="description" label="说明" min-width="220" />
+          <el-table-column prop="permissionHint" label="权限提示" min-width="240" show-overflow-tooltip />
+        </el-table>
+      </el-tab-pane>
+
       <el-tab-pane label="分账明细" name="splits">
         <el-alert
           v-if="psStatus"
@@ -270,7 +340,7 @@
         分账 <code>{{ current?.splitId }}</code> · 订单 {{ current?.orderId }}
       </p>
       <el-form label-position="top">
-        <el-form-item label="微信交易号 wxTransactionId">
+        <el-form-item label="微信交易号">
           <el-input
             v-model="wxTransactionId"
             clearable
@@ -372,6 +442,10 @@ const splitPage = ref(1);
 const splitSize = ref(20);
 const splitTotal = ref(0);
 const psStatus = ref<ProfitSharingStatus | null>(null);
+const opsConfigMerchantId = ref('');
+const opsConfig = ref<any>(null);
+const savingOpsConfig = ref(false);
+const roleTemplates = ref<any[]>([]);
 
 const submitDialog = ref(false);
 const wxTransactionId = ref('');
@@ -594,6 +668,53 @@ function onTabChange(name: string | number) {
     if (!splitsLoaded.value) loadSplits();
     if (!psStatus.value) loadStatus();
   }
+  if (next === 'ops-config') {
+    loadRoleTemplates();
+    if (!opsConfigMerchantId.value && merchants.value.length) {
+      opsConfigMerchantId.value = merchants.value[0].merchantId;
+      loadOpsConfig();
+    }
+  }
+}
+
+async function loadRoleTemplates() {
+  try {
+    roleTemplates.value = await api.request('/api/v2/ops/admin/merchant-role-templates', 'GET');
+  } catch {
+    roleTemplates.value = [];
+  }
+}
+
+async function loadOpsConfig() {
+  if (!opsConfigMerchantId.value) {
+    opsConfig.value = null;
+    return;
+  }
+  try {
+    opsConfig.value = await api.request(
+      `/api/v2/ops/admin/merchants/${encodeURIComponent(opsConfigMerchantId.value)}/ops-config`,
+      'GET'
+    );
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载运营配置失败');
+  }
+}
+
+async function saveOpsConfig() {
+  if (!opsConfigMerchantId.value || !opsConfig.value) return;
+  savingOpsConfig.value = true;
+  try {
+    opsConfig.value = await api.request(
+      `/api/v2/ops/admin/merchants/${encodeURIComponent(opsConfigMerchantId.value)}/ops-config`,
+      'PUT',
+      opsConfig.value
+    );
+    ElMessage.success('运营配置已保存');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    savingOpsConfig.value = false;
+  }
 }
 
 function refresh() {
@@ -601,6 +722,10 @@ function refresh() {
   if (tab.value === 'splits') {
     loadSplits();
     loadStatus();
+  }
+  if (tab.value === 'ops-config') {
+    loadOpsConfig();
+    loadRoleTemplates();
   }
 }
 

@@ -15,6 +15,8 @@ onLaunch(async () => {
 </script>
 
 <style>
+@import '@aicabinet/shared-uni/theme.css';
+
 /* 微信小程序 page 节点标准：height 100% 供 tabBar 页 flex 一屏布局 */
 page {
   --brand: #059669;
@@ -24,7 +26,7 @@ page {
   --brand-soft: #ecfdf5;
   height: 100%;
   background-color: #f5f7f8;
-  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: var(--app-font);
   font-size: 28rpx;
   color: #14201b;
   box-sizing: border-box;

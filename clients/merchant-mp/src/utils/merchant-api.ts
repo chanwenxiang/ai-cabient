@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '@/config/api';
 import { clearDictOverrides, dictLabel } from '@aicabinet/shared-dict';
+import { localizeApiMessage } from '@aicabinet/shared-uni/format';
 
 export type MerchantReplenishmentSuggest = {
   deviceId?: string;
@@ -55,7 +56,7 @@ export function handleUnauthorized(message?: string) {
   if (!route.includes('login')) {
     uni.reLaunch({ url: '/pages/login/login' });
   }
-  return new Error(message || '登录已失效，请重新登录');
+  return new Error(localizeApiMessage(message, '登录已失效，请重新登录'));
 }
 
 /**
@@ -143,17 +144,17 @@ export function request<T>(
           return;
         }
         if (res.statusCode === 403) {
-          reject(new Error(body?.message || '权限不足'));
+          reject(new Error(localizeApiMessage(body?.message, '权限不足')));
           return;
         }
         if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0) {
           resolve(body.data as T);
           return;
         }
-        reject(new Error(body?.message || `请求失败 (${res.statusCode})`));
+        reject(new Error(localizeApiMessage(body?.message, `请求失败 (${res.statusCode})`)));
       },
       fail(err) {
-        reject(new Error(err.errMsg || '网络错误'));
+        reject(new Error(localizeApiMessage(err.errMsg, '网络错误')));
       }
     });
   });
@@ -204,7 +205,7 @@ export function uploadReplenishmentEvidenceFile(
             resolve(body.data);
             return;
           }
-          reject(new Error(body?.message || `上传失败 (${res.statusCode})`));
+          reject(new Error(localizeApiMessage(body?.message, `上传失败 (${res.statusCode})`)));
         } catch {
           reject(new Error('上传响应解析失败'));
         }

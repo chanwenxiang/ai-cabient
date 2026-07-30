@@ -33,7 +33,7 @@
           <text class="card-id">#{{ shortId(item.ticketId) }}</text>
           <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
         </view>
-        <text class="card-title">{{ item.reason || '争议' }}</text>
+        <text class="card-title">{{ localizeDisputeReason(item.reason) || '争议' }}</text>
         <view class="card-meta">
           <text>{{ item.deviceId || '-' }}</text>
           <text>{{ formatTime(item.createdAt) }}</text>
@@ -56,7 +56,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
+import { formatDateTimeShort, localizeDisputeReason } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi, type MerchantDisputeTicket } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { promptText } from '@/utils/text-prompt';

@@ -457,7 +457,7 @@
               <el-tag :type="dictTagType(row.status)" size="small">{{ dictLabel('in_transit_status', row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="在途 / SLA" min-width="160" class-name="col-text">
+          <el-table-column label="在途 / 时限" min-width="160" class-name="col-text">
             <template #default="{ row }">
               <div class="sla-cell">
                 <template v-if="isTransitOverdue(row)">
@@ -470,7 +470,7 @@
                 </template>
                 <template v-else>
                   <span class="cell-datetime">已运 {{ formatAge(transitAgeMs(row)) }}</span>
-                  <small class="sla-meta">SLA {{ TRANSIT_OVERDUE_HOURS }} 小时</small>
+                  <small class="sla-meta">时限 {{ TRANSIT_OVERDUE_HOURS }} 小时</small>
                 </template>
               </div>
             </template>
@@ -616,7 +616,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="purchaseDialog" title="新建采购单" width="760px" destroy-on-close>
+    <el-dialog v-model="purchaseDialog" title="新建采购单" width="760px" class="dialog-wide" destroy-on-close>
       <el-form label-width="90px">
         <div class="form-grid">
           <el-form-item label="供应商">
@@ -662,7 +662,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="receiveDialog" title="采购收货" width="700px" destroy-on-close>
+    <el-dialog v-model="receiveDialog" title="采购收货" width="700px" class="dialog-wide" destroy-on-close>
       <div class="table-scroll">
       <el-table :data="receiveForm.lines" class="receive-table">
         <el-table-column label="商品" min-width="180">
@@ -686,7 +686,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="returnDialog" title="采购退货" width="760px" destroy-on-close>
+    <el-dialog v-model="returnDialog" title="采购退货" width="760px" class="dialog-wide" destroy-on-close>
       <el-form label-width="90px">
         <el-form-item label="采购单" required>
           <el-select
@@ -731,7 +731,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="inboundDialog" title="其他入库" width="720px" destroy-on-close>
+    <el-dialog v-model="inboundDialog" title="其他入库" width="720px" class="dialog-wide" destroy-on-close>
       <el-form label-width="88px">
         <div class="form-grid">
           <el-form-item label="仓库" required>
@@ -933,7 +933,7 @@ const inboundForm = reactive<Row>({ warehouseId: '', refNo: '', notes: '', lines
 
 const pageHint = computed(() => {
   if (tab.value === 'transit') {
-    return `在途签收 SLA ${TRANSIT_OVERDUE_HOURS} 小时；超时标红，可勾选「仅超时」`;
+    return `在途签收时限 ${TRANSIT_OVERDUE_HOURS} 小时；超时标红，可勾选「仅超时」`;
   }
   return '仓库 / 供应商 / 库存 / 采购与退货';
 });
