@@ -126,8 +126,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
-import { onLoad } from '@dcloudio/uni-app';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { consumerApi, get } from '@/utils/consumer-api';
 import { formatDateTimeMinute, orderStatusLabel } from '@aicabinet/shared-uni/format';
@@ -162,22 +162,80 @@ const evidence = ref<LocalEvidence[]>([]);
 const supportPhoneDisplay = ref('400-888-0018');
 const supportPhoneDial = ref('4008880018');
 
-onLoad(async (opt: any) => {
-  // H5 深链 / 直接改 hash 时 uni onLoad 可能拿不到 query，兜底从 URL 解析
-  orderId.value = String(opt?.orderId || opt?.id || '').trim();
-  if (!orderId.value && typeof window !== 'undefined' && typeof window.location !== 'undefined') {
-    try {
-      const hash = String(window.location.hash || '');
-      const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
-      const search = String(window.location.search || '').replace(/^\?/, '');
-      const q = new URLSearchParams(hashQuery || search);
-      orderId.value = String(q.get('orderId') || q.get('id') || '').trim();
-    } catch {
-      /* ignore */
-    }
+/** 合并 onLoad/onShow 同刻并发，避免首屏打两次订单详情 */
+let bootstrapPromise: Promise<void> | null = null;
+let bootstrapTarget = '';
+
+function resolveOrderId(opt?: any): string {
+  const fromOpt = String(opt?.orderId || opt?.id || '').trim();
+  if (fromOpt) return fromOpt;
+  if (typeof window === 'undefined' || typeof window.location === 'undefined') return '';
+  try {
+    const hash = String(window.location.hash || '');
+    const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
+    const search = String(window.location.search || '').replace(/^\?/, '');
+    const q = new URLSearchParams(hashQuery || search);
+    return String(q.get('orderId') || q.get('id') || '').trim();
+  } catch {
+    return '';
   }
-  void loadSupportPhone();
-  await reload();
+}
+
+async function bootstrap(opt?: any) {
+  const nextId = resolveOrderId(opt);
+  if (!nextId) {
+    orderId.value = '';
+    error.value = '缺少订单编号';
+    loading.value = false;
+    return;
+  }
+  // H5 同页改 hash/query 时 onLoad 可能不触发；同单 onShow 需拉最新状态
+  if (bootstrapPromise && bootstrapTarget === nextId) {
+    await bootstrapPromise;
+    return;
+  }
+  const idChanged = nextId !== orderId.value;
+  orderId.value = nextId;
+  if (idChanged) {
+    disputeFiled.value = false;
+    refundDone.value = false;
+    showDispute.value = false;
+  }
+  bootstrapTarget = nextId;
+  bootstrapPromise = (async () => {
+    void loadSupportPhone();
+    await reload();
+  })().finally(() => {
+    if (bootstrapTarget === nextId) {
+      bootstrapPromise = null;
+      bootstrapTarget = '';
+    }
+  });
+  await bootstrapPromise;
+}
+
+onLoad((opt: any) => {
+  void bootstrap(opt);
+});
+
+onShow(() => {
+  void bootstrap();
+});
+
+function onHashChange() {
+  void bootstrap();
+}
+
+onMounted(() => {
+  if (typeof window !== 'undefined') {
+    window.addEventListener('hashchange', onHashChange);
+  }
+});
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('hashchange', onHashChange);
+  }
 });
 
 async function loadSupportPhone() {

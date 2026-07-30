@@ -389,7 +389,7 @@ public class DisputeService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
 
-        String resolutionType = normalizeResolutionType(request.resolutionType());
+        String resolutionType = requireResolutionType(request == null ? null : request.resolutionType());
         if (("ADJUST".equals(resolutionType) || "CONFIRM".equals(resolutionType))
                 && (request == null || request.items() == null || request.items().isEmpty())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
@@ -601,9 +601,21 @@ public class DisputeService {
         return "已确认商品，金额不变";
     }
 
+    /** 结案类型必填；兼容历史脚本把字段写成 action（由 DTO @JsonAlias 映射）。 */
+    private static String requireResolutionType(String raw) {
+        if (raw == null || raw.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_RESOLUTION_TYPE_REQUIRED);
+        }
+        String type = normalizeResolutionType(raw);
+        if (!List.of("KEEP", "WAIVE", "CONFIRM", "ADJUST").contains(type)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_RESOLUTION_TYPE_REQUIRED);
+        }
+        return type;
+    }
+
     private static String normalizeResolutionType(String raw) {
         if (raw == null || raw.isBlank()) {
-            return "CONFIRM";
+            return "";
         }
         return switch (raw.trim().toUpperCase()) {
             case "KEEP", "REJECT", "KEEP_BILL" -> "KEEP";
