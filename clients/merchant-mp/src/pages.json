@@ -89,6 +89,13 @@
                       "path":  "pages/orders/orders"
                   },
                   {
+                      "style":  {
+                                    "enablePullDownRefresh":  true,
+                                    "navigationBarTitleText":  "订单详情"
+                                },
+                      "path":  "pages/order-detail/order-detail"
+                  },
+                  {
                       "path":  "pages/revenue-share/index",
                       "style":  {
                                     "navigationBarTitleText":  "分账说明"

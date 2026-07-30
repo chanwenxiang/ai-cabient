@@ -1,0 +1,215 @@
+<template>
+  <view class="page-root">
+    <view v-if="loading" class="loading"><text>加载中…</text></view>
+    <view v-else-if="error" class="empty">
+      <text class="err">{{ error }}</text>
+      <button class="retry" @click="load">重试</button>
+    </view>
+    <view v-else-if="order">
+      <view class="status-bar" :class="'s-' + (order.status || '').toLowerCase()">
+        <text class="status-title">{{ statusText(order.status) }}</text>
+        <text class="status-amt">¥{{ money(order.totalAmountCents) }}</text>
+      </view>
+
+      <view class="section">
+        <text class="section-title">商品明细</text>
+        <view v-for="(line, i) in (order.lines || [])" :key="i" class="line">
+          <view class="line-info">
+            <text class="line-name">{{ line.skuName || line.skuId || '商品' }}</text>
+            <text class="line-qty">x{{ line.quantity }}</text>
+          </view>
+          <text class="line-amt">¥{{ money(line.lineAmountCents) }}</text>
+        </view>
+        <view v-if="!(order.lines || []).length" class="muted">无商品明细</view>
+        <view v-if="order.couponDiscountCents" class="sum-row">
+          <text>优惠</text>
+          <text>-¥{{ money(order.couponDiscountCents) }}</text>
+        </view>
+        <view class="sum-row strong">
+          <text>实付</text>
+          <text>¥{{ money(order.totalAmountCents) }}</text>
+        </view>
+      </view>
+
+      <view class="section">
+        <text class="section-title">订单信息</text>
+        <view class="info-row"><text class="lbl">订单号</text><text class="val mono">{{ order.orderId }}</text></view>
+        <view class="info-row"><text class="lbl">会话</text><text class="val mono">{{ order.sessionId || '-' }}</text></view>
+        <view class="info-row"><text class="lbl">柜机</text><text class="val mono">{{ order.deviceId || '-' }}</text></view>
+        <view class="info-row"><text class="lbl">支付方式</text><text class="val">{{ payChannelText }}</text></view>
+        <view class="info-row"><text class="lbl">创建时间</text><text class="val">{{ formatTime(order.createdAt) }}</text></view>
+      </view>
+
+      <view class="actions">
+        <button
+          v-if="order.deviceId"
+          class="btn-primary"
+          @click="goDevice"
+        >查看柜机</button>
+        <button class="btn-outline" @click="goDisputes">相关争议</button>
+      </view>
+    </view>
+  </view>
+</template>
+
+<script setup lang="ts">
+import { computed, ref } from 'vue';
+import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
+import { dictLabel } from '@aicabinet/shared-dict';
+import { formatDateTimeShort, orderStatusLabel } from '@aicabinet/shared-uni/format';
+import { hasPerm, merchantApi } from '@/utils/merchant-api';
+import { useMerchantMe } from '@/composables/useMerchantMe';
+import type { MerchantMe } from '@aicabinet/shared-types';
+
+type OrderLine = {
+  skuId?: string;
+  skuName?: string;
+  quantity?: number;
+  lineAmountCents?: number;
+};
+
+type OrderDetail = {
+  orderId?: string;
+  sessionId?: string;
+  deviceId?: string;
+  status?: string;
+  payChannel?: string;
+  totalAmountCents?: number;
+  couponDiscountCents?: number;
+  originalAmountCents?: number;
+  lines?: OrderLine[];
+  createdAt?: string;
+};
+
+const { me, refresh: refreshMe } = useMerchantMe();
+const canList = computed(() => hasPerm(me.value, 'merchant:orders:list'));
+
+const orderId = ref('');
+const order = ref<OrderDetail | null>(null);
+const loading = ref(true);
+const error = ref('');
+
+const payChannelText = computed(() =>
+  dictLabel('pay_channel', order.value?.payChannel) || order.value?.payChannel || '-'
+);
+
+onLoad((opt: Record<string, string | undefined>) => {
+  orderId.value = String(opt?.orderId || opt?.id || '').trim();
+  void load();
+});
+onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
+
+async function load() {
+  if (!uni.getStorageSync('merchant_token')) {
+    uni.reLaunch({ url: '/pages/login/login' });
+    return;
+  }
+  if (!orderId.value) {
+    error.value = '缺少订单号';
+    loading.value = false;
+    return;
+  }
+  try {
+    await refreshMe();
+  } catch {
+    me.value = me.value || (uni.getStorageSync('merchant_me') as MerchantMe) || null;
+  }
+  if (!canList.value) {
+    uni.showToast({ title: '无订单权限', icon: 'none' });
+    uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
+    return;
+  }
+  loading.value = true;
+  error.value = '';
+  try {
+    order.value = (await merchantApi.orderDetail(orderId.value)) as OrderDetail;
+  } catch (e) {
+    order.value = null;
+    error.value = e instanceof Error ? e.message : '加载失败';
+  } finally {
+    loading.value = false;
+  }
+}
+
+function statusText(s?: string) {
+  return orderStatusLabel(s) || s || '-';
+}
+
+function money(cents?: number) {
+  return ((cents || 0) / 100).toFixed(2);
+}
+
+function formatTime(t?: string) {
+  return formatDateTimeShort(t) || '-';
+}
+
+function goDevice() {
+  const id = order.value?.deviceId;
+  if (!id) return;
+  uni.navigateTo({
+    url: `/pages/device-detail/device-detail?id=${encodeURIComponent(id)}`
+  });
+}
+
+function goDisputes() {
+  const sid = order.value?.sessionId;
+  if (sid) {
+    uni.navigateTo({
+      url: `/pages/disputes/disputes?sessionId=${encodeURIComponent(sid)}`
+    });
+    return;
+  }
+  uni.navigateTo({ url: '/pages/disputes/disputes' });
+}
+</script>
+
+<style scoped>
+.page-root { min-height: 100vh; background: #f1f5f9; padding: 24rpx; box-sizing: border-box; }
+.loading, .empty { text-align: center; padding: 80rpx 24rpx; color: #64748b; font-size: 28rpx; }
+.err { color: #b91c1c; display: block; margin-bottom: 20rpx; }
+.retry {
+  display: inline-block; margin-top: 12rpx; padding: 12rpx 32rpx;
+  border-radius: 999rpx; background: #0f766e; color: #fff; font-size: 26rpx;
+}
+.retry::after { border: none; }
+.status-bar {
+  background: linear-gradient(145deg, #0f766e, #14b8a6);
+  color: #fff; border-radius: 16rpx; padding: 28rpx 24rpx; margin-bottom: 20rpx;
+}
+.status-bar.s-disputed { background: linear-gradient(145deg, #9a3412, #ea580c); }
+.status-bar.s-refunded, .status-bar.s-partial_refunded {
+  background: linear-gradient(145deg, #1e3a8a, #3b82f6);
+}
+.status-bar.s-pending, .status-bar.s-processing {
+  background: linear-gradient(145deg, #854d0e, #ca8a04);
+}
+.status-title { display: block; font-size: 30rpx; font-weight: 600; }
+.status-amt { display: block; margin-top: 8rpx; font-size: 44rpx; font-weight: 700; }
+.section {
+  background: #fff; border-radius: 16rpx; padding: 24rpx; margin-bottom: 16rpx;
+  border: 1rpx solid #e2e8f0;
+}
+.section-title { display: block; font-size: 26rpx; font-weight: 600; color: #0f172a; margin-bottom: 16rpx; }
+.line { display: flex; justify-content: space-between; align-items: center; padding: 12rpx 0; }
+.line-info { display: flex; gap: 12rpx; align-items: baseline; min-width: 0; }
+.line-name { font-size: 28rpx; color: #0f172a; }
+.line-qty { font-size: 24rpx; color: #94a3b8; }
+.line-amt { font-size: 28rpx; color: #0f172a; font-weight: 600; }
+.sum-row {
+  display: flex; justify-content: space-between; margin-top: 12rpx;
+  padding-top: 12rpx; border-top: 1rpx solid #f1f5f9; font-size: 26rpx; color: #64748b;
+}
+.sum-row.strong { color: #0f172a; font-weight: 700; font-size: 30rpx; }
+.info-row { display: flex; justify-content: space-between; gap: 16rpx; padding: 10rpx 0; font-size: 26rpx; }
+.lbl { color: #94a3b8; flex-shrink: 0; }
+.val { color: #0f172a; text-align: right; word-break: break-all; }
+.mono { font-family: ui-monospace, monospace; font-size: 24rpx; }
+.muted { color: #94a3b8; font-size: 26rpx; padding: 12rpx 0; }
+.actions { display: flex; flex-direction: column; gap: 16rpx; margin-top: 8rpx; }
+.btn-primary, .btn-outline {
+  border-radius: 999rpx; font-size: 28rpx; padding: 18rpx 0;
+}
+.btn-primary { background: #0f766e; color: #fff; }
+.btn-outline { background: #fff; color: #0f766e; border: 1rpx solid #99f6e4; }
+.btn-primary::after, .btn-outline::after { border: none; }
+</style>

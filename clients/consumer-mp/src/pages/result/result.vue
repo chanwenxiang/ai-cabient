@@ -355,6 +355,13 @@ async function submitDispute() {
     });
     disputeFiled.value = true;
     showDispute.value = false;
+    // 刷新订单状态，让页头切到「争议中」而不是仍显示购物完成
+    loadedKey = '';
+    if (order.value?.orderId) {
+      await loadByOrderId(order.value.orderId);
+    } else if (sessionId) {
+      await loadBySession(sessionId);
+    }
     uni.showToast({ title: '申诉已提交', icon: 'success' });
   } catch (e) {
     uni.showToast({ title: e instanceof Error ? e.message : '提交失败', icon: 'none' });

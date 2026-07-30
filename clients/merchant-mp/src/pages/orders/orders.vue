@@ -117,12 +117,9 @@ function formatTime(t?: string) {
 }
 
 function onDetail(item: MerchantOrderSummary) {
-  const amount = money(item.totalAmountCents);
-  const status = statusText(item.status);
-  uni.showModal({
-    title: '订单详情',
-    content: `单号 ${item.orderId}\n柜机 ${item.deviceId || '-'}\n状态 ${status}\n金额 ¥${amount}\n商品 ${item.lineCount || 0} 件`,
-    showCancel: false
+  if (!item.orderId) return;
+  uni.navigateTo({
+    url: `/pages/order-detail/order-detail?orderId=${encodeURIComponent(item.orderId)}`
   });
 }
 </script>

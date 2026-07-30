@@ -55,7 +55,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi, type MerchantDisputeTicket } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
@@ -78,12 +78,18 @@ const error = ref('');
 const list = ref<MerchantDisputeTicket[]>([]);
 let loadSeq = 0;
 const listTotal = ref(0);
+const pendingTicketId = ref('');
+const pendingSessionId = ref('');
 
 const activeTabLabel = computed(() => tabs.find((t) => t.key === activeTab.value)?.label || '');
 const listTruncated = computed(
   () => listTotal.value > 0 && list.value.length > 0 && listTotal.value > list.value.length
 );
 
+onLoad((opt: Record<string, string | undefined>) => {
+  pendingTicketId.value = String(opt?.ticketId || '').trim();
+  pendingSessionId.value = String(opt?.sessionId || '').trim();
+});
 onShow(() => load());
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
@@ -129,6 +135,31 @@ async function load() {
       list.value = res?.items || [];
       listTotal.value = res?.total ?? list.value.length;
     }
+    if (pendingSessionId.value) {
+      const sid = pendingSessionId.value;
+      pendingSessionId.value = '';
+      const matched = list.value.filter((t) => t.sessionId === sid);
+      if (matched.length === 1) {
+        onDetail(matched[0]);
+      } else if (matched.length > 1) {
+        list.value = matched;
+        listTotal.value = matched.length;
+      }
+    }
+    if (pendingTicketId.value) {
+      const tid = pendingTicketId.value;
+      pendingTicketId.value = '';
+      let row = list.value.find((t) => t.ticketId === tid);
+      if (!row) {
+        try {
+          const detail = await merchantApi.disputeDetail(tid);
+          row = detail?.ticket;
+        } catch {
+          row = undefined;
+        }
+      }
+      if (row) onDetail(row);
+    }
   } catch (e) {
     if (seq !== loadSeq) return;
     list.value = [];
@@ -157,32 +188,59 @@ function formatTime(t?: string) {
   return formatDateTimeShort(t) || '';
 }
 
-function onDetail(item: MerchantDisputeTicket) {
+async function onDetail(item: MerchantDisputeTicket) {
+  let detail: MerchantDisputeTicket = { ...item };
+  let canReplyFromApi: boolean | undefined;
+  try {
+    const res = await merchantApi.disputeDetail(item.ticketId);
+    if (res?.ticket) detail = { ...item, ...res.ticket };
+    canReplyFromApi = res?.canReply;
+    const lastMsg = res?.messages?.length
+      ? res.messages[res.messages.length - 1]?.body
+      : detail.lastMessage;
+    if (lastMsg) detail = { ...detail, lastMessage: lastMsg };
+  } catch {
+    // 列表摘要兜底
+  }
+  const amount =
+    detail.billedAmountCents != null
+      ? `¥${(detail.billedAmountCents / 100).toFixed(2)}`
+      : '';
   const lines = [
-    `单号：${item.ticketId || '-'}`,
-    `状态：${statusText(item.status)}`,
-    `柜机：${item.deviceId || '-'}`,
-    `原因：${item.reason || '-'}`,
-    item.lastMessage ? `最新：${item.lastMessage}` : ''
+    `单号：${detail.ticketId || '-'}`,
+    `状态：${statusText(detail.status)}`,
+    `柜机：${detail.deviceId || '-'}`,
+    detail.orderId ? `订单：${detail.orderId}` : '',
+    amount ? `金额：${amount}` : '',
+    `原因：${detail.reason || '-'}`,
+    detail.lastMessage ? `最新：${detail.lastMessage}` : ''
   ]
     .filter(Boolean)
     .join('\n');
-  const replyable = canReplyTicket(item);
+  const replyable =
+    canReplyFromApi != null ? canReplyFromApi && canReply.value : canReplyTicket(detail);
+  const hasOrder = !!detail.orderId;
   uni.showModal({
     title: '争议详情',
     content: lines,
     showCancel: true,
-    cancelText: replyable ? '关闭' : item.deviceId ? '关闭' : '知道了',
-    confirmText: replyable ? '回复' : item.deviceId ? '查看柜机' : '知道了',
+    cancelText: replyable ? '关闭' : hasOrder || detail.deviceId ? '关闭' : '知道了',
+    confirmText: replyable ? '回复' : hasOrder ? '查看订单' : detail.deviceId ? '查看柜机' : '知道了',
     success(res) {
       if (!res.confirm) return;
       if (replyable) {
-        onReply(item);
+        onReply(detail);
         return;
       }
-      if (item.deviceId) {
+      if (hasOrder) {
         uni.navigateTo({
-          url: `/pages/device-detail/device-detail?id=${encodeURIComponent(item.deviceId)}`
+          url: `/pages/order-detail/order-detail?orderId=${encodeURIComponent(detail.orderId!)}`
+        });
+        return;
+      }
+      if (detail.deviceId) {
+        uni.navigateTo({
+          url: `/pages/device-detail/device-detail?id=${encodeURIComponent(detail.deviceId)}`
         });
       }
     }

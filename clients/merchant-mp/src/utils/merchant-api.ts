@@ -407,9 +407,13 @@ export const merchantApi = {
   orderDetail: (orderId: string) =>
     request<Record<string, unknown>>(`/api/v2/merchant/orders/${encodeURIComponent(orderId)}`),
   disputeDetail: (ticketId: string) =>
-    request<MerchantDisputeTicket>(`/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}`),
+    request<MerchantDisputeDetail>(`/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}`),
   disputeReply: (ticketId: string, body: string) =>
-    request(`/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}/reply`, 'POST', { body })
+    request<MerchantDisputeDetail>(
+      `/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}/reply`,
+      'POST',
+      { body }
+    )
 };
 
 export type MerchantOrderSummary = {
@@ -429,6 +433,15 @@ export type MerchantDisputeTicket = {
   deviceId?: string;
   createdAt?: string;
   lastMessage?: string;
+  canReply?: boolean;
+  orderId?: string;
+  billedAmountCents?: number;
+  sessionId?: string;
+};
+
+export type MerchantDisputeDetail = {
+  ticket?: MerchantDisputeTicket;
+  messages?: { body?: string; authorType?: string; createdAt?: string }[];
   canReply?: boolean;
 };
 
