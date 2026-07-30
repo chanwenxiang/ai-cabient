@@ -1,6 +1,5 @@
 package com.aicabinet.common.dto;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 
 import java.util.List;
@@ -17,7 +16,8 @@ import java.util.List;
  */
 public record ResolveDisputeRequest(
         List<ManualLineItem> items,
-        @JsonAlias("action") String resolutionType
+        String resolutionType,
+        String action
 ) {
     public record ManualLineItem(
             @NotBlank String skuId,
@@ -28,5 +28,18 @@ public record ResolveDisputeRequest(
         if (items == null) {
             items = List.of();
         }
+    }
+
+    /** 兼容仅传 items + resolutionType 的两参构造（单测/内部调用）。 */
+    public ResolveDisputeRequest(List<ManualLineItem> items, String resolutionType) {
+        this(items, resolutionType, null);
+    }
+
+    /** 优先 resolutionType，否则回落 action。 */
+    public String effectiveResolutionType() {
+        if (resolutionType != null && !resolutionType.isBlank()) {
+            return resolutionType;
+        }
+        return action;
     }
 }

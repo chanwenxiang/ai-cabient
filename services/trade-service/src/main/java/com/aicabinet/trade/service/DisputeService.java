@@ -389,7 +389,7 @@ public class DisputeService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
 
-        String resolutionType = requireResolutionType(request == null ? null : request.resolutionType());
+        String resolutionType = requireResolutionType(request == null ? null : request.effectiveResolutionType());
         if (("ADJUST".equals(resolutionType) || "CONFIRM".equals(resolutionType))
                 && (request == null || request.items() == null || request.items().isEmpty())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DISPUTE_ITEMS_REQUIRED);
