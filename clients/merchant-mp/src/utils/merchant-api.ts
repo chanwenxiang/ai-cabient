@@ -397,10 +397,29 @@ export const merchantApi = {
       `/api/v2/merchant/disputes?${q}`
     );
   },
+  orders: (deviceId?: string, page = 0, size = 50) => {
+    const q = new URLSearchParams({ page: String(page), size: String(size) });
+    if (deviceId) q.set('deviceId', deviceId);
+    return request<{ items?: MerchantOrderSummary[]; total?: number } | MerchantOrderSummary[]>(
+      `/api/v2/merchant/orders?${q}`
+    );
+  },
+  orderDetail: (orderId: string) =>
+    request<Record<string, unknown>>(`/api/v2/merchant/orders/${encodeURIComponent(orderId)}`),
   disputeDetail: (ticketId: string) =>
     request<MerchantDisputeTicket>(`/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}`),
   disputeReply: (ticketId: string, body: string) =>
     request(`/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}/reply`, 'POST', { body })
+};
+
+export type MerchantOrderSummary = {
+  orderId: string;
+  sessionId?: string;
+  deviceId?: string;
+  status?: string;
+  totalAmountCents?: number;
+  lineCount?: number;
+  createdAt?: string;
 };
 
 export type MerchantDisputeTicket = {

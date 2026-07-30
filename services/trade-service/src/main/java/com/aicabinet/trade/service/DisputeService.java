@@ -365,6 +365,18 @@ public class DisputeService {
         );
     }
 
+    /** 运营按工单号取详情（深链 / 跨页打开）。 */
+    @Transactional(readOnly = true)
+    public DisputeTicketDto getTicket(Long operatorId, String ticketId) {
+        permissionService.requirePermission(operatorId, "ops:dispute");
+        DisputeTicket ticket = disputeRepository.findById(ticketId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
+        ShoppingSession session = sessionRepository.findById(ticket.getSessionId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
+        return toDto(ticket);
+    }
+
     @Transactional
     public ResolveDisputeResultDto resolveTicket(Long operatorId, String ticketId, ResolveDisputeRequest request) {
         permissionService.requirePermission(operatorId, "ops:dispute:resolve");

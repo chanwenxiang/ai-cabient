@@ -164,7 +164,8 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("sku_status", t("商品状态", m("ACTIVE", "在售", "INACTIVE", "停用", "DISABLED", "禁售")));
         map.put("order_status", t("订单状态", m(
                 "PENDING", "待支付", "PROCESSING", "处理中", "PAID", "已支付", "COMPLETED", "已完成",
-                "DISPUTED", "争议中", "REFUNDED", "已退款", "FAILED", "处理失败", "CANCELLED", "已取消")));
+                "DISPUTED", "争议中", "REFUNDED", "已退款", "PARTIAL_REFUNDED", "部分退款",
+                "FAILED", "处理失败", "CANCELLED", "已取消")));
         return map;
     }
 

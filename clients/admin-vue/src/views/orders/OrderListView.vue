@@ -27,6 +27,7 @@
       <el-tab-pane label="全部" name="ALL" />
       <el-tab-pane label="待支付" name="PENDING" />
       <el-tab-pane label="已支付" name="PAID" />
+      <el-tab-pane label="争议中" name="DISPUTED" />
       <el-tab-pane label="已退款" name="REFUNDED" />
       <el-tab-pane label="已关闭" name="CANCELLED" />
     </el-tabs>
@@ -123,8 +124,8 @@
           </el-table-column>
           <el-table-column label="退款状态" width="96" align="center">
             <template #default="{ row }">
-              <el-tag size="small" :type="row.status === 'REFUNDED' ? 'warning' : 'info'" effect="plain">
-                {{ row.status === 'REFUNDED' ? '已退款' : '无' }}
+              <el-tag size="small" :type="refundTagType(row.status)" effect="plain">
+                {{ refundColumnLabel(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -353,7 +354,7 @@ const { onExport: exportSelectedCsv } = useListCsv({
       row.deviceId,
       dictLabel('order_status', row.status) || row.status,
       paymentStatusLabel(row.status),
-      row.status === 'REFUNDED' ? '已退款' : '无',
+      refundColumnLabel(row.status),
       dictLabel('pay_channel', row.payChannel) || row.payChannel || '-',
       row.lineCount,
       money(row.totalAmountCents),
@@ -389,23 +390,37 @@ function money(cents?: number) {
 
 function orderStatusType(s?: string) {
   if (s === 'PAID' || s === 'COMPLETED') return 'success';
-  if (s === 'CANCELLED' || s === 'REFUNDED') return 'info';
+  if (s === 'CANCELLED' || s === 'REFUNDED' || s === 'PARTIAL_REFUNDED') return 'info';
   if (s === 'FAILED') return 'danger';
+  if (s === 'DISPUTED') return 'warning';
   return 'warning';
+}
+
+function refundColumnLabel(s?: string) {
+  if (s === 'REFUNDED') return '已退款';
+  if (s === 'PARTIAL_REFUNDED') return '部分退款';
+  return '无';
+}
+
+function refundTagType(s?: string) {
+  if (s === 'REFUNDED' || s === 'PARTIAL_REFUNDED') return 'warning';
+  return 'info';
 }
 
 function paymentStatusLabel(s?: string) {
   if (s === 'PAID' || s === 'COMPLETED') return '已支付';
   if (s === 'REFUNDED') return '已退款';
+  if (s === 'PARTIAL_REFUNDED') return '部分退款';
   if (s === 'CANCELLED') return '已关闭';
   if (s === 'PENDING') return '待支付';
+  if (s === 'DISPUTED') return '争议中';
   return s ? dictLabel('order_status', s) || s : '-';
 }
 
 function paymentStatusType(s?: string) {
   if (s === 'PAID' || s === 'COMPLETED') return 'success';
-  if (s === 'PENDING') return 'warning';
-  if (s === 'REFUNDED') return 'info';
+  if (s === 'PENDING' || s === 'DISPUTED') return 'warning';
+  if (s === 'REFUNDED' || s === 'PARTIAL_REFUNDED') return 'info';
   return 'info';
 }
 

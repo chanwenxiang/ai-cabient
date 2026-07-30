@@ -125,7 +125,7 @@
                 v-if="row.orderId"
                 type="button"
                 class="link-cell mono"
-                @click="goOrders(row.deviceId)"
+                @click="goOrders(row.deviceId, row.orderId)"
               >{{ row.orderId }}</button>
               <span v-else class="muted">-</span>
             </template>
@@ -240,7 +240,7 @@
             >异常中心</el-button>
             <el-button
               v-if="selected.orderId || selected.deviceId"
-              @click="goOrders(selected.deviceId)"
+              @click="goOrders(selected.deviceId, selected.orderId)"
             >关联订单</el-button>
           </div>
         </section>
@@ -313,7 +313,7 @@
               {{ formatDateTime(selected.resolvedAt) }}
             </el-descriptions-item>
             <el-descriptions-item v-if="selected.orderId" label="关联订单">
-              <button type="button" class="link-cell mono" @click="goOrders(selected.deviceId)">
+              <button type="button" class="link-cell mono" @click="goOrders(selected.deviceId, selected.orderId)">
                 {{ selected.orderId }}
               </button>
             </el-descriptions-item>
@@ -605,7 +605,7 @@ function onRowAction(key: string, row: DisputeTicketDto) {
   if (key === 'detail') openDetail(row);
   if (key === 'video') playVideo(row.sessionId);
   if (key === 'exception') goExceptions(row.deviceId);
-  if (key === 'order') goOrders(row.deviceId);
+  if (key === 'order') goOrders(row.deviceId, row.orderId);
   if (key === 'mapping') goVisionMapping(row);
 }
 
@@ -642,8 +642,9 @@ function goSessions(device?: string, sessionId?: string) {
   if (sessionId) query.sessionId = sessionId;
   goPath('/sessions', query);
 }
-function goOrders(device?: string) {
+function goOrders(device?: string, orderId?: string) {
   const query: Record<string, string> = {};
+  if (orderId) query.orderId = orderId;
   if (device) query.deviceId = device;
   goPath('/orders', query);
 }
@@ -907,7 +908,17 @@ onMounted(async () => {
   await load(false);
   const ticketId = route.query.ticketId;
   if (typeof ticketId === 'string' && ticketId) {
-    const row = items.value.find((t) => t.ticketId === ticketId);
+    let row = items.value.find((t) => t.ticketId === ticketId);
+    if (!row) {
+      try {
+        row = await api.request<DisputeTicketDto>(
+          `/api/v2/ops/disputes/${encodeURIComponent(ticketId)}`,
+          'GET'
+        );
+      } catch {
+        row = undefined;
+      }
+    }
     if (row) openDetail(row);
   }
 });

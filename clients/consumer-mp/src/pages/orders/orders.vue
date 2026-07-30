@@ -150,7 +150,7 @@ const reviewingDisputes = computed(() =>
 const filters = [
   { label: '全部', value: 'all' as const },
   { label: '已完成', value: 'paid' as const },
-  { label: '处理中', value: 'pending' as const },
+  { label: '待支付', value: 'pending' as const },
   { label: '有疑问', value: 'issue' as const },
   { label: '已退款', value: 'refunded' as const },
   { label: '已取消', value: 'cancelled' as const }

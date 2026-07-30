@@ -40,6 +40,15 @@ public class DisputeController {
                 operatorId, page, size, status, sessionId, deviceId, category, reviewCode));
     }
 
+    @RequiresPermissions("ops:dispute")
+    @GetMapping("/{ticketId}")
+    public ApiResponse<DisputeTicketDto> get(
+            HttpServletRequest request,
+            @PathVariable("ticketId") String ticketId) {
+        Long operatorId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(disputeService.getTicket(operatorId, ticketId));
+    }
+
     @RequiresPermissions("ops:dispute:resolve")
     @PostMapping("/{ticketId}/resolve")
     public ApiResponse<ResolveDisputeResultDto> resolve(

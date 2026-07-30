@@ -7,9 +7,9 @@
       <button class="ghost-btn" hover-class="btn-hover" @click="goOrders">查看订单</button>
     </view>
     <view v-else-if="order">
-      <view class="success-header">
-        <text class="success-icon">✓</text>
-        <text class="success-title">{{ order.totalAmountCents > 0 ? '购物完成' : '感谢使用' }}</text>
+      <view class="success-header" :class="'tone-' + statusTone">
+        <text class="success-icon">{{ statusIcon }}</text>
+        <text class="success-title">{{ headerTitle }}</text>
         <text class="success-status">{{ statusLabel }}</text>
       </view>
 
@@ -144,6 +144,32 @@ const loading = ref(true);
 const error = ref('');
 const order = ref<OrderDetailDto | null>(null);
 const statusLabel = ref('');
+const statusTone = computed(() => {
+  const s = (order.value?.status || '').toUpperCase();
+  if (s === 'DISPUTED') return 'warn';
+  if (s === 'REFUNDED' || s === 'PARTIAL_REFUNDED') return 'refund';
+  if (s === 'FAILED' || s === 'CANCELLED') return 'muted';
+  if (s === 'PENDING' || s === 'PROCESSING') return 'pending';
+  return 'ok';
+});
+const statusIcon = computed(() => {
+  const map: Record<string, string> = {
+    ok: '✓',
+    warn: '!',
+    refund: '↩',
+    muted: '—',
+    pending: '…'
+  };
+  return map[statusTone.value] || '✓';
+});
+const headerTitle = computed(() => {
+  const s = (order.value?.status || '').toUpperCase();
+  if (s === 'DISPUTED') return '账单审核中';
+  if (s === 'REFUNDED' || s === 'PARTIAL_REFUNDED') return '退款已处理';
+  if (s === 'PENDING' || s === 'PROCESSING') return '待支付';
+  if (s === 'FAILED' || s === 'CANCELLED') return '本次未完成';
+  return (order.value?.totalAmountCents || 0) > 0 ? '购物完成' : '感谢使用';
+});
 let sessionId = '';
 let loadedKey = '';
 const deviceId = ref('');
@@ -412,6 +438,26 @@ function goHelp() {
     radial-gradient(circle at 82% 10%, rgba(255, 255, 255, 0.18), transparent 28%),
     linear-gradient(145deg, #064e3b, #059669 58%, #14b8a6);
   border-radius: 0 0 38rpx 38rpx;
+}
+.success-header.tone-warn {
+  background:
+    radial-gradient(circle at 82% 10%, rgba(255, 255, 255, 0.18), transparent 28%),
+    linear-gradient(145deg, #9a3412, #ea580c 58%, #f59e0b);
+}
+.success-header.tone-refund {
+  background:
+    radial-gradient(circle at 82% 10%, rgba(255, 255, 255, 0.18), transparent 28%),
+    linear-gradient(145deg, #1e3a8a, #2563eb 58%, #38bdf8);
+}
+.success-header.tone-pending {
+  background:
+    radial-gradient(circle at 82% 10%, rgba(255, 255, 255, 0.18), transparent 28%),
+    linear-gradient(145deg, #854d0e, #ca8a04 58%, #eab308);
+}
+.success-header.tone-muted {
+  background:
+    radial-gradient(circle at 82% 10%, rgba(255, 255, 255, 0.18), transparent 28%),
+    linear-gradient(145deg, #334155, #64748b 58%, #94a3b8);
 }
 .success-icon {
   width: 92rpx;

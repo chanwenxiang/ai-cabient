@@ -199,7 +199,8 @@ export const DICT = {
   sku_status: { ACTIVE: '在售', INACTIVE: '停用', DISABLED: '禁售' },
   order_status: {
     PENDING: '待支付', PROCESSING: '处理中', PAID: '已支付', COMPLETED: '已完成',
-    DISPUTED: '争议中', REFUNDED: '已退款', FAILED: '处理失败', CANCELLED: '已取消'
+    DISPUTED: '争议中', REFUNDED: '已退款', PARTIAL_REFUNDED: '部分退款',
+    FAILED: '处理失败', CANCELLED: '已取消'
   }
 } as const;
 

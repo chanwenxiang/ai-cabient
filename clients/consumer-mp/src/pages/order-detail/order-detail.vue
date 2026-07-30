@@ -130,7 +130,7 @@ import { ref, computed } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { consumerApi, get } from '@/utils/consumer-api';
-import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import { formatDateTimeMinute, orderStatusLabel } from '@aicabinet/shared-uni/format';
 import {
   DISPUTE_REASON_CHIPS,
   appendChipToReason,
@@ -230,20 +230,7 @@ const statusIcon = computed(() => {
   return map[(order.value?.status || '').toLowerCase()] || '✓';
 });
 
-const statusTitle = computed(() => {
-  const map: Record<string, string> = {
-    PAID: '交易完成',
-    COMPLETED: '交易完成',
-    REFUNDED: '已退款',
-    PARTIAL_REFUNDED: '部分退款',
-    DISPUTED: '争议处理中',
-    FAILED: '交易失败',
-    CANCELLED: '已取消',
-    PENDING: '处理中',
-    PROCESSING: '处理中'
-  };
-  return map[order.value?.status || ''] || '订单详情';
-});
+const statusTitle = computed(() => orderStatusLabel(order.value?.status) || '订单详情');
 
 const canDispute = computed(() => {
   const s = order.value?.status;
@@ -275,6 +262,9 @@ const statusDetail = computed(() => {
   if (order.value?.status === 'REFUNDED') return '已退款至原支付渠道或账户余额';
   if (order.value?.status === 'PARTIAL_REFUNDED') return '本单已部分退款，可在账单明细中核对金额';
   if (order.value?.status === 'DISPUTED') return '账单审核中，请耐心等待';
+  if (order.value?.status === 'PENDING' || order.value?.status === 'PROCESSING') {
+    return '订单待支付，请完成补扣后再继续购物';
+  }
   if (order.value?.status === 'CANCELLED') return '本次购物已取消，未产生扣款';
   return '';
 });

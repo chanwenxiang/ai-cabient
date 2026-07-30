@@ -65,6 +65,15 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     icon: '📑'
   },
   {
+    key: 'orders',
+    title: '柜机订单',
+    desc: '本商户柜机成交与争议单',
+    url: '/pages/orders/orders',
+    perm: 'merchant:orders:list',
+    pack: 'biz',
+    icon: '🧾'
+  },
+  {
     key: 'disputes',
     title: '争议处理',
     desc: '消费者账单申诉',

@@ -68,8 +68,8 @@ const canReply = computed(() => hasPerm(me.value, 'merchant:disputes:reply'));
 
 const tabs = [
   { key: 'OPEN', label: '待处理' },
-  { key: 'PROCESSING', label: '处理中' },
-  { key: 'RESOLVED', label: '已解决' }
+  { key: 'RESOLVED', label: '已结案' },
+  { key: 'CLOSED', label: '已关闭' }
 ];
 
 const activeTab = ref('OPEN');
@@ -140,7 +140,11 @@ async function load() {
 }
 
 function statusText(s?: string) {
-  const m: Record<string, string> = { OPEN: '待处理', PROCESSING: '处理中', RESOLVED: '已解决' };
+  const m: Record<string, string> = {
+    OPEN: '待处理',
+    RESOLVED: '已结案',
+    CLOSED: '已关闭'
+  };
   return m[s || ''] || s || '-';
 }
 
@@ -243,6 +247,7 @@ async function onReply(item: MerchantDisputeTicket) {
 .card-id { font-size: 22rpx; color: #94a3b8; }
 .card-status { font-size: 22rpx; color: #92400e; background: #fef3c7; padding: 4rpx 12rpx; border-radius: 999rpx; }
 .card-status.RESOLVED, .card-status.resolved { color: #166534; background: #dcfce7; }
+.card-status.CLOSED, .card-status.closed { color: #475569; background: #e2e8f0; }
 .card-title { display: block; font-size: 28rpx; font-weight: 600; color: #0f172a; }
 .card-meta { display: flex; justify-content: space-between; margin-top: 12rpx; font-size: 22rpx; color: #94a3b8; }
 .card-msg { margin-top: 12rpx; padding: 12rpx; background: #f8fafc; border-radius: 12rpx; font-size: 24rpx; color: #475569; }

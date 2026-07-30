@@ -82,6 +82,13 @@
                       "path":  "pages/disputes/disputes"
                   },
                   {
+                      "style":  {
+                                    "enablePullDownRefresh":  true,
+                                    "navigationBarTitleText":  "柜机订单"
+                                },
+                      "path":  "pages/orders/orders"
+                  },
+                  {
                       "path":  "pages/revenue-share/index",
                       "style":  {
                                     "navigationBarTitleText":  "分账说明"
