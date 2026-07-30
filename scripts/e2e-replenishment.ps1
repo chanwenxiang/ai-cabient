@@ -93,36 +93,36 @@ $taskId = [long]$task.taskId
 Write-Host "    routeId=$routeId taskId=$taskId status=$($task.status)"
 
 $outboundId = $null
-$useWarehouse = -not $FieldOnly
-if ($useWarehouse) {
-    Write-Host "==> 4. Resolve warehouse outbound (if any)"
-    try {
-        $outbounds = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/ops/admin/warehouse/outbounds" -Headers $opsAuth
-        $linked = @($outbounds) | Where-Object { $_.routeId -eq $routeId } | Select-Object -First 1
-        if (-not $linked) {
-            Write-Host "    no outbound for route — field restock path"
-            $useWarehouse = $false
-        } else {
-            $outboundId = [long]$linked.outboundId
-            Write-Host "    outboundId=$outboundId status=$($linked.status)"
-            $st = [string]$linked.status
-            if ($st -notin @("PICKED", "SHIPPED", "IN_TRANSIT", "RECEIVED", "COMPLETED")) {
-                Write-Host "==> 4b. Pick outbound (was $st)"
-                Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
-                    -Path "/api/v2/ops/admin/warehouse/outbounds/$outboundId/pick" -Headers $opsAuth | Out-Null
-                $st = "PICKED"
-            }
-            if ($st -notin @("SHIPPED", "IN_TRANSIT", "RECEIVED", "COMPLETED")) {
-                Write-Host "==> 4c. Ship outbound"
-                Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
-                    -Path "/api/v2/ops/admin/warehouse/outbounds/$outboundId/ship" -Headers $opsAuth | Out-Null
-            }
+$useWarehouse = $false
+# plan 常会同步生成出库单；即使 -FieldOnly 也必须先发运，否则 complete 会 409
+Write-Host "==> 4. Resolve warehouse outbound (if any)$(if ($FieldOnly) { ' [FieldOnly: still ship when linked]' })"
+try {
+    $outbounds = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/ops/admin/warehouse/outbounds" -Headers $opsAuth
+    $linked = @($outbounds) | Where-Object { $_.routeId -eq $routeId } | Select-Object -First 1
+    if (-not $linked) {
+        Write-Host "    no outbound for route — field restock path"
+    } else {
+        $useWarehouse = $true
+        $outboundId = [long]$linked.outboundId
+        Write-Host "    outboundId=$outboundId status=$($linked.status)"
+        $st = [string]$linked.status
+        if ($st -notin @("PICKED", "SHIPPED", "IN_TRANSIT", "RECEIVED", "COMPLETED")) {
+            Write-Host "==> 4b. Pick outbound (was $st)"
+            Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
+                -Path "/api/v2/ops/admin/warehouse/outbounds/$outboundId/pick" -Headers $opsAuth | Out-Null
+            $st = "PICKED"
         }
-    } catch {
-        Write-Warning "Warehouse path failed, falling back to field restock: $_"
-        $useWarehouse = $false
-        $outboundId = $null
+        if ($st -notin @("SHIPPED", "IN_TRANSIT", "RECEIVED", "COMPLETED")) {
+            Write-Host "==> 4c. Ship outbound"
+            Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
+                -Path "/api/v2/ops/admin/warehouse/outbounds/$outboundId/ship" -Headers $opsAuth | Out-Null
+        }
     }
+} catch {
+    if (-not $FieldOnly) { throw }
+    Write-Warning "Warehouse path failed, continuing field restock: $_"
+    $useWarehouse = $false
+    $outboundId = $null
 }
 
 Write-Host "==> 5. Merchant check-in (no geo)"

@@ -33,6 +33,7 @@ const BASE_NAV: NavItem[] = [
   { path: '/sla', title: 'SLA 监控', group: '运营', section: '履约仓储', perm: 'ops:sla', keywords: ['sla', '开门成功率', '识别耗时', '在线率'] },
   { path: '/merchants', title: '商户与分账', group: '运营', section: '财务商户', perm: 'ops:merchant:list', keywords: ['商户', '分账', '开关', '货道'] },
   { path: '/reconciliation', title: '对账', group: '运营', section: '财务商户', perm: 'ops:reconciliation:list', keywords: ['对账', 'recon'] },
+  { path: '/consistency', title: '数据一致性', group: '运营', section: '财务商户', perm: 'ops:consistency:list', keywords: ['一致性', '巡检', 'consistency', '库存', '金额'] },
   { path: '/recharges', title: '充值管理', group: '运营', section: '财务商户', perm: 'ops:recharge:list', keywords: ['充值', '余额'] },
   { path: '/users', title: '用户余额', group: '运营', section: '财务商户', perm: 'ops:user:list', keywords: ['用户', '余额', '实名', '灰度'] },
   { path: '/risk', title: '风控', group: '运营', section: '增长风控', perm: 'ops:risk:list', keywords: ['黑名单', '风险'] },

@@ -23,6 +23,7 @@ const bizChildren: any[] = [
   { path: 'replenishment', name: 'replenishment', component: () => import('@/views/replenishment/ReplenishmentView.vue'), meta: { title: '补货调度', group: '运营' } },
   { path: 'merchants', name: 'merchants', component: () => import('@/views/merchants/MerchantSplitsView.vue'), meta: { title: '商户与分账', group: '运营' } },
   { path: 'reconciliation', name: 'reconciliation', component: () => import('@/views/reconciliation/ReconciliationView.vue'), meta: { title: '对账', group: '运营' } },
+  { path: 'consistency', name: 'consistency', component: () => import('@/views/consistency/ConsistencyView.vue'), meta: { title: '数据一致性', group: '运营' } },
   { path: 'warehouse', name: 'warehouse', component: () => import('@/views/warehouse/WarehouseView.vue'), meta: { title: '仓库', group: '运营' } },
   { path: 'recharges', name: 'recharges', component: () => import('@/views/recharges/RechargeListView.vue'), meta: { title: '充值管理', group: '运营' } },
   { path: 'users', name: 'users', component: () => import('@/views/users/UserListView.vue'), meta: { title: '用户余额', group: '运营' } },

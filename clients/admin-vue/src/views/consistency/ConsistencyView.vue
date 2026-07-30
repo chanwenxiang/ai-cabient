@@ -1,0 +1,243 @@
+<template>
+  <el-card class="page-card report-page" shadow="never">
+    <template #header>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">数据一致性</span>
+            <span class="hint">巡检订单金额 / 支付净额 / 柜机库存；FAIL 可显式修复</span>
+          </div>
+        </div>
+        <div class="page-card-head__actions">
+          <el-button v-if="canRun" type="primary" :loading="running" @click="runCheck">立即巡检</el-button>
+          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+        </div>
+      </div>
+    </template>
+
+    <el-alert
+      type="info"
+      :closable="false"
+      show-icon
+      class="t1-alert"
+      title="三端一致性说明"
+      description="默认只记录 FAIL、不自动改数。ORDER_AMOUNT / INVENTORY_MISMATCH 可点「修复」；支付净额偏差请走退款/调账人工处理。"
+    />
+
+    <div class="kpi-tags">
+      <el-tag size="small" type="danger">FAIL {{ failCount }}</el-tag>
+      <el-tag size="small" type="info">本页 {{ items.length }}</el-tag>
+      <el-tag v-if="lastRunAt" size="small" type="success">上次巡检 {{ lastRunAt }}</el-tag>
+    </div>
+
+    <div class="table-scroll">
+      <div class="table-scroll-inner" style="min-width: 960px">
+        <el-table v-loading="loading" :data="items" stripe border class="report-table" row-key="id">
+          <template #empty>
+            <el-empty description="当前无 FAIL 记录，点击「立即巡检」可再跑一轮" />
+          </template>
+          <el-table-column label="类型" width="160" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" :type="typeTag(row.checkType)">{{ typeLabel(row.checkType) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="键" min-width="180" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">
+              <code class="mono">{{ row.checkKey }}</code>
+            </template>
+          </el-table-column>
+          <el-table-column prop="tableName" label="表" width="140" class-name="col-text" show-overflow-tooltip />
+          <el-table-column label="期望" min-width="100" align="right" class-name="col-text">
+            <template #default="{ row }">{{ row.expectedValue }}</template>
+          </el-table-column>
+          <el-table-column label="实际" min-width="100" align="right" class-name="col-text">
+            <template #default="{ row }">
+              <span class="is-mismatch">{{ row.actualValue }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="90" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" type="danger">{{ row.status }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="检出时间" width="170" align="center">
+            <template #default="{ row }">
+              <span class="cell-datetime">{{ formatDateTime(row.checkedAt) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="120" align="center" fixed="right">
+            <template #default="{ row }">
+              <el-button
+                v-if="canFix && isFixable(row.checkType)"
+                type="primary"
+                link
+                :loading="fixingId === row.id"
+                @click="fixRow(row)"
+              >
+                修复
+              </el-button>
+              <span v-else class="muted">—</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
+  </el-card>
+</template>
+
+<script setup lang="ts">
+import { computed, onActivated, onMounted, ref } from 'vue';
+import { Refresh } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { api } from '@/api/client';
+import { useAuthStore } from '@/stores/auth';
+import { formatDateTime } from '@aicabinet/shared-uni/format';
+
+type Row = {
+  id: number;
+  checkType: string;
+  tableName?: string;
+  checkKey: string;
+  expectedValue?: string;
+  actualValue?: string;
+  status: string;
+  errorMessage?: string;
+  checkedAt?: string;
+  fixedAt?: string;
+};
+
+type RunResult = {
+  failCount: number;
+  failures?: Row[];
+};
+
+const auth = useAuthStore();
+const canRun = computed(
+  () =>
+    auth.hasPerm('ops:consistency:run') ||
+    auth.hasPerm('ops:order:list') ||
+    auth.hasPerm('ops:finance:view')
+);
+const canFix = computed(
+  () => auth.hasPerm('ops:consistency:fix') || auth.hasPerm('ops:order:refund')
+);
+
+const loading = ref(false);
+const running = ref(false);
+const fixingId = ref<number | null>(null);
+const items = ref<Row[]>([]);
+const lastRunAt = ref('');
+const failCount = computed(() => items.value.length);
+
+function typeLabel(t: string) {
+  switch (t) {
+    case 'ORDER_AMOUNT':
+      return '订单金额';
+    case 'PAYMENT_AMOUNT':
+      return '支付净额';
+    case 'INVENTORY_MISMATCH':
+      return '库存汇总';
+    default:
+      return t || '未知';
+  }
+}
+
+function typeTag(t: string) {
+  switch (t) {
+    case 'ORDER_AMOUNT':
+      return 'warning';
+    case 'PAYMENT_AMOUNT':
+      return 'danger';
+    case 'INVENTORY_MISMATCH':
+      return 'info';
+    default:
+      return '';
+  }
+}
+
+function isFixable(t: string) {
+  return t === 'ORDER_AMOUNT' || t === 'INVENTORY_MISMATCH';
+}
+
+async function load() {
+  loading.value = true;
+  try {
+    items.value = (await api.request<Row[]>('/api/v2/ops/admin/consistency/failures', 'GET')) || [];
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function runCheck() {
+  running.value = true;
+  try {
+    const res = await api.request<RunResult>('/api/v2/ops/admin/consistency/run', 'POST');
+    items.value = res?.failures || [];
+    lastRunAt.value = formatDateTime(new Date().toISOString());
+    const n = res?.failCount ?? items.value.length;
+    if (n === 0) ElMessage.success('巡检完成：无 FAIL');
+    else ElMessage.warning(`巡检完成：仍有 ${n} 条 FAIL`);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '巡检失败');
+  } finally {
+    running.value = false;
+  }
+}
+
+async function fixRow(row: Row) {
+  try {
+    await ElMessageBox.confirm(
+      `确认修复 ${typeLabel(row.checkType)}「${row.checkKey}」？将按服务端规则改写期望侧数据。`,
+      '显式修复',
+      { type: 'warning', confirmButtonText: '修复', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  fixingId.value = row.id;
+  try {
+    const res = await api.request<{ recordId: number; fixed: boolean }>(
+      `/api/v2/ops/admin/consistency/${row.id}/fix`,
+      'POST'
+    );
+    if (res?.fixed) {
+      ElMessage.success('已修复');
+      await load();
+    } else {
+      ElMessage.warning('未能自动修复（可能需人工补明细）');
+    }
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '修复失败');
+  } finally {
+    fixingId.value = null;
+  }
+}
+
+onMounted(load);
+onActivated(load);
+</script>
+
+<style scoped>
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.is-mismatch {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+.muted {
+  color: var(--el-text-color-placeholder);
+}
+.kpi-tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0 16px;
+}
+.t1-alert {
+  margin-bottom: 4px;
+}
+</style>

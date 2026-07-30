@@ -163,7 +163,16 @@ const supportPhoneDisplay = ref('400-888-0018');
 const supportPhoneDial = ref('4008880018');
 
 onLoad(async (opt: any) => {
-  orderId.value = opt?.orderId || '';
+  // H5 深链 / 直接改 hash 时 uni onLoad 可能拿不到 query，兜底从 URL 解析
+  orderId.value = String(opt?.orderId || '').trim();
+  if (!orderId.value && typeof location !== 'undefined') {
+    try {
+      const q = new URLSearchParams((location.hash.split('?')[1] || location.search.replace(/^\?/, '')));
+      orderId.value = String(q.get('orderId') || q.get('id') || '').trim();
+    } catch {
+      /* ignore */
+    }
+  }
   void loadSupportPhone();
   await reload();
 });
