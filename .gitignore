@@ -24,7 +24,11 @@ node_modules/
 .env.*
 !.env.example
 !**/.env.example
+!**/.env.*.example
 infra/.env
+
+# Local Cursor MCP config (may contain DB URLs / keys); keep shared rules tracked
+.cursor/mcp.json
 
 # Local IDE / editor
 .idea/
