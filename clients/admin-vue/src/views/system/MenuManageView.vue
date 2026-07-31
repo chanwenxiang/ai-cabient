@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">菜单管理</span>
-            <span class="hint">运营侧栏由 ACTIVE 菜单控制。商户树仅用于角色授权与 API 鉴权；小程序导航固定，能力由「商户与分账 → 功能包」裁剪。</span>
+            <span class="hint">运营侧栏叶子菜单与本树 ACTIVE「菜单 C」一一对应（一级目录 = 侧栏分组）。停用菜单会从侧栏隐藏。商户树仅用于角色授权；小程序导航由功能包裁剪。</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -15,6 +15,8 @@
             <el-radio-button value="all">全部</el-radio-button>
           </el-radio-group>
           <el-switch v-model="showInactive" active-text="含停用" @change="syncRouteQuery" />
+          <el-button link type="primary" @click="selectAllRows">全选</el-button>
+          <el-button link @click="clearAllRows">清空</el-button>
           <el-button v-hasPermi="['ops:rbac:menu:add']" type="primary" @click="openCreate()">新增</el-button>
           <el-button v-hasPermi="['ops:rbac:menu:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
@@ -320,9 +322,23 @@ function setExpandAll(expand: boolean) {
   });
 }
 
-const { onSelectionChange, pickSelected, exportButtonLabel } = useTableSelection<PermRow>(
+const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } = useTableSelection<PermRow>(
   (r) => r.permissionId
 );
+
+function selectAllRows() {
+  const rows = flattenTableRows(tableRows.value);
+  nextTick(() => {
+    for (const row of rows) {
+      tableRef.value?.toggleRowSelection(row, true);
+    }
+  });
+}
+
+function clearAllRows() {
+  tableRef.value?.clearSelection();
+  clearSelection();
+}
 
 const { onExport } = useListCsv({
   filePrefix: '菜单',

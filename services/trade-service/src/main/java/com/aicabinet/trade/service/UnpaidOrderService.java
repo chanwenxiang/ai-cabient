@@ -228,7 +228,7 @@ public class UnpaidOrderService {
         try {
             memberService.onOrderPaid(order.getUserId(), order.getTotalAmountCents(), order.getOrderId());
         } catch (Exception ex) {
-            log.warn("member points on collect failed order={}", order.getOrderId(), ex);
+            log.warn("member stats on collect failed order={}", order.getOrderId(), ex);
         }
     }
 

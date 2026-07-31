@@ -122,6 +122,98 @@ export declare const DICT: {
         readonly OFFLINE: "离线";
         readonly UNKNOWN: "未知";
     };
+    readonly device_lifecycle: {
+        readonly IDLE: "未投放";
+        readonly INBOUND: "入库";
+        readonly DEPLOYED: "投放";
+        readonly RETURNING: "返厂中";
+        readonly RETIRED: "退役";
+    };
+    readonly device_coop_mode: {
+        readonly SELF: "自营";
+        readonly FRANCHISE: "加盟";
+        readonly CONSIGN: "联营";
+    };
+    readonly repair_ticket_status: {
+        readonly OPEN: "待处理";
+        readonly IN_PROGRESS: "处理中";
+        readonly DONE: "已完成";
+        readonly CANCELLED: "已取消";
+    };
+    readonly line_manager_status: {
+        readonly ACTIVE: "启用";
+        readonly DISABLED: "停用";
+    };
+    readonly announcement_status: {
+        readonly DRAFT: "草稿";
+        readonly PUBLISHED: "已发布";
+        readonly ARCHIVED: "存档";
+    };
+    readonly announcement_audience: {
+        readonly ALL: "全部用户";
+        readonly MERCHANT: "商户";
+        readonly CONSUMER: "消费者";
+    };
+    readonly promotion_type: {
+        readonly FULL_REDUCE: "满减";
+        readonly DISCOUNT: "折扣";
+        readonly BUY_GIFT: "买赠";
+        readonly SECOND_HALF: "第二件半价";
+    };
+    readonly coupon_type: {
+        readonly AMOUNT_OFF: "满减券";
+        readonly PERCENT_OFF: "折扣券";
+        readonly EXCHANGE: "兑换券";
+    };
+    readonly sku_enrollment_status: {
+        readonly DRAFT: "草稿";
+        readonly MAPPING: "映射中";
+        readonly TESTED: "已测试";
+        readonly PRODUCTION: "生产";
+    };
+    readonly fund_ledger_type: {
+        readonly ORDER_PAYMENT: "订单支付";
+        readonly PLATFORM_FEE: "平台抽成";
+        readonly CHANNEL_FEE: "通道费";
+        readonly MERCHANT_CREDIT: "商户入账";
+    };
+    readonly fund_direction: {
+        readonly IN: "收入";
+        readonly OUT: "支出";
+    };
+    readonly device_ops_event: {
+        readonly OFFLINE: "离线";
+        readonly NO_SALES: "无销售";
+        readonly UNLOCK: "开锁";
+        readonly FAULT: "故障/锁机";
+        readonly AISLE_AUDIT: "货道巡检";
+        readonly MAINBOARD: "主板";
+    };
+    readonly repair_fault_type: {
+        readonly DOOR: "门锁";
+        readonly COOLING: "制冷";
+        readonly NETWORK: "网络";
+        readonly PAYMENT: "支付";
+        readonly VISION: "识别";
+        readonly POWER: "供电";
+        readonly OTHER: "其他";
+    };
+    readonly line_withdraw_status: {
+        readonly PENDING_REVIEW: "待审核";
+        readonly APPROVED: "已通过";
+        readonly PAYING: "打款中";
+        readonly PAID: "已打款";
+        readonly REJECTED: "已驳回";
+        readonly FAILED: "失败";
+    };
+    readonly merchant_withdraw_status: {
+        readonly PENDING_REVIEW: "待审核";
+        readonly APPROVED: "已通过";
+        readonly PAYING: "打款中";
+        readonly PAID: "已打款";
+        readonly REJECTED: "已驳回";
+        readonly FAILED: "失败";
+    };
     readonly supplier_status: {
         readonly ACTIVE: "启用";
         readonly INACTIVE: "停用";

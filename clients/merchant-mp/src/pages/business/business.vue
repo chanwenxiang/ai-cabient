@@ -24,8 +24,9 @@
         </view>
         <view v-if="!analytics.topSkus?.length" class="empty">暂无可分析的销售数据</view>
       </view>
-      <view v-if="settlement.failedSplitCount" class="risk-card">
-        <text class="risk-title">有 {{ settlement.failedSplitCount }} 笔分账异常</text><text class="risk-desc">建议联系平台运营核对收款账户和失败原因</text>
+      <view v-if="settlement.failedSplitCount" class="risk-card" @click="goFailedSplits">
+        <text class="risk-title">有 {{ settlement.failedSplitCount }} 笔分账异常</text>
+        <text class="risk-desc">点此查看失败原因与订单明细 ›</text>
       </view>
       <view v-if="canExport" class="actions">
         <button class="btn-outline" @click="onExport">导出柜机报表</button>
@@ -111,6 +112,14 @@ function changeDays(value: number) {
   if (days.value === value) return;
   days.value = value;
   void load(true);
+}
+
+function goFailedSplits() {
+  if (!hasPerm(me.value, 'merchant:splits:list')) {
+    uni.showToast({ title: '无分账明细权限', icon: 'none' });
+    return;
+  }
+  uni.navigateTo({ url: '/pages/splits/splits?status=FAILED' });
 }
 
 function onExport() {

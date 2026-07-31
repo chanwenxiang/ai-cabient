@@ -122,6 +122,29 @@
         title="超级管理员拥有全部权限，不可修改"
         style="margin-bottom: 12px"
       />
+      <div class="perm-toolbar">
+        <el-radio-group v-model="permCheckMode" size="small" :disabled="permRole?.roleKey === 'admin'">
+          <el-radio-button value="cascade">全选联动</el-radio-button>
+          <el-radio-button value="strict">独立勾选</el-radio-button>
+        </el-radio-group>
+        <div class="perm-toolbar__actions">
+          <el-button
+            link
+            type="primary"
+            :disabled="!permRole || permRole.roleKey === 'admin'"
+            @click="selectAllPerms"
+          >
+            全选
+          </el-button>
+          <el-button
+            link
+            :disabled="!permRole || permRole.roleKey === 'admin'"
+            @click="clearAllPerms"
+          >
+            清空
+          </el-button>
+        </div>
+      </div>
       <div v-loading="loadingPerms" class="perm-tree-wrap">
         <el-tree
           ref="treeRef"
@@ -129,6 +152,7 @@
           node-key="permissionId"
           show-checkbox
           default-expand-all
+          :check-strictly="permCheckMode === 'strict'"
           :props="{ label: 'label', children: 'children' }"
         />
       </div>
@@ -212,6 +236,7 @@ const permTree = ref<PermRow[]>([]);
 const formDlg = ref(false);
 const permDlg = ref(false);
 const permRole = ref<RoleRow | null>(null);
+const permCheckMode = ref<'cascade' | 'strict'>('cascade');
 const treeRef = ref<InstanceType<typeof ElTree>>();
 const form = ref({
   roleId: null as number | null,
@@ -342,8 +367,29 @@ function treeApi() {
   return tree && typeof tree.setCheckedKeys === 'function' ? tree : null;
 }
 
+function collectPermIds(nodes: PermRow[]): number[] {
+  const out: number[] = [];
+  const walk = (list: PermRow[]) => {
+    for (const n of list) {
+      out.push(n.permissionId);
+      if (n.children?.length) walk(n.children);
+    }
+  };
+  walk(nodes);
+  return out;
+}
+
+function selectAllPerms() {
+  treeApi()?.setCheckedKeys(collectPermIds(permTree.value), false);
+}
+
+function clearAllPerms() {
+  treeApi()?.setCheckedKeys([], false);
+}
+
 async function openPerms(row: RoleRow) {
   permRole.value = row;
+  permCheckMode.value = 'cascade';
   permDlg.value = true;
   loadingPerms.value = true;
   try {
@@ -368,11 +414,12 @@ async function savePerms() {
   saving.value = true;
   try {
     const checked = (tree.getCheckedKeys(false) || []) as number[];
-    const half = (tree.getHalfCheckedKeys() || []) as number[];
+    const half =
+      permCheckMode.value === 'cascade' ? ((tree.getHalfCheckedKeys() || []) as number[]) : [];
     await api.request(
       `/api/v2/ops/admin/rbac/roles/${permRole.value.roleId}/permissions`,
       'PUT',
-      [...checked, ...half]
+      [...new Set([...checked, ...half])]
     );
     ElMessage.success('权限已保存');
     permDlg.value = false;
@@ -458,5 +505,14 @@ onActivated(() => {
   font-family: var(--app-font-mono);
 }
 .hidden-input { display: none; }
-.perm-tree-wrap { max-height: calc(100vh - 220px); overflow: auto; }
+.perm-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.perm-toolbar__actions { display: flex; gap: 4px; }
+.perm-tree-wrap { max-height: calc(100vh - 260px); overflow: auto; }
 </style>

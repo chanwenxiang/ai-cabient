@@ -5,6 +5,8 @@ import com.aicabinet.trade.config.CorsProperties;
 import com.aicabinet.trade.config.CheckoutProperties;
 import com.aicabinet.trade.config.OpsMonitoringProperties;
 import com.aicabinet.trade.config.InternalApiProperties;
+import com.aicabinet.trade.config.LineWithdrawProperties;
+import com.aicabinet.trade.config.MerchantWithdrawProperties;
 import com.aicabinet.trade.config.MinioProperties;
 import com.aicabinet.trade.config.ProfitSharingProperties;
 import com.aicabinet.trade.config.RiskControlProperties;
@@ -29,6 +31,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         com.aicabinet.trade.config.ReconciliationProperties.class,
         com.aicabinet.trade.config.AlipayProperties.class,
         ProfitSharingProperties.class,
+        LineWithdrawProperties.class,
+        MerchantWithdrawProperties.class,
         RiskControlProperties.class,
         com.aicabinet.trade.config.PayScoreProperties.class,
         com.aicabinet.trade.config.DisputeSlaProperties.class,

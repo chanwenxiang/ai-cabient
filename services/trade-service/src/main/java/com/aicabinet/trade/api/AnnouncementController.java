@@ -43,6 +43,17 @@ public class AnnouncementController {
                 body.get("targetScope"), body.get("priority"), opId));
     }
 
+    @RequiresPermissions("ops:announcement:edit")
+    @PutMapping("/{id}")
+    public ApiResponse<Announcement> update(
+            @PathVariable("id") Long id,
+            @RequestBody Map<String, String> body) {
+        return ApiResponse.ok(announcementService.update(
+                id,
+                body.get("title"), body.get("content"),
+                body.get("targetScope"), body.get("priority")));
+    }
+
     @RequiresPermissions("ops:announcement:publish")
     @PostMapping("/{id}/publish")
     public ApiResponse<Announcement> publish(@PathVariable("id") Long id) {

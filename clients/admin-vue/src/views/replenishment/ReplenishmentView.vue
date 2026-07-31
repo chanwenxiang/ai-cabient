@@ -177,10 +177,12 @@
         <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="page = 1">
           <el-form-item label="状态">
             <el-select v-model="fulfillmentStatus" clearable placeholder="全部" style="width: 140px" @change="page = 1">
-              <el-option label="已完成" value="COMPLETED" />
-              <el-option label="进行中" value="IN_PROGRESS" />
-              <el-option label="待执行" value="PENDING" />
-              <el-option label="已取消" value="CANCELLED" />
+              <el-option
+                v-for="item in dictOptions('replenishment_task_status')"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
             </el-select>
           </el-form-item>
           <el-form-item>
@@ -283,10 +285,13 @@
       <el-tab-pane label="商户要货" name="requests">
         <div class="shortage-toolbar">
           <el-radio-group v-model="requestStatusFilter" size="small" @change="page = 1">
-            <el-radio-button value="SUBMITTED">待审核</el-radio-button>
-            <el-radio-button value="ACCEPTED">已接单</el-radio-button>
-            <el-radio-button value="COMPLETED">已完成</el-radio-button>
-            <el-radio-button value="REJECTED">已驳回</el-radio-button>
+            <el-radio-button
+              v-for="item in dictOptions('replenishment_request_status')"
+              :key="item.value"
+              :value="item.value"
+            >
+              {{ item.label }}
+            </el-radio-button>
             <el-radio-button value="ALL">全部</el-radio-button>
           </el-radio-group>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
@@ -708,7 +713,7 @@ import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
-import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -1182,6 +1187,38 @@ function applyRouteQuery() {
     changed = true;
   }
   return changed;
+}
+
+/** 从库存健康/设备详情带入：自动打开规划对话框 */
+async function maybeAutoPlanFromQuery() {
+  if (String(route.query.plan || '') !== '1') return;
+  if (!canEdit.value) return;
+  const rawIds = typeof route.query.deviceIds === 'string' ? route.query.deviceIds : '';
+  const ids = rawIds
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const focus = focusDeviceId.value.trim();
+  const target = ids.length ? ids : focus ? [focus] : shortageDevices.value;
+  if (!target.length) {
+    ElMessage.warning('暂无缺货柜机可规划，请先刷新缺货建议');
+    clearPlanQuery();
+    return;
+  }
+  Object.assign(planForm, {
+    routeName: `${new Date().toLocaleDateString('zh-CN')} 缺货补货`,
+    plannedDate: localDate(),
+    assigneeUserId: currentAssigneeId(),
+    deviceIds: target
+  });
+  planDialog.value = true;
+  clearPlanQuery();
+}
+
+function clearPlanQuery() {
+  const query: Record<string, string> = { tab: tab.value };
+  if (focusDeviceId.value.trim()) query.deviceId = focusDeviceId.value.trim();
+  router.replace({ query });
 }
 
 async function planFromShortage() {
@@ -1821,22 +1858,24 @@ async function prefetchUnassignedHints() {
 }
 
 async function reloadFromRouteQuery() {
-  if (!applyRouteQuery()) return;
+  applyRouteQuery();
   page.value = 1;
   await load();
+  await maybeAutoPlanFromQuery();
 }
 
 watch(
-  () => [route.query.tab, route.query.deviceId] as const,
+  () => [route.query.tab, route.query.deviceId, route.query.plan, route.query.deviceIds] as const,
   () => {
     void reloadFromRouteQuery();
   }
 );
 
-onMounted(() => {
+onMounted(async () => {
   applyRouteQuery();
   syncRouteQuery();
-  load();
+  await load();
+  await maybeAutoPlanFromQuery();
 });
 onActivated(() => {
   void reloadFromRouteQuery();

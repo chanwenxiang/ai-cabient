@@ -1,169 +1,320 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.domain.LineManager;
+import com.aicabinet.common.dto.LineManagerDto;
+import com.aicabinet.common.dto.LineWalletLedgerDto;
+import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.domain.LineDevice;
-import com.aicabinet.trade.domain.LineManagerSettlement;
-import com.aicabinet.trade.mapper.LineManagerMapper;
+import com.aicabinet.trade.domain.LineManager;
+import com.aicabinet.trade.domain.LineWalletAccount;
+import com.aicabinet.trade.domain.LineWalletLedger;
+import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.LineDeviceMapper;
-import com.aicabinet.trade.mapper.LineManagerSettlementMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.aicabinet.trade.mapper.LineManagerMapper;
+import com.aicabinet.trade.mapper.LineWalletLedgerMapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
 public class LineManagerService {
-    private static final Logger log = LoggerFactory.getLogger(LineManagerService.class);
-    
+
     public static final String STATUS_ACTIVE = "ACTIVE";
-    public static final String STATUS_INACTIVE = "INACTIVE";
-    
-    @Autowired
-    private LineManagerMapper lineManagerRepository;
-    
-    @Autowired
-    private LineDeviceMapper lineDeviceRepository;
-    
-    @Autowired
-    private LineManagerSettlementMapper settlementRepository;
-    
+
+    private final LineManagerMapper managerMapper;
+    private final LineDeviceMapper deviceMapper;
+    private final LineWalletLedgerMapper ledgerMapper;
+    private final DeviceInfoMapper deviceInfoMapper;
+    private final LineWalletService lineWalletService;
+    private final PermissionService permissionService;
+
+    public LineManagerService(LineManagerMapper managerMapper,
+                              LineDeviceMapper deviceMapper,
+                              LineWalletLedgerMapper ledgerMapper,
+                              DeviceInfoMapper deviceInfoMapper,
+                              LineWalletService lineWalletService,
+                              PermissionService permissionService) {
+        this.managerMapper = managerMapper;
+        this.deviceMapper = deviceMapper;
+        this.ledgerMapper = ledgerMapper;
+        this.deviceInfoMapper = deviceInfoMapper;
+        this.lineWalletService = lineWalletService;
+        this.permissionService = permissionService;
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<LineManagerDto> list(Long operatorId, String status, String keyword, int page, int size) {
+        permissionService.requireAnyPermission(operatorId, "ops:line-manager:list", "ops:finance:view");
+        int p = Math.max(page, 0);
+        int s = Math.min(Math.max(size, 1), 100);
+        LambdaQueryWrapper<LineManager> q = new LambdaQueryWrapper<>();
+        if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status)) {
+            q.eq(LineManager::getStatus, status.trim().toUpperCase(Locale.ROOT));
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            String kw = keyword.trim();
+            q.and(w -> w.like(LineManager::getManagerName, kw).or().like(LineManager::getPhone, kw));
+        }
+        q.orderByDesc(LineManager::getCreatedAt);
+        Page<LineManager> result = managerMapper.selectPage(new Page<>(p + 1L, s), q);
+        List<LineManagerDto> items = result.getRecords().stream().map(this::toDto).toList();
+        return new PageResult<>(items, p, s, result.getTotal());
+    }
+
+    @Transactional(readOnly = true)
+    public LineManagerDto detail(Long operatorId, long managerId) {
+        permissionService.requireAnyPermission(operatorId, "ops:line-manager:list", "ops:finance:view");
+        return toDto(requireManager(managerId));
+    }
+
     @Transactional
-    public LineManager createManager(LineManager manager) {
+    public LineManagerDto create(Long operatorId, Map<String, Object> body) {
+        permissionService.requirePermission(operatorId, "ops:line-manager:edit");
+        String name = stringVal(body.get("managerName"));
+        String phone = stringVal(body.get("phone"));
+        if (name == null || name.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "姓名必填");
+        }
+        if (phone == null || phone.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "手机必填");
+        }
+        if (managerMapper.findByPhone(phone.trim()).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "手机号已存在");
+        }
+        Instant now = Instant.now();
+        LineManager manager = new LineManager();
+        manager.setManagerName(name.trim());
+        manager.setPhone(phone.trim());
         manager.setStatus(STATUS_ACTIVE);
-        manager.setCreatedAt(Instant.now());
-        return lineManagerRepository.save(manager);
+        manager.setWxOpenid(trim(stringVal(body.get("wxOpenid"))));
+        manager.setUserId(longVal(body.get("userId")));
+        manager.setOrgName(trim(stringVal(body.get("orgName"))));
+        manager.setCommissionRateBps(intVal(body.get("commissionRateBps"), 200));
+        manager.setCommissionFixedCents(intVal(body.get("commissionFixedCents"), 0));
+        manager.setCreatedAt(now);
+        manager.setUpdatedAt(now);
+        managerMapper.insert(manager);
+        lineWalletService.ensureAccount(manager.getManagerId());
+        return toDto(manager);
     }
-    
+
     @Transactional
-    public LineManager updateManager(Long managerId, LineManager updates) {
-        LineManager manager = lineManagerRepository.findById(managerId).orElse(null);
-        if (manager == null) {
-            return null;
+    public LineManagerDto update(Long operatorId, long managerId, Map<String, Object> body) {
+        permissionService.requirePermission(operatorId, "ops:line-manager:edit");
+        LineManager manager = requireManager(managerId);
+        if (body.containsKey("managerName")) {
+            String name = stringVal(body.get("managerName"));
+            if (name != null && !name.isBlank()) {
+                manager.setManagerName(name.trim());
+            }
         }
-        
-        if (updates.getManagerName() != null) {
-            manager.setManagerName(updates.getManagerName());
+        if (body.containsKey("phone")) {
+            String phone = stringVal(body.get("phone"));
+            if (phone != null && !phone.isBlank()) {
+                managerMapper.findByPhone(phone.trim()).ifPresent(existing -> {
+                    if (!existing.getManagerId().equals(managerId)) {
+                        throw new ResponseStatusException(HttpStatus.CONFLICT, "手机号已存在");
+                    }
+                });
+                manager.setPhone(phone.trim());
+            }
         }
-        if (updates.getPhone() != null) {
-            manager.setPhone(updates.getPhone());
+        if (body.containsKey("wxOpenid")) {
+            manager.setWxOpenid(trim(stringVal(body.get("wxOpenid"))));
         }
-        if (updates.getCommissionRate() != null) {
-            manager.setCommissionRate(updates.getCommissionRate());
+        if (body.containsKey("userId")) {
+            manager.setUserId(longVal(body.get("userId")));
         }
-        
+        if (body.containsKey("orgName")) {
+            manager.setOrgName(trim(stringVal(body.get("orgName"))));
+        }
+        if (body.containsKey("commissionRateBps")) {
+            manager.setCommissionRateBps(intVal(body.get("commissionRateBps"), manager.getCommissionRateBps()));
+        }
+        if (body.containsKey("commissionFixedCents")) {
+            manager.setCommissionFixedCents(intVal(body.get("commissionFixedCents"), manager.getCommissionFixedCents()));
+        }
+        if (body.containsKey("status")) {
+            String status = stringVal(body.get("status"));
+            if (status != null && !status.isBlank()) {
+                manager.setStatus(status.trim().toUpperCase(Locale.ROOT));
+            }
+        }
         manager.setUpdatedAt(Instant.now());
-        return lineManagerRepository.save(manager);
+        managerMapper.updateById(manager);
+        return toDto(manager);
     }
-    
+
     @Transactional
-    public boolean assignDevice(Long managerId, String deviceId) {
-        LineDevice existing = lineDeviceRepository
-            .findByDeviceIdAndStatus(deviceId, STATUS_ACTIVE)
-            .orElse(null);
-        
-        if (existing != null) {
-            log.warn("Device already assigned to a line manager: {}", deviceId);
-            return false;
+    public LineManagerDto bindDevice(Long operatorId, long managerId, String deviceId) {
+        permissionService.requirePermission(operatorId, "ops:line-manager:edit");
+        requireManager(managerId);
+        if (deviceId == null || deviceId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备编号必填");
         }
-        
-        LineDevice ld = new LineDevice();
-        ld.setManagerId(managerId);
-        ld.setDeviceId(deviceId);
-        ld.setStatus(STATUS_ACTIVE);
-        ld.setAssignedAt(Instant.now());
-        lineDeviceRepository.save(ld);
-        
-        log.info("Device assigned to line manager: managerId={}, deviceId={}", managerId, deviceId);
-        return true;
+        String dev = deviceId.trim();
+        if (deviceInfoMapper.selectById(dev) == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在");
+        }
+        deviceMapper.findByDeviceIdAndStatus(dev, STATUS_ACTIVE).ifPresent(existing -> {
+            if (!existing.getManagerId().equals(managerId)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "设备已绑定其他线长");
+            }
+        });
+        if (deviceMapper.findByDeviceIdAndStatus(dev, STATUS_ACTIVE).isEmpty()) {
+            LineDevice ld = new LineDevice();
+            ld.setManagerId(managerId);
+            ld.setDeviceId(dev);
+            ld.setStatus(STATUS_ACTIVE);
+            ld.setAssignedAt(Instant.now());
+            deviceMapper.insert(ld);
+        }
+        return toDto(requireManager(managerId));
     }
-    
+
     @Transactional
-    public boolean unassignDevice(String deviceId) {
-        LineDevice ld = lineDeviceRepository
-            .findByDeviceIdAndStatus(deviceId, STATUS_ACTIVE)
-            .orElse(null);
-        
-        if (ld == null) {
-            return false;
+    public LineManagerDto unbindDevice(Long operatorId, long managerId, String deviceId) {
+        permissionService.requirePermission(operatorId, "ops:line-manager:edit");
+        requireManager(managerId);
+        if (deviceId == null || deviceId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备编号必填");
         }
-        
-        ld.setStatus(STATUS_INACTIVE);
+        LineDevice ld = deviceMapper.findByDeviceIdAndStatus(deviceId.trim(), STATUS_ACTIVE)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备未绑定"));
+        if (!ld.getManagerId().equals(managerId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备不属于该线长");
+        }
+        ld.setStatus("INACTIVE");
         ld.setUnassignedAt(Instant.now());
-        lineDeviceRepository.save(ld);
-        
-        log.info("Device unassigned from line manager: deviceId={}", deviceId);
-        return true;
+        deviceMapper.updateById(ld);
+        return toDto(requireManager(managerId));
     }
-    
-    public List<LineDevice> getManagerDevices(Long managerId) {
-        return lineDeviceRepository.findByManagerId(managerId);
-    }
-    
+
     @Transactional
-    public LineManagerSettlement createSettlement(Long managerId, String period) {
-        LineManager manager = lineManagerRepository.findById(managerId).orElse(null);
-        if (manager == null) {
+    public LineManagerDto adjust(Long operatorId, long managerId, long amountCents, String remark) {
+        permissionService.requirePermission(operatorId, "ops:line-manager:edit");
+        requireManager(managerId);
+        if (amountCents == 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "调账金额不能为 0");
+        }
+        String refId = "ADJ-" + operatorId + "-" + System.currentTimeMillis();
+        if (amountCents > 0) {
+            lineWalletService.credit(managerId, amountCents, "ADJUST", "OPS_ADJUST", refId, remark);
+        } else {
+            lineWalletService.debit(managerId, -amountCents, "ADJUST", "OPS_ADJUST", refId, remark);
+        }
+        return toDto(requireManager(managerId));
+    }
+
+    @Transactional(readOnly = true)
+    public List<LineWalletLedgerDto> ledgers(Long operatorId, long managerId, int limit) {
+        permissionService.requireAnyPermission(operatorId, "ops:line-manager:list", "ops:finance:view");
+        return ledgersForManager(managerId, limit);
+    }
+
+    @Transactional(readOnly = true)
+    public List<LineWalletLedgerDto> ledgersForManager(long managerId, int limit) {
+        requireManager(managerId);
+        int lim = Math.min(Math.max(limit, 1), 200);
+        return ledgerMapper.findByManagerIdOrderByCreatedAtDesc(managerId, lim).stream()
+                .map(this::toLedgerDto)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<LineManager> findByUserId(Long userId) {
+        if (userId == null) {
+            return Optional.empty();
+        }
+        return managerMapper.findByUserId(userId);
+    }
+
+    public LineManagerDto toDto(LineManager manager) {
+        LineWalletAccount account = lineWalletService.ensureAccount(manager.getManagerId());
+        List<String> deviceIds = deviceMapper.findActiveByManagerId(manager.getManagerId()).stream()
+                .map(LineDevice::getDeviceId)
+                .toList();
+        return new LineManagerDto(
+                manager.getManagerId(),
+                manager.getManagerName(),
+                manager.getPhone(),
+                manager.getStatus(),
+                manager.getWxOpenid(),
+                manager.getUserId(),
+                manager.getOrgName(),
+                manager.getCommissionRateBps(),
+                manager.getCommissionFixedCents(),
+                value(account.getBalanceCents()),
+                value(account.getFrozenCents()),
+                deviceIds,
+                manager.getCreatedAt(),
+                manager.getUpdatedAt()
+        );
+    }
+
+    LineWalletLedgerDto toLedgerDto(LineWalletLedger ledger) {
+        return new LineWalletLedgerDto(
+                ledger.getLedgerId(),
+                ledger.getManagerId(),
+                ledger.getEntryType(),
+                ledger.getAmountCents(),
+                ledger.getBalanceAfter(),
+                ledger.getFrozenAfter(),
+                ledger.getRefType(),
+                ledger.getRefId(),
+                ledger.getRemark(),
+                ledger.getCreatedAt()
+        );
+    }
+
+    LineManager requireManager(long managerId) {
+        return managerMapper.findById(managerId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "线长不存在"));
+    }
+
+    private static long value(Long value) {
+        return value == null ? 0L : value;
+    }
+
+    private static String stringVal(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private static String trim(String value) {
+        if (value == null) {
             return null;
         }
-        
-        LineManagerSettlement existing = settlementRepository
-            .findByManagerIdAndSettlementPeriod(managerId, period)
-            .orElse(null);
-        
-        if (existing != null) {
-            log.warn("Settlement already exists: managerId={}, period={}", managerId, period);
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static Long longVal(Object value) {
+        if (value == null) {
             return null;
         }
-        
-        BigDecimal grossRevenue = calculateGrossRevenue(managerId, period);
-        BigDecimal commissionRate = manager.getCommissionRate() != null 
-            ? manager.getCommissionRate() : BigDecimal.ZERO;
-        BigDecimal commissionAmount = grossRevenue.multiply(commissionRate)
-            .divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
-        BigDecimal netAmount = grossRevenue.subtract(commissionAmount);
-        
-        LineManagerSettlement settlement = new LineManagerSettlement();
-        settlement.setManagerId(managerId);
-        settlement.setSettlementPeriod(period);
-        settlement.setGrossRevenue(grossRevenue);
-        settlement.setCommissionAmount(commissionAmount);
-        settlement.setNetAmount(netAmount);
-        settlement.setStatus("PENDING");
-        settlement.setCreatedAt(Instant.now());
-        
-        return settlementRepository.save(settlement);
-    }
-    
-    @Transactional
-    public boolean confirmSettlement(Long settlementId) {
-        LineManagerSettlement settlement = settlementRepository.findById(settlementId).orElse(null);
-        if (settlement == null) {
-            return false;
+        if (value instanceof Number n) {
+            return n.longValue();
         }
-        
-        settlement.setStatus("SETTLED");
-        settlement.setSettledAt(Instant.now());
-        settlementRepository.save(settlement);
-        
-        log.info("Line manager settlement confirmed: settlementId={}", settlementId);
-        return true;
+        String s = String.valueOf(value).trim();
+        return s.isEmpty() ? null : Long.parseLong(s);
     }
-    
-    private BigDecimal calculateGrossRevenue(Long managerId, String period) {
-        return BigDecimal.ZERO;
-    }
-    
-    public Optional<LineManager> getManager(Long managerId) {
-        return lineManagerRepository.findById(managerId);
-    }
-    
-    public List<LineManager> getManagersByFranchise(Long franchiseId) {
-        return lineManagerRepository.findByFranchiseId(franchiseId);
+
+    private static int intVal(Object value, int defaultValue) {
+        if (value == null) {
+            return defaultValue;
+        }
+        if (value instanceof Number n) {
+            return n.intValue();
+        }
+        String s = String.valueOf(value).trim();
+        return s.isEmpty() ? defaultValue : Integer.parseInt(s);
     }
 }

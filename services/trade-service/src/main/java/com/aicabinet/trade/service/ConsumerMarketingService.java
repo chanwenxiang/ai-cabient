@@ -25,7 +25,6 @@ public class ConsumerMarketingService {
     private static final Map<String, String> TYPE_LABELS = Map.of(
             "DISCOUNT", "满减",
             "NEW_USER", "新客",
-            "POINTS", "积分",
             "FLASH", "限时",
             "GIFT", "赠品"
     );
@@ -33,7 +32,6 @@ public class ConsumerMarketingService {
     private static final Map<String, String> TYPE_EMOJI = Map.of(
             "DISCOUNT", "🧊",
             "NEW_USER", "🎉",
-            "POINTS", "⭐",
             "FLASH", "⚡",
             "GIFT", "🎁"
     );
@@ -90,12 +88,12 @@ public class ConsumerMarketingService {
         if (banners.isEmpty()) {
             banners.add(new MarketingBannerDto(
                     0L,
-                    "积分兑好礼",
-                    "100 积分起兑优惠券",
+                    "领券更优惠",
+                    "满减与新客礼等你领取",
                     "mint",
-                    "⭐",
+                    "🎫",
                     null,
-                    "/pages/member/exchange"
+                    "/pages/coupons/coupons"
             ));
         }
         return banners;
@@ -119,7 +117,7 @@ public class ConsumerMarketingService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "活动已结束");
         }
         if ("POINTS".equalsIgnoreCase(activity.getActivityType())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请前往积分商城兑换");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "该活动类型已下线");
         }
 
         CouponDefinition def = resolveCouponDef(activityId);
@@ -144,12 +142,11 @@ public class ConsumerMarketingService {
 
     private MarketingCampaignDto toCampaign(PromotionActivityDto p, Long userId) {
         String type = p.activityType() != null ? p.activityType() : "DISCOUNT";
-        boolean points = "POINTS".equalsIgnoreCase(type);
-        String ctaPath = points ? "/pages/member/exchange" : "/pages/coupons/coupons";
-        String ctaLabel = points ? "去兑换" : "去领券";
+        String ctaPath = "/pages/coupons/coupons";
+        String ctaLabel = "去领券";
         Boolean claimed = null;
         Boolean claimable = null;
-        if (!points && userId != null) {
+        if (!"POINTS".equalsIgnoreCase(type) && userId != null) {
             var defs = couponDefinitionRepository.findByActivityId(p.activityId());
             if (!defs.isEmpty()) {
                 Long defId = defs.get(0).getCouponDefId();
@@ -163,6 +160,10 @@ public class ConsumerMarketingService {
             } else {
                 claimable = false;
             }
+        }
+        if ("POINTS".equalsIgnoreCase(type)) {
+            ctaLabel = "已下线";
+            claimable = false;
         }
         return new MarketingCampaignDto(
                 p.activityId(),

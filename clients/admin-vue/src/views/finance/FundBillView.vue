@@ -80,26 +80,34 @@
         <el-form inline class="filter-bar filter-bar--compact">
           <el-form-item label="财务类型">
             <el-select v-model="financialType" clearable placeholder="全部" style="width: 160px" @change="loadLedger">
-              <el-option label="订单支付" value="ORDER_PAYMENT" />
-              <el-option label="平台抽成" value="PLATFORM_FEE" />
-              <el-option label="通道费" value="CHANNEL_FEE" />
-              <el-option label="商户入账" value="MERCHANT_CREDIT" />
+              <el-option
+                v-for="item in dictOptions('fund_ledger_type')"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
             </el-select>
           </el-form-item>
           <el-form-item label="收支">
             <el-select v-model="direction" clearable placeholder="全部" style="width: 120px" @change="loadLedger">
-              <el-option label="收入" value="IN" />
-              <el-option label="支出" value="OUT" />
+              <el-option
+                v-for="item in dictOptions('fund_direction')"
+                :key="item.value"
+                :label="item.label"
+                :value="item.value"
+              />
             </el-select>
           </el-form-item>
         </el-form>
         <el-table v-loading="ledgerLoading" :data="ledger" stripe border class="report-table">
           <template #empty><el-empty description="暂无流水" /></template>
-          <el-table-column prop="financialType" label="财务类型" width="140" />
+          <el-table-column label="财务类型" width="140">
+            <template #default="{ row }">{{ dictLabel('fund_ledger_type', row.financialType) }}</template>
+          </el-table-column>
           <el-table-column label="收支" width="80" align="center">
             <template #default="{ row }">
               <el-tag :type="row.direction === 'IN' ? 'success' : 'danger'" size="small">
-                {{ row.direction === 'IN' ? '收入' : '支出' }}
+                {{ dictLabel('fund_direction', row.direction) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -131,6 +139,7 @@
 import { onMounted, ref, watch } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 
 interface BillRow {

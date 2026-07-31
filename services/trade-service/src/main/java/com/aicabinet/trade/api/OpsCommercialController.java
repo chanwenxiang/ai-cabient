@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v2/ops/admin")
@@ -385,6 +386,14 @@ public class OpsCommercialController {
     @GetMapping("/expiry/alerts")
     public ApiResponse<List<PullOffTaskDto>> expiryAlerts(HttpServletRequest request) {
         return ApiResponse.ok(facade.listExpiryAlerts(operatorId(request)));
+    }
+
+    @RequiresPermissions("ops:replenishment:edit")
+    @PostMapping("/expiry/alerts/ensure")
+    public ApiResponse<PullOffTaskDto> ensureExpiryAlert(
+            HttpServletRequest request, @RequestBody Map<String, String> body) {
+        String lotId = body == null ? null : body.get("lotId");
+        return ApiResponse.ok(facade.ensureExpiryAlert(operatorId(request), lotId));
     }
 
     @RequiresPermissions("ops:replenishment:edit")

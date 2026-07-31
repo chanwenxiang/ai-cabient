@@ -6,6 +6,7 @@ import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.AdminDashboardService;
 import com.aicabinet.trade.service.AdminDeviceOpsService;
+import com.aicabinet.trade.service.DeviceAssetService;
 import com.aicabinet.trade.service.DisputeService;
 import com.aicabinet.trade.service.UnpaidOrderService;
 import com.aicabinet.trade.support.CacheService;
@@ -28,17 +29,20 @@ public class AdminDashboardController {
     private final DisputeService disputeService;
     private final AdminDeviceOpsService deviceOpsService;
     private final UnpaidOrderService unpaidOrderService;
+    private final DeviceAssetService deviceAssetService;
 
     public AdminDashboardController(AdminDashboardService adminService,
                                     CacheService cacheService,
                                     DisputeService disputeService,
                                     AdminDeviceOpsService deviceOpsService,
-                                    UnpaidOrderService unpaidOrderService) {
+                                    UnpaidOrderService unpaidOrderService,
+                                    DeviceAssetService deviceAssetService) {
         this.adminService = adminService;
         this.cacheService = cacheService;
         this.disputeService = disputeService;
         this.deviceOpsService = deviceOpsService;
         this.unpaidOrderService = unpaidOrderService;
+        this.deviceAssetService = deviceAssetService;
     }
 
     @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
@@ -85,6 +89,17 @@ public class AdminDashboardController {
                 () -> adminService.channelBreakdown(opId, days)));
     }
 
+    @RequiresPermissions(value = {"ops:device:list", "ops:device-map:view"}, logical = RequiresPermissions.Logical.OR)
+    @GetMapping("/devices/map-points")
+    public ApiResponse<List<DeviceMapPointDto>> deviceMapPoints(
+            HttpServletRequest request,
+            @RequestParam(name = "lifecycleStatus", required = false) String lifecycleStatus,
+            @RequestParam(name = "routeCode", required = false) String routeCode,
+            @RequestParam(name = "online", required = false) String online) {
+        return ApiResponse.ok(adminService.listDeviceMapPoints(
+                operatorId(request), lifecycleStatus, routeCode, online));
+    }
+
     @RequiresPermissions("ops:device:list")
     @GetMapping("/devices")
     public ApiResponse<PageResult<AdminDeviceDto>> devices(
@@ -93,8 +108,12 @@ public class AdminDashboardController {
             @RequestParam(name = "size", defaultValue = "20") int size,
             @RequestParam(name = "q", required = false) String q,
             @RequestParam(name = "online", required = false) String online,
-            @RequestParam(name = "salesLocked", required = false) Boolean salesLocked) {
-        return ApiResponse.ok(adminService.listDevicesPaged(operatorId(request), page, size, q, online, salesLocked));
+            @RequestParam(name = "salesLocked", required = false) Boolean salesLocked,
+            @RequestParam(name = "lifecycleStatus", required = false) String lifecycleStatus,
+            @RequestParam(name = "coopMode", required = false) String coopMode,
+            @RequestParam(name = "routeCode", required = false) String routeCode) {
+        return ApiResponse.ok(adminService.listDevicesPaged(
+                operatorId(request), page, size, q, online, salesLocked, lifecycleStatus, coopMode, routeCode));
     }
 
     @RequiresPermissions("ops:device:edit")
@@ -114,6 +133,14 @@ public class AdminDashboardController {
         return ApiResponse.ok(adminService.createDevice(operatorId(request), body));
     }
 
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}")
+    public ApiResponse<AdminDeviceDto> getDevice(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(adminService.getDevice(operatorId(request), deviceId));
+    }
+
     @RequiresPermissions("ops:device:edit")
     @PatchMapping("/devices/{deviceId}")
     public ApiResponse<AdminDeviceDto> updateDevice(
@@ -121,6 +148,25 @@ public class AdminDashboardController {
             @PathVariable("deviceId") String deviceId,
             @Valid @RequestBody UpdateDeviceRequest body) {
         return ApiResponse.ok(adminService.updateDevice(operatorId(request), deviceId, body));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/lifecycle")
+    public ApiResponse<AdminDeviceDto> deviceLifecycle(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId,
+            @RequestBody DeviceLifecycleRequest body) {
+        deviceAssetService.applyLifecycle(operatorId(request), deviceId, body);
+        return ApiResponse.ok(adminService.getDevice(operatorId(request), deviceId));
+    }
+
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/lifecycle-events")
+    public ApiResponse<List<DeviceLifecycleEventDto>> deviceLifecycleEvents(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId,
+            @RequestParam(name = "limit", defaultValue = "30") int limit) {
+        return ApiResponse.ok(deviceAssetService.listLifecycleEvents(operatorId(request), deviceId, limit));
     }
 
     @RequiresPermissions(value = {"ops:session:list", "ops:session:upload"}, logical = RequiresPermissions.Logical.OR)

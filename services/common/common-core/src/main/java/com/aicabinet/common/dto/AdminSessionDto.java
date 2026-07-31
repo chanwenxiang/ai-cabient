@@ -16,6 +16,7 @@ public record AdminSessionDto(
         String uploadStatus,
         String cameraFusionMode,
         String videoPreviewUrl,
+        String failReason,
         Instant createdAt,
         Instant updatedAt
 ) {}

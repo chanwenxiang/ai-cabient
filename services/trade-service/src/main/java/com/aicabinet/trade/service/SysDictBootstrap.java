@@ -55,8 +55,39 @@ public class SysDictBootstrap implements ApplicationRunner {
             }
             log.info("Seeded {} dict types", typeRepository.count());
         }
-        // Keep exception_type labels in sync when new codes ship after initial seed.
-        ensureMissingDictItems("exception_type");
+        // Incremental: new types/items after first seed (keep DB in sync with shared-dict baseline).
+        for (String dictType : seedCatalog().keySet()) {
+            ensureMissingDictType(dictType);
+            ensureMissingDictItems(dictType);
+        }
+    }
+
+    private void ensureMissingDictType(String dictType) {
+        if (typeRepository.findByDictType(dictType).isPresent()) {
+            return;
+        }
+        SeedType seed = seedCatalog().get(dictType);
+        if (seed == null) {
+            return;
+        }
+        int sort = (int) typeRepository.count() + 1;
+        SysDictType type = new SysDictType();
+        type.setDictType(dictType);
+        type.setDictName(seed.name());
+        type.setStatus("ACTIVE");
+        type.setSortOrder(sort);
+        typeRepository.save(type);
+        int itemSort = 1;
+        for (Map.Entry<String, String> item : seed.items().entrySet()) {
+            SysDictData data = new SysDictData();
+            data.setDictType(dictType);
+            data.setDictValue(item.getKey());
+            data.setDictLabel(item.getValue());
+            data.setSortOrder(itemSort++);
+            data.setStatus("ACTIVE");
+            dataRepository.save(data);
+        }
+        log.info("Seeded missing dict type {}", dictType);
     }
 
     private void ensureMissingDictItems(String dictType) {
@@ -110,6 +141,39 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "SUCCESS", "成功", "FAILED", "失败")));
         map.put("merchant_status", t("商户状态", m("ACTIVE", "正常", "INACTIVE", "停用", "PENDING", "待审核")));
         map.put("online_status", t("在线状态", m("ONLINE", "在线", "OFFLINE", "离线", "UNKNOWN", "未知")));
+        map.put("device_lifecycle", t("设备生命周期", m(
+                "IDLE", "未投放", "INBOUND", "入库", "DEPLOYED", "投放", "RETURNING", "返厂中", "RETIRED", "退役")));
+        map.put("device_coop_mode", t("设备合作方式", m(
+                "SELF", "自营", "FRANCHISE", "加盟", "CONSIGN", "联营")));
+        map.put("repair_ticket_status", t("维修工单状态", m(
+                "OPEN", "待处理", "IN_PROGRESS", "处理中", "DONE", "已完成", "CANCELLED", "已取消")));
+        map.put("line_manager_status", t("线长状态", m("ACTIVE", "启用", "DISABLED", "停用")));
+        map.put("announcement_status", t("公告状态", m(
+                "DRAFT", "草稿", "PUBLISHED", "已发布", "ARCHIVED", "存档")));
+        map.put("announcement_audience", t("公告受众", m(
+                "ALL", "全部用户", "MERCHANT", "商户", "CONSUMER", "消费者")));
+        map.put("promotion_type", t("营销活动类型", m(
+                "FULL_REDUCE", "满减", "DISCOUNT", "折扣", "BUY_GIFT", "买赠", "SECOND_HALF", "第二件半价")));
+        map.put("coupon_type", t("优惠券类型", m(
+                "AMOUNT_OFF", "满减券", "PERCENT_OFF", "折扣券", "EXCHANGE", "兑换券")));
+        map.put("sku_enrollment_status", t("商品识别入驻状态", m(
+                "DRAFT", "草稿", "MAPPING", "映射中", "TESTED", "已测试", "PRODUCTION", "生产")));
+        map.put("fund_ledger_type", t("资金账务类型", m(
+                "ORDER_PAYMENT", "订单支付", "PLATFORM_FEE", "平台抽成",
+                "CHANNEL_FEE", "通道费", "MERCHANT_CREDIT", "商户入账")));
+        map.put("fund_direction", t("资金收支方向", m("IN", "收入", "OUT", "支出")));
+        map.put("device_ops_event", t("设备运维事件", m(
+                "OFFLINE", "离线", "NO_SALES", "无销售", "UNLOCK", "开锁",
+                "FAULT", "故障/锁机", "AISLE_AUDIT", "货道巡检", "MAINBOARD", "主板")));
+        map.put("repair_fault_type", t("维修故障类型", m(
+                "DOOR", "门锁", "COOLING", "制冷", "NETWORK", "网络",
+                "PAYMENT", "支付", "VISION", "识别", "POWER", "供电", "OTHER", "其他")));
+        map.put("line_withdraw_status", t("线长提现状态", m(
+                "PENDING_REVIEW", "待审核", "APPROVED", "已通过", "PAYING", "打款中",
+                "PAID", "已打款", "REJECTED", "已驳回", "FAILED", "失败")));
+        map.put("merchant_withdraw_status", t("商户提现状态", m(
+                "PENDING_REVIEW", "待审核", "APPROVED", "已通过", "PAYING", "打款中",
+                "PAID", "已打款", "REJECTED", "已驳回", "FAILED", "失败")));
         map.put("supplier_status", t("供应商状态", m("ACTIVE", "启用", "INACTIVE", "停用")));
         map.put("purchase_order_status", t("采购单状态", m(
                 "CREATED", "待收货", "PARTIAL_RECEIVED", "部分收货", "RECEIVED", "已收货", "CANCELLED", "已取消")));

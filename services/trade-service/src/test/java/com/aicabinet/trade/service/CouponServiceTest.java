@@ -1,7 +1,6 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.CreateCouponRequest;
-import com.aicabinet.common.dto.CouponDto;
 import com.aicabinet.trade.domain.CouponDefinition;
 import com.aicabinet.trade.domain.UserCoupon;
 import com.aicabinet.trade.mapper.CouponDefinitionMapper;

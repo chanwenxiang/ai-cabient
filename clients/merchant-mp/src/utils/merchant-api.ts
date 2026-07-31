@@ -251,6 +251,46 @@ export const merchantApi = {
       body
     ),
   workbench: () => request<import('@aicabinet/shared-types').MerchantWorkbench>('/api/v2/merchant/workbench'),
+  listAnnouncements: () =>
+    request<import('@aicabinet/shared-types').AnnouncementDto[]>('/api/v2/merchant/announcements'),
+  getAnnouncement: (id: number) =>
+    request<import('@aicabinet/shared-types').AnnouncementDto>(`/api/v2/merchant/announcements/${id}`),
+  teamUsers: () =>
+    request<import('@aicabinet/shared-types').MerchantUserDto[]>('/api/v2/merchant/team/users'),
+  teamRoles: () =>
+    request<import('@aicabinet/shared-types').MerchantTeamRoleDto[]>('/api/v2/merchant/team/roles'),
+  createTeamUser: (body: {
+    phoneNumber: string;
+    password: string;
+    displayName?: string;
+    roleKey?: string;
+  }) =>
+    request<import('@aicabinet/shared-types').MerchantUserDto>('/api/v2/merchant/team/users', 'POST', body),
+  updateTeamUser: (
+    userId: number,
+    body: { displayName?: string; roleKey?: string }
+  ) =>
+    request<import('@aicabinet/shared-types').MerchantUserDto>(
+      `/api/v2/merchant/team/users/${userId}`,
+      'PATCH',
+      body
+    ),
+  disableTeamUser: (userId: number) =>
+    request<import('@aicabinet/shared-types').MerchantUserDto>(
+      `/api/v2/merchant/team/users/${userId}/disable`,
+      'POST'
+    ),
+  enableTeamUser: (userId: number) =>
+    request<import('@aicabinet/shared-types').MerchantUserDto>(
+      `/api/v2/merchant/team/users/${userId}/enable`,
+      'POST'
+    ),
+  resetTeamUserPassword: (userId: number, password: string) =>
+    request<import('@aicabinet/shared-types').MerchantUserDto>(
+      `/api/v2/merchant/team/users/${userId}/reset-password`,
+      'POST',
+      { password }
+    ),
   notifyPrefs: () =>
     request<{ wxBound: boolean; enabledAlertTypes: string[] }>('/api/v2/merchant/notify/prefs'),
   notifyWxBind: (code: string) =>
@@ -315,6 +355,33 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').MerchantSettlementOverview>(
       '/api/v2/merchant/settlements/overview'
     ),
+  lineWallet: () =>
+    request<{
+      bound: boolean;
+      managerId?: number;
+      managerName?: string;
+      phone?: string;
+      balanceCents?: number;
+      frozenCents?: number;
+      availableCents?: number;
+      recentLedgers?: any[];
+      recentWithdraws?: any[];
+    }>('/api/v2/merchant/line-wallet'),
+  lineWalletWithdraw: (body: { amountCents: number; requestNo?: string }) =>
+    request('/api/v2/merchant/line-wallet/withdraw', 'POST', body),
+  wallet: () =>
+    request<{
+      bound: boolean;
+      merchantId?: string;
+      merchantName?: string;
+      balanceCents?: number;
+      frozenCents?: number;
+      availableCents?: number;
+      recentLedgers?: any[];
+      recentWithdraws?: any[];
+    }>('/api/v2/merchant/wallet'),
+  walletWithdraw: (body: { amountCents: number; requestNo?: string }) =>
+    request('/api/v2/merchant/wallet/withdraw', 'POST', body),
   dailySettlements: (from: string, to: string) =>
     request<import('@aicabinet/shared-types').MerchantDailySettlement[]>(
       `/api/v2/merchant/settlements/daily?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
@@ -335,7 +402,6 @@ export const merchantApi = {
   exportSettlementsUrl: (from: string, to: string) =>
     `${API_BASE_URL}/api/v2/merchant/settlements/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
   exportDeviceReportsUrl: () => `${API_BASE_URL}/api/v2/merchant/device-reports/export`,
-  skuSales: (days = 30) => request<import('@aicabinet/shared-types').MerchantSkuSales[]>(`/api/v2/merchant/analytics/sku-sales?days=${days}`),
   replenishmentSuggestions: (deviceId: string) =>
     request<MerchantReplenishmentSuggest[]>(
       `/api/v2/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`

@@ -114,24 +114,6 @@
                                 }
                   },
                   {
-                      "path":  "pages/member/exchange",
-                      "style":  {
-                                    "navigationBarTitleText":  "积分兑换",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "backgroundColor":  "#f5f7f8",
-                                    "navigationBarTextStyle":  "black"
-                                }
-                  },
-                  {
-                      "path":  "pages/member/points-history",
-                      "style":  {
-                                    "navigationBarTitleText":  "积分明细",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "backgroundColor":  "#f5f7f8",
-                                    "navigationBarTextStyle":  "black"
-                                }
-                  },
-                  {
                       "path":  "pages/marketing/index",
                       "style":  {
                                     "navigationBarTitleText":  "热门活动",
@@ -153,6 +135,24 @@
                       "path":  "pages/help/help",
                       "style":  {
                                     "navigationBarTitleText":  "帮助中心",
+                                    "navigationBarBackgroundColor":  "#ffffff",
+                                    "backgroundColor":  "#f7f7f7",
+                                    "navigationBarTextStyle":  "black"
+                                }
+                  },
+                  {
+                      "path":  "pages/announcements/announcements",
+                      "style":  {
+                                    "navigationBarTitleText":  "通知公告",
+                                    "navigationBarBackgroundColor":  "#ffffff",
+                                    "backgroundColor":  "#f7f7f7",
+                                    "navigationBarTextStyle":  "black"
+                                }
+                  },
+                  {
+                      "path":  "pages/announcements/detail",
+                      "style":  {
+                                    "navigationBarTitleText":  "公告详情",
                                     "navigationBarBackgroundColor":  "#ffffff",
                                     "backgroundColor":  "#f7f7f7",
                                     "navigationBarTextStyle":  "black"

@@ -11,6 +11,8 @@ import com.aicabinet.trade.service.MerchantFinanceService;
 import com.aicabinet.trade.service.MerchantPortalService;
 import com.aicabinet.trade.service.MerchantReplenishmentService;
 import com.aicabinet.trade.service.MerchantSkuPricingService;
+import com.aicabinet.trade.service.LineWithdrawService;
+import com.aicabinet.trade.service.MerchantWithdrawService;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.HttpHeaders;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v2/merchant")
@@ -33,6 +36,8 @@ public class MerchantPortalController {
     private final MerchantAnalyticsService merchantAnalyticsService;
     private final MerchantNotifyService merchantNotifyService;
     private final MerchantAiInsightService merchantAiInsightService;
+    private final LineWithdrawService lineWithdrawService;
+    private final MerchantWithdrawService merchantWithdrawService;
 
     public MerchantPortalController(MerchantFinanceService merchantFinanceService,
                                     MerchantPortalService merchantPortalService,
@@ -41,7 +46,9 @@ public class MerchantPortalController {
                                     MerchantReplenishmentService merchantReplenishmentService,
                                     MerchantAnalyticsService merchantAnalyticsService,
                                     MerchantNotifyService merchantNotifyService,
-                                    MerchantAiInsightService merchantAiInsightService) {
+                                    MerchantAiInsightService merchantAiInsightService,
+                                    LineWithdrawService lineWithdrawService,
+                                    MerchantWithdrawService merchantWithdrawService) {
         this.merchantFinanceService = merchantFinanceService;
         this.merchantPortalService = merchantPortalService;
         this.skuPricingService = skuPricingService;
@@ -50,6 +57,8 @@ public class MerchantPortalController {
         this.merchantAnalyticsService = merchantAnalyticsService;
         this.merchantNotifyService = merchantNotifyService;
         this.merchantAiInsightService = merchantAiInsightService;
+        this.lineWithdrawService = lineWithdrawService;
+        this.merchantWithdrawService = merchantWithdrawService;
     }
 
     @GetMapping("/me")
@@ -499,6 +508,78 @@ public class MerchantPortalController {
             HttpServletRequest request,
             @RequestBody CreateMerchantUserRequest body) {
         return ApiResponse.ok(merchantPortalService.createTeamUser(userId(request), body));
+    }
+
+    @RequiresPermissions(value = {"merchant:users:invite", "merchant:users:edit"},
+            logical = RequiresPermissions.Logical.OR)
+    @GetMapping("/team/roles")
+    public ApiResponse<List<MerchantTeamRoleDto>> teamRoles(HttpServletRequest request) {
+        return ApiResponse.ok(merchantPortalService.listTeamRoles(userId(request)));
+    }
+
+    @RequiresPermissions("merchant:users:edit")
+    @PatchMapping("/team/users/{targetUserId}")
+    public ApiResponse<MerchantUserDto> updateTeamUser(
+            HttpServletRequest request,
+            @PathVariable long targetUserId,
+            @RequestBody UpdateMerchantUserRequest body) {
+        return ApiResponse.ok(merchantPortalService.updateTeamUser(userId(request), targetUserId, body));
+    }
+
+    @RequiresPermissions("merchant:users:disable")
+    @PostMapping("/team/users/{targetUserId}/disable")
+    public ApiResponse<MerchantUserDto> disableTeamUser(
+            HttpServletRequest request, @PathVariable long targetUserId) {
+        return ApiResponse.ok(merchantPortalService.disableTeamUser(userId(request), targetUserId));
+    }
+
+    @RequiresPermissions("merchant:users:edit")
+    @PostMapping("/team/users/{targetUserId}/enable")
+    public ApiResponse<MerchantUserDto> enableTeamUser(
+            HttpServletRequest request, @PathVariable long targetUserId) {
+        return ApiResponse.ok(merchantPortalService.enableTeamUser(userId(request), targetUserId));
+    }
+
+    @RequiresPermissions("merchant:users:reset-password")
+    @PostMapping("/team/users/{targetUserId}/reset-password")
+    public ApiResponse<MerchantUserDto> resetTeamUserPassword(
+            HttpServletRequest request,
+            @PathVariable long targetUserId,
+            @RequestBody ResetMerchantUserPasswordRequest body) {
+        return ApiResponse.ok(merchantPortalService.resetTeamUserPassword(userId(request), targetUserId, body));
+    }
+
+    /** 线长钱包：有绑定身份才返回 bound=true；与商户平台分账结算解耦，线长可自主提现。 */
+    @GetMapping("/line-wallet")
+    public ApiResponse<LineWalletOverviewDto> lineWallet(HttpServletRequest request) {
+        return ApiResponse.ok(lineWithdrawService.merchantOverview(userId(request)));
+    }
+
+    @RequiresPermissions("merchant:line-wallet:view")
+    @PostMapping("/line-wallet/withdraw")
+    public ApiResponse<LineWithdrawRequestDto> lineWalletWithdraw(
+            HttpServletRequest request, @RequestBody Map<String, Object> body) {
+        long amount = body.get("amountCents") instanceof Number n ? n.longValue()
+                : Long.parseLong(String.valueOf(body.get("amountCents")));
+        String requestNo = body.get("requestNo") == null ? null : String.valueOf(body.get("requestNo"));
+        return ApiResponse.ok(lineWithdrawService.merchantApply(userId(request), amount, requestNo));
+    }
+
+    /** 商户主体钱包：分账账本入账后可自主提现（演示默认 Mock 打款）。 */
+    @RequiresPermissions("merchant:wallet:view")
+    @GetMapping("/wallet")
+    public ApiResponse<MerchantWalletOverviewDto> wallet(HttpServletRequest request) {
+        return ApiResponse.ok(merchantWithdrawService.merchantOverview(userId(request)));
+    }
+
+    @RequiresPermissions("merchant:wallet:apply")
+    @PostMapping("/wallet/withdraw")
+    public ApiResponse<MerchantWithdrawRequestDto> walletWithdraw(
+            HttpServletRequest request, @RequestBody Map<String, Object> body) {
+        long amount = body.get("amountCents") instanceof Number n ? n.longValue()
+                : Long.parseLong(String.valueOf(body.get("amountCents")));
+        String requestNo = body.get("requestNo") == null ? null : String.valueOf(body.get("requestNo"));
+        return ApiResponse.ok(merchantWithdrawService.merchantApply(userId(request), amount, requestNo));
     }
 
     private static ResponseEntity<byte[]> csvAttachment(String filename, byte[] csv) {

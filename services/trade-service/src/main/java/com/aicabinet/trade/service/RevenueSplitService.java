@@ -26,15 +26,18 @@ public class RevenueSplitService {
     private final DeviceInfoMapper deviceRepository;
     private final MerchantMapper merchantRepository;
     private final WeChatProfitSharingService profitSharingService;
+    private final MerchantWalletService merchantWalletService;
 
     public RevenueSplitService(OrderRevenueSplitMapper splitRepository,
                                DeviceInfoMapper deviceRepository,
                                MerchantMapper merchantRepository,
-                               WeChatProfitSharingService profitSharingService) {
+                               WeChatProfitSharingService profitSharingService,
+                               MerchantWalletService merchantWalletService) {
         this.splitRepository = splitRepository;
         this.deviceRepository = deviceRepository;
         this.merchantRepository = merchantRepository;
         this.profitSharingService = profitSharingService;
+        this.merchantWalletService = merchantWalletService;
     }
 
     @Transactional
@@ -75,6 +78,7 @@ public class RevenueSplitService {
             split.setStatus("ACCRUED");
         }
         splitRepository.save(split);
+        creditWalletIfLedgerOnly(split);
         log.info("分账记账 order={} merchant={} gross={} platform={} merchantShare={}",
                 order.getOrderId(), merchant.getMerchantId(), gross, platform, merchantShare);
         return Optional.of(split);
@@ -92,10 +96,56 @@ public class RevenueSplitService {
             if ("VOIDED".equalsIgnoreCase(split.getStatus()) || "REVERSED".equalsIgnoreCase(split.getStatus())) {
                 return;
             }
+            reverseWalletCredit(split);
             split.setStatus("VOIDED");
             splitRepository.save(split);
             log.info("分账已冲正（全额退款） order={} splitId={}", orderId, split.getSplitId());
         });
+    }
+
+    /** 账本型分账（无微信分账接收方）同步入商户可提现钱包，幂等按 splitId。 */
+    private void creditWalletIfLedgerOnly(OrderRevenueSplit split) {
+        if (split == null || !"LEDGER_ONLY".equalsIgnoreCase(split.getStatus())) {
+            return;
+        }
+        long amount = Math.max(0, split.getMerchantCents());
+        if (amount <= 0 || split.getMerchantId() == null || split.getSplitId() == null) {
+            return;
+        }
+        boolean credited = merchantWalletService.creditIfAbsent(
+                split.getMerchantId(),
+                amount,
+                "SPLIT_CREDIT",
+                "SPLIT",
+                split.getSplitId(),
+                "分账入账 " + split.getOrderId());
+        if (credited) {
+            log.info("商户钱包入账 merchant={} amount={} splitId={}",
+                    split.getMerchantId(), amount, split.getSplitId());
+        }
+    }
+
+    private void reverseWalletCredit(OrderRevenueSplit split) {
+        if (split == null || split.getMerchantId() == null || split.getSplitId() == null) {
+            return;
+        }
+        long amount = Math.max(0, split.getMerchantCents());
+        if (amount <= 0) {
+            return;
+        }
+        boolean reversed = merchantWalletService.reverseCreditIfPresent(
+                split.getMerchantId(),
+                amount,
+                "SPLIT_REVERSE",
+                "SPLIT_REV",
+                split.getSplitId(),
+                "SPLIT",
+                split.getSplitId(),
+                "分账冲正 " + split.getOrderId());
+        if (reversed) {
+            log.info("商户钱包冲正 merchant={} amount={} splitId={}",
+                    split.getMerchantId(), amount, split.getSplitId());
+        }
     }
 
     /**

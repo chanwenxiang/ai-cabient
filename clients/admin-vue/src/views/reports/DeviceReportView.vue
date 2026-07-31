@@ -32,19 +32,40 @@
     </div>
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
+      <el-form-item label="柜机">
+        <el-select
+          v-model="deviceId"
+          clearable
+          filterable
+          placeholder="全部柜机"
+          style="width: 200px"
+          @change="search"
+        >
+          <el-option
+            v-for="d in deviceOptions"
+            :key="d.deviceId"
+            :label="`${d.deviceName || d.deviceId}（${d.deviceId}）`"
+            :value="d.deviceId"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item label="关键词">
         <el-input
           v-model="keyword"
           clearable
           placeholder="设备编号 / 名称"
-          style="width: 220px"
+          style="width: 180px"
           @keyup.enter="search"
         />
       </el-form-item>
       <el-form-item label="状态">
         <el-select v-model="onlineFilter" clearable placeholder="全部" style="width: 120px" @change="search">
-          <el-option label="在线" value="ONLINE" />
-          <el-option label="离线" value="OFFLINE" />
+          <el-option
+            v-for="item in dictOptions('online_status').filter((o) => o.value !== 'UNKNOWN')"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -133,7 +154,7 @@ import { computed, onActivated, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -157,14 +178,20 @@ const { router, canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
 const rows = ref<DeviceReportRow[]>([]);
 const keyword = ref('');
+const deviceId = ref('');
 const onlineFilter = ref('');
 const page = ref(1);
 const size = ref(20);
 const viewportWidth = ref(typeof window !== 'undefined' ? window.innerWidth : 1280);
 
+const deviceOptions = computed(() =>
+  rows.value.map((r) => ({ deviceId: r.deviceId, deviceName: r.deviceName }))
+);
+
 const filtered = computed(() => {
   const kw = keyword.value.trim().toLowerCase();
   return rows.value.filter((r) => {
+    if (deviceId.value && r.deviceId !== deviceId.value) return false;
     if (onlineFilter.value && r.onlineStatus !== onlineFilter.value) return false;
     if (!kw) return true;
     return [r.deviceId, r.deviceName].some((v) => String(v || '').toLowerCase().includes(kw));
@@ -299,6 +326,7 @@ function search() {
 
 function reset() {
   keyword.value = '';
+  deviceId.value = '';
   onlineFilter.value = '';
   page.value = 1;
   syncRouteQuery();

@@ -14,8 +14,6 @@ import com.aicabinet.trade.domain.DeviceSkuInventoryId;
 
 import com.aicabinet.trade.domain.DeviceSkuLot;
 
-import com.aicabinet.trade.domain.MerchantReplenishmentRequest;
-
 import com.aicabinet.trade.domain.MerchantReplenishmentRequestLine;
 
 import com.aicabinet.trade.domain.PullOffTask;
@@ -1062,6 +1060,11 @@ public class ReplenishmentService {
 
                 .toList();
 
+    }
+
+    @Transactional
+    public PullOffTaskDto ensurePullOffFromLot(String lotId) {
+        return toPullOffDto(inventoryLotService.ensureOpenPullOffTask(lotId));
     }
 
 

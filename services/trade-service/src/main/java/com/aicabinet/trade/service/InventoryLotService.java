@@ -382,6 +382,41 @@ public class InventoryLotService {
         return alerts;
     }
 
+    /**
+     * 按 lot 幂等创建 OPEN 下架任务（临期/过期盘点入口）。
+     */
+    @Transactional
+    public PullOffTask ensureOpenPullOffTask(String lotId) {
+        if (lotId == null || lotId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "批次不能为空");
+        }
+        DeviceSkuLot lot = lotRepository.findById(lotId.trim())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "批次不存在"));
+        if (lot.getQuantity() <= 0) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "批次已无库存");
+        }
+        return pullOffTaskRepository.findByLotIdAndStatus(lot.getLotId(), "OPEN")
+                .orElseGet(() -> {
+                    LocalDate today = LocalDate.now();
+                    String reason = lot.getExpiryDate() != null && lot.getExpiryDate().isBefore(today)
+                            ? "EXPIRED" : "NEAR_EXPIRY";
+                    if ("ON_SALE".equals(lot.getStatus()) && "NEAR_EXPIRY".equals(reason)) {
+                        lot.setStatus("NEAR_EXPIRY");
+                        lotRepository.save(lot);
+                    }
+                    PullOffTask task = new PullOffTask();
+                    task.setDeviceId(lot.getDeviceId());
+                    task.setSkuId(lot.getSkuId());
+                    task.setLotId(lot.getLotId());
+                    task.setBatchNo(lot.getBatchNo());
+                    task.setQuantity(lot.getQuantity());
+                    task.setReason(reason);
+                    pullOffTaskRepository.save(task);
+                    log.info("ensure pull-off task lot={} reason={} qty={}", lot.getLotId(), reason, lot.getQuantity());
+                    return task;
+                });
+    }
+
     /** 有货道时校验补货后账面不超过 maxLevel / parLevel。 */
     private void ensureSlotCapacity(String deviceId, String slotId, int quantity) {
         if (slotId == null || slotId.isBlank() || quantity <= 0) {

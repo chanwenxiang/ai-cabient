@@ -57,4 +57,5 @@ public Long getAnnounceId() { return announceId; }
     public void setOperatorId(Long v) { this.operatorId = v; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant v) { this.updatedAt = v; }
 }

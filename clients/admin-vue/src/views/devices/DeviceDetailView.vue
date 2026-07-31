@@ -8,9 +8,10 @@
             <el-tag v-if="device" :type="device.onlineStatus === 'ONLINE' ? 'success' : 'info'" size="small">
               {{ dictLabel('online_status', device.onlineStatus) }}
             </el-tag>
+            <el-tag v-if="asset.lifecycleStatus" size="small" effect="plain">{{ lifecycleLabel(asset.lifecycleStatus) }}</el-tag>
             <el-tag v-if="metrics?.salesLocked" type="danger" size="small">已锁机</el-tag>
           </div>
-          <span class="page-hint">设备 ID {{ deviceId }} · 远程运维与货道陈列</span>
+          <span class="page-hint">设备 ID {{ deviceId }} · 资产投放与远程运维</span>
         </div>
       </template>
       <template #extra>
@@ -46,6 +47,124 @@
         </div>
       </el-col>
     </el-row>
+
+    <el-card class="page-card" shadow="never">
+      <template #header>
+        <div class="page-card-head">
+          <div class="page-card-head__meta">
+            <div class="page-card-head__title">
+              <span class="title">资产与投放</span>
+              <span class="hint">IMEI / 合作方式 / 路线与生命周期流转</span>
+            </div>
+          </div>
+          <el-button
+            v-hasPermi="['ops:device:edit']"
+            type="primary"
+            size="small"
+            :loading="assetSaving"
+            @click="saveAsset"
+          >保存资产</el-button>
+        </div>
+      </template>
+      <el-form label-width="100px" class="asset-form" @submit.prevent>
+        <el-row :gutter="12">
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="IMEI">
+              <el-input v-model="asset.imei" :disabled="!canEditDevice" clearable placeholder="主板/通信识别" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="资产方">
+              <el-input v-model="asset.assetOwner" :disabled="!canEditDevice" clearable placeholder="自营/加盟商名" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="合作方式">
+              <el-select v-model="asset.coopMode" :disabled="!canEditDevice" clearable placeholder="选择" style="width:100%">
+                <el-option
+                  v-for="item in dictOptions('device_coop_mode')"
+                  :key="item.value"
+                  :label="item.label"
+                  :value="item.value"
+                />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="押金(分)">
+              <el-input-number v-model="asset.depositCents" :disabled="!canEditDevice" :min="0" :step="100" controls-position="right" style="width:100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="流量费(分/月)">
+              <el-input-number v-model="asset.dataFeeCents" :disabled="!canEditDevice" :min="0" :step="100" controls-position="right" style="width:100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="路线编码">
+              <el-input v-model="asset.routeCode" :disabled="!canEditDevice" clearable placeholder="补货路线" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="运营标签">
+              <el-input v-model="asset.opsTags" :disabled="!canEditDevice" clearable placeholder="逗号分隔" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="纬度">
+              <el-input-number
+                v-model="asset.latitude"
+                :disabled="!canEditDevice"
+                :controls="false"
+                :precision="6"
+                :step="0.0001"
+                style="width: 100%"
+                placeholder="如 31.230400"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="经度">
+              <el-input-number
+                v-model="asset.longitude"
+                :disabled="!canEditDevice"
+                :controls="false"
+                :precision="6"
+                :step="0.0001"
+                style="width: 100%"
+                placeholder="如 121.473700"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="投放地址">
+              <el-input v-model="asset.address" :disabled="!canEditDevice" clearable placeholder="门店/点位地址" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="12" :md="8">
+            <el-form-item label="生命周期">
+              <el-tag size="small">{{ lifecycleLabel(asset.lifecycleStatus) }}</el-tag>
+              <span v-if="asset.deployedAt" class="muted asset-deployed">投放 {{ formatDateTime(asset.deployedAt) }}</span>
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :sm="24" :md="16">
+            <el-form-item label="备注">
+              <el-input v-model="asset.lifecycleRemark" :disabled="!canEditDevice" clearable placeholder="投放/退役备注" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+      <div class="cmd-section-label">生命周期操作</div>
+      <div class="cmd-bar">
+        <el-button v-hasPermi="['ops:device:edit']" :loading="lifeLoading === 'BIND'" @click="lifecycleBind">绑定商户</el-button>
+        <el-button v-hasPermi="['ops:device:edit']" :loading="lifeLoading === 'UNBIND'" @click="runLifecycle('UNBIND')">解绑</el-button>
+        <el-button v-hasPermi="['ops:device:edit']" type="primary" plain :loading="lifeLoading === 'DEPLOY'" @click="runLifecycle('DEPLOY')">投放</el-button>
+        <el-button v-hasPermi="['ops:device:edit']" plain :loading="lifeLoading === 'UNDEPLOY'" @click="runLifecycle('UNDEPLOY')">撤回未投放</el-button>
+        <el-button v-hasPermi="['ops:device:edit']" type="warning" plain :loading="lifeLoading === 'RETURN'" @click="runLifecycle('RETURN')">返厂</el-button>
+        <el-button v-hasPermi="['ops:device:edit']" type="danger" plain :loading="lifeLoading === 'RETIRE'" @click="runLifecycle('RETIRE', true)">退役</el-button>
+        <el-button v-hasPermi="['ops:device:edit']" plain :loading="lifeLoading === 'INBOUND'" @click="runLifecycle('INBOUND')">入库</el-button>
+      </div>
+    </el-card>
 
     <el-card class="page-card" shadow="never">
       <template #header>
@@ -117,6 +236,14 @@
       <div class="cmd-bar">
         <el-button v-if="canAccessPath('/replenishment')" @click="goReplenish">缺货建议</el-button>
         <el-button
+          v-if="canAccessPath('/replenishment') && (metrics?.oosSlotCount || 0) > 0"
+          v-hasPermi="['ops:replenishment:edit']"
+          type="primary"
+          @click="goPlanReplenish"
+        >
+          一键规划补货
+        </el-button>
+        <el-button
           v-if="canAccessPath('/replenishment')"
           type="success"
           plain
@@ -126,6 +253,23 @@
         </el-button>
         <span v-else class="muted">无补货调度权限</span>
       </div>
+
+      <div class="cmd-section-label">维修工单</div>
+      <div class="cmd-bar">
+        <el-button v-if="canAccessPath('/repair-tickets')" @click="goPath('/repair-tickets', { deviceId })">工单列表</el-button>
+        <el-button v-hasPermi="['ops:repair:edit']" type="primary" plain @click="createRepair">新建工单</el-button>
+      </div>
+      <el-table v-if="repairTickets.length" :data="repairTickets" size="small" class="repair-mini-table">
+        <el-table-column prop="ticketId" label="#" width="70" />
+        <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip />
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">{{ repairStatusLabel(row.status) }}</template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="创建" width="160">
+          <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        </el-table-column>
+      </el-table>
+      <div v-else class="muted">暂无最近工单</div>
     </el-card>
 
     <el-card class="page-card report-page" shadow="never">
@@ -199,6 +343,24 @@
             <el-button size="small" :icon="Refresh" @click="loadDetail">刷新货道</el-button>
           </div>
           <SlotGrid :slots="slots" :editable="canEditSlots" @edit="openEditor" />
+        </el-tab-pane>
+
+        <el-tab-pane label="投放流水" name="lifecycle">
+          <el-timeline v-if="lifecycleEvents.length">
+            <el-timeline-item
+              v-for="ev in lifecycleEvents"
+              :key="ev.eventId"
+              :timestamp="formatDateTime(ev.createdAt)"
+              placement="top"
+            >
+              <div class="life-event">
+                <strong>{{ lifecycleActionLabel(ev.action) }}</strong>
+                <span class="muted">{{ lifecycleLabel(ev.fromStatus) }} → {{ lifecycleLabel(ev.toStatus) }}</span>
+                <div v-if="ev.remark" class="life-remark">{{ ev.remark }}</div>
+              </div>
+            </el-timeline-item>
+          </el-timeline>
+          <el-empty v-else description="暂无生命周期流水" />
         </el-tab-pane>
 
         <el-tab-pane label="关联单据" name="related">
@@ -296,13 +458,13 @@ import { computed, onActivated, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import SlotGrid from '@/components/SlotGrid.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
-import type { DeviceSlot, PageResult, SkuCatalog, UpsertDeviceSlotRequest } from '@aicabinet/shared-types';
+import type { DeviceInfo, DeviceSlot, PageResult, SkuCatalog, UpsertDeviceSlotRequest } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface DeviceRow {
@@ -313,6 +475,17 @@ interface DeviceRow {
   merchantName?: string;
   activeSessionId?: string;
   activeSessionState?: string;
+}
+
+interface LifecycleEventRow {
+  eventId: number;
+  deviceId?: string;
+  fromStatus?: string;
+  toStatus?: string;
+  action?: string;
+  operatorId?: number;
+  remark?: string;
+  createdAt?: string;
 }
 
 interface Metrics {
@@ -347,6 +520,8 @@ const canEditDevice = computed(() => auth.hasPerm('ops:device:edit'));
 const loading = ref(false);
 const applying = ref(false);
 const saving = ref(false);
+const assetSaving = ref(false);
+const lifeLoading = ref('');
 const cmdLoading = ref('');
 const tempDraft = ref<number | undefined>(undefined);
 const tab = ref('overview');
@@ -359,11 +534,70 @@ const policy = ref<{
   skuEditForbidden: boolean;
   saleForbidden: boolean;
 } | null>(null);
+const asset = reactive({
+  lifecycleStatus: '' as string,
+  imei: '' as string,
+  assetOwner: '' as string,
+  coopMode: '' as string,
+  depositCents: undefined as number | undefined,
+  dataFeeCents: undefined as number | undefined,
+  opsTags: '' as string,
+  routeCode: '' as string,
+  latitude: undefined as number | undefined,
+  longitude: undefined as number | undefined,
+  address: '' as string,
+  deployedAt: '' as string | undefined,
+  lifecycleRemark: '' as string,
+  merchantId: '' as string
+});
+const lifecycleEvents = ref<LifecycleEventRow[]>([]);
+const repairTickets = ref<Array<{ ticketId: number; title: string; status: string; createdAt?: string }>>([]);
 const slots = ref<DeviceSlot[]>([]);
 const skus = ref<SkuCatalog[]>([]);
 const sessions = ref<any[]>([]);
 const orders = ref<any[]>([]);
 const editorVisible = ref(false);
+
+function lifecycleLabel(status?: string | null) {
+  switch ((status || '').toUpperCase()) {
+    case 'INBOUND': return '入库';
+    case 'IDLE': return '未投放';
+    case 'DEPLOYED': return '投放';
+    case 'RETURNING': return '返厂中';
+    case 'RETIRED': return '退役';
+    default: return status || '-';
+  }
+}
+
+function lifecycleActionLabel(action?: string | null) {
+  switch ((action || '').toUpperCase()) {
+    case 'BIND': return '绑定商户';
+    case 'UNBIND': return '解绑';
+    case 'DEPLOY': return '投放';
+    case 'UNDEPLOY': return '撤回未投放';
+    case 'RETURN': return '返厂';
+    case 'RETIRE': return '退役';
+    case 'INBOUND': return '入库';
+    default: return action || '-';
+  }
+}
+
+function fillAsset(row: DeviceInfo) {
+  asset.lifecycleStatus = row.lifecycleStatus || '';
+  asset.imei = row.imei || '';
+  asset.assetOwner = row.assetOwner || '';
+  asset.coopMode = row.coopMode || '';
+  asset.depositCents = row.depositCents != null ? Number(row.depositCents) : undefined;
+  asset.dataFeeCents = row.dataFeeCents != null ? Number(row.dataFeeCents) : undefined;
+  asset.opsTags = row.opsTags || '';
+  asset.routeCode = row.routeCode || '';
+  asset.latitude = row.latitude != null ? Number(row.latitude) : undefined;
+  asset.longitude = row.longitude != null ? Number(row.longitude) : undefined;
+  asset.address = row.address || '';
+  asset.deployedAt = row.deployedAt;
+  asset.lifecycleRemark = row.lifecycleRemark || '';
+  asset.merchantId = row.merchantId || '';
+}
 const editForm = reactive({
   slotCode: '',
   assignedSkuId: '' as string | undefined,
@@ -372,6 +606,65 @@ const editForm = reactive({
   maxLevel: 0,
   enabled: true
 });
+
+async function loadAsset() {
+  const row = await api.request<DeviceInfo>(
+    `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}`,
+    'GET'
+  );
+  fillAsset(row);
+  if (device.value) {
+    device.value = {
+      ...device.value,
+      merchantId: row.merchantId || device.value.merchantId,
+      merchantName: row.merchantName || device.value.merchantName,
+      deviceName: row.deviceName || device.value.deviceName,
+      onlineStatus: row.onlineStatus || device.value.onlineStatus
+    };
+  }
+}
+
+async function loadLifecycleEvents() {
+  lifecycleEvents.value = await api
+    .request<LifecycleEventRow[]>(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/lifecycle-events?limit=40`,
+      'GET'
+    )
+    .catch(() => []);
+}
+
+async function loadRepairTickets() {
+  repairTickets.value = await api
+    .request<Array<{ ticketId: number; title: string; status: string; createdAt?: string }>>(
+      `/api/v2/ops/admin/repair-tickets/by-device/${encodeURIComponent(deviceId)}?limit=5`,
+      'GET'
+    )
+    .catch(() => []);
+}
+
+function repairStatusLabel(s?: string) {
+  return ({ OPEN: '待处理', IN_PROGRESS: '处理中', DONE: '已完成', CANCELLED: '已取消' } as Record<string, string>)[s || ''] || s || '-';
+}
+
+async function createRepair() {
+  try {
+    const { value: title } = await ElMessageBox.prompt('请输入工单标题', '新建维修工单', {
+      inputValidator: (v) => !!String(v || '').trim() || '标题必填',
+      confirmButtonText: '创建'
+    });
+    await api.request('/api/v2/ops/admin/repair-tickets', 'POST', {
+      deviceId,
+      title: String(title).trim(),
+      priority: 'NORMAL'
+    });
+    ElMessage.success('工单已创建');
+    await loadRepairTickets();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '创建失败');
+    }
+  }
+}
 
 async function loadDetail() {
   const detail = await api.request<DeviceDetail>(
@@ -382,6 +675,7 @@ async function loadDetail() {
   metrics.value = detail.metrics;
   slots.value = detail.slots || [];
   tempDraft.value = detail.metrics?.targetTempC != null ? detail.metrics.targetTempC : undefined;
+  await Promise.all([loadAsset(), loadLifecycleEvents(), loadRepairTickets()]);
   try {
     policy.value = await api.request(
       `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/policy`,
@@ -395,6 +689,91 @@ async function loadDetail() {
       skuEditForbidden: false,
       saleForbidden: false
     };
+  }
+}
+
+async function saveAsset() {
+  if (!canEditDevice.value) return;
+  assetSaving.value = true;
+  try {
+    const row = await api.request<DeviceInfo>(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}`,
+      'PATCH',
+      {
+        imei: asset.imei || null,
+        assetOwner: asset.assetOwner || null,
+        coopMode: asset.coopMode || null,
+        depositCents: asset.depositCents ?? null,
+        dataFeeCents: asset.dataFeeCents ?? null,
+        opsTags: asset.opsTags || null,
+        routeCode: asset.routeCode || null,
+        latitude: asset.latitude ?? null,
+        longitude: asset.longitude ?? null,
+        address: asset.address || null,
+        lifecycleRemark: asset.lifecycleRemark || null
+      }
+    );
+    fillAsset(row);
+    ElMessage.success('资产信息已保存');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    assetSaving.value = false;
+  }
+}
+
+async function lifecycleBind() {
+  try {
+    const { value: merchantId } = await ElMessageBox.prompt('请输入要绑定的商户编号', '绑定商户', {
+      inputValue: asset.merchantId || '',
+      inputValidator: (v) => !!String(v || '').trim() || '商户编号必填',
+      confirmButtonText: '确认绑定'
+    });
+    await runLifecycle('BIND', false, String(merchantId).trim());
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '绑定失败');
+    }
+  }
+}
+
+async function runLifecycle(action: string, requireRemark = false, merchantId?: string) {
+  try {
+    let remark = asset.lifecycleRemark || '';
+    if (requireRemark || action === 'RETIRE' || action === 'RETURN') {
+      const { value } = await ElMessageBox.prompt(
+        `确认执行「${lifecycleActionLabel(action)}」？请填写备注。`,
+        lifecycleActionLabel(action),
+        {
+          inputValue: remark,
+          inputValidator: (v) => !!String(v || '').trim() || '必须填写备注',
+          confirmButtonText: '确认',
+          type: action === 'RETIRE' ? 'warning' : undefined
+        }
+      );
+      remark = String(value).trim();
+    } else {
+      await ElMessageBox.confirm(`确认执行「${lifecycleActionLabel(action)}」？`, lifecycleActionLabel(action), {
+        type: 'warning',
+        confirmButtonText: '确认',
+        cancelButtonText: '取消'
+      });
+    }
+    lifeLoading.value = action;
+    const row = await api.request<DeviceInfo>(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/lifecycle`,
+      'POST',
+      { action, merchantId, remark: remark || undefined }
+    );
+    fillAsset(row);
+    ElMessage.success(`${lifecycleActionLabel(action)}成功`);
+    await Promise.all([loadDetail(), loadLifecycleEvents()]);
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '操作失败');
+    }
+  } finally {
+    lifeLoading.value = '';
   }
 }
 
@@ -518,6 +897,10 @@ function goReplenish() {
   goPath('/replenishment', { tab: 'shortage', deviceId });
 }
 
+function goPlanReplenish() {
+  goPath('/replenishment', { tab: 'shortage', plan: '1', deviceId, deviceIds: deviceId });
+}
+
 function goRestockTasks() {
   goPath('/replenishment', { tab: 'routes', deviceId });
 }
@@ -628,6 +1011,10 @@ onActivated(() => {
   flex-wrap: wrap;
 }
 .muted { color: var(--el-text-color-placeholder); font-size: 13px; }
+.asset-form { margin-bottom: 4px; }
+.asset-deployed { margin-left: 8px; }
+.life-event { display: flex; flex-direction: column; gap: 2px; }
+.life-remark { font-size: 12px; color: var(--el-text-color-regular); }
 .slot-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
 .section-title { margin: 16px 0 8px; font-size: 14px; font-weight: 600; }
 .name-cell { display: grid; gap: 2px; line-height: 1.35; }

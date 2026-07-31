@@ -1,4 +1,4 @@
-/** Merchant WeChat subscribe helpers (template IDs optional). */
+/** Merchant WeChat subscribe helpers. */
 const SUBSCRIBE_TMPL_IDS = (import.meta.env.VITE_WX_SUBSCRIBE_TMPL_IDS || '')
   .split(',')
   .map((s: string) => s.trim())
@@ -14,19 +14,30 @@ export const MERCHANT_ALERT_TYPES = [
   { value: 'EXCEPTION', label: '识别/故障异常' }
 ] as const;
 
-export async function requestMerchantSubscribe(): Promise<boolean> {
+/** True when WeChat subscribe template IDs are configured. */
+export function hasSubscribeTemplates() {
+  return SUBSCRIBE_TMPL_IDS.length > 0;
+}
+
+/**
+ * Request WeChat subscribe authorization.
+ * @returns `'ok' | 'skipped' | 'failed'`
+ * - skipped: not WeChat MP, or template IDs not configured
+ */
+export async function requestMerchantSubscribe(): Promise<'ok' | 'skipped' | 'failed'> {
   // #ifdef MP-WEIXIN
-  if (!SUBSCRIBE_TMPL_IDS.length) return true;
+  if (!SUBSCRIBE_TMPL_IDS.length) return 'skipped';
   return await new Promise((resolve) => {
     uni.requestSubscribeMessage({
       tmplIds: SUBSCRIBE_TMPL_IDS,
-      complete: () => resolve(true),
-      fail: () => resolve(false)
+      success: () => resolve('ok'),
+      fail: () => resolve('failed'),
+      complete: () => {}
     });
   });
   // #endif
   // #ifndef MP-WEIXIN
-  return true;
+  return 'skipped';
   // #endif
 }
 

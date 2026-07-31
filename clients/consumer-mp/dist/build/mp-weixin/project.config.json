@@ -1,8 +1,7 @@
 {
   "description": "项目配置文件。",
   "packOptions": {
-    "ignore": [],
-    "include": []
+    "ignore": []
   },
   "setting": {
     "urlCheck": false,
@@ -11,29 +10,11 @@
     "minified": false,
     "newFeature": true,
     "bigPackageSizeSupport": true,
-    "enhance": false,
-    "compileWorklet": false,
-    "uglifyFileName": false,
-    "uploadWithSourceMap": true,
-    "packNpmManually": false,
-    "packNpmRelationList": [],
-    "minifyWXSS": true,
-    "minifyWXML": true,
-    "localPlugins": false,
-    "disableUseStrict": false,
-    "useCompilerPlugins": false,
-    "condition": false,
-    "swc": false,
-    "disableSWC": true,
-    "babelSetting": {
-      "ignore": [],
-      "disablePlugins": [],
-      "outputPath": ""
-    }
+    "enhance": false
   },
   "compileType": "miniprogram",
   "libVersion": "3.3.5",
-  "appid": "wx5a5bc7b541b62a13",
+  "appid": "touristappid",
   "projectname": "AI开门柜-消费者",
   "condition": {
     "search": {
@@ -52,7 +33,5 @@
       "current": -1,
       "list": []
     }
-  },
-  "simulatorPluginLibVersion": {},
-  "editorSetting": {}
+  }
 }

@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.CompetitiveGapService;
+import com.aicabinet.trade.service.DeviceAssetService;
 import com.aicabinet.trade.service.FundBillService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -15,7 +16,6 @@ import org.springframework.web.bind.annotation.*;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v2/ops/admin")
@@ -23,10 +23,14 @@ public class OpsGapFeaturesController {
 
     private final FundBillService fundBillService;
     private final CompetitiveGapService gapService;
+    private final DeviceAssetService deviceAssetService;
 
-    public OpsGapFeaturesController(FundBillService fundBillService, CompetitiveGapService gapService) {
+    public OpsGapFeaturesController(FundBillService fundBillService,
+                                    CompetitiveGapService gapService,
+                                    DeviceAssetService deviceAssetService) {
         this.fundBillService = fundBillService;
         this.gapService = gapService;
+        this.deviceAssetService = deviceAssetService;
     }
 
     // ---- M1 fund ----
@@ -157,8 +161,9 @@ public class OpsGapFeaturesController {
             HttpServletRequest request,
             @RequestParam(defaultValue = "PRODUCT") String dim,
             @RequestParam(required = false) String fromDate,
-            @RequestParam(required = false) String toDate) {
-        return ApiResponse.ok(gapService.salesReport(operatorId(request), dim, fromDate, toDate));
+            @RequestParam(required = false) String toDate,
+            @RequestParam(required = false) String deviceId) {
+        return ApiResponse.ok(gapService.salesReport(operatorId(request), dim, fromDate, toDate, deviceId));
     }
 
     @RequiresPermissions("ops:phone-verify:list")
@@ -180,67 +185,65 @@ public class OpsGapFeaturesController {
         return ApiResponse.ok(gapService.recordPhoneVerify(operatorId(request), body));
     }
 
-    // ---- M5 ----
+    // ---- M6 stock health ----
 
-    @RequiresPermissions("ops:commercial-hub:list")
-    @GetMapping("/commercial/onboarding")
-    public ApiResponse<List<MerchantOnboardingDto>> onboarding(HttpServletRequest request) {
-        return ApiResponse.ok(gapService.listOnboarding(operatorId(request)));
-    }
-
-    @RequiresPermissions("ops:commercial-hub:list")
-    @PostMapping("/commercial/onboarding")
-    public ApiResponse<MerchantOnboardingDto> upsertOnboarding(
+    @RequiresPermissions("ops:stock-health:list")
+    @GetMapping("/reports/stock-health")
+    public ApiResponse<List<StockHealthRowDto>> stockHealth(
             HttpServletRequest request,
-            @RequestBody MerchantOnboardingDto body) {
-        return ApiResponse.ok(gapService.upsertOnboarding(operatorId(request), body));
+            @RequestParam(required = false, defaultValue = "ALL") String dimension,
+            @RequestParam(required = false) String merchantId,
+            @RequestParam(required = false) String routeCode,
+            @RequestParam(required = false) String lifecycleStatus,
+            @RequestParam(required = false) String deviceId) {
+        return ApiResponse.ok(deviceAssetService.stockHealth(
+                operatorId(request), dimension, merchantId, routeCode, lifecycleStatus, deviceId));
     }
 
-    @RequiresPermissions("ops:commercial-hub:list")
-    @GetMapping("/commercial/stored-value/{merchantId}")
-    public ApiResponse<PlatformStoredValueDto> storedValue(HttpServletRequest request, @PathVariable String merchantId) {
-        return ApiResponse.ok(gapService.getStoredValue(operatorId(request), merchantId));
-    }
-
-    @RequiresPermissions("ops:commercial-hub:list")
-    @PostMapping("/commercial/stored-value/{merchantId}/recharge")
-    public ApiResponse<PlatformStoredValueDto> rechargeStoredValue(
+    @RequiresPermissions("ops:stock-health:export")
+    @GetMapping(value = "/reports/stock-health/export", produces = "text/csv")
+    public ResponseEntity<byte[]> exportStockHealth(
             HttpServletRequest request,
-            @PathVariable String merchantId,
-            @RequestBody Map<String, Object> body) {
-        long amount = body.get("amountCents") instanceof Number n ? n.longValue() : 0L;
-        String phone = body.get("notifyPhone") == null ? null : String.valueOf(body.get("notifyPhone"));
-        return ApiResponse.ok(gapService.rechargeStoredValue(operatorId(request), merchantId, amount, phone));
-    }
-
-    @RequiresPermissions("ops:commercial-hub:list")
-    @PutMapping("/commercial/stored-value/{merchantId}/warn")
-    public ApiResponse<PlatformStoredValueDto> warnStoredValue(
-            HttpServletRequest request,
-            @PathVariable String merchantId,
-            @RequestBody Map<String, Object> body) {
-        long warn = body.get("warnThresholdCents") instanceof Number n ? n.longValue() : 0L;
-        String phone = body.get("notifyPhone") == null ? null : String.valueOf(body.get("notifyPhone"));
-        return ApiResponse.ok(gapService.updateStoredValueWarn(operatorId(request), merchantId, warn, phone));
-    }
-
-    @RequiresPermissions("ops:commercial-hub:list")
-    @GetMapping("/commercial/compute/{merchantId}")
-    public ApiResponse<RecognitionComputeDto> compute(HttpServletRequest request, @PathVariable String merchantId) {
-        return ApiResponse.ok(gapService.getCompute(operatorId(request), merchantId));
-    }
-
-    @RequiresPermissions("ops:commercial-hub:list")
-    @PostMapping("/commercial/compute/{merchantId}/grant")
-    public ApiResponse<RecognitionComputeDto> grantCompute(
-            HttpServletRequest request,
-            @PathVariable String merchantId,
-            @RequestBody Map<String, Object> body) {
-        long gained = body.get("gained") instanceof Number n ? n.longValue() : 0L;
-        return ApiResponse.ok(gapService.grantCompute(operatorId(request), merchantId, gained));
+            @RequestParam(required = false, defaultValue = "ALL") String dimension,
+            @RequestParam(required = false) String merchantId,
+            @RequestParam(required = false) String routeCode,
+            @RequestParam(required = false) String lifecycleStatus) {
+        List<StockHealthRowDto> rows = deviceAssetService.stockHealth(
+                operatorId(request), dimension, merchantId, routeCode, lifecycleStatus, null);
+        StringBuilder sb = new StringBuilder("\uFEFF维度,设备ID,设备名,商户,路线,生命周期,SKU,商品,库存,容量,低库存阈值,缺货率%,断货天数,到期日,更新时间\n");
+        for (StockHealthRowDto r : rows) {
+            sb.append(csv(r.dimension())).append(',')
+                    .append(csv(r.deviceId())).append(',')
+                    .append(csv(r.deviceName())).append(',')
+                    .append(csv(r.merchantId())).append(',')
+                    .append(csv(r.routeCode())).append(',')
+                    .append(csv(r.lifecycleStatus())).append(',')
+                    .append(csv(r.skuId())).append(',')
+                    .append(csv(r.skuName())).append(',')
+                    .append(r.quantity()).append(',')
+                    .append(r.capacity()).append(',')
+                    .append(r.lowThreshold() == null ? "" : r.lowThreshold()).append(',')
+                    .append(r.stockoutRatePct()).append(',')
+                    .append(r.daysOutOfStock() == null ? "" : r.daysOutOfStock()).append(',')
+                    .append(r.expiryDate() == null ? "" : r.expiryDate()).append(',')
+                    .append(r.updatedAt() == null ? "" : r.updatedAt()).append('\n');
+        }
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"stock-health.csv\"")
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .body(sb.toString().getBytes(StandardCharsets.UTF_8));
     }
 
     private Long operatorId(HttpServletRequest request) {
         return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+    }
+
+    private static String csv(String value) {
+        if (value == null) return "";
+        String v = value.replace("\"", "\"\"");
+        if (v.contains(",") || v.contains("\"") || v.contains("\n")) {
+            return "\"" + v + "\"";
+        }
+        return v;
     }
 }

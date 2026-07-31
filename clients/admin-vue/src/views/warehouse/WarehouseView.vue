@@ -105,9 +105,14 @@
         >
           <el-option label="待处理" value="actionable" />
           <el-option label="全部" value="" />
-          <el-option label="草稿" value="DRAFT" />
-          <el-option label="已拣货" value="PICKED" />
-          <el-option label="已发运" value="SHIPPED" />
+          <el-option
+            v-for="item in dictOptions('warehouse_outbound_status').filter((o) =>
+              ['DRAFT', 'PICKED', 'SHIPPED'].includes(o.value)
+            )"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item v-if="tab === 'transit' && focusDeviceId" label="设备">

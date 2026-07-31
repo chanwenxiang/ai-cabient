@@ -81,11 +81,6 @@ if ($items.Count -gt 0) {
     $oid = $items[0].orderId
     $detail = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/orders/$oid" -Headers $h
     Assert-True ($null -ne $detail.orderId) "order detail load $oid"
-    if ($null -ne $detail.pointsEarned) {
-        Write-Host "OK  order pointsEarned=$($detail.pointsEarned)"
-    } else {
-        Write-Host "OK  order detail has no pointsEarned (zero-pay / old order)"
-    }
     Assert-True ($null -ne $detail.lines) "order lines field present"
 }
 

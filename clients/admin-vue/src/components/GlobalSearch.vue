@@ -35,7 +35,7 @@
           @click="go(item.path)"
         >
           <span class="result-title">{{ item.title }}</span>
-          <span class="result-meta">{{ item.group }}{{ item.section ? ` · ${item.section}` : '' }}</span>
+          <span class="result-meta">{{ item.group }}</span>
         </div>
         <el-empty v-if="keyword && !results.length" description="无匹配页面" :image-size="64" />
         <div v-if="!keyword" class="hint">可搜索：设备、订单、争议、对账、个人中心等</div>

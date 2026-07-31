@@ -31,9 +31,6 @@ public class CompetitiveGapService {
     private final DeviceOpsEventMapper deviceOpsEventMapper;
     private final DeviceInfoMapper deviceInfoMapper;
     private final PhoneVerifyLogMapper phoneVerifyLogMapper;
-    private final MerchantOnboardingMapper onboardingMapper;
-    private final PlatformStoredValueMapper storedValueMapper;
-    private final RecognitionComputeAccountMapper computeAccountMapper;
     private final MerchantMapper merchantMapper;
     private final CabinetOrderMapper orderMapper;
     private final CabinetOrderLineMapper lineMapper;
@@ -48,9 +45,6 @@ public class CompetitiveGapService {
                                  DeviceOpsEventMapper deviceOpsEventMapper,
                                  DeviceInfoMapper deviceInfoMapper,
                                  PhoneVerifyLogMapper phoneVerifyLogMapper,
-                                 MerchantOnboardingMapper onboardingMapper,
-                                 PlatformStoredValueMapper storedValueMapper,
-                                 RecognitionComputeAccountMapper computeAccountMapper,
                                  MerchantMapper merchantMapper,
                                  CabinetOrderMapper orderMapper,
                                  CabinetOrderLineMapper lineMapper,
@@ -64,9 +58,6 @@ public class CompetitiveGapService {
         this.deviceOpsEventMapper = deviceOpsEventMapper;
         this.deviceInfoMapper = deviceInfoMapper;
         this.phoneVerifyLogMapper = phoneVerifyLogMapper;
-        this.onboardingMapper = onboardingMapper;
-        this.storedValueMapper = storedValueMapper;
-        this.computeAccountMapper = computeAccountMapper;
         this.merchantMapper = merchantMapper;
         this.orderMapper = orderMapper;
         this.lineMapper = lineMapper;
@@ -161,7 +152,7 @@ public class CompetitiveGapService {
 
     // ---- M3 device ops + policy ----
 
-    @Transactional(readOnly = true)
+    @Transactional
     public PageResult<DeviceOpsEventDto> listDeviceOpsEvents(Long operatorId, String eventType,
                                                              int page, int size) {
         permissionService.requireAnyPermission(operatorId, "ops:device-ops:list", "ops:device:list", "ops:sla");
@@ -170,6 +161,7 @@ public class CompetitiveGapService {
             return new PageResult<>(List.of(), page, size, 0);
         }
         ensureSyntheticOfflineEvents(allowed);
+        ensureNoSalesEvents(allowed);
         var result = deviceOpsEventMapper.search(
                 allowed, eventType, Instant.now().minusSeconds(86400L * 14), Instant.now(),
                 page, Math.min(size, 100));
@@ -220,6 +212,12 @@ public class CompetitiveGapService {
 
     @Transactional(readOnly = true)
     public List<SalesReportRowDto> salesReport(Long operatorId, String dim, String fromDate, String toDate) {
+        return salesReport(operatorId, dim, fromDate, toDate, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<SalesReportRowDto> salesReport(Long operatorId, String dim, String fromDate, String toDate,
+                                               String deviceId) {
         permissionService.requireAnyPermission(operatorId, "ops:sales-report:list", "ops:analytics:view", "ops:finance:view");
         LocalDate from = fromDate == null || fromDate.isBlank()
                 ? LocalDate.now(ZONE).minusDays(7) : LocalDate.parse(fromDate.trim());
@@ -228,6 +226,13 @@ public class CompetitiveGapService {
         Instant start = from.atStartOfDay(ZONE).toInstant();
         Instant end = to.plusDays(1).atStartOfDay(ZONE).toInstant();
         Set<String> deviceIds = merchantScopeService.allowedDeviceIds(operatorId);
+        if (deviceId != null && !deviceId.isBlank()) {
+            String did = deviceId.trim();
+            if (deviceIds != null && !deviceIds.contains(did)) {
+                return List.of();
+            }
+            deviceIds = Set.of(did);
+        }
         String dimension = dim == null ? "PRODUCT" : dim.trim().toUpperCase();
 
         return switch (dimension) {
@@ -267,122 +272,6 @@ public class CompetitiveGapService {
                 log.getChannel(), log.getMerchantId(), log.getVerifiedAt());
     }
 
-    // ---- M5 commercial hub ----
-
-    @Transactional(readOnly = true)
-    public List<MerchantOnboardingDto> listOnboarding(Long operatorId) {
-        permissionService.requireAnyPermission(operatorId, "ops:commercial-hub:list", "ops:merchant:list");
-        Map<String, String> names = merchantMapper.findAll().stream()
-                .collect(Collectors.toMap(Merchant::getMerchantId, Merchant::getMerchantName, (a, b) -> a));
-        return onboardingMapper.findAllOrdered().stream()
-                .map(o -> new MerchantOnboardingDto(
-                        o.getOnboardingId(), o.getMerchantId(), names.get(o.getMerchantId()),
-                        o.getSubjectType(), o.getAlipayRegStatus(), o.getWechatPayscoreStatus(),
-                        o.getOnboardStatus(), o.getExternalMerchantNo(), o.getRemark(),
-                        o.getCreatedAt(), o.getUpdatedAt()))
-                .toList();
-    }
-
-    @Transactional
-    public MerchantOnboardingDto upsertOnboarding(Long operatorId, MerchantOnboardingDto body) {
-        permissionService.requireAnyPermission(operatorId, "ops:commercial-hub:list", "ops:merchant:edit");
-        if (body.merchantId() == null || body.merchantId().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "merchantId 不能为空");
-        }
-        MerchantOnboarding o = body.onboardingId() != null
-                ? onboardingMapper.findById(body.onboardingId()).orElseGet(MerchantOnboarding::new)
-                : new MerchantOnboarding();
-        if (o.getCreatedAt() == null) {
-            o.setCreatedAt(Instant.now());
-        }
-        o.setMerchantId(body.merchantId().trim());
-        o.setSubjectType(nz(body.subjectType(), "ENTERPRISE"));
-        o.setAlipayRegStatus(nz(body.alipayRegStatus(), "PENDING"));
-        o.setWechatPayscoreStatus(nz(body.wechatPayscoreStatus(), "PENDING"));
-        o.setOnboardStatus(nz(body.onboardStatus(), "DRAFT"));
-        o.setExternalMerchantNo(body.externalMerchantNo());
-        o.setRemark(body.remark());
-        o.setUpdatedAt(Instant.now());
-        if (o.getOnboardingId() == null) {
-            onboardingMapper.insert(o);
-        } else {
-            onboardingMapper.updateById(o);
-        }
-        Map<String, String> names = merchantMapper.findAll().stream()
-                .collect(Collectors.toMap(Merchant::getMerchantId, Merchant::getMerchantName, (a, b) -> a));
-        return new MerchantOnboardingDto(
-                o.getOnboardingId(), o.getMerchantId(), names.get(o.getMerchantId()),
-                o.getSubjectType(), o.getAlipayRegStatus(), o.getWechatPayscoreStatus(),
-                o.getOnboardStatus(), o.getExternalMerchantNo(), o.getRemark(),
-                o.getCreatedAt(), o.getUpdatedAt());
-    }
-
-    @Transactional(readOnly = true)
-    public PlatformStoredValueDto getStoredValue(Long operatorId, String merchantId) {
-        permissionService.requireAnyPermission(operatorId, "ops:commercial-hub:list", "ops:finance:view");
-        return storedValueMapper.findById(merchantId)
-                .map(a -> new PlatformStoredValueDto(a.getMerchantId(), a.getBalanceCents(),
-                        a.getWarnThresholdCents(), a.getNotifyPhone()))
-                .orElse(new PlatformStoredValueDto(merchantId, 0, 0, null));
-    }
-
-    @Transactional
-    public PlatformStoredValueDto rechargeStoredValue(Long operatorId, String merchantId, long amountCents, String notifyPhone) {
-        permissionService.requireAnyPermission(operatorId, "ops:commercial-hub:list", "ops:merchant:edit");
-        if (amountCents == 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "金额不能为 0");
-        }
-        PlatformStoredValue acc = storedValueMapper.findById(merchantId).orElseGet(PlatformStoredValue::new);
-        acc.setMerchantId(merchantId);
-        acc.setBalanceCents(acc.getBalanceCents() + amountCents);
-        if (notifyPhone != null && !notifyPhone.isBlank()) {
-            acc.setNotifyPhone(notifyPhone.trim());
-        }
-        acc.setUpdatedAt(Instant.now());
-        storedValueMapper.save(acc);
-        return new PlatformStoredValueDto(acc.getMerchantId(), acc.getBalanceCents(),
-                acc.getWarnThresholdCents(), acc.getNotifyPhone());
-    }
-
-    @Transactional
-    public PlatformStoredValueDto updateStoredValueWarn(Long operatorId, String merchantId,
-                                                        long warnThresholdCents, String notifyPhone) {
-        permissionService.requireAnyPermission(operatorId, "ops:commercial-hub:list", "ops:merchant:edit");
-        PlatformStoredValue acc = storedValueMapper.findById(merchantId).orElseGet(PlatformStoredValue::new);
-        acc.setMerchantId(merchantId);
-        acc.setWarnThresholdCents(warnThresholdCents);
-        if (notifyPhone != null) {
-            acc.setNotifyPhone(notifyPhone.isBlank() ? null : notifyPhone.trim());
-        }
-        acc.setUpdatedAt(Instant.now());
-        storedValueMapper.save(acc);
-        return new PlatformStoredValueDto(acc.getMerchantId(), acc.getBalanceCents(),
-                acc.getWarnThresholdCents(), acc.getNotifyPhone());
-    }
-
-    @Transactional(readOnly = true)
-    public RecognitionComputeDto getCompute(Long operatorId, String merchantId) {
-        permissionService.requireAnyPermission(operatorId, "ops:commercial-hub:list", "ops:vision:list");
-        return computeAccountMapper.findById(merchantId)
-                .map(a -> new RecognitionComputeDto(a.getMerchantId(), a.getRemaining(), a.getCumulative(), a.getUsed()))
-                .orElse(new RecognitionComputeDto(merchantId, 0, 0, 0));
-    }
-
-    @Transactional
-    public RecognitionComputeDto grantCompute(Long operatorId, String merchantId, long gained) {
-        permissionService.requireAnyPermission(operatorId, "ops:commercial-hub:list", "ops:merchant:edit");
-        if (gained <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "发放算力须为正数");
-        }
-        RecognitionComputeAccount acc = computeAccountMapper.findById(merchantId).orElseGet(RecognitionComputeAccount::new);
-        acc.setMerchantId(merchantId);
-        acc.setCumulative(acc.getCumulative() + gained);
-        acc.setRemaining(acc.getRemaining() + gained);
-        acc.setUpdatedAt(Instant.now());
-        computeAccountMapper.save(acc);
-        return new RecognitionComputeDto(acc.getMerchantId(), acc.getRemaining(), acc.getCumulative(), acc.getUsed());
-    }
-
     // ---- helpers ----
 
     private void ensureSyntheticOfflineEvents(Set<String> allowed) {
@@ -416,6 +305,41 @@ public class CompetitiveGapService {
                 e.setCreatedAt(Instant.now());
                 deviceOpsEventMapper.insert(e);
             }
+        }
+    }
+
+    private void ensureNoSalesEvents(Set<String> allowed) {
+        Instant since = Instant.now().minusSeconds(86400L * 7);
+        Instant hourAgo = Instant.now().minusSeconds(3600);
+        Long recentNoSales = deviceOpsEventMapper.selectCount(Wrappers.<DeviceOpsEvent>lambdaQuery()
+                .eq(DeviceOpsEvent::getEventType, "NO_SALES")
+                .ge(DeviceOpsEvent::getCreatedAt, hourAgo));
+        if (recentNoSales != null && recentNoSales > 0) {
+            return;
+        }
+        List<DeviceInfo> devices = allowed == null
+                ? deviceInfoMapper.findAll()
+                : deviceInfoMapper.findByDeviceIdIn(allowed);
+        Set<String> sold = orderMapper.selectList(Wrappers.<CabinetOrder>lambdaQuery()
+                        .ge(CabinetOrder::getCreatedAt, since))
+                .stream()
+                .map(CabinetOrder::getDeviceId)
+                .collect(Collectors.toSet());
+        for (DeviceInfo d : devices) {
+            if (!"DEPLOYED".equalsIgnoreCase(DeviceAssetService.normalizeLifecycle(d.getLifecycleStatus()))) {
+                continue;
+            }
+            if (sold.contains(d.getDeviceId())) {
+                continue;
+            }
+            DeviceOpsEvent e = new DeviceOpsEvent();
+            e.setDeviceId(d.getDeviceId());
+            e.setEventType("NO_SALES");
+            e.setSeverity("WARN");
+            e.setTitle("近7日无销售");
+            e.setDetail("lifecycle=DEPLOYED");
+            e.setCreatedAt(Instant.now());
+            deviceOpsEventMapper.insert(e);
         }
     }
 

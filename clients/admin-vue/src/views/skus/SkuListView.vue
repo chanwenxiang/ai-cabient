@@ -285,6 +285,7 @@ import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, Upload, CircleCheck, ArrowRight } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -319,12 +320,19 @@ const rowBySku = ref<Record<string, SkuVisionEnrollmentRow>>({});
 const pipelineHint = ref(
   '流程：草稿/映射中 → 识别测试 → 转生产。转生产只表示运营侧映射生效；尚未接入真实 YOLO 训练时，视觉仍为演示/mock，低置信与 mock 结果会进争议审单。'
 );
-const enrollmentSteps = ref<SkuVisionEnrollmentPipeline['steps']>([
-  { status: 'DRAFT', label: '草稿', description: '录入商品基本信息' },
-  { status: 'MAPPING', label: '映射中', description: '绑定类名与阈值' },
-  { status: 'TESTED', label: '已测试', description: '完成识别抽检' },
-  { status: 'PRODUCTION', label: '生产', description: '映射生效（等待真实模型）' }
-]);
+const enrollmentStepDesc: Record<string, string> = {
+  DRAFT: '录入商品基本信息',
+  MAPPING: '绑定类名与阈值',
+  TESTED: '完成识别抽检',
+  PRODUCTION: '映射生效（等待真实模型）'
+};
+const enrollmentSteps = ref<SkuVisionEnrollmentPipeline['steps']>(
+  dictOptions('sku_enrollment_status').map((o) => ({
+    status: o.value,
+    label: o.label,
+    description: enrollmentStepDesc[o.value] || o.label
+  }))
+);
 const keyword = ref('');
 const enrollmentFilter = ref('');
 const saleTab = ref('ACTIVE');
@@ -429,16 +437,12 @@ async function batchDelist() {
   }
 }
 
-const enrollmentStatusByLabel: Record<string, string> = {
-  草稿: 'DRAFT',
-  映射中: 'MAPPING',
-  已测试: 'TESTED',
-  生产: 'PRODUCTION',
-  DRAFT: 'DRAFT',
-  MAPPING: 'MAPPING',
-  TESTED: 'TESTED',
-  PRODUCTION: 'PRODUCTION'
-};
+const enrollmentStatusByLabel: Record<string, string> = Object.fromEntries([
+  ...dictOptions('sku_enrollment_status').flatMap((o) => [
+    [o.label, o.value],
+    [o.value, o.value]
+  ] as [string, string][])
+]);
 const skuStatusByLabel: Record<string, string> = {
   上架: 'ACTIVE',
   下架: 'INACTIVE',
@@ -522,7 +526,7 @@ const classImageInput = ref<HTMLInputElement | null>(null);
 const testImageInput = ref<HTMLInputElement | null>(null);
 const classSuggestHint = ref('');
 
-const enrollmentStatuses = ['DRAFT', 'MAPPING', 'TESTED', 'PRODUCTION'];
+const enrollmentStatuses = dictOptions('sku_enrollment_status').map((o) => o.value);
 
 const enrollForm = reactive({
   existing: false,
@@ -550,22 +554,13 @@ function formatConfidence(value?: number) {
 }
 
 function enrollmentLabel(status?: string) {
-  const map: Record<string, string> = {
-    DRAFT: '草稿',
-    MAPPING: '映射中',
-    TESTED: '已测试',
-    PRODUCTION: '生产'
-  };
-  return map[status || 'DRAFT'] || status || '草稿';
+  return dictLabel('sku_enrollment_status', status || 'DRAFT');
 }
 
 function skuStatusLabel(status?: string) {
-  const map: Record<string, string> = {
-    ACTIVE: '上架',
-    INACTIVE: '下架',
-    DISABLED: '停用'
-  };
-  return map[status || ''] || status || '—';
+  if (status === 'ACTIVE') return '上架';
+  if (status === 'INACTIVE') return '下架';
+  return dictLabel('sku_status', status) || status || '—';
 }
 
 function enrollmentTagType(status?: string) {

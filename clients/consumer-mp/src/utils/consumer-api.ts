@@ -461,14 +461,6 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').UserFeedbackDto[]>('/api/v2/feedback/mine'),
 
   memberProfile: () => request<MemberProfileDto>('/api/v2/member/profile'),
-  memberPointsSummary: () => request<MemberPointsSummaryDto>('/api/v2/member/points/summary'),
-  memberPointsHistory: (type?: string) =>
-    request<MemberPointsLogDto[]>(
-      type ? `/api/v2/member/points?type=${encodeURIComponent(type)}` : '/api/v2/member/points'
-    ),
-  redeemItems: () => request<PointsRedeemItemDto[]>('/api/v2/member/redeem-items'),
-  redeemPoints: (itemId: number) =>
-    request<CouponDto>('/api/v2/member/redeem', 'POST', { itemId }),
   marketingBanners: () =>
     request<MarketingBannerDto[]>('/api/v2/marketing/banners', 'GET', undefined, false),
   marketingCampaigns: () =>
@@ -477,7 +469,21 @@ export const consumerApi = {
     request<CouponDto>(`/api/v2/marketing/campaigns/${activityId}/claim`, 'POST'),
   myCoupons: (status?: string) =>
     request<CouponDto[]>(status ? `/api/v2/coupons?status=${encodeURIComponent(status)}` : '/api/v2/coupons'),
-  couponCount: () => request<number>('/api/v2/coupons/count')
+  couponCount: () => request<number>('/api/v2/coupons/count'),
+  listAnnouncements: () =>
+    request<import('@aicabinet/shared-types').AnnouncementDto[]>(
+      '/api/v2/announcements',
+      'GET',
+      undefined,
+      false
+    ),
+  getAnnouncement: (id: number) =>
+    request<import('@aicabinet/shared-types').AnnouncementDto>(
+      `/api/v2/announcements/${id}`,
+      'GET',
+      undefined,
+      false
+    )
 };
 
 export type MemberProfileDto = {
@@ -485,61 +491,19 @@ export type MemberProfileDto = {
   userId: number;
   levelCode: string;
   levelName: string;
-  availablePoints: number;
-  totalPoints: number;
-  usedPoints: number;
   totalSpent: number;
   orderCount: number;
-  inviteCode?: string;
-  pointsToNextLevel: number;
+  spentToNextLevel: number;
   nextLevelName?: string | null;
   progressPercent: number;
-  pointsRate: number;
   levels: Array<{
     levelCode: string;
     levelName: string;
     minSpent: number;
     maxSpent?: number | null;
-    minPoints: number;
-    pointsRate: number;
     sortOrder: number;
   }>;
   createdAt?: string;
-};
-
-export type MemberPointsSummaryDto = {
-  availablePoints: number;
-  totalPoints: number;
-  usedPoints: number;
-  expiredPoints: number;
-  earnedThisMonth: number;
-  usedThisMonth: number;
-};
-
-export type MemberPointsLogDto = {
-  id: number;
-  points: number;
-  pointsType: string;
-  sourceType?: string;
-  sourceId?: string;
-  description?: string;
-  createdAt?: string;
-  expireAt?: string;
-};
-
-export type PointsRedeemItemDto = {
-  itemId: number;
-  title: string;
-  subtitle?: string;
-  coverEmoji: string;
-  pointsCost: number;
-  couponDefId: number;
-  couponName: string;
-  denominationCents: number;
-  minSpendCents: number;
-  couponType: string;
-  stockLeft: number;
-  canRedeem: boolean;
 };
 
 export type MarketingBannerDto = {

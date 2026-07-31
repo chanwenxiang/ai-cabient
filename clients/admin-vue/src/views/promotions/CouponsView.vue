@@ -124,9 +124,12 @@
         <el-form-item label="名称" required><el-input v-model="createForm.couponName" /></el-form-item>
         <el-form-item label="类型">
           <el-select v-model="createForm.couponType" style="width: 100%">
-            <el-option label="满减券" value="AMOUNT_OFF" />
-            <el-option label="折扣券" value="PERCENT_OFF" />
-            <el-option label="兑换券" value="EXCHANGE" />
+            <el-option
+              v-for="item in dictOptions('coupon_type')"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="面值(元)">
@@ -181,6 +184,7 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh, SwitchButton, Ticket } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -254,20 +258,17 @@ const issueForm = ref<{ couponDefId: number | null; userId: number | null }>({
 });
 
 const typeMap: Record<string, string> = {
-  AMOUNT_OFF: '满减券',
-  PERCENT_OFF: '折扣券',
-  EXCHANGE: '兑换券',
+  ...Object.fromEntries(dictOptions('coupon_type').map((o) => [o.value, o.label])),
   FREE_SHIPPING: '免运费'
 };
 const statusMap: Record<string, string> = { ACTIVE: '启用', INACTIVE: '停用', DISABLED: '停用' };
-const typeCodeByLabel: Record<string, string> = {
-  满减券: 'AMOUNT_OFF',
-  折扣券: 'PERCENT_OFF',
-  兑换券: 'EXCHANGE',
-  AMOUNT_OFF: 'AMOUNT_OFF',
-  PERCENT_OFF: 'PERCENT_OFF',
-  EXCHANGE: 'EXCHANGE'
-};
+const typeCodeByLabel: Record<string, string> = Object.fromEntries([
+  ...dictOptions('coupon_type').flatMap((o) => [
+    [o.label, o.value],
+    [o.value, o.value]
+  ] as [string, string][]),
+  ['免运费', 'FREE_SHIPPING']
+]);
 const activeCoupons = computed(() => list.value.filter((d) => d.status === 'ACTIVE'));
 
 const CSV_HEADERS = ['名称', '类型', '面值(元)', '最低消费(元)', '折扣百分比', '有效天数', '总量限制', '描述', '状态'];

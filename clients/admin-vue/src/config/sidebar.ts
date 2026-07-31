@@ -1,6 +1,6 @@
 import type { Component } from 'vue';
 import {
-  Box, Briefcase, Coin, Collection, Cpu, DataAnalysis, DataBoard, Document, Goods, House, Key, Lock, Menu, Monitor, Money, Notebook, Odometer, OfficeBuilding, Operation, Setting, Timer, Tools, Upload, User, UserFilled, View, Wallet, Warning
+  Box, Briefcase, Coin, Collection, Cpu, DataAnalysis, DataBoard, Document, Goods, House, Key, Location, Lock, Menu, Monitor, Money, Notebook, Odometer, OfficeBuilding, Setting, Timer, Tools, Upload, User, UserFilled, View, Wallet, Warning
 } from '@element-plus/icons-vue';
 import { NAV_ITEMS, type NavItem } from '@/config/menu';
 
@@ -18,7 +18,13 @@ const PATH_ICONS: Record<string, Component> = {
   '/analytics': DataAnalysis,
   '/reports': DataBoard,
   '/finance': Money,
+  '/sales-reports': DataBoard,
+  '/stock-health': Box,
+  '/fund-bills': Coin,
   '/devices': Monitor,
+  '/device-map': Location,
+  '/repair-tickets': Tools,
+  '/device-ops': Tools,
   '/sessions': Key,
   '/upload-queue': Upload,
   '/orders': Document,
@@ -31,10 +37,14 @@ const PATH_ICONS: Record<string, Component> = {
   '/exceptions': Warning,
   '/replenishment': Box,
   '/merchants': OfficeBuilding,
+  '/line-managers': UserFilled,
+  '/merchant-withdraw': Wallet,
   '/reconciliation': Coin,
+  '/consistency': Document,
   '/warehouse': House,
   '/recharges': Wallet,
   '/users': User,
+  '/phone-verify': UserFilled,
   '/risk': Lock,
   '/operators': User,
   '/roles': UserFilled,
@@ -51,26 +61,25 @@ const PATH_ICONS: Record<string, Component> = {
 
 const GROUP_META: { key: string; label: string; icon: Component }[] = [
   { key: 'overview', label: '概览', icon: DataBoard },
-  { key: 'biz', label: '业务', icon: Briefcase },
-  { key: 'ops', label: '运营', icon: Operation },
+  { key: 'trade', label: '交易履约', icon: Document },
+  { key: 'device', label: '设备商品', icon: Monitor },
+  { key: 'fulfill', label: '履约仓储', icon: Box },
+  { key: 'finance', label: '财务商户', icon: Coin },
+  { key: 'growth', label: '增长风控', icon: Lock },
   { key: 'sys', label: '系统', icon: Setting }
 ];
 
 const GROUP_KEY: Record<string, string> = {
   概览: 'overview',
-  业务: 'biz',
-  运营: 'ops',
-  系统: 'sys'
-};
-
-const SECTION_ICONS: Record<string, Component> = {
-  交易履约: Document,
-  设备与商品: Monitor,
-  履约仓储: Box,
-  财务商户: Coin,
-  增长风控: Lock,
-  权限管理: Key,
-  系统配置: Tools
+  交易履约: 'trade',
+  设备商品: 'device',
+  履约仓储: 'fulfill',
+  财务商户: 'finance',
+  增长风控: 'growth',
+  系统: 'sys',
+  // 旧分组兼容（书签/缓存）
+  业务: 'trade',
+  运营: 'finance'
 };
 
 function toLeaf(item: NavItem): SidebarNode {
@@ -82,20 +91,7 @@ function toLeaf(item: NavItem): SidebarNode {
   };
 }
 
-function slugSection(section: string): string {
-  const map: Record<string, string> = {
-    交易履约: 'trade',
-    设备与商品: 'device-sku',
-    履约仓储: 'fulfillment',
-    财务商户: 'finance-merchant',
-    增长风控: 'growth',
-    权限管理: 'rbac',
-    系统配置: 'config'
-  };
-  return map[section] || section;
-}
-
-/** 按权限过滤后的树型侧栏（一级分组 → 二级分区 → 叶子） */
+/** 按权限过滤后的树型侧栏（一级分类 → 叶子，与菜单管理一致） */
 export function buildSidebarTree(canAccess: (item: NavItem) => boolean): SidebarNode[] {
   const accessible = NAV_ITEMS.filter((item) => {
     if (item.path === '/profile') return false;
@@ -105,51 +101,11 @@ export function buildSidebarTree(canAccess: (item: NavItem) => boolean): Sidebar
   return GROUP_META.flatMap((group): SidebarNode[] => {
     const groupItems = accessible.filter((item) => GROUP_KEY[item.group] === group.key);
     if (!groupItems.length) return [];
-
-    const sectionOrder: string[] = [];
-    const bySection = new Map<string, NavItem[]>();
-    const direct: NavItem[] = [];
-
-    for (const item of groupItems) {
-      if (!item.section) {
-        direct.push(item);
-        continue;
-      }
-      if (!bySection.has(item.section)) {
-        bySection.set(item.section, []);
-        sectionOrder.push(item.section);
-      }
-      bySection.get(item.section)!.push(item);
-    }
-
-    const children: SidebarNode[] = [
-      ...direct.map(toLeaf),
-      ...sectionOrder.map((section) => {
-        const items = bySection.get(section) || [];
-        return {
-          key: `${group.key}:${slugSection(section)}`,
-          label: section,
-          icon: SECTION_ICONS[section] ?? Document,
-          children: items.map(toLeaf)
-        };
-      })
-    ];
-
-    // 概览无二级分区：叶子直接挂在一级下
-    if (group.key === 'overview' || (direct.length && !sectionOrder.length)) {
-      return [{
-        key: group.key,
-        label: group.label,
-        icon: group.icon,
-        children: groupItems.map(toLeaf)
-      }];
-    }
-
     return [{
       key: group.key,
       label: group.label,
       icon: group.icon,
-      children
+      children: groupItems.map(toLeaf)
     }];
   });
 }
@@ -161,21 +117,18 @@ export function buildSidebarGroups(canAccess: (item: NavItem) => boolean) {
     label: node.label,
     icon: node.icon,
     items: (node.children || [])
-      .flatMap((child) => (child.children?.length ? child.children : [child]))
       .filter((leaf) => leaf.path)
       .map((leaf) => ({ path: leaf.path!, title: leaf.label, icon: leaf.icon }))
   }));
 }
 
-/** 返回当前路径需要展开的全部祖先 key（一级 + 二级） */
+/** 返回当前路径需要展开的全部祖先 key */
 export function sidebarOpenKeysForPath(path: string): string[] {
   const normalized = path.startsWith('/devices/') ? '/devices' : path;
   const item = NAV_ITEMS.find((entry) => entry.path === normalized);
   if (!item) return [];
   const groupKey = GROUP_KEY[item.group];
-  if (!groupKey) return [];
-  if (!item.section || item.group === '概览') return [groupKey];
-  return [groupKey, `${groupKey}:${slugSection(item.section)}`];
+  return groupKey ? [groupKey] : [];
 }
 
 /** @deprecated 请用 sidebarOpenKeysForPath */

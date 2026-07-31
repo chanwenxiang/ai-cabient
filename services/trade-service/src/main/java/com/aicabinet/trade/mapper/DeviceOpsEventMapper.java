@@ -3,11 +3,13 @@ package com.aicabinet.trade.mapper;
 import com.aicabinet.trade.domain.DeviceOpsEvent;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.apache.ibatis.annotations.Mapper;
 
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 
+@Mapper
 public interface DeviceOpsEventMapper extends BaseTradeMapper<DeviceOpsEvent> {
     default Page<DeviceOpsEvent> search(Collection<String> deviceIds, String eventType, Instant from, Instant to, int page, int size) {
         var q = Wrappers.<DeviceOpsEvent>lambdaQuery().orderByDesc(DeviceOpsEvent::getCreatedAt);

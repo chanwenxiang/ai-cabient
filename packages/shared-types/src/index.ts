@@ -35,6 +35,21 @@ export interface DeviceInfo {
   /** 锁机停售 */
   salesLocked?: boolean;
   replenishmentInProgress?: boolean;
+  /** INBOUND|IDLE|DEPLOYED|RETURNING|RETIRED */
+  lifecycleStatus?: string;
+  imei?: string;
+  assetOwner?: string;
+  /** SELF|FRANCHISE|CONSIGN */
+  coopMode?: string;
+  depositCents?: number;
+  dataFeeCents?: number;
+  opsTags?: string;
+  routeCode?: string;
+  latitude?: number;
+  longitude?: number;
+  address?: string;
+  deployedAt?: string;
+  lifecycleRemark?: string;
 }
 
 export interface DeviceSlot {
@@ -103,6 +118,22 @@ export interface RevenueSplit {
   settlementBatchNo?: string;
   settleAfter?: string;
   settledAt?: string;
+}
+
+export interface MerchantUserDto {
+  userId: number;
+  phoneNumber?: string;
+  displayName?: string;
+  roleKey?: string;
+  roleName?: string;
+  status?: string;
+  self?: boolean;
+}
+
+export interface MerchantTeamRoleDto {
+  roleKey: string;
+  roleName: string;
+  description?: string;
 }
 
 export interface ProfitSharingStatus {
@@ -475,6 +506,17 @@ export interface UserFeedbackDto {
   createdAt?: string;
 }
 
+export interface AnnouncementDto {
+  announceId: number;
+  title: string;
+  content: string;
+  announceType?: string;
+  targetScope?: string;
+  priority?: string;
+  publishAt?: string;
+  expireAt?: string;
+}
+
 export interface DisputeTicketDto {
   ticketId: string;
   sessionId?: string;
@@ -529,7 +571,6 @@ export interface OrderDetailDto {
   totalAmountCents: number;
   couponDiscountCents?: number;
   originalAmountCents?: number;
-  pointsEarned?: number;
   lines?: OrderLineDto[];
   createdAt?: string;
   /** 柜机生效退款策略：AUTO_REFUND | DISPUTE_ONLY */

@@ -31,7 +31,9 @@ public final class MerchantFeaturePacks {
             "merchant:reports:",
             "merchant:trend:",
             "merchant:analytics:",
-            "merchant:coupon:"
+            "merchant:coupon:",
+            "merchant:line-wallet:",
+            "merchant:wallet:"
     );
 
     private static final Set<String> TEAM_PREFIXES = Set.of(

@@ -3,7 +3,7 @@ package com.aicabinet.common.constants;
 public final class CabinetConstants {
 
     private CabinetConstants() {}
-    // ── 业务状态常量 ──
+    // business status constants
     public static final String ORDER_STATUS_PAID = "PAID";
     public static final String ORDER_STATUS_REFUNDED = "REFUNDED";
     public static final String ORDER_STATUS_DISPUTED = "DISPUTED";

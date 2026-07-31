@@ -1,6 +1,5 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.common.dto.ResolveDisputeRequest;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.OpsException;
 import com.aicabinet.trade.domain.ShoppingSession;

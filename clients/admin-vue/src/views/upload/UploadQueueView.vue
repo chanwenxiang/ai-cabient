@@ -46,6 +46,16 @@
           @clear="search"
         />
       </el-form-item>
+      <el-form-item label="上传状态">
+        <el-select v-model="uploadStatus" clearable placeholder="全部" style="width: 140px" @change="search">
+          <el-option
+            v-for="item in uploadStatusOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+      </el-form-item>
       <el-form-item>
         <el-checkbox v-model="stuckOnly" @change="onStuckToggle">仅滞留</el-checkbox>
       </el-form-item>
@@ -171,7 +181,7 @@ import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -201,12 +211,21 @@ const { router, goPath } = useNavAccess();
 const { playSessionVideo } = useSessionVideo();
 const loading = ref(false);
 const deviceId = ref('');
+const uploadStatus = ref('');
 const stuckOnly = ref(false);
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const items = ref<SessionRow[]>([]);
 const focusSessionId = ref('');
+const uploadStatusOptions = dictOptions('upload_status').filter((o) =>
+  ['NONE', 'LOCAL_QUEUED', 'UPLOADING', 'UPLOADED', 'FAILED'].includes(o.value)
+);
+
+function matchUploadStatus(row: SessionRow) {
+  if (!uploadStatus.value) return true;
+  return String(row.uploadStatus || '').toUpperCase() === uploadStatus.value.toUpperCase();
+}
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } = useTableSelection<SessionRow>(
   (row) => row.sessionId
@@ -337,6 +356,7 @@ function rowClassName({ row }: { row: SessionRow }) {
 function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (deviceId.value.trim()) query.deviceId = deviceId.value.trim();
+  if (uploadStatus.value) query.uploadStatus = uploadStatus.value;
   if (stuckOnly.value) query.stuck = '1';
   if (focusSessionId.value) query.sessionId = focusSessionId.value;
   router.replace({ query });
@@ -354,6 +374,13 @@ function applyRouteQuery() {
   const qStuck = route.query.stuck === '1' || route.query.stuck === 'true';
   if (qStuck !== stuckOnly.value) {
     stuckOnly.value = qStuck;
+    changed = true;
+  }
+  if (typeof route.query.uploadStatus === 'string' && route.query.uploadStatus !== uploadStatus.value) {
+    uploadStatus.value = route.query.uploadStatus;
+    changed = true;
+  } else if (!route.query.uploadStatus && uploadStatus.value) {
+    uploadStatus.value = '';
     changed = true;
   }
   if (typeof route.query.sessionId === 'string') {
@@ -412,9 +439,11 @@ async function maybeScrollToFocus() {
 async function load() {
   loading.value = true;
   try {
-    // Soft stuck filter is client-side (API has no stuck flag); scan recent waiting pages.
-    if (stuckOnly.value) {
-      const { matched } = await scanWaitingPages((r) => isStuck(r));
+    // Soft stuck / uploadStatus filters are client-side; scan recent waiting pages.
+    if (stuckOnly.value || uploadStatus.value) {
+      const { matched } = await scanWaitingPages(
+        (r) => (!stuckOnly.value || isStuck(r)) && matchUploadStatus(r)
+      );
       matched.sort((a, b) => ageMs(b) - ageMs(a));
       total.value = matched.length;
       const start = (page.value - 1) * size.value;
@@ -460,6 +489,7 @@ function onStuckToggle() {
 
 function reset() {
   deviceId.value = '';
+  uploadStatus.value = '';
   stuckOnly.value = false;
   focusSessionId.value = '';
   page.value = 1;

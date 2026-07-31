@@ -1,7 +1,5 @@
 package com.aicabinet.common.dto;
 
-import java.util.List;
-
 public record FileAttachmentDto(
         Long fileId,
         String fileName,

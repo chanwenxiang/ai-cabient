@@ -1,7 +1,6 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.*;
-import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.PromotionService;
 import jakarta.servlet.http.HttpServletRequest;

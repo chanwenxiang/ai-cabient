@@ -132,6 +132,98 @@ export const DICT = {
   },
   merchant_status: { ACTIVE: '正常', INACTIVE: '停用', PENDING: '待审核' },
   online_status: { ONLINE: '在线', OFFLINE: '离线', UNKNOWN: '未知' },
+  device_lifecycle: {
+    IDLE: '未投放',
+    INBOUND: '入库',
+    DEPLOYED: '投放',
+    RETURNING: '返厂中',
+    RETIRED: '退役'
+  },
+  device_coop_mode: {
+    SELF: '自营',
+    FRANCHISE: '加盟',
+    CONSIGN: '联营'
+  },
+  repair_ticket_status: {
+    OPEN: '待处理',
+    IN_PROGRESS: '处理中',
+    DONE: '已完成',
+    CANCELLED: '已取消'
+  },
+  line_manager_status: {
+    ACTIVE: '启用',
+    DISABLED: '停用'
+  },
+  announcement_status: {
+    DRAFT: '草稿',
+    PUBLISHED: '已发布',
+    ARCHIVED: '存档'
+  },
+  announcement_audience: {
+    ALL: '全部用户',
+    MERCHANT: '商户',
+    CONSUMER: '消费者'
+  },
+  promotion_type: {
+    FULL_REDUCE: '满减',
+    DISCOUNT: '折扣',
+    BUY_GIFT: '买赠',
+    SECOND_HALF: '第二件半价'
+  },
+  coupon_type: {
+    AMOUNT_OFF: '满减券',
+    PERCENT_OFF: '折扣券',
+    EXCHANGE: '兑换券'
+  },
+  sku_enrollment_status: {
+    DRAFT: '草稿',
+    MAPPING: '映射中',
+    TESTED: '已测试',
+    PRODUCTION: '生产'
+  },
+  fund_ledger_type: {
+    ORDER_PAYMENT: '订单支付',
+    PLATFORM_FEE: '平台抽成',
+    CHANNEL_FEE: '通道费',
+    MERCHANT_CREDIT: '商户入账'
+  },
+  fund_direction: {
+    IN: '收入',
+    OUT: '支出'
+  },
+  device_ops_event: {
+    OFFLINE: '离线',
+    NO_SALES: '无销售',
+    UNLOCK: '开锁',
+    FAULT: '故障/锁机',
+    AISLE_AUDIT: '货道巡检',
+    MAINBOARD: '主板'
+  },
+  repair_fault_type: {
+    DOOR: '门锁',
+    COOLING: '制冷',
+    NETWORK: '网络',
+    PAYMENT: '支付',
+    VISION: '识别',
+    POWER: '供电',
+    OTHER: '其他'
+  },
+  line_withdraw_status: {
+    PENDING_REVIEW: '待审核',
+    APPROVED: '已通过',
+    PAYING: '打款中',
+    PAID: '已打款',
+    REJECTED: '已驳回',
+    FAILED: '失败'
+  },
+  merchant_withdraw_status: {
+    PENDING_REVIEW: '待审核',
+    APPROVED: '已通过',
+    PAYING: '打款中',
+    PAID: '已打款',
+    REJECTED: '已驳回',
+    FAILED: '失败'
+  },
   supplier_status: { ACTIVE: '启用', INACTIVE: '停用' },
   purchase_order_status: {
     CREATED: '待收货',

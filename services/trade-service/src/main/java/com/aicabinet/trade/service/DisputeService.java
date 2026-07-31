@@ -2,7 +2,6 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.DisputeMessageDto;
 import com.aicabinet.common.dto.DisputeTicketDto;
-import com.aicabinet.common.dto.FileAttachmentDto;
 import com.aicabinet.common.dto.FileDisputeRequest;
 import com.aicabinet.common.dto.MerchantDisputeDetailDto;
 import com.aicabinet.common.dto.MerchantReplyDisputeRequest;

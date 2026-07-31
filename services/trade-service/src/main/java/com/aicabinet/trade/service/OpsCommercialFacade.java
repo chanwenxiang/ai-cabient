@@ -173,6 +173,11 @@ public class OpsCommercialFacade {
         return replenishmentService.listOpenPullOffTasks();
     }
 
+    public PullOffTaskDto ensureExpiryAlert(Long operatorId, String lotId) {
+        permissionService.requirePermission(operatorId, "ops:replenishment:edit");
+        return replenishmentService.ensurePullOffFromLot(lotId);
+    }
+
     public ReplenishmentRouteDto createTaskFromExpiry(Long operatorId, Long pullOffTaskId,
                                                      CreateFromExpiryRequest body) {
         permissionService.requirePermission(operatorId, "ops:replenishment:edit");

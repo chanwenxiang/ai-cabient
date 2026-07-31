@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">通知公告</span>
-            <span class="hint">面向商户 / 消费者的运营公告；支持发布与归档</span>
+            <span class="hint">面向商户 / 消费者的运营公告；支持编辑、发布与归档</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -32,16 +32,22 @@
       </el-form-item>
       <el-form-item label="状态">
         <el-select v-model="statusFilter" clearable placeholder="全部" style="width: 120px" @change="search">
-          <el-option label="草稿" value="DRAFT" />
-          <el-option label="已发布" value="PUBLISHED" />
-          <el-option label="存档" value="ARCHIVED" />
+          <el-option
+            v-for="item in dictOptions('announcement_status')"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item label="优先级">
         <el-select v-model="priorityFilter" clearable placeholder="全部" style="width: 120px" @change="search">
-          <el-option label="普通" value="NORMAL" />
-          <el-option label="高" value="HIGH" />
-          <el-option label="紧急" value="URGENT" />
+          <el-option
+            v-for="item in dictOptions('dispute_priority')"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -98,7 +104,7 @@
               <span class="cell-datetime">{{ formatTime(row.publishAt) || '-' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120" class-name="col-action" align="center">
+          <el-table-column label="操作" width="160" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions :actions="rowActions(row)" :max-primary="2" @action="(k) => onRowAction(k, row)" />
             </template>
@@ -118,7 +124,7 @@
       />
     </div>
 
-    <el-dialog v-model="showCreate" title="发布公告" width="480px" destroy-on-close>
+    <el-dialog v-model="showForm" :title="editingId ? '编辑公告' : '发布公告'" width="480px" destroy-on-close>
       <el-form :model="form" label-width="80px">
         <el-form-item label="标题" required>
           <el-input v-model="form.title" maxlength="100" show-word-limit />
@@ -128,22 +134,41 @@
         </el-form-item>
         <el-form-item label="目标">
           <el-select v-model="form.targetScope">
-            <el-option label="全部用户" value="ALL" />
-            <el-option label="商户" value="MERCHANT" />
-            <el-option label="消费者" value="CONSUMER" />
+            <el-option
+              v-for="item in dictOptions('announcement_audience')"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="优先级">
           <el-select v-model="form.priority">
-            <el-option label="普通" value="NORMAL" />
-            <el-option label="高" value="HIGH" />
-            <el-option label="紧急" value="URGENT" />
+            <el-option
+              v-for="item in dictOptions('dispute_priority')"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showCreate = false">取消</el-button>
-        <el-button v-hasPermi="['ops:announcement:publish']" type="primary" :loading="publishing" @click="onPublishSubmit">发布</el-button>
+        <el-button @click="showForm = false">取消</el-button>
+        <el-button
+          v-if="editingId"
+          v-hasPermi="['ops:announcement:edit']"
+          type="primary"
+          :loading="saving"
+          @click="onSaveSubmit"
+        >保存</el-button>
+        <el-button
+          v-else
+          v-hasPermi="['ops:announcement:publish']"
+          type="primary"
+          :loading="saving"
+          @click="onPublishSubmit"
+        >发布</el-button>
       </template>
     </el-dialog>
 
@@ -165,9 +190,10 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { FolderOpened, Promotion, Refresh, View } from '@element-plus/icons-vue';
+import { EditPen, FolderOpened, Promotion, Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { get, post } from '@/api/client';
+import { dictOptions } from '@aicabinet/shared-dict';
+import { get, post, put } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
@@ -177,7 +203,7 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const loading = ref(false);
-const publishing = ref(false);
+const saving = ref(false);
 const error = ref('');
 const list = ref<any[]>([]);
 const page = ref(1);
@@ -185,10 +211,15 @@ const size = ref(20);
 const keyword = ref('');
 const statusFilter = ref('');
 const priorityFilter = ref('');
-const showCreate = ref(false);
+const showForm = ref(false);
+const editingId = ref<number | null>(null);
 const previewVisible = ref(false);
 const previewRow = ref<any>(null);
 const form = ref<any>({ title: '', content: '', targetScope: 'ALL', priority: 'NORMAL' });
+
+function emptyForm() {
+  return { title: '', content: '', targetScope: 'ALL', priority: 'NORMAL' };
+}
 
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();
@@ -214,8 +245,12 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } = u
 );
 
 const scopeMap: Record<string, string> = { ALL: '全部', MERCHANT: '商户', CONSUMER: '消费者' };
-const statusMap: Record<string, string> = { DRAFT: '草稿', PUBLISHED: '已发布', ARCHIVED: '存档' };
-const priorityMap: Record<string, string> = { LOW: '低', NORMAL: '普通', HIGH: '高', URGENT: '紧急' };
+const statusMap: Record<string, string> = Object.fromEntries(
+  dictOptions('announcement_status').map((o) => [o.value, o.label])
+);
+const priorityMap: Record<string, string> = Object.fromEntries(
+  dictOptions('dispute_priority').map((o) => [o.value, o.label])
+);
 const scopeCodeByLabel: Record<string, string> = {
   全部: 'ALL',
   商户: 'MERCHANT',
@@ -341,6 +376,9 @@ function formatTime(t: string) {
 
 function rowActions(row: any): TableAction[] {
   const actions: TableAction[] = [{ key: 'preview', label: '查看', icon: View, type: 'primary' }];
+  if (row.status !== 'ARCHIVED' && auth.hasPerm('ops:announcement:edit')) {
+    actions.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
+  }
   if (row.status === 'DRAFT' && auth.hasPerm('ops:announcement:publish')) {
     actions.push({ key: 'publish', label: '发布', icon: Promotion, type: 'success' });
   }
@@ -352,13 +390,56 @@ function rowActions(row: any): TableAction[] {
 
 function onRowAction(key: string, row: any) {
   if (key === 'preview') onPreview(row);
+  else if (key === 'edit') openEdit(row);
   else if (key === 'publish') onPublish(row);
   else if (key === 'archive') onArchive(row);
 }
 
 function openCreate() {
-  form.value = { title: '', content: '', targetScope: 'ALL', priority: 'NORMAL' };
-  showCreate.value = true;
+  editingId.value = null;
+  form.value = emptyForm();
+  showForm.value = true;
+}
+
+function openEdit(row: any) {
+  editingId.value = row.announceId;
+  form.value = {
+    title: row.title || '',
+    content: row.content || '',
+    targetScope: row.targetScope || 'ALL',
+    priority: row.priority || 'NORMAL'
+  };
+  showForm.value = true;
+}
+
+function formBody() {
+  return {
+    title: form.value.title.trim(),
+    content: form.value.content.trim(),
+    targetScope: form.value.targetScope || 'ALL',
+    priority: form.value.priority || 'NORMAL'
+  };
+}
+
+async function onSaveSubmit() {
+  if (!form.value.title.trim() || !form.value.content.trim()) {
+    ElMessage.warning('请填写公告标题和内容');
+    return;
+  }
+  if (!editingId.value) return;
+  saving.value = true;
+  try {
+    await put(`/api/v2/ops/announcements/${editingId.value}`, formBody());
+    ElMessage.success('已保存');
+    showForm.value = false;
+    editingId.value = null;
+    form.value = emptyForm();
+    await load();
+  } catch (e: any) {
+    ElMessage.error(e?.message || '保存失败');
+  } finally {
+    saving.value = false;
+  }
 }
 
 async function onPublishSubmit() {
@@ -366,25 +447,22 @@ async function onPublishSubmit() {
     ElMessage.warning('请填写公告标题和内容');
     return;
   }
-  publishing.value = true;
+  saving.value = true;
   try {
-    const res = await post('/api/v2/ops/announcements', {
-      ...form.value,
-      title: form.value.title.trim(),
-      content: form.value.content.trim()
-    });
+    const res = await post('/api/v2/ops/announcements', formBody());
     const id = res?.data?.announceId;
     if (id) {
       await post(`/api/v2/ops/announcements/${id}/publish`);
     }
     ElMessage.success('发布成功');
-    showCreate.value = false;
-    form.value = { title: '', content: '', targetScope: 'ALL', priority: 'NORMAL' };
+    showForm.value = false;
+    editingId.value = null;
+    form.value = emptyForm();
     await load();
   } catch (e: any) {
     ElMessage.error(e?.message || '发布失败');
   } finally {
-    publishing.value = false;
+    saving.value = false;
   }
 }
 

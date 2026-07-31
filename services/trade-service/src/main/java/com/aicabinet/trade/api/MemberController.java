@@ -1,13 +1,13 @@
 package com.aicabinet.trade.api;
 
-import com.aicabinet.common.dto.*;
+import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.MemberProfileDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.service.ConsumerMemberFacade;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.validation.Valid;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/v2/member")
@@ -22,30 +22,6 @@ public class MemberController {
     @GetMapping("/profile")
     public ApiResponse<MemberProfileDto> profile(HttpServletRequest request) {
         return ApiResponse.ok(memberFacade.profile(userId(request)));
-    }
-
-    @GetMapping("/points/summary")
-    public ApiResponse<MemberPointsSummaryDto> pointsSummary(HttpServletRequest request) {
-        return ApiResponse.ok(memberFacade.pointsSummary(userId(request)));
-    }
-
-    @GetMapping("/points")
-    public ApiResponse<List<MemberPointsLogDto>> pointsHistory(
-            HttpServletRequest request,
-            @RequestParam(required = false) String type) {
-        return ApiResponse.ok(memberFacade.pointsHistory(userId(request), type));
-    }
-
-    @GetMapping("/redeem-items")
-    public ApiResponse<List<PointsRedeemItemDto>> redeemItems(HttpServletRequest request) {
-        return ApiResponse.ok(memberFacade.listRedeemItems(userId(request)));
-    }
-
-    @PostMapping("/redeem")
-    public ApiResponse<CouponDto> redeem(
-            HttpServletRequest request,
-            @Valid @RequestBody RedeemPointsRequest body) {
-        return ApiResponse.ok(memberFacade.redeem(userId(request), body.itemId()));
     }
 
     private static Long userId(HttpServletRequest request) {

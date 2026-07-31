@@ -18,7 +18,20 @@ public record AdminDeviceDto(
         /** 生效策略（已解析全局默认） */
         String effectiveRefundPolicy,
         /** 锁机停售（运营态） */
-        boolean salesLocked
+        boolean salesLocked,
+        String lifecycleStatus,
+        String imei,
+        String assetOwner,
+        String coopMode,
+        Long depositCents,
+        Long dataFeeCents,
+        String opsTags,
+        String routeCode,
+        Instant deployedAt,
+        String lifecycleRemark,
+        Double latitude,
+        Double longitude,
+        String address
 ) {
     public AdminDeviceDto(
             String deviceId,
@@ -33,7 +46,9 @@ public record AdminDeviceDto(
             boolean replenishmentInProgress
     ) {
         this(deviceId, deviceName, deviceType, onlineStatus, merchantId, merchantName,
-                activeSessionId, activeSessionState, updatedAt, replenishmentInProgress, null, null, false);
+                activeSessionId, activeSessionState, updatedAt, replenishmentInProgress,
+                null, null, false, null, null, null, null, null, null, null, null, null, null,
+                null, null, null);
     }
 
     public AdminDeviceDto(
@@ -52,6 +67,30 @@ public record AdminDeviceDto(
     ) {
         this(deviceId, deviceName, deviceType, onlineStatus, merchantId, merchantName,
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress,
-                refundPolicy, effectiveRefundPolicy, false);
+                refundPolicy, effectiveRefundPolicy, false,
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null);
+    }
+
+    public AdminDeviceDto(
+            String deviceId,
+            String deviceName,
+            String deviceType,
+            String onlineStatus,
+            String merchantId,
+            String merchantName,
+            String activeSessionId,
+            String activeSessionState,
+            Instant updatedAt,
+            boolean replenishmentInProgress,
+            String refundPolicy,
+            String effectiveRefundPolicy,
+            boolean salesLocked
+    ) {
+        this(deviceId, deviceName, deviceType, onlineStatus, merchantId, merchantName,
+                activeSessionId, activeSessionState, updatedAt, replenishmentInProgress,
+                refundPolicy, effectiveRefundPolicy, salesLocked,
+                null, null, null, null, null, null, null, null, null, null,
+                null, null, null);
     }
 }

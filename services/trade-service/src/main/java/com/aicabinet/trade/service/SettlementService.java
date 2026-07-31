@@ -492,13 +492,9 @@ public class SettlementService {
         session.setOrderId(order.getOrderId());
         sessionRepository.save(session);
         try {
-            int pts = memberService.onOrderPaid(session.getUserId(), order.getTotalAmountCents(), order.getOrderId());
-            if (pts > 0) {
-                log.info("member points earned userId={} order={} points={}",
-                        session.getUserId(), order.getOrderId(), pts);
-            }
+            memberService.onOrderPaid(session.getUserId(), order.getTotalAmountCents(), order.getOrderId());
         } catch (Exception e) {
-            log.warn("member points reward failed order={}", order.getOrderId(), e);
+            log.warn("member stats update failed order={}", order.getOrderId(), e);
         }
         videoArchiveService.archiveAfterSettlement(session, order.getLines());
         log.info("settled session={} order={} amount={} couponDiscount={} channel={}",
@@ -637,12 +633,6 @@ public class SettlementService {
 
     private OrderDto toDto(CabinetOrder order) {
         hydrateOrderLines(order);
-        int pointsEarned = 0;
-        try {
-            pointsEarned = memberService.findOrderEarnPoints(order.getUserId(), order.getOrderId());
-        } catch (Exception ignored) {
-            // points lookup must not break order detail
-        }
         Integer couponDiscount = order.getCouponDiscountCents() > 0
                 ? Integer.valueOf(order.getCouponDiscountCents())
                 : null;
@@ -673,7 +663,6 @@ public class SettlementService {
                 order.getCreatedAt(),
                 couponDiscount,
                 originalAmount,
-                pointsEarned > 0 ? pointsEarned : null,
                 refundPolicyService != null
                         ? refundPolicyService.resolveForDevice(order.getDeviceId()).name()
                         : null

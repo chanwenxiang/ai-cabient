@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -110,7 +110,7 @@
               <span>{{ waitReason(row) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="滞留 / 时限" width="148" class-name="col-text">
+          <el-table-column label="滞留 / 时限" width="160" class-name="col-text">
             <template #default="{ row }">
               <div v-if="isActiveState(row.state)" class="sla-cell">
                 <template v-if="isStuck(row)">
@@ -126,11 +126,15 @@
                   <small class="sla-meta">时限 {{ STALE_MINUTES }} 分</small>
                 </template>
               </div>
+              <div v-else-if="sessionDurationMs(row) > 0" class="sla-cell">
+                <span class="cell-datetime">时长 {{ formatAge(sessionDurationMs(row)) }}</span>
+                <small class="sla-meta">已结束</small>
+              </div>
               <span v-else class="muted">-</span>
             </template>
           </el-table-column>
-          <el-table-column label="失败原因" min-width="120" class-name="col-text" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.failureReason || row.failReason || '-' }}</template>
+          <el-table-column label="失败原因" min-width="140" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ failReasonText(row) }}</template>
           </el-table-column>
           <el-table-column label="更新时间" width="160" class-name="col-text">
             <template #default="{ row }">
@@ -315,7 +319,7 @@ const { onExport: exportSelectedCsv } = useListCsv({
       waitReason(row),
       String(Math.floor(ageMs(row) / 60000)),
       isStuck(row) ? '是' : '否',
-      row.failureReason || row.failReason || '',
+      failReasonText(row),
       formatDateTime(row.updatedAt)
     ])
 });
@@ -385,10 +389,23 @@ function formatAge(ms: number) {
   return '不到 1 分钟';
 }
 
+function failReasonText(row: SessionRow) {
+  const text = String(row.failureReason || row.failReason || '').trim();
+  return text || '-';
+}
+
+function sessionDurationMs(row: SessionRow) {
+  const start = parseTs(row.openTime || row.createdAt);
+  const end = parseTs(row.closeTime || row.updatedAt);
+  if (Number.isNaN(start) || Number.isNaN(end) || end < start) return 0;
+  return end - start;
+}
+
 function waitReason(row: SessionRow) {
   const s = String(row.state || '').toUpperCase();
   const upload = String(row.uploadStatus || '').toUpperCase();
   const stuck = isStuck(row);
+  const fail = failReasonText(row);
   if (s === 'WAITING_UPLOAD') {
     if (upload === 'FAILED') return '录像上传失败，待设备侧重试';
     if (upload === 'UPLOADING') return stuck ? '上传中断或极慢' : '等待录像上传完成';
@@ -401,7 +418,10 @@ function waitReason(row: SessionRow) {
     return stuck ? '长时间未关门' : '购物中 / 柜门开启';
   }
   if (s === 'OPENING') return stuck ? '开门指令超时' : '开门指令下发中';
-  if (row.failureReason || row.failReason) return row.failureReason || row.failReason || '-';
+  if (s === 'FAILED') return fail !== '-' ? fail : '会话失败';
+  if (s === 'CANCELLED') return fail !== '-' ? fail : '会话已取消';
+  if (s === 'DISPUTED') return '待人工审核';
+  if (fail !== '-') return fail;
   return isActiveState(row.state) ? '会话处理中' : '-';
 }
 

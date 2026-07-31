@@ -65,7 +65,7 @@
         <text class="menu-icon">热</text>
         <view class="menu-text">
           <text class="menu-title">热门活动</text>
-          <text class="menu-desc">满减 · 新客礼 · 积分兑好礼</text>
+          <text class="menu-desc">满减 · 新客礼 · 限时活动</text>
         </view>
         <text class="menu-arrow">›</text>
       </view>
@@ -92,6 +92,14 @@
             {{ formatTransactionAmount(item.amountCents) }}
           </view>
         </view>
+      </view>
+      <view class="menu-cell" @click="goAnnouncements">
+        <text class="menu-icon">告</text>
+        <view class="menu-text">
+          <text class="menu-title">通知公告</text>
+          <text class="menu-desc">平台维护、活动与规则变更</text>
+        </view>
+        <text class="menu-arrow">›</text>
       </view>
       <view class="menu-cell" @click="goHelp">
         <text class="menu-icon">助</text>
@@ -443,6 +451,10 @@ function goReport() {
   uni.navigateTo({
     url: id ? `/pages/report/report?deviceId=${encodeURIComponent(id)}` : '/pages/report/report'
   });
+}
+
+function goAnnouncements() {
+  uni.navigateTo({ url: '/pages/announcements/announcements' });
 }
 
 function goHelp() {

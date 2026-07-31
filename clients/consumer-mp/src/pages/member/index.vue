@@ -6,9 +6,9 @@
           <text class="hero-kicker">会员俱乐部</text>
           <text class="hero-level">{{ profile?.levelName || '普通会员' }}</text>
         </view>
-        <view class="points-chip" @click="goHistory">
-          <text class="points-num">{{ profile?.availablePoints ?? 0 }}</text>
-          <text class="points-unit">积分</text>
+        <view class="spent-chip">
+          <text class="spent-num">¥{{ spentText }}</text>
+          <text class="spent-unit">累计消费</text>
         </view>
       </view>
       <view class="progress-block">
@@ -16,23 +16,13 @@
           <view class="progress-fill" :style="{ width: progressWidth }" />
         </view>
         <text class="progress-text">
-          <text v-if="profile?.nextLevelName">距{{ profile.nextLevelName }}还差约 ¥{{ profile.pointsToNextLevel }} 消费 · 积分倍率 {{ profile.pointsRate }}x</text>
-          <text v-else>已达最高等级 · 积分倍率 {{ profile?.pointsRate || 1 }}x</text>
+          <text v-if="profile?.nextLevelName">距{{ profile.nextLevelName }}还差约 ¥{{ profile.spentToNextLevel }} 消费</text>
+          <text v-else>已达最高等级</text>
         </text>
       </view>
     </view>
 
     <view class="quick-grid">
-      <view class="quick" @click="goExchange">
-        <text class="quick-mark">礼</text>
-        <text class="quick-title">积分兑换</text>
-        <text class="quick-desc">兑优惠券</text>
-      </view>
-      <view class="quick" @click="goHistory">
-        <text class="quick-mark">明</text>
-        <text class="quick-title">积分明细</text>
-        <text class="quick-desc">收支一览</text>
-      </view>
       <view class="quick" @click="goCoupons">
         <text class="quick-mark">券</text>
         <text class="quick-title">我的券</text>
@@ -43,25 +33,16 @@
         <text class="quick-title">热门活动</text>
         <text class="quick-desc">本周上新</text>
       </view>
-    </view>
-
-    <view class="section">
-      <view class="section-head">
-        <text class="section-title">积分兑好礼</text>
-        <text class="section-more" @click="goExchange">全部 ›</text>
+      <view class="quick" @click="goOrders">
+        <text class="quick-mark">单</text>
+        <text class="quick-title">我的订单</text>
+        <text class="quick-desc">消费记录</text>
       </view>
-      <scroll-view scroll-x class="redeem-scroll" :show-scrollbar="false">
-        <view v-for="item in redeemPreview" :key="item.itemId" class="redeem-card" @click="goExchange">
-          <text class="redeem-mark">{{ uiGlyph(item.coverEmoji, '礼') }}</text>
-          <text class="redeem-title">{{ item.title }}</text>
-          <text class="redeem-cost">{{ item.pointsCost }} 积分</text>
-        </view>
-        <view v-if="redeemLoading" class="redeem-empty">加载中…</view>
-        <view v-else-if="!redeemPreview.length" class="redeem-empty clickable" @click="goExchange">
-          <text class="redeem-empty-title">暂无可兑好礼</text>
-          <text class="redeem-empty-hint">去积分兑换看看 ›</text>
-        </view>
-      </scroll-view>
+      <view class="quick" @click="goShop">
+        <text class="quick-mark">购</text>
+        <text class="quick-title">去购物</text>
+        <text class="quick-desc">扫码开门</text>
+      </view>
     </view>
 
     <view class="section">
@@ -84,7 +65,7 @@
           <text class="level-name">{{ lv.levelName }}</text>
           <text class="level-range">累计消费 ¥{{ Number(lv.minSpent || 0).toFixed(0) }}{{ lv.maxSpent != null ? ' - ¥' + Number(lv.maxSpent).toFixed(0) : '+' }}</text>
         </view>
-        <text class="level-rate">{{ lv.pointsRate }}x 积分</text>
+        <text v-if="lv.levelCode === profile?.levelCode" class="level-badge">当前</text>
       </view>
     </view>
   </view>
@@ -96,26 +77,20 @@ import { onShow } from '@dcloudio/uni-app';
 import {
   consumerApi,
   ensureConsumerAuth,
-  type MemberProfileDto,
-  type PointsRedeemItemDto
+  type MemberProfileDto
 } from '@/utils/consumer-api';
-import { uiGlyph } from '@/utils/ui-glyph';
 
 const profile = ref<MemberProfileDto | null>(null);
-const redeemPreview = ref<PointsRedeemItemDto[]>([]);
 const couponCount = ref(0);
-const redeemLoading = ref(false);
 
 const progressWidth = computed(() => `${Math.min(100, Math.max(0, profile.value?.progressPercent || 0))}%`);
+const spentText = computed(() => Number(profile.value?.totalSpent || 0).toFixed(0));
 
-const benefits = computed(() => {
-  const rate = profile.value?.pointsRate || 1;
-  return [
-    { mark: '积', title: '购物返积分', desc: `当前 ${rate}x，关门结算自动到账` },
-    { mark: '券', title: '积分兑券', desc: '100 积分起兑立减券，开门立减' },
-    { mark: '优', title: '活动优先', desc: '会员专享满减与新客礼，活动页直达' }
-  ];
-});
+const benefits = [
+  { mark: '券', title: '优惠券立减', desc: '结算时自动选用可用优惠券' },
+  { mark: '级', title: '消费升级', desc: '累计消费提升会员等级' },
+  { mark: '优', title: '活动优先', desc: '会员专享满减与新客礼，活动页直达' }
+];
 
 onShow(async () => {
   if (!(await ensureConsumerAuth())) {
@@ -126,34 +101,29 @@ onShow(async () => {
 });
 
 async function load() {
-  redeemLoading.value = true;
   try {
-    const [p, items, count] = await Promise.all([
+    const [p, count] = await Promise.all([
       consumerApi.memberProfile(),
-      consumerApi.redeemItems(),
       consumerApi.couponCount()
     ]);
     profile.value = p;
-    redeemPreview.value = (items || []).slice(0, 6);
     couponCount.value = Number(count) || 0;
   } catch (e: any) {
     uni.showToast({ title: e?.message || '加载失败', icon: 'none' });
-  } finally {
-    redeemLoading.value = false;
   }
 }
 
-function goExchange() {
-  uni.navigateTo({ url: '/pages/member/exchange' });
-}
-function goHistory() {
-  uni.navigateTo({ url: '/pages/member/points-history' });
-}
 function goCoupons() {
   uni.navigateTo({ url: '/pages/coupons/coupons' });
 }
 function goMarketing() {
   uni.navigateTo({ url: '/pages/marketing/index' });
+}
+function goOrders() {
+  uni.switchTab({ url: '/pages/orders/orders' });
+}
+function goShop() {
+  uni.switchTab({ url: '/pages/index/index' });
 }
 </script>
 
@@ -178,15 +148,15 @@ function goMarketing() {
 .hero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 20rpx; }
 .hero-kicker { display: block; font-size: 20rpx; letter-spacing: 2rpx; opacity: 0.7; }
 .hero-level { display: block; margin-top: 8rpx; font-size: 40rpx; font-weight: 800; }
-.points-chip {
+.spent-chip {
   min-width: 140rpx;
   padding: 16rpx 22rpx;
   border-radius: 20rpx;
   background: rgba(255, 255, 255, 0.16);
   text-align: right;
 }
-.points-num { display: block; font-size: 44rpx; font-weight: 800; line-height: 1; }
-.points-unit { display: block; margin-top: 6rpx; font-size: 22rpx; opacity: 0.85; }
+.spent-num { display: block; font-size: 36rpx; font-weight: 800; line-height: 1; }
+.spent-unit { display: block; margin-top: 6rpx; font-size: 22rpx; opacity: 0.85; }
 .progress-block { margin-top: 28rpx; }
 .progress-track { height: 10rpx; border-radius: 999rpx; background: rgba(255, 255, 255, 0.22); overflow: hidden; }
 .progress-fill { height: 100%; border-radius: 999rpx; background: #fff; }
@@ -228,63 +198,7 @@ function goMarketing() {
   background: #fff;
   box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
 }
-.section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18rpx; }
 .section-title { font-size: 30rpx; font-weight: 700; color: #1b3027; }
-.section-more { font-size: 24rpx; color: #059669; }
-.redeem-scroll { white-space: nowrap; }
-.redeem-card {
-  display: inline-flex;
-  flex-direction: column;
-  width: 248rpx;
-  margin-right: 16rpx;
-  padding: 22rpx 18rpx;
-  border-radius: 20rpx;
-  background: linear-gradient(180deg, #f0fdf4, #fff);
-  border: 1rpx solid #d1fae5;
-  vertical-align: top;
-  box-sizing: border-box;
-}
-.redeem-mark {
-  width: 56rpx;
-  height: 56rpx;
-  border-radius: 16rpx;
-  background: #fff;
-  border: 1rpx solid #d1fae5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26rpx;
-  font-weight: 700;
-  color: #059669;
-}
-.redeem-title {
-  margin-top: 10rpx;
-  font-size: 24rpx;
-  font-weight: 650;
-  color: #14532d;
-  white-space: normal;
-  word-break: break-word;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-height: 1.35;
-  min-height: 64rpx;
-}
-.redeem-cost { margin-top: 8rpx; font-size: 22rpx; color: #059669; font-weight: 700; }
-.redeem-empty {
-  display: inline-flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 280rpx;
-  padding: 24rpx 20rpx;
-  color: #849087;
-  font-size: 24rpx;
-  vertical-align: top;
-}
-.redeem-empty.clickable { color: #059669; }
-.redeem-empty-title { font-size: 26rpx; font-weight: 650; color: #64748b; }
-.redeem-empty-hint { margin-top: 8rpx; font-size: 22rpx; color: #059669; }
 
 .benefit-row { display: flex; gap: 18rpx; padding: 18rpx 0; border-bottom: 1rpx solid #f0f2f1; }
 .benefit-row:last-child { border-bottom: 0; }
@@ -316,5 +230,5 @@ function goMarketing() {
 .level-row.on { background: #ecfdf5; border: 1rpx solid #a7f3d0; }
 .level-name { display: block; font-size: 28rpx; font-weight: 650; color: #1b3027; }
 .level-range { display: block; margin-top: 4rpx; font-size: 22rpx; color: #849087; }
-.level-rate { font-size: 24rpx; color: #059669; font-weight: 700; }
+.level-badge { font-size: 24rpx; color: #059669; font-weight: 700; }
 </style>

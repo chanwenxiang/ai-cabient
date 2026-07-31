@@ -57,6 +57,28 @@ public class DeviceInfo {
     /** 禁售（策略层，通常伴随营业锁机） */
     private Boolean saleForbidden;
 
+    /** INBOUND|IDLE|DEPLOYED|RETURNING|RETIRED */
+    private String lifecycleStatus;
+
+    private String imei;
+
+    private String assetOwner;
+
+    /** SELF|FRANCHISE|CONSIGN */
+    private String coopMode;
+
+    private Long depositCents;
+
+    private Long dataFeeCents;
+
+    private String opsTags;
+
+    private String routeCode;
+
+    private Instant deployedAt;
+
+    private String lifecycleRemark;
+
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private Instant updatedAt;
 
@@ -103,6 +125,26 @@ public class DeviceInfo {
     public void setSkuEditForbidden(Boolean skuEditForbidden) { this.skuEditForbidden = skuEditForbidden; }
     public Boolean getSaleForbidden() { return saleForbidden; }
     public void setSaleForbidden(Boolean saleForbidden) { this.saleForbidden = saleForbidden; }
+    public String getLifecycleStatus() { return lifecycleStatus; }
+    public void setLifecycleStatus(String lifecycleStatus) { this.lifecycleStatus = lifecycleStatus; }
+    public String getImei() { return imei; }
+    public void setImei(String imei) { this.imei = imei; }
+    public String getAssetOwner() { return assetOwner; }
+    public void setAssetOwner(String assetOwner) { this.assetOwner = assetOwner; }
+    public String getCoopMode() { return coopMode; }
+    public void setCoopMode(String coopMode) { this.coopMode = coopMode; }
+    public Long getDepositCents() { return depositCents; }
+    public void setDepositCents(Long depositCents) { this.depositCents = depositCents; }
+    public Long getDataFeeCents() { return dataFeeCents; }
+    public void setDataFeeCents(Long dataFeeCents) { this.dataFeeCents = dataFeeCents; }
+    public String getOpsTags() { return opsTags; }
+    public void setOpsTags(String opsTags) { this.opsTags = opsTags; }
+    public String getRouteCode() { return routeCode; }
+    public void setRouteCode(String routeCode) { this.routeCode = routeCode; }
+    public Instant getDeployedAt() { return deployedAt; }
+    public void setDeployedAt(Instant deployedAt) { this.deployedAt = deployedAt; }
+    public String getLifecycleRemark() { return lifecycleRemark; }
+    public void setLifecycleRemark(String lifecycleRemark) { this.lifecycleRemark = lifecycleRemark; }
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
     public void markHeartbeatReceived() { updatedAt = Instant.now(); }

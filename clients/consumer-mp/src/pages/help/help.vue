@@ -13,6 +13,13 @@
         </view>
         <text class="support-action">拨打</text>
       </view>
+      <view class="support-row" @click="goAnnouncements">
+        <view>
+          <text class="support-label">平台公告</text>
+          <text class="support-value">维护通知、活动与规则变更</text>
+        </view>
+        <text class="support-action">去查看</text>
+      </view>
       <view class="support-row" @click="goFeedback">
         <view>
           <text class="support-label">在线留言</text>
@@ -79,8 +86,8 @@ const faqs = [
     a: '可先重试扫码；仍异常请使用「故障报修」提交柜机编号与问题描述，或拨打客服热线。'
   },
   {
-    q: '优惠券和积分怎么用？',
-    a: '购物结算时系统会自动选用可用优惠券；积分可在会员中心兑换权益。具体规则以活动页说明为准。'
+    q: '优惠券怎么用？',
+    a: '购物结算时系统会自动选用可用优惠券。具体规则以活动页说明为准。'
   }
 ];
 
@@ -106,6 +113,10 @@ function callSupport() {
     phoneNumber: supportPhoneDial.value,
     fail: () => uni.showToast({ title: `请拨打 ${supportPhoneDisplay.value}`, icon: 'none' })
   });
+}
+
+function goAnnouncements() {
+  uni.navigateTo({ url: '/pages/announcements/announcements' });
 }
 
 function goFeedback() {

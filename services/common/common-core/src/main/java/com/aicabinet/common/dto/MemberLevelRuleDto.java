@@ -7,7 +7,5 @@ public record MemberLevelRuleDto(
         String levelName,
         BigDecimal minSpent,
         BigDecimal maxSpent,
-        int minPoints,
-        double pointsRate,
         int sortOrder
 ) {}

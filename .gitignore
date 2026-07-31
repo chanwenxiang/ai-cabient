@@ -70,4 +70,11 @@ patch.txt
 *.log
 infra/docker-rebuild.log
 .batch*.json
+
+# Browser/agent verification screenshots (local only)
+*-verify.png
+*verify*.png
+.agents/
+.codex/
+.pnpm-store/
 )

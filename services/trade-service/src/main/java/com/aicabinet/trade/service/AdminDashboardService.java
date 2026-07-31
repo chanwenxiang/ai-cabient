@@ -589,6 +589,15 @@ public class AdminDashboardService {
         return listDevicesPaged(operatorId, 0, 5000, null, null).items();
     }
 
+    @Transactional(readOnly = true)
+    public AdminDeviceDto getDevice(Long operatorId, String deviceId) {
+        permissionService.requirePermission(operatorId, "ops:device:list");
+        merchantScopeService.requireDeviceAccess(operatorId, deviceId);
+        DeviceInfo d = deviceRepository.findById(deviceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
+        return toDeviceDto(d, findSessionForDeviceList(deviceId), replenishingDeviceIds().contains(deviceId));
+    }
+
     public PageResult<AdminDeviceDto> listDevicesPaged(Long operatorId, int page, int size,
                                                          String q, String online) {
         return listDevicesPaged(operatorId, page, size, q, online, null);
@@ -596,6 +605,12 @@ public class AdminDashboardService {
 
     public PageResult<AdminDeviceDto> listDevicesPaged(Long operatorId, int page, int size,
                                                          String q, String online, Boolean salesLocked) {
+        return listDevicesPaged(operatorId, page, size, q, online, salesLocked, null, null, null);
+    }
+
+    public PageResult<AdminDeviceDto> listDevicesPaged(Long operatorId, int page, int size,
+                                                         String q, String online, Boolean salesLocked,
+                                                         String lifecycleStatus, String coopMode, String routeCode) {
         permissionService.requirePermission(operatorId, "ops:device:list");
         List<DeviceInfo> devices = merchantScopeService.allowedDevices(operatorId);
         Set<String> replenishing = replenishingDeviceIds();
@@ -608,6 +623,9 @@ public class AdminDashboardService {
 
         String kw = q == null ? "" : q.trim().toLowerCase();
         String onlineFilter = online == null ? "" : online.trim().toUpperCase();
+        String lifeFilter = lifecycleStatus == null ? "" : lifecycleStatus.trim().toUpperCase();
+        String coopFilter = coopMode == null ? "" : coopMode.trim().toUpperCase();
+        String routeFilter = routeCode == null ? "" : routeCode.trim().toLowerCase();
 
         List<AdminDeviceDto> filtered = devices.stream()
                 .map(d -> toDeviceDto(d, sessionByDevice.get(d.getDeviceId()), replenishing.contains(d.getDeviceId())))
@@ -618,13 +636,29 @@ public class AdminDashboardService {
                     if (salesLocked != null && d.salesLocked() != salesLocked) {
                         return false;
                     }
+                    if (!lifeFilter.isEmpty()
+                            && !lifeFilter.equalsIgnoreCase(String.valueOf(d.lifecycleStatus() == null ? "DEPLOYED" : d.lifecycleStatus()))) {
+                        return false;
+                    }
+                    if (!coopFilter.isEmpty()
+                            && !coopFilter.equalsIgnoreCase(String.valueOf(d.coopMode() == null ? "" : d.coopMode()))) {
+                        return false;
+                    }
+                    if (!routeFilter.isEmpty()
+                            && !String.valueOf(d.routeCode() == null ? "" : d.routeCode()).toLowerCase().contains(routeFilter)) {
+                        return false;
+                    }
                     if (kw.isEmpty()) {
                         return true;
                     }
                     return String.valueOf(d.deviceId()).toLowerCase().contains(kw)
                             || String.valueOf(d.deviceName() == null ? "" : d.deviceName()).toLowerCase().contains(kw)
                             || String.valueOf(d.merchantId() == null ? "" : d.merchantId()).toLowerCase().contains(kw)
-                            || String.valueOf(d.merchantName() == null ? "" : d.merchantName()).toLowerCase().contains(kw);
+                            || String.valueOf(d.merchantName() == null ? "" : d.merchantName()).toLowerCase().contains(kw)
+                            || String.valueOf(d.imei() == null ? "" : d.imei()).toLowerCase().contains(kw)
+                            || String.valueOf(d.assetOwner() == null ? "" : d.assetOwner()).toLowerCase().contains(kw)
+                            || String.valueOf(d.opsTags() == null ? "" : d.opsTags()).toLowerCase().contains(kw)
+                            || String.valueOf(d.routeCode() == null ? "" : d.routeCode()).toLowerCase().contains(kw);
                 })
                 .toList();
 
@@ -919,6 +953,10 @@ public class AdminDashboardService {
             requireMerchant(merchantId);
             merchantScopeService.requireMerchantAccess(operatorId, merchantId);
             device.setMerchantId(merchantId);
+            device.setLifecycleStatus("DEPLOYED");
+            device.setDeployedAt(Instant.now());
+        } else {
+            device.setLifecycleStatus("IDLE");
         }
         deviceRepository.save(device);
         deviceSlotService.ensureDefaultSlots(deviceId, device.getDeviceType());
@@ -954,6 +992,39 @@ public class AdminDashboardService {
             // INHERIT/空 → null（跟随全局）；MyBatis-Plus updateById 默认跳过 null，须单独 set
             storedRefundPolicy = RefundPolicyService.normalizeStored(request.refundPolicy());
             device.setRefundPolicy(storedRefundPolicy);
+        }
+        if (request.imei() != null) {
+            device.setImei(trimToNull(request.imei()));
+        }
+        if (request.assetOwner() != null) {
+            device.setAssetOwner(trimToNull(request.assetOwner()));
+        }
+        if (request.coopMode() != null) {
+            device.setCoopMode(DeviceAssetService.normalizeCoop(request.coopMode()));
+        }
+        if (request.depositCents() != null) {
+            device.setDepositCents(request.depositCents() < 0 ? 0L : request.depositCents());
+        }
+        if (request.dataFeeCents() != null) {
+            device.setDataFeeCents(request.dataFeeCents() < 0 ? 0L : request.dataFeeCents());
+        }
+        if (request.opsTags() != null) {
+            device.setOpsTags(trimToNull(request.opsTags()));
+        }
+        if (request.routeCode() != null) {
+            device.setRouteCode(trimToNull(request.routeCode()));
+        }
+        if (request.lifecycleRemark() != null) {
+            device.setLifecycleRemark(trimToNull(request.lifecycleRemark()));
+        }
+        if (request.latitude() != null) {
+            device.setLatitude(request.latitude());
+        }
+        if (request.longitude() != null) {
+            device.setLongitude(request.longitude());
+        }
+        if (request.address() != null) {
+            device.setAddress(trimToNull(request.address()));
         }
         Instant now = Instant.now();
         device.setUpdatedAt(now);
@@ -1384,8 +1455,52 @@ public class AdminDashboardService {
                 replenishmentInProgress,
                 d.getRefundPolicy(),
                 refundPolicyService.resolveForDevice(d.getDeviceId()).name(),
-                d.salesLockedEnabled()
+                d.salesLockedEnabled(),
+                DeviceAssetService.normalizeLifecycle(d.getLifecycleStatus()),
+                d.getImei(),
+                d.getAssetOwner(),
+                d.getCoopMode(),
+                d.getDepositCents(),
+                d.getDataFeeCents(),
+                d.getOpsTags(),
+                d.getRouteCode(),
+                d.getDeployedAt(),
+                d.getLifecycleRemark(),
+                d.getLatitude(),
+                d.getLongitude(),
+                d.getAddress()
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<com.aicabinet.common.dto.DeviceMapPointDto> listDeviceMapPoints(
+            Long operatorId, String lifecycleStatus, String routeCode, String online) {
+        permissionService.requireAnyPermission(operatorId, "ops:device:list", "ops:device-map:view");
+        String life = lifecycleStatus == null || lifecycleStatus.isBlank() ? "DEPLOYED" : lifecycleStatus.trim().toUpperCase();
+        String route = routeCode == null ? "" : routeCode.trim();
+        String onlineFilter = online == null ? "" : online.trim().toUpperCase();
+        Set<String> allowed = merchantScopeService.allowedDeviceIds(operatorId);
+        return deviceRepository.findAll().stream()
+                .filter(d -> allowed == null || allowed.contains(d.getDeviceId()))
+                .filter(d -> d.getLatitude() != null && d.getLongitude() != null)
+                .filter(d -> "ALL".equals(life)
+                        || life.equalsIgnoreCase(DeviceAssetService.normalizeLifecycle(d.getLifecycleStatus())))
+                .filter(d -> route.isEmpty() || route.equalsIgnoreCase(String.valueOf(d.getRouteCode())))
+                .filter(d -> onlineFilter.isEmpty()
+                        || onlineFilter.equalsIgnoreCase(String.valueOf(d.getOnlineStatus())))
+                .map(d -> new com.aicabinet.common.dto.DeviceMapPointDto(
+                        d.getDeviceId(),
+                        d.getDeviceName(),
+                        d.getMerchantId(),
+                        d.getOnlineStatus(),
+                        DeviceAssetService.normalizeLifecycle(d.getLifecycleStatus()),
+                        d.getRouteCode(),
+                        d.salesLockedEnabled(),
+                        d.getLatitude(),
+                        d.getLongitude(),
+                        d.getAddress()
+                ))
+                .toList();
     }
 
     private void requireMerchant(String merchantId) {
@@ -1400,6 +1515,7 @@ public class AdminDashboardService {
                 s.getSessionId(), s.getUserId(), s.getDeviceId(), s.getState(),
                 s.getOpenTime(), s.getCloseTime(), s.getOrderId(), s.getVideoUri(),
                 s.getUploadStatus(), s.getCameraFusionMode(), previewUrl,
+                s.getFailReason(),
                 s.getCreatedAt(), s.getUpdatedAt()
         );
     }

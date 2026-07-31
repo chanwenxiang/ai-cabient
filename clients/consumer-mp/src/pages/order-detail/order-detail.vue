@@ -36,10 +36,6 @@
           <text class="total-label">实付</text>
           <text class="total-amount">¥{{ ((order?.totalAmountCents || 0) / 100).toFixed(2) }}</text>
         </view>
-        <view v-if="order?.pointsEarned" class="points-row">
-          <text class="points-label">本次获得积分</text>
-          <text class="points-amount">+{{ order.pointsEarned }}</text>
-        </view>
       </view>
 
       <view class="section">
@@ -512,9 +508,6 @@ function callSupport() {
 .total-row.pay .total-amount { color: #059669; font-size: 34rpx; }
 .total-label { font-size: 28rpx; font-weight: 600; }
 .total-amount { font-size: 36rpx; font-weight: 700; color: #ff3b30; }
-.points-row { display: flex; justify-content: space-between; padding: 10rpx 0 4rpx; }
-.points-label { font-size: 26rpx; color: #849087; }
-.points-amount { font-size: 28rpx; font-weight: 700; color: #d97706; }
 .discount-row { display: flex; justify-content: space-between; padding: 8rpx 0; }
 .discount-label { font-size: 24rpx; color: #059669; }
 .discount-amount { font-size: 24rpx; color: #059669; }

@@ -32,6 +32,12 @@
         <button class="scan-btn" hover-class="btn-hover" :loading="scanning" @click="onScan">扫码</button>
       </view>
 
+      <view v-if="latestAnnouncement" class="notice-strip" @click="goAnnouncementDetail">
+        <text class="notice-tag">公告</text>
+        <text class="notice-title">{{ latestAnnouncement.title }}</text>
+        <text class="notice-more">›</text>
+      </view>
+
       <view v-if="canReplenishment || canDevices || canAlerts" class="quick-row">
         <view v-if="canReplenishment" class="quick-item primary" @click="goReplenishment()">
           <text class="quick-icon">📦</text>
@@ -164,7 +170,7 @@ import { dictLabel } from '@aicabinet/shared-dict';
 import { formatMerchantNames } from '@/utils/merchant-display';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
 import { mergeTodoItems } from '@/utils/todo-list';
-import type { MerchantMe } from '@aicabinet/shared-types';
+import type { AnnouncementDto, MerchantMe } from '@aicabinet/shared-types';
 
 type TaskRow = { taskId: number; deviceId: string; status: string };
 
@@ -213,6 +219,7 @@ const actionItems = ref<{ type: string; title: string; detail?: string }[]>([]);
 const taskPreview = ref<TaskRow[]>([]);
 const deviceMap = ref<Record<string, string>>({});
 const stats = ref<Record<string, unknown>>({});
+const latestAnnouncement = ref<AnnouncementDto | null>(null);
 
 const onlineText = computed(() => {
   const on = stats.value.deviceOnline;
@@ -265,6 +272,15 @@ function goDisputes() {
 
 function goBusiness() {
   uni.navigateTo({ url: '/pages/business/business' });
+}
+
+function goAnnouncementDetail() {
+  const id = latestAnnouncement.value?.announceId;
+  if (!id) {
+    uni.navigateTo({ url: '/pages/announcements/announcements' });
+    return;
+  }
+  uni.navigateTo({ url: `/pages/announcements/detail?id=${id}` });
 }
 
 async function onScan() {
@@ -320,7 +336,7 @@ async function load() {
     meName.value = profile.displayName || profile.phoneNumber || '同事';
     merchantNames.value = formatMerchantNames(profile.merchants);
 
-    const [s, trend, workbench, exceptionPage, expiryRows, devices, tasks] = await Promise.all([
+    const [s, trend, workbench, exceptionPage, expiryRows, devices, tasks, announcements] = await Promise.all([
       merchantApi.stats().catch(() => ({} as Record<string, number>)),
       canTrend.value
         ? (merchantApi.trend(7) as Promise<{ last7Days?: { date: string; revenueCents: number }[] }>).catch(
@@ -351,9 +367,11 @@ async function load() {
       canDevices.value || canReplenishment.value
         ? merchantApi.devices().catch(() => [])
         : Promise.resolve([]),
-      canReplenishment.value ? merchantApi.replenishmentTasks().catch(() => []) : Promise.resolve([])
+      canReplenishment.value ? merchantApi.replenishmentTasks().catch(() => []) : Promise.resolve([]),
+      merchantApi.listAnnouncements().catch(() => [])
     ]);
     if (seq !== loadSeq) return;
+    latestAnnouncement.value = announcements?.[0] || null;
 
     const days = trend.last7Days || [];
     const maxRev = Math.max(...days.map((d) => d.revenueCents), 1);
@@ -476,6 +494,41 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .scan-btn::after { border: none; }
 .btn-hover { opacity: 0.88; }
+
+.notice-strip {
+  margin: 16rpx 24rpx 0;
+  padding: 18rpx 20rpx;
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  background: #fffbeb;
+  border: 1rpx solid #fde68a;
+  border-radius: 16rpx;
+}
+.notice-tag {
+  flex-shrink: 0;
+  font-size: 20rpx;
+  font-weight: 700;
+  color: #b45309;
+  background: #fef3c7;
+  padding: 6rpx 10rpx;
+  border-radius: 8rpx;
+}
+.notice-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 26rpx;
+  color: #92400e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notice-more {
+  flex-shrink: 0;
+  color: #b45309;
+  font-size: 28rpx;
+  font-weight: 600;
+}
 
 .quick-row {
   display: flex;

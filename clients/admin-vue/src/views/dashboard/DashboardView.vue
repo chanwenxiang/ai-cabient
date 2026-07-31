@@ -220,6 +220,8 @@ interface OpsStats {
   revenueTodayCents?: number;
   sessionActive?: number;
   sessionWaitingUpload?: number;
+  lowStockSkuCount?: number;
+  nearExpiryLotCount?: number;
 }
 
 interface OpsActionItem {
@@ -300,10 +302,16 @@ const quickLinks = computed<QuickLink[]>(() => [
     query: { stuck: '1' }
   },
           {
-            label: '低库存',
-            count: workbench.value?.lowStockItems || 0,
-            path: '/replenishment',
-            query: { tab: 'shortage' }
+            label: '缺货柜/SKU',
+            count: stats.value.lowStockSkuCount || workbench.value?.lowStockItems || 0,
+            path: '/stock-health',
+            query: { dimension: 'LOW' }
+          },
+          {
+            label: '临期批次',
+            count: stats.value.nearExpiryLotCount || 0,
+            path: '/stock-health',
+            query: { dimension: 'NEAR_EXPIRY' }
           },
           {
             label: '补货任务',
@@ -517,34 +525,51 @@ function goAction(row: OpsActionItem) {
   }
 }
 
-async function load() {
+async function fetchWorkbenchBundle() {
+  // 窄权限角色可能对 stats/workbench 403；勿互相拖垮
+  const [s, wb, ex] = await Promise.all([
+    api.request<OpsStats>('/api/v2/ops/admin/stats', 'GET').catch(() => null),
+    api.request<OpsWorkbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null),
+    canAccessPath('/exceptions')
+      ? api
+          .request<PageResult<{ exceptionId: string }>>('/api/v2/ops/admin/exceptions?status=OPEN&page=0&size=1', 'GET')
+          .catch(() => null)
+      : Promise.resolve(null)
+  ]);
+  return { s, wb, ex };
+}
+
+async function load(opts?: { silent?: boolean }) {
   loading.value = true;
   try {
-    // 窄权限角色（如补货员）可能对 stats/workbench 403；勿互相拖垮
-    const [s, wb, ex] = await Promise.all([
-      api.request<OpsStats>('/api/v2/ops/admin/stats', 'GET').catch(() => null),
-      api.request<OpsWorkbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null),
-      canAccessPath('/exceptions')
-        ? api
-            .request<PageResult<{ exceptionId: string }>>('/api/v2/ops/admin/exceptions?status=OPEN&page=0&size=1', 'GET')
-            .catch(() => null)
-        : Promise.resolve(null)
-    ]);
+    let { s, wb, ex } = await fetchWorkbenchBundle();
+    // 登录刚进页时偶发 token/网关未就绪，静默重试一次，避免误报「加载失败」
     if (!s && !wb) {
-      ElMessage.error('工作台数据加载失败');
+      await new Promise((r) => setTimeout(r, 450));
+      ({ s, wb, ex } = await fetchWorkbenchBundle());
+    }
+    if (!s && !wb) {
+      if (!opts?.silent) {
+        ElMessage.warning('工作台暂无数据，请稍后点刷新重试');
+      }
+      stats.value = {};
+      workbench.value = null;
+      openExceptionCount.value = 0;
       return;
     }
     stats.value = s || {};
     workbench.value = wb;
     openExceptionCount.value = ex?.total || 0;
   } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    if (!opts?.silent) {
+      ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    }
   } finally {
     loading.value = false;
   }
 }
 
-onMounted(load);
+onMounted(() => load({ silent: true }));
 </script>
 
 <style scoped>

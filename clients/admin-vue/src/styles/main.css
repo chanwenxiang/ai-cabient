@@ -595,6 +595,26 @@ button, input, textarea, select { font: inherit; }
   margin-bottom: 0;
 }
 
+/*
+ * 表头冻结：主内容区纵向滚动时表头贴顶。
+ * 横向滚动仍在 .table-scroll 内；操作列不做 sticky。
+ */
+.layout-main-scroll .el-table__header-wrapper,
+.page-card .el-table__header-wrapper {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+.layout-main-scroll .el-table__header th.el-table__cell,
+.page-card .el-table__header th.el-table__cell {
+  background: var(--el-table-header-bg-color, var(--layout-card, #fff));
+  background-clip: padding-box;
+}
+html.dark .layout-main-scroll .el-table__header th.el-table__cell,
+html.dark .page-card .el-table__header th.el-table__cell {
+  background: var(--el-table-header-bg-color, var(--layout-card, #1a1a1a));
+}
+
 .table-scroll .el-table::before,
 .table-scroll .el-table::after {
   display: none;

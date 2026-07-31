@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -25,6 +25,20 @@
             :loading="batchCmdLoading === 'UNLOCK'"
             @click="batchCommand('UNLOCK')"
           >批量恢复</el-button>
+          <el-button
+            v-hasPermi="['ops:device:edit']"
+            plain
+            :disabled="!selectedKeys.length"
+            :loading="batchCmdLoading === 'DEPLOY'"
+            @click="batchLifecycle('DEPLOY')"
+          >批量投放</el-button>
+          <el-button
+            v-hasPermi="['ops:device:edit']"
+            plain
+            :disabled="!selectedKeys.length"
+            :loading="batchCmdLoading === 'UNDEPLOY'"
+            @click="batchLifecycle('UNDEPLOY')"
+          >批量未投放</el-button>
           <el-button v-hasPermi="['ops:device:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button type="primary" :icon="Refresh" :loading="loading" @click="load(false)">刷新</el-button>
         </div>
@@ -70,11 +84,34 @@
       <el-form-item label="关键词">
         <el-input
           v-model="keyword"
-          placeholder="编号 / 名称 / 商户"
+          placeholder="编号 / 名称 / 商户 / IMEI / 标签"
           clearable
           style="width: 220px"
           @keyup.enter="search"
         />
+      </el-form-item>
+      <el-form-item label="生命周期">
+        <el-select v-model="lifecycleFilter" clearable placeholder="全部" style="width: 130px" @change="search">
+          <el-option
+            v-for="item in dictOptions('device_lifecycle')"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="合作方式">
+        <el-select v-model="coopFilter" clearable placeholder="全部" style="width: 120px" @change="search">
+          <el-option
+            v-for="item in dictOptions('device_coop_mode')"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="路线">
+        <el-input v-model="routeFilter" clearable placeholder="路线编码" style="width: 120px" @keyup.enter="search" />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="search">查询</el-button>
@@ -119,6 +156,20 @@
                 {{ row.salesLocked ? '停售' : '在售' }}
               </el-tag>
             </template>
+          </el-table-column>
+          <el-table-column label="生命周期" width="96" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" effect="plain">{{ lifecycleLabel(row.lifecycleStatus) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="IMEI" min-width="120" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.imei || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="资产方" min-width="100" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.assetOwner || '-' }}</template>
+          </el-table-column>
+          <el-table-column label="路线" width="90" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.routeCode || '-' }}</template>
           </el-table-column>
           <el-table-column label="商户" min-width="160" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
@@ -216,7 +267,7 @@ import { computed, onActivated, onMounted, reactive, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh, Setting, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -232,6 +283,9 @@ const route = useRoute();
 const auth = useAuthStore();
 const loading = ref(false);
 const keyword = ref('');
+const lifecycleFilter = ref('');
+const coopFilter = ref('');
+const routeFilter = ref('');
 const boardTab = ref<BoardTab>('ALL');
 const devices = ref<DeviceInfo[]>([]);
 const page = ref(1);
@@ -304,6 +358,10 @@ function policyLabel(policy?: string | null) {
   return '自助退款';
 }
 
+function lifecycleLabel(status?: string | null) {
+  return dictLabel('device_lifecycle', status || 'DEPLOYED');
+}
+
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection, selectedKeys } =
   useTableSelection<DeviceInfo>((r) => r.deviceId);
 
@@ -320,7 +378,7 @@ const policyHint = computed(() => {
 
 const { onExport } = useListCsv({
   filePrefix: '设备',
-  headers: ['设备编号', '名称', '类型', '在线', '运营态', '商户编号', '商户', '退款方式', '最近会话', '会话状态', '更新时间'],
+  headers: ['设备编号', '名称', '类型', '在线', '运营态', '生命周期', 'IMEI', '资产方', '路线', '商户编号', '商户', '退款方式', '最近会话', '会话状态', '更新时间'],
   toRows: () =>
     pickSelected(devices.value).map((row) => [
       row.deviceId,
@@ -328,6 +386,10 @@ const { onExport } = useListCsv({
       dictLabel('device_type', row.deviceType),
       dictLabel('online_status', row.onlineStatus),
       row.salesLocked ? '停售' : '在售',
+      lifecycleLabel(row.lifecycleStatus),
+      row.imei,
+      row.assetOwner,
+      row.routeCode,
       row.merchantId,
       row.merchantName,
       `${policyLabel(effectivePolicy(row))}${row.refundPolicy ? '' : '(全局)'}`,
@@ -336,6 +398,47 @@ const { onExport } = useListCsv({
       formatDateTime(row.updatedAt)
     ])
 });
+
+async function batchLifecycle(action: 'DEPLOY' | 'UNDEPLOY') {
+  const targets = devices.value.filter((d) => selectedKeys.value.map(String).includes(d.deviceId));
+  if (!targets.length) {
+    ElMessage.warning('请先勾选设备');
+    return;
+  }
+  const label = action === 'DEPLOY' ? '投放' : '未投放';
+  try {
+    await ElMessageBox.confirm(`将对 ${targets.length} 台执行「${label}」，确认？`, label, {
+      type: 'warning',
+      confirmButtonText: '确认',
+      cancelButtonText: '取消'
+    });
+  } catch {
+    return;
+  }
+  batchCmdLoading.value = action;
+  let ok = 0;
+  let fail = 0;
+  try {
+    for (const row of targets) {
+      try {
+        await api.request(
+          `/api/v2/ops/admin/devices/${encodeURIComponent(row.deviceId)}/lifecycle`,
+          'POST',
+          { action, remark: `batch-${action.toLowerCase()}` }
+        );
+        ok += 1;
+      } catch {
+        fail += 1;
+      }
+    }
+    if (fail === 0) ElMessage.success(`已${label} ${ok} 台`);
+    else ElMessage.warning(`${label}完成：成功 ${ok}，失败 ${fail}`);
+    clearSelection();
+    await load(false);
+  } finally {
+    batchCmdLoading.value = '';
+  }
+}
 
 async function batchCommand(command: 'LOCK' | 'UNLOCK') {
   const targets = devices.value.filter((d) => selectedKeys.value.map(String).includes(d.deviceId));
@@ -452,6 +555,9 @@ async function savePolicy() {
 function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (keyword.value.trim()) query.keyword = keyword.value.trim();
+  if (lifecycleFilter.value) query.lifecycleStatus = lifecycleFilter.value;
+  if (coopFilter.value) query.coopMode = coopFilter.value;
+  if (routeFilter.value.trim()) query.routeCode = routeFilter.value.trim();
   const filters = boardQuery(boardTab.value);
   if (filters.online) query.online = filters.online;
   if (filters.salesLocked) query.salesLocked = filters.salesLocked;
@@ -505,6 +611,9 @@ async function load(showToast = false) {
       size: String(size.value)
     });
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
+    if (lifecycleFilter.value) q.set('lifecycleStatus', lifecycleFilter.value);
+    if (coopFilter.value) q.set('coopMode', coopFilter.value);
+    if (routeFilter.value.trim()) q.set('routeCode', routeFilter.value.trim());
     const filters = boardQuery(boardTab.value);
     if (filters.online) q.set('online', filters.online);
     if (filters.salesLocked) q.set('salesLocked', filters.salesLocked);
@@ -531,6 +640,9 @@ function search() {
 }
 function reset() {
   keyword.value = '';
+  lifecycleFilter.value = '';
+  coopFilter.value = '';
+  routeFilter.value = '';
   boardTab.value = 'ALL';
   page.value = 1;
   syncRouteQuery();
@@ -551,6 +663,21 @@ function applyRouteQuery() {
   const nextKeyword = typeof route.query.keyword === 'string' ? route.query.keyword : '';
   if (nextKeyword !== keyword.value) {
     keyword.value = nextKeyword;
+    changed = true;
+  }
+  const nextLifecycle = typeof route.query.lifecycleStatus === 'string' ? route.query.lifecycleStatus : '';
+  if (nextLifecycle !== lifecycleFilter.value) {
+    lifecycleFilter.value = nextLifecycle;
+    changed = true;
+  }
+  const nextCoop = typeof route.query.coopMode === 'string' ? route.query.coopMode : '';
+  if (nextCoop !== coopFilter.value) {
+    coopFilter.value = nextCoop;
+    changed = true;
+  }
+  const nextRoute = typeof route.query.routeCode === 'string' ? route.query.routeCode : '';
+  if (nextRoute !== routeFilter.value) {
+    routeFilter.value = nextRoute;
     changed = true;
   }
   return changed;

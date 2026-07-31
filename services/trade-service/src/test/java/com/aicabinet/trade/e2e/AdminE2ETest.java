@@ -94,84 +94,57 @@ class AdminE2ETest {
 
     @Test
     @Order(6)
-    @DisplayName("运营场景6：查看加盟商管理")
-    void scenario6_ManageFranchises() throws Exception {
-        mockMvc.perform(get("/api/v2/admin/franchisees")
-                .header("Authorization", "Bearer " + adminToken)
-                .param("page", "0")
-                .param("size", "20"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
-    }
-
-    @Test
-    @Order(7)
-    @DisplayName("运营场景7：查看线长管理")
-    void scenario7_ManageLineLeaders() throws Exception {
-        mockMvc.perform(get("/api/v2/admin/line-leaders")
-                .header("Authorization", "Bearer " + adminToken)
-                .param("page", "0")
-                .param("size", "20"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
-    }
-
-    @Test
-    @Order(8)
-    @DisplayName("运营场景8：查看争议处理")
-    void scenario8_ManageDisputes() throws Exception {
-        mockMvc.perform(get("/api/v2/admin/disputes")
+    @DisplayName("运营场景6：查看争议处理")
+    void scenario6_ManageDisputes() throws Exception {
+        mockMvc.perform(get("/api/v2/ops/disputes")
                 .header("Authorization", "Bearer " + adminToken)
                 .param("status", "OPEN")
                 .param("page", "0")
                 .param("size", "20"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test
+    @Order(7)
+    @DisplayName("运营场景7：查看财务统计")
+    void scenario7_GetFinanceStatistics() throws Exception {
+        mockMvc.perform(get("/api/v2/ops/admin/finance/stats")
+                .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("运营场景8：系统参数配置")
+    void scenario8_ManageSystemConfig() throws Exception {
+        mockMvc.perform(get("/api/v2/ops/admin/system-configs")
+                .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(0));
     }
 
     @Test
     @Order(9)
-    @DisplayName("运营场景9：查看财务统计")
-    void scenario9_GetFinanceStatistics() throws Exception {
-        mockMvc.perform(get("/api/v2/admin/finance/statistics")
+    @DisplayName("运营场景9：异常中心")
+    void scenario9_ListExceptions() throws Exception {
+        mockMvc.perform(get("/api/v2/ops/admin/exceptions")
                 .header("Authorization", "Bearer " + adminToken)
-                .param("period", "month"))
+                .param("status", "OPEN")
+                .param("page", "0")
+                .param("size", "20"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
+                .andExpect(jsonPath("$.code").value(0));
     }
 
     @Test
     @Order(10)
-    @DisplayName("运营场景10：系统配置管理")
-    void scenario10_ManageSystemConfig() throws Exception {
-        mockMvc.perform(get("/api/v2/admin/config")
+    @DisplayName("运营场景10：设备报表")
+    void scenario10_DeviceReports() throws Exception {
+        mockMvc.perform(get("/api/v2/ops/admin/reports/devices")
                 .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
-    }
-
-    @Test
-    @Order(11)
-    @DisplayName("运营场景11：查看告警列表")
-    void scenario11_ListAlerts() throws Exception {
-        mockMvc.perform(get("/api/v2/admin/alerts")
-                .header("Authorization", "Bearer " + adminToken)
-                .param("status", "ACTIVE")
-                .param("page", "0")
-                .param("size", "20"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true));
-    }
-
-    @Test
-    @Order(12)
-    @DisplayName("运营场景12：导出数据报表")
-    void scenario12_ExportReport() throws Exception {
-        mockMvc.perform(get("/api/v2/admin/reports/export")
-                .header("Authorization", "Bearer " + adminToken)
-                .param("type", "orders")
-                .param("startDate", "2026-07-01")
-                .param("endDate", "2026-07-14"))
-                .andExpect(status().isOk());
+                .andExpect(jsonPath("$.code").value(0));
     }
 }

@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">销售报表</span>
-            <span class="hint">商品 / 货柜 / 商户 / 毛利四维</span>
+            <span class="hint">商品 / 货柜 / 商户 / 毛利四维 · 可按柜机筛选</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -23,6 +23,23 @@
           <el-radio-button value="MERCHANT">商户</el-radio-button>
           <el-radio-button value="MARGIN">毛利</el-radio-button>
         </el-radio-group>
+      </el-form-item>
+      <el-form-item label="柜机">
+        <el-select
+          v-model="deviceId"
+          clearable
+          filterable
+          placeholder="全部柜机"
+          style="width: 200px"
+          @change="load"
+        >
+          <el-option
+            v-for="d in deviceOptions"
+            :key="d.deviceId"
+            :label="`${d.deviceName || d.deviceId}（${d.deviceId}）`"
+            :value="d.deviceId"
+          />
+        </el-select>
       </el-form-item>
       <el-form-item label="区间">
         <el-date-picker v-model="range" type="daterange" value-format="YYYY-MM-DD" />
@@ -57,10 +74,29 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 
+interface DeviceOpt {
+  deviceId: string;
+  deviceName?: string;
+}
+
 const loading = ref(false);
 const dim = ref('PRODUCT');
+const deviceId = ref('');
 const range = ref<[string, string] | null>(null);
 const rows = ref<any[]>([]);
+const deviceOptions = ref<DeviceOpt[]>([]);
+
+async function loadDevices() {
+  try {
+    const res = await api.request<{ items: DeviceOpt[] } | DeviceOpt[]>(
+      '/api/v2/ops/admin/devices?page=0&size=200',
+      'GET'
+    );
+    deviceOptions.value = Array.isArray(res) ? res : res.items || [];
+  } catch {
+    deviceOptions.value = [];
+  }
+}
 
 async function load() {
   loading.value = true;
@@ -68,6 +104,7 @@ async function load() {
     const q = new URLSearchParams({ dim: dim.value });
     if (range.value?.[0]) q.set('fromDate', range.value[0]);
     if (range.value?.[1]) q.set('toDate', range.value[1]);
+    if (deviceId.value) q.set('deviceId', deviceId.value);
     rows.value = await api.request(`/api/v2/ops/admin/sales-reports?${q}`, 'GET');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -94,5 +131,8 @@ function exportCsv() {
   URL.revokeObjectURL(url);
 }
 
-onMounted(load);
+onMounted(async () => {
+  await loadDevices();
+  await load();
+});
 </script>

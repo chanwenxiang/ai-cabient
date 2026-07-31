@@ -107,6 +107,16 @@ aicabinet:
     mock-enabled: ${PROFIT_SHARING_MOCK_ENABLED:false}
     retry-enabled: ${PROFIT_SHARING_RETRY_ENABLED:true}
     retry-batch-size: ${PROFIT_SHARING_RETRY_BATCH_SIZE:20}
+  line-withdraw:
+    mock-enabled: ${LINE_WITHDRAW_MOCK_ENABLED:${AICABINET_MOCK_ENABLED:true}}
+    min-amount-cents: ${LINE_WITHDRAW_MIN_CENTS:100}
+    daily-limit-cents: ${LINE_WITHDRAW_DAILY_LIMIT_CENTS:500000}
+    review-threshold-cents: ${LINE_WITHDRAW_REVIEW_THRESHOLD_CENTS:50000}
+  merchant-withdraw:
+    mock-enabled: ${MERCHANT_WITHDRAW_MOCK_ENABLED:${AICABINET_MOCK_ENABLED:true}}
+    min-amount-cents: ${MERCHANT_WITHDRAW_MIN_CENTS:100}
+    daily-limit-cents: ${MERCHANT_WITHDRAW_DAILY_LIMIT_CENTS:500000}
+    review-threshold-cents: ${MERCHANT_WITHDRAW_REVIEW_THRESHOLD_CENTS:50000}
   alipay:
     enabled: ${ALIPAY_ENABLED:false}
     app-id: ${ALIPAY_APP_ID:}

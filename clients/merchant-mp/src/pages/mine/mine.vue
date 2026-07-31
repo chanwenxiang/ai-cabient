@@ -27,17 +27,42 @@
       </view>
     </view>
 
+    <view v-if="teamNav.length" class="section-label">团队与设置</view>
+    <view v-if="teamNav.length" class="menu-list">
+      <view v-for="item in teamNav" :key="item.key" class="menu-cell" @click="goNav(item)">
+        <text class="menu-icon">{{ item.icon }}</text>
+        <view class="menu-text">
+          <text class="menu-title">{{ item.title }}</text>
+          <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+    </view>
+
+    <view class="section-label">平台公告</view>
+    <view class="menu-list">
+      <view class="menu-cell" @click="goAnnouncements">
+        <text class="menu-icon">告</text>
+        <view class="menu-text">
+          <text class="menu-title">通知公告</text>
+          <text class="menu-desc">运营发布的维护、活动与规则通知</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+    </view>
+
     <view v-if="canAlerts" class="section-label">消息提醒</view>
     <view v-if="canAlerts" class="menu-list notify-card">
       <view class="notify-head">
         <view class="menu-text">
           <text class="menu-title">微信订阅提醒</text>
-          <text class="menu-desc">{{ wxBound ? '已绑定微信，可接收待办推送' : '绑定微信后可接收待办推送（开发环境可模拟）' }}</text>
+          <text class="menu-desc">{{ notifyDesc }}</text>
         </view>
-        <button class="bind-btn" size="mini" :loading="notifyBusy" @click="onBindWx">
+        <button class="bind-btn" size="mini" :loading="notifyBusy" :disabled="!subscribeReady" @click="onBindWx">
           {{ wxBound ? '重新绑定' : '开启提醒' }}
         </button>
       </view>
+      <view v-if="!subscribeReady" class="notify-warn">未配置订阅消息模板（VITE_WX_SUBSCRIBE_TMPL_IDS），当前仅可保存偏好，无法向微信申请推送授权。</view>
       <view class="notify-types">
         <label v-for="t in alertTypeOptions" :key="t.value" class="notify-type">
           <switch
@@ -79,9 +104,14 @@
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { clearSession, merchantApi } from '@/utils/merchant-api';
-import { MERCHANT_ALERT_TYPES, requestMerchantSubscribe, wxLoginCode } from '@/utils/notify';
+import {
+  hasSubscribeTemplates,
+  MERCHANT_ALERT_TYPES,
+  requestMerchantSubscribe,
+  wxLoginCode
+} from '@/utils/notify';
 import { canAccessNav, useMerchantMe } from '@/composables/useMerchantMe';
-import { MERCHANT_BIZ_NAV, MERCHANT_FIELD_NAV, type MerchantNavItem } from '@/config/merchant-nav';
+import { MERCHANT_BIZ_NAV, MERCHANT_FIELD_NAV, MERCHANT_TEAM_NAV, type MerchantNavItem } from '@/config/merchant-nav';
 import type { MerchantMe } from '@aicabinet/shared-types';
 import { formatMerchantNames } from '@/utils/merchant-display';
 
@@ -94,9 +124,16 @@ const notifyBusy = ref(false);
 const wxBound = ref(false);
 const enabledTypes = ref<string[]>([]);
 const alertTypeOptions = MERCHANT_ALERT_TYPES;
+const subscribeReady = hasSubscribeTemplates();
+const notifyDesc = computed(() => {
+  if (!subscribeReady) return '未配置订阅模板，偏好可保存但无法申请微信推送授权';
+  if (wxBound.value) return '已绑定微信，可接收待办推送';
+  return '绑定微信后可接收待办推送';
+});
 
 const fieldNav = computed(() => MERCHANT_FIELD_NAV.filter((i) => canAccessNav(me.value, i)));
 const bizNav = computed(() => MERCHANT_BIZ_NAV.filter((i) => canAccessNav(me.value, i)));
+const teamNav = computed(() => MERCHANT_TEAM_NAV.filter((i) => canAccessNav(me.value, i)));
 const canAlerts = computed(() => fieldNav.value.some((i) => i.key === 'alerts'));
 
 function goNav(item: MerchantNavItem) {
@@ -105,6 +142,10 @@ function goNav(item: MerchantNavItem) {
     return;
   }
   uni.navigateTo({ url: item.url });
+}
+
+function goAnnouncements() {
+  uni.navigateTo({ url: '/pages/announcements/announcements' });
 }
 
 async function loadNotifyPrefs() {
@@ -144,9 +185,16 @@ function onToggleType(type: string, on: boolean) {
 }
 
 async function onBindWx() {
+  if (!subscribeReady) {
+    uni.showToast({ title: '未配置订阅模板，无法开启推送', icon: 'none' });
+    return;
+  }
   notifyBusy.value = true;
   try {
-    await requestMerchantSubscribe();
+    const sub = await requestMerchantSubscribe();
+    if (sub === 'failed') {
+      uni.showToast({ title: '微信授权未完成，仍可继续绑定账号', icon: 'none' });
+    }
     const code = await wxLoginCode();
     const prefs = await merchantApi.notifyWxBind(code);
     wxBound.value = !!prefs.wxBound;
@@ -165,10 +213,18 @@ async function onBindWx() {
 async function onSaveSubscribe() {
   notifyBusy.value = true;
   try {
-    await requestMerchantSubscribe();
+    if (subscribeReady) {
+      const sub = await requestMerchantSubscribe();
+      if (sub === 'failed') {
+        uni.showToast({ title: '微信授权未完成，偏好仍会保存', icon: 'none' });
+      }
+    }
     const prefs = await merchantApi.notifySubscribe(enabledTypes.value);
     enabledTypes.value = [...(prefs.enabledAlertTypes || [])];
-    uni.showToast({ title: '提醒偏好已保存', icon: 'success' });
+    uni.showToast({
+      title: subscribeReady ? '提醒偏好已保存' : '偏好已保存（未配置推送模板）',
+      icon: 'success'
+    });
   } catch (e) {
     uni.showToast({
       title: e instanceof Error ? e.message : '保存失败',
@@ -282,6 +338,15 @@ function onLogout() {
   color: #0f766e;
   border: none;
   font-size: 22rpx;
+}
+.notify-warn {
+  margin-bottom: 16rpx;
+  padding: 12rpx 16rpx;
+  border-radius: 12rpx;
+  background: #fff7ed;
+  color: #c2410c;
+  font-size: 22rpx;
+  line-height: 1.4;
 }
 .notify-types { display: grid; gap: 12rpx; }
 .notify-type {

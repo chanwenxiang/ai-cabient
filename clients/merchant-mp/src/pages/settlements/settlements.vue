@@ -70,8 +70,9 @@
     </view>
 
     <view class="tip-card">
-      <text class="tip-text">T+1 结算：当日支付流水通常次日完成入账；分账由平台定期提交至微信收款账户，商户端不支持自主提现。</text>
+      <text class="tip-text">T+1 结算：当日支付流水通常次日完成入账。可提现余额请到「商户钱包」申请提现；线长佣金请走「线长钱包」。</text>
       <text v-if="profitNote" class="tip-meta">{{ profitNote }}</text>
+      <text v-if="canViewSplits" class="tip-link" @click="goSplits">查看分账明细 ›</text>
     </view>
 
     <view class="section">
@@ -138,6 +139,7 @@ import type { MerchantDailySettlement, MerchantMe, MerchantSettlementBatch } fro
 const { me, refresh: refreshMe } = useMerchantMe();
 const canViewSettlements = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
 const canExport = computed(() => hasPerm(me.value, 'merchant:settlements:export'));
+const canViewSplits = computed(() => hasPerm(me.value, 'merchant:splits:list'));
 const isH5 = typeof document !== 'undefined';
 /** 小程序 picker 限制可选年份，避免滚轮过长 */
 const pickerStart = '2020-01-01';
@@ -296,6 +298,10 @@ async function load() {
   }
 }
 
+function goSplits() {
+  uni.navigateTo({ url: '/pages/splits/splits' });
+}
+
 function onExport() {
   if (!canExport.value) {
     uni.showToast({ title: '无导出权限', icon: 'none' });
@@ -366,6 +372,13 @@ function onExport() {
 .tip-card { background: #ecfdf5; border-radius: 12rpx; padding: 20rpx; margin-bottom: 20rpx; }
 .tip-text { font-size: 24rpx; color: #0f766e; display: block; line-height: 1.5; }
 .tip-meta { font-size: 22rpx; color: #64748b; margin-top: 8rpx; display: block; }
+.tip-link {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: #0f766e;
+  font-weight: 650;
+}
 .banner-err {
   margin-bottom: 16rpx;
   padding: 16rpx 20rpx;

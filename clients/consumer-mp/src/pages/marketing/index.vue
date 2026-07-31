@@ -21,24 +21,16 @@
       <text class="entry-arrow">›</text>
     </view>
 
-    <view class="entry mint" @click="goExchange">
-      <view>
-        <text class="entry-title">积分兑好礼</text>
-        <text class="entry-sub">积分兑立减券，开门购物更省</text>
-      </view>
-      <text class="entry-arrow">›</text>
-    </view>
-
     <view class="section-title">进行中</view>
     <view v-if="loading" class="empty">加载中…</view>
     <empty-state
       v-else-if="!campaigns.length"
       icon="热"
       title="暂无进行中活动"
-      hint="可先去积分兑券，或扫码开门购物"
+      hint="可先领券，或扫码开门购物"
     >
       <button class="empty-btn" @click="goShop">去扫码购物</button>
-      <button class="empty-btn ghost" @click="goExchange">去积分兑换</button>
+      <button class="empty-btn ghost" @click="goCoupons">去领券</button>
     </empty-state>
     <view v-else>
       <view v-for="c in campaigns" :key="c.id" class="campaign" @click="onCampaignClick(c)">
@@ -93,11 +85,11 @@ async function load() {
     ]);
     banners.value = b?.length ? b : [{
       id: 0,
-      title: '积分兑好礼',
-      subtitle: '100 积分起兑优惠券',
+      title: '领券更优惠',
+      subtitle: '满减与新客礼等你领取',
       tone: 'mint',
-      emoji: '积',
-      ctaPath: '/pages/member/exchange'
+      emoji: '惠',
+      ctaPath: '/pages/coupons/coupons'
     }];
     campaigns.value = c || [];
     if (authed.value) {
@@ -130,7 +122,7 @@ function openPath(path?: string) {
 async function onCampaignClick(c: MarketingCampaignDto) {
   if (!c?.id) return;
   if (c.type === 'POINTS') {
-    openPath(c.ctaPath || '/pages/member/exchange');
+    uni.showToast({ title: '该活动类型已下线', icon: 'none' });
     return;
   }
   if (c.claimed || claimingId.value === c.id) {
@@ -167,9 +159,6 @@ async function onCampaignClick(c: MarketingCampaignDto) {
 
 function goCoupons() {
   uni.navigateTo({ url: '/pages/coupons/coupons' });
-}
-function goExchange() {
-  uni.navigateTo({ url: '/pages/member/exchange' });
 }
 function goShop() {
   uni.switchTab({ url: '/pages/index/index' });

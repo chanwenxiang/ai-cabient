@@ -65,6 +65,33 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     icon: '📑'
   },
   {
+    key: 'wallet',
+    title: '商户钱包',
+    desc: '可提现余额与自主提现',
+    url: '/pages/wallet/wallet',
+    perm: 'merchant:wallet:view',
+    pack: 'biz',
+    icon: '💰'
+  },
+  {
+    key: 'splits',
+    title: '分账明细',
+    desc: '分账状态与失败原因',
+    url: '/pages/splits/splits',
+    perm: 'merchant:splits:list',
+    pack: 'biz',
+    icon: '💱'
+  },
+  {
+    key: 'line-wallet',
+    title: '线长钱包',
+    desc: '线长余额与自主提现（非商户分账）',
+    url: '/pages/line-wallet/line-wallet',
+    perm: 'merchant:line-wallet:view',
+    pack: 'biz',
+    icon: '👛'
+  },
+  {
     key: 'orders',
     title: '柜机订单',
     desc: '本商户柜机成交与争议单',
@@ -90,5 +117,17 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     perm: ['merchant:reports:view', 'merchant:analytics:view'],
     pack: 'biz',
     icon: '📈'
+  }
+];
+
+export const MERCHANT_TEAM_NAV: MerchantNavItem[] = [
+  {
+    key: 'team',
+    title: '团队成员',
+    desc: '查看与邀请商户账号',
+    url: '/pages/team/team',
+    perm: 'merchant:users:list',
+    pack: 'team',
+    icon: '👥'
   }
 ];

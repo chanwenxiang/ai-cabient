@@ -21,8 +21,12 @@
       </el-form-item>
       <el-form-item label="渠道">
         <el-select v-model="channel" clearable placeholder="全部" style="width: 120px">
-          <el-option label="微信" value="WECHAT" />
-          <el-option label="支付宝" value="ALIPAY" />
+          <el-option
+            v-for="item in dictOptions('pay_channel').filter((o) => ['WECHAT', 'ALIPAY'].includes(o.value))"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -35,7 +39,9 @@
       <el-table-column prop="logId" label="记录ID" width="100" />
       <el-table-column prop="phone" label="手机号" width="140" />
       <el-table-column prop="userId" label="用户ID" width="120" />
-      <el-table-column prop="channel" label="渠道" width="100" />
+      <el-table-column prop="channel" label="渠道" width="100">
+        <template #default="{ row }">{{ dictLabel('pay_channel', row.channel) }}</template>
+      </el-table-column>
       <el-table-column prop="merchantId" label="商户" min-width="140" />
       <el-table-column label="验证时间" width="170">
         <template #default="{ row }">{{ String(row.verifiedAt || '').replace('T', ' ').slice(0, 19) }}</template>
@@ -52,8 +58,12 @@
         </el-form-item>
         <el-form-item label="渠道">
           <el-select v-model="form.channel" style="width: 100%">
-            <el-option label="微信" value="WECHAT" />
-            <el-option label="支付宝" value="ALIPAY" />
+            <el-option
+              v-for="item in dictOptions('pay_channel').filter((o) => ['WECHAT', 'ALIPAY'].includes(o.value))"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="商户ID">
@@ -72,6 +82,7 @@
 import { onMounted, reactive, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 
 const loading = ref(false);

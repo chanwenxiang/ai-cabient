@@ -123,10 +123,12 @@
         <el-form-item label="活动名称" required><el-input v-model="form.activityName" maxlength="80" /></el-form-item>
         <el-form-item label="活动类型">
           <el-select v-model="form.activityType" style="width: 100%">
-            <el-option label="满减" value="FULL_REDUCE" />
-            <el-option label="折扣" value="DISCOUNT" />
-            <el-option label="买赠" value="BUY_GIFT" />
-            <el-option label="第二件半价" value="SECOND_HALF" />
+            <el-option
+              v-for="item in dictOptions('promotion_type')"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="开始时间"><el-date-picker v-model="form.startTime" type="datetime" style="width: 100%" /></el-form-item>
@@ -150,6 +152,7 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -208,23 +211,16 @@ const emptyForm = () => ({
 const form = ref(emptyForm());
 
 const typeMap: Record<string, string> = {
-  FULL_REDUCE: '满减',
-  DISCOUNT: '折扣',
-  BUY_GIFT: '买赠',
-  SECOND_HALF: '第二件半价',
-  NEW_USER: '新客礼',
-  POINTS: '积分兑换'
+  ...Object.fromEntries(dictOptions('promotion_type').map((o) => [o.value, o.label])),
+  NEW_USER: '新客礼'
 };
-const typeCodeByLabel: Record<string, string> = {
-  满减: 'FULL_REDUCE',
-  折扣: 'DISCOUNT',
-  买赠: 'BUY_GIFT',
-  第二件半价: 'SECOND_HALF',
-  FULL_REDUCE: 'FULL_REDUCE',
-  DISCOUNT: 'DISCOUNT',
-  BUY_GIFT: 'BUY_GIFT',
-  SECOND_HALF: 'SECOND_HALF'
-};
+const typeCodeByLabel: Record<string, string> = Object.fromEntries([
+  ...dictOptions('promotion_type').flatMap((o) => [
+    [o.label, o.value],
+    [o.value, o.value]
+  ] as [string, string][]),
+  ['新客礼', 'NEW_USER']
+]);
 
 function yuan(cents: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);

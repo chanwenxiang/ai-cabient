@@ -49,10 +49,12 @@
       />
 
       <el-tabs v-model="status" class="status-tabs" @tab-change="onStatusTab">
-        <el-tab-pane :label="`待处理 (${statusCounts.OPEN})`" name="OPEN" />
-        <el-tab-pane :label="`处理中 (${statusCounts.PROCESSING})`" name="PROCESSING" />
-        <el-tab-pane :label="`已处理 (${statusCounts.RESOLVED})`" name="RESOLVED" />
-        <el-tab-pane :label="`已关闭 (${statusCounts.CLOSED})`" name="CLOSED" />
+        <el-tab-pane
+          v-for="item in statusTabOptions"
+          :key="item.value"
+          :label="`${item.label} (${statusCounts[item.value as keyof typeof statusCounts] || 0})`"
+          :name="item.value"
+        />
         <el-tab-pane label="全部" name="ALL" />
       </el-tabs>
 
@@ -444,6 +446,7 @@ const inlineVideoUrl = ref('');
 const inlineVideoError = ref('');
 let inlineVideoRevoke: (() => void) | null = null;
 const status = ref('OPEN');
+const statusTabOptions = dictOptions('exception_status');
 const severity = ref('');
 const overdueOnly = ref(false);
 const page = ref(1);

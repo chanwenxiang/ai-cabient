@@ -14,7 +14,6 @@ import com.aicabinet.trade.support.MerchantPortalGuard;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -44,6 +43,13 @@ public class MerchantPortalService {
     private static final int EXPORT_LIMIT = 5000;
     private static final long MERCHANT_ROLE_ID = 6L;
     private static final long MERCHANT_STAFF_ROLE_ID = 7L;
+    private static final long MERCHANT_FINANCE_ROLE_ID = 8L;
+    private static final long MERCHANT_STORE_MANAGER_ROLE_ID = 10L;
+    private static final long MERCHANT_REPLENISHER_ROLE_ID = 11L;
+    private static final Set<String> MERCHANT_TEAM_ROLE_KEYS = Set.of(
+            "merchant", "merchant_admin", "merchant_staff", "merchant_finance",
+            "merchant_store_manager", "merchant_replenisher"
+    );
 
     private final PermissionService permissionService;
     private final MerchantFinanceService merchantFinanceService;
@@ -863,10 +869,83 @@ public class MerchantPortalService {
         }
         return userInfoRepository.findByUserIdIn(new ArrayList<>(userIds)).stream()
                 .sorted(Comparator.comparing(UserInfo::getUserId))
-                .map(u -> new MerchantUserDto(
-                        u.getUserId(), u.getPhoneNumber(), u.getName(),
-                        resolveMerchantRoleKey(u.getUserId()), u.getUserId().equals(userId)))
+                .map(u -> toMerchantUserDto(u, u.getUserId().equals(userId)))
                 .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<MerchantTeamRoleDto> listTeamRoles(Long userId) {
+        permissionService.requireAnyPermission(userId, "merchant:users:invite", "merchant:users:edit");
+        merchantPortalGuard.requireAccess(userId);
+        return List.of(
+                new MerchantTeamRoleDto("merchant", "商户管理员", "全量经营与团队管理"),
+                new MerchantTeamRoleDto("merchant_store_manager", "店长", "现场+经营只读，可看团队"),
+                new MerchantTeamRoleDto("merchant_finance", "财务", "结算对账与钱包只读"),
+                new MerchantTeamRoleDto("merchant_replenisher", "补货员", "柜机补货与库存"),
+                new MerchantTeamRoleDto("merchant_staff", "店员", "通用只读协同")
+        );
+    }
+
+    @Transactional
+    public MerchantUserDto updateTeamUser(Long operatorId, Long targetUserId, UpdateMerchantUserRequest request) {
+        permissionService.requirePermission(operatorId, "merchant:users:edit");
+        merchantPortalGuard.requireAccess(operatorId);
+        UserInfo target = requireTeamMember(operatorId, targetUserId);
+        if (request.displayName() != null && !request.displayName().isBlank()) {
+            target.setName(request.displayName().trim());
+        }
+        if (request.roleKey() != null && !request.roleKey().isBlank()) {
+            if (targetUserId.equals(operatorId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能修改自己的角色");
+            }
+            long roleId = resolveMerchantRoleId(request.roleKey());
+            userRoleRepository.deleteByIdUserId(targetUserId);
+            userRoleRepository.insert(new OpsUserRole(targetUserId, roleId));
+        }
+        userInfoRepository.save(target);
+        auditService.record(operatorId, "MERCHANT_USER_UPDATE", "USER", String.valueOf(targetUserId),
+                "role=" + request.roleKey() + ",name=" + request.displayName());
+        return toMerchantUserDto(target, false);
+    }
+
+    @Transactional
+    public MerchantUserDto disableTeamUser(Long operatorId, Long targetUserId) {
+        permissionService.requirePermission(operatorId, "merchant:users:disable");
+        merchantPortalGuard.requireAccess(operatorId);
+        if (targetUserId.equals(operatorId)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不能停用自己");
+        }
+        UserInfo target = requireTeamMember(operatorId, targetUserId);
+        target.setStatus("INACTIVE");
+        userInfoRepository.save(target);
+        auditService.record(operatorId, "MERCHANT_USER_DISABLE", "USER", String.valueOf(targetUserId), null);
+        return toMerchantUserDto(target, false);
+    }
+
+    @Transactional
+    public MerchantUserDto enableTeamUser(Long operatorId, Long targetUserId) {
+        permissionService.requirePermission(operatorId, "merchant:users:edit");
+        merchantPortalGuard.requireAccess(operatorId);
+        UserInfo target = requireTeamMember(operatorId, targetUserId);
+        target.setStatus("ACTIVE");
+        userInfoRepository.save(target);
+        auditService.record(operatorId, "MERCHANT_USER_ENABLE", "USER", String.valueOf(targetUserId), null);
+        return toMerchantUserDto(target, false);
+    }
+
+    @Transactional
+    public MerchantUserDto resetTeamUserPassword(Long operatorId, Long targetUserId,
+                                                 ResetMerchantUserPasswordRequest request) {
+        permissionService.requirePermission(operatorId, "merchant:users:reset-password");
+        merchantPortalGuard.requireAccess(operatorId);
+        if (request == null || request.password() == null || request.password().length() < 6) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "密码至少 6 位");
+        }
+        UserInfo target = requireTeamMember(operatorId, targetUserId);
+        target.setPasswordHash(passwordEncoder.encode(request.password()));
+        userInfoRepository.save(target);
+        auditService.record(operatorId, "MERCHANT_USER_RESET_PASSWORD", "USER", String.valueOf(targetUserId), null);
+        return toMerchantUserDto(target, targetUserId.equals(operatorId));
     }
 
     @Transactional
@@ -896,6 +975,7 @@ public class MerchantPortalService {
         user.setName(request.displayName() != null && !request.displayName().isBlank()
                 ? request.displayName().trim() : "商户成员");
         user.setVerified(true);
+        user.setStatus("ACTIVE");
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         userInfoRepository.save(user);
 
@@ -911,7 +991,46 @@ public class MerchantPortalService {
         }
         auditService.record(userId, "MERCHANT_USER_CREATE", "USER", String.valueOf(newUserId),
                 "phone=" + phone + ",role=" + request.roleKey());
-        return new MerchantUserDto(newUserId, phone, user.getName(), resolveRoleKey(roleId), false);
+        return toMerchantUserDto(user, false);
+    }
+
+    private UserInfo requireTeamMember(Long operatorId, Long targetUserId) {
+        Set<String> merchants = merchantFeaturePackService.allowedMerchantIdsForPack(
+                operatorId, MerchantFeaturePacks.TEAM);
+        if (merchants == null || merchants.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "该商户未开通对应功能包");
+        }
+        UserInfo target = userInfoRepository.findById(targetUserId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "成员不存在"));
+        Set<String> targetMerchants = userMerchantRepository.findByIdUserId(targetUserId).stream()
+                .map(m -> m.getId().getMerchantId())
+                .collect(Collectors.toSet());
+        boolean overlap = targetMerchants.stream().anyMatch(merchants::contains);
+        if (!overlap) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权管理该成员");
+        }
+        return target;
+    }
+
+    private MerchantUserDto toMerchantUserDto(UserInfo user, boolean self) {
+        String roleKey = resolveMerchantRoleKey(user.getUserId());
+        String roleName = switch (roleKey) {
+            case "merchant" -> "商户管理员";
+            case "merchant_store_manager" -> "店长";
+            case "merchant_finance" -> "财务";
+            case "merchant_replenisher" -> "补货员";
+            case "merchant_staff" -> "店员";
+            default -> roleKey;
+        };
+        return new MerchantUserDto(
+                user.getUserId(),
+                user.getPhoneNumber(),
+                user.getName(),
+                roleKey,
+                roleName,
+                user.getStatus() == null ? "ACTIVE" : user.getStatus(),
+                self
+        );
     }
 
     private List<MerchantDeviceDto> buildDeviceDtos(List<DeviceInfo> devices) {
@@ -1013,10 +1132,18 @@ public class MerchantPortalService {
     }
 
     private long resolveMerchantRoleId(String roleKey) {
-        if (roleKey != null && "merchant_staff".equalsIgnoreCase(roleKey.trim())) {
+        if (roleKey == null || roleKey.isBlank()) {
             return MERCHANT_STAFF_ROLE_ID;
         }
-        return MERCHANT_ROLE_ID;
+        String key = roleKey.trim().toLowerCase(Locale.ROOT);
+        return switch (key) {
+            case "merchant", "merchant_admin" -> MERCHANT_ROLE_ID;
+            case "merchant_finance" -> MERCHANT_FINANCE_ROLE_ID;
+            case "merchant_store_manager" -> MERCHANT_STORE_MANAGER_ROLE_ID;
+            case "merchant_replenisher" -> MERCHANT_REPLENISHER_ROLE_ID;
+            case "merchant_staff" -> MERCHANT_STAFF_ROLE_ID;
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的角色: " + roleKey);
+        };
     }
 
     private String resolveMerchantRoleKey(Long userId) {
@@ -1024,13 +1151,14 @@ public class MerchantPortalService {
                 .map(ur -> roleRepository.findById(ur.getId().getRoleId()))
                 .flatMap(Optional::stream)
                 .map(OpsRole::getRoleKey)
-                .filter(key -> "merchant".equals(key) || "merchant_staff".equals(key))
+                .filter(MERCHANT_TEAM_ROLE_KEYS::contains)
+                .map(key -> "merchant_admin".equals(key) ? "merchant" : key)
                 .findFirst()
-                .orElse("merchant");
+                .orElse("merchant_staff");
     }
 
     private String resolveRoleKey(long roleId) {
-        return roleRepository.findById(roleId).map(OpsRole::getRoleKey).orElse("merchant");
+        return roleRepository.findById(roleId).map(OpsRole::getRoleKey).orElse("merchant_staff");
     }
 
     private static boolean isTempOutOfRange(DeviceInfo d) {

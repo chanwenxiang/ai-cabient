@@ -47,10 +47,6 @@
           <text class="sum-value">-{{ fmtMoney(order.couponDiscountCents) }}</text>
         </view>
         <text v-if="order.couponDiscountCents" class="coupon-hint">已自动选用最优优惠券</text>
-        <view v-if="order.pointsEarned" class="sum-row points">
-          <text class="sum-label">本次获得积分</text>
-          <text class="sum-value">+{{ order.pointsEarned }}</text>
-        </view>
       </view>
 
       <view class="footer-actions">

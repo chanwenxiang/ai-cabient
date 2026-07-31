@@ -5,5 +5,7 @@ public record MerchantUserDto(
         String phoneNumber,
         String displayName,
         String roleKey,
+        String roleName,
+        String status,
         boolean self
 ) {}
