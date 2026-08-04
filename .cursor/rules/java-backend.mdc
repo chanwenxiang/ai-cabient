@@ -1,0 +1,30 @@
+---
+description: Spring Boot / MyBatis-Plus conventions for trade and device services
+globs: services/**/*.java,services/**/*.xml,services/**/db/migration/*.sql
+alwaysApply: false
+---
+
+# Java 后端
+
+## 结构
+
+- 包：`com.aicabinet.trade.*` / `com.aicabinet.device.*`；分层 `api` → `service` → `mapper` + `domain`。
+- Controller：`@RestController` + `@RequestMapping("/api/v2/...")` 或 `/internal/v1/...`。
+- 返回 `ApiResponse.ok(...)`；分页用 `PageResult`。
+- 实体/Mapper：MyBatis-Plus；XML 在 `classpath*:/mapper/**/*.xml`。
+
+## 安全与权限
+
+- 运营/商户接口加 `@RequiresPermissions("ops:..." | "merchant:...")`（可 OR）。
+- 内部接口走 `InternalApiAuthInterceptor`，客户端带 `InternalApiConstants.API_KEY_HEADER`。
+- 微信/支付/短信：尊重 `aicabinet.security.mock-enabled`（`AICABINET_MOCK_ENABLED`）；缺配置时仅 mock 路径可兜底，生产路径必须显式失败。
+
+## 数据库
+
+- 新表/改表：新增 Flyway，命名 `V{next}__short_snake.sql`，勿改已发布迁移。
+- 权限/菜单变更需同步 RBAC 种子（参考现有 `V9x__*perm*.sql`）。
+
+## 风格
+
+- 新 DTO/请求体放 `common-core`；服务内不复制公共类型。
+- 先复用现有 Service/Client，避免平行实现。

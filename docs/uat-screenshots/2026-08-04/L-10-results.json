@@ -1,0 +1,19 @@
+{
+  "case": "L-10",
+  "status": "PASS",
+  "criteria": "1366×768 三端无严重遮挡/横向溢出",
+  "viewport": { "width": 1366, "height": 768 },
+  "verifiedAt": "2026-08-04T11:15:00+08:00",
+  "method": "Playwright headed Chrome @ 1366×768；测 document.scrollWidth vs clientWidth（严重阈值 >24px）+ 截图目视",
+  "summary": {
+    "pagesScanned": 14,
+    "severeHorizontalOverflow": 0,
+    "note": "消费者/商户 H5 有约 1px scrollWidth 差值，属滚动条/亚像素噪声，不判严重溢出；布局为移动端内容在宽屏居中，无横向裁切遮挡"
+  },
+  "pages": {
+    "admin": ["dashboard", "orders", "devices", "exceptions", "warehouse"],
+    "consumer": ["home", "orders", "mine", "login"],
+    "merchant": ["home", "devices", "alerts", "mine", "orders"]
+  },
+  "screenshotsGlob": "docs/uat-screenshots/2026-08-04/L-10-*.png"
+}

@@ -1,0 +1,9 @@
+packages:
+  - 'packages/*'
+  - 'clients/admin-vue'
+  - 'clients/consumer-mp'
+  - 'clients/merchant-mp'
+allowBuilds:
+  core-js: true
+  esbuild: true
+  vue-demi: true

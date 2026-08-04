@@ -1,0 +1,266 @@
+﻿[WARNING] 
+[WARNING] Some problems were encountered while building the effective settings
+[WARNING] Unrecognised tag: 'repositories' (position: START_TAG seen ...</profile>\n    -->\n\t\n<repositories>... @232:15)  @ D:\devTools\apache-maven-3.9.11\conf\settings.xml, line 232, column 15
+[WARNING] 
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] --------------------< com.aicabinet:trade-service >---------------------
+[INFO] Building trade-service 0.1.0-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ trade-service ---
+[INFO] Deleting C:\Users\cwx\OneDrive\Desktop\demo\ai-cabinet\services\trade-service\target
+[INFO] 
+[INFO] --- frontend:1.15.1:install-node-and-npm (install-node-and-npm) @ trade-service ---
+[INFO] Skipping execution.
+[INFO] 
+[INFO] --- frontend:1.15.1:npm (npm-install-admin) @ trade-service ---
+[INFO] Skipping execution.
+[INFO] 
+[INFO] --- frontend:1.15.1:npm (npm-build-admin) @ trade-service ---
+[INFO] Skipping execution.
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ trade-service ---
+[INFO] Copying 153 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ trade-service ---
+[INFO] Recompiling the module because of changed source code.
+[INFO] Compiling 321 source files with javac [debug parameters target 17] to target\classes
+[INFO] -------------------------------------------------------------
+[WARNING] COMPILATION WARNING : 
+[INFO] -------------------------------------------------------------
+[WARNING] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/payment/AlipayOpenApiClient.java:[101,19] δʹ�� @Deprecated ���ѹ�ʱ����Ŀ����ע��
+[INFO] 1 warning
+[INFO] -------------------------------------------------------------
+[INFO] -------------------------------------------------------------
+[ERROR] COMPILATION ERROR : 
+[INFO] -------------------------------------------------------------
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[809,20] �Ҳ�������
+  ����:   ���� minChargeConfidence()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[810,47] �Ҳ�������
+  ����:   ���� minChargeConfidence()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[812,20] �Ҳ�������
+  ����:   ���� yoloClassName()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[812,56] �Ҳ�������
+  ����:   ���� yoloClassName()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[813,41] �Ҳ�������
+  ����:   ���� yoloClassName()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[815,20] �Ҳ�������
+  ����:   ���� visionEnrollmentStatus()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[815,65] �Ҳ�������
+  ����:   ���� visionEnrollmentStatus()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[816,50] �Ҳ�������
+  ����:   ���� visionEnrollmentStatus()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[818,20] �Ҳ�������
+  ����:   ���� detectionMinConfidence()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[819,50] �Ҳ�������
+  ����:   ���� detectionMinConfidence()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[821,20] �Ҳ�������
+  ����:   ���� referenceImageUrlsJson()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[822,61] �Ҳ�������
+  ����:   ���� referenceImageUrlsJson()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/domain/SkuCatalog.java:[93,16] �޷�����¼ com.aicabinet.common.dto.SkuCatalogDto�еĹ����� SkuCatalogDtoӦ�õ���������;
+  ��Ҫ: java.lang.String,java.lang.String,int,java.lang.Integer,boolean,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.Integer,int,int,java.lang.String,java.lang.Integer,java.lang.Integer,java.lang.Integer,java.time.Instant
+  �ҵ�:    java.lang.String,java.lang.String,int,java.lang.Integer,boolean,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.Integer,int,int,java.lang.String,java.lang.Integer,java.lang.Integer,java.lang.Integer,float,java.lang.String,java.lang.String,float,java.lang.String,java.time.Instant
+  ԭ��: ʵ�ʲ����б����ʽ�����б���Ȳ�ͬ
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/PaymentService.java:[119,45] �޷�����¼ com.aicabinet.common.dto.AlipayPayParams�еĹ����� AlipayPayParamsӦ�õ���������;
+  ��Ҫ: java.lang.String,java.lang.String,java.lang.String
+  �ҵ�:    java.lang.String,java.lang.String,java.lang.String,java.lang.String
+  ԭ��: ʵ�ʲ����б����ʽ�����б���Ȳ�ͬ
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/PaymentService.java:[126,21] �޷�����¼ com.aicabinet.common.dto.AlipayPayParams�еĹ����� AlipayPayParamsӦ�õ���������;
+  ��Ҫ: java.lang.String,java.lang.String,java.lang.String
+  �ҵ�:    java.lang.String,java.lang.String,<nulltype>,<nulltype>
+  ԭ��: ʵ�ʲ����б����ʽ�����б���Ȳ�ͬ
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/PaymentService.java:[192,41] �޷�����¼ com.aicabinet.common.dto.AlipayPayParams�еĹ����� AlipayPayParamsӦ�õ���������;
+  ��Ҫ: java.lang.String,java.lang.String,java.lang.String
+  �ҵ�:    java.lang.String,java.lang.String,java.lang.String,java.lang.String
+  ԭ��: ʵ�ʲ����б����ʽ�����б���Ȳ�ͬ
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/PaymentService.java:[206,37] �޷�����¼ com.aicabinet.common.dto.AlipayPayParams�еĹ����� AlipayPayParamsӦ�õ���������;
+  ��Ҫ: java.lang.String,java.lang.String,java.lang.String
+  �ҵ�:    java.lang.String,java.lang.String,<nulltype>,<nulltype>
+  ԭ��: ʵ�ʲ����б����ʽ�����б���Ȳ�ͬ
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[235,19] �Ҳ�������
+  ����:   ���� minChargeConfidence()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[236,46] �Ҳ�������
+  ����:   ���� minChargeConfidence()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[238,19] �Ҳ�������
+  ����:   ���� yoloClassName()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[238,54] �Ҳ�������
+  ����:   ���� yoloClassName()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[239,40] �Ҳ�������
+  ����:   ���� yoloClassName()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[245,19] �Ҳ�������
+  ����:   ���� visionEnrollmentStatus()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[245,63] �Ҳ�������
+  ����:   ���� visionEnrollmentStatus()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[246,65] �Ҳ�������
+  ����:   ���� visionEnrollmentStatus()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[250,19] �Ҳ�������
+  ����:   ���� detectionMinConfidence()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[251,49] �Ҳ�������
+  ����:   ���� detectionMinConfidence()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[255,19] �Ҳ�������
+  ����:   ���� referenceImageUrlsJson()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[256,60] �Ҳ�������
+  ����:   ���� referenceImageUrlsJson()
+  λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/RecognitionTestService.java:[176,28] �޷�����¼ com.aicabinet.common.dto.DevRecognitionItemDto�еĹ����� DevRecognitionItemDtoӦ�õ���������;
+  ��Ҫ: java.lang.String,java.lang.String,int,float
+  �ҵ�:    java.lang.String,java.lang.String,int,float,java.lang.Integer,java.lang.Integer
+  ԭ��: ʵ�ʲ����б����ʽ�����б���Ȳ�ͬ
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/RecognitionTestService.java:[184,24] �����ݵ�����: java.util.List<java.lang.Object>�޷�ת��Ϊjava.util.List<com.aicabinet.common.dto.DevRecognitionItemDto>
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/RecognitionTestService.java:[212,30] �Ҳ�������
+  ����:   ���� lineAmountCents()
+  λ��: ����Ϊcom.aicabinet.common.dto.DevRecognitionItemDto�ı��� i
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/RecognitionTestService.java:[212,61] �Ҳ�������
+  ����:   ���� lineAmountCents()
+  λ��: ����Ϊcom.aicabinet.common.dto.DevRecognitionItemDto�ı��� i
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/RecognitionTestService.java:[213,73] �Ҳ�������
+  ����:   ���� lineAmountCents()
+  λ��: ����Ϊcom.aicabinet.common.dto.DevRecognitionItemDto�ı��� i
+[INFO] 34 errors 
+[INFO] -------------------------------------------------------------
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD FAILURE
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  7.544 s
+[INFO] Finished at: 2026-07-14T23:17:56+08:00
+[INFO] ------------------------------------------------------------------------
+[ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.13.0:compile (default-compile) on project trade-service: Compilation failure: Compilation failure: 
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[809,20] �Ҳ�������
+[ERROR]   ����:   ���� minChargeConfidence()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[810,47] �Ҳ�������
+[ERROR]   ����:   ���� minChargeConfidence()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[812,20] �Ҳ�������
+[ERROR]   ����:   ���� yoloClassName()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[812,56] �Ҳ�������
+[ERROR]   ����:   ���� yoloClassName()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[813,41] �Ҳ�������
+[ERROR]   ����:   ���� yoloClassName()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[815,20] �Ҳ�������
+[ERROR]   ����:   ���� visionEnrollmentStatus()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[815,65] �Ҳ�������
+[ERROR]   ����:   ���� visionEnrollmentStatus()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[816,50] �Ҳ�������
+[ERROR]   ����:   ���� visionEnrollmentStatus()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[818,20] �Ҳ�������
+[ERROR]   ����:   ���� detectionMinConfidence()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[819,50] �Ҳ�������
+[ERROR]   ����:   ���� detectionMinConfidence()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[821,20] �Ҳ�������
+[ERROR]   ����:   ���� referenceImageUrlsJson()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/AdminDashboardService.java:[822,61] �Ҳ�������
+[ERROR]   ����:   ���� referenceImageUrlsJson()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� request
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/domain/SkuCatalog.java:[93,16] �޷�����¼ com.aicabinet.common.dto.SkuCatalogDto�еĹ����� SkuCatalogDtoӦ�õ���������;
+[ERROR]   ��Ҫ: java.lang.String,java.lang.String,int,java.lang.Integer,boolean,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.Integer,int,int,java.lang.String,java.lang.Integer,java.lang.Integer,java.lang.Integer,java.time.Instant
+[ERROR]   �ҵ�:    java.lang.String,java.lang.String,int,java.lang.Integer,boolean,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.String,java.lang.Integer,int,int,java.lang.String,java.lang.Integer,java.lang.Integer,java.lang.Integer,float,java.lang.String,java.lang.String,float,java.lang.String,java.time.Instant
+[ERROR]   ԭ��: ʵ�ʲ����б����ʽ�����б���Ȳ�ͬ
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/PaymentService.java:[119,45] �޷�����¼ com.aicabinet.common.dto.AlipayPayParams�еĹ����� AlipayPayParamsӦ�õ���������;
+[ERROR]   ��Ҫ: java.lang.String,java.lang.String,java.lang.String
+[ERROR]   �ҵ�:    java.lang.String,java.lang.String,java.lang.String,java.lang.String
+[ERROR]   ԭ��: ʵ�ʲ����б����ʽ�����б���Ȳ�ͬ
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/PaymentService.java:[126,21] �޷�����¼ com.aicabinet.common.dto.AlipayPayParams�еĹ����� AlipayPayParamsӦ�õ���������;
+[ERROR]   ��Ҫ: java.lang.String,java.lang.String,java.lang.String
+[ERROR]   �ҵ�:    java.lang.String,java.lang.String,<nulltype>,<nulltype>
+[ERROR]   ԭ��: ʵ�ʲ����б����ʽ�����б���Ȳ�ͬ
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/PaymentService.java:[192,41] �޷�����¼ com.aicabinet.common.dto.AlipayPayParams�еĹ����� AlipayPayParamsӦ�õ���������;
+[ERROR]   ��Ҫ: java.lang.String,java.lang.String,java.lang.String
+[ERROR]   �ҵ�:    java.lang.String,java.lang.String,java.lang.String,java.lang.String
+[ERROR]   ԭ��: ʵ�ʲ����б����ʽ�����б���Ȳ�ͬ
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/PaymentService.java:[206,37] �޷�����¼ com.aicabinet.common.dto.AlipayPayParams�еĹ����� AlipayPayParamsӦ�õ���������;
+[ERROR]   ��Ҫ: java.lang.String,java.lang.String,java.lang.String
+[ERROR]   �ҵ�:    java.lang.String,java.lang.String,<nulltype>,<nulltype>
+[ERROR]   ԭ��: ʵ�ʲ����б����ʽ�����б���Ȳ�ͬ
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[235,19] �Ҳ�������
+[ERROR]   ����:   ���� minChargeConfidence()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[236,46] �Ҳ�������
+[ERROR]   ����:   ���� minChargeConfidence()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[238,19] �Ҳ�������
+[ERROR]   ����:   ���� yoloClassName()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[238,54] �Ҳ�������
+[ERROR]   ����:   ���� yoloClassName()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[239,40] �Ҳ�������
+[ERROR]   ����:   ���� yoloClassName()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[245,19] �Ҳ�������
+[ERROR]   ����:   ���� visionEnrollmentStatus()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[245,63] �Ҳ�������
+[ERROR]   ����:   ���� visionEnrollmentStatus()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[246,65] �Ҳ�������
+[ERROR]   ����:   ���� visionEnrollmentStatus()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[250,19] �Ҳ�������
+[ERROR]   ����:   ���� detectionMinConfidence()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[251,49] �Ҳ�������
+[ERROR]   ����:   ���� detectionMinConfidence()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[255,19] �Ҳ�������
+[ERROR]   ����:   ���� referenceImageUrlsJson()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/SkuVisionEnrollmentService.java:[256,60] �Ҳ�������
+[ERROR]   ����:   ���� referenceImageUrlsJson()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.UpsertSkuRequest�ı��� skuReq
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/RecognitionTestService.java:[176,28] �޷�����¼ com.aicabinet.common.dto.DevRecognitionItemDto�еĹ����� DevRecognitionItemDtoӦ�õ���������;
+[ERROR]   ��Ҫ: java.lang.String,java.lang.String,int,float
+[ERROR]   �ҵ�:    java.lang.String,java.lang.String,int,float,java.lang.Integer,java.lang.Integer
+[ERROR]   ԭ��: ʵ�ʲ����б����ʽ�����б���Ȳ�ͬ
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/RecognitionTestService.java:[184,24] �����ݵ�����: java.util.List<java.lang.Object>�޷�ת��Ϊjava.util.List<com.aicabinet.common.dto.DevRecognitionItemDto>
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/RecognitionTestService.java:[212,30] �Ҳ�������
+[ERROR]   ����:   ���� lineAmountCents()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.DevRecognitionItemDto�ı��� i
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/RecognitionTestService.java:[212,61] �Ҳ�������
+[ERROR]   ����:   ���� lineAmountCents()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.DevRecognitionItemDto�ı��� i
+[ERROR] /C:/Users/cwx/OneDrive/Desktop/demo/ai-cabinet/services/trade-service/src/main/java/com/aicabinet/trade/service/RecognitionTestService.java:[213,73] �Ҳ�������
+[ERROR]   ����:   ���� lineAmountCents()
+[ERROR]   λ��: ����Ϊcom.aicabinet.common.dto.DevRecognitionItemDto�ı��� i
+[ERROR] -> [Help 1]
+[ERROR] 
+[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+[ERROR] Re-run Maven using the -X switch to enable full debug logging.
+[ERROR] 
+[ERROR] For more information about the errors and possible solutions, please read the following articles:
+[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException

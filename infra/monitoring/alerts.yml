@@ -1,0 +1,171 @@
+# P1: 告警规则 — 用于生产环境 Prometheus AlertManager
+# 部署: 在 prometheus.yml 中引用此文件
+
+groups:
+  - name: ai-cabinet-alerts
+    interval: 30s
+
+    rules:
+      # ── 设备离线 ──
+      - alert: DeviceOffline
+        expr: |
+          count by(instance) (
+            probe_success{job="cabinet-blackbox"} == 0
+          ) > 0
+        for: 5m
+        labels:
+          severity: critical
+          team: ops
+        annotations:
+          summary: "设备离线超过5分钟"
+          description: "设备 {{ $labels.instance }} 已离线 {{ $value }} 分钟"
+
+      # ── MQTT 连接异常 ──
+      - alert: MqttConnectionIssue
+        expr: |
+          sum by(instance) (
+            rate(mqtt_disconnect_total[5m])
+          ) > 10
+        for: 2m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "MQTT 频繁断连"
+          description: "MQTT 断开频率 > 10次/分钟 在 {{ $labels.instance }}"
+
+      # ── 识别延迟过高 ──
+      - alert: HighRecognitionLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(vision_recognition_duration_seconds_bucket[5m])
+          ) > 10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "P95 识别延迟超过10秒"
+          description: "当前 P95 延迟: {{ $value }}s"
+
+      # ── 会话异常卡住 ──
+      - alert: StuckSession
+        expr: |
+          ai_cabinet_session_state{state="OPENING"} > 0
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "会话卡在 OPENING 状态超过3分钟"
+          description: "当前 {{ $value }} 个会话停留在 OPENING 状态"
+
+      # ── 结算失败过多 ──
+      - alert: HighSettlementFailureRate
+        expr: |
+          rate(ai_cabinet_settlement_failures_total[5m]) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "结算失败率过高"
+          description: "结算失败频率 > 0.1/秒 (10分钟平均)"
+
+      # ── Kafka 消费堆积 ──
+      - alert: KafkaConsumerLag
+        expr: |
+          kafka_consumer_lag > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Kafka 消费者堆积"
+          description: "当前堆积: {{ $value }} 条"
+
+      # ── 数据库连接池耗尽 ──
+      - alert: DatabaseConnectionPoolExhausted
+        expr: |
+          hikari_connections_active / hikari_connections_max > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "数据库连接池使用率超过80%"
+          description: "当前使用率: {{ $value | humanizePercentage }}"
+
+      # ── Redis 内存使用 ──
+      - alert: RedisMemoryHigh
+        expr: |
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis 内存使用率超过85%"
+          description: "当前使用率: {{ $value | humanizePercentage }}"
+
+      # ── MinIO 存储空间 ──
+      - alert: MinioStorageNearFull
+        expr: |
+          minio_bucket_usage_bytes / minio_bucket_quota_bytes > 0.85
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MinIO 存储空间接近满"
+          description: "使用率: {{ $value | humanizePercentage }}"
+
+      # ── 单柜日结算失败过多 ──
+      - alert: DeviceSettlementAnomaly
+        expr: |
+          sum by(device_id) (
+            increase(ai_cabinet_device_settlement_failures_total[24h])
+          ) > 5
+        labels:
+          severity: critical
+          team: ops
+        annotations:
+          summary: "单台设备24小时结算失败超过5次"
+          description: "设备 {{ $labels.device_id }} 结算失败 {{ $value }} 次/天"
+
+      # ── 余额不足结算失败 ──
+      - alert: BalanceInsufficient
+        expr: |
+          rate(ai_cabinet_balance_insufficient_total[5m]) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "余额不足导致结算失败增多"
+          description: "频率: {{ $value }}/秒"
+
+      # ── 争议工单 SLA 即将超时 ──
+      - alert: DisputeSlaBreach
+        expr: |
+          ai_cabinet_dispute_sla_remaining_hours < 12
+        labels:
+          severity: warning
+        annotations:
+          summary: "争议工单 SLA 即将超时"
+          description: "工单 {{ $labels.ticket_id }} 剩余处理时间不足12小时"
+
+      # ── 硬件健康 ──
+      - alert: DeviceTemperatureHigh
+        expr: |
+          ai_cabinet_device_temperature > 35
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "设备温度过高"
+          description: "设备 {{ $labels.device_id }} 温度 {{ $value }}°C"
+
+      # ── 视频上传积压 ──
+      - alert: VideoUploadBacklog
+        expr: |
+          ai_cabinet_upload_queue_size > 50
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "视频上传队列积压"
+          description: "当前排队 {{ $value }} 个视频待上传"

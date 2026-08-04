@@ -1,0 +1,14 @@
+# cabinet-skus-v1 数据集目录（阶段 C）
+
+标注完成后目录结构：
+
+```
+cabinet-skus-v1/
+  images/train/*.jpg
+  images/val/*.jpg
+  labels/train/*.txt
+  labels/val/*.txt
+```
+
+类名见 `vision-service/training/data.yaml`。  
+就绪检查：`.\scripts\verify-sku-training-ready.ps1`

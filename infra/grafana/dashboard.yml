@@ -1,0 +1,95 @@
+﻿# Grafana Dashboard 配置指南
+
+## 导入 Dashboard
+
+### 方式1: 导入 JSON 文件
+1. 登录 Grafana
+2. 点击 + -> Import
+3. 上传 dashboard JSON 文件
+4. 选择数据源并导入
+
+### 方式2: 通过 ID 导入
+推荐使用以下官方 Dashboard:
+- **JVM Micrometer**: ID 4701
+- **Spring Boot Statistics**: ID 12900
+- **PostgreSQL Database**: ID 9628
+- **Redis Dashboard**: ID 11835
+
+## 自定义 Dashboard
+
+### 核心指标面板
+
+#### 1. 服务健康状态
+`
+up{job="trade-service"}
+up{job="device-service"}
+`
+
+#### 2. 当前在线设备数
+`
+count(aicabinet_device_status{status="online"})
+`
+
+#### 3. 今日订单数
+`
+sum(increase(aicabinet_orders_total[24h]))
+`
+
+#### 4. 今日GMV（元）
+`
+sum(increase(aicabinet_order_amount_total[24h])) / 100
+`
+
+#### 5. 请求量趋势
+`
+rate(http_server_requests_seconds_count[5m])
+`
+
+#### 6. 响应时间 P95
+`
+histogram_quantile(0.95, rate(http_server_requests_seconds_bucket[5m]))
+`
+
+#### 7. 错误率
+`
+rate(http_server_requests_seconds_count{status=~"5.."}[5m])
+`
+
+#### 8. JVM堆内存使用
+`
+jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}
+`
+
+#### 9. 数据库连接池使用率
+`
+hikaricp_connections_active / hikaricp_connections_max
+`
+
+#### 10. Redis内存使用率
+`
+redis_memory_used_bytes / redis_memory_max_bytes
+`
+
+## 告警配置
+
+在 Grafana 中配置告警通知渠道:
+1. 邮件通知
+2. 钉钉/企业微信 Webhook
+3. Slack
+4. PagerDuty
+
+## 变量配置
+
+为 Dashboard 配置变量以实现动态过滤:
+- service: 服务名称
+- device_id: 设备ID
+- status: 订单/设备状态
+
+## 刷新间隔
+
+建议设置:
+- 开发环境: 30秒
+- 生产环境: 1分钟
+
+---
+**创建时间**: 2026-07-14

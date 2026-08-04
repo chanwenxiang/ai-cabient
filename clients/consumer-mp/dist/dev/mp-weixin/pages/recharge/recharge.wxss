@@ -1,0 +1,43 @@
+
+.page-root.data-v-d370def1 { padding: 20rpx; background: #f7f7f7; min-height: 100vh;
+}
+.balance-card.data-v-d370def1 { background: linear-gradient(135deg, #07c160, #06ad56); border-radius: 20rpx; padding: 40rpx; text-align: center; margin-bottom: 30rpx;
+}
+.bal-label.data-v-d370def1 { color: rgba(255,255,255,.8); font-size: 28rpx;
+}
+.bal-amount.data-v-d370def1 { color: #fff; font-size: 72rpx; font-weight: 700; margin-top: 10rpx;
+}
+.amount-grid.data-v-d370def1 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20rpx; margin-bottom: 30rpx;
+}
+.amount-card.data-v-d370def1 { background: #fff; border-radius: 16rpx; padding: 30rpx 20rpx; text-align: center; border: 2rpx solid #eee;
+}
+.amount-card.selected.data-v-d370def1 { border-color: #07c160; background: #f0fff4;
+}
+.amount-value.data-v-d370def1 { font-size: 40rpx; font-weight: 700; color: #333;
+}
+.amount-bonus.data-v-d370def1 { font-size: 22rpx; color: #ff6b35; margin-top: 8rpx; display: block;
+}
+.btn-primary.data-v-d370def1 { width: 100%; height: 88rpx; line-height: 88rpx; background: #07c160; color: #fff; border-radius: 44rpx; font-size: 32rpx; border: none; margin-bottom: 30rpx;
+}
+.recharge-list.data-v-d370def1 { background: #fff; border-radius: 16rpx; padding: 24rpx;
+}
+.section-title.data-v-d370def1 { font-size: 28rpx; font-weight: 600; color: #333; margin-bottom: 16rpx; display: block;
+}
+.empty.data-v-d370def1 { text-align: center; color: #999; padding: 40rpx; font-size: 26rpx;
+}
+.record-row.data-v-d370def1 { display: flex; justify-content: space-between; align-items: center; padding: 20rpx 0; border-bottom: 1rpx solid #f0f0f0;
+}
+.record-amount.data-v-d370def1 { font-size: 30rpx; font-weight: 600; display: block;
+}
+.record-time.data-v-d370def1 { font-size: 22rpx; color: #999; margin-top: 4rpx; display: block;
+}
+.record-status.data-v-d370def1 { font-size: 24rpx; padding: 4rpx 12rpx; border-radius: 8rpx;
+}
+.record-status.PAID.data-v-d370def1 { color: #07c160; background: #f0fff4;
+}
+.record-status.PENDING.data-v-d370def1 { color: #ff9500; background: #fff8e8;
+}
+.record-status.FAILED.data-v-d370def1, .record-status.REFUNDED.data-v-d370def1 { color: #ff3b30; background: #fff0ee;
+}
+.note.data-v-d370def1 { text-align: center; font-size: 24rpx; color: #999; margin-top: 24rpx; padding-bottom: 40rpx;
+}

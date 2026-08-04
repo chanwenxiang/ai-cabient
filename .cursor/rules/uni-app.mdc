@@ -1,0 +1,15 @@
+---
+description: consumer-mp and merchant-mp uni-app conventions
+globs: clients/consumer-mp/**/*.{vue,ts},clients/merchant-mp/**/*.{vue,ts},packages/shared-uni/**/*.{ts,js},packages/shared-dict/**/*.{ts,js}
+alwaysApply: false
+---
+
+# uni-app 小程序
+
+- 消费者：`clients/consumer-mp`；商户：`clients/merchant-mp`；勿混用对方 API/存储 key。
+- 页面：`src/pages/<feature>/<feature>.vue`；组件放 `src/components/`。
+- 消费者 API：`src/utils/consumer-api.ts`（token / refresh / 错误文案）；商户侧用其对应 utils，勿直连乱写 URL。
+- 共享：`@aicabinet/shared-types`、`@aicabinet/shared-dict`、`@aicabinet/shared-uni`（格式化、文案）；字典覆盖走 shared-dict。
+- 条件编译保留 `#ifdef H5` / `#ifndef H5`；开发提示可区分，用户可见文案保持友好。
+- 存储 key 保持现有前缀（如 `consumer_token`）；登录态清理要一并清 dict / session 相关 key。
+- 样式与交互对齐现有页面，不引入新 UI 框架。

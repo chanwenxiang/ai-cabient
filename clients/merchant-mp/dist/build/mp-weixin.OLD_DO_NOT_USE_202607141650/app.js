@@ -1,0 +1,1 @@
+"use strict";Object.defineProperty(exports,Symbol.toStringTag,{value:"Module"});const e=require("./common/vendor.js");Math;const t=e.defineComponent({__name:"App",setup:t=>(e.onLaunch(()=>{e.index.getStorageSync("merchant_token")}),()=>{})});function n(){return{app:e.createSSRApp(t)}}n().app.mount("#app"),exports.createApp=n;

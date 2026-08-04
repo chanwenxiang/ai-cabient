@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.DisputeTicketMapper">
+
+  <select id="findByUserIdOrderByCreatedAtDesc" resultType="com.aicabinet.trade.domain.DisputeTicket">
+    <![CDATA[
+    SELECT d.* FROM dispute_ticket d
+                        JOIN shopping_session s ON d.session_id = s.session_id
+                        WHERE s.user_id = #{userId}
+                        ORDER BY d.created_at DESC
+    ]]>
+  </select>
+
+  <select id="countOpenByDeviceIds" resultType="long">
+    SELECT COUNT(*) FROM dispute_ticket d
+                        JOIN shopping_session s ON d.session_id = s.session_id
+                        WHERE d.status = 'OPEN' AND s.device_id IN <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+  </select>
+
+  <select id="countOverdue" resultType="long">
+    <![CDATA[
+    SELECT COUNT(*) FROM dispute_ticket d
+                        WHERE d.status = 'OPEN' AND d.sla_due_at IS NOT NULL AND d.sla_due_at < #{now}
+    ]]>
+  </select>
+
+  <select id="countNearSla" resultType="long">
+    <![CDATA[
+    SELECT COUNT(*) FROM dispute_ticket d
+                        WHERE d.status = 'OPEN' AND d.sla_due_at IS NOT NULL
+                          AND d.sla_due_at >= #{now} AND d.sla_due_at <= #{threshold}
+    ]]>
+  </select>
+
+  <select id="countResolvedSince" resultType="long">
+    <![CDATA[
+    SELECT COUNT(*) FROM dispute_ticket d
+                        WHERE d.status = 'RESOLVED' AND d.resolved_at >= #{since}
+    ]]>
+  </select>
+
+  <select id="countResolvedWithinSlaSince" resultType="long">
+    <![CDATA[
+    SELECT COUNT(*) FROM dispute_ticket d
+                        WHERE d.status = 'RESOLVED' AND d.resolved_at >= #{since}
+                          AND (d.sla_due_at IS NULL OR d.resolved_at <= d.sla_due_at)
+    ]]>
+  </select>
+</mapper>

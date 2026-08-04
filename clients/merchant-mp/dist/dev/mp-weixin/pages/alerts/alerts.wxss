@@ -1,0 +1,39 @@
+
+.kpi-grid.data-v-102b3300 { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; margin: 12rpx;
+}
+.kpi-card.data-v-102b3300 { border-radius: 16rpx; padding: 24rpx; text-align: center;
+}
+.kpi-card.dispute.data-v-102b3300 { background: #fef2f2;
+}
+.kpi-card.offline.data-v-102b3300 { background: #f1f5f9;
+}
+.kpi-card.stock.data-v-102b3300 { background: #fffbeb;
+}
+.kpi-card.expiry.data-v-102b3300 { background: #ecfdf5;
+}
+.n.data-v-102b3300 { font-size: 40rpx; font-weight: 700; display: block;
+}
+.l.data-v-102b3300 { font-size: 22rpx; color: #64748b;
+}
+.alert-card.data-v-102b3300 { margin-top: 0;
+}
+.tag.data-v-102b3300 { font-size: 20rpx; padding: 4rpx 12rpx; border-radius: 6rpx; margin-right: 8rpx;
+}
+.tag.dispute.data-v-102b3300 { background: #fecaca; color: #dc2626;
+}
+.tag.offline.data-v-102b3300 { background: #e2e8f0; color: #475569;
+}
+.tag.stock.data-v-102b3300 { background: #fde68a; color: #d97706;
+}
+.tag.expiry.data-v-102b3300 { background: #a7f3d0; color: #059669;
+}
+.tag.default.data-v-102b3300 { background: #e2e8f0; color: #64748b;
+}
+.title.data-v-102b3300 { font-weight: 600; display: block; margin-top: 8rpx;
+}
+.action.data-v-102b3300 { color: #0f766e; font-size: 24rpx; display: block; margin-top: 12rpx;
+}
+.err.data-v-102b3300 { color: #ef4444;
+}
+.resolve-btn.data-v-102b3300 { margin-top: 14rpx; background: #0f766e; color: #fff; border: 0;
+}

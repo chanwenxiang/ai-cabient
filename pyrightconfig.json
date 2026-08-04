@@ -1,0 +1,46 @@
+{
+  "include": [
+    "vision-service/app"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.*",
+    "ai-cabinet",
+    "scripts",
+    "vision-service/scripts",
+    "vision-service/tests",
+    "vision-service/training",
+    "clients",
+    "packages",
+    "services",
+    "infra",
+    "edge",
+    "data",
+    "testdata",
+    "artifacts"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "vision-service",
+      "extraPaths": ["."],
+      "pythonVersion": "3.11"
+    }
+  ],
+  "pythonVersion": "3.11",
+  "typeCheckingMode": "basic",
+  "reportImplicitRelativeImport": "none",
+  "reportMissingTypeStubs": "none",
+  "reportUnusedCallResult": "none",
+  "reportAny": "none",
+  "reportExplicitAny": "none",
+  "reportUnknownMemberType": "none",
+  "reportUnknownVariableType": "none",
+  "reportUnknownArgumentType": "none",
+  "reportUnknownParameterType": "none",
+  "reportUnknownLambdaType": "none",
+  "reportMissingParameterType": "none",
+  "reportUnannotatedClassAttribute": "none",
+  "reportCallInDefaultInitializer": "none",
+  "reportUnusedParameter": "none"
+}

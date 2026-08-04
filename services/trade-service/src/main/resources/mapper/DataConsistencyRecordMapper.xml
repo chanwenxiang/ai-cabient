@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.DataConsistencyRecordMapper">
+
+  <select id="findByCheckedAtBetween" resultType="com.aicabinet.trade.domain.DataConsistencyRecord">
+    <![CDATA[
+    SELECT r.* FROM data_consistency_record r WHERE r.checked_at >= #{start} AND r.checked_at < #{end}
+    ]]>
+  </select>
+</mapper>

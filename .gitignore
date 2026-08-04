@@ -1,0 +1,101 @@
+# 旧项目残留（OneDrive 可能从云端恢复，本地忽略）
+easygo/
+# 嵌套旧副本（与根目录正式工程重复，勿被 IDE/Java LS 扫描）
+/ai-cabinet/
+
+# Migration leftovers — not source of truth; keep out of IDE indexing
+scripts/_repo_backup/
+scripts/*.java.bak
+
+# Maven build output
+target/
+**/target/
+
+# Eclipse JDT output (not node_modules/**/bin)
+services/**/bin/
+edge/**/bin/
+
+# Dependencies & package managers
+node_modules/
+**/node_modules/
+
+# Env / secrets (keep *.example)
+.env
+.env.*
+!.env.example
+!**/.env.example
+!**/.env.*.example
+infra/.env
+
+# Local Cursor MCP config (may contain DB URLs / keys); keep shared rules tracked
+.cursor/mcp.json
+
+# Local IDE / editor
+.idea/
+*.iml
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+**/.settings/
+*.swp
+*.swo
+*~
+
+# Gradle / Android local caches
+**/.gradle/
+**/local.properties
+**/build/
+!**/src/**/build/
+
+# Playwright / browser test artifacts
+.playwright-cli/
+**/.playwright-cli/
+**/output/
+**/playwright-report/
+**/test-results/
+**/blob-report/
+
+# Python
+.venv/
+**/__pycache__/
+**/.pytest_cache/
+*.pyc
+
+# device-service local MQTT persistence / locks
+services/device-service/data/
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local scratch
+patch.txt
+*.log
+infra/docker-rebuild.log
+.batch*.json
+
+# Browser/agent verification screenshots (local only)
+*-verify.png
+*verify*.png
+.agents/
+.codex/
+.pnpm-store/
+)
+
+# Playwright MCP / agent session dumps
+.playwright-mcp/
+**/.playwright-mcp/
+
+# Nova Act UI verification artifacts
+.ui-verification/
+
+# Local agent scratch scripts
+**/_tmp*
+**/_tmp.*
+scripts/_tmp*
+
+# Accidental root screenshots from agent sessions
+/login-*.png
+/*-before.png
+/*-after.png

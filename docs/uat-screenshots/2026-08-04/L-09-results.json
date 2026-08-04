@@ -1,0 +1,29 @@
+{
+  "case": "L-09",
+  "status": "PASS",
+  "criteria": "购物中刷新后会话态可恢复或明确提示",
+  "verifiedAt": "2026-08-04T11:12:00+08:00",
+  "method": "Playwright headed Chrome 真实操作",
+  "setup": {
+    "simulator": "set-simulator-cart.ps1 SKU-DEMO-001:1 ShoppingSeconds=90",
+    "account": "13800138000",
+    "device": "CAB-001"
+  },
+  "sessionId": "SC8B46E931CEF4053",
+  "beforeRefresh": {
+    "ui": "正在开门 / 开门中",
+    "active_session_id": "SC8B46E931CEF4053"
+  },
+  "afterRefresh": {
+    "ui": "门已开 · 购物中；柜门已开，请自由取货；请关门",
+    "active_session_id": "SC8B46E931CEF4053",
+    "sameSession": true,
+    "dbState": "SHOPPING"
+  },
+  "screenshots": [
+    "L-09-before-refresh.png",
+    "L-09-after-refresh.png",
+    "L-09-after-refresh-settled.png"
+  ],
+  "note": "restoreActiveSession() 从 active_session_id / activeSession API 恢复；刷新后同 sessionId，UI 从开门中恢复到购物中。"
+}

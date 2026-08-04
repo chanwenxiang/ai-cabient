@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.InventoryWriteOffMapper">
+
+  <select id="sumCostCentsSince" resultType="long">
+    <![CDATA[
+    select coalesce(sum(w.cost_cents), 0) from inventory_write_off w where w.created_at >= #{since}
+    ]]>
+  </select>
+
+  <select id="sumQuantitySince" resultType="long">
+    <![CDATA[
+    select coalesce(sum(w.quantity), 0) from inventory_write_off w where w.created_at >= #{since}
+    ]]>
+  </select>
+
+  <select id="sumCostCentsBetween" resultType="long">
+    <![CDATA[
+    select coalesce(sum(w.cost_cents), 0) from inventory_write_off w where w.created_at >= #{start} and w.created_at < #{end}
+    ]]>
+  </select>
+
+  <select id="sumCostCentsByDeviceIdsSince" resultType="long">
+    select coalesce(sum(w.cost_cents), 0) from inventory_write_off w where w.device_id IN
+    <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    and w.created_at &gt;= #{since}
+  </select>
+
+  <select id="sumQuantityByDeviceIdsSince" resultType="long">
+    select coalesce(sum(w.quantity), 0) from inventory_write_off w where w.device_id IN
+    <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    and w.created_at &gt;= #{since}
+  </select>
+
+  <select id="sumCostCentsByDeviceIdsBetween" resultType="long">
+    select coalesce(sum(w.cost_cents), 0) from inventory_write_off w where w.device_id IN
+    <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    and w.created_at &gt;= #{start} and w.created_at &lt; #{end}
+  </select>
+</mapper>

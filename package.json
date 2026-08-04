@@ -1,0 +1,22 @@
+{
+  "name": "ai-cabinet-frontend",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev:admin": "pnpm --filter @aicabinet/admin-vue dev",
+    "build:admin": "pnpm --filter @aicabinet/admin-vue build",
+    "dev:consumer-mp": "pnpm --filter @aicabinet/consumer-mp dev:mp-weixin",
+    "dev:consumer-h5": "pnpm --filter @aicabinet/consumer-mp dev:h5",
+    "build:consumer-mp": "pnpm --filter @aicabinet/consumer-mp build:mp-weixin",
+    "dev:merchant-mp": "pnpm --filter @aicabinet/merchant-mp dev:mp-weixin",
+    "dev:merchant-h5": "pnpm --filter @aicabinet/merchant-mp dev:h5",
+    "build:merchant-mp": "pnpm --filter @aicabinet/merchant-mp build:mp-weixin",
+    "build:packages": "pnpm -r --filter @aicabinet/shared-types --filter @aicabinet/shared-dict --filter @aicabinet/shared-rbac --filter @aicabinet/shared-api build",
+    "check:nav-perms": "node scripts/check-nav-perms.mjs",
+    "smoke:realms": "node scripts/smoke-realms.mjs"
+  },
+  "engines": {
+    "node": ">=24.18.0",
+    "pnpm": ">=9.15.0"
+  }
+}

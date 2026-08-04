@@ -1,0 +1,1478 @@
+@import './chart-panel.css';
+@import '@aicabinet/shared-uni/theme.css';
+
+:root,
+[data-theme='light'] {
+  --app-primary: #0f766e;
+  --layout-bg: #f5f7fa;
+  --layout-topbar: #ffffff;
+  --layout-sidebar: #1e293b;
+  --layout-border: #ebeef5;
+  --layout-text: #1e293b;
+  --layout-muted: #64748b;
+  --layout-hover: rgba(15, 23, 42, 0.04);
+  --layout-card: #ffffff;
+  /* 运营后台壳层间距（对齐 Element Admin / Ant Design Pro 密度） */
+  --admin-space-xs: 4px;
+  --admin-space-sm: 8px;
+  --admin-space-md: 12px;
+  --admin-space-lg: 16px;
+  --admin-space-xl: 20px;
+  --admin-radius: 8px;
+  --admin-radius-lg: 10px;
+  --admin-scrollbar: color-mix(in srgb, var(--layout-muted) 55%, transparent);
+}
+
+[data-theme='dark'] {
+  --layout-bg: #0b1220;
+  --layout-topbar: #111827;
+  --layout-sidebar: #111827;
+  --layout-border: #2a3544;
+  --layout-text: #e7ecf3;
+  --layout-muted: #8b98a8;
+  --layout-hover: rgba(255, 255, 255, 0.06);
+  --layout-card: #1a2332;
+  color-scheme: dark;
+
+  /* Element Plus 深色令牌：避免表格斑马纹/卡片仍用白底 */
+  --el-bg-color: var(--layout-card);
+  --el-bg-color-page: var(--layout-bg);
+  --el-bg-color-overlay: #1a2332;
+  --el-fill-color-blank: var(--layout-card);
+  --el-fill-color: #1a2332;
+  --el-fill-color-light: #182334;
+  --el-fill-color-lighter: #151f2e;
+  --el-fill-color-dark: #0f172a;
+  --el-fill-color-darker: #0b1220;
+  --el-text-color-primary: var(--layout-text);
+  --el-text-color-regular: var(--layout-muted);
+  --el-text-color-secondary: #94a3b8;
+  --el-text-color-placeholder: #64748b;
+  --el-border-color: var(--layout-border);
+  --el-border-color-light: #334155;
+  --el-border-color-lighter: #3d4f63;
+  --el-border-color-extra-light: #475569;
+  --el-mask-color: rgba(0, 0, 0, 0.72);
+}
+
+[data-font-size='sm'] { font-size: 13px; }
+[data-font-size='md'] { font-size: 14px; }
+[data-font-size='lg'] { font-size: 16px; }
+
+html, body, #app {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--app-font);
+  font-size: 14px;
+  color: var(--layout-text);
+  background: var(--layout-bg);
+}
+
+* { box-sizing: border-box; }
+button, input, textarea, select { font: inherit; }
+
+/* Element Plus 按钮：圆角与主色权重与后台卡片一致 */
+.el-button {
+  --el-border-radius-base: 8px;
+  font-weight: 500;
+}
+.el-button--primary {
+  font-weight: 600;
+  --el-button-bg-color: var(--el-color-primary);
+  --el-button-border-color: var(--el-color-primary);
+  --el-button-hover-bg-color: var(--el-color-primary-light-3);
+  --el-button-hover-border-color: var(--el-color-primary-light-3);
+  --el-button-active-bg-color: var(--el-color-primary-dark-2);
+  --el-button-active-border-color: var(--el-color-primary-dark-2);
+}
+.el-button--primary.is-plain {
+  --el-button-bg-color: var(--el-color-primary-light-9);
+  --el-button-border-color: var(--el-color-primary-light-5);
+  --el-button-text-color: var(--el-color-primary);
+  --el-button-hover-bg-color: var(--el-color-primary);
+  --el-button-hover-border-color: var(--el-color-primary);
+  --el-button-hover-text-color: #fff;
+}
+
+/*
+ * 弹窗宽度：
+ * - Element Plus Dialog 默认 --el-dialog-width:50%，宽屏会拉成「长条」
+ * - MessageBox 默认 width:100%，若 max-width 被放大也会铺满
+ * 统一收成可读宽度；页面用 width="xxxpx" 时仍可按需加宽（受 max-width 上限约束）
+ */
+.el-dialog {
+  --el-dialog-width: 480px;
+  max-width: min(720px, calc(100vw - 48px));
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.el-dialog.is-align-center,
+.el-overlay-dialog .el-dialog {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* 超宽工作台弹窗可加 class="dialog-wide"（采购明细等） */
+.el-dialog.dialog-wide {
+  --el-dialog-width: 880px;
+  max-width: min(960px, calc(100vw - 32px));
+}
+
+/*
+ * MessageBox：EP 源码是 width:100% + max-width:420px。
+ * 必须用固定宽度 + !important，避免被全局 max-width 或其它规则再次撑开。
+ */
+.el-message-box {
+  --el-messagebox-width: 420px !important;
+  width: min(420px, calc(100vw - 48px)) !important;
+  max-width: min(420px, calc(100vw - 48px)) !important;
+  box-sizing: border-box;
+}
+
+.el-message-box.app-message-box {
+  width: min(420px, calc(100vw - 48px)) !important;
+  max-width: min(420px, calc(100vw - 48px)) !important;
+}
+
+/* 抽屉同理：880px 等工作台在窄屏会被撑出横向滚动 */
+.el-drawer {
+  max-width: 100vw !important;
+}
+
+.el-drawer__body {
+  overflow: auto;
+}
+
+@media (max-width: 920px) {
+  .el-drawer.drawer-workbench {
+    width: 100vw !important;
+  }
+}
+
+:root {
+  --sidebar-width: 220px;
+  --header-height: 56px;
+}
+
+.layout-main {
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  background: var(--layout-bg);
+}
+
+.el-main {
+  width: 100%;
+  min-width: 0;
+  background: var(--layout-bg);
+  color: var(--layout-text);
+}
+
+/* 默认表头/单元格居中（主内容区列表通用） */
+.layout-main-scroll .el-table,
+.page-card .el-table {
+  font-family: var(--app-font);
+  font-size: 13px;
+  color: var(--layout-text);
+  --el-table-font-size: 13px;
+}
+
+.layout-main-scroll .el-table th.el-table__cell,
+.layout-main-scroll .el-table td.el-table__cell,
+.page-card .el-table th.el-table__cell,
+.page-card .el-table td.el-table__cell {
+  text-align: center !important;
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.layout-main-scroll .el-table th.el-table__cell,
+.page-card .el-table th.el-table__cell {
+  font-weight: 600;
+}
+
+.layout-main-scroll .el-table {
+  --el-table-header-text-color: var(--layout-text);
+}
+.layout-main-scroll .el-table th.el-table__cell > .cell,
+.layout-main-scroll .el-table td.el-table__cell > .cell,
+.page-card .el-table th.el-table__cell > .cell,
+.page-card .el-table td.el-table__cell > .cell {
+  text-align: center !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 10px;
+  line-height: 1.4;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* 操作列：不裁剪图标按钮 */
+.layout-main-scroll .el-table th.col-action > .cell,
+.layout-main-scroll .el-table td.col-action > .cell,
+.page-card .el-table th.col-action > .cell,
+.page-card .el-table td.col-action > .cell {
+  overflow: visible;
+  text-overflow: clip;
+  padding: 4px 6px;
+}
+
+/*
+ * 列表页统一居中：col-text / col-money 不再左/右对齐。
+ * EP align="left|right" 产生的 is-left / is-right 一并压成居中。
+ * 树表缩进列请用 col-tree（见 MenuManage）。
+ */
+.layout-main-scroll .el-table th.col-text > .cell,
+.layout-main-scroll .el-table td.col-text > .cell,
+.page-card .el-table th.col-text > .cell,
+.page-card .el-table td.col-text > .cell,
+.layout-main-scroll .el-table th.col-money > .cell,
+.layout-main-scroll .el-table td.col-money > .cell,
+.page-card .el-table th.col-money > .cell,
+.page-card .el-table td.col-money > .cell {
+  text-align: center !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+/* 多行主数据单元格允许换行，避免商品名/SKU 被 nowrap 裁成一行 */
+.layout-main-scroll .el-table td.col-text > .cell:has(.name-cell),
+.layout-main-scroll .el-table td.col-text > .cell:has(.master-data-cell),
+.layout-main-scroll .el-table td.col-text > .cell:has(.line-cell),
+.layout-main-scroll .el-table td.col-text > .cell:has(.sku-cell),
+.layout-main-scroll .el-table td.col-text > .cell:has(.sla-cell),
+.page-card .el-table td.col-text > .cell:has(.name-cell),
+.page-card .el-table td.col-text > .cell:has(.master-data-cell),
+.page-card .el-table td.col-text > .cell:has(.line-cell),
+.page-card .el-table td.col-text > .cell:has(.sku-cell),
+.page-card .el-table td.col-text > .cell:has(.sla-cell) {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.layout-main-scroll .el-table th.col-money > .cell,
+.layout-main-scroll .el-table td.col-money > .cell,
+.page-card .el-table th.col-money > .cell,
+.page-card .el-table td.col-money > .cell {
+  font-variant-numeric: tabular-nums;
+}
+
+.layout-main-scroll .el-table th.el-table__cell.is-left,
+.layout-main-scroll .el-table td.el-table__cell.is-left,
+.layout-main-scroll .el-table th.el-table__cell.is-right,
+.layout-main-scroll .el-table td.el-table__cell.is-right,
+.layout-main-scroll .el-table th.el-table__cell.is-center,
+.layout-main-scroll .el-table td.el-table__cell.is-center,
+.page-card .el-table th.el-table__cell.is-left,
+.page-card .el-table td.el-table__cell.is-left,
+.page-card .el-table th.el-table__cell.is-right,
+.page-card .el-table td.el-table__cell.is-right,
+.page-card .el-table th.el-table__cell.is-center,
+.page-card .el-table td.el-table__cell.is-center {
+  text-align: center !important;
+}
+
+/* 多行单元格 / 链接：grid 默认左贴边，统一居中 */
+.layout-main-scroll .el-table .name-cell,
+.layout-main-scroll .el-table .master-data-cell,
+.layout-main-scroll .el-table .line-cell,
+.layout-main-scroll .el-table .sla-cell,
+.layout-main-scroll .el-table .sku-cell,
+.layout-main-scroll .el-table .pipe-cell,
+.page-card .el-table .name-cell,
+.page-card .el-table .master-data-cell,
+.page-card .el-table .line-cell,
+.page-card .el-table .sla-cell,
+.page-card .el-table .sku-cell,
+.page-card .el-table .pipe-cell {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  justify-items: center;
+  align-items: center;
+}
+.layout-main-scroll .el-table .link-cell,
+.page-card .el-table .link-cell {
+  text-align: center;
+}
+
+/* 树表名称列：保留左对齐与缩进 */
+.layout-main-scroll .el-table th.col-tree > .cell,
+.layout-main-scroll .el-table td.col-tree > .cell,
+.page-card .el-table th.col-tree > .cell,
+.page-card .el-table td.col-tree > .cell {
+  text-align: left !important;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.35;
+}
+
+.page-card > .el-card__header {
+  overflow: visible;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.card-head .title {
+  min-width: 0;
+  font-weight: 600;
+}
+
+.card-head .actions,
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.cell-datetime {
+  display: block;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.page-pager {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+  max-width: 100%;
+  /* 分页可换行；禁止再出一条横滚条（与 .table-scroll 叠成「双滚动栏」） */
+  overflow-x: hidden;
+}
+
+.page-pager .el-pagination {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 8px;
+}
+
+.muted {
+  color: var(--layout-muted, #94a3b8);
+}
+
+/* 顶栏/侧栏工具图标悬停 */
+.topbar .el-button.is-text,
+.topbar .el-button.is-link {
+  color: var(--layout-muted);
+  border-radius: 8px;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.topbar .el-button.is-text:hover,
+.topbar .el-button.is-link:hover,
+.topbar .el-button.is-text:focus-visible {
+  color: var(--app-primary) !important;
+  background: var(--layout-hover) !important;
+}
+.sidebar .brand-toggle,
+.sidebar-foot .el-icon {
+  transition: color 0.15s ease, transform 0.15s ease;
+}
+.sidebar .brand:hover .brand-toggle,
+.sidebar-foot:hover .el-icon {
+  color: #f8fafc;
+  transform: scale(1.05);
+}
+
+.el-card {
+  --el-card-bg-color: var(--layout-card);
+  --el-card-border-color: var(--layout-border);
+  color: var(--layout-text);
+  border-radius: var(--admin-radius-lg, 10px);
+}
+
+.page-card.el-card {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.page-card > .el-card__header {
+  padding: 14px var(--admin-space-xl, 20px);
+  border-bottom: 1px solid var(--layout-border);
+}
+
+.page-card > .el-card__body {
+  padding: var(--admin-space-xl, 20px);
+}
+
+/* 筛选条 / 分页 / 空态 / 抽屉：全后台统一 */
+.filter-bar--compact {
+  row-gap: 10px;
+  column-gap: 12px;
+}
+
+.page-pager {
+  margin-top: var(--admin-space-md, 12px);
+}
+
+.el-empty__description p {
+  color: var(--layout-muted);
+  font-size: 13px;
+}
+
+.el-drawer__header {
+  margin-bottom: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--layout-border);
+  color: var(--layout-text);
+}
+
+.el-drawer__body {
+  padding: 16px 20px 24px;
+}
+
+.el-drawer.drawer-workbench .el-drawer__header {
+  margin-bottom: 0;
+}
+
+.el-form--inline .el-form-item {
+  margin-right: 12px;
+  margin-bottom: 8px;
+}
+
+.el-alert {
+  border-radius: var(--admin-radius, 8px);
+}
+
+.el-tabs__item {
+  font-weight: 500;
+}
+
+.el-pagination {
+  --el-pagination-button-bg-color: var(--layout-card);
+  font-weight: 500;
+}
+
+.el-tag {
+  border-radius: 6px;
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner {
+  border-radius: var(--admin-radius, 8px);
+}
+
+.el-header.topbar {
+  color: var(--layout-text);
+}
+
+.topbar .app-breadcrumb-host,
+.topbar .app-breadcrumb,
+.topbar .app-breadcrumb .el-breadcrumb {
+  min-width: 0;
+}
+
+.topbar .el-breadcrumb__item {
+  float: none;
+}
+
+.cell-id {
+  font-family: inherit;
+  font-size: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.name-cell {
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+}
+
+.name-cell strong {
+  font-weight: 650;
+  color: var(--layout-text);
+}
+
+.name-cell small {
+  color: var(--el-text-color-secondary);
+  font-size: inherit;
+  font-family: inherit;
+}
+
+/* 表格内 ID/会话链接与普通列同一正文字体 */
+.report-table .mono,
+.report-table .link-cell.mono {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.page-card {
+  width: 100%;
+  max-width: 100%;
+  margin-bottom: 16px;
+  min-width: 0;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
+.page-card > .el-card__body {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
+/*
+ * 列表页单卡片：随主区宽高等比铺满（窗口放大 / 浏览器缩放后不再四周留白）。
+ * 多卡片页（如工作台）根节点是 div，不受影响。
+ * .page-fill：抽屉等同页根包装（KeepAlive 需单根），其内 page-card 同样铺满。
+ */
+.layout-main-scroll > .page-fill {
+  flex: 1 1 auto;
+  align-self: stretch;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 字典双栏：占满主区高度，纵滚在表内（见 DictManageView scoped） */
+.layout-main-scroll > .page-fill.dict-page {
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
+.layout-main-scroll > .page-card,
+.layout-main-scroll > .page-fill > .page-card {
+  flex: 1 1 auto;
+  align-self: stretch;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 切页时纵向滚动条显隐不再挤动内容宽度，减轻视口抖动 */
+.layout-main-scroll {
+  scrollbar-gutter: stable;
+}
+
+.layout-main-scroll > .page-card.el-card,
+.layout-main-scroll > .page-fill > .page-card.el-card {
+  /* 至少铺满主区，内容多时随表格增高，纵向交给主区滚动条 */
+  height: auto;
+  min-height: 100%;
+}
+
+.layout-main-scroll > .page-card > .el-card__header,
+.layout-main-scroll > .page-fill > .page-card > .el-card__header {
+  flex-shrink: 0;
+}
+
+.layout-main-scroll > .page-card > .el-card__body,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* 勿裁切固定操作列；纵滚走主区 */
+  overflow: visible;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .filter-bar,
+.layout-main-scroll > .page-card > .el-card__body > .el-form,
+.layout-main-scroll > .page-card > .el-card__body > .el-alert,
+.layout-main-scroll > .page-card > .el-card__body > .status-tabs,
+.layout-main-scroll > .page-card > .el-card__body > .review-code-tabs,
+.layout-main-scroll > .page-card > .el-card__body > .kpi-row,
+.layout-main-scroll > .page-card > .el-card__body > .kpi-grid,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .filter-bar,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-form,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-alert,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .status-tabs,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .review-code-tabs,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .kpi-row,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .kpi-grid {
+  flex-shrink: 0;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .table-scroll,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+/*
+ * 筛选型 status-tabs：仅 tab 头、pane 为空，与表单/表格是兄弟节点。
+ * 不可套用下方「内容包裹型 tabs」的 flex:1 + overflow:hidden，否则会被压成细条。
+ */
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs.status-tabs,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs.status-tabs {
+  flex: 0 0 auto;
+  min-height: auto;
+  overflow: visible;
+  display: block;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs.status-tabs > .el-tabs__content,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs.status-tabs > .el-tabs__content {
+  display: none;
+}
+
+/* 内容包裹型 tabs（商户/仓库等）：随内容增高，纵滚交给主区 */
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs),
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) {
+  flex: 0 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: visible;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__header,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__header {
+  flex-shrink: 0;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content {
+  flex: 0 0 auto;
+  min-height: 0;
+  overflow: visible;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content > .el-tab-pane,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content > .el-tab-pane {
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: visible;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .page-pager,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .page-pager {
+  flex-shrink: 0;
+  margin-top: 12px;
+}
+
+.layout-main-scroll > .page-card > .el-card__body > .page-pager,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .page-pager {
+  flex-shrink: 0;
+  margin-top: 12px;
+}
+
+.page-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.page-card-head__meta {
+  min-width: 0;
+  flex: 1 1 240px;
+}
+
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.page-card-head__title .title {
+  font-weight: 600;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.page-card-head__title .hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.kpi-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+@media (min-width: 900px) {
+  .kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/*
+ * 表格滚动（全局统一）：
+ * 1. 表格按行自适应高度，纵向滚动交给右侧主区 .layout-main-scroll
+ * 2. 仅表内横向滚动（含 fixed 操作列）；不再锁死 height:100% 导致末行被横条挡住
+ * 3. 有横向溢出时底栏滚动条常显（不依赖 hover）
+ */
+.table-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  display: block;
+  /* 必须裁切：否则 table-scroll-inner 的 min-width 会撑破主区，右侧操作列被 overflow-x:hidden 裁掉 */
+  overflow: hidden;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--layout-border);
+  border-radius: 8px;
+  background: var(--layout-card);
+  container-type: inline-size;
+  container-name: tablescroll;
+}
+
+.table-scroll-inner {
+  width: 100%;
+  max-width: 100%;
+  /* 覆盖各页 inline min-width：宽度约束在 .table-scroll 内，横滚交给 EP */
+  min-width: 0 !important;
+  display: block;
+  box-sizing: border-box;
+}
+
+.table-scroll .el-table {
+  width: 100% !important;
+  min-width: 100%;
+  /* 覆盖模板里 height="100%"，避免表内纵滚 + 末行被横条遮挡 */
+  height: auto !important;
+  max-height: none !important;
+  margin-bottom: 0;
+}
+
+.table-scroll .el-table__inner-wrapper {
+  height: auto !important;
+  display: block !important;
+}
+
+.table-scroll .el-table__header-wrapper {
+  overflow-x: hidden !important;
+  position: relative !important;
+  top: auto !important;
+}
+
+.table-scroll .el-table__body-wrapper,
+.table-scroll .el-table__footer-wrapper {
+  /* 自适应高度：只横滚，不竖滚 */
+  height: auto !important;
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
+.table-scroll .el-table .el-scrollbar {
+  height: auto !important;
+}
+
+.table-scroll .el-table .el-scrollbar__wrap {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important;
+  max-height: none !important;
+}
+
+.table-scroll .el-table .el-scrollbar__wrap::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+/*
+ * 只保留 EP 自定义横滚条（一条），贴表体底栏；右侧给固定操作列让路。
+ * EP 会写 inline display:none，用 !important 压过。
+ */
+.table-scroll .el-table .el-scrollbar__bar.is-horizontal {
+  display: block !important;
+  opacity: 1 !important;
+  height: 10px !important;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  z-index: 12;
+}
+
+.table-scroll .el-table .el-scrollbar__bar.is-horizontal > div {
+  opacity: 1 !important;
+  background-color: var(--admin-scrollbar) !important;
+  border-radius: 5px;
+}
+
+/* 纵滚交给主区，隐藏表内纵条，避免右侧「双轨」 */
+.table-scroll .el-table .el-scrollbar__bar.is-vertical {
+  display: none !important;
+}
+
+.layout-main-scroll .el-table--scrollable-x .el-scrollbar__bar.is-horizontal,
+.page-card .el-table--scrollable-x .el-scrollbar__bar.is-horizontal {
+  display: block !important;
+  opacity: 1 !important;
+  height: 10px;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+}
+
+.layout-main-scroll .el-table--scrollable-x .el-scrollbar__bar.is-horizontal > div,
+.page-card .el-table--scrollable-x .el-scrollbar__bar.is-horizontal > div {
+  opacity: 1 !important;
+  background-color: var(--admin-scrollbar);
+  border-radius: 5px;
+}
+
+/* 非 .table-scroll 场景仍可用细原生条；.table-scroll 内已隐藏原生条 */
+.layout-main-scroll .el-table:not(.report-table) .el-scrollbar__wrap,
+.page-card .el-table:not(.report-table) .el-scrollbar__wrap {
+  scrollbar-width: thin;
+  scrollbar-color: var(--admin-scrollbar) transparent;
+}
+
+.layout-main-scroll .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar,
+.page-card .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+.layout-main-scroll .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar-thumb,
+.page-card .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar-thumb {
+  background: var(--admin-scrollbar);
+  border-radius: 5px;
+}
+
+.layout-main-scroll .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar-track,
+.page-card .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--layout-border) 55%, transparent);
+  border-radius: 5px;
+}
+
+/* 再次钉死：.table-scroll 内禁止原生条（压过上面 page-card 选择器） */
+.table-scroll .el-table .el-scrollbar__wrap {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.table-scroll .el-table .el-scrollbar__wrap::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+/*
+ * 表头冻结：主内容区纵向滚动时表头贴顶。
+ * 横向滚动在表体内；操作列用 fixed="right"（见下方 .el-table__fixed-right 阴影）。
+ */
+.layout-main-scroll .el-table__header-wrapper,
+.page-card .el-table__header-wrapper {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+}
+.layout-main-scroll .el-table__header th.el-table__cell,
+.page-card .el-table__header th.el-table__cell {
+  background: var(--el-table-header-bg-color, var(--layout-card, #fff));
+  background-clip: padding-box;
+}
+html.dark .layout-main-scroll .el-table__header th.el-table__cell,
+html.dark .page-card .el-table__header th.el-table__cell {
+  background: var(--el-table-header-bg-color, var(--layout-card, #1a1a1a));
+}
+
+.table-scroll .el-table::before,
+.table-scroll .el-table::after {
+  display: none;
+}
+
+/* 空态贴齐可视区宽度，避免跟宽表一起滚出视野 */
+.table-scroll .el-table__empty-block {
+  position: sticky;
+  left: 0;
+  width: 100cqw !important;
+  min-width: 100cqw !important;
+  max-width: 100cqw !important;
+  box-sizing: border-box;
+}
+.table-scroll .el-table__empty-text {
+  white-space: normal;
+  line-height: 1.5;
+  padding: 0 16px;
+  max-width: min(480px, 90cqw);
+}
+
+/* 展开行二级表：铺满可用宽度，避免 margin 裁切与列不对齐 */
+.table-scroll .el-table__expanded-cell {
+  padding: 8px 12px 12px !important;
+  background: color-mix(in srgb, var(--layout-bg, #f8fafc) 70%, transparent);
+}
+.table-scroll .el-table__expanded-cell .el-table {
+  width: 100% !important;
+}
+
+.filter-bar--compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 40px;
+}
+
+.filter-bar--compact .el-form-item {
+  margin-right: 0;
+  margin-bottom: 0;
+  flex: 0 0 auto;
+  width: auto;
+  max-width: 100%;
+}
+
+/* 避免 inline 表单项内容区 flex:1 把整行撑满导致筛选竖排 */
+.filter-bar--compact .el-form-item__content {
+  flex: 0 1 auto;
+}
+
+.filter-bar--responsive .el-form-item {
+  margin-right: 0;
+  margin-bottom: 0;
+}
+
+.filter-bar--responsive .filter-item-grow {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.filter-bar--responsive .filter-item-sm {
+  flex: 0 1 160px;
+  min-width: 120px;
+}
+
+.filter-bar--responsive .filter-item-actions {
+  flex: 0 0 auto;
+}
+
+.filter-bar--responsive .el-input,
+.filter-bar--responsive .el-select {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .el-main { padding: 12px !important; }
+  .page-heading { gap: 12px; }
+  .page-heading p { display: none; }
+
+  .el-dialog {
+    --el-dialog-margin-top: 5vh;
+  }
+
+  .el-dialog__body {
+    max-height: 72vh;
+    overflow-y: auto;
+  }
+
+  .el-form--inline .el-form-item {
+    width: 100%;
+  }
+
+  .el-form--inline .el-form-item__content,
+  .el-form--inline .el-input,
+  .el-form--inline .el-select {
+    width: 100% !important;
+  }
+
+  .filter-bar--responsive .filter-item-grow,
+  .filter-bar--responsive .filter-item-sm,
+  .filter-bar--responsive .filter-item-actions {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .filter-bar--responsive .filter-item-actions .el-button + .el-button {
+    margin-left: 8px;
+  }
+}
+
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  margin-bottom: 16px;
+}
+
+.filter-bar .el-form-item {
+  margin-bottom: 0;
+}
+
+[data-theme='dark'] .el-table {
+  --el-table-bg-color: var(--layout-card);
+  --el-table-tr-bg-color: var(--layout-card);
+  --el-table-header-bg-color: #151f2e;
+  /* 必须用不透明色，否则 fixed 操作列会透视出左侧时间/金额文字 */
+  --el-table-row-hover-bg-color: #222c3c;
+  --el-table-border-color: var(--layout-border);
+  --el-table-text-color: var(--layout-text);
+  --el-table-header-text-color: var(--layout-muted);
+}
+
+[data-theme='dark'] .el-table .el-table__body tr > td.el-table__cell {
+  background-color: var(--layout-card);
+  color: var(--layout-text);
+}
+
+[data-theme='dark'] .el-table__body tr.hover-row > td.el-table__cell,
+[data-theme='dark'] .el-table__body tr:hover > td.el-table__cell {
+  background-color: #222c3c !important;
+}
+
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped > td.el-table__cell {
+  background-color: #151f2e !important;
+}
+
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped.hover-row > td.el-table__cell,
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped:hover > td.el-table__cell {
+  background-color: #1c2636 !important;
+}
+
+/* fixed 列（EP 2.x sticky）：实心底 + 左侧阴影分隔，对齐库存健康截图 */
+.el-table {
+  --el-table-fixed-right-column: inset -10px 0 12px -8px rgba(15, 23, 42, 0.16);
+  --el-table-fixed-left-column: inset 10px 0 12px -8px rgba(15, 23, 42, 0.16);
+}
+
+/* 旧版 patch 表（兼容） */
+.el-table__fixed,
+.el-table__fixed-right,
+.el-table__fixed-right-patch {
+  background-color: var(--el-table-bg-color, var(--layout-card)) !important;
+}
+.el-table__fixed-right {
+  box-shadow: -6px 0 12px rgba(15, 23, 42, 0.12);
+}
+
+/*
+ * EP 默认仅在 is-scrolling-left/middle 时给右侧固定列加阴影；
+ * is-scrolling-none / 滚到最右时会清掉。业务上操作列需要始终可见分隔。
+ */
+.el-table .el-table-fixed-column--right.is-first-column::before {
+  box-shadow: var(--el-table-fixed-right-column) !important;
+}
+.el-table.is-scrolling-none .el-table-fixed-column--right.is-first-column::before,
+.el-table.is-scrolling-right .el-table-fixed-column--right.is-first-column::before {
+  box-shadow: var(--el-table-fixed-right-column) !important;
+}
+
+/*
+ * EP 给固定列写了 background:inherit（特异性更高），sticky 时 inherit 易透视。
+ * 用同等/更高特异性 + background 简写压掉 inherit，保证操作列实心遮挡。
+ */
+.el-table__header-wrapper tr th.el-table-fixed-column--left,
+.el-table__header-wrapper tr th.el-table-fixed-column--right,
+.el-table__body-wrapper tr td.el-table-fixed-column--left,
+.el-table__body-wrapper tr td.el-table-fixed-column--right,
+.el-table__footer-wrapper tr td.el-table-fixed-column--left,
+.el-table__footer-wrapper tr td.el-table-fixed-column--right,
+.el-table__fixed .el-table__cell,
+.el-table__fixed-right .el-table__cell {
+  background: var(--el-table-bg-color, #ffffff) !important;
+  background-color: var(--el-table-bg-color, #ffffff) !important;
+  z-index: calc(var(--el-table-index, 0) + 3) !important;
+}
+.el-table__header-wrapper tr th.el-table-fixed-column--left,
+.el-table__header-wrapper tr th.el-table-fixed-column--right,
+.el-table__fixed-right th.el-table__cell,
+.el-table__fixed th.el-table__cell {
+  background: var(--el-table-header-bg-color, var(--el-fill-color-light, #f5f7fa)) !important;
+  background-color: var(--el-table-header-bg-color, var(--el-fill-color-light, #f5f7fa)) !important;
+}
+.el-table--striped .el-table__body tr.el-table__row--striped > td.el-table-fixed-column--left,
+.el-table--striped .el-table__body tr.el-table__row--striped > td.el-table-fixed-column--right {
+  background: var(--el-fill-color-lighter, #fafafa) !important;
+  background-color: var(--el-fill-color-lighter, #fafafa) !important;
+}
+.el-table__body tr.hover-row > td.el-table-fixed-column--left,
+.el-table__body tr.hover-row > td.el-table-fixed-column--right,
+.el-table__body tr:hover > td.el-table-fixed-column--left,
+.el-table__body tr:hover > td.el-table-fixed-column--right {
+  background: var(--el-table-row-hover-bg-color, #f5f7fa) !important;
+  background-color: var(--el-table-row-hover-bg-color, #f5f7fa) !important;
+}
+[data-theme='dark'] .el-table {
+  --el-table-fixed-right-column: inset -10px 0 12px -8px rgba(0, 0, 0, 0.45);
+  --el-table-fixed-left-column: inset 10px 0 12px -8px rgba(0, 0, 0, 0.45);
+}
+[data-theme='dark'] .el-table__header-wrapper tr th.el-table-fixed-column--left,
+[data-theme='dark'] .el-table__header-wrapper tr th.el-table-fixed-column--right,
+[data-theme='dark'] .el-table__body-wrapper tr td.el-table-fixed-column--left,
+[data-theme='dark'] .el-table__body-wrapper tr td.el-table-fixed-column--right,
+[data-theme='dark'] .el-table__fixed .el-table__body tr > td.el-table__cell,
+[data-theme='dark'] .el-table__fixed-right .el-table__body tr > td.el-table__cell {
+  background: var(--layout-card) !important;
+  background-color: var(--layout-card) !important;
+}
+[data-theme='dark'] .el-table__fixed .el-table__body tr.hover-row > td.el-table__cell,
+[data-theme='dark'] .el-table__fixed .el-table__body tr:hover > td.el-table__cell,
+[data-theme='dark'] .el-table__fixed-right .el-table__body tr.hover-row > td.el-table__cell,
+[data-theme='dark'] .el-table__fixed-right .el-table__body tr:hover > td.el-table__cell,
+[data-theme='dark'] .el-table__body tr.hover-row > td.el-table-fixed-column--left,
+[data-theme='dark'] .el-table__body tr.hover-row > td.el-table-fixed-column--right,
+[data-theme='dark'] .el-table__body tr:hover > td.el-table-fixed-column--left,
+[data-theme='dark'] .el-table__body tr:hover > td.el-table-fixed-column--right {
+  background: #222c3c !important;
+  background-color: #222c3c !important;
+}
+[data-theme='dark'] .el-table--striped .el-table__fixed .el-table__body tr.el-table__row--striped > td.el-table__cell,
+[data-theme='dark'] .el-table--striped .el-table__fixed-right .el-table__body tr.el-table__row--striped > td.el-table__cell,
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped > td.el-table-fixed-column--left,
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped > td.el-table-fixed-column--right {
+  background: #151f2e !important;
+  background-color: #151f2e !important;
+}
+[data-theme='dark'] .el-table--striped .el-table__fixed .el-table__body tr.el-table__row--striped.hover-row > td.el-table__cell,
+[data-theme='dark'] .el-table--striped .el-table__fixed .el-table__body tr.el-table__row--striped:hover > td.el-table__cell,
+[data-theme='dark'] .el-table--striped .el-table__fixed-right .el-table__body tr.el-table__row--striped.hover-row > td.el-table__cell,
+[data-theme='dark'] .el-table--striped .el-table__fixed-right .el-table__body tr.el-table__row--striped:hover > td.el-table__cell,
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped.hover-row > td.el-table-fixed-column--left,
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped.hover-row > td.el-table-fixed-column--right,
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped:hover > td.el-table-fixed-column--left,
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped:hover > td.el-table-fixed-column--right {
+  background: #1c2636 !important;
+  background-color: #1c2636 !important;
+}
+.layout-main-scroll .el-table td.col-action,
+.page-card .el-table td.col-action {
+  background-clip: padding-box;
+}
+
+[data-theme='dark'] .el-tag.el-tag--light {
+  --el-tag-bg-color: color-mix(in srgb, var(--layout-text) 12%, transparent);
+  --el-tag-border-color: color-mix(in srgb, var(--layout-text) 22%, transparent);
+  --el-tag-text-color: var(--layout-text);
+}
+
+[data-theme='dark'] .el-tag.el-tag--light.el-tag--warning {
+  --el-tag-bg-color: rgba(245, 158, 11, 0.18);
+  --el-tag-border-color: rgba(245, 158, 11, 0.35);
+  --el-tag-text-color: #fbbf24;
+}
+
+[data-theme='dark'] .el-tag.el-tag--light.el-tag--danger {
+  --el-tag-bg-color: rgba(239, 68, 68, 0.18);
+  --el-tag-border-color: rgba(239, 68, 68, 0.35);
+  --el-tag-text-color: #f87171;
+}
+
+[data-theme='dark'] .el-table .el-table__body tr.hover-row > td.el-table__cell,
+[data-theme='dark'] .el-table .el-table__body tr:hover > td.el-table__cell {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='dark'] .el-descriptions__body .el-descriptions__table.is-bordered .el-descriptions__cell {
+  background: var(--layout-card);
+  border-color: var(--layout-border);
+}
+
+[data-theme='dark'] .el-descriptions__body .el-descriptions__table.is-bordered .el-descriptions__label {
+  background: #151f2e;
+  color: var(--layout-muted);
+}
+
+[data-theme='dark'] .el-drawer {
+  background-color: var(--layout-card);
+  color: var(--layout-text);
+}
+
+[data-theme='dark'] .el-dialog {
+  --el-dialog-bg-color: var(--layout-card);
+  --el-dialog-title-font-size: 18px;
+}
+
+[data-theme='dark'] .el-statistic__head {
+  color: var(--layout-muted);
+}
+
+[data-theme='dark'] .el-statistic__content {
+  color: var(--layout-text);
+}
+
+[data-theme='dark'] .el-input__wrapper,
+[data-theme='dark'] .el-select__wrapper {
+  background-color: #0f172a;
+  box-shadow: 0 0 0 1px var(--layout-border) inset;
+}
+
+[data-theme='dark'] .el-input__inner,
+[data-theme='dark'] .el-select__selected-item {
+  color: var(--layout-text);
+}
+
+[data-theme='dark'] .el-tabs__item {
+  color: var(--layout-muted);
+}
+
+[data-theme='dark'] .el-tabs__item.is-active {
+  color: var(--el-color-primary);
+}
+
+[data-theme='dark'] .el-tabs__nav-wrap::after {
+  background-color: var(--layout-border);
+}
+
+[data-theme='dark'] .el-timeline-item__content {
+  color: var(--layout-text);
+}
+
+[data-theme='dark'] .el-timeline-item__timestamp {
+  color: var(--layout-muted);
+}
+
+[data-theme='dark'] .el-page-header__content {
+  color: var(--layout-text);
+}
+
+[data-theme='dark'] .el-pagination {
+  --el-pagination-bg-color: var(--layout-card);
+  --el-pagination-text-color: var(--layout-muted);
+  --el-pagination-button-color: var(--layout-text);
+  --el-pagination-hover-color: var(--el-color-primary);
+}
+
+[data-theme='dark'] .native-date {
+  background-color: #0f172a;
+}
+
+[data-theme='dark'] .el-alert {
+  --el-alert-bg-color: color-mix(in srgb, var(--layout-text) 8%, var(--layout-card));
+}
+
+[data-theme='dark'] .el-form-item__label {
+  color: var(--layout-muted);
+}
+
+[data-theme='dark'] .el-card__header {
+  border-bottom-color: var(--layout-border);
+  color: var(--layout-text);
+}
+
+[data-theme='dark'] .el-breadcrumb__inner,
+[data-theme='dark'] .el-breadcrumb__separator {
+  color: var(--layout-muted);
+}
+
+[data-theme='dark'] .el-breadcrumb__item:last-child .el-breadcrumb__inner {
+  color: var(--layout-text);
+}
+
+[data-theme='dark'] code {
+  background: color-mix(in srgb, var(--layout-text) 10%, var(--layout-card));
+  color: var(--layout-text);
+  border-radius: 4px;
+  padding: 1px 6px;
+}
+
+[data-theme='dark'] .el-empty__description {
+  color: var(--layout-muted);
+}
+
+[data-theme='dark'] .el-page-header__back,
+[data-theme='dark'] .el-page-header__title {
+  color: var(--layout-text);
+}
+
+[data-theme='dark'] .el-textarea__inner {
+  background-color: #0f172a;
+  color: var(--layout-text);
+  box-shadow: 0 0 0 1px var(--layout-border) inset;
+}
+
+[data-theme='dark'] {
+  scrollbar-color: #334155 #111827;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-track {
+  background: #111827;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: #334155;
+  border-radius: 4px;
+}
+
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+  background: #475569;
+}
+
+[data-theme='dark'] .tags-view {
+  scrollbar-color: #334155 transparent;
+}
+
+/* ========== 全后台壳层 / 非表格统一（不只表格） ========== */
+
+/* 多卡片页（工作台等）：卡片间距与单列表页一致 */
+.layout-main-scroll > .workbench,
+.layout-main-scroll > .page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-space-md, 12px);
+  min-height: 0;
+}
+
+.layout-main-scroll > .workbench > .page-card,
+.layout-main-scroll > .page-stack > .page-card {
+  margin-bottom: 0;
+  flex: 0 0 auto;
+}
+
+/* KPI / 统计瓦片：半透明改实心底，避免叠层透视 */
+.stat-tile,
+.kpi-tile,
+.ops-board__tile,
+.quick-tile {
+  border-radius: var(--admin-radius, 8px);
+}
+
+.kpi-tile.warn,
+.ops-board__tile.warn:not(.active),
+.stat-tile.warn {
+  background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff));
+}
+
+.ops-board__tile.active {
+  background: color-mix(in srgb, var(--el-color-primary) 8%, var(--layout-card, #fff));
+}
+
+.ops-board__tile.warn.active {
+  background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff));
+}
+
+/* 状态筛选 tabs 统一密度 */
+.status-tabs.el-tabs {
+  margin-bottom: var(--admin-space-md, 12px);
+}
+
+.status-tabs .el-tabs__header {
+  margin-bottom: 0;
+}
+
+.status-tabs .el-tabs__nav-wrap::after {
+  height: 1px;
+}
+
+/* 弹窗头部分隔，对齐抽屉 */
+.el-dialog__header {
+  padding: 16px 20px;
+  margin-right: 0;
+  border-bottom: 1px solid var(--layout-border);
+}
+
+.el-dialog__body {
+  padding: 16px 20px 20px;
+}
+
+.el-dialog__footer {
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--layout-border);
+}
+
+.el-dialog__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--layout-text);
+}
+
+/* Descriptions 与卡片同色 */
+.el-descriptions {
+  --el-descriptions-table-border: var(--layout-border);
+}
+
+.el-descriptions__label {
+  color: var(--layout-muted);
+  font-weight: 500;
+}
+
+/* Alert 在列表页上方时不抢表格高度 */
+.layout-main-scroll .el-alert {
+  flex-shrink: 0;
+}
+
+.layout-main-scroll .el-alert + .filter-bar,
+.layout-main-scroll .el-alert + .el-form,
+.layout-main-scroll .el-alert + .table-scroll {
+  margin-top: 0;
+}
+
+/* 面包屑 / 顶栏可读性 */
+.topbar .el-breadcrumb__inner.is-link:hover {
+  color: var(--app-primary);
+}
+
+/* Tags 滚动条细轨，避免挡内容 */
+.tags-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--admin-scrollbar) transparent;
+}
+
+.tags-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.tags-scroll::-webkit-scrollbar-thumb {
+  background: var(--admin-scrollbar);
+  border-radius: 3px;
+}
+
+.tags-view .tag-item.el-tag {
+  --el-tag-border-radius: 6px;
+  font-weight: 500;
+}
+
+.tags-view .tag-item.el-tag--primary {
+  --el-tag-bg-color: color-mix(in srgb, var(--el-color-primary) 12%, var(--layout-card));
+  --el-tag-border-color: color-mix(in srgb, var(--el-color-primary) 35%, var(--layout-border));
+  --el-tag-text-color: var(--el-color-primary);
+}
+
+/* 表单项标签与主区密度 */
+.layout-main-scroll .el-form-item__label {
+  font-weight: 500;
+  color: var(--layout-muted);
+}
+
+/* Message / Notification 圆角对齐 */
+.el-message,
+.el-notification {
+  border-radius: var(--admin-radius, 8px);
+}
+
+/* 空态与加载区最小高度，避免闪一下塌陷 */
+.layout-main-scroll .el-empty {
+  padding: 32px 16px;
+}

@@ -1,0 +1,19 @@
+# Windows Hyper-V 预留端口 overlapping 9000–9039（及邻近段）时使用：
+#   cd infra
+#   docker compose -f docker-compose.full.yml -f docker-compose.win-ports.yml up -d
+# 同时在 .env 设置：
+#   MINIO_PUBLIC_ENDPOINT=http://localhost:19000
+#   MINIO_API_PORT=19000
+#   MINIO_CONSOLE_PORT=19001
+# 控制台：http://localhost:19001  API：http://localhost:19000
+services:
+  minio:
+    ports: !override
+      - "19000:9000"
+      - "19001:9001"
+  redpanda:
+    ports: !override
+      - "19092:9092"
+  trade-service:
+    ports: !override
+      - "18080:8080"

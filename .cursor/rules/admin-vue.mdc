@@ -1,0 +1,15 @@
+---
+description: admin-vue Vue3 + Element Plus conventions
+globs: clients/admin-vue/**/*.{vue,ts},packages/shared-api/**/*.{ts,js},packages/shared-types/**/*.{ts,js}
+alwaysApply: false
+---
+
+# 运营后台 admin-vue
+
+- 栈：Vue3 + TypeScript + Element Plus + Pinia + Vue Router；不要换 UI 库。
+- HTTP：用 `src/api/client.ts` 的 `api` / `get` / `post` / `put` / `del`（基于 `@aicabinet/shared-api`），勿另写 fetch 封装。
+- 页面：`src/views/<domain>/*View.vue`；列表页沿用 `el-card.page-card`、filter-bar、表格与 `TableActions` 等现有布局。
+- 权限：按钮用 `v-hasPermi="['ops:...']"`；路由/菜单对齐 `src/config/menu.ts`、`sidebar.ts` 与后端权限码。
+- 状态：认证/字典用 `stores/auth.ts`、`stores/dict-runtime.ts`。
+- 共享类型优先 `@aicabinet/shared-types`；改 API 契约时同步共享包。
+- 新页面：注册 router + 菜单/权限；导出类能力参考现有 CSV/`useListCsv` 模式。

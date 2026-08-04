@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.OrderRevenueSplitMapper">
+
+  <select id="sumMerchantCentsByMerchantIdInSince" resultType="long">
+    SELECT COALESCE(SUM(s.merchant_cents), 0) FROM order_revenue_split s
+    WHERE s.merchant_id IN
+    <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    AND s.created_at &gt;= #{since}
+  </select>
+
+  <select id="sumMerchantCentsByMerchantIdIn" resultType="long">
+    SELECT COALESCE(SUM(s.merchant_cents), 0) FROM order_revenue_split s
+    WHERE s.merchant_id IN
+    <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+  </select>
+
+  <select id="_searchByMerchantsAll" resultType="com.aicabinet.trade.domain.OrderRevenueSplit">
+    SELECT s.* FROM order_revenue_split s
+    WHERE s.merchant_id IN
+    <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    AND s.created_at &gt;= #{from}
+    AND s.created_at &lt; #{to}
+    AND (#{status} = '' OR s.status = #{status})
+    ORDER BY s.created_at DESC
+  </select>
+
+  <select id="sumMerchantCentsByMerchantIdInAndStatusIn" resultType="long">
+    SELECT COALESCE(SUM(s.merchant_cents), 0) FROM order_revenue_split s
+    WHERE s.merchant_id IN
+    <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    AND s.status IN
+    <foreach collection="statuses" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+  </select>
+
+  <select id="sumSuccessMerchantCentsByMerchantIdInSince" resultType="long">
+    SELECT COALESCE(SUM(s.merchant_cents), 0) FROM order_revenue_split s
+    WHERE s.merchant_id IN
+    <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    AND s.status = 'SUCCESS' AND s.created_at &gt;= #{since}
+  </select>
+
+  <select id="_aggregateDailyByMerchants" resultType="java.util.LinkedHashMap">
+    SELECT DATE(timezone('Asia/Shanghai', s.created_at)) AS c0,
+           CAST(COUNT(*) AS bigint) AS c1,
+           CAST(COALESCE(SUM(s.gross_cents), 0) AS bigint) AS c2,
+           CAST(COALESCE(SUM(s.platform_cents), 0) AS bigint) AS c3,
+           CAST(COALESCE(SUM(s.merchant_cents), 0) AS bigint) AS c4,
+           CAST(COALESCE(SUM(CASE WHEN s.status = 'SUCCESS' THEN s.merchant_cents ELSE 0 END), 0) AS bigint) AS c5,
+           CAST(COALESCE(SUM(CASE WHEN s.status &lt;&gt; 'SUCCESS' THEN s.merchant_cents ELSE 0 END), 0) AS bigint) AS c6,
+           CAST(COALESCE(SUM(CASE WHEN s.status IN ('WECHAT_FAILED', 'FAILED') THEN 1 ELSE 0 END), 0) AS bigint) AS c7
+    FROM order_revenue_split s
+    WHERE s.merchant_id IN
+    <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    AND s.created_at &gt;= #{from}
+    AND s.created_at &lt; #{to}
+    GROUP BY c0
+    ORDER BY c0 DESC
+  </select>
+
+  <select id="_aggregateBatchByMerchants" resultType="java.util.LinkedHashMap">
+    SELECT s.settlement_batch_no AS c0,
+           s.merchant_id AS c1,
+           MIN(s.settle_after) AS c2,
+           MAX(s.settled_at) AS c3,
+           CAST(COUNT(*) AS bigint) AS c4,
+           CAST(COALESCE(SUM(s.gross_cents), 0) AS bigint) AS c5,
+           CAST(COALESCE(SUM(s.platform_cents), 0) AS bigint) AS c6,
+           CAST(COALESCE(SUM(s.merchant_cents), 0) AS bigint) AS c7,
+           CAST(COALESCE(SUM(CASE WHEN s.status = 'SUCCESS' THEN s.merchant_cents ELSE 0 END), 0) AS bigint) AS c8,
+           CAST(COALESCE(SUM(CASE WHEN s.status &lt;&gt; 'SUCCESS' THEN s.merchant_cents ELSE 0 END), 0) AS bigint) AS c9,
+           CAST(COALESCE(SUM(CASE WHEN s.status IN ('WECHAT_FAILED', 'FAILED') THEN 1 ELSE 0 END), 0) AS bigint) AS c10
+    FROM order_revenue_split s
+    WHERE s.merchant_id IN
+    <foreach collection="merchantIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    AND s.settlement_batch_no IS NOT NULL
+    AND s.created_at &gt;= #{from}
+    AND s.created_at &lt; #{to}
+    GROUP BY s.settlement_batch_no, s.merchant_id
+    ORDER BY MIN(s.created_at) DESC
+  </select>
+</mapper>

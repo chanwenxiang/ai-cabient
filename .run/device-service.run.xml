@@ -1,0 +1,13 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="device-service" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <module name="device-service" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.aicabinet.device.DeviceServiceApplication" />
+    <option name="ACTIVE_PROFILES" value="dev" />
+    <envs>
+      <env name="SPRING_PROFILES_ACTIVE" value="dev" />
+    </envs>
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
