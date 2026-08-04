@@ -3,5 +3,8 @@
   "files.autoGuessEncoding": false,
   "[java]": {
     "files.encoding": "utf8"
-  }
+  },
+  "java.configuration.updateBuildConfiguration": "automatic",
+  "java.import.maven.enabled": true,
+  "java.jdt.ls.lombokSupport.enabled": true
 }
