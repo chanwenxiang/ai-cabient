@@ -21,20 +21,20 @@
             <text class="item-name">{{ item.skuName || item.skuId || '商品' }}</text>
             <text class="item-qty">x{{ item.quantity }}</text>
           </view>
-          <text class="item-price">¥{{ (item.lineAmountCents / 100).toFixed(2) }}</text>
+          <text class="item-price">{{ fmtMoney(item.lineAmountCents) }}</text>
         </view>
         <view v-if="!(order?.lines || []).length" class="empty-lines">本次未识别到取走商品</view>
         <view class="total-row">
           <text class="total-label">商品合计</text>
-          <text class="total-amount">¥{{ ((order?.originalAmountCents || order?.totalAmountCents || 0) / 100).toFixed(2) }}</text>
+          <text class="total-amount">{{ fmtMoney(order?.originalAmountCents || order?.totalAmountCents || 0) }}</text>
         </view>
         <view v-if="order?.couponDiscountCents" class="discount-row">
           <text class="discount-label">优惠券抵扣</text>
-          <text class="discount-amount">-¥{{ (order.couponDiscountCents / 100).toFixed(2) }}</text>
+          <text class="discount-amount">-{{ fmtMoney(order.couponDiscountCents) }}</text>
         </view>
         <view v-if="order?.couponDiscountCents" class="total-row pay">
           <text class="total-label">实付</text>
-          <text class="total-amount">¥{{ ((order?.totalAmountCents || 0) / 100).toFixed(2) }}</text>
+          <text class="total-amount">{{ fmtMoney(order?.totalAmountCents || 0) }}</text>
         </view>
       </view>
 
@@ -88,21 +88,29 @@
             @click="pickChip(chip)"
           >{{ chip.label }}</text>
         </view>
+        <text class="field-label">申诉说明</text>
         <textarea
           v-model="disputeReason"
           class="dispute-input"
           maxlength="200"
-          placeholder="例如：我没有拿这个商品 / 数量不对"
+          aria-label="申诉说明"
+          placeholder="例如：我没有拿这个商品 / 数量不对…"
         />
         <view class="evidence-block">
           <text class="evidence-label">申诉附图（选填，最多 5 张）</text>
           <view class="evidence-row">
             <view v-for="(img, idx) in evidence" :key="img.localPath + idx" class="evidence-item">
-              <image class="evidence-img" :src="previewEvidenceSrc(img)" mode="aspectFill" />
-              <text class="evidence-del" @click="removeEvidence(idx)">×</text>
-              <text v-if="img.uploading" class="evidence-uploading">上传中</text>
+              <image class="evidence-img" :src="previewEvidenceSrc(img)" mode="aspectFill" :alt="`证据图 ${idx + 1}`" />
+              <text class="evidence-del" role="button" aria-label="删除证据图" @click="removeEvidence(idx)">×</text>
+              <text v-if="img.uploading" class="evidence-uploading">上传中…</text>
             </view>
-            <view v-if="evidence.length < 5" class="evidence-add" @click="onAddEvidence">+</view>
+            <view
+              v-if="evidence.length < 5"
+              class="evidence-add"
+              role="button"
+              aria-label="添加证据图"
+              @click="onAddEvidence"
+            >+</view>
           </view>
         </view>
         <button
@@ -126,7 +134,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi, get } from '@/utils/consumer-api';
-import { emptyDisplay, formatDateTimeMinute, orderStatusLabel } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeMinute, orderStatusLabel, fmtMoney } from '@aicabinet/shared-uni/format';
 import {
   DISPUTE_REASON_CHIPS,
   appendChipToReason,
@@ -377,7 +385,18 @@ async function onAddEvidence() {
   evidence.value = await pickAndUploadEvidence(evidence.value);
 }
 
-function removeEvidence(idx: number) {
+async function removeEvidence(idx: number) {
+  const confirmed = await new Promise<boolean>((resolve) => {
+    uni.showModal({
+      title: '删除图片',
+      content: '确定删除这张申诉附图吗？',
+      confirmText: '删除',
+      cancelText: '保留',
+      success: (res) => resolve(!!res.confirm),
+      fail: () => resolve(false)
+    });
+  });
+  if (!confirmed) return;
   evidence.value = removeEvidenceAt(evidence.value, idx);
 }
 
@@ -564,7 +583,16 @@ function callSupport() {
 .btn-primary::after, .btn-outline::after, .btn-refund::after, .btn-submit::after { border: none; }
 .support { text-align: center; padding: 30rpx; color: #059669; font-size: 24rpx; }
 .dispute-mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100; display: flex; align-items: flex-end; }
-.dispute-panel { width: 100%; max-height: 90vh; overflow-y: auto; background: #fff; border-radius: 24rpx 24rpx 0 0; padding: 32rpx 28rpx calc(32rpx + env(safe-area-inset-bottom)); box-sizing: border-box; }
+.dispute-panel {
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: #fff;
+  border-radius: 24rpx 24rpx 0 0;
+  padding: 32rpx 28rpx calc(32rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
 .dispute-title { font-size: 34rpx; font-weight: 700; display: block; }
 .dispute-sub { font-size: 24rpx; color: #888; display: block; margin: 12rpx 0 20rpx; line-height: 1.5; }
 .chip-row { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 16rpx; }

@@ -20,8 +20,10 @@
     <view v-if="!account?.verified" class="card">
       <text class="card-title">实名认证</text>
       <text class="card-desc">用于保障交易安全，信息仅用于本柜购物核验</text>
-      <input v-model="realName" class="input" placeholder="真实姓名" maxlength="32" />
-      <input v-model="idCardLast4" class="input" type="number" maxlength="4" placeholder="身份证后四位" />
+      <text class="field-label">真实姓名</text>
+      <input v-model="realName" class="input" aria-label="真实姓名" placeholder="真实姓名…" maxlength="32" />
+      <text class="field-label">身份证后四位</text>
+      <input v-model="idCardLast4" class="input" type="number" maxlength="4" aria-label="身份证后四位" placeholder="后四位…" />
       <button class="btn-primary" hover-class="btn-hover" :loading="verifying" @click="onVerify">
         {{ verifying ? '提交中…' : '下一步' }}
       </button>
@@ -34,11 +36,11 @@
       <text class="card-desc">推荐开通支付分 / 免密代扣；可用余额 ≥ ¥{{ needYuan }} 也可临时开门。</text>
       <view class="status-row">
         <text class="status-label">可用余额</text>
-        <text class="status-val">¥{{ balanceYuan }}</text>
+        <text class="status-val">{{ balanceYuan }}</text>
       </view>
-      <view v-if="frozenYuan !== '0.00'" class="status-row">
+      <view v-if="frozenYuan !== '¥0.00'" class="status-row">
         <text class="status-label">冻结中</text>
-        <text class="status-val">¥{{ frozenYuan }}</text>
+        <text class="status-val">{{ frozenYuan }}</text>
       </view>
       <view class="status-row">
         <text class="status-label">微信支付分</text>
@@ -73,6 +75,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
+import { fmtMoney } from '@aicabinet/shared-uni/format';
 import {
   availableCents,
   isPayReady,
@@ -96,8 +99,8 @@ const preauthCents = computed(() =>
   resolveClientPreauthCents({ configPreauthCents: configPreauthCents.value })
 );
 const needYuan = computed(() => preauthYuanLabel(preauthCents.value));
-const balanceYuan = computed(() => (availableCents(account.value) / 100).toFixed(2));
-const frozenYuan = computed(() => (Math.max(0, account.value?.frozenCents || 0) / 100).toFixed(2));
+const balanceYuan = computed(() => fmtMoney(availableCents(account.value)));
+const frozenYuan = computed(() => fmtMoney(Math.max(0, account.value?.frozenCents || 0)));
 const payReady = computed(() => isPayReady(account.value, null, preauthCents.value));
 const wechatReady = computed(() => !!account.value?.payscoreEnabled);
 const alipayReady = computed(() => !!account.value?.alipayAgreementEnabled);
@@ -257,6 +260,12 @@ function goShop() {
 }
 .card-title { font-size: 32rpx; font-weight: 600; color: #191919; display: block; }
 .card-desc { font-size: 26rpx; color: #888; margin: 12rpx 0 28rpx; display: block; line-height: 1.5; }
+.field-label {
+  display: block;
+  font-size: 24rpx;
+  color: #64748b;
+  margin-bottom: 8rpx;
+}
 .input {
   background: #f8faf9;
   border: 1rpx solid #e3eae6;

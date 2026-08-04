@@ -2,7 +2,7 @@
   <view class="page-root">
     <view class="balance-card">
       <text class="bal-label">当前余额</text>
-      <text class="bal-amount">¥{{ balanceYuan }}</text>
+      <text class="bal-amount">{{ balanceYuan }}</text>
     </view>
 
     <view class="amount-grid">
@@ -13,7 +13,7 @@
         :class="{ selected: selectedAmount === item.value }"
         @click="selectedAmount = item.value"
       >
-        <text class="amount-value">¥{{ item.text }}</text>
+        <text class="amount-value">{{ fmtMoney(item.value) }}</text>
       </view>
     </view>
 
@@ -28,7 +28,7 @@
         loading
           ? '处理中…'
           : selectedAmount
-            ? `${wechatPayLive ? '微信支付' : '微信充值'} ¥${(selectedAmount / 100).toFixed(0)}`
+            ? `${wechatPayLive ? '微信支付' : '微信充值'} ${fmtMoney(selectedAmount)}`
             : '微信充值'
       }}
     </button>
@@ -39,7 +39,7 @@
       :loading="loading"
       @click="onRecharge"
     >
-      {{ loading ? '充值中…' : selectedAmount ? `模拟到账 ¥${(selectedAmount / 100).toFixed(0)}` : '请选择金额' }}
+      {{ loading ? '充值中…' : selectedAmount ? `模拟到账 ${fmtMoney(selectedAmount)}` : '请选择金额' }}
     </button>
     <button
       v-if="devTools && alipayRechargeEnabled"
@@ -52,7 +52,7 @@
         loading
           ? '处理中…'
           : selectedAmount
-            ? `${alipayPayLive ? '支付宝沙箱' : '支付宝模拟充值'} ¥${(selectedAmount / 100).toFixed(0)}`
+            ? `${alipayPayLive ? '支付宝沙箱' : '支付宝模拟充值'} ${fmtMoney(selectedAmount)}`
             : alipayPayLive
               ? '支付宝沙箱'
               : '支付宝模拟充值'
@@ -90,7 +90,7 @@
       />
       <view v-for="r in visibleRecords" :key="r.orderId" class="record-row">
         <view>
-          <text class="record-amount">¥{{ ((r.amountCents || 0) / 100).toFixed(2) }}</text>
+          <text class="record-amount">{{ fmtMoney(r.amountCents || 0) }}</text>
           <view class="record-meta">
             <text class="record-channel">{{ channelText(r.channel) }}</text>
             <text class="record-time">{{ formatTime(r.createdAt) }}</text>
@@ -112,7 +112,7 @@ import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
-import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import { formatDateTimeMinute, fmtMoney } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import {
   resolveMockEnabled,
@@ -196,7 +196,7 @@ async function loadConfig() {
 async function loadBalance() {
   try {
     const acc = await consumerApi.account();
-    balanceYuan.value = ((acc.balanceCents || 0) / 100).toFixed(2);
+    balanceYuan.value = fmtMoney(acc.balanceCents || 0);
   } catch {
     balanceYuan.value = '--';
   }
@@ -229,6 +229,17 @@ function channelText(channel?: string) {
 
 async function cancelOne(orderId: string) {
   if (cancelling.value) return;
+  const confirmed = await new Promise<boolean>((resolve) =>
+    uni.showModal({
+      title: '取消充值',
+      content: '确定取消这笔待支付充值单吗？',
+      confirmText: '取消订单',
+      cancelText: '保留',
+      success: (res) => resolve(!!res.confirm),
+      fail: () => resolve(false)
+    })
+  );
+  if (!confirmed) return;
   cancelling.value = true;
   try {
     await consumerApi.cancelRecharge(orderId);

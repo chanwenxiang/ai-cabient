@@ -1,6 +1,22 @@
 @import './chart-panel.css';
 @import '@aicabinet/shared-uni/theme.css';
 
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 10000;
+  padding: 8px 12px;
+  background: var(--app-primary, #0f766e);
+  color: #fff;
+  border-radius: 0 0 8px 0;
+  text-decoration: none;
+  font-size: 14px;
+}
+.skip-link:focus {
+  left: 0;
+}
+
 :root,
 [data-theme='light'] {
   --app-primary: #0f766e;
@@ -143,6 +159,7 @@ button, input, textarea, select { font: inherit; }
 
 .el-drawer__body {
   overflow: auto;
+  overscroll-behavior: contain;
 }
 
 @media (max-width: 920px) {
@@ -1395,6 +1412,7 @@ html.dark .page-card .el-table__header th.el-table__cell {
 
 .el-dialog__body {
   padding: 16px 20px 20px;
+  overscroll-behavior: contain;
 }
 
 .el-dialog__footer {

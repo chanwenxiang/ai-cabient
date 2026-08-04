@@ -33,6 +33,7 @@ page {
   box-sizing: border-box;
   overflow-x: hidden;
   padding: 24rpx;
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
   background: var(--page-bg);
 }
 

@@ -64,6 +64,12 @@
         <text v-else-if="refundDone" class="dispute-done">退款已完成</text>
       </view>
     </view>
+    <view v-else class="card">
+      <text class="empty-title">暂无结算结果</text>
+      <text class="empty-desc">订单尚未生成或已失效，可回首页继续购物，或到订单列表查看</text>
+      <button class="action-btn" hover-class="btn-hover" @click="goHome">回首页</button>
+      <button class="ghost-btn" hover-class="btn-hover" @click="goOrders">查看订单</button>
+    </view>
 
     <view v-if="showDispute" class="dispute-mask" @click="closeDispute">
       <view class="dispute-panel" @click.stop>
@@ -82,21 +88,29 @@
             @click="pickChip(chip)"
           >{{ chip.label }}</text>
         </view>
+        <text class="field-label">申诉说明</text>
         <textarea
           v-model="disputeReason"
           class="dispute-input"
           maxlength="200"
-          placeholder="例如：我没有拿这个商品 / 数量不对"
+          aria-label="申诉说明"
+          placeholder="例如：我没有拿这个商品 / 数量不对…"
         />
         <view class="evidence-block">
           <text class="evidence-label">申诉附图（选填）</text>
           <view class="evidence-row">
             <view v-for="(img, idx) in evidence" :key="img.localPath + idx" class="evidence-item">
-              <image class="evidence-img" :src="previewEvidenceSrc(img)" mode="aspectFill" />
-              <text class="evidence-del" @click="removeEvidence(idx)">×</text>
-              <text v-if="img.uploading" class="evidence-uploading">上传中</text>
+              <image class="evidence-img" :src="previewEvidenceSrc(img)" mode="aspectFill" :aria-label="`证据图 ${idx + 1}`" />
+              <text class="evidence-del" role="button" aria-label="删除证据图" @click="removeEvidence(idx)">×</text>
+              <text v-if="img.uploading" class="evidence-uploading">上传中…</text>
             </view>
-            <view v-if="evidence.length < 5" class="evidence-add" @click="onAddEvidence">+</view>
+            <view
+              v-if="evidence.length < 5"
+              class="evidence-add"
+              role="button"
+              aria-label="添加证据图"
+              @click="onAddEvidence"
+            >+</view>
           </view>
         </view>
         <button
@@ -317,7 +331,18 @@ async function onAddEvidence() {
   evidence.value = await pickAndUploadEvidence(evidence.value);
 }
 
-function removeEvidence(idx: number) {
+async function removeEvidence(idx: number) {
+  const confirmed = await new Promise<boolean>((resolve) => {
+    uni.showModal({
+      title: '删除图片',
+      content: '确定删除这张申诉附图吗？',
+      confirmText: '删除',
+      cancelText: '保留',
+      success: (res) => resolve(!!res.confirm),
+      fail: () => resolve(false)
+    });
+  });
+  if (!confirmed) return;
   evidence.value = removeEvidenceAt(evidence.value, idx);
 }
 
@@ -612,6 +637,9 @@ function goHelp() {
   border-radius: 30rpx 30rpx 0 0;
   padding: 32rpx 32rpx calc(32rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
+  max-height: 90vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .dispute-title { font-size: 34rpx; font-weight: 700; display: block; text-align: center; }
 .dispute-sub { font-size: 26rpx; color: #888; display: block; text-align: center; margin: 12rpx 0 24rpx; }

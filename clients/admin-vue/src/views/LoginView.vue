@@ -19,10 +19,11 @@
           <el-input
             ref="phoneInput"
             v-model="phone"
+            type="tel"
             maxlength="11"
             inputmode="numeric"
             autocomplete="username"
-            placeholder="请输入11位手机号"
+            placeholder="请输入11位手机号…"
             size="large"
             :disabled="loading"
             @input="err = ''"
@@ -36,7 +37,7 @@
             type="password"
             show-password
             autocomplete="current-password"
-            placeholder="请输入登录密码"
+            placeholder="请输入登录密码…"
             size="large"
             :disabled="loading"
             @input="err = ''"
@@ -50,7 +51,8 @@
               v-model="captchaCode"
               maxlength="8"
               autocomplete="off"
-              placeholder="图形验证码"
+              spellcheck="false"
+              placeholder="图形验证码…"
               size="large"
               :disabled="loading"
               @input="err = ''"
@@ -60,11 +62,12 @@
               type="button"
               class="captcha-img-btn"
               title="点击刷新验证码"
+              aria-label="刷新图形验证码"
               :data-captcha-id="captchaId"
               :disabled="captchaLoading || loading"
               @click="loadCaptcha"
             >
-              <img v-if="captchaImage" :src="captchaImage" alt="验证码" />
+              <img v-if="captchaImage" :src="captchaImage" alt="验证码" width="120" height="40" />
               <span v-else>{{ captchaLoading ? '加载中…' : '点击获取' }}</span>
             </button>
           </div>

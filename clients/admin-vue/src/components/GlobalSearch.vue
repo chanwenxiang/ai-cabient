@@ -2,7 +2,8 @@
   <div class="global-search">
     <el-input
       v-model="keyword"
-      placeholder="搜索页面名称或关键词 (Ctrl+K)"
+      aria-label="全局搜索"
+      placeholder="搜索页面名称或关键词 (Ctrl+K)…"
       :prefix-icon="Search"
       clearable
       class="search-input"
@@ -22,21 +23,24 @@
       <el-input
         ref="inputRef"
         v-model="keyword"
+        aria-label="搜索页面"
         placeholder="输入页面名称、分组或关键词…"
         :prefix-icon="Search"
         clearable
         @keydown.enter="pickFirst"
       />
-      <div class="result-list">
-        <div
+      <div class="result-list" role="listbox" aria-label="搜索结果">
+        <button
           v-for="item in results"
           :key="item.path"
+          type="button"
           class="result-item"
+          role="option"
           @click="go(item.path)"
         >
           <span class="result-title">{{ item.title }}</span>
           <span class="result-meta">{{ item.group }}</span>
-        </div>
+        </button>
         <el-empty v-if="keyword && !results.length" description="无匹配页面" :image-size="64" />
         <div v-if="!keyword" class="hint">可搜索：设备、订单、争议、对账、个人中心等</div>
       </div>
@@ -116,8 +120,19 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
   width: clamp(108px, 16vw, 220px);
   max-width: 100%;
 }
-.result-list { margin-top: 12px; max-height: 360px; overflow-y: auto; }
+.result-list {
+  margin-top: 12px;
+  max-height: 360px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
 .result-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: transparent;
   padding: 10px 12px;
   border-radius: 8px;
   cursor: pointer;
@@ -125,6 +140,10 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown));
   margin-bottom: 8px;
 }
 .result-item:hover { background: var(--layout-hover); }
+.result-item:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--el-color-primary);
+}
 .result-title { display: block; font-weight: 600; }
 .result-meta { font-size: 12px; color: var(--layout-muted); }
 .hint { color: var(--layout-muted); font-size: 13px; padding: 8px 0; }

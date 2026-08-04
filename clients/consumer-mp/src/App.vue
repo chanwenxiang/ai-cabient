@@ -176,6 +176,16 @@ button:active, .btn-primary:active, .btn-ghost:active, .btn-outline:active, .men
   opacity: .88;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  button, .btn-primary, .btn-ghost, .btn-outline, .menu-cell, .filter-chip, .scan-btn, .tip-btn {
+    transition: none;
+  }
+  button:active, .btn-primary:active, .btn-ghost:active, .btn-outline:active, .menu-cell:active, .filter-chip:active, .tip-btn:active {
+    transform: none;
+    opacity: 1;
+  }
+}
+
 @media (min-width: 600px) {
   uni-page-body {
     width: 520px;

@@ -7,7 +7,7 @@
           <text class="hero-level">{{ profile?.levelName || '普通会员' }}</text>
         </view>
         <view class="spent-chip">
-          <text class="spent-num">¥{{ spentText }}</text>
+          <text class="spent-num">{{ spentText }}</text>
           <text class="spent-unit">累计消费</text>
         </view>
       </view>
@@ -16,7 +16,7 @@
           <view class="progress-fill" :style="{ width: progressWidth }" />
         </view>
         <text class="progress-text">
-          <text v-if="profile?.nextLevelName">距{{ profile.nextLevelName }}还差约 ¥{{ profile.spentToNextLevel }} 消费</text>
+          <text v-if="profile?.nextLevelName">距{{ profile.nextLevelName }}还差约 {{ formatYuan(profile.spentToNextLevel) }} 消费</text>
           <text v-else>已达最高等级</text>
         </text>
       </view>
@@ -63,7 +63,7 @@
       <view v-for="lv in profile?.levels || []" :key="lv.levelCode" class="level-row" :class="{ on: lv.levelCode === profile?.levelCode }">
         <view>
           <text class="level-name">{{ lv.levelName }}</text>
-          <text class="level-range">累计消费 ¥{{ Number(lv.minSpent || 0).toFixed(0) }}{{ lv.maxSpent != null ? ' - ¥' + Number(lv.maxSpent).toFixed(0) : '+' }}</text>
+          <text class="level-range">累计消费 {{ formatYuan(Number(lv.minSpent || 0)) }}{{ lv.maxSpent != null ? ' - ' + formatYuan(Number(lv.maxSpent)) : '+' }}</text>
         </view>
         <text v-if="lv.levelCode === profile?.levelCode" class="level-badge">当前</text>
       </view>
@@ -84,7 +84,11 @@ const profile = ref<MemberProfileDto | null>(null);
 const couponCount = ref(0);
 
 const progressWidth = computed(() => `${Math.min(100, Math.max(0, profile.value?.progressPercent || 0))}%`);
-const spentText = computed(() => Number(profile.value?.totalSpent || 0).toFixed(0));
+const yuanFmt = new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', maximumFractionDigits: 0 });
+function formatYuan(n: number) {
+  return yuanFmt.format(Number.isFinite(n) ? n : 0);
+}
+const spentText = computed(() => formatYuan(Number(profile.value?.totalSpent || 0)));
 
 const benefits = [
   { mark: '券', title: '优惠券立减', desc: '结算时自动选用可用优惠券' },

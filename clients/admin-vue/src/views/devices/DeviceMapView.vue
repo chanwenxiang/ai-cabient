@@ -8,7 +8,7 @@
       <el-input
         v-model="machineNo"
         clearable
-        placeholder="请输入机器编号"
+        placeholder="请输入机器编号…"
         class="float-input"
         @keyup.enter="applyFilters"
         @clear="applyFilters"
@@ -18,7 +18,7 @@
       <el-input
         v-model="areaKeyword"
         clearable
-        placeholder="请输入地区"
+        placeholder="请输入地区…"
         class="float-input"
         @keyup.enter="applyFilters"
         @clear="applyFilters"
@@ -28,7 +28,7 @@
       <el-input
         v-model="keyword"
         clearable
-        placeholder="请输入关键字"
+        placeholder="请输入关键字…"
         class="float-input"
         @keyup.enter="applyFilters"
         @clear="applyFilters"
@@ -529,6 +529,15 @@ onBeforeUnmount(() => {
   100% {
     transform: scale(2.35);
     opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pulse-ring,
+  .pulse-ring.r2,
+  .pulse-ring.r3 {
+    animation: none;
+    opacity: 0.28;
   }
 }
 

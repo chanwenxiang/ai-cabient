@@ -88,6 +88,7 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
     const fieldHtml = singleLine
       ? `<input
           class="mtp-field"
+          id="${HOST_ID}-field"
           type="text"
           inputmode="text"
           autocomplete="off"
@@ -95,13 +96,16 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
           spellcheck="false"
           maxlength="${opts.maxLength || 64}"
           placeholder="${escapeAttr(opts.placeholder || '')}"
+          aria-labelledby="${HOST_ID}-title"
           data-testid="${testId}-input"
           value="${escapeAttr(opts.defaultValue || '')}"
         />`
       : `<textarea
           class="mtp-field"
+          id="${HOST_ID}-field"
           maxlength="${opts.maxLength || 200}"
           placeholder="${escapeAttr(opts.placeholder || '')}"
+          aria-labelledby="${HOST_ID}-title"
           data-testid="${testId}-input"
         >${escapeAttr(opts.defaultValue || '')}</textarea>`;
 
@@ -114,9 +118,10 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 24px 20px;
+          padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
           box-sizing: border-box;
           background: rgba(15, 23, 42, 0.55);
+          overscroll-behavior: contain;
           font-family: var(--app-font, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif);
           -webkit-font-smoothing: antialiased;
         }
@@ -161,6 +166,11 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
           resize: none;
           transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
         }
+        #${HOST_ID} .mtp-field:focus-visible {
+          border-color: #0f766e;
+          background: #fff;
+          box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.15);
+        }
         #${HOST_ID} textarea.mtp-field { min-height: 88px; }
         #${HOST_ID} .mtp-field::placeholder {
           color: #94a3b8;
@@ -196,7 +206,7 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
         #${HOST_ID} .mtp-btn:active { opacity: 0.88; }
       </style>
       <div class="mtp-card">
-        <span class="mtp-title">${escapeAttr(opts.title)}</span>
+        <span class="mtp-title" id="${HOST_ID}-title">${escapeAttr(opts.title)}</span>
         ${opts.hint ? `<span class="mtp-hint">${escapeAttr(opts.hint)}</span>` : ''}
         ${fieldHtml}
         <div class="mtp-actions">
@@ -250,6 +260,9 @@ function promptH5(opts: TextPromptOptions): Promise<string | null> {
 
     const input = fieldEl();
     requestAnimationFrame(() => {
+      // Avoid autofocus on coarse pointers (mobile) — prevents keyboard/zoom jump.
+      const coarse = window.matchMedia('(pointer: coarse)').matches;
+      if (coarse) return;
       input?.focus();
       const len = input?.value.length || 0;
       input?.setSelectionRange(len, len);
