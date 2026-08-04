@@ -21,7 +21,7 @@
     <el-tabs v-model="tab" @tab-change="onTabChange">
       <el-tab-pane label="风险事件" name="events">
         <div class="table-scroll">
-          <div class="table-scroll-inner" style="min-width: 900px">
+          <div class="table-scroll-inner">
             <el-table
               v-loading="loading"
               :data="events"
@@ -33,15 +33,15 @@
             >
               <template #empty><el-empty description="暂无风险事件" /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="事件" min-width="140" class-name="col-text">
+              <el-table-column label="事件" min-width="140" align="center" class-name="col-text">
                 <template #default="{ row }">
                   <div class="id-cell">
-                    <strong>{{ dictLabel('risk_event_type', row.eventType) || row.eventType || '-' }}</strong>
+                    <strong>{{ dictLabel('risk_event_type', row.eventType) || row.eventType || '未知' }}</strong>
                     <small>{{ row.eventId }}</small>
                   </div>
                 </template>
               </el-table-column>
-              <el-table-column label="用户" width="100" class-name="col-text">
+              <el-table-column label="用户" width="100" align="center" class-name="col-text">
                 <template #default="{ row }">
                   <button
                     v-if="row.userId"
@@ -51,7 +51,7 @@
                   >
                     {{ row.userId }}
                   </button>
-                  <span v-else class="muted">-</span>
+                  <span v-else class="muted">无</span>
                 </template>
               </el-table-column>
               <el-table-column label="级别" width="100" align="center">
@@ -61,7 +61,7 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="时间" width="168" class-name="col-text">
+              <el-table-column label="时间" width="168" align="center" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>
@@ -85,7 +85,7 @@
 
       <el-tab-pane label="黑名单" name="blacklist">
         <div class="table-scroll">
-          <div class="table-scroll-inner" style="min-width: 900px">
+          <div class="table-scroll-inner">
             <el-table
               v-loading="loading"
               :data="blacklist"
@@ -97,7 +97,7 @@
             >
               <template #empty><el-empty description="暂无黑名单" /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="用户" width="120" class-name="col-text">
+              <el-table-column label="用户" width="120" align="center" class-name="col-text">
                 <template #default="{ row }">
                   <button
                     type="button"
@@ -108,10 +108,10 @@
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column label="原因" min-width="220" class-name="col-text" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.reason || '-' }}</template>
+              <el-table-column label="原因" min-width="220" align="center" class-name="col-text" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.reason || '无' }}</template>
               </el-table-column>
-              <el-table-column label="加入时间" width="168" class-name="col-text">
+              <el-table-column label="加入时间" width="168" align="center" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>
@@ -122,7 +122,7 @@
                 width="88"
                 class-name="col-action"
                 align="center"
-              >
+               fixed="right">
                 <template #default="{ row }">
                   <TableActions
                     :actions="[{ key: 'remove', label: '移出', icon: Delete, type: 'danger' }]"
@@ -425,8 +425,7 @@ onActivated(() => {
 .id-cell strong { font-weight: 650; }
 .id-cell small {
   color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
+  font-family: inherit;
 }
 .link-cell {
   appearance: none;

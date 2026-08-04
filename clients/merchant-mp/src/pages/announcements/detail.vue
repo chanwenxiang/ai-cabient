@@ -58,7 +58,7 @@ async function load() {
 }
 
 function formatTime(t?: string) {
-  return formatDateTimeMinute(t, '—');
+  return formatDateTimeMinute(t, '暂无');
 }
 
 function priorityLabel(p?: string) {

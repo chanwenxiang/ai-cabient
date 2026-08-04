@@ -12,6 +12,15 @@
   --layout-muted: #64748b;
   --layout-hover: rgba(15, 23, 42, 0.04);
   --layout-card: #ffffff;
+  /* 运营后台壳层间距（对齐 Element Admin / Ant Design Pro 密度） */
+  --admin-space-xs: 4px;
+  --admin-space-sm: 8px;
+  --admin-space-md: 12px;
+  --admin-space-lg: 16px;
+  --admin-space-xl: 20px;
+  --admin-radius: 8px;
+  --admin-radius-lg: 10px;
+  --admin-scrollbar: color-mix(in srgb, var(--layout-muted) 55%, transparent);
 }
 
 [data-theme='dark'] {
@@ -174,7 +183,7 @@ button, input, textarea, select { font: inherit; }
 .layout-main-scroll .el-table td.el-table__cell,
 .page-card .el-table th.el-table__cell,
 .page-card .el-table td.el-table__cell {
-  text-align: center;
+  text-align: center !important;
   font-family: inherit;
   font-size: 13px;
 }
@@ -191,7 +200,7 @@ button, input, textarea, select { font: inherit; }
 .layout-main-scroll .el-table td.el-table__cell > .cell,
 .page-card .el-table th.el-table__cell > .cell,
 .page-card .el-table td.el-table__cell > .cell {
-  text-align: center;
+  text-align: center !important;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -212,27 +221,96 @@ button, input, textarea, select { font: inherit; }
 }
 
 /*
- * 主数据 / 树表列：全局 cell 默认居中+nowrap 会压平树缩进、叠双行名称。
- * 列上挂 class-name / label-class-name = col-text | col-money 即可恢复。
+ * 列表页统一居中：col-text / col-money 不再左/右对齐。
+ * EP align="left|right" 产生的 is-left / is-right 一并压成居中。
+ * 树表缩进列请用 col-tree（见 MenuManage）。
  */
 .layout-main-scroll .el-table th.col-text > .cell,
 .layout-main-scroll .el-table td.col-text > .cell,
 .page-card .el-table th.col-text > .cell,
-.page-card .el-table td.col-text > .cell {
-  text-align: left;
-  white-space: normal;
-  overflow: visible;
-  text-overflow: clip;
-  line-height: 1.35;
-}
-
+.page-card .el-table td.col-text > .cell,
 .layout-main-scroll .el-table th.col-money > .cell,
 .layout-main-scroll .el-table td.col-money > .cell,
 .page-card .el-table th.col-money > .cell,
 .page-card .el-table td.col-money > .cell {
-  text-align: right;
-  font-variant-numeric: tabular-nums;
+  text-align: center !important;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+/* 多行主数据单元格允许换行，避免商品名/SKU 被 nowrap 裁成一行 */
+.layout-main-scroll .el-table td.col-text > .cell:has(.name-cell),
+.layout-main-scroll .el-table td.col-text > .cell:has(.master-data-cell),
+.layout-main-scroll .el-table td.col-text > .cell:has(.line-cell),
+.layout-main-scroll .el-table td.col-text > .cell:has(.sku-cell),
+.layout-main-scroll .el-table td.col-text > .cell:has(.sla-cell),
+.page-card .el-table td.col-text > .cell:has(.name-cell),
+.page-card .el-table td.col-text > .cell:has(.master-data-cell),
+.page-card .el-table td.col-text > .cell:has(.line-cell),
+.page-card .el-table td.col-text > .cell:has(.sku-cell),
+.page-card .el-table td.col-text > .cell:has(.sla-cell) {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+}
+.layout-main-scroll .el-table th.col-money > .cell,
+.layout-main-scroll .el-table td.col-money > .cell,
+.page-card .el-table th.col-money > .cell,
+.page-card .el-table td.col-money > .cell {
+  font-variant-numeric: tabular-nums;
+}
+
+.layout-main-scroll .el-table th.el-table__cell.is-left,
+.layout-main-scroll .el-table td.el-table__cell.is-left,
+.layout-main-scroll .el-table th.el-table__cell.is-right,
+.layout-main-scroll .el-table td.el-table__cell.is-right,
+.layout-main-scroll .el-table th.el-table__cell.is-center,
+.layout-main-scroll .el-table td.el-table__cell.is-center,
+.page-card .el-table th.el-table__cell.is-left,
+.page-card .el-table td.el-table__cell.is-left,
+.page-card .el-table th.el-table__cell.is-right,
+.page-card .el-table td.el-table__cell.is-right,
+.page-card .el-table th.el-table__cell.is-center,
+.page-card .el-table td.el-table__cell.is-center {
+  text-align: center !important;
+}
+
+/* 多行单元格 / 链接：grid 默认左贴边，统一居中 */
+.layout-main-scroll .el-table .name-cell,
+.layout-main-scroll .el-table .master-data-cell,
+.layout-main-scroll .el-table .line-cell,
+.layout-main-scroll .el-table .sla-cell,
+.layout-main-scroll .el-table .sku-cell,
+.layout-main-scroll .el-table .pipe-cell,
+.page-card .el-table .name-cell,
+.page-card .el-table .master-data-cell,
+.page-card .el-table .line-cell,
+.page-card .el-table .sla-cell,
+.page-card .el-table .sku-cell,
+.page-card .el-table .pipe-cell {
+  width: 100%;
+  box-sizing: border-box;
+  text-align: center;
+  justify-items: center;
+  align-items: center;
+}
+.layout-main-scroll .el-table .link-cell,
+.page-card .el-table .link-cell {
+  text-align: center;
+}
+
+/* 树表名称列：保留左对齐与缩进 */
+.layout-main-scroll .el-table th.col-tree > .cell,
+.layout-main-scroll .el-table td.col-tree > .cell,
+.page-card .el-table th.col-tree > .cell,
+.page-card .el-table td.col-tree > .cell {
+  text-align: left !important;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.35;
 }
 
 .page-card > .el-card__header {
@@ -279,7 +357,8 @@ button, input, textarea, select { font: inherit; }
   gap: 8px;
   margin-top: 16px;
   max-width: 100%;
-  overflow-x: auto;
+  /* 分页可换行；禁止再出一条横滚条（与 .table-scroll 叠成「双滚动栏」） */
+  overflow-x: hidden;
 }
 
 .page-pager .el-pagination {
@@ -319,6 +398,78 @@ button, input, textarea, select { font: inherit; }
   --el-card-bg-color: var(--layout-card);
   --el-card-border-color: var(--layout-border);
   color: var(--layout-text);
+  border-radius: var(--admin-radius-lg, 10px);
+}
+
+.page-card.el-card {
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.page-card > .el-card__header {
+  padding: 14px var(--admin-space-xl, 20px);
+  border-bottom: 1px solid var(--layout-border);
+}
+
+.page-card > .el-card__body {
+  padding: var(--admin-space-xl, 20px);
+}
+
+/* 筛选条 / 分页 / 空态 / 抽屉：全后台统一 */
+.filter-bar--compact {
+  row-gap: 10px;
+  column-gap: 12px;
+}
+
+.page-pager {
+  margin-top: var(--admin-space-md, 12px);
+}
+
+.el-empty__description p {
+  color: var(--layout-muted);
+  font-size: 13px;
+}
+
+.el-drawer__header {
+  margin-bottom: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--layout-border);
+  color: var(--layout-text);
+}
+
+.el-drawer__body {
+  padding: 16px 20px 24px;
+}
+
+.el-drawer.drawer-workbench .el-drawer__header {
+  margin-bottom: 0;
+}
+
+.el-form--inline .el-form-item {
+  margin-right: 12px;
+  margin-bottom: 8px;
+}
+
+.el-alert {
+  border-radius: var(--admin-radius, 8px);
+}
+
+.el-tabs__item {
+  font-weight: 500;
+}
+
+.el-pagination {
+  --el-pagination-button-bg-color: var(--layout-card);
+  font-weight: 500;
+}
+
+.el-tag {
+  border-radius: 6px;
+}
+
+.el-input__wrapper,
+.el-select__wrapper,
+.el-textarea__inner {
+  border-radius: var(--admin-radius, 8px);
 }
 
 .el-header.topbar {
@@ -336,12 +487,9 @@ button, input, textarea, select { font: inherit; }
 }
 
 .cell-id {
-  font-family: var(--app-font-mono);
+  font-family: inherit;
+  font-size: inherit;
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
-  background: color-mix(in srgb, var(--el-fill-color) 80%, transparent);
-  padding: 2px 8px;
-  border-radius: 4px;
 }
 
 .name-cell {
@@ -357,8 +505,15 @@ button, input, textarea, select { font: inherit; }
 
 .name-cell small {
   color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
+  font-size: inherit;
+  font-family: inherit;
+}
+
+/* 表格内 ID/会话链接与普通列同一正文字体 */
+.report-table .mono,
+.report-table .link-cell.mono {
+  font-family: inherit;
+  font-size: inherit;
 }
 
 .page-card {
@@ -391,6 +546,13 @@ button, input, textarea, select { font: inherit; }
   flex-direction: column;
 }
 
+/* 字典双栏：占满主区高度，纵滚在表内（见 DictManageView scoped） */
+.layout-main-scroll > .page-fill.dict-page {
+  height: 100%;
+  max-height: 100%;
+  overflow: hidden;
+}
+
 .layout-main-scroll > .page-card,
 .layout-main-scroll > .page-fill > .page-card {
   flex: 1 1 auto;
@@ -408,8 +570,9 @@ button, input, textarea, select { font: inherit; }
 
 .layout-main-scroll > .page-card.el-card,
 .layout-main-scroll > .page-fill > .page-card.el-card {
-  /* Element Plus card 本身已是 flex column */
-  height: 100%;
+  /* 至少铺满主区，内容多时随表格增高，纵向交给主区滚动条 */
+  height: auto;
+  min-height: 100%;
 }
 
 .layout-main-scroll > .page-card > .el-card__header,
@@ -423,7 +586,8 @@ button, input, textarea, select { font: inherit; }
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* 勿裁切固定操作列；纵滚走主区 */
+  overflow: visible;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .filter-bar,
@@ -431,18 +595,22 @@ button, input, textarea, select { font: inherit; }
 .layout-main-scroll > .page-card > .el-card__body > .el-alert,
 .layout-main-scroll > .page-card > .el-card__body > .status-tabs,
 .layout-main-scroll > .page-card > .el-card__body > .review-code-tabs,
+.layout-main-scroll > .page-card > .el-card__body > .kpi-row,
+.layout-main-scroll > .page-card > .el-card__body > .kpi-grid,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .filter-bar,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-form,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-alert,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .status-tabs,
-.layout-main-scroll > .page-fill > .page-card > .el-card__body > .review-code-tabs {
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .review-code-tabs,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .kpi-row,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .kpi-grid {
   flex-shrink: 0;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .table-scroll,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll {
-  flex: 1 1 auto;
-  min-height: 200px;
+  flex: 0 0 auto;
+  min-height: 0;
 }
 
 /*
@@ -462,14 +630,14 @@ button, input, textarea, select { font: inherit; }
   display: none;
 }
 
-/* 内容包裹型 tabs（商户/仓库等）：tab pane 内含表格，铺满剩余高度 */
+/* 内容包裹型 tabs（商户/仓库等）：随内容增高，纵滚交给主区 */
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs),
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__header,
@@ -479,24 +647,24 @@ button, input, textarea, select { font: inherit; }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content > .el-tab-pane,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content > .el-tab-pane {
-  height: 100%;
+  height: auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll {
-  flex: 1 1 auto;
-  min-height: 160px;
+  flex: 0 0 auto;
+  min-height: 0;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .page-pager,
@@ -563,16 +731,18 @@ button, input, textarea, select { font: inherit; }
 }
 
 /*
- * 表格横向滚动：只在 .table-scroll 一处滚动。
- * 主区 overflow-x:hidden，禁止再出第二条横滚条。
- * 不用 fixed/sticky 操作列，避免时间与操作叠在同一位置。
+ * 表格滚动（全局统一）：
+ * 1. 表格按行自适应高度，纵向滚动交给右侧主区 .layout-main-scroll
+ * 2. 仅表内横向滚动（含 fixed 操作列）；不再锁死 height:100% 导致末行被横条挡住
+ * 3. 有横向溢出时底栏滚动条常显（不依赖 hover）
  */
 .table-scroll {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: visible;
+  display: block;
+  /* 必须裁切：否则 table-scroll-inner 的 min-width 会撑破主区，右侧操作列被 overflow-x:hidden 裁掉 */
+  overflow: hidden;
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--layout-border);
   border-radius: 8px;
@@ -582,22 +752,141 @@ button, input, textarea, select { font: inherit; }
 }
 
 .table-scroll-inner {
-  display: block;
-  /* 始终铺满主区宽度；列用 min-width 时由 Element Plus 分配多余空间 */
   width: 100%;
-  min-width: 100%;
+  max-width: 100%;
+  /* 覆盖各页 inline min-width：宽度约束在 .table-scroll 内，横滚交给 EP */
+  min-width: 0 !important;
+  display: block;
   box-sizing: border-box;
 }
 
 .table-scroll .el-table {
   width: 100% !important;
   min-width: 100%;
+  /* 覆盖模板里 height="100%"，避免表内纵滚 + 末行被横条遮挡 */
+  height: auto !important;
+  max-height: none !important;
   margin-bottom: 0;
+}
+
+.table-scroll .el-table__inner-wrapper {
+  height: auto !important;
+  display: block !important;
+}
+
+.table-scroll .el-table__header-wrapper {
+  overflow-x: hidden !important;
+  position: relative !important;
+  top: auto !important;
+}
+
+.table-scroll .el-table__body-wrapper,
+.table-scroll .el-table__footer-wrapper {
+  /* 自适应高度：只横滚，不竖滚 */
+  height: auto !important;
+  max-height: none !important;
+  overflow: hidden !important;
+}
+
+.table-scroll .el-table .el-scrollbar {
+  height: auto !important;
+}
+
+.table-scroll .el-table .el-scrollbar__wrap {
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  scrollbar-width: none !important; /* Firefox */
+  -ms-overflow-style: none !important;
+  max-height: none !important;
+}
+
+.table-scroll .el-table .el-scrollbar__wrap::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
+}
+
+/*
+ * 只保留 EP 自定义横滚条（一条），贴表体底栏；右侧给固定操作列让路。
+ * EP 会写 inline display:none，用 !important 压过。
+ */
+.table-scroll .el-table .el-scrollbar__bar.is-horizontal {
+  display: block !important;
+  opacity: 1 !important;
+  height: 10px !important;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  z-index: 12;
+}
+
+.table-scroll .el-table .el-scrollbar__bar.is-horizontal > div {
+  opacity: 1 !important;
+  background-color: var(--admin-scrollbar) !important;
+  border-radius: 5px;
+}
+
+/* 纵滚交给主区，隐藏表内纵条，避免右侧「双轨」 */
+.table-scroll .el-table .el-scrollbar__bar.is-vertical {
+  display: none !important;
+}
+
+.layout-main-scroll .el-table--scrollable-x .el-scrollbar__bar.is-horizontal,
+.page-card .el-table--scrollable-x .el-scrollbar__bar.is-horizontal {
+  display: block !important;
+  opacity: 1 !important;
+  height: 10px;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+}
+
+.layout-main-scroll .el-table--scrollable-x .el-scrollbar__bar.is-horizontal > div,
+.page-card .el-table--scrollable-x .el-scrollbar__bar.is-horizontal > div {
+  opacity: 1 !important;
+  background-color: var(--admin-scrollbar);
+  border-radius: 5px;
+}
+
+/* 非 .table-scroll 场景仍可用细原生条；.table-scroll 内已隐藏原生条 */
+.layout-main-scroll .el-table:not(.report-table) .el-scrollbar__wrap,
+.page-card .el-table:not(.report-table) .el-scrollbar__wrap {
+  scrollbar-width: thin;
+  scrollbar-color: var(--admin-scrollbar) transparent;
+}
+
+.layout-main-scroll .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar,
+.page-card .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+
+.layout-main-scroll .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar-thumb,
+.page-card .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar-thumb {
+  background: var(--admin-scrollbar);
+  border-radius: 5px;
+}
+
+.layout-main-scroll .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar-track,
+.page-card .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--layout-border) 55%, transparent);
+  border-radius: 5px;
+}
+
+/* 再次钉死：.table-scroll 内禁止原生条（压过上面 page-card 选择器） */
+.table-scroll .el-table .el-scrollbar__wrap {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.table-scroll .el-table .el-scrollbar__wrap::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 
 /*
  * 表头冻结：主内容区纵向滚动时表头贴顶。
- * 横向滚动仍在 .table-scroll 内；操作列不做 sticky。
+ * 横向滚动在表体内；操作列用 fixed="right"（见下方 .el-table__fixed-right 阴影）。
  */
 .layout-main-scroll .el-table__header-wrapper,
 .page-card .el-table__header-wrapper {
@@ -768,44 +1057,109 @@ html.dark .page-card .el-table__header th.el-table__cell {
   background-color: #1c2636 !important;
 }
 
-/* fixed 列：实心底 + 左侧分隔，杜绝时间/金额从操作按钮下透视 */
+/* fixed 列（EP 2.x sticky）：实心底 + 左侧阴影分隔，对齐库存健康截图 */
+.el-table {
+  --el-table-fixed-right-column: inset -10px 0 12px -8px rgba(15, 23, 42, 0.16);
+  --el-table-fixed-left-column: inset 10px 0 12px -8px rgba(15, 23, 42, 0.16);
+}
+
+/* 旧版 patch 表（兼容） */
 .el-table__fixed,
 .el-table__fixed-right,
 .el-table__fixed-right-patch {
   background-color: var(--el-table-bg-color, var(--layout-card)) !important;
 }
 .el-table__fixed-right {
-  box-shadow: -6px 0 12px rgba(0, 0, 0, 0.18);
+  box-shadow: -6px 0 12px rgba(15, 23, 42, 0.12);
 }
-[data-theme='light'] .el-table__fixed-right {
-  box-shadow: -6px 0 10px rgba(15, 23, 42, 0.08);
+
+/*
+ * EP 默认仅在 is-scrolling-left/middle 时给右侧固定列加阴影；
+ * is-scrolling-none / 滚到最右时会清掉。业务上操作列需要始终可见分隔。
+ */
+.el-table .el-table-fixed-column--right.is-first-column::before {
+  box-shadow: var(--el-table-fixed-right-column) !important;
 }
+.el-table.is-scrolling-none .el-table-fixed-column--right.is-first-column::before,
+.el-table.is-scrolling-right .el-table-fixed-column--right.is-first-column::before {
+  box-shadow: var(--el-table-fixed-right-column) !important;
+}
+
+/*
+ * EP 给固定列写了 background:inherit（特异性更高），sticky 时 inherit 易透视。
+ * 用同等/更高特异性 + background 简写压掉 inherit，保证操作列实心遮挡。
+ */
+.el-table__header-wrapper tr th.el-table-fixed-column--left,
+.el-table__header-wrapper tr th.el-table-fixed-column--right,
+.el-table__body-wrapper tr td.el-table-fixed-column--left,
+.el-table__body-wrapper tr td.el-table-fixed-column--right,
+.el-table__footer-wrapper tr td.el-table-fixed-column--left,
+.el-table__footer-wrapper tr td.el-table-fixed-column--right,
 .el-table__fixed .el-table__cell,
 .el-table__fixed-right .el-table__cell {
-  background-color: var(--el-table-bg-color, var(--layout-card));
+  background: var(--el-table-bg-color, #ffffff) !important;
+  background-color: var(--el-table-bg-color, #ffffff) !important;
+  z-index: calc(var(--el-table-index, 0) + 3) !important;
 }
+.el-table__header-wrapper tr th.el-table-fixed-column--left,
+.el-table__header-wrapper tr th.el-table-fixed-column--right,
 .el-table__fixed-right th.el-table__cell,
 .el-table__fixed th.el-table__cell {
+  background: var(--el-table-header-bg-color, var(--el-fill-color-light, #f5f7fa)) !important;
   background-color: var(--el-table-header-bg-color, var(--el-fill-color-light, #f5f7fa)) !important;
 }
+.el-table--striped .el-table__body tr.el-table__row--striped > td.el-table-fixed-column--left,
+.el-table--striped .el-table__body tr.el-table__row--striped > td.el-table-fixed-column--right {
+  background: var(--el-fill-color-lighter, #fafafa) !important;
+  background-color: var(--el-fill-color-lighter, #fafafa) !important;
+}
+.el-table__body tr.hover-row > td.el-table-fixed-column--left,
+.el-table__body tr.hover-row > td.el-table-fixed-column--right,
+.el-table__body tr:hover > td.el-table-fixed-column--left,
+.el-table__body tr:hover > td.el-table-fixed-column--right {
+  background: var(--el-table-row-hover-bg-color, #f5f7fa) !important;
+  background-color: var(--el-table-row-hover-bg-color, #f5f7fa) !important;
+}
+[data-theme='dark'] .el-table {
+  --el-table-fixed-right-column: inset -10px 0 12px -8px rgba(0, 0, 0, 0.45);
+  --el-table-fixed-left-column: inset 10px 0 12px -8px rgba(0, 0, 0, 0.45);
+}
+[data-theme='dark'] .el-table__header-wrapper tr th.el-table-fixed-column--left,
+[data-theme='dark'] .el-table__header-wrapper tr th.el-table-fixed-column--right,
+[data-theme='dark'] .el-table__body-wrapper tr td.el-table-fixed-column--left,
+[data-theme='dark'] .el-table__body-wrapper tr td.el-table-fixed-column--right,
 [data-theme='dark'] .el-table__fixed .el-table__body tr > td.el-table__cell,
 [data-theme='dark'] .el-table__fixed-right .el-table__body tr > td.el-table__cell {
+  background: var(--layout-card) !important;
   background-color: var(--layout-card) !important;
 }
 [data-theme='dark'] .el-table__fixed .el-table__body tr.hover-row > td.el-table__cell,
 [data-theme='dark'] .el-table__fixed .el-table__body tr:hover > td.el-table__cell,
 [data-theme='dark'] .el-table__fixed-right .el-table__body tr.hover-row > td.el-table__cell,
-[data-theme='dark'] .el-table__fixed-right .el-table__body tr:hover > td.el-table__cell {
+[data-theme='dark'] .el-table__fixed-right .el-table__body tr:hover > td.el-table__cell,
+[data-theme='dark'] .el-table__body tr.hover-row > td.el-table-fixed-column--left,
+[data-theme='dark'] .el-table__body tr.hover-row > td.el-table-fixed-column--right,
+[data-theme='dark'] .el-table__body tr:hover > td.el-table-fixed-column--left,
+[data-theme='dark'] .el-table__body tr:hover > td.el-table-fixed-column--right {
+  background: #222c3c !important;
   background-color: #222c3c !important;
 }
 [data-theme='dark'] .el-table--striped .el-table__fixed .el-table__body tr.el-table__row--striped > td.el-table__cell,
-[data-theme='dark'] .el-table--striped .el-table__fixed-right .el-table__body tr.el-table__row--striped > td.el-table__cell {
+[data-theme='dark'] .el-table--striped .el-table__fixed-right .el-table__body tr.el-table__row--striped > td.el-table__cell,
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped > td.el-table-fixed-column--left,
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped > td.el-table-fixed-column--right {
+  background: #151f2e !important;
   background-color: #151f2e !important;
 }
 [data-theme='dark'] .el-table--striped .el-table__fixed .el-table__body tr.el-table__row--striped.hover-row > td.el-table__cell,
 [data-theme='dark'] .el-table--striped .el-table__fixed .el-table__body tr.el-table__row--striped:hover > td.el-table__cell,
 [data-theme='dark'] .el-table--striped .el-table__fixed-right .el-table__body tr.el-table__row--striped.hover-row > td.el-table__cell,
-[data-theme='dark'] .el-table--striped .el-table__fixed-right .el-table__body tr.el-table__row--striped:hover > td.el-table__cell {
+[data-theme='dark'] .el-table--striped .el-table__fixed-right .el-table__body tr.el-table__row--striped:hover > td.el-table__cell,
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped.hover-row > td.el-table-fixed-column--left,
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped.hover-row > td.el-table-fixed-column--right,
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped:hover > td.el-table-fixed-column--left,
+[data-theme='dark'] .el-table--striped .el-table__body tr.el-table__row--striped:hover > td.el-table-fixed-column--right {
+  background: #1c2636 !important;
   background-color: #1c2636 !important;
 }
 .layout-main-scroll .el-table td.col-action,
@@ -978,4 +1332,147 @@ html.dark .page-card .el-table__header th.el-table__cell {
 
 [data-theme='dark'] .tags-view {
   scrollbar-color: #334155 transparent;
+}
+
+/* ========== 全后台壳层 / 非表格统一（不只表格） ========== */
+
+/* 多卡片页（工作台等）：卡片间距与单列表页一致 */
+.layout-main-scroll > .workbench,
+.layout-main-scroll > .page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-space-md, 12px);
+  min-height: 0;
+}
+
+.layout-main-scroll > .workbench > .page-card,
+.layout-main-scroll > .page-stack > .page-card {
+  margin-bottom: 0;
+  flex: 0 0 auto;
+}
+
+/* KPI / 统计瓦片：半透明改实心底，避免叠层透视 */
+.stat-tile,
+.kpi-tile,
+.ops-board__tile,
+.quick-tile {
+  border-radius: var(--admin-radius, 8px);
+}
+
+.kpi-tile.warn,
+.ops-board__tile.warn:not(.active),
+.stat-tile.warn {
+  background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff));
+}
+
+.ops-board__tile.active {
+  background: color-mix(in srgb, var(--el-color-primary) 8%, var(--layout-card, #fff));
+}
+
+.ops-board__tile.warn.active {
+  background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff));
+}
+
+/* 状态筛选 tabs 统一密度 */
+.status-tabs.el-tabs {
+  margin-bottom: var(--admin-space-md, 12px);
+}
+
+.status-tabs .el-tabs__header {
+  margin-bottom: 0;
+}
+
+.status-tabs .el-tabs__nav-wrap::after {
+  height: 1px;
+}
+
+/* 弹窗头部分隔，对齐抽屉 */
+.el-dialog__header {
+  padding: 16px 20px;
+  margin-right: 0;
+  border-bottom: 1px solid var(--layout-border);
+}
+
+.el-dialog__body {
+  padding: 16px 20px 20px;
+}
+
+.el-dialog__footer {
+  padding: 12px 20px 16px;
+  border-top: 1px solid var(--layout-border);
+}
+
+.el-dialog__title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--layout-text);
+}
+
+/* Descriptions 与卡片同色 */
+.el-descriptions {
+  --el-descriptions-table-border: var(--layout-border);
+}
+
+.el-descriptions__label {
+  color: var(--layout-muted);
+  font-weight: 500;
+}
+
+/* Alert 在列表页上方时不抢表格高度 */
+.layout-main-scroll .el-alert {
+  flex-shrink: 0;
+}
+
+.layout-main-scroll .el-alert + .filter-bar,
+.layout-main-scroll .el-alert + .el-form,
+.layout-main-scroll .el-alert + .table-scroll {
+  margin-top: 0;
+}
+
+/* 面包屑 / 顶栏可读性 */
+.topbar .el-breadcrumb__inner.is-link:hover {
+  color: var(--app-primary);
+}
+
+/* Tags 滚动条细轨，避免挡内容 */
+.tags-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--admin-scrollbar) transparent;
+}
+
+.tags-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.tags-scroll::-webkit-scrollbar-thumb {
+  background: var(--admin-scrollbar);
+  border-radius: 3px;
+}
+
+.tags-view .tag-item.el-tag {
+  --el-tag-border-radius: 6px;
+  font-weight: 500;
+}
+
+.tags-view .tag-item.el-tag--primary {
+  --el-tag-bg-color: color-mix(in srgb, var(--el-color-primary) 12%, var(--layout-card));
+  --el-tag-border-color: color-mix(in srgb, var(--el-color-primary) 35%, var(--layout-border));
+  --el-tag-text-color: var(--el-color-primary);
+}
+
+/* 表单项标签与主区密度 */
+.layout-main-scroll .el-form-item__label {
+  font-weight: 500;
+  color: var(--layout-muted);
+}
+
+/* Message / Notification 圆角对齐 */
+.el-message,
+.el-notification {
+  border-radius: var(--admin-radius, 8px);
+}
+
+/* 空态与加载区最小高度，避免闪一下塌陷 */
+.layout-main-scroll .el-empty {
+  padding: 32px 16px;
 }

@@ -37,7 +37,7 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 900px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="paged"
@@ -49,28 +49,34 @@
         >
           <template #empty><el-empty description="暂无参数" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="配置" min-width="220" class-name="col-text">
+          <el-table-column label="配置键" min-width="180" align="center" class-name="col-text">
             <template #default="{ row }">
-              <div class="name-cell">
-                <strong class="cell-id">{{ row.configKey }}</strong>
-                <small>{{ row.description || '无说明' }}</small>
-              </div>
+              <span class="cell-id">{{ row.configKey }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="配置值" min-width="200" class-name="col-text" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.configValue || '-' }}</template>
+          <el-table-column label="说明" min-width="160" align="center" class-name="col-text">
+            <template #default="{ row }">{{ row.description || '无说明' }}</template>
           </el-table-column>
-          <el-table-column label="更新时间" width="168" class-name="col-text">
+          <el-table-column label="配置值" min-width="200" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.configValue || '无' }}</template>
+          </el-table-column>
+          <el-table-column label="更新时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="88" class-name="col-action" align="center">
+          <el-table-column
+            v-if="showActionColumn"
+            label="操作"
+            width="120"
+            class-name="col-action"
+            align="center"
+            fixed="right"
+          >
             <template #default="{ row }">
               <TableActions
-                v-if="auth.hasPerm('ops:config:edit')"
-                :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
-                @action="() => openEdit(row)"
+                :actions="rowActions(row)"
+                @action="(k) => onRowAction(String(k), row)"
               />
             </template>
           </el-table-column>
@@ -112,14 +118,15 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { EditPen, Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { Delete, EditPen, Refresh } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
-import TableActions from '@/components/TableActions.vue';
+import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { sortByPrimaryKey } from '@/utils/sort-by-pk';
 
 interface SystemConfigRow {
   configKey: string;
@@ -143,17 +150,59 @@ const form = reactive({ configKey: '', configValue: '', description: '' });
 
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();
-  if (!q) return items.value;
-  return items.value.filter((row) =>
-    [row.configKey, row.configValue, row.description]
-      .some((x) => String(x || '').toLowerCase().includes(q))
-  );
+  const rows = !q
+    ? items.value
+    : items.value.filter((row) =>
+        [row.configKey, row.configValue, row.description]
+          .some((x) => String(x || '').toLowerCase().includes(q))
+      );
+  return sortByPrimaryKey(rows, 'configKey', 'asc');
 });
 
 const paged = computed(() => {
   const start = (page.value - 1) * size.value;
   return filtered.value.slice(start, start + size.value);
 });
+
+function rowActions(_row: SystemConfigRow): TableAction[] {
+  const acts: TableAction[] = [];
+  if (auth.hasPerm('ops:config:edit')) {
+    acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
+  }
+  if (auth.hasPerm('ops:config:delete')) {
+    acts.push({ key: 'delete', label: '删除', icon: Delete, type: 'danger' });
+  }
+  return acts;
+}
+
+const showActionColumn = computed(() =>
+  auth.hasPerm('ops:config:edit') || auth.hasPerm('ops:config:delete')
+);
+
+async function onRowAction(key: string, row: SystemConfigRow) {
+  if (key === 'edit') openEdit(row);
+  else if (key === 'delete') await onDelete(row);
+}
+
+async function onDelete(row: SystemConfigRow) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除参数「${row.configKey}」？系统默认项删除后可能被重新初始化。`,
+      '删除参数',
+      { type: 'warning' }
+    );
+    await api.request(
+      `/api/v2/ops/admin/system-configs/${encodeURIComponent(row.configKey)}`,
+      'DELETE'
+    );
+    ElMessage.success('已删除');
+    await load();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '删除失败');
+    }
+  }
+}
 
 watch(keyword, () => {
   page.value = 1;
@@ -308,11 +357,5 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.name-cell { display: grid; gap: 2px; line-height: 1.35; }
-.name-cell strong { font-weight: 650; }
-.name-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-}
 .hidden-input { display: none; }
 </style>

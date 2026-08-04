@@ -112,6 +112,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-ai-cabinet-dev-secret-key-32bytes!!}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
       VISION_API_KEY: ${VISION_API_KEY:-dev-vision-key-change-me}
+      AMAP_WEB_KEY: ${AMAP_WEB_KEY:-}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
       AICABINET_STAGING_MODE: ${AICABINET_STAGING_MODE:-false}
       AICABINET_GRAVITY_FALLBACK_SETTLE: ${AICABINET_GRAVITY_FALLBACK_SETTLE:-false}

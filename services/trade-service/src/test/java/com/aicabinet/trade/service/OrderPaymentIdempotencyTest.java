@@ -8,7 +8,6 @@ import com.aicabinet.trade.domain.PaymentOperation;
 import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.WeChatPayClient;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
-import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,7 +28,6 @@ import static org.mockito.Mockito.when;
 class OrderPaymentIdempotencyTest {
 
     @Mock UserInfoMapper userInfoRepository;
-    @Mock UserAccountMapper userAccountRepository;
     @Mock BalanceLedgerService balanceLedgerService;
     @Mock PayScoreService payScoreService;
     @Mock WeChatPayClient weChatPayClient;
@@ -43,7 +41,6 @@ class OrderPaymentIdempotencyTest {
     void setUp() {
         service = new OrderPaymentService(
                 userInfoRepository,
-                userAccountRepository,
                 payScoreService,
                 weChatPayClient,
                 alipayPayClient,

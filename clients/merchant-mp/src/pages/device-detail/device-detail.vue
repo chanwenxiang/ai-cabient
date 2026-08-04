@@ -44,7 +44,7 @@
           <view v-for="s in slots" :key="s.slotCode" class="slot-cell">
             <text class="slot-code">{{ s.slotCode }}</text>
             <text>{{ s.assignedSkuName || '空' }}</text>
-            <text class="meta">库存 {{ s.bookQty }}/{{ s.maxLevel || s.parLevel || '-' }}</text>
+            <text class="meta">库存 {{ s.bookQty }}/{{ s.maxLevel || s.parLevel || '未设上限' }}</text>
             <input
               v-if="canEditSlots"
               v-model="slotPar[s.slotCode]"
@@ -83,8 +83,8 @@ const merchantId = ref('');
 const deviceName = ref('');
 const online = ref(false);
 const salesLocked = ref(false);
-const currentTemp = ref('-');
-const targetTemp = ref('-');
+const currentTemp = ref('暂无');
+const targetTemp = ref('未设置');
 const formName = ref('');
 const formTargetTemp = ref('');
 const formRemark = ref('');

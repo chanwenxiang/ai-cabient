@@ -18,13 +18,13 @@
       <el-avatar :size="64" class="avatar">{{ initial }}</el-avatar>
       <div class="name-cell">
         <strong class="display-name">{{ auth.displayName }}</strong>
-        <small>{{ auth.phone || '-' }}</small>
-        <small class="cell-id">ID {{ auth.userId || '-' }}</small>
+        <small>{{ auth.phone || '无' }}</small>
+        <small class="cell-id">ID {{ auth.userId || '无' }}</small>
       </div>
     </div>
 
     <el-descriptions :column="1" border class="profile-desc">
-      <el-descriptions-item label="角色">{{ auth.roleText || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="角色">{{ auth.roleText || '无' }}</el-descriptions-item>
       <el-descriptions-item label="数据范围">{{ auth.dataScopeText }}</el-descriptions-item>
       <el-descriptions-item label="权限数">
         {{ auth.profile?.permissionCount ?? permissions.length }}
@@ -117,7 +117,7 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
   font-size: 12px;
 }
-.cell-id { font-family: var(--app-font-mono); font-size: 11px !important; }
+.cell-id { font-family: inherit; font-size: inherit; }
 
 .profile-desc { margin-top: 20px; max-width: 560px; }
 

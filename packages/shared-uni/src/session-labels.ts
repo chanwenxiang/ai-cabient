@@ -8,7 +8,7 @@ export { fmtMoney, formatError, orderStatusLabel };
  * 更长的引导语放在 sessionStateHint。
  */
 export function sessionStateLabel(state?: string) {
-  return state ? dictLabel('session_state', state) : '-';
+  return state ? dictLabel('session_state', state) : '准备中';
 }
 
 const SESSION_STATE_HINT: Record<string, string> = {

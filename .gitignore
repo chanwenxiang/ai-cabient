@@ -87,6 +87,9 @@ infra/docker-rebuild.log
 .playwright-mcp/
 **/.playwright-mcp/
 
+# Nova Act UI verification artifacts
+.ui-verification/
+
 # Local agent scratch scripts
 **/_tmp*
 **/_tmp.*

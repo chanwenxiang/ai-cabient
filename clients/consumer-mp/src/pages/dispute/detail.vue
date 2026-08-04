@@ -5,6 +5,12 @@
       <text class="err">{{ error }}</text>
       <button class="btn-primary" @click="bootstrap">重试</button>
     </view>
+    <empty-state
+      v-else-if="!ticket"
+      icon="审"
+      title="未找到审核单"
+      hint="可能已归档或尚未生成"
+    />
     <view v-else-if="ticket">
       <view class="hero" :class="'tone-' + copy.tone">
         <text class="hero-icon">{{ copy.icon }}</text>
@@ -15,9 +21,9 @@
       <view class="card">
         <text class="section-title">审核说明</text>
         <text class="reason">{{ copy.detail }}</text>
-        <view v-if="ticket.deviceId" class="info-row">
+        <view class="info-row">
           <text class="info-label">柜机</text>
-          <text class="info-value">{{ ticket.deviceId }}</text>
+          <text class="info-value">{{ emptyDisplay(ticket.deviceId, 'device') }}</text>
         </view>
         <view class="info-row">
           <text class="info-label">购物单号</text>
@@ -96,7 +102,8 @@ import { consumerApi, getConsumerToken, requireConsumerAuth } from '@/utils/cons
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import { fetchEvidenceLocalPath } from '@/utils/dispute-evidence';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { fmtMoney, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, fmtMoney, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import EmptyState from '@/components/empty-state.vue';
 import type { DisputeTicketDto, FileAttachmentDto, OrderLineDto } from '@aicabinet/shared-types';
 
 const loading = ref(true);
@@ -272,12 +279,12 @@ function fmtLine(line: OrderLineDto) {
 }
 
 function shortId(id?: string) {
-  if (!id) return '-';
+  if (!id) return '暂无购物单号';
   return id.length > 14 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
 }
 
 function formatTime(v?: string) {
-  return formatDateTimeMinute(v);
+  return formatDateTimeMinute(v, '暂无');
 }
 
 function goOrder() {

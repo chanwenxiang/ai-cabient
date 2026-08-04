@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">设备运维</span>
-            <span class="hint">与交易异常分流：离线 / 禁售 / 锁机等设备侧事件</span>
+            <span class="hint">与交易异常分流：离线 / 禁售 / 锁机等设备侧事件；事件 ID 默认升序，点击表头可切换</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -55,10 +55,22 @@
     </el-form>
 
     <div class="table-scroll">
-      <el-table v-loading="loading" :data="displayItems" stripe border class="report-table">
+      <el-table
+        v-loading="loading"
+        :data="displayItems"
+        stripe
+        border
+        class="report-table"
+        :default-sort="{ prop: 'eventId', order: 'ascending' }"
+        @sort-change="onSortChange"
+      >
         <template #empty><el-empty description="暂无运维事件" /></template>
-        <el-table-column prop="eventId" label="事件ID" width="90" />
-        <el-table-column prop="eventType" label="类型" width="120">
+        <el-table-column prop="eventId" label="事件ID" width="110" align="center" sortable="custom">
+          <template #default="{ row }">
+            <span class="cell-id">{{ row.eventId }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="eventType" label="类型" width="120" align="center">
           <template #default="{ row }">{{ eventTypeLabel(row.eventType) }}</template>
         </el-table-column>
         <el-table-column label="级别" width="100" align="center">
@@ -71,13 +83,13 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="设备名称" min-width="140" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.deviceName || '-' }}</template>
+        <el-table-column label="设备名称" min-width="140" show-overflow-tooltip align="center">
+          <template #default="{ row }">{{ row.deviceName || '无' }}</template>
         </el-table-column>
-        <el-table-column prop="deviceId" label="设备编号" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="detail" label="详情" min-width="220" show-overflow-tooltip />
-        <el-table-column label="时间" width="170">
+        <el-table-column prop="deviceId" label="设备编号" min-width="120" show-overflow-tooltip align="center" />
+        <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip align="center" />
+        <el-table-column prop="detail" label="详情" min-width="220" show-overflow-tooltip align="center" />
+        <el-table-column label="时间" width="170" align="center">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
       </el-table>
@@ -98,7 +110,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, type Sort } from 'element-plus';
 import { api } from '@/api/client';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
@@ -128,6 +140,8 @@ const deviceOptions = ref<DeviceOpt[]>([]);
 const page = ref(1);
 const size = ref(50);
 const total = ref(0);
+/** 默认升序；点击「事件ID」表头切换 */
+const sortDir = ref<'asc' | 'desc'>('asc');
 
 const eventTypeOptions = dictOptions('device_ops_event');
 const severityOptions = dictOptions('risk_severity').filter((o) =>
@@ -142,10 +156,18 @@ const displayItems = computed(() => {
 });
 
 function eventTypeLabel(t?: string) {
-  return dictLabel('device_ops_event', t) || t || '-';
+  return dictLabel('device_ops_event', t) || t || '未知';
 }
 function severityLabel(s?: string) {
-  return displayLabel('risk_severity', s, '-');
+  return displayLabel('risk_severity', s, '未知');
+}
+
+function onSortChange(payload: Sort) {
+  if (payload.prop !== 'eventId') return;
+  if (payload.order === 'descending') sortDir.value = 'desc';
+  else sortDir.value = 'asc'; // ascending 或取消排序都回默认升序
+  page.value = 1;
+  load();
 }
 
 async function loadDevices() {
@@ -165,7 +187,8 @@ async function load() {
   try {
     const q = new URLSearchParams({
       page: String(page.value - 1),
-      size: String(size.value)
+      size: String(size.value),
+      sortDir: sortDir.value
     });
     if (eventType.value) q.set('eventType', eventType.value);
     const data = await api.request<{ items: OpsEvent[]; total?: number }>(
@@ -204,4 +227,7 @@ onMounted(async () => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { font-size: 12px; color: var(--el-text-color-secondary); }
 .page-pager { margin-top: 12px; display: flex; justify-content: flex-end; }
+.cell-id {
+  font-variant-numeric: tabular-nums;
+}
 </style>

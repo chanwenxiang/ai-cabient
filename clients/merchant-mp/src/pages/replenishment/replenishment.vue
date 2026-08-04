@@ -36,19 +36,23 @@
       </view>
     </view>
 
-    <view class="filters">
-      <view
+    <view class="filters tabs-pill">
+      <text
         v-for="item in statusOptions"
         :key="item.value"
-        class="filter"
+        class="filter-chip"
         :class="{ active: status === item.value }"
         @click="changeStatus(item.value)"
-      >{{ item.label }}</view>
+      >{{ item.label }}</text>
     </view>
 
     <view v-if="loading" class="empty">任务加载中…</view>
-    <view v-else-if="!tasks.length" class="empty">
-      <text>{{ emptyHint }}</text>
+    <empty-state
+      v-else-if="!tasks.length"
+      icon="补"
+      :title="emptyHint"
+      hint="扫码到柜可查看缺货；新任务由调度下发"
+    >
       <view class="empty-actions-row">
         <button
           v-if="pendingCount === 0 && completedCount > 0 && status !== 'COMPLETED'"
@@ -62,7 +66,7 @@
         >查看全部</button>
         <button class="empty-scan" @click="onScan">扫码到柜</button>
       </view>
-    </view>
+    </empty-state>
     <view
       v-for="task in tasks"
       :key="task.taskId"
@@ -78,7 +82,7 @@
           <text class="device-code">{{ task.deviceId }}</text>
         </view>
         <text class="status" :class="task.status.toLowerCase()">
-          {{ displayLabel('replenishment_task_status', task.status) }}
+          {{ displayLabel('replenishment_task_status', task.status, '未知状态') }}
         </text>
       </view>
       <view class="task-meta">
@@ -91,8 +95,8 @@
       </view>
     </view>
 
-    <view v-if="detailVisible" class="mask" @click.self="closeDetail">
-      <view class="sheet">
+    <view v-if="detailVisible" class="mask" @click.self="closeDetail" @touchmove.stop.prevent>
+      <view class="sheet" @click.stop>
         <view class="sheet-handle" />
         <view class="sheet-head">
           <view>
@@ -140,7 +144,7 @@
           只读查看 — 需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
         </text>
         <text v-if="doorOpened && openSessionId" class="door-tip">
-          已开门 · 会话 {{ openSessionId }} · 关门后继续核对{{ detailIsPullOff ? '下架' : '上架' }}
+          已开门 · 会话 {{ emptyDisplay(openSessionId, 'session') }} · 关门后继续核对{{ detailIsPullOff ? '下架' : '上架' }}
         </text>
 
         <view class="section-heading">
@@ -212,7 +216,7 @@
             <text v-else class="qty">× {{ line.quantity }}</text>
           </view>
           <view class="line-meta">
-            <text>批次 {{ line.batchNo || '-' }}</text>
+            <text>批次 {{ line.batchNo || '无批次' }}</text>
             <text>货道 {{ line.slotId || '待分配' }}</text>
             <text class="line-type">{{ lineTypeLabel(line.lineType) }}</text>
           </view>
@@ -240,7 +244,7 @@
             <text v-else class="slot-empty">暂无可用货道，请先腾出容量或将数量调为 0</text>
           </view>
           <view class="line-meta">
-            <text>到期 {{ line.expiryDate || '-' }}</text>
+            <text>到期 {{ line.expiryDate || '未填' }}</text>
             <text>{{ lineStatusLabel(line) }}</text>
           </view>
           <view
@@ -318,7 +322,8 @@
 import { computed, nextTick, ref } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
-import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeShort } from '@aicabinet/shared-uni/format';
+import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
@@ -569,7 +574,7 @@ onLoad((opts) => {
 
 function deviceName(id?: string) {
   const d = devices.value.find((item) => item.deviceId === id) as { deviceName?: string } | undefined;
-  return d?.deviceName || id || '未知柜机';
+  return d?.deviceName || emptyDisplay(id, 'device');
 }
 
 function skuName(id: string) {
@@ -586,7 +591,7 @@ function productIcon(id: string) {
 }
 
 function formatTime(value?: string) {
-  return formatDateTimeShort(value);
+  return formatDateTimeShort(value, '暂无');
 }
 
 async function load() {
@@ -1203,10 +1208,11 @@ onPullDownRefresh(load);
 
 <style scoped>
 .page {
-  min-height: 100vh;
+  min-height: 100%;
   padding: 24rpx;
   background: linear-gradient(180deg, #ecfdf5 0, #f8fafc 320rpx, #f8fafc 100%);
   box-sizing: border-box;
+  overflow-x: hidden;
 }
 .hero {
   position: relative;
@@ -1284,17 +1290,16 @@ onPullDownRefresh(load);
 .idle-title { display: block; font-size: 24rpx; font-weight: 700; }
 .idle-desc { display: block; margin-top: 6rpx; font-size: 22rpx; opacity: 0.88; line-height: 1.4; }
 
-.filters { display: flex; gap: 12rpx; margin: 24rpx 0; overflow-x: auto; }
-.filter {
-  padding: 14rpx 24rpx;
-  border-radius: 999rpx;
-  color: #64748b;
-  background: #fff;
-  font-size: 24rpx;
-  white-space: nowrap;
-  border: 1rpx solid #e2e8f0;
+.filters {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 12rpx;
+  margin: 24rpx 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4rpx;
 }
-.filter.active { color: #fff; background: #0f766e; border-color: #0f766e; }
+.filters .filter-chip { flex-shrink: 0; }
 
 .task-card {
   position: relative;
@@ -1611,7 +1616,7 @@ onPullDownRefresh(load);
   align-items: center;
   justify-content: center;
   padding: 48rpx;
-  background: rgba(15, 23, 42, 0.55);
+  background: rgba(15, 23, 42, 0.62);
   box-sizing: border-box;
   pointer-events: auto;
 }

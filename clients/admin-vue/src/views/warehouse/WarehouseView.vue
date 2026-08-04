@@ -146,6 +146,8 @@
             <el-table
               v-loading="loading"
               :data="pagedWarehouses"
+              :default-sort="warehouseIdDefaultSort"
+              @sort-change="onWarehouseIdSortChange"
               stripe
               border
               class="report-table"
@@ -155,15 +157,15 @@
             >
               <template #empty><el-empty description="暂无仓库" /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="仓库" min-width="180" class-name="col-text">
+              <el-table-column prop="warehouseId" label="ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
                 <template #default="{ row }">
-                  <div class="name-cell">
-                    <strong>{{ row.warehouseName || row.warehouseId }}</strong>
-                    <small class="cell-id">{{ row.warehouseId }}</small>
-                  </div>
+                  <span class="cell-id">{{ row.warehouseId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column prop="address" label="地址" min-width="220" show-overflow-tooltip class-name="col-text" />
+              <el-table-column label="仓库" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.warehouseName || '无' }}</template>
+              </el-table-column>
+              <el-table-column prop="address" label="地址" min-width="220" show-overflow-tooltip align="center" class-name="col-text" />
               <el-table-column label="状态" width="100" align="center">
                 <template #default="{ row }">
                   <el-tag :type="dictTagType(row.status)" size="small">
@@ -171,7 +173,7 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column v-if="canEdit" label="操作" width="88" class-name="col-action" align="center">
+              <el-table-column v-if="canEdit" label="操作" width="88" class-name="col-action" align="center" fixed="right">
                 <template #default="{ row }">
                   <TableActions
                     :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
@@ -191,26 +193,31 @@
               class="report-table"
               v-loading="loading"
               :data="pagedSuppliers"
+              :default-sort="supplierIdDefaultSort"
+              @sort-change="onSupplierIdSortChange"
               stripe
               border
               table-layout="auto"
               row-key="supplierId"
               @selection-change="onSelectionChange"
             >
-          <el-table-column type="selection" width="48" />
-          <el-table-column prop="supplierName" label="供应商" min-width="200">
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column prop="supplierId" label="ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
             <template #default="{ row }">
-              <div class="name-cell"><strong>{{ row.supplierName || row.supplierId }}</strong><small class="cell-id">{{ row.supplierId }}</small></div>
+              <span class="cell-id">{{ row.supplierId }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="contactName" label="联系人" min-width="120" />
-          <el-table-column prop="contactPhone" label="联系电话" min-width="150" />
-          <el-table-column label="状态" min-width="100">
+          <el-table-column label="供应商" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.supplierName || '无' }}</template>
+          </el-table-column>
+          <el-table-column prop="contactName" label="联系人" min-width="120" align="center" />
+          <el-table-column prop="contactPhone" label="联系电话" min-width="150" align="center" />
+          <el-table-column label="状态" min-width="100" align="center">
             <template #default="{ row }">
               <el-tag :type="dictTagType(row.status)" size="small">{{ dictLabel('supplier_status', row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="88" class-name="col-action" align="center">
+          <el-table-column v-if="canEdit" label="操作" width="88" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions
                 :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
@@ -237,46 +244,46 @@
               row-key="purchaseOrderId"
               @selection-change="onSelectionChange"
             >
-          <el-table-column type="selection" width="48" />
-          <el-table-column type="expand">
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column type="expand" align="center">
             <template #default="{ row }">
               <div class="expand-panel">
                 <el-table :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
-                  <el-table-column label="商品" min-width="180">
+                  <el-table-column label="商品" min-width="180" align="center">
                     <template #default="scope">
-                      <div class="name-cell"><strong>{{ skuName(scope.row.skuId) }}</strong><small class="cell-id">{{ scope.row.skuId }}</small></div>
+                      {{ skuName(scope.row.skuId) }}
                     </template>
                   </el-table-column>
-                  <el-table-column prop="batchNo" label="批次" min-width="140" />
-                  <el-table-column prop="orderedQty" label="采购数" min-width="88" />
-                  <el-table-column prop="receivedQty" label="已收数" min-width="88" />
-                  <el-table-column prop="returnedQty" label="已退数" min-width="88" />
-                  <el-table-column label="成本" min-width="96">
+                  <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
+                  <el-table-column prop="orderedQty" label="采购数" min-width="88" align="center" />
+                  <el-table-column prop="receivedQty" label="已收数" min-width="88" align="center" />
+                  <el-table-column prop="returnedQty" label="已退数" min-width="88" align="center" />
+                  <el-table-column label="成本" min-width="96" align="center">
                     <template #default="scope">¥{{ money(scope.row.unitCostCents) }}</template>
                   </el-table-column>
-                  <el-table-column prop="expiryDate" label="到期日期" min-width="120" />
+                  <el-table-column prop="expiryDate" label="到期日期" min-width="120" align="center" />
                 </el-table>
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="purchaseOrderId" label="采购单" min-width="96" />
-          <el-table-column prop="refNo" label="外部单号" min-width="140" show-overflow-tooltip />
-          <el-table-column label="供应商" min-width="160">
+          <el-table-column prop="purchaseOrderId" label="采购单" min-width="96" align="center" />
+          <el-table-column prop="refNo" label="外部单号" min-width="140" show-overflow-tooltip align="center" />
+          <el-table-column label="供应商" min-width="160" align="center">
             <template #default="{ row }">
-              <div class="name-cell"><strong>{{ supplierName(row.supplierId) }}</strong><small class="cell-id">{{ row.supplierId }}</small></div>
+              {{ supplierName(row.supplierId) }}
             </template>
           </el-table-column>
-          <el-table-column label="入库仓库" min-width="160">
+          <el-table-column label="入库仓库" min-width="160" align="center">
             <template #default="{ row }">
-              <div class="name-cell"><strong>{{ warehouseName(row.warehouseId) }}</strong><small class="cell-id">{{ row.warehouseId }}</small></div>
+              {{ warehouseName(row.warehouseId) }}
             </template>
           </el-table-column>
-          <el-table-column label="状态" min-width="120">
+          <el-table-column label="状态" min-width="120" align="center">
             <template #default="{ row }">
               <el-tag :type="dictTagType(row.status)" size="small">{{ dictLabel('purchase_order_status', row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="100" class-name="col-action" align="center">
+          <el-table-column v-if="canEdit" label="操作" width="100" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions
                 v-if="['CREATED', 'PARTIAL_RECEIVED'].includes(row.status)"
@@ -305,40 +312,40 @@
               row-key="returnId"
               @selection-change="onSelectionChange"
             >
-          <el-table-column type="selection" width="48" />
-          <el-table-column type="expand">
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column type="expand" align="center">
             <template #default="{ row }">
               <div class="expand-panel">
                 <el-table :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
-                  <el-table-column label="商品" min-width="180">
+                  <el-table-column label="商品" min-width="180" align="center">
                     <template #default="scope">
-                      <div class="name-cell"><strong>{{ skuName(scope.row.skuId) }}</strong><small class="cell-id">{{ scope.row.skuId }}</small></div>
+                      {{ skuName(scope.row.skuId) }}
                     </template>
                   </el-table-column>
-                  <el-table-column prop="batchNo" label="批次" min-width="140" />
-                  <el-table-column prop="quantity" label="退货数" min-width="88" />
+                  <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
+                  <el-table-column prop="quantity" label="退货数" min-width="88" align="center" />
                 </el-table>
               </div>
             </template>
           </el-table-column>
-          <el-table-column prop="returnId" label="退货单" min-width="96" />
-          <el-table-column prop="purchaseOrderId" label="采购单" min-width="96" />
-          <el-table-column label="供应商" min-width="160">
+          <el-table-column prop="returnId" label="退货单" min-width="96" align="center" />
+          <el-table-column prop="purchaseOrderId" label="采购单" min-width="96" align="center" />
+          <el-table-column label="供应商" min-width="160" align="center">
             <template #default="{ row }">
-              <div class="name-cell"><strong>{{ supplierName(row.supplierId) }}</strong><small class="cell-id">{{ row.supplierId }}</small></div>
+              {{ supplierName(row.supplierId) }}
             </template>
           </el-table-column>
-          <el-table-column label="仓库" min-width="160">
+          <el-table-column label="仓库" min-width="160" align="center">
             <template #default="{ row }">
-              <div class="name-cell"><strong>{{ warehouseName(row.warehouseId) }}</strong><small class="cell-id">{{ row.warehouseId }}</small></div>
+              {{ warehouseName(row.warehouseId) }}
             </template>
           </el-table-column>
-          <el-table-column label="状态" min-width="100">
+          <el-table-column label="状态" min-width="100" align="center">
             <template #default="{ row }">
               <el-tag type="success" size="small">{{ returnStatusLabel(row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" min-width="170">
+          <el-table-column label="创建时间" min-width="170" align="center">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
           <template #empty><el-empty description="暂无采购退货" /></template>
@@ -362,53 +369,53 @@
               data-testid="outbound-table"
               @selection-change="onSelectionChange"
             >
-          <el-table-column type="selection" width="48" />
-          <el-table-column type="expand">
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column type="expand" align="center">
             <template #default="{ row }">
               <div class="expand-panel" :data-testid="`outbound-expand-${row.outboundId}`">
                 <el-table :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
-                  <el-table-column label="目标设备" min-width="180">
+                  <el-table-column label="目标设备" min-width="180" align="center">
                     <template #default="scope">
-                      <div class="name-cell"><strong>{{ deviceName(scope.row.deviceId) }}</strong><small class="cell-id">{{ scope.row.deviceId }}</small></div>
+                      {{ deviceName(scope.row.deviceId) }}
                     </template>
                   </el-table-column>
-                  <el-table-column label="商品" min-width="180">
+                  <el-table-column label="商品" min-width="180" align="center">
                     <template #default="scope">
-                      <div class="name-cell"><strong>{{ skuName(scope.row.skuId) }}</strong><small class="cell-id">{{ scope.row.skuId }}</small></div>
+                      {{ skuName(scope.row.skuId) }}
                     </template>
                   </el-table-column>
-                  <el-table-column label="货道" min-width="88">
-                    <template #default="scope">{{ scope.row.slotId || '—' }}</template>
+                  <el-table-column label="货道" min-width="88" align="center">
+                    <template #default="scope">{{ scope.row.slotId || '无' }}</template>
                   </el-table-column>
-                  <el-table-column prop="batchNo" label="批次" min-width="140" />
-                  <el-table-column prop="quantity" label="数量" min-width="88" />
-                  <el-table-column label="交接状态" min-width="110">
+                  <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
+                  <el-table-column prop="quantity" label="数量" min-width="88" align="center" />
+                  <el-table-column label="交接状态" min-width="110" align="center">
                     <template #default="scope">{{ dictLabel('handover_status', scope.row.handoverStatus || 'PENDING') }}</template>
                   </el-table-column>
                 </el-table>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="出库单" min-width="110">
+          <el-table-column label="出库单" min-width="110" align="center">
             <template #default="{ row }">
               <span :data-testid="`outbound-id-${row.outboundId}`" class="outbound-id-cell">#{{ row.outboundId }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="routeId" label="路线" min-width="88" />
-          <el-table-column label="出库仓库" min-width="160">
+          <el-table-column prop="routeId" label="路线" min-width="88" align="center" />
+          <el-table-column label="出库仓库" min-width="160" align="center">
             <template #default="{ row }">
-              <div class="name-cell"><strong>{{ warehouseName(row.warehouseId) }}</strong><small class="cell-id">{{ row.warehouseId }}</small></div>
+              {{ warehouseName(row.warehouseId) }}
             </template>
           </el-table-column>
-          <el-table-column label="状态" min-width="110">
+          <el-table-column label="状态" min-width="110" align="center">
             <template #default="{ row }">
               <el-tag :type="dictTagType(row.status)" size="small">{{ dictLabel('warehouse_outbound_status', row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" min-width="170">
+          <el-table-column label="创建时间" min-width="170" align="center">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="110" class-name="col-action" align="center">
+          <el-table-column v-if="canEdit" label="操作" width="110" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <div :data-testid="`outbound-row-${row.outboundId}`">
                 <TableActions
@@ -443,26 +450,26 @@
               :empty-text="transitEmptyHint"
               @selection-change="onSelectionChange"
             >
-          <el-table-column type="selection" width="48" />
-          <el-table-column prop="outboundId" label="出库单" min-width="96" />
-          <el-table-column label="目标设备" min-width="180">
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column prop="outboundId" label="出库单" min-width="96" align="center" />
+          <el-table-column label="目标设备" min-width="180" align="center">
             <template #default="{ row }">
-              <div class="name-cell"><strong>{{ deviceName(row.deviceId) }}</strong><small class="cell-id">{{ row.deviceId }}</small></div>
+              {{ deviceName(row.deviceId) }}
             </template>
           </el-table-column>
-          <el-table-column label="商品" min-width="180">
+          <el-table-column label="商品" min-width="180" align="center">
             <template #default="{ row }">
-              <div class="name-cell"><strong>{{ skuName(row.skuId) }}</strong><small class="cell-id">{{ row.skuId }}</small></div>
+              {{ skuName(row.skuId) }}
             </template>
           </el-table-column>
-          <el-table-column prop="batchNo" label="批次" min-width="140" />
-          <el-table-column prop="quantity" label="数量" min-width="88" />
-          <el-table-column label="状态" min-width="110">
+          <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
+          <el-table-column prop="quantity" label="数量" min-width="88" align="center" />
+          <el-table-column label="状态" min-width="110" align="center">
             <template #default="{ row }">
               <el-tag :type="dictTagType(row.status)" size="small">{{ dictLabel('in_transit_status', row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="在途 / 时限" min-width="160" class-name="col-text">
+          <el-table-column label="在途 / 时限" min-width="160" align="center" class-name="col-text">
             <template #default="{ row }">
               <div class="sla-cell">
                 <template v-if="isTransitOverdue(row)">
@@ -480,7 +487,7 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="发运时间" min-width="170">
+          <el-table-column label="发运时间" min-width="170" align="center">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
           <template #empty><el-empty :description="transitEmptyHint" /></template>
@@ -502,20 +509,20 @@
               :row-key="inventoryRowKey"
               @selection-change="onSelectionChange"
             >
-          <el-table-column type="selection" width="48" />
-          <el-table-column label="仓库" min-width="140">
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column label="仓库" min-width="140" align="center">
             <template #default="{ row }">{{ warehouseName(row.warehouseId) }}</template>
           </el-table-column>
-          <el-table-column label="商品" min-width="180">
+          <el-table-column label="商品" min-width="180" align="center">
             <template #default="{ row }">
-              <div class="name-cell"><strong>{{ skuName(row.skuId) }}</strong><small class="cell-id">{{ row.skuId }}</small></div>
+              {{ skuName(row.skuId) }}
             </template>
           </el-table-column>
-          <el-table-column prop="batchNo" label="批次" min-width="150" />
-          <el-table-column prop="productionDate" label="生产日期" min-width="120" />
-          <el-table-column prop="expiryDate" label="到期日期" min-width="120" />
-          <el-table-column prop="quantity" label="库存" min-width="88" />
-          <el-table-column label="效期" min-width="100">
+          <el-table-column prop="batchNo" label="批次" min-width="150" align="center" />
+          <el-table-column prop="productionDate" label="生产日期" min-width="120" align="center" />
+          <el-table-column prop="expiryDate" label="到期日期" min-width="120" align="center" />
+          <el-table-column prop="quantity" label="库存" min-width="88" align="center" />
+          <el-table-column label="效期" min-width="100" align="center">
             <template #default="{ row }">
               <el-tag :type="expiryType(row.expiryDate)" size="small">{{ expiryText(row.expiryDate) }}</el-tag>
             </template>
@@ -540,27 +547,27 @@
               row-key="movementId"
               @selection-change="onSelectionChange"
             >
-          <el-table-column type="selection" width="48" />
-          <el-table-column prop="movementId" label="流水" min-width="90" />
-          <el-table-column label="类型" min-width="130">
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column prop="movementId" label="流水" min-width="90" align="center" />
+          <el-table-column label="类型" min-width="130" align="center">
             <template #default="{ row }">{{ dictLabel('warehouse_movement_type', row.movementType) }}</template>
           </el-table-column>
-          <el-table-column label="商品" min-width="180">
+          <el-table-column label="商品" min-width="180" align="center">
             <template #default="{ row }">
-              <div class="name-cell"><strong>{{ skuName(row.skuId) }}</strong><small class="cell-id">{{ row.skuId }}</small></div>
+              {{ skuName(row.skuId) }}
             </template>
           </el-table-column>
-          <el-table-column prop="batchNo" label="批次" min-width="140" />
-          <el-table-column prop="deltaQty" label="变动" min-width="88">
+          <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
+          <el-table-column prop="deltaQty" label="变动" min-width="88" align="center">
             <template #default="{ row }">
               <span :class="row.deltaQty >= 0 ? 'positive' : 'negative'">{{ row.deltaQty > 0 ? '+' : '' }}{{ row.deltaQty }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="关联业务" min-width="140">
+          <el-table-column label="关联业务" min-width="140" align="center">
             <template #default="{ row }">{{ dictLabel('business_reference_type', row.refType) }}</template>
           </el-table-column>
-          <el-table-column prop="refId" label="关联单号" min-width="120" />
-          <el-table-column label="时间" min-width="170">
+          <el-table-column prop="refId" label="关联单号" min-width="120" align="center" />
+          <el-table-column label="时间" min-width="170" align="center">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
           <template #empty><el-empty description="暂无流水" /></template>
@@ -670,14 +677,14 @@
     <el-dialog v-model="receiveDialog" title="采购收货" width="700px" class="dialog-wide" destroy-on-close>
       <div class="table-scroll">
       <el-table :data="receiveForm.lines" class="receive-table">
-        <el-table-column label="商品" min-width="180">
+        <el-table-column label="商品" min-width="180" align="center">
           <template #default="{ row }">
-            <div class="name-cell"><strong>{{ skuName(row.skuId) }}</strong><small class="cell-id">{{ row.skuId }}</small></div>
+            {{ skuName(row.skuId) }}
           </template>
         </el-table-column>
-        <el-table-column prop="batchNo" label="批次" min-width="140" />
-        <el-table-column prop="orderedQty" label="采购数" width="90" />
-        <el-table-column label="累计收货" width="150">
+        <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
+        <el-table-column prop="orderedQty" label="采购数" width="90" align="center" />
+        <el-table-column label="累计收货" width="150" align="center">
           <template #default="{ row }">
             <el-input-number v-model="row.receivedQty" :min="row.minReceived" :max="row.orderedQty" controls-position="right" />
           </template>
@@ -715,15 +722,15 @@
       </el-form>
       <div class="table-scroll">
       <el-table :data="returnForm.lines" class="receive-table">
-        <el-table-column label="商品" min-width="180">
+        <el-table-column label="商品" min-width="180" align="center">
           <template #default="{ row }">
-            <div class="name-cell"><strong>{{ skuName(row.skuId) }}</strong><small class="cell-id">{{ row.skuId }}</small></div>
+            {{ skuName(row.skuId) }}
           </template>
         </el-table-column>
-        <el-table-column prop="batchNo" label="批次" min-width="140" />
-        <el-table-column prop="receivedQty" label="已收" width="80" />
-        <el-table-column prop="returnedQty" label="已退" width="80" />
-        <el-table-column label="本次退货" width="150">
+        <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
+        <el-table-column prop="receivedQty" label="已收" width="80" align="center" />
+        <el-table-column prop="returnedQty" label="已退" width="80" align="center" />
+        <el-table-column label="本次退货" width="150" align="center">
           <template #default="{ row }">
             <el-input-number v-model="row.quantity" :min="0" :max="row.maxQty" controls-position="right" />
           </template>
@@ -813,6 +820,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
@@ -899,6 +907,17 @@ const overdueOnly = ref(false);
 const focusDeviceId = ref('');
 const warehouses = ref<Row[]>([]);
 const suppliers = ref<Row[]>([]);
+const {
+  defaultSort: warehouseIdDefaultSort,
+  onSortChange: onWarehouseIdSortChange,
+  sortById: sortWarehousesById
+} = useIdColumnSort<Row>('warehouseId');
+const {
+  defaultSort: supplierIdDefaultSort,
+  onSortChange: onSupplierIdSortChange,
+  sortById: sortSuppliersById
+} = useIdColumnSort<Row>('supplierId');
+
 const purchaseOrders = ref<Row[]>([]);
 const purchaseReturns = ref<Row[]>([]);
 const outbounds = ref<Row[]>([]);
@@ -1156,8 +1175,8 @@ const tabSource = computed(() => {
   }
 });
 const tabTotal = computed(() => tabSource.value.length);
-const pagedWarehouses = computed(() => slicePage(warehouses.value));
-const pagedSuppliers = computed(() => slicePage(filteredSuppliers.value));
+const pagedWarehouses = computed(() => slicePage(sortWarehousesById(warehouses.value)));
+const pagedSuppliers = computed(() => slicePage(sortSuppliersById(filteredSuppliers.value)));
 const pagedPurchaseOrders = computed(() => slicePage(filteredPurchaseOrders.value));
 const pagedPurchaseReturns = computed(() => slicePage(filteredPurchaseReturns.value));
 const pagedOutbounds = computed(() => slicePage(filteredOutbounds.value));
@@ -1412,16 +1431,16 @@ function returnStatusLabel(status?: string) {
   return status || '已完成';
 }
 function supplierName(id: string) {
-  return suppliers.value.find((s) => s.supplierId === id)?.supplierName || id || '-';
+  return suppliers.value.find((s) => s.supplierId === id)?.supplierName || id || '无';
 }
 function warehouseName(id: string) {
-  return warehouses.value.find((w) => w.warehouseId === id)?.warehouseName || id || '-';
+  return warehouses.value.find((w) => w.warehouseId === id)?.warehouseName || id || '无';
 }
 function deviceName(id: string) {
-  return devices.value.find((d) => d.deviceId === id)?.deviceName || id || '-';
+  return devices.value.find((d) => d.deviceId === id)?.deviceName || id || '无';
 }
 function skuName(id: string) {
-  return skus.value.find((s) => s.skuId === id)?.skuName || id || '-';
+  return skus.value.find((s) => s.skuId === id)?.skuName || id || '无';
 }
 function localDate() {
   const now = new Date();
@@ -2055,10 +2074,10 @@ watch(
   background: color-mix(in srgb, var(--app-primary, #0f766e) 8%, transparent);
 }
 :deep(.el-table .is-overdue > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-danger) 6%, transparent) !important;
+  background: color-mix(in srgb, var(--el-color-danger) 6%, var(--el-table-bg-color, #fff)) !important;
 }
 :deep(.el-table .is-due-soon > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-warning) 7%, transparent) !important;
+  background: color-mix(in srgb, var(--el-color-warning) 7%, var(--el-table-bg-color, #fff)) !important;
 }
 :deep(.el-table .is-focus > td.el-table__cell) {
   outline: 1px solid color-mix(in srgb, var(--app-primary, #0f766e) 35%, transparent);
@@ -2084,12 +2103,5 @@ watch(
 
 @media (max-width: 900px) {
   .form-grid, .line-grid { grid-template-columns: 1fr; }
-}
-.name-cell { display: grid; gap: 2px; line-height: 1.35; }
-.name-cell strong { color: var(--layout-text); font-weight: 650; }
-.name-cell small {
-  color: var(--layout-muted);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
 }
 </style>

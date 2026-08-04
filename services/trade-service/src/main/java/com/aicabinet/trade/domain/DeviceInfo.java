@@ -13,6 +13,9 @@ public class DeviceInfo {
     @TableId(type = IdType.INPUT)
     private String deviceId;
 
+    /** 自增数字 ID，列表展示用；业务主键仍为 deviceId */
+    private Long id;
+
     private String deviceName;
 
     private String deviceType;
@@ -84,6 +87,8 @@ public class DeviceInfo {
 
     public String getDeviceId() { return deviceId; }
     public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
     public String getDeviceName() { return deviceName; }
     public void setDeviceName(String deviceName) { this.deviceName = deviceName; }
     public String getDeviceType() { return deviceType; }

@@ -74,10 +74,12 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 1280px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="displayItems"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           stripe
           border
           class="report-table"
@@ -90,17 +92,17 @@
             <el-empty :description="emptyHint" :image-size="88" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="会话" min-width="168" class-name="col-text">
+          <el-table-column prop="sessionId" label="会话" min-width="168" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="goSession(row.sessionId)">
                 <span class="cell-id">{{ row.sessionId }}</span>
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="用户" width="100" class-name="col-text">
-            <template #default="{ row }">{{ row.userId || '-' }}</template>
+          <el-table-column label="用户" width="100" align="center" class-name="col-text">
+            <template #default="{ row }">{{ row.userId || '无' }}</template>
           </el-table-column>
-          <el-table-column label="设备" min-width="120" class-name="col-text">
+          <el-table-column label="设备" min-width="120" align="center" class-name="col-text">
             <template #default="{ row }">
               <button
                 v-if="row.deviceId"
@@ -110,28 +112,28 @@
               >
                 {{ row.deviceId }}
               </button>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="对象路径" min-width="180" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="对象路径" min-width="180" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <span v-if="objectKey(row.videoUri)" class="cell-id">{{ objectKey(row.videoUri) }}</span>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
           <el-table-column label="上传状态" width="110" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="dictTagType(String(row.uploadStatus || ''))">
-                {{ dictLabel('upload_status', row.uploadStatus) || row.uploadStatus || '-' }}
+                {{ dictLabel('upload_status', row.uploadStatus) || row.uploadStatus || '未知状态' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="等待原因" min-width="200" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="等待原因" min-width="200" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <span>{{ waitReason(row) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="滞留 / 时限" width="150" class-name="col-text">
+          <el-table-column label="滞留 / 时限" width="150" align="center" class-name="col-text">
             <template #default="{ row }">
               <div class="sla-cell">
                 <template v-if="isStuck(row)">
@@ -152,15 +154,15 @@
           <el-table-column label="预览" width="80" align="center">
             <template #default="{ row }">
               <el-link v-if="row.videoUri" type="primary" @click.prevent="playVideo(row.sessionId)">播放</el-link>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="关门时间" width="168" class-name="col-text">
+          <el-table-column label="关门时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.closeTime) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="更新时间" width="168" class-name="col-text">
+          <el-table-column label="更新时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
@@ -195,6 +197,7 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -226,6 +229,9 @@ const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const items = ref<SessionRow[]>([]);
+const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById, idSortDir } =
+  useIdColumnSort<SessionRow>('sessionId');
+
 const focusSessionId = ref('');
 const uploadStatusOptions = dictOptions('upload_status').filter((o) =>
   ['NONE', 'LOCAL_QUEUED', 'UPLOADING', 'UPLOADED', 'FAILED'].includes(o.value)
@@ -242,12 +248,13 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } = u
 
 const displayItems = computed(() => {
   const list = [...items.value];
-  if (stuckOnly.value) return list;
+  if (stuckOnly.value) return sortById(list);
+  const dir = idSortDir.value === 'desc' ? -1 : 1;
   return list.sort((a, b) => {
     const as = isStuck(a) ? 1 : 0;
     const bs = isStuck(b) ? 1 : 0;
     if (as !== bs) return bs - as;
-    return ageMs(b) - ageMs(a);
+    return String(a.sessionId).localeCompare(String(b.sessionId), undefined, { numeric: true }) * dir;
   });
 });
 
@@ -576,15 +583,15 @@ onActivated(() => {
   color: var(--el-color-primary);
   cursor: pointer;
   font: inherit;
-  text-align: left;
+  text-align: center;
 }
 .link-cell:hover { text-decoration: underline; }
 .muted { color: var(--el-text-color-placeholder); }
 :deep(.el-table .is-overdue > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-danger) 6%, transparent) !important;
+  background: color-mix(in srgb, var(--el-color-danger) 6%, var(--el-table-bg-color, #fff)) !important;
 }
 :deep(.el-table .is-due-soon > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-warning) 7%, transparent) !important;
+  background: color-mix(in srgb, var(--el-color-warning) 7%, var(--el-table-bg-color, #fff)) !important;
 }
 :deep(.el-table .is-focus > td.el-table__cell) {
   outline: 1px solid color-mix(in srgb, var(--el-color-primary) 45%, transparent);

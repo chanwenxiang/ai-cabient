@@ -33,7 +33,7 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 920px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="items"
@@ -41,25 +41,27 @@
           border
           class="report-table"
           row-key="userId"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
           <template #empty><el-empty description="暂无用户" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="用户" min-width="160" class-name="col-text" label-class-name="col-text" align="left" header-align="left">
+          <el-table-column prop="userId" label="ID" width="100" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
-              <div class="user-cell">
-                <strong>{{ row.name || row.phoneNumber || row.userId }}</strong>
-                <small>ID {{ row.userId }}</small>
-              </div>
+              <span class="cell-id">{{ row.userId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="手机号" width="140" class-name="col-text" label-class-name="col-text" align="left" header-align="left">
-            <template #default="{ row }">{{ row.phoneNumber || '-' }}</template>
+          <el-table-column label="用户" min-width="140" class-name="col-text" label-class-name="col-text" align="center" header-align="center">
+            <template #default="{ row }">{{ row.name || row.phoneNumber || '无' }}</template>
+          </el-table-column>
+          <el-table-column label="手机号" width="140" class-name="col-text" label-class-name="col-text" align="center" header-align="center">
+            <template #default="{ row }">{{ row.phoneNumber || '无' }}</template>
           </el-table-column>
           <el-table-column label="角色" width="110" align="center">
             <template #default="{ row }">
               <el-tag v-if="row.role" size="small" effect="plain">{{ row.role }}</el-tag>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
           <el-table-column label="实名" width="96" align="center">
@@ -72,24 +74,25 @@
           <el-table-column
             label="余额"
             width="120"
-            align="right"
+            align="center"
             class-name="col-money"
             label-class-name="col-money"
           >
             <template #default="{ row }">¥{{ ((row.balanceCents || 0) / 100).toFixed(2) }}</template>
           </el-table-column>
-          <el-table-column label="注册时间" width="168" class-name="col-text">
+          <el-table-column label="注册时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
           <el-table-column
-            v-if="canAdjust || canVerify"
+            v-if="showActionColumn"
             label="操作"
             width="168"
             class-name="col-action"
             label-class-name="col-action"
             align="center"
+            fixed="right"
           >
             <template #default="{ row }">
               <TableActions
@@ -97,7 +100,6 @@
                 :actions="userActions(row)"
                 @action="(key) => onUserAction(key, row)"
               />
-              <span v-else class="muted">-</span>
             </template>
           </el-table-column>
         </el-table>
@@ -126,6 +128,7 @@ import { CircleCheck, Refresh, Wallet } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
@@ -160,6 +163,10 @@ function userActions(row: UserRow): TableAction[] {
   return acts;
 }
 
+const showActionColumn = computed(
+  () => (canAdjust.value || canVerify.value) && items.value.some((row) => userActions(row).length > 0)
+);
+
 function onUserAction(key: string, row: UserRow) {
   if (key === 'verify') verifyUser(row);
   else if (key === 'adjust') adjust(row);
@@ -192,6 +199,12 @@ const size = ref(20);
 const total = ref(0);
 const items = ref<UserRow[]>([]);
 
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('userId', {
+  onChange: () => {
+    items.value = sortById([...items.value]);
+  }
+});
+
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<UserRow>((r) => r.userId);
 
@@ -203,7 +216,7 @@ const { onExport } = useListCsv({
       row.userId,
       row.phoneNumber,
       row.name,
-      row.role || '-',
+      row.role || '无',
       row.verified ? '已实名' : '未实名',
       ((row.balanceCents || 0) / 100).toFixed(2),
       formatDateTime(row.createdAt)
@@ -260,14 +273,14 @@ async function load() {
     const classified = classifyKeyword(keyword.value);
     if (classified.userId) {
       const hit = await findUserById(classified.userId);
-      items.value = hit ? [hit] : [];
+      items.value = sortById(hit ? [hit] : []);
       total.value = hit ? 1 : 0;
     } else {
       const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
       if (classified.phone) q.set('phone', classified.phone);
       if (classified.name) q.set('name', classified.name);
       const data = await api.request<PageResult<UserRow>>(`/api/v2/ops/admin/users?${q}`, 'GET');
-      items.value = data.items || [];
+      items.value = sortById(data.items || []);
       total.value = data.total || 0;
     }
     clearSelection();
@@ -368,8 +381,7 @@ onActivated(() => {
 .user-cell strong { font-weight: 650; }
 .user-cell small {
   color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
+  font-family: inherit;
 }
 .muted { color: var(--el-text-color-secondary); }
 </style>

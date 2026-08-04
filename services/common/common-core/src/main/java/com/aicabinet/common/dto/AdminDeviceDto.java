@@ -31,7 +31,9 @@ public record AdminDeviceDto(
         String lifecycleRemark,
         Double latitude,
         Double longitude,
-        String address
+        String address,
+        /** 库表自增数字 ID（展示用，业务主键仍为 deviceId） */
+        Long id
 ) {
     public AdminDeviceDto(
             String deviceId,
@@ -48,7 +50,7 @@ public record AdminDeviceDto(
         this(deviceId, deviceName, deviceType, onlineStatus, merchantId, merchantName,
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress,
                 null, null, false, null, null, null, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
     }
 
     public AdminDeviceDto(
@@ -69,7 +71,7 @@ public record AdminDeviceDto(
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress,
                 refundPolicy, effectiveRefundPolicy, false,
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
     }
 
     public AdminDeviceDto(
@@ -91,6 +93,6 @@ public record AdminDeviceDto(
                 activeSessionId, activeSessionState, updatedAt, replenishmentInProgress,
                 refundPolicy, effectiveRefundPolicy, salesLocked,
                 null, null, null, null, null, null, null, null, null, null,
-                null, null, null);
+                null, null, null, null);
     }
 }

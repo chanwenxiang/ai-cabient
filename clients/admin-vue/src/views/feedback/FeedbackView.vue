@@ -33,28 +33,34 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 1080px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
-          :data="list"
+          :data="sortedList"
           stripe
           border
           class="report-table"
           row-key="feedbackId"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
           <template #empty><el-empty description="暂无反馈" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="反馈" min-width="260" class-name="col-text">
+          <el-table-column prop="feedbackId" label="ID" width="80" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
-              <div class="feedback-cell">
-                <strong>{{ dictLabel('feedback_type', row.feedbackType) || '反馈' }}</strong>
-                <small class="content-line">{{ row.content || '-' }}</small>
-                <small>ID {{ row.feedbackId }}</small>
-              </div>
+              <span class="cell-id">{{ row.feedbackId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="用户" width="100" class-name="col-text">
+          <el-table-column label="类型" width="110" align="center">
+            <template #default="{ row }">
+              {{ dictLabel('feedback_type', row.feedbackType) || '反馈' }}
+            </template>
+          </el-table-column>
+          <el-table-column label="内容" min-width="220" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.content || '无' }}</template>
+          </el-table-column>
+          <el-table-column label="用户" width="100" align="center" class-name="col-text">
             <template #default="{ row }">
               <button
                 v-if="row.userId"
@@ -64,10 +70,10 @@
               >
                 {{ row.userId }}
               </button>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="设备" min-width="120" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="设备" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 v-if="row.deviceId"
@@ -77,11 +83,11 @@
               >
                 {{ row.deviceId }}
               </button>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
           <el-table-column label="评分" width="72" align="center">
-            <template #default="{ row }">{{ row.rating ?? '-' }}</template>
+            <template #default="{ row }">{{ row.rating ?? '无' }}</template>
           </el-table-column>
           <el-table-column label="状态" width="100" align="center">
             <template #default="{ row }">
@@ -90,7 +96,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="时间" width="168" class-name="col-text">
+          <el-table-column label="时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
@@ -101,7 +107,7 @@
             width="88"
             class-name="col-action"
             align="center"
-          >
+           fixed="right">
             <template #default="{ row }">
               <TableActions
                 v-if="row.status === 'PENDING'"
@@ -146,11 +152,13 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 type Row = Record<string, any>;
 const route = useRoute();
 const { router, goPath } = useNavAccess();
 const auth = useAuthStore();
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('feedbackId');
 const canReply = computed(() => auth.hasPerm('ops:feedback:reply'));
 
 const loading = ref(false);
@@ -161,6 +169,8 @@ const replyDialog = ref(false);
 const replyText = ref('');
 const current = ref<Row | null>(null);
 
+const sortedList = computed(() => sortById(list.value));
+
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<Row>((r) => r.feedbackId);
 
@@ -168,7 +178,7 @@ const { onExport } = useListCsv({
   filePrefix: '用户反馈',
   headers: ['ID', '类型', '内容', '用户', '设备', '评分', '状态', '时间'],
   toRows: () =>
-    pickSelected(list.value).map((row) => [
+    pickSelected(sortedList.value).map((row) => [
       row.feedbackId,
       dictLabel('feedback_type', row.feedbackType),
       row.content,

@@ -42,10 +42,12 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 920px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
-          :data="items"
+          :data="displayItems"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           stripe
           border
           class="report-table"
@@ -54,42 +56,43 @@
         >
           <template #empty><el-empty description="暂无充值记录" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="充值单" min-width="168" class-name="col-text">
+          <el-table-column prop="orderId" label="充值单" min-width="168" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
               <span class="cell-id">{{ row.orderId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="用户" width="100" class-name="col-text">
-            <template #default="{ row }">{{ row.userId ?? '-' }}</template>
+          <el-table-column label="用户" width="100" align="center" class-name="col-text">
+            <template #default="{ row }">{{ row.userId ?? '无' }}</template>
           </el-table-column>
-          <el-table-column label="金额" width="120" align="right" class-name="col-money">
+          <el-table-column label="金额" width="120" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ money(row.amountCents) }}</template>
           </el-table-column>
           <el-table-column label="渠道" width="100" align="center">
             <template #default="{ row }">
               <el-tag size="small" effect="plain">
-                {{ dictLabel('pay_channel', String(row.channel || '')) || row.channel || '-' }}
+                {{ dictLabel('pay_channel', String(row.channel || '')) || row.channel || '未知' }}
               </el-tag>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="110" align="center">
             <template #default="{ row }">
               <el-tag :type="dictTagType(String(row.status || ''))" size="small">
-                {{ dictLabel('recharge_status', String(row.status || '')) || row.status || '-' }}
+                {{ dictLabel('recharge_status', String(row.status || '')) || row.status || '未知状态' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="时间" width="168" class-name="col-text">
+          <el-table-column label="时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(String(row.createdAt || '')) }}</span>
             </template>
           </el-table-column>
           <el-table-column
-            v-if="canRefund"
+            v-if="showActionColumn"
             label="操作"
             width="100"
             class-name="col-action"
             align="center"
+            fixed="right"
           >
             <template #default="{ row }">
               <TableActions
@@ -97,7 +100,6 @@
                 :actions="[{ key: 'refund', label: '退款', icon: RefreshLeft, type: 'danger' }]"
                 @action="() => refundRecharge(row)"
               />
-              <span v-else class="muted">-</span>
             </template>
           </el-table-column>
         </el-table>
@@ -129,6 +131,7 @@ import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -144,6 +147,8 @@ const total = ref(0);
 const status = ref('');
 const userId = ref('');
 const items = ref<Record<string, unknown>[]>([]);
+const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById } = useIdColumnSort<Record<string, unknown>>('orderId');
+const displayItems = computed(() => sortById(items.value));
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } = useTableSelection<
   Record<string, unknown>
@@ -171,6 +176,10 @@ function isRefundable(row: Record<string, unknown>) {
   const s = String(row.status || '').toUpperCase();
   return s === 'PAID' || s === 'SUCCESS';
 }
+
+const showActionColumn = computed(
+  () => canRefund.value && items.value.some((row) => isRefundable(row))
+);
 
 async function refundRecharge(row: Record<string, unknown>) {
   const orderId = String(row.orderId || '');

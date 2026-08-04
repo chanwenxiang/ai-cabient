@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -37,7 +37,7 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 900px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="operators"
@@ -45,20 +45,22 @@
           border
           class="report-table"
           row-key="userId"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
           <template #empty><el-empty description="暂无运营账号" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="账号" min-width="160" class-name="col-text">
+          <el-table-column prop="userId" label="ID" width="100" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
-              <div class="name-cell">
-                <strong>{{ row.name || row.phoneNumber || row.userId }}</strong>
-                <small>ID {{ row.userId }}</small>
-              </div>
+              <span class="cell-id">{{ row.userId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="手机号" width="140" class-name="col-text">
-            <template #default="{ row }">{{ row.phoneNumber || '-' }}</template>
+          <el-table-column label="账号" min-width="120" align="center" class-name="col-text">
+            <template #default="{ row }">{{ row.name || row.phoneNumber || '无' }}</template>
+          </el-table-column>
+          <el-table-column label="手机号" width="140" align="center" class-name="col-text">
+            <template #default="{ row }">{{ row.phoneNumber || '无' }}</template>
           </el-table-column>
           <el-table-column label="状态" width="90" align="center">
             <template #default="{ row }">
@@ -67,7 +69,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="角色" min-width="160" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="角色" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <template v-if="(row.roleNames || []).length">
                 <el-tag
@@ -83,7 +85,7 @@
               <span v-else class="muted">未分配</span>
             </template>
           </el-table-column>
-          <el-table-column label="数据范围" min-width="180" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="数据范围" min-width="180" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <template v-if="(row.merchantNames || row.merchantIds || []).length">
                 <el-tag
@@ -100,7 +102,7 @@
               <el-tag v-else size="small" type="success" effect="plain">全局</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120" class-name="col-action" align="center">
+          <el-table-column label="操作" width="120" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions :actions="rowActions(row)" :max-primary="2" @action="(k) => onRowAction(k, row)" />
             </template>
@@ -233,6 +235,7 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const route = useRoute();
 const router = useRouter();
@@ -266,6 +269,11 @@ const loading = ref(false);
 const saving = ref(false);
 const operators = ref<OperatorRow[]>([]);
 const roles = ref<RoleRow[]>([]);
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('userId', {
+  onChange: () => {
+    operators.value = sortById([...operators.value], 'userId');
+  }
+});
 const merchants = ref<MerchantRow[]>([]);
 const phone = ref('');
 const page = ref(1);
@@ -398,7 +406,7 @@ async function loadOperators() {
     const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
     if (phone.value.trim()) q.set('phone', phone.value.trim());
     const data = await api.request<PageResult<OperatorRow>>(`/api/v2/ops/admin/rbac/operators?${q}`, 'GET');
-    operators.value = data.items;
+    operators.value = sortById(data.items || [], 'userId');
     total.value = data.total;
     clearSelection();
   } catch (e) {
@@ -640,13 +648,6 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.name-cell { display: grid; gap: 2px; line-height: 1.35; }
-.name-cell strong { font-weight: 650; }
-.name-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
-}
 .role-tag { margin: 0 4px 4px 0; }
 .muted { color: var(--el-text-color-secondary); }
 .scope-alert { margin-bottom: 12px; }

@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">审计日志</span>
-            <span class="hint">关键写操作留痕；可仅看本人</span>
+            <span class="hint">管理写操作留痕；ID 默认升序，点击表头可切换升降序</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -34,7 +34,7 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 1080px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="displayItems"
@@ -42,38 +42,40 @@
           border
           class="report-table"
           row-key="logId"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
           <template #empty><el-empty description="暂无审计日志" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="时间" width="168" class-name="col-text">
+          <el-table-column prop="logId" label="ID" width="100" align="center" class-name="col-text" sortable="custom">
+            <template #default="{ row }">
+              <span class="cell-id">{{ row.logId }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作人" min-width="140" class-name="col-text" show-overflow-tooltip>
-            <template #default="{ row }">
-              <div class="name-cell">
-                <strong>{{ operatorLabel(row) }}</strong>
-                <small v-if="row.operatorId && row.operatorId > 0">编号 {{ row.operatorId }}</small>
-              </div>
-            </template>
+          <el-table-column label="操作人" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ operatorLabel(row) }}</template>
           </el-table-column>
-          <el-table-column label="动作" min-width="160" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="动作" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{ auditActionLabel(row.action) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="对象" min-width="160" class-name="col-text">
+          <el-table-column label="对象类型" min-width="110" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ auditTargetLabel(row.targetType) }}</template>
+          </el-table-column>
+          <el-table-column label="对象ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
-              <div class="name-cell">
-                <strong>{{ auditTargetLabel(row.targetType) }}</strong>
-                <small v-if="row.targetId" class="cell-id">{{ row.targetId }}</small>
-                <small v-else class="muted">-</small>
-              </div>
+              <span v-if="row.targetId" class="cell-id">{{ row.targetId }}</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="详情" min-width="220" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="详情" min-width="220" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ formatOpsActionDetail(row.detail) }}</template>
           </el-table-column>
         </el-table>
@@ -111,6 +113,7 @@ import {
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import type { PageResult } from '@aicabinet/shared-types';
 import { api } from '@/api/client';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 
@@ -122,8 +125,8 @@ interface AuditRow {
   action?: string;
   targetType?: string;
   targetId?: string;
-  detail?: string;
   createdAt?: string;
+  detail?: string;
 }
 
 const route = useRoute();
@@ -137,6 +140,13 @@ const size = ref(20);
 const total = ref(0);
 const items = ref<AuditRow[]>([]);
 
+const { idSortDir, idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('logId', {
+  onChange: () => {
+    page.value = 1;
+    void load();
+  }
+});
+
 const displayItems = computed(() => items.value);
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
@@ -144,14 +154,15 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
 
 const { onExport } = useListCsv({
   filePrefix: '审计日志',
-  headers: ['时间', '操作人', '动作', '对象类型', '对象ID', '详情'],
+  headers: ['ID', '时间', '操作人', '动作', '对象类型', '对象ID', '详情'],
   toRows: () =>
     pickSelected(displayItems.value).map((row) => [
+      row.logId,
       formatDateTime(row.createdAt),
       operatorLabel(row),
       auditActionLabel(row.action),
       auditTargetLabel(row.targetType),
-      row.targetId || '-',
+      row.targetId || '无',
       formatOpsActionDetail(row.detail)
     ])
 });
@@ -206,7 +217,11 @@ async function scanAuditPages(): Promise<AuditRow[]> {
   let scanned = 0;
   let serverTotal = Number.POSITIVE_INFINITY;
   while (scanned < maxScan && scanned < serverTotal) {
-    const q = new URLSearchParams({ page: String(apiPage), size: String(pageSize) });
+    const q = new URLSearchParams({
+      page: String(apiPage),
+      size: String(pageSize),
+      sortDir: idSortDir.value
+    });
     const data = await api.request<PageResult<AuditRow>>(`/api/v2/ops/admin/audit-logs?${q}`, 'GET');
     const batch = data.items || [];
     serverTotal = data.total ?? batch.length;
@@ -232,12 +247,16 @@ async function load() {
       } else {
         rows = await scanAuditPages();
       }
-      const filtered = rows.filter(matchFilters);
+      const filtered = sortById(rows.filter(matchFilters), 'logId');
       total.value = filtered.length;
       const start = (page.value - 1) * size.value;
       items.value = filtered.slice(start, start + size.value);
     } else {
-      const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
+      const q = new URLSearchParams({
+        page: String(page.value - 1),
+        size: String(size.value),
+        sortDir: idSortDir.value
+      });
       const data = await api.request<PageResult<AuditRow>>(`/api/v2/ops/admin/audit-logs?${q}`, 'GET');
       items.value = data.items || [];
       total.value = data.total || 0;
@@ -315,12 +334,5 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.name-cell { display: grid; gap: 2px; line-height: 1.35; }
-.name-cell strong { font-weight: 650; }
-.name-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
-}
 .muted { color: var(--el-text-color-secondary); }
 </style>

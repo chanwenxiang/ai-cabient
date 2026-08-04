@@ -5,15 +5,17 @@
       <text class="banner-retry" @click="load">重试</text>
     </view>
 
-    <view v-if="!loading && overview && !overview.bound" class="empty-card">
-      <text class="empty-title">未绑定线长身份</text>
-      <text class="empty-desc">线长钱包仅对已绑定的线长成员开放。商户主体提现请使用「商户钱包」。</text>
-    </view>
+    <empty-state
+      v-if="!loading && overview && !overview.bound"
+      icon="线"
+      title="未绑定线长身份"
+      hint="线长钱包仅对已绑定的线长成员开放。商户主体提现请使用「商户钱包」"
+    />
 
     <template v-else-if="overview && overview.bound">
       <view class="summary-card">
         <text class="role-tag">线长 · 可自主提现</text>
-        <text class="name">{{ overview.managerName }} · {{ overview.phone }}</text>
+        <text class="name">{{ emptyDisplay(overview.managerName, 'text') }} · {{ emptyDisplay(overview.phone, 'text') }}</text>
         <view class="bal-row">
           <text class="bal-label">可用余额</text>
           <text class="bal-value">¥{{ yuan(overview.availableCents) }}</text>
@@ -35,22 +37,37 @@
         <view v-for="w in overview.recentWithdraws || []" :key="w.requestId" class="row-item">
           <view class="row-main">
             <text>¥{{ yuan(w.amountCents) }}</text>
-            <text class="status">{{ w.status }}</text>
+            <text class="status">{{ withdrawStatus(w.status) }}</text>
           </view>
-          <text class="row-sub">{{ w.requestNo }}</text>
+          <text class="row-sub">{{ emptyDisplay(w.requestNo, 'order') }}</text>
         </view>
-        <view v-if="!(overview.recentWithdraws || []).length" class="muted">暂无提现记录</view>
+        <empty-state
+          v-if="!(overview.recentWithdraws || []).length"
+          compact
+          icon="提"
+          title="暂无提现记录"
+          hint="提交提现后会出现在这里"
+        />
       </view>
 
       <view class="section">
         <text class="section-title">最近流水</text>
         <view v-for="l in overview.recentLedgers || []" :key="l.ledgerId" class="row-item">
           <view class="row-main">
-            <text>{{ l.entryType }}</text>
-            <text>{{ yuan(l.amountCents) }}</text>
+            <text>{{ ledgerLabel(l.entryType) }}</text>
+            <text :class="{ credit: Number(l.amountCents) > 0, debit: Number(l.amountCents) < 0 }">
+              {{ formatSigned(l.amountCents) }}
+            </text>
           </view>
-          <text class="row-sub">{{ l.remark || '' }}</text>
+          <text class="row-sub">{{ emptyDisplay(l.remark, 'text') }}</text>
         </view>
+        <empty-state
+          v-if="!(overview.recentLedgers || []).length"
+          compact
+          icon="流"
+          title="暂无流水记录"
+          hint="佣金入账与提现变动会显示在这里"
+        />
       </view>
     </template>
 
@@ -61,6 +78,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
+import { displayLabel } from '@aicabinet/shared-dict';
+import { emptyDisplay } from '@aicabinet/shared-uni/format';
+import EmptyState from '@/components/empty-state.vue';
 import { merchantApi, getToken, handleUnauthorized } from '@/utils/merchant-api';
 
 const loading = ref(false);
@@ -71,6 +91,21 @@ const overview = ref<any>(null);
 
 function yuan(cents?: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
+}
+
+function formatSigned(cents?: number) {
+  const n = Number(cents) || 0;
+  const abs = Math.abs(n) / 100;
+  const sign = n > 0 ? '+' : n < 0 ? '-' : '';
+  return `${sign}¥${abs.toFixed(2)}`;
+}
+
+function withdrawStatus(status?: string) {
+  return displayLabel('line_withdraw_status', status, '未知状态');
+}
+
+function ledgerLabel(type?: string) {
+  return displayLabel('wallet_ledger_type', type, emptyDisplay(type, 'text'));
 }
 
 async function load() {
@@ -115,40 +150,44 @@ onShow(load);
 </script>
 
 <style scoped>
-.page-root { padding: 24rpx; }
-.summary-card, .action-card, .empty-card, .section {
+.summary-card, .action-card, .section {
   background: #fff;
-  border-radius: 16rpx;
+  border-radius: var(--card-radius, 22rpx);
   padding: 28rpx;
   margin-bottom: 20rpx;
+  border: 1rpx solid var(--card-border, #e2e8f0);
 }
-.role-tag { font-size: 22rpx; color: #0d9488; }
-.name { display: block; margin-top: 8rpx; color: #64748b; font-size: 24rpx; }
+.role-tag { font-size: 22rpx; color: var(--brand, #0f766e); font-weight: 600; }
+.name { display: block; margin-top: 8rpx; color: var(--text-muted, #64748b); font-size: 24rpx; }
 .bal-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 24rpx; }
-.bal-label { color: #64748b; }
+.bal-label { color: var(--text-muted, #64748b); }
 .bal-value { font-size: 48rpx; font-weight: 700; color: #0f172a; }
-.bal-sub { display: flex; gap: 24rpx; margin-top: 12rpx; color: #94a3b8; font-size: 22rpx; }
+.bal-sub { display: flex; gap: 24rpx; margin-top: 12rpx; color: var(--text-subtle, #94a3b8); font-size: 22rpx; }
 .amount-input {
+  width: 100%;
   background: #f8fafc;
-  border-radius: 12rpx;
+  border: 1rpx solid #e2e8f0;
+  border-radius: 16rpx;
   padding: 20rpx;
   margin-bottom: 16rpx;
+  box-sizing: border-box;
 }
-.btn-primary {
-  background: #0d9488;
-  color: #fff;
-  border-radius: 12rpx;
-}
-.tip { display: block; margin-top: 12rpx; font-size: 22rpx; color: #94a3b8; }
+.tip { display: block; margin-top: 12rpx; font-size: 22rpx; color: var(--text-subtle, #94a3b8); line-height: 1.45; }
 .section-title { font-weight: 600; margin-bottom: 12rpx; display: block; }
-.row-item { padding: 16rpx 0; border-bottom: 1px solid #f1f5f9; }
-.row-main { display: flex; justify-content: space-between; }
-.row-sub { font-size: 22rpx; color: #94a3b8; }
-.status { color: #0d9488; }
-.empty-title { font-weight: 600; display: block; margin-bottom: 8rpx; }
-.empty-desc { color: #64748b; font-size: 24rpx; line-height: 1.5; }
-.banner-err { background: #fef2f2; color: #b91c1c; padding: 16rpx; border-radius: 12rpx; margin-bottom: 16rpx; }
+.row-item { padding: 16rpx 0; border-bottom: 1rpx solid #f1f5f9; }
+.row-main { display: flex; justify-content: space-between; gap: 16rpx; font-size: 28rpx; }
+.row-sub { font-size: 22rpx; color: var(--text-subtle, #94a3b8); margin-top: 4rpx; display: block; }
+.status { color: var(--brand, #0f766e); font-weight: 500; }
+.credit { color: #059669; font-weight: 600; }
+.debit { color: #b91c1c; font-weight: 600; }
+.banner-err {
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  margin-bottom: 16rpx;
+  font-size: 26rpx;
+}
 .banner-retry { margin-left: 16rpx; text-decoration: underline; }
-.loading-inline { text-align: center; color: #94a3b8; padding: 40rpx; }
-.muted { color: #94a3b8; font-size: 24rpx; }
+.loading-inline { text-align: center; color: var(--text-subtle, #94a3b8); padding: 40rpx; }
 </style>

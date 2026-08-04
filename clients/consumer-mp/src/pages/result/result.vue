@@ -154,7 +154,7 @@ const statusIcon = computed(() => {
     ok: '✓',
     warn: '!',
     refund: '↩',
-    muted: '—',
+    muted: '无',
     pending: '…'
   };
   return map[statusTone.value] || '✓';

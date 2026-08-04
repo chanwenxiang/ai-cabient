@@ -39,32 +39,32 @@
               row-key="routeId"
               @selection-change="onRoutesSelectionChange"
             >
-            <el-table-column type="selection" width="48" />
-<el-table-column type="expand">
+            <el-table-column type="selection" width="48" align="center" />
+<el-table-column type="expand" align="center">
             <template #default="{ row }">
               <div class="route-detail">
                 <div class="route-meta">
-                  <span>计划日期：{{ row.plannedDate || '-' }}</span>
+                  <span>计划日期：{{ row.plannedDate || '无' }}</span>
                   <span>负责人：{{ row.assigneeUserId || '未分配' }}</span>
                   <span>预计里程：{{ row.totalDistanceM ? `${row.totalDistanceM} 米` : '未计算' }}</span>
                 </div>
                 <el-table :data="row.tasks || []" size="small" class="line-table">
-                  <el-table-column label="设备" min-width="200">
+                  <el-table-column label="设备" min-width="140" align="center">
                     <template #default="scope">
-                      <div class="master-data-cell">
-                        <strong>
-                          {{ deviceName(scope.row.deviceId) }}
-                          <el-tag
-                            size="small"
-                            :type="deviceOnline(scope.row.deviceId) ? 'success' : 'info'"
-                            class="online-tag"
-                          >{{ deviceOnline(scope.row.deviceId) ? '在线' : '离线' }}</el-tag>
-                        </strong>
-                        <small>{{ scope.row.deviceId }}</small>
-                      </div>
+                      {{ deviceName(scope.row.deviceId) }}
+                      <el-tag
+                        size="small"
+                        :type="deviceOnline(scope.row.deviceId) ? 'success' : 'info'"
+                        class="online-tag"
+                      >{{ deviceOnline(scope.row.deviceId) ? '在线' : '离线' }}</el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column label="任务状态" width="110">
+                  <el-table-column label="设备ID" min-width="120" align="center">
+                    <template #default="scope">
+                      <span class="mono">{{ scope.row.deviceId }}</span>
+                    </template>
+                  </el-table-column>
+                  <el-table-column label="任务状态" width="110" align="center">
                     <template #default="scope">
                       <el-tag :type="dictTagType(scope.row.status)" size="small">
                         {{ dictLabel('replenishment_task_status', scope.row.status) }}
@@ -73,7 +73,7 @@
                   </el-table-column>
                   <el-table-column label="人员" width="88" align="center">
                     <template #default="scope">
-                      <span class="mono">{{ scope.row.assigneeUserId || row.assigneeUserId || '-' }}</span>
+                      <span class="mono">{{ scope.row.assigneeUserId || row.assigneeUserId || '无' }}</span>
                     </template>
                   </el-table-column>
                   <el-table-column label="签到" min-width="150" align="center">
@@ -96,9 +96,9 @@
                   <el-table-column label="用时" width="88" align="center">
                     <template #default="scope">{{ formatTaskDuration(scope.row) }}</template>
                   </el-table-column>
-                  <el-table-column label="完成" width="148" class-name="col-text">
+                  <el-table-column label="完成" width="148" align="center" class-name="col-text">
                     <template #default="scope">
-                      <span class="cell-datetime">{{ scope.row.completedAt ? formatDateTime(scope.row.completedAt) : '-' }}</span>
+                      <span class="cell-datetime">{{ scope.row.completedAt ? formatDateTime(scope.row.completedAt) : '无' }}</span>
                     </template>
                   </el-table-column>
                   <el-table-column label="出库单" width="88" align="center">
@@ -107,7 +107,7 @@
                       <span v-else class="muted">现场</span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="操作" :width="canEdit ? 280 : 88" align="center">
+                  <el-table-column label="操作" :width="canEdit ? 280 : 88" align="center" class-name="col-action" fixed="right">
                     <template #default="scope">
                       <el-button link type="primary" @click="openTaskLines(scope.row)">明细</el-button>
                       <el-button
@@ -132,7 +132,7 @@
                         @click="completeRestockTask(scope.row)"
                       >完成上架</el-button>
                       <span
-                        v-else-if="canEdit && openDoorHint(scope.row) !== '-' && !canCompleteTask(scope.row) && !canCheckInTask(scope.row)"
+                        v-else-if="canEdit && openDoorHint(scope.row) !== '无' && !canCompleteTask(scope.row) && !canCheckInTask(scope.row)"
                         class="muted"
                       >{{ openDoorHint(scope.row) }}</span>
                     </template>
@@ -142,18 +142,18 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="路线" min-width="220" class-name="col-text">
+          <el-table-column label="路线" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.routeName || '无' }}</template>
+          </el-table-column>
+          <el-table-column label="路线ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
-              <div class="master-data-cell">
-                <strong>{{ row.routeName || row.routeId }}</strong>
-                <small>{{ row.routeId }}</small>
-              </div>
+              <span class="mono">{{ row.routeId }}</span>
             </template>
           </el-table-column>
           <el-table-column label="设备数" width="88" align="center">
             <template #default="{ row }">{{ row.tasks?.length || 0 }}</template>
           </el-table-column>
-          <el-table-column prop="plannedDate" label="计划日期" width="120" class-name="col-text" />
+          <el-table-column prop="plannedDate" label="计划日期" width="120" align="center" class-name="col-text" />
           <el-table-column label="状态" width="110" align="center">
             <template #default="{ row }">
               <el-tag :type="dictTagType(row.status)" size="small">
@@ -161,7 +161,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="100" align="center" class-name="col-action">
+          <el-table-column v-if="showRouteCancelColumn" label="操作" width="100" align="center" class-name="col-action" fixed="right">
             <template #default="{ row }">
               <el-button
                 v-if="canCancelEmptyRoute(row)"
@@ -171,7 +171,6 @@
                 data-testid="cancel-empty-route"
                 @click="cancelEmptyRoute(row)"
               >{{ row.status === 'CANCELLED' ? '收口脏出库' : '取消空路线' }}</el-button>
-              <span v-else class="muted">-</span>
             </template>
           </el-table-column>
           <template #empty><el-empty description="暂无补货路线" /></template>
@@ -202,7 +201,7 @@
           </el-form-item>
         </el-form>
         <div class="table-scroll">
-          <div class="table-scroll-inner" style="min-width: 1080px">
+          <div class="table-scroll-inner">
             <el-table
               v-loading="loading"
               :data="pagedFulfillment"
@@ -212,21 +211,23 @@
               row-key="taskId"
               :empty-text="fulfillmentEmptyText"
             >
-              <el-table-column label="任务" width="88" class-name="col-text">
+              <el-table-column label="任务" width="88" align="center" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-id">#{{ row.taskId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="设备" min-width="180" class-name="col-text">
+              <el-table-column label="设备" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
                 <template #default="{ row }">
-                  <button type="button" class="device-link-cell" @click="goDevice(row.deviceId)">
-                    <strong>{{ deviceName(row.deviceId) }}</strong>
-                    <small>{{ row.deviceId }}</small>
-                  </button>
+                  <button type="button" class="link-cell" @click="goDevice(row.deviceId)">{{ deviceName(row.deviceId) }}</button>
                 </template>
               </el-table-column>
-              <el-table-column label="路线" min-width="140" class-name="col-text" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.routeName || row.routeId || '-' }}</template>
+              <el-table-column label="设备ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <span class="cell-id">{{ row.deviceId }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="路线" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.routeName || row.routeId || '无' }}</template>
               </el-table-column>
               <el-table-column label="状态" width="148" align="center">
                 <template #default="{ row }">
@@ -247,7 +248,7 @@
               </el-table-column>
               <el-table-column label="人员" width="88" align="center">
                 <template #default="{ row }">
-                  <span class="mono">{{ row.assigneeUserId || '-' }}</span>
+                  <span class="mono">{{ row.assigneeUserId || '无' }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="签到 / GPS" min-width="160" align="center">
@@ -266,12 +267,12 @@
               <el-table-column label="用时" width="88" align="center">
                 <template #default="{ row }">{{ formatTaskDuration(row) }}</template>
               </el-table-column>
-              <el-table-column label="完成时间" width="168" class-name="col-text">
+              <el-table-column label="完成时间" width="168" align="center" class-name="col-text">
                 <template #default="{ row }">
-                  <span class="cell-datetime">{{ row.completedAt ? formatDateTime(row.completedAt) : '-' }}</span>
+                  <span class="cell-datetime">{{ row.completedAt ? formatDateTime(row.completedAt) : '无' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="120" align="center" class-name="col-action">
+              <el-table-column label="操作" width="120" align="center" class-name="col-action" fixed="right">
                 <template #default="{ row }">
                   <el-button link type="primary" @click="openTaskLines(row)">
                     理货明细
@@ -313,20 +314,22 @@
               row-key="requestId"
               @selection-change="onRequestsSelectionChange"
             >
-          <el-table-column type="selection" width="48" />
-          <el-table-column label="要货单" min-width="120" class-name="col-text">
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column label="要货单" min-width="120" align="center" class-name="col-text">
             <template #default="{ row }"><span class="cell-id">{{ row.requestId }}</span></template>
           </el-table-column>
-          <el-table-column prop="merchantName" label="商户" min-width="160" class-name="col-text" show-overflow-tooltip />
-          <el-table-column label="目标设备" min-width="200" class-name="col-text">
+          <el-table-column prop="merchantName" label="商户" min-width="160" align="center" class-name="col-text" show-overflow-tooltip />
+          <el-table-column label="目标设备" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
-              <button type="button" class="device-link-cell" @click="goDevice(row.deviceId)">
-                <strong>{{ deviceName(row.deviceId) }}</strong>
-                <small>{{ row.deviceId }}</small>
-              </button>
+              <button type="button" class="link-cell" @click="goDevice(row.deviceId)">{{ deviceName(row.deviceId) }}</button>
             </template>
           </el-table-column>
-          <el-table-column label="明细" min-width="220" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="设备ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="cell-id">{{ row.deviceId }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="明细" min-width="220" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <span>{{ formatRequestLines(row) }}</span>
             </template>
@@ -338,10 +341,10 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="驳回原因" min-width="160" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="驳回原因" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <span v-if="row.rejectReason" class="reject-reason">{{ row.rejectReason }}</span>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
           <el-table-column label="补货任务" width="110" align="center" class-name="col-text">
@@ -352,22 +355,21 @@
                 type="primary"
                 @click="goRequestTask(row)"
               >#{{ row.replenishmentTaskId }}</el-button>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="提交时间" width="168" class-name="col-text">
+          <el-table-column label="提交时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.submittedAt || row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="160" class-name="col-action" align="center">
+          <el-table-column v-if="showRequestActionColumn" label="操作" width="160" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions
                 v-if="requestActionsFor(row).length"
                 :actions="requestActionsFor(row)"
                 @action="(k) => onRequestAction(row, String(k))"
               />
-              <span v-else class="muted">-</span>
             </template>
           </el-table-column>
           <template #empty><el-empty :description="requestsEmptyText" /></template>
@@ -395,16 +397,18 @@
               @selection-change="onShortageSelectionChange"
             >
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="设备" min-width="180" class-name="col-text">
+              <el-table-column label="设备" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
                 <template #default="{ row }">
-                  <button type="button" class="device-link-cell" @click="goDevice(row.deviceId)">
-                    <strong>{{ deviceName(row.deviceId) }}</strong>
-                    <small>{{ row.deviceId }}</small>
-                  </button>
+                  <button type="button" class="link-cell" @click="goDevice(row.deviceId)">{{ deviceName(row.deviceId) }}</button>
+                </template>
+              </el-table-column>
+              <el-table-column label="设备ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <span class="cell-id">{{ row.deviceId }}</span>
                 </template>
               </el-table-column>
               <el-table-column prop="slotCode" label="货道" width="90" align="center" />
-              <el-table-column prop="assignedSkuName" label="商品" min-width="140" class-name="col-text" show-overflow-tooltip />
+              <el-table-column prop="assignedSkuName" label="商品" min-width="140" align="center" class-name="col-text" show-overflow-tooltip />
               <el-table-column prop="bookQty" label="账面" width="80" align="center" />
               <el-table-column prop="minLevel" label="最低" width="80" align="center" />
               <el-table-column prop="parLevel" label="目标" width="80" align="center" />
@@ -413,7 +417,7 @@
                   <el-tag :type="stockTagType(row)" size="small">{{ stockLabel(row) }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column v-if="canEdit" label="操作" width="100" align="center" class-name="col-action">
+              <el-table-column v-if="canEdit" label="操作" width="100" align="center" class-name="col-action" fixed="right">
                 <template #default="{ row }">
                   <el-button link type="primary" @click="planSingleDevice(row.deviceId)">补货</el-button>
                 </template>
@@ -446,19 +450,21 @@
               @selection-change="onExpirySelectionChange"
             >
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="设备" min-width="180" class-name="col-text">
+              <el-table-column label="设备" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
                 <template #default="{ row }">
-                  <button type="button" class="device-link-cell" @click="goDevice(row.deviceId)">
-                    <strong>{{ deviceName(row.deviceId) }}</strong>
-                    <small>{{ row.deviceId }}</small>
-                  </button>
+                  <button type="button" class="link-cell" @click="goDevice(row.deviceId)">{{ deviceName(row.deviceId) }}</button>
                 </template>
               </el-table-column>
-              <el-table-column prop="skuId" label="商品 SKU" min-width="140" class-name="col-text" show-overflow-tooltip />
-              <el-table-column prop="batchNo" label="批次" min-width="120" class-name="col-text" show-overflow-tooltip />
-              <el-table-column prop="lotId" label="批次 ID" min-width="120" class-name="col-text" show-overflow-tooltip />
+              <el-table-column label="设备ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <span class="cell-id">{{ row.deviceId }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column prop="skuId" label="商品 SKU" min-width="140" align="center" class-name="col-text" show-overflow-tooltip />
+              <el-table-column prop="batchNo" label="批次" min-width="120" align="center" class-name="col-text" show-overflow-tooltip />
+              <el-table-column prop="lotId" label="批次 ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip />
               <el-table-column prop="quantity" label="数量" width="80" align="center" />
-              <el-table-column label="原因" min-width="160" class-name="col-text" show-overflow-tooltip>
+              <el-table-column label="原因" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
                 <template #default="{ row }">{{ row.reason || '临期' }}</template>
               </el-table-column>
               <el-table-column label="状态" width="100" align="center">
@@ -466,12 +472,12 @@
                   <el-tag size="small" type="warning">{{ row.status || 'OPEN' }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="创建时间" width="168" class-name="col-text">
+              <el-table-column label="创建时间" width="168" align="center" class-name="col-text">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="240" align="center" class-name="col-action">
+              <el-table-column label="操作" width="240" align="center" class-name="col-action" fixed="right">
                 <template #default="{ row }">
                   <el-button
                     v-if="canEdit"
@@ -525,7 +531,7 @@
       <div v-loading="linesLoading" class="lines-drawer">
         <el-descriptions v-if="linesTask" :column="1" border size="small" class="lines-meta">
           <el-descriptions-item label="设备">{{ deviceName(linesTask.deviceId) }}（{{ linesTask.deviceId }}）</el-descriptions-item>
-          <el-descriptions-item label="人员">{{ linesTask.assigneeUserId || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="人员">{{ linesTask.assigneeUserId || '无' }}</el-descriptions-item>
           <el-descriptions-item label="签到">
             {{ linesTask.checkInAt ? formatDateTime(linesTask.checkInAt) : '未签到' }}
             <span
@@ -537,7 +543,7 @@
           </el-descriptions-item>
           <el-descriptions-item label="用时">{{ formatTaskDuration(linesTask) }}</el-descriptions-item>
           <el-descriptions-item label="完成">
-            {{ linesTask.completedAt ? formatDateTime(linesTask.completedAt) : '-' }}
+            {{ linesTask.completedAt ? formatDateTime(linesTask.completedAt) : '无' }}
           </el-descriptions-item>
           <el-descriptions-item v-if="linesTask.notes" label="说明">{{ linesTask.notes }}</el-descriptions-item>
         </el-descriptions>
@@ -572,9 +578,9 @@
           <el-table-column label="类型" width="88" align="center">
             <template #default="{ row }">{{ lineTypeLabel(row.lineType) }}</template>
           </el-table-column>
-          <el-table-column label="商品" min-width="110" show-overflow-tooltip>
+          <el-table-column label="商品" min-width="110" show-overflow-tooltip align="center">
             <template #default="{ row }">
-              <span class="mono">{{ row.skuId || '-' }}</span>
+              <span class="mono">{{ row.skuId || '无' }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="quantity" label="数量" width="72" align="center" />
@@ -600,15 +606,15 @@
               </el-select>
               <template v-else>
                 <el-tag v-if="!row.slotId && isRestockLine(row)" type="warning" size="small">待分配</el-tag>
-                <span v-else>{{ row.slotId || '-' }}</span>
+                <span v-else>{{ row.slotId || '无' }}</span>
               </template>
             </template>
           </el-table-column>
-          <el-table-column label="批次" min-width="100" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.batchNo || '-' }}</template>
+          <el-table-column label="批次" min-width="100" show-overflow-tooltip align="center">
+            <template #default="{ row }">{{ row.batchNo || '无' }}</template>
           </el-table-column>
           <el-table-column label="效期" width="110" align="center">
-            <template #default="{ row }">{{ row.expiryDate || '-' }}</template>
+            <template #default="{ row }">{{ row.expiryDate || '无' }}</template>
           </el-table-column>
           <el-table-column label="已入账" width="80" align="center">
             <template #default="{ row }">
@@ -965,6 +971,10 @@ function requestActionsFor(row: Row): TableAction[] {
   return [];
 }
 
+const showRequestActionColumn = computed(
+  () => canEdit.value && requests.value.some((row) => requestActionsFor(row).length > 0)
+);
+
 const {
   onSelectionChange: onRoutesSelectionChange,
   pickSelected: pickRoutes,
@@ -1124,7 +1134,7 @@ function currentAssigneeId() {
   return Number.isFinite(id) && id > 0 ? id : 1;
 }
 function deviceName(deviceId: string) {
-  return devices.value.find((item) => item.deviceId === deviceId)?.deviceName || deviceId || '-';
+  return devices.value.find((item) => item.deviceId === deviceId)?.deviceName || deviceId || '无';
 }
 function localDate() {
   const now = new Date();
@@ -1332,7 +1342,7 @@ function parseInstantMs(value: unknown) {
 
 function formatTaskDuration(row: Row) {
   const start = parseInstantMs(row?.checkInAt);
-  if (start == null) return '-';
+  if (start == null) return '无';
   const end = parseInstantMs(row?.completedAt) ?? (['COMPLETED', 'CANCELLED'].includes(String(row?.status || ''))
     ? start
     : Date.now());
@@ -1351,7 +1361,7 @@ function lineTypeLabel(type?: string) {
 }
 
 function formatFileSize(size?: number) {
-  if (size == null || size <= 0) return '-';
+  if (size == null || size <= 0) return '无';
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
@@ -1545,11 +1555,11 @@ function canCompleteTask(task: Row) {
 }
 
 function openDoorHint(task: Row) {
-  if (['COMPLETED', 'CANCELLED'].includes(String(task.status || ''))) return '-';
+  if (['COMPLETED', 'CANCELLED'].includes(String(task.status || ''))) return '无';
   if (!task.checkInAt) return '需先签到';
   if (!deviceOnline(task.deviceId)) return '设备离线';
   if (deviceSalesLocked(task.deviceId)) return '停售中可补货';
-  return '-';
+  return '无';
 }
 
 async function checkInRestockTask(task: Row) {
@@ -1591,6 +1601,10 @@ function canCancelEmptyRoute(row: Row) {
     return !t.checkInAt;
   });
 }
+
+const showRouteCancelColumn = computed(
+  () => canEdit.value && routes.value.some((row) => canCancelEmptyRoute(row))
+);
 
 async function cancelEmptyRoute(row: Row) {
   if (!row?.routeId) return;
@@ -1744,11 +1758,11 @@ async function onRequestAction(row: Row, key: string) {
       }>(`/api/v2/ops/admin/replenishment/requests/${row.requestId}/accept`, 'POST');
       if (accepted?.outboundId) {
         ElMessage.success(
-          `已接单，出库 #${accepted.outboundId}，补货任务 #${accepted.replenishmentTaskId ?? '-'}`
+          `已接单，出库 #${accepted.outboundId}，补货任务 #${accepted.replenishmentTaskId ?? '无'}`
         );
       } else {
         ElMessage.success(
-          `已接单，无仓配库存，已建现场补货任务 #${accepted?.replenishmentTaskId ?? '-'}`
+          `已接单，无仓配库存，已建现场补货任务 #${accepted?.replenishmentTaskId ?? '无'}`
         );
       }
     } else if (key === 'reject') {
@@ -1814,7 +1828,7 @@ function formatRequestLines(row: Row) {
   const lines = (row.lines || []) as { skuName?: string; skuId?: string; requestedQty?: number }[];
   if (!lines.length) return '无明细';
   return lines
-    .map((l) => `${l.skuName || l.skuId || '-'}×${l.requestedQty ?? 0}`)
+    .map((l) => `${l.skuName || l.skuId || '无'}×${l.requestedQty ?? 0}`)
     .join('、');
 }
 
@@ -1949,32 +1963,24 @@ onActivated(() => {
 .route-detail { padding: 8px 44px 12px; }
 .route-meta { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 12px; color: var(--layout-muted); font-size: 13px; }
 .line-table { width: 100%; }
-.master-data-cell { display: grid; gap: 2px; line-height: 1.35; }
-.master-data-cell strong { color: var(--layout-text); font-weight: 650; }
-.master-data-cell small { color: var(--layout-muted); font-size: 11px; font-family: var(--app-font-mono); }
-.device-link-cell {
+.link-cell {
   appearance: none;
   border: 0;
   padding: 0;
   margin: 0;
   background: transparent;
-  display: grid;
-  gap: 2px;
-  text-align: left;
+  color: var(--el-color-primary);
   cursor: pointer;
-  color: inherit;
   font: inherit;
-  line-height: 1.35;
+  font-weight: 650;
 }
-.device-link-cell strong { color: var(--el-color-primary); font-weight: 650; }
-.device-link-cell small { color: var(--layout-muted); font-size: 11px; font-family: var(--app-font-mono); }
-.device-link-cell:hover strong { text-decoration: underline; }
+.link-cell:hover { text-decoration: underline; }
 .muted { color: var(--layout-muted); font-size: 13px; }
 .check-in-cell { display: grid; gap: 4px; justify-items: center; line-height: 1.3; }
 .gps-text { color: var(--layout-muted); font-size: 11px; font-family: var(--app-font-mono); }
 .gps-inline { color: var(--layout-muted); font-family: var(--app-font-mono); font-size: 12px; }
 .gps-missing { color: var(--el-color-warning); font-weight: 600; font-family: inherit; }
-.mono { font-family: var(--app-font-mono); font-size: 12px; }
+.mono { font-family: inherit; font-size: inherit; }
 .cell-datetime { font-variant-numeric: tabular-nums; }
 .lines-drawer { display: grid; gap: 12px; }
 .lines-meta { margin-bottom: 0; }

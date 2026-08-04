@@ -75,7 +75,7 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 1072px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="paged"
@@ -83,24 +83,27 @@
           border
           class="report-table"
           row-key="deviceId"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="设备" min-width="180" class-name="col-text">
+          <el-table-column prop="deviceId" label="ID" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+            <template #default="{ row }">
+              <span class="cell-id">{{ row.deviceId }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="设备" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 v-if="canAccessPath('/devices')"
                 type="button"
-                class="device-cell"
+                class="link-cell"
                 @click="goDevice(row.deviceId)"
               >
-                <strong>{{ row.deviceName || row.deviceId }}</strong>
-                <small>{{ row.deviceId }}</small>
+                {{ row.deviceName || '无' }}
               </button>
-              <div v-else class="device-cell">
-                <strong>{{ row.deviceName || row.deviceId }}</strong>
-                <small>{{ row.deviceId }}</small>
-              </div>
+              <span v-else>{{ row.deviceName || '无' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
@@ -111,16 +114,16 @@
             </template>
           </el-table-column>
           <el-table-column prop="orderTotal" label="累计订单" min-width="96" align="center" />
-          <el-table-column label="累计营收" min-width="108" align="right">
+          <el-table-column label="累计营收" min-width="108" align="center">
             <template #default="{ row }">¥{{ (row.revenueTotalCents / 100).toFixed(2) }}</template>
           </el-table-column>
           <el-table-column prop="orderToday" label="今日订单" min-width="96" align="center" />
-          <el-table-column label="今日营收" min-width="108" align="right">
+          <el-table-column label="今日营收" min-width="108" align="center">
             <template #default="{ row }">¥{{ (row.revenueTodayCents / 100).toFixed(2) }}</template>
           </el-table-column>
           <el-table-column prop="sessionTotal" label="累计会话" min-width="96" align="center" />
           <el-table-column prop="sessionActive" label="进行中" min-width="88" align="center" />
-          <el-table-column v-if="canAccessPath('/devices')" label="操作" width="96" class-name="col-action" align="center">
+          <el-table-column v-if="canAccessPath('/devices')" label="操作" width="96" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions
                 :actions="[{ key: 'detail', label: '详情', icon: View, type: 'primary' }]"
@@ -160,6 +163,7 @@ import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 interface DeviceReportRow {
   deviceId: string;
@@ -177,6 +181,7 @@ const route = useRoute();
 const { router, canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
 const rows = ref<DeviceReportRow[]>([]);
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('deviceId');
 const keyword = ref('');
 const deviceId = ref('');
 const onlineFilter = ref('');
@@ -190,12 +195,13 @@ const deviceOptions = computed(() =>
 
 const filtered = computed(() => {
   const kw = keyword.value.trim().toLowerCase();
-  return rows.value.filter((r) => {
+  const list = rows.value.filter((r) => {
     if (deviceId.value && r.deviceId !== deviceId.value) return false;
     if (onlineFilter.value && r.onlineStatus !== onlineFilter.value) return false;
     if (!kw) return true;
     return [r.deviceId, r.deviceName].some((v) => String(v || '').toLowerCase().includes(kw));
   });
+  return sortById(list, 'deviceId');
 });
 
 const paged = computed(() => {
@@ -433,7 +439,7 @@ onUnmounted(() => {
   background: var(--el-fill-color-light);
   position: relative;
   overflow: hidden;
-  text-align: left;
+  text-align: center;
   color: inherit;
   font: inherit;
 }
@@ -480,31 +486,23 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--layout-muted);
 }
-.device-cell {
-  display: grid;
-  gap: 2px;
-  padding: 0;
+.link-cell {
+  appearance: none;
   border: 0;
+  padding: 0;
+  margin: 0;
   background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
+  color: var(--el-color-primary);
   cursor: pointer;
-  line-height: 1.35;
-}
-.device-cell:hover strong {
-  color: var(--app-primary, #0f766e);
-}
-.device-cell strong {
+  font: inherit;
   font-weight: 650;
 }
-.device-cell small {
-  color: var(--layout-muted);
-  font-size: 11px;
+.link-cell:hover {
+  text-decoration: underline;
 }
 .report-table :deep(th.col-text > .cell),
 .report-table :deep(td.col-text > .cell) {
-  text-align: left;
+  text-align: center;
 }
 
 @media (max-width: 640px) {

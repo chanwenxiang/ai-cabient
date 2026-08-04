@@ -15,9 +15,9 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.util.Base64;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
 @Service
 public class CaptchaService {
@@ -48,7 +48,7 @@ public class CaptchaService {
         String code = randomCode();
         String id = UUID.randomUUID().toString().replace("-", "");
         RBucket<String> bucket = redisson.getBucket(KEY_PREFIX + id, StringCodec.INSTANCE);
-        bucket.set(code.toLowerCase(), TTL_SECONDS, TimeUnit.SECONDS);
+        bucket.set(code.toLowerCase(), Duration.ofSeconds(TTL_SECONDS));
         String image = "data:image/png;base64," + renderPngBase64(code);
         return new CaptchaResponse(id, image);
     }

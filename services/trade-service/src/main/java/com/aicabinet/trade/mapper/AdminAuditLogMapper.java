@@ -10,6 +10,19 @@ import org.springframework.data.domain.Pageable;
 @Mapper
 public interface AdminAuditLogMapper extends BaseTradeMapper<AdminAuditLog> {
 
+    default Page<AdminAuditLog> findAllByOrderByLogId(Pageable pageable, boolean asc) {
+        var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<AdminAuditLog>(
+                pageable.getPageNumber() + 1L, pageable.getPageSize());
+        var q = Wrappers.<AdminAuditLog>lambdaQuery();
+        if (asc) {
+            q.orderByAsc(AdminAuditLog::getLogId);
+        } else {
+            q.orderByDesc(AdminAuditLog::getLogId);
+        }
+        var result = selectPage(mpPage, q);
+        return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
+    }
+
     default Page<AdminAuditLog> findAllByOrderByCreatedAtDesc(Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<AdminAuditLog>(
             pageable.getPageNumber() + 1L, pageable.getPageSize());

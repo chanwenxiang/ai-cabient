@@ -43,7 +43,7 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 900px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="filteredRoles"
@@ -52,19 +52,21 @@
           class="report-table"
           table-layout="auto"
           row-key="roleId"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
           <template #empty><el-empty description="暂无角色" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="角色" min-width="160" class-name="col-text">
+          <el-table-column prop="roleId" label="ID" width="80" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
-              <div class="name-cell">
-                <strong>{{ row.roleName || row.roleKey }}</strong>
-                <small>ID {{ row.roleId }}</small>
-              </div>
+              <span class="cell-id">{{ row.roleId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="权限字符" min-width="140" class-name="col-text">
+          <el-table-column label="角色" min-width="140" align="center" class-name="col-text">
+            <template #default="{ row }">{{ row.roleName || row.roleKey || '无' }}</template>
+          </el-table-column>
+          <el-table-column label="权限字符" min-width="140" align="center" class-name="col-text">
             <template #default="{ row }"><span class="cell-id">{{ row.roleKey }}</span></template>
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
@@ -77,10 +79,10 @@
           <el-table-column label="权限数" width="96" align="center">
             <template #default="{ row }">{{ permissionCountLabel(row) }}</template>
           </el-table-column>
-          <el-table-column prop="remark" label="备注" min-width="160" class-name="col-text" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.remark || '-' }}</template>
+          <el-table-column prop="remark" label="备注" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.remark || '无' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="140" class-name="col-action" align="center">
+          <el-table-column label="操作" width="140" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions :actions="roleActions(row)" @action="(k) => onRoleAction(k, row)" />
             </template>
@@ -182,10 +184,12 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { buildPermTree, type PermRow } from '@/utils/rbac-tree';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('roleId');
 
 /** 后端 permissions 为展示文案列表，如 ["12 项权限"] */
 function permissionCountLabel(row: RoleRow): string {
@@ -248,12 +252,13 @@ const form = ref({
 
 const filteredRoles = computed(() => {
   const q = keyword.value.trim().toLowerCase();
-  return roles.value.filter((row) => {
+  const rows = roles.value.filter((row) => {
     if (statusFilter.value && (row.status || 'ACTIVE') !== statusFilter.value) return false;
     if (!q) return true;
     return [row.roleId, row.roleName, row.roleKey, row.remark]
       .some((x) => String(x || '').toLowerCase().includes(q));
   });
+  return sortById(rows);
 });
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
@@ -497,13 +502,6 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.name-cell { display: grid; gap: 2px; line-height: 1.35; }
-.name-cell strong { font-weight: 650; }
-.name-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
-}
 .hidden-input { display: none; }
 .perm-toolbar {
   display: flex;

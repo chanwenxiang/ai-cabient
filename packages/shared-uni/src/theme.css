@@ -1,9 +1,20 @@
 /**
- * 三端统一字体：中文优先，避免 Segoe UI / Roboto / Helvetica 主导观感不一致。
- * 运营后台、商户 H5、消费者 H5 共用同一套变量。
+ * 三端统一字体与移动端壳层令牌。
+ * 运营后台、商户 H5、消费者 H5 共用；各端可在 page 上覆盖 --brand。
  */
 :root {
   --app-font: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei",
     "Noto Sans SC", "Source Han Sans SC", sans-serif;
   --app-font-mono: "SF Mono", "Cascadia Mono", "Consolas", "Sarasa Mono SC", ui-monospace, monospace;
+
+  --text-primary: #0f172a;
+  --text-muted: #64748b;
+  --text-subtle: #94a3b8;
+  --page-bg: #f0fdfa;
+  --card-bg: #ffffff;
+  --card-radius: 22rpx;
+  --card-border: #e2e8f0;
+  --section-gap: 20rpx;
+  --mask-bg: rgba(15, 23, 42, 0.62);
+  --danger: #b91c1c;
 }

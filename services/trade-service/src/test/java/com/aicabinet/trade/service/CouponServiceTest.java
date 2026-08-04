@@ -1,12 +1,12 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.CreateCouponRequest;
+import com.aicabinet.common.dto.UpdateCouponRequest;
 import com.aicabinet.trade.domain.CouponDefinition;
 import com.aicabinet.trade.domain.UserCoupon;
 import com.aicabinet.trade.mapper.CouponDefinitionMapper;
 import com.aicabinet.trade.mapper.UserCouponMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
-import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -29,15 +29,13 @@ class CouponServiceTest {
     @Mock private CouponDefinitionMapper definitionRepository;
     @Mock private UserCouponMapper userCouponRepository;
     @Mock private UserInfoMapper userInfoRepository;
-    @Mock private CabinetOrderMapper orderRepository;
 
     private CouponService couponService;
 
     @BeforeEach
     void setUp() {
         couponService = new CouponService(
-                definitionRepository, userCouponRepository,
-                userInfoRepository, orderRepository);
+                definitionRepository, userCouponRepository, userInfoRepository);
     }
 
     @Test
@@ -52,6 +50,42 @@ class CouponServiceTest {
         assertEquals(500, result.denominationCents());
         assertEquals("ACTIVE", result.status());
         verify(definitionRepository, times(1)).save(any());
+    }
+
+    @Test
+    void updateDefinition_shouldUpdateFieldsAndPreserveStatus() {
+        var def = new CouponDefinition();
+        def.setCouponDefId(1L);
+        def.setCouponName("旧券");
+        def.setCouponType("AMOUNT_OFF");
+        def.setDenominationCents(100);
+        def.setMinSpendCents(0);
+        def.setValidityDays(7);
+        def.setMaxIssueCount(50);
+        def.setStatus("INACTIVE");
+        def.setIssuedCount(10);
+
+        var req = new UpdateCouponRequest("新券", "PERCENT_OFF", 0, 1000, 20, 60, 200, "更新说明");
+        when(definitionRepository.findById(1L)).thenReturn(Optional.of(def));
+        when(definitionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        var result = couponService.updateDefinition(1L, req);
+
+        assertEquals("新券", result.couponName());
+        assertEquals("PERCENT_OFF", result.couponType());
+        assertEquals(20, result.discountPercent());
+        assertEquals("INACTIVE", result.status());
+        assertEquals(10, result.issuedCount());
+        verify(definitionRepository, times(1)).save(def);
+    }
+
+    @Test
+    void updateDefinition_shouldThrow_whenNotFound() {
+        when(definitionRepository.findById(99L)).thenReturn(Optional.empty());
+
+        assertThrows(ResponseStatusException.class,
+                () -> couponService.updateDefinition(99L,
+                        new UpdateCouponRequest("x", "AMOUNT_OFF", 100, 0, null, 30, 100, null)));
     }
 
     @Test

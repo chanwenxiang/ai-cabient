@@ -125,7 +125,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(deviceOpsService.execute(operatorId(request), deviceId, body));
     }
 
-    @RequiresPermissions("ops:device:edit")
+    @RequiresPermissions(value = {"ops:device:create", "ops:device:edit"}, logical = RequiresPermissions.Logical.OR)
     @PostMapping("/devices")
     public ApiResponse<AdminDeviceDto> createDevice(
             HttpServletRequest request,
@@ -364,8 +364,10 @@ public class AdminDashboardController {
     public ApiResponse<PageResult<AdminAuditLogDto>> auditLogs(
             HttpServletRequest request,
             @RequestParam(name = "page", defaultValue = "0") int page,
-            @RequestParam(name = "size", defaultValue = "20") int size) {
-        return ApiResponse.ok(adminService.listAuditLogs(operatorId(request), page, size));
+            @RequestParam(name = "size", defaultValue = "20") int size,
+            @RequestParam(name = "sortDir", defaultValue = "asc") String sortDir) {
+        boolean logIdAsc = !"desc".equalsIgnoreCase(sortDir);
+        return ApiResponse.ok(adminService.listAuditLogs(operatorId(request), page, size, logIdAsc));
     }
 
     @RequiresPermissions(value = {"ops:audit:recent", "ops:audit:list"}, logical = RequiresPermissions.Logical.OR)

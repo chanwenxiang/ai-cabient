@@ -164,7 +164,7 @@ const filteredPoints = computed(() => {
 });
 
 function lifecycleLabel(s?: string) {
-  return lifecycleOptions.find((o) => o.value === s)?.label || s || '-';
+  return lifecycleOptions.find((o) => o.value === s)?.label || s || '未知状态';
 }
 
 function applyFilters() {
@@ -309,7 +309,7 @@ function renderMarkers() {
     const status = isOnline ? '在线' : '离线';
     const locked = p.salesLocked ? '停售' : '可售';
     marker.bindPopup(
-      `<strong>${escapeHtml(p.deviceName || p.deviceId)}</strong><br/>${escapeHtml(p.deviceId)}<br/>${status} · ${locked} · ${escapeHtml(lifecycleLabel(p.lifecycleStatus))}<br/>路线：${escapeHtml(p.routeCode || '-')}<br/>${escapeHtml(p.address || '')}<br/><a href="#" class="map-goto" data-id="${escapeAttr(p.deviceId)}">查看详情</a>`
+      `<strong>${escapeHtml(p.deviceName || p.deviceId)}</strong><br/>${escapeHtml(p.deviceId)}<br/>${status} · ${locked} · ${escapeHtml(lifecycleLabel(p.lifecycleStatus))}<br/>路线：${escapeHtml(p.routeCode || '无')}<br/>${escapeHtml(p.address || '')}<br/><a href="#" class="map-goto" data-id="${escapeAttr(p.deviceId)}">查看详情</a>`
     );
     marker.on('click', () => {
       selectedId.value = p.deviceId;

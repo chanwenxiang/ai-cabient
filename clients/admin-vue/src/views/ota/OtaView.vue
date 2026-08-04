@@ -16,11 +16,11 @@
     </template>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 960px">
+      <div class="table-scroll-inner">
         <el-table v-loading="loading" :data="items" stripe border class="report-table" row-key="releaseId">
           <template #empty><el-empty description="暂无固件版本" /></template>
-          <el-table-column prop="appVersion" label="版本" min-width="120" class-name="col-text" />
-          <el-table-column prop="channel" label="渠道" width="100" class-name="col-text" />
+          <el-table-column prop="appVersion" label="版本" min-width="120" align="center" class-name="col-text" />
+          <el-table-column prop="channel" label="渠道" width="100" align="center" class-name="col-text" />
           <el-table-column prop="status" label="状态" width="100" align="center" />
           <el-table-column label="强制" width="80" align="center">
             <template #default="{ row }">{{ row.mandatory ? '是' : '否' }}</template>
@@ -28,13 +28,13 @@
           <el-table-column label="灰度%" width="80" align="center">
             <template #default="{ row }">{{ row.grayPercent ?? 100 }}</template>
           </el-table-column>
-          <el-table-column prop="minVersion" label="最低版本" width="110" class-name="col-text" />
-          <el-table-column label="发布时间" width="168" class-name="col-text">
+          <el-table-column prop="minVersion" label="最低版本" width="110" align="center" class-name="col-text" />
+          <el-table-column label="发布时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.publishedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="releaseNotes" label="说明" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="releaseNotes" label="说明" min-width="180" show-overflow-tooltip align="center" />
         </el-table>
       </div>
     </div>

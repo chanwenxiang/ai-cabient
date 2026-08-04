@@ -158,7 +158,7 @@ public class CompetitiveGapService {
 
     @Transactional
     public PageResult<DeviceOpsEventDto> listDeviceOpsEvents(Long operatorId, String eventType,
-                                                             int page, int size) {
+                                                             int page, int size, boolean eventIdAsc) {
         permissionService.requireAnyPermission(operatorId, "ops:device-ops:list", "ops:device:list", "ops:sla");
         Set<String> allowed = merchantScopeService.allowedDeviceIds(operatorId);
         if (allowed != null && allowed.isEmpty()) {
@@ -168,7 +168,7 @@ public class CompetitiveGapService {
         ensureNoSalesEvents(allowed);
         var result = deviceOpsEventMapper.search(
                 allowed, eventType, Instant.now().minusSeconds(86400L * 14), Instant.now(),
-                page, Math.min(size, 100));
+                page, Math.min(size, 100), eventIdAsc);
         Set<String> nameIds = result.getRecords().stream()
                 .map(DeviceOpsEvent::getDeviceId)
                 .filter(Objects::nonNull)

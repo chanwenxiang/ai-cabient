@@ -37,6 +37,7 @@ public class VisionServiceHealthIndicator implements HealthIndicator {
                 }
                 up.withDetail("recognizerAvailable", response.recognizerAvailable());
                 up.withDetail("mockEnabled", response.mockEnabled());
+                up.withDetail("apiKeyConfigured", visionApiProperties.isConfigured());
                 return up.build();
             }
             return Health.down().withDetail("reason", "vision response not ok").build();

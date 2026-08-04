@@ -4,14 +4,10 @@ import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.support.ApiMessages;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 @Component
 public class WeChatPayNotifyService {
-
-    private static final Logger log = LoggerFactory.getLogger(WeChatPayNotifyService.class);
 
     private final WeChatPayProperties properties;
     private final WeChatPayV3Client v3Client;

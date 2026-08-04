@@ -1,8 +1,6 @@
 package com.aicabinet.trade.payment;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -10,8 +8,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class WeChatPayClient {
-
-    private static final Logger log = LoggerFactory.getLogger(WeChatPayClient.class);
 
     private final WeChatPayV3Client v3Client;
 

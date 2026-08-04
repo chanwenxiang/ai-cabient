@@ -2,6 +2,34 @@ import { displayLabel } from '@aicabinet/shared-dict';
 
 type DateInput = string | number | Date | null | undefined;
 
+/** 小程序/H5 空值文案（对齐运营后台「无 / 暂无」语义，避免裸 `-`） */
+export const EMPTY = {
+  none: '无',
+  text: '暂无',
+  device: '无柜机',
+  session: '无会话',
+  order: '无单号',
+  money: '暂无',
+  date: '暂无',
+  status: '未知状态',
+  channel: '未知渠道',
+  batch: '无批次',
+  expiry: '未填',
+  reason: '暂无说明',
+} as const;
+
+export type EmptyKind = keyof typeof EMPTY;
+
+/** 空值展示：null / 空白 → 语义文案；有值则原样字符串化 */
+export function emptyDisplay(
+  value: string | number | null | undefined,
+  kind: EmptyKind = 'text'
+): string {
+  if (value == null) return EMPTY[kind];
+  const s = String(value).trim();
+  return s ? s : EMPTY[kind];
+}
+
 function parseDate(value: DateInput): Date | null {
   if (value == null || value === '') return null;
   const date = value instanceof Date ? value : new Date(value);
@@ -17,7 +45,7 @@ function part(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTyp
 }
 
 /** 完整时间：YYYY-MM-DD HH:mm:ss（东八区） */
-export function formatDateTime(value?: DateInput, fallback = '-'): string {
+export function formatDateTime(value?: DateInput, fallback: string = EMPTY.none): string {
   const date = parseDate(value ?? null);
   if (!date) return value != null && value !== '' ? String(value) : fallback;
   const parts = dateParts(date, {
@@ -32,7 +60,7 @@ export function formatDateTime(value?: DateInput, fallback = '-'): string {
 }
 
 /** 列表常用：YYYY-MM-DD HH:mm（东八区） */
-export function formatDateTimeMinute(value?: DateInput, fallback = '-'): string {
+export function formatDateTimeMinute(value?: DateInput, fallback: string = EMPTY.date): string {
   const date = parseDate(value ?? null);
   if (!date) return value != null && value !== '' ? String(value) : fallback;
   const parts = dateParts(date, {
@@ -46,15 +74,15 @@ export function formatDateTimeMinute(value?: DateInput, fallback = '-'): string 
 }
 
 /** 紧凑时间：MM/DD HH:mm（东八区），适合移动端列表 */
-export function formatDateTimeShort(value?: DateInput, fallback = '-'): string {
+export function formatDateTimeShort(value?: DateInput, fallback: string = EMPTY.date): string {
   const date = parseDate(value ?? null);
   if (!date) return value != null && value !== '' ? String(value) : fallback;
   const parts = dateParts(date, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
   return `${part(parts, 'month')}/${part(parts, 'day')} ${part(parts, 'hour')}:${part(parts, 'minute')}`;
 }
 
-export function fmtMoney(cents?: number) {
-  if (cents == null) return '-';
+export function fmtMoney(cents?: number | null, empty: string = EMPTY.money) {
+  if (cents == null) return empty;
   return '¥' + (cents / 100).toFixed(2);
 }
 

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -31,7 +31,7 @@
     </div>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 1080px">
+      <div class="table-scroll-inner">
         <el-table v-loading="loading" :data="items" stripe border class="report-table" row-key="id">
           <template #empty>
             <el-empty description="当前无 FAIL 记录，点击「立即巡检」可再跑一轮" />
@@ -41,7 +41,7 @@
               <el-tag size="small" :type="typeTag(row.checkType)">{{ typeLabel(row.checkType) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="键" min-width="200" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="键" min-width="200" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <el-button
                 v-if="keyLink(row)"
@@ -55,16 +55,16 @@
               <code v-else class="mono">{{ row.checkKey }}</code>
             </template>
           </el-table-column>
-          <el-table-column prop="tableName" label="表" width="140" class-name="col-text" show-overflow-tooltip />
-          <el-table-column label="期望" min-width="100" align="right" class-name="col-text">
+          <el-table-column prop="tableName" label="表" width="140" align="center" class-name="col-text" show-overflow-tooltip />
+          <el-table-column label="期望" min-width="100" align="center" class-name="col-text">
             <template #default="{ row }">{{ row.expectedValue }}</template>
           </el-table-column>
-          <el-table-column label="实际" min-width="100" align="right" class-name="col-text">
+          <el-table-column label="实际" min-width="100" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="is-mismatch">{{ row.actualValue }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="说明" min-width="160" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="说明" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <span v-if="row.errorMessage" class="err-msg">{{ row.errorMessage }}</span>
               <span v-else class="muted">—</span>

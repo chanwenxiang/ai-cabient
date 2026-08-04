@@ -37,35 +37,49 @@
         </el-form>
 
         <div class="table-scroll">
-          <el-table :data="managers" v-loading="loading" stripe border class="report-table">
-            <el-table-column prop="managerId" label="ID" width="70" />
-            <el-table-column prop="managerName" label="姓名" width="110" />
-            <el-table-column prop="phone" label="手机" width="120" />
-            <el-table-column prop="orgName" label="组织" min-width="110" show-overflow-tooltip />
-            <el-table-column prop="userId" label="绑定用户" width="110" />
-            <el-table-column prop="wxOpenid" label="openid" min-width="140" show-overflow-tooltip />
-            <el-table-column label="余额(元)" width="100" align="right">
+          <el-table
+            :data="managers"
+            v-loading="loading"
+            stripe
+            border
+            class="report-table"
+            :default-sort="idDefaultSort"
+            @sort-change="onIdSortChange"
+          >
+            <el-table-column prop="managerId" label="ID" width="80" align="center" class-name="col-text" sortable="custom">
+              <template #default="{ row }">
+                <span class="cell-id">{{ row.managerId }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="姓名" width="110" align="center" class-name="col-text">
+              <template #default="{ row }">{{ row.managerName || '无' }}</template>
+            </el-table-column>
+            <el-table-column prop="phone" label="手机" width="120" align="center" />
+            <el-table-column prop="orgName" label="组织" min-width="110" show-overflow-tooltip align="center" />
+            <el-table-column prop="userId" label="绑定用户" width="110" align="center" />
+            <el-table-column prop="wxOpenid" label="openid" min-width="140" show-overflow-tooltip align="center" />
+            <el-table-column label="余额(元)" width="100" align="center">
               <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
             </el-table-column>
-            <el-table-column label="冻结(元)" width="100" align="right">
+            <el-table-column label="冻结(元)" width="100" align="center">
               <template #default="{ row }">{{ yuan(row.frozenCents) }}</template>
             </el-table-column>
-            <el-table-column label="绑柜" min-width="160" show-overflow-tooltip>
-              <template #default="{ row }">{{ (row.deviceIds || []).join(', ') || '-' }}</template>
+            <el-table-column label="绑柜" min-width="160" show-overflow-tooltip align="center">
+              <template #default="{ row }">{{ (row.deviceIds || []).join(', ') || '无' }}</template>
             </el-table-column>
-            <el-table-column prop="commissionRateBps" label="佣金bps" width="90" />
-            <el-table-column prop="commissionFixedCents" label="固定分/单" width="100" />
-            <el-table-column prop="status" label="状态" width="90">
+            <el-table-column prop="commissionRateBps" label="佣金bps" width="90" align="center" />
+            <el-table-column prop="commissionFixedCents" label="固定分/单" width="100" align="center" />
+            <el-table-column prop="status" label="状态" width="90" align="center">
               <template #default="{ row }">
                 <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
-                  {{ dictLabel('line_manager_status', row.status) || row.status || '-' }}
+                  {{ dictLabel('line_manager_status', row.status) || row.status || '未知状态' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="创建时间" width="170">
+            <el-table-column label="创建时间" width="170" align="center">
               <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="300" fixed="right" class-name="col-action">
+            <el-table-column label="操作" width="300" fixed="right" align="center" class-name="col-action">
               <template #default="{ row }">
                 <el-button v-hasPermi="['ops:line-manager:edit']" link type="primary" @click="openBind(row)">绑柜</el-button>
                 <el-button v-hasPermi="['ops:line-manager:edit']" link @click="adjust(row)">调账</el-button>
@@ -105,27 +119,27 @@
 
         <div class="table-scroll">
           <el-table :data="withdraws" v-loading="loading" stripe border class="report-table">
-            <el-table-column prop="requestId" label="单号" width="80" />
-            <el-table-column prop="requestNo" label="幂等号" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="managerName" label="线长" width="100" />
-            <el-table-column prop="phone" label="手机" width="120" />
-            <el-table-column label="金额(元)" width="100" align="right">
+            <el-table-column prop="requestId" label="单号" width="80" align="center" />
+            <el-table-column prop="requestNo" label="幂等号" min-width="160" show-overflow-tooltip align="center" />
+            <el-table-column prop="managerName" label="线长" width="100" align="center" />
+            <el-table-column prop="phone" label="手机" width="120" align="center" />
+            <el-table-column label="金额(元)" width="100" align="center">
               <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
             </el-table-column>
-            <el-table-column prop="status" label="状态" width="120">
+            <el-table-column prop="status" label="状态" width="120" align="center">
               <template #default="{ row }">{{ withdrawStatusLabel(row.status) }}</template>
             </el-table-column>
-            <el-table-column prop="payChannel" label="通道" width="120" />
-            <el-table-column prop="payoutRef" label="回执" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="payoutMessage" label="打款说明" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="reviewRemark" label="审核备注" min-width="120" show-overflow-tooltip />
-            <el-table-column label="申请时间" width="170">
+            <el-table-column prop="payChannel" label="通道" width="120" align="center" />
+            <el-table-column prop="payoutRef" label="回执" min-width="140" show-overflow-tooltip align="center" />
+            <el-table-column prop="payoutMessage" label="打款说明" min-width="140" show-overflow-tooltip align="center" />
+            <el-table-column prop="reviewRemark" label="审核备注" min-width="120" show-overflow-tooltip align="center" />
+            <el-table-column label="申请时间" width="170" align="center">
               <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
-            <el-table-column label="打款时间" width="170">
+            <el-table-column label="打款时间" width="170" align="center">
               <template #default="{ row }">{{ formatDateTime(row.paidAt) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="200" fixed="right" class-name="col-action">
+            <el-table-column label="操作" width="200" fixed="right" align="center" class-name="col-action">
               <template #default="{ row }">
                 <template v-if="row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:line-withdraw:review')">
                   <el-button link type="success" @click="review(row, true)">通过并打款</el-button>
@@ -197,19 +211,19 @@
 
     <el-drawer v-model="ledgerVisible" title="钱包流水" size="520px">
       <el-table :data="ledgers" size="small" stripe>
-        <el-table-column prop="entryType" label="类型" width="130" />
-        <el-table-column label="变动(元)" width="100" align="right">
+        <el-table-column prop="entryType" label="类型" width="130" align="center" />
+        <el-table-column label="变动(元)" width="100" align="center">
           <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
         </el-table-column>
-        <el-table-column label="余额后" width="100" align="right">
+        <el-table-column label="余额后" width="100" align="center">
           <template #default="{ row }">{{ yuan(row.balanceAfter) }}</template>
         </el-table-column>
-        <el-table-column label="冻结后" width="100" align="right">
+        <el-table-column label="冻结后" width="100" align="center">
           <template #default="{ row }">{{ yuan(row.frozenAfter) }}</template>
         </el-table-column>
-        <el-table-column prop="refType" label="关联" width="110" />
-        <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip />
-        <el-table-column label="时间" width="160">
+        <el-table-column prop="refType" label="关联" width="110" align="center" />
+        <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip align="center" />
+        <el-table-column label="时间" width="160" align="center">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
       </el-table>
@@ -225,6 +239,7 @@ import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 interface Manager {
   managerId: number;
@@ -266,6 +281,12 @@ const auth = useAuthStore();
 const tab = ref('managers');
 const loading = ref(false);
 const saving = ref(false);
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('managerId', {
+  onChange: () => {
+    managers.value = sortById([...managers.value]);
+  }
+});
+
 const managers = ref<Manager[]>([]);
 const mPage = ref(1);
 const mSize = ref(20);
@@ -300,7 +321,7 @@ function yuan(cents?: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
 }
 function withdrawStatusLabel(s?: string) {
-  return dictLabel('line_withdraw_status', s) || s || '-';
+  return dictLabel('line_withdraw_status', s) || s || '未知状态';
 }
 
 async function loadDevices() {
@@ -325,7 +346,7 @@ async function loadManagers() {
       `/api/v2/ops/admin/line-managers?${q}`,
       'GET'
     );
-    managers.value = res.items || [];
+    managers.value = sortById(res.items || []);
     mTotal.value = Number(res.total || 0);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');

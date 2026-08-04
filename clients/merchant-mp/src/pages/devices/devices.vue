@@ -58,7 +58,12 @@
           </text>
         </view>
       </view>
-      <view v-if="!visibleDevices.length" class="card empty">{{ emptyHint }}</view>
+      <empty-state
+        v-if="!visibleDevices.length"
+        icon="柜"
+        :title="emptyHint"
+        hint="可切换筛选或扫码绑定常驻柜"
+      />
     </view>
   </view>
 </template>
@@ -66,6 +71,7 @@
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
+import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';

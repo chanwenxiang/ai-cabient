@@ -11,8 +11,14 @@ import java.util.List;
 
 @Mapper
 public interface DeviceOpsEventMapper extends BaseTradeMapper<DeviceOpsEvent> {
-    default Page<DeviceOpsEvent> search(Collection<String> deviceIds, String eventType, Instant from, Instant to, int page, int size) {
-        var q = Wrappers.<DeviceOpsEvent>lambdaQuery().orderByDesc(DeviceOpsEvent::getCreatedAt);
+    default Page<DeviceOpsEvent> search(Collection<String> deviceIds, String eventType, Instant from, Instant to,
+                                        int page, int size, boolean eventIdAsc) {
+        var q = Wrappers.<DeviceOpsEvent>lambdaQuery();
+        if (eventIdAsc) {
+            q.orderByAsc(DeviceOpsEvent::getEventId);
+        } else {
+            q.orderByDesc(DeviceOpsEvent::getEventId);
+        }
         if (deviceIds != null && !deviceIds.isEmpty()) {
             q.in(DeviceOpsEvent::getDeviceId, deviceIds);
         }

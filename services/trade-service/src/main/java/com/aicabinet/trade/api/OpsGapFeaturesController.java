@@ -152,8 +152,10 @@ public class OpsGapFeaturesController {
             HttpServletRequest request,
             @RequestParam(required = false) String eventType,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.ok(gapService.listDeviceOpsEvents(operatorId(request), eventType, page, size));
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "asc") String sortDir) {
+        boolean eventIdAsc = !"desc".equalsIgnoreCase(sortDir);
+        return ApiResponse.ok(gapService.listDeviceOpsEvents(operatorId(request), eventType, page, size, eventIdAsc));
     }
 
     @RequiresPermissions("ops:device:list")

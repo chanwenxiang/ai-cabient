@@ -40,7 +40,8 @@
             @click="batchLifecycle('UNDEPLOY')"
           >批量未投放</el-button>
           <el-button v-hasPermi="['ops:device:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button type="primary" :icon="Refresh" :loading="loading" @click="load(false)">刷新</el-button>
+          <el-button v-hasPermi="['ops:device:create']" type="primary" @click="openCreate">新建设备</el-button>
+          <el-button :icon="Refresh" :loading="loading" @click="load(false)">刷新</el-button>
         </div>
       </div>
     </template>
@@ -134,7 +135,7 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 1080px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="devices"
@@ -142,19 +143,25 @@
           border
           class="report-table"
           row-key="deviceId"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
           <template #empty><el-empty description="暂无设备" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="设备" min-width="180" class-name="col-text">
+          <el-table-column prop="deviceId" label="ID" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
             <template #default="{ row }">
-              <button type="button" class="device-cell" @click="goDetail(row)">
-                <strong>{{ row.deviceName || row.deviceId }}</strong>
-                <small>{{ row.deviceId }}</small>
+              <span class="cell-id">{{ row.deviceId }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="设备" min-width="140" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <button type="button" class="link-cell" @click="goDetail(row)">
+                {{ row.deviceName || '无' }}
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="类型" min-width="100" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="类型" min-width="100" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ dictLabel('device_type', row.deviceType) }}</template>
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
@@ -176,24 +183,19 @@
               <el-tag size="small" effect="plain">{{ lifecycleLabel(row.lifecycleStatus) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="IMEI" min-width="120" class-name="col-text" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.imei || '-' }}</template>
+          <el-table-column label="IMEI" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.imei || '无' }}</template>
           </el-table-column>
-          <el-table-column label="资产方" min-width="100" class-name="col-text" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.assetOwner || '-' }}</template>
+          <el-table-column label="资产方" min-width="100" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.assetOwner || '无' }}</template>
           </el-table-column>
-          <el-table-column label="路线" width="90" class-name="col-text" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.routeCode || '-' }}</template>
+          <el-table-column label="路线" width="90" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.routeCode || '无' }}</template>
           </el-table-column>
-          <el-table-column label="商户" min-width="160" class-name="col-text" show-overflow-tooltip>
-            <template #default="{ row }">
-              <div class="master-data-cell">
-                <strong>{{ row.merchantName || row.merchantId || '-' }}</strong>
-                <small v-if="row.merchantId">{{ row.merchantId }}</small>
-              </div>
-            </template>
+          <el-table-column label="商户" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.merchantName || row.merchantId || '无' }}</template>
           </el-table-column>
-          <el-table-column label="退款方式" min-width="168" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="退款方式" min-width="168" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <el-tag :type="effectivePolicy(row) === 'DISPUTE_ONLY' ? 'warning' : 'success'" size="small">
                 {{ policyLabel(effectivePolicy(row)) }}
@@ -201,23 +203,23 @@
               <span v-if="!row.refundPolicy" class="inherit-hint">全局默认</span>
             </template>
           </el-table-column>
-          <el-table-column label="最近会话" min-width="140" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="最近会话" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <span v-if="row.activeSessionId" class="mono">{{ row.activeSessionId }}</span>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
           <el-table-column label="会话状态" min-width="100" align="center">
             <template #default="{ row }">
-              {{ row.activeSessionState ? dictLabel('session_state', row.activeSessionState) : '-' }}
+              {{ row.activeSessionState ? dictLabel('session_state', row.activeSessionState) : '无' }}
             </template>
           </el-table-column>
-          <el-table-column label="更新时间" min-width="168" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="更新时间" min-width="168" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="140" class-name="col-action" align="center">
+          <el-table-column label="操作" width="140" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions
                 :actions="deviceActions(row)"
@@ -241,6 +243,47 @@
         @size-change="onSizeChange"
       />
     </div>
+
+    <el-dialog v-model="createVisible" title="新建设备" width="480px" destroy-on-close append-to-body align-center>
+      <el-form label-width="88px">
+        <el-form-item label="设备编号" required>
+          <el-input v-model="createForm.deviceId" placeholder="例如 CAB-001" />
+        </el-form-item>
+        <el-form-item label="设备名称">
+          <el-input v-model="createForm.deviceName" placeholder="可选" />
+        </el-form-item>
+        <el-form-item label="设备类型">
+          <el-select v-model="createForm.deviceType" clearable placeholder="可选" style="width: 100%">
+            <el-option
+              v-for="item in dictOptions('device_type')"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="商户">
+          <el-select
+            v-model="createForm.merchantId"
+            filterable
+            clearable
+            placeholder="可选"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="m in merchantOptions"
+              :key="m.merchantId"
+              :label="`${m.merchantName || m.merchantId}（${m.merchantId}）`"
+              :value="m.merchantId"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="createVisible = false">取消</el-button>
+        <el-button type="primary" :loading="createSaving" @click="saveCreate">创建</el-button>
+      </template>
+    </el-dialog>
 
     <el-dialog
       v-model="policyVisible"
@@ -289,8 +332,14 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { DeviceInfo, PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 type BoardTab = 'ALL' | 'ONLINE' | 'OFFLINE' | 'ON_SALE' | 'LOCKED';
+
+interface MerchantOption {
+  merchantId: string;
+  merchantName?: string;
+}
 
 const router = useRouter();
 const route = useRoute();
@@ -302,12 +351,26 @@ const coopFilter = ref('');
 const routeFilter = ref('');
 const boardTab = ref<BoardTab>('ALL');
 const devices = ref<DeviceInfo[]>([]);
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('deviceId', {
+  onChange: () => {
+    devices.value = sortById([...devices.value], 'deviceId');
+  }
+});
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const batchCmdLoading = ref('');
 const policyVisible = ref(false);
 const policySaving = ref(false);
+const createVisible = ref(false);
+const createSaving = ref(false);
+const merchantOptions = ref<MerchantOption[]>([]);
+const createForm = reactive({
+  deviceId: '',
+  deviceName: '',
+  deviceType: '',
+  merchantId: ''
+});
 const boardCounts = reactive({
   ALL: 0,
   ONLINE: 0,
@@ -408,7 +471,7 @@ const { onExport } = useListCsv({
       row.merchantName,
       `${policyLabel(effectivePolicy(row))}${row.refundPolicy ? '' : '(全局)'}`,
       row.activeSessionId,
-      row.activeSessionState ? dictLabel('session_state', row.activeSessionState) : '-',
+      row.activeSessionState ? dictLabel('session_state', row.activeSessionState) : '无',
       formatDateTime(row.updatedAt)
     ])
 });
@@ -632,7 +695,7 @@ async function load(showToast = false) {
     if (filters.online) q.set('online', filters.online);
     if (filters.salesLocked) q.set('salesLocked', filters.salesLocked);
     const data = await api.request<PageResult<DeviceInfo>>(`/api/v2/ops/admin/devices?${q}`, 'GET');
-    devices.value = data.items || [];
+    devices.value = sortById(data.items || [], 'deviceId');
     total.value = data.total || 0;
     if (boardTab.value in boardCounts) {
       boardCounts[boardTab.value] = data.total || 0;
@@ -644,6 +707,47 @@ async function load(showToast = false) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadMerchants() {
+  try {
+    merchantOptions.value = await api.request<MerchantOption[]>('/api/v2/ops/admin/merchants', 'GET');
+  } catch {
+    merchantOptions.value = [];
+  }
+}
+
+function openCreate() {
+  createForm.deviceId = '';
+  createForm.deviceName = '';
+  createForm.deviceType = '';
+  createForm.merchantId = '';
+  createVisible.value = true;
+  void loadMerchants();
+}
+
+async function saveCreate() {
+  const deviceId = createForm.deviceId.trim();
+  if (!deviceId) {
+    ElMessage.warning('请填写设备编号');
+    return;
+  }
+  createSaving.value = true;
+  try {
+    await api.request('/api/v2/ops/admin/devices', 'POST', {
+      deviceId,
+      deviceName: createForm.deviceName.trim() || undefined,
+      deviceType: createForm.deviceType || undefined,
+      merchantId: createForm.merchantId || undefined
+    });
+    ElMessage.success('设备已创建');
+    createVisible.value = false;
+    await load(false);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '创建失败');
+  } finally {
+    createSaving.value = false;
   }
 }
 
@@ -750,7 +854,7 @@ onActivated(() => {
   border-radius: 8px;
   background: var(--el-fill-color-blank);
   padding: 10px 12px;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   display: grid;
   gap: 2px;
@@ -766,17 +870,17 @@ onActivated(() => {
 }
 .ops-board__tile.active {
   border-color: var(--el-color-primary);
-  background: color-mix(in srgb, var(--el-color-primary) 8%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--el-color-primary) 35%, transparent);
+  background: color-mix(in srgb, var(--el-color-primary) 8%, var(--layout-card, #fff));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--el-color-primary) 35%, var(--layout-border));
 }
 .ops-board__tile.warn:not(.active) {
   border-color: color-mix(in srgb, var(--el-color-warning) 45%, var(--el-border-color-lighter));
-  background: color-mix(in srgb, var(--el-color-warning) 8%, transparent);
+  background: color-mix(in srgb, var(--el-color-warning) 8%, var(--layout-card, #fff));
 }
 .ops-board__tile.warn.active {
   border-color: var(--el-color-warning);
-  background: color-mix(in srgb, var(--el-color-warning) 12%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--el-color-warning) 40%, transparent);
+  background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--el-color-warning) 40%, var(--layout-border));
 }
 .ops-board__label {
   font-size: 12px;
@@ -798,44 +902,19 @@ onActivated(() => {
 .status-tabs {
   margin: 0 0 10px;
 }
-.device-cell {
+.link-cell {
   appearance: none;
   border: 0;
   padding: 0;
   margin: 0;
   background: transparent;
-  display: grid;
-  gap: 2px;
-  text-align: left;
-  cursor: pointer;
-  color: inherit;
-  font: inherit;
-  line-height: 1.35;
-}
-.device-cell strong {
   color: var(--el-color-primary);
+  cursor: pointer;
+  font: inherit;
   font-weight: 650;
 }
-.device-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
-}
-.device-cell:hover strong {
+.link-cell:hover {
   text-decoration: underline;
-}
-.master-data-cell {
-  display: grid;
-  gap: 2px;
-  line-height: 1.35;
-}
-.master-data-cell strong {
-  font-weight: 650;
-}
-.master-data-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
 }
 .inherit-hint {
   margin-left: 6px;
@@ -849,8 +928,8 @@ onActivated(() => {
   line-height: 1.5;
 }
 .mono {
-  font-family: var(--app-font-mono);
-  font-size: 12px;
+  font-family: inherit;
+  font-size: inherit;
 }
 .muted {
   color: var(--el-text-color-secondary);

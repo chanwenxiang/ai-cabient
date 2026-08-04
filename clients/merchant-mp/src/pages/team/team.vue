@@ -28,7 +28,7 @@
         <view class="avatar">{{ (u.displayName || u.phoneNumber || '员').slice(0, 1) }}</view>
         <view class="meta">
           <text class="name">{{ u.displayName || u.phoneNumber || ('用户 ' + u.userId) }}</text>
-          <text class="sub">{{ u.phoneNumber || '—' }} · {{ u.roleName || roleLabel(u.roleKey) }}</text>
+          <text class="sub">{{ u.phoneNumber || '无手机号' }} · {{ u.roleName || roleLabel(u.roleKey) }}</text>
           <text v-if="u.status === 'INACTIVE'" class="inactive">已停用</text>
         </view>
         <text v-if="u.self" class="self-tag">我</text>

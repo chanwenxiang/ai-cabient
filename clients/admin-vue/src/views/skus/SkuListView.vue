@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -101,7 +101,7 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 1180px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="paged"
@@ -110,39 +110,45 @@
           table-layout="auto"
           row-key="skuId"
           class="report-table sku-table"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
           <template #empty>
             <el-empty :description="skuEmptyText" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="商品" min-width="180" class-name="col-text">
+          <el-table-column prop="skuId" label="ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+            <template #default="{ row }">
+              <span class="cell-id">{{ row.skuId }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="商品" min-width="140" align="center" class-name="col-text">
             <template #default="{ row }">
               <button
                 type="button"
-                class="sku-cell"
+                class="link-cell"
                 @click="canEnroll ? openEnroll(row) : ElMessage.info('当前账号无商品编辑权限')"
               >
-                <strong>{{ row.skuName || row.skuId }}</strong>
-                <small>{{ row.skuId }}</small>
+                {{ row.skuName || '无' }}
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="基准价" width="96" align="right" class-name="col-money">
+          <el-table-column label="基准价" width="96" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ ((row.priceCents || 0) / 100).toFixed(2) }}</template>
           </el-table-column>
-          <el-table-column label="成本" width="96" align="right" class-name="col-money">
+          <el-table-column label="成本" width="96" align="center" class-name="col-money">
             <template #default="{ row }">
-              {{ row.purchaseCostCents != null ? `¥${(row.purchaseCostCents / 100).toFixed(2)}` : '-' }}
+              {{ row.purchaseCostCents != null ? `¥${(row.purchaseCostCents / 100).toFixed(2)}` : '无' }}
             </template>
           </el-table-column>
-          <el-table-column prop="category" label="类目" min-width="100" class-name="col-text" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.category || '-' }}</template>
+          <el-table-column prop="category" label="类目" min-width="100" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.category || '无' }}</template>
           </el-table-column>
-          <el-table-column label="端侧类名" min-width="130" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="端侧类名" min-width="130" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <span v-if="row.yoloClassName" class="cell-id">{{ row.yoloClassName }}</span>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
           <el-table-column label="识别状态" width="100" align="center">
@@ -175,7 +181,7 @@
           <el-table-column label="检测阈值" width="96" align="center">
             <template #default="{ row }">{{ formatConfidence(row.detectionMinConfidence ?? 0.5) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="168" class-name="col-action" align="center">
+          <el-table-column label="操作" width="200" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions
                 :actions="skuActions(row)"
@@ -271,9 +277,9 @@
       </el-form>
       <el-alert v-if="testPreview?.hint" :title="testPreview.hint" :type="testPreview.needReview ? 'warning' : 'success'" show-icon />
       <el-table v-if="testPreview?.items?.length" :data="testPreview.items" size="small" stripe class="test-table">
-        <el-table-column prop="skuName" label="商品" />
-        <el-table-column prop="quantity" label="数量" width="72" />
-        <el-table-column label="置信度" width="88">
+        <el-table-column prop="skuName" label="商品" align="center" />
+        <el-table-column prop="quantity" label="数量" width="72" align="center" />
+        <el-table-column label="置信度" width="88" align="center">
           <template #default="{ row }">{{ Math.round((row.confidence || 0) * 100) }}%</template>
         </el-table-column>
       </el-table>
@@ -303,6 +309,7 @@ import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import type {
   DevRecognitionPreviewDto,
   SkuCatalog,
@@ -315,6 +322,7 @@ import type {
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('skuId');
 /** 入驻/转生产需同时具备商品编辑与识别映射编辑 */
 const canEnroll = computed(
   () => auth.hasPerm('ops:sku:edit') && auth.hasPerm('ops:vision:edit')
@@ -353,13 +361,14 @@ const page = ref(1);
 const size = ref(20);
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();
-  return items.value.filter((row) => {
+  const rows = items.value.filter((row) => {
     if (saleTab.value === 'ACTIVE' && row.status !== 'ACTIVE') return false;
     if (enrollmentFilter.value && row.visionEnrollmentStatus !== enrollmentFilter.value) return false;
     if (!q) return true;
     return [row.skuId, row.skuName, row.yoloClassName, row.category, row.status]
       .some((x) => String(x || '').toLowerCase().includes(q));
   });
+  return sortById(rows);
 });
 const skuEmptyText = computed(() => {
   if (saleTab.value === 'ACTIVE') {
@@ -573,7 +582,7 @@ function enrollmentLabel(status?: string) {
 function skuStatusLabel(status?: string) {
   if (status === 'ACTIVE') return '上架';
   if (status === 'INACTIVE') return '下架';
-  return displayLabel('sku_status', status, '—');
+  return displayLabel('sku_status', status, '未知状态');
 }
 
 function enrollmentTagType(status?: string) {
@@ -1087,27 +1096,18 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.sku-cell {
+.link-cell {
   appearance: none;
   border: 0;
   padding: 0;
   margin: 0;
   background: transparent;
-  display: grid;
-  gap: 2px;
-  text-align: left;
+  color: var(--el-color-primary);
   cursor: pointer;
-  color: inherit;
   font: inherit;
-  line-height: 1.35;
+  font-weight: 650;
 }
-.sku-cell strong { color: var(--el-color-primary); font-weight: 650; }
-.sku-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
-}
-.sku-cell:hover strong { text-decoration: underline; }
+.link-cell:hover { text-decoration: underline; }
 .muted { color: var(--el-text-color-secondary); }
 .sku-table { font-size: 14px; }
 .inline-field {

@@ -55,9 +55,9 @@ const error = ref('');
 let loadSeq = 0;
 const analytics = ref<MerchantAnalyticsOverview>({ days: 30, revenueCents: 0, cogsCents: 0, grossMarginCents: 0, writeOffCostCents: 0, topSkus: [] });
 const settlement = ref<MerchantSettlementOverview>({ pendingAmountCents: 0, pendingSplitCount: 0, settledMonthCents: 0, failedSplitCount: 0 });
-const marginRate = computed(() => analytics.value.revenueCents ? `${(analytics.value.grossMarginCents / analytics.value.revenueCents * 100).toFixed(1)}%` : '—');
+const marginRate = computed(() => analytics.value.revenueCents ? `${(analytics.value.grossMarginCents / analytics.value.revenueCents * 100).toFixed(1)}%` : '暂无');
 const money = (cents = 0) => `¥${(cents / 100).toFixed(2)}`;
-function skuMarginRate(sku: MerchantSkuSales) { return sku.revenueCents ? `${(sku.grossMarginCents / sku.revenueCents * 100).toFixed(1)}%` : '—'; }
+function skuMarginRate(sku: MerchantSkuSales) { return sku.revenueCents ? `${(sku.grossMarginCents / sku.revenueCents * 100).toFixed(1)}%` : '暂无'; }
 
 async function ensureAccess() {
   if (!getToken()) {

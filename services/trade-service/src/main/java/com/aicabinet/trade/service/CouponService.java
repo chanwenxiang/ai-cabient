@@ -26,16 +26,13 @@ public class CouponService {
     private final CouponDefinitionMapper definitionRepository;
     private final UserCouponMapper userCouponRepository;
     private final UserInfoMapper userInfoRepository;
-    private final CabinetOrderMapper orderRepository;
 
     public CouponService(CouponDefinitionMapper definitionRepository,
                          UserCouponMapper userCouponRepository,
-                         UserInfoMapper userInfoRepository,
-                         CabinetOrderMapper orderRepository) {
+                         UserInfoMapper userInfoRepository) {
         this.definitionRepository = definitionRepository;
         this.userCouponRepository = userCouponRepository;
         this.userInfoRepository = userInfoRepository;
-        this.orderRepository = orderRepository;
     }
 
     // ── 优惠券定义管理 ─────────────────────────────────
@@ -54,6 +51,23 @@ public class CouponService {
         def.setStatus("ACTIVE");
         definitionRepository.save(def);
         log.info("coupon definition created id={} name={}", def.getCouponDefId(), def.getCouponName());
+        return toDefDto(def);
+    }
+
+    @Transactional
+    public CouponDefinitionDto updateDefinition(Long couponDefId, UpdateCouponRequest request) {
+        CouponDefinition def = definitionRepository.findById(couponDefId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券定义不存在"));
+        def.setCouponName(request.couponName());
+        def.setCouponType(request.couponType());
+        def.setDenominationCents(request.denominationCents());
+        def.setMinSpendCents(request.minSpendCents());
+        def.setDiscountPercent(request.discountPercent());
+        def.setValidityDays(request.validityDays());
+        def.setMaxIssueCount(request.maxIssueCount());
+        def.setDescription(request.description());
+        definitionRepository.save(def);
+        log.info("coupon definition updated id={} name={}", def.getCouponDefId(), def.getCouponName());
         return toDefDto(def);
     }
 

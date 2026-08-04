@@ -73,7 +73,6 @@ public class MerchantPortalService {
     private final DeviceSkuInventoryMapper inventoryRepository;
     private final PullOffTaskMapper pullOffTaskRepository;
     private final DeviceSlotService deviceSlotService;
-    private final SettlementService settlementService;
     private final AdminAuditService auditService;
     private final PasswordEncoder passwordEncoder;
     private final DeviceTemperatureReadingMapper temperatureReadingRepository;
@@ -106,7 +105,6 @@ public class MerchantPortalService {
                                  DeviceSkuInventoryMapper inventoryRepository,
                                  PullOffTaskMapper pullOffTaskRepository,
                                  DeviceSlotService deviceSlotService,
-                                 SettlementService settlementService,
                                  AdminAuditService auditService,
                                  PasswordEncoder passwordEncoder,
                                  DeviceTemperatureReadingMapper temperatureReadingRepository,
@@ -138,7 +136,6 @@ public class MerchantPortalService {
         this.inventoryRepository = inventoryRepository;
         this.pullOffTaskRepository = pullOffTaskRepository;
         this.deviceSlotService = deviceSlotService;
-        this.settlementService = settlementService;
         this.auditService = auditService;
         this.passwordEncoder = passwordEncoder;
         this.temperatureReadingRepository = temperatureReadingRepository;
@@ -181,7 +178,6 @@ public class MerchantPortalService {
         merchantPortalGuard.requireAccess(userId);
         List<DeviceInfo> devices = merchantFeaturePackService.allowedDevicesForPack(
                 userId, MerchantFeaturePacks.FIELD);
-        Set<String> deviceIds = devices.stream().map(DeviceInfo::getDeviceId).collect(Collectors.toSet());
         int online = (int) devices.stream().filter(d -> "ONLINE".equalsIgnoreCase(d.getOnlineStatus())).count();
         int offline = devices.size() - online;
 
@@ -1174,10 +1170,6 @@ public class MerchantPortalService {
                 .map(key -> "merchant_admin".equals(key) ? "merchant" : key)
                 .findFirst()
                 .orElse("merchant_staff");
-    }
-
-    private String resolveRoleKey(long roleId) {
-        return roleRepository.findById(roleId).map(OpsRole::getRoleKey).orElse("merchant_staff");
     }
 
     private static boolean isTempOutOfRange(DeviceInfo d) {

@@ -64,7 +64,7 @@
           class="status-banner"
         />
         <div class="table-scroll">
-          <div class="table-scroll-inner" style="min-width: 920px">
+          <div class="table-scroll-inner">
             <el-table
               v-loading="loadingMerchants"
               :data="merchants"
@@ -72,19 +72,21 @@
               border
               class="report-table"
               row-key="merchantId"
+              :default-sort="idDefaultSort"
+              @sort-change="onIdSortChange"
               @selection-change="onMerchantsSelectionChange"
             >
               <template #empty><el-empty description="暂无商户" /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="商户" min-width="200" class-name="col-text">
+              <el-table-column prop="merchantId" label="ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
                 <template #default="{ row }">
-                  <div class="master-data-cell">
-                    <strong>{{ row.merchantName || row.merchantId }}</strong>
-                    <small>{{ row.merchantId }}</small>
-                  </div>
+                  <span class="cell-id">{{ row.merchantId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="抽成" width="96" align="right">
+              <el-table-column label="商户" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.merchantName || '无' }}</template>
+              </el-table-column>
+              <el-table-column label="抽成" width="96" align="center">
                 <template #default="{ row }">{{ (row.platformRateBps / 100).toFixed(1) }}%</template>
               </el-table-column>
               <el-table-column label="现场作业" width="100" align="center">
@@ -212,9 +214,9 @@
         </el-form>
         <el-divider content-position="left">商户侧推荐岗位</el-divider>
         <el-table :data="roleTemplates" stripe border>
-          <el-table-column prop="templateName" label="岗位" width="120" />
-          <el-table-column prop="description" label="说明" min-width="220" />
-          <el-table-column prop="permissionHint" label="权限提示" min-width="240" show-overflow-tooltip />
+          <el-table-column prop="templateName" label="岗位" width="120" align="center" />
+          <el-table-column prop="description" label="说明" min-width="220" align="center" />
+          <el-table-column prop="permissionHint" label="权限提示" min-width="240" show-overflow-tooltip align="center" />
         </el-table>
       </el-tab-pane>
 
@@ -267,7 +269,7 @@
         </el-form>
 
         <div class="table-scroll">
-          <div class="table-scroll-inner" style="min-width: 1000px">
+          <div class="table-scroll-inner">
             <el-table
               v-loading="loading"
               :data="splits"
@@ -279,10 +281,10 @@
             >
               <template #empty><el-empty description="暂无分账明细" /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="分账编号" min-width="150" class-name="col-text">
+              <el-table-column label="分账编号" min-width="150" align="center" class-name="col-text">
                 <template #default="{ row }"><span class="cell-id">{{ row.splitId }}</span></template>
               </el-table-column>
-              <el-table-column label="订单" min-width="130" class-name="col-text" show-overflow-tooltip>
+              <el-table-column label="订单" min-width="130" align="center" class-name="col-text" show-overflow-tooltip>
                 <template #default="{ row }">
                   <button
                     v-if="row.orderId"
@@ -290,18 +292,13 @@
                     class="link-cell mono"
                     @click="goOrder(row.orderId)"
                   >{{ row.orderId }}</button>
-                  <span v-else class="muted">-</span>
+                  <span v-else class="muted">无</span>
                 </template>
               </el-table-column>
-              <el-table-column label="商户" min-width="150" class-name="col-text" show-overflow-tooltip>
-                <template #default="{ row }">
-                  <div class="master-data-cell">
-                    <strong>{{ row.merchantName || row.merchantId || '-' }}</strong>
-                    <small v-if="row.merchantId">{{ row.merchantId }}</small>
-                  </div>
-                </template>
+              <el-table-column label="商户" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.merchantName || row.merchantId || '无' }}</template>
               </el-table-column>
-              <el-table-column label="商户收入" width="110" align="right" class-name="col-money">
+              <el-table-column label="商户收入" width="110" align="center" class-name="col-money">
                 <template #default="{ row }">¥{{ money(row.merchantCents) }}</template>
               </el-table-column>
               <el-table-column label="状态" width="120" align="center">
@@ -311,15 +308,16 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="失败原因" min-width="160" class-name="col-text" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.failureReason || '-' }}</template>
+              <el-table-column label="失败原因" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.failureReason || '无' }}</template>
               </el-table-column>
               <el-table-column
-                v-if="canSplit"
+                v-if="showSplitActionColumn"
                 label="操作"
                 width="110"
                 class-name="col-action"
                 align="center"
+                fixed="right"
               >
                 <template #default="{ row }">
                   <TableActions
@@ -327,7 +325,6 @@
                     :actions="splitActions(row)"
                     @action="(key) => onSplitAction(key, row)"
                   />
-                  <span v-else class="muted">-</span>
                 </template>
               </el-table-column>
             </el-table>
@@ -436,6 +433,7 @@ import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { MerchantDto, PageResult, ProfitSharingStatus, RevenueSplit } from '@aicabinet/shared-types';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const route = useRoute();
 const { router, goPath } = useNavAccess();
@@ -451,6 +449,11 @@ const acting = ref(false);
 const status = ref('');
 const splits = ref<RevenueSplit[]>([]);
 const merchants = ref<MerchantDto[]>([]);
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('merchantId', {
+  onChange: () => {
+    merchants.value = sortById([...merchants.value], 'merchantId');
+  }
+});
 const splitsLoaded = ref(false);
 const splitPage = ref(1);
 const splitSize = ref(20);
@@ -563,7 +566,7 @@ const { onExport: exportSplits } = useListCsv({
       row.merchantName || '',
       `¥${money(row.merchantCents)}`,
       dictLabel('split_status', row.status),
-      row.failureReason || '-'
+      row.failureReason || '无'
     ])
 });
 
@@ -604,6 +607,10 @@ function splitActions(row: RevenueSplit): TableAction[] {
   return actions;
 }
 
+const showSplitActionColumn = computed(
+  () => canSplit.value && splits.value.some((row) => splitActions(row).length > 0)
+);
+
 function syncRouteQuery() {
   const query: Record<string, string> = { tab: tab.value };
   if (tab.value === 'splits' && status.value) query.status = status.value;
@@ -613,7 +620,10 @@ function syncRouteQuery() {
 async function loadMerchants() {
   loadingMerchants.value = true;
   try {
-    merchants.value = await api.request<MerchantDto[]>('/api/v2/ops/admin/merchants', 'GET');
+    merchants.value = sortById(
+      await api.request<MerchantDto[]>('/api/v2/ops/admin/merchants', 'GET'),
+      'merchantId'
+    );
     clearMerchantsSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '商户加载失败');
@@ -1072,13 +1082,6 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; }
-.master-data-cell { display: grid; gap: 2px; line-height: 1.35; }
-.master-data-cell strong { font-weight: 650; }
-.master-data-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
-}
 .link-cell {
   appearance: none;
   border: 0;
@@ -1087,11 +1090,11 @@ onActivated(() => {
   background: transparent;
   color: var(--el-color-primary);
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   font: inherit;
 }
 .link-cell:hover { text-decoration: underline; }
-.link-cell.mono { font-family: var(--app-font-mono); font-size: 12px; }
+.link-cell.mono { font-family: inherit; font-size: inherit; }
 .status-banner { margin-bottom: 12px; }
 .status-meta { margin-left: 8px; font-weight: 400; opacity: 0.85; font-size: 12px; }
 .muted { color: var(--layout-muted); font-size: 13px; }

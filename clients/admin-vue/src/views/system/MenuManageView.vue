@@ -51,7 +51,7 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 900px">
+      <div class="table-scroll-inner">
         <el-table
           ref="tableRef"
           v-loading="loading"
@@ -70,8 +70,8 @@
           <el-table-column
             label="名称"
             min-width="200"
-            class-name="col-text"
-            label-class-name="col-text"
+            class-name="col-tree"
+            label-class-name="col-tree"
             align="left"
             header-align="left"
           >
@@ -84,11 +84,11 @@
               <el-tag :type="typeTag(row.permType)" size="small">{{ typeText(row.permType) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="权限标识" min-width="200" class-name="col-text">
+          <el-table-column label="权限标识" min-width="200" align="center" class-name="col-text">
             <template #default="{ row }"><span class="cell-id">{{ row.permCode }}</span></template>
           </el-table-column>
-          <el-table-column label="路由" min-width="140" class-name="col-text" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.path || '-' }}</template>
+          <el-table-column label="路由" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.path || '无' }}</template>
           </el-table-column>
           <el-table-column prop="sortOrder" label="排序" width="72" align="center" />
           <el-table-column label="状态" width="80" align="center">
@@ -98,7 +98,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120" class-name="col-action" align="center">
+          <el-table-column label="操作" width="120" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions :actions="menuActions(row)" @action="(k) => onMenuAction(k, row)" />
             </template>
@@ -297,9 +297,29 @@ function filterTree(
   return walk(nodes);
 }
 
-const tableRows = computed(() =>
-  filterTree(tree.value, typeFilter.value, showInactive.value, scope.value, keyword.value.trim().toLowerCase())
-);
+const tableRows = computed(() => {
+  const rows = filterTree(
+    tree.value,
+    typeFilter.value,
+    showInactive.value,
+    scope.value,
+    keyword.value.trim().toLowerCase()
+  );
+  sortPermTreeInPlace(rows);
+  return rows;
+});
+
+/** 同级按「排序」升序，相同则按 permissionId 升序 */
+function sortPermTreeInPlace(nodes: PermRow[]) {
+  nodes.sort(
+    (a, b) =>
+      (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+      (a.permissionId ?? 0) - (b.permissionId ?? 0)
+  );
+  for (const n of nodes) {
+    if (n.children?.length) sortPermTreeInPlace(n.children);
+  }
+}
 
 function flattenTableRows(nodes: PermRow[]): PermRow[] {
   const out: PermRow[] = [];
@@ -348,7 +368,7 @@ const { onExport } = useListCsv({
       row.permName,
       typeText(row.permType),
       row.permCode,
-      row.path || '-',
+      row.path || '无',
       row.sortOrder ?? 0,
       row.status === 'ACTIVE' ? '正常' : '停用'
     ])
@@ -561,8 +581,6 @@ onActivated(() => {
 .name-only { font-weight: 650; }
 .cell-id {
   color: var(--el-text-color-secondary);
-  font-size: 12px;
-  font-family: var(--app-font-mono);
 }
 :deep(.menu-tree-table .el-table__cell) {
   vertical-align: middle;
@@ -570,15 +588,24 @@ onActivated(() => {
 :deep(.menu-tree-table .el-table__indent),
 :deep(.menu-tree-table .el-table__placeholder),
 :deep(.menu-tree-table .el-table__expand-icon) {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   vertical-align: middle;
+  flex-shrink: 0;
 }
-:deep(.menu-tree-table td.col-text > .cell) {
+:deep(.menu-tree-table .el-table__expand-icon) {
+  height: 20px;
+  line-height: 20px;
+}
+:deep(.menu-tree-table td.col-tree > .cell) {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 0 2px;
-  white-space: normal;
-  overflow: visible;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left !important;
+  min-height: 24px;
 }
 </style>

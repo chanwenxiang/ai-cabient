@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -62,7 +62,7 @@
     </div>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 900px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="paged"
@@ -70,17 +70,19 @@
           stripe
           class="report-table"
           row-key="announceId"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
           <template #empty><el-empty description="暂无公告" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="公告" min-width="220" class-name="col-text">
+          <el-table-column prop="announceId" label="ID" width="80" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
-              <div class="name-cell">
-                <strong>{{ row.title }}</strong>
-                <small v-if="row.announceId">ID {{ row.announceId }}</small>
-              </div>
+              <span class="cell-id">{{ row.announceId ?? '无' }}</span>
             </template>
+          </el-table-column>
+          <el-table-column label="公告" min-width="200" align="center" class-name="col-text">
+            <template #default="{ row }">{{ row.title || '无' }}</template>
           </el-table-column>
           <el-table-column label="优先级" width="88" align="center">
             <template #default="{ row }">
@@ -99,12 +101,12 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="发布时间" width="168" class-name="col-text">
+          <el-table-column label="发布时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
-              <span class="cell-datetime">{{ formatTime(row.publishAt) || '-' }}</span>
+              <span class="cell-datetime">{{ formatTime(row.publishAt) || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="160" class-name="col-action" align="center">
+          <el-table-column label="操作" width="160" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions :actions="rowActions(row)" :max-primary="2" @action="(k) => onRowAction(k, row)" />
             </template>
@@ -178,7 +180,7 @@
         <el-descriptions-item label="优先级">{{ priorityMap[previewRow.priority] || previewRow.priority }}</el-descriptions-item>
         <el-descriptions-item label="目标">{{ displayLabel('announcement_audience', previewRow.targetScope) }}</el-descriptions-item>
         <el-descriptions-item label="状态">{{ displayLabel('announcement_status', previewRow.status) }}</el-descriptions-item>
-        <el-descriptions-item label="发布时间">{{ formatTime(previewRow.publishAt) || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="发布时间">{{ formatTime(previewRow.publishAt) || '无' }}</el-descriptions-item>
         <el-descriptions-item label="内容" :span="2">
           <div class="announcement-content">{{ previewRow.content || '暂无内容' }}</div>
         </el-descriptions-item>
@@ -198,10 +200,12 @@ import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('announceId');
 const loading = ref(false);
 const saving = ref(false);
 const error = ref('');
@@ -223,12 +227,13 @@ function emptyForm() {
 
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();
-  return list.value.filter((row) => {
+  const rows = list.value.filter((row) => {
     if (statusFilter.value && row.status !== statusFilter.value) return false;
     if (priorityFilter.value && row.priority !== priorityFilter.value) return false;
     if (q && !String(row.title || '').toLowerCase().includes(q)) return false;
     return true;
   });
+  return sortById(rows);
 });
 
 const paged = computed(() => {
@@ -522,13 +527,6 @@ onActivated(() => {
 .title { font-size: 15px; font-weight: 600; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.name-cell { display: grid; gap: 2px; line-height: 1.35; }
-.name-cell strong { font-weight: 650; }
-.name-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
-}
 .error-state { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
 .hidden-input { display: none; }
 .announcement-content { white-space: pre-wrap; word-break: break-word; line-height: 1.7; }

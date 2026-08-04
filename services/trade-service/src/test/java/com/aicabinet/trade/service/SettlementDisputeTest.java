@@ -149,7 +149,7 @@ class SettlementDisputeTest {
         when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
         when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(false);
         org.mockito.Mockito.doThrow(new BalanceInsufficientException(ApiMessages.INSUFFICIENT_BALANCE))
-                .when(userValidationService).validateSufficientBalanceForCharge(10001L, 700);
+                .when(userValidationService).validateSufficientBalanceForCharge(10001L, 700, 0);
         when(inventoryService.deductForOrder(any(), any(), any(), any())).thenReturn(java.util.Map.of());
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));

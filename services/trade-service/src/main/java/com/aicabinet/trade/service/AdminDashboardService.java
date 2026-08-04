@@ -813,11 +813,11 @@ public class AdminDashboardService {
                 .toList();
     }
 
-    public PageResult<AdminAuditLogDto> listAuditLogs(Long operatorId, int page, int size) {
+    public PageResult<AdminAuditLogDto> listAuditLogs(Long operatorId, int page, int size, boolean logIdAsc) {
         permissionService.requirePermission(operatorId, "ops:audit:list");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         Page<com.aicabinet.trade.domain.AdminAuditLog> result =
-                auditLogRepository.findAllByOrderByCreatedAtDesc(pageable);
+                auditLogRepository.findAllByOrderByLogId(pageable, logIdAsc);
         return toAuditPage(result);
     }
 
@@ -1433,10 +1433,6 @@ public class AdminDashboardService {
         return sessionRepository.findAllByOrderByCreatedAtDesc(pageable);
     }
 
-    private Page<CabinetOrder> queryOrders(Long operatorId, String deviceId, Pageable pageable) {
-        return queryOrders(operatorId, deviceId, null, null, pageable);
-    }
-
     private Page<CabinetOrder> queryOrders(
             Long operatorId, String deviceId, String status, Pageable pageable) {
         return queryOrders(operatorId, deviceId, status, null, pageable);
@@ -1505,7 +1501,8 @@ public class AdminDashboardService {
                 d.getLifecycleRemark(),
                 d.getLatitude(),
                 d.getLongitude(),
-                d.getAddress()
+                d.getAddress(),
+                d.getId()
         );
     }
 

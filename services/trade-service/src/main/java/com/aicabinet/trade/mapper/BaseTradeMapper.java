@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -96,17 +97,22 @@ public interface BaseTradeMapper<T> extends BaseMapper<T> {
         TableInfo tableInfo = TableInfoHelper.getTableInfo(entity.getClass());
         if (tableInfo != null && tableInfo.getKeyProperty() != null) {
             try {
-                return ReflectionKit.getFieldValue(entity, tableInfo.getKeyProperty());
+                return tableInfo.getPropertyValue(entity, tableInfo.getKeyProperty());
             } catch (Exception ignored) {
                 // fall through
             }
         }
+        Map<String, java.lang.reflect.Field> fieldMap = ReflectionKit.getFieldMap(entity.getClass());
         for (String name : List.of(
                 "id", "exceptionId", "userId", "orderId", "sessionId", "deviceId", "merchantId",
                 "skuId", "configKey", "key", "snapshotDate", "className", "ticketId", "splitId",
                 "txId", "opId", "lotId", "warehouseId", "dictType", "returnId")) {
             try {
-                Object v = ReflectionKit.getFieldValue(entity, name);
+                java.lang.reflect.Field field = fieldMap.get(name);
+                if (field == null) {
+                    continue;
+                }
+                Object v = field.get(entity);
                 if (v != null) {
                     return v;
                 }

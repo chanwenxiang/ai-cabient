@@ -36,7 +36,7 @@
             @keydown.enter="goPath('/devices', { salesLocked: 'false' })"
           >
             <div class="stat-label">在售货柜</div>
-            <div class="stat-value">{{ workbench?.devicesOnSale ?? '-' }}</div>
+            <div class="stat-value">{{ workbench?.devicesOnSale ?? '无' }}</div>
             <div class="stat-hint">
               停售 {{ workbench?.devicesSalesLocked ?? 0 }}
               <template v-if="canAccessPath('/devices')"> · 查看设备</template>
@@ -174,12 +174,12 @@
             <el-table-column label="类型" width="110" align="center">
               <template #default="{ row }">{{ typeLabel(row.type) }}</template>
             </el-table-column>
-            <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip class-name="col-text" />
-            <el-table-column label="关联" min-width="160" show-overflow-tooltip class-name="col-text">
+            <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip align="center" class-name="col-text" />
+            <el-table-column label="关联" min-width="160" show-overflow-tooltip align="center" class-name="col-text">
               <template #default="{ row }">{{ contextLabel(row) }}</template>
             </el-table-column>
-            <el-table-column prop="detail" label="详情" min-width="220" show-overflow-tooltip class-name="col-text" />
-            <el-table-column label="操作" width="88" class-name="col-action" align="center">
+            <el-table-column prop="detail" label="详情" min-width="220" show-overflow-tooltip align="center" class-name="col-text" />
+            <el-table-column label="操作" width="88" class-name="col-action" align="center" fixed="right">
               <template #default="{ row }">
                 <TableActions
                   v-if="canHandleAction(row)"
@@ -433,7 +433,7 @@ function contextLabel(row: OpsActionItem) {
   if (row.sessionId) parts.push(`会话 ${shortId(row.sessionId)}`);
   if (row.ticketId) parts.push(`工单 ${shortId(row.ticketId)}`);
   if (row.skuId) parts.push(`SKU ${row.skuId}`);
-  return parts.length ? parts.join(' · ') : '—';
+  return parts.length ? parts.join(' · ') : '无';
 }
 
 function shortId(id: string) {
@@ -635,7 +635,7 @@ onMounted(() => load({ silent: true }));
   border-radius: 10px;
   background: var(--el-fill-color-blank, var(--layout-card));
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
 }
 .quick-tile:hover,
@@ -681,7 +681,7 @@ onMounted(() => load({ silent: true }));
 }
 .action-table :deep(th.col-text > .cell),
 .action-table :deep(td.col-text > .cell) {
-  text-align: left;
+  text-align: center;
 }
 .page-pager {
   display: flex;

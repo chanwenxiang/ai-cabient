@@ -69,9 +69,11 @@
     </el-form>
 
     <div class="table-scroll">
-      <el-table :data="rows" v-loading="loading" stripe border class="report-table">
-        <el-table-column prop="ticketId" label="工单号" width="90" />
-        <el-table-column prop="deviceId" label="设备" min-width="130">
+      <el-table :data="displayRows"
+        :default-sort="idDefaultSort"
+        @sort-change="onIdSortChange" v-loading="loading" stripe border class="report-table">
+        <el-table-column prop="ticketId" label="工单号" width="90" align="center" sortable="custom" />
+        <el-table-column prop="deviceId" label="设备" min-width="130" align="center">
           <template #default="{ row }">
             <el-button
               v-if="canAccessPath('/devices')"
@@ -84,31 +86,37 @@
             <span v-else>{{ row.deviceId }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="title" label="标题" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="faultType" label="故障类型" width="110">
+        <el-table-column prop="title" label="标题" min-width="150" show-overflow-tooltip align="center" />
+        <el-table-column prop="faultType" label="故障类型" width="110" align="center">
           <template #default="{ row }">{{ faultLabel(row.faultType) }}</template>
         </el-table-column>
-        <el-table-column prop="priority" label="优先级" width="90">
+        <el-table-column prop="priority" label="优先级" width="90" align="center">
           <template #default="{ row }">{{ priorityLabel(row.priority) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">
             <el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="assignee" label="负责人" width="110" show-overflow-tooltip />
-        <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="createdBy" label="创建人" width="100" />
-        <el-table-column label="创建时间" width="170">
-          <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        <el-table-column label="负责人" width="110" show-overflow-tooltip align="center">
+          <template #default="{ row }">{{ row.assignee || '无' }}</template>
         </el-table-column>
-        <el-table-column label="更新时间" width="170">
-          <template #default="{ row }">{{ formatDateTime(row.updatedAt) }}</template>
+        <el-table-column label="备注" min-width="140" show-overflow-tooltip align="center">
+          <template #default="{ row }">{{ row.remark || '无' }}</template>
         </el-table-column>
-        <el-table-column label="关闭时间" width="170">
-          <template #default="{ row }">{{ formatDateTime(row.closedAt) }}</template>
+        <el-table-column label="创建人" width="100" align="center">
+          <template #default="{ row }">{{ row.createdBy || '无' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right" class-name="col-action">
+        <el-table-column label="创建时间" width="170" align="center">
+          <template #default="{ row }">{{ formatDateTime(row.createdAt) || '无' }}</template>
+        </el-table-column>
+        <el-table-column label="更新时间" width="170" align="center">
+          <template #default="{ row }">{{ formatDateTime(row.updatedAt) || '无' }}</template>
+        </el-table-column>
+        <el-table-column label="关闭时间" width="170" align="center">
+          <template #default="{ row }">{{ formatDateTime(row.closedAt) || '无' }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="280" fixed="right" align="center" class-name="col-action">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">详情</el-button>
             <template v-if="auth.hasPerm('ops:repair:edit')">
@@ -194,9 +202,9 @@
           <el-descriptions-item label="故障类型">{{ faultLabel(detail.ticket.faultType) }}</el-descriptions-item>
           <el-descriptions-item label="状态">{{ statusLabel(detail.ticket.status) }}</el-descriptions-item>
           <el-descriptions-item label="优先级">{{ priorityLabel(detail.ticket.priority) }}</el-descriptions-item>
-          <el-descriptions-item label="负责人">{{ detail.ticket.assignee || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="创建人">{{ detail.ticket.createdBy || '-' }}</el-descriptions-item>
-          <el-descriptions-item label="备注">{{ detail.ticket.remark || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="负责人">{{ detail.ticket.assignee || '无' }}</el-descriptions-item>
+          <el-descriptions-item label="创建人">{{ detail.ticket.createdBy || '无' }}</el-descriptions-item>
+          <el-descriptions-item label="备注">{{ detail.ticket.remark || '无' }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ formatDateTime(detail.ticket.createdAt) }}</el-descriptions-item>
           <el-descriptions-item label="更新时间">{{ formatDateTime(detail.ticket.updatedAt) }}</el-descriptions-item>
           <el-descriptions-item label="关闭时间">{{ formatDateTime(detail.ticket.closedAt) }}</el-descriptions-item>
@@ -204,7 +212,7 @@
         <div class="event-title">流转记录</div>
         <el-timeline>
           <el-timeline-item v-for="e in detail.events" :key="e.eventId" :timestamp="formatDateTime(e.createdAt)">
-            {{ e.action }}：{{ e.fromStatus || '-' }} → {{ e.toStatus }}
+            {{ e.action }}：{{ e.fromStatus || '无' }} → {{ e.toStatus }}
             <span v-if="e.remark">（{{ e.remark }}）</span>
           </el-timeline-item>
         </el-timeline>
@@ -214,13 +222,14 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useNavAccess } from '@/composables/useNavAccess';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 
@@ -262,6 +271,8 @@ const { canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
 const saving = ref(false);
 const rows = ref<Ticket[]>([]);
+const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById } = useIdColumnSort<Ticket>('ticketId');
+const displayRows = computed(() => sortById(rows.value));
 const total = ref(0);
 const page1 = ref(1);
 const size = ref(20);
@@ -287,16 +298,16 @@ const priorityOptions = dictOptions('dispute_priority');
 const faultOptions = dictOptions('repair_fault_type');
 
 function statusLabel(s?: string) {
-  return dictLabel('repair_ticket_status', s) || s || '-';
+  return dictLabel('repair_ticket_status', s) || s || '未知状态';
 }
 function statusType(s?: string) {
   return ({ OPEN: 'warning', IN_PROGRESS: '', DONE: 'success', CANCELLED: 'info' } as Record<string, string>)[s || ''] || '';
 }
 function priorityLabel(p?: string) {
-  return dictLabel('dispute_priority', p) || p || '-';
+  return dictLabel('dispute_priority', p) || p || '未知';
 }
 function faultLabel(f?: string) {
-  return dictLabel('repair_fault_type', f) || f || '-';
+  return dictLabel('repair_fault_type', f) || f || '未知';
 }
 
 async function loadDevices() {

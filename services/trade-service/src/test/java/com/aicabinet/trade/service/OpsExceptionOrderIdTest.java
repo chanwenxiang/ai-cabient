@@ -138,6 +138,27 @@ class OpsExceptionOrderIdTest {
         assertNull(dto.orderId());
     }
 
+    @Test
+    void detail_backfillsUserIdFromSessionWhenExceptionBlank() {
+        OpsException item = openRecognitionException("EX-OID-006", "S-OID-006");
+        item.setStatus("OPEN");
+        item.setUserId(null);
+        item.setOrderId(null);
+        ShoppingSession session = disputedSession("S-OID-006");
+        session.setUserId(10001L);
+        session.setOrderId("ORD-USER-BF");
+        when(repository.findById("EX-OID-006")).thenReturn(Optional.of(item));
+        when(auditRepository.findByTargetTypeAndTargetIdOrderByCreatedAtAsc("OPS_EXCEPTION", "EX-OID-006"))
+                .thenReturn(List.of());
+        when(sessionRepository.findById("S-OID-006")).thenReturn(Optional.of(session));
+
+        OpsExceptionDto dto = service.detail(10001L, "EX-OID-006").exception();
+
+        assertNull(item.getUserId());
+        assertEquals(10001L, dto.userId());
+        assertEquals("ORD-USER-BF", dto.orderId());
+    }
+
     private void stubManualResolve(OpsException item, ShoppingSession session) {
         when(repository.findById(item.getExceptionId())).thenReturn(Optional.of(item));
         when(auditRepository.findByTargetTypeAndTargetIdOrderByCreatedAtAsc("OPS_EXCEPTION", item.getExceptionId()))

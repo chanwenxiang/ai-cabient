@@ -24,12 +24,85 @@ page {
   --brand-deep: #064e3b;
   --brand-wx: #07c160;
   --brand-soft: #ecfdf5;
+  --page-bg: #f5f7f8;
+  --text-muted: #64748b;
+  --text-subtle: #94a3b8;
+  --card-radius: 24rpx;
+  --text-primary: #14201b;
   height: 100%;
-  background-color: #f5f7f8;
+  background-color: var(--page-bg);
   font-family: var(--app-font);
   font-size: 28rpx;
-  color: #14201b;
+  color: var(--text-primary);
   box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.page-root {
+  min-height: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  background: var(--page-bg);
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 10rpx 22rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  color: var(--text-muted);
+  background: #fff;
+  border: 1rpx solid rgba(15, 118, 110, 0.12);
+  white-space: nowrap;
+}
+.filter-chip.active {
+  color: #fff;
+  background: var(--brand);
+  border-color: var(--brand);
+  font-weight: 600;
+}
+
+.tabs-pill {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 20rpx;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16rpx;
+  padding: 12rpx 0;
+  font-size: 26rpx;
+}
+.info-row .lbl,
+.info-label {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.info-row .val,
+.info-value {
+  color: var(--text-primary);
+  text-align: right;
+  word-break: break-all;
+}
+
+.empty-title {
+  display: block;
+  font-size: 32rpx;
+  font-weight: 650;
+  color: var(--text-primary);
+  margin-bottom: 8rpx;
+}
+.empty-desc {
+  display: block;
+  font-size: 26rpx;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin-bottom: 24rpx;
 }
 
 button::after {

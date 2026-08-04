@@ -23,8 +23,8 @@
             <text class="name">{{ p.skuName }}</text>
             <text class="meta">{{ p.deviceName || p.deviceId }} · 基准 {{ money(p.basePriceCents) }}</text>
             <text v-if="p.minPriceCents != null || p.maxPriceCents != null" class="meta range">
-              可改 {{ p.minPriceCents != null ? money(p.minPriceCents) : '—' }}–{{
-                p.maxPriceCents != null ? money(p.maxPriceCents) : '—'
+              可改 {{ p.minPriceCents != null ? money(p.minPriceCents) : '未设' }}–{{
+                p.maxPriceCents != null ? money(p.maxPriceCents) : '未设'
               }}
             </text>
           </view>
@@ -42,7 +42,12 @@
             <text v-if="canEdit && savingKey === draftKey(p)" class="saving">保存中…</text>
           </view>
         </view>
-        <view v-if="!rows.length" class="card meta">暂无定价数据</view>
+        <empty-state
+          v-if="!rows.length"
+          icon="价"
+          title="暂无定价数据"
+          hint="选择柜机后可查看 SKU 基准价与覆盖价"
+        />
       </view>
     </template>
   </view>
@@ -51,6 +56,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
+import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe, canEditPricingWithPerm } from '@/composables/useMerchantMe';
 import type { MerchantMe, MerchantSkuPricing } from '@aicabinet/shared-types';
@@ -89,7 +95,7 @@ function draftKey(p: { skuId: string; deviceId: string }) {
 }
 
 function money(cents?: number | null) {
-  if (cents == null || Number.isNaN(Number(cents))) return '—';
+  if (cents == null || Number.isNaN(Number(cents))) return '暂无';
   return `¥${(Number(cents) / 100).toFixed(2)}`;
 }
 

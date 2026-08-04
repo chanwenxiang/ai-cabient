@@ -66,7 +66,7 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 1180px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="items"
@@ -75,29 +75,35 @@
           class="report-table"
           :empty-text="emptyHint"
           row-key="ticketId"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="工单" min-width="200" class-name="col-text">
+          <el-table-column prop="ticketId" label="ID" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
             <template #default="{ row }">
-              <button type="button" class="ticket-cell" @click="openDetail(row)">
-                <strong>{{ row.reason || row.ticketId }}</strong>
-                <small>{{ row.ticketId }}</small>
-                <el-tag
-                  v-if="confidenceHint(row)"
-                  size="small"
-                  :type="reviewChipType(row)"
-                  effect="plain"
-                  class="reason-chip"
-                >{{ confidenceHint(row) }}</el-tag>
-                <div v-if="row.detectedClasses?.length" class="detected-classes">
-                  检出类：{{ row.detectedClasses.slice(0, 4).join('、') }}
-                  <template v-if="row.detectedClasses.length > 4">…</template>
-                </div>
+              <span class="cell-id">{{ row.ticketId }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="工单" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">
+              <button type="button" class="link-cell" @click="openDetail(row)">
+                {{ row.reason || '无' }}
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="设备" min-width="110" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="置信度" width="100" align="center">
+            <template #default="{ row }">
+              <el-tag
+                v-if="confidenceHint(row)"
+                size="small"
+                :type="reviewChipType(row)"
+                effect="plain"
+              >{{ confidenceHint(row) }}</el-tag>
+              <span v-else class="muted">无</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="设备" min-width="110" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 v-if="row.deviceId"
@@ -105,10 +111,10 @@
                 class="link-cell"
                 @click="goDevice(row.deviceId)"
               >{{ row.deviceId }}</button>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="会话" min-width="130" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="会话" min-width="130" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 v-if="row.sessionId"
@@ -116,10 +122,10 @@
                 class="link-cell mono"
                 @click="goSessions(row.deviceId, row.sessionId)"
               >{{ row.sessionId }}</button>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="关联订单" min-width="130" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="关联订单" min-width="130" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 v-if="row.orderId"
@@ -127,7 +133,7 @@
                 class="link-cell mono"
                 @click="goOrders(row.deviceId, row.orderId)"
               >{{ row.orderId }}</button>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="96" align="center">
@@ -137,9 +143,9 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="分类" width="100" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="分类" width="100" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
-              {{ dictLabel('dispute_category', row.category) || row.category || '-' }}
+              {{ dictLabel('dispute_category', row.category) || row.category || '未知' }}
             </template>
           </el-table-column>
           <el-table-column label="优先级" width="88" align="center">
@@ -151,27 +157,26 @@
               >
                 {{ dictLabel('dispute_priority', row.priority) || row.priority }}
               </el-tag>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="已扣金额" width="110" align="right" class-name="col-money">
+          <el-table-column label="已扣金额" width="110" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ money(row.billedAmountCents) }}</template>
           </el-table-column>
-          <el-table-column label="创建时间" width="168" class-name="col-text">
+          <el-table-column label="创建时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="结案时间" width="168" class-name="col-text">
+          <el-table-column label="结案时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
-              <span class="cell-datetime">{{ formatDateTime(row.resolvedAt) || '-' }}</span>
+              <span class="cell-datetime">{{ formatDateTime(row.resolvedAt) || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100" class-name="col-action" align="center">
+          <el-table-column label="操作" width="220" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions
                 :actions="rowActions(row)"
-                :max-primary="2"
                 @action="(key) => onRowAction(key, row)"
               />
             </template>
@@ -295,7 +300,7 @@
             </el-descriptions-item>
             <el-descriptions-item label="原因">
               <div class="reason-block">
-                <span>{{ selected.reason || '-' }}</span>
+                <span>{{ selected.reason || '无' }}</span>
                 <el-tag
                   v-if="confidenceHint(selected)"
                   size="small"
@@ -339,10 +344,10 @@
           <div v-if="selected.suggestedItems?.length" class="items-block">
             <div class="items-title">识别建议（只读）</div>
             <el-table :data="selected.suggestedItems" size="small" stripe border>
-              <el-table-column prop="skuName" label="商品" min-width="120" class-name="col-text" />
-              <el-table-column prop="skuId" label="SKU" min-width="100" class-name="col-text" show-overflow-tooltip />
+              <el-table-column prop="skuName" label="商品" min-width="120" align="center" class-name="col-text" />
+              <el-table-column prop="skuId" label="SKU" min-width="100" align="center" class-name="col-text" show-overflow-tooltip />
               <el-table-column prop="quantity" label="数量" width="72" align="center" />
-              <el-table-column label="单价" width="88" align="right">
+              <el-table-column label="单价" width="88" align="center">
                 <template #default="{ row }">¥{{ money(row.unitPriceCents) }}</template>
               </el-table-column>
             </el-table>
@@ -432,6 +437,7 @@ import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import type { DevRecognitionPreviewDto, DisputeTicketDto, OrderLineDto, PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 interface ResolveDisputeResultDto {
   order?: { orderId?: string } | null;
@@ -457,6 +463,11 @@ const categoryTab = ref('ALL');
 const reviewCodeTab = ref('ALL');
 const sessionFilter = ref('');
 const items = ref<DisputeTicketDto[]>([]);
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('ticketId', {
+  onChange: () => {
+    items.value = sortById([...items.value], 'ticketId');
+  }
+});
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
@@ -858,7 +869,7 @@ async function load(showToast = false) {
     }
     if (sessionFilter.value) q.set('sessionId', sessionFilter.value);
     const data = await api.request<PageResult<DisputeTicketDto>>(`/api/v2/ops/disputes?${q}`, 'GET');
-    items.value = data.items || [];
+    items.value = sortById(data.items || [], 'ticketId');
     total.value = data.total || 0;
     clearSelection();
     if (showToast) ElMessage.success('已刷新');
@@ -994,27 +1005,6 @@ onMounted(async () => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; }
-.ticket-cell {
-  appearance: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  background: transparent;
-  display: grid;
-  gap: 2px;
-  text-align: left;
-  cursor: pointer;
-  color: inherit;
-  font: inherit;
-  line-height: 1.35;
-}
-.ticket-cell strong { color: var(--el-color-primary); font-weight: 650; }
-.ticket-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
-}
-.reason-chip { margin-top: 4px; justify-self: start; }
 .review-code-tabs { margin: 0 0 12px; }
 .detected-classes {
   margin-top: 4px;
@@ -1032,11 +1022,11 @@ onMounted(async () => {
   background: transparent;
   color: var(--el-color-primary);
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   font: inherit;
 }
 .link-cell:hover { text-decoration: underline; }
-.link-cell.mono { font-family: var(--app-font-mono); font-size: 12px; }
+.link-cell.mono { font-family: inherit; font-size: inherit; }
 .muted { color: var(--el-text-color-secondary); }
 .resolve-feedback { margin-bottom: 16px; }
 .drawer-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }

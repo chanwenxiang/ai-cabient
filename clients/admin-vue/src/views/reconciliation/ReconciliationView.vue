@@ -59,7 +59,7 @@
     </div>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 960px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="items"
@@ -72,7 +72,7 @@
         >
           <template #empty><el-empty description="暂无对账记录" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="对账" min-width="160" class-name="col-text">
+          <el-table-column label="对账" min-width="160" align="center" class-name="col-text">
             <template #default="{ row }">
               <button type="button" class="recon-cell" @click="openDetail(row)">
                 <strong>{{ row.reconDate || row.reconId }}</strong>
@@ -99,12 +99,12 @@
               </span>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" width="168" class-name="col-text">
+          <el-table-column label="创建时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="88" class-name="col-action" align="center">
+          <el-table-column label="操作" width="88" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
               <TableActions
                 :actions="[{ key: 'detail', label: '详情', icon: View, type: 'primary' }]"
@@ -160,9 +160,9 @@
           </el-descriptions-item>
         </el-descriptions>
         <el-table :data="detail.lines || []" stripe border style="margin-top: 16px" max-height="360" size="small">
-          <el-table-column prop="platformTradeNo" label="平台流水" min-width="140" class-name="col-text" show-overflow-tooltip />
-          <el-table-column prop="merchantOrderNo" label="商户单号" min-width="120" class-name="col-text" show-overflow-tooltip />
-          <el-table-column label="金额" width="100" align="right">
+          <el-table-column prop="platformTradeNo" label="平台流水" min-width="140" align="center" class-name="col-text" show-overflow-tooltip />
+          <el-table-column prop="merchantOrderNo" label="商户单号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip />
+          <el-table-column label="金额" width="100" align="center">
             <template #default="{ row }">¥{{ ((row.amountCents || 0) / 100).toFixed(2) }}</template>
           </el-table-column>
           <el-table-column label="匹配" width="80" align="center">
@@ -380,7 +380,7 @@ onActivated(() => {
   background: transparent;
   display: grid;
   gap: 2px;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
   color: inherit;
   font: inherit;
@@ -389,8 +389,7 @@ onActivated(() => {
 .recon-cell strong { color: var(--el-color-primary); font-weight: 650; }
 .recon-cell small {
   color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
+  font-family: inherit;
 }
 .recon-cell:hover strong { text-decoration: underline; }
 .is-mismatch {
@@ -398,7 +397,7 @@ onActivated(() => {
   font-weight: 650;
 }
 :deep(.el-table .is-mismatch-row > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-danger) 6%, transparent) !important;
+  background: color-mix(in srgb, var(--el-color-danger) 6%, var(--el-table-bg-color, #fff)) !important;
 }
 .native-date {
   width: 100%;

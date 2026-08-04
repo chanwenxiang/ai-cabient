@@ -153,7 +153,7 @@ function localDateISO(d: Date) {
 }
 
 function batchStatusLabel(status?: string) {
-  return displayLabel('settlement_batch_status', status, '-');
+  return displayLabel('settlement_batch_status', status, '未知状态');
 }
 
 const today = localDateISO(new Date());

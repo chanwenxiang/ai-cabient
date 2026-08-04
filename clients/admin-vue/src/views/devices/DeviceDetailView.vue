@@ -48,7 +48,7 @@
         <div class="stat-tile">
           <div class="stat-label">柜内温度</div>
           <div class="stat-value">
-            {{ metrics?.currentTempC != null ? `${metrics.currentTempC}°C` : '-' }}
+            {{ metrics?.currentTempC != null ? `${metrics.currentTempC}°C` : '无' }}
           </div>
         </div>
       </el-col>
@@ -311,12 +311,12 @@
         <el-button v-hasPermi="['ops:repair:edit']" type="primary" plain @click="createRepair">新建工单</el-button>
       </div>
       <el-table v-if="repairTickets.length" :data="repairTickets" size="small" class="repair-mini-table">
-        <el-table-column prop="ticketId" label="#" width="70" />
-        <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="100">
+        <el-table-column prop="ticketId" label="#" width="70" align="center" />
+        <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip align="center" />
+        <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">{{ repairStatusLabel(row.status) }}</template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建" width="160">
+        <el-table-column prop="createdAt" label="创建" width="160" align="center">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
       </el-table>
@@ -332,13 +332,13 @@
             </el-descriptions-item>
             <el-descriptions-item label="商户">
               <div class="name-cell inline">
-                <strong>{{ device?.merchantName || device?.merchantId || '-' }}</strong>
+                <strong>{{ device?.merchantName || device?.merchantId || '无' }}</strong>
                 <small v-if="device?.merchantId && device?.merchantName" class="cell-id">{{ device.merchantId }}</small>
               </div>
             </el-descriptions-item>
-            <el-descriptions-item label="地址">{{ metrics?.address || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="地址">{{ metrics?.address || '无' }}</el-descriptions-item>
             <el-descriptions-item label="App / 固件">
-              {{ metrics?.appVersion || '-' }} / {{ metrics?.firmwareVersion || '-' }}
+              {{ metrics?.appVersion || '无' }} / {{ metrics?.firmwareVersion || '无' }}
             </el-descriptions-item>
             <el-descriptions-item label="目标温度">
               <div class="temp-set-row">
@@ -362,12 +362,12 @@
               </div>
             </el-descriptions-item>
             <el-descriptions-item label="温度上报">
-              <span class="cell-datetime">{{ formatDateTime(metrics?.tempReportedAt) || '-' }}</span>
+              <span class="cell-datetime">{{ formatDateTime(metrics?.tempReportedAt) || '无' }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="告警联系人">{{ metrics?.alertContactName || '-' }}</el-descriptions-item>
-            <el-descriptions-item label="联系电话">{{ metrics?.alertContactPhone || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="告警联系人">{{ metrics?.alertContactName || '无' }}</el-descriptions-item>
+            <el-descriptions-item label="联系电话">{{ metrics?.alertContactPhone || '无' }}</el-descriptions-item>
             <el-descriptions-item label="最近会话">
-              <span class="cell-id">{{ device?.activeSessionId || '-' }}</span>
+              <span class="cell-id">{{ device?.activeSessionId || '无' }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="会话状态">
               <el-tag v-if="device?.activeSessionState" size="small" effect="plain">
@@ -376,9 +376,9 @@
               <span v-else>-</span>
             </el-descriptions-item>
             <el-descriptions-item label="最近补货">
-              <span class="cell-datetime">{{ formatDateTime(metrics?.lastRestockAt) || '-' }}</span>
+              <span class="cell-datetime">{{ formatDateTime(metrics?.lastRestockAt) || '无' }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="库存准确率">{{ metrics?.inventoryAccuracyPct ?? '-' }}%</el-descriptions-item>
+            <el-descriptions-item label="库存准确率">{{ metrics?.inventoryAccuracyPct ?? '无' }}%</el-descriptions-item>
           </el-descriptions>
         </el-tab-pane>
 
@@ -417,7 +417,7 @@
         <el-tab-pane label="关联单据" name="related">
           <h4 class="section-title">最近开门记录</h4>
           <el-table :data="sessions" stripe border size="small" class="report-table" empty-text="暂无会话">
-            <el-table-column label="会话" min-width="160" class-name="col-text" show-overflow-tooltip>
+            <el-table-column label="会话" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
               <template #default="{ row }">
                 <span class="cell-id">{{ row.sessionId }}</span>
               </template>
@@ -427,17 +427,17 @@
                 <el-tag size="small" effect="plain">{{ dictLabel('session_state', row.state) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="订单" min-width="120" class-name="col-text" show-overflow-tooltip>
+            <el-table-column label="订单" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
               <template #default="{ row }">
-                <span class="cell-id">{{ row.orderId || '-' }}</span>
+                <span class="cell-id">{{ row.orderId || '无' }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="时间" width="168" class-name="col-text">
+            <el-table-column label="时间" width="168" align="center" class-name="col-text">
               <template #default="{ row }">
                 <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="88" class-name="col-action" align="center">
+            <el-table-column label="操作" width="88" class-name="col-action" align="center" fixed="right">
               <template #default="{ row }">
                 <TableActions
                   v-if="canAccessPath('/sessions')"
@@ -451,7 +451,7 @@
 
           <h4 class="section-title">最近订单</h4>
           <el-table :data="orders" stripe border size="small" class="report-table" empty-text="暂无订单">
-            <el-table-column label="订单" min-width="160" class-name="col-text" show-overflow-tooltip>
+            <el-table-column label="订单" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
               <template #default="{ row }">
                 <span class="cell-id">{{ row.orderId }}</span>
               </template>
@@ -461,15 +461,15 @@
                 <el-tag size="small" effect="plain">{{ dictLabel('order_status', row.status) }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="金额" width="100" align="right" class-name="col-money">
+            <el-table-column label="金额" width="100" align="center" class-name="col-money">
               <template #default="{ row }">¥{{ ((row.totalAmountCents || 0) / 100).toFixed(2) }}</template>
             </el-table-column>
-            <el-table-column label="时间" width="168" class-name="col-text">
+            <el-table-column label="时间" width="168" align="center" class-name="col-text">
               <template #default="{ row }">
                 <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="88" class-name="col-action" align="center">
+            <el-table-column label="操作" width="88" class-name="col-action" align="center" fixed="right">
               <template #default="{ row }">
                 <TableActions
                   v-if="canAccessPath('/orders')"
@@ -635,7 +635,7 @@ function lifecycleLabel(status?: string | null) {
     case 'DEPLOYED': return '投放';
     case 'RETURNING': return '返厂中';
     case 'RETIRED': return '退役';
-    default: return status || '-';
+    default: return status || '未知状态';
   }
 }
 
@@ -648,7 +648,7 @@ function lifecycleActionLabel(action?: string | null) {
     case 'RETURN': return '返厂';
     case 'RETIRE': return '退役';
     case 'INBOUND': return '入库';
-    default: return action || '-';
+    default: return action || '未知';
   }
 }
 
@@ -718,7 +718,7 @@ async function loadRepairTickets() {
 }
 
 function repairStatusLabel(s?: string) {
-  return dictLabel('repair_ticket_status', s) || s || '-';
+  return dictLabel('repair_ticket_status', s) || s || '未知状态';
 }
 
 async function createRepair() {
@@ -1163,7 +1163,7 @@ onActivated(() => {
   padding: 12px 14px;
   margin-bottom: 8px;
 }
-.stat-tile.warn { background: color-mix(in srgb, var(--el-color-warning) 12%, transparent); }
+.stat-tile.warn { background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff)); }
 .stat-label { font-size: 12px; color: var(--el-text-color-secondary); }
 .stat-value { font-size: 22px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
 .slot-diff.warn { color: #ea580c; margin-left: 6px; font-size: 12px; }
@@ -1207,7 +1207,6 @@ onActivated(() => {
 .name-cell strong { font-weight: 650; }
 .name-cell small {
   color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
+  font-family: inherit;
 }
 </style>

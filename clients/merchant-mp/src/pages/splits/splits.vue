@@ -23,7 +23,7 @@
           <text class="time">{{ formatTime(s.createdAt) }}</text>
         </view>
         <text class="title">订单 {{ s.orderId }}</text>
-        <text class="meta">柜机 {{ s.deviceId || '—' }} · 商户所得 ¥{{ money(s.merchantCents) }}</text>
+        <text class="meta">柜机 {{ emptyDisplay(s.deviceId, 'device') }} · 商户所得 ¥{{ money(s.merchantCents) }}</text>
         <text v-if="s.failureReason" class="fail">失败原因：{{ s.failureReason }}</text>
       </view>
     </view>
@@ -36,7 +36,7 @@ import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import type { MerchantMe, RevenueSplit } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -78,11 +78,11 @@ function money(cents = 0) {
 }
 
 function formatTime(t?: string) {
-  return formatDateTimeMinute(t, '');
+  return formatDateTimeMinute(t, '暂无');
 }
 
 function statusLabel(status?: string) {
-  return displayLabel('split_status', status, '—');
+  return displayLabel('split_status', status, '未知状态');
 }
 
 function statusClass(status?: string) {

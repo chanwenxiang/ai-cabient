@@ -5,9 +5,12 @@
       <text class="err">{{ error }}</text>
       <button class="retry" @click="load">重试</button>
     </view>
-    <view v-else-if="!list.length" class="empty">
-      <text>暂无柜机订单</text>
-    </view>
+    <empty-state
+      v-else-if="!list.length"
+      icon="单"
+      title="暂无柜机订单"
+      hint="有成交后会显示在这里"
+    />
     <view v-else>
       <view
         v-for="item in list"
@@ -23,7 +26,7 @@
         </view>
         <view class="card-amount">¥{{ money(item.totalAmountCents) }}</view>
         <view class="card-meta">
-          <text>{{ item.deviceId || '-' }} · {{ item.lineCount || 0 }} 件</text>
+          <text>{{ emptyDisplay(item.deviceId, 'device') }} · {{ item.lineCount || 0 }} 件</text>
           <text>{{ formatTime(item.createdAt) }}</text>
         </view>
       </view>
@@ -35,7 +38,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import { formatDateTimeShort, orderStatusLabel } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeShort, orderStatusLabel } from '@aicabinet/shared-uni/format';
+import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi, type MerchantOrderSummary } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { MerchantMe } from '@aicabinet/shared-types';
@@ -108,12 +112,12 @@ function money(cents?: number) {
 }
 
 function shortId(id?: string) {
-  if (!id) return '-';
+  if (!id) return emptyDisplay(id, 'order');
   return id.length > 14 ? id.substring(0, 14) : id;
 }
 
 function formatTime(t?: string) {
-  return formatDateTimeShort(t) || '';
+  return formatDateTimeShort(t, '暂无');
 }
 
 function onDetail(item: MerchantOrderSummary) {
@@ -125,29 +129,15 @@ function onDetail(item: MerchantOrderSummary) {
 </script>
 
 <style scoped>
-.page-root { min-height: 100vh; background: #f0fdfa; padding: 24rpx; box-sizing: border-box; }
-.loading, .empty { text-align: center; padding: 80rpx 24rpx; color: #64748b; font-size: 28rpx; }
-.err { color: #b91c1c; display: block; margin-bottom: 20rpx; }
-.retry {
-  display: inline-block;
-  margin-top: 12rpx;
-  padding: 0 36rpx;
-  min-height: 72rpx;
-  line-height: 72rpx;
-  border-radius: 999rpx;
-  background: linear-gradient(135deg, #134e4a, #0f766e);
-  color: #fff;
-  font-size: 26rpx;
-  font-weight: 600;
-  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
-}
-.retry::after { border: none; }
+.page-root { /* globals in App.vue */ }
+.loading, .empty { text-align: center; padding: 80rpx 24rpx; color: var(--text-muted, #64748b); font-size: 28rpx; }
+.err { color: var(--danger, #b91c1c); display: block; margin-bottom: 20rpx; }
 .card {
   background: #fff;
-  border-radius: 16rpx;
+  border-radius: var(--card-radius, 22rpx);
   padding: 24rpx;
-  margin-bottom: 16rpx;
-  border: 1rpx solid #e2e8f0;
+  margin: 0 0 16rpx;
+  border: 1rpx solid var(--card-border, #e2e8f0);
 }
 .card-hover { background: #f8fafc !important; }
 .card-header { display: flex; justify-content: space-between; margin-bottom: 10rpx; }

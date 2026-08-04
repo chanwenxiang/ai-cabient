@@ -58,10 +58,12 @@
     />
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 1180px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="displayItems"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           stripe
           border
           class="report-table"
@@ -73,10 +75,10 @@
             <el-empty :description="stuckOnly ? `当前无超过 ${STALE_MINUTES} 分钟的滞留会话` : '暂无开门记录'" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="会话" min-width="160" class-name="col-text">
+          <el-table-column prop="sessionId" label="会话" min-width="160" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
               <button type="button" class="link-cell mono" @click="openTimeline(row)">
-                {{ row.sessionId }}
+                <span class="cell-id">{{ row.sessionId }}</span>
               </button>
             </template>
           </el-table-column>
@@ -87,10 +89,10 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="用户" width="88" class-name="col-text">
-            <template #default="{ row }">{{ row.userId ?? '-' }}</template>
+          <el-table-column label="用户" width="88" align="center" class-name="col-text">
+            <template #default="{ row }">{{ row.userId ?? '无' }}</template>
           </el-table-column>
-          <el-table-column label="设备" min-width="110" class-name="col-text">
+          <el-table-column label="设备" min-width="110" align="center" class-name="col-text">
             <template #default="{ row }">
               <button
                 v-if="row.deviceId"
@@ -98,10 +100,10 @@
                 class="link-cell"
                 @click="goPath(`/devices/${encodeURIComponent(row.deviceId)}`)"
               >{{ row.deviceId }}</button>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="订单" min-width="130" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="订单" min-width="130" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 v-if="row.orderId"
@@ -109,22 +111,22 @@
                 class="link-cell mono"
                 @click="goOrders(row.deviceId)"
               >{{ row.orderId }}</button>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="110" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="sessionStateType(row.state)">
-                {{ dictLabel('session_state', row.state) || row.state || '-' }}
+                {{ dictLabel('session_state', row.state) || row.state || '未知状态' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="等待原因" min-width="160" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="等待原因" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <span>{{ waitReason(row) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="滞留 / 时限" width="160" class-name="col-text">
+          <el-table-column label="滞留 / 时限" width="160" align="center" class-name="col-text">
             <template #default="{ row }">
               <div v-if="isActiveState(row.state)" class="sla-cell">
                 <template v-if="isStuck(row)">
@@ -144,20 +146,20 @@
                 <span class="cell-datetime">时长 {{ formatAge(sessionDurationMs(row)) }}</span>
                 <small class="sla-meta">已结束</small>
               </div>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="失败原因" min-width="140" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="失败原因" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ failReasonText(row) }}</template>
           </el-table-column>
-          <el-table-column label="更新时间" width="160" class-name="col-text">
+          <el-table-column label="更新时间" width="160" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="140" class-name="col-action" align="center">
+          <el-table-column label="操作" width="220" class-name="col-action" align="center" fixed="right">
             <template #default="{ row }">
-              <TableActions :actions="sessionActions(row)" :max-primary="2" @action="(k) => onAction(String(k), row)" />
+              <TableActions :actions="sessionActions(row)" @action="(k) => onAction(String(k), row)" />
             </template>
           </el-table-column>
         </el-table>
@@ -254,6 +256,8 @@ import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
+import { comparePrimaryKey } from '@/utils/sort-by-pk';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 interface SessionRow {
   sessionId: string;
@@ -304,6 +308,8 @@ const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const items = ref<SessionRow[]>([]);
+const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById, idSortDir } =
+  useIdColumnSort<SessionRow>('sessionId');
 const timelineOpen = ref(false);
 const timelineRow = ref<SessionRow | null>(null);
 const stateOptions = dictOptions('session_state');
@@ -316,12 +322,13 @@ const displayItems = computed(() => {
   if (kindFilter.value) {
     list = list.filter((r) => (r.sessionKind || 'CONSUMER') === kindFilter.value);
   }
-  if (stuckOnly.value) return list;
+  if (stuckOnly.value) return sortById(list);
+  const dir = idSortDir.value === 'desc' ? -1 : 1;
   return list.sort((a, b) => {
     const as = isStuck(a) ? 1 : 0;
     const bs = isStuck(b) ? 1 : 0;
     if (as !== bs) return bs - as;
-    return ageMs(b) - ageMs(a);
+    return comparePrimaryKey(a.sessionId, b.sessionId) * dir;
   });
 });
 
@@ -413,7 +420,7 @@ function formatAge(ms: number) {
 
 function failReasonText(row: SessionRow) {
   const text = String(row.failureReason || row.failReason || '').trim();
-  return text || '-';
+  return text || '无';
 }
 
 function sessionDurationMs(row: SessionRow) {
@@ -440,11 +447,11 @@ function waitReason(row: SessionRow) {
     return stuck ? '长时间未关门' : '购物中 / 柜门开启';
   }
   if (s === 'OPENING') return stuck ? '开门指令超时' : '开门指令下发中';
-  if (s === 'FAILED') return fail !== '-' ? fail : '会话失败';
-  if (s === 'CANCELLED') return fail !== '-' ? fail : '会话已取消';
+  if (s === 'FAILED') return fail !== '无' ? fail : '会话失败';
+  if (s === 'CANCELLED') return fail !== '无' ? fail : '会话已取消';
   if (s === 'DISPUTED') return '待人工审核';
-  if (fail !== '-') return fail;
-  return isActiveState(row.state) ? '会话处理中' : '-';
+  if (fail !== '无') return fail;
+  return isActiveState(row.state) ? '会话处理中' : '无';
 }
 
 function rowClassName({ row }: { row: SessionRow }) {
@@ -765,7 +772,7 @@ onActivated(() => {
 .page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .status-tabs { margin: 0 0 10px; }
 .sla-banner { margin-bottom: 10px; }
-.sla-cell { display: grid; gap: 2px; line-height: 1.35; }
+.sla-cell { display: grid; gap: 2px; line-height: 1.35; text-align: center; justify-items: center; }
 .sla-meta { color: var(--el-text-color-secondary); font-size: 11px; }
 .sla-meta.danger { color: var(--el-color-danger); }
 .link-cell {
@@ -776,20 +783,29 @@ onActivated(() => {
   background: transparent;
   color: var(--el-color-primary);
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   font: inherit;
 }
 .link-cell:hover { text-decoration: underline; }
-.link-cell.mono { font-family: var(--app-font-mono); font-size: 12px; }
+.link-cell.mono { font-family: inherit; font-size: inherit; }
 .muted { color: var(--el-text-color-secondary); }
 .mb12 { margin-bottom: 12px; }
 .tl-detail { margin-top: 4px; font-size: 12px; color: var(--el-text-color-secondary); }
 .tl-actions { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
 :deep(.el-table .is-overdue > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-danger) 6%, transparent) !important;
+  background: color-mix(in srgb, var(--el-color-danger) 6%, var(--el-table-bg-color, #fff)) !important;
 }
 :deep(.el-table .is-due-soon > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-warning) 7%, transparent) !important;
+  background: color-mix(in srgb, var(--el-color-warning) 7%, var(--el-table-bg-color, #fff)) !important;
+}
+/* 固定操作列保持实心底，避免滞留/临近高亮行透视 */
+:deep(.el-table .is-overdue > td.el-table-fixed-column--right),
+:deep(.el-table .is-due-soon > td.el-table-fixed-column--right) {
+  background: var(--el-table-bg-color, #fff) !important;
+}
+:deep(.el-table--striped .is-overdue.el-table__row--striped > td.el-table-fixed-column--right),
+:deep(.el-table--striped .is-due-soon.el-table__row--striped > td.el-table-fixed-column--right) {
+  background: var(--el-fill-color-lighter, #fafafa) !important;
 }
 :deep(.el-table .is-focus > td.el-table__cell) {
   outline: 1px solid color-mix(in srgb, var(--el-color-primary) 45%, transparent);

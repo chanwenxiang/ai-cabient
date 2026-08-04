@@ -32,21 +32,23 @@
                 border
                 class="report-table"
                 table-layout="auto"
+                :default-sort="typeDefaultSort"
+                @sort-change="onTypeSortChange"
                 @current-change="onSelectType"
               >
                 <template #empty><el-empty description="暂无字典类型" :image-size="64" /></template>
-                <el-table-column label="类型" min-width="140" class-name="col-text">
+                <el-table-column prop="dictType" label="ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
                   <template #default="{ row }">
-                    <div class="name-cell">
-                      <strong>{{ row.dictName }}</strong>
-                      <small class="cell-id">{{ row.dictType }}</small>
-                    </div>
+                    <span class="cell-id">{{ row.dictType }}</span>
                   </template>
                 </el-table-column>
+                <el-table-column label="类型" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+                  <template #default="{ row }">{{ row.dictName || '无' }}</template>
+                </el-table-column>
                 <el-table-column prop="itemCount" label="项数" width="56" align="center" />
-                <el-table-column label="操作" width="64" class-name="col-action" align="center">
+                <el-table-column v-if="canEdit" label="操作" width="64" class-name="col-action" align="center" fixed="right">
                   <template #default="{ row }">
-                    <el-button v-hasPermi="['ops:dict:edit']" link type="primary" @click.stop="openType(row)">编辑</el-button>
+                    <el-button link type="primary" @click.stop="openType(row)">编辑</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -74,29 +76,36 @@
             </div>
           </template>
           <div class="table-scroll dict-item-scroll">
-            <div class="table-scroll-inner" style="min-width: 520px">
+            <div class="table-scroll-inner">
               <el-table
                 v-loading="loadingItems"
-                :data="items"
+                :data="displayItems"
                 stripe
                 border
-                class="report-table"
                 height="100%"
+                class="report-table"
                 table-layout="auto"
                 row-key="dictDataId"
                 empty-text="请选择左侧字典类型"
+                :default-sort="itemDefaultSort"
+                @sort-change="onItemSortChange"
                 @selection-change="onSelectionChange"
               >
                 <template #empty>
                   <el-empty :description="selected ? '暂无字典项' : '请先选择左侧字典类型'" :image-size="64" />
                 </template>
                 <el-table-column type="selection" width="48" align="center" />
-                <el-table-column label="字典项" min-width="160" class-name="col-text">
+                <el-table-column prop="dictDataId" label="ID" width="80" align="center" class-name="col-text" sortable="custom">
                   <template #default="{ row }">
-                    <div class="name-cell">
-                      <strong>{{ row.dictLabel }}</strong>
-                      <small class="cell-id">{{ row.dictValue }}</small>
-                    </div>
+                    <span class="cell-id">{{ row.dictDataId }}</span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="字典项" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+                  <template #default="{ row }">{{ row.dictLabel || '无' }}</template>
+                </el-table-column>
+                <el-table-column label="值" min-width="100" align="center" class-name="col-text" show-overflow-tooltip>
+                  <template #default="{ row }">
+                    <span class="cell-id">{{ row.dictValue }}</span>
                   </template>
                 </el-table-column>
                 <el-table-column prop="sortOrder" label="排序" width="72" align="center" />
@@ -107,10 +116,10 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作" width="120" class-name="col-action" align="center">
+                <el-table-column v-if="canEdit" label="操作" width="120" class-name="col-action" align="center" fixed="right">
                   <template #default="{ row }">
-                    <el-button v-hasPermi="['ops:dict:edit']" link type="primary" @click="openItem(row)">编辑</el-button>
-                    <el-button v-hasPermi="['ops:dict:edit']" link type="danger" @click="removeItem(row)">删除</el-button>
+                    <el-button link type="primary" @click="openItem(row)">编辑</el-button>
+                    <el-button link type="danger" @click="removeItem(row)">删除</el-button>
                   </template>
                 </el-table-column>
               </el-table>
@@ -161,7 +170,9 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { loadRuntimeDict } from '@/stores/dict-runtime';
+import { useAuthStore } from '@/stores/auth';
 
 interface DictTypeRow {
   dictType: string;
@@ -182,6 +193,19 @@ interface DictItemRow {
   remark?: string;
 }
 
+const auth = useAuthStore();
+const canEdit = computed(() => auth.hasPerm('ops:dict:edit'));
+const {
+  defaultSort: typeDefaultSort,
+  onSortChange: onTypeSortChange,
+  sortById: sortTypesById
+} = useIdColumnSort<DictTypeRow>('dictType');
+const {
+  defaultSort: itemDefaultSort,
+  onSortChange: onItemSortChange,
+  sortById: sortItemsById
+} = useIdColumnSort<DictItemRow>('dictDataId');
+
 const loadingTypes = ref(false);
 const loadingItems = ref(false);
 const saving = ref(false);
@@ -200,9 +224,12 @@ const itemForm = reactive({ dictDataId: 0, dictValue: '', dictLabel: '', status:
 
 const filteredTypes = computed(() => {
   const q = typeQuery.value.trim().toLowerCase();
-  if (!q) return types.value;
-  return types.value.filter((t) => t.dictType.toLowerCase().includes(q) || t.dictName.toLowerCase().includes(q));
+  const list = !q
+    ? types.value
+    : types.value.filter((row) => row.dictType.toLowerCase().includes(q) || row.dictName.toLowerCase().includes(q));
+  return sortTypesById(list);
 });
+const displayItems = computed(() => sortItemsById(items.value));
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<DictItemRow>((r) => r.dictDataId);
@@ -468,6 +495,36 @@ onActivated(() => {
 .dict-type-scroll :deep(.el-table),
 .dict-item-scroll :deep(.el-table) {
   height: 100% !important;
+  max-height: none !important;
+}
+.dict-type-scroll :deep(.el-table__inner-wrapper),
+.dict-item-scroll :deep(.el-table__inner-wrapper) {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column;
+}
+.dict-type-scroll :deep(.el-table__body-wrapper),
+.dict-item-scroll :deep(.el-table__body-wrapper) {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  max-height: none !important;
+}
+.dict-type-scroll :deep(.el-table .el-scrollbar),
+.dict-item-scroll :deep(.el-table .el-scrollbar) {
+  height: 100% !important;
+}
+/* 双栏字典：恢复表内纵滚（压过全局「只横滚」） */
+.dict-type-scroll :deep(.el-table .el-scrollbar__wrap),
+.dict-item-scroll :deep(.el-table .el-scrollbar__wrap) {
+  overflow-x: auto !important;
+  overflow-y: auto !important;
+}
+.dict-type-scroll :deep(.el-table .el-scrollbar__bar.is-vertical),
+.dict-item-scroll :deep(.el-table .el-scrollbar__bar.is-vertical) {
+  display: block !important;
+  opacity: 1 !important;
+  width: 8px !important;
 }
 
 /* 极窄屏才叠栏；左侧限高，选中后右侧仍在附近 */
@@ -510,12 +567,5 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.35; }
 .page-card-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.name-cell { display: grid; gap: 2px; line-height: 1.35; }
-.name-cell strong { font-weight: 650; }
-.name-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
-}
 .hidden-input { display: none; }
 </style>

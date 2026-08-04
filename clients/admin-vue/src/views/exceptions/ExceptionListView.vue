@@ -59,25 +59,32 @@
       </el-tabs>
 
       <div class="table-scroll">
-        <div class="table-scroll-inner" style="min-width: 1180px">
+        <div class="table-scroll-inner">
           <el-table
             v-loading="loading"
             :data="displayItems"
             stripe
             border
             class="report-table"
+           
             :empty-text="emptyHint"
             :row-class-name="rowClassName"
             table-layout="auto"
             row-key="exceptionId"
+            :default-sort="idDefaultSort"
+            @sort-change="onIdSortChange"
             @selection-change="onSelectionChange"
           >
             <el-table-column type="selection" width="48" align="center" />
-            <el-table-column label="异常" min-width="200" class-name="col-text">
+            <el-table-column prop="exceptionId" label="ID" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
               <template #default="{ row }">
-                <button type="button" class="exception-cell" @click="openDetail(row)">
-                  <strong>{{ row.title || dictLabel('exception_type', row.exceptionType) }}</strong>
-                  <small>{{ row.exceptionId }}</small>
+                <span class="cell-id">{{ row.exceptionId }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="异常" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+              <template #default="{ row }">
+                <button type="button" class="link-cell" @click="openDetail(row)">
+                  {{ row.title || dictLabel('exception_type', row.exceptionType) || '无' }}
                 </button>
               </template>
             </el-table-column>
@@ -88,10 +95,10 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="类型" min-width="120" class-name="col-text" show-overflow-tooltip>
+            <el-table-column label="类型" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
               <template #default="{ row }">{{ dictLabel('exception_type', row.exceptionType) }}</template>
             </el-table-column>
-            <el-table-column label="设备" min-width="110" class-name="col-text" show-overflow-tooltip>
+            <el-table-column label="设备" min-width="110" align="center" class-name="col-text" show-overflow-tooltip>
               <template #default="{ row }">
                 <button
                   v-if="row.deviceId"
@@ -99,10 +106,10 @@
                   class="link-cell"
                   @click="goDevice(row.deviceId)"
                 >{{ row.deviceId }}</button>
-                <span v-else class="muted">-</span>
+                <span v-else class="muted">无</span>
               </template>
             </el-table-column>
-            <el-table-column label="会话" min-width="130" class-name="col-text" show-overflow-tooltip>
+            <el-table-column label="会话" min-width="130" align="center" class-name="col-text" show-overflow-tooltip>
               <template #default="{ row }">
                 <button
                   v-if="row.sessionId"
@@ -110,10 +117,10 @@
                   class="link-cell mono"
                   @click="goSessions(row.deviceId, row.sessionId)"
                 >{{ row.sessionId }}</button>
-                <span v-else class="muted">-</span>
+                <span v-else class="muted" :title="emptyRefHint(row)">{{ emptyRefLabel(row) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="订单" min-width="120" class-name="col-text" show-overflow-tooltip>
+            <el-table-column label="订单" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
               <template #default="{ row }">
                 <button
                   v-if="row.orderId"
@@ -121,11 +128,14 @@
                   class="link-cell mono"
                   @click="goOrders(row.deviceId)"
                 >{{ row.orderId }}</button>
-                <span v-else class="muted">-</span>
+                <span v-else class="muted" :title="emptyRefHint(row)">{{ emptyRefLabel(row) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="用户" width="88" class-name="col-text">
-              <template #default="{ row }">{{ row.userId || '-' }}</template>
+            <el-table-column label="用户" width="88" align="center">
+              <template #default="{ row }">
+                <span v-if="row.userId">{{ row.userId }}</span>
+                <span v-else class="muted" :title="emptyRefHint(row)">{{ emptyRefLabel(row) }}</span>
+              </template>
             </el-table-column>
             <el-table-column label="状态" width="92" align="center">
               <template #default="{ row }">
@@ -134,7 +144,7 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="处理时限" min-width="168" class-name="col-text">
+            <el-table-column label="处理时限" min-width="168" align="center">
               <template #default="{ row }">
                 <div class="sla-cell">
                   <template v-if="row.slaOverdue">
@@ -146,19 +156,19 @@
                     <span class="cell-datetime">{{ formatDateTime(row.slaDueAt) }}</span>
                     <small class="sla-meta">剩 {{ formatDurationUntil(row.slaDueAt) }}</small>
                   </template>
-                  <span v-else class="muted">-</span>
+                  <span v-else class="muted">无</span>
                 </div>
               </template>
             </el-table-column>
-            <el-table-column label="负责人" width="88" class-name="col-text">
+            <el-table-column label="负责人" width="88" align="center">
               <template #default="{ row }">{{ row.assigneeUserId || '未领取' }}</template>
             </el-table-column>
-            <el-table-column label="创建时间" width="160" class-name="col-text">
+            <el-table-column label="创建时间" width="160" align="center">
               <template #default="{ row }">
                 <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="150" class-name="col-action" align="center">
+            <el-table-column label="操作" width="220" class-name="col-action" align="center" fixed="right">
               <template #default="{ row }">
                 <TableActions :actions="exceptionActions(row)" @action="(key) => onExceptionAction(key, row)" />
               </template>
@@ -269,7 +279,7 @@
                 </el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="异常内容">{{ detail.exception.title }}</el-descriptions-item>
-              <el-descriptions-item label="详细信息">{{ detail.exception.detail || '-' }}</el-descriptions-item>
+              <el-descriptions-item label="详细信息">{{ detail.exception.detail || '无' }}</el-descriptions-item>
               <el-descriptions-item label="关联设备">
                 <button
                   v-if="detail.exception.deviceId"
@@ -399,7 +409,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { CircleCheck, Refresh, UserFilled, VideoCamera, View } from '@element-plus/icons-vue';
+import { CircleCheck, Monitor, Refresh, UserFilled, VideoCamera, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
@@ -418,6 +428,7 @@ import {
 } from '@aicabinet/shared-dict';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const route = useRoute();
 const router = useRouter();
@@ -466,6 +477,7 @@ const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const items = ref<OpsException[]>([]);
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('exceptionId');
 const statusCounts = reactive({ OPEN: 0, PROCESSING: 0, RESOLVED: 0, CLOSED: 0 });
 const drawer = ref(false);
 const detailLoading = ref(false);
@@ -484,18 +496,7 @@ const manualConfirmItems = computed(() =>
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<OpsException>((r) => r.exceptionId);
 
-const displayItems = computed(() => {
-  // Overdue filter/sort is server-side when overdueOnly; otherwise soft-sort current page.
-  if (overdueOnly.value) return items.value;
-  return [...items.value].sort((a, b) => {
-    const ao = a.slaOverdue ? 1 : 0;
-    const bo = b.slaOverdue ? 1 : 0;
-    if (ao !== bo) return bo - ao;
-    const ad = a.slaDueAt ? Date.parse(a.slaDueAt) : Number.POSITIVE_INFINITY;
-    const bd = b.slaDueAt ? Date.parse(b.slaDueAt) : Number.POSITIVE_INFINITY;
-    return ad - bd;
-  });
-});
+const displayItems = computed(() => sortById(items.value, 'exceptionId'));
 
 const pageOverdueCount = computed(() => items.value.filter((r) => r.slaOverdue).length);
 
@@ -548,16 +549,16 @@ function formatDurationParts(ms: number) {
 }
 
 function formatDurationUntil(dueAt?: string) {
-  if (!dueAt) return '-';
+  if (!dueAt) return '无';
   const due = Date.parse(dueAt);
-  if (Number.isNaN(due)) return '-';
+  if (Number.isNaN(due)) return '无';
   return formatDurationParts(due - Date.now());
 }
 
 function formatDurationSince(dueAt?: string) {
-  if (!dueAt) return '-';
+  if (!dueAt) return '无';
   const due = Date.parse(dueAt);
-  if (Number.isNaN(due)) return '-';
+  if (Number.isNaN(due)) return '无';
   return formatDurationParts(Date.now() - due);
 }
 
@@ -567,31 +568,43 @@ function rowClassName({ row }: { row: OpsException }) {
   return '';
 }
 
+/** 设备类异常本身无会话/订单，空值展示「无」避免误以为丢字段 */
+function isDeviceScopedException(row: OpsException) {
+  const t = String(row.exceptionType || '').toUpperCase();
+  return t === 'DEVICE_FAULT' || t === 'DEVICE_OFFLINE' || t === 'DOOR_OPEN_TOO_LONG';
+}
+
+function emptyRefLabel(row: OpsException) {
+  return isDeviceScopedException(row) ? '无' : '无';
+}
+
+function emptyRefHint(row: OpsException) {
+  return isDeviceScopedException(row) ? '设备类异常无关联会话/订单/用户' : '暂无关联数据';
+}
+
 function exceptionActions(row: OpsException): TableAction[] {
-  const acts: TableAction[] = [];
+  // 对齐库存健康：主区放详情/设备/处理，次要进「更多」
+  const acts: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
+  if (row.deviceId && canAccessPath('/devices')) {
+    acts.push({ key: 'device', label: '设备', icon: Monitor });
+  }
   if (canHandle.value && row.status === 'OPEN') {
     acts.push({ key: 'claim', label: '领取', icon: UserFilled, type: 'primary' });
   }
   if (canHandle.value && row.status !== 'RESOLVED' && canResolveWithRepair(row)) {
-    acts.push({ key: 'repair', label: '建工单结案', icon: CircleCheck, type: 'success' });
+    acts.push({ key: 'repair', label: '建工单结案', icon: CircleCheck, type: 'success', overflow: true });
   } else if (canHandle.value && row.status !== 'RESOLVED') {
     acts.push({ key: 'resolve', label: '解决', icon: CircleCheck, type: 'success' });
   }
   if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
     acts.push({ key: 'video', label: '录像', icon: VideoCamera, type: 'warning', overflow: true });
   }
-  acts.push({
-    key: 'detail',
-    label: '详情',
-    icon: View,
-    type: 'primary',
-    overflow: acts.length >= 2
-  });
   return acts;
 }
 
 function onExceptionAction(key: string, row: OpsException) {
   if (key === 'detail') openDetail(row);
+  else if (key === 'device' && row.deviceId) goDevice(row.deviceId);
   else if (key === 'claim') claim(row);
   else if (key === 'resolve') resolve(row);
   else if (key === 'repair') resolveWithRepairRow(row);
@@ -845,7 +858,7 @@ async function cancelSession() {
   const item = detail.value.exception;
   try {
     const { value } = await ElMessageBox.prompt(
-      `将终止会话 ${item.sessionId} 并释放设备 ${item.deviceId || '-'}，请填写原因`,
+      `将终止会话 ${item.sessionId} 并释放设备 ${item.deviceId || '无'}，请填写原因`,
       '危险操作确认',
       {
         type: 'warning',
@@ -1073,27 +1086,6 @@ onMounted(async () => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; }
-.exception-cell {
-  appearance: none;
-  border: 0;
-  padding: 0;
-  margin: 0;
-  background: transparent;
-  display: grid;
-  gap: 2px;
-  text-align: left;
-  cursor: pointer;
-  color: inherit;
-  font: inherit;
-  line-height: 1.35;
-}
-.exception-cell strong { color: var(--el-color-primary); font-weight: 650; }
-.exception-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
-}
-.exception-cell:hover strong { text-decoration: underline; }
 .link-cell {
   appearance: none;
   border: 0;
@@ -1102,16 +1094,26 @@ onMounted(async () => {
   background: transparent;
   color: var(--el-color-primary);
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   font: inherit;
 }
 .link-cell:hover { text-decoration: underline; }
-.link-cell.mono { font-family: var(--app-font-mono); font-size: 12px; }
+.link-cell.mono { font-family: inherit; font-size: inherit; }
 .muted { color: var(--el-text-color-secondary); }
 .status-tabs { margin: 0 0 10px; }
 .sla-banner { margin-bottom: 10px; }
-.sla-cell { display: grid; gap: 2px; line-height: 1.35; }
-.sla-meta { color: var(--el-text-color-secondary); font-size: 11px; }
+.sla-cell {
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+  justify-items: center;
+  text-align: center;
+}
+.sla-meta {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+  text-align: center;
+}
 .sla-meta.danger { color: var(--el-color-danger); }
 .drawer-actions { display: flex; gap: 10px; flex-wrap: wrap; margin: 16px 0; }
 .drawer-actions--tight { margin: 8px 0 0; }
@@ -1165,9 +1167,10 @@ onMounted(async () => {
   .workbench-grid { grid-template-columns: 1fr; }
 }
 :deep(.el-table .is-overdue > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-danger) 6%, transparent) !important;
+  /* 必须用不透明底，否则 fixed 操作列会透视出左侧滚动内容 */
+  background: color-mix(in srgb, var(--el-color-danger) 6%, var(--el-table-bg-color, #fff)) !important;
 }
 :deep(.el-table .is-due-soon > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-warning) 7%, transparent) !important;
+  background: color-mix(in srgb, var(--el-color-warning) 7%, var(--el-table-bg-color, #fff)) !important;
 }
 </style>

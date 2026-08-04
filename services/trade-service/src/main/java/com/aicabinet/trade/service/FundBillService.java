@@ -98,7 +98,6 @@ public class FundBillService {
             a.orderCount++;
             a.gross += s.getGrossCents();
             a.platform += s.getPlatformCents();
-            a.merchant += s.getMerchantCents();
             if ("SUCCESS".equals(s.getStatus())) {
                 a.credited += s.getMerchantCents();
             } else {
@@ -344,7 +343,6 @@ public class FundBillService {
         long orderCount;
         long gross;
         long platform;
-        long merchant;
         long credited;
         long pending;
     }

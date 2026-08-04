@@ -7,7 +7,9 @@ import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.SystemConfigService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,5 +39,14 @@ public class SystemConfigController {
             HttpServletRequest request,
             @Valid @RequestBody UpsertSystemConfigRequest body) {
         return ApiResponse.ok(systemConfigService.upsert(body));
+    }
+
+    @RequiresPermissions("ops:config:delete")
+    @DeleteMapping("/{configKey:.+}")
+    public ApiResponse<Void> delete(
+            HttpServletRequest request,
+            @PathVariable("configKey") String configKey) {
+        systemConfigService.delete(configKey);
+        return ApiResponse.ok(null);
     }
 }

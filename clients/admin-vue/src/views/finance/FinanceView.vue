@@ -105,10 +105,12 @@
         <el-button v-if="canAccessPath('/skus')" link type="primary" @click="goPath('/skus')">商品管理</el-button>
       </template>
       <div class="table-scroll">
-        <div class="table-scroll-inner" style="min-width: 780px">
+        <div class="table-scroll-inner">
           <el-table
             class="report-table sku-table"
-            :data="topSkus"
+            :data="displayTopSkus"
+            :default-sort="idDefaultSort"
+            @sort-change="onIdSortChange"
             stripe
             border
             table-layout="auto"
@@ -117,22 +119,22 @@
           >
             <template #empty><el-empty description="暂无商品毛利数据" /></template>
             <el-table-column type="selection" width="48" align="center" />
-            <el-table-column label="商品" min-width="180" class-name="col-text" show-overflow-tooltip>
+            <el-table-column prop="skuId" label="ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
               <template #default="{ row }">
-                <div class="name-cell">
-                  <strong>{{ row.skuName || row.skuId }}</strong>
-                  <small class="cell-id">{{ row.skuId }}</small>
-                </div>
+                <span class="cell-id">{{ row.skuId }}</span>
               </template>
             </el-table-column>
+            <el-table-column label="商品" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.skuName || '无' }}</template>
+            </el-table-column>
             <el-table-column prop="qtySold" label="销量" min-width="88" align="center" />
-            <el-table-column label="营收" min-width="110" align="right" class-name="col-money">
+            <el-table-column label="营收" min-width="110" align="center" class-name="col-money">
               <template #default="{ row }">¥{{ (row.revenueCents / 100).toFixed(2) }}</template>
             </el-table-column>
-            <el-table-column label="成本" min-width="110" align="right" class-name="col-money">
+            <el-table-column label="成本" min-width="110" align="center" class-name="col-money">
               <template #default="{ row }">¥{{ (row.cogsCents / 100).toFixed(2) }}</template>
             </el-table-column>
-            <el-table-column label="毛利" min-width="110" align="right" class-name="col-money">
+            <el-table-column label="毛利" min-width="110" align="center" class-name="col-money">
               <template #default="{ row }">
                 <span :class="{ warn: row.grossMarginCents < 0 }">¥{{ (row.grossMarginCents / 100).toFixed(2) }}</span>
               </template>
@@ -161,6 +163,7 @@ import ChartPanel from '@/components/ChartPanel.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { buildSeriesChart, formatYuan, shortDate, type ChartKind } from '@/utils/charts';
 
 interface FinanceStats {
@@ -210,6 +213,8 @@ const chartKind = ref<ChartKind>('area');
 const stats = ref<FinanceStats>({});
 const daily = ref<FinanceDaily[]>([]);
 const topSkus = ref<FinanceSku[]>([]);
+const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById } = useIdColumnSort<FinanceSku>('skuId');
+const displayTopSkus = computed(() => sortById(topSkus.value));
 
 function parseDays(raw: unknown): number {
   const n = Number(raw);
@@ -364,13 +369,6 @@ onMounted(load);
 .page-card-head__actions { display: flex; gap: 8px; }
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.name-cell { display: grid; gap: 2px; line-height: 1.35; }
-.name-cell strong { font-weight: 650; }
-.name-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
-}
 .header-hint {
   display: block;
   margin-top: 4px;
@@ -436,7 +434,7 @@ onMounted(load);
 .sku-panel { margin-top: 16px; }
 .sku-table :deep(th.col-text > .cell),
 .sku-table :deep(td.col-text > .cell) {
-  text-align: left;
+  text-align: center;
 }
 .snapshot-desc :deep(.el-descriptions__table) {
   height: 100%;

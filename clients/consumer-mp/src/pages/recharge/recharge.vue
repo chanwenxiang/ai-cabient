@@ -198,7 +198,7 @@ async function loadBalance() {
     const acc = await consumerApi.account();
     balanceYuan.value = ((acc.balanceCents || 0) / 100).toFixed(2);
   } catch {
-    balanceYuan.value = '-';
+    balanceYuan.value = '--';
   }
 }
 
@@ -220,7 +220,7 @@ function formatTime(t: string) {
 }
 
 function statusText(s: string) {
-  return displayLabel('recharge_status', s, '-');
+  return displayLabel('recharge_status', s, '未知状态');
 }
 
 function channelText(channel?: string) {

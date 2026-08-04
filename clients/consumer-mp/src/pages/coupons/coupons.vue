@@ -1,29 +1,33 @@
 <template>
   <view class="page-root">
-    <view class="tabs">
-      <view v-for="tab in tabs" :key="tab.key" class="tab" :class="{ active: activeTab === tab.key }" @click="activeTab = tab.key">
-        <text>{{ tab.label }}</text>
-      </view>
+    <view class="tabs-pill">
+      <text
+        v-for="tab in tabs"
+        :key="tab.key"
+        class="filter-chip"
+        :class="{ active: activeTab === tab.key }"
+        @click="activeTab = tab.key"
+      >{{ tab.label }}</text>
     </view>
 
     <view v-if="loading" class="loading"><text>加载中…</text></view>
-    <view v-else-if="loadError" class="empty-card">
-      <text class="empty-icon">!</text>
-      <text class="empty-text">优惠券加载失败</text>
-      <text class="empty-hint">{{ loadError }}</text>
-      <view class="empty-actions">
-        <button class="empty-btn" @click="load">重试</button>
-      </view>
-    </view>
-    <view v-else-if="!list.length" class="empty-card">
-      <text class="empty-icon">券</text>
-      <text class="empty-text">{{ emptyTitle }}</text>
-      <text class="empty-hint">{{ emptyHint }}</text>
-      <view class="empty-actions">
-        <button class="empty-btn" @click="goShop">去扫码购物</button>
-        <button class="empty-btn ghost" @click="goMarketing">看热门活动</button>
-      </view>
-    </view>
+    <empty-state
+      v-else-if="loadError"
+      icon="!"
+      title="优惠券加载失败"
+      :hint="loadError"
+    >
+      <button class="empty-btn primary" @click="load">重试</button>
+    </empty-state>
+    <empty-state
+      v-else-if="!list.length"
+      icon="券"
+      :title="emptyTitle"
+      :hint="emptyHint"
+    >
+      <button class="empty-btn primary" @click="goShop">去扫码购物</button>
+      <button class="empty-btn ghost" @click="goMarketing">看热门活动</button>
+    </empty-state>
     <view v-else>
       <view v-for="c in list" :key="c.couponId" class="coupon-card" :class="{ expired: c.status === 'EXPIRED', used: c.status === 'USED' }">
         <view class="coupon-left">
@@ -46,6 +50,7 @@
 import { computed, ref, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
+import EmptyState from '@/components/empty-state.vue';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 
@@ -97,11 +102,11 @@ async function load() {
 }
 
 function typeText(t: string) {
-  return displayLabel('coupon_type', t);
+  return displayLabel('coupon_type', t, '优惠券');
 }
 
 function formatTime(t: string) {
-  return formatDateTimeMinute(t, '').slice(0, 10);
+  return formatDateTimeMinute(t, '暂无').slice(0, 10);
 }
 
 function goShop() {
@@ -114,43 +119,9 @@ function goMarketing() {
 </script>
 
 <style scoped>
-.page-root { padding: 20rpx; background: #f7f7f7; min-height: 100vh; }
-.tabs { display: flex; background: #fff; border-radius: 16rpx; margin-bottom: 20rpx; overflow: hidden; }
-.tab { flex: 1; text-align: center; padding: 20rpx 0; font-size: 26rpx; color: #666; }
-.tab.active { color: #07c160; font-weight: 600; border-bottom: 4rpx solid #07c160; }
-.loading, .empty-card { text-align: center; padding: 80rpx 0; }
-.empty-icon {
-  width: 88rpx;
-  height: 88rpx;
-  margin: 0 auto 16rpx;
-  border-radius: 24rpx;
-  background: #f0fdf4;
-  color: #059669;
-  font-size: 36rpx;
-  font-weight: 700;
-  line-height: 88rpx;
-  display: block;
-}
-.empty-text { font-size: 30rpx; font-weight: 700; color: #223029; display: block; }
-.empty-hint { font-size: 24rpx; color: #849087; margin-top: 8rpx; display: block; padding: 0 40rpx; line-height: 1.5; }
-.empty-actions { display: flex; flex-direction: column; align-items: center; gap: 16rpx; margin-top: 32rpx; }
-.empty-btn {
-  margin: 0;
-  width: 320rpx;
-  height: 72rpx;
-  line-height: 72rpx;
-  background: #07c160;
-  color: #fff;
-  border-radius: 36rpx;
-  font-size: 28rpx;
-  border: none;
-}
-.empty-btn.ghost {
-  background: #fff;
-  color: #059669;
-  border: 2rpx solid #86efac;
-}
-.empty-btn::after { border: none; }
+.page-root { padding: 20rpx; background: var(--page-bg, #f5f7f8); min-height: 100%; }
+.tabs-pill { margin-bottom: 20rpx; }
+.loading { text-align: center; padding: 80rpx 24rpx; color: var(--text-muted, #64748b); }
 .coupon-card { display: flex; background: #fff; border-radius: 16rpx; margin-bottom: 16rpx; overflow: hidden; box-shadow: 0 2rpx 8rpx rgba(0,0,0,.04); }
 .coupon-card.expired, .coupon-card.used { opacity: .6; }
 .coupon-left { width: 200rpx; display: flex; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(135deg, #ff6b35, #ff8f00); padding: 24rpx; }

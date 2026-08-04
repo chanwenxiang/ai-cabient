@@ -34,16 +34,18 @@
       </el-form-item>
     </el-form>
 
-    <el-table v-loading="loading" :data="items" stripe border class="report-table">
+    <el-table v-loading="loading" :data="displayItems"
+        :default-sort="idDefaultSort"
+        @sort-change="onIdSortChange" stripe border class="report-table">
       <template #empty><el-empty description="暂无验证记录" /></template>
-      <el-table-column prop="logId" label="记录ID" width="100" />
-      <el-table-column prop="phone" label="手机号" width="140" />
-      <el-table-column prop="userId" label="用户ID" width="120" />
-      <el-table-column prop="channel" label="渠道" width="100">
+      <el-table-column prop="logId" label="记录ID" width="100" align="center" sortable="custom" />
+      <el-table-column prop="phone" label="手机号" width="140" align="center" />
+      <el-table-column prop="userId" label="用户ID" width="120" align="center" />
+      <el-table-column prop="channel" label="渠道" width="100" align="center">
         <template #default="{ row }">{{ dictLabel('pay_channel', row.channel) }}</template>
       </el-table-column>
-      <el-table-column prop="merchantId" label="商户" min-width="140" />
-      <el-table-column label="验证时间" width="170">
+      <el-table-column prop="merchantId" label="商户" min-width="140" align="center" />
+      <el-table-column label="验证时间" width="170" align="center">
         <template #default="{ row }">{{ String(row.verifiedAt || '').replace('T', ' ').slice(0, 19) }}</template>
       </el-table-column>
     </el-table>
@@ -79,17 +81,20 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const loading = ref(false);
 const saving = ref(false);
 const phone = ref('');
 const channel = ref('');
 const items = ref<any[]>([]);
+const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById } = useIdColumnSort('logId');
+const displayItems = computed(() => sortById(items.value));
 const dlg = ref(false);
 const form = reactive({ phone: '', userId: '', channel: 'WECHAT', merchantId: '' });
 

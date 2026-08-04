@@ -16,10 +16,74 @@ page {
   --brand-deep: #134e4a;
   --brand-soft: #99f6e4;
   --brand-tint: #ccfbf1;
+  --page-bg: #f0fdfa;
+  --text-muted: #64748b;
+  --text-subtle: #94a3b8;
+  --card-radius: 22rpx;
   height: 100%;
-  background: #f0fdfa;
+  background: var(--page-bg);
   font-family: var(--app-font);
-  color: #0f172a;
+  color: var(--text-primary, #0f172a);
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.page-root {
+  min-height: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  padding: 24rpx;
+  background: var(--page-bg);
+}
+
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 10rpx 22rpx;
+  border-radius: 999rpx;
+  font-size: 24rpx;
+  color: var(--text-muted);
+  background: #fff;
+  border: 1rpx solid var(--card-border, #e2e8f0);
+  white-space: nowrap;
+}
+.filter-chip.active {
+  color: #fff;
+  background: var(--brand);
+  border-color: var(--brand);
+  font-weight: 600;
+}
+
+.tabs-pill {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: var(--section-gap, 20rpx);
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16rpx;
+  padding: 12rpx 0;
+  font-size: 26rpx;
+}
+.info-row .lbl,
+.info-label {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.info-row .val,
+.info-value {
+  color: var(--text-primary, #0f172a);
+  text-align: right;
+  word-break: break-all;
+}
+
+.banner-err {
+  color: var(--danger, #b91c1c);
+  font-size: 26rpx;
 }
 
 /* uni-app button 默认 1px 边框 */

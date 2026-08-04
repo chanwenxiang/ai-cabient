@@ -33,9 +33,9 @@
 
       <view class="section">
         <text class="section-title">订单信息</text>
-        <view class="info-row"><text class="lbl">订单号</text><text class="val mono">{{ order.orderId }}</text></view>
-        <view class="info-row"><text class="lbl">会话</text><text class="val mono">{{ order.sessionId || '-' }}</text></view>
-        <view class="info-row"><text class="lbl">柜机</text><text class="val mono">{{ order.deviceId || '-' }}</text></view>
+        <view class="info-row"><text class="lbl">订单号</text><text class="val mono">{{ emptyDisplay(order.orderId, 'order') }}</text></view>
+        <view class="info-row"><text class="lbl">会话</text><text class="val mono">{{ emptyDisplay(order.sessionId, 'session') }}</text></view>
+        <view class="info-row"><text class="lbl">柜机</text><text class="val mono">{{ emptyDisplay(order.deviceId, 'device') }}</text></view>
         <view class="info-row"><text class="lbl">支付方式</text><text class="val">{{ payChannelText }}</text></view>
         <view class="info-row"><text class="lbl">创建时间</text><text class="val">{{ formatTime(order.createdAt) }}</text></view>
       </view>
@@ -56,7 +56,7 @@
 import { computed, ref } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { formatDateTimeShort, orderStatusLabel } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeShort, orderStatusLabel } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { MerchantMe } from '@aicabinet/shared-types';
@@ -90,7 +90,7 @@ const loading = ref(true);
 const error = ref('');
 
 const payChannelText = computed(() =>
-  displayLabel('pay_channel', order.value?.payChannel, '-')
+  displayLabel('pay_channel', order.value?.payChannel, '未知渠道')
 );
 
 onLoad((opt: Record<string, string | undefined>) => {
@@ -140,7 +140,7 @@ function money(cents?: number) {
 }
 
 function formatTime(t?: string) {
-  return formatDateTimeShort(t) || '-';
+  return formatDateTimeShort(t, '暂无');
 }
 
 function goDevice() {

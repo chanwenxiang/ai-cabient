@@ -51,7 +51,7 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 980px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="paged"
@@ -59,32 +59,34 @@
           border
           class="report-table"
           row-key="activityId"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
           <template #empty><el-empty description="暂无活动" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="活动" min-width="180" class-name="col-text">
+          <el-table-column prop="activityId" label="ID" width="80" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
-              <div class="name-cell">
-                <strong>{{ row.activityName || row.activityId }}</strong>
-                <small>ID {{ row.activityId }}</small>
-              </div>
+              <span class="cell-id">{{ row.activityId }}</span>
             </template>
+          </el-table-column>
+          <el-table-column label="活动" min-width="160" align="center" class-name="col-text">
+            <template #default="{ row }">{{ row.activityName || '无' }}</template>
           </el-table-column>
           <el-table-column label="类型" width="120" align="center">
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{ typeMap[row.activityType] || row.activityType }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="时间" min-width="200" class-name="col-text">
+          <el-table-column label="时间" min-width="200" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatTime(row.startTime) }} ~ {{ formatTime(row.endTime) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="预算" width="110" align="right" class-name="col-money">
+          <el-table-column label="预算" width="110" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ yuan(row.budgetCents) }}</template>
           </el-table-column>
-          <el-table-column label="已使用" width="110" align="right" class-name="col-money">
+          <el-table-column label="已使用" width="110" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ yuan(row.usedCents) }}</template>
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
@@ -94,14 +96,20 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="100" class-name="col-action" align="center">
+          <el-table-column
+            v-if="showActionColumn"
+            label="操作"
+            width="100"
+            class-name="col-action"
+            align="center"
+            fixed="right"
+          >
             <template #default="{ row }">
               <TableActions
                 v-if="rowActions(row).length"
                 :actions="rowActions(row)"
                 @action="(k) => onAction(String(k), row)"
               />
-              <span v-else class="muted">-</span>
             </template>
           </el-table-column>
         </el-table>
@@ -157,10 +165,12 @@ import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName, csvRowsToObjects, downloadCsv, parseCsv } from '@/utils/csv';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('activityId');
 const loading = ref(false);
 const saving = ref(false);
 const importing = ref(false);
@@ -176,13 +186,14 @@ const importInput = ref<HTMLInputElement | null>(null);
 
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();
-  return list.value.filter((row) => {
+  const rows = list.value.filter((row) => {
     if (statusFilter.value === 'ACTIVE' && !isEnabled(row.status)) return false;
     if (statusFilter.value === 'INACTIVE' && isEnabled(row.status)) return false;
     if (!q) return true;
     return [row.activityId, row.activityName, row.activityType]
       .some((x) => String(x || '').toLowerCase().includes(q));
   });
+  return sortById(rows);
 });
 
 const paged = computed(() => {
@@ -248,6 +259,9 @@ function rowActions(row: any): TableAction[] {
   }
   return acts;
 }
+
+/** 当前页没有任何可操作项时不展示操作列（避免整列「无」） */
+const showActionColumn = computed(() => paged.value.some((row) => rowActions(row).length > 0));
 
 function onSelectionChange(rows: any[]) {
   selectedIds.value = rows.map((r) => r.activityId).filter(Boolean);
@@ -516,13 +530,6 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.name-cell { display: grid; gap: 2px; line-height: 1.35; }
-.name-cell strong { font-weight: 650; }
-.name-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
-}
 .muted { color: var(--layout-muted); font-size: 13px; }
 .hidden-input { display: none; }
 </style>

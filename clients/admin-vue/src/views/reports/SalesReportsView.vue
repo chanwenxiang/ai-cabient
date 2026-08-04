@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -51,17 +51,17 @@
 
     <el-table v-loading="loading" :data="rows" stripe border class="report-table">
       <template #empty><el-empty description="暂无数据" /></template>
-      <el-table-column prop="dimKey" label="编码" min-width="140" />
-      <el-table-column prop="dimLabel" label="名称" min-width="180" />
+      <el-table-column prop="dimKey" label="编码" min-width="140" align="center" />
+      <el-table-column prop="dimLabel" label="名称" min-width="180" align="center" />
       <el-table-column prop="orderCount" label="订单数" width="90" align="center" />
       <el-table-column prop="qty" label="销量" width="90" align="center" />
-      <el-table-column label="营收" width="110" align="right">
+      <el-table-column label="营收" width="110" align="center">
         <template #default="{ row }">¥{{ ((row.revenueCents || 0) / 100).toFixed(2) }}</template>
       </el-table-column>
-      <el-table-column label="成本" width="110" align="right">
+      <el-table-column label="成本" width="110" align="center">
         <template #default="{ row }">¥{{ ((row.cogsCents || 0) / 100).toFixed(2) }}</template>
       </el-table-column>
-      <el-table-column label="毛利" width="110" align="right">
+      <el-table-column label="毛利" width="110" align="center">
         <template #default="{ row }">¥{{ ((row.marginCents || 0) / 100).toFixed(2) }}</template>
       </el-table-column>
     </el-table>

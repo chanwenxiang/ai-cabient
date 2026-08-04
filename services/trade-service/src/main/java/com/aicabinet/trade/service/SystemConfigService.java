@@ -8,8 +8,10 @@ import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.SystemConfig;
 import com.aicabinet.trade.mapper.SystemConfigMapper;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -139,6 +141,17 @@ public class SystemConfigService {
         }
         config.setUpdatedAt(Instant.now());
         return toDto(repository.save(config));
+    }
+
+    @Transactional
+    public void delete(String configKey) {
+        if (configKey == null || configKey.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "配置键不能为空");
+        }
+        if (!repository.existsById(configKey)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "参数不存在");
+        }
+        repository.deleteById(configKey);
     }
 
     private void ensureDefaults() {

@@ -629,7 +629,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
   min-height: 40px;
-  padding: 8px 12px 8px 16px;
+  padding: 6px 12px 6px 16px;
   background: var(--layout-topbar);
   border-bottom: 1px solid var(--layout-border);
   flex-shrink: 0;
@@ -638,10 +638,13 @@ onUnmounted(() => {
 .tags-scroll {
   display: flex;
   flex-wrap: nowrap;
-  gap: 8px;
+  align-items: center;
+  gap: 6px;
   min-width: 0;
   flex: 1 1 auto;
   overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 2px;
 }
 .tags-actions {
   display: flex;
@@ -664,10 +667,13 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  gap: var(--admin-space-md, 12px);
+  padding: var(--admin-space-md, 12px) var(--admin-space-lg, 16px);
+  box-sizing: border-box;
   /* 只纵向滚；横向交给表格自身，避免双滚动条 */
   overflow-x: hidden;
   overflow-y: auto;
-  /* 切页时滚动条显隐不再挤动内容宽度，减轻窗口抖动 */
+  /* 切页时滚动条显隐不再挤动内容宽度 */
   scrollbar-gutter: stable;
   background: var(--layout-bg);
   color: var(--layout-text);

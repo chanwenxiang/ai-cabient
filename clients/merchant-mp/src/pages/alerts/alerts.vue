@@ -29,6 +29,7 @@
       >
         <text class="tag" :class="tagClass(a.type)">{{ a.typeLabel }}</text>
         <text class="title">{{ a.title }}</text>
+        <text v-if="a.deviceId" class="meta">柜机 {{ a.deviceId }}</text>
         <text v-if="a.detail" class="meta">{{ a.detail }}</text>
         <text v-if="actionHint(a)" class="action">{{ actionHint(a) }}</text>
         <button
@@ -299,7 +300,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .tag.expiry { background: #a7f3d0; color: #059669; }
 .tag.default { background: #e2e8f0; color: #64748b; }
 .title { font-weight: 600; display: block; margin-top: 8rpx; pointer-events: none; }
-.meta { pointer-events: none; }
+.meta { display: block; margin-top: 6rpx; color: #64748b; font-size: 24rpx; pointer-events: none; }
 .action { color: #0f766e; font-size: 24rpx; display: block; margin-top: 12rpx; pointer-events: none; }
 .err { color: #ef4444; display: block; }
 .retry {

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="page">
     <view class="page-nav">
       <view class="nav-back" hover-class="nav-back-hover" @click="goBack">
@@ -215,11 +215,11 @@ function filterCountSuffix(value: 'all' | 'paid' | 'pending' | 'issue' | 'refund
   return ` ${countBy(value)}`;
 }
 function shortId(id?: string) {
-  if (!id) return '-';
+  if (!id) return '暂无单号';
   return id.length > 12 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
 }
 function deviceDisplay(deviceId?: string) {
-  if (!deviceId) return '智能柜';
+  if (!deviceId) return '无柜机';
   const lastId = uni.getStorageSync('last_device_id');
   const lastName = uni.getStorageSync('last_device_name');
   if (lastId === deviceId && lastName) return String(lastName);

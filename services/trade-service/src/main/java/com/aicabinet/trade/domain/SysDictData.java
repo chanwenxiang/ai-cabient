@@ -28,6 +28,7 @@ public class SysDictData {
     private Instant updatedAt;
 
 public Long getDictDataId() { return dictDataId; }
+    public void setDictDataId(Long dictDataId) { this.dictDataId = dictDataId; }
     public String getDictType() { return dictType; }
     public void setDictType(String dictType) { this.dictType = dictType; }
     public String getDictValue() { return dictValue; }
@@ -40,4 +41,8 @@ public Long getDictDataId() { return dictDataId; }
     public void setStatus(String status) { this.status = status; }
     public String getRemark() { return remark; }
     public void setRemark(String remark) { this.remark = remark; }
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

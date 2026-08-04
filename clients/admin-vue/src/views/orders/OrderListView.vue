@@ -61,10 +61,12 @@
     />
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 1100px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="displayItems"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           stripe
           border
           class="report-table"
@@ -76,14 +78,14 @@
             <el-empty :description="statusTab === 'PENDING' && overdueOnly ? '无超时未付订单' : '暂无订单'" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="订单号" min-width="168" class-name="col-text">
+          <el-table-column prop="orderId" label="订单号" min-width="168" align="center" sortable="custom">
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="openDetail(row)">
                 <span class="cell-id">{{ row.orderId }}</span>
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="会话" min-width="150" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="会话" min-width="150" align="center" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 v-if="row.sessionId"
@@ -91,13 +93,13 @@
                 class="link-cell mono"
                 @click="goSessions(row.deviceId, row.sessionId)"
               >{{ row.sessionId }}</button>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="用户" width="96" class-name="col-text">
-            <template #default="{ row }">{{ row.userId ?? '-' }}</template>
+          <el-table-column label="用户" width="96" align="center">
+            <template #default="{ row }">{{ row.userId ?? '无' }}</template>
           </el-table-column>
-          <el-table-column label="设备" min-width="120" class-name="col-text">
+          <el-table-column label="设备" min-width="120" align="center">
             <template #default="{ row }">
               <button
                 v-if="row.deviceId"
@@ -105,13 +107,13 @@
                 class="link-cell"
                 @click="goDevice(row.deviceId)"
               >{{ row.deviceId }}</button>
-              <span v-else class="muted">-</span>
+              <span v-else class="muted">无</span>
             </template>
           </el-table-column>
           <el-table-column label="订单状态" width="100" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="orderStatusType(row.status)">
-                {{ dictLabel('order_status', row.status) || row.status || '-' }}
+                {{ dictLabel('order_status', row.status) || row.status || '未知状态' }}
               </el-tag>
             </template>
           </el-table-column>
@@ -132,11 +134,11 @@
           <el-table-column label="支付渠道" width="100" align="center">
             <template #default="{ row }">
               <el-tag size="small" effect="plain">
-                {{ dictLabel('pay_channel', row.payChannel) || row.payChannel || '-' }}
+                {{ dictLabel('pay_channel', row.payChannel) || row.payChannel || '未知渠道' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="商品" min-width="140" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="商品" min-width="140" align="center" show-overflow-tooltip>
             <template #default="{ row }">
               <div class="line-cell">
                 <strong>{{ row.lineCount ?? 0 }} 件</strong>
@@ -144,7 +146,7 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="110" align="right" class-name="col-money">
+          <el-table-column label="金额" width="110" align="center">
             <template #default="{ row }">¥{{ money(row.totalAmountCents) }}</template>
           </el-table-column>
           <el-table-column
@@ -152,21 +154,19 @@
             label="账龄"
             width="110"
             align="center"
-            class-name="col-text"
           >
             <template #default="{ row }">
               <span :class="{ 'is-overdue-age': isUnpaidOverdue(row) }">{{ formatOrderAge(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" width="172" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="创建时间" width="172" align="center" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <!-- 与 .table-scroll 约定一致：不用 fixed，避免时间列与操作列叠层透视 -->
-          <el-table-column label="操作" width="100" align="center" class-name="col-action">
+          <el-table-column label="操作" width="220" align="center" class-name="col-action" fixed="right">
             <template #default="{ row }">
-              <TableActions :actions="rowActions(row)" :max-primary="2" @action="(key) => onRowAction(key, row)" />
+              <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
             </template>
           </el-table-column>
         </el-table>
@@ -216,7 +216,7 @@
             </el-descriptions-item>
             <el-descriptions-item label="金额">¥{{ money(detail.totalAmountCents) }}</el-descriptions-item>
             <el-descriptions-item label="支付渠道">
-              {{ dictLabel('pay_channel', detail.payChannel) || detail.payChannel || '-' }}
+              {{ dictLabel('pay_channel', detail.payChannel) || detail.payChannel || '未知渠道' }}
             </el-descriptions-item>
             <el-descriptions-item label="创建时间">{{ formatDateTime(detail.createdAt) }}</el-descriptions-item>
           </el-descriptions>
@@ -255,9 +255,9 @@
 
           <h4 class="section-title">商品行</h4>
           <el-table :data="detail.lines || detail.items || []" size="small" border empty-text="无商品行">
-            <el-table-column prop="skuName" label="商品" min-width="120" class-name="col-text" />
+            <el-table-column prop="skuName" label="商品" min-width="120" align="center" class-name="col-text" />
             <el-table-column prop="quantity" label="数量" width="70" align="center" />
-            <el-table-column label="小计" width="90" align="right">
+            <el-table-column label="小计" width="90" align="center">
               <template #default="{ row }">
                 ¥{{ money(row.lineAmountCents || row.amountCents || 0) }}
               </template>
@@ -305,6 +305,7 @@ import { useAuthStore } from '@/stores/auth';
 import type { OrderSummary, PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const UNPAID_OVERDUE_MS = 30 * 60 * 1000;
 
@@ -321,6 +322,8 @@ const statusTab = ref('ALL');
 const overdueOnly = ref(false);
 const focusOrderId = ref('');
 const items = ref<OrderSummary[]>([]);
+
+const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById } = useIdColumnSort<OrderSummary>('orderId');
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
@@ -336,8 +339,9 @@ const displayItems = computed(() => {
       list = list.filter((row) => isUnpaidOverdue(row));
     }
     list.sort((a, b) => orderAgeMs(b.createdAt) - orderAgeMs(a.createdAt));
+    return list;
   }
-  return list;
+  return sortById(list);
 });
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
@@ -355,7 +359,7 @@ const { onExport: exportSelectedCsv } = useListCsv({
       dictLabel('order_status', row.status) || row.status,
       paymentStatusLabel(row.status),
       refundColumnLabel(row.status),
-      dictLabel('pay_channel', row.payChannel) || row.payChannel || '-',
+      dictLabel('pay_channel', row.payChannel) || row.payChannel || '未知渠道',
       row.lineCount,
       money(row.totalAmountCents),
       formatDateTime(row.createdAt)
@@ -414,7 +418,7 @@ function paymentStatusLabel(s?: string) {
   if (s === 'CANCELLED') return '已关闭';
   if (s === 'PENDING') return '待支付';
   if (s === 'DISPUTED') return '争议中';
-  return s ? dictLabel('order_status', s) || s : '-';
+  return s ? dictLabel('order_status', s) || s : '无';
 }
 
 function paymentStatusType(s?: string) {
@@ -441,7 +445,7 @@ function isUnpaidOverdue(row: OrderSummary) {
 
 function formatOrderAge(createdAt?: string) {
   const ms = orderAgeMs(createdAt);
-  if (!ms) return '-';
+  if (!ms) return '无';
   const mins = Math.floor(ms / 60000);
   if (mins < 60) return `${mins} 分钟`;
   const hours = Math.floor(mins / 60);
@@ -852,20 +856,22 @@ onActivated(() => {
   background: transparent;
   color: var(--el-color-primary);
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   font: inherit;
 }
 .link-cell:hover {
   text-decoration: underline;
 }
 .link-cell.mono {
-  font-family: var(--app-font-mono);
-  font-size: 12px;
+  font-family: inherit;
+  font-size: inherit;
 }
 .line-cell {
   display: grid;
   gap: 2px;
   line-height: 1.35;
+  text-align: center;
+  justify-items: center;
 }
 .line-cell strong {
   font-weight: 650;
@@ -880,7 +886,7 @@ onActivated(() => {
 .chase-banner { margin: 0 0 10px; }
 .is-overdue-age { color: var(--el-color-danger); font-weight: 600; }
 :deep(.el-table .is-unpaid-overdue > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-warning) 8%, transparent) !important;
+  background: color-mix(in srgb, var(--el-color-warning) 8%, var(--el-table-bg-color, #fff)) !important;
 }
 .status-tabs {
   margin: 0 0 8px;

@@ -27,20 +27,20 @@
 
         <div class="table-scroll">
           <el-table :data="wallets" v-loading="loading" stripe border class="report-table">
-            <el-table-column prop="merchantId" label="商户ID" min-width="120" />
-            <el-table-column prop="merchantName" label="名称" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="contactPhone" label="联系电话" width="130" />
-            <el-table-column label="余额(元)" width="110" align="right">
+            <el-table-column prop="merchantId" label="商户ID" min-width="120" align="center" />
+            <el-table-column prop="merchantName" label="名称" min-width="140" show-overflow-tooltip align="center" />
+            <el-table-column prop="contactPhone" label="联系电话" width="130" align="center" />
+            <el-table-column label="余额(元)" width="110" align="center">
               <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
             </el-table-column>
-            <el-table-column label="冻结(元)" width="110" align="right">
+            <el-table-column label="冻结(元)" width="110" align="center">
               <template #default="{ row }">{{ yuan(row.frozenCents) }}</template>
             </el-table-column>
-            <el-table-column label="可用(元)" width="110" align="right">
+            <el-table-column label="可用(元)" width="110" align="center">
               <template #default="{ row }">{{ yuan(row.availableCents) }}</template>
             </el-table-column>
-            <el-table-column prop="status" label="状态" width="90" />
-            <el-table-column label="操作" width="260" fixed="right" class-name="col-action">
+            <el-table-column prop="status" label="状态" width="90" align="center" />
+            <el-table-column label="操作" width="260" fixed="right" align="center" class-name="col-action">
               <template #default="{ row }">
                 <el-button v-hasPermi="['ops:merchant-withdraw:adjust']" link type="primary" @click="adjust(row)">调账</el-button>
                 <el-button link @click="showLedgers(row)">流水</el-button>
@@ -79,24 +79,24 @@
 
         <div class="table-scroll">
           <el-table :data="withdraws" v-loading="loading" stripe border class="report-table">
-            <el-table-column prop="requestId" label="单号" width="80" />
-            <el-table-column prop="requestNo" label="幂等号" min-width="160" show-overflow-tooltip />
-            <el-table-column prop="merchantId" label="商户ID" width="120" />
-            <el-table-column prop="merchantName" label="商户" min-width="120" show-overflow-tooltip />
-            <el-table-column label="金额(元)" width="100" align="right">
+            <el-table-column prop="requestId" label="单号" width="80" align="center" />
+            <el-table-column prop="requestNo" label="幂等号" min-width="160" show-overflow-tooltip align="center" />
+            <el-table-column prop="merchantId" label="商户ID" width="120" align="center" />
+            <el-table-column prop="merchantName" label="商户" min-width="120" show-overflow-tooltip align="center" />
+            <el-table-column label="金额(元)" width="100" align="center">
               <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
             </el-table-column>
-            <el-table-column prop="status" label="状态" width="120">
+            <el-table-column prop="status" label="状态" width="120" align="center">
               <template #default="{ row }">{{ withdrawStatusLabel(row.status) }}</template>
             </el-table-column>
-            <el-table-column prop="payChannel" label="通道" width="100" />
-            <el-table-column prop="payoutRef" label="回执" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="payoutMessage" label="打款说明" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="reviewRemark" label="审核备注" min-width="120" show-overflow-tooltip />
-            <el-table-column label="申请时间" width="170">
+            <el-table-column prop="payChannel" label="通道" width="100" align="center" />
+            <el-table-column prop="payoutRef" label="回执" min-width="140" show-overflow-tooltip align="center" />
+            <el-table-column prop="payoutMessage" label="打款说明" min-width="140" show-overflow-tooltip align="center" />
+            <el-table-column prop="reviewRemark" label="审核备注" min-width="120" show-overflow-tooltip align="center" />
+            <el-table-column label="申请时间" width="170" align="center">
               <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="200" fixed="right" class-name="col-action">
+            <el-table-column label="操作" width="200" fixed="right" align="center" class-name="col-action">
               <template #default="{ row }">
                 <template v-if="row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:merchant-withdraw:review')">
                   <el-button link type="success" @click="review(row, true)">通过并打款</el-button>
@@ -126,18 +126,18 @@
 
     <el-drawer v-model="ledgerVisible" title="钱包流水" size="520px">
       <el-table :data="ledgers" size="small" stripe>
-        <el-table-column prop="entryType" label="类型" width="130" />
-        <el-table-column label="变动(元)" width="100" align="right">
+        <el-table-column prop="entryType" label="类型" width="130" align="center" />
+        <el-table-column label="变动(元)" width="100" align="center">
           <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
         </el-table-column>
-        <el-table-column label="余额后" width="100" align="right">
+        <el-table-column label="余额后" width="100" align="center">
           <template #default="{ row }">{{ yuan(row.balanceAfter) }}</template>
         </el-table-column>
-        <el-table-column label="冻结后" width="100" align="right">
+        <el-table-column label="冻结后" width="100" align="center">
           <template #default="{ row }">{{ yuan(row.frozenAfter) }}</template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip />
-        <el-table-column label="时间" width="160">
+        <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip align="center" />
+        <el-table-column label="时间" width="160" align="center">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
       </el-table>
@@ -202,7 +202,7 @@ function yuan(cents?: number) {
 }
 
 function withdrawStatusLabel(status?: string) {
-  return displayLabel('merchant_withdraw_status', status, '-');
+  return displayLabel('merchant_withdraw_status', status, '未知状态');
 }
 
 function onTab() {

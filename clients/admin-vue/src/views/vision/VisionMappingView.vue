@@ -34,7 +34,7 @@
     </el-form>
 
     <div class="table-scroll">
-      <div class="table-scroll-inner" style="min-width: 720px">
+      <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
           :data="paged"
@@ -42,27 +42,19 @@
           border
           class="report-table"
           row-key="className"
+          :default-sort="idDefaultSort"
+          @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
           <template #empty><el-empty description="暂无识别类名映射" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="类别" min-width="160" class-name="col-text">
+          <el-table-column prop="className" label="ID" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
             <template #default="{ row }">
-              <div class="name-cell">
-                <strong>{{ row.className || '-' }}</strong>
-                <small v-if="row.minConfidence != null">最低置信度 {{ formatConfidence(row.minConfidence) }}</small>
-              </div>
+              <span class="cell-id">{{ row.className || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="商品" min-width="200" class-name="col-text">
-            <template #default="{ row }">
-              <div class="name-cell">
-                <strong>{{ row.skuName || row.skuId || '-' }}</strong>
-                <small v-if="row.skuId && row.skuName && row.skuName !== row.skuId" class="cell-id">
-                  {{ row.skuId }}
-                </small>
-              </div>
-            </template>
+          <el-table-column label="商品" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.skuName || row.skuId || '无' }}</template>
           </el-table-column>
           <el-table-column label="入驻状态" width="110" align="center">
             <template #default="{ row }">
@@ -84,6 +76,24 @@
           <el-table-column label="最低置信度" width="120" align="center">
             <template #default="{ row }">{{ formatConfidence(row.minConfidence) }}</template>
           </el-table-column>
+          <el-table-column
+            v-if="auth.hasPerm('ops:vision:edit')"
+            label="操作"
+            width="120"
+            class-name="col-action"
+            align="center"
+            fixed="right"
+          >
+            <template #default="{ row }">
+              <TableActions
+                :actions="[
+                  { key: 'edit', label: '编辑', icon: EditPen, type: 'primary' },
+                  { key: 'delete', label: '删除', icon: Delete, type: 'danger' }
+                ]"
+                @action="(k) => onAction(String(k), row)"
+              />
+            </template>
+          </el-table-column>
         </el-table>
       </div>
     </div>
@@ -98,19 +108,61 @@
         background
       />
     </div>
+
+    <el-dialog v-model="dialogVisible" title="编辑识别映射" width="480px" destroy-on-close>
+      <el-form label-width="100px">
+        <el-form-item label="类别">
+          <el-input :model-value="editForm.className" disabled />
+        </el-form-item>
+        <el-form-item label="商品" required>
+          <el-select
+            v-model="editForm.skuId"
+            filterable
+            clearable
+            placeholder="选择 SKU"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="s in skuOptions"
+              :key="s.skuId"
+              :label="`${s.skuName || s.skuId}（${s.skuId}）`"
+              :value="s.skuId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="最低置信度" required>
+          <el-input-number
+            v-model="editForm.minConfidence"
+            :min="0"
+            :max="1"
+            :step="0.01"
+            :precision="2"
+            controls-position="right"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveEdit">保存</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { Delete, EditPen, Refresh } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import TableActions from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
+import { useAuthStore } from '@/stores/auth';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 interface YoloMappingRow {
   className?: string;
@@ -120,22 +172,41 @@ interface YoloMappingRow {
   visionEnrollmentStatus?: string;
   mappingEffective?: boolean;
   modelPipelineStatus?: string;
+  mappingSource?: string;
+}
+
+interface SkuOption {
+  skuId: string;
+  skuName?: string;
 }
 
 const route = useRoute();
+const auth = useAuthStore();
 const { router, canAccessPath, goPath } = useNavAccess();
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('className');
 const loading = ref(false);
+const saving = ref(false);
 const keyword = ref('');
 const page = ref(1);
 const size = ref(20);
 const yoloMappings = ref<YoloMappingRow[]>([]);
+const skuOptions = ref<SkuOption[]>([]);
+const dialogVisible = ref(false);
+const editForm = reactive({
+  className: '',
+  skuId: '',
+  minConfidence: 0.72,
+  mappingSource: '' as string | undefined
+});
 
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();
-  if (!q) return yoloMappings.value;
-  return yoloMappings.value.filter((row) =>
-    [row.className, row.skuId, row.skuName].some((x) => String(x || '').toLowerCase().includes(q))
-  );
+  const rows = !q
+    ? yoloMappings.value
+    : yoloMappings.value.filter((row) =>
+        [row.className, row.skuId, row.skuName].some((x) => String(x || '').toLowerCase().includes(q))
+      );
+  return sortById(rows);
 });
 
 const paged = computed(() => {
@@ -163,14 +234,14 @@ const { onExport } = useListCsv({
 });
 
 function formatConfidence(v?: number | string) {
-  if (v == null || v === '') return '-';
+  if (v == null || v === '') return '无';
   const n = Number(v);
   if (Number.isNaN(n)) return String(v);
   return n <= 1 ? `${Math.round(n * 100)}%` : String(n);
 }
 
 function enrollmentLabel(status?: string) {
-  return displayLabel('sku_enrollment_status', status, '—');
+  return displayLabel('sku_enrollment_status', status, '未知状态');
 }
 
 function enrollmentTagType(status?: string) {
@@ -206,6 +277,15 @@ function reset() {
   syncRouteQuery();
 }
 
+async function loadSkus() {
+  try {
+    const data = await api.request<SkuOption[] | { items?: SkuOption[] }>('/api/v2/ops/admin/skus', 'GET');
+    skuOptions.value = Array.isArray(data) ? data : data.items || [];
+  } catch {
+    skuOptions.value = [];
+  }
+}
+
 async function load() {
   loading.value = true;
   try {
@@ -226,6 +306,58 @@ async function load() {
   }
 }
 
+function openEdit(row: YoloMappingRow) {
+  editForm.className = row.className || '';
+  editForm.skuId = row.skuId || '';
+  const conf = Number(row.minConfidence);
+  editForm.minConfidence = Number.isFinite(conf) ? (conf > 1 ? conf / 100 : conf) : 0.72;
+  editForm.mappingSource = row.mappingSource;
+  dialogVisible.value = true;
+}
+
+async function saveEdit() {
+  if (!editForm.className || !editForm.skuId) {
+    ElMessage.warning('请选择商品');
+    return;
+  }
+  saving.value = true;
+  try {
+    await api.request('/api/v2/ops/admin/vision-mappings/yolo', 'POST', {
+      className: editForm.className,
+      skuId: editForm.skuId,
+      minConfidence: editForm.minConfidence,
+      mappingSource: editForm.mappingSource || undefined
+    });
+    ElMessage.success('已保存');
+    dialogVisible.value = false;
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function onDelete(row: YoloMappingRow) {
+  const className = row.className;
+  if (!className) return;
+  try {
+    await ElMessageBox.confirm(`确认删除映射「${className}」？`, '删除识别映射', { type: 'warning' });
+    await api.request(`/api/v2/ops/admin/vision-mappings/yolo/${encodeURIComponent(className)}`, 'DELETE');
+    ElMessage.success('已删除');
+    await load();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '删除失败');
+    }
+  }
+}
+
+function onAction(key: string, row: YoloMappingRow) {
+  if (key === 'edit') openEdit(row);
+  else if (key === 'delete') void onDelete(row);
+}
+
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
   page.value = 1;
@@ -240,6 +372,7 @@ watch(
 
 onMounted(() => {
   applyRouteQuery();
+  void loadSkus();
   load();
 });
 onActivated(() => {
@@ -260,13 +393,6 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.name-cell { display: grid; gap: 2px; line-height: 1.35; }
-.name-cell strong { font-weight: 650; }
-.name-cell small {
-  color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
-}
 .pipe-cell {
   display: flex;
   flex-direction: column;

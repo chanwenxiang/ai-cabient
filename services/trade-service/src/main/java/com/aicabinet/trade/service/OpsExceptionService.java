@@ -353,16 +353,22 @@ public class OpsExceptionService {
         boolean open = "OPEN".equals(i.getStatus()) || "PROCESSING".equals(i.getStatus());
         boolean overdue = open && sla != null && Instant.now().isAfter(sla);
         String orderId = i.getOrderId();
-        // 审单落账后会话已有 orderId，但历史异常行可能未回写；列表展示时从会话补齐
-        if ((orderId == null || orderId.isBlank())
-                && i.getSessionId() != null && !i.getSessionId().isBlank()) {
-            orderId = sessionRepository.findById(i.getSessionId())
-                    .map(ShoppingSession::getOrderId)
-                    .filter(id -> id != null && !id.isBlank())
-                    .orElse(null);
+        Long userId = i.getUserId();
+        // 审单落账后会话已有 orderId/userId，但历史异常行可能未回写；列表展示时从会话补齐
+        if (i.getSessionId() != null && !i.getSessionId().isBlank()
+                && ((orderId == null || orderId.isBlank()) || userId == null)) {
+            var session = sessionRepository.findById(i.getSessionId());
+            if (orderId == null || orderId.isBlank()) {
+                orderId = session.map(ShoppingSession::getOrderId)
+                        .filter(id -> id != null && !id.isBlank())
+                        .orElse(null);
+            }
+            if (userId == null) {
+                userId = session.map(ShoppingSession::getUserId).orElse(null);
+            }
         }
         return new OpsExceptionDto(i.getExceptionId(), i.getExceptionType(),
-            i.getSeverity(), i.getStatus(), i.getDeviceId(), i.getSessionId(), orderId, i.getUserId(),
+            i.getSeverity(), i.getStatus(), i.getDeviceId(), i.getSessionId(), orderId, userId,
             i.getTitle(), i.getDetail(), i.getAssigneeUserId(), i.getResolution(), i.getCreatedAt(), i.getUpdatedAt(),
             i.getResolvedAt(), sla, overdue);
     }

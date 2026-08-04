@@ -59,6 +59,15 @@ public class CouponController {
     }
 
     @RequiresPermissions("ops:coupon:edit")
+    @PutMapping("/definitions/{id}")
+    public ApiResponse<CouponDefinitionDto> updateDefinition(
+            HttpServletRequest request,
+            @PathVariable("id") Long id,
+            @Valid @RequestBody UpdateCouponRequest body) {
+        return ApiResponse.ok(couponService.updateDefinition(id, body));
+    }
+
+    @RequiresPermissions("ops:coupon:edit")
     @PutMapping("/definitions/{id}/status")
     public ApiResponse<CouponDefinitionDto> setDefinitionStatus(
             HttpServletRequest request,

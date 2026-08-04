@@ -217,7 +217,7 @@ import {
 } from '@/utils/runtime-flags';
 
 const devTools = showDevTools();
-const balanceYuan = ref('-');
+const balanceYuan = ref('--');
 const authed = ref(false);
 const account = ref<AccountDto | null>(null);
 const showTransactions = ref(false);
@@ -247,7 +247,7 @@ const setupHint = computed(() => {
 
 function syncBalanceDisplay(acc: AccountDto | null) {
   if (!acc) {
-    balanceYuan.value = '-';
+    balanceYuan.value = '--';
     return;
   }
   balanceYuan.value = (availableCents(acc) / 100).toFixed(2);
@@ -500,7 +500,7 @@ function onLogout() {
       clearConsumerSession();
       authed.value = false;
       account.value = null;
-      balanceYuan.value = '-';
+      balanceYuan.value = '--';
       transactions.value = [];
       showTransactions.value = false;
       uni.showToast({ title: '已退出', icon: 'none' });

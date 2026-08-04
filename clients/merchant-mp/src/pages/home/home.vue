@@ -105,6 +105,7 @@
           <text class="todo-dot" />
           <view class="todo-copy">
             <text class="todo-title">{{ item.title }}</text>
+            <text v-if="item.deviceId" class="todo-detail">柜机 {{ item.deviceId }}</text>
             <text v-if="item.detail" class="todo-detail">{{ item.detail }}</text>
           </view>
         </view>
@@ -209,13 +210,13 @@ const scanning = ref(false);
 const error = ref('');
 const meName = ref('');
 const merchantNames = ref('');
-const revenueToday = ref('-');
-const incomeToday = ref('-');
+const revenueToday = ref('暂无');
+const incomeToday = ref('暂无');
 const trendBars = ref<{ date: string; label: string; height: number }[]>([]);
 const pendingCount = ref(0);
 const offlineCount = ref(0);
 const pendingTaskCount = ref(0);
-const actionItems = ref<{ type: string; title: string; detail?: string }[]>([]);
+const actionItems = ref<{ type: string; title: string; detail?: string; deviceId?: string }[]>([]);
 const taskPreview = ref<TaskRow[]>([]);
 const deviceMap = ref<Record<string, string>>({});
 const stats = ref<Record<string, unknown>>({});
@@ -224,22 +225,22 @@ const latestAnnouncement = ref<AnnouncementDto | null>(null);
 const onlineText = computed(() => {
   const on = stats.value.deviceOnline;
   const total = stats.value.deviceTotal;
-  if (on == null && total == null) return '-';
-  return `${on ?? '-'} / ${total ?? '-'}`;
+  if (on == null && total == null) return '暂无';
+  return `${on ?? 0} / ${total ?? 0}`;
 });
 
 function fmtMoney(cents?: number) {
-  if (cents == null) return '-';
+  if (cents == null) return '暂无';
   return '¥' + (cents / 100).toFixed(2);
 }
 
 function deviceLabel(id?: string) {
-  if (!id) return '未知柜机';
+  if (!id) return '无柜机';
   return deviceMap.value[id] || id;
 }
 
 function statusLabel(status?: string) {
-  return displayLabel('replenishment_task_status', status, '-');
+  return displayLabel('replenishment_task_status', status, '未知状态');
 }
 
 function goTab(url: string) {
@@ -376,8 +377,8 @@ async function load() {
     const days = trend.last7Days || [];
     const maxRev = Math.max(...days.map((d) => d.revenueCents), 1);
     stats.value = s;
-    revenueToday.value = canFinanceKpi.value ? fmtMoney(s.revenueTodayCents) : '-';
-    incomeToday.value = canFinanceKpi.value ? fmtMoney(s.merchantIncomeTodayCents) : '-';
+    revenueToday.value = canFinanceKpi.value ? fmtMoney(s.revenueTodayCents) : '暂无';
+    incomeToday.value = canFinanceKpi.value ? fmtMoney(s.merchantIncomeTodayCents) : '暂无';
     offlineCount.value = canAlerts.value
       ? workbench.offlineDevices || 0
       : Number(s.deviceOffline || 0);
@@ -394,7 +395,8 @@ async function load() {
     actionItems.value = canAlerts.value ? mergedTodos.slice(0, 3).map((a) => ({
       type: a.type,
       title: a.title,
-      detail: a.detail
+      detail: a.detail,
+      deviceId: a.deviceId
     })) : [];
     trendBars.value = canFinanceKpi.value
       ? days.map((d) => ({

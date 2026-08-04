@@ -20,7 +20,7 @@
         <el-col :xs="12" :sm="8" :md="6">
           <div class="stat-tile">
             <div class="stat-label">快照日期</div>
-            <div class="stat-value">{{ data?.snapshotDate || '-' }}</div>
+            <div class="stat-value">{{ data?.snapshotDate || '无' }}</div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="8" :md="6">
@@ -124,7 +124,7 @@ const loading = ref(false);
 const data = ref<SlaMetrics | null>(null);
 
 function pct(v?: number | null) {
-  if (v == null || Number.isNaN(v)) return '-';
+  if (v == null || Number.isNaN(v)) return '无';
   return `${(v * 100).toFixed(1)}%`;
 }
 

@@ -8,13 +8,11 @@ import com.aicabinet.trade.config.CheckoutProperties;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.PaymentOperation;
 import com.aicabinet.trade.domain.ShoppingSession;
-import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.payment.AlipayPayClient;
 import com.aicabinet.trade.payment.WeChatPayClient;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
-import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -34,7 +32,6 @@ public class OrderPaymentService {
     private static final Logger log = LoggerFactory.getLogger(OrderPaymentService.class);
 
     private final UserInfoMapper userInfoRepository;
-    private final UserAccountMapper userAccountRepository;
     private final BalanceLedgerService balanceLedgerService;
     private final CheckoutProperties checkoutProperties;
     private final PayScoreService payScoreService;
@@ -47,7 +44,6 @@ public class OrderPaymentService {
     private final ConsumerPreauthService consumerPreauthService;
 
     public OrderPaymentService(UserInfoMapper userInfoRepository,
-                               UserAccountMapper userAccountRepository,
                                PayScoreService payScoreService,
                                WeChatPayClient weChatPayClient,
                                AlipayPayClient alipayPayClient,
@@ -59,7 +55,6 @@ public class OrderPaymentService {
                                ShoppingSessionMapper sessionRepository,
                                ConsumerPreauthService consumerPreauthService) {
         this.userInfoRepository = userInfoRepository;
-        this.userAccountRepository = userAccountRepository;
         this.payScoreService = payScoreService;
         this.weChatPayClient = weChatPayClient;
         this.alipayPayClient = alipayPayClient;
@@ -245,23 +240,6 @@ public class OrderPaymentService {
         }
         balanceLedgerService.change(order.getUserId(), amountCents, "REFUND",
                 order.getOrderId(), idemKey, reason);
-    }
-
-    private void deductBalance(Long userId, int amountCents) {
-        UserAccount account = userAccountRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ACCOUNT_NOT_FOUND));
-        if (account.getBalanceCents() < amountCents) {
-            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.INSUFFICIENT_BALANCE);
-        }
-        account.setBalanceCents(account.getBalanceCents() - amountCents);
-        userAccountRepository.save(account);
-    }
-
-    private void creditBalance(Long userId, int amountCents) {
-        UserAccount account = userAccountRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ACCOUNT_NOT_FOUND));
-        account.setBalanceCents(account.getBalanceCents() + amountCents);
-        userAccountRepository.save(account);
     }
 
     private static String reasonOrDefault(String reason) {

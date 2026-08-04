@@ -87,7 +87,7 @@
           </el-descriptions>
 
           <el-descriptions :column="1" border size="small" class="meta-block">
-            <el-descriptions-item label="模型">{{ result.modelVersion || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="模型">{{ result.modelVersion || '无' }}</el-descriptions-item>
             <el-descriptions-item label="整体置信度">
               {{ Math.round((result.overallConfidence || 0) * 100) }}%
             </el-descriptions-item>
@@ -278,8 +278,7 @@ onBeforeUnmount(() => {
 .name-cell strong { font-weight: 650; font-size: 16px; }
 .name-cell small {
   color: var(--el-text-color-secondary);
-  font-size: 11px;
-  font-family: var(--app-font-mono);
+  font-family: inherit;
 }
 
 .item-price {

@@ -103,6 +103,7 @@
 import { computed, ref, watch } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
+import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import {
   hasPerm,
   merchantApi,
@@ -361,11 +362,7 @@ async function loadRequests() {
 }
 
 function formatTime(value?: string) {
-  if (!value) return '-';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getMonth() + 1)}/${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return formatDateTimeShort(value, '暂无');
 }
 
 function canGoReplenish(req: MerchantReplenishmentRequest) {

@@ -1,15 +1,13 @@
 <template>
   <view class="page-root">
-    <view class="tabs">
-      <view
+    <view class="tabs-pill">
+      <text
         v-for="t in tabs"
         :key="t.key"
-        class="tab"
+        class="filter-chip"
         :class="{ active: activeTab === t.key }"
         @click="switchTab(t.key)"
-      >
-        <text>{{ t.label }}</text>
-      </view>
+      >{{ t.label }}</text>
     </view>
 
     <view v-if="loading" class="loading"><text>加载中…</text></view>
@@ -17,9 +15,12 @@
       <text class="err">{{ error }}</text>
       <button class="retry" @click="load">重试</button>
     </view>
-    <view v-else-if="!list.length" class="empty">
-      <text>暂无{{ activeTabLabel }}争议</text>
-    </view>
+    <empty-state
+      v-else-if="!list.length"
+      icon="审"
+      :title="`暂无${activeTabLabel}争议`"
+      hint="用户申诉与识别复核会显示在这里"
+    />
     <view v-else>
       <view
         v-for="item in list"
@@ -35,7 +36,7 @@
         </view>
         <text class="card-title">{{ localizeDisputeReason(item.reason) || '争议' }}</text>
         <view class="card-meta">
-          <text>{{ item.deviceId || '-' }}</text>
+          <text>{{ item.deviceId || '无柜机' }}</text>
           <text>{{ formatTime(item.createdAt) }}</text>
         </view>
         <view v-if="item.lastMessage" class="card-msg"><text>{{ item.lastMessage }}</text></view>
@@ -57,7 +58,8 @@
 import { ref, computed } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { formatDateTimeShort, localizeDisputeReason } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeShort, localizeDisputeReason } from '@aicabinet/shared-uni/format';
+import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi, type MerchantDisputeTicket } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { promptText } from '@/utils/text-prompt';
@@ -172,16 +174,16 @@ async function load() {
 }
 
 function statusText(s?: string) {
-  return displayLabel('dispute_status', s, '-');
+  return displayLabel('dispute_status', s, '未知状态');
 }
 
 function shortId(id?: string) {
-  if (!id) return '-';
+  if (!id) return emptyDisplay(id, 'order');
   return id.length > 12 ? id.substring(0, 12) : id;
 }
 
 function formatTime(t?: string) {
-  return formatDateTimeShort(t) || '';
+  return formatDateTimeShort(t, '暂无');
 }
 
 async function onDetail(item: MerchantDisputeTicket) {
@@ -203,12 +205,12 @@ async function onDetail(item: MerchantDisputeTicket) {
       ? `¥${(detail.billedAmountCents / 100).toFixed(2)}`
       : '';
   const lines = [
-    `单号：${detail.ticketId || '-'}`,
+    `单号：${emptyDisplay(detail.ticketId, 'order')}`,
     `状态：${statusText(detail.status)}`,
-    `柜机：${detail.deviceId || '-'}`,
+    `柜机：${emptyDisplay(detail.deviceId, 'device')}`,
     detail.orderId ? `订单：${detail.orderId}` : '',
     amount ? `金额：${amount}` : '',
-    `原因：${detail.reason || '-'}`,
+    `原因：${localizeDisputeReason(detail.reason) || emptyDisplay(detail.reason, 'reason')}`,
     detail.lastMessage ? `最新：${detail.lastMessage}` : ''
   ]
     .filter(Boolean)
@@ -270,8 +272,7 @@ async function onReply(item: MerchantDisputeTicket) {
 
 <style scoped>
 .page-root { padding: 20rpx; background: #f0fdfa; min-height: 100vh; box-sizing: border-box; }
-.tabs { display: flex; background: #fff; border-radius: 16rpx; margin-bottom: 20rpx; overflow: hidden; border: 1rpx solid #e2e8f0; }
-.tab { flex: 1; text-align: center; padding: 20rpx 0; font-size: 26rpx; color: #666; }
+.tabs-pill { margin-bottom: 20rpx; }
 .tab.active { color: #0f766e; font-weight: 600; border-bottom: 4rpx solid #0f766e; }
 .loading, .empty { text-align: center; color: #999; padding: 80rpx 0; font-size: 28rpx; }
 .err { color: #ef4444; display: block; margin-bottom: 20rpx; }

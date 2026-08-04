@@ -56,6 +56,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       VISION_API_KEY: ${VISION_API_KEY}
+      AMAP_WEB_KEY: ${AMAP_WEB_KEY:-}
       AICABINET_DEVICE_SERVICE_URL: http://device-service:8081
       AICABINET_VISION_SERVICE_URL: http://vision-service:8082
       MINIO_ENDPOINT: http://minio:9000

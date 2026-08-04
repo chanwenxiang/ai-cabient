@@ -42,8 +42,8 @@
         <text class="section-title">支付信息</text>
         <view class="info-row"><text class="info-label">支付方式</text><text class="info-value">{{ payChannelText }}</text></view>
         <view class="info-row"><text class="info-label">扣款时间</text><text class="info-value">{{ formatTime(order?.payTime || order?.createdAt) }}</text></view>
-        <view class="info-row"><text class="info-label">订单编号</text><text class="info-value mono">{{ order?.orderId }}</text></view>
-        <view class="info-row"><text class="info-label">柜机编号</text><text class="info-value mono">{{ order?.deviceId }}</text></view>
+        <view class="info-row"><text class="info-label">订单编号</text><text class="info-value mono">{{ emptyDisplay(order?.orderId, 'order') }}</text></view>
+        <view class="info-row"><text class="info-label">柜机编号</text><text class="info-value mono">{{ emptyDisplay(order?.deviceId, 'device') }}</text></view>
       </view>
 
       <view class="actions">
@@ -126,7 +126,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi, get } from '@/utils/consumer-api';
-import { formatDateTimeMinute, orderStatusLabel } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeMinute, orderStatusLabel } from '@aicabinet/shared-uni/format';
 import {
   DISPUTE_REASON_CHIPS,
   appendChipToReason,
@@ -280,7 +280,7 @@ const statusIcon = computed(() => {
     partial_refunded: '↩',
     disputed: '!',
     failed: '✕',
-    cancelled: '—'
+    cancelled: '无'
   };
   return map[(order.value?.status || '').toLowerCase()] || '✓';
 });
@@ -326,12 +326,12 @@ const statusDetail = computed(() => {
 
 const payChannelText = computed(() => {
   const ch = order.value?.payChannel;
-  if (!ch) return '-';
-  return displayLabel('pay_channel', ch, '-');
+  if (!ch) return '未记录';
+  return displayLabel('pay_channel', ch, '未知渠道');
 });
 
 function formatTime(t: string) {
-  return formatDateTimeMinute(t, '');
+  return formatDateTimeMinute(t, '暂无');
 }
 
 function playVideo() {

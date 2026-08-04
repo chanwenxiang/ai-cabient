@@ -238,6 +238,16 @@ export const DICT = {
     CHANNEL_FEE: '通道费',
     MERCHANT_CREDIT: '商户入账'
   },
+  /** 商户/线长钱包流水类型 */
+  wallet_ledger_type: {
+    MERCHANT_CREDIT: '商户入账',
+    LINE_COMMISSION: '线长佣金',
+    WITHDRAW_FREEZE: '提现冻结',
+    WITHDRAW_RELEASE: '提现解冻',
+    WITHDRAW_PAID: '提现打款',
+    ADJUST: '调账',
+    REVERSE: '冲正'
+  },
   fund_direction: {
     IN: '收入',
     OUT: '支出'

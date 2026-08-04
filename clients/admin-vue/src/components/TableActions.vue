@@ -110,6 +110,7 @@ const more = computed(() => {
 <style scoped>
 .table-actions {
   display: inline-flex;
+  width: 100%;
   align-items: center;
   justify-content: center;
   gap: 4px;
