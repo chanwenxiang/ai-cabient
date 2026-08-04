@@ -29,6 +29,11 @@ class RestockSnapshotServiceTest {
 
     private RestockSnapshotService restockSnapshotService;
 
+    @SuppressWarnings("unchecked")
+    private static ArgumentCaptor<Map<String, Integer>> mapCaptor() {
+        return ArgumentCaptor.forClass(Map.class);
+    }
+
     @BeforeEach
     void setUp() {
         restockSnapshotService = new RestockSnapshotService(
@@ -52,7 +57,7 @@ class RestockSnapshotServiceTest {
         int updated = restockSnapshotService.applySnapshot(session);
 
         assertEquals(1, updated);
-        ArgumentCaptor<Map<String, Integer>> physicalCaptor = ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<Map<String, Integer>> physicalCaptor = mapCaptor();
         verify(deviceSlotService).applyPhysicalSnapshot(
                 eq("CAB-001"), physicalCaptor.capture(), eq("GRAVITY_SLOT"), eq("S-RESTOCK-1"));
         assertEquals(8, physicalCaptor.getValue().get("A1"));
@@ -108,7 +113,7 @@ class RestockSnapshotServiceTest {
         int updated = restockSnapshotService.applySnapshot(session);
 
         assertEquals(2, updated);
-        ArgumentCaptor<Map<String, Integer>> physicalCaptor = ArgumentCaptor.forClass(Map.class);
+        ArgumentCaptor<Map<String, Integer>> physicalCaptor = mapCaptor();
         verify(deviceSlotService).applyPhysicalSnapshot(
                 eq("CAB-001"), physicalCaptor.capture(), eq("GRAVITY_SKU"), eq("S-RESTOCK-3"));
         Map<String, Integer> physical = physicalCaptor.getValue();

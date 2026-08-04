@@ -41,7 +41,6 @@ public class SettlementService {
     private final OrderPaymentService orderPaymentService;
     private final SettlementConfidenceService confidenceService;
     private final GravitySettlementHelper gravityHelper;
-    private final DemoDataService demoDataService;
     private final DeviceValidationService deviceValidationService;
     private final MerchantSkuPricingService skuPricingService;
     private final UserValidationService userValidationService;
@@ -65,7 +64,6 @@ public class SettlementService {
                              OrderPaymentService orderPaymentService,
                              SettlementConfidenceService confidenceService,
                              GravitySettlementHelper gravityHelper,
-                             DemoDataService demoDataService,
                              DeviceValidationService deviceValidationService,
                              MerchantSkuPricingService skuPricingService,
                              UserValidationService userValidationService,
@@ -88,7 +86,6 @@ public class SettlementService {
         this.orderPaymentService = orderPaymentService;
         this.confidenceService = confidenceService;
         this.gravityHelper = gravityHelper;
-        this.demoDataService = demoDataService;
         this.deviceValidationService = deviceValidationService;
         this.skuPricingService = skuPricingService;
         this.userValidationService = userValidationService;
@@ -302,12 +299,6 @@ public class SettlementService {
                                  String reason) {
         disputeService.createTicket(session, recognition, reason);
         throw new DisputeRequiredException(reason);
-    }
-
-    private List<VisionServiceClient.RecognizedItem> devFallbackItems(String deviceId) {
-        String skuId = demoDataService.resolveFallbackSku(deviceId);
-        log.info("dev fallback SKU from inventory device={} sku={}", deviceId, skuId);
-        return List.of(new VisionServiceClient.RecognizedItem(skuId, 1, 0.92f));
     }
 
     public void submitAsyncRecognition(ShoppingSession session) {

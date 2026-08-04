@@ -6,7 +6,6 @@ import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.RechargeOrderDto;
 import com.aicabinet.common.dto.RechargePrepayResponse;
 import com.aicabinet.common.dto.WxPayParams;
-import com.aicabinet.trade.config.AlipayProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.RechargeOrder;
@@ -47,7 +46,6 @@ public class PaymentService {
     private final UserInfoMapper userInfoRepository;
     private final UserAccountMapper userAccountRepository;
     private final WeChatPayProperties weChatPayProperties;
-    private final AlipayProperties alipayProperties;
     private final SecurityProperties securityProperties;
     private final WeChatPayClient weChatPayClient;
     private final WeChatPayV3Signer v3Signer;
@@ -61,7 +59,6 @@ public class PaymentService {
                           UserInfoMapper userInfoRepository,
                           UserAccountMapper userAccountRepository,
                           WeChatPayProperties weChatPayProperties,
-                          AlipayProperties alipayProperties,
                           SecurityProperties securityProperties,
                           WeChatPayClient weChatPayClient,
                           WeChatPayV3Signer v3Signer,
@@ -74,7 +71,6 @@ public class PaymentService {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.weChatPayProperties = weChatPayProperties;
-        this.alipayProperties = alipayProperties;
         this.securityProperties = securityProperties;
         this.weChatPayClient = weChatPayClient;
         this.v3Signer = v3Signer;

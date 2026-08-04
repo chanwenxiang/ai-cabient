@@ -11,6 +11,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.ResultSetExtractor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -32,6 +33,11 @@ class DataConsistencyServiceTest {
     @Mock JdbcTemplate jdbcTemplate;
 
     DataConsistencyService service;
+
+    @SuppressWarnings("unchecked")
+    private static ResultSetExtractor<Integer> anyIntExtractor() {
+        return any(ResultSetExtractor.class);
+    }
 
     @BeforeEach
     void setUp() {
@@ -138,13 +144,13 @@ class DataConsistencyServiceTest {
         record.setStatus(DataConsistencyService.STATUS_FAIL);
 
         when(consistencyRepository.findById(3L)).thenReturn(java.util.Optional.of(record));
-        when(jdbcTemplate.query(startsWith("SELECT total_amount_cents"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-FIX")))
+        when(jdbcTemplate.query(startsWith("SELECT total_amount_cents"), anyIntExtractor(), eq("O-FIX")))
                 .thenReturn(150);
-        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(CASE"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-FIX")))
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(CASE"), anyIntExtractor(), eq("O-FIX")))
                 .thenReturn(150);
-        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(line_amount_cents)"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-FIX")))
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(line_amount_cents)"), anyIntExtractor(), eq("O-FIX")))
                 .thenReturn(350);
-        when(jdbcTemplate.query(startsWith("SELECT COUNT(*)"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-FIX")))
+        when(jdbcTemplate.query(startsWith("SELECT COUNT(*)"), anyIntExtractor(), eq("O-FIX")))
                 .thenReturn(1);
         when(jdbcTemplate.update(startsWith("UPDATE cabinet_order_line"), any(), any(), any(), eq("O-FIX")))
                 .thenReturn(1);
@@ -165,13 +171,13 @@ class DataConsistencyServiceTest {
         record.setStatus(DataConsistencyService.STATUS_FAIL);
 
         when(consistencyRepository.findById(5L)).thenReturn(java.util.Optional.of(record));
-        when(jdbcTemplate.query(startsWith("SELECT total_amount_cents"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-NOPAY")))
+        when(jdbcTemplate.query(startsWith("SELECT total_amount_cents"), anyIntExtractor(), eq("O-NOPAY")))
                 .thenReturn(100);
-        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(CASE"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-NOPAY")))
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(CASE"), anyIntExtractor(), eq("O-NOPAY")))
                 .thenReturn(null);
-        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(line_amount_cents)"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-NOPAY")))
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(line_amount_cents)"), anyIntExtractor(), eq("O-NOPAY")))
                 .thenReturn(120);
-        when(jdbcTemplate.query(startsWith("SELECT COUNT(*)"), any(org.springframework.jdbc.core.ResultSetExtractor.class), eq("O-NOPAY")))
+        when(jdbcTemplate.query(startsWith("SELECT COUNT(*)"), anyIntExtractor(), eq("O-NOPAY")))
                 .thenReturn(1);
         when(jdbcTemplate.update(
                 eq("UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?"),

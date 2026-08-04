@@ -3,7 +3,6 @@ package com.aicabinet.trade.integration;
 import com.aicabinet.trade.domain.RechargeOrder;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.payment.WeChatPayTestKeys;
-import com.aicabinet.trade.payment.WeChatPayV3Aead;
 import com.aicabinet.trade.payment.WeChatPayV3Signer;
 import com.aicabinet.trade.mapper.RechargeOrderMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
@@ -81,7 +80,6 @@ class WeChatNotifyIntegrationTest {
     private ObjectMapper objectMapper;
 
     private final WeChatPayV3Signer signer = new WeChatPayV3Signer();
-    private final WeChatPayV3Aead aead = new WeChatPayV3Aead();
 
     @BeforeAll
     static void requireKeys() {

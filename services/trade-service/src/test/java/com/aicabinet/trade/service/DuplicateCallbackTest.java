@@ -19,11 +19,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -69,11 +71,9 @@ class DuplicateCallbackTest {
         ShoppingSession recognizing = session("S-DUP-01", SessionState.RECOGNIZING);
         ShoppingSession completed = session("S-DUP-01", SessionState.COMPLETED);
         completed.setOrderId("O-DUP-01");
-        when(repository.findById("S-DUP-01")).thenReturn(Optional.of(recognizing), Optional.of(completed));
+        stubFindById("S-DUP-01", recognizing, completed);
         when(visionAsyncProperties.enabled()).thenReturn(false);
-        when(settlementService.settle(recognizing)).thenReturn(new OrderDto(
-                "O-DUP-01", "S-DUP-01", 7L, "CAB-001", 500,
-                List.of(), "PAID", "BALANCE", null, 1000, 500, null));
+        when(settlementService.settle(recognizing)).thenReturn(sampleOrder("O-DUP-01", "S-DUP-01"));
         when(orderRepository.findById("O-DUP-01")).thenReturn(Optional.empty());
 
         sessionService.settleAfterClose("S-DUP-01");
@@ -87,12 +87,10 @@ class DuplicateCallbackTest {
     void duplicateAsyncRecognitionCallback_onlyProcessesOnce() {
         ShoppingSession recognizing = session("S-DUP-02", SessionState.RECOGNIZING);
         ShoppingSession settling = session("S-DUP-02", SessionState.SETTLING);
-        when(repository.findById("S-DUP-02")).thenReturn(Optional.of(recognizing), Optional.of(settling));
-        var recognition = new VisionServiceClient.RecognitionResult(
-                "T-1", List.of(), 0.9f, false, "mock", List.of());
-        when(settlementService.processRecognitionResult(recognizing, recognition)).thenReturn(new OrderDto(
-                "O-DUP-02", "S-DUP-02", 7L, "CAB-001", 500,
-                List.of(), "PAID", "BALANCE", null, 1000, 500, null));
+        stubFindById("S-DUP-02", recognizing, settling);
+        VisionServiceClient.RecognitionResult recognition = sampleRecognition();
+        when(settlementService.processRecognitionResult(recognizing, recognition))
+                .thenReturn(sampleOrder("O-DUP-02", "S-DUP-02"));
 
         sessionService.completeAsyncRecognition("S-DUP-02", recognition);
         sessionService.completeAsyncRecognition("S-DUP-02", recognition);
@@ -102,28 +100,55 @@ class DuplicateCallbackTest {
 
     @Test
     void duplicateConsumerAppeal_returnsConflict() {
-        ShoppingSession session = session("S-DUP-03", SessionState.COMPLETED);
-        when(repository.findById("S-DUP-03")).thenReturn(Optional.of(session));
+        ShoppingSession shoppingSession = session("S-DUP-03", SessionState.COMPLETED);
+        when(repository.findById("S-DUP-03")).thenReturn(Optional.of(shoppingSession));
         when(disputeRepository.findBySessionId("S-DUP-03")).thenReturn(Optional.of(new com.aicabinet.trade.domain.DisputeTicket()));
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> disputeService.fileByConsumer(7L, new FileDisputeRequest("S-DUP-03", "错扣", "BILL", "NORMAL")));
-        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-        assertEquals(ApiMessages.DISPUTE_ALREADY_EXISTS, ex.getReason());
+        assertConflict(
+                assertThrows(ResponseStatusException.class,
+                        () -> disputeService.fileByConsumer(7L, new FileDisputeRequest("S-DUP-03", "wrong-charge", "BILL", "NORMAL"))),
+                ApiMessages.DISPUTE_ALREADY_EXISTS);
     }
 
     @Test
     void resolvedConsumerAppeal_returnsClosedMessage() {
-        ShoppingSession session = session("S-DUP-04", SessionState.COMPLETED);
+        ShoppingSession shoppingSession = session("S-DUP-04", SessionState.COMPLETED);
         com.aicabinet.trade.domain.DisputeTicket ticket = new com.aicabinet.trade.domain.DisputeTicket();
         ticket.setStatus("RESOLVED");
-        when(repository.findById("S-DUP-04")).thenReturn(Optional.of(session));
+        when(repository.findById("S-DUP-04")).thenReturn(Optional.of(shoppingSession));
         when(disputeRepository.findBySessionId("S-DUP-04")).thenReturn(Optional.of(ticket));
 
-        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
-                () -> disputeService.fileByConsumer(7L, new FileDisputeRequest("S-DUP-04", "再申诉", "BILL", "NORMAL")));
-        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
-        assertEquals(ApiMessages.DISPUTE_APPEAL_CLOSED, ex.getReason());
+        assertConflict(
+                assertThrows(ResponseStatusException.class,
+                        () -> disputeService.fileByConsumer(7L, new FileDisputeRequest("S-DUP-04", "re-appeal", "BILL", "NORMAL"))),
+                ApiMessages.DISPUTE_APPEAL_CLOSED);
+    }
+
+    private static void assertConflict(ResponseStatusException thrown, String expectedReason) {
+        assertEquals(HttpStatus.CONFLICT, thrown.getStatusCode());
+        assertEquals(expectedReason, thrown.getReason());
+    }
+
+    private void stubFindById(String sessionId, ShoppingSession first, ShoppingSession second) {
+        AtomicInteger findCalls = new AtomicInteger();
+        Answer<Optional<ShoppingSession>> answer = invocation -> {
+            if (findCalls.getAndIncrement() == 0) {
+                return Optional.of(first);
+            }
+            return Optional.of(second);
+        };
+        when(repository.findById(sessionId)).thenAnswer(answer);
+    }
+
+    private static VisionServiceClient.RecognitionResult sampleRecognition() {
+        return new VisionServiceClient.RecognitionResult(
+                "T-1", List.of(), 0.9f, false, "mock", List.of());
+    }
+
+    private static OrderDto sampleOrder(String orderId, String sessionId) {
+        return new OrderDto(
+                orderId, sessionId, 7L, "CAB-001", 500,
+                List.of(), "PAID", "BALANCE", null, 1000, 500, null);
     }
 
     private ShoppingSession session(String id, SessionState state) {

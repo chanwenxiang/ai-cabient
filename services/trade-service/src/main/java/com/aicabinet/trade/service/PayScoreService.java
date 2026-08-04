@@ -7,7 +7,6 @@ import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.payment.AgreementChargeClient;
 import com.aicabinet.trade.payment.AlipayPayClient;
-import com.aicabinet.trade.payment.WeChatPayClient;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,7 +23,6 @@ public class PayScoreService {
     private final SecurityProperties securityProperties;
     private final WeChatPayProperties weChatPayProperties;
     private final UserInfoMapper userInfoRepository;
-    private final WeChatPayClient weChatPayClient;
     private final AlipayPayClient alipayPayClient;
     private final AgreementChargeClient agreementChargeClient;
 
@@ -32,14 +30,12 @@ public class PayScoreService {
                            SecurityProperties securityProperties,
                            WeChatPayProperties weChatPayProperties,
                            UserInfoMapper userInfoRepository,
-                           WeChatPayClient weChatPayClient,
                            AlipayPayClient alipayPayClient,
                            AgreementChargeClient agreementChargeClient) {
         this.payScoreProperties = payScoreProperties;
         this.securityProperties = securityProperties;
         this.weChatPayProperties = weChatPayProperties;
         this.userInfoRepository = userInfoRepository;
-        this.weChatPayClient = weChatPayClient;
         this.alipayPayClient = alipayPayClient;
         this.agreementChargeClient = agreementChargeClient;
     }

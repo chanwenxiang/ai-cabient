@@ -44,7 +44,9 @@ public class CacheService {
         CacheEntry entry = cache.get(cacheKey);
         if (entry != null && !entry.isExpired()) {
             hitCount.merge(prefix, 1L, Long::sum);
-            return (T) entry.value;
+            @SuppressWarnings("unchecked")
+            T cached = (T) entry.value;
+            return cached;
         }
         missCount.merge(prefix, 1L, Long::sum);
         T value = loader.get();

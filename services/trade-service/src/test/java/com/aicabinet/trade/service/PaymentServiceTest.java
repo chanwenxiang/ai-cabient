@@ -1,6 +1,5 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.config.AlipayProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.RechargeOrder;
@@ -43,18 +42,16 @@ class PaymentServiceTest {
 
     private PaymentService paymentService;
     private WeChatPayProperties weChatPayProperties;
-    private AlipayProperties alipayProperties;
     private SecurityProperties securityProperties;
 
     @BeforeEach
     void setUp() {
         weChatPayProperties = new WeChatPayProperties(
                 false, "", "", "", "", "", "", "", true);
-        alipayProperties = new AlipayProperties(false, "", "", "", "", "", "");
         securityProperties = new SecurityProperties(true);
         paymentService = new PaymentService(
                 rechargeOrderRepository, userInfoRepository, userAccountRepository,
-                weChatPayProperties, alipayProperties, securityProperties,
+                weChatPayProperties, securityProperties,
                 weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
                 balanceLedgerService, systemConfigService);
     }

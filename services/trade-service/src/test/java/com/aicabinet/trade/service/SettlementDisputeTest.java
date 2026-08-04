@@ -43,7 +43,6 @@ class SettlementDisputeTest {
     @Mock OrderPaymentService orderPaymentService;
     @Mock SettlementConfidenceService confidenceService;
     @Mock GravitySettlementHelper gravityHelper;
-    @Mock DemoDataService demoDataService;
     @Mock DeviceValidationService deviceValidationService;
     @Mock MerchantSkuPricingService skuPricingService;
     @Mock UserValidationService userValidationService;
@@ -60,7 +59,7 @@ class SettlementDisputeTest {
                 sessionRepository, skuCatalogRepository, orderRepository, orderLineRepository,
                 visionClient, disputeService, visionRecognitionProducer, revenueSplitService,
                 securityProperties, stagingProperties, inventoryService, orderPaymentService, confidenceService, gravityHelper,
-                demoDataService, deviceValidationService, skuPricingService, userValidationService, videoArchiveService,
+                deviceValidationService, skuPricingService, userValidationService, videoArchiveService,
                 skuVisionEnrollmentService, couponService, memberService, null);
     }
 
