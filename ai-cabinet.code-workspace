@@ -6,7 +6,7 @@
     }
   ],
   "settings": {
-    "java.compile.nullAnalysis.mode": "disabled",
+    "java.home": "C:\\Program Files\\Java\\jdk-17.0.17",
     "java.jdt.ls.java.home": "C:\\Program Files\\Java\\jdk-17.0.17",
     "java.configuration.runtimes": [
       {
@@ -19,6 +19,7 @@
         "path": "C:\\Program Files\\Java\\jdk-21.0.9"
       }
     ],
+    "java.compile.nullAnalysis.mode": "disabled",
     "java.configuration.updateBuildConfiguration": "automatic",
     "java.configuration.maven.userSettings": "C:\\Users\\cwx\\.m2\\settings.xml",
     "java.configuration.maven.globalSettings": "D:\\devTools\\apache-maven-3.9.11\\conf\\settings.xml",
@@ -28,16 +29,18 @@
     "java.errors.incompleteClasspath.severity": "ignore",
     "java.server.launchMode": "Standard",
     "maven.executable.path": "D:\\devTools\\apache-maven-3.9.11\\bin\\mvn.cmd",
-    "files.exclude": {
-      "**/scripts/_repo_backup": true
-    },
+    "maven.terminal.useJavaHome": true,
     "java.import.exclusions": [
       "**/node_modules/**",
       "**/.git/**",
       "**/edge/android-app/**",
+      "**/.gradle/**",
+      "**/clients/**",
+      "**/docs/**",
+      "**/.playwright-mcp/**",
       "**/scripts/**",
-      "**/scripts",
-      "**/services/*/src/main/resources/static/**"
+      "**/services/*/src/main/resources/static/**",
+      "**/vision-service/**"
     ]
   }
 }
