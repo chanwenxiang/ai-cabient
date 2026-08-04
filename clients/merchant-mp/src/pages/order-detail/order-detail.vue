@@ -8,7 +8,7 @@
     <view v-else-if="order">
       <view class="status-bar" :class="'s-' + (order.status || '').toLowerCase()">
         <text class="status-title">{{ statusText(order.status) }}</text>
-        <text class="status-amt">¥{{ money(order.totalAmountCents) }}</text>
+        <text class="status-amt">{{ money(order.totalAmountCents) }}</text>
       </view>
 
       <view class="section">
@@ -18,16 +18,16 @@
             <text class="line-name">{{ line.skuName || line.skuId || '商品' }}</text>
             <text class="line-qty">x{{ line.quantity }}</text>
           </view>
-          <text class="line-amt">¥{{ money(line.lineAmountCents) }}</text>
+          <text class="line-amt">{{ money(line.lineAmountCents) }}</text>
         </view>
         <view v-if="!(order.lines || []).length" class="muted">无商品明细</view>
         <view v-if="order.couponDiscountCents" class="sum-row">
           <text>优惠</text>
-          <text>-¥{{ money(order.couponDiscountCents) }}</text>
+          <text>-{{ money(order.couponDiscountCents) }}</text>
         </view>
         <view class="sum-row strong">
           <text>实付</text>
-          <text>¥{{ money(order.totalAmountCents) }}</text>
+          <text>{{ money(order.totalAmountCents) }}</text>
         </view>
       </view>
 
@@ -56,7 +56,7 @@
 import { computed, ref } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay, formatDateTimeShort, orderStatusLabel } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeShort, orderStatusLabel, fmtMoney } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { MerchantMe } from '@aicabinet/shared-types';
@@ -136,7 +136,7 @@ function statusText(s?: string) {
 }
 
 function money(cents?: number) {
-  return ((cents || 0) / 100).toFixed(2);
+  return fmtMoney(cents);
 }
 
 function formatTime(t?: string) {
@@ -164,7 +164,13 @@ function goDisputes() {
 </script>
 
 <style scoped>
-.page-root { min-height: 100vh; background: #f0fdfa; padding: 24rpx; box-sizing: border-box; }
+.page-root {
+  min-height: 100vh;
+  background: #f0fdfa;
+  padding: 24rpx;
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
 .loading, .empty { text-align: center; padding: 80rpx 24rpx; color: #64748b; font-size: 28rpx; }
 .err { color: #b91c1c; display: block; margin-bottom: 20rpx; }
 .retry {
@@ -201,7 +207,14 @@ function goDisputes() {
 .section-title { display: block; font-size: 26rpx; font-weight: 600; color: #0f172a; margin-bottom: 16rpx; }
 .line { display: flex; justify-content: space-between; align-items: center; padding: 12rpx 0; }
 .line-info { display: flex; gap: 12rpx; align-items: baseline; min-width: 0; }
-.line-name { font-size: 28rpx; color: #0f172a; }
+.line-name {
+  font-size: 28rpx;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 360rpx;
+}
 .line-qty { font-size: 24rpx; color: #94a3b8; }
 .line-amt { font-size: 28rpx; color: #0f172a; font-weight: 600; }
 .sum-row {

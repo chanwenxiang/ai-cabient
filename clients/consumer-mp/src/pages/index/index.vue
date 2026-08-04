@@ -53,7 +53,12 @@
               <text class="error-action" @click="landingError = ''; showManual = true">换一台</text>
             </view>
           </view>
-          <text class="error-close" @click="landingError = ''">×</text>
+          <text
+            class="error-close"
+            role="button"
+            aria-label="关闭错误提示"
+            @click="landingError = ''"
+          >×</text>
         </view>
 
         <view class="landing-spacer" />
@@ -84,11 +89,13 @@
             {{ showManual ? '收起' : manualEntryLabel }}
           </text>
           <view v-if="showManual" class="manual-form">
+            <text class="field-label">柜机编号</text>
             <input
               v-model="deviceInput"
               class="input"
               data-testid="device-code-input"
-              placeholder="例如 CAB-001"
+              aria-label="柜机编号"
+              placeholder="例如 CAB-001…"
             />
             <button
               class="btn-primary"
@@ -164,7 +171,7 @@
               <text v-else class="product-mark">{{ productGlyph(p) }}</text>
             </view>
             <text class="product-name">{{ p.skuName }}</text>
-            <text class="product-price">¥{{ (p.priceCents / 100).toFixed(2) }}</text>
+            <text class="product-price">{{ fmtMoney(p.priceCents) }}</text>
           </view>
         </view>
         <view class="list-bottom" />
@@ -243,7 +250,7 @@ import {
 } from '@/utils/consumer-api';
 import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrcode';
 import { sessionStateHint, sessionStateLabel, sessionStateTone } from '@aicabinet/shared-uni/session-labels';
-import { classifyOpenError, formatError, type OpenErrorKind } from '@aicabinet/shared-uni/format';
+import { classifyOpenError, formatError, fmtMoney, type OpenErrorKind } from '@aicabinet/shared-uni/format';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
 import { productGlyph, productThumb } from '@/utils/product-thumb';
@@ -886,6 +893,17 @@ async function cancelOpening() {
     uni.showToast({ title: '已取消开门', icon: 'none' });
     return;
   }
+  const confirmed = await new Promise<boolean>((resolve) => {
+    uni.showModal({
+      title: '取消开门',
+      content: '确定取消本次开门吗？已创建的会话将被关闭。',
+      confirmText: '取消开门',
+      cancelText: '继续等待',
+      success: (res) => resolve(!!res.confirm),
+      fail: () => resolve(false)
+    });
+  });
+  if (!confirmed) return;
   cancelling.value = true;
   try {
     const s = await consumerApi.cancelSession(sessionId.value);
@@ -1287,6 +1305,12 @@ function stopDevicePoll() {
   padding: 12rpx 0;
 }
 .manual-form { margin-top: 8rpx; }
+.field-label {
+  display: block;
+  font-size: 24rpx;
+  color: #64748b;
+  margin-bottom: 8rpx;
+}
 .input {
   background: #fff;
   border: 1rpx solid #e5e5e5;
@@ -1604,6 +1628,13 @@ function stopDevicePoll() {
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow-spinner.pulse {
+    animation: none;
+    border-top-color: #07c160;
+    opacity: 0.85;
+  }
 }
 .flow-title {
   font-size: 40rpx;

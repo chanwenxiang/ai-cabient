@@ -651,7 +651,7 @@
         <div v-for="(line, index) in purchaseForm.lines" :key="index" class="purchase-line-card">
           <div class="line-card-head">
             <strong>明细 {{ index + 1 }}</strong>
-            <el-button link type="danger" :disabled="purchaseForm.lines.length === 1" @click="purchaseForm.lines.splice(index, 1)">删除</el-button>
+            <el-button link type="danger" :disabled="purchaseForm.lines.length === 1" @click="removePurchaseLine(index)">删除</el-button>
           </div>
           <div class="line-grid">
             <label class="line-field">
@@ -761,7 +761,7 @@
         <div v-for="(line, index) in inboundForm.lines" :key="index" class="purchase-line-card">
           <div class="line-card-head">
             <strong>明细 {{ index + 1 }}</strong>
-            <el-button link type="danger" :disabled="inboundForm.lines.length === 1" @click="inboundForm.lines.splice(index, 1)">删除</el-button>
+            <el-button link type="danger" :disabled="inboundForm.lines.length === 1" @click="removeInboundLine(index)">删除</el-button>
           </div>
           <div class="line-grid">
             <label class="line-field">
@@ -1688,6 +1688,32 @@ async function openPurchase() {
 }
 function addPurchaseLine() {
   purchaseForm.lines.push(newLine());
+}
+async function removePurchaseLine(index: number) {
+  if (purchaseForm.lines.length <= 1) return;
+  try {
+    await ElMessageBox.confirm('确定删除该采购行吗？', '删除行', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    });
+  } catch {
+    return;
+  }
+  purchaseForm.lines.splice(index, 1);
+}
+async function removeInboundLine(index: number) {
+  if (inboundForm.lines.length <= 1) return;
+  try {
+    await ElMessageBox.confirm('确定删除该入库行吗？', '删除行', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    });
+  } catch {
+    return;
+  }
+  inboundForm.lines.splice(index, 1);
 }
 async function savePurchase() {
   if (!purchaseForm.supplierId || purchaseForm.lines.some((l: Row) => !l.skuId || !l.batchNo || !l.expiryDate)) {

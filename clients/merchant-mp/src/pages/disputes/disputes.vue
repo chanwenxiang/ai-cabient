@@ -28,6 +28,7 @@
         class="card"
         hover-class="card-hover"
         role="button"
+        :aria-label="`争议 ${shortId(item.ticketId)} ${statusText(item.status)}`"
         @click="onDetail(item)"
       >
         <view class="card-header">
@@ -58,7 +59,7 @@
 import { ref, computed } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay, formatDateTimeShort, localizeDisputeReason } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeShort, localizeDisputeReason, fmtMoney } from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi, type MerchantDisputeTicket } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
@@ -202,7 +203,7 @@ async function onDetail(item: MerchantDisputeTicket) {
   }
   const amount =
     detail.billedAmountCents != null
-      ? `¥${(detail.billedAmountCents / 100).toFixed(2)}`
+      ? fmtMoney(detail.billedAmountCents)
       : '';
   const lines = [
     `单号：${emptyDisplay(detail.ticketId, 'order')}`,
@@ -271,7 +272,13 @@ async function onReply(item: MerchantDisputeTicket) {
 </script>
 
 <style scoped>
-.page-root { padding: 20rpx; background: #f0fdfa; min-height: 100vh; box-sizing: border-box; }
+.page-root {
+  padding: 20rpx;
+  padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
+  background: #f0fdfa;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
 .tabs-pill { margin-bottom: 20rpx; }
 .tab.active { color: #0f766e; font-weight: 600; border-bottom: 4rpx solid #0f766e; }
 .loading, .empty { text-align: center; color: #999; padding: 80rpx 0; font-size: 28rpx; }
@@ -306,9 +313,28 @@ async function onReply(item: MerchantDisputeTicket) {
 .card-status { font-size: 22rpx; color: #92400e; background: #fef3c7; padding: 4rpx 12rpx; border-radius: 999rpx; }
 .card-status.RESOLVED, .card-status.resolved { color: #166534; background: #dcfce7; }
 .card-status.CLOSED, .card-status.closed { color: #475569; background: #e2e8f0; }
-.card-title { display: block; font-size: 28rpx; font-weight: 600; color: #0f172a; }
+.card-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .card-meta { display: flex; justify-content: space-between; margin-top: 12rpx; font-size: 22rpx; color: #94a3b8; }
-.card-msg { margin-top: 12rpx; padding: 12rpx; background: #f8fafc; border-radius: 12rpx; font-size: 24rpx; color: #475569; }
+.card-msg {
+  margin-top: 12rpx;
+  padding: 12rpx;
+  background: #f8fafc;
+  border-radius: 12rpx;
+  font-size: 24rpx;
+  color: #475569;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
 .card-action { margin-top: 12rpx; text-align: right; color: #0f766e; font-size: 24rpx; }
 .reply-hint { font-weight: 600; }
 .trunc-hint {

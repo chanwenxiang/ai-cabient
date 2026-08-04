@@ -1,8 +1,8 @@
 <template>
   <view class="page">
     <view class="page-nav">
-      <view class="nav-back" hover-class="nav-back-hover" @click="goBack">
-        <image class="nav-back-svg" src="/static/nav-back.svg" mode="aspectFit" />
+      <view class="nav-back" hover-class="nav-back-hover" role="button" aria-label="返回" @click="goBack">
+        <image class="nav-back-svg" src="/static/nav-back.svg" mode="aspectFit" aria-hidden="true" />
       </view>
       <text class="nav-title">我的订单</text>
       <view class="nav-side" />
@@ -92,7 +92,7 @@
           </view>
           <view class="order-mid">
             <text class="order-summary">{{ orderSummaryText(o) }}</text>
-            <text class="amt">¥{{ ((o.totalAmountCents || 0) / 100).toFixed(2) }}</text>
+            <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
           </view>
           <view class="order-bottom">
             <view class="order-bottom-left">
@@ -125,7 +125,7 @@
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
-import { orderStatusLabel, formatDateTimeShort } from '@aicabinet/shared-uni/format';
+import { orderStatusLabel, formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { showDisputeResolvedToast } from '@/utils/notify';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';

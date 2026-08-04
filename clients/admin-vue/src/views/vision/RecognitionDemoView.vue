@@ -27,7 +27,7 @@
           @click="triggerPick"
         >
           <input ref="fileInput" type="file" accept="image/*" class="hidden-input" @change="onPick" />
-          <img v-if="previewUrl" :src="previewUrl" alt="预览" class="preview-image" />
+          <img v-if="previewUrl" :src="previewUrl" alt="预览" class="preview-image" width="640" height="360" />
           <div v-else class="drop-placeholder">
             <el-icon :size="48"><UploadFilled /></el-icon>
             <p>点击或拖拽上传商品图片</p>

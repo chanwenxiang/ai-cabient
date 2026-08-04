@@ -31,12 +31,12 @@
     <view v-else>
       <view v-for="c in list" :key="c.couponId" class="coupon-card" :class="{ expired: c.status === 'EXPIRED', used: c.status === 'USED' }">
         <view class="coupon-left">
-          <text class="coupon-amount">¥{{ (c.denominationCents / 100).toFixed(0) }}</text>
+          <text class="coupon-amount">{{ fmtMoney(c.denominationCents) }}</text>
           <text class="coupon-type">{{ typeText(c.couponType) }}</text>
         </view>
         <view class="coupon-right">
           <text class="coupon-name">{{ c.couponName }}</text>
-          <text v-if="c.minSpendCents > 0" class="coupon-limit">满¥{{ (c.minSpendCents / 100).toFixed(0) }}可用</text>
+          <text v-if="c.minSpendCents > 0" class="coupon-limit">满{{ fmtMoney(c.minSpendCents) }}可用</text>
           <text class="coupon-expire">有效期至 {{ formatTime(c.expireAt) }}</text>
           <text v-if="c.status === 'USED'" class="coupon-status-badge used">已使用</text>
           <text v-else-if="c.status === 'EXPIRED'" class="coupon-status-badge expired">已过期</text>
@@ -52,7 +52,7 @@ import { onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import EmptyState from '@/components/empty-state.vue';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
-import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import { formatDateTimeMinute, fmtMoney } from '@aicabinet/shared-uni/format';
 
 const tabs = [
   { key: '', label: '全部' },

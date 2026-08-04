@@ -40,7 +40,12 @@
     <el-container class="layout-content" direction="vertical">
       <el-header class="topbar">
         <div class="topbar-left">
-          <el-button text :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'" @click="toggleSidebar">
+          <el-button
+            text
+            :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+            :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+            @click="toggleSidebar"
+          >
             <el-icon><Expand v-if="sidebarCollapsed" /><Fold v-else /></el-icon>
           </el-button>
           <div class="title-block">
@@ -50,7 +55,7 @@
         <div class="topbar-right">
           <GlobalSearch />
           <el-dropdown trigger="click" @command="onSettingCommand">
-            <el-button text title="外观设置">
+            <el-button text title="外观设置" aria-label="外观设置">
               <el-icon><Brush /></el-icon>
             </el-button>
             <template #dropdown>
@@ -71,14 +76,14 @@
             </template>
           </el-dropdown>
           <el-dropdown trigger="click" @command="onUserCommand">
-            <div class="user-trigger">
+            <button type="button" class="user-trigger" aria-label="用户菜单">
               <el-avatar :size="32" class="user-avatar">{{ userInitial }}</el-avatar>
               <div class="user-text">
                 <span class="user-name">{{ auth.displayName }}</span>
                 <span class="user-detail">{{ auth.phone }} · {{ auth.roleText }}</span>
                 <span class="user-scope">{{ auth.dataScopeText }}</span>
               </div>
-            </div>
+            </button>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item command="profile">个人中心</el-dropdown-item>
@@ -102,7 +107,13 @@
               :type="tag.path === route.path ? 'primary' : 'info'"
               closable
               class="tag-item"
+              role="link"
+              tabindex="0"
+              :aria-current="tag.path === route.path ? 'page' : undefined"
+              :aria-label="`打开 ${tag.title}`"
               @click="router.push(tag.path)"
+              @keydown.enter.prevent="router.push(tag.path)"
+              @keydown.space.prevent="router.push(tag.path)"
               @close.prevent="closeTag(tag.path)"
             >{{ tag.title }}</el-tag>
           </span>
@@ -124,11 +135,11 @@
           <li @click="runTagAction('others')">关闭其他</li>
           <li @click="runTagAction('left')">关闭左侧</li>
           <li @click="runTagAction('right')">关闭右侧</li>
-          <li class="danger" @click="runTagAction('all')">关闭全部</li>
+          <li class="danger" @click="confirmCloseAllTags">关闭全部</li>
         </ul>
       </Teleport>
 
-      <el-main class="layout-main-scroll">
+      <el-main id="main-content" class="layout-main-scroll" tabindex="-1">
         <router-view v-slot="{ Component, route: viewRoute }">
           <keep-alive :max="12">
             <component :is="Component" :key="viewRoute.path" />
@@ -142,7 +153,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import type { MenuInstance } from 'element-plus';
+import { ElMessageBox, type MenuInstance } from 'element-plus';
 import {
   Fold, Expand, Brush
 } from '@element-plus/icons-vue';
@@ -334,7 +345,13 @@ function scrollActiveTagIntoView() {
     if (!root) return;
     const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(route.path) : route.path.replace(/"/g, '\\"');
     const active = root.querySelector(`.tag-wrap[data-path="${escaped}"]`) as HTMLElement | null;
-    active?.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+    const reduceMotion = typeof window !== 'undefined'
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    active?.scrollIntoView({
+      behavior: reduceMotion ? 'auto' : 'smooth',
+      inline: 'nearest',
+      block: 'nearest'
+    });
   });
 }
 
@@ -412,9 +429,32 @@ function runTagAction(action: 'close' | 'others' | 'left' | 'right' | 'all') {
   }
 }
 
-function onUserCommand(cmd: string) {
+async function confirmCloseAllTags() {
+  try {
+    await ElMessageBox.confirm('确定关闭全部页签吗？', '关闭全部', {
+      type: 'warning',
+      confirmButtonText: '关闭全部',
+      cancelButtonText: '取消'
+    });
+  } catch {
+    hideTagMenu();
+    return;
+  }
+  runTagAction('all');
+}
+
+async function onUserCommand(cmd: string) {
   if (cmd === 'profile') router.push('/profile');
   if (cmd === 'logout') {
+    try {
+      await ElMessageBox.confirm('确定退出登录吗？', '退出登录', {
+        type: 'warning',
+        confirmButtonText: '退出',
+        cancelButtonText: '取消'
+      });
+    } catch {
+      return;
+    }
     auth.logout();
     router.push('/login');
   }
@@ -574,6 +614,15 @@ onUnmounted(() => {
   border-radius: 8px;
   min-width: 0;
   flex-shrink: 1;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+}
+.user-trigger:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--el-color-primary);
 }
 .user-trigger:hover { background: var(--layout-hover); }
 .user-avatar { background: var(--app-primary); color: #fff; flex-shrink: 0; }

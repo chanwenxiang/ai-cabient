@@ -103,7 +103,7 @@
             <text class="sheet-title">{{ deviceName(selected?.deviceId) }}</text>
             <text class="device-code">任务 #{{ selected?.taskId }} · {{ selected?.deviceId }}</text>
           </view>
-          <text class="close" @click="closeDetail">×</text>
+          <text class="close" role="button" aria-label="关闭" @click="closeDetail">×</text>
         </view>
         <view class="step-row four">
           <view class="step" :class="stepClass(1)">
@@ -161,11 +161,14 @@
             class="evidence-thumb"
             :src="item.localPath"
             mode="aspectFill"
+            :aria-label="`现场照片 ${idx + 1}`"
             @click="previewEvidence(idx)"
           />
           <view
             v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt && evidenceItems.length < 5"
             class="evidence-add"
+            role="button"
+            aria-label="添加现场照片"
             @click="addEvidence"
           >+</view>
           <text
@@ -209,9 +212,9 @@
               v-if="canRequest && selected?.status !== 'COMPLETED' && !linesConfirmed && !line.applied"
               class="qty-stepper"
             >
-              <text class="qty-btn" @click="adjustQty(line, -1)">−</text>
+              <text class="qty-btn" role="button" aria-label="减少数量" @click="adjustQty(line, -1)">−</text>
               <text class="qty">{{ line.quantity }}</text>
-              <text class="qty-btn" @click="adjustQty(line, 1)">+</text>
+              <text class="qty-btn" role="button" aria-label="增加数量" @click="adjustQty(line, 1)">+</text>
             </view>
             <text v-else class="qty">× {{ line.quantity }}</text>
           </view>
@@ -1445,6 +1448,7 @@ onPullDownRefresh(load);
   border-radius: 32rpx 32rpx 0 0;
   background: #fff;
   overflow-y: auto;
+  overscroll-behavior: contain;
   box-sizing: border-box;
   /* 实心底 + 顶部分隔，杜绝背后列表透视 */
   isolation: isolate;
@@ -1529,7 +1533,15 @@ onPullDownRefresh(load);
   border: 1rpx solid #e2e8f0;
   border-radius: 18rpx;
 }
-.sku-name { display: block; font-size: 27rpx; font-weight: 700; }
+.sku-name {
+  display: block;
+  font-size: 27rpx;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 360rpx;
+}
 .qty { color: #0f766e; font-size: 30rpx; font-weight: 800; min-width: 40rpx; text-align: center; }
 .qty-stepper {
   display: flex;

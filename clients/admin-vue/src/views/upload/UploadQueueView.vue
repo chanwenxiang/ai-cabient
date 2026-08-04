@@ -447,9 +447,10 @@ async function scanWaitingPages(
 async function maybeScrollToFocus() {
   if (!focusSessionId.value) return;
   await nextTick();
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   document
     .querySelector('.report-table .is-focus')
-    ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    ?.scrollIntoView({ block: 'nearest', behavior: reduceMotion ? 'auto' : 'smooth' });
 }
 
 async function load() {

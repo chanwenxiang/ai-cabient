@@ -30,7 +30,8 @@
             class="input"
             type="number"
             maxlength="11"
-            placeholder="请输入11位手机号"
+            aria-label="手机号"
+            placeholder="请输入11位手机号…"
             confirm-type="next"
             data-testid="login-phone"
           />
@@ -41,7 +42,8 @@
             v-model="password"
             class="input"
             password
-            placeholder="请输入登录密码"
+            aria-label="密码"
+            placeholder="请输入登录密码…"
             confirm-type="go"
             data-testid="login-password"
             @confirm="onLogin"
@@ -198,11 +200,11 @@ async function onLogin() {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 0 32rpx calc(32rpx + env(safe-area-inset-bottom));
+  padding: calc(48rpx + env(safe-area-inset-top)) 32rpx calc(32rpx + env(safe-area-inset-bottom));
 }
 .hero {
   flex-shrink: 0;
-  padding-top: 48rpx;
+  padding-top: 0;
   text-align: center;
 }
 .brand {

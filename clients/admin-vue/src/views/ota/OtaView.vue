@@ -43,19 +43,19 @@
   <el-dialog v-model="dialog" title="发布固件版本" width="520px" destroy-on-close>
     <el-form label-width="110px">
       <el-form-item label="版本号" required>
-        <el-input v-model="form.appVersion" placeholder="例如 1.2.0" />
+        <el-input v-model="form.appVersion" placeholder="例如 1.2.0…" />
       </el-form-item>
       <el-form-item label="渠道">
-        <el-input v-model="form.channel" placeholder="稳定版 / 测试版（stable / beta）" />
+        <el-input v-model="form.channel" placeholder="稳定版 / 测试版（stable / beta）…" />
       </el-form-item>
       <el-form-item label="下载地址" required>
-        <el-input v-model="form.downloadUrl" placeholder="https://..." />
+        <el-input v-model="form.downloadUrl" placeholder="https://cdn.example.com/app.apk…" />
       </el-form-item>
       <el-form-item label="校验和">
-        <el-input v-model="form.checksumSha256" placeholder="sha256（可选）" />
+        <el-input v-model="form.checksumSha256" placeholder="sha256（可选）…" />
       </el-form-item>
       <el-form-item label="最低版本">
-        <el-input v-model="form.minVersion" placeholder="可选" />
+        <el-input v-model="form.minVersion" placeholder="可选…" />
       </el-form-item>
       <el-form-item label="灰度 %">
         <el-input-number v-model="form.grayPercent" :min="1" :max="100" />

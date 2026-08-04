@@ -37,7 +37,7 @@
         <el-input
           v-model="deviceId"
           clearable
-          placeholder="设备编号"
+          placeholder="设备编号…"
           style="width: 160px"
           @keyup.enter="search"
         />

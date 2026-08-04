@@ -18,13 +18,14 @@
         class="card"
         hover-class="card-hover"
         role="button"
+        :aria-label="`订单 ${shortId(item.orderId)} ${statusText(item.status)} ${money(item.totalAmountCents)}`"
         @click="onDetail(item)"
       >
         <view class="card-header">
           <text class="card-id">#{{ shortId(item.orderId) }}</text>
           <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
         </view>
-        <view class="card-amount">¥{{ money(item.totalAmountCents) }}</view>
+        <view class="card-amount">{{ money(item.totalAmountCents) }}</view>
         <view class="card-meta">
           <text>{{ emptyDisplay(item.deviceId, 'device') }} · {{ item.lineCount || 0 }} 件</text>
           <text>{{ formatTime(item.createdAt) }}</text>
@@ -38,7 +39,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import { emptyDisplay, formatDateTimeShort, orderStatusLabel } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeShort, orderStatusLabel, fmtMoney } from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi, type MerchantOrderSummary } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
@@ -108,7 +109,7 @@ function statusText(s?: string) {
 }
 
 function money(cents?: number) {
-  return ((cents || 0) / 100).toFixed(2);
+  return fmtMoney(cents);
 }
 
 function shortId(id?: string) {

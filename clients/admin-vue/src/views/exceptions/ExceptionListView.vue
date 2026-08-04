@@ -348,7 +348,7 @@
                 />
               </el-select>
               <el-input-number v-model="line.quantity" :min="1" :max="99" />
-              <el-button type="danger" link @click="manualLines.splice(index, 1)">删除</el-button>
+              <el-button type="danger" link @click="removeManualLine(index)">删除</el-button>
             </div>
             <el-button @click="manualLines.push({ skuId: '', quantity: 1 })">添加商品</el-button>
           </div>
@@ -634,6 +634,22 @@ function onDrawerClosed() {
   resolveFeedback.value = '';
   manualReason.value = '';
   manualLines.value = [{ skuId: '', quantity: 1 }];
+}
+
+async function removeManualLine(index: number) {
+  try {
+    await ElMessageBox.confirm('确定删除该商品行吗？', '删除商品', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    });
+  } catch {
+    return;
+  }
+  manualLines.value.splice(index, 1);
+  if (!manualLines.value.length) {
+    manualLines.value = [{ skuId: '', quantity: 1 }];
+  }
 }
 
 async function loadInlineVideo(sessionId?: string, force = false) {

@@ -1,5 +1,5 @@
 <template>
-  <view>
+  <view class="page-root devices-page">
     <view class="toolbar">
       <button class="scan-btn" :loading="scanning" @click="onScan">扫码到柜</button>
       <button v-if="canReplenishment" class="replenish-btn" @click="goReplenishment">补货任务</button>
@@ -11,7 +11,12 @@
     </view>
     <view v-else>
       <view class="filters">
-        <input v-model="keyword" class="search" placeholder="搜索柜机名称或编号" />
+        <input
+          v-model="keyword"
+          class="search"
+          aria-label="搜索柜机名称或编号"
+          placeholder="搜索柜机名称或编号…"
+        />
         <view class="chips">
           <text
             v-for="f in filters"
@@ -49,6 +54,8 @@
         <view class="device-right">
           <text
             class="star"
+            role="button"
+            :aria-label="preferredId === d.deviceId ? '取消常驻柜' : '设为常驻柜'"
             :class="{ on: preferredId === d.deviceId }"
             @click.stop="togglePreferred(d.deviceId)"
           >★</text>
@@ -237,6 +244,10 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 </script>
 
 <style scoped>
+.devices-page {
+  padding: 0;
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+}
 .toolbar {
   display: flex;
   gap: 12rpx;
@@ -285,7 +296,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .online-dot { width: 16rpx; height: 16rpx; border-radius: 50%; }
 .online-dot.on { background: #16a34a; box-shadow: 0 0 8rpx rgba(22,163,74,0.5); }
 .online-dot.off { background: #cbd5e1; }
-.name { font-weight: 600; display: block; font-size: 28rpx; }
+.name {
+  font-weight: 600;
+  display: block;
+  font-size: 28rpx;
+  max-width: 360rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .status-on { color: #16a34a; font-weight: 600; font-size: 26rpx; }
 .status-off { color: #94a3b8; font-size: 26rpx; }
 .status-locked { color: #b45309; font-weight: 700; font-size: 24rpx; background: #fef3c7; padding: 4rpx 12rpx; border-radius: 999rpx; }

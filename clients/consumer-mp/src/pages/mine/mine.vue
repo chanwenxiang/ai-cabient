@@ -7,10 +7,10 @@
         <text class="hello">{{ authed ? displayName : '未登录' }}</text>
         <view v-if="authed" class="balance-row" @click="goRecharge">
           <text class="balance-label">可用</text>
-          <text class="balance-number">¥{{ balanceYuan }}</text>
+          <text class="balance-number">{{ balanceYuan }}</text>
           <text class="balance-action">充值 ›</text>
         </view>
-        <text v-if="authed && frozenYuan !== '0.00'" class="guest-hint">冻结 ¥{{ frozenYuan }} · 总余额 ¥{{ totalBalanceYuan }}</text>
+        <text v-if="authed && frozenYuan !== '¥0.00'" class="guest-hint">冻结 {{ frozenYuan }} · 总余额 {{ totalBalanceYuan }}</text>
         <text v-else class="guest-hint">登录后可查看订单与余额</text>
         <view v-if="authed" class="tags">
           <text class="tag" :class="verified ? 'ok' : 'warn'">{{ verified ? '已实名' : '待实名' }}</text>
@@ -197,7 +197,7 @@ import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
 import { clearConsumerSession, consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
-import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
+import { formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
 import {
   availableCents,
   isPayReady,
@@ -233,8 +233,8 @@ const configPreauthCents = ref<number | null>(null);
 const preauthCents = computed(() =>
   resolveClientPreauthCents({ configPreauthCents: configPreauthCents.value })
 );
-const frozenYuan = computed(() => (Math.max(0, account.value?.frozenCents || 0) / 100).toFixed(2));
-const totalBalanceYuan = computed(() => ((account.value?.balanceCents || 0) / 100).toFixed(2));
+const frozenYuan = computed(() => fmtMoney(Math.max(0, account.value?.frozenCents || 0)));
+const totalBalanceYuan = computed(() => fmtMoney(account.value?.balanceCents || 0));
 const verified = computed(() => !!account.value?.verified);
 const payReady = computed(() => isPayReady(account.value, null, preauthCents.value));
 const needsSetup = computed(() => !verified.value || !payReady.value);
@@ -250,7 +250,7 @@ function syncBalanceDisplay(acc: AccountDto | null) {
     balanceYuan.value = '--';
     return;
   }
-  balanceYuan.value = (availableCents(acc) / 100).toFixed(2);
+  balanceYuan.value = fmtMoney(availableCents(acc));
 }
 
 onShow(async () => {
@@ -338,8 +338,8 @@ function formatTransactionTime(value?: string) {
 }
 
 function formatTransactionAmount(cents: number) {
-  const amount = Math.abs(cents || 0) / 100;
-  return `${cents > 0 ? '+' : cents < 0 ? '-' : ''}¥${amount.toFixed(2)}`;
+  const signed = fmtMoney(Math.abs(cents || 0));
+  return `${cents > 0 ? '+' : cents < 0 ? '-' : ''}${signed}`;
 }
 
 async function refreshAccount() {

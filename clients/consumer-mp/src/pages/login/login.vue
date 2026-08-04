@@ -408,11 +408,11 @@ async function onLogin() {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 0 32rpx calc(32rpx + env(safe-area-inset-bottom));
+  padding: calc(48rpx + env(safe-area-inset-top)) 32rpx calc(32rpx + env(safe-area-inset-bottom));
 }
 .hero {
   flex-shrink: 0;
-  padding-top: 48rpx;
+  padding-top: 0;
   text-align: center;
 }
 .brand {
@@ -553,7 +553,7 @@ async function onLogin() {
   font-size: 28rpx;
   color: #92400e;
   border-radius: 12rpx;
-  transition: all 0.2s ease;
+  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, font-weight 0.2s ease;
 }
 .tab-item.on {
   color: #ea580c;

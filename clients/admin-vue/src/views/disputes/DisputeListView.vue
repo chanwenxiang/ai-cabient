@@ -376,7 +376,7 @@
                 />
               </el-select>
               <el-input-number v-model="line.quantity" :min="1" :max="99" />
-              <el-button type="danger" link @click="draftLines.splice(index, 1)">删除</el-button>
+              <el-button type="danger" link @click="removeDraftLine(index)">删除</el-button>
             </div>
             <el-button @click="draftLines.push({ skuId: '', quantity: 1 })">添加商品</el-button>
             <el-button link type="primary" @click="resetDraftFromSuggested">从识别建议填充</el-button>
@@ -527,6 +527,22 @@ function resetDraftFromSuggested() {
   draftLines.value = suggested
     .filter((line: OrderLineDto) => line.skuId && (line.quantity || 0) > 0)
     .map((line: OrderLineDto) => ({ skuId: String(line.skuId), quantity: Number(line.quantity) || 1 }));
+  if (!draftLines.value.length) {
+    draftLines.value = [{ skuId: '', quantity: 1 }];
+  }
+}
+
+async function removeDraftLine(index: number) {
+  try {
+    await ElMessageBox.confirm('确定删除该商品行吗？', '删除商品', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    });
+  } catch {
+    return;
+  }
+  draftLines.value.splice(index, 1);
   if (!draftLines.value.length) {
     draftLines.value = [{ skuId: '', quantity: 1 }];
   }

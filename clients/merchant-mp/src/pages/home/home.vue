@@ -32,24 +32,48 @@
         <button class="scan-btn" hover-class="btn-hover" :loading="scanning" @click="onScan">扫码</button>
       </view>
 
-      <view v-if="latestAnnouncement" class="notice-strip" @click="goAnnouncementDetail">
+      <view
+        v-if="latestAnnouncement"
+        class="notice-strip"
+        role="button"
+        :aria-label="`公告：${latestAnnouncement.title}`"
+        @click="goAnnouncementDetail"
+      >
         <text class="notice-tag">公告</text>
         <text class="notice-title">{{ latestAnnouncement.title }}</text>
         <text class="notice-more">›</text>
       </view>
 
       <view v-if="canReplenishment || canDevices || canAlerts" class="quick-row">
-        <view v-if="canReplenishment" class="quick-item primary" @click="goReplenishment()">
-          <text class="quick-icon">📦</text>
+        <view
+          v-if="canReplenishment"
+          class="quick-item primary"
+          role="button"
+          aria-label="补货任务"
+          @click="goReplenishment()"
+        >
+          <text class="quick-icon" aria-hidden="true">📦</text>
           <text class="quick-label">补货任务</text>
           <text v-if="pendingTaskCount" class="quick-badge">{{ pendingTaskCount }}</text>
         </view>
-        <view v-if="canDevices" class="quick-item" @click="goTab('/pages/devices/devices')">
-          <text class="quick-icon">🗄️</text>
+        <view
+          v-if="canDevices"
+          class="quick-item"
+          role="button"
+          aria-label="柜机列表"
+          @click="goTab('/pages/devices/devices')"
+        >
+          <text class="quick-icon" aria-hidden="true">🗄️</text>
           <text class="quick-label">柜机列表</text>
         </view>
-        <view v-if="canAlerts" class="quick-item" @click="goTab('/pages/alerts/alerts')">
-          <text class="quick-icon">🔔</text>
+        <view
+          v-if="canAlerts"
+          class="quick-item"
+          role="button"
+          aria-label="待办事项"
+          @click="goTab('/pages/alerts/alerts')"
+        >
+          <text class="quick-icon" aria-hidden="true">🔔</text>
           <text class="quick-label">待办事项</text>
           <text v-if="pendingCount" class="quick-badge">{{ pendingCount }}</text>
         </view>
@@ -77,6 +101,7 @@
           class="task-row"
           hover-class="task-row-hover"
           role="button"
+          :aria-label="`补货任务 ${deviceLabel(task.deviceId)} ${statusLabel(task.status)}`"
           @click="goReplenishment(task.deviceId, task.taskId)"
         >
           <view class="task-copy">
@@ -168,6 +193,7 @@ import { MERCHANT_BIZ_NAV, MERCHANT_FIELD_NAV } from '@/config/merchant-nav';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { displayLabel } from '@aicabinet/shared-dict';
+import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { formatMerchantNames } from '@/utils/merchant-display';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
 import { mergeTodoItems } from '@/utils/todo-list';
@@ -228,11 +254,6 @@ const onlineText = computed(() => {
   if (on == null && total == null) return '暂无';
   return `${on ?? 0} / ${total ?? 0}`;
 });
-
-function fmtMoney(cents?: number) {
-  if (cents == null) return '暂无';
-  return '¥' + (cents / 100).toFixed(2);
-}
 
 function deviceLabel(id?: string) {
   if (!id) return '无柜机';
@@ -631,7 +652,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .task-row:first-of-type { border-top: 0; }
 .task-copy, .task-name, .task-meta, .task-go, .pref-mark { pointer-events: none; }
 .task-copy { flex: 1; min-width: 0; }
-.task-name { display: block; font-size: 28rpx; font-weight: 600; color: #0f172a; }
+.task-name {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .pref-mark {
   margin-left: 10rpx;
   padding: 2rpx 10rpx;

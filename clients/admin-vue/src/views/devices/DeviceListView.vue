@@ -85,7 +85,7 @@
       <el-form-item label="关键词">
         <el-input
           v-model="keyword"
-          placeholder="编号 / 名称 / 商户 / IMEI / 标签"
+          placeholder="编号 / 名称 / 商户 / IMEI / 标签…"
           clearable
           style="width: 220px"
           @keyup.enter="search"
@@ -247,10 +247,10 @@
     <el-dialog v-model="createVisible" title="新建设备" width="480px" destroy-on-close append-to-body align-center>
       <el-form label-width="88px">
         <el-form-item label="设备编号" required>
-          <el-input v-model="createForm.deviceId" placeholder="例如 CAB-001" />
+          <el-input v-model="createForm.deviceId" placeholder="例如 CAB-001…" />
         </el-form-item>
         <el-form-item label="设备名称">
-          <el-input v-model="createForm.deviceName" placeholder="可选" />
+          <el-input v-model="createForm.deviceName" placeholder="可选…" />
         </el-form-item>
         <el-form-item label="设备类型">
           <el-select v-model="createForm.deviceType" clearable placeholder="可选" style="width: 100%">

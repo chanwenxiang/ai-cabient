@@ -69,9 +69,9 @@
           <text class="fallback-title">或使用余额开门</text>
           <view class="balance-row">
             <text>可用余额</text>
-            <text class="balance-val">¥{{ balanceYuan }}</text>
+            <text class="balance-val">{{ balanceYuan }}</text>
           </view>
-          <text v-if="frozenYuan !== '0.00'" class="balance-sub">含冻结 ¥{{ frozenYuan }}（开门预授权等）</text>
+          <text v-if="frozenYuan !== '¥0.00'" class="balance-sub">含冻结 {{ frozenYuan }}（开门预授权等）</text>
           <text class="balance-warning">{{ payReadyHintText }}</text>
           <text v-if="balanceInsufficient" class="balance-warning">
             可用余额不足预授权 ¥{{ needYuan }}，请先充值或开通免密后再开门
@@ -120,6 +120,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
+import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { consumerApi } from '@/utils/consumer-api';
 import {
   availableCents,
@@ -207,8 +208,8 @@ const preauthCents = computed(() =>
 );
 const needYuan = computed(() => preauthYuanLabel(preauthCents.value));
 /** 与后端开门预授权门槛对齐；免密未开通且可用余额不足时不可完成开门准备 */
-const balanceYuan = computed(() => (availableCents(account.value) / 100).toFixed(2));
-const frozenYuan = computed(() => (Math.max(0, account.value?.frozenCents || 0) / 100).toFixed(2));
+const balanceYuan = computed(() => fmtMoney(availableCents(account.value)));
+const frozenYuan = computed(() => fmtMoney(Math.max(0, account.value?.frozenCents || 0)));
 const payReady = computed(() => isPayReady(account.value, entryChannel.value, preauthCents.value));
 const payReadyHintText = computed(() => payReadyHint(account.value, entryChannel.value, preauthCents.value));
 const balanceInsufficient = computed(() => {
@@ -386,6 +387,9 @@ function onCancel() {
   padding: 18rpx 32rpx calc(34rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
   box-shadow: 0 -18rpx 55rpx rgba(15, 23, 42, 0.2);
+  max-height: 90vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 .drawer-handle {
   width: 64rpx;
