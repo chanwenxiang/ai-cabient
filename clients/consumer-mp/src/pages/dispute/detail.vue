@@ -95,6 +95,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app';
 import { consumerApi, getConsumerToken, requireConsumerAuth } from '@/utils/consumer-api';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import { fetchEvidenceLocalPath } from '@/utils/dispute-evidence';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { fmtMoney, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import type { DisputeTicketDto, FileAttachmentDto, OrderLineDto } from '@aicabinet/shared-types';
 
@@ -116,7 +117,7 @@ const statusText = computed(() => {
   if (s === 'OPEN') return '审核中 · 暂未扣款';
   if (s === 'RESOLVED') return '已处理完成';
   if (s === 'CLOSED') return '已关闭';
-  return s || '处理中';
+  return displayLabel('dispute_status', s, '处理中');
 });
 
 onLoad((opts) => {

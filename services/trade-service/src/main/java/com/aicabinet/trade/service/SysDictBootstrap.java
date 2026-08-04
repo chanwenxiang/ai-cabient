@@ -138,7 +138,7 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("split_status", t("分账状态", m(
                 "PENDING", "待处理", "LEDGER_ONLY", "仅记账", "ACCRUED", "待分账",
                 "WECHAT_SUBMITTED", "已提交", "WECHAT_FAILED", "失败", "SUBMITTED", "已提交",
-                "SUCCESS", "成功", "FAILED", "失败")));
+                "SUCCESS", "成功", "FAILED", "失败", "SETTLED", "已完结", "VOIDED", "已冲正")));
         map.put("merchant_status", t("商户状态", m("ACTIVE", "正常", "INACTIVE", "停用", "PENDING", "待审核")));
         map.put("online_status", t("在线状态", m("ONLINE", "在线", "OFFLINE", "离线", "UNKNOWN", "未知")));
         map.put("device_lifecycle", t("设备生命周期", m(
@@ -155,7 +155,10 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("promotion_type", t("营销活动类型", m(
                 "FULL_REDUCE", "满减", "DISCOUNT", "折扣", "BUY_GIFT", "买赠", "SECOND_HALF", "第二件半价")));
         map.put("coupon_type", t("优惠券类型", m(
-                "AMOUNT_OFF", "满减券", "PERCENT_OFF", "折扣券", "EXCHANGE", "兑换券")));
+                "AMOUNT_OFF", "满减券", "PERCENT_OFF", "折扣券",
+                "FREE_SHIPPING", "免运费", "EXCHANGE", "兑换券")));
+        map.put("enable_status", t("启用状态", m(
+                "ACTIVE", "启用", "INACTIVE", "停用", "DISABLED", "停用", "ENDED", "已结束")));
         map.put("sku_enrollment_status", t("商品识别入驻状态", m(
                 "DRAFT", "草稿", "MAPPING", "映射中", "TESTED", "已测试", "PRODUCTION", "生产")));
         map.put("fund_ledger_type", t("资金账务类型", m(
@@ -208,7 +211,7 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("feedback_type", t("反馈类型", m(
                 "COMPLAINT", "投诉", "SUGGESTION", "建议", "BUG", "缺陷", "PRAISE", "表扬")));
         map.put("feedback_status", t("反馈状态", m(
-                "PENDING", "待处理", "HANDLED", "已回复", "CLOSED", "已关闭")));
+                "PENDING", "待处理", "HANDLED", "已回复", "REPLIED", "已回复", "CLOSED", "已关闭")));
         map.put("exception_type", t("异常类型", m(
                 "DISPUTE", "消费争议", "LOW_STOCK", "低库存", "EXPIRY", "临期商品",
                 "REPLENISHMENT_REQUIRED", "待补货", "DEVICE_OFFLINE", "设备离线", "DEVICE_FAULT", "设备故障",
@@ -235,6 +238,22 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "PENDING", "待支付", "PROCESSING", "处理中", "PAID", "已支付", "COMPLETED", "已完成",
                 "DISPUTED", "争议中", "REFUNDED", "已退款", "PARTIAL_REFUNDED", "部分退款",
                 "FAILED", "处理失败", "CANCELLED", "已取消")));
+        map.put("recharge_status", t("充值状态", m(
+                "CREATED", "已创建", "PENDING", "待支付", "PAID", "已支付", "SUCCESS", "成功",
+                "FAILED", "失败", "REFUNDED", "已退款", "CANCELLED", "已取消", "CLOSED", "已关闭")));
+        map.put("risk_event_type", t("风控事件类型", m(
+                "MULTI_DEVICE", "多设备异常", "HIGH_FREQUENCY", "高频开门", "DISPUTE_SPIKE", "争议激增",
+                "PAYMENT_FAIL", "支付失败聚集", "BLACKLIST_HIT", "黑名单命中", "MALICIOUS_OPEN", "高频恶意开门",
+                "DISPUTE_CREATED", "用户发起争议", "FREQUENT_DISPUTE", "频繁发起争议",
+                "BLACKLIST_ADD", "人工加入黑名单", "BLACKLIST_AUTO", "自动加入黑名单",
+                "FRAUD", "欺诈嫌疑", "ABNORMAL", "异常行为")));
+        map.put("risk_severity", t("风控处置", m(
+                "INFO", "提示", "WARN", "警告", "BLOCK", "已拦截", "HIGH", "高风险", "CRITICAL", "严重")));
+        map.put("settlement_batch_status", t("结算批次状态", m(
+                "PENDING", "待结算", "PROCESSING", "结算中", "SETTLED", "已结算", "PAID", "已支付",
+                "FAILED", "失败", "PARTIAL_FAILED", "部分失败", "COMPLETED", "已完成")));
+        map.put("route_code", t("路线编码", m(
+                "R01", "路线 R01", "R-DEMO-01", "演示路线 01", "R-DEMO-02", "演示路线 02", "R-DEMO-X", "演示路线 X")));
         return map;
     }
 

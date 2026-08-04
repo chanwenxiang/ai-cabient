@@ -234,6 +234,14 @@
             </span>
           </template>
         </el-alert>
+        <el-alert
+          type="info"
+          :closable="false"
+          show-icon
+          class="status-banner"
+          title="仅记账说明"
+          description="余额支付且商户未配置微信分账接收方时会记为「仅记账」，商户份额已入钱包。可用「确认完结」移出工作台待跟进；有微信通道时再点「提交」。"
+        />
 
         <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="onSplitFilterChange">
           <el-form-item label="状态">
@@ -249,6 +257,12 @@
           <el-form-item>
             <el-button type="primary" @click="onSplitFilterChange">查询</el-button>
             <el-button @click="resetSplitFilter">重置</el-button>
+            <el-button
+              v-if="canSplit && selectedLedgerCount > 0"
+              type="success"
+              :loading="acting"
+              @click="batchConfirmLedger"
+            >批量确认完结 ({{ selectedLedgerCount }})</el-button>
           </el-form-item>
         </el-form>
 
@@ -412,8 +426,8 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { Refresh, RefreshRight, Upload } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { CircleCheck, Refresh, RefreshRight, Upload } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
@@ -506,11 +520,17 @@ const {
 } = useTableSelection<MerchantDto>((r) => r.merchantId);
 
 const {
+  selectedKeys: splitSelectedKeys,
   onSelectionChange: onSplitsSelectionChange,
   pickSelected: pickSplits,
   exportButtonLabel: splitsExportLabel,
   clearSelection: clearSplitsSelection
 } = useTableSelection<RevenueSplit>((r) => r.splitId);
+
+const selectedLedgerCount = computed(() => {
+  if (!splitSelectedKeys.value.length) return 0;
+  return pickSplits(splits.value).filter((r) => r.status === 'LEDGER_ONLY').length;
+});
 
 const exportButtonLabel = computed(() =>
   tab.value === 'splits' ? splitsExportLabel.value : merchantsExportLabel.value
@@ -563,15 +583,19 @@ function goOrder(orderId?: string) {
 }
 
 function splitTagType(s: string) {
-  if (s === 'SETTLED' || s === 'WECHAT_FINISHED') return 'success';
+  if (s === 'SETTLED' || s === 'SUCCESS' || s === 'WECHAT_FINISHED') return 'success';
   if (s === 'WECHAT_FAILED' || s === 'FAILED') return 'danger';
   if (s === 'WECHAT_SUBMITTED') return 'warning';
+  if (s === 'LEDGER_ONLY') return 'info';
   return 'info';
 }
 
 function splitActions(row: RevenueSplit): TableAction[] {
   const actions: TableAction[] = [];
-  if (['ACCRUED', 'LEDGER_ONLY', 'WECHAT_FAILED'].includes(row.status)) {
+  if (row.status === 'LEDGER_ONLY') {
+    actions.push({ key: 'confirmLedger', label: '确认完结', icon: CircleCheck, type: 'success' });
+  }
+  if (['ACCRUED', 'WECHAT_FAILED'].includes(row.status)) {
     actions.push({ key: 'submit', label: '提交', icon: Upload, type: 'primary' });
   }
   if (row.status === 'WECHAT_SUBMITTED' || row.status === 'WECHAT_FAILED') {
@@ -732,12 +756,78 @@ function refresh() {
 function onSplitAction(key: string, row: RevenueSplit) {
   if (key === 'submit') openSubmit(row);
   else if (key === 'refresh') doRefresh(row);
+  else if (key === 'confirmLedger') confirmLedger(row);
 }
 
 function openSubmit(row: RevenueSplit) {
   current.value = row;
   wxTransactionId.value = row.wechatTransactionId || '';
   submitDialog.value = true;
+}
+
+async function confirmLedger(row: RevenueSplit) {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      '确认该笔「仅记账」已完结？商户份额应已入钱包，确认后不再出现在工作台分账待跟进。',
+      '确认仅记账完结',
+      {
+        inputValue: '余额支付仅记账，确认完结',
+        inputValidator: (v) => !!String(v || '').trim() || '必须填写原因',
+        confirmButtonText: '确认完结'
+      }
+    );
+    acting.value = true;
+    await api.request(
+      `/api/v2/ops/admin/merchants/revenue-splits/${encodeURIComponent(row.splitId)}/confirm-ledger`,
+      'POST',
+      { reason: String(value).trim() }
+    );
+    ElMessage.success('已确认完结');
+    await loadSplits();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '确认失败');
+    }
+  } finally {
+    acting.value = false;
+  }
+}
+
+async function batchConfirmLedger() {
+  const rows = pickSplits(splits.value).filter((r) => r.status === 'LEDGER_ONLY');
+  if (!rows.length) {
+    ElMessage.warning('请先勾选「仅记账」明细');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `将确认完结 ${rows.length} 笔仅记账分账，并从工作台待跟进移除。继续？`,
+      '批量确认完结',
+      { type: 'warning', confirmButtonText: '确认完结' }
+    );
+  } catch {
+    return;
+  }
+  acting.value = true;
+  let ok = 0;
+  try {
+    for (const row of rows) {
+      await api.request(
+        `/api/v2/ops/admin/merchants/revenue-splits/${encodeURIComponent(row.splitId)}/confirm-ledger`,
+        'POST',
+        { reason: '批量确认仅记账完结' }
+      );
+      ok += 1;
+    }
+    ElMessage.success(`已确认完结 ${ok} 笔`);
+    clearSplitsSelection();
+    await loadSplits();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? `已成功 ${ok} 笔；失败：${e.message}` : `已成功 ${ok} 笔后失败`);
+    await loadSplits();
+  } finally {
+    acting.value = false;
+  }
 }
 
 async function confirmSubmit() {

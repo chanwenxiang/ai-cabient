@@ -9,7 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:fund:export']" @click="exportCsv">导出日账单</el-button>
+          <el-button v-hasPermi="['ops:fund:export']" @click="exportCsv">{{ exportLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -17,11 +17,10 @@
 
     <el-alert
       type="info"
-      :closable="false"
+      closable
       show-icon
       class="t1-alert"
-      title="T+1 结算说明"
-      description="当日支付流水通常于次日完成余额入账与对账；通道费按约 0.6% 估算展示，平台抽成取自分账记账。"
+      title="T+1：当日流水通常次日入账；通道费约 0.6% 估算，平台抽成取自分账记账"
     />
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="load">
@@ -41,8 +40,17 @@
 
     <el-tabs v-model="tab">
       <el-tab-pane label="日资金账单" name="bills">
-        <el-table v-loading="loading" :data="bills" stripe border class="report-table">
+        <el-table
+          v-loading="loading"
+          :data="bills"
+          stripe
+          border
+          class="report-table"
+          row-key="rowKey"
+          @selection-change="onBillSelectionChange"
+        >
           <template #empty><el-empty description="暂无账单" /></template>
+          <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="bizDate" label="账期" width="120" />
           <el-table-column label="商户" min-width="180">
             <template #default="{ row }">
@@ -99,8 +107,17 @@
             </el-select>
           </el-form-item>
         </el-form>
-        <el-table v-loading="ledgerLoading" :data="ledger" stripe border class="report-table">
+        <el-table
+          v-loading="ledgerLoading"
+          :data="ledger"
+          stripe
+          border
+          class="report-table"
+          row-key="entryId"
+          @selection-change="onLedgerSelectionChange"
+        >
           <template #empty><el-empty description="暂无流水" /></template>
+          <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="财务类型" width="140">
             <template #default="{ row }">{{ dictLabel('fund_ledger_type', row.financialType) }}</template>
           </el-table-column>
@@ -136,11 +153,13 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
+import { useListCsv } from '@/composables/useListCsv';
+import { useTableSelection } from '@/composables/useTableSelection';
 
 interface BillRow {
   bizDate: string;
@@ -153,6 +172,7 @@ interface BillRow {
   pendingCents: number;
   orderCount: number;
   solidified: boolean;
+  rowKey?: string;
 }
 
 interface LedgerRow {
@@ -177,6 +197,59 @@ const financialType = ref('');
 const direction = ref('');
 const range = ref<[string, string] | null>(null);
 
+const {
+  onSelectionChange: onBillSelectionChange,
+  pickSelected: pickBills,
+  exportButtonLabel: billsExportLabel,
+  selectedKeys: billSelectedKeys,
+  clearSelection: clearBillSelection
+} = useTableSelection<BillRow>((r) => r.rowKey || `${r.bizDate}|${r.merchantId}`);
+
+const {
+  onSelectionChange: onLedgerSelectionChange,
+  pickSelected: pickLedger,
+  exportButtonLabel: ledgerExportLabel,
+  selectedKeys: ledgerSelectedKeys,
+  clearSelection: clearLedgerSelection
+} = useTableSelection<LedgerRow>((r) => r.entryId);
+
+const exportLabel = computed(() =>
+  tab.value === 'ledger' ? ledgerExportLabel.value.replace('导出', '导出明细') : billsExportLabel.value.replace('导出', '导出日账单')
+);
+
+const { onExport: exportBillsCsv } = useListCsv({
+  filePrefix: '资金日账单',
+  headers: ['账期', '商户编号', '商户名称', '订单实付', '平台抽成', '通道费', '已入账', '待入账', '笔数', '固化'],
+  toRows: () =>
+    pickBills(bills.value).map((row) => [
+      row.bizDate,
+      row.merchantId,
+      row.merchantName,
+      yuan(row.orderPaidCents),
+      yuan(row.platformFeeCents),
+      yuan(row.channelFeeCents),
+      yuan(row.creditedCents),
+      yuan(row.pendingCents),
+      row.orderCount,
+      row.solidified ? '已固化' : '实时'
+    ])
+});
+
+const { onExport: exportLedgerCsv } = useListCsv({
+  filePrefix: '资金账务明细',
+  headers: ['财务类型', '收支', '金额', '订单', '货柜', '商户', '时间'],
+  toRows: () =>
+    pickLedger(ledger.value).map((row) => [
+      dictLabel('fund_ledger_type', row.financialType),
+      dictLabel('fund_direction', row.direction),
+      yuan(row.amountCents),
+      row.orderId,
+      row.deviceId,
+      row.merchantName,
+      formatTime(row.createdAt)
+    ])
+});
+
 function yuan(cents: number) {
   return ((cents || 0) / 100).toFixed(2);
 }
@@ -199,7 +272,12 @@ async function load() {
   loading.value = true;
   try {
     const q = queryDates();
-    bills.value = await api.request<BillRow[]>(`/api/v2/ops/admin/fund/daily-bills?${q}`, 'GET');
+    const rows = await api.request<BillRow[]>(`/api/v2/ops/admin/fund/daily-bills?${q}`, 'GET');
+    bills.value = (rows || []).map((r) => ({
+      ...r,
+      rowKey: `${r.bizDate}|${r.merchantId}`
+    }));
+    clearBillSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -222,6 +300,7 @@ async function loadLedger() {
     );
     ledger.value = data.items || [];
     ledgerTotal.value = data.total || 0;
+    clearLedgerSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '账务明细加载失败');
   } finally {
@@ -230,9 +309,18 @@ async function loadLedger() {
 }
 
 async function exportCsv() {
+  if (tab.value === 'ledger') {
+    exportLedgerCsv();
+    return;
+  }
+  if (billSelectedKeys.value.length) {
+    exportBillsCsv();
+    return;
+  }
   const q = queryDates();
   try {
     await downloadAuthFile(`/api/v2/ops/admin/fund/daily-bills/export?${q}`, 'fund-daily-bills.csv');
+    ElMessage.success('已导出日账单');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '导出失败');
   }
@@ -248,5 +336,4 @@ onMounted(load);
 <style scoped>
 .t1-alert { margin-bottom: 12px; }
 .pager { margin-top: 12px; display: flex; justify-content: flex-end; }
-small { color: var(--el-text-color-secondary); }
 </style>

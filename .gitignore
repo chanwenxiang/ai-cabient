@@ -82,3 +82,17 @@ infra/docker-rebuild.log
 .codex/
 .pnpm-store/
 )
+
+# Playwright MCP / agent session dumps
+.playwright-mcp/
+**/.playwright-mcp/
+
+# Local agent scratch scripts
+**/_tmp*
+**/_tmp.*
+scripts/_tmp*
+
+# Accidental root screenshots from agent sessions
+/login-*.png
+/*-before.png
+/*-after.png

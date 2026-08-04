@@ -4,7 +4,6 @@ import com.aicabinet.common.dto.SlaMetricsDto;
 import com.aicabinet.common.dto.SlaRealtimeDto;
 import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.domain.DeviceInfo;
-import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.SlaDailySnapshot;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DisputeTicketMapper;
@@ -23,6 +22,9 @@ import java.util.Set;
 
 @Service
 public class SlaMetricsService {
+
+    private static final List<SessionState> DOOR_SUCCESS_STATES =
+            List.of(SessionState.COMPLETED, SessionState.DISPUTED);
 
     private final ShoppingSessionMapper sessionRepository;
     private final DeviceInfoMapper deviceRepository;
@@ -81,32 +83,13 @@ public class SlaMetricsService {
         Instant start = date.atStartOfDay(zone).toInstant();
         Instant end = date.plusDays(1).atStartOfDay(zone).toInstant();
 
-        List<ShoppingSession> sessions = sessionRepository.findAll().stream()
-                .filter(s -> s.getCreatedAt() != null
-                        && !s.getCreatedAt().isBefore(start)
-                        && s.getCreatedAt().isBefore(end))
-                .toList();
+        int attempts = (int) sessionRepository.countCreatedBetween(start, end);
+        int success = (int) sessionRepository.countCreatedBetweenAndStateIn(start, end, DOOR_SUCCESS_STATES);
+        long avgMs = nz(sessionRepository.avgDoorOpenMsBetween(start, end));
+        long p95 = nz(sessionRepository.p95DoorOpenMsBetween(start, end));
 
-        int attempts = sessions.size();
-        int success = (int) sessions.stream()
-                .filter(s -> s.getState() == SessionState.COMPLETED || s.getState() == SessionState.DISPUTED)
-                .count();
-
-        List<Long> recognizeMs = sessions.stream()
-                .filter(s -> s.getOpenTime() != null && s.getCloseTime() != null)
-                .map(s -> ChronoUnit.MILLIS.between(s.getOpenTime(), s.getCloseTime()))
-                .sorted()
-                .toList();
-
-        long avgMs = recognizeMs.isEmpty() ? 0
-                : recognizeMs.stream().mapToLong(Long::longValue).sum() / recognizeMs.size();
-        long p95 = recognizeMs.isEmpty() ? 0
-                : recognizeMs.get((int) (recognizeMs.size() * 0.95) - Math.max(1, 0));
-
-        List<DeviceInfo> devices = deviceRepository.findAll();
-        int online = (int) devices.stream()
-                .filter(d -> "ONLINE".equalsIgnoreCase(d.getOnlineStatus()))
-                .count();
+        int deviceTotal = (int) deviceRepository.count();
+        int online = (int) deviceRepository.countByOnlineStatus("ONLINE");
 
         SlaDailySnapshot snap = new SlaDailySnapshot();
         snap.setSnapshotDate(date);
@@ -115,9 +98,9 @@ public class SlaMetricsService {
         snap.setDoorSuccessRate(attempts > 0 ? (float) success / attempts : 0f);
         snap.setAvgRecognizeMs(avgMs);
         snap.setP95RecognizeMs(p95);
-        snap.setDeviceTotal(devices.size());
+        snap.setDeviceTotal(deviceTotal);
         snap.setDeviceOnlinePeak(online);
-        snap.setDeviceOnlineRate(devices.isEmpty() ? 0f : (float) online / devices.size());
+        snap.setDeviceOnlineRate(deviceTotal == 0 ? 0f : (float) online / deviceTotal);
         return snap;
     }
 
@@ -133,34 +116,42 @@ public class SlaMetricsService {
             return new SlaRealtimeDto(1.0, 0, 0, 0, 0, 0, 1.0);
         }
         List<DeviceInfo> devices = scopedDevices == null
-                ? deviceRepository.findAll()
+                ? null
                 : merchantScopeService.allowedDevices(operatorId);
         return computeRealtime(scopedDevices, devices);
     }
 
     private SlaRealtimeDto computeRealtime(Set<String> scopedDevices, List<DeviceInfo> scopedDeviceList) {
         Instant since24h = Instant.now().minus(24, ChronoUnit.HOURS);
-        List<ShoppingSession> recentSessions = sessionRepository.findAll().stream()
-                .filter(s -> s.getCreatedAt() != null && s.getCreatedAt().isAfter(since24h))
-                .filter(s -> scopedDevices == null || scopedDevices.contains(s.getDeviceId()))
-                .toList();
 
-        long attempts = recentSessions.size();
-        long success = recentSessions.stream()
-                .filter(s -> s.getState() == SessionState.COMPLETED || s.getState() == SessionState.DISPUTED)
-                .count();
+        long attempts;
+        long success;
+        long avg;
+        if (scopedDevices == null) {
+            attempts = sessionRepository.countByCreatedAtAfter(since24h);
+            success = sessionRepository.countCreatedAfterAndStateIn(since24h, DOOR_SUCCESS_STATES);
+            avg = nz(sessionRepository.avgDoorOpenMsCreatedAfter(since24h));
+        } else {
+            attempts = sessionRepository.countByDeviceIdInAndCreatedAtAfter(scopedDevices, since24h);
+            success = sessionRepository.countCreatedAfterAndStateInForDevices(
+                    since24h, DOOR_SUCCESS_STATES, scopedDevices);
+            avg = nz(sessionRepository.avgDoorOpenMsCreatedAfterForDevices(since24h, scopedDevices));
+        }
 
         double doorRate = attempts > 0 ? (double) success / attempts : 1.0;
 
-        List<Long> ms = recentSessions.stream()
-                .filter(s -> s.getOpenTime() != null && s.getCloseTime() != null)
-                .map(s -> ChronoUnit.MILLIS.between(s.getOpenTime(), s.getCloseTime()))
-                .toList();
-        long avg = ms.isEmpty() ? 0 : ms.stream().mapToLong(Long::longValue).sum() / ms.size();
-
-        List<DeviceInfo> devices = scopedDeviceList != null ? scopedDeviceList : deviceRepository.findAll();
-        long online = devices.stream().filter(d -> "ONLINE".equalsIgnoreCase(d.getOnlineStatus())).count();
-        double onlineRate = devices.isEmpty() ? 0 : (double) online / devices.size();
+        long online;
+        long totalDevices;
+        if (scopedDeviceList != null) {
+            totalDevices = scopedDeviceList.size();
+            online = scopedDeviceList.stream()
+                    .filter(d -> "ONLINE".equalsIgnoreCase(d.getOnlineStatus()))
+                    .count();
+        } else {
+            totalDevices = deviceRepository.count();
+            online = deviceRepository.countByOnlineStatus("ONLINE");
+        }
+        double onlineRate = totalDevices == 0 ? 0 : (double) online / totalDevices;
 
         long disputeOpen = disputeRepository.countByStatus("OPEN");
         long disputeOverdue = disputeSlaService.countOverdue();
@@ -169,5 +160,9 @@ public class SlaMetricsService {
 
         return new SlaRealtimeDto(doorRate, avg, onlineRate, disputeOpen, disputeOverdue,
                 disputeResolved24h, disputeSlaCompliance);
+    }
+
+    private static long nz(Long v) {
+        return v == null ? 0L : v;
     }
 }

@@ -11,7 +11,30 @@
 
   <select id="findLowStock" resultType="com.aicabinet.trade.domain.DeviceSkuInventory">
     <![CDATA[
-    SELECT i.* FROM device_sku_inventory i WHERE i.quantity <= i.low_threshold ORDER BY i.device_id, i.sku_id
+    SELECT i.* FROM device_sku_inventory i
+    WHERE i.quantity <= i.low_threshold
+    ORDER BY i.quantity ASC, i.device_id, i.sku_id
+    LIMIT 500
     ]]>
+  </select>
+
+  <select id="findLowStockLimit" resultType="com.aicabinet.trade.domain.DeviceSkuInventory">
+    <![CDATA[
+    SELECT i.* FROM device_sku_inventory i
+    WHERE i.quantity <= i.low_threshold
+    ORDER BY i.quantity ASC, i.device_id, i.sku_id
+    LIMIT #{limit}
+    ]]>
+  </select>
+
+  <select id="countLowStockByDeviceIds" resultType="long">
+    <![CDATA[
+    SELECT COUNT(*) FROM device_sku_inventory i
+    WHERE i.quantity <= i.low_threshold
+      AND i.device_id IN
+    ]]>
+    <foreach collection="deviceIds" item="id" open="(" separator="," close=")">
+      #{id}
+    </foreach>
   </select>
 </mapper>

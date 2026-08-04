@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@aicabinet/shared-dict": "workspace:*",
+    "@aicabinet/shared-rbac": "workspace:*",
     "@dcloudio/uni-app": "3.0.0-4010520240507001",
     "@dcloudio/uni-app-plus": "3.0.0-4010520240507001",
     "@dcloudio/uni-components": "3.0.0-4010520240507001",

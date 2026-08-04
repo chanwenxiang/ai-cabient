@@ -20,25 +20,31 @@
     </el-page-header>
 
     <el-row :gutter="12" class="stat-row">
-      <el-col :xs="12" :sm="6">
+      <el-col :xs="12" :sm="6" :md="4">
         <div class="stat-tile">
           <div class="stat-label">填充率</div>
           <div class="stat-value">{{ metrics?.fillRatePct ?? 0 }}%</div>
         </div>
       </el-col>
-      <el-col :xs="12" :sm="6">
+      <el-col :xs="12" :sm="6" :md="4">
         <div class="stat-tile" :class="{ warn: (metrics?.oosSlotCount || 0) > 0 }">
           <div class="stat-label">缺货货道</div>
           <div class="stat-value">{{ metrics?.oosSlotCount ?? 0 }}</div>
         </div>
       </el-col>
-      <el-col :xs="12" :sm="6">
+      <el-col :xs="12" :sm="6" :md="4">
         <div class="stat-tile" :class="{ warn: (metrics?.lowStockSlotCount || 0) > 0 }">
           <div class="stat-label">低库存货道</div>
           <div class="stat-value">{{ metrics?.lowStockSlotCount ?? 0 }}</div>
         </div>
       </el-col>
-      <el-col :xs="12" :sm="6">
+      <el-col :xs="12" :sm="6" :md="4">
+        <div class="stat-tile" :class="{ warn: (metrics?.nearExpiryLotCount || 0) > 0 }">
+          <div class="stat-label">临期批次</div>
+          <div class="stat-value">{{ metrics?.nearExpiryLotCount ?? 0 }}</div>
+        </div>
+      </el-col>
+      <el-col :xs="12" :sm="6" :md="4">
         <div class="stat-tile">
           <div class="stat-label">柜内温度</div>
           <div class="stat-value">
@@ -91,8 +97,9 @@
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
-            <el-form-item label="押金(分)">
+            <el-form-item label="开门押金(分)">
               <el-input-number v-model="asset.depositCents" :disabled="!canEditDevice" :min="0" :step="100" controls-position="right" style="width:100%" />
+              <div class="field-hint">&gt;0 时作为该柜开门预授权冻结额；否则用系统配置 checkout.preauth_cents（默认 2000）</div>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
@@ -102,7 +109,23 @@
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="路线编码">
-              <el-input v-model="asset.routeCode" :disabled="!canEditDevice" clearable placeholder="补货路线" />
+              <el-select
+                v-model="asset.routeCode"
+                :disabled="!canEditDevice"
+                clearable
+                filterable
+                allow-create
+                default-first-option
+                placeholder="选择或输入路线"
+                style="width:100%"
+              >
+                <el-option
+                  v-for="item in dictOptions('route_code')"
+                  :key="item.value"
+                  :label="`${item.label}（${item.value}）`"
+                  :value="item.value"
+                />
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
@@ -136,9 +159,19 @@
               />
             </el-form-item>
           </el-col>
-          <el-col :xs="24" :sm="12" :md="8">
+          <el-col :xs="24" :sm="12" :md="16">
             <el-form-item label="投放地址">
-              <el-input v-model="asset.address" :disabled="!canEditDevice" clearable placeholder="门店/点位地址" />
+              <div class="address-row">
+                <el-input v-model="asset.address" :disabled="!canEditDevice" clearable placeholder="门店/点位地址" />
+                <el-button
+                  v-hasPermi="['ops:device:edit']"
+                  :disabled="!canEditDevice || !asset.address?.trim() || !geoConfigured"
+                  :loading="geoLoading"
+                  :title="geoConfigured ? '调用高德解析经纬度' : '未配置 AMAP_WEB_KEY'"
+                  @click="resolveAddress"
+                >解析坐标</el-button>
+              </div>
+              <div v-if="!geoConfigured" class="field-hint">未配置 AMAP_WEB_KEY，地址解析不可用</div>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
@@ -183,7 +216,7 @@
         show-icon
         class="open-door-alert"
         title="开门请分清场景"
-        description="「运维远程开门」：应急/检修，不绑定补货任务、不产生补货签收。现场补货请用「补货调度 → 补货开门」或商户小程序（需先签到）。"
+        description="「运维远程开门」：应急/检修，会创建运维会话（开门记录可筛「运维」），关门后不结算；不绑定补货任务。现场补货请用「补货调度 → 补货开门」或商户小程序（需先签到）。锁机停售时也可运维开门检修。"
       />
       <div class="cmd-section-label">运维指令</div>
       <div class="cmd-bar">
@@ -217,6 +250,14 @@
       </div>
 
       <div class="cmd-section-label">柜机策略锁</div>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        class="policy-lock-alert"
+        title="营业锁机与「锁机停售」同源"
+        description="打开营业锁机或禁售，会同步下发边端锁机；关闭营业锁机会解除边端锁并清除禁售。勿与运维按钮各改一套。"
+      />
       <el-form v-if="policy" label-width="120px" class="policy-form" @submit.prevent>
         <el-form-item label="营业锁机">
           <el-switch v-model="policy.salesLocked" :disabled="!canEditDevice" @change="() => savePolicy()" />
@@ -229,8 +270,18 @@
         </el-form-item>
         <el-form-item label="禁售">
           <el-switch v-model="policy.saleForbidden" :disabled="!canEditDevice" @change="() => savePolicy()" />
+          <div class="field-hint">禁售会同时营业锁机；停售期间仍可签到后补货开门（不产生消费者账单）</div>
         </el-form-item>
       </el-form>
+
+      <el-alert
+        v-if="metrics?.salesLocked"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="lock-restock-hint"
+        title="当前已锁机停售：消费者无法开门；补货请走「补货调度 → 签到 → 补货开门」，或使用上方「运维远程开门」检修。"
+      />
 
       <div class="cmd-section-label">补货入口</div>
       <div class="cmd-bar">
@@ -433,8 +484,8 @@
       </el-tabs>
     </el-card>
 
-    <el-dialog v-model="editorVisible" :title="`编辑货道 ${editForm.slotCode}`" width="480px">
-      <el-form label-width="100px">
+    <el-dialog v-model="editorVisible" :title="`编辑货道 ${editForm.slotCode}`" width="520px">
+      <el-form label-width="110px">
         <el-form-item label="SKU">
           <el-select v-model="editForm.assignedSkuId" filterable clearable placeholder="选择商品" style="width:100%">
             <el-option v-for="s in skus" :key="s.skuId" :label="`${s.skuName} (${s.skuId})`" :value="s.skuId" />
@@ -444,10 +495,25 @@
         <el-form-item label="最低库存"><el-input-number v-model="editForm.minLevel" :min="0" /></el-form-item>
         <el-form-item label="最大容量"><el-input-number v-model="editForm.maxLevel" :min="0" /></el-form-item>
         <el-form-item label="启用"><el-switch v-model="editForm.enabled" /></el-form-item>
+        <el-divider content-position="left">现场盘点</el-divider>
+        <el-form-item label="账面库存">
+          <span>{{ editForm.bookQty }}</span>
+          <span v-if="editForm.hasDiscrepancy" class="slot-diff warn"> · 账实差异 {{ editForm.qtyDiff }}</span>
+        </el-form-item>
+        <el-form-item label="实盘数量">
+          <el-input-number v-model="editForm.physicalQty" :min="0" />
+        </el-form-item>
+        <el-form-item label="调账面">
+          <el-checkbox v-model="editForm.adjustBookQty">按实盘回写该货道批次库存</el-checkbox>
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="editorVisible = false">取消</el-button>
-        <el-button v-hasPermi="['ops:device:edit']" type="primary" :loading="saving" @click="saveSlot">保存</el-button>
+        <el-button v-hasPermi="['ops:device:edit']" :loading="stocktaking" @click="stocktakeSlot">仅记实盘</el-button>
+        <el-button v-hasPermi="['ops:device:edit']" type="warning" :loading="stocktaking" @click="stocktakeAndAdjust">
+          按实盘调账面
+        </el-button>
+        <el-button v-hasPermi="['ops:device:edit']" type="primary" :loading="saving" @click="saveSlot">保存配置</el-button>
       </template>
     </el-dialog>
   </div>
@@ -492,6 +558,7 @@ interface Metrics {
   fillRatePct?: number;
   oosSlotCount?: number;
   lowStockSlotCount?: number;
+  nearExpiryLotCount?: number;
   currentTempC?: number | null;
   targetTempC?: number | null;
   tempReportedAt?: string;
@@ -520,7 +587,10 @@ const canEditDevice = computed(() => auth.hasPerm('ops:device:edit'));
 const loading = ref(false);
 const applying = ref(false);
 const saving = ref(false);
+const stocktaking = ref(false);
 const assetSaving = ref(false);
+const geoLoading = ref(false);
+const geoConfigured = ref(false);
 const lifeLoading = ref('');
 const cmdLoading = ref('');
 const tempDraft = ref<number | undefined>(undefined);
@@ -604,7 +674,12 @@ const editForm = reactive({
   parLevel: 0,
   minLevel: 0,
   maxLevel: 0,
-  enabled: true
+  enabled: true,
+  bookQty: 0,
+  physicalQty: 0,
+  qtyDiff: 0,
+  hasDiscrepancy: false,
+  adjustBookQty: false
 });
 
 async function loadAsset() {
@@ -643,7 +718,7 @@ async function loadRepairTickets() {
 }
 
 function repairStatusLabel(s?: string) {
-  return ({ OPEN: '待处理', IN_PROGRESS: '处理中', DONE: '已完成', CANCELLED: '已取消' } as Record<string, string>)[s || ''] || s || '-';
+  return dictLabel('repair_ticket_status', s) || s || '-';
 }
 
 async function createRepair() {
@@ -719,6 +794,48 @@ async function saveAsset() {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
     assetSaving.value = false;
+  }
+}
+
+async function resolveAddress() {
+  const address = (asset.address || '').trim();
+  if (!address) {
+    ElMessage.warning('请先填写投放地址');
+    return;
+  }
+  if (!geoConfigured.value) {
+    ElMessage.warning('未配置 AMAP_WEB_KEY，无法解析');
+    return;
+  }
+  geoLoading.value = true;
+  try {
+    const data = await api.request<{ longitude: number; latitude: number; formattedAddress?: string }>(
+      `/api/v2/ops/admin/geo/geocode?address=${encodeURIComponent(address)}`,
+      'GET'
+    );
+    asset.longitude = data.longitude;
+    asset.latitude = data.latitude;
+    if (data.formattedAddress) {
+      asset.address = data.formattedAddress;
+    }
+    ElMessage.success('已写入经纬度，可再手动微调后保存');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '地址解析失败');
+  } finally {
+    geoLoading.value = false;
+  }
+}
+
+async function loadGeoStatus() {
+  if (!canEditDevice.value) {
+    geoConfigured.value = false;
+    return;
+  }
+  try {
+    const data = await api.request<{ configured: boolean }>('/api/v2/ops/admin/geo/status', 'GET');
+    geoConfigured.value = !!data.configured;
+  } catch {
+    geoConfigured.value = false;
   }
 }
 
@@ -837,7 +954,7 @@ async function sendCommand(command: string) {
   try {
     const hint =
       command === 'OPEN_DOOR'
-        ? '确认执行「运维远程开门」？此操作不绑定补货任务、不走补货结算。补货请用补货调度页的「补货开门」。请填写原因。'
+        ? '确认执行「运维远程开门」？将创建运维会话并占柜（关门后不结算）。补货请用补货调度页的「补货开门」。请填写原因。'
         : `确认执行「${labels[command]}」？请填写原因。`;
     const { value: reason } = await ElMessageBox.prompt(hint, '运维指令', {
       inputValidator: (v) => !!String(v || '').trim() || '必须填写原因',
@@ -930,7 +1047,64 @@ function openEditor(slot: DeviceSlot) {
   editForm.minLevel = slot.minLevel;
   editForm.maxLevel = slot.maxLevel;
   editForm.enabled = slot.enabled;
+  editForm.bookQty = slot.bookQty ?? 0;
+  editForm.physicalQty = slot.lastPhysicalQty != null ? Number(slot.lastPhysicalQty) : (slot.bookQty ?? 0);
+  editForm.qtyDiff = slot.qtyDiff ?? 0;
+  editForm.hasDiscrepancy = !!slot.hasDiscrepancy;
+  editForm.adjustBookQty = false;
   editorVisible.value = true;
+}
+
+async function runStocktake(adjustBookQty: boolean) {
+  if (editForm.physicalQty == null || editForm.physicalQty < 0) {
+    ElMessage.warning('请填写实盘数量');
+    return;
+  }
+  if (adjustBookQty && !editForm.assignedSkuId) {
+    ElMessage.warning('货道未绑定商品，无法调账面');
+    return;
+  }
+  if (adjustBookQty) {
+    try {
+      await ElMessageBox.confirm(
+        `确认将货道 ${editForm.slotCode} 账面按实盘 ${editForm.physicalQty} 回写？\n将调整该货道绑定 SKU 的批次库存。`,
+        '按实盘调账面',
+        { type: 'warning', confirmButtonText: '确认调账' }
+      );
+    } catch {
+      return;
+    }
+  }
+  stocktaking.value = true;
+  try {
+    const updated = await api.request<DeviceSlot>(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/slots/stocktake`,
+      'POST',
+      {
+        slotCode: editForm.slotCode,
+        physicalQty: editForm.physicalQty,
+        adjustBookQty
+      }
+    );
+    ElMessage.success(adjustBookQty ? '已按实盘调账面' : '已记录实盘数量');
+    editForm.bookQty = updated.bookQty ?? editForm.physicalQty;
+    editForm.qtyDiff = updated.qtyDiff ?? 0;
+    editForm.hasDiscrepancy = !!updated.hasDiscrepancy;
+    editForm.adjustBookQty = false;
+    await loadDetail();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '盘点失败');
+  } finally {
+    stocktaking.value = false;
+  }
+}
+
+async function stocktakeSlot() {
+  await runStocktake(false);
+}
+
+async function stocktakeAndAdjust() {
+  await runStocktake(true);
 }
 
 async function saveSlot() {
@@ -962,7 +1136,7 @@ async function saveSlot() {
 onMounted(async () => {
   loading.value = true;
   try {
-    await loadDetail();
+    await Promise.all([loadDetail(), loadGeoStatus()]);
     await Promise.all([loadRelated(), loadSkus()]);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -992,6 +1166,7 @@ onActivated(() => {
 .stat-tile.warn { background: color-mix(in srgb, var(--el-color-warning) 12%, transparent); }
 .stat-label { font-size: 12px; color: var(--el-text-color-secondary); }
 .stat-value { font-size: 22px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.slot-diff.warn { color: #ea580c; margin-left: 6px; font-size: 12px; }
 .page-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
 .title { font-weight: 600; font-size: 15px; }
@@ -1004,6 +1179,16 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
 }
 .cmd-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
+.policy-lock-alert { margin-bottom: 12px; }
+.field-hint { font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.4; margin-top: 4px; }
+.address-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  align-items: center;
+}
+.address-row .el-input { flex: 1; }
+.lock-restock-hint { margin: 8px 0 12px; }
 .temp-set-row {
   display: inline-flex;
   align-items: center;

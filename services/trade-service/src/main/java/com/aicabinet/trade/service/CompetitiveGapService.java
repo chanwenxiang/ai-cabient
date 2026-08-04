@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -37,6 +38,7 @@ public class CompetitiveGapService {
     private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final DeviceSalesLockService salesLockService;
 
     public CompetitiveGapService(OpsUserDeviceScopeMapper deviceScopeMapper,
                                  OpsUserDeviceScopePrefMapper deviceScopePrefMapper,
@@ -50,7 +52,8 @@ public class CompetitiveGapService {
                                  CabinetOrderLineMapper lineMapper,
                                  MerchantScopeService merchantScopeService,
                                  PermissionService permissionService,
-                                 AdminAuditService auditService) {
+                                 AdminAuditService auditService,
+                                 DeviceSalesLockService salesLockService) {
         this.deviceScopeMapper = deviceScopeMapper;
         this.deviceScopePrefMapper = deviceScopePrefMapper;
         this.opsConfigMapper = opsConfigMapper;
@@ -64,6 +67,7 @@ public class CompetitiveGapService {
         this.merchantScopeService = merchantScopeService;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.salesLockService = salesLockService;
     }
 
     // ---- M2 device scope ----
@@ -165,7 +169,11 @@ public class CompetitiveGapService {
         var result = deviceOpsEventMapper.search(
                 allowed, eventType, Instant.now().minusSeconds(86400L * 14), Instant.now(),
                 page, Math.min(size, 100));
-        Map<String, String> names = deviceInfoMapper.findAll().stream()
+        Set<String> nameIds = result.getRecords().stream()
+                .map(DeviceOpsEvent::getDeviceId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<String, String> names = deviceInfoMapper.findByDeviceIdIn(nameIds).stream()
                 .collect(Collectors.toMap(DeviceInfo::getDeviceId, DeviceInfo::getDeviceName, (a, b) -> a));
         List<DeviceOpsEventDto> items = result.getRecords().stream()
                 .map(e -> new DeviceOpsEventDto(
@@ -192,20 +200,33 @@ public class CompetitiveGapService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在"));
         d.setPriceLocked(body.priceLocked());
         d.setSkuEditForbidden(body.skuEditForbidden());
-        d.setSaleForbidden(body.saleForbidden());
-        if (body.saleForbidden()) {
-            d.setSalesLocked(true);
-        } else if (!body.salesLocked()) {
-            // 仅当明确要求解锁时恢复；saleForbidden 关闭不自动解锁营业锁
-        }
-        if (body.salesLocked() != d.salesLockedEnabled()) {
-            d.setSalesLocked(body.salesLocked());
-        }
+
+        // 禁售 ⇒ 营业锁机；二者与运维「锁机停售」共用 DeviceSalesLockService（DB + MQTT）
+        boolean wantForbidden = body.saleForbidden();
+        boolean wantLocked = body.salesLocked() || wantForbidden;
+        boolean wasLocked = d.salesLockedEnabled();
+
+        d.setSaleForbidden(wantForbidden);
         deviceInfoMapper.save(d);
+
+        if (wantLocked != wasLocked) {
+            String reason = wantForbidden && wantLocked
+                    ? "policy:saleForbidden→lock"
+                    : (wantLocked ? "policy:salesLocked=on" : "policy:salesLocked=off");
+            salesLockService.applySalesLock(operatorId, d, wantLocked, reason, true);
+            if (wantLocked && wantForbidden) {
+                // 解锁逻辑会清禁售；此处锁机+禁售需保持禁售标记
+                d.setSaleForbidden(true);
+                deviceInfoMapper.save(d);
+            }
+        }
+
         auditService.record(operatorId, "DEVICE_POLICY", "DEVICE", deviceId,
-                "priceLocked=" + body.priceLocked() + ";skuEdit=" + body.skuEditForbidden()
-                        + ";saleForbidden=" + body.saleForbidden());
-        return toPolicy(d);
+                "priceLocked=" + body.priceLocked()
+                        + ";skuEdit=" + body.skuEditForbidden()
+                        + ";saleForbidden=" + wantForbidden
+                        + ";salesLocked=" + wantLocked);
+        return toPolicy(deviceInfoMapper.findById(deviceId).orElse(d));
     }
 
     // ---- M4 sales reports + phone verify ----
@@ -282,7 +303,9 @@ public class CompetitiveGapService {
             return;
         }
         List<DeviceInfo> devices = allowed == null
-                ? deviceInfoMapper.findAll()
+                ? deviceInfoMapper.selectList(Wrappers.<DeviceInfo>lambdaQuery()
+                .orderByAsc(DeviceInfo::getDeviceId)
+                .last("LIMIT 2000"))
                 : deviceInfoMapper.findByDeviceIdIn(allowed);
         for (DeviceInfo d : devices) {
             if (d.getOnlineStatus() != null && !"ONLINE".equalsIgnoreCase(d.getOnlineStatus())) {
@@ -318,12 +341,16 @@ public class CompetitiveGapService {
             return;
         }
         List<DeviceInfo> devices = allowed == null
-                ? deviceInfoMapper.findAll()
+                ? deviceInfoMapper.selectList(Wrappers.<DeviceInfo>lambdaQuery()
+                .orderByAsc(DeviceInfo::getDeviceId)
+                .last("LIMIT 2000"))
                 : deviceInfoMapper.findByDeviceIdIn(allowed);
-        Set<String> sold = orderMapper.selectList(Wrappers.<CabinetOrder>lambdaQuery()
-                        .ge(CabinetOrder::getCreatedAt, since))
+        Set<String> sold = orderMapper.selectObjs(Wrappers.<CabinetOrder>query()
+                        .select("DISTINCT device_id")
+                        .ge("created_at", since))
                 .stream()
-                .map(CabinetOrder::getDeviceId)
+                .filter(Objects::nonNull)
+                .map(String::valueOf)
                 .collect(Collectors.toSet());
         for (DeviceInfo d : devices) {
             if (!"DEPLOYED".equalsIgnoreCase(DeviceAssetService.normalizeLifecycle(d.getLifecycleStatus()))) {
@@ -376,7 +403,7 @@ public class CompetitiveGapService {
             a.orderCount++;
             a.revenue += o.getTotalAmountCents();
         }
-        Map<String, String> names = deviceInfoMapper.findAll().stream()
+        Map<String, String> names = deviceInfoMapper.findByDeviceIdIn(map.keySet()).stream()
                 .collect(Collectors.toMap(DeviceInfo::getDeviceId, DeviceInfo::getDeviceName, (a, b) -> a));
         return map.entrySet().stream()
                 .map(e -> new SalesReportRowDto(
@@ -387,7 +414,12 @@ public class CompetitiveGapService {
     }
 
     private List<SalesReportRowDto> aggregateByMerchant(Set<String> deviceIds, Instant start, Instant end) {
-        Map<String, String> deviceMerchant = deviceInfoMapper.findAll().stream()
+        List<DeviceInfo> devices = deviceIds == null
+                ? deviceInfoMapper.selectList(Wrappers.<DeviceInfo>lambdaQuery()
+                .orderByAsc(DeviceInfo::getDeviceId)
+                .last("LIMIT 2000"))
+                : deviceInfoMapper.findByDeviceIdIn(deviceIds);
+        Map<String, String> deviceMerchant = devices.stream()
                 .collect(Collectors.toMap(DeviceInfo::getDeviceId,
                         d -> d.getMerchantId() == null ? "" : d.getMerchantId(), (a, b) -> a));
         List<CabinetOrder> orders = orderMapper.findByCreatedAtBetween(start, end);
@@ -401,7 +433,12 @@ public class CompetitiveGapService {
             a.orderCount++;
             a.revenue += o.getTotalAmountCents();
         }
-        Map<String, String> names = merchantMapper.findAll().stream()
+        Set<String> merchantIds = map.keySet().stream()
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toSet());
+        Map<String, String> names = merchantIds.isEmpty()
+                ? Map.of()
+                : merchantMapper.findAllById(merchantIds).stream()
                 .collect(Collectors.toMap(Merchant::getMerchantId, Merchant::getMerchantName, (a, b) -> a));
         return map.entrySet().stream()
                 .map(e -> new SalesReportRowDto(

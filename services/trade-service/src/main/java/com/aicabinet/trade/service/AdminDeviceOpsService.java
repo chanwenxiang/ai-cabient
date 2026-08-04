@@ -3,9 +3,12 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.DeviceOpsCommandRequest;
 import com.aicabinet.common.dto.DeviceOpsCommandResultDto;
+import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.domain.DeviceInfo;
+import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
+import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -18,17 +21,26 @@ import java.util.UUID;
 public class AdminDeviceOpsService {
 
     private final DeviceInfoMapper deviceRepository;
+    private final ShoppingSessionMapper sessionRepository;
+    private final DeviceValidationService deviceValidationService;
+    private final DeviceSalesLockService salesLockService;
     private final DeviceServiceClient deviceClient;
     private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
 
     public AdminDeviceOpsService(DeviceInfoMapper deviceRepository,
+                                 ShoppingSessionMapper sessionRepository,
+                                 DeviceValidationService deviceValidationService,
+                                 DeviceSalesLockService salesLockService,
                                  DeviceServiceClient deviceClient,
                                  MerchantScopeService merchantScopeService,
                                  PermissionService permissionService,
                                  AdminAuditService auditService) {
         this.deviceRepository = deviceRepository;
+        this.sessionRepository = sessionRepository;
+        this.deviceValidationService = deviceValidationService;
+        this.salesLockService = salesLockService;
         this.deviceClient = deviceClient;
         this.merchantScopeService = merchantScopeService;
         this.permissionService = permissionService;
@@ -56,39 +68,43 @@ public class AdminDeviceOpsService {
         };
     }
 
+    /**
+     * 运维远程开门：落真实 ShoppingSession（OPS_REMOTE），占柜、接门事件、可留录像；
+     * 不结算、不出消费订单。与补货开门（RESTOCK）分离。
+     */
     private DeviceOpsCommandResultDto remoteOpen(Long operatorId, DeviceInfo device, String reason) {
-        if (device.salesLockedEnabled()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备已锁机，请先解锁再远程开门");
-        }
+        deviceValidationService.ensureOpsRemoteDoorAllowed(device.getDeviceId());
+
         String sessionId = "ADM" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase();
-        String commandId;
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId(sessionId);
+        session.setUserId(operatorId);
+        session.setDeviceId(device.getDeviceId());
+        session.setIdempotencyKey("OPS_REMOTE:" + operatorId + ":" + sessionId);
+        session.setState(SessionState.OPENING);
+        sessionRepository.save(session);
+
         try {
             deviceClient.requestOpenDoorOperator(sessionId, device.getDeviceId(), operatorId);
-            commandId = sessionId;
         } catch (Exception e) {
+            session.setState(SessionState.FAILED);
+            session.setFailReason("开门指令下发失败");
+            sessionRepository.save(session);
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
                     "开门指令下发失败（请确认 device-service 在线）");
         }
-        auditService.record(operatorId, "DEVICE_REMOTE_OPEN", "DEVICE", device.getDeviceId(), reason);
-        return new DeviceOpsCommandResultDto(device.getDeviceId(), "OPEN_DOOR", commandId,
-                "远程开门指令已下发", device.salesLockedEnabled());
+        auditService.record(operatorId, "DEVICE_REMOTE_OPEN", "SESSION", sessionId,
+                "设备：" + device.getDeviceId() + "；" + reason);
+        return new DeviceOpsCommandResultDto(device.getDeviceId(), "OPEN_DOOR", sessionId,
+                "运维开门会话已创建并下发：" + sessionId, device.salesLockedEnabled());
     }
 
     private DeviceOpsCommandResultDto lock(Long operatorId, DeviceInfo device, String reason, boolean locked) {
-        String mqttCmd = locked ? CabinetConstants.MQTT_CMD_LOCK : CabinetConstants.MQTT_CMD_UNLOCK;
-        String commandId;
-        try {
-            commandId = deviceClient.requestOpsCommand(device.getDeviceId(), mqttCmd);
-        } catch (Exception e) {
-            // 本地仍更新锁机状态，保证运营可强制停售；边端可能稍后同步
-            commandId = "LOCAL-" + UUID.randomUUID().toString().substring(0, 8);
-        }
-        device.setSalesLocked(locked);
-        deviceRepository.save(device);
-        auditService.record(operatorId, locked ? "DEVICE_LOCK" : "DEVICE_UNLOCK",
-                "DEVICE", device.getDeviceId(), reason + "; commandId=" + commandId);
+        String commandId = salesLockService.applySalesLock(operatorId, device, locked, reason, true);
+        // reload after save
+        boolean nowLocked = device.salesLockedEnabled();
         return new DeviceOpsCommandResultDto(device.getDeviceId(), locked ? "LOCK" : "UNLOCK", commandId,
-                locked ? "已锁机，消费者无法开门" : "已解锁，恢复营业", locked);
+                nowLocked ? "已锁机，消费者无法开门" : "已解锁，恢复营业", nowLocked);
     }
 
     private DeviceOpsCommandResultDto reboot(Long operatorId, DeviceInfo device, String reason) {
@@ -100,7 +116,7 @@ public class AdminDeviceOpsService {
                     "重启指令下发失败（请确认 device-service 在线）");
         }
         auditService.record(operatorId, "DEVICE_REBOOT", "DEVICE", device.getDeviceId(),
-                reason + "; commandId=" + commandId);
+                reason + "；指令编号=" + commandId);
         return new DeviceOpsCommandResultDto(device.getDeviceId(), "REBOOT", commandId,
                 "重启指令已下发", device.salesLockedEnabled());
     }
@@ -128,7 +144,7 @@ public class AdminDeviceOpsService {
             message = "设置已保存，柜机离线时请上线后重新下发";
         }
         auditService.record(operatorId, "DEVICE_SET_TEMP", "DEVICE", device.getDeviceId(),
-                reason + "; targetTempC=" + targetTempC + "; commandId=" + commandId);
+                reason + "；目标温度=" + targetTempC + "℃；指令编号=" + commandId);
         return new DeviceOpsCommandResultDto(device.getDeviceId(), "SET_TEMP", commandId,
                 message, device.salesLockedEnabled());
     }

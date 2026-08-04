@@ -19,12 +19,12 @@
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="动作">
         <el-select v-model="actionFilter" clearable filterable placeholder="全部" style="width: 180px" @change="search">
-          <el-option v-for="(label, key) in ACTION_LABELS" :key="key" :label="label" :value="key" />
+          <el-option v-for="(label, key) in AUDIT_ACTION_LABELS" :key="key" :label="label" :value="key" />
         </el-select>
       </el-form-item>
       <el-form-item label="对象">
-        <el-select v-model="targetFilter" clearable placeholder="全部" style="width: 130px" @change="search">
-          <el-option v-for="(label, key) in TARGET_LABELS" :key="key" :label="label" :value="key" />
+        <el-select v-model="targetFilter" clearable placeholder="全部" style="width: 150px" @change="search">
+          <el-option v-for="(label, key) in AUDIT_TARGET_LABELS" :key="key" :label="label" :value="key" />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -54,27 +54,27 @@
           <el-table-column label="操作人" min-width="140" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <div class="name-cell">
-                <strong>{{ row.operatorName || row.operatorPhone || row.operatorId || '-' }}</strong>
-                <small v-if="row.operatorId">编号 {{ row.operatorId }}</small>
+                <strong>{{ operatorLabel(row) }}</strong>
+                <small v-if="row.operatorId && row.operatorId > 0">编号 {{ row.operatorId }}</small>
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="动作" min-width="140" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="动作" min-width="160" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
-              <el-tag size="small" effect="plain">{{ actionLabel(row.action) }}</el-tag>
+              <el-tag size="small" effect="plain">{{ auditActionLabel(row.action) }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="对象" min-width="160" class-name="col-text">
             <template #default="{ row }">
               <div class="name-cell">
-                <strong>{{ targetLabel(row.targetType) }}</strong>
+                <strong>{{ auditTargetLabel(row.targetType) }}</strong>
                 <small v-if="row.targetId" class="cell-id">{{ row.targetId }}</small>
                 <small v-else class="muted">-</small>
               </div>
             </template>
           </el-table-column>
           <el-table-column label="详情" min-width="220" class-name="col-text" show-overflow-tooltip>
-            <template #default="{ row }">{{ formatOpsActionDetail(row.detail) || '-' }}</template>
+            <template #default="{ row }">{{ formatOpsActionDetail(row.detail) }}</template>
           </el-table-column>
         </el-table>
       </div>
@@ -100,7 +100,14 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { formatOpsActionDetail } from '@aicabinet/shared-dict';
+import {
+  AUDIT_ACTION_LABELS,
+  AUDIT_TARGET_LABELS,
+  actorDisplayName,
+  auditActionLabel,
+  auditTargetLabel,
+  formatOpsActionDetail
+} from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import type { PageResult } from '@aicabinet/shared-types';
 import { api } from '@/api/client';
@@ -118,29 +125,6 @@ interface AuditRow {
   detail?: string;
   createdAt?: string;
 }
-
-const ACTION_LABELS: Record<string, string> = {
-  BALANCE_ADJUST: '余额调整',
-  SESSION_CANCEL: '取消会话',
-  DICT_TYPE_CREATE: '新建字典类型',
-  DICT_TYPE_UPDATE: '更新字典类型',
-  DICT_DATA_CREATE: '新建字典项',
-  DICT_DATA_UPDATE: '更新字典项',
-  DICT_DATA_DELETE: '删除字典项',
-  SKU_VISION_ENROLL_CREATE: '识别建档',
-  SKU_VISION_ENROLL_UPDATE: '更新识别建档',
-  SKU_VISION_STATUS: '识别状态变更'
-};
-
-const TARGET_LABELS: Record<string, string> = {
-  USER: '用户',
-  SESSION: '会话',
-  ORDER: '订单',
-  SKU: '商品',
-  DEVICE: '设备',
-  DICT_TYPE: '字典类型',
-  DICT_DATA: '字典项'
-};
 
 const route = useRoute();
 const router = useRouter();
@@ -164,22 +148,20 @@ const { onExport } = useListCsv({
   toRows: () =>
     pickSelected(displayItems.value).map((row) => [
       formatDateTime(row.createdAt),
-      row.operatorName || row.operatorPhone || row.operatorId || '-',
-      actionLabel(row.action),
-      targetLabel(row.targetType),
+      operatorLabel(row),
+      auditActionLabel(row.action),
+      auditTargetLabel(row.targetType),
       row.targetId || '-',
       formatOpsActionDetail(row.detail)
     ])
 });
 
-function actionLabel(action?: string) {
-  if (!action) return '-';
-  return ACTION_LABELS[action] || (/^[A-Z][A-Z0-9_]*$/.test(action) ? '其他操作' : action);
-}
-
-function targetLabel(type?: string) {
-  if (!type) return '-';
-  return TARGET_LABELS[type] || (/^[A-Z][A-Z0-9_]*$/.test(type) ? '其他对象' : type);
+function operatorLabel(row: AuditRow) {
+  return actorDisplayName({
+    name: row.operatorName,
+    phone: row.operatorPhone,
+    operatorId: row.operatorId
+  });
 }
 
 function matchFilters(row: AuditRow) {

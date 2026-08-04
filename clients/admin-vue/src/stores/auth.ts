@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
+import { matchPermission } from '@aicabinet/shared-rbac';
 import { api, applyLoginSession, isLoggedIn, isSessionSoftExpired, clearSession } from '@/api/client';
 import { loadRuntimeDict, resetRuntimeDict } from '@/stores/dict-runtime';
 
@@ -62,8 +63,12 @@ export const useAuthStore = defineStore('auth', () => {
     return ids.length ? `商户范围：${ids.join('、')}` : '已限定（无商户）';
   });
 
-  async function login(phoneNumber: string, password: string) {
-    const data = await api.loginByPassword(phoneNumber, password);
+  async function login(
+    phoneNumber: string,
+    password: string,
+    captcha?: { captchaId: string; captchaCode: string }
+  ) {
+    const data = await api.loginByPassword(phoneNumber, password, captcha);
     applyLoginSession(data);
     userId.value = data.userId;
     phone.value = phoneNumber;
@@ -165,17 +170,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function hasPerm(code?: string | null) {
-    if (!code) return true;
-    const perms = permissions.value || [];
-    if (perms.includes('ops:admin')) return true;
-    if (perms.includes(code)) return true;
-    // 若依风格通配：system:user:* 覆盖 system:user:list
-    const segments = code.split(':');
-    for (let i = segments.length - 1; i >= 1; i--) {
-      const wildcard = `${segments.slice(0, i).join(':')}:*`;
-      if (perms.includes(wildcard)) return true;
-    }
-    return false;
+    return matchPermission(permissions.value, code);
   }
 
   /** 菜单是否在系统中启用（ACTIVE）。超管也不能绕过停用菜单。 */

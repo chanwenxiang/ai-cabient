@@ -1,7 +1,7 @@
 <template>
-  <div class="dict-page">
-    <el-row :gutter="16" class="dict-row">
-      <el-col :xs="24" :md="8">
+  <div class="page-fill dict-page">
+    <div class="dict-split">
+      <section class="dict-col dict-col--types">
         <el-card class="page-card report-page dict-card" shadow="never">
           <template #header>
             <div class="page-card-head">
@@ -23,7 +23,7 @@
             class="type-search"
           />
           <div class="table-scroll dict-type-scroll">
-            <div class="table-scroll-inner" style="min-width: 380px">
+            <div class="table-scroll-inner">
               <el-table
                 v-loading="loadingTypes"
                 :data="filteredTypes"
@@ -35,7 +35,7 @@
                 @current-change="onSelectType"
               >
                 <template #empty><el-empty description="暂无字典类型" :image-size="64" /></template>
-                <el-table-column label="类型" min-width="160" class-name="col-text">
+                <el-table-column label="类型" min-width="140" class-name="col-text">
                   <template #default="{ row }">
                     <div class="name-cell">
                       <strong>{{ row.dictName }}</strong>
@@ -43,8 +43,8 @@
                     </div>
                   </template>
                 </el-table-column>
-                <el-table-column prop="itemCount" label="项数" width="64" align="center" />
-                <el-table-column label="操作" width="70" class-name="col-action" align="center">
+                <el-table-column prop="itemCount" label="项数" width="56" align="center" />
+                <el-table-column label="操作" width="64" class-name="col-action" align="center">
                   <template #default="{ row }">
                     <el-button v-hasPermi="['ops:dict:edit']" link type="primary" @click.stop="openType(row)">编辑</el-button>
                   </template>
@@ -53,8 +53,8 @@
             </div>
           </div>
         </el-card>
-      </el-col>
-      <el-col :xs="24" :md="16">
+      </section>
+      <section ref="detailColRef" class="dict-col dict-col--items">
         <el-card class="page-card report-page dict-card" shadow="never">
           <template #header>
             <div class="page-card-head">
@@ -74,7 +74,7 @@
             </div>
           </template>
           <div class="table-scroll dict-item-scroll">
-            <div class="table-scroll-inner" style="min-width: 620px">
+            <div class="table-scroll-inner" style="min-width: 520px">
               <el-table
                 v-loading="loadingItems"
                 :data="items"
@@ -91,7 +91,7 @@
                   <el-empty :description="selected ? '暂无字典项' : '请先选择左侧字典类型'" :image-size="64" />
                 </template>
                 <el-table-column type="selection" width="48" align="center" />
-                <el-table-column label="字典项" min-width="180" class-name="col-text">
+                <el-table-column label="字典项" min-width="160" class-name="col-text">
                   <template #default="{ row }">
                     <div class="name-cell">
                       <strong>{{ row.dictLabel }}</strong>
@@ -117,8 +117,8 @@
             </div>
           </div>
         </el-card>
-      </el-col>
-    </el-row>
+      </section>
+    </div>
 
     <el-dialog v-model="typeDlg" :title="typeForm.dictType && types.some(t => t.dictType === typeForm.dictType) ? '编辑字典类型' : '新增字典类型'" width="480px">
       <el-form label-width="88px">
@@ -155,7 +155,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
@@ -188,6 +188,7 @@ const saving = ref(false);
 const types = ref<DictTypeRow[]>([]);
 const items = ref<DictItemRow[]>([]);
 const selected = ref<DictTypeRow | null>(null);
+const detailColRef = ref<HTMLElement | null>(null);
 const route = useRoute();
 const router = useRouter();
 const typeQuery = ref('');
@@ -276,11 +277,21 @@ function syncRouteQuery() {
   router.replace({ query });
 }
 
+function scrollDetailIntoViewIfStacked() {
+  // 仅在极窄叠栏时滚到右侧；与样式断点 720px 对齐
+  if (typeof window === 'undefined' || !window.matchMedia('(max-width: 720px)').matches) return;
+  void nextTick(() => {
+    const el = detailColRef.value as HTMLElement | null;
+    el?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  });
+}
+
 function onSelectType(row: DictTypeRow | null, opts?: { sync?: boolean }) {
   selected.value = row;
   clearSelection();
   loadItems();
   if (opts?.sync !== false) syncRouteQuery();
+  if (row) scrollDetailIntoViewIfStacked();
 }
 
 function applyRouteQuery() {
@@ -394,30 +405,59 @@ onActivated(() => {
 </script>
 
 <style scoped>
+/* 固定双栏：不依赖 el-col md 断点，窗口缩小仍并排，避免右侧被挤到下方 */
 .dict-page {
+  display: flex;
+  flex-direction: column;
   min-height: 0;
+  height: 100%;
+  overflow: hidden;
 }
-.dict-row {
+.dict-split {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(260px, 34%) minmax(0, 1fr);
+  gap: 16px;
   align-items: stretch;
 }
-.dict-card {
-  height: 100%;
-  min-height: 560px;
+.dict-col {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
-.dict-card :deep(.el-card__body) {
-  flex: 1;
+.dict-card {
+  flex: 1 1 auto;
+  height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
+  margin-bottom: 0;
+}
+.dict-card :deep(.el-card__header) {
+  flex-shrink: 0;
+}
+.dict-card :deep(.el-card__body) {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.type-search {
+  flex-shrink: 0;
+  margin-bottom: 12px;
 }
 .dict-type-scroll,
 .dict-item-scroll {
-  flex: 1;
-  min-height: 420px;
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .dict-type-scroll .table-scroll-inner,
 .dict-item-scroll .table-scroll-inner {
@@ -429,6 +469,35 @@ onActivated(() => {
 .dict-item-scroll :deep(.el-table) {
   height: 100% !important;
 }
+
+/* 极窄屏才叠栏；左侧限高，选中后右侧仍在附近 */
+@media (max-width: 720px) {
+  .dict-page {
+    height: auto;
+    overflow: auto;
+  }
+  .dict-split {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .dict-col,
+  .dict-card {
+    height: auto;
+  }
+  .dict-col--types {
+    max-height: min(42vh, 360px);
+  }
+  .dict-col--items {
+    min-height: 360px;
+  }
+  .dict-type-scroll {
+    min-height: 180px;
+  }
+  .dict-item-scroll {
+    min-height: 280px;
+  }
+}
+
 .page-card-head {
   display: flex;
   justify-content: space-between;
@@ -441,7 +510,6 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.35; }
 .page-card-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.type-search { margin-bottom: 12px; }
 .name-cell { display: grid; gap: 2px; line-height: 1.35; }
 .name-cell strong { font-weight: 650; }
 .name-cell small {

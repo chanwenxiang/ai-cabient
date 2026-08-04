@@ -52,6 +52,7 @@
             :class="{ on: preferredId === d.deviceId }"
             @click.stop="togglePreferred(d.deviceId)"
           >★</text>
+          <text v-if="d.salesLocked" class="status-locked">停售</text>
           <text :class="d.online ? 'status-on' : 'status-off'">
             {{ d.online ? '在线' : '离线' }}
           </text>
@@ -85,13 +86,14 @@ const error = ref('');
 let loadSeq = 0;
 const devices = ref<(DeviceInfo & { online?: boolean })[]>([]);
 const keyword = ref('');
-const filter = ref<'all' | 'online' | 'offline'>('all');
+const filter = ref<'all' | 'online' | 'offline' | 'locked'>('all');
 const preferredId = ref('');
 const onlyPreferred = ref(false);
 const filters = [
   { label: '全部', value: 'all' as const },
   { label: '在线', value: 'online' as const },
-  { label: '离线', value: 'offline' as const }
+  { label: '离线', value: 'offline' as const },
+  { label: '停售', value: 'locked' as const }
 ];
 
 const preferredLabel = computed(() => {
@@ -102,7 +104,10 @@ const preferredLabel = computed(() => {
 const visibleDevices = computed(() => {
   const q = keyword.value.trim().toLowerCase();
   const list = devices.value.filter((d) => {
-    const statusMatch = filter.value === 'all' || (filter.value === 'online' ? d.online : !d.online);
+    let statusMatch = true;
+    if (filter.value === 'online') statusMatch = !!d.online;
+    else if (filter.value === 'offline') statusMatch = !d.online;
+    else if (filter.value === 'locked') statusMatch = !!d.salesLocked;
     const keywordMatch = !q || `${d.deviceName || ''} ${d.deviceId}`.toLowerCase().includes(q);
     const preferredMatch = !onlyPreferred.value || d.deviceId === preferredId.value;
     return statusMatch && keywordMatch && preferredMatch;
@@ -120,8 +125,9 @@ const emptyHint = computed(() => {
   return devices.value.length ? '没有符合条件的柜机' : '暂无柜机';
 });
 
-function countFor(value: 'all' | 'online' | 'offline') {
+function countFor(value: 'all' | 'online' | 'offline' | 'locked') {
   if (value === 'all') return devices.value.length;
+  if (value === 'locked') return devices.value.filter((d) => !!d.salesLocked).length;
   return devices.value.filter((d) => (value === 'online' ? d.online : !d.online)).length;
 }
 
@@ -276,6 +282,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .name { font-weight: 600; display: block; font-size: 28rpx; }
 .status-on { color: #16a34a; font-weight: 600; font-size: 26rpx; }
 .status-off { color: #94a3b8; font-size: 26rpx; }
+.status-locked { color: #b45309; font-weight: 700; font-size: 24rpx; background: #fef3c7; padding: 4rpx 12rpx; border-radius: 999rpx; }
 .err { color: #ef4444; display: block; }
 .retry {
   margin-top: 16rpx;

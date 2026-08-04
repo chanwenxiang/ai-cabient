@@ -64,6 +64,19 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
                 .gt(DeviceSkuLot::getQuantity, quantity));
     }
 
+    /**
+     * 临期/过期扫描：仅扫有库存且到期日不晚于 horizon 的批次，按到期日升序批量拉取。
+     */
+    default List<DeviceSkuLot> findForExpiryScan(List<String> statuses, LocalDate horizonDate, int limit) {
+        int lim = Math.max(1, Math.min(limit, 500));
+        return selectList(Wrappers.<DeviceSkuLot>lambdaQuery()
+                .in(DeviceSkuLot::getStatus, statuses)
+                .gt(DeviceSkuLot::getQuantity, 0)
+                .le(DeviceSkuLot::getExpiryDate, horizonDate)
+                .orderByAsc(DeviceSkuLot::getExpiryDate)
+                .last("LIMIT " + lim));
+    }
+
     List<LinkedHashMap<String, Object>> _sumBookQtyBySlot(@Param("deviceId") String deviceId);
 
     default List<Object[]> sumBookQtyBySlot(String deviceId) {

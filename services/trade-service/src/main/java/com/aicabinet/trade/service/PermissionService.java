@@ -65,6 +65,7 @@ public class PermissionService {
         if (permCode == null || permCode.isBlank()) {
             return false;
         }
+        // 与前端 packages/shared-rbac matchPermission 同源（ops:admin 短路 + 分段通配）
         boolean matched = perms.contains(permCode);
         if (!matched) {
             // 若依风格分段通配：ops:rbac:role:add ← ops:rbac:role:* / ops:rbac:* / ops:*

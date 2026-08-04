@@ -39,8 +39,12 @@ public final class CabinetConstants {
     public static final String PAY_CHANNEL_ALIPAY = "ALIPAY";
 
 
-    /** 最低余额（分），参考旧 M8Constants.ACCOUNT_MIN_BALACE = 500（5元） */
-    public static final int MIN_BALANCE_CENTS = 500;
+    /**
+     * 默认开门预授权冻结金额（分）= ¥20。
+     * 与 {@code checkout.preauth_cents} / {@code CheckoutProperties} 默认值一致；
+     * 柜机 {@code depositCents &gt; 0} 时可覆盖。
+     */
+    public static final int MIN_BALANCE_CENTS = 2000;
 
     /** 运营人员 userId 起始值，运营账号跳过实名/余额校验 */
     public static final long OPERATOR_USER_ID_START = 100_000_000L;

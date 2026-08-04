@@ -34,23 +34,7 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
 
     default Page<CabinetOrder> findByFiltersOrderByCreatedAtDesc(
             String deviceId, Collection<String> deviceIds, String status, Pageable pageable) {
-        var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<CabinetOrder>(
-                pageable.getPageNumber() + 1L, pageable.getPageSize());
-        var q = Wrappers.<CabinetOrder>lambdaQuery();
-        if (deviceId != null && !deviceId.isBlank()) {
-            q.eq(CabinetOrder::getDeviceId, deviceId.trim());
-        } else if (deviceIds != null) {
-            if (deviceIds.isEmpty()) {
-                return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
-            }
-            q.in(CabinetOrder::getDeviceId, deviceIds);
-        }
-        if (status != null && !status.isBlank()) {
-            q.eq(CabinetOrder::getStatus, status.trim());
-        }
-        q.orderByDesc(CabinetOrder::getCreatedAt);
-        var result = selectPage(mpPage, q);
-        return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
+        return findByFiltersOrderByCreatedAtDesc(deviceId, deviceIds, status, null, pageable);
     }
 
     default Page<CabinetOrder> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable) {
@@ -126,12 +110,62 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
                 .orderByAsc(CabinetOrder::getCreatedAt));
     }
 
-        long sumTotalAmountByDeviceIdIn(@Param("deviceIds") Collection<String> deviceIds);
+    /** 超时关单等批处理：限制单次条数。 */
+    default List<CabinetOrder> findByStatusAndCreatedAtBefore(String status, Instant cutoff, int limit) {
+        int lim = Math.max(1, Math.min(limit, 1000));
+        return selectList(Wrappers.<CabinetOrder>lambdaQuery()
+                .eq(CabinetOrder::getStatus, status)
+                .lt(CabinetOrder::getCreatedAt, cutoff)
+                .orderByAsc(CabinetOrder::getCreatedAt)
+                .last("LIMIT " + lim));
+    }
 
+    default long countByStatusAndCreatedAtBefore(String status, Instant cutoff) {
+        Long c = selectCount(Wrappers.<CabinetOrder>lambdaQuery()
+                .eq(CabinetOrder::getStatus, status)
+                .lt(CabinetOrder::getCreatedAt, cutoff));
+        return c == null ? 0 : c;
+    }
 
-        long sumTotalAmountByDeviceIdInSince( @Param("deviceIds") Collection<String> deviceIds, @Param("since") Instant since);
+    default Page<CabinetOrder> findByFiltersOrderByCreatedAtDesc(
+            String deviceId, Collection<String> deviceIds, String status,
+            Instant createdBefore, Pageable pageable) {
+        var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<CabinetOrder>(
+                pageable.getPageNumber() + 1L, pageable.getPageSize());
+        var q = Wrappers.<CabinetOrder>lambdaQuery();
+        if (deviceId != null && !deviceId.isBlank()) {
+            q.eq(CabinetOrder::getDeviceId, deviceId.trim());
+        } else if (deviceIds != null) {
+            if (deviceIds.isEmpty()) {
+                return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
+            }
+            q.in(CabinetOrder::getDeviceId, deviceIds);
+        }
+        if (status != null && !status.isBlank()) {
+            q.eq(CabinetOrder::getStatus, status.trim());
+        }
+        if (createdBefore != null) {
+            q.lt(CabinetOrder::getCreatedAt, createdBefore);
+        }
+        q.orderByDesc(CabinetOrder::getCreatedAt);
+        var result = selectPage(mpPage, q);
+        return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
+    }
 
+    default long countByUserIdAndStatus(Long userId, String status) {
+        Long c = selectCount(Wrappers.<CabinetOrder>lambdaQuery()
+                .eq(CabinetOrder::getUserId, userId)
+                .eq(CabinetOrder::getStatus, status));
+        return c == null ? 0 : c;
+    }
 
-        long sumTotalAmountByDeviceIdInBetween( @Param("deviceIds") Collection<String> deviceIds, @Param("start") Instant start, @Param("end") Instant end);
+    long sumTotalAmountByDeviceIdIn(@Param("deviceIds") Collection<String> deviceIds);
+
+    long sumTotalAmountByDeviceIdInSince(@Param("deviceIds") Collection<String> deviceIds,
+                                         @Param("since") Instant since);
+
+    long sumTotalAmountByDeviceIdInBetween(@Param("deviceIds") Collection<String> deviceIds,
+                                           @Param("start") Instant start,
+                                           @Param("end") Instant end);
 
 }

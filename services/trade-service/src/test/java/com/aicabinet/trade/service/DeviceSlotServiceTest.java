@@ -35,7 +35,8 @@ class DeviceSlotServiceTest {
     @BeforeEach
     void setUp() {
         deviceSlotService = new DeviceSlotService(
-                slotRepository, lotRepository, null, null, null, null, null, null, salesVelocityService, null);
+                slotRepository, lotRepository, null, null, null, null, null, null,
+                salesVelocityService, null, null);
     }
 
     @Test

@@ -3,7 +3,11 @@
     <div v-for="slot in slots" :key="slot.slotCode" class="slot-cell" :class="cellClass(slot)" @click="editable && emit('edit', slot)">
       <div class="slot-code">{{ slot.slotCode }}</div>
       <div class="slot-sku">{{ slot.assignedSkuName || slot.assignedSkuId || '未配置' }}</div>
-      <div class="slot-qty">库存 {{ slot.bookQty }} / {{ slot.maxLevel || slot.parLevel }}</div>
+      <div class="slot-qty">账面 {{ slot.bookQty }} / {{ slot.maxLevel || slot.parLevel }}</div>
+      <div v-if="slot.lastPhysicalQty != null" class="slot-physical">
+        实盘 {{ slot.lastPhysicalQty }}
+        <span v-if="slot.hasDiscrepancy" class="diff">差 {{ slot.qtyDiff }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -35,6 +39,8 @@ function cellClass(slot: DeviceSlot) {
 .slot-cell.clickable:hover { border-color: var(--el-color-primary); }
 .slot-code { font-weight: 600; }
 .slot-sku { color: var(--layout-muted); margin: 4px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.slot-physical { margin-top: 2px; color: var(--layout-muted); font-size: 0.72rem; }
+.slot-physical .diff { color: #ea580c; margin-left: 4px; }
 .slot-cell.status-oos { border-color: #f87171; background: color-mix(in srgb, #ef4444 12%, var(--layout-card)); }
 .slot-cell.status-low { border-color: #fbbf24; background: color-mix(in srgb, #f59e0b 10%, var(--layout-card)); }
 .slot-cell.status-over,

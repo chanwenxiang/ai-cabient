@@ -131,7 +131,7 @@
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { hasPerm, merchantApi, downloadAuthedFile, openExportedFile, getToken } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { MerchantDailySettlement, MerchantMe, MerchantSettlementBatch } from '@aicabinet/shared-types';
@@ -153,21 +153,7 @@ function localDateISO(d: Date) {
 }
 
 function batchStatusLabel(status?: string) {
-  if (!status) return '-';
-  const key = status.toUpperCase();
-  const fallback: Record<string, string> = {
-    PENDING: '待结算',
-    PROCESSING: '结算中',
-    SETTLED: '已结算',
-    PAID: '已支付',
-    FAILED: '失败',
-    PARTIAL_FAILED: '部分失败',
-    COMPLETED: '已完成'
-  };
-  const fromDict = dictLabel('settlement_batch_status', status);
-  // dictLabel returns the raw code when type/code is missing — prefer Chinese fallback then.
-  if (fromDict && fromDict.toUpperCase() !== key) return fromDict;
-  return fallback[key] || status;
+  return displayLabel('settlement_batch_status', status, '-');
 }
 
 const today = localDateISO(new Date());

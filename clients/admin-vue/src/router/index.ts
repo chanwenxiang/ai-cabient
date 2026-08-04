@@ -1,4 +1,4 @@
-import { createRouter, createWebHashHistory } from 'vue-router';
+import { createRouter, createWebHistory } from 'vue-router';
 import { isLoggedIn } from '@/api/client';
 import { findNavByPath } from '@/config/menu';
 import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
@@ -66,7 +66,7 @@ if (ENABLE_TEST_TOOLS) {
 }
 
 const router = createRouter({
-  history: createWebHashHistory(),
+  history: createWebHistory('/admin/'),
   routes: [
     { path: '/login', name: 'login', component: () => import('@/views/LoginView.vue'), meta: { public: true } },
     {

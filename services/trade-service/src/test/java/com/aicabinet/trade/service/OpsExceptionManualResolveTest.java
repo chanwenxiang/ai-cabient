@@ -29,13 +29,14 @@ class OpsExceptionManualResolveTest {
     @Mock ShoppingSessionMapper sessionRepository;
     @Mock SettlementService settlementService;
     @Mock DisputeService disputeService;
+    @Mock RepairTicketService repairTicketService;
 
     private OpsExceptionService service;
 
     @BeforeEach
     void setUp() {
         service = new OpsExceptionService(repository, permissionService, auditService, auditRepository,
-                sessionRepository, settlementService, disputeService);
+                sessionRepository, settlementService, disputeService, repairTicketService);
     }
 
     @Test

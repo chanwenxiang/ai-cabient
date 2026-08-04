@@ -103,6 +103,29 @@ public class RevenueSplitService {
         });
     }
 
+    /**
+     * 运营确认仅记账完结：钱包已入账、无微信接收方/通道时，从「待跟进」移出。
+     * 幂等：已 SETTLED / SUCCESS 直接返回。
+     */
+    @Transactional
+    public OrderRevenueSplit confirmLedgerOnly(OrderRevenueSplit split) {
+        if (split == null) {
+            throw new IllegalArgumentException("split required");
+        }
+        String status = split.getStatus() == null ? "" : split.getStatus().toUpperCase();
+        if ("SETTLED".equals(status) || "SUCCESS".equals(status)) {
+            return split;
+        }
+        if (!"LEDGER_ONLY".equals(status)) {
+            throw new IllegalStateException("仅 LEDGER_ONLY 可确认完结，当前=" + split.getStatus());
+        }
+        creditWalletIfLedgerOnly(split);
+        split.setStatus("SETTLED");
+        split.setSettledAt(java.time.Instant.now());
+        split.setFailureReason(null);
+        return splitRepository.save(split);
+    }
+
     /** 账本型分账（无微信分账接收方）同步入商户可提现钱包，幂等按 splitId。 */
     private void creditWalletIfLedgerOnly(OrderRevenueSplit split) {
         if (split == null || !"LEDGER_ONLY".equalsIgnoreCase(split.getStatus())) {

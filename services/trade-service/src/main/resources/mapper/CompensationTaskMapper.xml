@@ -5,7 +5,10 @@
 
   <select id="findExecutableTasks" resultType="com.aicabinet.trade.domain.CompensationTask">
     <![CDATA[
-    SELECT c.* FROM compensation_task c WHERE c.status = 'PENDING' AND c.scheduled_at <= #{now} ORDER BY c.priority DESC
+    SELECT c.* FROM compensation_task c
+    WHERE c.status = 'PENDING' AND c.scheduled_at <= #{now}
+    ORDER BY c.priority DESC, c.scheduled_at ASC
+    LIMIT 200
     ]]>
   </select>
 </mapper>

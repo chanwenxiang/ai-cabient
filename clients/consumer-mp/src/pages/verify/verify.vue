@@ -31,10 +31,14 @@
 
     <view v-else-if="!payReady" class="card">
       <text class="card-title">开通免密支付</text>
-      <text class="card-desc">推荐开通支付分 / 免密代扣；余额 ≥ ¥5 也可临时开门。</text>
+      <text class="card-desc">推荐开通支付分 / 免密代扣；可用余额 ≥ ¥{{ needYuan }} 也可临时开门。</text>
       <view class="status-row">
-        <text class="status-label">当前余额</text>
+        <text class="status-label">可用余额</text>
         <text class="status-val">¥{{ balanceYuan }}</text>
+      </view>
+      <view v-if="frozenYuan !== '0.00'" class="status-row">
+        <text class="status-label">冻结中</text>
+        <text class="status-val">¥{{ frozenYuan }}</text>
       </view>
       <view class="status-row">
         <text class="status-label">微信支付分</text>
@@ -69,7 +73,12 @@ import { onLoad, onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
-import { isPayReady } from '@/utils/account';
+import {
+  availableCents,
+  isPayReady,
+  preauthYuanLabel,
+  resolveClientPreauthCents
+} from '@/utils/account';
 import { showDevTools } from '@/utils/runtime-flags';
 
 const devTools = showDevTools();
@@ -81,9 +90,15 @@ const signing = ref(false);
 const signingAlipay = ref(false);
 const err = ref('');
 const fromOpen = ref(false);
+const configPreauthCents = ref<number | null>(null);
 
-const balanceYuan = computed(() => ((account.value?.balanceCents || 0) / 100).toFixed(2));
-const payReady = computed(() => isPayReady(account.value));
+const preauthCents = computed(() =>
+  resolveClientPreauthCents({ configPreauthCents: configPreauthCents.value })
+);
+const needYuan = computed(() => preauthYuanLabel(preauthCents.value));
+const balanceYuan = computed(() => (availableCents(account.value) / 100).toFixed(2));
+const frozenYuan = computed(() => (Math.max(0, account.value?.frozenCents || 0) / 100).toFixed(2));
+const payReady = computed(() => isPayReady(account.value, null, preauthCents.value));
 const wechatReady = computed(() => !!account.value?.payscoreEnabled);
 const alipayReady = computed(() => !!account.value?.alipayAgreementEnabled);
 
@@ -101,7 +116,13 @@ onShow(async () => {
     return;
   }
   try {
-    account.value = await consumerApi.account();
+    const [acc, cfg] = await Promise.all([
+      consumerApi.account(),
+      consumerApi.consumerPublicConfig().catch(() => null)
+    ]);
+    account.value = acc;
+    const p = Number(cfg?.preauthCents);
+    configPreauthCents.value = Number.isFinite(p) && p > 0 ? p : null;
   } catch (e) {
     err.value = e instanceof Error ? e.message : '加载账户失败';
   }

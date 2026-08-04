@@ -124,7 +124,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi, get } from '@/utils/consumer-api';
 import { formatDateTimeMinute, orderStatusLabel } from '@aicabinet/shared-uni/format';
 import {
@@ -327,7 +327,7 @@ const statusDetail = computed(() => {
 const payChannelText = computed(() => {
   const ch = order.value?.payChannel;
   if (!ch) return '-';
-  return dictLabel('pay_channel', ch) || ch;
+  return displayLabel('pay_channel', ch, '-');
 });
 
 function formatTime(t: string) {

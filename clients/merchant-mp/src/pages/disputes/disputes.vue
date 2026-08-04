@@ -56,6 +56,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTimeShort, localizeDisputeReason } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi, type MerchantDisputeTicket } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
@@ -171,12 +172,7 @@ async function load() {
 }
 
 function statusText(s?: string) {
-  const m: Record<string, string> = {
-    OPEN: '待处理',
-    RESOLVED: '已结案',
-    CLOSED: '已关闭'
-  };
-  return m[s || ''] || s || '-';
+  return displayLabel('dispute_status', s, '-');
 }
 
 function shortId(id?: string) {

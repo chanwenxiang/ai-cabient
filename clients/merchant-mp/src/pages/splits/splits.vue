@@ -35,6 +35,7 @@ import { ref } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 import type { MerchantMe, RevenueSplit } from '@aicabinet/shared-types';
 
@@ -81,18 +82,14 @@ function formatTime(t?: string) {
 }
 
 function statusLabel(status?: string) {
-  const s = String(status || '').toUpperCase();
-  if (s === 'WECHAT_FAILED' || s === 'FAILED') return '失败';
-  if (s === 'SUCCESS' || s === 'SETTLED') return '成功';
-  if (s === 'PENDING' || s === 'ACCRUED') return '待分账';
-  if (s === 'WECHAT_SUBMITTED' || s === 'SUBMITTED') return '已提交';
-  return status || '—';
+  return displayLabel('split_status', status, '—');
 }
 
 function statusClass(status?: string) {
   const s = String(status || '').toUpperCase();
   if (s === 'WECHAT_FAILED' || s === 'FAILED') return 'fail';
   if (s === 'SUCCESS' || s === 'SETTLED') return 'ok';
+  if (s === 'LEDGER_ONLY') return 'warn';
   return 'warn';
 }
 

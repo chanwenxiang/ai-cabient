@@ -212,7 +212,7 @@ import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
-import type { PageResult } from '@aicabinet/shared-types';
+import type { OpsWorkbench, PageResult } from '@aicabinet/shared-types';
 
 interface OpsStats {
   deviceTotal?: number;
@@ -234,22 +234,6 @@ interface OpsActionItem {
   ticketId?: string;
   skuId?: string;
   taskId?: number;
-}
-
-interface OpsWorkbench {
-  openDisputes?: number;
-  offlineDevices?: number;
-  waitingUploads?: number;
-  lowStockItems?: number;
-  pendingReplenishments?: number;
-  staleSessions?: number;
-  reconciliationMismatches?: number;
-  splitExceptions?: number;
-  inTransitOverdue?: number;
-  devicesOnSale?: number;
-  devicesSalesLocked?: number;
-  pendingUnpaidOrders?: number;
-  actionItems?: OpsActionItem[];
 }
 
 interface QuickLink {
@@ -278,7 +262,7 @@ const quickLinks = computed<QuickLink[]>(() => [
   },
   { label: '待审争议', count: workbench.value?.openDisputes || 0, path: '/disputes', query: { status: 'OPEN' } },
   {
-    label: '待支付订单',
+    label: '超时待支付',
     count: workbench.value?.pendingUnpaidOrders || 0,
     path: '/orders',
     query: { status: 'PENDING', overdue: '1' }

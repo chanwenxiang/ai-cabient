@@ -92,7 +92,7 @@
           <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">
               <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
-                {{ statusMap[row.status] || row.status }}
+                {{ displayLabel('enable_status', row.status, '-') }}
               </el-tag>
             </template>
           </el-table-column>
@@ -184,7 +184,7 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh, SwitchButton, Ticket } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictOptions } from '@aicabinet/shared-dict';
+import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -257,18 +257,15 @@ const issueForm = ref<{ couponDefId: number | null; userId: number | null }>({
   userId: null
 });
 
-const typeMap: Record<string, string> = {
-  ...Object.fromEntries(dictOptions('coupon_type').map((o) => [o.value, o.label])),
-  FREE_SHIPPING: '免运费'
-};
-const statusMap: Record<string, string> = { ACTIVE: '启用', INACTIVE: '停用', DISABLED: '停用' };
-const typeCodeByLabel: Record<string, string> = Object.fromEntries([
-  ...dictOptions('coupon_type').flatMap((o) => [
+const typeMap: Record<string, string> = Object.fromEntries(
+  dictOptions('coupon_type').map((o) => [o.value, o.label])
+);
+const typeCodeByLabel: Record<string, string> = Object.fromEntries(
+  dictOptions('coupon_type').flatMap((o) => [
     [o.label, o.value],
     [o.value, o.value]
-  ] as [string, string][]),
-  ['免运费', 'FREE_SHIPPING']
-]);
+  ] as [string, string][])
+);
 const activeCoupons = computed(() => list.value.filter((d) => d.status === 'ACTIVE'));
 
 const CSV_HEADERS = ['名称', '类型', '面值(元)', '最低消费(元)', '折扣百分比', '有效天数', '总量限制', '描述', '状态'];
@@ -286,7 +283,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
       row.validityDays,
       row.maxIssueCount || 0,
       row.description || '',
-      statusMap[row.status] || row.status
+      displayLabel('enable_status', row.status, '-')
     ]),
   onImportRows: async (rows) => {
     let ok = 0;

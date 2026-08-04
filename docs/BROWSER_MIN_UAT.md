@@ -261,11 +261,13 @@ cd ai-cabinet
 
 ## 8. 完成定义（DoD）
 
-- [ ] 层 A 6 项有执行记录（PASS/FAIL/BLOCK）
-- [ ] 层 B+C 28 条均有状态 + 失败维度
-- [ ] 所有 FAIL 有截图或日志证据
-- [ ] 输出 [`BROWSER_MIN_UAT_REPORT.md`](BROWSER_MIN_UAT_REPORT.md)
-- [ ] P0/P1 缺陷已登记或已修复复测
+- [x] 层 A 6 项有执行记录（PASS/FAIL/BLOCK）
+- [x] 层 B+C 28 条均有状态 + 失败维度
+- [x] 所有 FAIL 有截图或日志证据（本轮 FAIL=0）
+- [x] 输出 [`BROWSER_MIN_UAT_REPORT.md`](BROWSER_MIN_UAT_REPORT.md)
+- [x] P0/P1 缺陷已登记或已修复复测（无开放 P0/P1；UI-01 已复测通过）
+
+> DoD 勾选日期：2026-08-04（层 C 浏览器复测 + 缺陷复测，见跟踪表与报告）。
 
 ---
 

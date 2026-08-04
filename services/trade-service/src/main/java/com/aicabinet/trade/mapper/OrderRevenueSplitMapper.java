@@ -22,6 +22,16 @@ public interface OrderRevenueSplitMapper extends BaseTradeMapper<OrderRevenueSpl
     return c == null ? 0 : c;
     }
 
+    default long countByStatusInAndDeviceIdIn(Collection<String> statuses, Collection<String> deviceIds) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return 0;
+        }
+        Long c = selectCount(Wrappers.<OrderRevenueSplit>lambdaQuery()
+                .in(OrderRevenueSplit::getStatus, statuses)
+                .in(OrderRevenueSplit::getDeviceId, deviceIds));
+        return c == null ? 0 : c;
+    }
+
     default Page<OrderRevenueSplit> findByMerchantIdOrderByCreatedAtDesc(String merchantId, Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<OrderRevenueSplit>(
             pageable.getPageNumber() + 1L, pageable.getPageSize());

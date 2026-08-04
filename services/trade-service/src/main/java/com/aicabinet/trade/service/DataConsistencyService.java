@@ -41,6 +41,9 @@ public class DataConsistencyService {
     public static final String STATUS_FAIL = "FAIL";
     public static final String STATUS_FIXED = "FIXED";
 
+    /** 单轮巡检最多落库的不一致条数，避免全表扫描撑爆内存。 */
+    private static final int CHECK_BATCH = 200;
+
     /** 显式修复结果（供运营 API 回传 message）。 */
     public record FixOutcome(boolean fixed, String message) {
         public static FixOutcome ok(String message) {
@@ -106,10 +109,12 @@ public class DataConsistencyService {
         String sql = "SELECT o.order_id, o.total_amount_cents, COALESCE(SUM(ol.line_amount_cents), 0) as calculated_total "
                 + "FROM cabinet_order o LEFT JOIN cabinet_order_line ol ON o.order_id = ol.order_id "
                 + "WHERE o.status = 'PAID' GROUP BY o.order_id, o.total_amount_cents "
-                + "HAVING o.total_amount_cents != COALESCE(SUM(ol.line_amount_cents), 0)";
+                + "HAVING o.total_amount_cents != COALESCE(SUM(ol.line_amount_cents), 0) "
+                + "LIMIT " + CHECK_BATCH;
 
         Set<String> failing = new HashSet<>();
-        for (Map<String, Object> row : jdbcTemplate.queryForList(sql)) {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
             String orderId = String.valueOf(row.get("order_id"));
             failing.add(orderId);
             String expected = String.valueOf(row.get("total_amount_cents"));
@@ -120,7 +125,7 @@ public class DataConsistencyService {
                     actual,
                     "订单头金额 " + expected + " ≠ 明细合计 " + actual);
         }
-        resolveStaleFailures("ORDER_AMOUNT", failing);
+        resolveStaleFailuresIfComplete("ORDER_AMOUNT", failing, rows.size());
     }
 
     /**
@@ -144,10 +149,12 @@ public class DataConsistencyService {
                 + "<> COALESCE(SUM(CASE "
                 + "  WHEN po.operation_type IN ('CHARGE', 'ADJUST_CHARGE') THEN po.amount_cents "
                 + "  WHEN po.operation_type = 'REFUND' THEN -po.amount_cents "
-                + "  ELSE 0 END), 0)";
+                + "  ELSE 0 END), 0) "
+                + "LIMIT " + CHECK_BATCH;
 
         Set<String> failing = new HashSet<>();
-        for (Map<String, Object> row : jdbcTemplate.queryForList(sql)) {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
             String orderId = String.valueOf(row.get("order_id"));
             failing.add(orderId);
             String expected = String.valueOf(row.get("expected_cents"));
@@ -158,7 +165,7 @@ public class DataConsistencyService {
                     actual,
                     "期望净入账 " + expected + " ≠ 实际净入账 " + actual + "（请走退款/调账）");
         }
-        resolveStaleFailures("PAYMENT_AMOUNT", failing);
+        resolveStaleFailuresIfComplete("PAYMENT_AMOUNT", failing, rows.size());
     }
 
     /**
@@ -172,10 +179,12 @@ public class DataConsistencyService {
                 + "LEFT JOIN device_sku_lot l ON l.device_id = i.device_id AND l.sku_id = i.sku_id "
                 + "AND UPPER(COALESCE(l.status, '')) = 'ON_SALE' "
                 + "GROUP BY i.device_id, i.sku_id, i.quantity "
-                + "HAVING i.quantity <> COALESCE(SUM(l.quantity), 0)";
+                + "HAVING i.quantity <> COALESCE(SUM(l.quantity), 0) "
+                + "LIMIT " + CHECK_BATCH;
 
         Set<String> failing = new HashSet<>();
-        for (Map<String, Object> row : jdbcTemplate.queryForList(sql)) {
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
             String key = row.get("device_id") + "|" + row.get("sku_id");
             failing.add(key);
             String expected = String.valueOf(row.get("expected_qty"));
@@ -186,7 +195,19 @@ public class DataConsistencyService {
                     actual,
                     "汇总库存 " + expected + " ≠ ON_SALE 批次合计 " + actual);
         }
-        resolveStaleFailures("INVENTORY_MISMATCH", failing);
+        resolveStaleFailuresIfComplete("INVENTORY_MISMATCH", failing, rows.size());
+    }
+
+    /**
+     * 仅在本轮未触达批次上限时关闭误报；触顶说明可能还有未扫到的 FAIL，避免误标 FIXED。
+     */
+    void resolveStaleFailuresIfComplete(String checkType, Set<String> stillFailing, int foundCount) {
+        if (foundCount >= CHECK_BATCH) {
+            log.warn("一致性巡检触顶 type={} found={} batch={}，跳过误报自动关闭",
+                    checkType, foundCount, CHECK_BATCH);
+            return;
+        }
+        resolveStaleFailures(checkType, stillFailing);
     }
 
     /** 本轮未再检出的 FAIL 标记为 FIXED，避免历史误报常驻 failCount。 */

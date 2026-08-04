@@ -44,10 +44,16 @@ public interface RechargeOrderMapper extends BaseTradeMapper<RechargeOrder> {
     }
 
     default List<RechargeOrder> findByStatusAndCreatedAtBefore(String status, Instant cutoff) {
+        return findByStatusAndCreatedAtBefore(status, cutoff, 500);
+    }
+
+    default List<RechargeOrder> findByStatusAndCreatedAtBefore(String status, Instant cutoff, int limit) {
+        int lim = Math.max(1, Math.min(limit, 500));
         return selectList(Wrappers.<RechargeOrder>lambdaQuery()
                 .eq(RechargeOrder::getStatus, status)
                 .lt(RechargeOrder::getCreatedAt, cutoff)
-                .orderByAsc(RechargeOrder::getCreatedAt));
+                .orderByAsc(RechargeOrder::getCreatedAt)
+                .last("LIMIT " + lim));
     }
 
 }

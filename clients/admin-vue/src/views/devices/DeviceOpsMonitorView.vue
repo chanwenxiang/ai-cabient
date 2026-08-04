@@ -101,7 +101,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 
 interface OpsEvent {
   eventId: number;
@@ -145,7 +145,7 @@ function eventTypeLabel(t?: string) {
   return dictLabel('device_ops_event', t) || t || '-';
 }
 function severityLabel(s?: string) {
-  return dictLabel('risk_severity', s) || s || '-';
+  return displayLabel('risk_severity', s, '-');
 }
 
 async function loadDevices() {

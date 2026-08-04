@@ -152,7 +152,7 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, SwitchButton } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictOptions } from '@aicabinet/shared-dict';
+import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useAuthStore } from '@/stores/auth';
@@ -210,17 +210,15 @@ const emptyForm = () => ({
 });
 const form = ref(emptyForm());
 
-const typeMap: Record<string, string> = {
-  ...Object.fromEntries(dictOptions('promotion_type').map((o) => [o.value, o.label])),
-  NEW_USER: '新客礼'
-};
-const typeCodeByLabel: Record<string, string> = Object.fromEntries([
-  ...dictOptions('promotion_type').flatMap((o) => [
+const typeMap: Record<string, string> = Object.fromEntries(
+  dictOptions('promotion_type').map((o) => [o.value, o.label])
+);
+const typeCodeByLabel: Record<string, string> = Object.fromEntries(
+  dictOptions('promotion_type').flatMap((o) => [
     [o.label, o.value],
     [o.value, o.value]
-  ] as [string, string][]),
-  ['新客礼', 'NEW_USER']
-]);
+  ] as [string, string][])
+);
 
 function yuan(cents: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
@@ -233,7 +231,7 @@ function isEnabled(status?: string) {
   return status === 'ACTIVE';
 }
 function statusLabel(status?: string) {
-  return isEnabled(status) ? '启用' : '停用';
+  return displayLabel('enable_status', status, '停用');
 }
 
 function rowActions(row: any): TableAction[] {

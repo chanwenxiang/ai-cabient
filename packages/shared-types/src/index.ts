@@ -65,7 +65,12 @@ export interface DeviceSlot {
   maxLevel: number;
   enabled: boolean;
   bookQty: number;
+  lastPhysicalQty?: number | null;
+  lastPhysicalAt?: string;
+  lastRestockAt?: string;
+  fillRatePct?: number;
   stockStatus?: string;
+  qtyDiff?: number;
   hasDiscrepancy?: boolean;
 }
 
@@ -363,6 +368,10 @@ export interface AccountDto {
   userId?: string | number;
   phoneNumber?: string;
   balanceCents: number;
+  /** 开门预授权等冻结金额（分）；与后端 AccountDto 同源 */
+  frozenCents: number;
+  /** 可用余额 = balance - frozen */
+  availableCents: number;
   verified?: boolean;
   operator?: boolean;
   payPreferredChannel?: string;
@@ -434,7 +443,42 @@ export interface DeviceStatusDto {
   /** NONE | SESSION | REPLENISHMENT | LOCKED */
   busyReason?: string;
   message?: string;
+  /** 本柜开门预授权门槛（分），与后端 DeviceStatusDto.preauthCents 一致 */
+  preauthCents?: number;
 }
+
+/** 运营工作台指标（与 OpsWorkbenchDto 对齐） */
+export interface OpsWorkbench {
+  openDisputes?: number;
+  overdueDisputes?: number;
+  offlineDevices?: number;
+  waitingUploads?: number;
+  lowStockItems?: number;
+  pendingReplenishments?: number;
+  staleSessions?: number;
+  reconciliationMismatches?: number;
+  splitExceptions?: number;
+  inTransitOverdue?: number;
+  devicesOnSale?: number;
+  devicesSalesLocked?: number;
+  pendingUnpaidOrders?: number;
+  actionItems?: Array<{
+    type: string;
+    severity?: string;
+    title: string;
+    detail?: string;
+    deviceId?: string;
+    sessionId?: string;
+    ticketId?: string;
+    skuId?: string;
+    taskId?: number | string;
+    createdAt?: string;
+    dueAt?: string;
+  }>;
+}
+
+/** 默认开门预授权（分）= ¥20，与 CabinetConstants.MIN_BALANCE_CENTS 一致 */
+export const DEFAULT_PREAUTH_CENTS = 2000;
 
 export interface DeviceProduct {
   skuId: string;

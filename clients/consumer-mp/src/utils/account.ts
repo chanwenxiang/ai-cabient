@@ -1,7 +1,8 @@
 import type { AccountDto } from '@aicabinet/shared-types';
+import { DEFAULT_PREAUTH_CENTS } from '@aicabinet/shared-types';
 
-/** 未开通免密支付时的最低开门余额（分）——仅作兜底 */
-export const MIN_BALANCE_CENTS = 500;
+/** 未开通免密时默认最低开门预授权（分）；实际以服务端配置 / 柜机押金为准 */
+export const MIN_BALANCE_CENTS = DEFAULT_PREAUTH_CENTS;
 
 export type EntryChannel = 'WECHAT' | 'ALIPAY';
 
@@ -41,18 +42,55 @@ export function channelLabel(channel?: string | null): string {
   return '未知';
 }
 
+/** 可用余额口径：优先后端 availableCents，否则 balance - frozen */
+export function availableCents(acc?: Pick<AccountDto, 'balanceCents' | 'availableCents' | 'frozenCents'> | null): number {
+  if (!acc) return 0;
+  if (acc.availableCents != null) return Math.max(0, acc.availableCents);
+  return Math.max(0, (acc.balanceCents || 0) - Math.max(0, acc.frozenCents || 0));
+}
+
+/**
+ * 解析开门预授权门槛（分）：
+ * 1) 柜机 deposit / DeviceStatus.preauthCents
+ * 2) 公共配置 checkout.preauth_cents
+ * 3) 默认 DEFAULT_PREAUTH_CENTS
+ */
+export function resolveClientPreauthCents(opts?: {
+  devicePreauthCents?: number | null;
+  deviceDepositCents?: number | null;
+  configPreauthCents?: number | string | null;
+}): number {
+  const device = Number(opts?.devicePreauthCents ?? opts?.deviceDepositCents);
+  if (Number.isFinite(device) && device > 0) return Math.floor(device);
+  const cfg = Number(opts?.configPreauthCents);
+  if (Number.isFinite(cfg) && cfg > 0) return Math.floor(cfg);
+  return MIN_BALANCE_CENTS;
+}
+
+export function preauthYuanLabel(preauthCents: number = MIN_BALANCE_CENTS): string {
+  const yuan = Math.max(preauthCents, 1) / 100;
+  return Number.isInteger(yuan) ? String(yuan) : yuan.toFixed(2);
+}
+
 /**
  * 是否满足开门支付条件（真实业务优先免密）：
  * - 运营账号
  * - 指定渠道已开通免密（支付分 / 支付宝代扣）
- * - 或余额 ≥ ¥5（兜底）
+ * - 或可用余额 ≥ 预授权门槛（默认 ¥20）
  */
 export function isPayReady(
   acc?: Pick<
     AccountDto,
-    'operator' | 'passwordFreeReady' | 'balanceCents' | 'payscoreEnabled' | 'alipayAgreementEnabled'
+    | 'operator'
+    | 'passwordFreeReady'
+    | 'balanceCents'
+    | 'availableCents'
+    | 'frozenCents'
+    | 'payscoreEnabled'
+    | 'alipayAgreementEnabled'
   > | null,
-  entryChannel?: string | null
+  entryChannel?: string | null,
+  preauthCents: number = MIN_BALANCE_CENTS
 ): boolean {
   if (!acc) return false;
   if (acc.operator) return true;
@@ -64,30 +102,38 @@ export function isPayReady(
   } else if (acc.passwordFreeReady) {
     return true;
   }
-  return (acc.balanceCents || 0) >= MIN_BALANCE_CENTS;
+  return availableCents(acc) >= Math.max(preauthCents, 1);
 }
 
 export function payReadyHint(
   acc?: Pick<
     AccountDto,
-    'passwordFreeReady' | 'balanceCents' | 'verified' | 'payscoreEnabled' | 'alipayAgreementEnabled'
+    | 'passwordFreeReady'
+    | 'balanceCents'
+    | 'availableCents'
+    | 'frozenCents'
+    | 'verified'
+    | 'payscoreEnabled'
+    | 'alipayAgreementEnabled'
   > | null,
-  entryChannel?: string | null
+  entryChannel?: string | null,
+  preauthCents: number = MIN_BALANCE_CENTS
 ): string {
   if (!acc) return '请先登录';
   if (!acc.verified) return '需先完成实名认证';
+  const needYuan = preauthYuanLabel(preauthCents);
   const channel = normalizeEntryChannel(entryChannel);
   if (channel === 'WECHAT') {
     if (acc.payscoreEnabled) return '已开通微信支付分，购物后自动扣款';
-    if ((acc.balanceCents || 0) >= MIN_BALANCE_CENTS) return '可用余额兜底开门';
-    return '请开通微信支付分（推荐），或充值余额至 ¥5 以上';
+    if (availableCents(acc) >= preauthCents) return `可用余额可预授权开门（约 ¥${needYuan}）`;
+    return `请开通微信支付分（推荐），或充值可用余额至 ¥${needYuan} 以上`;
   }
   if (channel === 'ALIPAY') {
     if (acc.alipayAgreementEnabled) return '已开通支付宝免密，购物后自动扣款';
-    if ((acc.balanceCents || 0) >= MIN_BALANCE_CENTS) return '可用余额兜底开门';
-    return '请开通支付宝免密代扣（推荐），或充值余额至 ¥5 以上';
+    if (availableCents(acc) >= preauthCents) return `可用余额可预授权开门（约 ¥${needYuan}）`;
+    return `请开通支付宝免密代扣（推荐），或充值可用余额至 ¥${needYuan} 以上`;
   }
   if (acc.passwordFreeReady) return '已开通免密支付';
-  if ((acc.balanceCents || 0) >= MIN_BALANCE_CENTS) return '余额已满足开门条件';
-  return '请开通微信/支付宝免密，或充值余额至 ¥5 以上';
+  if (availableCents(acc) >= preauthCents) return `可用余额可预授权开门（约 ¥${needYuan}）`;
+  return `请开通微信/支付宝免密，或充值可用余额至 ¥${needYuan} 以上`;
 }

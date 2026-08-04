@@ -365,6 +365,12 @@
         <div v-if="canHandle && detail.exception.status !== 'RESOLVED'" class="drawer-actions">
           <el-button type="primary" @click="addNote">添加备注</el-button>
           <el-button @click="transfer">转派</el-button>
+          <el-button
+            v-if="canResolveWithRepair(detail.exception)"
+            type="success"
+            :loading="repairResolving"
+            @click="resolveWithRepair"
+          >建维修工单并结案</el-button>
           <el-button v-if="canRetry(detail.exception)" type="warning" @click="retryException">重试识别/结算</el-button>
           <el-button
             v-if="detail.exception.sessionId && auth.hasPerm('ops:session:cancel')"
@@ -380,8 +386,8 @@
             :key="action.actionId"
             :timestamp="formatDateTime(action.createdAt)"
           >
-            <strong>{{ dictLabel('ops_exception_action', action.action) }}</strong>
-            · 操作人 {{ action.operatorId || '系统' }}
+            <strong>{{ auditActionLabel(action.action) }}</strong>
+            · 操作人 {{ actorDisplayName({ operatorId: action.operatorId }) }}
             <div class="action-detail">{{ formatOpsActionDetail(action.detail) }}</div>
           </el-timeline-item>
         </el-timeline>
@@ -402,7 +408,14 @@ import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
-import { dictLabel, dictOptions, dictTagType, formatOpsActionDetail } from '@aicabinet/shared-dict';
+import {
+  actorDisplayName,
+  auditActionLabel,
+  dictLabel,
+  dictOptions,
+  dictTagType,
+  formatOpsActionDetail
+} from '@aicabinet/shared-dict';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
@@ -457,6 +470,7 @@ const statusCounts = reactive({ OPEN: 0, PROCESSING: 0, RESOLVED: 0, CLOSED: 0 }
 const drawer = ref(false);
 const detailLoading = ref(false);
 const detail = ref<OpsDetail | null>(null);
+const repairResolving = ref(false);
 const manualSubmitting = ref(false);
 const manualReason = ref('');
 const manualLines = ref<{ skuId: string; quantity: number }[]>([{ skuId: '', quantity: 1 }]);
@@ -558,7 +572,9 @@ function exceptionActions(row: OpsException): TableAction[] {
   if (canHandle.value && row.status === 'OPEN') {
     acts.push({ key: 'claim', label: '领取', icon: UserFilled, type: 'primary' });
   }
-  if (canHandle.value && row.status !== 'RESOLVED') {
+  if (canHandle.value && row.status !== 'RESOLVED' && canResolveWithRepair(row)) {
+    acts.push({ key: 'repair', label: '建工单结案', icon: CircleCheck, type: 'success' });
+  } else if (canHandle.value && row.status !== 'RESOLVED') {
     acts.push({ key: 'resolve', label: '解决', icon: CircleCheck, type: 'success' });
   }
   if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
@@ -578,6 +594,7 @@ function onExceptionAction(key: string, row: OpsException) {
   if (key === 'detail') openDetail(row);
   else if (key === 'claim') claim(row);
   else if (key === 'resolve') resolve(row);
+  else if (key === 'repair') resolveWithRepairRow(row);
   else if (key === 'video') playVideo(row.sessionId);
 }
 
@@ -851,6 +868,48 @@ async function cancelSession() {
 }
 function canRetry(item: OpsException) {
   return !!item.sessionId && ['RECOGNITION_UNAVAILABLE', 'RECOGNITION_FAILED', 'SETTLEMENT_FAILED'].includes(item.exceptionType);
+}
+function canResolveWithRepair(item: OpsException) {
+  return item.exceptionType === 'DEVICE_FAULT'
+    && !!item.deviceId
+    && auth.hasPerm('ops:repair:edit');
+}
+async function resolveWithRepairRow(row: OpsException): Promise<boolean> {
+  try {
+    const { value } = await ElMessageBox.prompt(
+      `将为设备 ${row.deviceId} 创建维修工单并结案本异常。请填写处理说明。`,
+      '建维修工单并结案',
+      {
+        inputValidator: (v) => !!String(v || '').trim() || '必须填写说明',
+        confirmButtonText: '确认',
+        type: 'warning'
+      }
+    );
+    await api.request(`/api/v2/ops/admin/exceptions/${row.exceptionId}/resolve-with-repair`, 'POST', {
+      resolution: String(value).trim()
+    });
+    ElMessage.success('已建维修工单并结案');
+    await load();
+    return true;
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '结案失败');
+    }
+    return false;
+  }
+}
+async function resolveWithRepair() {
+  if (!detail.value) return;
+  repairResolving.value = true;
+  try {
+    const ok = await resolveWithRepairRow(detail.value.exception);
+    if (ok) {
+      resolveFeedback.value = '已创建维修工单并结案';
+      await refreshDetail();
+    }
+  } finally {
+    repairResolving.value = false;
+  }
 }
 async function retryException() {
   if (!detail.value) return;

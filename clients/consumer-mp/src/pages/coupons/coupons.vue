@@ -45,6 +45,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
 
@@ -96,8 +97,7 @@ async function load() {
 }
 
 function typeText(t: string) {
-  const map: Record<string, string> = { AMOUNT_OFF: '满减券', PERCENT_OFF: '折扣券', FREE_SHIPPING: '立减券', EXCHANGE: '兑换券' };
-  return map[t] || t;
+  return displayLabel('coupon_type', t);
 }
 
 function formatTime(t: string) {

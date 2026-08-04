@@ -681,28 +681,16 @@ async function load() {
   loading.value = true;
   try {
     if (overdueOnly.value && statusTab.value === 'PENDING') {
-      // No server overdue filter yet: scan recent PENDING pages then paginate locally.
-      const pageSize = 100;
-      const maxScan = 500;
-      const overdue: OrderSummary[] = [];
-      let apiPage = 0;
-      let scanned = 0;
-      let serverTotal = Number.POSITIVE_INFINITY;
-      while (scanned < maxScan && scanned < serverTotal) {
-        const q = new URLSearchParams({ page: String(apiPage), size: String(pageSize), status: 'PENDING' });
-        if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
-        const data = await api.request<PageResult<OrderSummary>>(`/api/v2/ops/admin/orders?${q}`, 'GET');
-        const batch = data.items || [];
-        serverTotal = data.total ?? batch.length;
-        overdue.push(...batch.filter((r) => isUnpaidOverdue(r)));
-        scanned += batch.length;
-        if (!batch.length || batch.length < pageSize) break;
-        apiPage += 1;
-      }
-      overdue.sort((a, b) => orderAgeMs(b.createdAt) - orderAgeMs(a.createdAt));
-      total.value = overdue.length;
-      const start = (page.value - 1) * size.value;
-      items.value = overdue.slice(start, start + size.value);
+      const q = new URLSearchParams({
+        page: String(page.value - 1),
+        size: String(size.value),
+        status: 'PENDING',
+        overdue: '1'
+      });
+      if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
+      const data = await api.request<PageResult<OrderSummary>>(`/api/v2/ops/admin/orders?${q}`, 'GET');
+      items.value = data.items || [];
+      total.value = data.total || 0;
     } else {
       const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
       if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());

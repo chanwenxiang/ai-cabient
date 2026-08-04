@@ -57,6 +57,7 @@ public class UnpaidOrderService {
     private final WeChatMiniAppClient weChatMiniAppClient;
     private final WeChatMiniAppProperties weChatMiniAppProperties;
     private final SettlementService settlementService;
+    private final ConsumerPreauthService consumerPreauthService;
 
     public UnpaidOrderService(CabinetOrderMapper orderRepository,
                               CabinetOrderLineMapper orderLineRepository,
@@ -74,7 +75,8 @@ public class UnpaidOrderService {
                               SystemConfigService systemConfigService,
                               WeChatMiniAppClient weChatMiniAppClient,
                               WeChatMiniAppProperties weChatMiniAppProperties,
-                              @Lazy SettlementService settlementService) {
+                              @Lazy SettlementService settlementService,
+                              ConsumerPreauthService consumerPreauthService) {
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
         this.userInfoRepository = userInfoRepository;
@@ -92,6 +94,7 @@ public class UnpaidOrderService {
         this.weChatMiniAppClient = weChatMiniAppClient;
         this.weChatMiniAppProperties = weChatMiniAppProperties;
         this.settlementService = settlementService;
+        this.consumerPreauthService = consumerPreauthService;
     }
 
     @Transactional
@@ -136,6 +139,7 @@ public class UnpaidOrderService {
         restoreInventory(order);
         order.setStatus("CANCELLED");
         orderRepository.save(order);
+        consumerPreauthService.releaseBySessionId(order.getSessionId());
 
         boolean blacklist = Boolean.TRUE.equals(request.blacklist());
         if (blacklist && order.getUserId() != null) {
@@ -144,7 +148,7 @@ public class UnpaidOrderService {
                     "待支付关单：" + reason, expires);
         }
         auditService.record(operatorId, "ORDER_CANCEL_UNPAID", "ORDER", orderId,
-                reason + (blacklist ? "; blacklist=true" : ""));
+                reason + (blacklist ? "；已拉黑用户 30 天" : ""));
         log.info("unpaid order cancelled order={} by={} blacklist={}", orderId, operatorId, blacklist);
         return new UnpaidOrderActionResultDto(orderId, "CANCELLED",
                 blacklist ? "已关单并拉黑用户 30 天" : "待支付订单已关闭，库存已回滚", false, blacklist);
@@ -155,7 +159,7 @@ public class UnpaidOrderService {
         permissionService.requireAnyPermission(operatorId, "ops:order:remind", "ops:order:cancel", "ops:order:refund");
         CabinetOrder order = requirePendingScoped(operatorId, orderId);
         markPaid(order);
-        auditService.record(operatorId, "ORDER_COLLECT_UNPAID", "ORDER", orderId, "ops collect");
+        auditService.record(operatorId, "ORDER_COLLECT_UNPAID", "ORDER", orderId, "运营代收");
         return settlementService.getOrderBySession(order.getSessionId());
     }
 
@@ -180,7 +184,7 @@ public class UnpaidOrderService {
             return 0;
         }
         Instant cutoff = Instant.now().minus(hours, ChronoUnit.HOURS);
-        List<CabinetOrder> expired = orderRepository.findByStatusAndCreatedAtBefore("PENDING", cutoff);
+        List<CabinetOrder> expired = orderRepository.findByStatusAndCreatedAtBefore("PENDING", cutoff, 500);
         boolean autoBlacklist = systemConfigService.getBoolean(SystemConfigService.UNPAID_AUTO_BLACKLIST, false);
         int n = 0;
         for (CabinetOrder order : expired) {
@@ -188,12 +192,13 @@ public class UnpaidOrderService {
                 restoreInventory(order);
                 order.setStatus("CANCELLED");
                 orderRepository.save(order);
+                consumerPreauthService.releaseBySessionId(order.getSessionId());
                 if (autoBlacklist && order.getUserId() != null) {
                     riskControlService.addBlacklist(0L, order.getUserId(),
                             "待支付超时自动关单", Instant.now().plus(7, ChronoUnit.DAYS));
                 }
                 auditService.record(0L, "ORDER_AUTO_CANCEL_UNPAID", "ORDER", order.getOrderId(),
-                        "hours=" + hours + "; blacklist=" + autoBlacklist);
+                        "超时 " + hours + " 小时自动关单；是否拉黑=" + (autoBlacklist ? "是" : "否"));
                 n++;
             } catch (Exception ex) {
                 log.warn("auto cancel unpaid failed order={}", order.getOrderId(), ex);

@@ -21,7 +21,8 @@ class OpsExceptionScannerServiceTest {
         session.setSessionId("S1"); session.setDeviceId("D1"); session.setUserId(1L);
         session.setState(SessionState.SETTLING);
         setUpdatedAt(session, Instant.now().minusSeconds(600));
-        when(sessions.findTop10ByStateOrderByUpdatedAtAsc(any())).thenAnswer(invocation ->
+        when(sessions.findByStateAndOpenTimeBefore(any(), any(), anyInt())).thenReturn(List.of());
+        when(sessions.findByStateAndUpdatedAtBefore(any(), any(), anyInt())).thenAnswer(invocation ->
                 invocation.getArgument(0) == SessionState.SETTLING ? List.of(session) : List.of());
         var scanner = new OpsExceptionScannerService(sessions, exceptions,
                 new OpsMonitoringProperties(true, 10, 5, 3, 3));

@@ -1,69 +1,7 @@
 {
-  "java.compile.nullAnalysis.mode": "disabled",
-  "java.jdt.ls.java.home": "C:\\Program Files\\Java\\jdk-17.0.17",
-  "java.configuration.runtimes": [
-    {
-      "name": "JavaSE-17",
-      "path": "C:\\Program Files\\Java\\jdk-17.0.17",
-      "default": true
-    },
-    {
-      "name": "JavaSE-21",
-      "path": "C:\\Program Files\\Java\\jdk-21.0.9"
-    }
-  ],
-  "java.configuration.updateBuildConfiguration": "automatic",
-  "java.configuration.maven.userSettings": "C:\\Users\\cwx\\.m2\\settings.xml",
-  "java.configuration.maven.globalSettings": "D:\\devTools\\apache-maven-3.9.11\\conf\\settings.xml",
-  "java.import.maven.enabled": true,
-  "java.import.generatesMetadataFilesAtProjectRoot": true,
-  "java.import.gradle.enabled": false,
-  "java.gradle.buildServer.enabled": "off",
-  "java.errors.incompleteClasspath.severity": "ignore",
-  "java.project.importOnFirstTimeStartup": "automatic",
-  "java.server.launchMode": "Standard",
-  "java.autobuild.enabled": true,
-  "java.jdt.ls.lombokSupport.enabled": true,
-  "java.jdt.ls.vmargs": "-XX:+UseParallelGC -XX:GCTimeRatio=4 -XX:AdaptiveSizePolicyWeight=90 -Dsun.zip.disableMemoryMapping=true -Xmx2G -Dfile.encoding=UTF-8",
-  "java.import.maven.offline": false,
-  "maven.executable.path": "D:\\devTools\\apache-maven-3.9.11\\bin\\mvn.cmd",
-  "maven.terminal.useJavaHome": true,
-  "files.exclude": {
-    "easygo": true,
-    "**/scripts/_repo_backup": true
-  },
-  "files.watcherExclude": {
-    "**/easygo/**": true,
-    "**/edge/android-app/.gradle/**": true,
-    "**/edge/android-app/build/**": true,
-    "**/edge/android-app/**": true,
-    "**/scripts/_repo_backup/**": true,
-    "**/scripts/**/*.java.bak": true,
-    "**/node_modules/**": true
-  },
-  "java.import.exclusions": [
-    "**/node_modules/**",
-    "**/.git/**",
-    "**/easygo/**",
-    "**/edge/android-app/**",
-    "**/scripts/**",
-    "**/scripts",
-    "**/clients/**/dist/**",
-    "**/services/*/src/main/resources/static/**"
-  ],
-  "java.project.resourceFilters": [
-    "node_modules",
-    "\\.git",
-    "edge[/\\\\]android-app",
-    "scripts",
-    "clients[/\\\\].*[/\\\\]dist",
-    "static[/\\\\]admin[/\\\\]assets"
-  ],
-  "python.analysis.exclude": [
-    "**/node_modules/**",
-    "**/scripts/**",
-    "**/vision-service/scripts/**",
-    "**/vision-service/tests/**",
-    "**/vision-service/training/**"
-  ]
+  "files.encoding": "utf8",
+  "files.autoGuessEncoding": false,
+  "[java]": {
+    "files.encoding": "utf8"
+  }
 }

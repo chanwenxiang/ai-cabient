@@ -119,7 +119,7 @@
 <script setup lang="ts">
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
 import { fmtMoney, orderStatusLabel } from '@aicabinet/shared-uni/format';
 import type { OrderDetailDto } from '@aicabinet/shared-types';
@@ -194,8 +194,7 @@ const canRefundNow = computed(
 const payChannelText = computed(() => {
   const ch = String(order.value?.payChannel || '').toUpperCase();
   if (!ch) return '';
-  const label = dictLabel('pay_channel', ch);
-  return label && label !== '-' ? label : ch;
+  return displayLabel('pay_channel', ch, '');
 });
 
 onLoad((opts) => {

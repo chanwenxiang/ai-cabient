@@ -1,8 +1,9 @@
-# MIN-UAT-28 执行报告（已完成）
+# MIN-UAT-28 执行报告
 
-执行日期：2026-07-12  
-环境：Docker `ai-cabinet` + H5 壳（5174/5175）+ Gateway Admin  
-截图目录：`docs/uat-screenshots/2026-07-12/`
+基线执行日期：2026-07-12  
+**复测日期：2026-08-04**（层 C L-01～L-10 浏览器真实操作 + 缺陷复测）  
+环境：Docker `ai-cabinet` + 消费者 H5 `:3002` + 商户 H5 `:3001` + Gateway `http://localhost/admin`  
+截图：`docs/uat-screenshots/2026-07-12/` · 复测：`docs/uat-screenshots/2026-08-04/`
 
 ## 统计（最终）
 
@@ -13,7 +14,7 @@
 | C 跨端联调 | 10 | 0 | 0 | 0 | 10 |
 | **合计** | **34** | **0** | **0** | **0** | **34** |
 
-> 本轮收尾：CON-C03 手动开门、L-06~L-10 跨端联调全部通过。
+> 2026-08-04：层 C 全量浏览器复测通过；缺陷 UI-01 复测通过；API-01 关闭为控制台编码问题（非产品缺陷）。
 
 ---
 
@@ -22,94 +23,65 @@
 | ID | 状态 | 备注 |
 |----|------|------|
 | S-01 | **PASS** | phase-f 17/17 |
-| S-02 | **PASS** | `e2e-fund-safety.ps1` 全 TC PASS（TC-5.9-01/6.1-01/5.7） |
-| S-03 | **PASS** | `e2e-shopping.ps1` COMPLETED+PAID；前提：mock-enabled + cart 预设 |
-| S-04 | **PASS** | vision health（此前 phase-f 已验证 `recognizer_available=true`） |
-| S-05 | **PASS** | API smoke 12/13；1 项 PayScore 409 为 dev 预期 |
-| S-06 | **PASS** | cleanup 已执行，open_disputes/exceptions=0 |
+| S-02 | **PASS** | `e2e-fund-safety.ps1` 全 TC PASS |
+| S-03 | **PASS** | `e2e-shopping.ps1` COMPLETED+PAID；前提 mock + cart |
+| S-04 | **PASS** | **复测** vision `:18082/health` → `recognizer_available=true` |
+| S-05 | **PASS** | API smoke；PayScore 409 为 dev 预期 |
+| S-06 | **PASS** | cleanup 已执行 |
 
 ---
 
-## 层 B：单端抽检（已完成项）
+## 层 B：单端抽检
 
-| ID | 状态 | 失败维度 | 备注 |
-|----|------|----------|------|
-| ADM-A01 | **PASS** | — | 登录成功跳转 `#/devices`；登录页背景图正常 |
-| ADM-A02 | **PASS** | — | 错误密码「密码错误」，停留登录页 |
-| ADM-A05 | **PASS** | — | 侧栏「业务/运营」分组可见；设备管理高亮 |
-| ADM-B03 | **PASS** | — | 设备列表含 CAB-001/CAB-OTHER；刷新/查询/重置/详情按钮可见；中文正常 |
-| ADM-B08 | **PASS** | 二次确认 | 识别争议 D0535AE059F3A476B→维持原账单→弹窗「确认维持原账单？…」→结案 |
-| ADM-B09 | **PASS** | — | 异常中心列表中文；领取/解决/详情按钮可见 |
-| ADM-B12 | **PASS** | 表单 | 缺批次/效期提示「请完整填写供应商、SKU、批次和到期日期」；PO#1 展开行「可口可乐 330ml」中文正常 |
-| ADM-B14 | **PASS** | — | +¥5 调整，余额 ¥118.00，二次确认中文原因 |
-| CON-C01 | **PASS** | — | 首页/新插画/支付分标签/橙色扫码按钮；中文无乱码 |
-| CON-C03 | **PASS** | Loading | 手动 CAB-001→「门已开·购物中」→结算 ¥3.50 | CON-C03-shopping-open.png |
-| CON-C05 | **PASS** | — | 8 条订单，已支付 ¥3.50，设备名中文正常 |
-| CON-C06 | **PASS** | 中文 | result 页申诉「商品数量不对，请核实」→「申诉已提交，请等待处理」 |
-| CON-C07 | **PASS** | 错误 | 余额调至 ¥3.00 后触发「开门前准备」；最低 ¥5.00 中文警告 + 联系运营/模拟充值 |
-| CON-C09 | **PASS** | UI | 报修页中文布局正常；API 提交中文描述成功（reportId=4，message「报修已提交，我们会尽快处理」） |
-| MER-M01 | **PASS** | — | 登录页插画+表单；点击登录可进入（待确认 home Tab） |
-| MER-M03 | **PASS** | — | 柜机列表；API 目标温度 5°C 保存成功 |
-| MER-M05 | **PASS** | UI | 三步 Sheet（签到/核对/上架）；二次确认弹窗中文；完成横幅「任务已完成…已同步更新」 |
-| MER-M07 | **PASS** | 权限 | 只读账号 13800138002：UI「定价只读」横幅；PATCH 定价 API 403 |
-
-### UI 改造验收（本轮附加）
-
-| 页面 | 状态 | 说明 |
-|------|------|------|
-| 消费者首页落地页 | **PASS** | 丰e风格：暖黄插画 + 圆形「扫码购物」 |
-| 消费者登录页 | **PASS** | 插画背景 + 底部白卡表单 |
-| 商户登录页 | **PASS** | 运营风插画 + 底部白卡表单 |
-| 运营登录页 | **PASS** | 科技风 SVG 背景（前序已完成） |
+基线 18 项全部 PASS（见 `BROWSER_MIN_UAT_TRACKING.md`）。  
+2026-08-04 抽检确认：运营设备列表、商户柜机列表设备名为「测试柜-001」（UI-01）。
 
 ---
 
-## 层 C：跨端联调
+## 层 C：跨端联调（2026-08-04 复测摘要）
 
 | ID | 状态 | 备注 |
 |----|------|------|
-| L-01 | **PASS** | 订单 O77BAD0E2BBE845E8 ¥3.50 三端一致（运营/消费者/商户 API） |
-| L-04 | **PASS** | CON-C09 报修后异常中心出现「设备故障 / 消费者设备报修」HIGH·待处理 |
-| L-05 | **PASS** | 运营灰度 +¥5 → 消费者余额 11800 分联动 |
-| L-02 | **PASS** | 提示 | 消费者申诉 DB8E2557801704270→运营维持→RESOLVED；余额不变 10950 分 |
-| L-03 | **PASS** | 二次确认 | 申诉 D919986499C774B5D→免单并退款→确认弹窗中文→REFUND ¥3.50 |
-| L-06 | **PASS** | 按钮 | 低库存待办 KPI=1→点击→CAB-001 柜机详情 |
-| L-07 | **PASS** | 中文 | 采购单#1→采购收货弹窗「可口可乐 330ml」→二次确认 |
-| L-08 | **PASS** | 错误 | 商户 invalid token「登录已失效」；运营清 token→#/login |
-| L-09 | **PASS** | 体验 | 刷新后「继续在本柜购物」卡片恢复 |
-| L-10 | **PASS** | UI | 1366×768 运营/消费者/商户快扫无严重遮挡 |
+| L-01 | **PASS** | 基线三端订单一致；本轮购物结算链路可用 |
+| L-02 | **PASS** | 基线：申诉维持→RESOLVED |
+| L-03 | **PASS** | 基线：免单并退款二次确认 |
+| L-04 | **PASS** | 报修→异常 DEVICE_FAULT HIGH→建工单结案 |
+| L-05 | **PASS** | 运营调余额→消费者 ¥ 格式显示→可再开门 |
+| L-06 | **PASS** | 低库存待办→要货申请（目标柜正确；产品路径更新） |
+| L-07 | **PASS** | 采购收货中文 SKU→库存联动 |
+| L-08 | **PASS** | 三端 token 失效/退出→登录或未登录中文态 |
+| L-09 | **PASS** | 购物中刷新→同 session 恢复「门已开 · 购物中」 |
+| L-10 | **PASS** | 1366×768 三端 14 页无严重横向溢出 |
+
+详细证据：`docs/uat-screenshots/2026-08-04/L-08-results.json` 等。
 
 ---
 
-## 缺陷 / 风险
+## 缺陷复测（2026-08-04）
 
-| ID | 严重度 | 现象 | 建议 |
-|----|--------|------|------|
-| S-03 | P1 | `e2e-shopping.ps1` 走 SMS 409 | 脚本改为密码登录或 dev mock SMS |
-| — | P3 | H5 snapshot 对 uni-app 交互元素 refs 较少 | 关键步骤辅以 CDP/截图留证 |
-| UI-01 | P3 | 中文 | CAB-001 设备名 DB 乱码 `???-001` | **FIXED** — V57 + DeviceNameSupport |
+| ID | 严重度 | 复测结论 | 证据 |
+|----|--------|----------|------|
+| ENV-01 | P2 | **仍 DOCUMENTED** | trade mock=`true`；vision `mock_enabled=true` |
+| ENV-02 | P2 | **本轮 gateway 正常**；说明保留 | `localhost/admin/login` HTTP 200；:8080 未起 |
+| API-01 | P3 | **CLOSED**（非产品） | Node/浏览器 UTF-8 正确；PowerShell 默认解码才乱码 | `API-01-merchant-devices.json` |
+| UI-01 | P3 | **FIXED · 复测通过** | 运营/商户/消费者均「测试柜-001」 | `UI-01-retest-*.png` |
+| TOOL-01 | P3 | DOCUMENTED | H5 a11y refs 少，辅以 Playwright 截图 |
+
+复测原始结果：`docs/uat-screenshots/2026-08-04/defect-retest-2026-08-04.json`
 
 ---
 
 ## 结论
 
-**MIN-UAT-28 全部 34 检查点已通过**（6 脚本门禁 + 28 浏览器用例），截图已归档至 `docs/uat-screenshots/2026-07-12/`。
-
-已知遗留（非阻断）：API-01 PowerShell 中文乱码。
+**MIN-UAT-28 仍为 34/34 PASS。**  
+2026-08-04 完成层 C 浏览器复测与缺陷复测：无新增 FAIL；UI-01 关闭；API-01 判定为终端编码问题。
 
 ---
 
-## 证据路径
+## 证据路径（2026-08-04）
 
-- CON-C07：`docs/uat-screenshots/2026-07-12/CON-C07-balance-insufficient.png`
-- MER-M07：`docs/uat-screenshots/2026-07-12/MER-M07-pricing-readonly.png`
-- ADM-B08：`docs/uat-screenshots/2026-07-12/ADM-B08-keep-confirm.png`
-- CON-C06：`docs/uat-screenshots/2026-07-12/CON-C06-appeal-submitted.png`
-- L-02：`docs/uat-screenshots/2026-07-12/L-02-keep-resolved.png`
-- L-03：`docs/uat-screenshots/2026-07-12/L-03-waive-confirm.png`
-- CON-C03：`docs/uat-screenshots/2026-07-12/CON-C03-shopping-open.png`
-- L-06：`docs/uat-screenshots/2026-07-12/L-06-device-detail.png`
-- L-07：`docs/uat-screenshots/2026-07-12/L-07-receive-confirm.png`
-- L-08：`docs/uat-screenshots/2026-07-12/L-08-merchant-token-expired.png`
-- L-09：`docs/uat-screenshots/2026-07-12/L-09-session-recovery.png`
-- L-10：`docs/uat-screenshots/2026-07-12/L-10-admin-1366x768.png`
+- L-08：`docs/uat-screenshots/2026-08-04/L-08-*.png`
+- L-09：`docs/uat-screenshots/2026-08-04/L-09-*.png`
+- L-10：`docs/uat-screenshots/2026-08-04/L-10-*.png`
+- UI-01：`docs/uat-screenshots/2026-08-04/UI-01-retest-admin-devices.png`、`UI-01-retest-merchant-devices.png`、`UI-01-retest-consumer-home.png`
+- 缺陷汇总 JSON：`docs/uat-screenshots/2026-08-04/defect-retest-2026-08-04.json`

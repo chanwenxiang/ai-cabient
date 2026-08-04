@@ -77,7 +77,7 @@
         <view class="row-between">
           <text class="req-id">#{{ req.requestId }}</text>
           <text class="status" :class="(req.status || '').toLowerCase()">
-            {{ dictLabel('replenishment_request_status', req.status) }}
+            {{ displayLabel('replenishment_request_status', req.status) }}
           </text>
         </view>
         <text class="sku-name">{{ req.deviceName || req.deviceId }}</text>
@@ -102,7 +102,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
 import {
   hasPerm,
   merchantApi,

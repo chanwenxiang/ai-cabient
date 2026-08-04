@@ -40,7 +40,34 @@
             size="large"
             :disabled="loading"
             @input="err = ''"
+            @keyup.enter="focusCaptcha"
           />
+        </el-form-item>
+        <el-form-item label="验证码">
+          <div class="captcha-row">
+            <el-input
+              ref="captchaInput"
+              v-model="captchaCode"
+              maxlength="8"
+              autocomplete="off"
+              placeholder="图形验证码"
+              size="large"
+              :disabled="loading"
+              @input="err = ''"
+              @keyup.enter="onSubmit"
+            />
+            <button
+              type="button"
+              class="captcha-img-btn"
+              title="点击刷新验证码"
+              :data-captcha-id="captchaId"
+              :disabled="captchaLoading || loading"
+              @click="loadCaptcha"
+            >
+              <img v-if="captchaImage" :src="captchaImage" alt="验证码" />
+              <span v-else>{{ captchaLoading ? '加载中…' : '点击获取' }}</span>
+            </button>
+          </div>
         </el-form-item>
         <el-button type="primary" native-type="submit" :loading="loading" :disabled="loading" class="submit-btn">登录</el-button>
         <p v-if="err" class="err" role="alert">{{ err }}</p>
@@ -58,16 +85,22 @@
 import { nextTick, onMounted, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
+import { api } from '@/api/client';
 import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import { safeRedirectPath } from '@/utils/safe-redirect';
 import loginBgUrl from '@/assets/login-bg.svg';
 
 const phone = ref(ENABLE_TEST_TOOLS ? '13900000001' : '');
 const password = ref(ENABLE_TEST_TOOLS ? '123456' : '');
+const captchaCode = ref('');
+const captchaId = ref('');
+const captchaImage = ref('');
+const captchaLoading = ref(false);
 const loading = ref(false);
 const err = ref('');
 const phoneInput = ref<{ focus?: () => void } | null>(null);
 const passwordInput = ref<{ focus?: () => void } | null>(null);
+const captchaInput = ref<{ focus?: () => void } | null>(null);
 const auth = useAuthStore();
 const router = useRouter();
 const route = useRoute();
@@ -76,10 +109,30 @@ function focusPassword() {
   passwordInput.value?.focus?.();
 }
 
+function focusCaptcha() {
+  captchaInput.value?.focus?.();
+}
+
+async function loadCaptcha() {
+  captchaLoading.value = true;
+  try {
+    const data = await api.fetchCaptcha();
+    captchaId.value = data.captchaId;
+    captchaImage.value = data.imageBase64;
+    captchaCode.value = '';
+  } catch (e) {
+    err.value = e instanceof Error ? e.message : '验证码加载失败';
+  } finally {
+    captchaLoading.value = false;
+  }
+}
+
 onMounted(async () => {
+  await loadCaptcha();
   await nextTick();
   if (!phone.value) phoneInput.value?.focus?.();
   else if (!password.value) passwordInput.value?.focus?.();
+  else captchaInput.value?.focus?.();
 });
 
 async function onSubmit() {
@@ -92,13 +145,26 @@ async function onSubmit() {
     err.value = '请输入登录密码';
     return;
   }
+  if (!captchaCode.value.trim()) {
+    err.value = '请输入图形验证码';
+    return;
+  }
+  if (!captchaId.value) {
+    err.value = '验证码未加载，请点击刷新';
+    await loadCaptcha();
+    return;
+  }
   loading.value = true;
   err.value = '';
   try {
-    await auth.login(normalizedPhone, password.value);
+    await auth.login(normalizedPhone, password.value, {
+      captchaId: captchaId.value,
+      captchaCode: captchaCode.value.trim()
+    });
     router.replace(safeRedirectPath(route.query.redirect));
   } catch (e) {
     err.value = e instanceof Error ? e.message : '登录失败';
+    await loadCaptcha();
   } finally {
     loading.value = false;
   }
@@ -289,6 +355,37 @@ async function onSubmit() {
   border-radius: 10px;
   font-size: 1rem;
   font-weight: 600;
+}
+.captcha-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  align-items: stretch;
+}
+.captcha-row .el-input {
+  flex: 1;
+}
+.captcha-img-btn {
+  flex: 0 0 120px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid rgba(45, 212, 191, 0.28);
+  border-radius: 10px;
+  background: rgba(30, 41, 59, 0.9);
+  cursor: pointer;
+  overflow: hidden;
+  color: #94a3b8;
+  font-size: 12px;
+}
+.captcha-img-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+.captcha-img-btn img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 .err {
   color: #ef4444;

@@ -133,7 +133,7 @@
           <el-table-column label="状态" width="96" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="disputeStatusType(row.status)">
-                {{ dictLabel('dispute_status', row.status) || row.status }}
+                {{ displayLabel('dispute_status', row.status) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -221,6 +221,15 @@
           </div>
           <el-empty v-else-if="!videoLoading" description="暂无录像或加载失败" :image-size="72" />
           <div v-else class="video-loading">录像加载中…</div>
+          <el-alert
+            v-if="!embedVideoUrl && !videoLoading"
+            type="info"
+            :closable="false"
+            show-icon
+            class="no-video-guide"
+            title="无录像时的结案步骤"
+            description="先点「重新加载录像」或「新窗口打开」再试；仍无法播放时，勾选「无录像 / 无法播放，仍结案」，再勾选「已对照录像核对」，然后处理结案。有录像时必须先观看并勾选核对。"
+          />
           <div class="drawer-actions drawer-actions--review">
             <el-button
               v-if="selected.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))"
@@ -234,6 +243,14 @@
               type="primary"
               @click="playVideo(selected.sessionId)"
             >新窗口打开</el-button>
+            <el-checkbox
+              v-model="videoReviewed"
+              :disabled="!embedVideoUrl && !noVideoAck"
+            >已对照录像核对</el-checkbox>
+            <el-checkbox
+              v-if="!embedVideoUrl && !videoLoading"
+              v-model="noVideoAck"
+            >无录像 / 无法播放，仍结案</el-checkbox>
             <el-button
               v-if="selected.deviceId && canAccessPath('/exceptions')"
               @click="goExceptions(selected.deviceId)"
@@ -406,7 +423,7 @@ import { computed, onActivated, onDeactivated, onMounted, ref, watch } from 'vue
 import { useRoute, useRouter } from 'vue-router';
 import { Link, Refresh, VideoCamera, View, Warning } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -450,6 +467,8 @@ const suggestingDispute = ref(false);
 const disputeSuggestHint = ref('');
 const disputeImageInput = ref<HTMLInputElement | null>(null);
 const resolveFeedback = ref<{ message: string } | null>(null);
+const videoReviewed = ref(false);
+const noVideoAck = ref(false);
 const skus = ref<SkuOption[]>([]);
 const draftLines = ref<{ skuId: string; quantity: number }[]>([]);
 
@@ -521,6 +540,8 @@ function clearEmbedVideo() {
 
 function onDetailClosed() {
   resolveFeedback.value = null;
+  videoReviewed.value = false;
+  noVideoAck.value = false;
   clearEmbedVideo();
   draftLines.value = [];
 }
@@ -740,6 +761,18 @@ function applyResolvedTicket(result: ResolveDisputeResultDto) {
 
 async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'ADJUST') {
   if (!selected.value || resolving.value) return;
+  if (!videoReviewed.value && !noVideoAck.value) {
+    ElMessage.warning(
+      embedVideoUrl.value
+        ? '请先观看录像并勾选「已对照录像核对」'
+        : '请先勾选「无录像 / 无法播放，仍结案」，再勾选「已对照录像核对」后结案'
+    );
+    return;
+  }
+  if (noVideoAck.value && !videoReviewed.value) {
+    ElMessage.warning('已确认无录像后，仍需勾选「已对照录像核对」表示人工已知情结案');
+    return;
+  }
   const action =
     resolutionType === 'KEEP'
       ? '维持原账单'
@@ -751,7 +784,10 @@ async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'A
     return;
   }
   try {
-    await ElMessageBox.confirm(`确认${action}？该操作会写入资金与审计记录。`, '确认争议处理', {
+    await ElMessageBox.confirm(
+      `确认${action}？该操作会写入资金与审计记录。${noVideoAck.value ? '\n（已确认无录像仍结案）' : '\n（已确认对照录像）'}`,
+      '确认争议处理',
+      {
       type: resolutionType === 'WAIVE' ? 'warning' : 'info',
       confirmButtonText: '确认处理',
       cancelButtonText: '取消'
@@ -1010,6 +1046,7 @@ onMounted(async () => {
 .items-title { font-weight: 600; margin-bottom: 8px; }
 .ai-suggest-block { width: 100%; margin-bottom: 12px; }
 .suggest-alert { margin-top: 8px; }
+.no-video-guide { margin: 8px 0; }
 .hidden-input { display: none; }
 .workbench-grid {
   display: grid;

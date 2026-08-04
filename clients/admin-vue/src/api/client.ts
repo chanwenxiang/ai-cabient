@@ -28,8 +28,8 @@ export const api = new ApiClient({
   },
   clearSession,
   onUnauthorized: () => {
-    if (!window.location.hash.includes('/login')) {
-      window.location.hash = '#/login';
+    if (!window.location.pathname.includes('/login')) {
+      window.location.assign('/admin/login');
     }
   }
 });
@@ -85,8 +85,8 @@ export async function downloadAuthFile(path: string, fallbackName: string) {
   });
   if (res.status === 401) {
     clearSession();
-    if (!window.location.hash.includes('/login')) {
-      window.location.hash = '#/login';
+    if (!window.location.pathname.includes('/login')) {
+      window.location.assign('/admin/login');
     }
     throw new Error('登录已失效');
   }

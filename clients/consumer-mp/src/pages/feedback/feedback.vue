@@ -98,6 +98,7 @@
 <script setup lang="ts">
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { ref } from 'vue';
+import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
 import { eventInputValue, readDomFieldValue, readDomTextarea } from '@/utils/form-bind';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
@@ -114,12 +115,7 @@ const historyLoading = ref(false);
 const historyError = ref('');
 const history = ref<UserFeedbackDto[]>([]);
 
-const typeOptions = [
-  { value: 'COMPLAINT', label: '投诉' },
-  { value: 'SUGGESTION', label: '建议' },
-  { value: 'BUG', label: '故障/缺陷' },
-  { value: 'PRAISE', label: '表扬' }
-];
+const typeOptions = dictOptions('feedback_type');
 
 onLoad((opts) => {
   const fromQuery = (opts?.deviceId as string) || '';
@@ -135,13 +131,11 @@ onShow(() => {
 });
 
 function typeLabel(t?: string) {
-  return typeOptions.find((x) => x.value === t)?.label || t || '反馈';
+  return displayLabel('feedback_type', t, '反馈');
 }
 
 function statusLabel(s?: string) {
-  if (s === 'HANDLED' || s === 'REPLIED') return '已回复';
-  if (s === 'CLOSED') return '已关闭';
-  return '处理中';
+  return displayLabel('feedback_status', s, '处理中');
 }
 
 function statusClass(s?: string) {

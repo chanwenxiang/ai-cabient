@@ -111,7 +111,21 @@
         </el-select>
       </el-form-item>
       <el-form-item label="路线">
-        <el-input v-model="routeFilter" clearable placeholder="路线编码" style="width: 120px" @keyup.enter="search" />
+        <el-select
+          v-model="routeFilter"
+          clearable
+          filterable
+          placeholder="全部"
+          style="width: 160px"
+          @change="search"
+        >
+          <el-option
+            v-for="item in dictOptions('route_code')"
+            :key="item.value"
+            :label="`${item.label}（${item.value}）`"
+            :value="item.value"
+          />
+        </el-select>
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="search">查询</el-button>

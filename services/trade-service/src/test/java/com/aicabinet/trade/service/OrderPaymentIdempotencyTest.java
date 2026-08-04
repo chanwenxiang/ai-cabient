@@ -51,8 +51,9 @@ class OrderPaymentIdempotencyTest {
                 new SecurityProperties(true),
                 paymentOperationRepository,
                 balanceLedgerService,
-                new CheckoutProperties(true),
-                sessionRepository);
+                new CheckoutProperties(true, 2000),
+                sessionRepository,
+                null);
     }
 
     @Test

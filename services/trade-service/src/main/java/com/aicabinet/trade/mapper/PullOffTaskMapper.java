@@ -21,7 +21,15 @@ public interface PullOffTaskMapper extends BaseTradeMapper<PullOffTask> {
     }
 
     default List<PullOffTask> findByStatusOrderByCreatedAtDesc(String status) {
-    return selectList(Wrappers.<PullOffTask>lambdaQuery().eq(PullOffTask::getStatus, status).orderByDesc(PullOffTask::getCreatedAt));
+        return findByStatusOrderByCreatedAtDesc(status, 500);
+    }
+
+    default List<PullOffTask> findByStatusOrderByCreatedAtDesc(String status, int limit) {
+        int lim = Math.max(1, Math.min(limit, 500));
+        return selectList(Wrappers.<PullOffTask>lambdaQuery()
+                .eq(PullOffTask::getStatus, status)
+                .orderByDesc(PullOffTask::getCreatedAt)
+                .last("LIMIT " + lim));
     }
 
     default Optional<PullOffTask> findByLotIdAndStatus(String lotId, String status) {

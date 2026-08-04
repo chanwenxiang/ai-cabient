@@ -17,12 +17,28 @@ public interface DeviceSkuInventoryMapper extends BaseTradeMapper<DeviceSkuInven
     }
 
     default List<DeviceSkuInventory> findByIdDeviceIdIn(Collection<String> deviceIds) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return List.of();
+        }
         return selectList(Wrappers.<DeviceSkuInventory>lambdaQuery().in(DeviceSkuInventory::getDeviceId, deviceIds));
+    }
+
+    /** 无设备过滤时的浏览上限，避免全表加载。 */
+    default List<DeviceSkuInventory> findAllLimit(int limit) {
+        int lim = Math.max(1, Math.min(limit, 5000));
+        return selectList(Wrappers.<DeviceSkuInventory>lambdaQuery()
+                .orderByAsc(DeviceSkuInventory::getDeviceId)
+                .orderByAsc(DeviceSkuInventory::getSkuId)
+                .last("LIMIT " + lim));
     }
 
         long countLowStock();
 
         List<DeviceSkuInventory> findLowStock();
+
+        List<DeviceSkuInventory> findLowStockLimit(@org.apache.ibatis.annotations.Param("limit") int limit);
+
+        long countLowStockByDeviceIds(@org.apache.ibatis.annotations.Param("deviceIds") Collection<String> deviceIds);
 
     /** Composite PK: (device_id, sku_id) — MyBatis-Plus selectById needs a single @TableId. */
     @Override

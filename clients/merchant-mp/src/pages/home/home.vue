@@ -166,7 +166,7 @@ import { canAccessNav, hasPack, useMerchantMe } from '@/composables/useMerchantM
 import { MERCHANT_BIZ_NAV, MERCHANT_FIELD_NAV } from '@/config/merchant-nav';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { formatMerchantNames } from '@/utils/merchant-display';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
 import { mergeTodoItems } from '@/utils/todo-list';
@@ -239,7 +239,7 @@ function deviceLabel(id?: string) {
 }
 
 function statusLabel(status?: string) {
-  return dictLabel('replenishment_task_status', status || '') || status || '';
+  return displayLabel('replenishment_task_status', status, '-');
 }
 
 function goTab(url: string) {

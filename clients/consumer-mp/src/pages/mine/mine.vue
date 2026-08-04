@@ -6,10 +6,11 @@
       <view class="profile-info">
         <text class="hello">{{ authed ? displayName : '未登录' }}</text>
         <view v-if="authed" class="balance-row" @click="goRecharge">
-          <text class="balance-label">余额</text>
+          <text class="balance-label">可用</text>
           <text class="balance-number">¥{{ balanceYuan }}</text>
           <text class="balance-action">充值 ›</text>
         </view>
+        <text v-if="authed && frozenYuan !== '0.00'" class="guest-hint">冻结 ¥{{ frozenYuan }} · 总余额 ¥{{ totalBalanceYuan }}</text>
         <text v-else class="guest-hint">登录后可查看订单与余额</text>
         <view v-if="authed" class="tags">
           <text class="tag" :class="verified ? 'ok' : 'warn'">{{ verified ? '已实名' : '待实名' }}</text>
@@ -197,7 +198,12 @@ import { computed, ref } from 'vue';
 import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
 import { clearConsumerSession, consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
-import { isPayReady, payReadyHint } from '@/utils/account';
+import {
+  availableCents,
+  isPayReady,
+  payReadyHint,
+  resolveClientPreauthCents
+} from '@/utils/account';
 import {
   resumePendingRechargeIfAny,
   runAlipayRecharge,
@@ -222,16 +228,30 @@ const mockRechargeEnabled = ref(false);
 const alipayRechargeEnabled = ref(false);
 const wechatRechargeEnabled = ref(false);
 const wechatPayLive = ref(false);
+const configPreauthCents = ref<number | null>(null);
 
+const preauthCents = computed(() =>
+  resolveClientPreauthCents({ configPreauthCents: configPreauthCents.value })
+);
+const frozenYuan = computed(() => (Math.max(0, account.value?.frozenCents || 0) / 100).toFixed(2));
+const totalBalanceYuan = computed(() => ((account.value?.balanceCents || 0) / 100).toFixed(2));
 const verified = computed(() => !!account.value?.verified);
-const payReady = computed(() => isPayReady(account.value));
+const payReady = computed(() => isPayReady(account.value, null, preauthCents.value));
 const needsSetup = computed(() => !verified.value || !payReady.value);
 const displayName = computed(() => account.value?.realName || '我的账户');
 const avatarText = computed(() => account.value?.realName?.slice(0, 1) || '我');
 const setupHint = computed(() => {
   if (!verified.value) return '完成实名并开通免密支付后即可开门';
-  return payReadyHint(account.value);
+  return payReadyHint(account.value, null, preauthCents.value);
 });
+
+function syncBalanceDisplay(acc: AccountDto | null) {
+  if (!acc) {
+    balanceYuan.value = '-';
+    return;
+  }
+  balanceYuan.value = (availableCents(acc) / 100).toFixed(2);
+}
 
 onShow(async () => {
   await ensureConsumerAuth();
@@ -245,6 +265,8 @@ onShow(async () => {
       wechatRechargeEnabled: cfg?.wechatRechargeEnabled,
       wechatPayLive: cfg?.wechatPayLive
     });
+    const p = Number(cfg?.preauthCents);
+    configPreauthCents.value = Number.isFinite(p) && p > 0 ? p : null;
   } catch {
     mockRechargeEnabled.value = false;
     alipayRechargeEnabled.value = false;
@@ -252,15 +274,15 @@ onShow(async () => {
     wechatPayLive.value = false;
   }
   if (!authed.value) {
-    balanceYuan.value = '-';
+    syncBalanceDisplay(null);
     account.value = null;
     return;
   }
   try {
     account.value = await consumerApi.account();
-    balanceYuan.value = ((account.value.balanceCents || 0) / 100).toFixed(2);
+    syncBalanceDisplay(account.value);
   } catch (e) {
-    balanceYuan.value = '-';
+    syncBalanceDisplay(null);
     account.value = null;
     authed.value = !!getConsumerToken();
     if (!authed.value) {
@@ -273,7 +295,7 @@ onShow(async () => {
   if (resumed) {
     try {
       account.value = await consumerApi.account();
-      balanceYuan.value = ((account.value.balanceCents || 0) / 100).toFixed(2);
+      syncBalanceDisplay(account.value);
     } catch {
       /* keep previous snapshot */
     }
@@ -322,7 +344,7 @@ function formatTransactionAmount(cents: number) {
 
 async function refreshAccount() {
   account.value = await consumerApi.account();
-  balanceYuan.value = ((account.value.balanceCents || 0) / 100).toFixed(2);
+  syncBalanceDisplay(account.value);
   if (showTransactions.value) {
     const page = await consumerApi.balanceTransactions(0, 10);
     transactions.value = page.items || [];

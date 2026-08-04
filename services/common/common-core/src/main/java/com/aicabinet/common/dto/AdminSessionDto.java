@@ -18,5 +18,8 @@ public record AdminSessionDto(
         String videoPreviewUrl,
         String failReason,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        /** CONSUMER / RESTOCK / OPS */
+        String sessionKind,
+        Long replenishmentTaskId
 ) {}

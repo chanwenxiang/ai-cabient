@@ -11,6 +11,7 @@ spring:
 aicabinet:
   security:
     mock-enabled: true
+    captcha-enabled: false
   reconciliation:
     mock-enabled: true
     scheduled-enabled: false

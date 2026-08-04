@@ -1,12 +1,14 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.CaptchaResponse;
 import com.aicabinet.common.dto.LoginRequest;
 import com.aicabinet.common.dto.LoginResponse;
 import com.aicabinet.common.dto.PasswordLoginRequest;
 import com.aicabinet.common.dto.WxLoginRequest;
 import com.aicabinet.trade.auth.JwtService;
 import com.aicabinet.trade.service.AuthService;
+import com.aicabinet.trade.service.CaptchaService;
 import com.aicabinet.trade.support.ApiMessages;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -19,10 +21,17 @@ public class AuthController {
 
     private final AuthService authService;
     private final JwtService jwtService;
+    private final CaptchaService captchaService;
 
-    public AuthController(AuthService authService, JwtService jwtService) {
+    public AuthController(AuthService authService, JwtService jwtService, CaptchaService captchaService) {
         this.authService = authService;
         this.jwtService = jwtService;
+        this.captchaService = captchaService;
+    }
+
+    @GetMapping("/captcha")
+    public ApiResponse<CaptchaResponse> captcha() {
+        return ApiResponse.ok(captchaService.create());
     }
 
     @PostMapping("/sms-code")
@@ -48,6 +57,13 @@ public class AuthController {
 
     @PostMapping("/admin-password-login")
     public ApiResponse<LoginResponse> adminPasswordLogin(@Valid @RequestBody PasswordLoginRequest request) {
+        captchaService.verifyOrThrow(request.captchaId(), request.captchaCode());
+        return ApiResponse.ok(authService.adminLoginByPassword(request));
+    }
+
+    /** 商户端密码登录：同运营鉴权边界，但不要求图形验证码。 */
+    @PostMapping("/merchant-password-login")
+    public ApiResponse<LoginResponse> merchantPasswordLogin(@Valid @RequestBody PasswordLoginRequest request) {
         return ApiResponse.ok(authService.adminLoginByPassword(request));
     }
 

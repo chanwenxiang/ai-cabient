@@ -19,7 +19,27 @@ public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
     }
 
     default List<DisputeTicket> findByStatusOrderByCreatedAtDesc(String status) {
-    return selectList(Wrappers.<DisputeTicket>lambdaQuery().eq(DisputeTicket::getStatus, status).orderByDesc(DisputeTicket::getCreatedAt));
+        return findByStatusOrderByCreatedAtDesc(status, 500);
+    }
+
+    default List<DisputeTicket> findByStatusOrderByCreatedAtDesc(String status, int limit) {
+        int lim = Math.max(1, Math.min(limit, 500));
+        return selectList(Wrappers.<DisputeTicket>lambdaQuery()
+                .eq(DisputeTicket::getStatus, status)
+                .orderByDesc(DisputeTicket::getCreatedAt)
+                .last("LIMIT " + lim));
+    }
+
+    /** SLA 扫描：仅拉取仍可能需要提醒/逾期告警的 OPEN 工单。 */
+    default List<DisputeTicket> findOpenNeedingSlaScan(int limit) {
+        int lim = Math.max(1, Math.min(limit, 500));
+        return selectList(Wrappers.<DisputeTicket>lambdaQuery()
+                .eq(DisputeTicket::getStatus, "OPEN")
+                .and(w -> w.isNull(DisputeTicket::getSlaDueAt)
+                        .or().isNull(DisputeTicket::getSlaReminderAt)
+                        .or().isNull(DisputeTicket::getSlaAlertedAt))
+                .orderByAsc(DisputeTicket::getCreatedAt)
+                .last("LIMIT " + lim));
     }
 
     default List<DisputeTicket> findTop10ByStatusOrderBySlaDueAtAscCreatedAtAsc(String status) {

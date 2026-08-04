@@ -86,7 +86,8 @@ public class RepairTicketController {
             @PathVariable long ticketId,
             @RequestBody Map<String, String> body) {
         return ApiResponse.ok(repairTicketService.transition(
-                operator(request), ticketId, body.get("status"), body.get("remark")));
+                operator(request), ticketId, body.get("status"), body.get("remark"),
+                "true".equalsIgnoreCase(String.valueOf(body.getOrDefault("unlockDevice", "false")))));
     }
 
     private Long operator(HttpServletRequest request) {

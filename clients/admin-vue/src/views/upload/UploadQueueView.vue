@@ -15,14 +15,22 @@
       </div>
     </template>
 
-    <el-alert
-      class="upload-hint"
-      type="info"
-      :closable="false"
-      show-icon
-      title="本页为设备录像上传状态队列，不是人工上传入口"
-      description="购物会话关门后，设备/边缘端会自动上传录像到对象存储；此处仅查询待上传、上传中、失败会话，并可预览已上传文件。处理时限与工作台「录像滞留」一致（30 分钟）。"
-    />
+    <div class="list-lead">
+      <el-button text type="primary" size="small" class="help-toggle" @click="helpOpen = !helpOpen">
+        {{ helpOpen ? '收起说明' : '上传说明' }}
+      </el-button>
+      <el-collapse-transition>
+        <el-alert
+          v-show="helpOpen"
+          class="upload-hint"
+          type="info"
+          :closable="false"
+          show-icon
+          title="本页为设备录像上传状态队列，不是人工上传入口"
+          description="购物会话关门后，设备/边缘端会自动上传录像到对象存储；此处仅查询待上传、上传中、失败会话，并可预览已上传文件。处理时限与工作台「录像滞留」一致（30 分钟）。"
+        />
+      </el-collapse-transition>
+    </div>
 
     <el-alert
       v-if="stuckOnly ? total > 0 : pageStuckCount > 0"
@@ -210,6 +218,7 @@ const route = useRoute();
 const { router, goPath } = useNavAccess();
 const { playSessionVideo } = useSessionVideo();
 const loading = ref(false);
+const helpOpen = ref(false);
 const deviceId = ref('');
 const uploadStatus = ref('');
 const stuckOnly = ref(false);
@@ -551,7 +560,9 @@ onActivated(() => {
 .title { font-size: 15px; font-weight: 600; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .page-card-head__actions { display: flex; gap: 8px; }
-.upload-hint { margin-bottom: 12px; }
+.list-lead { margin: 0 0 8px; }
+.help-toggle { padding-left: 0; }
+.upload-hint { margin: 8px 0 0; }
 .sla-banner { margin-bottom: 10px; }
 .sla-cell { display: grid; gap: 2px; line-height: 1.35; }
 .sla-meta { color: var(--el-text-color-secondary); font-size: 11px; }

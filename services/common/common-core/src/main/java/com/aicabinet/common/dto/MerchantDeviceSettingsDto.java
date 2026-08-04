@@ -14,5 +14,6 @@ public record MerchantDeviceSettingsDto(
         boolean tempOutOfRange,
         String opsRemark,
         Boolean tempCommandSent,
-        String tempCommandMessage
+        String tempCommandMessage,
+        boolean salesLocked
 ) {}

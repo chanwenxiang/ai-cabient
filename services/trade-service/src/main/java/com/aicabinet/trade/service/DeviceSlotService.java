@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -29,6 +30,7 @@ public class DeviceSlotService {
     private final MerchantScopeService merchantScopeService;
     private final SalesVelocityService salesVelocityService;
     private final RefundPolicyService refundPolicyService;
+    private final InventoryLotService inventoryLotService;
 
     public DeviceSlotService(DeviceSlotMapper slotRepository,
                              DeviceSkuLotMapper lotRepository,
@@ -39,7 +41,8 @@ public class DeviceSlotService {
                              ReplenishmentTaskMapper taskRepository,
                              MerchantScopeService merchantScopeService,
                              SalesVelocityService salesVelocityService,
-                             RefundPolicyService refundPolicyService) {
+                             RefundPolicyService refundPolicyService,
+                             InventoryLotService inventoryLotService) {
         this.slotRepository = slotRepository;
         this.lotRepository = lotRepository;
         this.deviceRepository = deviceRepository;
@@ -50,6 +53,7 @@ public class DeviceSlotService {
         this.merchantScopeService = merchantScopeService;
         this.salesVelocityService = salesVelocityService;
         this.refundPolicyService = refundPolicyService;
+        this.inventoryLotService = inventoryLotService;
     }
 
     @Transactional(readOnly = true)
@@ -592,6 +596,19 @@ public class DeviceSlotService {
         slot.setLastPhysicalQty(request.physicalQty());
         slot.setLastPhysicalAt(Instant.now());
         slotRepository.save(slot);
+
+        if (Boolean.TRUE.equals(request.adjustBookQty())) {
+            String skuId = slot.getAssignedSkuId();
+            if (skuId == null || skuId.isBlank()) {
+                throw badRequest("货道未绑定商品，无法按实盘调账面");
+            }
+            String refId = "ST-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+            inventoryLotService.stocktakeAdjustForSlot(
+                    deviceId, skuId.trim(), slotCode, request.physicalQty(), operatorId, refId);
+            log.info("slot stocktake adjusted device={} slot={} sku={} physical={} ref={}",
+                    deviceId, slotCode, skuId, request.physicalQty(), refId);
+        }
+
         int bookQty = loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
         return toSlotDto(slot, bookQty);
     }
@@ -739,6 +756,14 @@ public class DeviceSlotService {
                 .max(Instant::compareTo)
                 .orElseGet(() -> taskRepository.findLastCompletedAtByDeviceId(deviceId).orElse(null));
 
+        LocalDate nearCutoff = LocalDate.now().plusDays(7);
+        int nearExpiryLotCount = (int) lotRepository.findByDeviceId(deviceId).stream()
+                .filter(l -> l.getQuantity() > 0)
+                .filter(l -> "NEAR_EXPIRY".equals(l.getStatus())
+                        || (l.getExpiryDate() != null && !l.getExpiryDate().isAfter(nearCutoff)
+                        && l.getExpiryDate().isAfter(LocalDate.now().minusDays(1))))
+                .count();
+
         return new DeviceOpsMetricsDto(
                 deviceId,
                 slots.size(),
@@ -759,7 +784,8 @@ public class DeviceSlotService {
                 device.getAppVersion(),
                 device.getFirmwareVersion(),
                 device.getAlertContactName(),
-                device.getAlertContactPhone()
+                device.getAlertContactPhone(),
+                nearExpiryLotCount
         );
     }
 

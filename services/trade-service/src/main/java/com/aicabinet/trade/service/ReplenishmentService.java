@@ -169,30 +169,18 @@ public class ReplenishmentService {
 
         List<DeviceSkuInventory> rows;
 
-        if (lowStockOnly) {
-
-            rows = inventoryRepository.findLowStock();
-
-            if (deviceId != null && !deviceId.isBlank()) {
-
-                String dev = deviceId.trim();
-
+        if (deviceId != null && !deviceId.isBlank()) {
+            String dev = deviceId.trim();
+            rows = inventoryRepository.findByIdDeviceId(dev);
+            if (lowStockOnly) {
                 rows = rows.stream()
-
-                        .filter(i -> dev.equals(i.getId().getDeviceId()))
-
+                        .filter(i -> i.getQuantity() <= i.getLowThreshold())
                         .toList();
-
             }
-
+        } else if (lowStockOnly) {
+            rows = inventoryRepository.findLowStockLimit(500);
         } else {
-
-            rows = deviceId != null && !deviceId.isBlank()
-
-                    ? inventoryRepository.findByIdDeviceId(deviceId.trim())
-
-                    : inventoryRepository.findAll();
-
+            rows = inventoryRepository.findAllLimit(2000);
         }
 
         return rows.stream().map(this::toInventoryDto).toList();

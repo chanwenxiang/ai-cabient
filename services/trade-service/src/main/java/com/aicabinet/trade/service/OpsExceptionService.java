@@ -33,15 +33,17 @@ public class OpsExceptionService {
     private final ShoppingSessionMapper sessionRepository;
     private final SettlementService settlementService;
     private final DisputeService disputeService;
+    private final RepairTicketService repairTicketService;
 
     public OpsExceptionService(OpsExceptionMapper repository, PermissionService permissionService,
                                AdminAuditService auditService, AdminAuditLogMapper auditRepository,
                                ShoppingSessionMapper sessionRepository, SettlementService settlementService,
-                               DisputeService disputeService) {
+                               DisputeService disputeService, RepairTicketService repairTicketService) {
         this.repository = repository; this.permissionService = permissionService; this.auditService = auditService;
         this.auditRepository = auditRepository;
         this.sessionRepository = sessionRepository; this.settlementService = settlementService;
         this.disputeService = disputeService;
+        this.repairTicketService = repairTicketService;
     }
 
     @Transactional(readOnly = true)
@@ -137,6 +139,44 @@ public class OpsExceptionService {
     }
 
     /**
+     * 设备故障异常：创建维修工单并结案，避免逾期报修只关异常不落工单。
+     */
+    @Transactional
+    public OpsExceptionDto resolveWithRepair(Long operatorId, String exceptionId, String resolution) {
+        requireExceptionHandle(operatorId);
+        OpsException item = require(exceptionId);
+        if ("RESOLVED".equals(item.getStatus())) {
+            return toDto(item);
+        }
+        if (!"DEVICE_FAULT".equalsIgnoreCase(item.getExceptionType())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅设备故障异常可一键建维修工单");
+        }
+        if (item.getDeviceId() == null || item.getDeviceId().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "异常未关联设备，无法建维修工单");
+        }
+        String title = item.getTitle() == null || item.getTitle().isBlank()
+                ? "消费者设备报修" : item.getTitle().trim();
+        String remark = (item.getDetail() == null ? "" : item.getDetail().trim() + "; ")
+                + "来自异常 " + exceptionId;
+        var ticket = repairTicketService.create(
+                operatorId,
+                item.getDeviceId(),
+                title,
+                "OTHER",
+                String.valueOf(operatorId),
+                "HIGH",
+                remark);
+        String text = trim(resolution) + "; repairTicketId=" + ticket.ticketId();
+        item.setAssigneeUserId(operatorId);
+        item.setStatus("RESOLVED");
+        item.setResolution(text);
+        item.setResolvedAt(Instant.now());
+        repository.save(item);
+        auditService.record(operatorId, "OPS_EXCEPTION_RESOLVE_WITH_REPAIR", "OPS_EXCEPTION", exceptionId, text);
+        return toDto(item);
+    }
+
+    /**
      * Closes all open/processing ops exceptions for a session when a dispute is resolved in admin.
      * Idempotent when no matching exceptions exist.
      */
@@ -200,7 +240,7 @@ public class OpsExceptionService {
         item.setStatus("PROCESSING");
         repository.save(item);
         auditService.record(operatorId, "OPS_EXCEPTION_TRANSFER", "OPS_EXCEPTION", exceptionId,
-                "assignee=" + assigneeUserId + "; reason=" + trim(reason));
+                "接收人：用户 " + assigneeUserId + "；原因：" + trim(reason));
         return toDto(item);
     }
 
@@ -221,7 +261,7 @@ public class OpsExceptionService {
         item.setStatus("PROCESSING");
         repository.save(item);
         auditService.record(operatorId, action, "OPS_EXCEPTION", exceptionId,
-                "idempotencyKey=" + idempotencyKey + "; " + trim(detail));
+                "幂等键：" + idempotencyKey + "；" + trim(detail));
         return toDto(item);
     }
 
@@ -237,7 +277,7 @@ public class OpsExceptionService {
         item.setResolvedAt(Instant.now());
         repository.save(item);
         auditService.record(operatorId, action, "OPS_EXCEPTION", exceptionId,
-                "idempotencyKey=" + idempotencyKey + "; result=" + trim(result));
+                "幂等键：" + idempotencyKey + "；结果：" + trim(result));
         return toDto(item);
     }
 

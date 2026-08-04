@@ -1,4 +1,34 @@
-export declare function setDictOverrides(map: Record<string, Record<string, string>> | null | undefined): void;
+/**
+ * Shared dict labels (compile-time baseline + optional runtime overrides).
+ *
+ * Contract:
+ * - Dict = display metadata (labels, filter options, tags). Not capability switches.
+ * - Payment / feature ability stays in Java constants (e.g. PayChannels) + env flags
+ *   (ALIPAY_ENABLED, PAYSCORE_*). Disabling a dict item must not block checkout.
+ * - New business enum codes: add in backend first, then seed here + SysDictBootstrap.
+ * - Clients load GET /api/v2/dicts/runtime when logged in; on failure keep DICT defaults
+ *   (runtimeLoaded stays false — do not wipe options).
+ *
+ * Options resolution (dictOptions):
+ * - OPS_MANAGED types (e.g. route_code): after successful runtime load, ACTIVE items only;
+ *   zero ACTIVE → empty list (ops is source of truth). Before load / on failure → DICT seed.
+ * - System enum types: non-empty runtime map replaces options; otherwise DICT seed
+ *   (cannot empty a status dropdown by clearing all items).
+ *
+ * Labels (dictLabel): always override → DICT → readable fallback (historical rows still show).
+ */
+/**
+ * 运营可配字典：下拉以运行时 ACTIVE 为准；拉成功且无项则空列表。
+ * 系统状态枚举不要加入此集合。
+ */
+export declare const OPS_MANAGED_DICT_TYPES: ReadonlySet<string>;
+export declare function isOpsManagedDict(type: string): boolean;
+export declare function isRuntimeDictLoaded(): boolean;
+export type SetDictOverridesOptions = {
+    /** 是否标记本次为成功拉取的 runtime；默认 true（传入 map 时）。clear 请用 clearDictOverrides。 */
+    loaded?: boolean;
+};
+export declare function setDictOverrides(map: Record<string, Record<string, string>> | null | undefined, options?: SetDictOverridesOptions): void;
 export declare function clearDictOverrides(): void;
 /** /api/v2/dicts/runtime 响应体（仅取 ACTIVE 项）。 */
 export type RuntimeDictPayload = {
@@ -100,6 +130,7 @@ export declare const DICT: {
     readonly feedback_status: {
         readonly PENDING: "待处理";
         readonly HANDLED: "已回复";
+        readonly REPLIED: "已回复";
         readonly CLOSED: "已关闭";
     };
     readonly split_status: {
@@ -111,6 +142,8 @@ export declare const DICT: {
         readonly SUBMITTED: "已提交";
         readonly SUCCESS: "成功";
         readonly FAILED: "失败";
+        readonly SETTLED: "已完结";
+        readonly VOIDED: "已冲正";
     };
     readonly merchant_status: {
         readonly ACTIVE: "正常";
@@ -163,7 +196,15 @@ export declare const DICT: {
     readonly coupon_type: {
         readonly AMOUNT_OFF: "满减券";
         readonly PERCENT_OFF: "折扣券";
+        readonly FREE_SHIPPING: "免运费";
         readonly EXCHANGE: "兑换券";
+    };
+    /** 通用启用态（优惠券/活动等） */
+    readonly enable_status: {
+        readonly ACTIVE: "启用";
+        readonly INACTIVE: "停用";
+        readonly DISABLED: "停用";
+        readonly ENDED: "已结束";
     };
     readonly sku_enrollment_status: {
         readonly DRAFT: "草稿";
@@ -366,14 +407,39 @@ export declare const DICT: {
         readonly FAILED: "处理失败";
         readonly CANCELLED: "已取消";
     };
+    readonly route_code: {
+        readonly R01: "路线 R01";
+        readonly 'R-DEMO-01': "演示路线 01";
+        readonly 'R-DEMO-02': "演示路线 02";
+        readonly 'R-DEMO-X': "演示路线 X";
+    };
 };
 export type DictType = keyof typeof DICT;
 export type DictTagType = 'success' | 'warning' | 'danger' | 'info' | 'primary';
 export declare function dictLabel(type: DictType | string, code: string | null | undefined): string;
+/**
+ * 三端 UI 展示用：优先字典中文，绝不把英文枚举码当文案回退（避免 `|| status` 露出 OPEN/PAID）。
+ */
+export declare function displayLabel(type: DictType | string, code: string | null | undefined, empty?: string): string;
+/** 操作人展示：系统任务 / 无姓名时可读 */
+export declare function actorDisplayName(input: {
+    name?: string | null;
+    phone?: string | null;
+    userId?: number | null;
+    operatorId?: number | null;
+}): string;
 export declare function dictOptions(type: DictType | string): {
     value: string;
     label: string;
 }[];
 export declare function dictTagType(code: string | null | undefined): DictTagType;
-/** 将异常操作审计 detail 中的英文键值转为可读中文说明 */
+/** 审计动作 → 中文（运营后台审计日志筛选项/表格共用） */
+export declare const AUDIT_ACTION_LABELS: Record<string, string>;
+/** 审计对象类型 → 中文 */
+export declare const AUDIT_TARGET_LABELS: Record<string, string>;
+export declare function auditActionLabel(action?: string | null): string;
+export declare function auditTargetLabel(type?: string | null): string;
+/** 审计/异常操作 detail：英文键值对 → 中文说明 */
 export declare function formatOpsActionDetail(detail: string | null | undefined): string;
+/** @deprecated 使用 formatOpsActionDetail；保留别名便于审计页语义 */
+export declare const formatAuditDetail: typeof formatOpsActionDetail;

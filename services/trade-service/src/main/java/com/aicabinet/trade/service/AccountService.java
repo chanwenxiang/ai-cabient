@@ -46,10 +46,14 @@ public class AccountService {
         UserAccount account = userAccountRepository.findById(userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ACCOUNT_NOT_FOUND));
         boolean alipayReady = user.getAlipayAgreementId() != null && !user.getAlipayAgreementId().isBlank();
+        int frozen = Math.max(0, account.getFrozenCents());
+        int available = Math.max(0, account.getBalanceCents() - frozen);
         return new AccountDto(
                 userId,
                 user.getPhoneNumber(),
                 account.getBalanceCents(),
+                frozen,
+                available,
                 user.isVerified(),
                 userId >= CabinetConstants.OPERATOR_USER_ID_START,
                 user.getPayPreferredChannel() != null ? user.getPayPreferredChannel() : PayChannels.BALANCE,

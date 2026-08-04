@@ -30,13 +30,15 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** 商品主数据与 YOLO 识别映射一体化录入、设备 SKU 白名单。 */
+/** 商品主数据与端侧识别类名映射一体化录入、设备 SKU 白名单（算法无关，不绑定 YOLO）。 */
 @Service
 public class SkuVisionEnrollmentService {
 
-    public static final String MODEL_PIPELINE_WAITING = "WAITING_REAL_MODEL";
+    /** 端侧识别提供方尚未声明生产就绪时的管线状态。 */
+    public static final String MODEL_PIPELINE_WAITING = "WAITING_EDGE_PROVIDER";
     public static final String MODEL_PIPELINE_HINT =
-            "真实 YOLO 训练与权重发布尚未接入；「生产」仅表示运营映射对结算白名单生效，识别仍可能为 mock/人工复核。";
+            "「生产」仅表示运营映射进入结算白名单；实际自动扣款取决于端侧识别回传质量"
+                    + "（mock/fallback/低置信会进争议）。类名映射算法无关，可随时换端侧识别提供方。";
 
     private static final List<String> STATUS_ORDER = List.of("DRAFT", "MAPPING", "TESTED", "PRODUCTION");
     private static final Set<String> ALLOWED_STATUS = Set.copyOf(STATUS_ORDER);
@@ -93,13 +95,14 @@ public class SkuVisionEnrollmentService {
                 STATUS_ORDER,
                 List.of(
                         new SkuVisionEnrollmentPipelineDto.StatusStepDto(
-                                "DRAFT", "草稿", "录入商品基本信息，尚未绑定识别类名"),
+                                "DRAFT", "草稿", "录入商品基本信息，尚未绑定端侧识别类名"),
                         new SkuVisionEnrollmentPipelineDto.StatusStepDto(
-                                "MAPPING", "映射中", "已绑定 YOLO 类名与阈值，等待识别抽检"),
+                                "MAPPING", "映射中", "已绑定识别类名与阈值，等待端侧/联调抽检"),
                         new SkuVisionEnrollmentPipelineDto.StatusStepDto(
-                                "TESTED", "已测试", "运营已完成识别预览抽检（可为 mock）"),
+                                "TESTED", "已测试", "运营已完成识别预览抽检（可用联调数据）"),
                         new SkuVisionEnrollmentPipelineDto.StatusStepDto(
-                                "PRODUCTION", "生产（映射生效）", "进入结算白名单；模型侧仍为等待真实训练")
+                                "PRODUCTION", "生产（结算白名单）",
+                                "进入自动扣款白名单；端侧若回传 mock/fallback/低置信仍进争议")
                 )
         );
     }
@@ -203,7 +206,7 @@ public class SkuVisionEnrollmentService {
                 .toList();
     }
 
-    /** 结算前校验：识别 SKU 须在柜内库存且 enrollment=PRODUCTION。沙箱/预发可跳过。 */
+    /** 结算前校验：识别 SKU 须在柜内库存、enrollment=PRODUCTION，且置信度达 SKU 扣款阈值。 */
     @Transactional(readOnly = true)
     public Optional<String> validateSettlementItems(String deviceId,
                                                     List<VisionServiceClient.RecognizedItem> items) {
@@ -216,14 +219,26 @@ public class SkuVisionEnrollmentService {
         DeviceVisionContextDto ctx = deviceVisionContext(deviceId);
         Map<String, SkuVisionContextItemDto> allowed = ctx.skus().stream()
                 .collect(Collectors.toMap(SkuVisionContextItemDto::skuId, s -> s, (a, b) -> a));
+        Map<String, SkuCatalog> skuById = skuCatalogRepository.findAllById(
+                        items.stream().map(VisionServiceClient.RecognizedItem::skuId).collect(Collectors.toSet()))
+                .stream()
+                .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s, (a, b) -> a));
         for (VisionServiceClient.RecognizedItem item : items) {
             SkuVisionContextItemDto row = allowed.get(item.skuId());
             if (row == null) {
                 return Optional.of("识别 SKU " + item.skuId() + " 不在柜机 " + deviceId + " 在售白名单");
             }
             if (!"PRODUCTION".equalsIgnoreCase(row.visionEnrollmentStatus())) {
-                return Optional.of("SKU " + item.skuId() + " 视觉状态为 "
-                        + row.visionEnrollmentStatus() + "，不可自动扣款");
+                return Optional.of("SKU " + item.skuId() + " 识别入驻状态为 "
+                        + row.visionEnrollmentStatus() + "，未进结算白名单，不可自动扣款");
+            }
+            SkuCatalog sku = skuById.get(item.skuId());
+            if (sku != null) {
+                float minCharge = sku.getMinChargeConfidence();
+                if (item.confidence() < minCharge) {
+                    return Optional.of("SKU " + item.skuId() + " 置信度 "
+                            + item.confidence() + " 低于扣款阈值 " + minCharge);
+                }
             }
         }
         return Optional.empty();
@@ -363,7 +378,7 @@ public class SkuVisionEnrollmentService {
     private void requireMappedClass(SkuCatalog sku) {
         if (sku.getYoloClassName() == null || sku.getYoloClassName().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "请先保存识别类名映射后再推进状态");
+                    "请先保存端侧识别类名映射后再推进状态");
         }
         if (!yoloRepository.existsById(sku.getYoloClassName().trim())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
@@ -373,15 +388,16 @@ public class SkuVisionEnrollmentService {
 
     private SkuVisionEnrollmentRowDto toEnrollmentRow(SkuCatalog sku) {
         String status = normalizeStatus(sku.getVisionEnrollmentStatus());
+        // 结算白名单：生产态 + 已绑定识别类名（算法无关；库字段历史名为 yoloClassName）
         boolean mappingEffective = "PRODUCTION".equals(status)
                 && sku.getYoloClassName() != null
                 && !sku.getYoloClassName().isBlank();
         String next = nextStatus(status);
         String nextAction = switch (status) {
-            case "DRAFT" -> "保存类名映射并推进到「映射中」";
-            case "MAPPING" -> "完成识别抽检后推进到「已测试」";
-            case "TESTED" -> "确认转生产（映射生效，仍等待真实模型）";
-            case "PRODUCTION" -> "映射已生效；等待真实模型训练接入";
+            case "DRAFT" -> "保存识别类名映射并推进到「映射中」";
+            case "MAPPING" -> "完成端侧/联调抽检后推进到「已测试」";
+            case "TESTED" -> "确认转生产（进入结算白名单；端侧 mock/低置信仍进争议）";
+            case "PRODUCTION" -> "已在结算白名单；自动扣款取决于端侧识别质量";
             default -> "检查识别入驻状态";
         };
         return new SkuVisionEnrollmentRowDto(

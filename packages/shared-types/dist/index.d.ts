@@ -61,7 +61,12 @@ export interface DeviceSlot {
     maxLevel: number;
     enabled: boolean;
     bookQty: number;
+    lastPhysicalQty?: number | null;
+    lastPhysicalAt?: string;
+    lastRestockAt?: string;
+    fillRatePct?: number;
     stockStatus?: string;
+    qtyDiff?: number;
     hasDiscrepancy?: boolean;
 }
 export interface UpsertDeviceSlotRequest {

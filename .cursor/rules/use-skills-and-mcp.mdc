@@ -1,0 +1,43 @@
+---
+description: 写代码与测试前必须先匹配并使用可用 Skill / MCP
+alwaysApply: true
+---
+
+# 写代码 / 测试前优先使用 Skill 与 MCP
+
+在**编写、修改、调试、测试**代码时，先做能力匹配，再动手；不要只靠记忆或猜测。
+
+## 1. 开工前必检（每次相关任务）
+
+1. **Skills**：查看当前可用 skills（会话里的 `available_skills`，以及 `~/.cursor/skills/`）。按任务关键词匹配 `description`，命中则先 `Read` 其 `SKILL.md` 并严格按步骤执行。
+2. **MCP**：查看当前已启用 MCP 与工具。能用工具完成的（查文档、查库、浏览器验证、错误追踪等）优先走 MCP，不要用猜测替代。
+
+## 2. 常见匹配（示例，非穷尽）
+
+| 场景 | 优先 |
+|------|------|
+| 库/框架 API、版本差异、用法不确定 | Context7（`resolve-library-id` → `query-docs`） |
+| UI / 页面 / 联调 / 验收 / 冒烟 | 浏览器 MCP：真实打开页面操作验证 |
+| 生产/线上报错、issue、trace | Sentry MCP 或 `sentry` skill |
+| DB schema / 数据核对 | Postgres 等数据库 MCP |
+| 前端视觉与页面设计 | `frontend-design` skill |
+| 复杂功能规划 / TDD / 调试流程 | Superpowers（如 `brainstorming`、`test-driven-development`、`systematic-debugging`） |
+| 安全分析 / 威胁建模 / 合规 | Cybersecurity skills（按名称点名加载） |
+| Sanity / CMS | Sanity MCP + 对应 sanity skills |
+| GitHub PR/Issue | GitHub MCP |
+
+## 3. 执行顺序
+
+```
+匹配 Skill/MCP → 阅读 Skill 或调用 MCP → 再写/改代码 → 用 MCP 做验证（尤其 UI）
+```
+
+- 有多个命中时：先读 skill 约束流程，再调 MCP 取事实，最后改代码。
+- Skill 与项目规则冲突时：以**项目规则 / 用户明确指令**为准，并在回复中简要说明取舍。
+- 没有可用 Skill/MCP 时再自行实现；不要为了“用工具”硬调无关 MCP。
+
+## 4. 禁止
+
+- 未检查可用 Skill/MCP 就开始大段实现或宣称测试通过
+- 仅用 curl/日志推断 UI 通过（有浏览器 MCP 时）
+- 对库 API 凭训练记忆下结论（有 Context7 时）

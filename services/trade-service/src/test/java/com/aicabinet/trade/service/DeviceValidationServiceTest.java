@@ -30,12 +30,15 @@ class DeviceValidationServiceTest {
     private ShoppingSessionMapper sessionRepository;
     @Mock
     private ReplenishmentTaskMapper replenishmentTaskRepository;
+    @Mock
+    private ConsumerPreauthService consumerPreauthService;
 
     private DeviceValidationService service;
 
     @BeforeEach
     void setUp() {
-        service = new DeviceValidationService(deviceInfoRepository, sessionRepository, replenishmentTaskRepository);
+        service = new DeviceValidationService(
+                deviceInfoRepository, sessionRepository, replenishmentTaskRepository, consumerPreauthService);
     }
 
     @Test

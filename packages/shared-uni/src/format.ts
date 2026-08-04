@@ -1,4 +1,4 @@
-import { dictLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
 
 type DateInput = string | number | Date | null | undefined;
 
@@ -90,7 +90,7 @@ export function formatError(err: unknown): string {
   if (!err) return '未知错误';
   const kind = classifyOpenError(err);
   if (kind === 'rate_limit') return '开门过于频繁，请稍后再试';
-  if (kind === 'balance') return '余额不足，请先充值后再开门（建议 ≥ ¥5，或开通免密支付）';
+  if (kind === 'balance') return '可用余额不足，请先充值后再开门（默认预授权约 ¥20，或开通免密支付）';
   if (kind === 'device_not_found') return '柜机不存在或编号有误，请重新扫描柜门二维码';
   if (kind === 'device_paused') return '柜机已暂停营业，请稍后再试或换一台';
   if (kind === 'device_busy') return '柜机正在使用或补货中，请稍后再试';
@@ -166,5 +166,5 @@ export function localizeDisputeReason(reason?: string | null): string {
 }
 
 export function orderStatusLabel(status?: string) {
-  return dictLabel('order_status', status);
+  return displayLabel('order_status', status, '未知状态');
 }

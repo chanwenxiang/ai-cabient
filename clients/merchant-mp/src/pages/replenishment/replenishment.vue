@@ -78,7 +78,7 @@
           <text class="device-code">{{ task.deviceId }}</text>
         </view>
         <text class="status" :class="task.status.toLowerCase()">
-          {{ dictLabel('replenishment_task_status', task.status) }}
+          {{ displayLabel('replenishment_task_status', task.status) }}
         </text>
       </view>
       <view class="task-meta">
@@ -317,7 +317,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
@@ -496,14 +496,14 @@ const completedCount = computed(
 const emptyHint = computed(() => {
   if (filterDeviceId.value) {
     return status.value
-      ? `该柜机暂无「${dictLabel('replenishment_task_status', status.value) || status.value}」任务`
+      ? `该柜机暂无「${displayLabel('replenishment_task_status', status.value, '该状态')}」任务`
       : '该柜机暂无补货任务';
   }
   if (status.value === 'IN_PROGRESS' && pendingCount.value === 0 && completedCount.value > 0) {
     return '暂无进行中的任务，可查看已完成记录';
   }
   if (status.value) {
-    return `暂无「${dictLabel('replenishment_task_status', status.value) || status.value}」任务`;
+    return `暂无「${displayLabel('replenishment_task_status', status.value, '该状态')}」任务`;
   }
   return '当前没有补货任务';
 });

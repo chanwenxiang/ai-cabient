@@ -288,6 +288,56 @@ public class InventoryLotService {
         syncAggregateInventory(deviceId, skuId);
     }
 
+    /**
+     * 按货道实盘回写账面：只动该货道上该 SKU 的批次，避免串道。
+     */
+    @Transactional
+    public void stocktakeAdjustForSlot(String deviceId, String skuId, String slotCode,
+                                       int countedQuantity, Long operatorId, String refId) {
+        if (slotCode == null || slotCode.isBlank()) {
+            stocktakeAdjust(deviceId, skuId, countedQuantity, operatorId, refId);
+            return;
+        }
+        String slot = slotCode.trim().toUpperCase();
+        List<DeviceSkuLot> lots = lotRepository
+                .findByDeviceIdAndSkuIdAndSlotIdOrderByExpiryDateAsc(deviceId, skuId, slot);
+        int current = lots.stream().mapToInt(DeviceSkuLot::getQuantity).sum();
+        int delta = countedQuantity - current;
+        if (delta == 0) {
+            return;
+        }
+        if (delta > 0) {
+            SkuCatalog sku = skuCatalogRepository.findById(skuId).orElse(null);
+            int shelfDays = sku != null && sku.getShelfLifeDays() != null ? sku.getShelfLifeDays() : 180;
+            LocalDate expiry = LocalDate.now().plusDays(shelfDays);
+            addRestock(deviceId, skuId, "STOCKTAKE-" + LocalDate.now(), LocalDate.now(), expiry,
+                    delta, slot, operatorId, refId);
+            return;
+        }
+        int remaining = -delta;
+        for (DeviceSkuLot lot : lots) {
+            if (remaining <= 0) {
+                break;
+            }
+            if (lot.getQuantity() <= 0) {
+                continue;
+            }
+            int take = Math.min(lot.getQuantity(), remaining);
+            lot.setQuantity(lot.getQuantity() - take);
+            if (lot.getQuantity() == 0) {
+                lot.setStatus("DEPLETED");
+            }
+            lotRepository.save(lot);
+            recordMovement(deviceId, skuId, lot.getBatchNo(), "ADJ", -take, "STOCKTAKE", refId, operatorId);
+            remaining -= take;
+        }
+        if (remaining > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "货道 " + slot + " 账面不足以盘亏，差额 " + remaining);
+        }
+        syncAggregateInventory(deviceId, skuId);
+    }
+
     @Transactional
     public void applyReplenishmentLine(String deviceId, ReplenishmentTaskLine line, Long operatorId, String refId) {
         if ("RESTOCK".equalsIgnoreCase(line.getLineType())) {
@@ -347,8 +397,10 @@ public class InventoryLotService {
     @Transactional
     public int scanExpiryAlerts() {
         LocalDate today = LocalDate.now();
-        List<DeviceSkuLot> lots = lotRepository.findByStatusInAndQuantityGreaterThan(
-                List.of("ON_SALE", "NEAR_EXPIRY", "BLOCKED"), 0);
+        // 覆盖常见 nearExpiryDays（通常 ≤30）；更长窗口留给后续批次/手动盘点
+        LocalDate horizon = today.plusDays(90);
+        List<DeviceSkuLot> lots = lotRepository.findForExpiryScan(
+                List.of("ON_SALE", "NEAR_EXPIRY", "BLOCKED"), horizon, 500);
         int alerts = 0;
         for (DeviceSkuLot lot : lots) {
             SkuCatalog sku = skuCatalogRepository.findById(lot.getSkuId()).orElse(null);

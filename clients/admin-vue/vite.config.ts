@@ -10,11 +10,12 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, '');
   return {
     plugins: [vue()],
-    base: './',
+    base: '/admin/',
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),
         '@aicabinet/shared-dict': path.resolve(__dirname, '../../packages/shared-dict/src/index.ts'),
+        '@aicabinet/shared-rbac': path.resolve(__dirname, '../../packages/shared-rbac/src/index.ts'),
         '@aicabinet/shared-types': path.resolve(__dirname, '../../packages/shared-types/src/index.ts'),
         '@aicabinet/shared-api': path.resolve(__dirname, '../../packages/shared-api/src/index.ts'),
         '@aicabinet/shared-uni': path.resolve(__dirname, '../../packages/shared-uni/src'),

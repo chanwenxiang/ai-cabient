@@ -41,6 +41,7 @@ public class MerchantService {
     private final AdminAuditService auditService;
     private final MerchantScopeService merchantScopeService;
     private final WeChatProfitSharingService profitSharingService;
+    private final RevenueSplitService revenueSplitService;
     private final ProfitSharingProperties profitSharingProperties;
     private final WeChatPayProperties weChatPayProperties;
 
@@ -51,6 +52,7 @@ public class MerchantService {
                            AdminAuditService auditService,
                            MerchantScopeService merchantScopeService,
                            WeChatProfitSharingService profitSharingService,
+                           RevenueSplitService revenueSplitService,
                            ProfitSharingProperties profitSharingProperties,
                            WeChatPayProperties weChatPayProperties) {
         this.merchantRepository = merchantRepository;
@@ -60,6 +62,7 @@ public class MerchantService {
         this.auditService = auditService;
         this.merchantScopeService = merchantScopeService;
         this.profitSharingService = profitSharingService;
+        this.revenueSplitService = revenueSplitService;
         this.profitSharingProperties = profitSharingProperties;
         this.weChatPayProperties = weChatPayProperties;
     }
@@ -221,6 +224,30 @@ public class MerchantService {
         OrderRevenueSplit updated = profitSharingService.refreshSplitStatus(split);
         auditService.record(operatorId, "PROFIT_SHARING_REFRESH", "SPLIT", splitId,
                 "orderId=" + split.getOrderId() + " status=" + updated.getStatus());
+        String merchantName = merchantRepository.findById(split.getMerchantId())
+                .map(Merchant::getMerchantName)
+                .orElse(null);
+        return toSplitDto(updated, merchantName);
+    }
+
+    /**
+     * 确认仅记账完结：无微信分账接收方时商户份额已入钱包，运营确认后不再占用「分账待跟进」。
+     */
+    @Transactional
+    public RevenueSplitDto confirmLedgerOnly(Long operatorId, String splitId, String reason) {
+        permissionService.requirePermission(operatorId, "ops:merchant:split");
+        OrderRevenueSplit split = splitRepository.findById(splitId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
+        merchantScopeService.requireMerchantAccess(operatorId, split.getMerchantId());
+        OrderRevenueSplit updated;
+        try {
+            updated = revenueSplitService.confirmLedgerOnly(split);
+        } catch (IllegalStateException e) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+        }
+        String note = (reason == null || reason.isBlank()) ? "ledger-confirmed" : reason.trim();
+        auditService.record(operatorId, "SPLIT_LEDGER_CONFIRM", "SPLIT", splitId,
+                "orderId=" + split.getOrderId() + "; reason=" + note);
         String merchantName = merchantRepository.findById(split.getMerchantId())
                 .map(Merchant::getMerchantName)
                 .orElse(null);

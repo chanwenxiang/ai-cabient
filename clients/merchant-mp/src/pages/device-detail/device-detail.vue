@@ -6,7 +6,8 @@
     <view v-else>
       <view class="card">
         <text class="title">{{ deviceName }}</text>
-        <text class="meta">{{ deviceId }} · {{ online ? '在线' : '离线' }}</text>
+        <text class="meta">{{ deviceId }} · {{ online ? '在线' : '离线' }}{{ salesLocked ? ' · 停售中' : '' }}</text>
+        <text v-if="salesLocked" class="locked-banner">柜机已锁机停售，消费者无法开门；补货仍可按任务操作</text>
         <text class="meta">当前 {{ currentTemp }} / 目标 {{ targetTemp }}</text>
         <view class="pref-row" @click="togglePreferred">
           <text class="pref-star" :class="{ on: isPreferred }">★</text>
@@ -81,6 +82,7 @@ const deviceId = ref('');
 const merchantId = ref('');
 const deviceName = ref('');
 const online = ref(false);
+const salesLocked = ref(false);
 const currentTemp = ref('-');
 const targetTemp = ref('-');
 const formName = ref('');
@@ -139,6 +141,7 @@ async function loadDetail() {
     merchantId.value = (settings.merchantId as string) || '';
     deviceName.value = (settings.deviceName as string) || deviceId.value;
     online.value = ((settings.onlineStatus as string) || '').toUpperCase() === 'ONLINE';
+    salesLocked.value = !!(settings as { salesLocked?: boolean }).salesLocked;
     currentTemp.value = settings.currentTempC != null ? settings.currentTempC + '°C' : '暂无';
     targetTemp.value = settings.targetTempC != null ? settings.targetTempC + '°C' : '未设置';
     formName.value = (settings.deviceName as string) || '';
@@ -260,6 +263,16 @@ async function saveSlots() {
 
 <style scoped>
 .title { font-size: 32rpx; font-weight: 600; display: block; }
+.locked-banner {
+  display: block;
+  margin-top: 12rpx;
+  padding: 12rpx 16rpx;
+  border-radius: 12rpx;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 24rpx;
+  line-height: 1.4;
+}
 .section { font-weight: 600; }
 .row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
 .pref-row {

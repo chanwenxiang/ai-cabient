@@ -68,6 +68,7 @@ public class SessionService {
     private final UserInfoMapper userInfoRepository;
     private final CabinetOrderMapper orderRepository;
     private final DisputeService disputeService;
+    private final ConsumerPreauthService consumerPreauthService;
 
     public SessionService(ShoppingSessionMapper repository,
                           DeviceServiceClient deviceClient,
@@ -83,7 +84,8 @@ public class SessionService {
                           OpsExceptionService opsExceptionService,
                           UserInfoMapper userInfoRepository,
                           CabinetOrderMapper orderRepository,
-                          @Lazy DisputeService disputeService) {
+                          @Lazy DisputeService disputeService,
+                          ConsumerPreauthService consumerPreauthService) {
         this.repository = repository;
         this.deviceClient = deviceClient;
         this.userValidationService = userValidationService;
@@ -99,6 +101,7 @@ public class SessionService {
         this.userInfoRepository = userInfoRepository;
         this.orderRepository = orderRepository;
         this.disputeService = disputeService;
+        this.consumerPreauthService = consumerPreauthService;
     }
 
     @Transactional
@@ -129,6 +132,9 @@ public class SessionService {
         // 不会出现两个事务都先向同一台柜机发送开门命令、最后才在提交时发现冲突。
         repository.saveAndFlush(session);
 
+        boolean passwordFree = userValidationService.isPasswordFreeReady(userId, entryChannel);
+        consumerPreauthService.freezeForOpen(session, passwordFree);
+
         transition(session, SessionState.OPENING);
         deviceClient.requestOpenDoor(session.getSessionId(), session.getDeviceId(), userId, false);
 
@@ -152,6 +158,9 @@ public class SessionService {
         session.setState(SessionState.CREATED);
         session.setEntryChannel(entryChannel);
         repository.save(session);
+
+        boolean passwordFree = userValidationService.isPasswordFreeReady(userId, entryChannel);
+        consumerPreauthService.freezeForOpen(session, passwordFree);
 
         transition(session, SessionState.OPENING);
         session.setOpenTime(Instant.now());
@@ -232,6 +241,9 @@ public class SessionService {
         SessionDto afterDoor = self.applyDoorEvent(event);
         if (event.doorState() == DoorState.CLOSED && afterDoor.state() != SessionState.WAITING_UPLOAD) {
             ShoppingSession session = repository.findById(event.sessionId()).orElse(null);
+            if (session != null && isOpsRemoteSession(session)) {
+                return afterDoor;
+            }
             if (session != null && isRestockSession(session)) {
                 if (afterDoor.state() == SessionState.RECOGNIZING) {
                     return self.finishRestockSnapshot(event.sessionId());
@@ -286,6 +298,10 @@ public class SessionService {
             transition(session, SessionState.RECOGNIZING);
         }
         if (session.getState() == SessionState.RECOGNIZING) {
+            if (isOpsRemoteSession(session)) {
+                transition(session, SessionState.COMPLETED);
+                return toDto(session);
+            }
             if (isRestockSession(session)) {
                 return finishRestockSnapshot(session.getSessionId());
             }
@@ -380,6 +396,13 @@ public class SessionService {
             session.setVideoUri(videoUri);
         }
         repository.save(session);
+
+        if (isOpsRemoteSession(session)) {
+            // 运维开门：关门即完成，不识别、不结算；有录像则保留供审计
+            transition(session, SessionState.COMPLETED);
+            log.info("ops remote door closed session={} device={}", session.getSessionId(), session.getDeviceId());
+            return toDto(session);
+        }
 
         if (isRestockSession(session)) {
             if (isWaitingForUpload(session)) {
@@ -585,6 +608,10 @@ public class SessionService {
         return DeviceValidationService.isRestockSession(session);
     }
 
+    private boolean isOpsRemoteSession(ShoppingSession session) {
+        return DeviceValidationService.isOpsRemoteSession(session);
+    }
+
     @Transactional(readOnly = true)
     public SessionDto getSession(Long userId, String sessionId) {
         ShoppingSession session = repository.findById(sessionId)
@@ -611,6 +638,7 @@ public class SessionService {
         if (session.getState() != SessionState.CREATED && session.getState() != SessionState.OPENING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_STATE_INVALID);
         }
+        consumerPreauthService.releaseIfFrozen(session);
         transition(session, SessionState.CANCELLED);
         log.info("consumer cancelled opening session={} device={}", sessionId, session.getDeviceId());
         return toDto(session);
@@ -625,13 +653,15 @@ public class SessionService {
             return 0;
         }
         String failReason = (reason == null || reason.isBlank()) ? "补货任务结束，自动关闭会话" : reason.trim();
-        List<ShoppingSession> open = repository.findAll().stream()
-                .filter(DeviceValidationService::isRestockSession)
-                .filter(s -> taskId.equals(s.getReplenishmentTaskId())
-                        || (s.getIdempotencyKey() != null
-                        && s.getIdempotencyKey().startsWith("RESTOCK:" + taskId + ":")))
-                .filter(s -> RESTOCK_CLOSEABLE_STATES.contains(s.getState()))
-                .toList();
+        java.util.LinkedHashMap<String, ShoppingSession> byId = new java.util.LinkedHashMap<>();
+        for (ShoppingSession s : repository.findByReplenishmentTaskIdAndStateIn(taskId, RESTOCK_CLOSEABLE_STATES)) {
+            byId.put(s.getSessionId(), s);
+        }
+        for (ShoppingSession s : repository.findByIdempotencyKeyStartingWithAndStateIn(
+                "RESTOCK:" + taskId + ":", RESTOCK_CLOSEABLE_STATES)) {
+            byId.putIfAbsent(s.getSessionId(), s);
+        }
+        List<ShoppingSession> open = List.copyOf(byId.values());
         for (ShoppingSession session : open) {
             session.setFailReason(failReason);
             if (session.getCloseTime() == null) {
@@ -662,6 +692,7 @@ public class SessionService {
         ShoppingSession session = repository.findById(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!ACTIVE_STATES.contains(session.getState())) return toDto(session);
+        consumerPreauthService.releaseIfFrozen(session);
         session.setFailReason(reason == null ? "运营终止会话" : reason.trim());
         session.setState(SessionState.CANCELLED);
         repository.save(session);
@@ -706,10 +737,10 @@ public class SessionService {
     @Transactional
     public void expireStaleOpeningSessions() {
         Instant cutoff = Instant.now().minus(OPENING_EXPIRE_SECONDS, ChronoUnit.SECONDS);
-        repository.findAll().stream()
-                .filter(s -> s.getState() == SessionState.OPENING || s.getState() == SessionState.CREATED)
-                .filter(s -> s.getCreatedAt() != null && s.getCreatedAt().isBefore(cutoff))
+        repository.findByStateInAndCreatedAtBefore(
+                        List.of(SessionState.OPENING, SessionState.CREATED), cutoff, 500)
                 .forEach(s -> {
+                    consumerPreauthService.releaseIfFrozen(s);
                     s.setState(SessionState.CANCELLED);
                     repository.save(s);
                     cabinetMetrics.recordSessionState(SessionState.CANCELLED);
@@ -724,14 +755,10 @@ public class SessionService {
     @Transactional
     public void expireStaleRestockShoppingSessions() {
         Instant cutoff = Instant.now().minus(RESTOCK_SHOPPING_EXPIRE_MINUTES, ChronoUnit.MINUTES);
-        repository.findAll().stream()
+        repository.findByStateInAndUpdatedAtBefore(
+                        List.of(SessionState.SHOPPING, SessionState.WAITING_UPLOAD), cutoff, 500)
+                .stream()
                 .filter(DeviceValidationService::isRestockSession)
-                .filter(s -> s.getState() == SessionState.SHOPPING
-                        || s.getState() == SessionState.WAITING_UPLOAD)
-                .filter(s -> {
-                    Instant anchor = s.getUpdatedAt() != null ? s.getUpdatedAt() : s.getCreatedAt();
-                    return anchor != null && anchor.isBefore(cutoff);
-                })
                 .forEach(s -> {
                     s.setFailReason("补货会话超时自动关闭");
                     if (s.getCloseTime() == null) {
@@ -753,16 +780,15 @@ public class SessionService {
     @Transactional
     public void expireStaleRecognizingSessions() {
         Instant cutoff = Instant.now().minus(10, ChronoUnit.MINUTES);
-        repository.findAll().stream()
-                .filter(s -> s.getState() == SessionState.RECOGNIZING
-                        || s.getState() == SessionState.WAITING_UPLOAD
-                        || s.getState() == SessionState.SETTLING)
-                .filter(s -> {
+        repository.findByStateInAndUpdatedAtBefore(
+                        List.of(SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD, SessionState.SETTLING),
+                        cutoff, 500)
+                .forEach(s -> {
                     Instant anchor = s.getCloseTime() != null ? s.getCloseTime()
                             : (s.getUpdatedAt() != null ? s.getUpdatedAt() : s.getCreatedAt());
-                    return anchor != null && anchor.isBefore(cutoff);
-                })
-                .forEach(s -> {
+                    if (anchor == null || !anchor.isBefore(cutoff)) {
+                        return;
+                    }
                     try {
                         // 补货会话不走消费者争议：超时尽力快照后关闭，避免误建争议单
                         if (DeviceValidationService.isRestockSession(s)) {

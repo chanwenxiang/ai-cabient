@@ -68,11 +68,14 @@
         <view class="fallback-block">
           <text class="fallback-title">或使用余额开门</text>
           <view class="balance-row">
-            <text>当前余额</text>
+            <text>可用余额</text>
             <text class="balance-val">¥{{ balanceYuan }}</text>
           </view>
+          <text v-if="frozenYuan !== '0.00'" class="balance-sub">含冻结 ¥{{ frozenYuan }}（开门预授权等）</text>
           <text class="balance-warning">{{ payReadyHintText }}</text>
-          <text v-if="balanceInsufficient" class="balance-warning">余额不足 ¥5，请先充值或开通免密后再开门</text>
+          <text v-if="balanceInsufficient" class="balance-warning">
+            可用余额不足预授权 ¥{{ needYuan }}，请先充值或开通免密后再开门
+          </text>
           <button
             v-if="wechatPayLive || (devTools && wechatRechargeEnabled)"
             class="btn-wechat"
@@ -119,9 +122,12 @@ import { computed, ref, watch } from 'vue';
 import type { AccountDto } from '@aicabinet/shared-types';
 import { consumerApi } from '@/utils/consumer-api';
 import {
+  availableCents,
   isPayReady,
   normalizeEntryChannel,
   payReadyHint,
+  preauthYuanLabel,
+  resolveClientPreauthCents,
   type EntryChannel
 } from '@/utils/account';
 import { runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
@@ -135,6 +141,8 @@ import {
 const props = defineProps<{
   account: AccountDto | null;
   entryChannel?: string | null;
+  /** 柜机侧预授权门槛（分），来自 DeviceStatus.preauthCents */
+  devicePreauthCents?: number | null;
 }>();
 
 const emit = defineEmits<{
@@ -153,6 +161,7 @@ const alipayRechargeEnabled = ref(false);
 const wechatRechargeEnabled = ref(false);
 const wechatPayLive = ref(false);
 const payScoreSignEnabled = ref(true);
+const configPreauthCents = ref<number | null>(null);
 const pickedChannel = ref<EntryChannel | null>(normalizeEntryChannel(props.entryChannel));
 
 watch(
@@ -179,6 +188,8 @@ consumerApi.consumerPublicConfig().then((cfg) => {
     wechatPayLive: cfg?.wechatPayLive
   });
   payScoreSignEnabled.value = cfg?.payScoreSignEnabled !== 'false';
+  const p = Number(cfg?.preauthCents);
+  configPreauthCents.value = Number.isFinite(p) && p > 0 ? p : null;
 }).catch(() => {
   mockRechargeEnabled.value = false;
   alipayRechargeEnabled.value = false;
@@ -188,18 +199,27 @@ consumerApi.consumerPublicConfig().then((cfg) => {
 });
 
 const entryChannel = computed(() => normalizeEntryChannel(props.entryChannel) || pickedChannel.value);
-/** 与后端 CabinetConstants.MIN_BALANCE_CENTS（¥5）及 isPayReady 对齐，余额不足不可完成开门准备 */
-const balanceYuan = computed(() => ((account.value?.balanceCents || 0) / 100).toFixed(2));
-const payReady = computed(() => isPayReady(account.value, entryChannel.value));
-const payReadyHintText = computed(() => payReadyHint(account.value, entryChannel.value));
-const balanceInsufficient = computed(
-  () => !!account.value && !payReady.value && (account.value.balanceCents || 0) < 500
+const preauthCents = computed(() =>
+  resolveClientPreauthCents({
+    devicePreauthCents: props.devicePreauthCents,
+    configPreauthCents: configPreauthCents.value
+  })
 );
+const needYuan = computed(() => preauthYuanLabel(preauthCents.value));
+/** 与后端开门预授权门槛对齐；免密未开通且可用余额不足时不可完成开门准备 */
+const balanceYuan = computed(() => (availableCents(account.value) / 100).toFixed(2));
+const frozenYuan = computed(() => (Math.max(0, account.value?.frozenCents || 0) / 100).toFixed(2));
+const payReady = computed(() => isPayReady(account.value, entryChannel.value, preauthCents.value));
+const payReadyHintText = computed(() => payReadyHint(account.value, entryChannel.value, preauthCents.value));
+const balanceInsufficient = computed(() => {
+  if (!account.value || payReady.value) return false;
+  return availableCents(account.value) < preauthCents.value;
+});
 const payDesc = computed(() => {
   const c = entryChannel.value;
   if (c === 'WECHAT') return '推荐开通微信支付分：关门后自动扣款，无需每次确认。';
   if (c === 'ALIPAY') return '推荐开通支付宝免密：关门后自动扣款，无需每次确认。';
-  return '请开通对应渠道免密支付；余额 ≥ ¥5 也可临时开门。';
+  return '请开通对应渠道免密支付；可用余额满足预授权也可临时开门。';
 });
 const showWechatSign = computed(
   () => payScoreSignEnabled.value && (!entryChannel.value || entryChannel.value === 'WECHAT')
@@ -525,6 +545,7 @@ function onCancel() {
   margin-bottom: 8rpx;
   font-weight: 600;
 }
+.balance-sub { display: block; margin: 8rpx 0 12rpx; color: #64748b; font-size: 22rpx; }
 .balance-warning { display: block; padding: 20rpx; border-radius: 12rpx; background: #fff7e6; color: #ad6800; font-size: 25rpx; line-height: 1.5; }
 .channel-pick { margin-bottom: 16rpx; }
 .channel-chips { display: flex; gap: 16rpx; margin-top: 12rpx; }

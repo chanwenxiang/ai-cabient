@@ -5,6 +5,71 @@
 
   <select id="findByStateInAndUpdatedAtAfter" resultType="com.aicabinet.trade.domain.ShoppingSession">
     SELECT s.* FROM shopping_session s
-                        WHERE s.state IN <foreach collection="states" item="__item" open="(" separator="," close=")">#{__item}</foreach> AND s.updated_at >= #{since}
+    WHERE s.state IN
+    <foreach collection="states" item="__item" open="(" separator="," close=")">#{__item}</foreach>
+    AND s.updated_at &gt;= #{since}
+    ORDER BY s.updated_at ASC
+    LIMIT #{limit}
+  </select>
+
+  <select id="countCreatedBetween" resultType="long">
+    SELECT COUNT(*) FROM shopping_session
+    WHERE created_at &gt;= #{start} AND created_at &lt; #{end}
+  </select>
+
+  <select id="countCreatedBetweenAndStateIn" resultType="long">
+    SELECT COUNT(*) FROM shopping_session
+    WHERE created_at &gt;= #{start} AND created_at &lt; #{end}
+    AND state IN
+    <foreach collection="states" item="st" open="(" separator="," close=")">#{st}</foreach>
+  </select>
+
+  <select id="avgDoorOpenMsBetween" resultType="java.lang.Long">
+    SELECT CAST(COALESCE(AVG(EXTRACT(EPOCH FROM (close_time - open_time)) * 1000), 0) AS BIGINT)
+    FROM shopping_session
+    WHERE created_at &gt;= #{start} AND created_at &lt; #{end}
+      AND open_time IS NOT NULL AND close_time IS NOT NULL
+  </select>
+
+  <select id="p95DoorOpenMsBetween" resultType="java.lang.Long">
+    SELECT CAST(COALESCE(
+      percentile_cont(0.95) WITHIN GROUP (
+        ORDER BY EXTRACT(EPOCH FROM (close_time - open_time)) * 1000
+      ), 0) AS BIGINT)
+    FROM shopping_session
+    WHERE created_at &gt;= #{start} AND created_at &lt; #{end}
+      AND open_time IS NOT NULL AND close_time IS NOT NULL
+  </select>
+
+  <select id="countCreatedAfterAndStateIn" resultType="long">
+    SELECT COUNT(*) FROM shopping_session
+    WHERE created_at &gt; #{since}
+    AND state IN
+    <foreach collection="states" item="st" open="(" separator="," close=")">#{st}</foreach>
+  </select>
+
+  <select id="countCreatedAfterAndStateInForDevices" resultType="long">
+    SELECT COUNT(*) FROM shopping_session
+    WHERE created_at &gt; #{since}
+    AND state IN
+    <foreach collection="states" item="st" open="(" separator="," close=")">#{st}</foreach>
+    AND device_id IN
+    <foreach collection="deviceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+  </select>
+
+  <select id="avgDoorOpenMsCreatedAfter" resultType="java.lang.Long">
+    SELECT CAST(COALESCE(AVG(EXTRACT(EPOCH FROM (close_time - open_time)) * 1000), 0) AS BIGINT)
+    FROM shopping_session
+    WHERE created_at &gt; #{since}
+      AND open_time IS NOT NULL AND close_time IS NOT NULL
+  </select>
+
+  <select id="avgDoorOpenMsCreatedAfterForDevices" resultType="java.lang.Long">
+    SELECT CAST(COALESCE(AVG(EXTRACT(EPOCH FROM (close_time - open_time)) * 1000), 0) AS BIGINT)
+    FROM shopping_session
+    WHERE created_at &gt; #{since}
+      AND open_time IS NOT NULL AND close_time IS NOT NULL
+      AND device_id IN
+    <foreach collection="deviceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
   </select>
 </mapper>

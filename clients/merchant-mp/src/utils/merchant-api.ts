@@ -1,5 +1,6 @@
 import { API_BASE_URL } from '@/config/api';
-import { clearDictOverrides, dictLabel } from '@aicabinet/shared-dict';
+import { clearDictOverrides, displayLabel } from '@aicabinet/shared-dict';
+import { matchPermission } from '@aicabinet/shared-rbac';
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
 
 export type MerchantReplenishmentSuggest = {
@@ -162,7 +163,7 @@ export function request<T>(
 
 export function merchantLogin(phone: string, password: string) {
   return request<{ token: string; userId: string }>(
-    '/api/v2/auth/admin-password-login',
+    '/api/v2/auth/merchant-password-login',
     'POST',
     { phoneNumber: phone, password },
     false
@@ -522,18 +523,9 @@ export function canEditPricing(me: import('@aicabinet/shared-types').MerchantMe 
   return me.merchants.some((m) => m.allowMerchantPricingEdit);
 }
 
-/** 若依风格：精确码或分段通配 merchant:replenishment:* */
+/** 若依风格：精确码或分段通配 merchant:replenishment:*（@aicabinet/shared-rbac） */
 export function hasPerm(me: import('@aicabinet/shared-types').MerchantMe | null, code: string) {
-  const perms = me?.permissions || [];
-  if (!code) return true;
-  if (perms.includes('ops:admin')) return true;
-  if (perms.includes(code)) return true;
-  const segments = code.split(':');
-  for (let i = segments.length - 1; i >= 1; i--) {
-    const wildcard = `${segments.slice(0, i).join(':')}:*`;
-    if (perms.includes(wildcard)) return true;
-  }
-  return false;
+  return matchPermission(me?.permissions, code);
 }
 
 /** 商户端展示用：运营字典「设备」在商户侧统一为「柜机」 */
@@ -548,7 +540,7 @@ const MERCHANT_ALERT_TYPE_LABELS: Record<string, string> = {
 };
 
 export function alertTypeLabel(type: string) {
-  return MERCHANT_ALERT_TYPE_LABELS[type] || dictLabel('exception_type', type);
+  return MERCHANT_ALERT_TYPE_LABELS[type] || displayLabel('exception_type', type, '告警');
 }
 
 export function merchantAlertTitle(_type: string, title: string) {

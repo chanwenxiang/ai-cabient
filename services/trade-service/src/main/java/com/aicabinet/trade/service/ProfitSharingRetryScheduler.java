@@ -53,7 +53,13 @@ public class ProfitSharingRetryScheduler {
         if (failed.size() > batch) {
             failed = failed.subList(0, batch);
         }
-        Map<String, Merchant> merchants = merchantRepository.findAll().stream()
+        var merchantIds = failed.stream()
+                .map(OrderRevenueSplit::getMerchantId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toSet());
+        Map<String, Merchant> merchants = merchantIds.isEmpty()
+                ? Map.of()
+                : merchantRepository.findAllById(merchantIds).stream()
                 .collect(Collectors.toMap(Merchant::getMerchantId, m -> m, (a, b) -> a));
         int retried = profitSharingService.retryFailedSplits(failed, merchants);
         if (retried > 0) {

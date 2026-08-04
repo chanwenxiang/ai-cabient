@@ -43,6 +43,8 @@ import java.util.stream.Collectors;
 public class AdminDashboardService {
 
     private static final int EXPORT_LIMIT = 5000;
+    /** 工作台「待支付」与订单页 overdue=1 对齐：超过该分钟仍 PENDING 计入。 */
+    public static final int UNPAID_OPS_OVERDUE_MINUTES = 30;
     private static final List<SessionState> ACTIVE_STATES = List.of(
             SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
             SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD, SessionState.SETTLING
@@ -57,6 +59,8 @@ public class AdminDashboardService {
     private static final List<String> SPLIT_EXCEPTION_STATUSES = List.of("FAILED", "WECHAT_FAILED", "LEDGER_ONLY");
     private static final long STALE_SESSION_MINUTES = 30;
     private static final long IN_TRANSIT_OVERDUE_HOURS = 24;
+    /** 工作台待办每类最多展示条数，避免全表加载。 */
+    private static final int WORKBENCH_ITEM_CAP = 20;
 
     private final DeviceInfoMapper deviceRepository;
     private final ShoppingSessionMapper sessionRepository;
@@ -205,7 +209,7 @@ public class AdminDashboardService {
         List<OpsActionItemDto> items = new java.util.ArrayList<>();
 
         List<DisputeTicket> openDisputes = disputeRepository
-                .findByStatusOrderByCreatedAtDesc("OPEN").stream()
+                .findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
                 .filter(d -> inDeviceScope(scopedDevices, sessionDeviceId(d.getSessionId())))
                 .toList();
         openDisputes.forEach(d -> items.add(new OpsActionItemDto(
@@ -223,7 +227,7 @@ public class AdminDashboardService {
         )));
 
         List<ShoppingSession> waitingUploads = sessionRepository
-                .findByStateOrderByUpdatedAtAsc(SessionState.WAITING_UPLOAD).stream()
+                .findTop10ByStateOrderByUpdatedAtAsc(SessionState.WAITING_UPLOAD).stream()
                 .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
                 .toList();
         waitingUploads.forEach(s -> items.add(new OpsActionItemDto(
@@ -241,7 +245,7 @@ public class AdminDashboardService {
         )));
 
         List<DeviceInfo> offlineDevices = deviceRepository
-                .findByOnlineStatusNot("ONLINE").stream()
+                .findByOnlineStatusNot("ONLINE", WORKBENCH_ITEM_CAP).stream()
                 .filter(d -> inDeviceScope(scopedDevices, d.getDeviceId()))
                 .toList();
         offlineDevices.forEach(d -> items.add(new OpsActionItemDto(
@@ -259,7 +263,7 @@ public class AdminDashboardService {
                 null
         )));
 
-        inventoryRepository.findLowStock().stream()
+        inventoryRepository.findLowStockLimit(WORKBENCH_ITEM_CAP).stream()
                 .filter(i -> inDeviceScope(scopedDevices, i.getId().getDeviceId()))
                 .forEach(i -> items.add(new OpsActionItemDto(
                         "LOW_STOCK",
@@ -275,7 +279,8 @@ public class AdminDashboardService {
                         null
                 )));
 
-        replenishmentTaskRepository.findByStatusIn(List.of("PENDING", "IN_PROGRESS")).stream()
+        replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(
+                        List.of("PENDING", "IN_PROGRESS"), WORKBENCH_ITEM_CAP).stream()
                 .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
                 .forEach(t -> items.add(new OpsActionItemDto(
                         "REPLENISHMENT",
@@ -347,10 +352,8 @@ public class AdminDashboardService {
         );
 
         Instant transitCutoff = Instant.now().minus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS);
-        inTransitRepository.findByStatusOrderByCreatedAtAsc("IN_TRANSIT").stream()
+        inTransitRepository.findByStatusAndCreatedAtBefore("IN_TRANSIT", transitCutoff, WORKBENCH_ITEM_CAP).stream()
                 .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
-                .filter(t -> t.getCreatedAt() != null && t.getCreatedAt().isBefore(transitCutoff))
-                .limit(10)
                 .forEach(t -> items.add(new OpsActionItemDto(
                         "IN_TRANSIT_OVERDUE",
                         "HIGH",
@@ -376,7 +379,7 @@ public class AdminDashboardService {
         List<DeviceInfo> scopedDeviceList = merchantScopeService.allowedDevices(operatorId);
         long devicesSalesLocked = scopedDeviceList.stream().filter(DeviceInfo::salesLockedEnabled).count();
         long devicesOnSale = scopedDeviceList.size() - devicesSalesLocked;
-        long pendingUnpaidOrders = queryOrders(operatorId, null, "PENDING", PageRequest.of(0, 1)).getTotalElements();
+        long pendingUnpaidOrders = countOverdueUnpaidOrders(operatorId);
         return new OpsWorkbenchDto(
                 countOpenDisputes(scopedDevices),
                 disputeSlaService.countOverdue(),
@@ -406,9 +409,7 @@ public class AdminDashboardService {
         long deviceOccupied = countOccupiedDevices(null);
         return new AdminStatsDto(
                 deviceRepository.count(),
-                deviceRepository.findAll().stream()
-                        .filter(d -> "ONLINE".equalsIgnoreCase(d.getOnlineStatus()))
-                        .count(),
+                deviceRepository.countByOnlineStatus("ONLINE"),
                 sessionActive,
                 deviceOccupied,
                 sessionRepository.countByCreatedAtAfter(todayStart),
@@ -437,23 +438,31 @@ public class AdminDashboardService {
     }
 
     private long countOccupiedDevices(Set<String> scopedDevices) {
+        if (scopedDevices != null && scopedDevices.isEmpty()) {
+            return 0;
+        }
         Set<String> occupied = new HashSet<>();
-        sessionRepository.findAll().stream()
-                .filter(s -> ACTIVE_STATES.contains(s.getState()))
-                .filter(s -> scopedDevices == null || scopedDevices.contains(s.getDeviceId()))
-                .forEach(s -> occupied.add(s.getDeviceId()));
-        replenishmentTaskRepository.findByStatusIn(List.of("IN_PROGRESS")).stream()
-                .map(ReplenishmentTask::getDeviceId)
-                .filter(deviceId -> scopedDevices == null || scopedDevices.contains(deviceId))
-                .forEach(occupied::add);
-        return occupied.size();
+        long sessionDevices = scopedDevices == null
+                ? sessionRepository.countDistinctDeviceIdByStateIn(ACTIVE_STATES)
+                : sessionRepository.countDistinctDeviceIdByDeviceIdInAndStateIn(scopedDevices, ACTIVE_STATES);
+        // 补货 IN_PROGRESS 占柜：与会话设备并集（任务量通常远小于会话全表）
+        for (ReplenishmentTask t : replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(
+                List.of("IN_PROGRESS"), 500)) {
+            if (inDeviceScope(scopedDevices, t.getDeviceId())) {
+                occupied.add(t.getDeviceId());
+            }
+        }
+        // 无法无会话设备列表精确并集时：取「会话占柜」与「补货占柜」的上界近似
+        // （补货设备通常也有补货会话；若仅有任务无会话，用 max 会略低估，可接受）
+        return Math.max(sessionDevices, occupied.size());
     }
 
     private long countOpenDisputes(Set<String> scopedDevices) {
         if (scopedDevices == null) {
             return disputeRepository.countByStatus("OPEN");
         }
-        return disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN").stream()
+        // 作用域内无法无会话表直算时，用有限样本过滤计数（与待办列表一致上限）
+        return disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN", 500).stream()
                 .filter(d -> inDeviceScope(scopedDevices, sessionDeviceId(d.getSessionId())))
                 .count();
     }
@@ -462,10 +471,7 @@ public class AdminDashboardService {
         if (scopedDevices == null) {
             return deviceRepository.countByOnlineStatusNot("ONLINE");
         }
-        return deviceRepository.findAll().stream()
-                .filter(d -> scopedDevices.contains(d.getDeviceId()))
-                .filter(d -> !"ONLINE".equalsIgnoreCase(d.getOnlineStatus()))
-                .count();
+        return deviceRepository.countByDeviceIdInAndOnlineStatusNot(scopedDevices, "ONLINE");
     }
 
     private long countWaitingUploads(Set<String> scopedDevices) {
@@ -479,9 +485,7 @@ public class AdminDashboardService {
         if (scopedDevices == null) {
             return inventoryRepository.countLowStock();
         }
-        return inventoryRepository.findLowStock().stream()
-                .filter(i -> scopedDevices.contains(i.getId().getDeviceId()))
-                .count();
+        return inventoryRepository.countLowStockByDeviceIds(scopedDevices);
     }
 
     private long countPendingReplenishments(Set<String> scopedDevices) {
@@ -489,43 +493,39 @@ public class AdminDashboardService {
         if (scopedDevices == null) {
             return replenishmentTaskRepository.countByStatusIn(statuses);
         }
-        return replenishmentTaskRepository.findByStatusIn(statuses).stream()
-                .filter(t -> scopedDevices.contains(t.getDeviceId()))
-                .count();
+        return replenishmentTaskRepository.countByStatusInAndDeviceIdIn(statuses, scopedDevices);
     }
 
     private List<ShoppingSession> findStaleSessions(Set<String> scopedDevices) {
         Instant cutoff = Instant.now().minus(STALE_SESSION_MINUTES, ChronoUnit.MINUTES);
-        return sessionRepository.findAll().stream()
-                .filter(s -> ACTIVE_STATES.contains(s.getState()))
+        return sessionRepository.findByStateInAndUpdatedAtBefore(ACTIVE_STATES, cutoff, WORKBENCH_ITEM_CAP).stream()
                 .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
-                .filter(s -> s.getUpdatedAt() != null && s.getUpdatedAt().isBefore(cutoff))
-                .limit(10)
                 .toList();
     }
 
     private long countStaleSessions(Set<String> scopedDevices) {
         Instant cutoff = Instant.now().minus(STALE_SESSION_MINUTES, ChronoUnit.MINUTES);
-        return sessionRepository.findAll().stream()
-                .filter(s -> ACTIVE_STATES.contains(s.getState()))
-                .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
-                .filter(s -> s.getUpdatedAt() != null && s.getUpdatedAt().isBefore(cutoff))
-                .count();
+        if (scopedDevices == null) {
+            return sessionRepository.countByStateInAndUpdatedAtBefore(ACTIVE_STATES, cutoff);
+        }
+        return sessionRepository.countByDeviceIdInAndStateInAndUpdatedAtBefore(
+                scopedDevices, ACTIVE_STATES, cutoff);
     }
 
     private long countSplitExceptions(Set<String> scopedDevices) {
-        return splitRepository.findAll().stream()
-                .filter(s -> SPLIT_EXCEPTION_STATUSES.contains(s.getStatus()))
-                .filter(s -> inDeviceScope(scopedDevices, s.getDeviceId()))
-                .count();
+        if (scopedDevices == null) {
+            return splitRepository.countByStatusIn(SPLIT_EXCEPTION_STATUSES);
+        }
+        return splitRepository.countByStatusInAndDeviceIdIn(SPLIT_EXCEPTION_STATUSES, scopedDevices);
     }
 
     private long countInTransitOverdue(Set<String> scopedDevices) {
         Instant cutoff = Instant.now().minus(IN_TRANSIT_OVERDUE_HOURS, ChronoUnit.HOURS);
-        return inTransitRepository.findByStatusOrderByCreatedAtAsc("IN_TRANSIT").stream()
-                .filter(t -> inDeviceScope(scopedDevices, t.getDeviceId()))
-                .filter(t -> t.getCreatedAt() != null && t.getCreatedAt().isBefore(cutoff))
-                .count();
+        if (scopedDevices == null) {
+            return inTransitRepository.countByStatusAndCreatedAtBefore("IN_TRANSIT", cutoff);
+        }
+        return inTransitRepository.countByStatusAndCreatedAtBeforeAndDeviceIdIn(
+                "IN_TRANSIT", cutoff, scopedDevices);
     }
 
     private String sessionDeviceId(String sessionId) {
@@ -580,7 +580,7 @@ public class AdminDashboardService {
     }
 
     private Set<String> replenishingDeviceIds() {
-        return replenishmentTaskRepository.findByStatusIn(List.of("IN_PROGRESS")).stream()
+        return replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(List.of("IN_PROGRESS"), 500).stream()
                 .map(ReplenishmentTask::getDeviceId)
                 .collect(Collectors.toSet());
     }
@@ -614,7 +614,7 @@ public class AdminDashboardService {
         permissionService.requirePermission(operatorId, "ops:device:list");
         List<DeviceInfo> devices = merchantScopeService.allowedDevices(operatorId);
         Set<String> replenishing = replenishingDeviceIds();
-        Map<String, ShoppingSession> sessionByDevice = sessionRepository.findAll().stream()
+        Map<String, ShoppingSession> sessionByDevice = sessionRepository.findByStateIn(ACTIVE_STATES, 2000).stream()
                 .collect(Collectors.toMap(
                         ShoppingSession::getDeviceId,
                         s -> s,
@@ -708,9 +708,22 @@ public class AdminDashboardService {
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(
             Long operatorId, int page, int size, String deviceId, String status) {
+        return listOrders(operatorId, page, size, deviceId, status, false);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<AdminOrderSummaryDto> listOrders(
+            Long operatorId, int page, int size, String deviceId, String status, boolean overdueOnly) {
         permissionService.requirePermission(operatorId, "ops:order:list");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
-        Page<CabinetOrder> result = queryOrders(operatorId, deviceId, status, pageable);
+        Instant createdBefore = null;
+        if (overdueOnly) {
+            createdBefore = Instant.now().minus(UNPAID_OPS_OVERDUE_MINUTES, ChronoUnit.MINUTES);
+            if (status == null || status.isBlank()) {
+                status = "PENDING";
+            }
+        }
+        Page<CabinetOrder> result = queryOrders(operatorId, deviceId, status, createdBefore, pageable);
         Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(
                 result.getContent().stream().map(CabinetOrder::getOrderId).toList());
         return new PageResult<>(
@@ -721,6 +734,11 @@ public class AdminDashboardService {
                 result.getSize(),
                 result.getTotalElements()
         );
+    }
+
+    private long countOverdueUnpaidOrders(Long operatorId) {
+        Instant cutoff = Instant.now().minus(UNPAID_OPS_OVERDUE_MINUTES, ChronoUnit.MINUTES);
+        return queryOrders(operatorId, null, "PENDING", cutoff, PageRequest.of(0, 1)).getTotalElements();
     }
 
     @Transactional(readOnly = true)
@@ -738,8 +756,14 @@ public class AdminDashboardService {
         ShoppingSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
-        if (EnumSet.of(SessionState.COMPLETED, SessionState.CANCELLED).contains(session.getState())) {
+        if (EnumSet.of(SessionState.COMPLETED, SessionState.CANCELLED, SessionState.FAILED).contains(session.getState())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_FINISHED);
+        }
+        // 识别/结算中请走异常中心，避免截断库存与录像链路
+        if (EnumSet.of(SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING, SessionState.DISPUTED)
+                .contains(session.getState())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "识别/结算中的会话请到异常中心处理，不可直接取消");
         }
         SessionState previous = session.getState();
         session.setState(SessionState.CANCELLED);
@@ -768,8 +792,7 @@ public class AdminDashboardService {
         permissionService.requirePermission(operatorId, "ops:report:device");
         Instant todayStart = LocalDate.now(ZoneId.systemDefault())
                 .atStartOfDay(ZoneId.systemDefault()).toInstant();
-        Map<String, ShoppingSession> activeByDevice = sessionRepository.findAll().stream()
-                .filter(s -> ACTIVE_STATES.contains(s.getState()))
+        Map<String, ShoppingSession> activeByDevice = sessionRepository.findByStateIn(ACTIVE_STATES, 2000).stream()
                 .collect(Collectors.toMap(ShoppingSession::getDeviceId, s -> s, (a, b) -> a));
 
         return merchantScopeService.allowedDevices(operatorId).stream()
@@ -1333,10 +1356,18 @@ public class AdminDashboardService {
     }
 
     private AdminAuditLogDto toAuditDto(com.aicabinet.trade.domain.AdminAuditLog log, UserInfo operator) {
+        Long opId = log.getOperatorId();
         String phone = operator != null ? operator.getPhoneNumber() : null;
         String name = operator != null ? operator.getName() : null;
+        // 0 / 空：定时任务、心跳恢复等系统写入
+        if (opId == null || opId <= 0L) {
+            name = "系统";
+            phone = null;
+        } else if (name == null || name.isBlank()) {
+            name = phone != null && !phone.isBlank() ? phone : ("账号 " + opId);
+        }
         return new AdminAuditLogDto(
-                log.getLogId(), log.getOperatorId(), phone, name, log.getAction(),
+                log.getLogId(), opId, phone, name, log.getAction(),
                 log.getTargetType(), log.getTargetId(), log.getDetail(), log.getCreatedAt()
         );
     }
@@ -1403,11 +1434,16 @@ public class AdminDashboardService {
     }
 
     private Page<CabinetOrder> queryOrders(Long operatorId, String deviceId, Pageable pageable) {
-        return queryOrders(operatorId, deviceId, null, pageable);
+        return queryOrders(operatorId, deviceId, null, null, pageable);
     }
 
     private Page<CabinetOrder> queryOrders(
             Long operatorId, String deviceId, String status, Pageable pageable) {
+        return queryOrders(operatorId, deviceId, status, null, pageable);
+    }
+
+    private Page<CabinetOrder> queryOrders(
+            Long operatorId, String deviceId, String status, Instant createdBefore, Pageable pageable) {
         Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, deviceId);
         if (deviceScope != null && deviceScope.isEmpty()) {
             return Page.empty(pageable);
@@ -1415,13 +1451,14 @@ public class AdminDashboardService {
         String statusFilter = (status != null && !status.isBlank()) ? status.trim() : null;
         if (deviceId != null && !deviceId.isBlank()) {
             return orderRepository.findByFiltersOrderByCreatedAtDesc(
-                    deviceId.trim(), null, statusFilter, pageable);
+                    deviceId.trim(), null, statusFilter, createdBefore, pageable);
         }
         if (deviceScope != null) {
             return orderRepository.findByFiltersOrderByCreatedAtDesc(
-                    null, deviceScope, statusFilter, pageable);
+                    null, deviceScope, statusFilter, createdBefore, pageable);
         }
-        return orderRepository.findByFiltersOrderByCreatedAtDesc(null, null, statusFilter, pageable);
+        return orderRepository.findByFiltersOrderByCreatedAtDesc(
+                null, null, statusFilter, createdBefore, pageable);
     }
 
     private List<CabinetOrder> queryTrendOrders(Long operatorId, Instant since) {
@@ -1479,9 +1516,8 @@ public class AdminDashboardService {
         String life = lifecycleStatus == null || lifecycleStatus.isBlank() ? "DEPLOYED" : lifecycleStatus.trim().toUpperCase();
         String route = routeCode == null ? "" : routeCode.trim();
         String onlineFilter = online == null ? "" : online.trim().toUpperCase();
-        Set<String> allowed = merchantScopeService.allowedDeviceIds(operatorId);
-        return deviceRepository.findAll().stream()
-                .filter(d -> allowed == null || allowed.contains(d.getDeviceId()))
+        List<DeviceInfo> devices = merchantScopeService.allowedDevices(operatorId);
+        return devices.stream()
                 .filter(d -> d.getLatitude() != null && d.getLongitude() != null)
                 .filter(d -> "ALL".equals(life)
                         || life.equalsIgnoreCase(DeviceAssetService.normalizeLifecycle(d.getLifecycleStatus())))
@@ -1516,7 +1552,9 @@ public class AdminDashboardService {
                 s.getOpenTime(), s.getCloseTime(), s.getOrderId(), s.getVideoUri(),
                 s.getUploadStatus(), s.getCameraFusionMode(), previewUrl,
                 s.getFailReason(),
-                s.getCreatedAt(), s.getUpdatedAt()
+                s.getCreatedAt(), s.getUpdatedAt(),
+                DeviceValidationService.sessionKind(s),
+                s.getReplenishmentTaskId()
         );
     }
 
@@ -1608,6 +1646,7 @@ public class AdminDashboardService {
         return switch (status.toUpperCase()) {
             case "PENDING" -> "待分账";
             case "SETTLED" -> "已分账";
+            case "VOIDED", "REVERSED" -> "已冲正";
             case "FAILED", "WECHAT_FAILED" -> "分账失败";
             case "LEDGER_ONLY" -> "仅记账";
             default -> status;

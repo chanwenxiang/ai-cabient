@@ -113,7 +113,7 @@ import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
 import {
   resolveMockEnabled,
   resolveSandboxRecharge,
@@ -220,19 +220,11 @@ function formatTime(t: string) {
 }
 
 function statusText(s: string) {
-  const map: Record<string, string> = {
-    PENDING: '待支付',
-    PAID: '已完成',
-    SUCCESS: '已完成',
-    REFUNDED: '已退款',
-    FAILED: '失败',
-    CANCELLED: '已取消'
-  };
-  return map[s] || s;
+  return displayLabel('recharge_status', s, '-');
 }
 
 function channelText(channel?: string) {
-  return dictLabel('pay_channel', channel || '') || channel || '未知渠道';
+  return displayLabel('pay_channel', channel, '未知渠道');
 }
 
 async function cancelOne(orderId: string) {

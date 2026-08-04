@@ -434,8 +434,11 @@ public class SettlementService {
         boolean unpaid = false;
         if (!userValidationService.canChargeViaPasswordFree(session.getUserId(), session.getEntryChannel())) {
             try {
+                int hold = ConsumerPreauthService.STATUS_FROZEN.equalsIgnoreCase(
+                        session.getPreauthStatus() == null ? "" : session.getPreauthStatus())
+                        ? Math.max(0, session.getPreauthCents()) : 0;
                 userValidationService.validateSufficientBalanceForCharge(
-                        session.getUserId(), order.getTotalAmountCents());
+                        session.getUserId(), order.getTotalAmountCents(), hold);
             } catch (BalanceInsufficientException e) {
                 unpaid = true;
                 // 优惠券等到补扣成功再核销，避免关单占券；同时清掉订单上的券字段，防止未占券却按折后价落 PENDING

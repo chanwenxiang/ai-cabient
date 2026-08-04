@@ -11,6 +11,7 @@ import com.aicabinet.trade.mapper.RepairTicketEventMapper;
 import com.aicabinet.trade.mapper.RepairTicketMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -37,15 +38,21 @@ public class RepairTicketService {
     private final RepairTicketEventMapper eventMapper;
     private final DeviceInfoMapper deviceInfoMapper;
     private final PermissionService permissionService;
+    private final DeviceSalesLockService salesLockService;
+    private final OpsExceptionService opsExceptionService;
 
     public RepairTicketService(RepairTicketMapper ticketMapper,
                                RepairTicketEventMapper eventMapper,
                                DeviceInfoMapper deviceInfoMapper,
-                               PermissionService permissionService) {
+                               PermissionService permissionService,
+                               DeviceSalesLockService salesLockService,
+                               @Lazy OpsExceptionService opsExceptionService) {
         this.ticketMapper = ticketMapper;
         this.eventMapper = eventMapper;
         this.deviceInfoMapper = deviceInfoMapper;
         this.permissionService = permissionService;
+        this.salesLockService = salesLockService;
+        this.opsExceptionService = opsExceptionService;
     }
 
     @Transactional(readOnly = true)
@@ -143,6 +150,12 @@ public class RepairTicketService {
 
     @Transactional
     public RepairTicketDto transition(Long operatorId, long ticketId, String toStatus, String remark) {
+        return transition(operatorId, ticketId, toStatus, remark, false);
+    }
+
+    @Transactional
+    public RepairTicketDto transition(Long operatorId, long ticketId, String toStatus, String remark,
+                                      boolean unlockDevice) {
         permissionService.requirePermission(operatorId, "ops:repair:edit");
         RepairTicket ticket = requireTicket(ticketId);
         String target = toStatus == null ? "" : toStatus.trim().toUpperCase(Locale.ROOT);
@@ -164,7 +177,26 @@ public class RepairTicketService {
         }
         ticketMapper.updateById(ticket);
         appendEvent(ticketId, from, target, "TRANSITION", operatorId, remark);
+
+        if ("DONE".equals(target) && unlockDevice) {
+            unlockAfterRepair(operatorId, ticket);
+        }
         return toDto(ticket);
+    }
+
+    private void unlockAfterRepair(Long operatorId, RepairTicket ticket) {
+        var device = deviceInfoMapper.selectById(ticket.getDeviceId());
+        if (device == null) {
+            return;
+        }
+        if (device.salesLockedEnabled()) {
+            salesLockService.applySalesLock(operatorId, device, false,
+                    "repair-done#" + ticket.getTicketId(), true);
+        }
+        opsExceptionService.resolveSystem("DEVICE_FAULT", ticket.getDeviceId(),
+                "维修工单 #" + ticket.getTicketId() + " 完成并解锁");
+        opsExceptionService.resolveSystem("DEVICE_OFFLINE", ticket.getDeviceId(),
+                "维修工单 #" + ticket.getTicketId() + " 完成");
     }
 
     private RepairTicket requireTicket(long ticketId) {

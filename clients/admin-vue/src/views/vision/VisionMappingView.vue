@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">识别映射</span>
-            <span class="hint">识别类名 → 商品；建档请在「商品与识别」维护。生产=映射生效，模型侧仍为等待真实训练</span>
+            <span class="hint">端侧类名 → 商品；建档请在「商品与识别」维护。生产=进入结算白名单；端侧可换任意识别算法，mock/低置信仍进争议</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -75,9 +75,9 @@
             <template #default="{ row }">
               <div class="pipe-cell">
                 <el-tag size="small" :type="row.mappingEffective ? 'success' : 'info'">
-                  {{ row.mappingEffective ? '映射已生效' : '映射未生效' }}
+                  {{ row.mappingEffective ? '结算白名单' : '未进白名单' }}
                 </el-tag>
-                <el-tag size="small" type="warning" effect="plain">等待真实模型</el-tag>
+                <el-tag size="small" type="warning" effect="plain">端侧质量门禁</el-tag>
               </div>
             </template>
           </el-table-column>
@@ -106,6 +106,7 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -169,13 +170,7 @@ function formatConfidence(v?: number | string) {
 }
 
 function enrollmentLabel(status?: string) {
-  const map: Record<string, string> = {
-    DRAFT: '草稿',
-    MAPPING: '映射中',
-    TESTED: '已测试',
-    PRODUCTION: '生产'
-  };
-  return map[status || ''] || status || '—';
+  return displayLabel('sku_enrollment_status', status, '—');
 }
 
 function enrollmentTagType(status?: string) {

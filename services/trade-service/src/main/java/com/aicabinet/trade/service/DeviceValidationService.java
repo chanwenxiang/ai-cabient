@@ -19,9 +19,10 @@ import java.util.List;
 @Service
 public class DeviceValidationService {
 
+    /** 含 WAITING_UPLOAD：关门后识别/结算未完成前禁止新开门，避免账实错位。 */
     private static final List<SessionState> BLOCKING_SESSION_STATES = List.of(
-            SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING, SessionState.RECOGNIZING,
-            SessionState.SETTLING
+            SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
+            SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING
     );
 
     private static final List<SessionState> ACTIVE_SESSION_STATES = List.of(
@@ -32,13 +33,16 @@ public class DeviceValidationService {
     private final DeviceInfoMapper deviceInfoRepository;
     private final ShoppingSessionMapper sessionRepository;
     private final ReplenishmentTaskMapper replenishmentTaskRepository;
+    private final ConsumerPreauthService consumerPreauthService;
 
     public DeviceValidationService(DeviceInfoMapper deviceInfoRepository,
                                    ShoppingSessionMapper sessionRepository,
-                                   ReplenishmentTaskMapper replenishmentTaskRepository) {
+                                   ReplenishmentTaskMapper replenishmentTaskRepository,
+                                   ConsumerPreauthService consumerPreauthService) {
         this.deviceInfoRepository = deviceInfoRepository;
         this.sessionRepository = sessionRepository;
         this.replenishmentTaskRepository = replenishmentTaskRepository;
+        this.consumerPreauthService = consumerPreauthService;
     }
 
     public DeviceInfo requireDevice(String deviceId) {
@@ -71,7 +75,8 @@ public class DeviceValidationService {
                 available,
                 activeSessionId,
                 activeSessionState,
-                busyReason
+                busyReason,
+                consumerPreauthService.resolvePreauthCents(deviceId)
         );
     }
 
@@ -129,13 +134,24 @@ public class DeviceValidationService {
         return hasActiveRestockSession(deviceId) || hasInProgressReplenishmentTask(deviceId);
     }
 
+    /**
+     * 运维远程开门：须在线、无占用会话。
+     * 允许在锁机停售下开门（检修场景）；消费者开门仍受 salesLocked 约束。
+     */
+    public DeviceInfo ensureOpsRemoteDoorAllowed(String deviceId) {
+        DeviceInfo device = ensureDeviceOnline(deviceId);
+        ensureNoBlockingSession(deviceId);
+        return device;
+    }
+
     private void ensureNoBlockingSession(String deviceId) {
         var active = sessionRepository.findByDeviceIdAndStateIn(deviceId, BLOCKING_SESSION_STATES);
         if (!active.isEmpty()) {
             boolean restock = active.stream().anyMatch(DeviceValidationService::isRestockSession);
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    restock ? ApiMessages.RESTOCK_DOOR_SESSION_BUSY : ApiMessages.DEVICE_BUSY);
+            boolean ops = active.stream().anyMatch(DeviceValidationService::isOpsRemoteSession);
+            String msg = restock ? ApiMessages.RESTOCK_DOOR_SESSION_BUSY
+                    : (ops ? "设备运维开门会话进行中，请先关门或结束后再试" : ApiMessages.DEVICE_BUSY);
+            throw new ResponseStatusException(HttpStatus.CONFLICT, msg);
         }
     }
 
@@ -167,5 +183,26 @@ public class DeviceValidationService {
         }
         String key = session.getIdempotencyKey();
         return key != null && key.startsWith("RESTOCK:");
+    }
+
+    /** 运维远程开门会话：不结算、不出单，仅占柜与留痕。 */
+    static boolean isOpsRemoteSession(ShoppingSession session) {
+        String key = session.getIdempotencyKey();
+        return key != null && key.startsWith("OPS_REMOTE:");
+    }
+
+    /** 非消费者购物会话（补货 / 运维），关门后不走扣款结算。 */
+    static boolean isNonConsumerSession(ShoppingSession session) {
+        return isRestockSession(session) || isOpsRemoteSession(session);
+    }
+
+    static String sessionKind(ShoppingSession session) {
+        if (isOpsRemoteSession(session)) {
+            return "OPS";
+        }
+        if (isRestockSession(session)) {
+            return "RESTOCK";
+        }
+        return "CONSUMER";
     }
 }

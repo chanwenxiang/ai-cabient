@@ -40,6 +40,7 @@ public class MerchantPortalService {
             "PENDING", "ACCRUED", "LEDGER_ONLY", "WECHAT_SUBMITTED", "SUBMITTED"
     );
     private static final List<String> FAILED_SPLIT_STATUSES = List.of("WECHAT_FAILED", "FAILED");
+    private static final int WORKBENCH_ITEM_CAP = 50;
     private static final int EXPORT_LIMIT = 5000;
     private static final long MERCHANT_ROLE_ID = 6L;
     private static final long MERCHANT_STAFF_ROLE_ID = 7L;
@@ -307,7 +308,7 @@ public class MerchantPortalService {
 
         long openDisputes = bizDeviceIds == null ? disputeRepository.countByStatus("OPEN")
                 : (bizDeviceIds.isEmpty() ? 0 : disputeRepository.countOpenByDeviceIds(bizDeviceIds));
-        disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN").stream()
+        disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
                 .filter(d -> inDeviceScope(bizDeviceIds, sessionDeviceId(d.getSessionId())))
                 .forEach(d -> items.add(new OpsActionItemDto(
                         "DISPUTE", "HIGH", "待审核争议",
@@ -315,41 +316,44 @@ public class MerchantPortalService {
                         sessionDeviceId(d.getSessionId()), d.getSessionId(), d.getTicketId(),
                         null, null, d.getCreatedAt(), d.getSlaDueAt())));
 
-        long offline = 0;
-        for (DeviceInfo d : deviceRepository.findByOnlineStatusNot("ONLINE")) {
-            if (!inDeviceScope(deviceIds, d.getDeviceId())) continue;
-            offline++;
-            items.add(new OpsActionItemDto(
-                    "DEVICE_OFFLINE", "HIGH", "柜机离线",
-                    d.getDeviceName() != null ? d.getDeviceName() : d.getDeviceId(),
-                    d.getDeviceId(), null, null, null, null, d.getUpdatedAt(), null));
-        }
+        long offline = deviceIds == null
+                ? deviceRepository.countByOnlineStatusNot("ONLINE")
+                : (deviceIds.isEmpty() ? 0
+                : deviceRepository.countByDeviceIdInAndOnlineStatusNot(deviceIds, "ONLINE"));
+        deviceRepository.findByOnlineStatusNot("ONLINE", WORKBENCH_ITEM_CAP).stream()
+                .filter(d -> inDeviceScope(deviceIds, d.getDeviceId()))
+                .forEach(d -> items.add(new OpsActionItemDto(
+                        "DEVICE_OFFLINE", "HIGH", "柜机离线",
+                        d.getDeviceName() != null ? d.getDeviceName() : d.getDeviceId(),
+                        d.getDeviceId(), null, null, null, null, d.getUpdatedAt(), null)));
 
-        long lowStock = 0;
-        for (DeviceSkuInventory inv : inventoryRepository.findLowStock()) {
-            if (!inDeviceScope(deviceIds, inv.getId().getDeviceId())) continue;
-            lowStock++;
-            items.add(new OpsActionItemDto(
-                    "LOW_STOCK", "MEDIUM", "库存偏低",
-                    "SKU " + inv.getId().getSkuId() + " 当前 " + inv.getQuantity()
-                            + " / 阈值 " + inv.getLowThreshold(),
-                    inv.getId().getDeviceId(), null, null, inv.getId().getSkuId(),
-                    null, inv.getUpdatedAt(), null));
-        }
+        long lowStock = deviceIds == null
+                ? inventoryRepository.countLowStock()
+                : (deviceIds.isEmpty() ? 0 : inventoryRepository.countLowStockByDeviceIds(deviceIds));
+        inventoryRepository.findLowStockLimit(WORKBENCH_ITEM_CAP).stream()
+                .filter(inv -> inDeviceScope(deviceIds, inv.getId().getDeviceId()))
+                .forEach(inv -> items.add(new OpsActionItemDto(
+                        "LOW_STOCK", "MEDIUM", "库存偏低",
+                        "SKU " + inv.getId().getSkuId() + " 当前 " + inv.getQuantity()
+                                + " / 阈值 " + inv.getLowThreshold(),
+                        inv.getId().getDeviceId(), null, null, inv.getId().getSkuId(),
+                        null, inv.getUpdatedAt(), null)));
 
-        long expiry = 0;
-        for (PullOffTask task : pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN")) {
-            if (!inDeviceScope(deviceIds, task.getDeviceId())) continue;
-            expiry++;
-            items.add(new OpsActionItemDto(
-                    "EXPIRY", "MEDIUM", "临期/过期下架",
-                    "SKU " + task.getSkuId() + " · " + task.getReason(),
-                    task.getDeviceId(), null, null, task.getSkuId(),
-                    task.getTaskId(), task.getCreatedAt(), null));
-        }
+        long expiry = deviceIds == null
+                ? pullOffTaskRepository.countByStatus("OPEN")
+                : (deviceIds.isEmpty() ? 0
+                : pullOffTaskRepository.countByStatusAndDeviceIdIn("OPEN", deviceIds));
+        pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN", WORKBENCH_ITEM_CAP).stream()
+                .filter(task -> inDeviceScope(deviceIds, task.getDeviceId()))
+                .forEach(task -> items.add(new OpsActionItemDto(
+                        "EXPIRY", "MEDIUM", "临期/过期下架",
+                        "SKU " + task.getSkuId() + " · " + task.getReason(),
+                        task.getDeviceId(), null, null, task.getSkuId(),
+                        task.getTaskId(), task.getCreatedAt(), null)));
 
         List<SlotDiscrepancyAlertDto> discrepancies = deviceSlotService.listDiscrepancyAlerts(userId, null).stream()
                 .filter(a -> inDeviceScope(deviceIds, a.deviceId()))
+                .limit(WORKBENCH_ITEM_CAP)
                 .toList();
         discrepancies.forEach(a -> items.add(new OpsActionItemDto(
                 "SLOT_DISCREPANCY", "MEDIUM", "货道账实差异",
@@ -357,7 +361,8 @@ public class MerchantPortalService {
                 a.deviceId(), null, null, a.assignedSkuId(),
                 null, a.lastPhysicalAt(), null)));
 
-        replenishmentTaskRepository.findByStatusIn(List.of("PENDING", "IN_PROGRESS")).stream()
+        replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(
+                        List.of("PENDING", "IN_PROGRESS"), WORKBENCH_ITEM_CAP).stream()
                 .filter(t -> inDeviceScope(deviceIds, t.getDeviceId()))
                 .forEach(t -> items.add(new OpsActionItemDto(
                         "REPLENISHMENT", "MEDIUM", "补货任务进行中",
@@ -450,7 +455,7 @@ public class MerchantPortalService {
             }
         }
         auditService.record(userId, "MERCHANT_DEVICE_SETTINGS", "DEVICE", deviceId,
-                "name=" + device.getDeviceName());
+                "名称：" + device.getDeviceName());
         return toDeviceSettings(device, tempCommandSent, tempCommandMessage);
     }
 
@@ -472,8 +477,7 @@ public class MerchantPortalService {
         merchantPortalGuard.requireAccess(userId);
         Instant todayStart = LocalDate.now(ZoneId.systemDefault())
                 .atStartOfDay(ZoneId.systemDefault()).toInstant();
-        Map<String, ShoppingSession> activeByDevice = sessionRepository.findAll().stream()
-                .filter(s -> ACTIVE_STATES.contains(s.getState()))
+        Map<String, ShoppingSession> activeByDevice = sessionRepository.findByStateIn(ACTIVE_STATES, 2000).stream()
                 .collect(Collectors.toMap(ShoppingSession::getDeviceId, s -> s, (a, b) -> a));
 
         return merchantFeaturePackService.allowedDevicesForPack(userId, MerchantFeaturePacks.BIZ).stream()
@@ -535,11 +539,25 @@ public class MerchantPortalService {
             return List.of();
         }
 
-        List<DeviceSkuInventory> rows = lowStockOnly
-                ? inventoryRepository.findLowStock()
-                : (deviceId != null && !deviceId.isBlank()
-                ? inventoryRepository.findByIdDeviceId(deviceId.trim())
-                : inventoryRepository.findAll());
+        List<DeviceSkuInventory> rows;
+        if (deviceId != null && !deviceId.isBlank()) {
+            String dev = deviceId.trim();
+            if (allowed != null && !allowed.contains(dev)) {
+                return List.of();
+            }
+            rows = inventoryRepository.findByIdDeviceId(dev);
+            if (lowStockOnly) {
+                rows = rows.stream()
+                        .filter(i -> i.getQuantity() <= i.getLowThreshold())
+                        .toList();
+            }
+        } else if (lowStockOnly) {
+            rows = inventoryRepository.findLowStockLimit(500);
+        } else if (allowed != null) {
+            rows = inventoryRepository.findByIdDeviceIdIn(allowed);
+        } else {
+            rows = inventoryRepository.findAllLimit(2000);
+        }
 
         return rows.stream()
                 .filter(i -> inDeviceScope(allowed, i.getId().getDeviceId()))
@@ -555,7 +573,7 @@ public class MerchantPortalService {
         merchantPortalGuard.requireAccess(userId);
         Set<String> allowed = merchantFeaturePackService.allowedDeviceIdsForPack(
                 userId, MerchantFeaturePacks.FIELD);
-        return pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN").stream()
+        return pullOffTaskRepository.findByStatusOrderByCreatedAtDesc("OPEN", 500).stream()
                 .filter(t -> inDeviceScope(allowed, t.getDeviceId()))
                 .map(t -> {
                     int headroom = 0;
@@ -1034,11 +1052,10 @@ public class MerchantPortalService {
     }
 
     private List<MerchantDeviceDto> buildDeviceDtos(List<DeviceInfo> devices) {
-        Set<String> replenishing = replenishmentTaskRepository.findByStatusIn(List.of("IN_PROGRESS")).stream()
+        Set<String> replenishing = replenishmentTaskRepository.findByStatusInOrderByCreatedAtAsc(List.of("IN_PROGRESS"), 500).stream()
                 .map(ReplenishmentTask::getDeviceId)
                 .collect(Collectors.toSet());
-        Map<String, ShoppingSession> activeByDevice = sessionRepository.findAll().stream()
-                .filter(s -> ACTIVE_STATES.contains(s.getState()))
+        Map<String, ShoppingSession> activeByDevice = sessionRepository.findByStateIn(ACTIVE_STATES, 2000).stream()
                 .collect(Collectors.toMap(
                         ShoppingSession::getDeviceId,
                         s -> s,
@@ -1079,7 +1096,8 @@ public class MerchantPortalService {
                 d.getMerchantId() != null ? merchantNames.get(d.getMerchantId()) : null,
                 active != null ? active.getSessionId() : null,
                 active != null ? active.getState().name() : null,
-                d.getUpdatedAt(), replenishmentInProgress
+                d.getUpdatedAt(), replenishmentInProgress,
+                d.salesLockedEnabled()
         );
     }
 
@@ -1092,7 +1110,8 @@ public class MerchantPortalService {
                 d.getDeviceId(), DeviceNameSupport.resolve(d.getDeviceId(), d.getDeviceName()), d.getDeviceType(), d.getOnlineStatus(),
                 d.getAddress(), d.getAlertContactName(), d.getAlertContactPhone(),
                 d.getTargetTempC(), d.getCurrentTempC(), d.getTempReportedAt(),
-                isTempOutOfRange(d), d.getOpsRemark(), tempCommandSent, tempCommandMessage
+                isTempOutOfRange(d), d.getOpsRemark(), tempCommandSent, tempCommandMessage,
+                d.salesLockedEnabled()
         );
     }
 

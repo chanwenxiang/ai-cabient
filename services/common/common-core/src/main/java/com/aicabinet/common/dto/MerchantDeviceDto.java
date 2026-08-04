@@ -12,5 +12,7 @@ public record MerchantDeviceDto(
         String activeSessionId,
         String activeSessionState,
         Instant updatedAt,
-        boolean replenishmentInProgress
+        boolean replenishmentInProgress,
+        /** 锁机停售：与运营台 salesLocked 同源 */
+        boolean salesLocked
 ) {}

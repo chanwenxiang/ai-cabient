@@ -50,9 +50,7 @@ public class CabinetMetrics {
 
     public void refreshDeviceGauges(DeviceInfoMapper deviceRepository) {
         devicesTotal.set(deviceRepository.count());
-        devicesOnline.set(deviceRepository.findAll().stream()
-                .filter(d -> "ONLINE".equalsIgnoreCase(d.getOnlineStatus()))
-                .count());
+        devicesOnline.set(deviceRepository.countByOnlineStatus("ONLINE"));
     }
 
     public void recordReconciliationMismatch() { reconciliationMismatch.increment(); }

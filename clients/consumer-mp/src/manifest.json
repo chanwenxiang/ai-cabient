@@ -5,6 +5,12 @@
   "versionName": "0.1.0",
   "versionCode": "100",
   "transformPx": false,
+  "h5": {
+    "router": {
+      "mode": "history",
+      "base": "/"
+    }
+  },
   "mp-weixin": {
     "appid": "",
     "libVersion": "3.3.5",

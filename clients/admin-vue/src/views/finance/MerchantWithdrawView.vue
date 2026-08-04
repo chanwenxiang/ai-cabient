@@ -152,7 +152,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 
 interface WalletRow {
   merchantId: string;
@@ -202,7 +202,7 @@ function yuan(cents?: number) {
 }
 
 function withdrawStatusLabel(status?: string) {
-  return dictLabel('merchant_withdraw_status', status) || status || '-';
+  return displayLabel('merchant_withdraw_status', status, '-');
 }
 
 function onTab() {

@@ -30,6 +30,13 @@
           @keyup.enter="search"
         />
       </el-form-item>
+      <el-form-item label="类型">
+        <el-select v-model="kindFilter" clearable placeholder="全部" style="width: 120px" @change="search">
+          <el-option label="消费" value="CONSUMER" />
+          <el-option label="补货" value="RESTOCK" />
+          <el-option label="运维" value="OPS" />
+        </el-select>
+      </el-form-item>
       <el-form-item>
         <el-checkbox v-model="stuckOnly" @change="onStuckToggle">仅滞留</el-checkbox>
       </el-form-item>
@@ -71,6 +78,13 @@
               <button type="button" class="link-cell mono" @click="openTimeline(row)">
                 {{ row.sessionId }}
               </button>
+            </template>
+          </el-table-column>
+          <el-table-column label="类型" width="88" align="center">
+            <template #default="{ row }">
+              <el-tag size="small" :type="sessionKindType(row.sessionKind)" effect="plain">
+                {{ sessionKindLabel(row.sessionKind) }}
+              </el-tag>
             </template>
           </el-table-column>
           <el-table-column label="用户" width="88" class-name="col-text">
@@ -254,6 +268,9 @@ interface SessionRow {
   uploadStatus?: string;
   createdAt?: string;
   updatedAt?: string;
+  /** CONSUMER / RESTOCK / OPS */
+  sessionKind?: string;
+  replenishmentTaskId?: number | null;
 }
 
 /** Align with AdminDashboardService STALE_SESSION_MINUTES. */
@@ -277,6 +294,7 @@ const auth = useAuthStore();
 const loading = ref(false);
 const videoLoading = ref(false);
 const deviceId = ref('');
+const kindFilter = ref('');
 const statusTab = ref('ALL');
 /** API 状态筛选项：与 statusTab 同源，ALL 时为空字符串 */
 const stateFilter = computed(() => (statusTab.value === 'ALL' ? '' : statusTab.value));
@@ -294,7 +312,10 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<SessionRow>((r) => r.sessionId);
 
 const displayItems = computed(() => {
-  const list = [...items.value];
+  let list = [...items.value];
+  if (kindFilter.value) {
+    list = list.filter((r) => (r.sessionKind || 'CONSUMER') === kindFilter.value);
+  }
   if (stuckOnly.value) return list;
   return list.sort((a, b) => {
     const as = isStuck(a) ? 1 : 0;
@@ -308,10 +329,11 @@ const pageStuckCount = computed(() => items.value.filter((r) => isStuck(r)).leng
 
 const { onExport: exportSelectedCsv } = useListCsv({
   filePrefix: '开门记录',
-  headers: ['会话ID', '用户', '设备', '订单', '状态', '等待原因', '滞留分钟', '是否滞留', '失败原因', '更新时间'],
+  headers: ['会话ID', '类型', '用户', '设备', '订单', '状态', '等待原因', '滞留分钟', '是否滞留', '失败原因', '更新时间'],
   toRows: () =>
     pickSelected(displayItems.value).map((row) => [
       row.sessionId,
+      sessionKindLabel(row.sessionKind),
       row.userId,
       row.deviceId,
       row.orderId,
@@ -434,7 +456,20 @@ function rowClassName({ row }: { row: SessionRow }) {
 }
 
 function canCancel(s?: string) {
-  return !!s && !['COMPLETED', 'CANCELLED', 'FAILED'].includes(s);
+  // 识别/结算中禁止直接取消，应走异常中心人工处理，避免库存与录像链路被截断
+  return !!s && ['CREATED', 'OPENING', 'SHOPPING', 'OPEN', 'DOOR_OPEN'].includes(s);
+}
+
+function sessionKindLabel(kind?: string) {
+  if (kind === 'RESTOCK') return '补货';
+  if (kind === 'OPS') return '运维';
+  return '消费';
+}
+
+function sessionKindType(kind?: string) {
+  if (kind === 'RESTOCK') return 'warning';
+  if (kind === 'OPS') return 'info';
+  return 'success';
 }
 
 function sessionStateType(s?: string) {
@@ -632,6 +667,7 @@ function onStuckToggle() {
 
 function reset() {
   deviceId.value = '';
+  kindFilter.value = '';
   statusTab.value = 'ALL';
   stuckOnly.value = false;
   focusSessionId.value = '';

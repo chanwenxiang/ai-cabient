@@ -90,12 +90,12 @@
             </template>
           </el-table-column>
           <el-table-column label="目标" width="100" align="center">
-            <template #default="{ row }">{{ scopeMap[row.targetScope] || row.targetScope }}</template>
+            <template #default="{ row }">{{ displayLabel('announcement_audience', row.targetScope) }}</template>
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">
               <el-tag :type="statusType(row.status)" size="small">
-                {{ statusMap[row.status] || row.status }}
+                {{ displayLabel('announcement_status', row.status) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -176,8 +176,8 @@
       <el-descriptions v-if="previewRow" :column="2" border>
         <el-descriptions-item label="标题" :span="2">{{ previewRow.title }}</el-descriptions-item>
         <el-descriptions-item label="优先级">{{ priorityMap[previewRow.priority] || previewRow.priority }}</el-descriptions-item>
-        <el-descriptions-item label="目标">{{ scopeMap[previewRow.targetScope] || previewRow.targetScope }}</el-descriptions-item>
-        <el-descriptions-item label="状态">{{ statusMap[previewRow.status] || previewRow.status }}</el-descriptions-item>
+        <el-descriptions-item label="目标">{{ displayLabel('announcement_audience', previewRow.targetScope) }}</el-descriptions-item>
+        <el-descriptions-item label="状态">{{ displayLabel('announcement_status', previewRow.status) }}</el-descriptions-item>
         <el-descriptions-item label="发布时间">{{ formatTime(previewRow.publishAt) || '—' }}</el-descriptions-item>
         <el-descriptions-item label="内容" :span="2">
           <div class="announcement-content">{{ previewRow.content || '暂无内容' }}</div>
@@ -192,7 +192,7 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, FolderOpened, Promotion, Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictOptions } from '@aicabinet/shared-dict';
+import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { get, post, put } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -244,31 +244,25 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } = u
   (r) => r.announceId ?? `${r.title}-${r.publishAt}`
 );
 
-const scopeMap: Record<string, string> = { ALL: '全部', MERCHANT: '商户', CONSUMER: '消费者' };
 const statusMap: Record<string, string> = Object.fromEntries(
   dictOptions('announcement_status').map((o) => [o.value, o.label])
 );
 const priorityMap: Record<string, string> = Object.fromEntries(
   dictOptions('dispute_priority').map((o) => [o.value, o.label])
 );
-const scopeCodeByLabel: Record<string, string> = {
-  全部: 'ALL',
-  商户: 'MERCHANT',
-  消费者: 'CONSUMER',
-  ALL: 'ALL',
-  MERCHANT: 'MERCHANT',
-  CONSUMER: 'CONSUMER'
-};
-const priorityCodeByLabel: Record<string, string> = {
-  低: 'LOW',
-  普通: 'NORMAL',
-  高: 'HIGH',
-  紧急: 'URGENT',
-  LOW: 'LOW',
-  NORMAL: 'NORMAL',
-  HIGH: 'HIGH',
-  URGENT: 'URGENT'
-};
+const scopeCodeByLabel: Record<string, string> = Object.fromEntries(
+  dictOptions('announcement_audience').flatMap((o) => [
+    [o.label, o.value],
+    [o.value, o.value],
+    ...(o.value === 'ALL' ? ([['全部', 'ALL']] as [string, string][]) : [])
+  ] as [string, string][])
+);
+const priorityCodeByLabel: Record<string, string> = Object.fromEntries(
+  dictOptions('dispute_priority').flatMap((o) => [
+    [o.label, o.value],
+    [o.value, o.value]
+  ] as [string, string][])
+);
 
 const CSV_HEADERS = ['标题', '内容', '目标', '优先级', '状态', '发布时间'];
 
@@ -279,9 +273,9 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
     pickSelected(filtered.value).map((row) => [
       row.title,
       row.content || '',
-      scopeMap[row.targetScope] || row.targetScope,
+      displayLabel('announcement_audience', row.targetScope),
       priorityMap[row.priority] || row.priority,
-      statusMap[row.status] || row.status,
+      displayLabel('announcement_status', row.status),
       formatTime(row.publishAt)
     ]),
   onImportRows: async (rows) => {

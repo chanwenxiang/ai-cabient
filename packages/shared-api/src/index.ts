@@ -80,12 +80,26 @@ export class ApiClient {
     return this.refreshPromise;
   }
 
-  loginByPassword(phone: string, password: string) {
-    return this.request<LoginResponse>('/api/v2/auth/admin-password-login', 'POST', { phoneNumber: phone, password }, false);
+  loginByPassword(phone: string, password: string, captcha?: { captchaId: string; captchaCode: string }) {
+    return this.request<LoginResponse>(
+      '/api/v2/auth/admin-password-login',
+      'POST',
+      {
+        phoneNumber: phone,
+        password,
+        captchaId: captcha?.captchaId,
+        captchaCode: captcha?.captchaCode
+      },
+      false
+    );
+  }
+
+  fetchCaptcha() {
+    return this.request<{ captchaId: string; imageBase64: string }>('/api/v2/auth/captcha', 'GET', undefined, false);
   }
 
   merchantLogin(phone: string, password: string) {
-    return this.request<LoginResponse>('/api/v2/auth/admin-password-login', 'POST', { phoneNumber: phone, password }, false);
+    return this.request<LoginResponse>('/api/v2/auth/merchant-password-login', 'POST', { phoneNumber: phone, password }, false);
   }
 }
 

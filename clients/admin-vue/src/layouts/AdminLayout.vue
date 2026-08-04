@@ -35,10 +35,6 @@
           <SidebarMenuTree :nodes="sidebarTree" />
         </el-menu>
       </el-scrollbar>
-      <button type="button" class="sidebar-foot" @click="toggleSidebar">
-        <el-icon><DArrowLeft v-if="!sidebarCollapsed" /><DArrowRight v-else /></el-icon>
-        <span v-if="!sidebarCollapsed">收起</span>
-      </button>
     </el-aside>
 
     <el-container class="layout-content" direction="vertical">
@@ -148,7 +144,7 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { MenuInstance } from 'element-plus';
 import {
-  Fold, Expand, Brush, DArrowLeft, DArrowRight
+  Fold, Expand, Brush
 } from '@element-plus/icons-vue';
 import { buildSidebarTree, sidebarOpenKeysForPath } from '@/config/sidebar';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -515,22 +511,6 @@ onUnmounted(() => {
 .brand-text.hidden,
 .brand-mini.hidden { display: none; }
 .sidebar-scroll { flex: 1; min-height: 0; }
-.sidebar-foot {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  width: 100%;
-  padding: 12px 8px;
-  border: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  background: transparent;
-  color: #94a3b8;
-  font-size: 13px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-.sidebar-foot:hover { background: rgba(255, 255, 255, 0.06); color: #f8fafc; }
 
 .layout-content {
   flex: 1;

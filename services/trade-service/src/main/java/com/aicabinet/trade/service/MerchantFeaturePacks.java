@@ -6,6 +6,7 @@ import java.util.Set;
 /**
  * 商户功能包常量与权限码映射。
  * 平台开包 ∧ 用户 RBAC → 商户端可见/可调。
+ * 前缀表与前端 packages/shared-rbac merchantPackForPerm 保持一致，改时请同步。
  */
 public final class MerchantFeaturePacks {
 

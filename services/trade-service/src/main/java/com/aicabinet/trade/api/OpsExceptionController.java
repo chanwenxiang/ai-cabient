@@ -103,6 +103,14 @@ public class OpsExceptionController {
             @PathVariable String id, @Valid @RequestBody ResolveOpsExceptionRequest body) {
         return ApiResponse.ok(service.resolve(operator(request), id, body.resolution()));
     }
+
+    @RequiresPermissions(value = {"ops:exception:handle", "ops:repair:edit"}, logical = RequiresPermissions.Logical.AND)
+    @PostMapping("/{id}/resolve-with-repair")
+    public ApiResponse<OpsExceptionDto> resolveWithRepair(HttpServletRequest request,
+            @PathVariable String id, @Valid @RequestBody ResolveOpsExceptionRequest body) {
+        return ApiResponse.ok(service.resolveWithRepair(operator(request), id, body.resolution()));
+    }
+
     private Long operator(HttpServletRequest request) { return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID); }
 
     private static boolean parseFlag(String raw) {

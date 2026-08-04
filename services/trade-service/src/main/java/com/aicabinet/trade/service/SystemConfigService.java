@@ -26,14 +26,16 @@ public class SystemConfigService {
     public static final String SETTLEMENT_MIN_CONFIDENCE = "settlement.min_confidence";
     public static final String DISPUTE_AUTO_OPEN = "dispute.auto_open";
     public static final String REFUND_DEFAULT_POLICY = "refund.default_policy";
-    /** 待支付订单超时自动关单小时数；0=关闭自动关单。 */
+    /** 待支付订单超时自动关单小时数, 0=关闭自动关单. */
     public static final String UNPAID_AUTO_CANCEL_HOURS = "order.unpaid.auto_cancel_hours";
-    /** 超时关单时是否自动拉黑用户。 */
+    /** 超时关单时是否自动拉黑用户. */
     public static final String UNPAID_AUTO_BLACKLIST = "order.unpaid.auto_blacklist";
-    /** 待支付充值单超时自动取消分钟数；0=关闭。 */
+    /** 待支付充值单超时自动取消分钟数, 0=关闭. */
     public static final String RECHARGE_AUTO_CANCEL_MINUTES = "recharge.pending.auto_cancel_minutes";
-    /** 设备离线超过该分钟数后自动锁机停售；0=不自动锁机。 */
+    /** 设备离线超过该分钟数后自动锁机停售, 0=不自动锁机. */
     public static final String DEVICE_OFFLINE_AUTO_LOCK_MINUTES = "device.offline.auto_sales_lock_minutes";
+    /** 消费者开门预授权冻结金额(分), 优先于配置文件, 柜机押金可覆盖. */
+    public static final String CHECKOUT_PREAUTH_CENTS = "checkout.preauth_cents";
 
     private final SystemConfigMapper repository;
     private final SecurityProperties securityProperties;
@@ -88,22 +90,24 @@ public class SystemConfigService {
         Map<String, String> map = new LinkedHashMap<>();
         map.put("servicePhone", getValue(CONSUMER_SERVICE_PHONE, "400-888-0018"));
         map.put("mockEnabled", String.valueOf(securityProperties.mockEnabled()));
-        // 沙箱：已配置支付宝密钥，或 mock 模式下允许走 mock 支付宝预下单（便于本地联调入口可见）
+        // 沙箱: 已配置支付宝密钥, 或 mock 模式下允许走 mock 支付宝预下单
         boolean alipayOk = alipayProperties.isConfigured()
                 || (securityProperties.mockEnabled() && alipayProperties.enabled());
         map.put("alipayRechargeEnabled", String.valueOf(alipayOk));
-        // 微信：已完整配置走 live；未配置但开启 mock 时允许微信模拟预下单+确认
+        // 微信: 已完整配置走 live; 未配置但开启 mock 时允许微信模拟预下单+确认
         boolean wechatOk = weChatPayProperties.isConfigured() || securityProperties.mockEnabled();
         map.put("wechatRechargeEnabled", String.valueOf(wechatOk));
         map.put("wechatPayLive", String.valueOf(weChatPayProperties.isConfigured()));
         map.put("alipayPayLive", String.valueOf(alipayProperties.isConfigured()));
-        // 支付分开门：显式开启或 mock 时前端展示一键开通
+        // 支付分开门: 显式开启或 mock 时前端展示一键开通
         map.put("payScoreSignEnabled",
                 String.valueOf(payScoreProperties.enabled() || securityProperties.mockEnabled()));
         map.put("refundDefaultPolicy", getValue(REFUND_DEFAULT_POLICY, "AUTO_REFUND"));
         map.put("paymentModeHint", securityProperties.mockEnabled()
-                ? "模拟支付（无真实进件）；充值可一键到账，订单退款退回余额"
+                ? "模拟支付(无真实进件), 充值可一键到账, 订单退款退回余额"
                 : "真实/沙箱支付");
+        map.put("preauthCents", getValue(CHECKOUT_PREAUTH_CENTS,
+                String.valueOf(com.aicabinet.common.constants.CabinetConstants.MIN_BALANCE_CENTS)));
         return map;
     }
 
@@ -138,20 +142,19 @@ public class SystemConfigService {
     }
 
     private void ensureDefaults() {
-        upsertIfAbsent(CONSUMER_SERVICE_PHONE, "400-888-0018", "C 端客服电话");
+        upsertIfAbsent(CONSUMER_SERVICE_PHONE, "400-888-0018", "C端客服电话");
         upsertIfAbsent(OPS_SUPPORT_EMAIL, "ops@aicabinet.local", "运营支持邮箱");
         upsertIfAbsent(SETTLEMENT_MIN_CONFIDENCE, "0.72", "自动结算最低识别置信度");
         upsertIfAbsent(DISPUTE_AUTO_OPEN, "true", "识别低置信是否自动开争议工单");
         upsertIfAbsent(REFUND_DEFAULT_POLICY, "AUTO_REFUND",
-                "全局默认退款策略：AUTO_REFUND=自助退款；DISPUTE_ONLY=仅申诉、运营审核后退款");
-        upsertIfAbsent(UNPAID_AUTO_CANCEL_HOURS, "48",
-                "待支付订单超时自动关单小时数；0=关闭");
-        upsertIfAbsent(UNPAID_AUTO_BLACKLIST, "false",
-                "待支付超时关单时是否自动拉黑用户");
-        upsertIfAbsent(RECHARGE_AUTO_CANCEL_MINUTES, "30",
-                "待支付充值单超时自动取消分钟数；0=关闭");
-        upsertIfAbsent(DEVICE_OFFLINE_AUTO_LOCK_MINUTES, "10",
-                "设备离线超过该分钟数后自动锁机停售；0=不自动锁机");
+                "全局默认退款策略: AUTO_REFUND=自助退款, DISPUTE_ONLY=仅申诉");
+        upsertIfAbsent(UNPAID_AUTO_CANCEL_HOURS, "48", "待支付订单超时自动关单小时数, 0=关闭");
+        upsertIfAbsent(UNPAID_AUTO_BLACKLIST, "false", "待支付超时关单时是否自动拉黑用户");
+        upsertIfAbsent(RECHARGE_AUTO_CANCEL_MINUTES, "30", "待支付充值单超时自动取消分钟数, 0=关闭");
+        upsertIfAbsent(DEVICE_OFFLINE_AUTO_LOCK_MINUTES, "10", "设备离线超时自动锁机分钟数, 0=关闭");
+        upsertIfAbsent(CHECKOUT_PREAUTH_CENTS,
+                String.valueOf(com.aicabinet.common.constants.CabinetConstants.MIN_BALANCE_CENTS),
+                "消费者开门预授权冻结金额(分)");
     }
 
     private void upsertIfAbsent(String key, String value, String description) {

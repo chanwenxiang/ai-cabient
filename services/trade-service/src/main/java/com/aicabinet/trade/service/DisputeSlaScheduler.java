@@ -17,6 +17,7 @@ import java.util.List;
 public class DisputeSlaScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(DisputeSlaScheduler.class);
+    private static final int SCAN_BATCH = 500;
 
     private final DisputeSlaProperties disputeSlaProperties;
     private final DisputeTicketMapper disputeRepository;
@@ -39,29 +40,35 @@ public class DisputeSlaScheduler {
         Instant now = Instant.now();
         Instant reminderThreshold = now.plus(disputeSlaProperties.reminderHoursBefore(), ChronoUnit.HOURS);
 
-        List<DisputeTicket> openTickets = disputeRepository.findByStatusOrderByCreatedAtDesc("OPEN");
+        List<DisputeTicket> openTickets = disputeRepository.findOpenNeedingSlaScan(SCAN_BATCH);
         int reminders = 0;
         int overdue = 0;
         for (DisputeTicket ticket : openTickets) {
+            boolean dirty = false;
             if (ticket.getSlaDueAt() == null) {
                 ticket.setSlaDueAt(ticket.getCreatedAt().plus(disputeSlaProperties.hours(), ChronoUnit.HOURS));
+                dirty = true;
             }
             if (ticket.getSlaReminderAt() == null
                     && !ticket.getSlaDueAt().isAfter(reminderThreshold)
                     && ticket.getSlaDueAt().isAfter(now)) {
                 alertService.sendReminder(ticket);
                 ticket.setSlaReminderAt(now);
+                dirty = true;
                 reminders++;
             }
             if (ticket.getSlaAlertedAt() == null && !ticket.getSlaDueAt().isAfter(now)) {
                 alertService.sendOverdue(ticket);
                 ticket.setSlaAlertedAt(now);
+                dirty = true;
                 overdue++;
             }
-            disputeRepository.save(ticket);
+            if (dirty) {
+                disputeRepository.save(ticket);
+            }
         }
         if (reminders > 0 || overdue > 0) {
-            log.info("dispute sla scan reminders={} overdue={}", reminders, overdue);
+            log.info("dispute sla scan reminders={} overdue={} scanned={}", reminders, overdue, openTickets.size());
         }
     }
 }

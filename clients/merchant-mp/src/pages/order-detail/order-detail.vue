@@ -55,7 +55,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTimeShort, orderStatusLabel } from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
@@ -90,7 +90,7 @@ const loading = ref(true);
 const error = ref('');
 
 const payChannelText = computed(() =>
-  dictLabel('pay_channel', order.value?.payChannel) || order.value?.payChannel || '-'
+  displayLabel('pay_channel', order.value?.payChannel, '-')
 );
 
 onLoad((opt: Record<string, string | undefined>) => {
@@ -132,7 +132,7 @@ async function load() {
 }
 
 function statusText(s?: string) {
-  return orderStatusLabel(s) || s || '-';
+  return orderStatusLabel(s);
 }
 
 function money(cents?: number) {

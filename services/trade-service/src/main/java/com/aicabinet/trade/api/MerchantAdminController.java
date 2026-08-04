@@ -1,5 +1,6 @@
 package com.aicabinet.trade.api;
 
+import com.aicabinet.common.dto.ConfirmLedgerSplitRequest;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.MerchantDto;
 import com.aicabinet.common.dto.PageResult;
@@ -89,6 +90,15 @@ public class MerchantAdminController {
             HttpServletRequest request,
             @PathVariable String splitId) {
         return ApiResponse.ok(merchantService.refreshWeChatProfitSharing(operatorId(request), splitId));
+    }
+
+    @RequiresPermissions("ops:merchant:split")
+    @PostMapping("/revenue-splits/{splitId}/confirm-ledger")
+    public ApiResponse<RevenueSplitDto> confirmLedgerOnly(
+            HttpServletRequest request,
+            @PathVariable String splitId,
+            @Valid @RequestBody ConfirmLedgerSplitRequest body) {
+        return ApiResponse.ok(merchantService.confirmLedgerOnly(operatorId(request), splitId, body.reason()));
     }
 
     private static Long operatorId(HttpServletRequest request) {

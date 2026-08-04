@@ -3,6 +3,7 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.*;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
+import com.aicabinet.trade.service.AmapGeocodeService;
 import com.aicabinet.trade.service.CompetitiveGapService;
 import com.aicabinet.trade.service.DeviceAssetService;
 import com.aicabinet.trade.service.FundBillService;
@@ -24,13 +25,30 @@ public class OpsGapFeaturesController {
     private final FundBillService fundBillService;
     private final CompetitiveGapService gapService;
     private final DeviceAssetService deviceAssetService;
+    private final AmapGeocodeService amapGeocodeService;
 
     public OpsGapFeaturesController(FundBillService fundBillService,
                                     CompetitiveGapService gapService,
-                                    DeviceAssetService deviceAssetService) {
+                                    DeviceAssetService deviceAssetService,
+                                    AmapGeocodeService amapGeocodeService) {
         this.fundBillService = fundBillService;
         this.gapService = gapService;
         this.deviceAssetService = deviceAssetService;
+        this.amapGeocodeService = amapGeocodeService;
+    }
+
+    // ---- geo ----
+
+    @RequiresPermissions("ops:device:edit")
+    @GetMapping("/geo/geocode")
+    public ApiResponse<GeocodeResponse> geocode(@RequestParam("address") String address) {
+        return ApiResponse.ok(amapGeocodeService.geocode(address));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @GetMapping("/geo/status")
+    public ApiResponse<java.util.Map<String, Boolean>> geoStatus() {
+        return ApiResponse.ok(java.util.Map.of("configured", amapGeocodeService.isConfigured()));
     }
 
     // ---- M1 fund ----

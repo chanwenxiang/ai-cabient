@@ -48,6 +48,12 @@ public class ShoppingSession {
     /** 扫码入口渠道 WECHAT / ALIPAY */
     private String entryChannel;
 
+    /** 开门预授权冻结金额（分） */
+    private int preauthCents;
+
+    /** NONE / FROZEN / CAPTURED / RELEASED */
+    private String preauthStatus = "NONE";
+
     private Instant createdAt;
 
     private Instant updatedAt;
@@ -86,6 +92,10 @@ public String getSessionId() { return sessionId; }
     public void setGravityDeltas(String gravityDeltas) { this.gravityDeltas = gravityDeltas; }
     public String getEntryChannel() { return entryChannel; }
     public void setEntryChannel(String entryChannel) { this.entryChannel = entryChannel; }
+    public int getPreauthCents() { return preauthCents; }
+    public void setPreauthCents(int preauthCents) { this.preauthCents = preauthCents; }
+    public String getPreauthStatus() { return preauthStatus; }
+    public void setPreauthStatus(String preauthStatus) { this.preauthStatus = preauthStatus; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

@@ -27,6 +27,15 @@
 |------|------|------|
 | [CODE_FIX_CHECKLIST.md](CODE_FIX_CHECKLIST.md) | 8KB | 代码问题修复清单 |
 
+### 浏览器 UAT（现行）
+| 文档 | 说明 |
+|------|------|
+| [BROWSER_MIN_UAT.md](BROWSER_MIN_UAT.md) | 最小可执行 UAT 包 |
+| [BROWSER_MIN_UAT_TRACKING.md](BROWSER_MIN_UAT_TRACKING.md) | MIN 执行跟踪（含 2026-08-04 复测） |
+| [BROWSER_MIN_UAT_REPORT.md](BROWSER_MIN_UAT_REPORT.md) | MIN 执行报告 |
+| [BROWSER_FULL_UAT_PLAN.md](BROWSER_FULL_UAT_PLAN.md) | 全量 UAT 计划 |
+| [BROWSER_FULL_UAT_TRACKING.md](BROWSER_FULL_UAT_TRACKING.md) | 全量执行跟踪 |
+
 ---
 
 ## 核心发现

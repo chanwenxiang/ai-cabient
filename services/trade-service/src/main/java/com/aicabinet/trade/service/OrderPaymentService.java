@@ -44,6 +44,7 @@ public class OrderPaymentService {
     private final SecurityProperties securityProperties;
     private final PaymentOperationMapper paymentOperationRepository;
     private final ShoppingSessionMapper sessionRepository;
+    private final ConsumerPreauthService consumerPreauthService;
 
     public OrderPaymentService(UserInfoMapper userInfoRepository,
                                UserAccountMapper userAccountRepository,
@@ -55,7 +56,8 @@ public class OrderPaymentService {
                                PaymentOperationMapper paymentOperationRepository,
                                BalanceLedgerService balanceLedgerService,
                                CheckoutProperties checkoutProperties,
-                               ShoppingSessionMapper sessionRepository) {
+                               ShoppingSessionMapper sessionRepository,
+                               ConsumerPreauthService consumerPreauthService) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.payScoreService = payScoreService;
@@ -67,6 +69,7 @@ public class OrderPaymentService {
         this.balanceLedgerService = balanceLedgerService;
         this.checkoutProperties = checkoutProperties;
         this.sessionRepository = sessionRepository;
+        this.consumerPreauthService = consumerPreauthService;
     }
 
     @Transactional
@@ -78,6 +81,7 @@ public class OrderPaymentService {
         // 零元单（未取货 / 券全额抵扣）不走账本，避免 delta=0 被拒
         if (order.getTotalAmountCents() <= 0) {
             order.setPayChannel(PayChannels.BALANCE);
+            releaseSessionPreauth(order);
             return;
         }
         String idemKey = "CHARGE:" + order.getOrderId() + ":" + order.getTotalAmountCents();
@@ -89,11 +93,13 @@ public class OrderPaymentService {
         UserInfo user = userInfoRepository.findById(order.getUserId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
 
+        ShoppingSession session = null;
         String entryChannel = null;
         if (order.getSessionId() != null && !order.getSessionId().isBlank()) {
-            entryChannel = sessionRepository.findById(order.getSessionId())
-                    .map(ShoppingSession::getEntryChannel)
-                    .orElse(null);
+            session = sessionRepository.findById(order.getSessionId()).orElse(null);
+            if (session != null) {
+                entryChannel = session.getEntryChannel();
+            }
         }
 
         if (!checkoutProperties.balanceOnly()) {
@@ -104,18 +110,40 @@ public class OrderPaymentService {
                 order.setPayTradeNo(charge.tradeNo());
                 recordOperation(order, "CHARGE", order.getTotalAmountCents(), charge.channel(), idemKey,
                         charge.tradeNo(), "order charge");
+                if (session != null) {
+                    consumerPreauthService.releaseIfFrozen(session);
+                }
                 log.info("order charged channel={} order={} tradeNo={} entry={}",
                         charge.channel(), order.getOrderId(), charge.tradeNo(), entryChannel);
                 return;
             }
         }
 
-        var operation = balanceLedgerService.change(order.getUserId(), -order.getTotalAmountCents(), "CHARGE",
-                order.getOrderId(), idemKey, "order charge");
+        int remainDebit = order.getTotalAmountCents();
+        if (session != null) {
+            remainDebit = consumerPreauthService.captureForCharge(session, order.getTotalAmountCents());
+        }
+        if (remainDebit > 0) {
+            var operation = balanceLedgerService.change(order.getUserId(), -remainDebit, "CHARGE",
+                    order.getOrderId(), idemKey, "order charge");
+            order.setPaymentOperationId(operation.getOperationId());
+            order.setBalanceBeforeCents(operation.getBalanceBeforeCents());
+            order.setBalanceAfterCents(operation.getBalanceAfterCents());
+        } else {
+            // 全额由预授权冲抵：仍记一条零侧审计用的 CHARGE 幂等键，防止重复扣
+            if (!isCompleted(idemKey)) {
+                recordOperation(order, "CHARGE", order.getTotalAmountCents(), PayChannels.BALANCE, idemKey,
+                        null, "order charge via preauth");
+            }
+        }
         order.setPayChannel(PayChannels.BALANCE);
-        order.setPaymentOperationId(operation.getOperationId());
-        order.setBalanceBeforeCents(operation.getBalanceBeforeCents());
-        order.setBalanceAfterCents(operation.getBalanceAfterCents());
+    }
+
+    private void releaseSessionPreauth(CabinetOrder order) {
+        if (order.getSessionId() == null || order.getSessionId().isBlank()) {
+            return;
+        }
+        sessionRepository.findById(order.getSessionId()).ifPresent(consumerPreauthService::releaseIfFrozen);
     }
 
     @Transactional

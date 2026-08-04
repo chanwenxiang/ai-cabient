@@ -126,7 +126,7 @@ import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
 import { orderStatusLabel, formatDateTimeShort } from '@aicabinet/shared-uni/format';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { showDisputeResolvedToast } from '@/utils/notify';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import type { DisputeTicketDto, OrderSummary } from '@aicabinet/shared-types';
@@ -241,7 +241,7 @@ function statusLabel(status?: string) {
   return orderStatusLabel(status);
 }
 function payChannelText(channel?: string) {
-  return dictLabel('pay_channel', channel || '') || channel || '未知';
+  return displayLabel('pay_channel', channel, '未知渠道');
 }
 function chipClass(status?: string) {
   if (status === 'PAID' || status === 'COMPLETED') return 'paid';

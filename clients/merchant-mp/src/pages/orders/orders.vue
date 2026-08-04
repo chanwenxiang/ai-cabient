@@ -100,7 +100,7 @@ async function load() {
 }
 
 function statusText(s?: string) {
-  return orderStatusLabel(s) || s || '-';
+  return orderStatusLabel(s);
 }
 
 function money(cents?: number) {

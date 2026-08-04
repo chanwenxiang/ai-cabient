@@ -51,6 +51,62 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
     return selectList(Wrappers.<ShoppingSession>lambdaQuery().eq(ShoppingSession::getState, state).orderByAsc(ShoppingSession::getUpdatedAt).last("LIMIT 10"));
     }
 
+    /** 滞留扫描：按状态 + updated_at 早于截止时间（单次上限防爆内存）。 */
+    default List<ShoppingSession> findByStateAndUpdatedAtBefore(SessionState state, java.time.Instant cutoff, int limit) {
+        int lim = Math.max(1, Math.min(limit, 1000));
+        return selectList(Wrappers.<ShoppingSession>lambdaQuery()
+                .eq(ShoppingSession::getState, state)
+                .lt(ShoppingSession::getUpdatedAt, cutoff)
+                .orderByAsc(ShoppingSession::getUpdatedAt)
+                .last("LIMIT " + lim));
+    }
+
+    /** 开门过久：SHOPPING 且 open_time 早于截止。 */
+    default List<ShoppingSession> findByStateAndOpenTimeBefore(SessionState state, java.time.Instant cutoff, int limit) {
+        int lim = Math.max(1, Math.min(limit, 1000));
+        return selectList(Wrappers.<ShoppingSession>lambdaQuery()
+                .eq(ShoppingSession::getState, state)
+                .isNotNull(ShoppingSession::getOpenTime)
+                .lt(ShoppingSession::getOpenTime, cutoff)
+                .orderByAsc(ShoppingSession::getOpenTime)
+                .last("LIMIT " + lim));
+    }
+
+    default List<ShoppingSession> findByStateInAndCreatedAtBefore(Collection<SessionState> states,
+                                                                  java.time.Instant cutoff, int limit) {
+        int lim = Math.max(1, Math.min(limit, 1000));
+        return selectList(Wrappers.<ShoppingSession>lambdaQuery()
+                .in(ShoppingSession::getState, states)
+                .lt(ShoppingSession::getCreatedAt, cutoff)
+                .orderByAsc(ShoppingSession::getCreatedAt)
+                .last("LIMIT " + lim));
+    }
+
+    default List<ShoppingSession> findByStateInAndUpdatedAtBefore(Collection<SessionState> states,
+                                                                  java.time.Instant cutoff, int limit) {
+        int lim = Math.max(1, Math.min(limit, 1000));
+        return selectList(Wrappers.<ShoppingSession>lambdaQuery()
+                .in(ShoppingSession::getState, states)
+                .and(w -> w.lt(ShoppingSession::getUpdatedAt, cutoff)
+                        .or()
+                        .isNull(ShoppingSession::getUpdatedAt).lt(ShoppingSession::getCreatedAt, cutoff))
+                .orderByAsc(ShoppingSession::getUpdatedAt)
+                .last("LIMIT " + lim));
+    }
+
+    default List<ShoppingSession> findByReplenishmentTaskIdAndStateIn(Long taskId, Collection<SessionState> states) {
+        return selectList(Wrappers.<ShoppingSession>lambdaQuery()
+                .eq(ShoppingSession::getReplenishmentTaskId, taskId)
+                .in(ShoppingSession::getState, states));
+    }
+
+    default List<ShoppingSession> findByIdempotencyKeyStartingWithAndStateIn(String prefix,
+                                                                             Collection<SessionState> states) {
+        return selectList(Wrappers.<ShoppingSession>lambdaQuery()
+                .likeRight(ShoppingSession::getIdempotencyKey, prefix)
+                .in(ShoppingSession::getState, states));
+    }
+
     default List<ShoppingSession> findByStateOrderByUpdatedAtAsc(SessionState state) {
     return selectList(Wrappers.<ShoppingSession>lambdaQuery().eq(ShoppingSession::getState, state).orderByAsc(ShoppingSession::getUpdatedAt));
     }
@@ -65,6 +121,51 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
     default long countByStateIn(List<SessionState> states) {
     Long c = selectCount(Wrappers.<ShoppingSession>lambdaQuery().in(ShoppingSession::getState, states));
     return c == null ? 0 : c;
+    }
+
+    default long countDistinctDeviceIdByStateIn(Collection<SessionState> states) {
+        if (states == null || states.isEmpty()) {
+            return 0;
+        }
+        List<Object> rows = selectObjs(Wrappers.<ShoppingSession>query()
+                .select("DISTINCT device_id")
+                .in("state", states.stream().map(Enum::name).toList()));
+        return rows == null ? 0 : rows.size();
+    }
+
+    default long countDistinctDeviceIdByDeviceIdInAndStateIn(
+            Collection<String> deviceIds, Collection<SessionState> states) {
+        if (deviceIds == null || deviceIds.isEmpty() || states == null || states.isEmpty()) {
+            return 0;
+        }
+        List<Object> rows = selectObjs(Wrappers.<ShoppingSession>query()
+                .select("DISTINCT device_id")
+                .in("device_id", deviceIds)
+                .in("state", states.stream().map(Enum::name).toList()));
+        return rows == null ? 0 : rows.size();
+    }
+
+    default long countByStateInAndUpdatedAtBefore(Collection<SessionState> states, java.time.Instant cutoff) {
+        Long c = selectCount(Wrappers.<ShoppingSession>lambdaQuery()
+                .in(ShoppingSession::getState, states)
+                .and(w -> w.lt(ShoppingSession::getUpdatedAt, cutoff)
+                        .or()
+                        .isNull(ShoppingSession::getUpdatedAt).lt(ShoppingSession::getCreatedAt, cutoff)));
+        return c == null ? 0 : c;
+    }
+
+    default long countByDeviceIdInAndStateInAndUpdatedAtBefore(
+            Collection<String> deviceIds, Collection<SessionState> states, java.time.Instant cutoff) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return 0;
+        }
+        Long c = selectCount(Wrappers.<ShoppingSession>lambdaQuery()
+                .in(ShoppingSession::getDeviceId, deviceIds)
+                .in(ShoppingSession::getState, states)
+                .and(w -> w.lt(ShoppingSession::getUpdatedAt, cutoff)
+                        .or()
+                        .isNull(ShoppingSession::getUpdatedAt).lt(ShoppingSession::getCreatedAt, cutoff)));
+        return c == null ? 0 : c;
     }
 
     default long countByCreatedAtAfter(java.time.Instant since) {
@@ -141,6 +242,52 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
     return c == null ? 0 : c;
     }
 
-        List<ShoppingSession> findByStateInAndUpdatedAtAfter( @Param("states") Collection<SessionState> states, @Param("since") java.time.Instant since);
+    List<ShoppingSession> findByStateInAndUpdatedAtAfter(
+            @Param("states") Collection<SessionState> states,
+            @Param("since") java.time.Instant since,
+            @Param("limit") int limit);
+
+    default List<ShoppingSession> findByStateInAndUpdatedAtAfter(
+            Collection<SessionState> states, java.time.Instant since) {
+        return findByStateInAndUpdatedAtAfter(states, since, 5000);
+    }
+
+    /** 设备列表占用态：仅拉活跃会话，避免全表 shopping_session。 */
+    default List<ShoppingSession> findByStateIn(Collection<SessionState> states, int limit) {
+        if (states == null || states.isEmpty()) {
+            return List.of();
+        }
+        int lim = Math.max(1, Math.min(limit, 5000));
+        return selectList(Wrappers.<ShoppingSession>lambdaQuery()
+                .in(ShoppingSession::getState, states)
+                .orderByDesc(ShoppingSession::getUpdatedAt)
+                .last("LIMIT " + lim));
+    }
+
+    long countCreatedBetween(@Param("start") java.time.Instant start, @Param("end") java.time.Instant end);
+
+    long countCreatedBetweenAndStateIn(
+            @Param("start") java.time.Instant start,
+            @Param("end") java.time.Instant end,
+            @Param("states") Collection<SessionState> states);
+
+    Long avgDoorOpenMsBetween(@Param("start") java.time.Instant start, @Param("end") java.time.Instant end);
+
+    Long p95DoorOpenMsBetween(@Param("start") java.time.Instant start, @Param("end") java.time.Instant end);
+
+    long countCreatedAfterAndStateIn(
+            @Param("since") java.time.Instant since,
+            @Param("states") Collection<SessionState> states);
+
+    long countCreatedAfterAndStateInForDevices(
+            @Param("since") java.time.Instant since,
+            @Param("states") Collection<SessionState> states,
+            @Param("deviceIds") Collection<String> deviceIds);
+
+    Long avgDoorOpenMsCreatedAfter(@Param("since") java.time.Instant since);
+
+    Long avgDoorOpenMsCreatedAfterForDevices(
+            @Param("since") java.time.Instant since,
+            @Param("deviceIds") Collection<String> deviceIds);
 
 }

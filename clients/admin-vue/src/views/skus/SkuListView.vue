@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">商品与识别</span>
-            <span class="hint">采集类名映射 → 测试 → 转生产；当前无真实训练管线时，「生产」仅表示映射生效，识别仍可能走 mock/人工复核</span>
+            <span class="hint">类名映射 → 测试 → 生产白名单；说明默认收起，表格优先</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -19,39 +19,51 @@
       </div>
     </template>
 
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      class="risk-alert"
-      title="识别入驻说明（无真实算法版）"
-      :description="pipelineHint"
-    />
-
-    <div class="enroll-steps">
-      <div
-        v-for="(step, idx) in enrollmentSteps"
-        :key="step.status"
-        class="enroll-step"
-        :class="{ active: enrollmentFilter === step.status }"
-        @click="filterByEnrollment(step.status)"
-      >
-        <span class="enroll-step__idx">{{ idx + 1 }}</span>
-        <div class="enroll-step__body">
-          <strong>{{ step.label }}</strong>
-          <small>{{ step.description }}</small>
-        </div>
+    <div class="list-lead">
+      <div class="enroll-chips" role="group" aria-label="识别入驻状态筛选">
+        <button
+          type="button"
+          class="enroll-chip"
+          :class="{ active: !enrollmentFilter }"
+          @click="filterByEnrollment('')"
+        >全部</button>
+        <button
+          v-for="(step, idx) in enrollmentSteps"
+          :key="step.status"
+          type="button"
+          class="enroll-chip"
+          :class="{ active: enrollmentFilter === step.status }"
+          :title="`${step.label}${step.description ? ' · ' + step.description : ''}`"
+          @click="filterByEnrollment(step.status)"
+        >
+          <span class="enroll-chip__idx">{{ idx + 1 }}</span>
+          {{ shortEnrollmentLabel(step.label) }}
+        </button>
+        <el-button class="help-toggle" text type="primary" size="small" @click="helpOpen = !helpOpen">
+          {{ helpOpen ? '收起说明' : '入驻说明' }}
+        </el-button>
       </div>
+      <el-collapse-transition>
+        <div v-show="helpOpen" class="sku-help">
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+            class="risk-alert"
+            title="识别入驻说明（算法无关）"
+            :description="pipelineHint"
+          />
+          <el-alert
+            type="warning"
+            :closable="false"
+            show-icon
+            class="risk-alert"
+            title="风险商品提示"
+            description="体积过小或过薄的商品易被遮挡/误识别，可能导致少扣或多扣。上架前请确认识别映射与阈值，并优先安排人工抽检。"
+          />
+        </div>
+      </el-collapse-transition>
     </div>
-
-    <el-alert
-      type="warning"
-      :closable="false"
-      show-icon
-      class="risk-alert"
-      title="风险商品提示"
-      description="体积过小或过薄的商品易被遮挡/误识别，可能导致少扣或多扣。上架前请确认识别映射与阈值，并优先安排人工抽检。"
-    />
 
     <el-tabs v-model="saleTab" class="status-tabs" @tab-change="onSaleTab">
       <el-tab-pane label="在售商品" name="ACTIVE" />
@@ -127,7 +139,7 @@
           <el-table-column prop="category" label="类目" min-width="100" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.category || '-' }}</template>
           </el-table-column>
-          <el-table-column label="识别类名" min-width="130" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="端侧类名" min-width="130" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <span v-if="row.yoloClassName" class="cell-id">{{ row.yoloClassName }}</span>
               <span v-else class="muted">-</span>
@@ -144,9 +156,9 @@
             <template #default="{ row }">
               <div class="pipe-cell">
                 <el-tag size="small" :type="rowMeta(row)?.mappingEffective ? 'success' : 'info'">
-                  {{ rowMeta(row)?.mappingEffective ? '映射已生效' : '映射未生效' }}
+                  {{ rowMeta(row)?.mappingEffective ? '结算白名单' : '未进白名单' }}
                 </el-tag>
-                <el-tag size="small" type="warning" effect="plain">等待真实模型</el-tag>
+                <el-tag size="small" type="warning" effect="plain">端侧质量门禁</el-tag>
               </div>
             </template>
           </el-table-column>
@@ -197,9 +209,9 @@
         <el-form-item label="基准价(分)" required>
           <el-input-number v-model="enrollForm.priceCents" :min="1" :step="10" />
         </el-form-item>
-        <el-form-item label="识别类名" required>
+        <el-form-item label="端侧类名" required>
           <div class="inline-field">
-            <el-input v-model="enrollForm.yoloClassName" placeholder="例如 cola_330ml（英文类名）" />
+            <el-input v-model="enrollForm.yoloClassName" placeholder="例如 cola_330ml（英文类名，算法无关）" />
             <el-button :loading="suggestingClass" @click="suggestClassName(true)">规则建议</el-button>
           </div>
         </el-form-item>
@@ -247,7 +259,7 @@
         show-icon
         class="risk-alert"
         title="抽检说明"
-        description="当前识别多为 mock/演示；预览后可推进到「已测试」。转生产只生效映射，模型侧仍显示「等待真实模型」。"
+        description="预览可用联调/演示数据。转生产只进入结算白名单；端侧若回传 mock、fallback 或低于扣款阈值，仍会进争议，不会静默扣款。"
       />
       <el-form label-width="96px">
         <el-form-item label="设备 ID">
@@ -285,7 +297,7 @@ import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, Upload, CircleCheck, ArrowRight } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -318,13 +330,13 @@ const batchDelisting = ref(false);
 const items = ref<SkuCatalog[]>([]);
 const rowBySku = ref<Record<string, SkuVisionEnrollmentRow>>({});
 const pipelineHint = ref(
-  '流程：草稿/映射中 → 识别测试 → 转生产。转生产只表示运营侧映射生效；尚未接入真实 YOLO 训练时，视觉仍为演示/mock，低置信与 mock 结果会进争议审单。'
+  '流程：草稿/映射中 → 识别测试 → 转生产。转生产只表示进入结算白名单；可对接任意端侧识别算法。端侧若回传 mock/fallback 或低于扣款阈值，仍会进争议审单，不会静默扣款。'
 );
 const enrollmentStepDesc: Record<string, string> = {
   DRAFT: '录入商品基本信息',
   MAPPING: '绑定类名与阈值',
   TESTED: '完成识别抽检',
-  PRODUCTION: '映射生效（等待真实模型）'
+  PRODUCTION: '结算白名单（端侧质量门禁仍生效）'
 };
 const enrollmentSteps = ref<SkuVisionEnrollmentPipeline['steps']>(
   dictOptions('sku_enrollment_status').map((o) => ({
@@ -335,6 +347,7 @@ const enrollmentSteps = ref<SkuVisionEnrollmentPipeline['steps']>(
 );
 const keyword = ref('');
 const enrollmentFilter = ref('');
+const helpOpen = ref(false);
 const saleTab = ref('ACTIVE');
 const page = ref(1);
 const size = ref(20);
@@ -508,7 +521,7 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
         yoloClassName,
         visionEnrollmentStatus,
         detectionMinConfidence: parseConfidence(row['检测阈值'] || row.detectionMinConfidence, 0.5),
-        mappingSource: 'YOLO_SKU'
+        mappingSource: 'EDGE_CLASS'
       };
       await api.request<SkuCatalog>('/api/v2/ops/admin/sku-vision/enroll', 'POST', body);
       ok++;
@@ -560,7 +573,7 @@ function enrollmentLabel(status?: string) {
 function skuStatusLabel(status?: string) {
   if (status === 'ACTIVE') return '上架';
   if (status === 'INACTIVE') return '下架';
-  return dictLabel('sku_status', status) || status || '—';
+  return displayLabel('sku_status', status, '—');
 }
 
 function enrollmentTagType(status?: string) {
@@ -573,8 +586,12 @@ function rowMeta(row: SkuCatalog) {
   return rowBySku.value[row.skuId];
 }
 
+function shortEnrollmentLabel(label: string) {
+  return String(label || '').replace(/[（(].*$/, '').trim() || label;
+}
+
 function filterByEnrollment(status: string) {
-  enrollmentFilter.value = enrollmentFilter.value === status ? '' : status;
+  enrollmentFilter.value = !status || enrollmentFilter.value === status ? '' : status;
   search();
 }
 
@@ -777,7 +794,7 @@ async function saveEnroll() {
       visionEnrollmentStatus: enrollForm.visionEnrollmentStatus,
       detectionMinConfidence: enrollForm.detectionPercent / 100,
       referenceImageUrlsJson,
-      mappingSource: 'YOLO_SKU'
+      mappingSource: 'EDGE_CLASS'
     };
     const updated = await api.request<SkuCatalog>('/api/v2/ops/admin/sku-vision/enroll', 'POST', body);
     const idx = items.value.findIndex((i) => i.skuId === updated.skuId);
@@ -805,13 +822,13 @@ async function advanceRow(row: SkuCatalog) {
   const meta = rowMeta(row);
   const next = meta?.nextStatus;
   if (!next) {
-    ElMessage.info('已处于生产状态（映射已生效，仍等待真实模型）');
+    ElMessage.info('已处于生产状态（结算白名单已生效）');
     return;
   }
   try {
     if (next === 'PRODUCTION') {
       await ElMessageBox.confirm(
-        '转生产表示映射对结算白名单生效。当前无真实模型训练管线时，识别仍可能为 mock/人工复核。确认继续？',
+        '转生产表示进入结算白名单。端侧可换任意识别算法；mock/fallback/低置信仍进争议，不会静默扣款。确认继续？',
         '转生产确认',
         { type: 'warning', confirmButtonText: '确认转生产' }
       );
@@ -824,7 +841,7 @@ async function advanceRow(row: SkuCatalog) {
     await applyRowUpdate(updated);
     ElMessage.success(
       next === 'PRODUCTION'
-        ? `${row.skuName} 映射已生效（等待真实模型接入）`
+        ? `${row.skuName} 已进入结算白名单（端侧 mock/低置信仍进争议）`
         : `${row.skuName} 已推进到「${enrollmentLabel(updated.sku.visionEnrollmentStatus)}」`
     );
   } catch (e) {
@@ -838,7 +855,7 @@ async function advanceRow(row: SkuCatalog) {
 async function markProduction(row: SkuCatalog) {
   try {
     await ElMessageBox.confirm(
-      '转生产表示映射对结算白名单生效。当前无真实模型训练管线时，识别仍可能为 mock/人工复核，不会当作生产精度静默扣款。确认继续？',
+      '转生产表示进入结算白名单。端侧可换任意识别算法；mock/fallback/低置信仍进争议，不会静默扣款。确认继续？',
       '转生产确认',
       { type: 'warning', confirmButtonText: '确认转生产' }
     );
@@ -848,7 +865,7 @@ async function markProduction(row: SkuCatalog) {
     );
     const idx = items.value.findIndex((i) => i.skuId === row.skuId);
     if (idx >= 0) items.value[idx] = updated;
-    ElMessage.success(`${row.skuName} 映射已生效（等待真实模型接入）`);
+    ElMessage.success(`${row.skuName} 已进入结算白名单`);
     await load();
   } catch (e) {
     if (e === 'cancel') return;
@@ -872,7 +889,7 @@ async function markTestedFromPreview() {
     const idx = items.value.findIndex((i) => i.skuId === updated.skuId);
     if (idx >= 0) items.value[idx] = updated;
     testForm.status = 'TESTED';
-    ElMessage.success('已标记为已测试，可继续转生产（映射生效 / 等待真实模型）');
+    ElMessage.success('已标记为已测试，可继续转生产（进入结算白名单）');
     await load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '更新失败');
@@ -1007,61 +1024,56 @@ onActivated(() => {
 </script>
 
 <style scoped>
-.risk-alert { margin: 0 0 12px; }
-.status-tabs { margin: 0 0 10px; }
-.enroll-steps {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  margin: 0 0 12px;
-}
-.enroll-step {
+.list-lead { margin: 0 0 8px; }
+.enroll-chips {
   display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  padding: 10px 12px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 8px;
-  background: var(--el-fill-color-blank);
-  cursor: pointer;
-  text-align: left;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
 }
-.enroll-step.active {
+.enroll-chip {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 999px;
+  background: var(--el-fill-color-blank);
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+.enroll-chip:hover { border-color: var(--el-color-primary-light-5); color: var(--el-color-primary); }
+.enroll-chip.active {
   border-color: var(--el-color-primary);
   background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+  font-weight: 600;
 }
-.enroll-step__idx {
-  width: 22px;
-  height: 22px;
+.enroll-chip__idx {
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 650;
   color: #fff;
   background: var(--el-color-primary);
-  flex: none;
 }
-.enroll-step__body {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-.enroll-step__body strong { font-size: 13px; line-height: 1.3; }
-.enroll-step__body small {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  line-height: 1.35;
-}
+.help-toggle { margin-left: 4px; }
+.sku-help { margin-top: 8px; display: grid; gap: 8px; }
+.risk-alert { margin: 0; }
+.status-tabs { margin: 0 0 10px; }
 .pipe-cell {
   display: flex;
   flex-direction: column;
   gap: 4px;
   align-items: center;
-}
-@media (max-width: 960px) {
-  .enroll-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .page-card-head {
   display: flex;

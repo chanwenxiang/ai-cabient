@@ -14,7 +14,10 @@ public interface DataChangeLogMapper extends BaseTradeMapper<DataChangeLog> {
     }
 
     default List<DataChangeLog> findByVerifiedFalse() {
-    return selectList(Wrappers.<DataChangeLog>lambdaQuery().eq(DataChangeLog::getVerified, false));
+        return selectList(Wrappers.<DataChangeLog>lambdaQuery()
+                .eq(DataChangeLog::getVerified, false)
+                .orderByDesc(DataChangeLog::getId)
+                .last("LIMIT 200"));
     }
 
         List<DataChangeLog> findByChangedAtBetween(Instant start, Instant end);

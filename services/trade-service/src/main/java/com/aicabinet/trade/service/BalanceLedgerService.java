@@ -45,6 +45,12 @@ public class BalanceLedgerService {
         if (next < 0) {
             throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.INSUFFICIENT_BALANCE);
         }
+        if (deltaCents < 0) {
+            int frozen = Math.max(0, account.getFrozenCents());
+            if ((long) before - frozen + deltaCents < 0) {
+                throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, ApiMessages.INSUFFICIENT_BALANCE);
+            }
+        }
         if (next > Integer.MAX_VALUE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
         }
@@ -64,6 +70,35 @@ public class BalanceLedgerService {
         operation.setUserId(userId);
         operation.setBalanceBeforeCents(before);
         operation.setBalanceAfterCents((int) next);
+        return operationRepository.saveAndFlush(operation);
+    }
+
+    /**
+     * 记录预授权冻结/释放/冲抵流水（余额字段仅作审计快照；冻结额变更由调用方完成）。
+     */
+    @Transactional
+    public PaymentOperation recordFreezeOnly(Long userId, int amountCents, String businessType,
+                                             String businessId, String idempotencyKey,
+                                             String reason, int balanceBefore, int balanceAfter) {
+        if (amountCents <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
+        }
+        var existing = operationRepository.findByIdempotencyKey(idempotencyKey);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
+        PaymentOperation operation = new PaymentOperation();
+        operation.setOperationId("BL-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase());
+        operation.setOrderId(null);
+        operation.setOperationType(businessType);
+        operation.setAmountCents(amountCents);
+        operation.setChannel(PayChannels.BALANCE);
+        operation.setStatus("COMPLETED");
+        operation.setIdempotencyKey(idempotencyKey);
+        operation.setReason(buildReason(businessType, businessId, reason));
+        operation.setUserId(userId);
+        operation.setBalanceBeforeCents(balanceBefore);
+        operation.setBalanceAfterCents(balanceAfter);
         return operationRepository.saveAndFlush(operation);
     }
 

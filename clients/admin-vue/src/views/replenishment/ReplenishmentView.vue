@@ -107,16 +107,23 @@
                       <span v-else class="muted">现场</span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="操作" :width="canEdit ? 220 : 88" align="center">
+                  <el-table-column label="操作" :width="canEdit ? 280 : 88" align="center">
                     <template #default="scope">
                       <el-button link type="primary" @click="openTaskLines(scope.row)">明细</el-button>
+                      <el-button
+                        v-if="canEdit && canCheckInTask(scope.row)"
+                        link
+                        type="warning"
+                        :loading="checkInLoading === scope.row.taskId"
+                        @click="checkInRestockTask(scope.row)"
+                      >签到</el-button>
                       <el-button
                         v-if="canEdit && canOpenRestock(scope.row)"
                         link
                         type="primary"
                         :loading="openDoorLoading === scope.row.taskId"
                         @click="openRestockDoor(scope.row)"
-                      >开门</el-button>
+                      >{{ deviceSalesLocked(scope.row.deviceId) ? '开门(停售)' : '开门' }}</el-button>
                       <el-button
                         v-if="canEdit && canCompleteTask(scope.row)"
                         link
@@ -125,7 +132,7 @@
                         @click="completeRestockTask(scope.row)"
                       >完成上架</el-button>
                       <span
-                        v-else-if="canEdit && openDoorHint(scope.row) !== '-' && !canCompleteTask(scope.row)"
+                        v-else-if="canEdit && openDoorHint(scope.row) !== '-' && !canCompleteTask(scope.row) && !canCheckInTask(scope.row)"
                         class="muted"
                       >{{ openDoorHint(scope.row) }}</span>
                     </template>
@@ -730,6 +737,7 @@ const shortageLoading = ref(false);
 const expiryLoading = ref(false);
 const expiryActingId = ref<number | null>(null);
 const openDoorLoading = ref<number | null>(null);
+const checkInLoading = ref<number | null>(null);
 const completeLoading = ref<number | null>(null);
 const cancelRouteLoading = ref<number | null>(null);
 const tab = ref('routes');
@@ -1284,6 +1292,12 @@ function deviceOnline(deviceId?: string) {
   return String(d?.onlineStatus || '').toUpperCase() === 'ONLINE';
 }
 
+function deviceSalesLocked(deviceId?: string) {
+  if (!deviceId) return false;
+  const d = devices.value.find((item) => item.deviceId === deviceId);
+  return !!(d as { salesLocked?: boolean } | undefined)?.salesLocked;
+}
+
 function formatCheckInGps(row: Row) {
   if (!row?.checkInAt) return '';
   const lat = row.checkInLat;
@@ -1517,6 +1531,12 @@ function canOpenRestock(task: Row) {
   return !!task.checkInAt && deviceOnline(task.deviceId);
 }
 
+function canCheckInTask(task: Row) {
+  if (!task?.taskId || !task?.deviceId) return false;
+  if (['COMPLETED', 'CANCELLED'].includes(String(task.status || ''))) return false;
+  return !task.checkInAt;
+}
+
 /** 已签到且未完成的任务可「完成上架」（后端亦校验签到）。 */
 function canCompleteTask(task: Row) {
   if (!task?.taskId) return false;
@@ -1528,7 +1548,35 @@ function openDoorHint(task: Row) {
   if (['COMPLETED', 'CANCELLED'].includes(String(task.status || ''))) return '-';
   if (!task.checkInAt) return '需先签到';
   if (!deviceOnline(task.deviceId)) return '设备离线';
+  if (deviceSalesLocked(task.deviceId)) return '停售中可补货';
   return '-';
+}
+
+async function checkInRestockTask(task: Row) {
+  if (!task?.taskId) return;
+  if (task.checkInAt) {
+    ElMessage.info('该任务已签到');
+    return;
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认对 ${deviceName(task.deviceId)}（任务 #${task.taskId}）做运营代签到？\n现场补货员应在商户小程序带 GPS 签到；后台代签到用于联调/应急，不强制 GPS。`,
+      '补货签到',
+      { type: 'warning', confirmButtonText: '确认签到' }
+    );
+  } catch {
+    return;
+  }
+  checkInLoading.value = task.taskId;
+  try {
+    await api.request(`/api/v2/ops/admin/replenishment/tasks/${task.taskId}/check-in`, 'POST', {});
+    ElMessage.success(`任务 #${task.taskId} 已签到，可补货开门`);
+    await load();
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '签到失败');
+  } finally {
+    checkInLoading.value = null;
+  }
 }
 
 function canCancelEmptyRoute(row: Row) {
@@ -1579,10 +1627,12 @@ async function openRestockDoor(task: Row) {
     ElMessage.warning(`${deviceName(task.deviceId)} 当前离线，无法下发补货开门`);
     return;
   }
+  const locked = deviceSalesLocked(task.deviceId);
   try {
     await ElMessageBox.confirm(
-      `确认对 ${deviceName(task.deviceId)}（${task.deviceId}）下发补货开门？\n将绑定任务 #${task.taskId}，不产生消费者账单。\n（与设备详情「远程开门」不同）`,
-      '补货开门',
+      `确认对 ${deviceName(task.deviceId)}（${task.deviceId}）下发补货开门？\n将绑定任务 #${task.taskId}，不产生消费者账单。\n（与设备详情「远程开门」不同）`
+        + (locked ? '\n\n注意：该柜当前锁机停售，消费者无法开门；补货开门仅供上架，完成后请视情况解锁恢复售卖。' : ''),
+      locked ? '补货开门（停售中）' : '补货开门',
       { type: 'warning', confirmButtonText: '开门' }
     );
   } catch {

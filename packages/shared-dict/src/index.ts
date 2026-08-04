@@ -6,17 +6,53 @@
  * - Payment / feature ability stays in Java constants (e.g. PayChannels) + env flags
  *   (ALIPAY_ENABLED, PAYSCORE_*). Disabling a dict item must not block checkout.
  * - New business enum codes: add in backend first, then seed here + SysDictBootstrap.
- * - Clients load GET /api/v2/dicts/runtime when logged in; on failure keep DICT defaults.
+ * - Clients load GET /api/v2/dicts/runtime when logged in; on failure keep DICT defaults
+ *   (runtimeLoaded stays false — do not wipe options).
+ *
+ * Options resolution (dictOptions):
+ * - OPS_MANAGED types (e.g. route_code): after successful runtime load, ACTIVE items only;
+ *   zero ACTIVE → empty list (ops is source of truth). Before load / on failure → DICT seed.
+ * - System enum types: non-empty runtime map replaces options; otherwise DICT seed
+ *   (cannot empty a status dropdown by clearing all items).
+ *
+ * Labels (dictLabel): always override → DICT → readable fallback (historical rows still show).
  */
+
 /** Runtime overrides from ops dict admin (value -> label per type). */
 let runtimeOverrides: Record<string, Record<string, string>> = {};
+/** True only after a successful /dicts/runtime response in this session. */
+let runtimeLoaded = false;
 
-export function setDictOverrides(map: Record<string, Record<string, string>> | null | undefined) {
+/**
+ * 运营可配字典：下拉以运行时 ACTIVE 为准；拉成功且无项则空列表。
+ * 系统状态枚举不要加入此集合。
+ */
+export const OPS_MANAGED_DICT_TYPES: ReadonlySet<string> = new Set(['route_code']);
+
+export function isOpsManagedDict(type: string): boolean {
+  return OPS_MANAGED_DICT_TYPES.has(type);
+}
+
+export function isRuntimeDictLoaded(): boolean {
+  return runtimeLoaded;
+}
+
+export type SetDictOverridesOptions = {
+  /** 是否标记本次为成功拉取的 runtime；默认 true（传入 map 时）。clear 请用 clearDictOverrides。 */
+  loaded?: boolean;
+};
+
+export function setDictOverrides(
+  map: Record<string, Record<string, string>> | null | undefined,
+  options?: SetDictOverridesOptions
+) {
   runtimeOverrides = map || {};
+  runtimeLoaded = options?.loaded ?? true;
 }
 
 export function clearDictOverrides() {
   runtimeOverrides = {};
+  runtimeLoaded = false;
 }
 
 /** /api/v2/dicts/runtime 响应体（仅取 ACTIVE 项）。 */
@@ -38,6 +74,10 @@ export function buildOverridesFromRuntime(
     }
   }
   return map;
+}
+
+function entriesToOptions(map: Record<string, string> | undefined): { value: string; label: string }[] {
+  return Object.entries(map || {}).map(([value, label]) => ({ value, label }));
 }
 
 export const DICT = {
@@ -118,6 +158,7 @@ export const DICT = {
   feedback_status: {
     PENDING: '待处理',
     HANDLED: '已回复',
+    REPLIED: '已回复',
     CLOSED: '已关闭'
   },
   split_status: {
@@ -128,7 +169,9 @@ export const DICT = {
     WECHAT_FAILED: '失败',
     SUBMITTED: '已提交',
     SUCCESS: '成功',
-    FAILED: '失败'
+    FAILED: '失败',
+    SETTLED: '已完结',
+    VOIDED: '已冲正'
   },
   merchant_status: { ACTIVE: '正常', INACTIVE: '停用', PENDING: '待审核' },
   online_status: { ONLINE: '在线', OFFLINE: '离线', UNKNOWN: '未知' },
@@ -173,7 +216,15 @@ export const DICT = {
   coupon_type: {
     AMOUNT_OFF: '满减券',
     PERCENT_OFF: '折扣券',
+    FREE_SHIPPING: '免运费',
     EXCHANGE: '兑换券'
+  },
+  /** 通用启用态（优惠券/活动等） */
+  enable_status: {
+    ACTIVE: '启用',
+    INACTIVE: '停用',
+    DISABLED: '停用',
+    ENDED: '已结束'
   },
   sku_enrollment_status: {
     DRAFT: '草稿',
@@ -308,6 +359,12 @@ export const DICT = {
     PENDING: '待支付', PROCESSING: '处理中', PAID: '已支付', COMPLETED: '已完成',
     DISPUTED: '争议中', REFUNDED: '已退款', PARTIAL_REFUNDED: '部分退款',
     FAILED: '处理失败', CANCELLED: '已取消'
+  },
+  route_code: {
+    R01: '路线 R01',
+    'R-DEMO-01': '演示路线 01',
+    'R-DEMO-02': '演示路线 02',
+    'R-DEMO-X': '演示路线 X'
   }
 } as const;
 
@@ -341,24 +398,207 @@ export function dictLabel(type: DictType | string, code: string | null | undefin
   return code ?? '-';
 }
 
+/**
+ * 三端 UI 展示用：优先字典中文，绝不把英文枚举码当文案回退（避免 `|| status` 露出 OPEN/PAID）。
+ */
+export function displayLabel(
+  type: DictType | string,
+  code: string | null | undefined,
+  empty = '-'
+): string {
+  if (code == null || String(code).trim() === '') return empty;
+  const label = dictLabel(type, code);
+  if (!label || label === '-') return empty;
+  if (/^[A-Z][A-Z0-9_]*$/.test(label)) return empty === '-' ? '未知' : empty;
+  return label;
+}
+
+/** 操作人展示：系统任务 / 无姓名时可读 */
+export function actorDisplayName(input: {
+  name?: string | null;
+  phone?: string | null;
+  userId?: number | null;
+  operatorId?: number | null;
+}): string {
+  const name = input.name != null ? String(input.name).trim() : '';
+  if (name) return name;
+  const phone = input.phone != null ? String(input.phone).trim() : '';
+  if (phone) return phone;
+  const id = input.operatorId ?? input.userId;
+  if (id == null || id <= 0) return '系统';
+  return `账号 ${id}`;
+}
+
 export function dictOptions(type: DictType | string): { value: string; label: string }[] {
+  const baseline = (DICT as Record<string, Record<string, string>>)[type];
   const override = runtimeOverrides[type];
-  if (override && Object.keys(override).length) {
-    return Object.entries(override).map(([value, label]) => ({ value, label }));
+
+  // 运营可配：runtime 拉成功后以 ACTIVE 为准（可为空列表）
+  if (isOpsManagedDict(type)) {
+    if (runtimeLoaded) {
+      return entriesToOptions(override);
+    }
+    return entriesToOptions(baseline);
   }
-  const map = (DICT as Record<string, Record<string, string>>)[type];
-  return Object.entries(map || {}).map(([value, label]) => ({ value, label }));
+
+  // 系统枚举：有 ACTIVE 覆盖则用覆盖；否则编译期默认（避免下拉被清空）
+  if (override && Object.keys(override).length) {
+    return entriesToOptions(override);
+  }
+  return entriesToOptions(baseline);
 }
 
 export function dictTagType(code: string | null | undefined): DictTagType {
   return STATUS_TAGS[String(code || '').toUpperCase()] || 'info';
 }
 
-/** 将异常操作审计 detail 中的英文键值转为可读中文说明 */
+/** 审计动作 → 中文（运营后台审计日志筛选项/表格共用） */
+export const AUDIT_ACTION_LABELS: Record<string, string> = {
+  BALANCE_ADJUST: '余额调整',
+  SESSION_CANCEL: '取消会话',
+  USER_VERIFY: '用户实名通过',
+  USER_UNVERIFY: '撤销用户实名',
+  RECHARGE_REFUND: '充值退款',
+  SKU_CREATE: '新建商品',
+  SKU_UPDATE: '更新商品',
+  DEVICE_CREATE: '新建设备',
+  DEVICE_UPDATE: '更新设备',
+  DEVICE_LOCK: '设备锁机',
+  DEVICE_UNLOCK: '设备解锁',
+  DEVICE_REBOOT: '设备重启',
+  DEVICE_SET_TEMP: '设置目标温度',
+  DEVICE_REMOTE_OPEN: '运维远程开门',
+  DEVICE_LIFECYCLE: '设备生命周期变更',
+  DEVICE_POLICY: '设备策略变更',
+  DEVICE_AUTO_LOCK_OFFLINE: '离线超时自动锁机',
+  DICT_TYPE_CREATE: '新建字典类型',
+  DICT_TYPE_UPDATE: '更新字典类型',
+  DICT_DATA_CREATE: '新建字典项',
+  DICT_DATA_UPDATE: '更新字典项',
+  DICT_DATA_DELETE: '删除字典项',
+  SKU_VISION_ENROLL_CREATE: '识别建档',
+  SKU_VISION_ENROLL_UPDATE: '更新识别建档',
+  SKU_VISION_STATUS: '识别状态变更',
+  SKU_VISION_ADVANCE: '推进识别入驻',
+  VISION_YOLO_UPSERT: '更新 YOLO 映射',
+  VISION_YOLO_DELETE: '删除 YOLO 映射',
+  VISION_ALIYUN_UPSERT: '更新阿里云映射',
+  VISION_ALIYUN_DELETE: '删除阿里云映射',
+  ORDER_REMIND: '催收待支付订单',
+  ORDER_CANCEL_UNPAID: '关闭待支付订单',
+  ORDER_COLLECT_UNPAID: '代收待支付订单',
+  ORDER_AUTO_CANCEL_UNPAID: '超时自动关单',
+  ORDER_REFUND_OPS: '运营退款',
+  ORDER_REFUND_CONSUMER: '用户退款',
+  DISPUTE_CLOSE: '关闭争议',
+  DISPUTE_REOPEN: '重开争议',
+  DISPUTE_WAIVE: '争议免单',
+  DISPUTE_KEEP_BILL: '争议维持原单',
+  DISPUTE_RESOLVE: '争议结案',
+  DISPUTE_SYNC_FROM_OPS_EXCEPTION: '异常同步争议',
+  MERCHANT_DISPUTE_REPLY: '商户回复争议',
+  MERCHANT_CREATE: '新建商户',
+  MERCHANT_UPDATE: '更新商户',
+  MERCHANT_PROFILE_UPDATE: '商户资料更新',
+  MERCHANT_DEVICE_SETTINGS: '商户设备设置',
+  MERCHANT_SKU_PRICE: '商户改价',
+  MERCHANT_USER_CREATE: '新建商户账号',
+  MERCHANT_USER_UPDATE: '更新商户账号',
+  MERCHANT_USER_DISABLE: '停用商户账号',
+  MERCHANT_USER_ENABLE: '启用商户账号',
+  MERCHANT_USER_RESET_PASSWORD: '重置商户密码',
+  MERCHANT_REPLENISHMENT_CHECK_IN: '补货签到',
+  MERCHANT_REPLENISHMENT_CONFIRM_LINES: '确认补货明细',
+  MERCHANT_REPLENISHMENT_COMPLETE: '完成补货任务',
+  MERCHANT_REPLENISHMENT_OPEN_DOOR: '补货开门',
+  MERCHANT_REPLEN_REQUEST: '提交补货申请',
+  MERCHANT_REPLEN_ACCEPT: '接单补货申请',
+  MERCHANT_REPLEN_REJECT: '驳回补货申请',
+  PROFIT_SHARING_SUBMIT: '提交分账',
+  PROFIT_SHARING_REFRESH: '刷新分账',
+  SPLIT_LEDGER_CONFIRM: '确认分账入账',
+  OPS_USER_DEVICE_SCOPE: '用户设备范围',
+  OPS_EXCEPTION_CLAIM: '领取异常',
+  OPS_EXCEPTION_TRANSFER: '转派异常',
+  OPS_EXCEPTION_NOTE: '异常备注',
+  OPS_EXCEPTION_RETRY: '重试识别/结算',
+  OPS_EXCEPTION_RETRY_SUCCESS: '重试成功',
+  OPS_EXCEPTION_CANCEL_SESSION: '取消会话并释放设备',
+  OPS_EXCEPTION_MANUAL_RESOLVE: '人工处置异常',
+  OPS_EXCEPTION_RESOLVE: '标记异常已解决',
+  OPS_EXCEPTION_RESOLVE_WITH_REPAIR: '异常结案并建维修单',
+  OPS_EXCEPTION_AUTO_RESOLVE: '系统自动解决异常',
+  OPS_EXCEPTION_SYNC_FROM_DISPUTE: '争议同步异常',
+  MERCHANT_OPS_EXCEPTION_RESOLVE: '商家处理异常'
+};
+
+/** 审计对象类型 → 中文 */
+export const AUDIT_TARGET_LABELS: Record<string, string> = {
+  USER: '用户',
+  SESSION: '会话',
+  ORDER: '订单',
+  SKU: '商品',
+  DEVICE: '设备',
+  DICT_TYPE: '字典类型',
+  DICT_DATA: '字典项',
+  OPS_EXCEPTION: '运营异常',
+  DISPUTE: '争议单',
+  MERCHANT: '商户',
+  SPLIT: '分账',
+  RECHARGE: '充值单',
+  VISION: '识别映射',
+  SKU_PRICE: '商品定价',
+  REPLENISHMENT_TASK: '补货任务',
+  REPLEN_REQUEST: '补货申请'
+};
+
+const AUDIT_DETAIL_KEY_LABELS: Record<string, string> = {
+  minutes: '分钟',
+  hours: '小时',
+  deviceid: '设备',
+  device: '设备',
+  sessionid: '会话',
+  orderid: '订单',
+  commandid: '指令编号',
+  targettempc: '目标温度',
+  notifyedge: '是否下发柜机',
+  blacklist: '是否拉黑',
+  assignee: '接收人',
+  reason: '原因',
+  result: '结果',
+  name: '名称',
+  idempotencykey: '幂等键',
+  from: '原状态',
+  to: '新状态'
+};
+
+export function auditActionLabel(action?: string | null): string {
+  if (!action) return '-';
+  const hit = AUDIT_ACTION_LABELS[action];
+  if (hit) return hit;
+  const ops = (DICT.ops_exception_action as Record<string, string>)[action];
+  if (ops) return ops;
+  if (/^[A-Z][A-Z0-9_]*$/.test(action)) return `其他操作（${action}）`;
+  return action;
+}
+
+export function auditTargetLabel(type?: string | null): string {
+  if (!type) return '-';
+  const hit = AUDIT_TARGET_LABELS[type];
+  if (hit) return hit;
+  if (/^[A-Z][A-Z0-9_]*$/.test(type)) return `其他对象（${type}）`;
+  return type;
+}
+
+/** 审计/异常操作 detail：英文键值对 → 中文说明 */
 export function formatOpsActionDetail(detail: string | null | undefined): string {
   if (!detail) return '-';
   let text = detail.trim();
-  text = text.replace(/^idempotencyKey=([^;]+);\s*/i, '幂等键：$1\n');
+  if (!text) return '-';
+
+  text = text.replace(/\bsales-lock\b/gi, '营业锁');
+  text = text.replace(/\bops collect\b/gi, '运营代收');
+  text = text.replace(/^idempotencyKey=([^;]+);\s*/i, '幂等键：$1；');
   text = text.replace(/\bassignee=(\d+)/gi, '接收人：用户 $1');
   text = text.replace(/\breason=/gi, '原因：');
   text = text.replace(/\bresult=/gi, '结果：');
@@ -366,8 +606,30 @@ export function formatOpsActionDetail(detail: string | null | undefined): string
     `人工免单，退回余额 ¥${(+cents / 100).toFixed(2)}`);
   text = text.replace(/原金额=(\d+) 分，最终金额=(\d+) 分，差额=(-?\d+) 分/g,
     (_, orig, final, adj) => `原金额 ¥${(+orig / 100).toFixed(2)}，最终金额 ¥${(+final / 100).toFixed(2)}，差额 ¥${(+adj / 100).toFixed(2)}`);
+
+  // minutes=10 / deviceId=CAB-001,sessionId=... / key=value;key=value
+  text = text.replace(/([A-Za-z][A-Za-z0-9_]*)\s*=\s*([^,;]+)/g, (full, key: string, raw: string) => {
+    const k = String(key).toLowerCase();
+    const value = String(raw).trim();
+    const label = AUDIT_DETAIL_KEY_LABELS[k];
+    if (!label) return full;
+    if (k === 'minutes') return `离线超过 ${value} 分钟自动锁机`;
+    if (k === 'hours') return `超时 ${value} 小时`;
+    if (k === 'blacklist' || k === 'notifyedge') {
+      const on = /^(true|1|yes)$/i.test(value);
+      return `${label}：${on ? '是' : '否'}`;
+    }
+    if (k === 'targettempc') return `${label}：${value}℃`;
+    return `${label}：${value}`;
+  });
+
+  text = text.replace(/;\s*/g, '；').replace(/,\s*/g, '，');
+
   if (/^[A-Z_]+$/.test(text)) {
     return dictLabel('exception_type', text);
   }
   return text;
 }
+
+/** @deprecated 使用 formatOpsActionDetail；保留别名便于审计页语义 */
+export const formatAuditDetail = formatOpsActionDetail;

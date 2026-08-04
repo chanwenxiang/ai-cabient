@@ -1,0 +1,41 @@
+{
+  "UI01": {
+    "merchantUiHasName": true,
+    "merchantSnippet": "柜机\n扫码到柜\n补货任务\n搜索柜机名称或编号\n全部 1\n在线 1\n离线 0\n停售 0\n常驻柜 0\n测试柜-001\nCAB-001\n★\n在线\n工作台\n柜机\n待办\n我的",
+    "consumerHasName": true,
+    "consumerSnippet": "开门购物\nAI开门柜\n扫码开门 · 拿了就走\n✓\n关门自动结算\n扫码\n→\n开门\n→\n取货\n→\n关门扣款\n继续在本柜购物\n测试柜-001\n扫码购物\n对准柜门二维码，即可开门取货\n手动输入柜机编号\n首页\n订单\n我的"
+  },
+  "API01": {
+    "responseHasChineseLiteral": true,
+    "responseHasUnicodeEscape": false,
+    "sample": "{\"code\":0,\"message\":\"ok\",\"data\":[{\"deviceId\":\"CAB-001\",\"deviceName\":\"测试柜-001\",\"deviceType\":\"AI_CABINET_V1\",\"onlineStatus\":\"ONLINE\",\"merchantId\":\"MCH-DEFAULT\",\"merchantName\":\"默认直营商户\",\"activeSessionId\":"
+  },
+  "ENV01": {
+    "tradeMock": "true",
+    "visionMockEnabled": true,
+    "recognizer": true
+  },
+  "ENV02": {
+    "gatewayAdmin": "HTTP 200"
+  },
+  "S04": {
+    "status": "ok",
+    "recognizer_backend": "yolo",
+    "recognizer_available": true,
+    "model_version": "retail-os-v2.0.0",
+    "model_path": "/app/models/retail-os-v2.0.0.pt",
+    "object_storage_endpoint": "http://minio:9000",
+    "video_cache_dir": "cache/videos",
+    "kafka_enabled": false,
+    "mock_enabled": true,
+    "mock_force_need_review": false,
+    "vision_force_real": true,
+    "yolo_recognition_mode": "delta",
+    "yolo_loaded": true,
+    "load_error": null,
+    "deepseek_configured": false,
+    "deepseek_model": "deepseek-v4-flash",
+    "deepseek_auto_charge": false,
+    "deepseek_timeout_ms": 2000
+  }
+}

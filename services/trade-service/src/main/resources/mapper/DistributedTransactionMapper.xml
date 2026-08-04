@@ -5,7 +5,10 @@
 
   <select id="findRetryableTransactions" resultType="com.aicabinet.trade.domain.DistributedTransaction">
     <![CDATA[
-    SELECT t.* FROM distributed_transaction t WHERE t.status = 'PENDING' AND t.retry_count < t.max_retry
+    SELECT t.* FROM distributed_transaction t
+    WHERE t.status = 'PENDING' AND t.retry_count < t.max_retry
+    ORDER BY t.created_at ASC
+    LIMIT 200
     ]]>
   </select>
 </mapper>

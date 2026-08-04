@@ -223,6 +223,7 @@
       v-if="showPrepDrawer"
       :account="prepAccount"
       :entry-channel="entryChannel"
+      :device-preauth-cents="devicePreauthCents"
       @done="onPrepDone"
       @cancel="onPrepCancel"
     />
@@ -272,6 +273,8 @@ const products = ref<DeviceProduct[]>([]);
 const productsLoading = ref(false);
 const deviceStatusText = ref('');
 const deviceOffline = ref(false);
+/** 本柜开门预授权门槛（分），来自 DeviceStatus.preauthCents */
+const devicePreauthCents = ref<number | null>(null);
 const sessionId = ref('');
 const state = ref('');
 const stateLabel = ref('');
@@ -403,7 +406,7 @@ const cartBarAction = computed(() => {
 });
 
 function payReady(acc: AccountDto) {
-  return isPayReady(acc, entryChannel.value);
+  return isPayReady(acc, entryChannel.value, devicePreauthCents.value || undefined);
 }
 
 onLoad(async (opts) => {
@@ -540,6 +543,8 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
     scanned.value = true;
     const status = await consumerApi.deviceStatus(cabinetId);
     deviceName.value = status.deviceName || cabinetId;
+    const pre = Number(status.preauthCents);
+    devicePreauthCents.value = Number.isFinite(pre) && pre > 0 ? pre : null;
     const online = status.online === true || (status.onlineStatus || '').toUpperCase() === 'ONLINE';
     const reason = String(status.busyReason || '').toUpperCase();
     deviceOffline.value = !online;
@@ -835,6 +840,8 @@ async function refreshDeviceStatus() {
   try {
     const s = await consumerApi.deviceStatus(deviceId.value);
     deviceName.value = s.deviceName || deviceId.value;
+    const pre = Number(s.preauthCents);
+    devicePreauthCents.value = Number.isFinite(pre) && pre > 0 ? pre : null;
     const online = s.online === true || (s.onlineStatus || '').toUpperCase() === 'ONLINE';
     const reason = String(s.busyReason || '').toUpperCase();
     const unavailable = s.available === false;

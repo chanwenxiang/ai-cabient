@@ -44,8 +44,12 @@ mybatis-plus:
 aicabinet:
   checkout:
     balance-only: ${CHECKOUT_BALANCE_ONLY:false}
+    preauth-cents: ${CHECKOUT_PREAUTH_CENTS:2000}
   security:
     mock-enabled: ${AICABINET_MOCK_ENABLED:true}
+    captcha-enabled: ${AICABINET_CAPTCHA_ENABLED:true}
+  amap:
+    web-key: ${AMAP_WEB_KEY:}
   staging-mode: ${AICABINET_STAGING_MODE:false}
   gravity-fallback-settle: ${AICABINET_GRAVITY_FALLBACK_SETTLE:false}
   internal-api:
