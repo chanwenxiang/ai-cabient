@@ -16,12 +16,12 @@
     </template>
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
-      <el-form-item label="用户">
+      <el-form-item label="关键词">
         <el-input
-          v-model="userId"
+          v-model="keyword"
           clearable
-          placeholder="用户 ID"
-          style="width: 140px"
+          placeholder="用户编号（API 按 userId 筛选）"
+          style="width: 260px"
           @keyup.enter="search"
         />
       </el-form-item>
@@ -145,7 +145,7 @@ const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const status = ref('');
-const userId = ref('');
+const keyword = ref('');
 const items = ref<Record<string, unknown>[]>([]);
 const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById } = useIdColumnSort<Record<string, unknown>>('orderId');
 const displayItems = computed(() => sortById(items.value));
@@ -204,7 +204,7 @@ async function refundRecharge(row: Record<string, unknown>) {
 function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (status.value) query.status = status.value;
-  if (userId.value.trim()) query.userId = userId.value.trim();
+  if (keyword.value.trim()) query.keyword = keyword.value.trim();
   router.replace({ query });
 }
 
@@ -213,7 +213,7 @@ async function load() {
   try {
     const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
     if (status.value) q.set('status', status.value);
-    if (userId.value.trim()) q.set('userId', userId.value.trim());
+    if (keyword.value.trim()) q.set('userId', keyword.value.trim());
     const data = await api.request<PageResult<Record<string, unknown>>>(
       `/api/v2/ops/admin/recharges?${q}`,
       'GET'
@@ -236,7 +236,7 @@ function search() {
 
 function reset() {
   status.value = '';
-  userId.value = '';
+  keyword.value = '';
   page.value = 1;
   syncRouteQuery();
   load();
@@ -254,9 +254,14 @@ function applyRouteQuery() {
     status.value = qStatus;
     changed = true;
   }
-  const qUserId = typeof route.query.userId === 'string' ? route.query.userId : '';
-  if (qUserId !== userId.value) {
-    userId.value = qUserId;
+  const routeKeyword =
+    typeof route.query.keyword === 'string'
+      ? route.query.keyword
+      : typeof route.query.userId === 'string'
+        ? route.query.userId
+        : '';
+  if (routeKeyword !== keyword.value) {
+    keyword.value = routeKeyword;
     changed = true;
   }
   return changed;
@@ -269,7 +274,7 @@ async function reloadFromRouteQuery() {
 }
 
 watch(
-  () => [route.query.status, route.query.userId] as const,
+  () => [route.query.status, route.query.keyword, route.query.userId] as const,
   () => {
     void reloadFromRouteQuery();
   }

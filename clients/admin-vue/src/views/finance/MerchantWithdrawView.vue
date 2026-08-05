@@ -18,7 +18,7 @@
       <el-tab-pane label="商户钱包" name="wallets">
         <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="searchWallets">
           <el-form-item label="关键词">
-            <el-input v-model="keyword" clearable placeholder="商户ID/名称/手机" style="width: 200px" @keyup.enter="searchWallets" />
+            <el-input v-model="keyword" clearable placeholder="商户编号 / 名称 / 手机" style="width: 220px" @keyup.enter="searchWallets" />
           </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="searchWallets">查询</el-button>
@@ -53,9 +53,12 @@
           <el-pagination
             v-model:current-page="wPage"
             v-model:page-size="wSize"
-            layout="total, prev, pager, next"
             :total="wTotal"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next"
+            background
             @current-change="loadWallets"
+            @size-change="onWalletSizeChange"
           />
         </div>
       </el-tab-pane>
@@ -116,9 +119,12 @@
           <el-pagination
             v-model:current-page="wdPage"
             v-model:page-size="wdSize"
-            layout="total, prev, pager, next"
             :total="wdTotal"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next"
+            background
             @current-change="loadWithdraws"
+            @size-change="onWdSizeChange"
           />
         </div>
       </el-tab-pane>
@@ -152,7 +158,8 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
+import { useDictOptions } from '@/composables/useDictOptions';
 
 interface WalletRow {
   merchantId: string;
@@ -195,7 +202,7 @@ const wdStatus = ref('');
 const ledgerVisible = ref(false);
 const ledgers = ref<any[]>([]);
 
-const withdrawStatusOptions = computed(() => dictOptions('merchant_withdraw_status'));
+const withdrawStatusOptions = useDictOptions('merchant_withdraw_status');
 
 function yuan(cents?: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
@@ -219,7 +226,17 @@ function searchWallets() {
   loadWallets();
 }
 
+function onWalletSizeChange() {
+  wPage.value = 1;
+  loadWallets();
+}
+
 function searchWithdraws() {
+  wdPage.value = 1;
+  loadWithdraws();
+}
+
+function onWdSizeChange() {
   wdPage.value = 1;
   loadWithdraws();
 }
