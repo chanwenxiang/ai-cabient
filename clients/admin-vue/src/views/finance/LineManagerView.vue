@@ -19,7 +19,7 @@
       <el-tab-pane label="线长成员" name="managers">
         <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="searchManagers">
           <el-form-item label="关键词">
-            <el-input v-model="keyword" clearable placeholder="姓名/手机" style="width: 160px" @keyup.enter="searchManagers" />
+            <el-input v-model="keyword" clearable placeholder="姓名 / 手机" style="width: 180px" @keyup.enter="searchManagers" />
           </el-form-item>
           <el-form-item label="状态">
             <el-select v-model="mStatus" clearable placeholder="全部" style="width: 120px" @change="searchManagers">
@@ -46,7 +46,7 @@
             :default-sort="idDefaultSort"
             @sort-change="onIdSortChange"
           >
-            <el-table-column prop="managerId" label="ID" width="80" align="center" class-name="col-text" sortable="custom">
+            <el-table-column prop="managerId" label="经理编号" width="100" align="center" class-name="col-text" sortable="custom">
               <template #default="{ row }">
                 <span class="cell-id">{{ row.managerId }}</span>
               </template>
@@ -93,9 +93,12 @@
           <el-pagination
             v-model:current-page="mPage"
             v-model:page-size="mSize"
-            layout="total, prev, pager, next"
             :total="mTotal"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next"
+            background
             @current-change="loadManagers"
+            @size-change="onManagerSizeChange"
           />
         </div>
       </el-tab-pane>
@@ -159,9 +162,12 @@
           <el-pagination
             v-model:current-page="wPage"
             v-model:page-size="wSize"
-            layout="total, prev, pager, next"
             :total="wTotal"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next"
+            background
             @current-change="loadWithdraws"
+            @size-change="onWithdrawSizeChange"
           />
         </div>
       </el-tab-pane>
@@ -239,6 +245,7 @@ import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 interface Manager {
@@ -315,7 +322,7 @@ const form = reactive({
   commissionFixedCents: 0
 });
 
-const withdrawStatusOptions = dictOptions('line_withdraw_status');
+const withdrawStatusOptions = useDictOptions('line_withdraw_status');
 
 function yuan(cents?: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
@@ -377,7 +384,15 @@ function searchManagers() {
   mPage.value = 1;
   loadManagers();
 }
+function onManagerSizeChange() {
+  mPage.value = 1;
+  loadManagers();
+}
 function searchWithdraws() {
+  wPage.value = 1;
+  loadWithdraws();
+}
+function onWithdrawSizeChange() {
   wPage.value = 1;
   loadWithdraws();
 }
@@ -532,10 +547,5 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-}
-.page-pager {
-  margin-top: 12px;
-  display: flex;
-  justify-content: flex-end;
 }
 </style>
