@@ -26,6 +26,8 @@ public class WeChatMiniAppClient {
             "https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid={appId}&secret={secret}";
     private static final String SUBSCRIBE_SEND_URL =
             "https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token={token}";
+    private static final String GENERATE_URL_LINK =
+            "https://api.weixin.qq.com/wxa/generate_urllink?access_token={token}";
 
     private final AtomicReference<CachedToken> cachedToken = new AtomicReference<>();
 
@@ -108,6 +110,53 @@ public class WeChatMiniAppClient {
         } catch (Exception e) {
             log.warn("subscribe send error openId={}", openId, e);
             return false;
+        }
+    }
+
+    /**
+     * 生成小程序 URL Link；未配置或调用失败返回 empty（调用方回落到 H5）。
+     *
+     * @param path  小程序页面路径，勿带 query
+     * @param query 如 deviceId=CAB-001&amp;channel=WECHAT&amp;autoOpen=1
+     * @param envVersion release / trial / develop
+     */
+    public java.util.Optional<String> generateUrlLink(String path, String query, String envVersion) {
+        if (!properties.isConfigured()) {
+            return java.util.Optional.empty();
+        }
+        try {
+            String token = accessToken();
+            String cleanPath = path == null ? "" : path.trim();
+            if (cleanPath.startsWith("/")) {
+                cleanPath = cleanPath.substring(1);
+            }
+            String env = (envVersion == null || envVersion.isBlank()) ? "release" : envVersion.trim();
+            Map<String, Object> body = new java.util.LinkedHashMap<>();
+            body.put("path", cleanPath);
+            body.put("query", query == null ? "" : query);
+            body.put("expire_type", 1);
+            body.put("expire_interval", 1);
+            body.put("env_version", env);
+            String response = restClient.post()
+                    .uri(GENERATE_URL_LINK, token)
+                    .body(body)
+                    .retrieve()
+                    .body(String.class);
+            JsonNode node = objectMapper.readTree(response);
+            int err = node.path("errcode").asInt(0);
+            if (err != 0) {
+                log.warn("generate_urllink failed err={} msg={}", err, node.path("errmsg").asText());
+                return java.util.Optional.empty();
+            }
+            String link = node.path("url_link").asText(null);
+            if (link == null || link.isBlank()) {
+                log.warn("generate_urllink empty url_link body={}", response);
+                return java.util.Optional.empty();
+            }
+            return java.util.Optional.of(link);
+        } catch (Exception e) {
+            log.warn("generate_urllink error path={}", path, e);
+            return java.util.Optional.empty();
         }
     }
 

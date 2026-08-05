@@ -51,6 +51,62 @@ public class AlipayOpenApiClient {
                 .retrieve()
                 .body(String.class);
 
+        return parseResponse(method, body);
+    }
+
+    /**
+     * 网页授权换 token：grant_type / code 为顶层参数（非 biz_content）。
+     */
+    public JsonNode executeOauthToken(String authCode) {
+        if (!properties.isConfigured()) {
+            throw new IllegalStateException("alipay not configured");
+        }
+        Map<String, String> params = new TreeMap<>();
+        params.put("app_id", properties.appId());
+        params.put("method", "alipay.system.oauth.token");
+        params.put("format", "json");
+        params.put("charset", "utf-8");
+        params.put("sign_type", "RSA2");
+        params.put("timestamp", LocalDateTime.now().format(TIMESTAMP));
+        params.put("version", "1.0");
+        params.put("grant_type", "authorization_code");
+        params.put("code", authCode);
+        params.put("sign", signUtil.signRsa2(params, properties.privateKey()));
+
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        params.forEach(form::add);
+
+        String body = restClient.post()
+                .uri(properties.gatewayUrl())
+                .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .body(form)
+                .retrieve()
+                .body(String.class);
+
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            if (root.has("error_response")) {
+                throw new IllegalStateException("alipay oauth error: " + root.path("error_response"));
+            }
+            JsonNode response = root.path("alipay_system_oauth_token_response");
+            if (response.isMissingNode() || response.isNull()) {
+                throw new IllegalStateException("alipay oauth response missing: " + body);
+            }
+            // 成功体通常无 code=10000；有 access_token / user_id 即视为成功
+            if (response.path("access_token").asText("").isBlank()
+                    && response.path("user_id").asText("").isBlank()
+                    && response.path("open_id").asText("").isBlank()) {
+                throw new IllegalStateException("alipay oauth empty token: " + response);
+            }
+            return response;
+        } catch (IllegalStateException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IllegalStateException("alipay oauth parse failed: " + body, e);
+        }
+    }
+
+    private JsonNode parseResponse(String method, String body) {
         try {
             JsonNode root = objectMapper.readTree(body);
             String responseKey = method.replace('.', '_') + "_response";

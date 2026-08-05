@@ -34,6 +34,7 @@ public class AdminDashboardController {
     private final UnpaidOrderService unpaidOrderService;
     private final DeviceAssetService deviceAssetService;
     private final FileAttachmentService fileAttachmentService;
+    private final com.aicabinet.trade.service.DeviceQrService deviceQrService;
 
     public AdminDashboardController(AdminDashboardService adminService,
                                     CacheService cacheService,
@@ -41,7 +42,8 @@ public class AdminDashboardController {
                                     AdminDeviceOpsService deviceOpsService,
                                     UnpaidOrderService unpaidOrderService,
                                     DeviceAssetService deviceAssetService,
-                                    FileAttachmentService fileAttachmentService) {
+                                    FileAttachmentService fileAttachmentService,
+                                    com.aicabinet.trade.service.DeviceQrService deviceQrService) {
         this.adminService = adminService;
         this.cacheService = cacheService;
         this.disputeService = disputeService;
@@ -49,6 +51,7 @@ public class AdminDashboardController {
         this.unpaidOrderService = unpaidOrderService;
         this.deviceAssetService = deviceAssetService;
         this.fileAttachmentService = fileAttachmentService;
+        this.deviceQrService = deviceQrService;
     }
 
     @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
@@ -145,6 +148,30 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @PathVariable("deviceId") String deviceId) {
         return ApiResponse.ok(adminService.getDevice(operatorId(request), deviceId));
+    }
+
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/qr-link")
+    public ApiResponse<DeviceQrLinkDto> deviceQrLink(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId) {
+        operatorId(request);
+        return ApiResponse.ok(deviceQrService.linkFor(deviceId));
+    }
+
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/qr.png")
+    public ResponseEntity<byte[]> deviceQrPng(
+            HttpServletRequest request,
+            @PathVariable("deviceId") String deviceId) {
+        operatorId(request);
+        DeviceQrLinkDto link = deviceQrService.linkFor(deviceId);
+        byte[] png = deviceQrService.pngFor(deviceId);
+        String filename = link.deviceId() + "-qr.png";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .contentType(MediaType.IMAGE_PNG)
+                .body(png);
     }
 
     @RequiresPermissions("ops:device:edit")

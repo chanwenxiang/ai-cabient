@@ -1,5 +1,6 @@
 package com.aicabinet.trade.api;
 
+import com.aicabinet.common.dto.AlipayLoginRequest;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.CaptchaResponse;
 import com.aicabinet.common.dto.LoginRequest;
@@ -70,6 +71,11 @@ public class AuthController {
     @PostMapping("/wx-login")
     public ApiResponse<LoginResponse> wxLogin(@Valid @RequestBody WxLoginRequest request) {
         return ApiResponse.ok(authService.wxLogin(request));
+    }
+
+    @PostMapping("/alipay/login")
+    public ApiResponse<LoginResponse> alipayLogin(@Valid @RequestBody AlipayLoginRequest request) {
+        return ApiResponse.ok(authService.alipayLogin(request));
     }
 
     @GetMapping("/server-boot")

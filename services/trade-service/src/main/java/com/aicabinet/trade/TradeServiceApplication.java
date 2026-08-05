@@ -30,6 +30,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         InternalApiProperties.class, AuthProperties.class, CorsProperties.class, VisionApiProperties.class,
         com.aicabinet.trade.config.ReconciliationProperties.class,
         com.aicabinet.trade.config.AlipayProperties.class,
+        com.aicabinet.trade.config.QrProperties.class,
         ProfitSharingProperties.class,
         LineWithdrawProperties.class,
         MerchantWithdrawProperties.class,

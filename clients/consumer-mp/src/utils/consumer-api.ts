@@ -269,6 +269,56 @@ export function consumerWxLogin(code: string, phoneNumber?: string) {
   });
 }
 
+export function consumerAlipayLogin(authCode: string) {
+  return request<LoginResponse>(
+    '/api/v2/auth/alipay/login',
+    'POST',
+    { authCode },
+    false
+  ).then((data) => {
+    applyTokenSession(data);
+    return data;
+  });
+}
+
+function readQueryParam(name: string): string {
+  try {
+    if (typeof window === 'undefined') return '';
+    const fromSearch = new URLSearchParams(window.location.search).get(name);
+    if (fromSearch) return fromSearch;
+    const hash = window.location.hash || '';
+    const q = hash.includes('?') ? hash.split('?')[1] : '';
+    if (q) return new URLSearchParams(q).get(name) || '';
+  } catch {
+    /* ignore */
+  }
+  return '';
+}
+
+function stripAuthCodeFromUrl() {
+  try {
+    if (typeof window === 'undefined' || !window.history?.replaceState) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('auth_code');
+    url.searchParams.delete('authCode');
+    url.searchParams.delete('app_id');
+    url.searchParams.delete('source');
+    if (url.hash.includes('?')) {
+      const [path, qs] = url.hash.split('?');
+      const sp = new URLSearchParams(qs);
+      sp.delete('auth_code');
+      sp.delete('authCode');
+      sp.delete('app_id');
+      sp.delete('source');
+      const next = sp.toString();
+      url.hash = next ? `${path}?${next}` : path;
+    }
+    window.history.replaceState({}, '', url.toString());
+  } catch {
+    /* ignore */
+  }
+}
+
 function wxLoginCode(): Promise<string> {
   return new Promise((resolve, reject) => {
     uni.login({
@@ -291,6 +341,27 @@ export async function ensureConsumerAuth(): Promise<boolean> {
     if (ok) return true;
     // bootstrap clears stale token; fall through to silent wx login on MP.
   }
+  // #ifdef H5
+  try {
+    const authCode = readQueryParam('auth_code') || readQueryParam('authCode');
+    if (authCode) {
+      await consumerAlipayLogin(authCode);
+      stripAuthCodeFromUrl();
+      return true;
+    }
+    const channel = (readQueryParam('channel') || readQueryParam('entryChannel') || '').toUpperCase();
+    if (channel === 'ALIPAY') {
+      // mock / 无授权回跳时：用稳定本地标识完成建档，便于联调开门
+      const mockId = uni.getStorageSync('mock_alipay_user_id') || `mock_h5_${Date.now()}`;
+      uni.setStorageSync('mock_alipay_user_id', mockId);
+      await consumerAlipayLogin(String(mockId));
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+  // #endif
   // #ifdef MP-WEIXIN
   try {
     const code = await wxLoginCode();
@@ -301,7 +372,9 @@ export async function ensureConsumerAuth(): Promise<boolean> {
   }
   // #endif
   // #ifndef MP-WEIXIN
+  // #ifndef H5
   return false;
+  // #endif
   // #endif
 }
 

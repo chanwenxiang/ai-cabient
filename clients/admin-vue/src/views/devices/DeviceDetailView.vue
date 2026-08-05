@@ -19,6 +19,32 @@
       </template>
     </el-page-header>
 
+    <el-card class="page-card qr-card" shadow="never">
+      <template #header>
+        <div class="page-card-head">
+          <div class="page-card-head__meta">
+            <div class="page-card-head__title">
+              <span class="title">柜机二维码</span>
+            </div>
+          </div>
+          <div class="qr-actions">
+            <el-button size="small" :loading="qrLoading" @click="loadQr">刷新</el-button>
+            <el-button size="small" :disabled="!qrUrl" @click="copyQrLink">复制链接</el-button>
+            <el-button type="primary" size="small" :disabled="!qrUrl" :loading="qrDownloading" @click="downloadQr">下载 PNG</el-button>
+          </div>
+        </div>
+      </template>
+      <div class="qr-body">
+        <div v-if="qrPreviewUrl" class="qr-preview">
+          <img :src="qrPreviewUrl" alt="柜机二维码" />
+        </div>
+        <div v-else class="qr-empty">{{ qrLoading ? '加载中…' : '暂无二维码' }}</div>
+        <div class="qr-meta">
+          <div class="qr-url mono">{{ qrUrl || '—' }}</div>
+        </div>
+      </div>
+    </el-card>
+
     <el-row :gutter="12" class="stat-row">
       <el-col :xs="12" :sm="6" :md="4">
         <div class="stat-tile">
@@ -525,7 +551,7 @@ import { useRoute } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
-import { api } from '@/api/client';
+import { api, downloadAuthFile } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import SlotGrid from '@/components/SlotGrid.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -627,6 +653,11 @@ const skus = ref<SkuCatalog[]>([]);
 const sessions = ref<any[]>([]);
 const orders = ref<any[]>([]);
 const editorVisible = ref(false);
+const qrUrl = ref('');
+const qrPreviewUrl = ref('');
+const qrLoading = ref(false);
+const qrDownloading = ref(false);
+let qrObjectUrl: string | null = null;
 
 function lifecycleLabel(status?: string | null) {
   switch ((status || '').toUpperCase()) {
@@ -649,6 +680,65 @@ function lifecycleActionLabel(action?: string | null) {
     case 'RETIRE': return '退役';
     case 'INBOUND': return '入库';
     default: return action || '未知';
+  }
+}
+
+function revokeQrPreview() {
+  if (qrObjectUrl) {
+    URL.revokeObjectURL(qrObjectUrl);
+    qrObjectUrl = null;
+  }
+  qrPreviewUrl.value = '';
+}
+
+async function loadQr() {
+  qrLoading.value = true;
+  try {
+    const link = await api.request<{ deviceId: string; url: string }>(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/qr-link`,
+      'GET'
+    );
+    qrUrl.value = link.url || '';
+    revokeQrPreview();
+    const token = localStorage.getItem('admin_token');
+    const res = await fetch(
+      `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin}/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/qr.png`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    );
+    if (!res.ok) throw new Error('二维码图片加载失败');
+    const blob = await res.blob();
+    qrObjectUrl = URL.createObjectURL(blob);
+    qrPreviewUrl.value = qrObjectUrl;
+  } catch (e) {
+    qrUrl.value = '';
+    revokeQrPreview();
+    ElMessage.error(e instanceof Error ? e.message : '加载二维码失败');
+  } finally {
+    qrLoading.value = false;
+  }
+}
+
+async function copyQrLink() {
+  if (!qrUrl.value) return;
+  try {
+    await navigator.clipboard.writeText(qrUrl.value);
+    ElMessage.success('已复制链接');
+  } catch {
+    ElMessage.error('复制失败，请手动选中链接');
+  }
+}
+
+async function downloadQr() {
+  qrDownloading.value = true;
+  try {
+    await downloadAuthFile(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/qr.png`,
+      `${deviceId}-qr.png`
+    );
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '下载失败');
+  } finally {
+    qrDownloading.value = false;
   }
 }
 
@@ -1136,7 +1226,7 @@ async function saveSlot() {
 onMounted(async () => {
   loading.value = true;
   try {
-    await Promise.all([loadDetail(), loadGeoStatus()]);
+    await Promise.all([loadDetail(), loadGeoStatus(), loadQr()]);
     await Promise.all([loadRelated(), loadSkus()]);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -1157,6 +1247,13 @@ onActivated(() => {
 .page-title { font-weight: 600; font-size: 15px; }
 .page-hint { font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.4; }
 .stat-row { margin-top: 4px; }
+.qr-card .qr-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.qr-body { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
+.qr-preview { width: 180px; height: 180px; border: 1px solid var(--el-border-color); border-radius: 8px; overflow: hidden; background: #fff; }
+.qr-preview img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.qr-empty { width: 180px; height: 180px; display: flex; align-items: center; justify-content: center; color: var(--el-text-color-secondary); border: 1px dashed var(--el-border-color); border-radius: 8px; }
+.qr-meta { flex: 1; min-width: 220px; }
+.qr-url { font-size: 13px; word-break: break-all; margin-bottom: 8px; }
 .stat-tile {
   background: var(--el-fill-color-light);
   border-radius: 8px;
