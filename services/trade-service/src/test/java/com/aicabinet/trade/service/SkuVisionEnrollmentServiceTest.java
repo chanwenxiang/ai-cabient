@@ -159,7 +159,7 @@ class SkuVisionEnrollmentServiceTest {
     void listEnrollmentRows_shouldAnnotateProduction() {
         SkuCatalog prod = baseSku("SKU-P", "PRODUCTION", "cola_demo");
         SkuCatalog draft = baseSku("SKU-Q", "DRAFT", null);
-        when(skuCatalogRepository.findAllByOrderBySkuIdAsc()).thenReturn(List.of(prod, draft));
+        when(skuCatalogRepository.findAllByOrderBySkuCodeAsc()).thenReturn(List.of(prod, draft));
 
         var rows = service.listEnrollmentRows(1L);
 

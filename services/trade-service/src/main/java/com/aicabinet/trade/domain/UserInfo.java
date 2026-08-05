@@ -30,6 +30,8 @@ public class UserInfo {
 
     private String alipayAgreementId;
 
+    private String alipayUserId;
+
     private String payPreferredChannel = "BALANCE";
 
     private Instant createdAt;
@@ -54,6 +56,8 @@ public Long getUserId() { return userId; }
     public void setPayscoreContractId(String payscoreContractId) { this.payscoreContractId = payscoreContractId; }
     public String getAlipayAgreementId() { return alipayAgreementId; }
     public void setAlipayAgreementId(String alipayAgreementId) { this.alipayAgreementId = alipayAgreementId; }
+    public String getAlipayUserId() { return alipayUserId; }
+    public void setAlipayUserId(String alipayUserId) { this.alipayUserId = alipayUserId; }
     public String getPayPreferredChannel() { return payPreferredChannel; }
     public void setPayPreferredChannel(String payPreferredChannel) { this.payPreferredChannel = payPreferredChannel; }
     public Instant getCreatedAt() { return createdAt; }

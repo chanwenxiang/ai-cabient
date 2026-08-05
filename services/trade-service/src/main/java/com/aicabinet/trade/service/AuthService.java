@@ -5,11 +5,13 @@ import com.aicabinet.common.dto.LoginRequest;
 import com.aicabinet.common.dto.LoginResponse;
 import com.aicabinet.common.dto.PasswordLoginRequest;
 import com.aicabinet.common.dto.WxLoginRequest;
+import com.aicabinet.common.dto.AlipayLoginRequest;
 import com.aicabinet.trade.auth.JwtService;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
+import com.aicabinet.trade.payment.AlipayOauthClient;
 import com.aicabinet.trade.sms.SmsCodeService;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.ServerBootMarker;
@@ -27,6 +29,7 @@ public class AuthService {
     private final UserAccountMapper userAccountRepository;
     private final JwtService jwtService;
     private final WeChatMiniAppClient weChatMiniAppClient;
+    private final AlipayOauthClient alipayOauthClient;
     private final SmsCodeService smsCodeService;
     private final PasswordEncoder passwordEncoder;
     private final ServerBootMarker serverBootMarker;
@@ -35,6 +38,7 @@ public class AuthService {
                        UserAccountMapper userAccountRepository,
                        JwtService jwtService,
                        WeChatMiniAppClient weChatMiniAppClient,
+                       AlipayOauthClient alipayOauthClient,
                        SmsCodeService smsCodeService,
                        PasswordEncoder passwordEncoder,
                        ServerBootMarker serverBootMarker) {
@@ -42,6 +46,7 @@ public class AuthService {
         this.userAccountRepository = userAccountRepository;
         this.jwtService = jwtService;
         this.weChatMiniAppClient = weChatMiniAppClient;
+        this.alipayOauthClient = alipayOauthClient;
         this.smsCodeService = smsCodeService;
         this.passwordEncoder = passwordEncoder;
         this.serverBootMarker = serverBootMarker;
@@ -119,6 +124,17 @@ public class AuthService {
         return tokenFor(createWxConsumer(session.openId()));
     }
 
+    /** 支付宝 H5 授权：已绑定 user_id 直接登录；否则自动建档 */
+    @Transactional
+    public LoginResponse alipayLogin(AlipayLoginRequest request) {
+        String alipayUserId = alipayOauthClient.resolveUserId(request.authCode());
+        var byAlipay = userInfoRepository.findByAlipayUserId(alipayUserId);
+        if (byAlipay.isPresent()) {
+            return tokenFor(byAlipay.get());
+        }
+        return tokenFor(createAlipayConsumer(alipayUserId));
+    }
+
     private UserInfo createWxConsumer(String openId) {
         Long userId = userInfoRepository.nextConsumerUserId(CabinetConstants.OPERATOR_USER_ID_START);
         UserInfo user = new UserInfo();
@@ -127,6 +143,24 @@ public class AuthService {
         user.setName("微信用户");
         user.setVerified(false);
         user.setWxOpenId(openId);
+        userInfoRepository.save(user);
+
+        UserAccount account = new UserAccount();
+        account.setUserId(userId);
+        account.setBalanceCents(0);
+        userAccountRepository.save(account);
+        return user;
+    }
+
+    private UserInfo createAlipayConsumer(String alipayUserId) {
+        Long userId = userInfoRepository.nextConsumerUserId(CabinetConstants.OPERATOR_USER_ID_START);
+        UserInfo user = new UserInfo();
+        user.setUserId(userId);
+        user.setPhoneNumber("ali" + userId);
+        user.setName("支付宝用户");
+        user.setVerified(false);
+        user.setAlipayUserId(alipayUserId);
+        user.setPayPreferredChannel("ALIPAY");
         userInfoRepository.save(user);
 
         UserAccount account = new UserAccount();

@@ -81,7 +81,7 @@ aicabinet:
     platform-cert: ${WECHAT_PLATFORM_CERT:}
     platform-cert-auto-fetch: ${WECHAT_PLATFORM_CERT_AUTO_FETCH:true}
   wechat-miniapp:
-    enabled: false
+    enabled: ${WECHAT_MINIAPP_ENABLED:false}
     app-id: ${WECHAT_MINIAPP_ID:}
     app-secret: ${WECHAT_MINIAPP_SECRET:}
     subscribe-template-id: ${WECHAT_MERCHANT_SUBSCRIBE_TEMPLATE:}
@@ -121,6 +121,13 @@ aicabinet:
     min-amount-cents: ${MERCHANT_WITHDRAW_MIN_CENTS:100}
     daily-limit-cents: ${MERCHANT_WITHDRAW_DAILY_LIMIT_CENTS:500000}
     review-threshold-cents: ${MERCHANT_WITHDRAW_REVIEW_THRESHOLD_CENTS:50000}
+  qr:
+    # auto = 自动探测本机局域网 IP（手机同网可扫）；也可写成 http://192.168.x.x
+    public-host: ${QR_PUBLIC_HOST:auto}
+    consumer-h5-base: ${CONSUMER_H5_BASE:auto}
+    wechat-mp-app-id: ${WECHAT_MP_APPID:}
+    wechat-mp-path: ${WECHAT_MP_PATH:pages/index/index}
+    wechat-mp-env: ${WECHAT_MP_ENV:release}
   alipay:
     enabled: ${ALIPAY_ENABLED:false}
     app-id: ${ALIPAY_APP_ID:}

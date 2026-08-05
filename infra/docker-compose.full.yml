@@ -131,6 +131,16 @@ services:
       ALIPAY_GATEWAY: ${ALIPAY_GATEWAY:-https://openapi.alipay.com/gateway.do}
       ALIPAY_NOTIFY_URL: ${ALIPAY_NOTIFY_URL:-}
       ALIPAY_RETURN_URL: ${ALIPAY_RETURN_URL:-}
+      # 柜门一码：手机扫码请在 infra/.env 设 QR_PUBLIC_HOST=http://<WLAN局域网IP>（经网关 :80）
+      # 容器内 auto 探测到的是 Docker 网桥 IP，不可用；默认 localhost 仅本机浏览器。
+      QR_PUBLIC_HOST: ${QR_PUBLIC_HOST:-http://localhost}
+      CONSUMER_H5_BASE: ${CONSUMER_H5_BASE:-http://127.0.0.1:3002/}
+      WECHAT_MP_APPID: ${WECHAT_MP_APPID:-}
+      WECHAT_MP_PATH: ${WECHAT_MP_PATH:-pages/index/index}
+      WECHAT_MP_ENV: ${WECHAT_MP_ENV:-release}
+      WECHAT_MINIAPP_ENABLED: ${WECHAT_MINIAPP_ENABLED:-false}
+      WECHAT_MINIAPP_ID: ${WECHAT_MINIAPP_ID:-}
+      WECHAT_MINIAPP_SECRET: ${WECHAT_MINIAPP_SECRET:-}
       # 微信分账联调（无真实证书时开 Mock）
       PROFIT_SHARING_ENABLED: ${PROFIT_SHARING_ENABLED:-true}
       PROFIT_SHARING_MOCK_ENABLED: ${PROFIT_SHARING_MOCK_ENABLED:-true}
