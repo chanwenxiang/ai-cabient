@@ -458,7 +458,6 @@ async function exportCsv() {
 
 watch(keyword, () => {
   billPage.value = 1;
-  ledgerPage.value = 1;
 });
 
 watch(tab, (v) => {
