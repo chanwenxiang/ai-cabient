@@ -63,11 +63,27 @@
           title="功能包按商户独立控制（关闭父商户不会自动级联到子商户）；与角色权限同时生效。改货道/改价为包内细粒度写开关。"
           class="status-banner"
         />
+        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="searchMerchants">
+          <el-form-item label="关键词">
+            <el-input
+              v-model="merchantKeyword"
+              clearable
+              placeholder="商户编号 / 名称"
+              style="width: 220px"
+              @keyup.enter="searchMerchants"
+              @clear="searchMerchants"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" @click="searchMerchants">查询</el-button>
+            <el-button @click="resetMerchantFilters">重置</el-button>
+          </el-form-item>
+        </el-form>
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
               v-loading="loadingMerchants"
-              :data="merchants"
+              :data="pagedMerchants"
               stripe
               border
               class="report-table"
@@ -78,7 +94,7 @@
             >
               <template #empty><el-empty description="暂无商户" /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column prop="merchantId" label="ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+              <el-table-column prop="merchantId" label="商户编号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.merchantId }}</span>
                 </template>
@@ -147,6 +163,16 @@
               <el-table-column prop="deviceCount" label="设备数" width="90" align="center" />
             </el-table>
           </div>
+        </div>
+        <div class="page-pager">
+          <el-pagination
+            v-model:current-page="merchantPage"
+            v-model:page-size="merchantSize"
+            :total="filteredMerchants.length"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next"
+            background
+          />
         </div>
       </el-tab-pane>
 
@@ -348,7 +374,8 @@
 
     <el-dialog v-model="submitDialog" title="提交微信分账" width="480px" destroy-on-close>
       <p class="dialog-hint">
-        分账 <code>{{ current?.splitId }}</code> · 订单 {{ current?.orderId }}
+        分账 <code>{{ current?.splitId }}</code> · 订单 {{ current?.orderId }}。<br />
+        余额支付须填微信交易号；微信支付可留空，由系统关联原支付单。
       </p>
       <el-form label-position="top">
         <el-form-item label="微信交易号">
@@ -366,11 +393,14 @@
     </el-dialog>
 
     <el-dialog v-model="orgDialog" :title="orgForm.editing ? '编辑商户组织' : '新建商户'" width="520px" destroy-on-close>
+      <p class="dialog-hint">
+        上级商户可见全部下级货柜。抽成单位为 bps：1000 = 10%，按订单实付计入平台。
+      </p>
       <el-form label-position="top">
-        <el-form-item label="商户 ID">
+        <el-form-item label="商户 ID" required>
           <el-input v-model="orgForm.merchantId" :disabled="orgForm.editing" placeholder="如 MCH-EAST" />
         </el-form-item>
-        <el-form-item label="名称">
+        <el-form-item label="名称" required>
           <el-input v-model="orgForm.merchantName" placeholder="组织 / 商户名称" />
         </el-form-item>
         <el-form-item label="上级商户">
@@ -395,7 +425,10 @@
     </el-dialog>
 
     <el-dialog v-model="assignDialog" title="挂载货柜到商户" width="560px" destroy-on-close>
-      <p class="dialog-hint">将设备归属到 <strong>{{ assignTarget?.merchantName || assignTarget?.merchantId }}</strong></p>
+      <p class="dialog-hint">
+        将设备归属到 <strong>{{ assignTarget?.merchantName || assignTarget?.merchantId }}</strong>。
+        已归属其它商户的设备会改挂到当前商户。
+      </p>
       <el-select
         v-model="assignDeviceIds"
         multiple
@@ -412,9 +445,10 @@
           :value="d.deviceId"
         />
       </el-select>
+      <el-empty v-if="!allDevices.length" description="暂无可用货柜，请先在设备管理中创建设备" :image-size="64" style="margin-top: 12px" />
       <template #footer>
         <el-button @click="assignDialog = false">取消</el-button>
-        <el-button type="primary" :loading="assignSaving" @click="saveAssignDevices">保存归属</el-button>
+        <el-button type="primary" :loading="assignSaving" :disabled="!allDevices.length" @click="saveAssignDevices">保存归属</el-button>
       </template>
     </el-dialog>
   </el-card>
@@ -458,6 +492,37 @@ const splitsLoaded = ref(false);
 const splitPage = ref(1);
 const splitSize = ref(20);
 const splitTotal = ref(0);
+const merchantKeyword = ref('');
+const merchantPage = ref(1);
+const merchantSize = ref(20);
+
+const filteredMerchants = computed(() => {
+  const q = merchantKeyword.value.trim().toLowerCase();
+  if (!q) return merchants.value;
+  return merchants.value.filter(
+    (m) =>
+      String(m.merchantId || '').toLowerCase().includes(q) ||
+      String(m.merchantName || '').toLowerCase().includes(q)
+  );
+});
+
+const pagedMerchants = computed(() => {
+  const start = (merchantPage.value - 1) * merchantSize.value;
+  return filteredMerchants.value.slice(start, start + merchantSize.value);
+});
+
+function searchMerchants() {
+  merchantPage.value = 1;
+}
+
+function resetMerchantFilters() {
+  merchantKeyword.value = '';
+  merchantPage.value = 1;
+}
+
+watch(merchantKeyword, () => {
+  merchantPage.value = 1;
+});
 const psStatus = ref<ProfitSharingStatus | null>(null);
 const opsConfigMerchantId = ref('');
 const opsConfig = ref<any>(null);
@@ -543,7 +608,7 @@ const { onExport: exportMerchants } = useListCsv({
   filePrefix: '商户',
   headers: ['商户编号', '名称', '抽成', '现场作业', '经营工具', '团队设置', '商户改货道', '商户改价', '设备数'],
   toRows: () =>
-    pickMerchants(merchants.value).map((row) => [
+    pickMerchants(filteredMerchants.value).map((row) => [
       row.merchantId,
       row.merchantName,
       `${(row.platformRateBps / 100).toFixed(1)}%`,
