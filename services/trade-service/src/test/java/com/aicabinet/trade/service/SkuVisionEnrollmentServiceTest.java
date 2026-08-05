@@ -8,6 +8,7 @@ import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.domain.SkuVisionMapping;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.SkuVisionMappingMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,7 @@ class SkuVisionEnrollmentServiceTest {
     @Mock private PermissionService permissionService;
     @Mock private AdminAuditService auditService;
     @Mock private VisionServiceClient visionServiceClient;
+    @Mock private UserInfoMapper userInfoRepository;
 
     private SkuVisionEnrollmentService service;
 
@@ -46,7 +48,8 @@ class SkuVisionEnrollmentServiceTest {
                 auditService,
                 new StagingProperties(false, false),
                 new ObjectMapper(),
-                visionServiceClient);
+                visionServiceClient,
+                userInfoRepository);
     }
 
     @Test
@@ -59,12 +62,18 @@ class SkuVisionEnrollmentServiceTest {
         var req = new UpsertSkuVisionEnrollmentRequest(
                 new UpsertSkuRequest(
                         "SKU-NEW-001", "可乐演示", 350, null, true, null, null, null, null, "ACTIVE",
-                        null, null, null, null, null, null, 0.92f, "cola_demo", "MAPPING", 0.5f, null),
+                        null, null, null, null, null, null, 0.92f, "cola_demo", "MAPPING", 0.5f, null,
+                        null, null, null, null),
                 "cola_demo", "MAPPING", 0.5f, null, "YOLO_SKU");
+
+        when(skuCatalogRepository.nextSkuCode()).thenReturn(100001L);
+        when(skuCatalogRepository.existsById("SKU-NEW-001")).thenReturn(false);
+        when(skuCatalogRepository.existsByBarcode(null, "SKU-NEW-001")).thenReturn(false);
 
         var dto = service.enrollSku(1L, req);
 
         assertEquals("SKU-NEW-001", dto.skuId());
+        assertEquals(100001L, dto.skuCode());
         assertEquals("MAPPING", dto.visionEnrollmentStatus());
         assertEquals("cola_demo", dto.yoloClassName());
         verify(permissionService).requirePermission(1L, "ops:sku:edit");

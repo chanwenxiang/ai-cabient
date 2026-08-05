@@ -33,21 +33,42 @@
     </el-tabs>
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
-      <el-form-item label="设备">
+      <el-form-item label="关键词">
         <el-input
-          v-model="deviceId"
+          v-model="keyword"
           clearable
-          placeholder="设备编号…"
-          style="width: 160px"
+          placeholder="订单号 / 设备 / 会话 / 用户 / 流水…"
+          style="width: 260px"
           @keyup.enter="search"
         />
       </el-form-item>
-      <el-form-item v-if="statusTab === 'PENDING'">
-        <el-checkbox v-model="overdueOnly" @change="onOverdueToggle">仅超时未付（≥30 分钟）</el-checkbox>
+      <el-form-item label="渠道">
+        <el-select v-model="payChannel" clearable placeholder="全部" style="width: 120px" @change="search">
+          <el-option
+            v-for="item in dictOptions('pay_channel')"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="时间">
+        <el-date-picker
+          v-model="createdRange"
+          type="datetimerange"
+          value-format="x"
+          start-placeholder="起"
+          end-placeholder="止"
+          style="width: 340px"
+          @change="search"
+        />
       </el-form-item>
       <el-form-item>
         <el-button type="primary" @click="search">查询</el-button>
         <el-button @click="reset">重置</el-button>
+      </el-form-item>
+      <el-form-item v-if="statusTab === 'PENDING'">
+        <el-checkbox v-model="overdueOnly" @change="onOverdueToggle">仅超时未付（≥30 分钟）</el-checkbox>
       </el-form-item>
     </el-form>
 
@@ -110,6 +131,11 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
+          <el-table-column label="流水号" min-width="150" align="center" class-name="col-text" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="mono">{{ row.payTradeNo || row.paymentOperationId || '无' }}</span>
+            </template>
+          </el-table-column>
           <el-table-column label="订单状态" width="100" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="orderStatusType(row.status)">
@@ -138,11 +164,43 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="商品" min-width="140" align="center" show-overflow-tooltip>
+          <el-table-column label="扣库存" width="88" align="center">
             <template #default="{ row }">
-              <div class="line-cell">
-                <strong>{{ row.lineCount ?? 0 }} 件</strong>
-                <small v-if="row.lineSummary">{{ row.lineSummary }}</small>
+              <el-tag size="small" :type="row.inventoryDeducted ? 'success' : 'info'" effect="plain">
+                {{ row.inventoryDeducted ? '已扣' : '未扣' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="商品"
+            min-width="180"
+            align="center"
+            class-name="col-goods"
+            label-class-name="col-goods"
+          >
+            <template #default="{ row }">
+              <div
+                v-for="disp in [goodsDisplay(row)]"
+                :key="row.orderId"
+                class="goods-cell"
+              >
+                <template v-if="disp.lines.length">
+                  <div
+                    v-for="(g, i) in disp.lines"
+                    :key="`${row.orderId}-${i}`"
+                    class="goods-line"
+                  >
+                    <span class="goods-name">{{ g.title }}</span>
+                    <span v-if="g.qty" class="goods-qty">×{{ g.qty }}</span>
+                  </div>
+                  <div v-if="disp.extraKinds != null" class="goods-meta">
+                    等 {{ disp.extraKinds }} 种 · 共 {{ disp.total }} 件
+                  </div>
+                  <div v-else-if="disp.total > 1 || disp.lines.length > 1" class="goods-meta">
+                    共 {{ disp.total }} 件
+                  </div>
+                </template>
+                <span v-else class="muted">—</span>
               </div>
             </template>
           </el-table-column>
@@ -294,7 +352,7 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { CopyDocument, Link, Refresh, VideoCamera, View, Wallet, Bell, CircleClose, Coin } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -309,6 +367,34 @@ import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const UNPAID_OVERDUE_MS = 30 * 60 * 1000;
 
+type GoodsLine = { title: string; qty: string };
+
+function parseGoodsLines(summary: string | null | undefined): GoodsLine[] {
+  if (!summary?.trim()) return [];
+  const base = summary.replace(/\s*等\d+种\s*$/, '').trim();
+  if (!base) return [];
+  return base
+    .split('、')
+    .map((part) => {
+      const raw = part.trim();
+      // 后端摘要形如：可口可乐 330ml x1 @L07-...；列表只展示名称与数量
+      const m = raw.match(/^(.*?)\s+x(\d+)(?:\s+@\S+)?$/i);
+      if (m) return { title: m[1].trim(), qty: m[2] };
+      return { title: raw.replace(/\s+@\S+$/, '').trim(), qty: '' };
+    })
+    .filter((g) => g.title);
+}
+
+function goodsDisplay(row: OrderSummary) {
+  const summary = row.lineSummary || '';
+  const extraMatch = summary.match(/等(\d+)种\s*$/);
+  return {
+    lines: parseGoodsLines(summary),
+    extraKinds: extraMatch ? Number(extraMatch[1]) : null,
+    total: row.lineCount ?? 0,
+  };
+}
+
 const route = useRoute();
 const { router, goPath } = useNavAccess();
 const { playSessionVideo } = useSessionVideo();
@@ -316,7 +402,9 @@ const auth = useAuthStore();
 const loading = ref(false);
 const videoLoading = ref(false);
 const refundingId = ref('');
-const deviceId = ref('');
+const keyword = ref('');
+const payChannel = ref('');
+const createdRange = ref<[string, string] | null>(null);
 const status = ref('');
 const statusTab = ref('ALL');
 const overdueOnly = ref(false);
@@ -349,22 +437,51 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
 
 const { onExport: exportSelectedCsv } = useListCsv({
   filePrefix: '订单',
-  headers: ['订单号', '会话', '用户ID', '设备', '订单状态', '支付状态', '退款状态', '支付渠道', '商品行', '金额', '创建时间'],
+  headers: [
+    '订单号',
+    '会话',
+    '用户ID',
+    '设备',
+    '流水号',
+    '订单状态',
+    '支付状态',
+    '退款状态',
+    '支付渠道',
+    '扣库存',
+    '商品摘要',
+    '商品行',
+    '金额',
+    '创建时间'
+  ],
   toRows: () =>
     pickSelected(items.value).map((row) => [
       row.orderId,
       row.sessionId,
       row.userId,
       row.deviceId,
+      row.payTradeNo || row.paymentOperationId || '',
       dictLabel('order_status', row.status) || row.status,
       paymentStatusLabel(row.status),
       refundColumnLabel(row.status),
       dictLabel('pay_channel', row.payChannel) || row.payChannel || '未知渠道',
+      row.inventoryDeducted ? '已扣' : '未扣',
+      row.lineSummary || '',
       row.lineCount,
       money(row.totalAmountCents),
       formatDateTime(row.createdAt)
     ])
 });
+
+function appendOrderFilters(q: URLSearchParams) {
+  if (keyword.value.trim()) q.set('q', keyword.value.trim());
+  if (payChannel.value) q.set('payChannel', payChannel.value);
+  if (createdRange.value?.length === 2) {
+    const fromMs = Number(createdRange.value[0]);
+    const toMs = Number(createdRange.value[1]);
+    if (Number.isFinite(fromMs)) q.set('from', new Date(fromMs).toISOString());
+    if (Number.isFinite(toMs)) q.set('to', new Date(toMs).toISOString());
+  }
+}
 
 async function onExportMode(mode: string) {
   const selected = pickSelected(items.value);
@@ -374,7 +491,7 @@ async function onExportMode(mode: string) {
   }
   try {
     const q = new URLSearchParams();
-    if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
+    appendOrderFilters(q);
     if (status.value) q.set('status', status.value);
     q.set('mode', mode === 'lines' ? 'lines' : 'orders');
     const qs = q.toString();
@@ -658,7 +775,8 @@ async function cancelUnpaid(row: { orderId: string }) {
 
 function syncRouteQuery() {
   const query: Record<string, string> = {};
-  if (deviceId.value.trim()) query.deviceId = deviceId.value.trim();
+  if (keyword.value.trim()) query.keyword = keyword.value.trim();
+  if (payChannel.value) query.payChannel = payChannel.value;
   if (status.value) query.status = status.value;
   if (statusTab.value === 'PENDING' && overdueOnly.value) query.overdue = '1';
   if (focusOrderId.value) query.orderId = focusOrderId.value;
@@ -684,25 +802,20 @@ function onOverdueToggle() {
 async function load() {
   loading.value = true;
   try {
+    const q = new URLSearchParams({
+      page: String(page.value - 1),
+      size: String(size.value)
+    });
+    appendOrderFilters(q);
     if (overdueOnly.value && statusTab.value === 'PENDING') {
-      const q = new URLSearchParams({
-        page: String(page.value - 1),
-        size: String(size.value),
-        status: 'PENDING',
-        overdue: '1'
-      });
-      if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
-      const data = await api.request<PageResult<OrderSummary>>(`/api/v2/ops/admin/orders?${q}`, 'GET');
-      items.value = data.items || [];
-      total.value = data.total || 0;
-    } else {
-      const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
-      if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
-      if (status.value) q.set('status', status.value);
-      const data = await api.request<PageResult<OrderSummary>>(`/api/v2/ops/admin/orders?${q}`, 'GET');
-      items.value = data.items || [];
-      total.value = data.total || 0;
+      q.set('status', 'PENDING');
+      q.set('overdue', '1');
+    } else if (status.value) {
+      q.set('status', status.value);
     }
+    const data = await api.request<PageResult<OrderSummary>>(`/api/v2/ops/admin/orders?${q}`, 'GET');
+    items.value = data.items || [];
+    total.value = data.total || 0;
     clearSelection();
     await maybeOpenFocusedOrder();
   } catch (e) {
@@ -718,7 +831,9 @@ function search() {
   load();
 }
 function reset() {
-  deviceId.value = '';
+  keyword.value = '';
+  payChannel.value = '';
+  createdRange.value = null;
   status.value = '';
   statusTab.value = 'ALL';
   overdueOnly.value = false;
@@ -734,11 +849,31 @@ function onSizeChange() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (typeof route.query.deviceId === 'string' && route.query.deviceId !== deviceId.value) {
-    deviceId.value = route.query.deviceId;
+  const routeKeyword =
+    typeof route.query.keyword === 'string'
+      ? route.query.keyword
+      : typeof route.query.q === 'string'
+        ? route.query.q
+        : typeof route.query.deviceId === 'string'
+          ? route.query.deviceId
+          : typeof route.query.qOrderId === 'string'
+            ? route.query.qOrderId
+            : typeof route.query.qSessionId === 'string'
+              ? route.query.qSessionId
+              : typeof route.query.userId === 'string'
+                ? route.query.userId
+                : typeof route.query.payTradeNo === 'string'
+                  ? route.query.payTradeNo
+                  : '';
+  if (routeKeyword !== keyword.value) {
+    keyword.value = routeKeyword;
     changed = true;
-  } else if (!route.query.deviceId && deviceId.value) {
-    deviceId.value = '';
+  }
+  if (typeof route.query.payChannel === 'string' && route.query.payChannel !== payChannel.value) {
+    payChannel.value = route.query.payChannel;
+    changed = true;
+  } else if (!route.query.payChannel && payChannel.value) {
+    payChannel.value = '';
     changed = true;
   }
   if (typeof route.query.status === 'string' && route.query.status !== status.value) {
@@ -808,7 +943,15 @@ async function reloadFromRouteQuery() {
 }
 
 watch(
-  () => [route.query.deviceId, route.query.status, route.query.overdue, route.query.orderId] as const,
+  () =>
+    [
+      route.query.keyword,
+      route.query.q,
+      route.query.deviceId,
+      route.query.status,
+      route.query.overdue,
+      route.query.orderId,
+    ] as const,
   () => {
     void reloadFromRouteQuery();
   }
@@ -866,19 +1009,39 @@ onActivated(() => {
   font-family: inherit;
   font-size: inherit;
 }
-.line-cell {
+.goods-cell {
   display: grid;
-  gap: 2px;
-  line-height: 1.35;
+  gap: 4px;
+  width: 100%;
   text-align: center;
   justify-items: center;
+  line-height: 1.35;
 }
-.line-cell strong {
-  font-weight: 650;
+.goods-line {
+  display: inline-flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
-.line-cell small {
+.goods-name {
+  font-weight: 600;
+  color: var(--layout-text, var(--el-text-color-primary));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.goods-qty {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+}
+.goods-meta {
+  font-size: 12px;
   color: var(--el-text-color-secondary);
-  font-size: 11px;
 }
 .muted {
   color: var(--el-text-color-secondary);

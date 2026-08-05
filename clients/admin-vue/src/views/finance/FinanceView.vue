@@ -119,7 +119,7 @@
           >
             <template #empty><el-empty description="暂无商品毛利数据" /></template>
             <el-table-column type="selection" width="48" align="center" />
-            <el-table-column prop="skuId" label="ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+            <el-table-column prop="skuId" label="商品编号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
               <template #default="{ row }">
                 <span class="cell-id">{{ row.skuId }}</span>
               </template>

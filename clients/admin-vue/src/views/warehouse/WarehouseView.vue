@@ -157,7 +157,7 @@
             >
               <template #empty><el-empty description="暂无仓库" /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column prop="warehouseId" label="ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+              <el-table-column prop="warehouseId" label="仓库编号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.warehouseId }}</span>
                 </template>
@@ -202,7 +202,7 @@
               @selection-change="onSelectionChange"
             >
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="supplierId" label="ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+          <el-table-column prop="supplierId" label="供应商编号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
             <template #default="{ row }">
               <span class="cell-id">{{ row.supplierId }}</span>
             </template>

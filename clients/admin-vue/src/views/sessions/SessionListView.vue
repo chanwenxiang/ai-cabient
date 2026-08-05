@@ -21,12 +21,12 @@
     </el-tabs>
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
-      <el-form-item label="设备">
+      <el-form-item label="关键词">
         <el-input
-          v-model="deviceId"
+          v-model="keyword"
           clearable
-          placeholder="设备编号"
-          style="width: 160px"
+          placeholder="会话 / 设备 / 用户 / 订单…"
+          style="width: 260px"
           @keyup.enter="search"
         />
       </el-form-item>
@@ -36,6 +36,17 @@
           <el-option label="补货" value="RESTOCK" />
           <el-option label="运维" value="OPS" />
         </el-select>
+      </el-form-item>
+      <el-form-item label="时间">
+        <el-date-picker
+          v-model="createdRange"
+          type="datetimerange"
+          value-format="x"
+          start-placeholder="起"
+          end-placeholder="止"
+          style="width: 340px"
+          @change="search"
+        />
       </el-form-item>
       <el-form-item>
         <el-checkbox v-model="stuckOnly" @change="onStuckToggle">仅滞留</el-checkbox>
@@ -75,7 +86,7 @@
             <el-empty :description="stuckOnly ? `当前无超过 ${STALE_MINUTES} 分钟的滞留会话` : '暂无开门记录'" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="sessionId" label="会话" min-width="160" align="center" class-name="col-text" sortable="custom">
+          <el-table-column prop="sessionId" label="会话编号" min-width="160" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
               <button type="button" class="link-cell mono" @click="openTimeline(row)">
                 <span class="cell-id">{{ row.sessionId }}</span>
@@ -245,9 +256,10 @@ import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { CircleClose, Clock, CopyDocument, Refresh, View, VideoCamera } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { useDictOptions } from '@/composables/useDictOptions';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
@@ -297,7 +309,8 @@ const { playSessionVideo } = useSessionVideo();
 const auth = useAuthStore();
 const loading = ref(false);
 const videoLoading = ref(false);
-const deviceId = ref('');
+const keyword = ref('');
+const createdRange = ref<[string, string] | null>(null);
 const kindFilter = ref('');
 const statusTab = ref('ALL');
 /** API 状态筛选项：与 statusTab 同源，ALL 时为空字符串 */
@@ -312,7 +325,7 @@ const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById, idSo
   useIdColumnSort<SessionRow>('sessionId');
 const timelineOpen = ref(false);
 const timelineRow = ref<SessionRow | null>(null);
-const stateOptions = dictOptions('session_state');
+const stateOptions = useDictOptions('session_state');
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<SessionRow>((r) => r.sessionId);
@@ -336,7 +349,7 @@ const pageStuckCount = computed(() => items.value.filter((r) => isStuck(r)).leng
 
 const { onExport: exportSelectedCsv } = useListCsv({
   filePrefix: '开门记录',
-  headers: ['会话ID', '类型', '用户', '设备', '订单', '状态', '等待原因', '滞留分钟', '是否滞留', '失败原因', '更新时间'],
+  headers: ['会话编号', '类型', '用户', '设备', '订单', '状态', '等待原因', '滞留分钟', '是否滞留', '失败原因', '更新时间'],
   toRows: () =>
     pickSelected(displayItems.value).map((row) => [
       row.sessionId,
@@ -353,6 +366,17 @@ const { onExport: exportSelectedCsv } = useListCsv({
     ])
 });
 
+function appendSessionFilters(q: URLSearchParams) {
+  if (keyword.value.trim()) q.set('q', keyword.value.trim());
+  if (stateFilter.value) q.set('state', stateFilter.value);
+  if (createdRange.value?.length === 2) {
+    const fromMs = Number(createdRange.value[0]);
+    const toMs = Number(createdRange.value[1]);
+    if (Number.isFinite(fromMs)) q.set('from', new Date(fromMs).toISOString());
+    if (Number.isFinite(toMs)) q.set('to', new Date(toMs).toISOString());
+  }
+}
+
 async function onExport() {
   const selected = pickSelected(displayItems.value);
   // 有勾选时导出勾选项；否则走服务端 F 码导出（当前筛选条件）
@@ -362,8 +386,7 @@ async function onExport() {
   }
   try {
     const q = new URLSearchParams();
-    if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
-    if (stateFilter.value) q.set('state', stateFilter.value);
+    appendSessionFilters(q);
     const qs = q.toString();
     await downloadAuthFile(
       `/api/v2/ops/admin/sessions/export${qs ? `?${qs}` : ''}`,
@@ -593,7 +616,7 @@ async function playVideo(sessionId?: string) {
 
 function syncRouteQuery() {
   const query: Record<string, string> = {};
-  if (deviceId.value.trim()) query.deviceId = deviceId.value.trim();
+  if (keyword.value.trim()) query.keyword = keyword.value.trim();
   if (stateFilter.value) query.state = stateFilter.value;
   if (stuckOnly.value) query.stuck = '1';
   if (focusSessionId.value) query.sessionId = focusSessionId.value;
@@ -622,8 +645,7 @@ async function load() {
       let serverTotal = Number.POSITIVE_INFINITY;
       while (scanned < maxScan && scanned < serverTotal) {
         const q = new URLSearchParams({ page: String(apiPage), size: String(pageSize) });
-        if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
-        if (stateFilter.value) q.set('state', stateFilter.value);
+        appendSessionFilters(q);
         const data = await api.request<PageResult<SessionRow>>(`/api/v2/ops/admin/sessions?${q}`, 'GET');
         const batch = data.items || [];
         serverTotal = data.total ?? batch.length;
@@ -638,8 +660,7 @@ async function load() {
       items.value = stuck.slice(start, start + size.value);
     } else {
       const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
-      if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
-      if (stateFilter.value) q.set('state', stateFilter.value);
+      appendSessionFilters(q);
       const data = await api.request<PageResult<SessionRow>>(`/api/v2/ops/admin/sessions?${q}`, 'GET');
       items.value = data.items;
       total.value = data.total;
@@ -673,7 +694,8 @@ function onStuckToggle() {
 }
 
 function reset() {
-  deviceId.value = '';
+  keyword.value = '';
+  createdRange.value = null;
   kindFilter.value = '';
   statusTab.value = 'ALL';
   stuckOnly.value = false;
@@ -703,8 +725,20 @@ async function cancelSession(sessionId: string) {
 
 function applyRouteQuery() {
   let changed = false;
-  if (typeof route.query.deviceId === 'string' && route.query.deviceId !== deviceId.value) {
-    deviceId.value = route.query.deviceId;
+  const routeKeyword =
+    typeof route.query.keyword === 'string'
+      ? route.query.keyword
+      : typeof route.query.q === 'string'
+        ? route.query.q
+        : typeof route.query.deviceId === 'string'
+          ? route.query.deviceId
+          : typeof route.query.qSessionId === 'string'
+            ? route.query.qSessionId
+            : typeof route.query.userId === 'string'
+              ? route.query.userId
+              : '';
+  if (routeKeyword !== keyword.value) {
+    keyword.value = routeKeyword;
     changed = true;
   }
   if (typeof route.query.state === 'string' && route.query.state !== stateFilter.value) {
@@ -742,7 +776,8 @@ async function reloadFromRouteQuery() {
 }
 
 watch(
-  () => [route.query.deviceId, route.query.state, route.query.stuck, route.query.sessionId] as const,
+  () =>
+    [route.query.keyword, route.query.q, route.query.deviceId, route.query.state, route.query.stuck, route.query.sessionId] as const,
   () => {
     void reloadFromRouteQuery();
   }

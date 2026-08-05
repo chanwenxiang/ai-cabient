@@ -346,6 +346,13 @@ public class DisputeService {
     public PageResult<DisputeTicketDto> listTickets(Long operatorId, int page, int size,
                                                     String status, String sessionId, String deviceId,
                                                     String category, String reviewCode) {
+        return listTickets(operatorId, page, size, status, sessionId, deviceId, null, category, reviewCode);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<DisputeTicketDto> listTickets(Long operatorId, int page, int size,
+                                                    String status, String sessionId, String deviceId,
+                                                    String orderId, String category, String reviewCode) {
         permissionService.requirePermission(operatorId, "ops:dispute");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, deviceId);
@@ -354,12 +361,12 @@ public class DisputeService {
             result = Page.empty(pageable);
         } else if (deviceScope != null) {
             result = disputeRepository.searchByDeviceIds(
-                    blankToNull(status), blankToNull(sessionId), deviceScope, blankToNull(category),
-                    blankToNull(reviewCode), pageable);
+                    blankToNull(status), blankToNull(sessionId), deviceScope, blankToNull(orderId),
+                    blankToNull(category), blankToNull(reviewCode), pageable);
         } else {
             result = disputeRepository.search(
-                    blankToNull(status), blankToNull(sessionId), blankToNull(deviceId), blankToNull(category),
-                    blankToNull(reviewCode), pageable);
+                    blankToNull(status), blankToNull(sessionId), blankToNull(deviceId), blankToNull(orderId),
+                    blankToNull(category), blankToNull(reviewCode), pageable);
         }
         return new PageResult<>(
                 result.getContent().stream().map(this::toDto).toList(),

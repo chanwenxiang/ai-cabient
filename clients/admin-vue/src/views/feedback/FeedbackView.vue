@@ -47,7 +47,7 @@
         >
           <template #empty><el-empty description="暂无反馈" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="feedbackId" label="ID" width="80" align="center" class-name="col-text" sortable="custom">
+          <el-table-column prop="feedbackId" label="反馈编号" width="100" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
               <span class="cell-id">{{ row.feedbackId }}</span>
             </template>

@@ -51,7 +51,7 @@
         >
           <template #empty><el-empty description="暂无运营账号" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="userId" label="ID" width="100" align="center" class-name="col-text" sortable="custom">
+          <el-table-column prop="userId" label="用户编号" width="100" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
               <span class="cell-id">{{ row.userId }}</span>
             </template>

@@ -13,7 +13,8 @@
     "strict": true,
     "paths": {
       "@/*": ["./src/*"],
-      "@aicabinet/shared-dict": ["../../packages/shared-dict/src/index.ts"],
+      "@aicabinet/shared-dict": ["./src/utils/shared-dict-reactive.ts"],
+      "@aicabinet/shared-dict-core": ["../../packages/shared-dict/src/index.ts"],
       "@aicabinet/shared-types": ["../../packages/shared-types/src/index.ts"],
       "@aicabinet/shared-api": ["../../packages/shared-api/src/index.ts"],
       "@aicabinet/shared-uni": ["../../packages/shared-uni/src"],

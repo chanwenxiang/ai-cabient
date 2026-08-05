@@ -34,6 +34,7 @@ public class FileAttachmentService {
     public static final String REF_PENDING = "PENDING_DISPUTE";
     public static final String REF_DISPUTE = "DISPUTE";
     public static final String REF_REPLENISHMENT = "REPLENISHMENT_TASK";
+    public static final String REF_SKU_IMAGE = "SKU_IMAGE";
     private static final long MAX_BYTES = 5 * 1024 * 1024L;
     private static final int MAX_EVIDENCE = 5;
     private static final Set<String> ALLOWED_TYPES = Set.of(
@@ -190,6 +191,55 @@ public class FileAttachmentService {
                 .toList();
     }
 
+    @Transactional
+    public FileAttachmentDto uploadSkuImage(Long operatorId, MultipartFile file) {
+        if (operatorId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "未登录");
+        }
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择图片");
+        }
+        if (file.getSize() > MAX_BYTES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "单张图片不能超过 5MB");
+        }
+        String contentType = normalizeContentType(file.getContentType(), file.getOriginalFilename());
+        if (!ALLOWED_TYPES.contains(contentType)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅支持 jpg/png/webp/gif");
+        }
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
+        }
+        String ext = extensionFor(contentType, file.getOriginalFilename());
+        String token = UUID.randomUUID().toString().replace("-", "");
+        String objectKey = ObjectStorageKeys.skuImageKey(operatorId, token, ext);
+        String storagePath = minioVideoService.putObject(objectKey, bytes, contentType)
+                .orElseGet(() -> writeLocal(objectKey, bytes));
+        FileAttachment row = new FileAttachment();
+        row.setRefType(REF_SKU_IMAGE);
+        row.setRefId(String.valueOf(operatorId));
+        row.setFileName(safeName(file.getOriginalFilename(), token + ext));
+        row.setFileSize((long) bytes.length);
+        row.setContentType(contentType);
+        row.setStoragePath(storagePath);
+        row.setStorageBucket(storagePath.startsWith("minio://") ? minioProperties.bucket() : "local");
+        row.setUploadedBy(operatorId);
+        row.setCreatedAt(Instant.now());
+        fileAttachmentMapper.insert(row);
+        return toDto(row);
+    }
+
+    @Transactional(readOnly = true)
+    public FileAttachment requireSkuImage(Long fileId) {
+        FileAttachment row = fileAttachmentMapper.selectById(fileId);
+        if (row == null || !REF_SKU_IMAGE.equals(row.getRefType())) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "商品图片不存在");
+        }
+        return row;
+    }
+
     @Transactional(readOnly = true)
     public FileAttachment requireReadable(Long requesterId, Long fileId, boolean operator) {
         FileAttachment row = fileAttachmentMapper.selectById(fileId);
@@ -238,6 +288,8 @@ public class FileAttachmentService {
         String url;
         if (REF_REPLENISHMENT.equals(row.getRefType())) {
             url = "/api/v2/merchant/replenishment/tasks/" + row.getRefId() + "/evidence/" + row.getFileId();
+        } else if (REF_SKU_IMAGE.equals(row.getRefType())) {
+            url = "/api/v2/media/sku-images/" + row.getFileId();
         } else {
             url = "/api/v2/disputes/evidence/" + row.getFileId();
         }

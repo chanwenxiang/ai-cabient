@@ -231,7 +231,8 @@ import { useAuthStore } from '@/stores/auth';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel } from '@aicabinet/shared-dict';
+import { useDictOptions } from '@/composables/useDictOptions';
 
 interface Ticket {
   ticketId: number;
@@ -293,9 +294,9 @@ const form = reactive({
   remark: ''
 });
 
-const statusOptions = dictOptions('repair_ticket_status');
-const priorityOptions = dictOptions('dispute_priority');
-const faultOptions = dictOptions('repair_fault_type');
+const statusOptions = useDictOptions('repair_ticket_status');
+const priorityOptions = useDictOptions('dispute_priority');
+const faultOptions = useDictOptions('repair_fault_type');
 
 function statusLabel(s?: string) {
   return dictLabel('repair_ticket_status', s) || s || '未知状态';

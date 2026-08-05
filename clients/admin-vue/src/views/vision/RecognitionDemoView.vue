@@ -11,7 +11,8 @@
         <div class="page-card-head__actions">
           <el-tag type="info" effect="plain">仅预览，不扣款</el-tag>
           <el-button v-if="canAccessPath('/vision-mappings')" @click="goPath('/vision-mappings')">识别映射</el-button>
-          <el-button v-if="canAccessPath('/skus')" @click="goPath('/skus')">商品与识别</el-button>
+          <el-button v-if="canAccessPath('/skus')" @click="goPath('/skus')">商品管理</el-button>
+          <el-button v-if="canAccessPath('/sku-vision')" @click="goPath('/sku-vision')">识别入驻</el-button>
         </div>
       </div>
     </template>

@@ -38,7 +38,8 @@ const BASE_NAV: NavItem[] = [
   { path: '/devices', title: '设备管理', group: '设备商品', perm: 'ops:device:list', keywords: ['柜机', 'device'] },
   { path: '/device-map', title: '投放地图', group: '设备商品', perm: 'ops:device-map:view', keywords: ['地图', '点位', '坐标', '投放'] },
   { path: '/repair-tickets', title: '维修工单', group: '设备商品', perm: 'ops:repair:list', keywords: ['维修', '工单', 'repair'] },
-  { path: '/skus', title: '商品与识别', group: '设备商品', perm: 'ops:sku:list', keywords: ['sku', '商品', '定价', 'yolo', '识别', 'vision'] },
+  { path: '/skus', title: '商品管理', group: '设备商品', perm: 'ops:sku:list', keywords: ['sku', '商品', '定价', '条码', '品牌'] },
+  { path: '/sku-vision', title: '识别入驻', group: '设备商品', perm: 'ops:sku:list', keywords: ['sku', '识别', '入驻', 'yolo', 'vision', '类名'] },
   { path: '/vision-mappings', title: '识别映射', group: '设备商品', perm: 'ops:vision:list', keywords: ['yolo', '映射', 'vision', 'deepseek', '重力'] },
   { path: '/upload-queue', title: '录像上传', group: '设备商品', perm: 'ops:session:upload', keywords: ['上传', '视频', 'upload'] },
 
@@ -83,7 +84,7 @@ const DEMO_NAV: NavItem = {
 function buildNav(): NavItem[] {
   if (!ENABLE_TEST_TOOLS) return BASE_NAV;
   const items = [...BASE_NAV];
-  const idx = items.findIndex((n) => n.path === '/skus');
+  const idx = items.findIndex((n) => n.path === '/sku-vision');
   items.splice(idx >= 0 ? idx + 1 : items.length, 0, DEMO_NAV);
   return items;
 }

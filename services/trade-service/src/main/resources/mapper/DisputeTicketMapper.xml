@@ -47,4 +47,5 @@
                           AND (d.sla_due_at IS NULL OR d.resolved_at <= d.sla_due_at)
     ]]>
   </select>
+
 </mapper>

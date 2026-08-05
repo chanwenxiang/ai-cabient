@@ -131,6 +131,9 @@ public class DemoDataService {
         for (DemoSkuSeed seed : DEMO_SKUS) {
             SkuCatalog sku = skuCatalogRepository.findById(seed.skuId()).orElse(new SkuCatalog());
             sku.setSkuId(seed.skuId());
+            if (sku.getSkuCode() == null) {
+                sku.setSkuCode(skuCatalogRepository.nextSkuCode());
+            }
             sku.setSkuName(seed.name());
             sku.setPriceCents(seed.priceCents());
             sku.setWeightGrams(seed.weightGrams());
@@ -139,6 +142,9 @@ public class DemoDataService {
             sku.setDescription(seed.description());
             sku.setCategory(seed.category());
             sku.setBarcode(seed.barcode());
+            if (sku.getUnit() == null || sku.getUnit().isBlank()) {
+                sku.setUnit("件");
+            }
             sku.setStatus("ACTIVE");
             sku.setShelfLifeDays(seed.shelfLifeDays());
             sku.setNearExpiryDays(seed.nearExpiryDays());
@@ -268,17 +274,17 @@ public class DemoDataService {
 
     private static final List<DemoSkuSeed> DEMO_SKUS = List.of(
             new DemoSkuSeed("SKU-DEMO-001", "可口可乐 330ml", 350, 330, 190,
-                    "https://placehold.co/200x200/1677ff/ffffff/png?text=Cola", "经典可乐", "饮料", "6901028300018", 270, 7, 0, 0.92f),
+                    "/admin/sku-demo/cola.svg", "经典可乐", "饮料", "6901028300018", 270, 7, 0, 0.92f),
             new DemoSkuSeed("SKU-SODA-001", "雪碧 500ml", 400, 500, 220,
-                    "https://placehold.co/200x200/52c41a/ffffff/png?text=Sprite", "柠檬味汽水", "饮料", "6901028300019", 270, 7, 0, 0.80f),
+                    "/admin/sku-demo/sprite.svg", "柠檬味汽水", "饮料", "6901028300019", 270, 7, 0, 0.80f),
             new DemoSkuSeed("SKU-WATER-001", "矿泉水 550ml", 200, 550, 110,
-                    "https://placehold.co/200x200/13c2c2/ffffff/png?text=Water", "饮用天然水", "饮料", "6901028300021", 365, 14, 0, 0.92f),
+                    "/admin/sku-demo/water.svg", "饮用天然水", "饮料", "6901028300021", 365, 14, 0, 0.92f),
             new DemoSkuSeed("SKU-SNACK-001", "原味薯片 70g", 650, 70, 360,
-                    "https://placehold.co/200x200/faad14/ffffff/png?text=Chips", "休闲零食", "零食", "6901028300022", 180, 7, 0, 0.92f),
+                    "/admin/sku-demo/chips.svg", "休闲零食", "零食", "6901028300022", 180, 7, 0, 0.92f),
             new DemoSkuSeed("SKU-MILK-001", "纯牛奶 250ml", 450, 250, 250,
-                    "https://placehold.co/200x200/722ed1/ffffff/png?text=Milk", "常温灭菌乳", "乳品", "6901028300023", 180, 5, 1, 0.92f),
+                    "/admin/sku-demo/milk.svg", "常温灭菌乳", "乳品", "6901028300023", 180, 5, 1, 0.92f),
             new DemoSkuSeed("SKU-NOODLE-001", "红烧牛肉面", 520, 120, 290,
-                    "https://placehold.co/200x200/fa541c/ffffff/png?text=Noodle", "方便食品", "方便食品", "6901028300024", 270, 7, 0, 0.92f)
+                    "/admin/sku-demo/noodle.svg", "方便食品", "方便食品", "6901028300024", 270, 7, 0, 0.92f)
     );
 
     private static final List<DemoInvSeed> DEMO_INVENTORY = List.of(

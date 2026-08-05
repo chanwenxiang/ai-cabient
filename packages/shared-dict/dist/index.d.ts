@@ -218,6 +218,16 @@ export declare const DICT: {
         readonly CHANNEL_FEE: "通道费";
         readonly MERCHANT_CREDIT: "商户入账";
     };
+    /** 商户/线长钱包流水类型 */
+    readonly wallet_ledger_type: {
+        readonly MERCHANT_CREDIT: "商户入账";
+        readonly LINE_COMMISSION: "线长佣金";
+        readonly WITHDRAW_FREEZE: "提现冻结";
+        readonly WITHDRAW_RELEASE: "提现解冻";
+        readonly WITHDRAW_PAID: "提现打款";
+        readonly ADJUST: "调账";
+        readonly REVERSE: "冲正";
+    };
     readonly fund_direction: {
         readonly IN: "收入";
         readonly OUT: "支出";
@@ -413,6 +423,8 @@ export declare const DICT: {
         readonly 'R-DEMO-02': "演示路线 02";
         readonly 'R-DEMO-X': "演示路线 X";
     };
+    /** 商品类目：运营在字典管理维护；runtime 为准 */
+    readonly category_code: Record<string, string>;
 };
 export type DictType = keyof typeof DICT;
 export type DictTagType = 'success' | 'warning' | 'danger' | 'info' | 'primary';

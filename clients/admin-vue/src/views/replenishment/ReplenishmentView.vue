@@ -37,6 +37,8 @@
               border
               :empty-text="routesEmptyText"
               row-key="routeId"
+              :default-sort="routeIdDefaultSort"
+              @sort-change="onRouteIdSortChange"
               @selection-change="onRoutesSelectionChange"
             >
             <el-table-column type="selection" width="48" align="center" />
@@ -48,7 +50,12 @@
                   <span>负责人：{{ row.assigneeUserId || '未分配' }}</span>
                   <span>预计里程：{{ row.totalDistanceM ? `${row.totalDistanceM} 米` : '未计算' }}</span>
                 </div>
-                <el-table :data="row.tasks || []" size="small" class="line-table">
+                <el-table :data="sortedRouteTasks(row.tasks)" size="small" class="line-table">
+                  <el-table-column label="任务" width="88" align="center" class-name="col-text">
+                    <template #default="scope">
+                      <span class="cell-id">#{{ scope.row.taskId }}</span>
+                    </template>
+                  </el-table-column>
                   <el-table-column label="设备" min-width="140" align="center">
                     <template #default="scope">
                       {{ deviceName(scope.row.deviceId) }}
@@ -145,7 +152,7 @@
           <el-table-column label="路线" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.routeName || '无' }}</template>
           </el-table-column>
-          <el-table-column label="路线ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column prop="routeId" label="路线ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
             <template #default="{ row }">
               <span class="mono">{{ row.routeId }}</span>
             </template>
@@ -210,8 +217,10 @@
               class="report-table"
               row-key="taskId"
               :empty-text="fulfillmentEmptyText"
+              :default-sort="taskIdDefaultSort"
+              @sort-change="onTaskIdSortChange"
             >
-              <el-table-column label="任务" width="88" align="center" class-name="col-text">
+              <el-table-column prop="taskId" label="任务" width="88" align="center" class-name="col-text" sortable="custom">
                 <template #default="{ row }">
                   <span class="cell-id">#{{ row.taskId }}</span>
                 </template>
@@ -312,10 +321,12 @@
               stripe
               border
               row-key="requestId"
+              :default-sort="requestIdDefaultSort"
+              @sort-change="onRequestIdSortChange"
               @selection-change="onRequestsSelectionChange"
             >
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column label="要货单" min-width="120" align="center" class-name="col-text">
+          <el-table-column prop="requestId" label="要货单" min-width="120" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }"><span class="cell-id">{{ row.requestId }}</span></template>
           </el-table-column>
           <el-table-column prop="merchantName" label="商户" min-width="160" align="center" class-name="col-text" show-overflow-tooltip />
@@ -721,11 +732,13 @@ import { Check, Close, Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
+import { sortByPrimaryKey } from '@/utils/sort-by-pk';
 import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -736,6 +749,26 @@ const router = useRouter();
 const { goPath } = useNavAccess();
 const auth = useAuthStore();
 const canEdit = computed(() => auth.hasPerm('ops:replenishment:edit'));
+
+const {
+  defaultSort: routeIdDefaultSort,
+  onSortChange: onRouteIdSortChange,
+  sortById: sortRoutesById
+} = useIdColumnSort<Row>('routeId');
+const {
+  defaultSort: taskIdDefaultSort,
+  onSortChange: onTaskIdSortChange,
+  sortById: sortTasksById
+} = useIdColumnSort<Row>('taskId');
+const {
+  defaultSort: requestIdDefaultSort,
+  onSortChange: onRequestIdSortChange,
+  sortById: sortRequestsById
+} = useIdColumnSort<Row>('requestId');
+
+function sortedRouteTasks(tasks: Row[] | undefined | null): Row[] {
+  return sortByPrimaryKey(tasks || [], 'taskId', 'asc');
+}
 
 const loading = ref(false);
 const saving = ref(false);
@@ -830,11 +863,7 @@ const fulfillmentTasksBase = computed(() => {
       });
     }
   }
-  return rows.sort((a, b) => {
-    const ta = Date.parse(String(a.completedAt || a.checkInAt || a.createdAt || 0)) || 0;
-    const tb = Date.parse(String(b.completedAt || b.checkInAt || b.createdAt || 0)) || 0;
-    return tb - ta;
-  });
+  return sortTasksById(rows);
 });
 const fulfillmentTasks = computed(() => {
   if (!fulfillmentUnassignedOnly.value) return fulfillmentTasksBase.value;
@@ -854,9 +883,12 @@ const fulfillmentEmptyText = computed(() => {
 });
 const filteredRoutes = computed(() => {
   const id = focusDeviceId.value.trim();
-  if (!id) return routes.value;
-  return routes.value.filter((row) => (row.tasks || []).some((task: Row) => task.deviceId === id));
+  const list = !id
+    ? routes.value
+    : routes.value.filter((row) => (row.tasks || []).some((task: Row) => task.deviceId === id));
+  return sortRoutesById(list);
 });
+const sortedRequests = computed(() => sortRequestsById(requests.value));
 const routesEmptyText = computed(() =>
   focusDeviceId.value.trim()
     ? `设备 ${focusDeviceId.value} 暂无关联补货路线`
@@ -869,14 +901,14 @@ function slicePage<T>(rows: T[]) {
 }
 
 const tabTotal = computed(() => {
-  if (tab.value === 'requests') return requests.value.length;
+  if (tab.value === 'requests') return sortedRequests.value.length;
   if (tab.value === 'shortage') return shortages.value.length;
   if (tab.value === 'expiry') return expiryAlerts.value.length;
   if (tab.value === 'fulfillment') return fulfillmentTasks.value.length;
   return filteredRoutes.value.length;
 });
 const pagedRoutes = computed(() => slicePage(filteredRoutes.value));
-const pagedRequests = computed(() => slicePage(requests.value));
+const pagedRequests = computed(() => slicePage(sortedRequests.value));
 const pagedShortages = computed(() => slicePage(shortages.value));
 const pagedExpiry = computed(() => slicePage(expiryAlerts.value));
 const pagedFulfillment = computed(() => slicePage(fulfillmentTasks.value));

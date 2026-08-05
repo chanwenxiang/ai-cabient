@@ -13,7 +13,10 @@ import org.apache.ibatis.annotations.Param;
 public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTask> {
 
     default List<ReplenishmentTask> findByRouteId(Long routeId) {
-    return selectList(Wrappers.<ReplenishmentTask>lambdaQuery().eq(ReplenishmentTask::getRouteId, routeId));
+    return selectList(
+        Wrappers.<ReplenishmentTask>lambdaQuery()
+            .eq(ReplenishmentTask::getRouteId, routeId)
+            .orderByAsc(ReplenishmentTask::getTaskId));
     }
 
     default List<ReplenishmentTask> findByOutboundId(Long outboundId) {

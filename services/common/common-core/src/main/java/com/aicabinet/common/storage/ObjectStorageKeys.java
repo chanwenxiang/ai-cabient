@@ -76,6 +76,16 @@ public final class ObjectStorageKeys {
                 Locale.ROOT, "replenishment-evidence/%s/task-%d/user-%d/%s%s", date, taskId, userId, token, ext);
     }
 
+    /** 商品主图（运营后台上传）。 */
+    public static String skuImageKey(long operatorId, String fileToken, String extension) {
+        ZonedDateTime zdt = Instant.now().atZone(ZONE);
+        String date = String.format(
+                Locale.ROOT, "%04d/%02d/%02d", zdt.getYear(), zdt.getMonthValue(), zdt.getDayOfMonth());
+        String token = sanitize(fileToken, "file");
+        String ext = normalizeExtension(extension);
+        return String.format(Locale.ROOT, "sku-images/%s/op-%d/%s%s", date, operatorId, token, ext);
+    }
+
     private static String prefix(
             String root,
             String deviceId,

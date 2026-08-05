@@ -92,6 +92,8 @@ public final class ApiMessages {
     // 商品/运营
     public static final String SKU_NOT_FOUND = "商品不存在";
     public static final String SKU_EXISTS = "商品编号已存在";
+    public static final String SKU_BARCODE_EXISTS = "条码已存在，请勿重复录入";
+    public static final String SKU_NAME_EXISTS = "商品名称已存在，请勿重复录入";
     public static final String DEVICE_EXISTS = "设备编号已存在";
     public static final String ROLE_NOT_FOUND = "角色不存在";
     public static final String NOT_OPERATOR_ACCOUNT = "不是运营账号";

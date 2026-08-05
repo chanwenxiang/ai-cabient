@@ -8,8 +8,9 @@ import org.apache.ibatis.annotations.Mapper;
 @Mapper
 public interface ReplenishmentRouteMapper extends BaseTradeMapper<ReplenishmentRoute> {
 
-    default List<ReplenishmentRoute> findAllByOrderByPlannedDateDesc() {
-    return selectList(Wrappers.<ReplenishmentRoute>lambdaQuery().orderByDesc(ReplenishmentRoute::getPlannedDate));
+    /** 列表默认按路线 ID 正序，与运营台 ID 列升序约定一致。 */
+    default List<ReplenishmentRoute> findAllByOrderByRouteIdAsc() {
+    return selectList(Wrappers.<ReplenishmentRoute>lambdaQuery().orderByAsc(ReplenishmentRoute::getRouteId));
     }
 
 }

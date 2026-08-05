@@ -56,7 +56,14 @@ public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
     return c == null ? 0 : c;
     }
 
-    default Page<DisputeTicket> search( @Param("status") String status, @Param("sessionId") String sessionId, @Param("deviceId") String deviceId, @Param("category") String category, @Param("reviewCode") String reviewCode, Pageable pageable) {
+    default Page<DisputeTicket> search(
+            @Param("status") String status,
+            @Param("sessionId") String sessionId,
+            @Param("deviceId") String deviceId,
+            @Param("orderId") String orderId,
+            @Param("category") String category,
+            @Param("reviewCode") String reviewCode,
+            Pageable pageable) {
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<DisputeTicket>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
         var q = Wrappers.<DisputeTicket>lambdaQuery()
@@ -64,14 +71,27 @@ public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
                 .eq(sessionId != null && !sessionId.isEmpty(), DisputeTicket::getSessionId, sessionId)
                 .eq(category != null && !category.isEmpty(), DisputeTicket::getCategory, category)
                 .eq(reviewCode != null && !reviewCode.isEmpty(), DisputeTicket::getReviewCode, reviewCode)
+                .apply(deviceId != null && !deviceId.isBlank(),
+                        "EXISTS (SELECT 1 FROM shopping_session s WHERE s.session_id = dispute_ticket.session_id AND s.device_id = {0})",
+                        deviceId)
+                .apply(orderId != null && !orderId.isBlank(),
+                        "EXISTS (SELECT 1 FROM shopping_session s WHERE s.session_id = dispute_ticket.session_id AND s.order_id = {0})",
+                        orderId)
                 .orderByDesc(DisputeTicket::getCreatedAt);
         var result = selectPage(mpPage, q);
         return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
-        List<DisputeTicket> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
+    List<DisputeTicket> findByUserIdOrderByCreatedAtDesc(@Param("userId") Long userId);
 
-    default Page<DisputeTicket> searchByDeviceIds( @Param("status") String status, @Param("sessionId") String sessionId, @Param("deviceIds") Collection<String> deviceIds, @Param("category") String category, @Param("reviewCode") String reviewCode, Pageable pageable) {
+    default Page<DisputeTicket> searchByDeviceIds(
+            @Param("status") String status,
+            @Param("sessionId") String sessionId,
+            @Param("deviceIds") Collection<String> deviceIds,
+            @Param("orderId") String orderId,
+            @Param("category") String category,
+            @Param("reviewCode") String reviewCode,
+            Pageable pageable) {
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<DisputeTicket>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
         var q = Wrappers.<DisputeTicket>lambdaQuery()
@@ -80,6 +100,18 @@ public interface DisputeTicketMapper extends BaseTradeMapper<DisputeTicket> {
                 .eq(category != null && !category.isEmpty(), DisputeTicket::getCategory, category)
                 .eq(reviewCode != null && !reviewCode.isEmpty(), DisputeTicket::getReviewCode, reviewCode)
                 .orderByDesc(DisputeTicket::getCreatedAt);
+        if (deviceIds != null && !deviceIds.isEmpty()) {
+            String inList = deviceIds.stream()
+                    .map(id -> "'" + String.valueOf(id).replace("'", "''") + "'")
+                    .collect(java.util.stream.Collectors.joining(","));
+            q.inSql(DisputeTicket::getSessionId,
+                    "SELECT session_id FROM shopping_session WHERE device_id IN (" + inList + ")");
+        }
+        if (orderId != null && !orderId.isBlank()) {
+            q.apply(
+                    "EXISTS (SELECT 1 FROM shopping_session s WHERE s.session_id = dispute_ticket.session_id AND s.order_id = {0})",
+                    orderId);
+        }
         var result = selectPage(mpPage, q);
         return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }

@@ -254,6 +254,8 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "FAILED", "失败", "PARTIAL_FAILED", "部分失败", "COMPLETED", "已完成")));
         map.put("route_code", t("路线编码", m(
                 "R01", "路线 R01", "R-DEMO-01", "演示路线 01", "R-DEMO-02", "演示路线 02", "R-DEMO-X", "演示路线 X")));
+        // 类目以运营字典为准；种子仅保证类型存在（项由运营后台维护）
+        map.put("category_code", t("类目", m()));
         return map;
     }
 

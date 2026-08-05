@@ -113,7 +113,8 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, type Sort } from 'element-plus';
 import { api } from '@/api/client';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
+import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
+import { useDictOptions } from '@/composables/useDictOptions';
 
 interface OpsEvent {
   eventId: number;
@@ -143,9 +144,10 @@ const total = ref(0);
 /** 默认升序；点击「事件ID」表头切换 */
 const sortDir = ref<'asc' | 'desc'>('asc');
 
-const eventTypeOptions = dictOptions('device_ops_event');
-const severityOptions = dictOptions('risk_severity').filter((o) =>
-  ['INFO', 'WARN', 'CRITICAL', 'HIGH'].includes(o.value)
+const eventTypeOptions = useDictOptions('device_ops_event');
+const riskSeverityDict = useDictOptions('risk_severity');
+const severityOptions = computed(() =>
+  riskSeverityDict.value.filter((o) => ['INFO', 'WARN', 'CRITICAL', 'HIGH'].includes(o.value))
 );
 
 const displayItems = computed(() => {

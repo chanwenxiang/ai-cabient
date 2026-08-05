@@ -221,7 +221,7 @@ public class ReplenishmentService {
 
     public List<ReplenishmentRouteDto> listRoutes() {
 
-        return routeRepository.findAllByOrderByPlannedDateDesc().stream()
+        return routeRepository.findAllByOrderByRouteIdAsc().stream()
 
                 .map(this::toRouteDto)
 

@@ -28,6 +28,9 @@
   --layout-muted: #64748b;
   --layout-hover: rgba(15, 23, 42, 0.04);
   --layout-card: #ffffff;
+  /* 表头中性灰（勿用偏蓝 slate） */
+  --el-table-header-bg-color: #f5f5f5;
+  --el-fill-color-light: #f5f5f5;
   /* 运营后台壳层间距（对齐 Element Admin / Ant Design Pro 密度） */
   --admin-space-xs: 4px;
   --admin-space-sm: 8px;
@@ -36,7 +39,10 @@
   --admin-space-xl: 20px;
   --admin-radius: 8px;
   --admin-radius-lg: 10px;
-  --admin-scrollbar: color-mix(in srgb, var(--layout-muted) 55%, transparent);
+  /* 细轨、半透明：占布局高度，不盖住末行 */
+  --admin-scrollbar: color-mix(in srgb, var(--layout-muted) 42%, transparent);
+  --admin-scrollbar-track: color-mix(in srgb, var(--layout-border) 40%, transparent);
+  --admin-scrollbar-size: 6px;
 }
 
 [data-theme='dark'] {
@@ -261,11 +267,13 @@ button, input, textarea, select { font: inherit; }
 .layout-main-scroll .el-table td.col-text > .cell:has(.name-cell),
 .layout-main-scroll .el-table td.col-text > .cell:has(.master-data-cell),
 .layout-main-scroll .el-table td.col-text > .cell:has(.line-cell),
+.layout-main-scroll .el-table td.col-text > .cell:has(.goods-cell),
 .layout-main-scroll .el-table td.col-text > .cell:has(.sku-cell),
 .layout-main-scroll .el-table td.col-text > .cell:has(.sla-cell),
 .page-card .el-table td.col-text > .cell:has(.name-cell),
 .page-card .el-table td.col-text > .cell:has(.master-data-cell),
 .page-card .el-table td.col-text > .cell:has(.line-cell),
+.page-card .el-table td.col-text > .cell:has(.goods-cell),
 .page-card .el-table td.col-text > .cell:has(.sku-cell),
 .page-card .el-table td.col-text > .cell:has(.sla-cell) {
   white-space: normal;
@@ -328,6 +336,24 @@ button, input, textarea, select { font: inherit; }
   overflow: visible;
   text-overflow: clip;
   line-height: 1.35;
+}
+
+/* 订单商品列：居中展示名称×数量（不展示货道/批次码） */
+.layout-main-scroll .el-table th.col-goods > .cell,
+.layout-main-scroll .el-table td.col-goods > .cell,
+.page-card .el-table th.col-goods > .cell,
+.page-card .el-table td.col-goods > .cell {
+  text-align: center !important;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.35;
+}
+.layout-main-scroll .el-table .goods-cell,
+.page-card .el-table .goods-cell {
+  text-align: center;
+  justify-items: center;
+  align-items: center;
 }
 
 .page-card > .el-card__header {
@@ -587,9 +613,10 @@ button, input, textarea, select { font: inherit; }
 
 .layout-main-scroll > .page-card.el-card,
 .layout-main-scroll > .page-fill > .page-card.el-card {
-  /* 至少铺满主区，内容多时随表格增高，纵向交给主区滚动条 */
+  /* 至少铺满主区；内容过高时由 .layout-main-scroll 纵滚，避免表体被压没 */
   height: auto;
   min-height: 100%;
+  max-height: none;
 }
 
 .layout-main-scroll > .page-card > .el-card__header,
@@ -603,7 +630,6 @@ button, input, textarea, select { font: inherit; }
   min-height: 0;
   display: flex;
   flex-direction: column;
-  /* 勿裁切固定操作列；纵滚走主区 */
   overflow: visible;
 }
 
@@ -626,8 +652,10 @@ button, input, textarea, select { font: inherit; }
 
 .layout-main-scroll > .page-card > .el-card__body > .table-scroll,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll {
-  flex: 0 0 auto;
-  min-height: 0;
+  flex: 1 1 auto;
+  min-height: 240px;
+  max-height: min(70vh, calc(100vh - 220px));
+  overflow: auto;
 }
 
 /*
@@ -647,14 +675,14 @@ button, input, textarea, select { font: inherit; }
   display: none;
 }
 
-/* 内容包裹型 tabs（商户/仓库等）：随内容增高，纵滚交给主区 */
+/* 内容包裹型 tabs（商户/仓库等）：占满剩余高度，纵滚交给内部 .table-scroll */
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs),
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__header,
@@ -664,24 +692,27 @@ button, input, textarea, select { font: inherit; }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 0;
-  overflow: visible;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content > .el-tab-pane,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content > .el-tab-pane {
-  height: auto;
+  height: 100%;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   min-height: 0;
+  overflow: auto;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .page-pager,
@@ -749,17 +780,17 @@ button, input, textarea, select { font: inherit; }
 
 /*
  * 表格滚动（全局统一）：
- * 1. 表格按行自适应高度，纵向滚动交给右侧主区 .layout-main-scroll
- * 2. 仅表内横向滚动（含 fixed 操作列）；不再锁死 height:100% 导致末行被横条挡住
- * 3. 有横向溢出时底栏滚动条常显（不依赖 hover）
+ * 1. 筛选/页头留在卡片上方；.table-scroll 占剩余高度并纵滚 + 横滚
+ * 2. 表头 sticky 贴 .table-scroll 顶部（兼容 EP 2.x body-header）
+ * 3. 关掉 EP 内部滚动条容器，避免打断 sticky；横滚也由 .table-scroll 承担
  */
 .table-scroll {
   width: 100%;
   max-width: 100%;
   min-width: 0;
+  min-height: 240px;
   display: block;
-  /* 必须裁切：否则 table-scroll-inner 的 min-width 会撑破主区，右侧操作列被 overflow-x:hidden 裁掉 */
-  overflow: hidden;
+  overflow: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--layout-border);
   border-radius: 8px;
@@ -771,7 +802,7 @@ button, input, textarea, select { font: inherit; }
 .table-scroll-inner {
   width: 100%;
   max-width: 100%;
-  /* 覆盖各页 inline min-width：宽度约束在 .table-scroll 内，横滚交给 EP */
+  /* 覆盖各页 inline min-width：宽度约束在 .table-scroll 内 */
   min-width: 0 !important;
   display: block;
   box-sizing: border-box;
@@ -780,145 +811,146 @@ button, input, textarea, select { font: inherit; }
 .table-scroll .el-table {
   width: 100% !important;
   min-width: 100%;
-  /* 覆盖模板里 height="100%"，避免表内纵滚 + 末行被横条遮挡 */
   height: auto !important;
   max-height: none !important;
   margin-bottom: 0;
+  overflow: visible !important;
 }
 
 .table-scroll .el-table__inner-wrapper {
   height: auto !important;
   display: block !important;
+  overflow: visible !important;
 }
 
 .table-scroll .el-table__header-wrapper {
-  overflow-x: hidden !important;
-  position: relative !important;
-  top: auto !important;
+  overflow: visible !important;
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 6;
+}
+.table-scroll .el-table__header-wrapper th.el-table__cell,
+.table-scroll .el-table__header th.el-table__cell {
+  background: var(--el-table-header-bg-color, #f5f5f5);
+  background-clip: padding-box;
+}
+
+/* EP 2.x：表头嵌在 body 区 */
+.table-scroll .el-table__body-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 6;
+}
+.table-scroll .el-table__body-header th.el-table__cell {
+  background: var(--el-table-header-bg-color, #f5f5f5);
+  background-clip: padding-box;
+}
+html.dark .table-scroll .el-table__header-wrapper th.el-table__cell,
+html.dark .table-scroll .el-table__header th.el-table__cell,
+html.dark .table-scroll .el-table__body-header th.el-table__cell,
+[data-theme='dark'] .table-scroll .el-table__header-wrapper th.el-table__cell,
+[data-theme='dark'] .table-scroll .el-table__header th.el-table__cell,
+[data-theme='dark'] .table-scroll .el-table__body-header th.el-table__cell {
+  background: var(--el-table-header-bg-color, #3a3a3a);
 }
 
 .table-scroll .el-table__body-wrapper,
 .table-scroll .el-table__footer-wrapper {
-  /* 自适应高度：只横滚，不竖滚 */
   height: auto !important;
   max-height: none !important;
-  overflow: hidden !important;
+  overflow: visible !important;
 }
 
 .table-scroll .el-table .el-scrollbar {
   height: auto !important;
+  overflow: visible !important;
 }
 
 .table-scroll .el-table .el-scrollbar__wrap {
-  overflow-x: auto !important;
-  overflow-y: hidden !important;
-  scrollbar-width: none !important; /* Firefox */
-  -ms-overflow-style: none !important;
+  overflow: visible !important;
   max-height: none !important;
 }
 
 .table-scroll .el-table .el-scrollbar__wrap::-webkit-scrollbar {
-  width: 0 !important;
-  height: 0 !important;
-  display: none !important;
+  width: var(--admin-scrollbar-size);
+  height: var(--admin-scrollbar-size);
 }
 
-/*
- * 只保留 EP 自定义横滚条（一条），贴表体底栏；右侧给固定操作列让路。
- * EP 会写 inline display:none，用 !important 压过。
- */
-.table-scroll .el-table .el-scrollbar__bar.is-horizontal {
-  display: block !important;
-  opacity: 1 !important;
-  height: 10px !important;
-  left: 2px;
-  right: 2px;
-  bottom: 2px;
-  z-index: 12;
+.table-scroll .el-table .el-scrollbar__wrap::-webkit-scrollbar-track {
+  background: var(--admin-scrollbar-track);
+  border-radius: 3px;
 }
 
-.table-scroll .el-table .el-scrollbar__bar.is-horizontal > div {
-  opacity: 1 !important;
-  background-color: var(--admin-scrollbar) !important;
-  border-radius: 5px;
-}
-
-/* 纵滚交给主区，隐藏表内纵条，避免右侧「双轨」 */
-.table-scroll .el-table .el-scrollbar__bar.is-vertical {
-  display: none !important;
-}
-
-.layout-main-scroll .el-table--scrollable-x .el-scrollbar__bar.is-horizontal,
-.page-card .el-table--scrollable-x .el-scrollbar__bar.is-horizontal {
-  display: block !important;
-  opacity: 1 !important;
-  height: 10px;
-  left: 2px;
-  right: 2px;
-  bottom: 2px;
-}
-
-.layout-main-scroll .el-table--scrollable-x .el-scrollbar__bar.is-horizontal > div,
-.page-card .el-table--scrollable-x .el-scrollbar__bar.is-horizontal > div {
-  opacity: 1 !important;
-  background-color: var(--admin-scrollbar);
-  border-radius: 5px;
-}
-
-/* 非 .table-scroll 场景仍可用细原生条；.table-scroll 内已隐藏原生条 */
-.layout-main-scroll .el-table:not(.report-table) .el-scrollbar__wrap,
-.page-card .el-table:not(.report-table) .el-scrollbar__wrap {
-  scrollbar-width: thin;
-  scrollbar-color: var(--admin-scrollbar) transparent;
-}
-
-.layout-main-scroll .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar,
-.page-card .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar {
-  height: 10px;
-  width: 10px;
-}
-
-.layout-main-scroll .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar-thumb,
-.page-card .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar-thumb {
+.table-scroll .el-table .el-scrollbar__wrap::-webkit-scrollbar-thumb {
   background: var(--admin-scrollbar);
-  border-radius: 5px;
+  border-radius: 3px;
 }
 
-.layout-main-scroll .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar-track,
-.page-card .el-table:not(.report-table) .el-scrollbar__wrap::-webkit-scrollbar-track {
-  background: color-mix(in srgb, var(--layout-border) 55%, transparent);
-  border-radius: 5px;
+.table-scroll .el-table .el-scrollbar__wrap::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--layout-muted) 70%, transparent);
 }
 
-/* 再次钉死：.table-scroll 内禁止原生条（压过上面 page-card 选择器） */
-.table-scroll .el-table .el-scrollbar__wrap {
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
-}
-.table-scroll .el-table .el-scrollbar__wrap::-webkit-scrollbar {
-  width: 0 !important;
-  height: 0 !important;
+/* 关掉 EP 浮层滚条：它叠在末行上，单行时会挡住内容 */
+.table-scroll .el-table .el-scrollbar__bar,
+.layout-main-scroll .el-table .el-scrollbar__bar,
+.page-card .el-table .el-scrollbar__bar {
   display: none !important;
 }
 
+/* 非 .table-scroll 表格同样用细原生条 */
+.layout-main-scroll .el-table .el-scrollbar__wrap,
+.page-card .el-table .el-scrollbar__wrap {
+  scrollbar-width: thin;
+  scrollbar-color: var(--admin-scrollbar) var(--admin-scrollbar-track);
+}
+
+.layout-main-scroll .el-table .el-scrollbar__wrap::-webkit-scrollbar,
+.page-card .el-table .el-scrollbar__wrap::-webkit-scrollbar {
+  height: var(--admin-scrollbar-size);
+  width: var(--admin-scrollbar-size);
+}
+
+.layout-main-scroll .el-table .el-scrollbar__wrap::-webkit-scrollbar-thumb,
+.page-card .el-table .el-scrollbar__wrap::-webkit-scrollbar-thumb {
+  background: var(--admin-scrollbar);
+  border-radius: 3px;
+}
+
+.layout-main-scroll .el-table .el-scrollbar__wrap::-webkit-scrollbar-track,
+.page-card .el-table .el-scrollbar__wrap::-webkit-scrollbar-track {
+  background: var(--admin-scrollbar-track);
+  border-radius: 3px;
+}
+
 /*
- * 表头冻结：主内容区纵向滚动时表头贴顶。
- * 横向滚动在表体内；操作列用 fixed="right"（见下方 .el-table__fixed-right 阴影）。
+ * 表头冻结：.table-scroll（或主区）纵向滚动时表头贴顶。
+ * EP 2.x（layout-auto + 横滚）表头常在 thead.el-table__body-header。
+ * 操作列用 fixed="right"。
  */
 .layout-main-scroll .el-table__header-wrapper,
-.page-card .el-table__header-wrapper {
+.page-card .el-table__header-wrapper,
+.layout-main-scroll .el-table__body-header,
+.page-card .el-table__body-header {
   position: sticky;
   top: 0;
   z-index: 6;
 }
 .layout-main-scroll .el-table__header th.el-table__cell,
-.page-card .el-table__header th.el-table__cell {
-  background: var(--el-table-header-bg-color, var(--layout-card, #fff));
+.page-card .el-table__header th.el-table__cell,
+.layout-main-scroll .el-table__body-header th.el-table__cell,
+.page-card .el-table__body-header th.el-table__cell {
+  background: var(--el-table-header-bg-color, #f5f5f5);
   background-clip: padding-box;
 }
 html.dark .layout-main-scroll .el-table__header th.el-table__cell,
-html.dark .page-card .el-table__header th.el-table__cell {
-  background: var(--el-table-header-bg-color, var(--layout-card, #1a1a1a));
+html.dark .page-card .el-table__header th.el-table__cell,
+html.dark .layout-main-scroll .el-table__body-header th.el-table__cell,
+html.dark .page-card .el-table__body-header th.el-table__cell,
+[data-theme='dark'] .layout-main-scroll .el-table__header th.el-table__cell,
+[data-theme='dark'] .page-card .el-table__header th.el-table__cell,
+[data-theme='dark'] .layout-main-scroll .el-table__body-header th.el-table__cell,
+[data-theme='dark'] .page-card .el-table__body-header th.el-table__cell {
+  background: var(--el-table-header-bg-color, #3a3a3a);
 }
 
 .table-scroll .el-table::before,
@@ -1047,7 +1079,8 @@ html.dark .page-card .el-table__header th.el-table__cell {
 [data-theme='dark'] .el-table {
   --el-table-bg-color: var(--layout-card);
   --el-table-tr-bg-color: var(--layout-card);
-  --el-table-header-bg-color: #151f2e;
+  /* 表头中性深灰，去掉蓝调 */
+  --el-table-header-bg-color: #3a3a3a;
   /* 必须用不透明色，否则 fixed 操作列会透视出左侧时间/金额文字 */
   --el-table-row-hover-bg-color: #222c3c;
   --el-table-border-color: var(--layout-border);

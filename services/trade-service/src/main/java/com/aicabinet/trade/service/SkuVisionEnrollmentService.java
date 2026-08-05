@@ -11,8 +11,10 @@ import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.config.StagingProperties;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.domain.SkuVisionMapping;
+import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.SkuCatalogMapper;
 import com.aicabinet.trade.mapper.SkuVisionMappingMapper;
+import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +53,7 @@ public class SkuVisionEnrollmentService {
     private final StagingProperties stagingProperties;
     private final ObjectMapper objectMapper;
     private final VisionServiceClient visionServiceClient;
+    private final UserInfoMapper userInfoRepository;
 
     public SkuVisionEnrollmentService(SkuCatalogMapper skuCatalogRepository,
                                         SkuVisionMappingMapper yoloRepository,
@@ -59,7 +62,8 @@ public class SkuVisionEnrollmentService {
                                         AdminAuditService auditService,
                                         StagingProperties stagingProperties,
                                         ObjectMapper objectMapper,
-                                        VisionServiceClient visionServiceClient) {
+                                        VisionServiceClient visionServiceClient,
+                                        UserInfoMapper userInfoRepository) {
         this.skuCatalogRepository = skuCatalogRepository;
         this.yoloRepository = yoloRepository;
         this.deviceSlotService = deviceSlotService;
@@ -68,12 +72,13 @@ public class SkuVisionEnrollmentService {
         this.stagingProperties = stagingProperties;
         this.objectMapper = objectMapper;
         this.visionServiceClient = visionServiceClient;
+        this.userInfoRepository = userInfoRepository;
     }
 
     @Transactional(readOnly = true)
     public List<SkuCatalogDto> listSkusWithVision(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:sku:list");
-        return skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
+        return skuCatalogRepository.findAllByOrderBySkuCodeAsc().stream()
                 .map(SkuCatalog::toDto)
                 .toList();
     }
@@ -81,7 +86,7 @@ public class SkuVisionEnrollmentService {
     @Transactional(readOnly = true)
     public List<SkuVisionEnrollmentRowDto> listEnrollmentRows(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:sku:list");
-        return skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
+        return skuCatalogRepository.findAllByOrderBySkuCodeAsc().stream()
                 .map(this::toEnrollmentRow)
                 .toList();
     }
@@ -112,15 +117,34 @@ public class SkuVisionEnrollmentService {
         permissionService.requirePermission(operatorId, "ops:sku:edit");
         permissionService.requirePermission(operatorId, "ops:vision:edit");
         UpsertSkuRequest skuReq = request.sku();
-        String skuId = skuReq.skuId().trim();
-        SkuCatalog sku = skuCatalogRepository.findById(skuId).orElseGet(SkuCatalog::new);
+        String requestedId = skuReq.skuId() != null ? skuReq.skuId().trim() : "";
+        SkuCatalog sku = requestedId.isEmpty()
+                ? new SkuCatalog()
+                : skuCatalogRepository.findById(requestedId).orElseGet(SkuCatalog::new);
         boolean created = sku.getSkuId() == null;
         if (created) {
+            long code = skuCatalogRepository.nextSkuCode();
+            String skuId = requestedId.isEmpty() ? "SKU-" + code : requestedId;
+            if (skuCatalogRepository.existsById(skuId)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_EXISTS);
+            }
             sku.setSkuId(skuId);
+            sku.setSkuCode(code);
+        } else if (sku.getSkuCode() == null) {
+            sku.setSkuCode(skuCatalogRepository.nextSkuCode());
+        }
+        String barcode = trimToNull(skuReq.barcode());
+        if (skuCatalogRepository.existsByBarcode(barcode, sku.getSkuId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_BARCODE_EXISTS);
+        }
+        if (skuCatalogRepository.existsBySkuName(skuReq.skuName(), sku.getSkuId())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_NAME_EXISTS);
         }
         applySkuFields(sku, skuReq, request);
+        touchSkuUpdater(sku, operatorId);
         skuCatalogRepository.save(sku);
 
+        String skuId = sku.getSkuId();
         String className = resolveClassName(request.yoloClassName(), sku);
         SkuVisionMapping mapping = yoloRepository.findById(className).orElse(new SkuVisionMapping());
         mapping.setClassName(className);
@@ -144,6 +168,7 @@ public class SkuVisionEnrollmentService {
             requireMappedClass(sku);
         }
         sku.setVisionEnrollmentStatus(next);
+        touchSkuUpdater(sku, operatorId);
         skuCatalogRepository.save(sku);
         auditService.record(operatorId, "SKU_VISION_STATUS", "SKU", skuId,
                 next + " pipeline=" + MODEL_PIPELINE_WAITING);
@@ -165,6 +190,7 @@ public class SkuVisionEnrollmentService {
             requireMappedClass(sku);
         }
         sku.setVisionEnrollmentStatus(next);
+        touchSkuUpdater(sku, operatorId);
         skuCatalogRepository.save(sku);
         auditService.record(operatorId, "SKU_VISION_ADVANCE", "SKU", skuId,
                 current + "→" + next + " pipeline=" + MODEL_PIPELINE_WAITING);
@@ -304,6 +330,9 @@ public class SkuVisionEnrollmentService {
         sku.setDescription(trimToNull(skuReq.description()));
         sku.setCategory(trimToNull(skuReq.category()));
         sku.setBarcode(trimToNull(skuReq.barcode()));
+        sku.setBrand(trimToNull(skuReq.brand()));
+        sku.setSpec(trimToNull(skuReq.spec()));
+        sku.setUnit(skuReq.unit() != null && !skuReq.unit().isBlank() ? skuReq.unit().trim() : "件");
         sku.setStatus(skuReq.status());
         sku.setShelfLifeDays(skuReq.shelfLifeDays());
         sku.setNearExpiryDays(skuReq.nearExpiryDays());
@@ -382,7 +411,7 @@ public class SkuVisionEnrollmentService {
         }
         if (!yoloRepository.existsById(sku.getYoloClassName().trim())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "识别类名尚未写入映射表，请先保存「商品与识别」入驻");
+                    "识别类名尚未写入映射表，请先保存「识别入驻」");
         }
     }
 
@@ -407,6 +436,22 @@ public class SkuVisionEnrollmentService {
                 nextAction,
                 next
         );
+    }
+
+    private void touchSkuUpdater(SkuCatalog sku, Long operatorId) {
+        if (operatorId == null || operatorId <= 0L) {
+            sku.setUpdatedByUserId(null);
+            sku.setUpdatedByName("系统");
+            return;
+        }
+        sku.setUpdatedByUserId(operatorId);
+        UserInfo user = userInfoRepository.findById(operatorId).orElse(null);
+        String name = user != null ? user.getName() : null;
+        String phone = user != null ? user.getPhoneNumber() : null;
+        if (name == null || name.isBlank()) {
+            name = phone != null && !phone.isBlank() ? phone : ("账号 " + operatorId);
+        }
+        sku.setUpdatedByName(name);
     }
 
     private static String trimToNull(String value) {

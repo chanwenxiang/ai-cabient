@@ -58,7 +58,7 @@
         >
           <template #empty><el-empty description="暂无角色" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="roleId" label="ID" width="80" align="center" class-name="col-text" sortable="custom">
+          <el-table-column prop="roleId" label="角色编号" width="80" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
               <span class="cell-id">{{ row.roleId }}</span>
             </template>

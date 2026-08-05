@@ -4,6 +4,7 @@ import java.time.Instant;
 
 public record SkuCatalogDto(
         String skuId,
+        Long skuCode,
         String skuName,
         int priceCents,
         Integer weightGrams,
@@ -12,6 +13,9 @@ public record SkuCatalogDto(
         String description,
         String category,
         String barcode,
+        String brand,
+        String spec,
+        String unit,
         String status,
         Integer shelfLifeDays,
         int nearExpiryDays,
@@ -25,5 +29,7 @@ public record SkuCatalogDto(
         String visionEnrollmentStatus,
         Float detectionMinConfidence,
         String referenceImageUrlsJson,
-        Instant createdAt
+        Instant createdAt,
+        Long updatedByUserId,
+        String updatedByName
 ) {}

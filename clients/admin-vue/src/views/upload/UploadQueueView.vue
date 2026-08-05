@@ -44,12 +44,12 @@
     />
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
-      <el-form-item label="设备">
+      <el-form-item label="关键词">
         <el-input
-          v-model="deviceId"
+          v-model="keyword"
           clearable
-          placeholder="设备编号"
-          style="width: 180px"
+          placeholder="会话 / 设备…"
+          style="width: 260px"
           @keyup.enter="search"
           @clear="search"
         />
@@ -92,7 +92,7 @@
             <el-empty :description="emptyHint" :image-size="88" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="sessionId" label="会话" min-width="168" align="center" class-name="col-text" sortable="custom">
+          <el-table-column prop="sessionId" label="会话编号" min-width="168" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="goSession(row.sessionId)">
                 <span class="cell-id">{{ row.sessionId }}</span>
@@ -191,8 +191,9 @@ import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
+import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
+import { useDictOptions } from '@/composables/useDictOptions';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
@@ -222,7 +223,7 @@ const { router, goPath } = useNavAccess();
 const { playSessionVideo } = useSessionVideo();
 const loading = ref(false);
 const helpOpen = ref(false);
-const deviceId = ref('');
+const keyword = ref('');
 const uploadStatus = ref('');
 const stuckOnly = ref(false);
 const page = ref(1);
@@ -233,8 +234,11 @@ const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById, idSo
   useIdColumnSort<SessionRow>('sessionId');
 
 const focusSessionId = ref('');
-const uploadStatusOptions = dictOptions('upload_status').filter((o) =>
-  ['NONE', 'LOCAL_QUEUED', 'UPLOADING', 'UPLOADED', 'FAILED'].includes(o.value)
+const uploadStatusDict = useDictOptions('upload_status');
+const uploadStatusOptions = computed(() =>
+  uploadStatusDict.value.filter((o) =>
+    ['NONE', 'LOCAL_QUEUED', 'UPLOADING', 'UPLOADED', 'FAILED'].includes(o.value)
+  )
 );
 
 function matchUploadStatus(row: SessionRow) {
@@ -268,7 +272,7 @@ const emptyHint = computed(() =>
 
 const { onExport } = useListCsv({
   filePrefix: '录像上传队列',
-  headers: ['会话', '用户', '设备', '上传状态', '等待原因', '滞留分钟', '是否滞留', '关门时间', '更新时间'],
+  headers: ['会话编号', '用户', '设备', '上传状态', '等待原因', '滞留分钟', '是否滞留', '关门时间', '更新时间'],
   toRows: () =>
     pickSelected(displayItems.value).map((row) => [
       row.sessionId,
@@ -371,7 +375,7 @@ function rowClassName({ row }: { row: SessionRow }) {
 
 function syncRouteQuery() {
   const query: Record<string, string> = {};
-  if (deviceId.value.trim()) query.deviceId = deviceId.value.trim();
+  if (keyword.value.trim()) query.keyword = keyword.value.trim();
   if (uploadStatus.value) query.uploadStatus = uploadStatus.value;
   if (stuckOnly.value) query.stuck = '1';
   if (focusSessionId.value) query.sessionId = focusSessionId.value;
@@ -380,11 +384,20 @@ function syncRouteQuery() {
 
 function applyRouteQuery() {
   let changed = false;
-  if (typeof route.query.deviceId === 'string' && route.query.deviceId !== deviceId.value) {
-    deviceId.value = route.query.deviceId;
-    changed = true;
-  } else if (!route.query.deviceId && deviceId.value) {
-    deviceId.value = '';
+  const routeKeyword =
+    typeof route.query.keyword === 'string'
+      ? route.query.keyword
+      : typeof route.query.q === 'string'
+        ? route.query.q
+        : typeof route.query.deviceId === 'string'
+          ? route.query.deviceId
+          : typeof route.query.qSessionId === 'string'
+            ? route.query.qSessionId
+            : typeof route.query.sessionId === 'string'
+              ? route.query.sessionId
+              : '';
+  if (routeKeyword !== keyword.value) {
+    keyword.value = routeKeyword;
     changed = true;
   }
   const qStuck = route.query.stuck === '1' || route.query.stuck === 'true';
@@ -402,6 +415,7 @@ function applyRouteQuery() {
   if (typeof route.query.sessionId === 'string') {
     if (route.query.sessionId !== focusSessionId.value) {
       focusSessionId.value = route.query.sessionId;
+      if (!keyword.value) keyword.value = route.query.sessionId;
       changed = true;
     }
   } else if (focusSessionId.value) {
@@ -428,7 +442,7 @@ async function scanWaitingPages(
       size: String(pageSize),
       state: 'WAITING_UPLOAD'
     });
-    if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
+    if (keyword.value.trim()) q.set('q', keyword.value.trim());
     const data = await api.request<PageResult<SessionRow>>(`/api/v2/ops/admin/sessions?${q}`, 'GET');
     const batch = data.items || [];
     serverTotal = data.total ?? batch.length;
@@ -471,7 +485,7 @@ async function load() {
         size: String(size.value),
         state: 'WAITING_UPLOAD'
       });
-      if (deviceId.value.trim()) q.set('deviceId', deviceId.value.trim());
+      if (keyword.value.trim()) q.set('q', keyword.value.trim());
       const data = await api.request<PageResult<SessionRow>>(`/api/v2/ops/admin/sessions?${q}`, 'GET');
       items.value = data.items || [];
       total.value = data.total ?? 0;
@@ -505,7 +519,7 @@ function onStuckToggle() {
 }
 
 function reset() {
-  deviceId.value = '';
+  keyword.value = '';
   uploadStatus.value = '';
   stuckOnly.value = false;
   focusSessionId.value = '';
@@ -540,7 +554,8 @@ async function reloadFromRouteQuery() {
 }
 
 watch(
-  () => [route.query.deviceId, route.query.stuck, route.query.sessionId] as const,
+  () =>
+    [route.query.keyword, route.query.q, route.query.deviceId, route.query.stuck, route.query.sessionId] as const,
   () => {
     void reloadFromRouteQuery();
   }

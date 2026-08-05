@@ -57,7 +57,8 @@ import {
   ElTimeline,
   ElTimelineItem,
   ElTooltip,
-  ElTree
+  ElTree,
+  ElUpload
 } from 'element-plus';
 
 const components = [
@@ -117,7 +118,8 @@ const components = [
   ElTimeline,
   ElTimelineItem,
   ElTooltip,
-  ElTree
+  ElTree,
+  ElUpload
 ];
 
 export function installElementPlus(app: App) {

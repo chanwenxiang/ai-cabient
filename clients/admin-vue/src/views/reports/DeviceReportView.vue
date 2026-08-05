@@ -88,7 +88,7 @@
           @selection-change="onSelectionChange"
         >
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="deviceId" label="ID" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+          <el-table-column prop="deviceId" label="设备编号" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
             <template #default="{ row }">
               <span class="cell-id">{{ row.deviceId }}</span>
             </template>
