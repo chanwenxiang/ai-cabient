@@ -48,7 +48,7 @@
         >
           <template #empty><el-empty description="暂无审计日志" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="logId" label="ID" width="100" align="center" class-name="col-text" sortable="custom">
+          <el-table-column prop="logId" label="日志编号" width="100" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
               <span class="cell-id">{{ row.logId }}</span>
             </template>

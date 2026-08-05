@@ -149,6 +149,11 @@ export interface OrderSummary {
     payChannel?: string;
     lineCount?: number;
     lineSummary?: string;
+    payTradeNo?: string;
+    paymentOperationId?: string;
+    refundedAt?: string;
+    couponDiscountCents?: number;
+    inventoryDeducted?: boolean;
     createdAt?: string;
 }
 export interface DisputeSummary {

@@ -34,7 +34,9 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
 
     default Page<CabinetOrder> findByFiltersOrderByCreatedAtDesc(
             String deviceId, Collection<String> deviceIds, String status, Pageable pageable) {
-        return findByFiltersOrderByCreatedAtDesc(deviceId, deviceIds, status, null, pageable);
+        return findByFiltersOrderByCreatedAtDesc(
+                deviceId, deviceIds, status, null, null, null,
+                null, null, null, null, null, null, pageable);
     }
 
     default Page<CabinetOrder> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable) {
@@ -130,6 +132,28 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
     default Page<CabinetOrder> findByFiltersOrderByCreatedAtDesc(
             String deviceId, Collection<String> deviceIds, String status,
             Instant createdBefore, Pageable pageable) {
+        return findByFiltersOrderByCreatedAtDesc(
+                deviceId, deviceIds, status, createdBefore, null, null,
+                null, null, null, null, null, null, pageable);
+    }
+
+    /**
+     * 运营订单列表筛选：设备范围 + 状态/账龄 + 精确字段 + 关键词（订单号/设备/会话/用户/流水）。
+     */
+    default Page<CabinetOrder> findByFiltersOrderByCreatedAtDesc(
+            String deviceId,
+            Collection<String> deviceIds,
+            String status,
+            Instant createdBefore,
+            Instant createdFrom,
+            Instant createdTo,
+            String orderId,
+            Long userId,
+            String sessionId,
+            String payTradeNo,
+            String payChannel,
+            String keyword,
+            Pageable pageable) {
         var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<CabinetOrder>(
                 pageable.getPageNumber() + 1L, pageable.getPageSize());
         var q = Wrappers.<CabinetOrder>lambdaQuery();
@@ -146,6 +170,50 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
         }
         if (createdBefore != null) {
             q.lt(CabinetOrder::getCreatedAt, createdBefore);
+        }
+        if (createdFrom != null) {
+            q.ge(CabinetOrder::getCreatedAt, createdFrom);
+        }
+        if (createdTo != null) {
+            q.le(CabinetOrder::getCreatedAt, createdTo);
+        }
+        if (orderId != null && !orderId.isBlank()) {
+            q.eq(CabinetOrder::getOrderId, orderId.trim());
+        }
+        if (userId != null) {
+            q.eq(CabinetOrder::getUserId, userId);
+        }
+        if (sessionId != null && !sessionId.isBlank()) {
+            q.eq(CabinetOrder::getSessionId, sessionId.trim());
+        }
+        if (payTradeNo != null && !payTradeNo.isBlank()) {
+            String trade = payTradeNo.trim();
+            q.and(w -> w.eq(CabinetOrder::getPayTradeNo, trade)
+                    .or()
+                    .eq(CabinetOrder::getPaymentOperationId, trade));
+        }
+        if (payChannel != null && !payChannel.isBlank()) {
+            q.eq(CabinetOrder::getPayChannel, payChannel.trim());
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            String kw = keyword.trim();
+            Long kwUserId = null;
+            try {
+                kwUserId = Long.parseLong(kw);
+            } catch (NumberFormatException ignored) {
+                // not a user id
+            }
+            Long finalKwUserId = kwUserId;
+            q.and(w -> {
+                w.like(CabinetOrder::getOrderId, kw)
+                        .or().like(CabinetOrder::getDeviceId, kw)
+                        .or().like(CabinetOrder::getSessionId, kw)
+                        .or().like(CabinetOrder::getPayTradeNo, kw)
+                        .or().like(CabinetOrder::getPaymentOperationId, kw);
+                if (finalKwUserId != null) {
+                    w.or().eq(CabinetOrder::getUserId, finalKwUserId);
+                }
+            });
         }
         q.orderByDesc(CabinetOrder::getCreatedAt);
         var result = selectPage(mpPage, q);

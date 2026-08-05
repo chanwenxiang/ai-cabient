@@ -689,9 +689,24 @@ public class AdminDashboardService {
 
     public PageResult<AdminSessionDto> listSessions(Long operatorId, int page, int size,
                                                       String deviceId, SessionState state) {
+        return listSessions(operatorId, page, size, deviceId, state, null, null, null, null, null);
+    }
+
+    public PageResult<AdminSessionDto> listSessions(
+            Long operatorId,
+            int page,
+            int size,
+            String deviceId,
+            SessionState state,
+            String sessionId,
+            Long userId,
+            Instant from,
+            Instant to,
+            String keyword) {
         permissionService.requireAnyPermission(operatorId, "ops:session:list", "ops:session:upload");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
-        Page<ShoppingSession> result = querySessions(operatorId, deviceId, state, pageable);
+        Page<ShoppingSession> result = querySessions(
+                operatorId, deviceId, state, sessionId, userId, from, to, keyword, pageable);
         return new PageResult<>(
                 result.getContent().stream().map(this::toSessionDto).toList(),
                 result.getNumber(),
@@ -702,18 +717,40 @@ public class AdminDashboardService {
 
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(Long operatorId, int page, int size, String deviceId) {
-        return listOrders(operatorId, page, size, deviceId, null);
+        return listOrders(operatorId, page, size, deviceId, null, false,
+                null, null, null, null, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(
             Long operatorId, int page, int size, String deviceId, String status) {
-        return listOrders(operatorId, page, size, deviceId, status, false);
+        return listOrders(operatorId, page, size, deviceId, status, false,
+                null, null, null, null, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
     public PageResult<AdminOrderSummaryDto> listOrders(
             Long operatorId, int page, int size, String deviceId, String status, boolean overdueOnly) {
+        return listOrders(operatorId, page, size, deviceId, status, overdueOnly,
+                null, null, null, null, null, null, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<AdminOrderSummaryDto> listOrders(
+            Long operatorId,
+            int page,
+            int size,
+            String deviceId,
+            String status,
+            boolean overdueOnly,
+            String orderId,
+            Long userId,
+            String sessionId,
+            String payTradeNo,
+            String payChannel,
+            Instant from,
+            Instant to,
+            String keyword) {
         permissionService.requirePermission(operatorId, "ops:order:list");
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
         Instant createdBefore = null;
@@ -723,12 +760,18 @@ public class AdminDashboardService {
                 status = "PENDING";
             }
         }
-        Page<CabinetOrder> result = queryOrders(operatorId, deviceId, status, createdBefore, pageable);
-        Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(
-                result.getContent().stream().map(CabinetOrder::getOrderId).toList());
+        Page<CabinetOrder> result = queryOrders(
+                operatorId, deviceId, status, createdBefore, from, to,
+                orderId, userId, sessionId, payTradeNo, payChannel, keyword, pageable);
+        List<String> orderIds = result.getContent().stream().map(CabinetOrder::getOrderId).toList();
+        Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(orderIds);
+        Map<String, List<CabinetOrderLine>> linesByOrder = loadOrderLinesByOrderIds(orderIds);
         return new PageResult<>(
                 result.getContent().stream()
-                        .map(o -> toOrderSummary(o, qtyByOrder.getOrDefault(o.getOrderId(), 0)))
+                        .map(o -> toOrderSummary(
+                                o,
+                                qtyByOrder.getOrDefault(o.getOrderId(), 0),
+                                linesByOrder.getOrDefault(o.getOrderId(), List.of())))
                         .toList(),
                 result.getNumber(),
                 result.getSize(),
@@ -884,8 +927,34 @@ public class AdminDashboardService {
     }
 
     public List<SkuCatalogDto> listSkus(Long operatorId) {
+        return listSkus(operatorId, null, null, null);
+    }
+
+    public List<SkuCatalogDto> listSkus(Long operatorId, String q, String status, String category) {
         permissionService.requirePermission(operatorId, "ops:sku:list");
-        return skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
+        var query = Wrappers.<SkuCatalog>lambdaQuery().orderByAsc(SkuCatalog::getSkuCode).orderByAsc(SkuCatalog::getSkuId);
+        if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status.trim())) {
+            query.eq(SkuCatalog::getStatus, status.trim().toUpperCase());
+        }
+        if (category != null && !category.isBlank()) {
+            query.eq(SkuCatalog::getCategory, category.trim());
+        }
+        if (q != null && !q.isBlank()) {
+            String kw = q.trim();
+            query.and(w -> {
+                w.like(SkuCatalog::getSkuId, kw)
+                        .or().like(SkuCatalog::getSkuName, kw)
+                        .or().like(SkuCatalog::getBarcode, kw)
+                        .or().like(SkuCatalog::getBrand, kw);
+                try {
+                    long code = Long.parseLong(kw);
+                    w.or().eq(SkuCatalog::getSkuCode, code);
+                } catch (NumberFormatException ignored) {
+                    // not a numeric code
+                }
+            });
+        }
+        return skuCatalogRepository.selectList(query).stream()
                 .map(SkuCatalog::toDto)
                 .toList();
     }
@@ -893,15 +962,27 @@ public class AdminDashboardService {
     @Transactional
     public SkuCatalogDto createSku(Long operatorId, UpsertSkuRequest request) {
         permissionService.requirePermission(operatorId, "ops:sku:edit");
-        if (skuCatalogRepository.existsById(request.skuId().trim())) {
+        long code = skuCatalogRepository.nextSkuCode();
+        String skuId = request.skuId() != null && !request.skuId().isBlank()
+                ? request.skuId().trim()
+                : "SKU-" + code;
+        if (skuCatalogRepository.existsById(skuId)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_EXISTS);
         }
+        String barcode = trimToNull(request.barcode());
+        assertBarcodeUnique(barcode, null);
+        assertSkuNameUnique(request.skuName(), null);
         SkuCatalog sku = new SkuCatalog();
-        sku.setSkuId(request.skuId().trim());
+        sku.setSkuId(skuId);
+        sku.setSkuCode(code);
         applySkuRequest(sku, request);
+        touchSkuUpdater(sku, operatorId);
+        if (sku.getCreatedAt() == null) {
+            sku.setCreatedAt(Instant.now());
+        }
         skuCatalogRepository.save(sku);
         auditService.record(operatorId, "SKU_CREATE", "SKU", sku.getSkuId(),
-                sku.getSkuName() + " price=" + sku.getPriceCents());
+                "code=" + sku.getSkuCode() + " " + sku.getSkuName() + " price=" + sku.getPriceCents());
         return sku.toDto();
     }
 
@@ -910,11 +991,27 @@ public class AdminDashboardService {
         permissionService.requirePermission(operatorId, "ops:sku:edit");
         SkuCatalog sku = skuCatalogRepository.findById(skuId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SKU_NOT_FOUND));
+        String barcode = trimToNull(request.barcode());
+        assertBarcodeUnique(barcode, skuId);
+        assertSkuNameUnique(request.skuName(), skuId);
         applySkuRequest(sku, request);
+        touchSkuUpdater(sku, operatorId);
         skuCatalogRepository.save(sku);
         auditService.record(operatorId, "SKU_UPDATE", "SKU", sku.getSkuId(),
-                sku.getSkuName() + " price=" + sku.getPriceCents());
+                "code=" + sku.getSkuCode() + " " + sku.getSkuName() + " price=" + sku.getPriceCents());
         return sku.toDto();
+    }
+
+    private void assertBarcodeUnique(String barcode, String excludeSkuId) {
+        if (skuCatalogRepository.existsByBarcode(barcode, excludeSkuId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_BARCODE_EXISTS);
+        }
+    }
+
+    private void assertSkuNameUnique(String skuName, String excludeSkuId) {
+        if (skuCatalogRepository.existsBySkuName(skuName, excludeSkuId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_NAME_EXISTS);
+        }
     }
 
     private static void applySkuRequest(SkuCatalog sku, UpsertSkuRequest request) {
@@ -926,6 +1023,9 @@ public class AdminDashboardService {
         sku.setDescription(trimToNull(request.description()));
         sku.setCategory(trimToNull(request.category()));
         sku.setBarcode(trimToNull(request.barcode()));
+        sku.setBrand(trimToNull(request.brand()));
+        sku.setSpec(trimToNull(request.spec()));
+        sku.setUnit(request.unit() != null && !request.unit().isBlank() ? request.unit().trim() : "件");
         sku.setStatus(request.status());
         sku.setShelfLifeDays(request.shelfLifeDays());
         sku.setNearExpiryDays(request.nearExpiryDays());
@@ -948,6 +1048,22 @@ public class AdminDashboardService {
         if (request.referenceImageUrlsJson() != null) {
             sku.setReferenceImageUrlsJson(trimToNull(request.referenceImageUrlsJson()));
         }
+    }
+
+    private void touchSkuUpdater(SkuCatalog sku, Long operatorId) {
+        if (operatorId == null || operatorId <= 0L) {
+            sku.setUpdatedByUserId(null);
+            sku.setUpdatedByName("系统");
+            return;
+        }
+        sku.setUpdatedByUserId(operatorId);
+        UserInfo user = userInfoRepository.findById(operatorId).orElse(null);
+        String name = user != null ? user.getName() : null;
+        String phone = user != null ? user.getPhoneNumber() : null;
+        if (name == null || name.isBlank()) {
+            name = phone != null && !phone.isBlank() ? phone : ("账号 " + operatorId);
+        }
+        sku.setUpdatedByName(name);
     }
 
     private static String trimToNull(String value) {
@@ -1070,14 +1186,35 @@ public class AdminDashboardService {
 
     @Transactional(readOnly = true)
     public byte[] exportOrdersCsv(Long operatorId, String deviceId) {
-        return exportOrdersCsv(operatorId, deviceId, null, "orders");
+        return exportOrdersCsv(operatorId, deviceId, null, "orders",
+                null, null, null, null, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
     public byte[] exportOrdersCsv(Long operatorId, String deviceId, String status, String mode) {
+        return exportOrdersCsv(operatorId, deviceId, status, mode,
+                null, null, null, null, null, null, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportOrdersCsv(
+            Long operatorId,
+            String deviceId,
+            String status,
+            String mode,
+            String orderId,
+            Long userId,
+            String sessionId,
+            String payTradeNo,
+            String payChannel,
+            Instant from,
+            Instant to,
+            String keyword) {
         permissionService.requirePermission(operatorId, "ops:order:export");
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<CabinetOrder> page = queryOrders(operatorId, deviceId, status, pageable);
+        Page<CabinetOrder> page = queryOrders(
+                operatorId, deviceId, status, null, from, to,
+                orderId, userId, sessionId, payTradeNo, payChannel, keyword, pageable);
         boolean byLines = mode != null && (mode.equalsIgnoreCase("lines") || mode.equalsIgnoreCase("product"));
         if (byLines) {
             StringBuilder sb = new StringBuilder(
@@ -1106,32 +1243,53 @@ public class AdminDashboardService {
             }
             return sb.toString().getBytes(StandardCharsets.UTF_8);
         }
-        Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(
-                page.getContent().stream().map(CabinetOrder::getOrderId).toList());
+        List<String> orderIds = page.getContent().stream().map(CabinetOrder::getOrderId).toList();
+        Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(orderIds);
+        Map<String, List<CabinetOrderLine>> linesByOrder = loadOrderLinesByOrderIds(orderIds);
         StringBuilder sb = new StringBuilder(
-                "orderId,sessionId,userId,deviceId,totalAmountCents,status,payChannel,lineCount,createdAt\n");
+                "orderId,sessionId,userId,deviceId,totalAmountCents,status,payChannel,payTradeNo,paymentOperationId,"
+                        + "lineCount,lineSummary,inventoryDeducted,couponDiscountCents,refundedAt,createdAt\n");
         for (CabinetOrder o : page.getContent()) {
-            String payChannel = o.getPayChannel();
-            if (o.getPaymentOperationId() != null && o.getPaymentOperationId().startsWith("BL-")) {
-                payChannel = "BALANCE";
-            }
-            sb.append(csv(o.getOrderId())).append(',')
-                    .append(csv(o.getSessionId())).append(',')
-                    .append(o.getUserId()).append(',')
-                    .append(csv(o.getDeviceId())).append(',')
-                    .append(o.getTotalAmountCents()).append(',')
-                    .append(csv(o.getStatus())).append(',')
-                    .append(csv(payChannel)).append(',')
-                    .append(qtyByOrder.getOrDefault(o.getOrderId(), 0)).append(',')
-                    .append(csv(String.valueOf(o.getCreatedAt()))).append('\n');
+            AdminOrderSummaryDto row = toOrderSummary(
+                    o,
+                    qtyByOrder.getOrDefault(o.getOrderId(), 0),
+                    linesByOrder.getOrDefault(o.getOrderId(), List.of()));
+            sb.append(csv(row.orderId())).append(',')
+                    .append(csv(row.sessionId())).append(',')
+                    .append(row.userId()).append(',')
+                    .append(csv(row.deviceId())).append(',')
+                    .append(row.totalAmountCents()).append(',')
+                    .append(csv(row.status())).append(',')
+                    .append(csv(row.payChannel())).append(',')
+                    .append(csv(row.payTradeNo())).append(',')
+                    .append(csv(row.paymentOperationId())).append(',')
+                    .append(row.lineCount()).append(',')
+                    .append(csv(row.lineSummary())).append(',')
+                    .append(row.inventoryDeducted()).append(',')
+                    .append(row.couponDiscountCents()).append(',')
+                    .append(csv(row.refundedAt() == null ? "" : String.valueOf(row.refundedAt()))).append(',')
+                    .append(csv(String.valueOf(row.createdAt()))).append('\n');
         }
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     public byte[] exportSessionsCsv(Long operatorId, String deviceId, SessionState state) {
+        return exportSessionsCsv(operatorId, deviceId, state, null, null, null, null, null);
+    }
+
+    public byte[] exportSessionsCsv(
+            Long operatorId,
+            String deviceId,
+            SessionState state,
+            String sessionId,
+            Long userId,
+            Instant from,
+            Instant to,
+            String keyword) {
         permissionService.requirePermission(operatorId, "ops:session:export");
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<ShoppingSession> page = querySessions(operatorId, deviceId, state, pageable);
+        Page<ShoppingSession> page = querySessions(
+                operatorId, deviceId, state, sessionId, userId, from, to, keyword, pageable);
         StringBuilder sb = new StringBuilder("sessionId,userId,deviceId,state,orderId,openTime,closeTime,createdAt\n");
         for (ShoppingSession s : page.getContent()) {
             sb.append(csv(s.getSessionId())).append(',')
@@ -1409,52 +1567,122 @@ public class AdminDashboardService {
     }
 
     private Page<ShoppingSession> querySessions(Long operatorId, String deviceId, SessionState state, Pageable pageable) {
+        return querySessions(operatorId, deviceId, state, null, null, null, null, null, pageable);
+    }
+
+    private Page<ShoppingSession> querySessions(
+            Long operatorId,
+            String deviceId,
+            SessionState state,
+            String sessionId,
+            Long userId,
+            Instant from,
+            Instant to,
+            String keyword,
+            Pageable pageable) {
         Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, deviceId);
         if (deviceScope != null && deviceScope.isEmpty()) {
             return Page.empty(pageable);
         }
-        boolean hasDevice = deviceId != null && !deviceId.isBlank();
-        String dev = hasDevice ? deviceId.trim() : null;
-        if (hasDevice && state != null) {
-            return sessionRepository.findByDeviceIdAndStateOrderByCreatedAtDesc(dev, state, pageable);
-        }
-        if (hasDevice) {
-            return sessionRepository.findByDeviceIdOrderByCreatedAtDesc(dev, pageable);
-        }
-        if (deviceScope != null) {
-            if (state != null) {
-                return sessionRepository.findByDeviceIdInAndStateOrderByCreatedAtDesc(deviceScope, state, pageable);
-            }
-            return sessionRepository.findByDeviceIdInOrderByCreatedAtDesc(deviceScope, pageable);
-        }
-        if (state != null) {
-            return sessionRepository.findByStateOrderByCreatedAtDesc(state, pageable);
-        }
-        return sessionRepository.findAllByOrderByCreatedAtDesc(pageable);
+        String deviceFilter = (deviceId != null && !deviceId.isBlank()) ? deviceId.trim() : null;
+        Collection<String> scopeFilter = deviceFilter == null ? deviceScope : null;
+        return sessionRepository.findByFiltersOrderByCreatedAtDesc(
+                deviceFilter,
+                scopeFilter,
+                state,
+                blankToNull(sessionId),
+                userId,
+                from,
+                to,
+                blankToNull(keyword),
+                pageable);
     }
 
     private Page<CabinetOrder> queryOrders(
             Long operatorId, String deviceId, String status, Pageable pageable) {
-        return queryOrders(operatorId, deviceId, status, null, pageable);
+        return queryOrders(operatorId, deviceId, status, null, null, null,
+                null, null, null, null, null, null, pageable);
     }
 
     private Page<CabinetOrder> queryOrders(
             Long operatorId, String deviceId, String status, Instant createdBefore, Pageable pageable) {
+        return queryOrders(operatorId, deviceId, status, createdBefore, null, null,
+                null, null, null, null, null, null, pageable);
+    }
+
+    private Page<CabinetOrder> queryOrders(
+            Long operatorId,
+            String deviceId,
+            String status,
+            Instant createdBefore,
+            Instant createdFrom,
+            Instant createdTo,
+            String orderId,
+            Long userId,
+            String sessionId,
+            String payTradeNo,
+            String payChannel,
+            String keyword,
+            Pageable pageable) {
         Collection<String> deviceScope = merchantScopeService.intersectDeviceFilter(operatorId, deviceId);
         if (deviceScope != null && deviceScope.isEmpty()) {
             return Page.empty(pageable);
         }
         String statusFilter = (status != null && !status.isBlank()) ? status.trim() : null;
-        if (deviceId != null && !deviceId.isBlank()) {
-            return orderRepository.findByFiltersOrderByCreatedAtDesc(
-                    deviceId.trim(), null, statusFilter, createdBefore, pageable);
-        }
-        if (deviceScope != null) {
-            return orderRepository.findByFiltersOrderByCreatedAtDesc(
-                    null, deviceScope, statusFilter, createdBefore, pageable);
-        }
+        String deviceFilter = (deviceId != null && !deviceId.isBlank()) ? deviceId.trim() : null;
+        Collection<String> scopeFilter = deviceFilter == null ? deviceScope : null;
         return orderRepository.findByFiltersOrderByCreatedAtDesc(
-                null, null, statusFilter, createdBefore, pageable);
+                deviceFilter,
+                scopeFilter,
+                statusFilter,
+                createdBefore,
+                createdFrom,
+                createdTo,
+                blankToNull(orderId),
+                userId,
+                blankToNull(sessionId),
+                blankToNull(payTradeNo),
+                blankToNull(payChannel),
+                blankToNull(keyword),
+                pageable);
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
+    }
+
+    private Map<String, List<CabinetOrderLine>> loadOrderLinesByOrderIds(List<String> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return Map.of();
+        }
+        return orderLineRepository.selectList(
+                        Wrappers.<CabinetOrderLine>lambdaQuery().in(CabinetOrderLine::getOrderId, orderIds))
+                .stream()
+                .collect(Collectors.groupingBy(CabinetOrderLine::getOrderId));
+    }
+
+    private static String buildAdminLineSummary(List<CabinetOrderLine> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return "";
+        }
+        String preview = lines.stream()
+                .limit(2)
+                .map(l -> {
+                    String name = (l.getSkuName() == null ? l.getSkuId() : l.getSkuName()) + " x" + l.getQuantity();
+                    if (l.getBatchNo() != null && !l.getBatchNo().isBlank()) {
+                        name += " @" + l.getBatchNo();
+                    }
+                    return name;
+                })
+                .reduce((a, b) -> a + "、" + b)
+                .orElse("");
+        if (lines.size() > 2) {
+            return preview + " 等" + lines.size() + "种";
+        }
+        return preview;
     }
 
     private List<CabinetOrder> queryTrendOrders(Long operatorId, Instant since) {
@@ -1555,16 +1783,28 @@ public class AdminDashboardService {
         );
     }
 
-    private AdminOrderSummaryDto toOrderSummary(CabinetOrder o, int lineCount) {
+    private AdminOrderSummaryDto toOrderSummary(CabinetOrder o, int lineCount, List<CabinetOrderLine> lines) {
         String payChannel = o.getPayChannel();
         // 余额账本扣款以 BL- 操作号为准，避免入口渠道误标为微信/支付宝
         if (o.getPaymentOperationId() != null && o.getPaymentOperationId().startsWith("BL-")) {
             payChannel = "BALANCE";
         }
         return new AdminOrderSummaryDto(
-                o.getOrderId(), o.getSessionId(), o.getUserId(), o.getDeviceId(),
-                o.getTotalAmountCents(), o.getStatus(), payChannel,
-                lineCount, o.getCreatedAt()
+                o.getOrderId(),
+                o.getSessionId(),
+                o.getUserId(),
+                o.getDeviceId(),
+                o.getTotalAmountCents(),
+                o.getStatus(),
+                payChannel,
+                lineCount,
+                buildAdminLineSummary(lines),
+                o.getPayTradeNo(),
+                o.getPaymentOperationId(),
+                o.getRefundedAt(),
+                o.getCouponDiscountCents(),
+                o.isInventoryDeducted(),
+                o.getCreatedAt()
         );
     }
 

@@ -515,9 +515,9 @@ public class MerchantPortalService {
             result = Page.empty(pageable);
         } else if (deviceScope != null) {
             result = disputeRepository.searchByDeviceIds(
-                    blankToNull(status), null, deviceScope, null, null, pageable);
+                    blankToNull(status), null, deviceScope, null, null, null, pageable);
         } else {
-            result = disputeRepository.search(blankToNull(status), null, blankToNull(deviceId), null, null, pageable);
+            result = disputeRepository.search(blankToNull(status), null, blankToNull(deviceId), null, null, null, pageable);
         }
         return new PageResult<>(
                 result.getContent().stream().map(this::toMerchantDisputeSummary).toList(),

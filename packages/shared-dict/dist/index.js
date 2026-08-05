@@ -25,7 +25,7 @@ let runtimeLoaded = false;
  * 运营可配字典：下拉以运行时 ACTIVE 为准；拉成功且无项则空列表。
  * 系统状态枚举不要加入此集合。
  */
-export const OPS_MANAGED_DICT_TYPES = new Set(['route_code']);
+export const OPS_MANAGED_DICT_TYPES = new Set(['route_code', 'category_code']);
 export function isOpsManagedDict(type) {
     return OPS_MANAGED_DICT_TYPES.has(type);
 }
@@ -216,6 +216,16 @@ export const DICT = {
         CHANNEL_FEE: '通道费',
         MERCHANT_CREDIT: '商户入账'
     },
+    /** 商户/线长钱包流水类型 */
+    wallet_ledger_type: {
+        MERCHANT_CREDIT: '商户入账',
+        LINE_COMMISSION: '线长佣金',
+        WITHDRAW_FREEZE: '提现冻结',
+        WITHDRAW_RELEASE: '提现解冻',
+        WITHDRAW_PAID: '提现打款',
+        ADJUST: '调账',
+        REVERSE: '冲正'
+    },
     fund_direction: {
         IN: '收入',
         OUT: '支出'
@@ -343,7 +353,9 @@ export const DICT = {
         'R-DEMO-01': '演示路线 01',
         'R-DEMO-02': '演示路线 02',
         'R-DEMO-X': '演示路线 X'
-    }
+    },
+    /** 商品类目：运营在字典管理维护；runtime 为准 */
+    category_code: {}
 };
 const STATUS_TAGS = {
     ACTIVE: 'success', ONLINE: 'success', COMPLETED: 'success', RECEIVED: 'success', SUCCESS: 'success', ON_SALE: 'success',

@@ -49,14 +49,14 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item v-if="sessionFilter" label="会话">
+      <el-form-item label="关键词">
         <el-input
-          v-model="sessionFilter"
+          v-model="keyword"
           clearable
-          placeholder="会话 ID"
-          style="width: 200px"
-          @clear="search"
+          placeholder="工单 / 设备 / 会话 / 订单…"
+          style="width: 260px"
           @keyup.enter="search"
+          @clear="search"
         />
       </el-form-item>
       <el-form-item>
@@ -80,7 +80,7 @@
           @selection-change="onSelectionChange"
         >
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="ticketId" label="ID" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+          <el-table-column prop="ticketId" label="工单号" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
             <template #default="{ row }">
               <span class="cell-id">{{ row.ticketId }}</span>
             </template>
@@ -461,7 +461,7 @@ let embedVideoRevoke: (() => void) | null = null;
 const status = ref('OPEN');
 const categoryTab = ref('ALL');
 const reviewCodeTab = ref('ALL');
-const sessionFilter = ref('');
+const keyword = ref('');
 const items = ref<DisputeTicketDto[]>([]);
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('ticketId', {
   onChange: () => {
@@ -844,6 +844,14 @@ async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'A
   }
 }
 
+function classifyKeyword(raw: string): { orderId?: string; sessionId?: string; deviceId?: string } {
+  const v = raw.trim();
+  if (!v) return {};
+  if (/^O/i.test(v)) return { orderId: v };
+  if (/^S/i.test(v)) return { sessionId: v };
+  return { deviceId: v };
+}
+
 function syncRouteQuery() {
   const query: Record<string, string> = {};
   if (status.value) query.status = status.value;
@@ -851,7 +859,7 @@ function syncRouteQuery() {
   if (categoryTab.value === 'RECOGNITION' && reviewCodeTab.value && reviewCodeTab.value !== 'ALL') {
     query.reviewCode = reviewCodeTab.value;
   }
-  if (sessionFilter.value) query.sessionId = sessionFilter.value;
+  if (keyword.value.trim()) query.keyword = keyword.value.trim();
   router.replace({ query });
 }
 
@@ -883,7 +891,10 @@ async function load(showToast = false) {
     if (categoryTab.value === 'RECOGNITION' && reviewCodeTab.value && reviewCodeTab.value !== 'ALL') {
       q.set('reviewCode', reviewCodeTab.value);
     }
-    if (sessionFilter.value) q.set('sessionId', sessionFilter.value);
+    const classified = classifyKeyword(keyword.value);
+    if (classified.sessionId) q.set('sessionId', classified.sessionId);
+    if (classified.deviceId) q.set('deviceId', classified.deviceId);
+    if (classified.orderId) q.set('orderId', classified.orderId);
     const data = await api.request<PageResult<DisputeTicketDto>>(`/api/v2/ops/disputes?${q}`, 'GET');
     items.value = sortById(data.items || [], 'ticketId');
     total.value = data.total || 0;
@@ -911,7 +922,7 @@ function reset() {
   status.value = 'OPEN';
   categoryTab.value = 'ALL';
   reviewCodeTab.value = 'ALL';
-  sessionFilter.value = '';
+  keyword.value = '';
   page.value = 1;
   syncRouteQuery();
   load(false);
@@ -944,12 +955,19 @@ function applyRouteQuery() {
   } else if (reviewCodeTab.value !== 'ALL' && !route.query.reviewCode) {
     // keep
   }
-  if (typeof route.query.sessionId === 'string') {
-    const next = route.query.sessionId || '';
-    if (next !== sessionFilter.value) {
-      sessionFilter.value = next;
-      changed = true;
-    }
+  const routeKeyword =
+    typeof route.query.keyword === 'string'
+      ? route.query.keyword
+      : typeof route.query.orderId === 'string'
+        ? route.query.orderId
+        : typeof route.query.sessionId === 'string'
+          ? route.query.sessionId
+          : typeof route.query.deviceId === 'string'
+            ? route.query.deviceId
+            : '';
+  if (routeKeyword !== keyword.value) {
+    keyword.value = routeKeyword;
+    changed = true;
   }
   return changed;
 }
@@ -966,7 +984,10 @@ watch(
       route.query.status,
       route.query.category,
       route.query.reviewCode,
+      route.query.keyword,
       route.query.sessionId,
+      route.query.deviceId,
+      route.query.orderId,
       route.query.ticketId
     ] as const,
   () => {

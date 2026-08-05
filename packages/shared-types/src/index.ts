@@ -160,6 +160,11 @@ export interface OrderSummary {
   payChannel?: string;
   lineCount?: number;
   lineSummary?: string;
+  payTradeNo?: string;
+  paymentOperationId?: string;
+  refundedAt?: string;
+  couponDiscountCents?: number;
+  inventoryDeducted?: boolean;
   createdAt?: string;
 }
 
@@ -174,6 +179,7 @@ export interface DisputeSummary {
 
 export interface SkuCatalog {
   skuId: string;
+  skuCode?: number;
   skuName: string;
   priceCents: number;
   weightGrams?: number;
@@ -182,6 +188,9 @@ export interface SkuCatalog {
   description?: string;
   category?: string;
   barcode?: string;
+  brand?: string;
+  spec?: string;
+  unit?: string;
   status?: string;
   shelfLifeDays?: number;
   nearExpiryDays?: number;
@@ -196,6 +205,8 @@ export interface SkuCatalog {
   detectionMinConfidence?: number;
   referenceImageUrlsJson?: string;
   createdAt?: string;
+  updatedByUserId?: number;
+  updatedByName?: string;
 }
 
 export interface SkuVisionEnrollmentRow {
@@ -214,7 +225,8 @@ export interface SkuVisionEnrollmentPipeline {
 }
 
 export interface UpsertSkuRequest {
-  skuId: string;
+  /** 新建可空，服务端生成 SKU-{skuCode} */
+  skuId?: string;
   skuName: string;
   priceCents: number;
   weightGrams?: number;
@@ -223,6 +235,9 @@ export interface UpsertSkuRequest {
   description?: string;
   category?: string;
   barcode?: string;
+  brand?: string;
+  spec?: string;
+  unit?: string;
   status?: string;
   shelfLifeDays?: number;
   nearExpiryDays?: number;
@@ -235,6 +250,8 @@ export interface UpsertSkuRequest {
   visionEnrollmentStatus?: string;
   detectionMinConfidence?: number;
   referenceImageUrlsJson?: string;
+  /** 只读；写入时服务端忽略 */
+  skuCode?: number;
 }
 
 export interface UpsertSkuVisionEnrollmentRequest {

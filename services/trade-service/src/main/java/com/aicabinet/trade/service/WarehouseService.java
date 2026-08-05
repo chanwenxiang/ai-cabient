@@ -595,7 +595,7 @@ public class WarehouseService {
      */
     @Transactional
     public WarehouseStaleCleanupResultDto cleanupStaleOutbounds(Long operatorId) {
-        Map<Long, String> routeStatusById = routeRepository.findAllByOrderByPlannedDateDesc().stream()
+        Map<Long, String> routeStatusById = routeRepository.findAllByOrderByRouteIdAsc().stream()
                 .filter(r -> r.getRouteId() != null)
                 .collect(Collectors.toMap(ReplenishmentRoute::getRouteId, ReplenishmentRoute::getStatus, (a, b) -> a));
         int cancelledEmptyDrafts = 0;

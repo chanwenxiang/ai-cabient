@@ -142,7 +142,11 @@
       <el-main id="main-content" class="layout-main-scroll" tabindex="-1">
         <router-view v-slot="{ Component, route: viewRoute }">
           <keep-alive :max="12">
-            <component :is="Component" :key="viewRoute.path" />
+            <!-- 字典启停后 bump epoch，重建其他缓存页；字典管理页本身不重建以免丢选中 -->
+            <component
+              :is="Component"
+              :key="viewRoute.name === 'dicts' ? String(viewRoute.path) : `${viewRoute.path}#d${dictRuntimeEpoch}`"
+            />
           </keep-alive>
         </router-view>
       </el-main>
@@ -160,6 +164,7 @@ import {
 import { buildSidebarTree, sidebarOpenKeysForPath } from '@/config/sidebar';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
+import { dictRuntimeEpoch } from '@/stores/dict-runtime';
 import { PRIMARY_OPTIONS, useSettingsStore } from '@/stores/settings';
 import AppBreadcrumb from '@/components/AppBreadcrumb.vue';
 import GlobalSearch from '@/components/GlobalSearch.vue';
@@ -345,13 +350,15 @@ function scrollActiveTagIntoView() {
     if (!root) return;
     const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(route.path) : route.path.replace(/"/g, '\\"');
     const active = root.querySelector(`.tag-wrap[data-path="${escaped}"]`) as HTMLElement | null;
-    const reduceMotion = typeof window !== 'undefined'
-      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    active?.scrollIntoView({
-      behavior: reduceMotion ? 'auto' : 'smooth',
-      inline: 'nearest',
-      block: 'nearest'
-    });
+    if (!active) return;
+    // 只用标签条横向滚动；禁止 scrollIntoView，避免带动右侧主内容区纵向跳动
+    const rootRect = root.getBoundingClientRect();
+    const activeRect = active.getBoundingClientRect();
+    if (activeRect.left < rootRect.left) {
+      root.scrollLeft -= rootRect.left - activeRect.left + 8;
+    } else if (activeRect.right > rootRect.right) {
+      root.scrollLeft += activeRect.right - rootRect.right + 8;
+    }
   });
 }
 
@@ -513,11 +520,15 @@ onUnmounted(() => {
 .sidebar {
   background: var(--layout-sidebar);
   height: 100vh;
+  height: 100dvh;
   transition: width 0.15s ease;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  /* 侧栏内部变化不向外传导布局/滚动锚定 */
+  contain: layout style;
+  overscroll-behavior: contain;
 }
 .brand {
   display: flex;
@@ -550,7 +561,10 @@ onUnmounted(() => {
 }
 .brand-text.hidden,
 .brand-mini.hidden { display: none; }
-.sidebar-scroll { flex: 1; min-height: 0; }
+.sidebar-scroll { flex: 1; min-height: 0; overscroll-behavior: contain; }
+:deep(.sidebar-scroll .el-scrollbar__wrap) {
+  overscroll-behavior: contain;
+}
 
 .layout-content {
   flex: 1;
@@ -677,12 +691,16 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+  /* 固定高度：避免横向滚动条显隐把主内容区顶上/顶下 */
+  height: 40px;
   min-height: 40px;
-  padding: 6px 12px 6px 16px;
+  max-height: 40px;
+  padding: 0 12px 0 16px;
   background: var(--layout-topbar);
   border-bottom: 1px solid var(--layout-border);
   flex-shrink: 0;
   box-sizing: border-box;
+  overflow: hidden;
 }
 .tags-scroll {
   display: flex;
@@ -691,9 +709,11 @@ onUnmounted(() => {
   gap: 6px;
   min-width: 0;
   flex: 1 1 auto;
+  height: 100%;
   overflow-x: auto;
   overflow-y: hidden;
-  padding-bottom: 2px;
+  scrollbar-gutter: stable;
+  overscroll-behavior-x: contain;
 }
 .tags-actions {
   display: flex;
@@ -724,6 +744,8 @@ onUnmounted(() => {
   overflow-y: auto;
   /* 切页时滚动条显隐不再挤动内容宽度 */
   scrollbar-gutter: stable;
+  /* 侧栏展开/滚动条变化时，禁止浏览器滚动锚定带动主区上下跳 */
+  overflow-anchor: none;
   background: var(--layout-bg);
   color: var(--layout-text);
   overscroll-behavior: contain;

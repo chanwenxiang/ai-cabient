@@ -8,6 +8,7 @@ import com.aicabinet.trade.service.AdminDashboardService;
 import com.aicabinet.trade.service.AdminDeviceOpsService;
 import com.aicabinet.trade.service.DeviceAssetService;
 import com.aicabinet.trade.service.DisputeService;
+import com.aicabinet.trade.service.FileAttachmentService;
 import com.aicabinet.trade.service.UnpaidOrderService;
 import com.aicabinet.trade.support.CacheService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,8 +17,10 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
 
 @RestController
@@ -30,19 +33,22 @@ public class AdminDashboardController {
     private final AdminDeviceOpsService deviceOpsService;
     private final UnpaidOrderService unpaidOrderService;
     private final DeviceAssetService deviceAssetService;
+    private final FileAttachmentService fileAttachmentService;
 
     public AdminDashboardController(AdminDashboardService adminService,
                                     CacheService cacheService,
                                     DisputeService disputeService,
                                     AdminDeviceOpsService deviceOpsService,
                                     UnpaidOrderService unpaidOrderService,
-                                    DeviceAssetService deviceAssetService) {
+                                    DeviceAssetService deviceAssetService,
+                                    FileAttachmentService fileAttachmentService) {
         this.adminService = adminService;
         this.cacheService = cacheService;
         this.disputeService = disputeService;
         this.deviceOpsService = deviceOpsService;
         this.unpaidOrderService = unpaidOrderService;
         this.deviceAssetService = deviceAssetService;
+        this.fileAttachmentService = fileAttachmentService;
     }
 
     @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
@@ -176,8 +182,14 @@ public class AdminDashboardController {
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size,
             @RequestParam(name = "deviceId", required = false) String deviceId,
-            @RequestParam(name = "state", required = false) SessionState state) {
-        return ApiResponse.ok(adminService.listSessions(operatorId(request), page, size, deviceId, state));
+            @RequestParam(name = "state", required = false) SessionState state,
+            @RequestParam(name = "sessionId", required = false) String sessionId,
+            @RequestParam(name = "userId", required = false) Long userId,
+            @RequestParam(name = "from", required = false) Instant from,
+            @RequestParam(name = "to", required = false) Instant to,
+            @RequestParam(name = "q", required = false) String q) {
+        return ApiResponse.ok(adminService.listSessions(
+                operatorId(request), page, size, deviceId, state, sessionId, userId, from, to, q));
     }
 
     @RequiresPermissions("ops:session:export")
@@ -185,8 +197,14 @@ public class AdminDashboardController {
     public ResponseEntity<byte[]> exportSessions(
             HttpServletRequest request,
             @RequestParam(name = "deviceId", required = false) String deviceId,
-            @RequestParam(name = "state", required = false) SessionState state) {
-        byte[] csv = adminService.exportSessionsCsv(operatorId(request), deviceId, state);
+            @RequestParam(name = "state", required = false) SessionState state,
+            @RequestParam(name = "sessionId", required = false) String sessionId,
+            @RequestParam(name = "userId", required = false) Long userId,
+            @RequestParam(name = "from", required = false) Instant from,
+            @RequestParam(name = "to", required = false) Instant to,
+            @RequestParam(name = "q", required = false) String q) {
+        byte[] csv = adminService.exportSessionsCsv(
+                operatorId(request), deviceId, state, sessionId, userId, from, to, q);
         return csvAttachment("sessions.csv", csv);
     }
 
@@ -215,9 +233,18 @@ public class AdminDashboardController {
             @RequestParam(name = "size", defaultValue = "20") int size,
             @RequestParam(name = "deviceId", required = false) String deviceId,
             @RequestParam(name = "status", required = false) String status,
-            @RequestParam(name = "overdue", required = false) Boolean overdue) {
+            @RequestParam(name = "overdue", required = false) Boolean overdue,
+            @RequestParam(name = "orderId", required = false) String orderId,
+            @RequestParam(name = "userId", required = false) Long userId,
+            @RequestParam(name = "sessionId", required = false) String sessionId,
+            @RequestParam(name = "payTradeNo", required = false) String payTradeNo,
+            @RequestParam(name = "payChannel", required = false) String payChannel,
+            @RequestParam(name = "from", required = false) Instant from,
+            @RequestParam(name = "to", required = false) Instant to,
+            @RequestParam(name = "q", required = false) String q) {
         return ApiResponse.ok(adminService.listOrders(
-                operatorId(request), page, size, deviceId, status, Boolean.TRUE.equals(overdue)));
+                operatorId(request), page, size, deviceId, status, Boolean.TRUE.equals(overdue),
+                orderId, userId, sessionId, payTradeNo, payChannel, from, to, q));
     }
 
     @RequiresPermissions("ops:order:export")
@@ -226,8 +253,18 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @RequestParam(name = "deviceId", required = false) String deviceId,
             @RequestParam(name = "status", required = false) String status,
-            @RequestParam(name = "mode", required = false, defaultValue = "orders") String mode) {
-        byte[] csv = adminService.exportOrdersCsv(operatorId(request), deviceId, status, mode);
+            @RequestParam(name = "mode", required = false, defaultValue = "orders") String mode,
+            @RequestParam(name = "orderId", required = false) String orderId,
+            @RequestParam(name = "userId", required = false) Long userId,
+            @RequestParam(name = "sessionId", required = false) String sessionId,
+            @RequestParam(name = "payTradeNo", required = false) String payTradeNo,
+            @RequestParam(name = "payChannel", required = false) String payChannel,
+            @RequestParam(name = "from", required = false) Instant from,
+            @RequestParam(name = "to", required = false) Instant to,
+            @RequestParam(name = "q", required = false) String q) {
+        byte[] csv = adminService.exportOrdersCsv(
+                operatorId(request), deviceId, status, mode,
+                orderId, userId, sessionId, payTradeNo, payChannel, from, to, q);
         String filename = "lines".equalsIgnoreCase(mode) || "product".equalsIgnoreCase(mode)
                 ? "order-lines.csv" : "orders.csv";
         return csvAttachment(filename, csv);
@@ -330,9 +367,20 @@ public class AdminDashboardController {
 
     @RequiresPermissions("ops:sku:list")
     @GetMapping("/skus")
-    public ApiResponse<List<SkuCatalogDto>> skus(HttpServletRequest request) {
+    public ApiResponse<List<SkuCatalogDto>> skus(
+            HttpServletRequest request,
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "category", required = false) String category) {
         Long opId = operatorId(request);
-        return ApiResponse.ok(cacheService.get("admin:skus", "all", 60_000L, () -> adminService.listSkus(opId)));
+        String cacheKey = (q == null ? "" : q.trim()) + "|"
+                + (status == null ? "" : status.trim()) + "|"
+                + (category == null ? "" : category.trim());
+        return ApiResponse.ok(cacheService.get(
+                "admin:skus",
+                cacheKey,
+                60_000L,
+                () -> adminService.listSkus(opId, q, status, category)));
     }
 
     @RequiresPermissions(value = {"ops:sku:edit", "ops:sku:import"}, logical = RequiresPermissions.Logical.OR)
@@ -340,7 +388,9 @@ public class AdminDashboardController {
     public ApiResponse<SkuCatalogDto> createSku(
             HttpServletRequest request,
             @Valid @RequestBody UpsertSkuRequest body) {
-        return ApiResponse.ok(adminService.createSku(operatorId(request), body));
+        SkuCatalogDto created = adminService.createSku(operatorId(request), body);
+        cacheService.evict("admin:skus");
+        return ApiResponse.ok(created);
     }
 
     @RequiresPermissions(value = {"ops:sku:edit", "ops:sku:import"}, logical = RequiresPermissions.Logical.OR)
@@ -349,7 +399,17 @@ public class AdminDashboardController {
             HttpServletRequest request,
             @PathVariable("skuId") String skuId,
             @Valid @RequestBody UpsertSkuRequest body) {
-        return ApiResponse.ok(adminService.updateSku(operatorId(request), skuId, body));
+        SkuCatalogDto updated = adminService.updateSku(operatorId(request), skuId, body);
+        cacheService.evict("admin:skus");
+        return ApiResponse.ok(updated);
+    }
+
+    @RequiresPermissions("ops:sku:edit")
+    @PostMapping(value = "/skus/image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<FileAttachmentDto> uploadSkuImage(
+            HttpServletRequest request,
+            @RequestPart("file") MultipartFile file) {
+        return ApiResponse.ok(fileAttachmentService.uploadSkuImage(operatorId(request), file));
     }
 
     @RequiresPermissions("ops:report:device")

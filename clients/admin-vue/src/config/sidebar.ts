@@ -29,6 +29,7 @@ const PATH_ICONS: Record<string, Component> = {
   '/upload-queue': Upload,
   '/orders': Document,
   '/skus': Goods,
+  '/sku-vision': View,
   '/recognition-demo': View,
   '/vision-mappings': View,
   '/ota': Cpu,

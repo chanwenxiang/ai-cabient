@@ -13,6 +13,8 @@ public class SkuCatalog {
     @TableId(type = IdType.INPUT)
     private String skuId;
 
+    private Long skuCode;
+
     private String skuName;
 
     private int priceCents;
@@ -28,6 +30,12 @@ public class SkuCatalog {
     private String category;
 
     private String barcode;
+
+    private String brand;
+
+    private String spec;
+
+    private String unit = "件";
 
     private String status = "ACTIVE";
 
@@ -58,9 +66,16 @@ public class SkuCatalog {
 
     private Instant createdAt;
 
-public SkuCatalogDto toDto() {
+    @TableField("updated_by_user_id")
+    private Long updatedByUserId;
+
+    @TableField("updated_by_name")
+    private String updatedByName;
+
+    public SkuCatalogDto toDto() {
         return new SkuCatalogDto(
                 skuId,
+                skuCode,
                 skuName,
                 priceCents,
                 weightGrams,
@@ -69,6 +84,9 @@ public SkuCatalogDto toDto() {
                 description,
                 category,
                 barcode,
+                brand,
+                spec,
+                unit,
                 status,
                 shelfLifeDays,
                 nearExpiryDays,
@@ -82,7 +100,9 @@ public SkuCatalogDto toDto() {
                 visionEnrollmentStatus,
                 detectionMinConfidence,
                 referenceImageUrlsJson,
-                createdAt
+                createdAt,
+                updatedByUserId,
+                updatedByName
         );
     }
 
@@ -91,6 +111,8 @@ public SkuCatalogDto toDto() {
 
     public String getSkuId() { return skuId; }
     public void setSkuId(String skuId) { this.skuId = skuId; }
+    public Long getSkuCode() { return skuCode; }
+    public void setSkuCode(Long skuCode) { this.skuCode = skuCode; }
     public String getSkuName() { return skuName; }
     public void setSkuName(String skuName) { this.skuName = skuName; }
     public int getPriceCents() { return priceCents; }
@@ -107,10 +129,20 @@ public SkuCatalogDto toDto() {
     public void setCategory(String category) { this.category = category; }
     public String getBarcode() { return barcode; }
     public void setBarcode(String barcode) { this.barcode = barcode; }
+    public String getBrand() { return brand; }
+    public void setBrand(String brand) { this.brand = brand; }
+    public String getSpec() { return spec; }
+    public void setSpec(String spec) { this.spec = spec; }
+    public String getUnit() { return unit; }
+    public void setUnit(String unit) { this.unit = unit; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+    public Long getUpdatedByUserId() { return updatedByUserId; }
+    public void setUpdatedByUserId(Long updatedByUserId) { this.updatedByUserId = updatedByUserId; }
+    public String getUpdatedByName() { return updatedByName; }
+    public void setUpdatedByName(String updatedByName) { this.updatedByName = updatedByName; }
     public Integer getShelfLifeDays() { return shelfLifeDays; }
     public void setShelfLifeDays(Integer shelfLifeDays) { this.shelfLifeDays = shelfLifeDays; }
     public int getNearExpiryDays() { return nearExpiryDays; }

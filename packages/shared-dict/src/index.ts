@@ -27,7 +27,7 @@ let runtimeLoaded = false;
  * 运营可配字典：下拉以运行时 ACTIVE 为准；拉成功且无项则空列表。
  * 系统状态枚举不要加入此集合。
  */
-export const OPS_MANAGED_DICT_TYPES: ReadonlySet<string> = new Set(['route_code']);
+export const OPS_MANAGED_DICT_TYPES: ReadonlySet<string> = new Set(['route_code', 'category_code']);
 
 export function isOpsManagedDict(type: string): boolean {
   return OPS_MANAGED_DICT_TYPES.has(type);
@@ -375,7 +375,9 @@ export const DICT = {
     'R-DEMO-01': '演示路线 01',
     'R-DEMO-02': '演示路线 02',
     'R-DEMO-X': '演示路线 X'
-  }
+  },
+  /** 商品类目：运营在字典管理维护；runtime 为准 */
+  category_code: {} as Record<string, string>
 } as const;
 
 export type DictType = keyof typeof DICT;
@@ -451,7 +453,10 @@ export function dictOptions(type: DictType | string): { value: string; label: st
     return entriesToOptions(baseline);
   }
 
-  // 系统枚举：有 ACTIVE 覆盖则用覆盖；否则编译期默认（避免下拉被清空）
+  // 系统枚举：runtime 已成功且该类型有 ACTIVE 覆盖 → 只用覆盖（停用项立即从下拉消失）
+  if (runtimeLoaded && override && Object.keys(override).length) {
+    return entriesToOptions(override);
+  }
   if (override && Object.keys(override).length) {
     return entriesToOptions(override);
   }

@@ -14,7 +14,9 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),
-        '@aicabinet/shared-dict': path.resolve(__dirname, '../../packages/shared-dict/src/index.ts'),
+        // 业务代码走响应式包装；dict-runtime / 包装内部走 core，避免循环依赖
+        '@aicabinet/shared-dict': path.resolve(__dirname, 'src/utils/shared-dict-reactive.ts'),
+        '@aicabinet/shared-dict-core': path.resolve(__dirname, '../../packages/shared-dict/src/index.ts'),
         '@aicabinet/shared-rbac': path.resolve(__dirname, '../../packages/shared-rbac/src/index.ts'),
         '@aicabinet/shared-types': path.resolve(__dirname, '../../packages/shared-types/src/index.ts'),
         '@aicabinet/shared-api': path.resolve(__dirname, '../../packages/shared-api/src/index.ts'),

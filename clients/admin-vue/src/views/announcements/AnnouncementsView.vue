@@ -76,7 +76,7 @@
         >
           <template #empty><el-empty description="暂无公告" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="announceId" label="ID" width="80" align="center" class-name="col-text" sortable="custom">
+          <el-table-column prop="announceId" label="公告编号" width="100" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
               <span class="cell-id">{{ row.announceId ?? '无' }}</span>
             </template>

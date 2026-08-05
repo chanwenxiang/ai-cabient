@@ -76,7 +76,7 @@
             @selection-change="onSelectionChange"
           >
             <el-table-column type="selection" width="48" align="center" />
-            <el-table-column prop="exceptionId" label="ID" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+            <el-table-column prop="exceptionId" label="异常编号" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
               <template #default="{ row }">
                 <span class="cell-id">{{ row.exceptionId }}</span>
               </template>
@@ -428,6 +428,7 @@ import {
 } from '@aicabinet/shared-dict';
 import type { PageResult } from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const route = useRoute();
@@ -470,7 +471,7 @@ const inlineVideoUrl = ref('');
 const inlineVideoError = ref('');
 let inlineVideoRevoke: (() => void) | null = null;
 const status = ref('OPEN');
-const statusTabOptions = dictOptions('exception_status');
+const statusTabOptions = useDictOptions('exception_status');
 const severity = ref('');
 const overdueOnly = ref(false);
 const page = ref(1);

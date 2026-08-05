@@ -290,4 +290,64 @@ public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> 
             @Param("since") java.time.Instant since,
             @Param("deviceIds") Collection<String> deviceIds);
 
+    /** 运营会话列表筛选：设备范围 + 状态 + 会话/用户/时间 + 关键词。 */
+    default Page<ShoppingSession> findByFiltersOrderByCreatedAtDesc(
+            String deviceId,
+            Collection<String> deviceIds,
+            SessionState state,
+            String sessionId,
+            Long userId,
+            java.time.Instant createdFrom,
+            java.time.Instant createdTo,
+            String keyword,
+            Pageable pageable) {
+        var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<ShoppingSession>(
+                pageable.getPageNumber() + 1L, pageable.getPageSize());
+        var q = Wrappers.<ShoppingSession>lambdaQuery();
+        if (deviceId != null && !deviceId.isBlank()) {
+            q.eq(ShoppingSession::getDeviceId, deviceId.trim());
+        } else if (deviceIds != null) {
+            if (deviceIds.isEmpty()) {
+                return new org.springframework.data.domain.PageImpl<>(List.of(), pageable, 0);
+            }
+            q.in(ShoppingSession::getDeviceId, deviceIds);
+        }
+        if (state != null) {
+            q.eq(ShoppingSession::getState, state);
+        }
+        if (sessionId != null && !sessionId.isBlank()) {
+            q.eq(ShoppingSession::getSessionId, sessionId.trim());
+        }
+        if (userId != null) {
+            q.eq(ShoppingSession::getUserId, userId);
+        }
+        if (createdFrom != null) {
+            q.ge(ShoppingSession::getCreatedAt, createdFrom);
+        }
+        if (createdTo != null) {
+            q.le(ShoppingSession::getCreatedAt, createdTo);
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            String kw = keyword.trim();
+            Long kwUserId = null;
+            try {
+                kwUserId = Long.parseLong(kw);
+            } catch (NumberFormatException ignored) {
+                // not a user id
+            }
+            Long finalKwUserId = kwUserId;
+            q.and(w -> {
+                w.like(ShoppingSession::getSessionId, kw)
+                        .or().like(ShoppingSession::getDeviceId, kw)
+                        .or().like(ShoppingSession::getOrderId, kw);
+                if (finalKwUserId != null) {
+                    w.or().eq(ShoppingSession::getUserId, finalKwUserId);
+                }
+            });
+        }
+        q.orderByDesc(ShoppingSession::getCreatedAt);
+        var result = selectPage(mpPage, q);
+        return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
+    }
+
 }

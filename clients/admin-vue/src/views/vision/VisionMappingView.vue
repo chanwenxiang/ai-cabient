@@ -5,11 +5,12 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">识别映射</span>
-            <span class="hint">端侧类名 → 商品；建档请在「商品与识别」维护。生产=进入结算白名单；端侧可换任意识别算法，mock/低置信仍进争议</span>
+            <span class="hint">端侧类名 → 商品；建档请在「商品管理 / 识别入驻」维护。生产=进入结算白名单；端侧可换任意识别算法，mock/低置信仍进争议</span>
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-if="canAccessPath('/skus')" @click="goPath('/skus')">商品与识别</el-button>
+          <el-button v-if="canAccessPath('/skus')" @click="goPath('/skus')">商品管理</el-button>
+          <el-button v-if="canAccessPath('/sku-vision')" @click="goPath('/sku-vision')">识别入驻</el-button>
           <el-button v-hasPermi="['ops:vision:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
@@ -48,7 +49,7 @@
         >
           <template #empty><el-empty description="暂无识别类名映射" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="className" label="ID" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+          <el-table-column prop="className" label="类名" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
             <template #default="{ row }">
               <span class="cell-id">{{ row.className || '无' }}</span>
             </template>

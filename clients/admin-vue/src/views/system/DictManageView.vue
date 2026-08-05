@@ -1,6 +1,6 @@
 <template>
   <div class="page-fill dict-page">
-    <div class="dict-split">
+    <div class="dict-split" :style="{ gridTemplateColumns: `${typesWidth}px 6px minmax(0, 1fr)` }">
       <section class="dict-col dict-col--types">
         <el-card class="page-card report-page dict-card" shadow="never">
           <template #header>
@@ -25,6 +25,7 @@
           <div class="table-scroll dict-type-scroll">
             <div class="table-scroll-inner">
               <el-table
+                ref="typeTableRef"
                 v-loading="loadingTypes"
                 :data="filteredTypes"
                 highlight-current-row
@@ -32,12 +33,13 @@
                 border
                 class="report-table"
                 table-layout="auto"
+                row-key="dictType"
                 :default-sort="typeDefaultSort"
                 @sort-change="onTypeSortChange"
                 @current-change="onSelectType"
               >
                 <template #empty><el-empty description="暂无字典类型" :image-size="64" /></template>
-                <el-table-column prop="dictType" label="ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+                <el-table-column prop="dictType" label="字典类型" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
                   <template #default="{ row }">
                     <span class="cell-id">{{ row.dictType }}</span>
                   </template>
@@ -56,6 +58,11 @@
           </div>
         </el-card>
       </section>
+      <div
+        class="dict-splitter"
+        title="拖动调整宽度"
+        @mousedown="startResize"
+      />
       <section ref="detailColRef" class="dict-col dict-col--items">
         <el-card class="page-card report-page dict-card" shadow="never">
           <template #header>
@@ -67,6 +74,7 @@
                 </div>
               </div>
               <div class="page-card-head__actions">
+                <el-button size="small" :loading="loadingTypes || loadingItems" @click="refreshAll">刷新</el-button>
                 <el-button v-hasPermi="['ops:dict:export']" size="small" :disabled="!selected" @click="onExport">{{ exportButtonLabel }}</el-button>
                 <el-button v-hasPermi="['ops:dict:import']" size="small" :disabled="!selected" @click="onDownloadTemplate(['DEMO', '示例标签', '0', '启用'])">导入模板</el-button>
                 <el-button v-hasPermi="['ops:dict:import']" size="small" :disabled="!selected" :loading="importing" @click="triggerImport">导入</el-button>
@@ -95,7 +103,7 @@
                   <el-empty :description="selected ? '暂无字典项' : '请先选择左侧字典类型'" :image-size="64" />
                 </template>
                 <el-table-column type="selection" width="48" align="center" />
-                <el-table-column prop="dictDataId" label="ID" width="80" align="center" class-name="col-text" sortable="custom">
+                <el-table-column prop="dictDataId" label="数据编号" width="80" align="center" class-name="col-text" sortable="custom">
                   <template #default="{ row }">
                     <span class="cell-id">{{ row.dictDataId }}</span>
                   </template>
@@ -157,16 +165,22 @@
       </el-form>
       <template #footer>
         <el-button @click="itemDlg = false">取消</el-button>
-        <el-button v-hasPermi="['ops:dict:edit']" type="primary" :loading="saving" @click="saveItem">保存</el-button>
+        <el-button
+          v-if="!itemForm.dictDataId"
+          v-hasPermi="['ops:dict:edit']"
+          :loading="saving"
+          @click="saveItem(true)"
+        >保存并继续</el-button>
+        <el-button v-hasPermi="['ops:dict:edit']" type="primary" :loading="saving" @click="saveItem(false)">保存</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onActivated, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onActivated, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import { ElMessage, ElMessageBox, type TableInstance } from 'element-plus';
 import { api } from '@/api/client';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
@@ -193,6 +207,16 @@ interface DictItemRow {
   remark?: string;
 }
 
+const TYPES_WIDTH_KEY = 'admin_dict_types_width';
+const TYPES_WIDTH_MIN = 260;
+const TYPES_WIDTH_MAX = 640;
+
+function readTypesWidth(): number {
+  const n = Number(localStorage.getItem(TYPES_WIDTH_KEY) || '');
+  if (Number.isFinite(n) && n >= TYPES_WIDTH_MIN && n <= TYPES_WIDTH_MAX) return Math.round(n);
+  return 360;
+}
+
 const auth = useAuthStore();
 const canEdit = computed(() => auth.hasPerm('ops:dict:edit'));
 const {
@@ -212,6 +236,7 @@ const saving = ref(false);
 const types = ref<DictTypeRow[]>([]);
 const items = ref<DictItemRow[]>([]);
 const selected = ref<DictTypeRow | null>(null);
+const typeTableRef = ref<TableInstance | null>(null);
 const detailColRef = ref<HTMLElement | null>(null);
 const route = useRoute();
 const router = useRouter();
@@ -219,8 +244,11 @@ const typeQuery = ref('');
 const typeDlg = ref(false);
 const itemDlg = ref(false);
 const editingType = ref(false);
+const typesWidth = ref(readTypesWidth());
 const typeForm = reactive({ dictType: '', dictName: '', status: 'ACTIVE', remark: '', sortOrder: 0 });
 const itemForm = reactive({ dictDataId: 0, dictValue: '', dictLabel: '', status: 'ACTIVE', remark: '', sortOrder: 0 });
+/** 刷新左侧表时忽略 current-change(null)，避免跳到别的类型 */
+let suppressTypeClear = false;
 
 const filteredTypes = computed(() => {
   const q = typeQuery.value.trim().toLowerCase();
@@ -277,12 +305,23 @@ const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onI
 
 async function loadTypes() {
   loadingTypes.value = true;
+  const keepType = selected.value?.dictType;
+  suppressTypeClear = true;
   try {
     types.value = await api.request<DictTypeRow[]>('/api/v2/ops/admin/dicts', 'GET');
+    if (keepType) {
+      const hit = types.value.find((t) => t.dictType === keepType) || null;
+      selected.value = hit;
+      await nextTick();
+      if (hit) typeTableRef.value?.setCurrentRow?.(hit);
+    }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
     loadingTypes.value = false;
+    // 等表格 current-change(null) 冒完再解除
+    await nextTick();
+    suppressTypeClear = false;
   }
 }
 
@@ -296,6 +335,16 @@ async function loadItems() {
   } finally {
     loadingItems.value = false;
   }
+}
+
+/** 列表 + 运行时字典一并刷新，使其他页下拉立即按 ACTIVE 项更新 */
+async function refreshAll() {
+  await Promise.all([
+    loadTypes(),
+    selected.value ? loadItems() : Promise.resolve(),
+    loadRuntimeDict()
+  ]);
+  ElMessage.success('已刷新字典');
 }
 
 function syncRouteQuery() {
@@ -314,11 +363,24 @@ function scrollDetailIntoViewIfStacked() {
 }
 
 function onSelectType(row: DictTypeRow | null, opts?: { sync?: boolean }) {
+  if (!row) {
+    if (suppressTypeClear) return;
+    selected.value = null;
+    clearSelection();
+    items.value = [];
+    if (opts?.sync !== false) syncRouteQuery();
+    return;
+  }
+  if (selected.value?.dictType === row.dictType) {
+    // 刷新后 setCurrentRow 可能再次触发；勿重复滚屏
+    selected.value = row;
+    return;
+  }
   selected.value = row;
   clearSelection();
   loadItems();
   if (opts?.sync !== false) syncRouteQuery();
-  if (row) scrollDetailIntoViewIfStacked();
+  scrollDetailIntoViewIfStacked();
 }
 
 function applyRouteQuery() {
@@ -328,6 +390,7 @@ function applyRouteQuery() {
   const hit = types.value.find((t) => t.dictType === qType);
   if (hit) {
     onSelectType(hit, { sync: false });
+    void nextTick(() => typeTableRef.value?.setCurrentRow?.(hit));
     return true;
   }
   return false;
@@ -337,6 +400,7 @@ async function reloadFromRouteQuery() {
   if (!types.value.length) await loadTypes();
   if (!applyRouteQuery() && !selected.value && types.value.length) {
     onSelectType(types.value[0]);
+    void nextTick(() => typeTableRef.value?.setCurrentRow?.(types.value[0]));
   }
 }
 
@@ -360,6 +424,15 @@ function openItem(row?: DictItemRow) {
   itemDlg.value = true;
 }
 
+function resetItemFormForContinue() {
+  itemForm.dictDataId = 0;
+  itemForm.dictValue = '';
+  itemForm.dictLabel = '';
+  itemForm.status = 'ACTIVE';
+  itemForm.remark = '';
+  itemForm.sortOrder = items.value.length + 1;
+}
+
 async function saveType() {
   saving.value = true;
   try {
@@ -375,7 +448,7 @@ async function saveType() {
   }
 }
 
-async function saveItem() {
+async function saveItem(continueAdd = false) {
   if (!selected.value) return;
   saving.value = true;
   try {
@@ -387,14 +460,20 @@ async function saveItem() {
       sortOrder: itemForm.sortOrder
     };
     const t = encodeURIComponent(selected.value.dictType);
-    if (itemForm.dictDataId) {
+    const isEdit = !!itemForm.dictDataId;
+    if (isEdit) {
       await api.request(`/api/v2/ops/admin/dicts/${t}/items/${itemForm.dictDataId}`, 'PUT', body);
     } else {
       await api.request(`/api/v2/ops/admin/dicts/${t}/items`, 'POST', body);
     }
     ElMessage.success('已保存');
-    itemDlg.value = false;
     await Promise.all([loadItems(), loadTypes(), loadRuntimeDict()]);
+    if (!isEdit && continueAdd) {
+      resetItemFormForContinue();
+      itemDlg.value = true;
+    } else {
+      itemDlg.value = false;
+    }
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -415,6 +494,27 @@ async function removeItem(row: DictItemRow) {
   }
 }
 
+function startResize(ev: MouseEvent) {
+  ev.preventDefault();
+  const startX = ev.clientX;
+  const startW = typesWidth.value;
+  const onMove = (e: MouseEvent) => {
+    const next = Math.min(TYPES_WIDTH_MAX, Math.max(TYPES_WIDTH_MIN, startW + (e.clientX - startX)));
+    typesWidth.value = next;
+  };
+  const onUp = () => {
+    localStorage.setItem(TYPES_WIDTH_KEY, String(typesWidth.value));
+    window.removeEventListener('mousemove', onMove);
+    window.removeEventListener('mouseup', onUp);
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+}
+
 watch(
   () => route.query.type,
   () => {
@@ -424,10 +524,18 @@ watch(
 
 onMounted(async () => {
   await loadTypes();
-  if (!applyRouteQuery() && types.value.length) onSelectType(types.value[0]);
+  if (!applyRouteQuery() && types.value.length) {
+    onSelectType(types.value[0]);
+    await nextTick();
+    typeTableRef.value?.setCurrentRow?.(types.value[0]);
+  }
 });
 onActivated(() => {
   void reloadFromRouteQuery();
+});
+onBeforeUnmount(() => {
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
 });
 </script>
 
@@ -445,9 +553,32 @@ onActivated(() => {
   min-height: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(260px, 34%) minmax(0, 1fr);
-  gap: 16px;
+  gap: 0 10px;
   align-items: stretch;
+}
+.dict-splitter {
+  width: 6px;
+  margin: 0 -2px;
+  cursor: col-resize;
+  border-radius: 4px;
+  background: transparent;
+  position: relative;
+  z-index: 2;
+  align-self: stretch;
+}
+.dict-splitter::after {
+  content: '';
+  position: absolute;
+  top: 12%;
+  bottom: 12%;
+  left: 2px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--layout-border, #ebeef5);
+}
+.dict-splitter:hover::after,
+.dict-splitter:active::after {
+  background: var(--el-color-primary);
 }
 .dict-col {
   display: flex;
@@ -534,8 +665,12 @@ onActivated(() => {
     overflow: auto;
   }
   .dict-split {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr !important;
     height: auto;
+    gap: 16px;
+  }
+  .dict-splitter {
+    display: none;
   }
   .dict-col,
   .dict-card {
