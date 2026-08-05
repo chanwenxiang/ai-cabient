@@ -26,6 +26,16 @@
     />
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
+      <el-form-item label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="对账ID / 日期"
+          style="width: 200px"
+          @keyup.enter="search"
+          @clear="search"
+        />
+      </el-form-item>
       <el-form-item label="渠道">
         <el-select v-model="channel" clearable placeholder="全部" style="width: 140px" @change="search">
           <el-option
@@ -62,7 +72,7 @@
       <div class="table-scroll-inner">
         <el-table
           v-loading="loading"
-          :data="items"
+          :data="paged"
           stripe
           border
           class="report-table"
@@ -115,11 +125,28 @@
         </el-table>
       </div>
     </div>
+    <div class="page-pager">
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="size"
+        :total="filtered.length"
+        :page-sizes="[10, 20, 50, 100]"
+        layout="total, sizes, prev, pager, next"
+        background
+      />
+    </div>
 
-    <el-dialog v-model="runDialog" title="执行对账" width="420px" destroy-on-close>
-      <el-form label-width="80px">
+    <el-dialog v-model="runDialog" title="执行对账" width="480px" destroy-on-close>
+      <p class="dialog-hint">按 T+1 节奏核对渠道流水与平台订单；请选择账期日期与渠道后执行。</p>
+      <el-form label-position="top">
         <el-form-item label="日期" required>
-          <input v-model="runForm.date" class="native-date" type="date" />
+          <el-date-picker
+            v-model="runForm.date"
+            type="date"
+            value-format="YYYY-MM-DD"
+            placeholder="选择日期"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="渠道">
           <el-select v-model="runForm.channel" style="width: 100%">
@@ -202,18 +229,41 @@ const loading = ref(false);
 const saving = ref(false);
 const channel = ref('');
 const statusFilter = ref('');
-const items = ref<Row[]>([]);
+const keyword = ref('');
+const page = ref(1);
+const size = ref(20);
+const allItems = ref<Row[]>([]);
 const runDialog = ref(false);
 const detailOpen = ref(false);
 const detail = ref<Row | null>(null);
 const runForm = reactive({ date: '', channel: 'WECHAT' });
 
+const filtered = computed(() => {
+  const q = keyword.value.trim().toLowerCase();
+  let rows = allItems.value;
+  if (statusFilter.value) rows = rows.filter((r) => r.status === statusFilter.value);
+  if (q) {
+    rows = rows.filter(
+      (r) =>
+        String(r.reconId || '').toLowerCase().includes(q) ||
+        String(r.reconDate || '').toLowerCase().includes(q) ||
+        dictLabel('pay_channel', r.channel).toLowerCase().includes(q)
+    );
+  }
+  return rows;
+});
+
+const paged = computed(() => {
+  const start = (page.value - 1) * size.value;
+  return filtered.value.slice(start, start + size.value);
+});
+
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<Row>((r) => r.reconId);
 
-const totalCount = computed(() => items.value.length);
+const totalCount = computed(() => filtered.value.length);
 const mismatchBatchCount = computed(() =>
-  items.value.filter((row) => (row.mismatchCount ?? 0) > 0 || row.status === 'MISMATCH').length
+  filtered.value.filter((row) => (row.mismatchCount ?? 0) > 0 || row.status === 'MISMATCH').length
 );
 const matchedBatchCount = computed(() => totalCount.value - mismatchBatchCount.value);
 
@@ -221,7 +271,7 @@ const { onExport } = useListCsv({
   filePrefix: '对账',
   headers: ['对账ID', '日期', '渠道', '状态', '差异笔数', '创建时间'],
   toRows: () =>
-    pickSelected(items.value).map((row) => [
+    pickSelected(filtered.value).map((row) => [
       row.reconId,
       row.reconDate || '',
       dictLabel('pay_channel', row.channel),
@@ -250,14 +300,11 @@ function syncRouteQuery() {
 async function load() {
   loading.value = true;
   try {
-    // API returns full channel list for ~30 days (ignores page/size); filter status client-side.
     const q = new URLSearchParams();
     if (channel.value) q.set('channel', channel.value);
     const qs = q.toString();
     const rows = await api.request<Row[]>(`/api/v2/ops/admin/reconciliation${qs ? `?${qs}` : ''}`, 'GET');
-    items.value = (rows || []).filter((row) =>
-      statusFilter.value ? row.status === statusFilter.value : true
-    );
+    allItems.value = rows || [];
     clearSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -267,6 +314,7 @@ async function load() {
 }
 
 function search() {
+  page.value = 1;
   syncRouteQuery();
   load();
 }
@@ -274,6 +322,8 @@ function search() {
 function reset() {
   channel.value = '';
   statusFilter.value = '';
+  keyword.value = '';
+  page.value = 1;
   syncRouteQuery();
   load();
 }
@@ -330,8 +380,13 @@ function applyRouteQuery() {
 
 async function reloadFromRouteQuery() {
   if (!applyRouteQuery()) return;
+  page.value = 1;
   await load();
 }
+
+watch([keyword, statusFilter], () => {
+  page.value = 1;
+});
 
 watch(
   () => [route.query.status, route.query.channel] as const,
@@ -399,14 +454,5 @@ onActivated(() => {
 :deep(.el-table .is-mismatch-row > td.el-table__cell) {
   background: color-mix(in srgb, var(--el-color-danger) 6%, var(--el-table-bg-color, #fff)) !important;
 }
-.native-date {
-  width: 100%;
-  height: 32px;
-  padding: 0 10px;
-  border: 1px solid var(--layout-border);
-  border-radius: 4px;
-  color: var(--layout-text);
-  background: var(--layout-card);
-  box-sizing: border-box;
-}
+.dialog-hint { margin: 0 0 12px; color: var(--layout-muted); line-height: 1.5; }
 </style>
