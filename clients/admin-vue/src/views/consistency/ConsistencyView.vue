@@ -26,15 +26,39 @@
 
     <div class="kpi-tags">
       <el-tag size="small" type="danger">FAIL {{ failCount }}</el-tag>
-      <el-tag size="small" type="info">本页 {{ items.length }}</el-tag>
+      <el-tag size="small" type="info">本页 {{ paged.length }}</el-tag>
       <el-tag v-if="lastRunAt" size="small" type="success">上次巡检 {{ lastRunAt }}</el-tag>
     </div>
 
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="onSearch">
+      <el-form-item label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="键 / 表 / 说明"
+          style="width: 220px"
+          @keyup.enter="onSearch"
+          @clear="onSearch"
+        />
+      </el-form-item>
+      <el-form-item label="类型">
+        <el-select v-model="typeFilter" clearable placeholder="全部" style="width: 140px" @change="onSearch">
+          <el-option label="订单金额" value="ORDER_AMOUNT" />
+          <el-option label="支付净额" value="PAYMENT_AMOUNT" />
+          <el-option label="库存汇总" value="INVENTORY_MISMATCH" />
+        </el-select>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="onSearch">查询</el-button>
+        <el-button @click="resetFilters">重置</el-button>
+      </el-form-item>
+    </el-form>
+
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table v-loading="loading" :data="items" stripe border class="report-table" row-key="id">
+        <el-table v-loading="loading" :data="paged" stripe border class="report-table" row-key="id">
           <template #empty>
-            <el-empty description="当前无 FAIL 记录，点击「立即巡检」可再跑一轮" />
+            <el-empty :description="emptyText" />
           </template>
           <el-table-column label="类型" width="160" align="center">
             <template #default="{ row }">
@@ -97,11 +121,21 @@
         </el-table>
       </div>
     </div>
+    <div class="page-pager">
+      <el-pagination
+        v-model:current-page="page"
+        v-model:page-size="size"
+        :total="filtered.length"
+        :page-sizes="[10, 20, 50, 100]"
+        layout="total, sizes, prev, pager, next"
+        background
+      />
+    </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, ref } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -150,7 +184,47 @@ const running = ref(false);
 const fixingId = ref<number | null>(null);
 const items = ref<Row[]>([]);
 const lastRunAt = ref('');
-const failCount = computed(() => items.value.length);
+const keyword = ref('');
+const typeFilter = ref('');
+const page = ref(1);
+const size = ref(20);
+
+const filtered = computed(() => {
+  const q = keyword.value.trim().toLowerCase();
+  const type = typeFilter.value.trim();
+  return items.value.filter((row) => {
+    if (type && row.checkType !== type) return false;
+    if (!q) return true;
+    return [row.checkKey, row.tableName, row.errorMessage]
+      .some((x) => String(x || '').toLowerCase().includes(q));
+  });
+});
+
+const paged = computed(() => {
+  const start = (page.value - 1) * size.value;
+  return filtered.value.slice(start, start + size.value);
+});
+
+const failCount = computed(() => filtered.value.length);
+
+const emptyText = computed(() => {
+  if (keyword.value.trim() || typeFilter.value.trim()) return '无匹配 FAIL 记录，可清空筛选';
+  return '当前无 FAIL 记录，点击「立即巡检」可再跑一轮';
+});
+
+watch([keyword, typeFilter], () => {
+  page.value = 1;
+});
+
+function onSearch() {
+  page.value = 1;
+}
+
+function resetFilters() {
+  keyword.value = '';
+  typeFilter.value = '';
+  page.value = 1;
+}
 
 function typeLabel(t: string) {
   switch (t) {
@@ -220,6 +294,7 @@ async function runCheck() {
     const res = await api.request<RunResult>('/api/v2/ops/admin/consistency/run', 'POST');
     items.value = res?.failures || [];
     lastRunAt.value = formatDateTime(new Date().toISOString());
+    page.value = 1;
     const n = res?.failCount ?? items.value.length;
     if (n === 0) ElMessage.success('巡检完成：无 FAIL');
     else ElMessage.warning(`巡检完成：仍有 ${n} 条 FAIL`);
