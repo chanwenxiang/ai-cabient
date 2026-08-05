@@ -23,7 +23,7 @@
       title="T+1：当日流水通常次日入账；通道费约 0.6% 估算，平台抽成取自分账记账"
     />
 
-    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="load">
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="onSearch">
       <el-form-item label="账期">
         <el-date-picker
           v-model="range"
@@ -32,9 +32,20 @@
           start-placeholder="开始"
           end-placeholder="结束"
         />
+        <span class="range-hint">支持跨月，单次不超过 90 天</span>
+      </el-form-item>
+      <el-form-item label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          :placeholder="tab === 'ledger' ? '分录号 / 订单 / 货柜 / 商户' : '商户编号 / 名称'"
+          style="width: 200px"
+          @keyup.enter="onSearch"
+          @clear="onSearch"
+        />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" @click="load">查询</el-button>
+        <el-button type="primary" @click="onSearch">查询</el-button>
       </el-form-item>
     </el-form>
 
@@ -42,7 +53,7 @@
       <el-tab-pane label="日资金账单" name="bills">
         <el-table
           v-loading="loading"
-          :data="displayBills"
+          :data="pagedBills"
           :default-sort="billIdDefaultSort"
           @sort-change="onBillIdSortChange"
           stripe
@@ -54,7 +65,7 @@
           <template #empty><el-empty description="暂无账单" /></template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="bizDate" label="账期" width="120" align="center" />
-          <el-table-column prop="merchantId" label="ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+          <el-table-column prop="merchantId" label="商户编号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
             <template #default="{ row }">
               <span class="cell-id">{{ row.merchantId }}</span>
             </template>
@@ -86,12 +97,22 @@
             </template>
           </el-table-column>
         </el-table>
+        <div class="page-pager">
+          <el-pagination
+            v-model:current-page="billPage"
+            v-model:page-size="billSize"
+            :total="filteredBills.length"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next"
+            background
+          />
+        </div>
       </el-tab-pane>
 
       <el-tab-pane label="账务明细" name="ledger">
         <el-form inline class="filter-bar filter-bar--compact">
           <el-form-item label="财务类型">
-            <el-select v-model="financialType" clearable placeholder="全部" style="width: 160px" @change="loadLedger">
+            <el-select v-model="financialType" clearable placeholder="全部" style="width: 160px" @change="onLedgerFilterChange">
               <el-option
                 v-for="item in dictOptions('fund_ledger_type')"
                 :key="item.value"
@@ -101,7 +122,7 @@
             </el-select>
           </el-form-item>
           <el-form-item label="收支">
-            <el-select v-model="direction" clearable placeholder="全部" style="width: 120px" @change="loadLedger">
+            <el-select v-model="direction" clearable placeholder="全部" style="width: 120px" @change="onLedgerFilterChange">
               <el-option
                 v-for="item in dictOptions('fund_direction')"
                 :key="item.value"
@@ -113,7 +134,7 @@
         </el-form>
         <el-table
           v-loading="ledgerLoading"
-          :data="displayLedger"
+          :data="filteredLedger"
           :default-sort="ledgerIdDefaultSort"
           @sort-change="onLedgerIdSortChange"
           stripe
@@ -124,7 +145,7 @@
         >
           <template #empty><el-empty description="暂无流水" /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="entryId" label="ID" width="100" align="center" class-name="col-text" sortable="custom">
+          <el-table-column prop="entryId" label="分录号" width="100" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
               <span class="cell-id">{{ row.entryId }}</span>
             </template>
@@ -149,13 +170,16 @@
             <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
           </el-table-column>
         </el-table>
-        <div class="pager">
+        <div class="page-pager">
           <el-pagination
             v-model:current-page="ledgerPage"
-            :page-size="20"
-            layout="total, prev, pager, next"
-            :total="ledgerTotal"
+            v-model:page-size="ledgerSize"
+            :total="ledgerPagerTotal"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next"
+            background
             @current-change="loadLedger"
+            @size-change="onLedgerSizeChange"
           />
         </div>
       </el-tab-pane>
@@ -172,6 +196,7 @@ import { api, downloadAuthFile } from '@/api/client';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { csvFileName } from '@/utils/csv';
 
 interface BillRow {
   bizDate: string;
@@ -198,11 +223,16 @@ interface LedgerRow {
   createdAt?: string;
 }
 
+const MAX_RANGE_DAYS = 90;
+
 const tab = ref('bills');
 const loading = ref(false);
 const ledgerLoading = ref(false);
 const bills = ref<BillRow[]>([]);
 const ledger = ref<LedgerRow[]>([]);
+const keyword = ref('');
+const billPage = ref(1);
+const billSize = ref(20);
 
 const {
   defaultSort: billIdDefaultSort,
@@ -216,11 +246,62 @@ const {
 } = useIdColumnSort<LedgerRow>('entryId');
 const displayBills = computed(() => sortBillsById(bills.value));
 const displayLedger = computed(() => sortLedgerById(ledger.value));
+
+const filteredBills = computed(() => {
+  const q = keyword.value.trim().toLowerCase();
+  let rows = displayBills.value;
+  if (q) {
+    rows = rows.filter(
+      (r) =>
+        String(r.merchantId || '').toLowerCase().includes(q) ||
+        String(r.merchantName || '').toLowerCase().includes(q)
+    );
+  }
+  return rows;
+});
+
+const pagedBills = computed(() => {
+  const start = (billPage.value - 1) * billSize.value;
+  return filteredBills.value.slice(start, start + billSize.value);
+});
+
+const filteredLedger = computed(() => {
+  const q = keyword.value.trim().toLowerCase();
+  let rows = displayLedger.value;
+  if (q) {
+    rows = rows.filter(
+      (r) =>
+        String(r.orderId || '').toLowerCase().includes(q) ||
+        String(r.deviceId || '').toLowerCase().includes(q) ||
+        String(r.merchantName || '').toLowerCase().includes(q) ||
+        String(r.entryId || '').toLowerCase().includes(q)
+    );
+  }
+  return rows;
+});
+
+const ledgerPagerTotal = computed(() =>
+  keyword.value.trim() ? filteredLedger.value.length : ledgerTotal.value
+);
+
 const ledgerTotal = ref(0);
 const ledgerPage = ref(1);
+const ledgerSize = ref(20);
 const financialType = ref('');
 const direction = ref('');
 const range = ref<[string, string] | null>(null);
+
+function assertRangeOk(): boolean {
+  if (!range.value?.[0] || !range.value?.[1]) return true;
+  const from = new Date(range.value[0] + 'T00:00:00');
+  const to = new Date(range.value[1] + 'T00:00:00');
+  const days = Math.floor((to.getTime() - from.getTime()) / 86400000) + 1;
+  if (days > MAX_RANGE_DAYS) {
+    ElMessage.warning(`账期跨度不能超过 ${MAX_RANGE_DAYS} 天（支持跨月）`);
+    return false;
+  }
+  return true;
+}
 
 const {
   onSelectionChange: onBillSelectionChange,
@@ -246,7 +327,7 @@ const { onExport: exportBillsCsv } = useListCsv({
   filePrefix: '资金日账单',
   headers: ['账期', '商户编号', '商户名称', '订单实付', '平台抽成', '通道费', '已入账', '待入账', '笔数', '固化'],
   toRows: () =>
-    pickBills(bills.value).map((row) => [
+    pickBills(filteredBills.value).map((row) => [
       row.bizDate,
       row.merchantId,
       row.merchantName,
@@ -264,7 +345,7 @@ const { onExport: exportLedgerCsv } = useListCsv({
   filePrefix: '资金账务明细',
   headers: ['财务类型', '收支', '金额', '订单', '货柜', '商户', '时间'],
   toRows: () =>
-    pickLedger(ledger.value).map((row) => [
+    pickLedger(filteredLedger.value).map((row) => [
       dictLabel('fund_ledger_type', row.financialType),
       dictLabel('fund_direction', row.direction),
       yuan(row.amountCents),
@@ -293,7 +374,25 @@ function queryDates() {
   return q;
 }
 
+function onSearch() {
+  billPage.value = 1;
+  ledgerPage.value = 1;
+  if (!assertRangeOk()) return;
+  load();
+}
+
+function onLedgerFilterChange() {
+  ledgerPage.value = 1;
+  loadLedger();
+}
+
+function onLedgerSizeChange() {
+  ledgerPage.value = 1;
+  loadLedger();
+}
+
 async function load() {
+  if (!assertRangeOk()) return;
   loading.value = true;
   try {
     const q = queryDates();
@@ -312,13 +411,14 @@ async function load() {
 }
 
 async function loadLedger() {
+  if (!assertRangeOk()) return;
   ledgerLoading.value = true;
   try {
     const q = queryDates();
     if (financialType.value) q.set('financialType', financialType.value);
     if (direction.value) q.set('direction', direction.value);
     q.set('page', String(Math.max(0, ledgerPage.value - 1)));
-    q.set('size', '20');
+    q.set('size', String(ledgerSize.value));
     const data = await api.request<{ items: LedgerRow[]; total: number }>(
       `/api/v2/ops/admin/fund/ledger?${q}`,
       'GET'
@@ -342,14 +442,24 @@ async function exportCsv() {
     exportBillsCsv();
     return;
   }
+  if (!assertRangeOk()) return;
   const q = queryDates();
+  const from = range.value?.[0];
+  const to = range.value?.[1];
+  const prefix =
+    from && to ? `资金日账单_${from.replace(/-/g, '')}-${to.replace(/-/g, '')}` : '资金日账单';
   try {
-    await downloadAuthFile(`/api/v2/ops/admin/fund/daily-bills/export?${q}`, 'fund-daily-bills.csv');
+    await downloadAuthFile(`/api/v2/ops/admin/fund/daily-bills/export?${q}`, csvFileName(prefix));
     ElMessage.success('已导出日账单');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '导出失败');
   }
 }
+
+watch(keyword, () => {
+  billPage.value = 1;
+  ledgerPage.value = 1;
+});
 
 watch(tab, (v) => {
   if (v === 'ledger') loadLedger();
@@ -360,5 +470,9 @@ onMounted(load);
 
 <style scoped>
 .t1-alert { margin-bottom: 12px; }
-.pager { margin-top: 12px; display: flex; justify-content: flex-end; }
+.range-hint {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
 </style>
