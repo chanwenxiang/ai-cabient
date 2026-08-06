@@ -80,7 +80,7 @@
               <el-avatar :size="32" class="user-avatar">{{ userInitial }}</el-avatar>
               <div class="user-text">
                 <span class="user-name">{{ auth.displayName }}</span>
-                <span class="user-detail">{{ auth.phone }} · {{ auth.roleText }}</span>
+                <span class="user-detail">{{ auth.phone || '—' }} · {{ auth.roleText }}</span>
                 <span class="user-scope">{{ auth.dataScopeText }}</span>
               </div>
             </button>

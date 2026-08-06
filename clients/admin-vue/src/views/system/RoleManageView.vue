@@ -54,9 +54,8 @@
           row-key="roleId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-        >
-          <template #empty><el-empty description="暂无角色" /></template>
+          @selection-change="onSelectionChange" empty-text=" ">
+          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无角色" /></template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="roleId" label="角色编号" width="80" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
@@ -149,6 +148,7 @@
       </div>
       <div v-loading="loadingPerms" class="perm-tree-wrap">
         <el-tree
+          v-if="permTree.length || loadingPerms"
           ref="treeRef"
           :data="permTree"
           node-key="permissionId"
@@ -157,6 +157,7 @@
           :check-strictly="permCheckMode === 'strict'"
           :props="{ label: 'label', children: 'children' }"
         />
+        <el-empty v-else description="暂无权限树" :image-size="64" />
       </div>
       <template #footer>
         <el-button @click="permDlg = false">取消</el-button>
@@ -231,6 +232,7 @@ interface RoleRow {
 }
 
 const loading = ref(false);
+const listHydrated = ref(false);
 const loadingPerms = ref(false);
 const saving = ref(false);
 const roles = ref<RoleRow[]>([]);
@@ -311,6 +313,7 @@ async function loadRoles() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载角色失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
@@ -397,6 +400,8 @@ async function openPerms(row: RoleRow) {
   permCheckMode.value = 'cascade';
   permDlg.value = true;
   loadingPerms.value = true;
+  await nextTick();
+  treeApi()?.setCheckedKeys([], false);
   try {
     if (!permTree.value.length) await loadPermTree();
     const data = await api.request<{ permissionIds: number[] }>(
@@ -407,6 +412,7 @@ async function openPerms(row: RoleRow) {
     treeApi()?.setCheckedKeys(data.permissionIds || [], false);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载权限失败');
+    treeApi()?.setCheckedKeys([], false);
   } finally {
     loadingPerms.value = false;
   }
@@ -512,5 +518,5 @@ onActivated(() => {
   margin-bottom: 12px;
 }
 .perm-toolbar__actions { display: flex; gap: 4px; }
-.perm-tree-wrap { max-height: calc(100vh - 260px); overflow: auto; }
+.perm-tree-wrap { min-height: 120px; max-height: calc(100vh - 260px); overflow: auto; }
 </style>

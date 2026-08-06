@@ -38,7 +38,7 @@
         <div v-if="qrPreviewUrl" class="qr-preview">
           <img :src="qrPreviewUrl" alt="柜机二维码" />
         </div>
-        <div v-else class="qr-empty">{{ qrLoading ? '加载中…' : '暂无二维码' }}</div>
+        <div v-else class="qr-empty">{{ qrHydrated ? (qrLoading ? '加载中…' : '暂无二维码') : '加载中…' }}</div>
         <div class="qr-meta">
           <div class="qr-url mono">{{ qrUrl || '—' }}</div>
         </div>
@@ -47,36 +47,74 @@
 
     <el-row :gutter="12" class="stat-row">
       <el-col :xs="12" :sm="6" :md="4">
-        <div class="stat-tile">
+        <button
+          type="button"
+          class="stat-tile"
+          :aria-label="metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : '填充率 — 加载中…'"
+        >
           <div class="stat-label">填充率</div>
-          <div class="stat-value">{{ metrics?.fillRatePct ?? 0 }}%</div>
-        </div>
+          <div class="stat-value">{{ metricsHydrated ? `${metrics?.fillRatePct ?? 0}%` : '—' }}</div>
+          <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
+        </button>
       </el-col>
       <el-col :xs="12" :sm="6" :md="4">
-        <div class="stat-tile" :class="{ warn: (metrics?.oosSlotCount || 0) > 0 }">
+        <button
+          type="button"
+          class="stat-tile"
+          :class="{ warn: metricsHydrated && (metrics?.oosSlotCount || 0) > 0 }"
+          :aria-label="metricsHydrated ? `缺货货道 ${metrics?.oosSlotCount ?? 0}` : '缺货货道 — 加载中…'"
+        >
           <div class="stat-label">缺货货道</div>
-          <div class="stat-value">{{ metrics?.oosSlotCount ?? 0 }}</div>
-        </div>
+          <div class="stat-value">{{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '—' }}</div>
+          <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
+        </button>
       </el-col>
       <el-col :xs="12" :sm="6" :md="4">
-        <div class="stat-tile" :class="{ warn: (metrics?.lowStockSlotCount || 0) > 0 }">
+        <button
+          type="button"
+          class="stat-tile"
+          :class="{ warn: metricsHydrated && (metrics?.lowStockSlotCount || 0) > 0 }"
+          :aria-label="metricsHydrated ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}` : '低库存货道 — 加载中…'"
+        >
           <div class="stat-label">低库存货道</div>
-          <div class="stat-value">{{ metrics?.lowStockSlotCount ?? 0 }}</div>
-        </div>
+          <div class="stat-value">{{ metricsHydrated ? (metrics?.lowStockSlotCount ?? 0) : '—' }}</div>
+          <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
+        </button>
       </el-col>
       <el-col :xs="12" :sm="6" :md="4">
-        <div class="stat-tile" :class="{ warn: (metrics?.nearExpiryLotCount || 0) > 0 }">
+        <button
+          type="button"
+          class="stat-tile"
+          :class="{ warn: metricsHydrated && (metrics?.nearExpiryLotCount || 0) > 0 }"
+          :aria-label="metricsHydrated ? `临期批次 ${metrics?.nearExpiryLotCount ?? 0}` : '临期批次 — 加载中…'"
+        >
           <div class="stat-label">临期批次</div>
-          <div class="stat-value">{{ metrics?.nearExpiryLotCount ?? 0 }}</div>
-        </div>
+          <div class="stat-value">{{ metricsHydrated ? (metrics?.nearExpiryLotCount ?? 0) : '—' }}</div>
+          <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
+        </button>
       </el-col>
       <el-col :xs="12" :sm="6" :md="4">
-        <div class="stat-tile">
+        <button
+          type="button"
+          class="stat-tile"
+          :aria-label="
+            metricsHydrated
+              ? `柜内温度 ${metrics?.currentTempC != null ? metrics.currentTempC + '°C' : '无'}`
+              : '柜内温度 — 加载中…'
+          "
+        >
           <div class="stat-label">柜内温度</div>
           <div class="stat-value">
-            {{ metrics?.currentTempC != null ? `${metrics.currentTempC}°C` : '无' }}
+            {{
+              metricsHydrated
+                ? metrics?.currentTempC != null
+                  ? `${metrics.currentTempC}°C`
+                  : '无'
+                : '—'
+            }}
           </div>
-        </div>
+          <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
+        </button>
       </el-col>
     </el-row>
 
@@ -346,7 +384,7 @@
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
       </el-table>
-      <div v-else class="muted">暂无最近工单</div>
+      <div v-else class="muted">{{ repairHydrated ? '暂无最近工单' : '加载中…' }}</div>
     </el-card>
 
     <el-card class="page-card report-page" shadow="never">
@@ -358,13 +396,15 @@
             </el-descriptions-item>
             <el-descriptions-item label="商户">
               <div class="name-cell inline">
-                <strong>{{ device?.merchantName || device?.merchantId || '无' }}</strong>
-                <small v-if="device?.merchantId && device?.merchantName" class="cell-id">{{ device.merchantId }}</small>
+                <strong>{{ metricsHydrated ? (device?.merchantName || device?.merchantId || '无') : '—' }}</strong>
+                <small v-if="metricsHydrated && device?.merchantId && device?.merchantName" class="cell-id">{{ device.merchantId }}</small>
               </div>
             </el-descriptions-item>
-            <el-descriptions-item label="地址">{{ metrics?.address || '无' }}</el-descriptions-item>
+            <el-descriptions-item label="地址">{{ metricsHydrated ? (metrics?.address || '无') : '—' }}</el-descriptions-item>
             <el-descriptions-item label="App / 固件">
-              {{ metrics?.appVersion || '无' }} / {{ metrics?.firmwareVersion || '无' }}
+              {{ metricsHydrated
+                ? `${metrics?.appVersion || '无'} / ${metrics?.firmwareVersion || '无'}`
+                : '—' }}
             </el-descriptions-item>
             <el-descriptions-item label="目标温度">
               <div class="temp-set-row">
@@ -388,23 +428,30 @@
               </div>
             </el-descriptions-item>
             <el-descriptions-item label="温度上报">
-              <span class="cell-datetime">{{ formatDateTime(metrics?.tempReportedAt) || '无' }}</span>
+              <span class="cell-datetime">{{ metricsHydrated ? (formatDateTime(metrics?.tempReportedAt) || '无') : '—' }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="告警联系人">{{ metrics?.alertContactName || '无' }}</el-descriptions-item>
-            <el-descriptions-item label="联系电话">{{ metrics?.alertContactPhone || '无' }}</el-descriptions-item>
+            <el-descriptions-item label="告警联系人">{{ metricsHydrated ? (metrics?.alertContactName || '无') : '—' }}</el-descriptions-item>
+            <el-descriptions-item label="联系电话">{{ metricsHydrated ? (metrics?.alertContactPhone || '无') : '—' }}</el-descriptions-item>
             <el-descriptions-item label="最近会话">
-              <span class="cell-id">{{ device?.activeSessionId || '无' }}</span>
+              <span class="cell-id">{{ metricsHydrated ? (device?.activeSessionId || '无') : '—' }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="会话状态">
-              <el-tag v-if="device?.activeSessionState" size="small" effect="plain">
-                {{ dictLabel('session_state', device.activeSessionState) }}
-              </el-tag>
-              <span v-else>-</span>
+              <template v-if="metricsHydrated">
+                <el-tag v-if="device?.activeSessionState" size="small" effect="plain">
+                  {{ dictLabel('session_state', device.activeSessionState) }}
+                </el-tag>
+                <span v-else>-</span>
+              </template>
+              <span v-else>—</span>
             </el-descriptions-item>
             <el-descriptions-item label="最近补货">
-              <span class="cell-datetime">{{ formatDateTime(metrics?.lastRestockAt) || '无' }}</span>
+              <span class="cell-datetime">{{ metricsHydrated ? (formatDateTime(metrics?.lastRestockAt) || '无') : '—' }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="库存准确率">{{ metrics?.inventoryAccuracyPct ?? '无' }}%</el-descriptions-item>
+            <el-descriptions-item label="库存准确率">
+              {{ metricsHydrated
+                ? (metrics?.inventoryAccuracyPct != null ? `${metrics.inventoryAccuracyPct}%` : '无')
+                : '—' }}
+            </el-descriptions-item>
           </el-descriptions>
         </el-tab-pane>
 
@@ -419,30 +466,45 @@
             >套用模板</el-button>
             <el-button size="small" :icon="Refresh" @click="loadDetail">刷新货道</el-button>
           </div>
-          <SlotGrid :slots="slots" :editable="canEditSlots" @edit="openEditor" />
+          <SlotGrid v-if="slotsHydrated && slots.length" :slots="slots" :editable="canEditSlots" @edit="openEditor" />
+          <el-empty
+            v-else-if="slotsHydrated"
+            description="暂无货道配置"
+            :image-size="64"
+          />
+          <div v-else class="muted">货道加载中…</div>
         </el-tab-pane>
 
         <el-tab-pane label="投放流水" name="lifecycle">
-          <el-timeline v-if="lifecycleEvents.length">
-            <el-timeline-item
-              v-for="ev in lifecycleEvents"
-              :key="ev.eventId"
-              :timestamp="formatDateTime(ev.createdAt)"
-              placement="top"
-            >
-              <div class="life-event">
-                <strong>{{ lifecycleActionLabel(ev.action) }}</strong>
-                <span class="muted">{{ lifecycleLabel(ev.fromStatus) }} → {{ lifecycleLabel(ev.toStatus) }}</span>
-                <div v-if="ev.remark" class="life-remark">{{ ev.remark }}</div>
-              </div>
-            </el-timeline-item>
-          </el-timeline>
-          <el-empty v-else description="暂无生命周期流水" />
+          <div v-loading="!lifecycleHydrated" class="lifecycle-pane">
+            <el-timeline v-if="lifecycleEvents.length">
+              <el-timeline-item
+                v-for="ev in lifecycleEvents"
+                :key="ev.eventId"
+                :timestamp="formatDateTime(ev.createdAt)"
+                placement="top"
+              >
+                <div class="life-event">
+                  <strong>{{ lifecycleActionLabel(ev.action) }}</strong>
+                  <span class="muted">{{ lifecycleLabel(ev.fromStatus) }} → {{ lifecycleLabel(ev.toStatus) }}</span>
+                  <div v-if="ev.remark" class="life-remark">{{ ev.remark }}</div>
+                </div>
+              </el-timeline-item>
+            </el-timeline>
+            <el-empty v-else-if="lifecycleHydrated" description="暂无生命周期流水" />
+          </div>
         </el-tab-pane>
 
         <el-tab-pane label="关联单据" name="related">
           <h4 class="section-title">最近开门记录</h4>
-          <el-table :data="sessions" stripe border size="small" class="report-table" empty-text="暂无会话">
+          <el-table
+            v-loading="!relatedHydrated"
+            :data="sessions"
+            stripe
+            border
+            size="small"
+            class="report-table" empty-text=" ">
+            <template #empty><el-empty v-if="relatedHydrated" description="暂无会话" :image-size="48" /></template>
             <el-table-column label="会话" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
               <template #default="{ row }">
                 <span class="cell-id">{{ row.sessionId }}</span>
@@ -476,7 +538,14 @@
           </el-table>
 
           <h4 class="section-title">最近订单</h4>
-          <el-table :data="orders" stripe border size="small" class="report-table" empty-text="暂无订单">
+          <el-table
+            v-loading="!relatedHydrated"
+            :data="orders"
+            stripe
+            border
+            size="small"
+            class="report-table" empty-text=" ">
+            <template #empty><el-empty v-if="relatedHydrated" description="暂无订单" :image-size="48" /></template>
             <el-table-column label="订单" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
               <template #default="{ row }">
                 <span class="cell-id">{{ row.orderId }}</span>
@@ -610,7 +679,12 @@ const { router, canAccessPath, goPath } = useNavAccess();
 const deviceId = route.params.id as string;
 const canEditSlots = computed(() => auth.hasPerm('ops:device:edit'));
 const canEditDevice = computed(() => auth.hasPerm('ops:device:edit'));
-const loading = ref(false);
+const loading = ref(true);
+const metricsHydrated = ref(false);
+const relatedHydrated = ref(false);
+const lifecycleHydrated = ref(false);
+const repairHydrated = ref(false);
+const slotsHydrated = ref(false);
 const applying = ref(false);
 const saving = ref(false);
 const stocktaking = ref(false);
@@ -655,7 +729,8 @@ const orders = ref<any[]>([]);
 const editorVisible = ref(false);
 const qrUrl = ref('');
 const qrPreviewUrl = ref('');
-const qrLoading = ref(false);
+const qrLoading = ref(true);
+const qrHydrated = ref(false);
 const qrDownloading = ref(false);
 let qrObjectUrl: string | null = null;
 
@@ -714,6 +789,7 @@ async function loadQr() {
     revokeQrPreview();
     ElMessage.error(e instanceof Error ? e.message : '加载二维码失败');
   } finally {
+    qrHydrated.value = true;
     qrLoading.value = false;
   }
 }
@@ -790,21 +866,29 @@ async function loadAsset() {
 }
 
 async function loadLifecycleEvents() {
-  lifecycleEvents.value = await api
-    .request<LifecycleEventRow[]>(
-      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/lifecycle-events?limit=40`,
-      'GET'
-    )
-    .catch(() => []);
+  try {
+    lifecycleEvents.value = await api
+      .request<LifecycleEventRow[]>(
+        `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/lifecycle-events?limit=40`,
+        'GET'
+      )
+      .catch(() => []);
+  } finally {
+    lifecycleHydrated.value = true;
+  }
 }
 
 async function loadRepairTickets() {
-  repairTickets.value = await api
-    .request<Array<{ ticketId: number; title: string; status: string; createdAt?: string }>>(
-      `/api/v2/ops/admin/repair-tickets/by-device/${encodeURIComponent(deviceId)}?limit=5`,
-      'GET'
-    )
-    .catch(() => []);
+  try {
+    repairTickets.value = await api
+      .request<Array<{ ticketId: number; title: string; status: string; createdAt?: string }>>(
+        `/api/v2/ops/admin/repair-tickets/by-device/${encodeURIComponent(deviceId)}?limit=5`,
+        'GET'
+      )
+      .catch(() => []);
+  } finally {
+    repairHydrated.value = true;
+  }
 }
 
 function repairStatusLabel(s?: string) {
@@ -839,6 +923,7 @@ async function loadDetail() {
   device.value = detail.device;
   metrics.value = detail.metrics;
   slots.value = detail.slots || [];
+  slotsHydrated.value = true;
   tempDraft.value = detail.metrics?.targetTempC != null ? detail.metrics.targetTempC : undefined;
   await Promise.all([loadAsset(), loadLifecycleEvents(), loadRepairTickets()]);
   try {
@@ -1000,22 +1085,26 @@ async function savePolicy() {
 }
 
 async function loadRelated() {
-  const [sess, ord] = await Promise.all([
-    api
-      .request<PageResult<any>>(
-        `/api/v2/ops/admin/sessions?page=0&size=8&deviceId=${encodeURIComponent(deviceId)}`,
-        'GET'
-      )
-      .catch(() => ({ items: [] as any[] })),
-    api
-      .request<PageResult<any>>(
-        `/api/v2/ops/admin/orders?page=0&size=8&deviceId=${encodeURIComponent(deviceId)}`,
-        'GET'
-      )
-      .catch(() => ({ items: [] as any[] }))
-  ]);
-  sessions.value = sess.items || [];
-  orders.value = ord.items || [];
+  try {
+    const [sess, ord] = await Promise.all([
+      api
+        .request<PageResult<any>>(
+          `/api/v2/ops/admin/sessions?page=0&size=8&deviceId=${encodeURIComponent(deviceId)}`,
+          'GET'
+        )
+        .catch(() => ({ items: [] as any[] })),
+      api
+        .request<PageResult<any>>(
+          `/api/v2/ops/admin/orders?page=0&size=8&deviceId=${encodeURIComponent(deviceId)}`,
+          'GET'
+        )
+        .catch(() => ({ items: [] as any[] }))
+    ]);
+    sessions.value = sess.items || [];
+    orders.value = ord.items || [];
+  } finally {
+    relatedHydrated.value = true;
+  }
 }
 
 async function loadSkus() {
@@ -1024,11 +1113,19 @@ async function loadSkus() {
 
 async function reload() {
   loading.value = true;
+  // 软刷新：保留已渲染 KPI/货道/关联表，避免 keep-alive 回页或点刷新时闪「—」/空表
   try {
-    await loadDetail();
+    await Promise.all([loadDetail(), loadQr()]);
+    metricsHydrated.value = true;
     await Promise.all([loadRelated(), loadSkus()]);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    metricsHydrated.value = true;
+    slotsHydrated.value = true;
+    repairHydrated.value = true;
+    relatedHydrated.value = true;
+    lifecycleHydrated.value = true;
+    qrHydrated.value = true;
   } finally {
     loading.value = false;
   }
@@ -1227,9 +1324,15 @@ onMounted(async () => {
   loading.value = true;
   try {
     await Promise.all([loadDetail(), loadGeoStatus(), loadQr()]);
+    metricsHydrated.value = true;
     await Promise.all([loadRelated(), loadSkus()]);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    metricsHydrated.value = true;
+    slotsHydrated.value = true;
+    repairHydrated.value = true;
+    relatedHydrated.value = true;
+    lifecycleHydrated.value = true;
   } finally {
     loading.value = false;
   }
@@ -1255,6 +1358,13 @@ onActivated(() => {
 .qr-meta { flex: 1; min-width: 220px; }
 .qr-url { font-size: 13px; word-break: break-all; margin-bottom: 8px; }
 .stat-tile {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  border: none;
+  cursor: default;
   background: var(--el-fill-color-light);
   border-radius: 8px;
   padding: 12px 14px;
@@ -1263,6 +1373,7 @@ onActivated(() => {
 .stat-tile.warn { background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff)); }
 .stat-label { font-size: 12px; color: var(--el-text-color-secondary); }
 .stat-value { font-size: 22px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.stat-hint { margin-top: 2px; font-size: 12px; color: var(--el-text-color-secondary); }
 .slot-diff.warn { color: #ea580c; margin-left: 6px; font-size: 12px; }
 .page-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
 .page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
@@ -1297,6 +1408,7 @@ onActivated(() => {
 .asset-deployed { margin-left: 8px; }
 .life-event { display: flex; flex-direction: column; gap: 2px; }
 .life-remark { font-size: 12px; color: var(--el-text-color-regular); }
+.lifecycle-pane { min-height: 120px; }
 .slot-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
 .section-title { margin: 16px 0 8px; font-size: 14px; font-weight: 600; }
 .name-cell { display: grid; gap: 2px; line-height: 1.35; }

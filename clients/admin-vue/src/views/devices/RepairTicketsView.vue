@@ -71,7 +71,8 @@
     <div class="table-scroll">
       <el-table :data="displayRows"
         :default-sort="idDefaultSort"
-        @sort-change="onIdSortChange" v-loading="loading" stripe border class="report-table">
+        @sort-change="onIdSortChange" v-loading="loading" stripe border class="report-table" empty-text=" ">
+        <template #empty><el-empty v-if="listHydrated && !loading" description="暂无维修工单" /></template>
         <el-table-column prop="ticketId" label="工单号" width="90" align="center" sortable="custom" />
         <el-table-column prop="deviceId" label="设备" min-width="130" align="center">
           <template #default="{ row }">
@@ -134,8 +135,7 @@
       </el-table>
     </div>
 
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page1"
         v-model:page-size="size"
         layout="total, prev, pager, next"
@@ -143,7 +143,6 @@
         @current-change="load"
         @size-change="search"
       />
-    </div>
 
     <el-dialog v-model="createVisible" title="新建维修工单" width="560px" destroy-on-close>
       <el-form label-width="90px">
@@ -194,35 +193,40 @@
     </el-dialog>
 
     <el-drawer v-model="detailVisible" title="工单详情" size="480px">
-      <template v-if="detail">
-        <el-descriptions :column="1" border>
-          <el-descriptions-item label="工单号">{{ detail.ticket.ticketId }}</el-descriptions-item>
-          <el-descriptions-item label="设备">{{ detail.ticket.deviceId }}</el-descriptions-item>
-          <el-descriptions-item label="标题">{{ detail.ticket.title }}</el-descriptions-item>
-          <el-descriptions-item label="故障类型">{{ faultLabel(detail.ticket.faultType) }}</el-descriptions-item>
-          <el-descriptions-item label="状态">{{ statusLabel(detail.ticket.status) }}</el-descriptions-item>
-          <el-descriptions-item label="优先级">{{ priorityLabel(detail.ticket.priority) }}</el-descriptions-item>
-          <el-descriptions-item label="负责人">{{ detail.ticket.assignee || '无' }}</el-descriptions-item>
-          <el-descriptions-item label="创建人">{{ detail.ticket.createdBy || '无' }}</el-descriptions-item>
-          <el-descriptions-item label="备注">{{ detail.ticket.remark || '无' }}</el-descriptions-item>
-          <el-descriptions-item label="创建时间">{{ formatDateTime(detail.ticket.createdAt) }}</el-descriptions-item>
-          <el-descriptions-item label="更新时间">{{ formatDateTime(detail.ticket.updatedAt) }}</el-descriptions-item>
-          <el-descriptions-item label="关闭时间">{{ formatDateTime(detail.ticket.closedAt) }}</el-descriptions-item>
-        </el-descriptions>
-        <div class="event-title">流转记录</div>
-        <el-timeline>
-          <el-timeline-item v-for="e in detail.events" :key="e.eventId" :timestamp="formatDateTime(e.createdAt)">
-            {{ e.action }}：{{ e.fromStatus || '无' }} → {{ e.toStatus }}
-            <span v-if="e.remark">（{{ e.remark }}）</span>
-          </el-timeline-item>
-        </el-timeline>
-      </template>
+      <div v-loading="!detailHydrated" class="repair-detail-pane">
+        <template v-if="detail">
+          <el-descriptions :column="1" border>
+            <el-descriptions-item label="工单号">{{ detail.ticket.ticketId }}</el-descriptions-item>
+            <el-descriptions-item label="设备">{{ detail.ticket.deviceId }}</el-descriptions-item>
+            <el-descriptions-item label="标题">{{ detail.ticket.title }}</el-descriptions-item>
+            <el-descriptions-item label="故障类型">{{ faultLabel(detail.ticket.faultType) }}</el-descriptions-item>
+            <el-descriptions-item label="状态">{{ statusLabel(detail.ticket.status) }}</el-descriptions-item>
+            <el-descriptions-item label="优先级">{{ priorityLabel(detail.ticket.priority) }}</el-descriptions-item>
+            <el-descriptions-item label="负责人">{{ detail.ticket.assignee || '无' }}</el-descriptions-item>
+            <el-descriptions-item label="创建人">{{ detail.ticket.createdBy || '无' }}</el-descriptions-item>
+            <el-descriptions-item label="备注">{{ detail.ticket.remark || '无' }}</el-descriptions-item>
+            <el-descriptions-item label="创建时间">{{ formatDateTime(detail.ticket.createdAt) }}</el-descriptions-item>
+            <el-descriptions-item label="更新时间">{{ formatDateTime(detail.ticket.updatedAt) }}</el-descriptions-item>
+            <el-descriptions-item label="关闭时间">{{ formatDateTime(detail.ticket.closedAt) }}</el-descriptions-item>
+          </el-descriptions>
+          <div class="event-title">流转记录</div>
+          <el-timeline v-if="detail.events?.length">
+            <el-timeline-item v-for="e in detail.events" :key="e.eventId" :timestamp="formatDateTime(e.createdAt)">
+              {{ e.action }}：{{ e.fromStatus || '无' }} → {{ e.toStatus }}
+              <span v-if="e.remark">（{{ e.remark }}）</span>
+            </el-timeline-item>
+          </el-timeline>
+          <el-empty v-else-if="detailHydrated" description="暂无流转记录" :image-size="48" />
+        </template>
+        <el-empty v-else-if="detailHydrated" description="详情加载失败" :image-size="64" />
+      </div>
     </el-drawer>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
+import PagePager from '@/components/PagePager.vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -270,6 +274,7 @@ const auth = useAuthStore();
 const route = useRoute();
 const { canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
+const listHydrated = ref(false);
 const saving = ref(false);
 const rows = ref<Ticket[]>([]);
 const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById } = useIdColumnSort<Ticket>('ticketId');
@@ -284,6 +289,7 @@ const faultType = ref('');
 const deviceOptions = ref<DeviceOpt[]>([]);
 const createVisible = ref(false);
 const detailVisible = ref(false);
+const detailHydrated = ref(false);
 const detail = ref<Detail | null>(null);
 const form = reactive({
   deviceId: '',
@@ -346,6 +352,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
@@ -385,11 +392,19 @@ async function create() {
 }
 
 async function openDetail(row: Ticket) {
+  // 切换工单才清空；同单重开保留壳 + hydrated 门控
+  if (detail.value?.ticket?.ticketId !== row.ticketId) {
+    detail.value = null;
+    detailHydrated.value = false;
+  }
+  detailVisible.value = true;
   try {
     detail.value = await api.request<Detail>(`/api/v2/ops/admin/repair-tickets/${row.ticketId}`, 'GET');
-    detailVisible.value = true;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载详情失败');
+    if (!detailHydrated.value) detail.value = null;
+  } finally {
+    detailHydrated.value = true;
   }
 }
 
@@ -462,4 +477,5 @@ onMounted(async () => {
 .hint { font-size: 12px; color: var(--el-text-color-secondary); }
 .page-pager { margin-top: 12px; display: flex; justify-content: flex-end; }
 .event-title { margin: 16px 0 8px; font-weight: 600; }
+.repair-detail-pane { min-height: 160px; }
 </style>

@@ -33,7 +33,7 @@
     </div>
 
     <el-alert
-      v-if="stuckOnly ? total > 0 : pageStuckCount > 0"
+      v-if="listHydrated && (stuckOnly ? total > 0 : pageStuckCount > 0)"
       :type="stuckOnly || pageStuckCount > 0 ? 'warning' : 'info'"
       :closable="false"
       show-icon
@@ -86,10 +86,9 @@
           table-layout="auto"
           row-key="sessionId"
           :row-class-name="rowClassName"
-          @selection-change="onSelectionChange"
-        >
+          @selection-change="onSelectionChange" empty-text=" ">
           <template #empty>
-            <el-empty :description="emptyHint" :image-size="88" />
+            <el-empty v-if="listHydrated && !loading" :description="emptyHint" :image-size="88" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="sessionId" label="会话编号" min-width="168" align="center" class-name="col-text" sortable="custom">
@@ -171,8 +170,7 @@
       </div>
     </div>
 
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="total"
@@ -182,12 +180,12 @@
         @current-change="load"
         @size-change="onSizeChange"
       />
-    </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
+import PagePager from '@/components/PagePager.vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -222,6 +220,7 @@ const route = useRoute();
 const { router, goPath } = useNavAccess();
 const { playSessionVideo } = useSessionVideo();
 const loading = ref(false);
+const listHydrated = ref(false);
 const helpOpen = ref(false);
 const keyword = ref('');
 const uploadStatus = ref('');
@@ -502,6 +501,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

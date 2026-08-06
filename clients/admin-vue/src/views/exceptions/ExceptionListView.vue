@@ -38,7 +38,7 @@
       </el-form>
 
       <el-alert
-        v-if="overdueOnly ? total > 0 : pageOverdueCount > 0"
+        v-if="listHydrated && (overdueOnly ? total > 0 : pageOverdueCount > 0)"
         type="error"
         :closable="false"
         show-icon
@@ -52,7 +52,7 @@
         <el-tab-pane
           v-for="item in statusTabOptions"
           :key="item.value"
-          :label="`${item.label} (${statusCounts[item.value as keyof typeof statusCounts] || 0})`"
+          :label="statusTabLabel(item.label, item.value)"
           :name="item.value"
         />
         <el-tab-pane label="全部" name="ALL" />
@@ -67,7 +67,7 @@
             border
             class="report-table"
            
-            :empty-text="emptyHint"
+            empty-text=" "
             :row-class-name="rowClassName"
             table-layout="auto"
             row-key="exceptionId"
@@ -75,6 +75,9 @@
             @sort-change="onIdSortChange"
             @selection-change="onSelectionChange"
           >
+            <template #empty>
+              <el-empty v-if="listHydrated && !loading" :description="emptyHint" />
+            </template>
             <el-table-column type="selection" width="48" align="center" />
             <el-table-column prop="exceptionId" label="异常编号" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
               <template #default="{ row }">
@@ -177,8 +180,7 @@
         </div>
       </div>
 
-      <div class="page-pager">
-        <el-pagination
+      <PagePager :hydrated="listHydrated"
           v-model:current-page="page"
           v-model:page-size="size"
           :total="total"
@@ -188,7 +190,6 @@
           @current-change="load"
           @size-change="onSizeChange"
         />
-      </div>
     </el-card>
 
     <el-drawer
@@ -201,7 +202,8 @@
       class="exception-workbench drawer-workbench"
       @closed="onDrawerClosed"
     >
-      <div v-loading="detailLoading" v-if="detail">
+      <div v-loading="detailLoading" class="exception-drawer-body">
+        <template v-if="detail">
         <el-alert
           v-if="resolveFeedback"
           type="success"
@@ -225,12 +227,13 @@
               />
             </div>
             <el-empty
-              v-else-if="!videoLoading && detail.exception.sessionId"
-              description="暂无录像或尚未加载"
+              v-else-if="videoAttempted && !videoLoading && detail.exception.sessionId"
+              description="暂无录像或加载失败"
               :image-size="72"
             />
             <el-empty v-else-if="!detail.exception.sessionId" description="无关联会话" :image-size="72" />
-            <div v-else class="video-loading">录像加载中…</div>
+            <div v-else-if="videoLoading" class="video-loading">录像加载中…</div>
+            <div v-else class="video-loading muted">尚未加载录像</div>
             <div v-if="detail.exception.sessionId" class="drawer-actions drawer-actions--tight">
               <el-button
                 v-if="auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload')"
@@ -401,6 +404,7 @@
             <div class="action-detail">{{ formatOpsActionDetail(action.detail) }}</div>
           </el-timeline-item>
         </el-timeline>
+        </template>
       </div>
     </el-drawer>
   </div>
@@ -413,6 +417,7 @@ import { CircleCheck, Monitor, Refresh, UserFilled, VideoCamera, View } from '@e
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
@@ -467,6 +472,7 @@ interface Sku { skuId: string; skuName: string; priceCents: number }
 
 const loading = ref(false);
 const videoLoading = ref(false);
+const videoAttempted = ref(false);
 const inlineVideoUrl = ref('');
 const inlineVideoError = ref('');
 let inlineVideoRevoke: (() => void) | null = null;
@@ -480,6 +486,8 @@ const total = ref(0);
 const items = ref<OpsException[]>([]);
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('exceptionId');
 const statusCounts = reactive({ OPEN: 0, PROCESSING: 0, RESOLVED: 0, CLOSED: 0 });
+/** 首屏未完成加载前不展示「0 / 暂无」，避免与工作台计数短暂不一致 */
+const listHydrated = ref(false);
 const drawer = ref(false);
 const detailLoading = ref(false);
 const detail = ref<OpsDetail | null>(null);
@@ -528,6 +536,12 @@ const emptyHint = computed(() => {
     ? '当前无待处理异常，可切换「全部」查看历史'
     : '暂无异常';
 });
+
+function statusTabLabel(label: string, value: string) {
+  if (!listHydrated.value) return `${label} (—)`;
+  const key = value as keyof typeof statusCounts;
+  return `${label} (${statusCounts[key] || 0})`;
+}
 
 const DUE_SOON_MS = 2 * 60 * 60 * 1000;
 
@@ -631,6 +645,7 @@ function clearInlineVideo() {
 }
 
 function onDrawerClosed() {
+  videoAttempted.value = false;
   clearInlineVideo();
   resolveFeedback.value = '';
   manualReason.value = '';
@@ -666,6 +681,7 @@ async function loadInlineVideo(sessionId?: string, force = false) {
     inlineVideoError.value = e instanceof Error ? e.message : '播放失败';
     ElMessage.error(inlineVideoError.value);
   } finally {
+    videoAttempted.value = true;
     videoLoading.value = false;
   }
 }
@@ -744,10 +760,11 @@ async function load() {
       statusCounts[apiStatus as keyof typeof statusCounts] = data.total || 0;
     }
     clearSelection();
-    void refreshStatusCounts();
+    await refreshStatusCounts();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
@@ -805,9 +822,12 @@ async function resolve(row: OpsException) {
 }
 async function openDetail(row: OpsException) {
   clearInlineVideo();
+  videoAttempted.value = false;
   resolveFeedback.value = '';
   manualReason.value = '';
   manualLines.value = [{ skuId: '', quantity: 1 }];
+  // 切换异常才清空，同单 refreshDetail 保留内容 + loading 遮罩
+  if (detail.value?.exception?.exceptionId !== row.exceptionId) detail.value = null;
   drawer.value = true;
   detailLoading.value = true;
   try {

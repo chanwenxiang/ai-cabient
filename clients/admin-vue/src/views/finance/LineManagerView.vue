@@ -10,7 +10,7 @@
         </div>
         <div class="page-card-head__actions">
           <el-button v-hasPermi="['ops:line-manager:edit']" type="primary" @click="openCreate">新建线长</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="reload">刷新</el-button>
+          <el-button :icon="Refresh" :loading="tab === 'withdraws' ? withdrawsLoading : managersLoading" @click="reload">刷新</el-button>
         </div>
       </div>
     </template>
@@ -39,13 +39,15 @@
         <div class="table-scroll">
           <el-table
             :data="managers"
-            v-loading="loading"
+            v-loading="managersLoading"
             stripe
             border
             class="report-table"
+            empty-text=" "
             :default-sort="idDefaultSort"
             @sort-change="onIdSortChange"
           >
+            <template #empty><el-empty v-if="managersHydrated && !managersLoading" description="暂无线长" /></template>
             <el-table-column prop="managerId" label="经理编号" width="100" align="center" class-name="col-text" sortable="custom">
               <template #default="{ row }">
                 <span class="cell-id">{{ row.managerId }}</span>
@@ -89,8 +91,7 @@
             </el-table-column>
           </el-table>
         </div>
-        <div class="page-pager">
-          <el-pagination
+        <PagePager :hydrated="managersHydrated"
             v-model:current-page="mPage"
             v-model:page-size="mSize"
             :total="mTotal"
@@ -100,7 +101,6 @@
             @current-change="loadManagers"
             @size-change="onManagerSizeChange"
           />
-        </div>
       </el-tab-pane>
 
       <el-tab-pane label="提现审核" name="withdraws">
@@ -121,7 +121,8 @@
         </el-form>
 
         <div class="table-scroll">
-          <el-table :data="withdraws" v-loading="loading" stripe border class="report-table">
+          <el-table :data="withdraws" v-loading="withdrawsLoading" stripe border class="report-table" empty-text=" ">
+            <template #empty><el-empty v-if="withdrawsHydrated && !withdrawsLoading" description="暂无提现申请" /></template>
             <el-table-column prop="requestId" label="单号" width="80" align="center" />
             <el-table-column prop="requestNo" label="幂等号" min-width="160" show-overflow-tooltip align="center" />
             <el-table-column prop="managerName" label="线长" width="100" align="center" />
@@ -158,8 +159,7 @@
             </el-table-column>
           </el-table>
         </div>
-        <div class="page-pager">
-          <el-pagination
+        <PagePager :hydrated="withdrawsHydrated"
             v-model:current-page="wPage"
             v-model:page-size="wSize"
             :total="wTotal"
@@ -169,7 +169,6 @@
             @current-change="loadWithdraws"
             @size-change="onWithdrawSizeChange"
           />
-        </div>
       </el-tab-pane>
     </el-tabs>
 
@@ -216,7 +215,10 @@
     </el-dialog>
 
     <el-drawer v-model="ledgerVisible" title="钱包流水" size="520px">
-      <el-table :data="ledgers" size="small" stripe>
+      <el-table v-loading="!ledgerHydrated" :data="ledgers" size="small" stripe empty-text=" ">
+        <template #empty>
+          <el-empty v-if="ledgerHydrated" description="暂无流水" :image-size="64" />
+        </template>
         <el-table-column prop="entryType" label="类型" width="130" align="center" />
         <el-table-column label="变动(元)" width="100" align="center">
           <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
@@ -239,6 +241,7 @@
 
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
+import PagePager from '@/components/PagePager.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
@@ -286,7 +289,10 @@ interface DeviceOpt {
 
 const auth = useAuthStore();
 const tab = ref('managers');
-const loading = ref(false);
+const managersLoading = ref(false);
+const withdrawsLoading = ref(false);
+const managersHydrated = ref(false);
+const withdrawsHydrated = ref(false);
 const saving = ref(false);
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('managerId', {
   onChange: () => {
@@ -311,6 +317,7 @@ const bindTarget = ref<Manager | null>(null);
 const bindDeviceId = ref('');
 const deviceOptions = ref<DeviceOpt[]>([]);
 const ledgerVisible = ref(false);
+const ledgerHydrated = ref(false);
 const ledgers = ref<any[]>([]);
 const form = reactive({
   managerName: '',
@@ -344,7 +351,7 @@ async function loadDevices() {
 }
 
 async function loadManagers() {
-  loading.value = true;
+  managersLoading.value = true;
   try {
     const q = new URLSearchParams({ page: String(mPage.value - 1), size: String(mSize.value) });
     if (keyword.value.trim()) q.set('keyword', keyword.value.trim());
@@ -358,12 +365,13 @@ async function loadManagers() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
-    loading.value = false;
+    managersHydrated.value = true;
+    managersLoading.value = false;
   }
 }
 
 async function loadWithdraws() {
-  loading.value = true;
+  withdrawsLoading.value = true;
   try {
     const q = new URLSearchParams({ page: String(wPage.value - 1), size: String(wSize.value) });
     if (wStatus.value) q.set('status', wStatus.value);
@@ -376,7 +384,8 @@ async function loadWithdraws() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
-    loading.value = false;
+    withdrawsHydrated.value = true;
+    withdrawsLoading.value = false;
   }
 }
 
@@ -483,8 +492,16 @@ async function adjust(row: Manager) {
 }
 
 async function showLedgers(row: Manager) {
-  ledgers.value = await api.request(`/api/v2/ops/admin/line-managers/${row.managerId}/ledgers?limit=50`, 'GET');
+  ledgers.value = [];
   ledgerVisible.value = true;
+  try {
+    ledgers.value = await api.request(`/api/v2/ops/admin/line-managers/${row.managerId}/ledgers?limit=50`, 'GET');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载流水失败');
+    ledgers.value = [];
+  } finally {
+    ledgerHydrated.value = true;
+  }
 }
 
 async function proxyWithdraw(row: Manager) {

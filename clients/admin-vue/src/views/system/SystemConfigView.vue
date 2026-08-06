@@ -45,9 +45,10 @@
           border
           class="report-table"
           row-key="configKey"
-          @selection-change="onSelectionChange"
-        >
-          <template #empty><el-empty description="暂无参数" /></template>
+          @selection-change="onSelectionChange" empty-text=" ">
+          <template #empty>
+            <el-empty v-if="listHydrated && !loading" description="暂无参数" />
+          </template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="配置键" min-width="180" align="center" class-name="col-text">
             <template #default="{ row }">
@@ -84,8 +85,7 @@
       </div>
     </div>
 
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="filtered.length"
@@ -93,7 +93,6 @@
         layout="total, sizes, prev, pager, next"
         background
       />
-    </div>
 
     <el-dialog v-model="dialogVisible" :title="creating ? '新增参数' : '编辑参数'" width="480px" destroy-on-close>
       <el-form label-width="88px">
@@ -122,6 +121,7 @@ import { Delete, EditPen, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
@@ -139,6 +139,7 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const loading = ref(false);
+const listHydrated = ref(false);
 const saving = ref(false);
 const keyword = ref('');
 const page = ref(1);
@@ -269,6 +270,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

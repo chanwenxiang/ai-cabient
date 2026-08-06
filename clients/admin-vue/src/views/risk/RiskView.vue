@@ -13,7 +13,7 @@
             加入黑名单
           </el-button>
           <el-button v-hasPermi="['ops:risk:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="reloadCurrent">刷新</el-button>
+          <el-button :icon="Refresh" :loading="tab === 'blacklist' ? blacklistLoading : eventsLoading" @click="reloadCurrent">刷新</el-button>
         </div>
       </div>
     </template>
@@ -23,15 +23,16 @@
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
-              v-loading="loading"
+              v-loading="eventsLoading"
               :data="events"
               stripe
               border
               class="report-table"
+              empty-text=" "
               row-key="eventId"
               @selection-change="onEventsSelectionChange"
             >
-              <template #empty><el-empty description="暂无风险事件" /></template>
+              <template #empty><el-empty v-if="eventsHydrated && !eventsLoading" description="暂无风险事件" /></template>
               <el-table-column type="selection" width="48" align="center" />
               <el-table-column label="事件" min-width="140" align="center" class-name="col-text">
                 <template #default="{ row }">
@@ -69,8 +70,7 @@
             </el-table>
           </div>
         </div>
-        <div class="page-pager">
-          <el-pagination
+        <PagePager :hydrated="eventsHydrated"
             v-model:current-page="eventPage"
             v-model:page-size="eventSize"
             :total="eventTotal"
@@ -80,22 +80,22 @@
             @current-change="loadEvents"
             @size-change="onEventSizeChange"
           />
-        </div>
       </el-tab-pane>
 
       <el-tab-pane label="黑名单" name="blacklist">
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
-              v-loading="loading"
+              v-loading="blacklistLoading"
               :data="blacklist"
               stripe
               border
               class="report-table"
+              empty-text=" "
               row-key="userId"
               @selection-change="onBlacklistSelectionChange"
             >
-              <template #empty><el-empty description="暂无黑名单" /></template>
+              <template #empty><el-empty v-if="blacklistHydrated && !blacklistLoading" description="暂无黑名单" /></template>
               <el-table-column type="selection" width="48" align="center" />
               <el-table-column label="用户" width="120" align="center" class-name="col-text">
                 <template #default="{ row }">
@@ -166,6 +166,7 @@ import { Delete, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
@@ -181,7 +182,10 @@ const { router, goPath } = useNavAccess();
 const auth = useAuthStore();
 const canBlacklist = computed(() => auth.hasPerm('ops:risk:blacklist'));
 
-const loading = ref(false);
+const eventsLoading = ref(false);
+const blacklistLoading = ref(false);
+const eventsHydrated = ref(false);
+const blacklistHydrated = ref(false);
 const saving = ref(false);
 const tab = ref('events');
 const events = ref<Row[]>([]);
@@ -280,7 +284,7 @@ function applyRouteQuery() {
 }
 
 async function loadEvents() {
-  loading.value = true;
+  eventsLoading.value = true;
   try {
     const q = new URLSearchParams({
       page: String(Math.max(0, eventPage.value - 1)),
@@ -302,7 +306,8 @@ async function loadEvents() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '风险事件加载失败');
   } finally {
-    loading.value = false;
+    eventsHydrated.value = true;
+    eventsLoading.value = false;
   }
 }
 
@@ -314,10 +319,11 @@ function onEventSizeChange() {
 async function loadBlacklist() {
   if (!canBlacklist.value) {
     blacklist.value = [];
+    blacklistHydrated.value = true;
     ElMessage.warning('当前账号无黑名单权限');
     return;
   }
-  loading.value = true;
+  blacklistLoading.value = true;
   try {
     blacklist.value = await api.request<Row[]>('/api/v2/ops/admin/risk/blacklist', 'GET');
     clearBlacklistSelection();
@@ -325,7 +331,8 @@ async function loadBlacklist() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '黑名单加载失败');
   } finally {
-    loading.value = false;
+    blacklistHydrated.value = true;
+    blacklistLoading.value = false;
   }
 }
 

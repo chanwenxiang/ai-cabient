@@ -10,7 +10,7 @@
         </div>
         <div class="page-card-head__actions">
           <el-button v-hasPermi="['ops:fund:export']" @click="exportCsv">{{ exportLabel }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+          <el-button :icon="Refresh" :loading="tab === 'ledger' ? ledgerLoading : loading" @click="reloadCurrent">刷新</el-button>
         </div>
       </div>
     </template>
@@ -60,9 +60,8 @@
           border
           class="report-table"
           row-key="rowKey"
-          @selection-change="onBillSelectionChange"
-        >
-          <template #empty><el-empty description="暂无账单" /></template>
+          @selection-change="onBillSelectionChange" empty-text=" ">
+          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无账单" /></template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="bizDate" label="账期" width="120" align="center" />
           <el-table-column prop="merchantId" label="商户编号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
@@ -97,8 +96,7 @@
             </template>
           </el-table-column>
         </el-table>
-        <div class="page-pager">
-          <el-pagination
+        <PagePager :hydrated="listHydrated"
             v-model:current-page="billPage"
             v-model:page-size="billSize"
             :total="filteredBills.length"
@@ -106,7 +104,6 @@
             layout="total, sizes, prev, pager, next"
             background
           />
-        </div>
       </el-tab-pane>
 
       <el-tab-pane label="账务明细" name="ledger">
@@ -141,9 +138,8 @@
           border
           class="report-table"
           row-key="entryId"
-          @selection-change="onLedgerSelectionChange"
-        >
-          <template #empty><el-empty description="暂无流水" /></template>
+          @selection-change="onLedgerSelectionChange" empty-text=" ">
+          <template #empty><el-empty v-if="ledgerHydrated && !ledgerLoading" description="暂无流水" /></template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="entryId" label="分录号" width="100" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
@@ -170,8 +166,7 @@
             <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
           </el-table-column>
         </el-table>
-        <div class="page-pager">
-          <el-pagination
+        <PagePager :hydrated="ledgerHydrated"
             v-model:current-page="ledgerPage"
             v-model:page-size="ledgerSize"
             :total="ledgerPagerTotal"
@@ -181,7 +176,6 @@
             @current-change="loadLedger"
             @size-change="onLedgerSizeChange"
           />
-        </div>
       </el-tab-pane>
     </el-tabs>
   </el-card>
@@ -189,6 +183,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import PagePager from '@/components/PagePager.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
@@ -227,7 +222,9 @@ const MAX_RANGE_DAYS = 90;
 
 const tab = ref('bills');
 const loading = ref(false);
+const listHydrated = ref(false);
 const ledgerLoading = ref(false);
+const ledgerHydrated = ref(false);
 const bills = ref<BillRow[]>([]);
 const ledger = ref<LedgerRow[]>([]);
 const keyword = ref('');
@@ -378,7 +375,7 @@ function onSearch() {
   billPage.value = 1;
   ledgerPage.value = 1;
   if (!assertRangeOk()) return;
-  load();
+  reloadCurrent();
 }
 
 function onLedgerFilterChange() {
@@ -391,7 +388,12 @@ function onLedgerSizeChange() {
   loadLedger();
 }
 
-async function load() {
+function reloadCurrent() {
+  if (tab.value === 'ledger') loadLedger();
+  else loadBills();
+}
+
+async function loadBills() {
   if (!assertRangeOk()) return;
   loading.value = true;
   try {
@@ -405,9 +407,9 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
-  if (tab.value === 'ledger') await loadLedger();
 }
 
 async function loadLedger() {
@@ -429,6 +431,7 @@ async function loadLedger() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '账务明细加载失败');
   } finally {
+    ledgerHydrated.value = true;
     ledgerLoading.value = false;
   }
 }
@@ -464,7 +467,7 @@ watch(tab, (v) => {
   if (v === 'ledger') loadLedger();
 });
 
-onMounted(load);
+onMounted(loadBills);
 </script>
 
 <style scoped>

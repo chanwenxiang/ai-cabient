@@ -17,8 +17,8 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table v-loading="loading" :data="items" stripe border class="report-table" row-key="releaseId">
-          <template #empty><el-empty description="暂无固件版本" /></template>
+        <el-table v-loading="loading" :data="items" stripe border class="report-table" row-key="releaseId" empty-text=" ">
+          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无固件版本" /></template>
           <el-table-column prop="appVersion" label="版本" min-width="120" align="center" class-name="col-text" />
           <el-table-column prop="channel" label="渠道" width="100" align="center" class-name="col-text" />
           <el-table-column prop="status" label="状态" width="100" align="center" />
@@ -96,6 +96,7 @@ interface OtaRelease {
 }
 
 const loading = ref(false);
+const listHydrated = ref(false);
 const saving = ref(false);
 const items = ref<OtaRelease[]>([]);
 const dialog = ref(false);
@@ -117,6 +118,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

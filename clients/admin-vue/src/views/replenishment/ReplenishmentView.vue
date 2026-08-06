@@ -8,11 +8,41 @@
             <span class="hint">路线 / 履约取证 / 要货 / 缺货；签到 GPS、用时与理货明细可核对现场履约</span>
           </div>
           <div class="kpi-tags">
-            <el-tag size="small" type="info">待执行 {{ plannedCount }}</el-tag>
-            <el-tag size="small" type="warning">待处理设备 {{ pendingTaskCount }}</el-tag>
-            <el-tag size="small" type="success">已履约 {{ fulfilledCount }}</el-tag>
-            <el-tag size="small">要货待审 {{ pendingRequestCount }}</el-tag>
-            <el-tag size="small" type="danger">临期 {{ expiryAlerts.length }}</el-tag>
+            <button
+              type="button"
+              class="kpi-tag-btn"
+              :aria-label="listHydrated ? `待执行 ${plannedCount}` : '待执行 — 加载中…'"
+            >
+              <el-tag size="small" type="info">待执行 {{ listHydrated ? plannedCount : '—' }}</el-tag>
+            </button>
+            <button
+              type="button"
+              class="kpi-tag-btn"
+              :aria-label="listHydrated ? `待处理设备 ${pendingTaskCount}` : '待处理设备 — 加载中…'"
+            >
+              <el-tag size="small" type="warning">待处理设备 {{ listHydrated ? pendingTaskCount : '—' }}</el-tag>
+            </button>
+            <button
+              type="button"
+              class="kpi-tag-btn"
+              :aria-label="listHydrated ? `已履约 ${fulfilledCount}` : '已履约 — 加载中…'"
+            >
+              <el-tag size="small" type="success">已履约 {{ listHydrated ? fulfilledCount : '—' }}</el-tag>
+            </button>
+            <button
+              type="button"
+              class="kpi-tag-btn"
+              :aria-label="listHydrated ? `要货待审 ${pendingRequestCount}` : '要货待审 — 加载中…'"
+            >
+              <el-tag size="small">要货待审 {{ listHydrated ? pendingRequestCount : '—' }}</el-tag>
+            </button>
+            <button
+              type="button"
+              class="kpi-tag-btn"
+              :aria-label="listHydrated && !expiryLoading ? `临期 ${expiryAlerts.length}` : '临期 — 加载中…'"
+            >
+              <el-tag size="small" type="danger">临期 {{ listHydrated && !expiryLoading ? expiryAlerts.length : '—' }}</el-tag>
+            </button>
             <el-tag v-if="focusDeviceId" size="small" type="success" closable @close="clearDeviceFocus">
               设备 {{ focusDeviceId }}
             </el-tag>
@@ -21,7 +51,7 @@
         <div class="page-card-head__actions">
           <el-button v-if="canEdit" type="primary" @click="openPlan">规划补货路线</el-button>
           <el-button v-hasPermi="['ops:replenishment:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+          <el-button :icon="Refresh" :loading="headerRefreshing" @click="reloadCurrent">刷新</el-button>
         </div>
       </div>
     </template>
@@ -31,16 +61,17 @@
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
-              v-loading="loading"
+              v-loading="isTabLoading('routes')"
               :data="pagedRoutes"
               stripe
               border
-              :empty-text="routesEmptyText"
+              empty-text=" "
               row-key="routeId"
               :default-sort="routeIdDefaultSort"
               @sort-change="onRouteIdSortChange"
               @selection-change="onRoutesSelectionChange"
             >
+            <template #empty><el-empty v-if="listHydrated && !isTabLoading('routes')" :description="routesEmptyText" /></template>
             <el-table-column type="selection" width="48" align="center" />
 <el-table-column type="expand" align="center">
             <template #default="{ row }">
@@ -50,7 +81,7 @@
                   <span>负责人：{{ row.assigneeUserId || '未分配' }}</span>
                   <span>预计里程：{{ row.totalDistanceM ? `${row.totalDistanceM} 米` : '未计算' }}</span>
                 </div>
-                <el-table :data="sortedRouteTasks(row.tasks)" size="small" class="line-table">
+                <el-table :data="sortedRouteTasks(row.tasks)" size="small" class="line-table" empty-text=" ">
                   <el-table-column label="任务" width="88" align="center" class-name="col-text">
                     <template #default="scope">
                       <span class="cell-id">#{{ scope.row.taskId }}</span>
@@ -144,7 +175,7 @@
                       >{{ openDoorHint(scope.row) }}</span>
                     </template>
                   </el-table-column>
-                  <template #empty><el-empty description="该路线暂无设备任务" :image-size="48" /></template>
+                  <template #empty><el-empty v-if="listHydrated && !isTabLoading('routes')" description="该路线暂无设备任务" :image-size="48" /></template>
                 </el-table>
               </div>
             </template>
@@ -180,7 +211,6 @@
               >{{ row.status === 'CANCELLED' ? '收口脏出库' : '取消空路线' }}</el-button>
             </template>
           </el-table-column>
-          <template #empty><el-empty description="暂无补货路线" /></template>
             </el-table>
           </div>
         </div>
@@ -210,16 +240,17 @@
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
-              v-loading="loading"
+              v-loading="isTabLoading('fulfillment')"
               :data="pagedFulfillment"
               stripe
               border
               class="report-table"
+              empty-text=" "
               row-key="taskId"
-              :empty-text="fulfillmentEmptyText"
               :default-sort="taskIdDefaultSort"
               @sort-change="onTaskIdSortChange"
             >
+              <template #empty><el-empty v-if="listHydrated && !isTabLoading('fulfillment')" :description="fulfillmentEmptyText" /></template>
               <el-table-column prop="taskId" label="任务" width="88" align="center" class-name="col-text" sortable="custom">
                 <template #default="{ row }">
                   <span class="cell-id">#{{ row.taskId }}</span>
@@ -293,7 +324,6 @@
                   </el-button>
                 </template>
               </el-table-column>
-              <template #empty><el-empty description="暂无履约记录" /></template>
             </el-table>
           </div>
         </div>
@@ -311,15 +341,16 @@
             </el-radio-button>
             <el-radio-button value="ALL">全部</el-radio-button>
           </el-radio-group>
-          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+          <el-button :icon="Refresh" :loading="isTabLoading('requests')" @click="reloadCurrent">刷新</el-button>
         </div>
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
-              v-loading="loading"
+              v-loading="isTabLoading('requests')"
               :data="pagedRequests"
               stripe
               border
+              empty-text=" "
               row-key="requestId"
               :default-sort="requestIdDefaultSort"
               @sort-change="onRequestIdSortChange"
@@ -383,7 +414,7 @@
               />
             </template>
           </el-table-column>
-          <template #empty><el-empty :description="requestsEmptyText" /></template>
+          <template #empty><el-empty v-if="listHydrated && !isTabLoading('requests')" :description="requestsEmptyText" /></template>
             </el-table>
           </div>
         </div>
@@ -399,14 +430,15 @@
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
-              v-loading="shortageLoading"
+              v-loading="isTabLoading('shortage') || shortageLoading"
               :data="pagedShortages"
               stripe
               border
-              empty-text="当前无缺货/低库存货道"
+              empty-text=" "
               row-key="slotKey"
               @selection-change="onShortageSelectionChange"
             >
+              <template #empty><el-empty v-if="listHydrated && !isTabLoading('shortage') && !shortageLoading" description="当前无缺货/低库存货道" /></template>
               <el-table-column type="selection" width="48" align="center" />
               <el-table-column label="设备" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
                 <template #default="{ row }">
@@ -452,14 +484,15 @@
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
-              v-loading="expiryLoading"
+              v-loading="isTabLoading('expiry') || expiryLoading"
               :data="pagedExpiry"
               stripe
               border
-              empty-text="当前无临期下架任务"
+              empty-text=" "
               row-key="taskId"
               @selection-change="onExpirySelectionChange"
             >
+              <template #empty><el-empty v-if="listHydrated && !isTabLoading('expiry') && !expiryLoading" description="当前无临期下架任务" /></template>
               <el-table-column type="selection" width="48" align="center" />
               <el-table-column label="设备" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
                 <template #default="{ row }">
@@ -521,8 +554,7 @@
         </div>
       </el-tab-pane>
     </el-tabs>
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="tabTotal"
@@ -530,7 +562,6 @@
         layout="total, sizes, prev, pager, next"
         background
       />
-    </div>
 
     <el-drawer
       v-model="linesDrawer"
@@ -559,6 +590,7 @@
           <el-descriptions-item v-if="linesTask.notes" label="说明">{{ linesTask.notes }}</el-descriptions-item>
         </el-descriptions>
         <el-alert
+          v-if="!linesLoading"
           class="lines-photo-hint"
           type="info"
           :closable="false"
@@ -585,7 +617,10 @@
           </div>
         </div>
         <div class="table-scroll">
-        <el-table :data="taskLines" stripe border size="small" empty-text="暂无理货明细（未上架或未确认）">
+        <el-table :data="taskLines" stripe border size="small" empty-text=" ">
+          <template #empty>
+            <el-empty v-if="!linesLoading" description="暂无理货明细（未上架或未确认）" :image-size="48" />
+          </template>
           <el-table-column label="类型" width="88" align="center">
             <template #default="{ row }">{{ lineTypeLabel(row.lineType) }}</template>
           </el-table-column>
@@ -732,6 +767,7 @@ import { Check, Close, Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -771,6 +807,40 @@ function sortedRouteTasks(tasks: Row[] | undefined | null): Row[] {
 }
 
 const loading = ref(false);
+const loadingTabs = ref(new Set<string>());
+const listHydrated = ref(false);
+
+function isTabLoading(name: string) {
+  return loadingTabs.value.has(name);
+}
+
+const headerRefreshing = computed(() => {
+  if (tab.value === 'shortage') return isTabLoading('shortage') || shortageLoading.value;
+  if (tab.value === 'expiry') return isTabLoading('expiry') || expiryLoading.value;
+  return isTabLoading(tab.value);
+});
+
+function markTabsLoading(names: string[], on: boolean) {
+  const next = new Set(loadingTabs.value);
+  for (const name of names) {
+    if (on) next.add(name);
+    else next.delete(name);
+  }
+  loadingTabs.value = next;
+}
+
+function reloadCurrent() {
+  if (tab.value === 'shortage') {
+    void loadShortage();
+    return;
+  }
+  if (tab.value === 'expiry') {
+    void loadExpiryAlerts();
+    return;
+  }
+  void load();
+}
+
 const saving = ref(false);
 const shortageLoading = ref(false);
 const expiryLoading = ref(false);
@@ -1865,6 +1935,10 @@ function formatRequestLines(row: Row) {
 }
 
 async function load() {
+  const allTabs = ['routes', 'fulfillment', 'requests', 'shortage', 'expiry'];
+  // 首屏：各 Tab 都转；刷新：仅当前 Tab 转，避免切到未激活面板也整屏 loading
+  const spinTabs = listHydrated.value ? [tab.value] : allTabs;
+  markTabsLoading(spinTabs, true);
   loading.value = true;
   try {
     // devices / discrepancies 可能对补货员等窄权限角色 403；勿与路线/要货绑死在同一 Promise.all
@@ -1913,7 +1987,9 @@ async function load() {
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '补货数据加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
+    markTabsLoading(spinTabs, false);
   }
 }
 
@@ -1991,6 +2067,16 @@ onActivated(() => {
 .title { font-weight: 600; font-size: 15px; }
 .hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
 .kpi-tags { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.kpi-tag-btn {
+  display: inline-flex;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: default;
+}
 .page-card-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .route-detail { padding: 8px 44px 12px; }
 .route-meta { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 12px; color: var(--layout-muted); font-size: 13px; }

@@ -17,17 +17,17 @@
     <div class="profile-head">
       <el-avatar :size="64" class="avatar">{{ initial }}</el-avatar>
       <div class="name-cell">
-        <strong class="display-name">{{ auth.displayName }}</strong>
-        <small>{{ auth.phone || '无' }}</small>
-        <small class="cell-id">ID {{ auth.userId || '无' }}</small>
+        <strong class="display-name">{{ profileReady ? auth.displayName : '—' }}</strong>
+        <small>{{ profileReady ? (auth.phone || '无') : '—' }}</small>
+        <small class="cell-id">ID {{ profileReady ? (auth.userId || '无') : '—' }}</small>
       </div>
     </div>
 
     <el-descriptions :column="1" border class="profile-desc">
-      <el-descriptions-item label="角色">{{ auth.roleText || '无' }}</el-descriptions-item>
-      <el-descriptions-item label="数据范围">{{ auth.dataScopeText }}</el-descriptions-item>
+      <el-descriptions-item label="角色">{{ profileReady ? auth.roleText : '—' }}</el-descriptions-item>
+      <el-descriptions-item label="数据范围">{{ profileReady ? auth.dataScopeText : '—' }}</el-descriptions-item>
       <el-descriptions-item label="权限数">
-        {{ auth.profile?.permissionCount ?? permissions.length }}
+        {{ profileReady ? (auth.profile?.permissionCount ?? permissions.length) : '—' }}
       </el-descriptions-item>
       <el-descriptions-item label="主题">
         <el-tag size="small" :type="settings.theme === 'dark' ? 'info' : 'success'" effect="plain">
@@ -63,8 +63,11 @@ import { useSettingsStore } from '@/stores/settings';
 const auth = useAuthStore();
 const settings = useSettingsStore();
 const loading = ref(false);
+const profileHydrated = ref(!!auth.profile);
 
 const permissions = computed(() => auth.permissions);
+/** 有缓存资料则直接展示；首屏未拉完前不闪「无 / 未分配角色」 */
+const profileReady = computed(() => !!auth.profile || (profileHydrated.value && !loading.value));
 const initial = computed(() => (auth.displayName || '运').slice(0, 1));
 const fontLabel = computed(() => ({ sm: '小', md: '中', lg: '大' })[settings.fontSize]);
 const actionLabel = computed(() => (settings.tableActionMode === 'label' ? '图标+文字' : '图标'));
@@ -76,6 +79,7 @@ async function reload() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    profileHydrated.value = true;
     loading.value = false;
   }
 }

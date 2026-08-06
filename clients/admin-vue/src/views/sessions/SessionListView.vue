@@ -58,7 +58,7 @@
     </el-form>
 
     <el-alert
-      v-if="stuckOnly ? total > 0 : pageStuckCount > 0"
+      v-if="listHydrated && (stuckOnly ? total > 0 : pageStuckCount > 0)"
       type="warning"
       :closable="false"
       show-icon
@@ -80,10 +80,9 @@
           class="report-table"
           row-key="sessionId"
           :row-class-name="rowClassName"
-          @selection-change="onSelectionChange"
-        >
+          @selection-change="onSelectionChange" empty-text=" ">
           <template #empty>
-            <el-empty :description="stuckOnly ? `当前无超过 ${STALE_MINUTES} 分钟的滞留会话` : '暂无开门记录'" />
+            <el-empty v-if="listHydrated && !loading" :description="stuckOnly ? `当前无超过 ${STALE_MINUTES} 分钟的滞留会话` : '暂无开门记录'" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="sessionId" label="会话编号" min-width="160" align="center" class-name="col-text" sortable="custom">
@@ -177,8 +176,7 @@
       </div>
     </div>
 
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="total"
@@ -188,7 +186,6 @@
         @current-change="load"
         @size-change="onSizeChange"
       />
-    </div>
 
     <el-drawer v-model="timelineOpen" title="会话时间线" size="420px" destroy-on-close>
       <template v-if="timelineRow">
@@ -259,6 +256,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -308,6 +306,7 @@ const { router, canAccessPath, goPath } = useNavAccess();
 const { playSessionVideo } = useSessionVideo();
 const auth = useAuthStore();
 const loading = ref(false);
+const listHydrated = ref(false);
 const videoLoading = ref(false);
 const keyword = ref('');
 const createdRange = ref<[string, string] | null>(null);
@@ -670,6 +669,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

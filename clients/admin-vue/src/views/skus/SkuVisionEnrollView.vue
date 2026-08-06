@@ -113,10 +113,9 @@
           class="report-table sku-table"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-        >
+          @selection-change="onSelectionChange" empty-text=" ">
           <template #empty>
-            <el-empty :description="skuEmptyText" />
+            <el-empty v-if="listHydrated && !loading" :description="skuEmptyText" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="skuCode" label="编号" width="100" align="center" class-name="col-text" sortable="custom">
@@ -208,8 +207,7 @@
         </el-table>
       </div>
     </div>
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="filtered.length"
@@ -217,7 +215,6 @@
         layout="total, sizes, prev, pager, next"
         background
       />
-    </div>
 
     <el-dialog v-model="enrollDialog" :title="enrollForm.existing ? '编辑识别入驻' : '识别入驻配置'" width="640px">
       <el-form label-width="108px">
@@ -357,6 +354,7 @@ import { ElMessage, ElMessageBox, type UploadRequestOptions } from 'element-plus
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
@@ -391,6 +389,7 @@ function goSkus() {
   router.push('/skus');
 }
 const loading = ref(false);
+const listHydrated = ref(false);
 const saving = ref(false);
 const advancing = ref(false);
 const testing = ref(false);
@@ -1169,6 +1168,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

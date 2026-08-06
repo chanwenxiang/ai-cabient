@@ -61,9 +61,8 @@
           row-key="activityId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-        >
-          <template #empty><el-empty description="暂无活动" /></template>
+          @selection-change="onSelectionChange" empty-text=" ">
+          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无活动" /></template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="activityId" label="活动编号" width="80" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
@@ -115,8 +114,7 @@
         </el-table>
       </div>
     </div>
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="filtered.length"
@@ -124,7 +122,6 @@
         layout="total, sizes, prev, pager, next"
         background
       />
-    </div>
 
     <el-dialog v-model="showDialog" :title="editingId ? '编辑活动' : '新建活动'" width="560px" destroy-on-close>
       <el-form :model="form" label-width="96px">
@@ -163,6 +160,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName, csvRowsToObjects, downloadCsv, parseCsv } from '@/utils/csv';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -172,6 +170,7 @@ const router = useRouter();
 const auth = useAuthStore();
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('activityId');
 const loading = ref(false);
+const listHydrated = ref(false);
 const saving = ref(false);
 const importing = ref(false);
 const list = ref<any[]>([]);
@@ -280,6 +279,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

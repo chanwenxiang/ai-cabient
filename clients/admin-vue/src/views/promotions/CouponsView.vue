@@ -62,9 +62,8 @@
           row-key="couponDefId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-        >
-          <template #empty><el-empty description="暂无优惠券" /></template>
+          @selection-change="onSelectionChange" empty-text=" ">
+          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无优惠券" /></template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="couponDefId" label="券定义编号" width="100" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
@@ -117,8 +116,7 @@
         </el-table>
       </div>
     </div>
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="filtered.length"
@@ -126,7 +124,6 @@
         layout="total, sizes, prev, pager, next"
         background
       />
-    </div>
 
     <el-dialog v-model="showCreate" :title="editingId ? '编辑优惠券' : '新建优惠券'" width="500px" destroy-on-close>
       <el-form :model="createForm" label-width="100px">
@@ -196,6 +193,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
@@ -206,6 +204,7 @@ const router = useRouter();
 const auth = useAuthStore();
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('couponDefId');
 const loading = ref(false);
+const listHydrated = ref(false);
 const saving = ref(false);
 const list = ref<any[]>([]);
 const keyword = ref('');
@@ -401,6 +400,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
