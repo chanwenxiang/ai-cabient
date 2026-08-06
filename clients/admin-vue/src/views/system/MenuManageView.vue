@@ -63,9 +63,10 @@
           stripe
           border
           class="report-table menu-tree-table"
-          @selection-change="onSelectionChange"
-        >
-          <template #empty><el-empty description="暂无菜单" /></template>
+          @selection-change="onSelectionChange" empty-text=" ">
+          <template #empty>
+            <el-empty v-if="listHydrated && !loading" description="暂无菜单" />
+          </template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column
             label="名称"
@@ -177,6 +178,7 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const loading = ref(false);
+const listHydrated = ref(false);
 const saving = ref(false);
 const typeFilter = ref('');
 const keyword = ref('');
@@ -385,6 +387,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

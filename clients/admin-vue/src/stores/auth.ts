@@ -50,12 +50,21 @@ export const useAuthStore = defineStore('auth', () => {
   const activeNavLoaded = ref(readCachedActiveNav().length > 0);
   const phone = ref(localStorage.getItem('admin_phone') || '');
   const profile = ref<OpsProfile | null>(null);
+  /** 首屏 /me 未完成前勿用「未分配角色 / 运营账号」等默认文案占位 */
+  const profileHydrated = ref(false);
 
-  const displayName = computed(() => profile.value?.name || '运营账号');
-  const roleText = computed(() => (profile.value?.roleNames || []).join('、') || '未分配角色');
+  const displayName = computed(() => {
+    if (profile.value?.name) return profile.value.name;
+    return profileHydrated.value ? '运营账号' : '—';
+  });
+  const roleText = computed(() => {
+    if (!profile.value) return profileHydrated.value ? '未分配角色' : '—';
+    const names = (profile.value.roleNames || []).filter(Boolean);
+    return names.length ? names.join('、') : '未分配角色';
+  });
   const dataScopeText = computed(() => {
     const p = profile.value;
-    if (!p) return '数据范围未知';
+    if (!p) return profileHydrated.value ? '数据范围未知' : '—';
     if (p.globalDataScope !== false) return '全局数据范围';
     const names = (p.merchantNames || []).filter(Boolean);
     if (names.length) return `商户范围：${names.join('、')}`;
@@ -153,7 +162,9 @@ export const useAuthStore = defineStore('auth', () => {
       }
       localStorage.setItem('admin_userId', String(me.userId));
     } catch {
-      profile.value = null;
+      // soft fail: keep last good profile to avoid header/Profile flash to defaults
+    } finally {
+      profileHydrated.value = true;
     }
   }
 
@@ -166,6 +177,7 @@ export const useAuthStore = defineStore('auth', () => {
     activeNavLoaded.value = false;
     phone.value = '';
     profile.value = null;
+    profileHydrated.value = false;
     localStorage.removeItem(NAV_KEY);
   }
 
@@ -206,6 +218,7 @@ export const useAuthStore = defineStore('auth', () => {
     activeNavLoaded,
     phone,
     profile,
+    profileHydrated,
     displayName,
     roleText,
     dataScopeText,

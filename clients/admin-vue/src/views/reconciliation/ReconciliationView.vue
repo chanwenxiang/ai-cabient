@@ -63,9 +63,9 @@
     </el-form>
 
     <div class="kpi-tags">
-      <el-tag size="small" type="info">批次 {{ totalCount }}</el-tag>
-      <el-tag size="small" type="danger">差异 {{ mismatchBatchCount }}</el-tag>
-      <el-tag size="small" type="success">匹配 {{ matchedBatchCount }}</el-tag>
+      <el-tag size="small" type="info">批次 {{ listHydrated ? totalCount : '—' }}</el-tag>
+      <el-tag size="small" type="danger">差异 {{ listHydrated ? mismatchBatchCount : '—' }}</el-tag>
+      <el-tag size="small" type="success">匹配 {{ listHydrated ? matchedBatchCount : '—' }}</el-tag>
     </div>
 
     <div class="table-scroll">
@@ -78,9 +78,8 @@
           class="report-table"
           :row-class-name="rowClassName"
           row-key="reconId"
-          @selection-change="onSelectionChange"
-        >
-          <template #empty><el-empty description="暂无对账记录" /></template>
+          @selection-change="onSelectionChange" empty-text=" ">
+          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无对账记录" /></template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="对账" min-width="160" align="center" class-name="col-text">
             <template #default="{ row }">
@@ -125,8 +124,7 @@
         </el-table>
       </div>
     </div>
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="filtered.length"
@@ -134,7 +132,6 @@
         layout="total, sizes, prev, pager, next"
         background
       />
-    </div>
 
     <el-dialog v-model="runDialog" title="执行对账" width="480px" destroy-on-close>
       <p class="dialog-hint">按 T+1 节奏核对渠道流水与平台订单；请选择账期日期与渠道后执行。</p>
@@ -166,42 +163,54 @@
     </el-dialog>
 
     <el-drawer v-model="detailOpen" title="对账详情" size="520px" destroy-on-close>
-      <template v-if="detail">
-        <el-descriptions :column="1" border size="small">
-          <el-descriptions-item label="对账ID">
-            <span class="cell-id">{{ detail.summary?.reconId }}</span>
-          </el-descriptions-item>
-          <el-descriptions-item label="日期">{{ detail.summary?.reconDate }}</el-descriptions-item>
-          <el-descriptions-item label="渠道">
-            {{ dictLabel('pay_channel', detail.summary?.channel) }}
-          </el-descriptions-item>
-          <el-descriptions-item label="状态">
-            <el-tag :type="dictTagType(detail.summary?.status)" size="small">
-              {{ dictLabel('reconciliation_status', detail.summary?.status) }}
-            </el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="差异笔数">
-            <span :class="{ 'is-mismatch': (detail.summary?.mismatchCount ?? 0) > 0 }">
-              {{ detail.summary?.mismatchCount ?? 0 }}
-            </span>
-          </el-descriptions-item>
-        </el-descriptions>
-        <el-table :data="detail.lines || []" stripe border style="margin-top: 16px" max-height="360" size="small">
-          <el-table-column prop="platformTradeNo" label="平台流水" min-width="140" align="center" class-name="col-text" show-overflow-tooltip />
-          <el-table-column prop="merchantOrderNo" label="商户单号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip />
-          <el-table-column label="金额" width="100" align="center">
-            <template #default="{ row }">¥{{ ((row.amountCents || 0) / 100).toFixed(2) }}</template>
-          </el-table-column>
-          <el-table-column label="匹配" width="80" align="center">
-            <template #default="{ row }">
-              <el-tag size="small" :type="row.matched ? 'success' : 'danger'">
-                {{ row.matched ? '是' : '否' }}
+      <div v-loading="!detailHydrated" class="recon-detail-pane">
+        <template v-if="detail">
+          <el-descriptions :column="1" border size="small">
+            <el-descriptions-item label="对账ID">
+              <span class="cell-id">{{ detail.summary?.reconId }}</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="日期">{{ detail.summary?.reconDate }}</el-descriptions-item>
+            <el-descriptions-item label="渠道">
+              {{ dictLabel('pay_channel', detail.summary?.channel) }}
+            </el-descriptions-item>
+            <el-descriptions-item label="状态">
+              <el-tag :type="dictTagType(detail.summary?.status)" size="small">
+                {{ dictLabel('reconciliation_status', detail.summary?.status) }}
               </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="差异笔数">
+              <span :class="{ 'is-mismatch': (detail.summary?.mismatchCount ?? 0) > 0 }">
+                {{ detail.summary?.mismatchCount ?? 0 }}
+              </span>
+            </el-descriptions-item>
+          </el-descriptions>
+          <el-table
+            :data="detail.lines || []"
+            stripe
+            border
+            style="margin-top: 16px"
+            max-height="360"
+            size="small" empty-text=" "
+          >
+            <el-table-column prop="platformTradeNo" label="平台流水" min-width="140" align="center" class-name="col-text" show-overflow-tooltip />
+            <el-table-column prop="merchantOrderNo" label="商户单号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip />
+            <el-table-column label="金额" width="100" align="center">
+              <template #default="{ row }">¥{{ ((row.amountCents || 0) / 100).toFixed(2) }}</template>
+            </el-table-column>
+            <el-table-column label="匹配" width="80" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.matched ? 'success' : 'danger'">
+                  {{ row.matched ? '是' : '否' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <el-empty v-if="detailHydrated" description="无明细行" :image-size="48" />
             </template>
-          </el-table-column>
-          <template #empty><el-empty description="无明细行" :image-size="48" /></template>
-        </el-table>
-      </template>
+          </el-table>
+        </template>
+        <el-empty v-else-if="detailHydrated" description="详情加载失败" :image-size="64" />
+      </div>
     </el-drawer>
   </el-card>
 </template>
@@ -213,6 +222,7 @@ import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
@@ -226,6 +236,7 @@ const auth = useAuthStore();
 const canRun = computed(() => auth.hasPerm('ops:reconciliation:run'));
 
 const loading = ref(false);
+const listHydrated = ref(false);
 const saving = ref(false);
 const channel = ref('');
 const statusFilter = ref('');
@@ -235,6 +246,7 @@ const size = ref(20);
 const allItems = ref<Row[]>([]);
 const runDialog = ref(false);
 const detailOpen = ref(false);
+const detailHydrated = ref(false);
 const detail = ref<Row | null>(null);
 const runForm = reactive({ date: '', channel: 'WECHAT' });
 
@@ -309,6 +321,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
@@ -355,11 +368,18 @@ async function runRecon() {
 }
 
 async function openDetail(row: Row) {
+  if (detail.value?.summary?.reconId !== row.reconId) {
+    detail.value = null;
+    detailHydrated.value = false;
+  }
+  detailOpen.value = true;
   try {
     detail.value = await api.request<Row>(`/api/v2/ops/admin/reconciliation/${row.reconId}`, 'GET');
-    detailOpen.value = true;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '详情加载失败');
+    if (!detailHydrated.value) detail.value = null;
+  } finally {
+    detailHydrated.value = true;
   }
 }
 
@@ -442,6 +462,7 @@ onActivated(() => {
   line-height: 1.35;
 }
 .recon-cell strong { color: var(--el-color-primary); font-weight: 650; }
+.recon-detail-pane { min-height: 160px; }
 .recon-cell small {
   color: var(--el-text-color-secondary);
   font-family: inherit;

@@ -73,12 +73,15 @@
           stripe
           border
           class="report-table"
-          :empty-text="emptyHint"
+          empty-text=" "
           row-key="ticketId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
           @selection-change="onSelectionChange"
         >
+          <template #empty>
+            <el-empty v-if="listHydrated && !loading" :description="emptyHint" />
+          </template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="ticketId" label="工单号" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
             <template #default="{ row }">
@@ -185,8 +188,7 @@
       </div>
     </div>
 
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="total"
@@ -196,7 +198,6 @@
         @current-change="() => load(false)"
         @size-change="onSizeChange"
       />
-    </div>
 
     <el-drawer
       v-if="detailVisible"
@@ -224,10 +225,11 @@
           <div v-if="embedVideoUrl" class="video-wrap">
             <video :src="embedVideoUrl" controls playsinline class="session-video" />
           </div>
-          <el-empty v-else-if="!videoLoading" description="暂无录像或加载失败" :image-size="72" />
-          <div v-else class="video-loading">录像加载中…</div>
+          <el-empty v-else-if="videoAttempted && !videoLoading" description="暂无录像或加载失败" :image-size="72" />
+          <div v-else-if="videoLoading" class="video-loading">录像加载中…</div>
+          <div v-else class="video-loading muted">尚未加载录像</div>
           <el-alert
-            v-if="!embedVideoUrl && !videoLoading"
+            v-if="!embedVideoUrl && videoAttempted && !videoLoading"
             type="info"
             :closable="false"
             show-icon
@@ -253,7 +255,7 @@
               :disabled="!embedVideoUrl && !noVideoAck"
             >已对照录像核对</el-checkbox>
             <el-checkbox
-              v-if="!embedVideoUrl && !videoLoading"
+              v-if="!embedVideoUrl && videoAttempted && !videoLoading"
               v-model="noVideoAck"
             >无录像 / 无法播放，仍结案</el-checkbox>
             <el-button
@@ -431,6 +433,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
@@ -455,7 +458,9 @@ const router = useRouter();
 const { auth, canAccessPath, goPath } = useNavAccess();
 const { playSessionVideo, fetchSessionVideoBlob } = useSessionVideo();
 const loading = ref(false);
+const listHydrated = ref(false);
 const videoLoading = ref(false);
+const videoAttempted = ref(false);
 const embedVideoUrl = ref('');
 let embedVideoRevoke: (() => void) | null = null;
 const status = ref('OPEN');
@@ -569,6 +574,7 @@ function onDetailClosed() {
   resolveFeedback.value = null;
   videoReviewed.value = false;
   noVideoAck.value = false;
+  videoAttempted.value = false;
   clearEmbedVideo();
   draftLines.value = [];
 }
@@ -585,6 +591,7 @@ async function loadEmbedVideo(sessionId?: string, force = false) {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '录像加载失败');
   } finally {
+    videoAttempted.value = true;
     videoLoading.value = false;
   }
 }
@@ -705,6 +712,10 @@ function goExceptions(device?: string) {
 function openDetail(row: DisputeTicketDto) {
   resolveFeedback.value = null;
   disputeSuggestHint.value = '';
+  videoReviewed.value = false;
+  noVideoAck.value = false;
+  videoAttempted.value = false;
+  clearEmbedVideo();
   selected.value = row;
   detailVisible.value = true;
   resetDraftFromSuggested();
@@ -903,6 +914,7 @@ async function load(showToast = false) {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

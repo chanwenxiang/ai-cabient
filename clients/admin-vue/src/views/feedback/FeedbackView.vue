@@ -43,9 +43,8 @@
           row-key="feedbackId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-        >
-          <template #empty><el-empty description="暂无反馈" /></template>
+          @selection-change="onSelectionChange" empty-text=" ">
+          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无反馈" /></template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="feedbackId" label="反馈编号" width="100" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
@@ -162,6 +161,7 @@ const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('feedbackId'
 const canReply = computed(() => auth.hasPerm('ops:feedback:reply'));
 
 const loading = ref(false);
+const listHydrated = ref(false);
 const saving = ref(false);
 const status = ref('');
 const list = ref<Row[]>([]);
@@ -214,6 +214,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

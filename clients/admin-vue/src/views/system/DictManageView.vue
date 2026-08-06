@@ -32,13 +32,16 @@
                 height="100%"
                 border
                 class="report-table"
+                empty-text=" "
                 table-layout="auto"
                 row-key="dictType"
                 :default-sort="typeDefaultSort"
                 @sort-change="onTypeSortChange"
                 @current-change="onSelectType"
               >
-                <template #empty><el-empty description="暂无字典类型" :image-size="64" /></template>
+                <template #empty>
+                  <el-empty v-if="typesHydrated && !loadingTypes" description="暂无字典类型" :image-size="64" />
+                </template>
                 <el-table-column prop="dictType" label="字典类型" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
                   <template #default="{ row }">
                     <span class="cell-id">{{ row.dictType }}</span>
@@ -94,13 +97,17 @@
                 class="report-table"
                 table-layout="auto"
                 row-key="dictDataId"
-                empty-text="请选择左侧字典类型"
+                empty-text=" "
                 :default-sort="itemDefaultSort"
                 @sort-change="onItemSortChange"
                 @selection-change="onSelectionChange"
               >
                 <template #empty>
-                  <el-empty :description="selected ? '暂无字典项' : '请先选择左侧字典类型'" :image-size="64" />
+                  <el-empty
+                    v-if="itemsHydrated && !loadingItems"
+                    :description="selected ? '暂无字典项' : '请先选择左侧字典类型'"
+                    :image-size="64"
+                  />
                 </template>
                 <el-table-column type="selection" width="48" align="center" />
                 <el-table-column prop="dictDataId" label="数据编号" width="80" align="center" class-name="col-text" sortable="custom">
@@ -232,6 +239,8 @@ const {
 
 const loadingTypes = ref(false);
 const loadingItems = ref(false);
+const typesHydrated = ref(false);
+const itemsHydrated = ref(false);
 const saving = ref(false);
 const types = ref<DictTypeRow[]>([]);
 const items = ref<DictItemRow[]>([]);
@@ -318,6 +327,7 @@ async function loadTypes() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    typesHydrated.value = true;
     loadingTypes.value = false;
     // 等表格 current-change(null) 冒完再解除
     await nextTick();
@@ -326,13 +336,19 @@ async function loadTypes() {
 }
 
 async function loadItems() {
-  if (!selected.value) { items.value = []; return; }
+  if (!selected.value) {
+    items.value = [];
+    itemsHydrated.value = true;
+    return;
+  }
   loadingItems.value = true;
   try {
     items.value = await api.request<DictItemRow[]>(`/api/v2/ops/admin/dicts/${encodeURIComponent(selected.value.dictType)}/items`, 'GET');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载字典项失败');
+    items.value = [];
   } finally {
+    itemsHydrated.value = true;
     loadingItems.value = false;
   }
 }
@@ -368,6 +384,7 @@ function onSelectType(row: DictTypeRow | null, opts?: { sync?: boolean }) {
     selected.value = null;
     clearSelection();
     items.value = [];
+    itemsHydrated.value = true;
     if (opts?.sync !== false) syncRouteQuery();
     return;
   }

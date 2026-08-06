@@ -16,19 +16,19 @@
     </template>
 
     <div class="kpi-grid">
-      <component
-        :is="tile.action ? 'button' : 'div'"
+      <button
+        type="button"
         v-for="tile in kpiTiles"
         :key="tile.label"
-        :type="tile.action ? 'button' : undefined"
         class="kpi-tile"
         :class="[tile.accent, { 'is-clickable': !!tile.action }]"
+        :aria-label="`${tile.label} ${tile.value}${tile.hint ? ` ${tile.hint}` : ''}`"
         @click="tile.action?.()"
       >
         <div class="kpi-label">{{ tile.label }}</div>
         <div class="kpi-value">{{ tile.value }}</div>
         <div v-if="tile.hint" class="kpi-hint">{{ tile.hint }}</div>
-      </component>
+      </button>
     </div>
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
@@ -85,8 +85,7 @@
           row-key="deviceId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-        >
+          @selection-change="onSelectionChange" empty-text=" ">
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="deviceId" label="设备编号" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
             <template #default="{ row }">
@@ -131,13 +130,12 @@
               />
             </template>
           </el-table-column>
-          <template #empty><el-empty description="暂无设备报表数据" /></template>
+          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无设备报表数据" /></template>
         </el-table>
       </div>
     </div>
 
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="filtered.length"
@@ -148,7 +146,6 @@
         @current-change="() => {}"
         @size-change="onSizeChange"
       />
-    </div>
   </el-card>
 </template>
 
@@ -160,6 +157,7 @@ import { ElMessage } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
@@ -180,6 +178,8 @@ interface DeviceReportRow {
 const route = useRoute();
 const { router, canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
+/** 首屏未拉完前勿展示 0 / ¥0.00 */
+const listHydrated = ref(false);
 const rows = ref<DeviceReportRow[]>([]);
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('deviceId');
 const keyword = ref('');
@@ -223,41 +223,53 @@ const sum = computed(() =>
 
 const offlineTotal = computed(() => rows.value.filter((r) => r.onlineStatus === 'OFFLINE').length);
 
-const kpiTiles = computed(() => [
-  {
-    label: '设备数',
-    value: String(filtered.value.length),
-    accent: 'accent-teal',
-    hint: onlineFilter.value ? `已筛选 · 共 ${rows.value.length} 台` : undefined,
-    action: () => {
-      if (onlineFilter.value) {
-        onlineFilter.value = '';
-        search();
-      }
+const kpiTiles = computed(() => {
+  const ready = listHydrated.value;
+  return [
+    {
+      label: '设备数',
+      value: ready ? String(filtered.value.length) : '—',
+      accent: 'accent-teal',
+      hint: ready
+        ? onlineFilter.value
+          ? `已筛选 · 共 ${rows.value.length} 台`
+          : undefined
+        : '加载中…',
+      action: ready
+        ? () => {
+            if (onlineFilter.value) {
+              onlineFilter.value = '';
+              search();
+            }
+          }
+        : undefined
+    },
+    {
+      label: '离线设备',
+      value: ready ? String(offlineTotal.value) : '—',
+      accent: 'accent-amber',
+      hint: ready ? (offlineTotal.value ? '点击筛选离线' : '全部在线') : '加载中…',
+      action: ready
+        ? () => {
+            onlineFilter.value = onlineFilter.value === 'OFFLINE' ? '' : 'OFFLINE';
+            search();
+          }
+        : undefined
+    },
+    {
+      label: '累计营收',
+      value: ready ? `¥${(sum.value.revenueTotal / 100).toFixed(2)}` : '—',
+      accent: 'accent-violet',
+      hint: ready ? `订单 ${sum.value.orderTotal}` : '加载中…'
+    },
+    {
+      label: '今日营收',
+      value: ready ? `¥${(sum.value.revenueToday / 100).toFixed(2)}` : '—',
+      accent: 'accent-blue',
+      hint: ready ? undefined : '加载中…'
     }
-  },
-  {
-    label: '离线设备',
-    value: String(offlineTotal.value),
-    accent: 'accent-amber',
-    hint: offlineTotal.value ? '点击筛选离线' : '全部在线',
-    action: () => {
-      onlineFilter.value = onlineFilter.value === 'OFFLINE' ? '' : 'OFFLINE';
-      search();
-    }
-  },
-  {
-    label: '累计营收',
-    value: `¥${(sum.value.revenueTotal / 100).toFixed(2)}`,
-    accent: 'accent-violet',
-    hint: `订单 ${sum.value.orderTotal}`
-  },
-  {
-    label: '今日营收',
-    value: `¥${(sum.value.revenueToday / 100).toFixed(2)}`,
-    accent: 'accent-blue'
-  }
-]);
+  ];
+});
 
 const paginationLayout = computed(() => {
   if (viewportWidth.value < 560) return 'prev, pager, next';
@@ -314,6 +326,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

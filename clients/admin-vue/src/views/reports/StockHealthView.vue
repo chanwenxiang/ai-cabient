@@ -10,7 +10,7 @@
         </div>
         <div class="page-card-head__actions">
           <el-button
-            v-if="canAccessPath('/replenishment') && planDeviceIds.length"
+            v-if="canAccessPath('/replenishment') && listHydrated && planDeviceIds.length"
             v-hasPermi="['ops:replenishment:edit']"
             type="primary"
             @click="goPlanReplenishment()"
@@ -72,28 +72,48 @@
     </el-form>
 
     <div class="kpi-row">
-      <div class="kpi-tile warn">
+      <button
+        type="button"
+        class="kpi-tile warn"
+        :aria-label="listHydrated ? `断货行 ${countBy('STOCKOUT')}` : '断货行 — 加载中…'"
+      >
         <div class="kpi-label">断货行</div>
-        <div class="kpi-value">{{ countBy('STOCKOUT') }}</div>
-      </div>
-      <div class="kpi-tile">
+        <div class="kpi-value">{{ listHydrated ? countBy('STOCKOUT') : '—' }}</div>
+        <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
+      </button>
+      <button
+        type="button"
+        class="kpi-tile"
+        :aria-label="listHydrated ? `低库存行 ${countBy('LOW')}` : '低库存行 — 加载中…'"
+      >
         <div class="kpi-label">低库存行</div>
-        <div class="kpi-value">{{ countBy('LOW') }}</div>
-      </div>
-      <div class="kpi-tile warn">
+        <div class="kpi-value">{{ listHydrated ? countBy('LOW') : '—' }}</div>
+        <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
+      </button>
+      <button
+        type="button"
+        class="kpi-tile warn"
+        :aria-label="listHydrated ? `临期行 ${countBy('NEAR_EXPIRY')}` : '临期行 — 加载中…'"
+      >
         <div class="kpi-label">临期行</div>
-        <div class="kpi-value">{{ countBy('NEAR_EXPIRY') }}</div>
-      </div>
-      <div class="kpi-tile">
+        <div class="kpi-value">{{ listHydrated ? countBy('NEAR_EXPIRY') : '—' }}</div>
+        <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
+      </button>
+      <button
+        type="button"
+        class="kpi-tile"
+        :aria-label="listHydrated ? `涉及柜机 ${deviceCount}` : '涉及柜机 — 加载中…'"
+      >
         <div class="kpi-label">涉及柜机</div>
-        <div class="kpi-value">{{ deviceCount }}</div>
-      </div>
+        <div class="kpi-value">{{ listHydrated ? deviceCount : '—' }}</div>
+        <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
+      </button>
     </div>
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table v-loading="loading" :data="rows" stripe border class="report-table">
-          <template #empty><el-empty description="暂无异常库存" /></template>
+        <el-table v-loading="loading" :data="rows" stripe border class="report-table" empty-text=" ">
+          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无异常库存" /></template>
           <el-table-column label="维度" width="96" align="center">
             <template #default="{ row }">
               <el-tag :type="dimTag(row.dimension)" size="small">{{ dimLabel(row.dimension) }}</el-tag>
@@ -188,6 +208,8 @@ const route = useRoute();
 const auth = useAuthStore();
 const { canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
+/** 首屏未拉完前勿展示 0，避免与真实库存异常数闪错 */
+const listHydrated = ref(false);
 const dimension = ref('ALL');
 const deviceId = ref('');
 const merchantId = ref('');
@@ -363,6 +385,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
@@ -416,6 +439,13 @@ onActivated(() => {
   .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 .kpi-tile {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  border: none;
+  cursor: default;
   background: var(--el-fill-color-light);
   border-radius: 8px;
   padding: 10px 12px;
@@ -425,5 +455,6 @@ onActivated(() => {
 }
 .kpi-label { font-size: 12px; color: var(--el-text-color-secondary); }
 .kpi-value { margin-top: 4px; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.kpi-hint { margin-top: 2px; font-size: 12px; color: var(--el-text-color-secondary); }
 .muted { color: var(--el-text-color-placeholder); }
 </style>

@@ -31,6 +31,7 @@
           <el-button :icon="Refresh" :loading="loadingMerchants" @click="loadMerchants">刷新</el-button>
         </div>
         <el-tree
+          v-if="merchantTree.length || loadingMerchants || !merchantsHydrated"
           v-loading="loadingMerchants"
           :data="merchantTree"
           node-key="merchantId"
@@ -53,6 +54,12 @@
             </div>
           </template>
         </el-tree>
+        <el-empty
+          v-else-if="merchantsHydrated && !loadingMerchants"
+          description="暂无商户组织"
+          :image-size="64"
+        />
+        <div v-else class="muted">组织树加载中…</div>
       </el-tab-pane>
 
       <el-tab-pane label="商户列表" name="merchants">
@@ -90,9 +97,8 @@
               row-key="merchantId"
               :default-sort="idDefaultSort"
               @sort-change="onIdSortChange"
-              @selection-change="onMerchantsSelectionChange"
-            >
-              <template #empty><el-empty description="暂无商户" /></template>
+              @selection-change="onMerchantsSelectionChange" empty-text=" ">
+              <template #empty><el-empty v-if="merchantsHydrated && !loadingMerchants" description="暂无商户" /></template>
               <el-table-column type="selection" width="48" align="center" />
               <el-table-column prop="merchantId" label="商户编号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
                 <template #default="{ row }">
@@ -164,8 +170,7 @@
             </el-table>
           </div>
         </div>
-        <div class="page-pager">
-          <el-pagination
+        <PagePager :hydrated="merchantsHydrated"
             v-model:current-page="merchantPage"
             v-model:page-size="merchantSize"
             :total="filteredMerchants.length"
@@ -173,7 +178,6 @@
             layout="total, sizes, prev, pager, next"
             background
           />
-        </div>
       </el-tab-pane>
 
       <el-tab-pane label="运营配置" name="ops-config">
@@ -196,6 +200,7 @@
             </el-select>
           </el-form-item>
         </el-form>
+        <div v-loading="opsConfigLoading" style="min-height: 120px">
         <el-form v-if="opsConfig" label-width="140px" style="max-width: 640px">
           <el-form-item label="备货类型">
             <el-radio-group v-model="opsConfig.stockingType">
@@ -238,6 +243,8 @@
             <el-button v-if="canEdit" type="primary" :loading="savingOpsConfig" @click="saveOpsConfig">保存配置</el-button>
           </el-form-item>
         </el-form>
+        <el-empty v-else-if="!opsConfigLoading && opsConfigMerchantId" description="暂无运营配置" :image-size="64" />
+        </div>
         <el-divider content-position="left">商户侧推荐岗位</el-divider>
         <el-table :data="roleTemplates" stripe border>
           <el-table-column prop="templateName" label="岗位" width="120" align="center" />
@@ -303,9 +310,8 @@
               border
               class="report-table"
               row-key="splitId"
-              @selection-change="onSplitsSelectionChange"
-            >
-              <template #empty><el-empty description="暂无分账明细" /></template>
+              @selection-change="onSplitsSelectionChange" empty-text=" ">
+              <template #empty><el-empty v-if="splitsLoaded && !loading" description="暂无分账明细" /></template>
               <el-table-column type="selection" width="48" align="center" />
               <el-table-column label="分账编号" min-width="150" align="center" class-name="col-text">
                 <template #default="{ row }"><span class="cell-id">{{ row.splitId }}</span></template>
@@ -357,8 +363,7 @@
           </div>
         </div>
 
-        <div class="page-pager">
-          <el-pagination
+        <PagePager :hydrated="splitsLoaded"
             v-model:current-page="splitPage"
             v-model:page-size="splitSize"
             :total="splitTotal"
@@ -368,7 +373,6 @@
             @current-change="loadSplits"
             @size-change="onSplitSizeChange"
           />
-        </div>
       </el-tab-pane>
     </el-tabs>
 
@@ -425,30 +429,43 @@
     </el-dialog>
 
     <el-dialog v-model="assignDialog" title="挂载货柜到商户" width="560px" destroy-on-close>
-      <p class="dialog-hint">
-        将设备归属到 <strong>{{ assignTarget?.merchantName || assignTarget?.merchantId }}</strong>。
-        已归属其它商户的设备会改挂到当前商户。
-      </p>
-      <el-select
-        v-model="assignDeviceIds"
-        multiple
-        filterable
-        collapse-tags
-        collapse-tags-tooltip
-        placeholder="选择货柜"
-        style="width: 100%"
-      >
-        <el-option
-          v-for="d in allDevices"
-          :key="d.deviceId"
-          :label="`${d.deviceName || d.deviceId}${d.merchantId ? ` · 当前 ${d.merchantId}` : ''}`"
-          :value="d.deviceId"
+      <div v-loading="assignDevicesLoading">
+        <p class="dialog-hint">
+          将设备归属到 <strong>{{ assignTarget?.merchantName || assignTarget?.merchantId }}</strong>。
+          已归属其它商户的设备会改挂到当前商户。
+        </p>
+        <el-select
+          v-model="assignDeviceIds"
+          multiple
+          filterable
+          collapse-tags
+          collapse-tags-tooltip
+          placeholder="选择货柜"
+          style="width: 100%"
+          :disabled="assignDevicesLoading"
+        >
+          <el-option
+            v-for="d in allDevices"
+            :key="d.deviceId"
+            :label="`${d.deviceName || d.deviceId}${d.merchantId ? ` · 当前 ${d.merchantId}` : ''}`"
+            :value="d.deviceId"
+          />
+        </el-select>
+        <el-empty
+          v-if="!assignDevicesLoading && !allDevices.length"
+          description="暂无可用货柜，请先在设备管理中创建设备"
+          :image-size="64"
+          style="margin-top: 12px"
         />
-      </el-select>
-      <el-empty v-if="!allDevices.length" description="暂无可用货柜，请先在设备管理中创建设备" :image-size="64" style="margin-top: 12px" />
+      </div>
       <template #footer>
         <el-button @click="assignDialog = false">取消</el-button>
-        <el-button type="primary" :loading="assignSaving" :disabled="!allDevices.length" @click="saveAssignDevices">保存归属</el-button>
+        <el-button
+          type="primary"
+          :loading="assignSaving"
+          :disabled="assignDevicesLoading || !allDevices.length"
+          @click="saveAssignDevices"
+        >保存归属</el-button>
       </template>
     </el-dialog>
   </el-card>
@@ -462,6 +479,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
@@ -478,6 +496,7 @@ const canSplit = computed(() => auth.hasPerm('ops:merchant:split'));
 const tab = ref('org');
 const loading = ref(false);
 const loadingMerchants = ref(false);
+const merchantsHydrated = ref(false);
 const loadingStatus = ref(false);
 const acting = ref(false);
 const status = ref('');
@@ -526,6 +545,7 @@ watch(merchantKeyword, () => {
 const psStatus = ref<ProfitSharingStatus | null>(null);
 const opsConfigMerchantId = ref('');
 const opsConfig = ref<any>(null);
+const opsConfigLoading = ref(false);
 const savingOpsConfig = ref(false);
 const roleTemplates = ref<any[]>([]);
 
@@ -544,6 +564,7 @@ const orgForm = ref({
 });
 const assignDialog = ref(false);
 const assignSaving = ref(false);
+const assignDevicesLoading = ref(false);
 const assignTarget = ref<MerchantDto | null>(null);
 const assignDeviceIds = ref<string[]>([]);
 const allDevices = ref<{ deviceId: string; deviceName?: string; merchantId?: string }[]>([]);
@@ -693,6 +714,7 @@ async function loadMerchants() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '商户加载失败');
   } finally {
+    merchantsHydrated.value = true;
     loadingMerchants.value = false;
   }
 }
@@ -732,11 +754,11 @@ async function loadSplits() {
     );
     splits.value = data.items || [];
     splitTotal.value = data.total ?? splits.value.length;
-    splitsLoaded.value = true;
     clearSplitsSelection();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '分账明细加载失败');
   } finally {
+    splitsLoaded.value = true;
     loading.value = false;
   }
 }
@@ -789,6 +811,8 @@ async function loadOpsConfig() {
     opsConfig.value = null;
     return;
   }
+  opsConfig.value = null;
+  opsConfigLoading.value = true;
   try {
     opsConfig.value = await api.request(
       `/api/v2/ops/admin/merchants/${encodeURIComponent(opsConfigMerchantId.value)}/ops-config`,
@@ -796,6 +820,8 @@ async function loadOpsConfig() {
     );
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载运营配置失败');
+  } finally {
+    opsConfigLoading.value = false;
   }
 }
 
@@ -1033,7 +1059,9 @@ async function saveOrg() {
 
 async function openAssignDevices(row: MerchantDto) {
   assignTarget.value = row;
+  assignDeviceIds.value = [];
   assignDialog.value = true;
+  assignDevicesLoading.value = true;
   try {
     if (!allDevices.value.length) {
       allDevices.value = await api.request('/api/v2/ops/admin/devices?page=0&size=200', 'GET').then((page: any) =>
@@ -1045,6 +1073,8 @@ async function openAssignDevices(row: MerchantDto) {
       .map((d) => d.deviceId);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载设备失败');
+  } finally {
+    assignDevicesLoading.value = false;
   }
 }
 

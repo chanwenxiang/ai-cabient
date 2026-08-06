@@ -78,7 +78,9 @@
       :closable="false"
       show-icon
       class="chase-banner"
-      :title="`本页 ${displayItems.length} 条超时未付（账龄 ≥ 30 分钟，按账龄降序）`"
+      :title="listHydrated
+        ? `本页 ${displayItems.length} 条超时未付（账龄 ≥ 30 分钟，按账龄降序）`
+        : '超时未付 — 加载中…'"
     />
 
     <div class="table-scroll">
@@ -93,10 +95,12 @@
           class="report-table"
           row-key="orderId"
           :row-class-name="orderRowClass"
-          @selection-change="onSelectionChange"
-        >
+          @selection-change="onSelectionChange" empty-text=" ">
           <template #empty>
-            <el-empty :description="statusTab === 'PENDING' && overdueOnly ? '无超时未付订单' : '暂无订单'" />
+            <el-empty
+              v-if="listHydrated && !loading"
+              :description="statusTab === 'PENDING' && overdueOnly ? '无超时未付订单' : '暂无订单'"
+            />
           </template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="orderId" label="订单号" min-width="168" align="center" sortable="custom">
@@ -231,8 +235,7 @@
       </div>
     </div>
 
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="total"
@@ -242,7 +245,6 @@
         @current-change="load"
         @size-change="onSizeChange"
       />
-    </div>
 
     <el-drawer v-model="detailOpen" title="订单详情" size="480px" destroy-on-close>
       <div v-loading="detailLoading">
@@ -312,7 +314,10 @@
           </div>
 
           <h4 class="section-title">商品行</h4>
-          <el-table :data="detail.lines || detail.items || []" size="small" border empty-text="无商品行">
+          <el-table :data="detail.lines || detail.items || []" size="small" border empty-text=" ">
+            <template #empty>
+              <el-empty v-if="!detailLoading" description="无商品行" :image-size="48" />
+            </template>
             <el-table-column prop="skuName" label="商品" min-width="120" align="center" class-name="col-text" />
             <el-table-column prop="quantity" label="数量" width="70" align="center" />
             <el-table-column label="小计" width="90" align="center">
@@ -355,6 +360,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
@@ -400,6 +406,7 @@ const { router, goPath } = useNavAccess();
 const { playSessionVideo } = useSessionVideo();
 const auth = useAuthStore();
 const loading = ref(false);
+const listHydrated = ref(false);
 const videoLoading = ref(false);
 const refundingId = ref('');
 const keyword = ref('');
@@ -653,7 +660,8 @@ function goSessions(device?: string, sessionId?: string) {
 async function openDetail(row: OrderSummary) {
   detailOpen.value = true;
   detailLoading.value = true;
-  detail.value = null;
+  // 切换订单才清空，避免同单软刷新（退款后重拉）闪空白抽屉
+  if (detail.value?.orderId !== row.orderId) detail.value = null;
   try {
     detail.value = await api.request(`/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}`, 'GET');
   } catch (e) {
@@ -821,6 +829,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
@@ -921,7 +930,7 @@ async function maybeOpenFocusedOrder() {
   try {
     detailOpen.value = true;
     detailLoading.value = true;
-    detail.value = null;
+    if (detail.value?.orderId !== oid) detail.value = null;
     detail.value = await api.request(`/api/v2/ops/admin/orders/${encodeURIComponent(oid)}`, 'GET');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '订单详情加载失败');

@@ -36,8 +36,8 @@
 
     <el-table v-loading="loading" :data="displayItems"
         :default-sort="idDefaultSort"
-        @sort-change="onIdSortChange" stripe border class="report-table">
-      <template #empty><el-empty description="暂无验证记录" /></template>
+        @sort-change="onIdSortChange" stripe border class="report-table" empty-text=" ">
+      <template #empty><el-empty v-if="listHydrated && !loading" description="暂无验证记录" /></template>
       <el-table-column prop="logId" label="记录ID" width="100" align="center" sortable="custom" />
       <el-table-column prop="phone" label="手机号" width="140" align="center" />
       <el-table-column prop="userId" label="用户ID" width="120" align="center" />
@@ -89,6 +89,7 @@ import { api } from '@/api/client';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const loading = ref(false);
+const listHydrated = ref(false);
 const saving = ref(false);
 const phone = ref('');
 const channel = ref('');
@@ -109,6 +110,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

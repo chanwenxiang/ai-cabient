@@ -26,8 +26,11 @@
             @keydown.enter="goPath('/finance')"
           >
             <div class="stat-label">今日营收</div>
-            <div class="stat-value">¥{{ ((stats.revenueTodayCents || 0) / 100).toFixed(2) }}</div>
-            <div class="stat-hint">{{ canAccessPath('/finance') ? '查看财务毛利' : '今日快照' }}</div>
+            <div class="stat-value">{{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '—' }}</div>
+            <div class="stat-hint">
+              <template v-if="!listHydrated">加载中…</template>
+              <template v-else>{{ canAccessPath('/finance') ? '查看财务毛利' : '今日快照' }}</template>
+            </div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
@@ -40,8 +43,11 @@
             @keydown.enter="goPath('/orders')"
           >
             <div class="stat-label">今日订单</div>
-            <div class="stat-value">{{ stats.orderToday || 0 }}</div>
-            <div class="stat-hint">{{ canAccessPath('/orders') ? '查看订单列表' : '今日快照' }}</div>
+            <div class="stat-value">{{ listHydrated ? (stats.orderToday || 0) : '—' }}</div>
+            <div class="stat-hint">
+              <template v-if="!listHydrated">加载中…</template>
+              <template v-else>{{ canAccessPath('/orders') ? '查看订单列表' : '今日快照' }}</template>
+            </div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
@@ -54,8 +60,11 @@
             @keydown.enter="goPath('/sessions')"
           >
             <div class="stat-label">24h 开门成功率</div>
-            <div class="stat-value">{{ ((stats.doorSuccessRate24h || 0) * 100).toFixed(1) }}%</div>
-            <div class="stat-hint">{{ canAccessPath('/sessions') ? '查看开门记录' : '近 24 小时' }}</div>
+            <div class="stat-value">{{ listHydrated ? `${((stats.doorSuccessRate24h || 0) * 100).toFixed(1)}%` : '—' }}</div>
+            <div class="stat-hint">
+              <template v-if="!listHydrated">加载中…</template>
+              <template v-else>{{ canAccessPath('/sessions') ? '查看开门记录' : '近 24 小时' }}</template>
+            </div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
@@ -68,8 +77,11 @@
             @keydown.enter="goPath('/disputes')"
           >
             <div class="stat-label">24h 自动识别率</div>
-            <div class="stat-value">{{ ((stats.recognitionAutoRate24h || 0) * 100).toFixed(1) }}%</div>
-            <div class="stat-hint">{{ canAccessPath('/disputes') ? '查看争议审核' : '近 24 小时' }}</div>
+            <div class="stat-value">{{ listHydrated ? `${((stats.recognitionAutoRate24h || 0) * 100).toFixed(1)}%` : '—' }}</div>
+            <div class="stat-hint">
+              <template v-if="!listHydrated">加载中…</template>
+              <template v-else>{{ canAccessPath('/disputes') ? '查看争议审核' : '近 24 小时' }}</template>
+            </div>
           </div>
         </el-col>
       </el-row>
@@ -98,7 +110,7 @@
         </template>
         <Transition name="chart-fade" mode="out-in">
           <ChartBox v-if="revenueSvg" :key="revenueKind" :svg="revenueSvg" />
-          <el-empty v-else key="empty" description="暂无营收趋势" :image-size="64" />
+          <el-empty v-else-if="listHydrated" key="empty" description="暂无营收趋势" :image-size="64" />
         </Transition>
         <template #footer>
           <span class="chart-legend-item"><i style="background:#2dd4bf" />营收（元）</span>
@@ -115,7 +127,7 @@
         </template>
         <Transition name="chart-fade" mode="out-in">
           <ChartBox v-if="orderSvg" :key="orderKind" :svg="orderSvg" />
-          <el-empty v-else key="empty" description="暂无订单趋势" :image-size="64" />
+          <el-empty v-else-if="listHydrated" key="empty" description="暂无订单趋势" :image-size="64" />
         </Transition>
         <template #footer>
           <span class="chart-legend-item"><i style="background:#60a5fa" />订单量</span>
@@ -127,7 +139,7 @@
       <ChartPanel title="订单支付渠道" :hint="`近 ${days} 天 · 按金额`" donut>
         <div class="donut-layout">
           <ChartBox v-if="orderChannelSvg" :svg="orderChannelSvg" donut />
-          <el-empty v-else description="暂无订单支付数据" :image-size="64" />
+          <el-empty v-else-if="listHydrated" description="暂无订单支付数据" :image-size="64" />
           <ul v-if="orderChannelSvg" class="donut-legend-list">
             <li v-for="p in orderChannelParts" :key="p.label">
               <i :style="{ background: p.color }" />
@@ -141,7 +153,7 @@
       <ChartPanel title="充值渠道" :hint="`近 ${days} 天 · 已到账`" donut>
         <div class="donut-layout">
           <ChartBox v-if="rechargeChannelSvg" :svg="rechargeChannelSvg" donut />
-          <el-empty v-else description="暂无充值数据" :image-size="64" />
+          <el-empty v-else-if="listHydrated" description="暂无充值数据" :image-size="64" />
           <ul v-if="rechargeChannelSvg" class="donut-legend-list">
             <li v-for="p in rechargeChannelParts" :key="p.label">
               <i :style="{ background: p.color }" />
@@ -164,7 +176,7 @@
         </template>
         <Transition name="chart-fade" mode="out-in">
           <ChartBox v-if="opsSvg" :key="opsKind" :svg="opsSvg" />
-          <el-empty v-else key="empty" description="暂无识别质量数据" :image-size="64" />
+          <el-empty v-else-if="listHydrated" key="empty" description="暂无识别质量数据" :image-size="64" />
         </Transition>
         <template #footer>
           <span class="chart-legend-item"><i style="background:#2dd4bf" />自动识别率</span>
@@ -176,7 +188,7 @@
         <ChartPanel title="设备在线" fill donut>
           <template #actions>
             <el-button
-              v-if="offlineDevices > 0 && canAccessPath('/devices')"
+              v-if="listHydrated && offlineDevices > 0 && canAccessPath('/devices')"
               link
               type="primary"
               @click="goPath('/devices', { online: 'OFFLINE' })"
@@ -186,21 +198,26 @@
           </template>
           <div class="donut-layout">
             <ChartBox v-if="deviceSvg" :svg="deviceSvg" donut />
-            <el-empty v-else description="暂无设备数据" :image-size="64" />
+            <el-empty v-else-if="listHydrated" description="暂无设备数据" :image-size="64" />
             <ul v-if="deviceSvg" class="donut-legend-list">
-              <li><i style="background:#2dd4bf" />在线 {{ stats.deviceOnline || 0 }}</li>
-              <li><i style="background:#64748b" />离线 {{ offlineDevices }}</li>
+              <li><i style="background:#2dd4bf" />在线 {{ listHydrated ? (stats.deviceOnline || 0) : '—' }}</li>
+              <li><i style="background:#64748b" />离线 {{ listHydrated ? offlineDevices : '—' }}</li>
             </ul>
           </div>
         </ChartPanel>
 
         <ChartPanel title="经营快照" compact>
           <el-descriptions :column="1" border size="small" class="snapshot-desc">
-            <el-descriptions-item label="累计营收">¥{{ ((stats.revenueTotalCents || 0) / 100).toFixed(2) }}</el-descriptions-item>
-            <el-descriptions-item label="累计订单">{{ stats.orderTotal || 0 }}</el-descriptions-item>
+            <el-descriptions-item label="累计营收">
+              {{ listHydrated ? `¥${((stats.revenueTotalCents || 0) / 100).toFixed(2)}` : '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="累计订单">
+              {{ listHydrated ? (stats.orderTotal || 0) : '—' }}
+            </el-descriptions-item>
             <el-descriptions-item label="待审争议">
+              <template v-if="!listHydrated">—</template>
               <el-button
-                v-if="(stats.disputeOpen || 0) > 0 && canAccessPath('/disputes')"
+                v-else-if="(stats.disputeOpen || 0) > 0 && canAccessPath('/disputes')"
                 link
                 type="danger"
                 @click="goPath('/disputes', { status: 'OPEN' })"
@@ -209,10 +226,13 @@
               </el-button>
               <span v-else class="muted">{{ stats.disputeOpen || 0 }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="24h 争议率">{{ ((stats.disputeRate24h || 0) * 100).toFixed(1) }}%</el-descriptions-item>
+            <el-descriptions-item label="24h 争议率">
+              {{ listHydrated ? `${((stats.disputeRate24h || 0) * 100).toFixed(1)}%` : '—' }}
+            </el-descriptions-item>
             <el-descriptions-item label="今日毛利率">
+              <template v-if="!listHydrated">—</template>
               <el-button
-                v-if="canAccessPath('/finance')"
+                v-else-if="canAccessPath('/finance')"
                 link
                 type="primary"
                 @click="goPath('/finance')"
@@ -280,6 +300,8 @@ const CHANNEL_COLORS: Record<string, string> = {
 const route = useRoute();
 const { router, canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
+/** 首屏未拉完前勿展示 ¥0 / 0% /「暂无」，避免与真实快照闪错 */
+const listHydrated = ref(false);
 const days = ref(parseDays(route.query.days));
 const stats = ref<AdminStats>({});
 const trend = ref<DailyStat[]>([]);
@@ -298,7 +320,7 @@ function parseDays(raw: unknown): number {
 
 function onDaysChange() {
   router.replace({ query: { ...route.query, days: String(days.value) } });
-  load();
+  load({ resetSeries: true });
 }
 
 const offlineDevices = computed(() => Math.max((stats.value.deviceTotal || 0) - (stats.value.deviceOnline || 0), 0));
@@ -381,8 +403,14 @@ const deviceSvg = computed(() =>
   })
 );
 
-async function load() {
+async function load(opts?: { resetSeries?: boolean }) {
   loading.value = true;
+  // 切天数时清空系列，避免旧区间叠新图；软刷新保留
+  if (opts?.resetSeries) {
+    trend.value = [];
+    opsTrend.value = [];
+    channels.value = {};
+  }
   try {
     const d = days.value;
     // 财务等角色可能缺 ops 趋势权限；各块独立降级，避免整页空白
@@ -409,6 +437,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
@@ -419,7 +448,7 @@ watch(
     const next = parseDays(raw);
     if (next !== days.value) {
       days.value = next;
-      load();
+      load({ resetSeries: true });
     }
   }
 );

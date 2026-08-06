@@ -43,16 +43,25 @@
           row-key="userId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-        >
-          <template #empty><el-empty description="暂无用户" /></template>
+          @selection-change="onSelectionChange" empty-text=" ">
+          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无用户" /></template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="userId" label="用户编号" width="100" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
               <span class="cell-id">{{ row.userId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="用户" min-width="140" class-name="col-text" label-class-name="col-text" align="center" header-align="center">
+          <el-table-column
+            label="余额"
+            width="120"
+            align="right"
+            header-align="right"
+            class-name="col-money"
+            label-class-name="col-money"
+          >
+            <template #default="{ row }">¥{{ ((row.balanceCents || 0) / 100).toFixed(2) }}</template>
+          </el-table-column>
+          <el-table-column label="用户" min-width="120" class-name="col-text" label-class-name="col-text" align="center" header-align="center">
             <template #default="{ row }">{{ row.name || row.phoneNumber || '无' }}</template>
           </el-table-column>
           <el-table-column label="手机号" width="140" class-name="col-text" label-class-name="col-text" align="center" header-align="center">
@@ -71,15 +80,6 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column
-            label="余额"
-            width="120"
-            align="center"
-            class-name="col-money"
-            label-class-name="col-money"
-          >
-            <template #default="{ row }">¥{{ ((row.balanceCents || 0) / 100).toFixed(2) }}</template>
-          </el-table-column>
           <el-table-column label="注册时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
@@ -88,11 +88,10 @@
           <el-table-column
             v-if="showActionColumn"
             label="操作"
-            width="168"
+            width="100"
             class-name="col-action"
             label-class-name="col-action"
             align="center"
-            fixed="right"
           >
             <template #default="{ row }">
               <TableActions
@@ -106,8 +105,7 @@
       </div>
     </div>
 
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="total"
@@ -117,7 +115,6 @@
         @current-change="load"
         @size-change="onSizeChange"
       />
-    </div>
   </el-card>
 </template>
 
@@ -128,6 +125,7 @@ import { CircleCheck, Refresh, Wallet } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
@@ -193,6 +191,7 @@ async function verifyUser(row: UserRow) {
 }
 
 const loading = ref(false);
+const listHydrated = ref(false);
 const keyword = ref('');
 const page = ref(1);
 const size = ref(20);
@@ -287,6 +286,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
@@ -384,4 +384,8 @@ onActivated(() => {
   font-family: inherit;
 }
 .muted { color: var(--el-text-color-secondary); }
+/* 覆盖全局 min-width:0，避免窄屏下 fixed 操作列压扁并遮住余额/手机号 */
+.table-scroll-inner {
+  min-width: 980px !important;
+}
 </style>

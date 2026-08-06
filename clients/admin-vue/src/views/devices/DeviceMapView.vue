@@ -52,7 +52,14 @@
     </div>
 
     <div class="map-float-meta">
-      共 {{ filteredPoints.length }} 个柜机落点
+      <button
+        type="button"
+        class="map-count-btn"
+        :aria-label="listHydrated ? `共 ${filteredPoints.length} 个柜机落点` : '柜机落点 — 加载中…'"
+        tabindex="-1"
+      >
+        {{ listHydrated ? `共 ${filteredPoints.length} 个柜机落点` : '落点加载中…' }}
+      </button>
       <span v-if="tileHint" class="tile-hint">{{ tileHint }}</span>
     </div>
 
@@ -85,7 +92,11 @@
             </el-button>
           </div>
         </div>
-        <el-empty v-if="!filteredPoints.length" description="暂无落点（需设备填写经纬度）" :image-size="64" />
+        <el-empty
+          v-if="listHydrated && !loading && !filteredPoints.length"
+          description="暂无落点（需设备填写经纬度）"
+          :image-size="64"
+        />
       </el-scrollbar>
     </div>
   </div>
@@ -118,6 +129,7 @@ interface MapPoint {
 
 const { goPath } = useNavAccess();
 const loading = ref(false);
+const listHydrated = ref(false);
 const lifecycleStatus = ref('DEPLOYED');
 const onlineOnly = ref(false);
 const selfOperatedOnly = ref(false);
@@ -182,6 +194,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
@@ -424,8 +437,21 @@ onBeforeUnmount(() => {
   padding: 4px 10px;
   border-radius: 999px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-.tile-hint { margin-left: 8px; color: var(--el-color-warning); }
+.map-count-btn {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  cursor: default;
+  pointer-events: none;
+}
+.tile-hint { color: var(--el-color-warning); }
 .map-side-panel {
   position: absolute;
   top: 14px;

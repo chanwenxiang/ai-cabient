@@ -44,9 +44,10 @@
           row-key="logId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-        >
-          <template #empty><el-empty description="暂无审计日志" /></template>
+          @selection-change="onSelectionChange" empty-text=" ">
+          <template #empty>
+            <el-empty v-if="listHydrated && !loading" description="暂无审计日志" />
+          </template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="logId" label="日志编号" width="100" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
@@ -82,8 +83,7 @@
       </div>
     </div>
 
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="total"
@@ -93,12 +93,12 @@
         @current-change="onPageChange"
         @size-change="onSizeChange"
       />
-    </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import PagePager from '@/components/PagePager.vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
@@ -132,6 +132,7 @@ interface AuditRow {
 const route = useRoute();
 const router = useRouter();
 const loading = ref(false);
+const listHydrated = ref(false);
 const mineOnly = ref(false);
 const actionFilter = ref('');
 const targetFilter = ref('');
@@ -265,6 +266,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

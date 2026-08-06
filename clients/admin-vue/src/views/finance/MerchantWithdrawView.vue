@@ -9,7 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button :icon="Refresh" :loading="loading" @click="reload">刷新</el-button>
+          <el-button :icon="Refresh" :loading="tab === 'withdraws' ? withdrawsLoading : walletsLoading" @click="reload">刷新</el-button>
         </div>
       </div>
     </template>
@@ -26,7 +26,8 @@
         </el-form>
 
         <div class="table-scroll">
-          <el-table :data="wallets" v-loading="loading" stripe border class="report-table">
+          <el-table :data="wallets" v-loading="walletsLoading" stripe border class="report-table" empty-text=" ">
+            <template #empty><el-empty v-if="walletsHydrated && !walletsLoading" description="暂无商户钱包" /></template>
             <el-table-column prop="merchantId" label="商户ID" min-width="120" align="center" />
             <el-table-column prop="merchantName" label="名称" min-width="140" show-overflow-tooltip align="center" />
             <el-table-column prop="contactPhone" label="联系电话" width="130" align="center" />
@@ -49,8 +50,7 @@
             </el-table-column>
           </el-table>
         </div>
-        <div class="page-pager">
-          <el-pagination
+        <PagePager :hydrated="walletsHydrated"
             v-model:current-page="wPage"
             v-model:page-size="wSize"
             :total="wTotal"
@@ -60,7 +60,6 @@
             @current-change="loadWallets"
             @size-change="onWalletSizeChange"
           />
-        </div>
       </el-tab-pane>
 
       <el-tab-pane label="提现审核" name="withdraws">
@@ -81,7 +80,8 @@
         </el-form>
 
         <div class="table-scroll">
-          <el-table :data="withdraws" v-loading="loading" stripe border class="report-table">
+          <el-table :data="withdraws" v-loading="withdrawsLoading" stripe border class="report-table" empty-text=" ">
+            <template #empty><el-empty v-if="withdrawsHydrated && !withdrawsLoading" description="暂无提现申请" /></template>
             <el-table-column prop="requestId" label="单号" width="80" align="center" />
             <el-table-column prop="requestNo" label="幂等号" min-width="160" show-overflow-tooltip align="center" />
             <el-table-column prop="merchantId" label="商户ID" width="120" align="center" />
@@ -115,8 +115,7 @@
             </el-table-column>
           </el-table>
         </div>
-        <div class="page-pager">
-          <el-pagination
+        <PagePager :hydrated="withdrawsHydrated"
             v-model:current-page="wdPage"
             v-model:page-size="wdSize"
             :total="wdTotal"
@@ -126,12 +125,14 @@
             @current-change="loadWithdraws"
             @size-change="onWdSizeChange"
           />
-        </div>
       </el-tab-pane>
     </el-tabs>
 
     <el-drawer v-model="ledgerVisible" title="钱包流水" size="520px">
-      <el-table :data="ledgers" size="small" stripe>
+      <el-table v-loading="!ledgerHydrated" :data="ledgers" size="small" stripe empty-text=" ">
+        <template #empty>
+          <el-empty v-if="ledgerHydrated" description="暂无流水" :image-size="64" />
+        </template>
         <el-table-column prop="entryType" label="类型" width="130" align="center" />
         <el-table-column label="变动(元)" width="100" align="center">
           <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
@@ -153,6 +154,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import PagePager from '@/components/PagePager.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
@@ -188,7 +190,10 @@ interface Withdraw {
 
 const auth = useAuthStore();
 const tab = ref('wallets');
-const loading = ref(false);
+const walletsLoading = ref(false);
+const withdrawsLoading = ref(false);
+const walletsHydrated = ref(false);
+const withdrawsHydrated = ref(false);
 const wallets = ref<WalletRow[]>([]);
 const wPage = ref(1);
 const wSize = ref(20);
@@ -200,6 +205,7 @@ const wdSize = ref(20);
 const wdTotal = ref(0);
 const wdStatus = ref('');
 const ledgerVisible = ref(false);
+const ledgerHydrated = ref(false);
 const ledgers = ref<any[]>([]);
 
 const withdrawStatusOptions = useDictOptions('merchant_withdraw_status');
@@ -242,7 +248,7 @@ function onWdSizeChange() {
 }
 
 async function loadWallets() {
-  loading.value = true;
+  walletsLoading.value = true;
   try {
     const q = new URLSearchParams({
       page: String(wPage.value - 1),
@@ -258,12 +264,13 @@ async function loadWallets() {
   } catch (e: any) {
     ElMessage.error(e?.message || '加载失败');
   } finally {
-    loading.value = false;
+    walletsHydrated.value = true;
+    walletsLoading.value = false;
   }
 }
 
 async function loadWithdraws() {
-  loading.value = true;
+  withdrawsLoading.value = true;
   try {
     const q = new URLSearchParams({
       page: String(wdPage.value - 1),
@@ -279,7 +286,8 @@ async function loadWithdraws() {
   } catch (e: any) {
     ElMessage.error(e?.message || '加载失败');
   } finally {
-    loading.value = false;
+    withdrawsHydrated.value = true;
+    withdrawsLoading.value = false;
   }
 }
 
@@ -298,11 +306,19 @@ async function adjust(row: WalletRow) {
 }
 
 async function showLedgers(row: WalletRow) {
-  ledgers.value = await api.request(
-    `/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(row.merchantId)}/ledgers?limit=50`,
-    'GET'
-  );
+  ledgers.value = [];
   ledgerVisible.value = true;
+  try {
+    ledgers.value = await api.request(
+      `/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(row.merchantId)}/ledgers?limit=50`,
+      'GET'
+    );
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载流水失败');
+    ledgers.value = [];
+  } finally {
+    ledgerHydrated.value = true;
+  }
 }
 
 async function proxyWithdraw(row: WalletRow) {

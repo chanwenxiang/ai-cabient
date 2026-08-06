@@ -68,7 +68,7 @@
           <el-button v-hasPermi="['ops:warehouse:export']" @click="onExport">
             {{ selectedKeys.length ? `导出选中 (${selectedKeys.length})` : '导出' }}
           </el-button>
-          <el-button :icon="Refresh" :loading="loading" @click="reloadCurrent">刷新</el-button>
+          <el-button :icon="Refresh" :loading="isTabLoading(tab)" @click="reloadCurrent">刷新</el-button>
         </div>
       </div>
     </template>
@@ -128,7 +128,7 @@
     </el-form>
 
     <el-alert
-      v-if="tab === 'transit' && overdueTransitCount > 0"
+      v-if="tab === 'transit' && hydratedTabs.has('transit') && !isTabLoading('transit') && overdueTransitCount > 0"
       type="error"
       :closable="false"
       show-icon
@@ -144,7 +144,7 @@
         <div class="table-scroll">
           <div class="table-scroll-inner">
             <el-table
-              v-loading="loading"
+              v-loading="isTabLoading('warehouses')"
               :data="pagedWarehouses"
               :default-sort="warehouseIdDefaultSort"
               @sort-change="onWarehouseIdSortChange"
@@ -153,9 +153,8 @@
               class="report-table"
               table-layout="auto"
               row-key="warehouseId"
-              @selection-change="onSelectionChange"
-            >
-              <template #empty><el-empty description="暂无仓库" /></template>
+              @selection-change="onSelectionChange" empty-text=" ">
+              <template #empty><el-empty v-if="hydratedTabs.has('warehouses') && !isTabLoading('warehouses')" description="暂无仓库" /></template>
               <el-table-column type="selection" width="48" align="center" />
               <el-table-column prop="warehouseId" label="仓库编号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
                 <template #default="{ row }">
@@ -191,7 +190,7 @@
           <div class="table-scroll-inner">
             <el-table
               class="report-table"
-              v-loading="loading"
+              v-loading="isTabLoading('suppliers')"
               :data="pagedSuppliers"
               :default-sort="supplierIdDefaultSort"
               @sort-change="onSupplierIdSortChange"
@@ -199,8 +198,7 @@
               border
               table-layout="auto"
               row-key="supplierId"
-              @selection-change="onSelectionChange"
-            >
+              @selection-change="onSelectionChange" empty-text=" ">
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="supplierId" label="供应商编号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
             <template #default="{ row }">
@@ -225,7 +223,7 @@
               />
             </template>
           </el-table-column>
-          <template #empty><el-empty description="暂无供应商" /></template>
+          <template #empty><el-empty v-if="hydratedTabs.has('suppliers') && !isTabLoading('suppliers')" description="暂无供应商" /></template>
             </el-table>
           </div>
         </div>
@@ -236,14 +234,13 @@
           <div class="table-scroll-inner">
             <el-table
               class="report-table"
-              v-loading="loading"
+              v-loading="isTabLoading('purchase')"
               :data="pagedPurchaseOrders"
               stripe
               border
               table-layout="auto"
               row-key="purchaseOrderId"
-              @selection-change="onSelectionChange"
-            >
+              @selection-change="onSelectionChange" empty-text=" ">
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column type="expand" align="center">
             <template #default="{ row }">
@@ -293,7 +290,7 @@
               <span v-else class="muted">已完成</span>
             </template>
           </el-table-column>
-          <template #empty><el-empty description="暂无采购单" /></template>
+          <template #empty><el-empty v-if="hydratedTabs.has('purchase') && !isTabLoading('purchase')" description="暂无采购单" /></template>
             </el-table>
           </div>
         </div>
@@ -304,14 +301,13 @@
           <div class="table-scroll-inner">
             <el-table
               class="report-table"
-              v-loading="loading"
+              v-loading="isTabLoading('returns')"
               :data="pagedPurchaseReturns"
               stripe
               border
               table-layout="auto"
               row-key="returnId"
-              @selection-change="onSelectionChange"
-            >
+              @selection-change="onSelectionChange" empty-text=" ">
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column type="expand" align="center">
             <template #default="{ row }">
@@ -348,7 +344,7 @@
           <el-table-column label="创建时间" min-width="170" align="center">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
-          <template #empty><el-empty description="暂无采购退货" /></template>
+          <template #empty><el-empty v-if="hydratedTabs.has('returns') && !isTabLoading('returns')" description="暂无采购退货" /></template>
             </el-table>
           </div>
         </div>
@@ -359,7 +355,7 @@
           <div class="table-scroll-inner">
             <el-table
               class="report-table"
-              v-loading="loading"
+              v-loading="isTabLoading('outbounds')"
               :data="pagedOutbounds"
               stripe
               border
@@ -367,8 +363,7 @@
               row-key="outboundId"
               :row-class-name="outboundRowClassName"
               data-testid="outbound-table"
-              @selection-change="onSelectionChange"
-            >
+              @selection-change="onSelectionChange" empty-text=" ">
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column type="expand" align="center">
             <template #default="{ row }">
@@ -429,7 +424,7 @@
               </div>
             </template>
           </el-table-column>
-          <template #empty><el-empty description="暂无出库单" /></template>
+          <template #empty><el-empty v-if="hydratedTabs.has('outbounds') && !isTabLoading('outbounds')" description="暂无出库单" /></template>
             </el-table>
           </div>
         </div>
@@ -440,16 +435,15 @@
           <div class="table-scroll-inner">
             <el-table
               class="report-table"
-              v-loading="loading"
+              v-loading="isTabLoading('transit')"
               :data="pagedInTransit"
               stripe
               border
               table-layout="auto"
               :row-key="transitRowKey"
               :row-class-name="transitRowClassName"
-              :empty-text="transitEmptyHint"
-              @selection-change="onSelectionChange"
-            >
+              @selection-change="onSelectionChange" empty-text=" ">
+          <template #empty><el-empty v-if="hydratedTabs.has('transit') && !isTabLoading('transit')" :description="transitEmptyHint" /></template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="outboundId" label="出库单" min-width="96" align="center" />
           <el-table-column label="目标设备" min-width="180" align="center">
@@ -490,7 +484,6 @@
           <el-table-column label="发运时间" min-width="170" align="center">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
-          <template #empty><el-empty :description="transitEmptyHint" /></template>
             </el-table>
           </div>
         </div>
@@ -501,14 +494,13 @@
           <div class="table-scroll-inner">
             <el-table
               class="report-table"
-              v-loading="loading"
+              v-loading="isTabLoading('inventory')"
               :data="pagedInventory"
               stripe
               border
               table-layout="auto"
               :row-key="inventoryRowKey"
-              @selection-change="onSelectionChange"
-            >
+              @selection-change="onSelectionChange" empty-text=" ">
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="仓库" min-width="140" align="center">
             <template #default="{ row }">{{ warehouseName(row.warehouseId) }}</template>
@@ -527,7 +519,7 @@
               <el-tag :type="expiryType(row.expiryDate)" size="small">{{ expiryText(row.expiryDate) }}</el-tag>
             </template>
           </el-table-column>
-          <template #empty><el-empty description="暂无库存" /></template>
+          <template #empty><el-empty v-if="hydratedTabs.has('inventory') && !isTabLoading('inventory')" description="暂无库存" /></template>
             </el-table>
           </div>
         </div>
@@ -539,14 +531,13 @@
           <div class="table-scroll-inner">
             <el-table
               class="report-table"
-              v-loading="loading"
+              v-loading="isTabLoading('movements')"
               :data="pagedMovements"
               stripe
               border
               table-layout="auto"
               row-key="movementId"
-              @selection-change="onSelectionChange"
-            >
+              @selection-change="onSelectionChange" empty-text=" ">
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="movementId" label="流水" min-width="90" align="center" />
           <el-table-column label="类型" min-width="130" align="center">
@@ -570,21 +561,19 @@
           <el-table-column label="时间" min-width="170" align="center">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
-          <template #empty><el-empty description="暂无流水" /></template>
+          <template #empty><el-empty v-if="hydratedTabs.has('movements') && !isTabLoading('movements')" description="暂无流水" /></template>
             </el-table>
           </div>
         </div>
       </el-tab-pane>
     </el-tabs>
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="hydratedTabs.has(tab)"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="tabTotal"
         :page-sizes="[10, 20, 50, 100]"
         layout="total, sizes, prev, pager, next"
       />
-    </div>
 
     <el-dialog v-model="warehouseDialog" :title="warehouseForm.editing ? '编辑仓库' : '新增仓库'" width="480px" destroy-on-close>
       <el-form label-width="88px">
@@ -629,7 +618,7 @@
     </el-dialog>
 
     <el-dialog v-model="purchaseDialog" title="新建采购单" width="760px" class="dialog-wide" destroy-on-close>
-      <el-form label-width="90px">
+      <el-form v-loading="dialogBootLoading" label-width="90px">
         <div class="form-grid">
           <el-form-item label="供应商">
             <el-select v-model="purchaseForm.supplierId" filterable style="width: 100%">
@@ -670,7 +659,7 @@
       </el-form>
       <template #footer>
         <el-button @click="purchaseDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="savePurchase">创建</el-button>
+        <el-button type="primary" :loading="saving" :disabled="dialogBootLoading" @click="savePurchase">创建</el-button>
       </template>
     </el-dialog>
 
@@ -699,6 +688,7 @@
     </el-dialog>
 
     <el-dialog v-model="returnDialog" title="采购退货" width="760px" class="dialog-wide" destroy-on-close>
+      <div v-loading="dialogBootLoading">
       <el-form label-width="90px">
         <el-form-item label="采购单" required>
           <el-select
@@ -737,14 +727,15 @@
         </el-table-column>
       </el-table>
       </div>
+      </div>
       <template #footer>
         <el-button @click="returnDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveReturn">确认退货</el-button>
+        <el-button type="primary" :loading="saving" :disabled="dialogBootLoading" @click="saveReturn">确认退货</el-button>
       </template>
     </el-dialog>
 
     <el-dialog v-model="inboundDialog" title="其他入库" width="720px" class="dialog-wide" destroy-on-close>
-      <el-form label-width="88px">
+      <el-form v-loading="dialogBootLoading" label-width="88px">
         <div class="form-grid">
           <el-form-item label="仓库" required>
             <el-select v-model="inboundForm.warehouseId" style="width: 100%">
@@ -779,7 +770,7 @@
       </el-form>
       <template #footer>
         <el-button @click="inboundDialog = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveInbound">确认入库</el-button>
+        <el-button type="primary" :loading="saving" :disabled="dialogBootLoading" @click="saveInbound">确认入库</el-button>
       </template>
     </el-dialog>
 
@@ -819,6 +810,7 @@ import { Box, EditPen, Refresh, RefreshLeft, Van } from '@element-plus/icons-vue
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useAuthStore } from '@/stores/auth';
@@ -889,7 +881,11 @@ function statusCode(raw: string | undefined, fallback = 'ACTIVE') {
   return fallback;
 }
 
-const loading = ref(false);
+const loadingTabs = ref(new Set<string>());
+const hydratedTabs = ref(new Set<string>());
+function isTabLoading(name: string) {
+  return loadingTabs.value.has(name);
+}
 const saving = ref(false);
 const cleanupStaleLoading = ref(false);
 const tab = ref('warehouses');
@@ -934,6 +930,7 @@ const purchaseDialog = ref(false);
 const receiveDialog = ref(false);
 const returnDialog = ref(false);
 const inboundDialog = ref(false);
+const dialogBootLoading = ref(false);
 
 const warehouseForm = reactive({
   editing: false,
@@ -1561,7 +1558,9 @@ async function loadMovements() {
 
 async function loadTab(name: string, force = false) {
   if (!force && loadedTabs.value.has(name) && name !== 'inventory' && name !== 'movements') return;
-  loading.value = true;
+  const nextLoading = new Set(loadingTabs.value);
+  nextLoading.add(name);
+  loadingTabs.value = nextLoading;
   try {
     await ensureMeta();
     if (name === 'warehouses') await loadWarehouses();
@@ -1582,7 +1581,12 @@ async function loadTab(name: string, force = false) {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
-    loading.value = false;
+    const next = new Set(hydratedTabs.value);
+    next.add(name);
+    hydratedTabs.value = next;
+    const doneLoading = new Set(loadingTabs.value);
+    doneLoading.delete(name);
+    loadingTabs.value = doneLoading;
   }
 }
 
@@ -1676,15 +1680,22 @@ async function saveSupplier() {
 }
 
 async function openPurchase() {
-  await Promise.all([loadSuppliersSoft(), loadWarehousesSoft(), ensureMeta()]);
   Object.assign(purchaseForm, {
-    supplierId: activeSuppliers.value[0]?.supplierId || '',
-    warehouseId: activeWarehouses.value[0]?.warehouseId || '',
+    supplierId: '',
+    warehouseId: '',
     refNo: '',
     notes: '',
     lines: [newLine()]
   });
   purchaseDialog.value = true;
+  dialogBootLoading.value = true;
+  try {
+    await Promise.all([loadSuppliersSoft(), loadWarehousesSoft(), ensureMeta()]);
+    purchaseForm.supplierId = activeSuppliers.value[0]?.supplierId || '';
+    purchaseForm.warehouseId = activeWarehouses.value[0]?.warehouseId || '';
+  } finally {
+    dialogBootLoading.value = false;
+  }
 }
 function addPurchaseLine() {
   purchaseForm.lines.push(newLine());
@@ -1782,20 +1793,28 @@ async function saveReceive() {
 }
 
 async function openReturn() {
-  await Promise.all([
-    loadPurchase().catch(() => {}),
-    loadSuppliersSoft(),
-    loadWarehousesSoft(),
-    ensureMeta()
-  ]);
-  const first = returnablePurchaseOrders.value[0];
   Object.assign(returnForm, {
-    purchaseOrderId: first?.purchaseOrderId || null,
+    purchaseOrderId: null,
     notes: '',
     lines: []
   });
-  if (first) onReturnPoChange(first.purchaseOrderId);
   returnDialog.value = true;
+  dialogBootLoading.value = true;
+  try {
+    await Promise.all([
+      loadPurchase().catch(() => {}),
+      loadSuppliersSoft(),
+      loadWarehousesSoft(),
+      ensureMeta()
+    ]);
+    const first = returnablePurchaseOrders.value[0];
+    returnForm.purchaseOrderId = first?.purchaseOrderId || null;
+    returnForm.notes = '';
+    returnForm.lines = [];
+    if (first) onReturnPoChange(first.purchaseOrderId);
+  } finally {
+    dialogBootLoading.value = false;
+  }
 }
 function onReturnPoChange(purchaseOrderId: number | string | null) {
   const po = purchaseOrders.value.find((p) => p.purchaseOrderId === purchaseOrderId);
@@ -1954,14 +1973,22 @@ async function submitOutboundConfirm() {
 }
 
 async function openInbound() {
-  await Promise.all([loadWarehousesSoft(), ensureMeta()]);
   Object.assign(inboundForm, {
-    warehouseId: filterWarehouseId.value || activeWarehouses.value[0]?.warehouseId || '',
+    warehouseId: filterWarehouseId.value || '',
     refNo: '',
     notes: '',
     lines: [newInboundLine()]
   });
   inboundDialog.value = true;
+  dialogBootLoading.value = true;
+  try {
+    await Promise.all([loadWarehousesSoft(), ensureMeta()]);
+    if (!inboundForm.warehouseId) {
+      inboundForm.warehouseId = activeWarehouses.value[0]?.warehouseId || '';
+    }
+  } finally {
+    dialogBootLoading.value = false;
+  }
 }
 async function saveInbound() {
   if (!inboundForm.warehouseId || inboundForm.lines.some((l: Row) => !l.skuId || !l.batchNo || !l.expiryDate || !l.quantity)) {

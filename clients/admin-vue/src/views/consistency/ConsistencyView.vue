@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <el-card class="page-card report-page" shadow="never">
     <template #header>
       <div class="page-card-head">
@@ -25,8 +25,8 @@
     />
 
     <div class="kpi-tags">
-      <el-tag size="small" type="danger">FAIL {{ failCount }}</el-tag>
-      <el-tag size="small" type="info">本页 {{ paged.length }}</el-tag>
+      <el-tag size="small" type="danger">FAIL {{ listHydrated ? failCount : '—' }}</el-tag>
+      <el-tag size="small" type="info">本页 {{ listHydrated ? paged.length : '—' }}</el-tag>
       <el-tag v-if="lastRunAt" size="small" type="success">上次巡检 {{ lastRunAt }}</el-tag>
     </div>
 
@@ -56,9 +56,9 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table v-loading="loading" :data="paged" stripe border class="report-table" row-key="id">
+        <el-table v-loading="loading" :data="paged" stripe border class="report-table" row-key="id" empty-text=" ">
           <template #empty>
-            <el-empty :description="emptyText" />
+            <el-empty v-if="listHydrated && !loading" :description="emptyText" />
           </template>
           <el-table-column label="类型" width="160" align="center">
             <template #default="{ row }">
@@ -121,8 +121,7 @@
         </el-table>
       </div>
     </div>
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="filtered.length"
@@ -130,12 +129,12 @@
         layout="total, sizes, prev, pager, next"
         background
       />
-    </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
+import PagePager from '@/components/PagePager.vue';
 import { useRouter } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -180,6 +179,7 @@ const canFix = computed(
 );
 
 const loading = ref(false);
+const listHydrated = ref(false);
 const running = ref(false);
 const fixingId = ref<number | null>(null);
 const items = ref<Row[]>([]);
@@ -284,6 +284,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
@@ -301,6 +302,7 @@ async function runCheck() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '巡检失败');
   } finally {
+    listHydrated.value = true;
     running.value = false;
   }
 }

@@ -49,7 +49,7 @@
             @keydown.enter="item.path && goPath(item.path)"
           >
             <div class="kpi-label">{{ item.label }}</div>
-            <div class="kpi-value" :class="{ warn: item.warn }">{{ item.value }}</div>
+            <div class="kpi-value" :class="{ warn: listHydrated && item.warn }">{{ item.value }}</div>
             <div v-if="item.hint" class="kpi-hint">{{ item.hint }}</div>
           </div>
         </el-col>
@@ -79,7 +79,7 @@
         </template>
         <Transition name="chart-fade" mode="out-in">
           <ChartBox v-if="chartSvg" :key="chartKind" :svg="chartSvg" />
-          <el-empty v-else key="empty" description="暂无趋势数据" :image-size="64" />
+          <el-empty v-else-if="listHydrated" key="empty" description="暂无趋势数据" :image-size="64" />
         </Transition>
         <template #footer>
           <span class="chart-legend-item"><i style="background:#2dd4bf" />营收</span>
@@ -90,11 +90,11 @@
 
       <ChartPanel title="累计快照" fill compact>
         <el-descriptions :column="1" border size="small" class="snapshot-desc">
-          <el-descriptions-item label="累计营收">¥{{ ((stats.revenueTotalCents || 0) / 100).toFixed(2) }}</el-descriptions-item>
-          <el-descriptions-item label="累计成本">¥{{ ((stats.cogsTotalCents || 0) / 100).toFixed(2) }}</el-descriptions-item>
-          <el-descriptions-item label="累计毛利">¥{{ ((stats.grossMarginTotalCents || 0) / 100).toFixed(2) }}</el-descriptions-item>
-          <el-descriptions-item label="今日报废金额">¥{{ ((stats.writeOffTodayCents || 0) / 100).toFixed(2) }}</el-descriptions-item>
-          <el-descriptions-item label="今日报废件数">{{ stats.writeOffTodayQty || 0 }}</el-descriptions-item>
+          <el-descriptions-item label="累计营收">{{ listHydrated ? `¥${((stats.revenueTotalCents || 0) / 100).toFixed(2)}` : '—' }}</el-descriptions-item>
+          <el-descriptions-item label="累计成本">{{ listHydrated ? `¥${((stats.cogsTotalCents || 0) / 100).toFixed(2)}` : '—' }}</el-descriptions-item>
+          <el-descriptions-item label="累计毛利">{{ listHydrated ? `¥${((stats.grossMarginTotalCents || 0) / 100).toFixed(2)}` : '—' }}</el-descriptions-item>
+          <el-descriptions-item label="今日报废金额">{{ listHydrated ? `¥${((stats.writeOffTodayCents || 0) / 100).toFixed(2)}` : '—' }}</el-descriptions-item>
+          <el-descriptions-item label="今日报废件数">{{ listHydrated ? (stats.writeOffTodayQty || 0) : '—' }}</el-descriptions-item>
         </el-descriptions>
       </ChartPanel>
     </div>
@@ -115,9 +115,8 @@
             border
             table-layout="auto"
             row-key="skuId"
-            @selection-change="onTopSkusSelectionChange"
-          >
-            <template #empty><el-empty description="暂无商品毛利数据" /></template>
+            @selection-change="onTopSkusSelectionChange" empty-text=" ">
+            <template #empty><el-empty v-if="listHydrated && !loading" description="暂无商品毛利数据" /></template>
             <el-table-column type="selection" width="48" align="center" />
             <el-table-column prop="skuId" label="商品编号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
               <template #default="{ row }">
@@ -206,6 +205,8 @@ interface FinanceReport {
 const { router, canAccessPath, goPath } = useNavAccess();
 const route = useRoute();
 const loading = ref(false);
+/** 首屏未拉完前勿展示 ¥0 / 0%，避免与真实快照闪错 */
+const listHydrated = ref(false);
 const solidifying = ref(false);
 const loadError = ref('');
 const days = ref(parseDays(route.query.days));
@@ -223,7 +224,7 @@ function parseDays(raw: unknown): number {
 
 function onDaysChange() {
   router.replace({ query: { ...route.query, days: String(days.value) } });
-  load();
+  load({ resetSeries: true });
 }
 
 function skuMarginRate(row: FinanceSku) {
@@ -257,42 +258,47 @@ const kpiTiles = computed(() => {
   const marginCents = stats.value.grossMarginTodayCents || 0;
   const canAnalytics = canAccessPath('/analytics');
   const canOrders = canAccessPath('/orders');
+  const ready = listHydrated.value;
   return [
     {
       label: '今日营收',
-      value: `¥${((stats.value.revenueTodayCents || 0) / 100).toFixed(2)}`,
+      value: ready ? `¥${((stats.value.revenueTodayCents || 0) / 100).toFixed(2)}` : '—',
       accent: 'accent-teal',
       path: canAnalytics ? '/analytics' : undefined,
-      hint: canAnalytics ? '查看数据分析' : '今日快照'
+      hint: ready ? (canAnalytics ? '查看数据分析' : '今日快照') : '加载中…'
     },
     {
       label: '今日成本',
-      value: `¥${((stats.value.cogsTodayCents || 0) / 100).toFixed(2)}`,
-      accent: 'accent-blue'
+      value: ready ? `¥${((stats.value.cogsTodayCents || 0) / 100).toFixed(2)}` : '—',
+      accent: 'accent-blue',
+      hint: ready ? undefined : '加载中…'
     },
     {
       label: '今日毛利',
-      value: `¥${(marginCents / 100).toFixed(2)}`,
+      value: ready ? `¥${(marginCents / 100).toFixed(2)}` : '—',
       accent: 'accent-amber',
-      warn: marginCents < 0
+      warn: ready && marginCents < 0,
+      hint: ready ? undefined : '加载中…'
     },
     {
       label: '今日毛利率',
-      value: `${marginRate.toFixed(1)}%`,
+      value: ready ? `${marginRate.toFixed(1)}%` : '—',
       accent: 'accent-violet',
-      warn: marginRate < 0
+      warn: ready && marginRate < 0,
+      hint: ready ? undefined : '加载中…'
     },
     {
       label: '今日订单',
-      value: String(stats.value.orderToday || 0),
+      value: ready ? String(stats.value.orderToday || 0) : '—',
       accent: 'accent-teal',
       path: canOrders ? '/orders' : undefined,
-      hint: canOrders ? '查看订单' : '今日快照'
+      hint: ready ? (canOrders ? '查看订单' : '今日快照') : '加载中…'
     },
     {
       label: '今日客单',
-      value: `¥${((stats.value.averageOrderValueTodayCents || 0) / 100).toFixed(2)}`,
-      accent: 'accent-blue'
+      value: ready ? `¥${((stats.value.averageOrderValueTodayCents || 0) / 100).toFixed(2)}` : '—',
+      accent: 'accent-blue',
+      hint: ready ? undefined : '加载中…'
     }
   ];
 });
@@ -311,9 +317,14 @@ const chartSvg = computed(() => {
   });
 });
 
-async function load() {
+async function load(opts?: { resetSeries?: boolean }) {
   loading.value = true;
   loadError.value = '';
+  // 切天数时清空系列，避免旧区间叠新图；软刷新保留
+  if (opts?.resetSeries) {
+    daily.value = [];
+    topSkus.value = [];
+  }
   try {
     const data = await api.request<FinanceReport>(`/api/v2/ops/admin/finance/report?days=${days.value}`, 'GET');
     stats.value = data.summary || {};
@@ -325,6 +336,7 @@ async function load() {
     loadError.value = message;
     ElMessage.error(message);
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
@@ -348,7 +360,7 @@ watch(
     const next = parseDays(raw);
     if (next !== days.value) {
       days.value = next;
-      load();
+      load({ resetSeries: true });
     }
   }
 );

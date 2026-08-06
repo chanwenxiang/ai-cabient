@@ -62,9 +62,8 @@
         border
         class="report-table"
         :default-sort="{ prop: 'eventId', order: 'ascending' }"
-        @sort-change="onSortChange"
-      >
-        <template #empty><el-empty description="暂无运维事件" /></template>
+        @sort-change="onSortChange" empty-text=" ">
+        <template #empty><el-empty v-if="listHydrated && !loading" description="暂无运维事件" /></template>
         <el-table-column prop="eventId" label="事件ID" width="110" align="center" sortable="custom">
           <template #default="{ row }">
             <span class="cell-id">{{ row.eventId }}</span>
@@ -94,8 +93,7 @@
         </el-table-column>
       </el-table>
     </div>
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         layout="total, prev, pager, next"
@@ -103,12 +101,12 @@
         @current-change="load"
         @size-change="search"
       />
-    </div>
   </el-card>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
+import PagePager from '@/components/PagePager.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, type Sort } from 'element-plus';
 import { api } from '@/api/client';
@@ -133,6 +131,7 @@ interface DeviceOpt {
 }
 
 const loading = ref(false);
+const listHydrated = ref(false);
 const eventType = ref('');
 const severity = ref('');
 const deviceFilter = ref('');
@@ -202,6 +201,7 @@ async function load() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

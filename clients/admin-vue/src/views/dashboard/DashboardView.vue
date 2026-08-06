@@ -36,10 +36,13 @@
             @keydown.enter="goPath('/devices', { salesLocked: 'false' })"
           >
             <div class="stat-label">在售货柜</div>
-            <div class="stat-value">{{ workbench?.devicesOnSale ?? '无' }}</div>
+            <div class="stat-value">{{ listHydrated ? (workbench?.devicesOnSale ?? '无') : '—' }}</div>
             <div class="stat-hint">
-              停售 {{ workbench?.devicesSalesLocked ?? 0 }}
-              <template v-if="canAccessPath('/devices')"> · 查看设备</template>
+              <template v-if="!listHydrated">加载中…</template>
+              <template v-else>
+                停售 {{ workbench?.devicesSalesLocked ?? 0 }}
+                <template v-if="canAccessPath('/devices')"> · 查看设备</template>
+              </template>
             </div>
           </div>
         </el-col>
@@ -53,11 +56,14 @@
             @keydown.enter="goDevicesByOnlineRate"
           >
             <div class="stat-label">设备在线率</div>
-            <div class="stat-value">{{ onlineRate.toFixed(1) }}%</div>
+            <div class="stat-value">{{ listHydrated ? `${onlineRate.toFixed(1)}%` : '—' }}</div>
             <div class="stat-hint">
-              {{ stats.deviceOnline || 0 }} / {{ stats.deviceTotal || 0 }} 台
-              <template v-if="canAccessPath('/devices')">
-                · {{ (workbench?.offlineDevices || 0) > 0 ? '查看离线' : '查看设备' }}
+              <template v-if="!listHydrated">加载中…</template>
+              <template v-else>
+                {{ stats.deviceOnline || 0 }} / {{ stats.deviceTotal || 0 }} 台
+                <template v-if="canAccessPath('/devices')">
+                  · {{ (workbench?.offlineDevices || 0) > 0 ? '查看离线' : '查看设备' }}
+                </template>
               </template>
             </div>
           </div>
@@ -72,8 +78,11 @@
             @keydown.enter="goPath('/finance')"
           >
             <div class="stat-label">今日营收</div>
-            <div class="stat-value">¥{{ ((stats.revenueTodayCents || 0) / 100).toFixed(2) }}</div>
-            <div class="stat-hint">{{ canAccessPath('/finance') ? '查看财务毛利' : '今日快照' }}</div>
+            <div class="stat-value">{{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '—' }}</div>
+            <div class="stat-hint">
+              <template v-if="!listHydrated">加载中…</template>
+              <template v-else>{{ canAccessPath('/finance') ? '查看财务毛利' : '今日快照' }}</template>
+            </div>
           </div>
         </el-col>
         <el-col :xs="12" :sm="6">
@@ -89,9 +98,10 @@
             @keydown.enter="goExceptions"
           >
             <div class="stat-label">待处理异常</div>
-            <div class="stat-value">{{ openExceptionCount }}</div>
+            <div class="stat-value">{{ listHydrated ? openExceptionCount : '—' }}</div>
             <div class="stat-hint">
-              <template v-if="canAccessPath('/exceptions')">
+              <template v-if="!listHydrated">加载中…</template>
+              <template v-else-if="canAccessPath('/exceptions')">
                 {{ openExceptionCount ? '进入异常中心' : (totalIssues ? `其它待办 ${totalIssues}` : '运行正常') }}
               </template>
               <template v-else>{{ totalIssues ? `其它待办 ${totalIssues}` : '运行正常' }}</template>
@@ -133,16 +143,18 @@
             @click="goQuick(item)"
           >
             <span class="quick-label">{{ item.label }}</span>
-            <span class="quick-value">{{ item.count }}</span>
+            <span class="quick-value">{{ listHydrated ? item.count : '—' }}</span>
           </button>
         </el-col>
       </el-row>
       <p v-if="!visibleQuickLinks.length" class="empty-quick">
-        {{ totalIssues > 0 ? '有待办但当前账号无对应入口权限' : '当前无待办入口，勾选「显示无待办入口」可查看全部' }}
+        <template v-if="!listHydrated">加载中…</template>
+        <template v-else-if="totalIssues > 0">有待办但当前账号无对应入口权限</template>
+        <template v-else>当前无待办入口，勾选「显示无待办入口」可查看全部</template>
       </p>
 
       <div class="table-toolbar">
-        <span class="table-meta">待处理明细 {{ sortedActions.length }} 条</span>
+        <span class="table-meta">待处理明细 {{ listHydrated ? sortedActions.length : '—' }} 条</span>
         <el-radio-group v-model="severityFilter" size="small">
           <el-radio-button value="all">全部</el-radio-button>
           <el-radio-button value="urgent">仅紧急</el-radio-button>
@@ -156,11 +168,12 @@
             :data="pagedActions"
             stripe
             border
-            :empty-text="filteredActions.length ? '暂无明细项' : '运行正常，暂无待处理异常'"
+            empty-text=" "
           >
             <template #empty>
               <el-empty
-                :description="filteredActions.length ? '暂无明细项' : '运行正常，暂无待处理异常'"
+                v-if="listHydrated && !loading"
+                :description="queueEmptyText"
                 :image-size="72"
               />
             </template>
@@ -192,21 +205,22 @@
           </el-table>
         </div>
       </div>
-      <div v-if="filteredActions.length > pageSize" class="page-pager">
-        <el-pagination
-          v-model:current-page="page"
-          :page-size="pageSize"
-          :total="filteredActions.length"
-          layout="total, prev, pager, next"
-          background
-        />
-      </div>
+      <PagePager
+        v-if="listHydrated && filteredActions.length > pageSize"
+        :hydrated="listHydrated"
+        v-model:current-page="page"
+        :page-size="pageSize"
+        :total="filteredActions.length"
+        layout="total, prev, pager, next"
+        background
+      />
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import PagePager from '@/components/PagePager.vue';
 import { Refresh, Right } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
@@ -245,6 +259,8 @@ interface QuickLink {
 
 const { router, canAccessPath, goPath } = useNavAccess();
 const loading = ref(false);
+/** 首屏未拉完前勿展示「0 / 运行正常」，避免与异常中心真实待办数闪错 */
+const listHydrated = ref(false);
 const stats = ref<OpsStats>({});
 const workbench = ref<OpsWorkbench | null>(null);
 const openExceptionCount = ref(0);
@@ -334,6 +350,7 @@ const accessibleQuickLinks = computed(() =>
 );
 
 const visibleQuickLinks = computed(() => {
+  if (!listHydrated.value) return [];
   const list = showZeroLinks.value
     ? accessibleQuickLinks.value
     : accessibleQuickLinks.value.filter((item) => item.count > 0);
@@ -388,6 +405,10 @@ const sortedActions = computed(() => {
 const filteredActions = computed(() => {
   if (severityFilter.value !== 'urgent') return sortedActions.value;
   return sortedActions.value.filter((row) => priority(row.severity).score >= 3);
+});
+
+const queueEmptyText = computed(() => {
+  return filteredActions.value.length ? '暂无明细项' : '运行正常，暂无待处理异常';
 });
 
 const pagedActions = computed(() => {
@@ -536,9 +557,7 @@ async function load(opts?: { silent?: boolean }) {
       if (!opts?.silent) {
         ElMessage.warning('工作台暂无数据，请稍后点刷新重试');
       }
-      stats.value = {};
-      workbench.value = null;
-      openExceptionCount.value = 0;
+      // 保留上次成功数据，避免刷新失败把 KPI 闪成 0
       return;
     }
     stats.value = s || {};
@@ -549,6 +568,7 @@ async function load(opts?: { silent?: boolean }) {
       ElMessage.error(e instanceof Error ? e.message : '加载失败');
     }
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

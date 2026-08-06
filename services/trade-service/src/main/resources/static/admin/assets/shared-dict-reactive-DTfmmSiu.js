@@ -1,0 +1,1 @@
+import{a4 as t,al as n,aU as o,aV as d}from"./index-B1iE5Msl.js";function l(a){return t.value,n(a)}function u(a,i){return t.value,o(a,i)}function c(a,i,e="-"){return t.value,d(a,i,e)}export{l as a,c as b,u as d};

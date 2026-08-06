@@ -59,13 +59,13 @@
         @click="selectBoard(tile.key)"
       >
         <span class="ops-board__label">{{ tile.label }}</span>
-        <span class="ops-board__value">{{ boardCounts[tile.key] }}</span>
-        <span v-if="tile.hint" class="ops-board__hint">{{ tile.hint }}</span>
+        <span class="ops-board__value">{{ formatBoardCount(tile.key) }}</span>
+        <span v-if="tile.hint" class="ops-board__hint">{{ boardHydrated ? tile.hint : '加载中…' }}</span>
       </button>
     </div>
 
     <el-alert
-      v-if="attentionCount > 0 && boardTab === 'ALL'"
+      v-if="boardHydrated && attentionCount > 0 && boardTab === 'ALL'"
       type="warning"
       :closable="false"
       show-icon
@@ -74,11 +74,11 @@
     />
 
     <el-tabs v-model="boardTab" class="status-tabs" @tab-change="onBoardTab">
-      <el-tab-pane :label="`全部 (${boardCounts.ALL})`" name="ALL" />
-      <el-tab-pane :label="`在线 (${boardCounts.ONLINE})`" name="ONLINE" />
-      <el-tab-pane :label="`离线 (${boardCounts.OFFLINE})`" name="OFFLINE" />
-      <el-tab-pane :label="`在售 (${boardCounts.ON_SALE})`" name="ON_SALE" />
-      <el-tab-pane :label="`停售 (${boardCounts.LOCKED})`" name="LOCKED" />
+      <el-tab-pane :label="boardTabLabel('ALL', '全部')" name="ALL" />
+      <el-tab-pane :label="boardTabLabel('ONLINE', '在线')" name="ONLINE" />
+      <el-tab-pane :label="boardTabLabel('OFFLINE', '离线')" name="OFFLINE" />
+      <el-tab-pane :label="boardTabLabel('ON_SALE', '在售')" name="ON_SALE" />
+      <el-tab-pane :label="boardTabLabel('LOCKED', '停售')" name="LOCKED" />
     </el-tabs>
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
@@ -145,9 +145,10 @@
           row-key="deviceId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-        >
-          <template #empty><el-empty description="暂无设备" /></template>
+          @selection-change="onSelectionChange" empty-text=" ">
+          <template #empty>
+            <el-empty v-if="listHydrated && !loading" description="暂无设备" />
+          </template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="deviceId" label="设备编号" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
             <template #default="{ row }">
@@ -231,8 +232,7 @@
       </div>
     </div>
 
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="total"
@@ -242,7 +242,6 @@
         @current-change="() => load(false)"
         @size-change="onSizeChange"
       />
-    </div>
 
     <el-dialog v-model="createVisible" title="新建设备" width="480px" destroy-on-close append-to-body align-center>
       <el-form label-width="88px">
@@ -327,6 +326,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
@@ -345,6 +345,7 @@ const router = useRouter();
 const route = useRoute();
 const auth = useAuthStore();
 const loading = ref(false);
+const listHydrated = ref(false);
 const keyword = ref('');
 const lifecycleFilter = ref('');
 const coopFilter = ref('');
@@ -378,6 +379,8 @@ const boardCounts = reactive({
   ON_SALE: 0,
   LOCKED: 0
 });
+/** 避免首屏看板/Tab 在请求完成前误显「0」 */
+const boardHydrated = ref(false);
 const boardTiles: { key: BoardTab; label: string; hint?: string; warn?: boolean }[] = [
   { key: 'ALL', label: '全部设备' },
   { key: 'ONLINE', label: '在线', hint: '心跳正常' },
@@ -392,6 +395,14 @@ const policyForm = reactive({
 });
 
 const attentionCount = computed(() => boardCounts.OFFLINE + boardCounts.LOCKED);
+
+function formatBoardCount(key: BoardTab) {
+  return boardHydrated.value ? String(boardCounts[key]) : '—';
+}
+
+function boardTabLabel(key: BoardTab, label: string) {
+  return boardHydrated.value ? `${label} (${boardCounts[key]})` : `${label} (—)`;
+}
 
 function boardQuery(tab: BoardTab): { online?: string; salesLocked?: string } {
   switch (tab) {
@@ -649,20 +660,24 @@ async function refreshBoardCounts() {
     { key: 'ON_SALE', salesLocked: 'false' },
     { key: 'LOCKED', salesLocked: 'true' }
   ];
-  await Promise.all(
-    specs.map(async (spec) => {
-      try {
-        const q = new URLSearchParams({ page: '0', size: '1' });
-        if (keyword.value.trim()) q.set('q', keyword.value.trim());
-        if (spec.online) q.set('online', spec.online);
-        if (spec.salesLocked) q.set('salesLocked', spec.salesLocked);
-        const data = await api.request<PageResult<DeviceInfo>>(`/api/v2/ops/admin/devices?${q}`, 'GET');
-        boardCounts[spec.key] = data.total || 0;
-      } catch {
-        /* keep previous */
-      }
-    })
-  );
+  try {
+    await Promise.all(
+      specs.map(async (spec) => {
+        try {
+          const q = new URLSearchParams({ page: '0', size: '1' });
+          if (keyword.value.trim()) q.set('q', keyword.value.trim());
+          if (spec.online) q.set('online', spec.online);
+          if (spec.salesLocked) q.set('salesLocked', spec.salesLocked);
+          const data = await api.request<PageResult<DeviceInfo>>(`/api/v2/ops/admin/devices?${q}`, 'GET');
+          boardCounts[spec.key] = data.total || 0;
+        } catch {
+          /* keep previous */
+        }
+      })
+    );
+  } finally {
+    boardHydrated.value = true;
+  }
 }
 
 function selectBoard(tab: BoardTab) {
@@ -706,6 +721,7 @@ async function load(showToast = false) {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }

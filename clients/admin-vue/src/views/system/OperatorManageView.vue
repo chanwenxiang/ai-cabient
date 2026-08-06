@@ -47,9 +47,8 @@
           row-key="userId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange"
-        >
-          <template #empty><el-empty description="暂无运营账号" /></template>
+          @selection-change="onSelectionChange" empty-text=" ">
+          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无运营账号" /></template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="userId" label="用户编号" width="100" align="center" class-name="col-text" sortable="custom">
             <template #default="{ row }">
@@ -110,8 +109,7 @@
         </el-table>
       </div>
     </div>
-    <div class="page-pager">
-      <el-pagination
+    <PagePager :hydrated="listHydrated"
         v-model:current-page="page"
         v-model:page-size="size"
         :total="total"
@@ -121,7 +119,6 @@
         @current-change="loadOperators"
         @size-change="onSizeChange"
       />
-    </div>
 
     <el-dialog v-model="formDlg" :title="form.userId ? '编辑账号' : '新增账号'" width="460px" destroy-on-close>
       <el-form label-width="88px">
@@ -178,47 +175,61 @@
     </el-dialog>
 
     <el-dialog v-model="merchantDlg" title="商户范围（设备数据范围）" width="560px" destroy-on-close>
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        class="scope-alert"
-        title="数据范围说明"
-        description="勾选商户后，该账号仅可见这些商户下的设备及相关订单/补货/看板数据。不勾选任何商户 = 全局可见（admin 角色始终全局）。可再通过「货柜范围」限定到部分柜机。"
-      />
-      <el-checkbox-group v-model="merchantIds" class="merchant-group">
-        <el-checkbox v-for="m in merchants" :key="m.merchantId" :label="m.merchantId">
-          {{ m.merchantName }}（{{ m.merchantId }}）
-          <span class="muted">· {{ m.deviceCount ?? 0 }} 台设备</span>
-        </el-checkbox>
-      </el-checkbox-group>
+      <div v-loading="merchantScopeLoading" class="scope-dlg-body">
+        <el-alert
+          type="info"
+          :closable="false"
+          show-icon
+          class="scope-alert"
+          title="数据范围说明"
+          description="勾选商户后，该账号仅可见这些商户下的设备及相关订单/补货/看板数据。不勾选任何商户 = 全局可见（admin 角色始终全局）。可再通过「货柜范围」限定到部分柜机。"
+        />
+        <el-checkbox-group v-if="merchants.length" v-model="merchantIds" class="merchant-group">
+          <el-checkbox v-for="m in merchants" :key="m.merchantId" :label="m.merchantId">
+            {{ m.merchantName }}（{{ m.merchantId }}）
+            <span class="muted">· {{ m.deviceCount ?? 0 }} 台设备</span>
+          </el-checkbox>
+        </el-checkbox-group>
+        <el-empty
+          v-else-if="!merchantScopeLoading"
+          description="暂无商户可分配"
+          :image-size="64"
+        />
+      </div>
       <template #footer>
         <el-button @click="merchantDlg = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveMerchants">保存</el-button>
+        <el-button type="primary" :loading="saving" :disabled="merchantScopeLoading" @click="saveMerchants">保存</el-button>
       </template>
     </el-dialog>
 
     <el-dialog v-model="deviceDlg" title="货柜范围" width="640px" destroy-on-close>
-      <el-alert
-        type="info"
-        :closable="false"
-        show-icon
-        class="scope-alert"
-        title="人员货柜范围"
-        description="全部货柜 = 商户范围内所有柜；部分货柜 = 仅勾选柜机可见（理货员常用）。"
-      />
-      <el-radio-group v-model="deviceScopeMode" style="margin: 12px 0">
-        <el-radio value="ALL">全部货柜</el-radio>
-        <el-radio value="PARTIAL">部分货柜</el-radio>
-      </el-radio-group>
-      <el-checkbox-group v-if="deviceScopeMode === 'PARTIAL'" v-model="deviceIds" class="merchant-group">
-        <el-checkbox v-for="d in allDevices" :key="d.deviceId" :label="d.deviceId">
-          {{ d.deviceName || d.deviceId }}（{{ d.deviceId }}）
-        </el-checkbox>
-      </el-checkbox-group>
+      <div v-loading="deviceScopeLoading" class="scope-dlg-body">
+        <el-alert
+          type="info"
+          :closable="false"
+          show-icon
+          class="scope-alert"
+          title="人员货柜范围"
+          description="全部货柜 = 商户范围内所有柜；部分货柜 = 仅勾选柜机可见（理货员常用）。"
+        />
+        <el-radio-group v-model="deviceScopeMode" style="margin: 12px 0">
+          <el-radio value="ALL">全部货柜</el-radio>
+          <el-radio value="PARTIAL">部分货柜</el-radio>
+        </el-radio-group>
+        <el-checkbox-group v-if="deviceScopeMode === 'PARTIAL' && allDevices.length" v-model="deviceIds" class="merchant-group">
+          <el-checkbox v-for="d in allDevices" :key="d.deviceId" :label="d.deviceId">
+            {{ d.deviceName || d.deviceId }}（{{ d.deviceId }}）
+          </el-checkbox>
+        </el-checkbox-group>
+        <el-empty
+          v-else-if="deviceScopeMode === 'PARTIAL' && !deviceScopeLoading && !allDevices.length"
+          description="暂无货柜可分配"
+          :image-size="64"
+        />
+      </div>
       <template #footer>
         <el-button @click="deviceDlg = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="saveDevices">保存</el-button>
+        <el-button type="primary" :loading="saving" :disabled="deviceScopeLoading" @click="saveDevices">保存</el-button>
       </template>
     </el-dialog>
   </el-card>
@@ -231,6 +242,7 @@ import { Delete, EditPen, Key, Monitor, OfficeBuilding, Refresh } from '@element
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
+import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
@@ -266,6 +278,7 @@ interface MerchantRow {
 }
 
 const loading = ref(false);
+const listHydrated = ref(false);
 const saving = ref(false);
 const operators = ref<OperatorRow[]>([]);
 const roles = ref<RoleRow[]>([]);
@@ -283,6 +296,8 @@ const formDlg = ref(false);
 const roleDlg = ref(false);
 const merchantDlg = ref(false);
 const deviceDlg = ref(false);
+const merchantScopeLoading = ref(false);
+const deviceScopeLoading = ref(false);
 const merchantIds = ref<string[]>([]);
 const deviceIds = ref<string[]>([]);
 const deviceScopeMode = ref('ALL');
@@ -412,6 +427,7 @@ async function loadOperators() {
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载运营账号失败');
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
@@ -540,16 +556,20 @@ async function saveRoles() {
 
 async function openMerchants(row: OperatorRow) {
   currentUserId.value = row.userId;
-  if (!merchants.value.length) await loadMerchants();
+  merchantIds.value = [];
+  merchantDlg.value = true;
+  merchantScopeLoading.value = true;
   try {
+    if (!merchants.value.length) await loadMerchants();
     const data = await api.request<{ merchantIds: string[] }>(
       `/api/v2/ops/admin/rbac/users/${row.userId}/merchants`,
       'GET'
     );
     merchantIds.value = [...(data.merchantIds || [])];
-    merchantDlg.value = true;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载商户范围失败');
+  } finally {
+    merchantScopeLoading.value = false;
   }
 }
 
@@ -574,6 +594,10 @@ async function saveMerchants() {
 
 async function openDevices(row: OperatorRow) {
   currentUserId.value = row.userId;
+  deviceScopeMode.value = 'ALL';
+  deviceIds.value = [];
+  deviceDlg.value = true;
+  deviceScopeLoading.value = true;
   try {
     if (!allDevices.value.length) {
       const list = await api.request<{ items: any[] }>('/api/v2/ops/admin/devices?page=0&size=200', 'GET');
@@ -585,9 +609,10 @@ async function openDevices(row: OperatorRow) {
     );
     deviceScopeMode.value = data.scopeMode || 'ALL';
     deviceIds.value = [...(data.deviceIds || [])];
-    deviceDlg.value = true;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载货柜范围失败');
+  } finally {
+    deviceScopeLoading.value = false;
   }
 }
 
@@ -653,4 +678,5 @@ onActivated(() => {
 .scope-alert { margin-bottom: 12px; }
 .hidden-input { display: none; }
 .merchant-group { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow: auto; }
+.scope-dlg-body { min-height: 120px; }
 </style>

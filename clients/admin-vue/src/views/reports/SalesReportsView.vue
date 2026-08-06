@@ -49,8 +49,8 @@
       </el-form-item>
     </el-form>
 
-    <el-table v-loading="loading" :data="rows" stripe border class="report-table">
-      <template #empty><el-empty description="暂无数据" /></template>
+    <el-table v-loading="loading" :data="rows" stripe border class="report-table" empty-text=" ">
+      <template #empty><el-empty v-if="listHydrated && !loading" description="暂无数据" /></template>
       <el-table-column prop="dimKey" label="编码" min-width="140" align="center" />
       <el-table-column prop="dimLabel" label="名称" min-width="180" align="center" />
       <el-table-column prop="orderCount" label="订单数" width="90" align="center" />
@@ -80,6 +80,7 @@ interface DeviceOpt {
 }
 
 const loading = ref(false);
+const listHydrated = ref(false);
 const dim = ref('PRODUCT');
 const deviceId = ref('');
 const range = ref<[string, string] | null>(null);
@@ -108,7 +109,9 @@ async function load() {
     rows.value = await api.request(`/api/v2/ops/admin/sales-reports?${q}`, 'GET');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
+    if (!listHydrated.value) rows.value = [];
   } finally {
+    listHydrated.value = true;
     loading.value = false;
   }
 }
