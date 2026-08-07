@@ -105,4 +105,11 @@ router.beforeEach(async (to) => {
   return true;
 });
 
+// 动态页面标题：每个路由的 meta.title 会拼到浏览器标签页上
+const BASE_TITLE = 'AI开门柜 · 运营管理系统';
+router.afterEach((to) => {
+  const pageTitle = to.meta.title as string | undefined;
+  document.title = pageTitle ? `${pageTitle} · ${BASE_TITLE}` : BASE_TITLE;
+});
+
 export default router;
