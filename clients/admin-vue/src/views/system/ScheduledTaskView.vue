@@ -126,6 +126,15 @@
       <div class="cell-hint" style="margin-bottom: 8px">
         写清楚这个任务干什么用的，方便运维理解与交接
       </div>
+      <el-select
+        v-model="remarkTemplate"
+        placeholder="选择用途模板（可选）"
+        clearable
+        style="width: 100%; margin-bottom: 12px"
+        @change="applyTemplate"
+      >
+        <el-option v-for="t in TEMPLATES" :key="t.value" :label="t.label" :value="t.value" />
+      </el-select>
       <el-input
         v-model="remarkForm.remark"
         type="textarea"
@@ -176,6 +185,18 @@ const runningKey = ref('');
 const remarkVisible = ref(false);
 const remarkSaving = ref(false);
 const remarkForm = reactive({ taskKey: '', taskName: '', remark: '' });
+const remarkTemplate = ref('');
+
+const TEMPLATES = [
+  { value: 'device', label: '设备巡检', text: '设备离线巡检、自动锁机/解锁，保障设备在线率' },
+  { value: 'finance', label: '资金结算', text: '资金类处理（分账/佣金/保证金等），涉及资金变动' },
+  { value: 'recon', label: '对账', text: '渠道对账与差异核对，确保账实一致' },
+  { value: 'warehouse', label: '库存仓储', text: '库存、临期、补货相关处理' },
+  { value: 'trade', label: '交易订单', text: '订单/会话/支付相关自动处理' },
+  { value: 'marketing', label: '营销优惠', text: '优惠券/营销活动状态维护' },
+  { value: 'ops', label: '运维监控', text: '异常扫描、SLA、数据一致性巡检' },
+  { value: 'other', label: '其他', text: '' }
+] as const;
 
 const canEdit = computed(() => auth.hasPerm('ops:task:edit'));
 const canRun = computed(() => auth.hasPerm('ops:task:run'));
@@ -277,7 +298,15 @@ function openRemark(row: ScheduledTaskRow) {
   remarkForm.taskKey = row.taskKey;
   remarkForm.taskName = row.taskName;
   remarkForm.remark = row.remark || '';
+  remarkTemplate.value = '';
   remarkVisible.value = true;
+}
+
+function applyTemplate(value: string) {
+  const t = TEMPLATES.find((x) => x.value === value);
+  if (t) {
+    remarkForm.remark = t.text;
+  }
 }
 
 async function saveRemark() {
