@@ -6,6 +6,10 @@ spring:
     name: device-service
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 aicabinet:
   internal-api:

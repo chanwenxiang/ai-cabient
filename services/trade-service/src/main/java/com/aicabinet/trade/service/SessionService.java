@@ -261,7 +261,7 @@ public class SessionService {
 
     @Transactional
     public SessionDto applyDoorEvent(DoorEventRequest event) {
-        ShoppingSession session = repository.findById(event.sessionId())
+        ShoppingSession session = repository.findByIdForUpdate(event.sessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
 
         if (!session.getDeviceId().equals(event.deviceId())) {
@@ -289,7 +289,7 @@ public class SessionService {
 
     @Transactional
     public SessionDto attachVideo(VideoAttachRequest request) {
-        ShoppingSession session = repository.findById(request.sessionId())
+        ShoppingSession session = repository.findByIdForUpdate(request.sessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!session.getDeviceId().equals(request.deviceId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DEVICE_MISMATCH);

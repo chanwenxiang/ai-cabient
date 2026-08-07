@@ -162,6 +162,11 @@ aicabinet:
   xxljob:
     enabled: ${XXL_JOB_ENABLED:false}
 
+app:
+  storage:
+    local-dir: ${APP_STORAGE_LOCAL_DIR:./data/attachments}
+    local-fallback-enabled: ${APP_STORAGE_LOCAL_FALLBACK_ENABLED:true}
+
 management:
   endpoints:
     web:
