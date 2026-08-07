@@ -35,6 +35,9 @@ public class DisputeSlaScheduler {
     @Autowired
     private ScheduledTaskService taskService;
 
+    @Autowired
+    private SystemConfigService systemConfigService;
+
     @Scheduled(fixedRate = 900_000)
     @Transactional
     public void checkDisputeSla() {
@@ -48,7 +51,10 @@ public class DisputeSlaScheduler {
             return;
         }
         Instant now = Instant.now();
-        Instant reminderThreshold = now.plus(disputeSlaProperties.reminderHoursBefore(), ChronoUnit.HOURS);
+        Instant reminderThreshold = now.plus(
+                systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_REMINDER_HOURS,
+                        disputeSlaProperties.reminderHoursBefore()),
+                ChronoUnit.HOURS);
 
         List<DisputeTicket> openTickets = disputeRepository.findOpenNeedingSlaScan(SCAN_BATCH);
         int reminders = 0;
@@ -56,7 +62,10 @@ public class DisputeSlaScheduler {
         for (DisputeTicket ticket : openTickets) {
             boolean dirty = false;
             if (ticket.getSlaDueAt() == null) {
-                ticket.setSlaDueAt(ticket.getCreatedAt().plus(disputeSlaProperties.hours(), ChronoUnit.HOURS));
+                ticket.setSlaDueAt(ticket.getCreatedAt().plus(
+                        systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_HOURS,
+                                disputeSlaProperties.hours()),
+                        ChronoUnit.HOURS));
                 dirty = true;
             }
             if (ticket.getSlaReminderAt() == null

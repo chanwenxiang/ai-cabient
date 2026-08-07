@@ -53,6 +53,7 @@ const PATH_ICONS: Record<string, Component> = {
   '/menus': Menu,
   '/dicts': Collection,
   '/system-configs': Tools,
+  '/alert-rules': Warning,
   '/scheduled-tasks': Timer,
   '/promotions': DataAnalysis,
   '/coupons': Goods,
