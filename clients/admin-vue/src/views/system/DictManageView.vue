@@ -562,8 +562,8 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   min-height: 0;
-  height: 100%;
-  overflow: hidden;
+  height: auto;
+  overflow: visible;
 }
 .dict-split {
   flex: 1 1 auto;
@@ -632,22 +632,22 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 .dict-type-scroll .table-scroll-inner,
 .dict-item-scroll .table-scroll-inner {
   flex: 1;
   min-height: 0;
-  height: 100%;
+  height: auto;
 }
 .dict-type-scroll :deep(.el-table),
 .dict-item-scroll :deep(.el-table) {
-  height: 100% !important;
+  height: auto !important;
   max-height: none !important;
 }
 .dict-type-scroll :deep(.el-table__inner-wrapper),
 .dict-item-scroll :deep(.el-table__inner-wrapper) {
-  height: 100% !important;
+  height: auto !important;
   display: flex !important;
   flex-direction: column;
 }
@@ -665,8 +665,8 @@ onBeforeUnmount(() => {
 /* 双栏字典：恢复表内纵滚（压过全局「只横滚」） */
 .dict-type-scroll :deep(.el-table .el-scrollbar__wrap),
 .dict-item-scroll :deep(.el-table .el-scrollbar__wrap) {
-  overflow-x: auto !important;
-  overflow-y: auto !important;
+  overflow-x: visible !important;
+  overflow-y: visible !important;
 }
 .dict-type-scroll :deep(.el-table .el-scrollbar__bar.is-vertical),
 .dict-item-scroll :deep(.el-table .el-scrollbar__bar.is-vertical) {
