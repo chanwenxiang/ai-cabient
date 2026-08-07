@@ -1189,10 +1189,47 @@ public class ReplenishmentService {
 
                 route.getPlannedDate(), route.getStatus(), tasks, route.getCreatedAt(),
 
-                route.getTotalDistanceM(), waypoints
+                resolveRouteDistanceM(route, tasks, waypoints), waypoints
 
         );
 
+    }
+
+    /** 路线里程：优先取规划值；缺失时按路线坐标或任务设备坐标估算（Haversine）。 */
+    private Integer resolveRouteDistanceM(ReplenishmentRoute route,
+                                          List<ReplenishmentTaskDto> tasks,
+                                          List<RouteWaypointDto> waypoints) {
+        if (route.getTotalDistanceM() != null && route.getTotalDistanceM() > 0) {
+            return route.getTotalDistanceM();
+        }
+        double dist = 0;
+        if (waypoints != null && !waypoints.isEmpty()) {
+            for (int i = 1; i < waypoints.size(); i++) {
+                RouteWaypointDto a = waypoints.get(i - 1);
+                RouteWaypointDto b = waypoints.get(i);
+                if ((a.latitude() != 0 || a.longitude() != 0) && (b.latitude() != 0 || b.longitude() != 0)) {
+                    dist += haversineMeters(a.latitude(), a.longitude(), b.latitude(), b.longitude());
+                }
+            }
+        } else {
+            java.util.List<DeviceInfo> ordered = new java.util.ArrayList<>();
+            for (ReplenishmentTaskDto t : tasks) {
+                if (t.deviceId() == null || t.deviceId().isBlank()) {
+                    continue;
+                }
+                deviceRepository.findById(t.deviceId()).ifPresent(d -> {
+                    if (d.getLatitude() != null && d.getLongitude() != null) {
+                        ordered.add(d);
+                    }
+                });
+            }
+            for (int i = 1; i < ordered.size(); i++) {
+                DeviceInfo a = ordered.get(i - 1);
+                DeviceInfo b = ordered.get(i);
+                dist += haversineMeters(a.getLatitude(), a.getLongitude(), b.getLatitude(), b.getLongitude());
+            }
+        }
+        return (int) Math.round(dist);
     }
 
 
