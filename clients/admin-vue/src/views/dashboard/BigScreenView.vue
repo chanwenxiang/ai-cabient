@@ -9,6 +9,7 @@
         <span class="bs-clock">{{ clock }}</span>
         <el-button size="small" :icon="FullScreen" @click="toggleFullscreen">全屏</el-button>
         <el-button size="small" :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+        <el-button size="small" plain @click="goBack">返回后台</el-button>
       </div>
     </header>
 
@@ -56,6 +57,43 @@
     </section>
 
     <section class="bs-panels">
+      <div class="bs-panel bs-panel--wide">
+        <div class="bs-panel-title">营收趋势（近 7 天）</div>
+        <div class="bs-panel-body">
+          <svg v-if="trendPoints.length" class="bs-line" viewBox="0 0 300 110" preserveAspectRatio="none">
+            <defs>
+              <linearGradient id="bsArea" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stop-color="var(--app-primary)" stop-opacity="0.30"/>
+                <stop offset="100%" stop-color="var(--app-primary)" stop-opacity="0"/>
+              </linearGradient>
+            </defs>
+            <polygon :points="areaPoints" fill="url(#bsArea)"/>
+            <polyline :points="trendPoints.join(' ')" fill="none" stroke="var(--app-primary)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+            <circle v-for="p in dots" :key="p.x" :cx="p.x" :cy="p.y" r="3" fill="var(--app-primary)"/>
+          </svg>
+          <div v-else class="bs-empty">暂无趋势数据</div>
+          <div class="bs-line-labels">
+            <span>{{ trendDates[0] || '—' }}</span>
+            <span>{{ trendDates[Math.floor(trendDates.length / 2)] || '' }}</span>
+            <span>{{ trendDates[trendDates.length - 1] || '—' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="bs-panel">
+        <div class="bs-panel-title">待办 / 告警</div>
+        <div class="bs-panel-body">
+          <div v-for="(item, idx) in actionItems" :key="idx" class="bs-action">
+            <span class="bs-action-dot" :class="severityClass(item.severity)" />
+            <div class="bs-action-main">
+              <div class="bs-action-title">{{ item.title }}</div>
+              <div class="bs-action-sub">{{ item.deviceId || item.sessionId || item.detail || '—' }}</div>
+            </div>
+          </div>
+          <div v-if="!actionItems.length" class="bs-empty">暂无待办</div>
+        </div>
+      </div>
+
       <div class="bs-panel">
         <div class="bs-panel-title">设备可用性 KPI（今天）</div>
         <div class="bs-panel-body">
@@ -121,6 +159,15 @@ interface Workbench {
   lowStockItems: number; pendingReplenishments: number; staleSessions: number;
   reconciliationMismatches: number; splitExceptions: number; inTransitOverdue: number;
   pendingUnpaidOrders: number;
+  actionItems: OpsActionItem[];
+}
+interface OpsActionItem {
+  type?: string;
+  severity?: string;
+  title: string;
+  detail?: string;
+  deviceId?: string;
+  sessionId?: string;
 }
 interface SlaRealtime {
   doorSuccessRate24h: number; avgRecognizeMs24h: number; disputeResolved24h: number;
@@ -148,6 +195,54 @@ const sla = ref<SlaMetrics | null>(null);
 const finance = ref<FinanceStats | null>(null);
 const kpi = ref<Kpi | null>(null);
 const channels = ref<ChannelStat[]>([]);
+const trend = ref<DailyStat[]>([]);
+
+interface DailyStat {
+  date: string;
+  orderCount: number;
+  revenueCents: number;
+}
+
+const actionItems = computed(() => (workbench.value?.actionItems ?? []).slice(0, 8));
+
+const trendPoints = computed(() => {
+  const data = trend.value;
+  if (!data || data.length < 2) return [];
+  const w = 300;
+  const h = 100;
+  const pad = 6;
+  const max = Math.max(1, ...data.map((d) => d.revenueCents));
+  return data.map((d, i) => {
+    const x = pad + (i * (w - pad * 2)) / (data.length - 1);
+    const y = h - pad - (d.revenueCents / max) * (h - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+});
+const areaPoints = computed(() => {
+  const pts = trendPoints.value;
+  if (!pts.length) return '';
+  const first = Number(pts[0].split(',')[0]);
+  const last = Number(pts[pts.length - 1].split(',')[0]);
+  return `${first},106 ${pts.join(' ')} ${last},106`;
+});
+const dots = computed(() =>
+  trendPoints.value.map((p) => {
+    const [x, y] = p.split(',').map(Number);
+    return { x, y };
+  })
+);
+const trendDates = computed(() => trend.value.map((d) => (d.date ? d.date.slice(5) : '')));
+
+function severityClass(severity?: string) {
+  const s = (severity || '').toUpperCase();
+  if (s === 'CRITICAL' || s === 'HIGH') return 'is-danger';
+  if (s === 'MEDIUM') return 'is-warn';
+  return 'is-muted';
+}
+
+function goBack() {
+  window.history.length > 1 ? window.history.back() : (window.location.href = '/admin/#/dashboard');
+}
 
 const risks = computed(() => [
   { label: '待上传', value: workbench.value?.waitingUploads ?? 0 },
@@ -185,13 +280,14 @@ function barWidth(ch: ChannelStat) {
 
 async function load() {
   loading.value = true;
-  const [s, w, sl, f, k, ch] = await Promise.all([
+  const [s, w, sl, f, k, ch, t] = await Promise.all([
     api.request<AdminStats>('/api/v2/ops/admin/stats', 'GET').catch(() => null),
     api.request<Workbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null),
     api.request<SlaMetrics>('/api/v2/ops/admin/sla', 'GET').catch(() => null),
     api.request<FinanceStats>('/api/v2/ops/admin/finance/stats', 'GET').catch(() => null),
     api.request<Kpi>('/api/v2/ops/admin/device-availability-kpi', 'GET').catch(() => null),
-    api.request<{ orderPayChannels: ChannelStat[] }>('/api/v2/ops/admin/trend/channels?days=7', 'GET').catch(() => null)
+    api.request<{ orderPayChannels: ChannelStat[] }>('/api/v2/ops/admin/trend/channels?days=7', 'GET').catch(() => null),
+    api.request<{ last7Days: DailyStat[] }>('/api/v2/ops/admin/trend?days=7', 'GET').catch(() => null)
   ]);
   stats.value = s;
   workbench.value = w;
@@ -199,6 +295,7 @@ async function load() {
   finance.value = f;
   kpi.value = k;
   channels.value = ch?.orderPayChannels ?? [];
+  trend.value = t?.last7Days ?? [];
   loading.value = false;
 }
 
@@ -234,9 +331,8 @@ onBeforeUnmount(() => {
 .bigscreen {
   min-height: calc(100vh - 48px);
   padding: 18px;
-  background: radial-gradient(1200px 500px at 20% -10%, rgba(45, 212, 191, 0.10), transparent 60%),
-    #0b1220;
-  color: #e6edf7;
+  background: var(--layout-bg);
+  color: var(--layout-text);
 }
 .bs-header {
   display: flex;
@@ -245,10 +341,10 @@ onBeforeUnmount(() => {
   margin-bottom: 16px;
 }
 .bs-title { display: flex; align-items: baseline; gap: 12px; }
-.bs-logo { font-size: 24px; font-weight: 700; letter-spacing: 2px; }
-.bs-sub { font-size: 13px; color: #7c8ba1; }
+.bs-logo { font-size: 24px; font-weight: 700; letter-spacing: 2px; color: var(--app-primary, #0f766e); }
+.bs-sub { font-size: 13px; color: var(--layout-muted); }
 .bs-actions { display: flex; align-items: center; gap: 8px; }
-.bs-clock { font-size: 15px; color: #7c8ba1; margin-right: 8px; }
+.bs-clock { font-size: 15px; color: var(--layout-muted); margin-right: 8px; }
 .bs-kpis {
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
@@ -256,16 +352,16 @@ onBeforeUnmount(() => {
   margin-bottom: 16px;
 }
 .bs-kpi {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--layout-card);
+  border: 1px solid var(--layout-border);
   border-radius: 10px;
   padding: 14px 12px;
 }
-.bs-kpi-label { font-size: 13px; color: #7c8ba1; }
-.bs-kpi-value { font-size: 28px; font-weight: 700; margin: 6px 0 4px; }
-.bs-kpi-value.money { color: #2dd4bf; }
-.bs-kpi-value.warn { color: #f87171; }
-.bs-kpi-hint { font-size: 12px; color: #7c8ba1; }
+.bs-kpi-label { font-size: 13px; color: var(--layout-muted); }
+.bs-kpi-value { font-size: 28px; font-weight: 700; margin: 6px 0 4px; color: var(--layout-text); }
+.bs-kpi-value.money { color: var(--app-primary, #0f766e); }
+.bs-kpi-value.warn { color: var(--el-color-danger, #ef4444); }
+.bs-kpi-hint { font-size: 12px; color: var(--layout-muted); }
 .bs-panels {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -273,35 +369,46 @@ onBeforeUnmount(() => {
   margin-bottom: 16px;
 }
 .bs-panel {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--layout-card);
+  border: 1px solid var(--layout-border);
   border-radius: 10px;
   padding: 14px;
 }
-.bs-panel-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #a5b4c8; }
+.bs-panel--wide { grid-column: span 2; }
+.bs-panel-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: var(--layout-muted); }
 .bs-panel-body { display: flex; flex-direction: column; gap: 8px; }
 .bs-row { display: flex; justify-content: space-between; font-size: 14px; }
-.bs-row span { color: #a5b4c8; }
-.bs-row b { color: #e6edf7; }
-.bs-row b.good { color: #34d399; }
-.bs-row b.warn { color: #f87171; }
+.bs-row span { color: var(--layout-muted); }
+.bs-row b { color: var(--layout-text); }
+.bs-row b.good { color: var(--app-primary, #0f766e); }
+.bs-row b.warn { color: var(--el-color-danger, #ef4444); }
+.bs-line { width: 100%; height: 150px; display: block; }
+.bs-line-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--layout-muted); }
+.bs-action { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; }
+.bs-action-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
+.bs-action-dot.is-danger { background: var(--el-color-danger, #ef4444); }
+.bs-action-dot.is-warn { background: #f59e0b; }
+.bs-action-dot.is-muted { background: var(--layout-muted); }
+.bs-action-main { min-width: 0; }
+.bs-action-title { color: var(--layout-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bs-action-sub { color: var(--layout-muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bs-bar-row { display: flex; align-items: center; gap: 8px; font-size: 13px; }
-.bs-bar-label { width: 54px; color: #a5b4c8; }
-.bs-bar { flex: 1; height: 10px; background: rgba(255, 255, 255, 0.08); border-radius: 5px; overflow: hidden; }
-.bs-bar-fill { height: 100%; background: linear-gradient(90deg, #2dd4bf, #38bdf8); border-radius: 5px; }
-.bs-bar-num { width: 150px; text-align: right; color: #a5b4c8; }
-.bs-empty { color: #7c8ba1; font-size: 13px; }
+.bs-bar-label { width: 54px; color: var(--layout-muted); }
+.bs-bar { flex: 1; height: 10px; background: var(--layout-border); border-radius: 5px; overflow: hidden; }
+.bs-bar-fill { height: 100%; background: linear-gradient(90deg, var(--app-primary, #0f766e), color-mix(in srgb, var(--app-primary, #0f766e) 55%, #38bdf8)); border-radius: 5px; }
+.bs-bar-num { width: 150px; text-align: right; color: var(--layout-muted); }
+.bs-empty { color: var(--layout-muted); font-size: 13px; }
 .bs-risks { display: flex; flex-wrap: wrap; gap: 10px; }
 .bs-risk {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--layout-card);
+  border: 1px solid var(--layout-border);
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 13px;
-  color: #a5b4c8;
+  color: var(--layout-muted);
 }
-.bs-risk b { margin-left: 6px; color: #e6edf7; }
-.bs-risk b.warn { color: #f87171; }
+.bs-risk b { margin-left: 6px; color: var(--layout-text); }
+.bs-risk b.warn { color: var(--el-color-danger, #ef4444); }
 @media (max-width: 1100px) {
   .bs-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .bs-panels { grid-template-columns: 1fr; }
