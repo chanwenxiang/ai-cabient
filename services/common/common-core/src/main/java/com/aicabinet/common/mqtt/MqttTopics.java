@@ -27,5 +27,6 @@ public final class MqttTopics {
 
     /** 云端订阅：接收上行事件（可用通配符） */
     public static final String ALL_EVENTS = "cabinet/+/evt";
+    public static final String ALL_EVENTS_SHARED = "$share/aicabinet/cabinet/+/evt";
     public static final String ALL_HEARTBEATS = "cabinet/+/evt/heartbeat";
 }
