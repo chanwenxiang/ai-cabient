@@ -568,7 +568,7 @@ onBeforeUnmount(() => {
 .dict-split {
   flex: 1 1 auto;
   min-height: 0;
-  height: 100%;
+  height: auto;
   display: grid;
   gap: 0 10px;
   align-items: stretch;
@@ -602,11 +602,11 @@ onBeforeUnmount(() => {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  height: 100%;
+  height: auto;
 }
 .dict-card {
   flex: 1 1 auto;
-  height: 100%;
+  height: auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -620,7 +620,7 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 .type-search {
   flex-shrink: 0;
@@ -667,12 +667,6 @@ onBeforeUnmount(() => {
 .dict-item-scroll :deep(.el-table .el-scrollbar__wrap) {
   overflow-x: visible !important;
   overflow-y: visible !important;
-}
-.dict-type-scroll :deep(.el-table .el-scrollbar__bar.is-vertical),
-.dict-item-scroll :deep(.el-table .el-scrollbar__bar.is-vertical) {
-  display: block !important;
-  opacity: 1 !important;
-  width: 8px !important;
 }
 
 /* 极窄屏才叠栏；左侧限高，选中后右侧仍在附近 */
