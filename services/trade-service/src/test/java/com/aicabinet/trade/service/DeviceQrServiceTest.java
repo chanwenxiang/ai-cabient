@@ -37,7 +37,7 @@ class DeviceQrServiceTest {
     void resolveChannel_byUserAgent() {
         assertEquals("ALIPAY", CabinetOpenLandingController.resolveChannel("Mozilla/5.0 AlipayClient"));
         assertEquals("WECHAT", CabinetOpenLandingController.resolveChannel("MicroMessenger"));
-        assertEquals("ALIPAY", CabinetOpenLandingController.resolveChannel("Chrome"));
+        assertEquals("OTHER", CabinetOpenLandingController.resolveChannel("Chrome"));
     }
 
     @Test
