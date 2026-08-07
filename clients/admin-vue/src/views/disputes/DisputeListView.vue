@@ -467,6 +467,7 @@ const status = ref('OPEN');
 const categoryTab = ref('ALL');
 const reviewCodeTab = ref('ALL');
 const keyword = ref('');
+const focusDisputeId = ref('');
 const items = ref<DisputeTicketDto[]>([]);
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('ticketId', {
   onChange: () => {
@@ -910,6 +911,12 @@ async function load(showToast = false) {
     items.value = sortById(data.items || [], 'ticketId');
     total.value = data.total || 0;
     clearSelection();
+    if (focusDisputeId.value && !detailVisible.value) {
+      const hit = items.value.find(
+        (it) => String(it.ticketId ?? '') === String(focusDisputeId.value)
+      );
+      if (hit) openDetail(hit);
+    }
     if (showToast) ElMessage.success('已刷新');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -979,6 +986,15 @@ function applyRouteQuery() {
             : '';
   if (routeKeyword !== keyword.value) {
     keyword.value = routeKeyword;
+    changed = true;
+  }
+  if (typeof route.query.disputeId === 'string') {
+    if (route.query.disputeId !== focusDisputeId.value) {
+      focusDisputeId.value = route.query.disputeId;
+      changed = true;
+    }
+  } else if (focusDisputeId.value) {
+    focusDisputeId.value = '';
     changed = true;
   }
   return changed;

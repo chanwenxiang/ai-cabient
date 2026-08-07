@@ -9,6 +9,9 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button v-hasPermi="['ops:repair:edit']" :disabled="!selectedRows.length" @click="openAssign">
+            批量指派{{ selectedRows.length ? `（${selectedRows.length}）` : '' }}
+          </el-button>
           <el-button v-hasPermi="['ops:repair:edit']" type="primary" @click="openCreate">新建工单</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
@@ -71,8 +74,10 @@
     <div class="table-scroll">
       <el-table :data="displayRows"
         :default-sort="idDefaultSort"
+        @selection-change="onSelectionChange"
         @sort-change="onIdSortChange" v-loading="loading" stripe border class="report-table" empty-text=" ">
         <template #empty><el-empty v-if="listHydrated && !loading" description="暂无维修工单" /></template>
+        <el-table-column type="selection" width="46" align="center" />
         <el-table-column prop="ticketId" label="工单号" width="90" align="center" sortable="custom" />
         <el-table-column prop="deviceId" label="设备" min-width="130" align="center">
           <template #default="{ row }">
@@ -222,6 +227,25 @@
       </div>
     </el-drawer>
   </el-card>
+
+  <el-dialog v-model="assignVisible" title="批量指派" width="420px" destroy-on-close :close-on-click-modal="false">
+    <el-alert
+      type="info"
+      :closable="false"
+      show-icon
+      :title="`已选 ${selectedRows.length} 张未关闭工单`"
+      class="assign-alert"
+    />
+    <el-form label-position="top" style="margin-top: 14px" @submit.prevent="submitAssign">
+      <el-form-item label="指派人">
+        <el-input v-model="assignee" placeholder="填写负责维修的人员/班组" maxlength="32" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="assignVisible = false">取消</el-button>
+      <el-button type="primary" :loading="assignSaving" @click="submitAssign">确认指派</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
@@ -233,6 +257,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useNavAccess } from '@/composables/useNavAccess';
+import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictLabel } from '@aicabinet/shared-dict';
@@ -265,11 +290,6 @@ interface Detail {
   }>;
 }
 
-interface DeviceOpt {
-  deviceId: string;
-  deviceName?: string;
-}
-
 const auth = useAuthStore();
 const route = useRoute();
 const { canAccessPath, goPath } = useNavAccess();
@@ -286,11 +306,15 @@ const status = ref('');
 const deviceId = ref(typeof route.query.deviceId === 'string' ? route.query.deviceId : '');
 const priority = ref('');
 const faultType = ref('');
-const deviceOptions = ref<DeviceOpt[]>([]);
+const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 const createVisible = ref(false);
 const detailVisible = ref(false);
 const detailHydrated = ref(false);
 const detail = ref<Detail | null>(null);
+const selectedRows = ref<Ticket[]>([]);
+const assignVisible = ref(false);
+const assignSaving = ref(false);
+const assignee = ref('');
 const form = reactive({
   deviceId: '',
   title: '',
@@ -304,6 +328,39 @@ const statusOptions = useDictOptions('repair_ticket_status');
 const priorityOptions = useDictOptions('dispute_priority');
 const faultOptions = useDictOptions('repair_fault_type');
 
+function onSelectionChange(rows: Ticket[]) {
+  selectedRows.value = rows;
+}
+
+function openAssign() {
+  if (!selectedRows.value.length) return;
+  assignee.value = '';
+  assignVisible.value = true;
+}
+
+async function submitAssign() {
+  const name = assignee.value.trim();
+  if (!name) {
+    ElMessage.warning('请填写指派人');
+    return;
+  }
+  assignSaving.value = true;
+  try {
+    const count = await api.request<number>('/api/v2/ops/admin/repair-tickets/batch-assign', 'POST', {
+      ticketIds: selectedRows.value.map((r) => r.ticketId),
+      assignee: name
+    });
+    ElMessage.success(`已指派 ${count} 张工单`);
+    assignVisible.value = false;
+    selectedRows.value = [];
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '指派失败');
+  } finally {
+    assignSaving.value = false;
+  }
+}
+
 function statusLabel(s?: string) {
   return dictLabel('repair_ticket_status', s) || s || '未知状态';
 }
@@ -315,18 +372,6 @@ function priorityLabel(p?: string) {
 }
 function faultLabel(f?: string) {
   return dictLabel('repair_fault_type', f) || f || '未知';
-}
-
-async function loadDevices() {
-  try {
-    const res = await api.request<{ items: DeviceOpt[] } | DeviceOpt[]>(
-      '/api/v2/ops/admin/devices?page=0&size=200',
-      'GET'
-    );
-    deviceOptions.value = Array.isArray(res) ? res : res.items || [];
-  } catch {
-    deviceOptions.value = [];
-  }
 }
 
 async function load() {
@@ -370,7 +415,7 @@ function openCreate() {
   form.assignee = '';
   form.remark = '';
   createVisible.value = true;
-  if (!deviceOptions.value.length) loadDevices();
+  if (!deviceOptions.value.length) void loadDeviceOptions();
 }
 
 async function create() {
@@ -459,7 +504,7 @@ async function transition(row: Ticket, next: string) {
 }
 
 onMounted(async () => {
-  await loadDevices();
+  await loadDeviceOptions();
   await load();
 });
 </script>
@@ -478,4 +523,5 @@ onMounted(async () => {
 .page-pager { margin-top: 12px; display: flex; justify-content: flex-end; }
 .event-title { margin: 16px 0 8px; font-weight: 600; }
 .repair-detail-pane { min-height: 160px; }
+.assign-alert { margin-bottom: 4px; }
 </style>

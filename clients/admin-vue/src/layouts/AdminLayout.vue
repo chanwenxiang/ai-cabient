@@ -141,8 +141,8 @@
 
       <el-main id="main-content" class="layout-main-scroll" tabindex="-1">
         <router-view v-slot="{ Component, route: viewRoute }">
+          <!-- 字典启停后 bump epoch，重建其他缓存页；字典管理页本身不重建以免丢选中 -->
           <keep-alive :max="12">
-            <!-- 字典启停后 bump epoch，重建其他缓存页；字典管理页本身不重建以免丢选中 -->
             <component
               :is="Component"
               :key="viewRoute.name === 'dicts' ? String(viewRoute.path) : `${viewRoute.path}#d${dictRuntimeEpoch}`"

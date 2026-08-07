@@ -9,6 +9,7 @@
           </div>
         </div>
         <div class="page-card-head__actions">
+          <el-button type="primary" plain @click="openPasswordDialog">修改密码</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="reload">刷新资料</el-button>
         </div>
       </div>
@@ -50,6 +51,42 @@
       </div>
       <p v-if="permissions.length > 30" class="meta">…仅展示前 30 项</p>
     </div>
+
+    <el-dialog v-model="pwdVisible" title="修改密码" width="420px" :close-on-click-modal="false">
+      <el-form label-position="top" @submit.prevent="submitPassword">
+        <el-form-item label="原密码">
+          <el-input
+            v-model="pwdForm.oldPassword"
+            type="password"
+            show-password
+            autocomplete="current-password"
+            placeholder="请输入当前登录密码"
+          />
+        </el-form-item>
+        <el-form-item label="新密码">
+          <el-input
+            v-model="pwdForm.newPassword"
+            type="password"
+            show-password
+            autocomplete="new-password"
+            placeholder="6-64 位"
+          />
+        </el-form-item>
+        <el-form-item label="确认新密码">
+          <el-input
+            v-model="pwdForm.confirmPassword"
+            type="password"
+            show-password
+            autocomplete="new-password"
+            placeholder="再次输入新密码"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="pwdVisible = false">取消</el-button>
+        <el-button type="primary" :loading="pwdSaving" @click="submitPassword">保存</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -57,6 +94,7 @@
 import { computed, onActivated, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useSettingsStore } from '@/stores/settings';
 
@@ -71,6 +109,43 @@ const profileReady = computed(() => !!auth.profile || (profileHydrated.value && 
 const initial = computed(() => (auth.displayName || '运').slice(0, 1));
 const fontLabel = computed(() => ({ sm: '小', md: '中', lg: '大' })[settings.fontSize]);
 const actionLabel = computed(() => (settings.tableActionMode === 'label' ? '图标+文字' : '图标'));
+const pwdVisible = ref(false);
+const pwdSaving = ref(false);
+const pwdForm = ref({ oldPassword: '', newPassword: '', confirmPassword: '' });
+
+function openPasswordDialog() {
+  pwdForm.value = { oldPassword: '', newPassword: '', confirmPassword: '' };
+  pwdVisible.value = true;
+}
+
+async function submitPassword() {
+  const f = pwdForm.value;
+  if (!f.oldPassword) {
+    ElMessage.warning('请输入原密码');
+    return;
+  }
+  if (!f.newPassword || f.newPassword.length < 6 || f.newPassword.length > 64) {
+    ElMessage.warning('新密码长度需为 6-64 位');
+    return;
+  }
+  if (f.newPassword !== f.confirmPassword) {
+    ElMessage.warning('两次输入的新密码不一致');
+    return;
+  }
+  pwdSaving.value = true;
+  try {
+    await api.request('/api/v2/ops/admin/rbac/me/password', 'PUT', {
+      oldPassword: f.oldPassword,
+      newPassword: f.newPassword
+    });
+    ElMessage.success('密码已修改');
+    pwdVisible.value = false;
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '修改失败');
+  } finally {
+    pwdSaving.value = false;
+  }
+}
 
 async function reload() {
   loading.value = true;

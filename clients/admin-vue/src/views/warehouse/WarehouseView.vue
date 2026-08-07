@@ -1506,9 +1506,12 @@ function outboundActions(row: Row): TableAction[] {
 
 async function ensureMeta() {
   if (!devices.value.length) {
-    devices.value = await api.request<PageResult<Row>>('/api/v2/ops/admin/devices?page=0&size=200', 'GET')
-      .then((r) => r?.items || [])
+    if (!auth.hasPerm('ops:device:list') && !auth.hasPerm('ops:device:ref')) {
+      devices.value = [];
+    } else {
+      devices.value = await api.request<Row[]>('/api/v2/ops/admin/devices/ref', 'GET')
       .catch(() => []);
+    }
   }
   if (!skus.value.length) {
     skus.value = await api.request<Row[]>('/api/v2/ops/admin/skus', 'GET').catch(() => []);

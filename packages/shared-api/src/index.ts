@@ -14,6 +14,8 @@ export interface ApiClientOptions {
   setToken: (token: string, userId: string, expiresAt?: number) => void;
   clearSession: () => void;
   onUnauthorized?: () => void;
+  /** 单次请求超时（毫秒），默认 30s */
+  timeoutMs?: number;
   fetchImpl?: typeof fetch;
 }
 
@@ -24,6 +26,7 @@ export class ApiClient {
   private readonly clearSession: () => void;
   private readonly onUnauthorized?: () => void;
   private readonly fetchImpl: typeof fetch;
+  private readonly timeoutMs: number;
   private refreshPromise: Promise<boolean> | null = null;
 
   constructor(opts: ApiClientOptions) {
@@ -33,16 +36,30 @@ export class ApiClient {
     this.clearSession = opts.clearSession;
     this.onUnauthorized = opts.onUnauthorized;
     this.fetchImpl = opts.fetchImpl ?? fetch.bind(globalThis);
+    this.timeoutMs = opts.timeoutMs ?? 30000;
   }
 
   async request<T>(path: string, method = 'GET', body?: unknown, auth = true, retried = false): Promise<T> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (auth && this.getToken()) headers.Authorization = `Bearer ${this.getToken()}`;
-    const res = await this.fetchImpl(`${this.baseUrl}${path}`, {
-      method,
-      headers,
-      body: body != null ? JSON.stringify(body) : undefined
-    });
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    let res: Awaited<ReturnType<typeof fetch>>;
+    try {
+      res = await this.fetchImpl(`${this.baseUrl}${path}`, {
+        method,
+        headers,
+        body: body != null ? JSON.stringify(body) : undefined,
+        signal: controller.signal
+      });
+    } catch (e) {
+      if (controller.signal.aborted) {
+        throw new Error('请求超时，请稍后重试');
+      }
+      throw e;
+    } finally {
+      clearTimeout(timer);
+    }
     const json = (await res.json().catch(() => ({}))) as ApiResponse<T>;
     if (res.status === 401 && auth && !retried) {
       const ok = await this.refreshSilently();

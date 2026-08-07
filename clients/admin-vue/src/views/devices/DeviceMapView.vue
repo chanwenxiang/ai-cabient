@@ -429,7 +429,7 @@ onBeforeUnmount(() => {
 .map-float-meta {
   position: absolute;
   left: 54px;
-  top: 74px;
+  bottom: 14px;
   z-index: 500;
   font-size: 12px;
   color: #334155;

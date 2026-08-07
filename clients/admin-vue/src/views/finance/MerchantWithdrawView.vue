@@ -292,17 +292,25 @@ async function loadWithdraws() {
 }
 
 async function adjust(row: WalletRow) {
-  const { value } = await ElMessageBox.prompt('调账金额（元，负数扣减）', `调账 · ${row.merchantName || row.merchantId}`, {
-    inputPattern: /^-?\d+(\.\d{1,2})?$/,
-    inputErrorMessage: '请输入金额'
-  });
-  const amountCents = Math.round(Number(value) * 100);
-  await api.request(`/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(row.merchantId)}/adjust`, 'POST', {
-    amountCents,
-    remark: '运营调账'
-  });
-  ElMessage.success('已调账');
-  await loadWallets();
+  try {
+    const { value } = await ElMessageBox.prompt('调账金额（元，负数扣减）', `调账 · ${row.merchantName || row.merchantId}`, {
+      inputPattern: /^-?\d+(\.\d{1,2})?$/,
+      inputErrorMessage: '请输入金额',
+      confirmButtonText: '确定',
+      cancelButtonText: '取消'
+    });
+    const amountCents = Math.round(Number(value) * 100);
+    await api.request(`/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(row.merchantId)}/adjust`, 'POST', {
+      amountCents,
+      remark: '运营调账'
+    });
+    ElMessage.success('已调账');
+    await loadWallets();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '调账失败');
+    }
+  }
 }
 
 async function showLedgers(row: WalletRow) {
@@ -322,32 +330,62 @@ async function showLedgers(row: WalletRow) {
 }
 
 async function proxyWithdraw(row: WalletRow) {
-  const { value } = await ElMessageBox.prompt('代提现金额（元）', `代提现 · ${row.merchantName || row.merchantId}`, {
-    inputPattern: /^\d+(\.\d{1,2})?$/,
-    inputErrorMessage: '请输入金额'
-  });
-  const amountCents = Math.round(Number(value) * 100);
-  await api.request(`/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(row.merchantId)}/withdraw`, 'POST', {
-    amountCents
-  });
-  ElMessage.success('已提交提现');
-  tab.value = 'withdraws';
-  await loadWithdraws();
+  try {
+    const { value } = await ElMessageBox.prompt('代提现金额（元）', `代提现 · ${row.merchantName || row.merchantId}`, {
+      inputPattern: /^\d+(\.\d{1,2})?$/,
+      inputErrorMessage: '请输入金额',
+      confirmButtonText: '确定',
+      cancelButtonText: '取消'
+    });
+    const amountCents = Math.round(Number(value) * 100);
+    await api.request(`/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(row.merchantId)}/withdraw`, 'POST', {
+      amountCents
+    });
+    ElMessage.success('已提交提现');
+    tab.value = 'withdraws';
+    await loadWithdraws();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '代提现失败');
+    }
+  }
 }
 
 async function review(row: Withdraw, approve: boolean) {
-  await api.request(`/api/v2/ops/admin/merchant-withdraws/${row.requestId}/review`, 'POST', {
-    approve,
-    remark: approve ? '审核通过' : '审核驳回'
-  });
-  ElMessage.success(approve ? '已通过' : '已驳回');
-  await loadWithdraws();
+  try {
+    await ElMessageBox.confirm(
+      approve ? `确认通过该提现申请并打款 ¥${yuan(row.amountCents)}？` : `确认驳回该提现申请？`,
+      approve ? '通过并打款' : '驳回申请',
+      { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' }
+    );
+    await api.request(`/api/v2/ops/admin/merchant-withdraws/${row.requestId}/review`, 'POST', {
+      approve,
+      remark: approve ? '审核通过' : '审核驳回'
+    });
+    ElMessage.success(approve ? '已通过' : '已驳回');
+    await loadWithdraws();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '审核失败');
+    }
+  }
 }
 
 async function payout(row: Withdraw) {
-  await api.request(`/api/v2/ops/admin/merchant-withdraws/${row.requestId}/payout`, 'POST', {});
-  ElMessage.success('已重试打款');
-  await loadWithdraws();
+  try {
+    await ElMessageBox.confirm(`确认对该提现申请（¥${yuan(row.amountCents)}）重新打款？`, '重试打款', {
+      type: 'warning',
+      confirmButtonText: '确定',
+      cancelButtonText: '取消'
+    });
+    await api.request(`/api/v2/ops/admin/merchant-withdraws/${row.requestId}/payout`, 'POST', {});
+    ElMessage.success('已重试打款');
+    await loadWithdraws();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '打款失败');
+    }
+  }
 }
 
 onMounted(reload);

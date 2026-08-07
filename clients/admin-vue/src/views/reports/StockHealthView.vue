@@ -183,6 +183,7 @@ import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
+import { useDeviceOptions } from '@/composables/useDeviceOptions';
 
 interface StockHealthRow {
   dimension: string;
@@ -216,19 +217,7 @@ const merchantId = ref('');
 const routeCode = ref('');
 const lifecycleStatus = ref('DEPLOYED');
 const rows = ref<StockHealthRow[]>([]);
-const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
-
-async function loadDevices() {
-  try {
-    const res = await api.request<{ items: { deviceId: string; deviceName?: string }[] } | { deviceId: string; deviceName?: string }[]>(
-      '/api/v2/ops/admin/devices?page=0&size=200',
-      'GET'
-    );
-    deviceOptions.value = Array.isArray(res) ? res : res.items || [];
-  } catch {
-    deviceOptions.value = [];
-  }
-}
+const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 
 const deviceCount = computed(() => new Set(rows.value.map((r) => r.deviceId).filter(Boolean)).size);
 
@@ -409,7 +398,7 @@ onMounted(async () => {
   if (typeof route.query.deviceId === 'string') {
     deviceId.value = route.query.deviceId;
   }
-  await loadDevices();
+  await loadDeviceOptions();
   await load();
 });
 

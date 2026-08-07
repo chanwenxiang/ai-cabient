@@ -73,11 +73,9 @@ import { onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
+import { useDeviceOptions } from '@/composables/useDeviceOptions';
 
-interface DeviceOpt {
-  deviceId: string;
-  deviceName?: string;
-}
+const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 
 const loading = ref(false);
 const listHydrated = ref(false);
@@ -85,19 +83,6 @@ const dim = ref('PRODUCT');
 const deviceId = ref('');
 const range = ref<[string, string] | null>(null);
 const rows = ref<any[]>([]);
-const deviceOptions = ref<DeviceOpt[]>([]);
-
-async function loadDevices() {
-  try {
-    const res = await api.request<{ items: DeviceOpt[] } | DeviceOpt[]>(
-      '/api/v2/ops/admin/devices?page=0&size=200',
-      'GET'
-    );
-    deviceOptions.value = Array.isArray(res) ? res : res.items || [];
-  } catch {
-    deviceOptions.value = [];
-  }
-}
 
 async function load() {
   loading.value = true;
@@ -135,7 +120,7 @@ function exportCsv() {
 }
 
 onMounted(async () => {
-  await loadDevices();
+  await loadDeviceOptions();
   await load();
 });
 </script>

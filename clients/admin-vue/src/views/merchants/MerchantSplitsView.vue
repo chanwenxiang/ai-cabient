@@ -1063,6 +1063,12 @@ async function openAssignDevices(row: MerchantDto) {
   assignDialog.value = true;
   assignDevicesLoading.value = true;
   try {
+    if (!auth.hasPerm('ops:device:list')) {
+      allDevices.value = [];
+      assignDeviceIds.value = [];
+      ElMessage.warning('当前账号无设备列表权限，无法分配柜机');
+      return;
+    }
     if (!allDevices.value.length) {
       allDevices.value = await api.request('/api/v2/ops/admin/devices?page=0&size=200', 'GET').then((page: any) =>
         page?.items || page || []
