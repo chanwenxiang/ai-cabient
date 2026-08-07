@@ -1,5 +1,5 @@
 <template>
-  <div class="bigscreen">
+  <div class="bigscreen" :class="{ 'is-fullscreen': isFullscreen }">
     <header class="bs-header">
       <div class="bs-title">
         <span class="bs-logo">AI 开门柜</span>
@@ -7,7 +7,9 @@
       </div>
       <div class="bs-actions">
         <span class="bs-clock">{{ clock }}</span>
-        <el-button size="small" :icon="FullScreen" @click="toggleFullscreen">全屏</el-button>
+        <el-button size="small" :icon="FullScreen" @click="toggleFullscreen">
+          {{ isFullscreen ? '退出全屏' : '全屏' }}
+        </el-button>
         <el-button size="small" :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         <el-button size="small" plain @click="goBack">返回后台</el-button>
       </div>
@@ -237,6 +239,7 @@ interface ChannelStat { channel: string; count: number; amountCents: number }
 
 const loading = ref(false);
 const clock = ref('');
+const isFullscreen = ref(false);
 const stats = ref<AdminStats | null>(null);
 const workbench = ref<Workbench | null>(null);
 const sla = ref<SlaMetrics | null>(null);
@@ -387,8 +390,14 @@ function toggleFullscreen() {
   if (document.fullscreenElement) {
     document.exitFullscreen().catch(() => {});
   } else {
-    document.documentElement.requestFullscreen().catch(() => {});
+    document.documentElement.requestFullscreen().then(() => {
+      isFullscreen.value = true;
+    }).catch(() => {});
   }
+}
+
+function onFullscreenChange() {
+  isFullscreen.value = !!document.fullscreenElement;
 }
 
 let clockTimer = 0;
@@ -398,10 +407,12 @@ onMounted(() => {
   load();
   clockTimer = window.setInterval(tick, 1000);
   refreshTimer = window.setInterval(load, 30_000);
+  document.addEventListener('fullscreenchange', onFullscreenChange);
 });
 onBeforeUnmount(() => {
   window.clearInterval(clockTimer);
   window.clearInterval(refreshTimer);
+  document.removeEventListener('fullscreenchange', onFullscreenChange);
 });
 </script>
 
@@ -411,6 +422,12 @@ onBeforeUnmount(() => {
   padding: 18px;
   background: var(--layout-bg);
   color: var(--layout-text);
+}
+.bigscreen.is-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  overflow: auto;
 }
 .bs-header {
   display: flex;
