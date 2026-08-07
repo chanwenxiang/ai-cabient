@@ -20,6 +20,7 @@
             </el-button>
             <el-button v-hasPermi="['ops:dispute']" plain @click="goPath('/disputes')">争议审核</el-button>
             <el-button v-hasPermi="['ops:device:list']" plain @click="goPath('/devices')">设备管理</el-button>
+            <el-button v-hasPermi="['ops:device-kpi:view']" plain @click="goPath('/device-kpi')">设备可用性</el-button>
             <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
           </div>
         </div>
