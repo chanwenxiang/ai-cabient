@@ -7,6 +7,7 @@ import { safeRedirectPath } from '@/utils/safe-redirect';
 
 const bizChildren: any[] = [
   { path: 'dashboard', name: 'dashboard', component: () => import('@/views/dashboard/DashboardView.vue'), meta: { title: '运营工作台', group: '概览' } },
+  { path: 'big-screen', name: 'big-screen', component: () => import('@/views/dashboard/BigScreenView.vue'), meta: { title: '运营大屏', group: '概览' } },
   { path: 'analytics', name: 'analytics', component: () => import('@/views/analytics/AnalyticsView.vue'), meta: { title: '数据分析', group: '概览' } },
   { path: 'reports', name: 'reports', component: () => import('@/views/reports/DeviceReportView.vue'), meta: { title: '设备报表', group: '概览' } },
   { path: 'finance', name: 'finance', component: () => import('@/views/finance/FinanceView.vue'), meta: { title: '财务毛利', group: '概览' } },
