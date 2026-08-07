@@ -60,7 +60,7 @@
 
       <div class="table-scroll">
         <div class="table-scroll-inner">
-          <el-table fit="false"
+          <el-table
             v-loading="loading"
             :data="displayItems"
             stripe
@@ -69,7 +69,7 @@
            
             empty-text=" "
             :row-class-name="rowClassName"
-            table-layout="auto"
+           
             row-key="exceptionId"
             :default-sort="idDefaultSort"
             @sort-change="onIdSortChange"

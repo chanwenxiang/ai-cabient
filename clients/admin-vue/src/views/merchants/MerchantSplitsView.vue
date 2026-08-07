@@ -88,7 +88,7 @@
         </el-form>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               v-loading="loadingMerchants"
               :data="pagedMerchants"
               stripe
@@ -246,7 +246,7 @@
         <el-empty v-else-if="!opsConfigLoading && opsConfigMerchantId" description="暂无运营配置" :image-size="64" />
         </div>
         <el-divider content-position="left">商户侧推荐岗位</el-divider>
-        <el-table fit="false" :data="roleTemplates" stripe border>
+        <el-table :data="roleTemplates" stripe border>
           <el-table-column prop="templateName" label="岗位" width="120" align="center" />
           <el-table-column prop="description" label="说明" min-width="220" align="center" />
           <el-table-column prop="permissionHint" label="权限提示" min-width="240" show-overflow-tooltip align="center" />
@@ -303,7 +303,7 @@
 
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               v-loading="loading"
               :data="splits"
               stripe

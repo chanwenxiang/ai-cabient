@@ -163,7 +163,7 @@
 
       <div class="table-scroll">
         <div class="table-scroll-inner">
-          <el-table fit="false"
+          <el-table
             class="action-table"
             :data="pagedActions"
             stripe

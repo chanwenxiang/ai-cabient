@@ -17,7 +17,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table fit="false" v-loading="loading" :data="items" stripe border class="report-table" row-key="releaseId" empty-text=" ">
+        <el-table v-loading="loading" :data="items" stripe border class="report-table" row-key="releaseId" empty-text=" ">
           <template #empty><el-empty v-if="listHydrated && !loading" description="暂无固件版本" /></template>
           <el-table-column prop="appVersion" label="版本" min-width="120" align="center" class-name="col-text" />
           <el-table-column prop="channel" label="渠道" width="100" align="center" class-name="col-text" />

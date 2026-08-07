@@ -51,7 +51,7 @@
 
     <el-tabs v-model="tab">
       <el-tab-pane label="日资金账单" name="bills">
-        <el-table fit="false"
+        <el-table
           v-loading="loading"
           :data="pagedBills"
           :default-sort="billIdDefaultSort"
@@ -129,7 +129,7 @@
             </el-select>
           </el-form-item>
         </el-form>
-        <el-table fit="false"
+        <el-table
           v-loading="ledgerLoading"
           :data="filteredLedger"
           :default-sort="ledgerIdDefaultSort"

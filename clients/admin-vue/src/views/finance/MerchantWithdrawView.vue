@@ -26,7 +26,7 @@
         </el-form>
 
         <div class="table-scroll">
-          <el-table fit="false" :data="wallets" v-loading="walletsLoading" stripe border class="report-table" empty-text=" ">
+          <el-table :data="wallets" v-loading="walletsLoading" stripe border class="report-table" empty-text=" ">
             <template #empty><el-empty v-if="walletsHydrated && !walletsLoading" description="暂无商户钱包" /></template>
             <el-table-column prop="merchantId" label="商户ID" min-width="120" align="center" />
             <el-table-column prop="merchantName" label="名称" min-width="140" show-overflow-tooltip align="center" />
@@ -80,7 +80,7 @@
         </el-form>
 
         <div class="table-scroll">
-          <el-table fit="false" :data="withdraws" v-loading="withdrawsLoading" stripe border class="report-table" empty-text=" ">
+          <el-table :data="withdraws" v-loading="withdrawsLoading" stripe border class="report-table" empty-text=" ">
             <template #empty><el-empty v-if="withdrawsHydrated && !withdrawsLoading" description="暂无提现申请" /></template>
             <el-table-column prop="requestId" label="单号" width="80" align="center" />
             <el-table-column prop="requestNo" label="幂等号" min-width="160" show-overflow-tooltip align="center" />
@@ -129,7 +129,7 @@
     </el-tabs>
 
     <el-drawer v-model="ledgerVisible" title="钱包流水" size="520px">
-      <el-table fit="false" v-loading="!ledgerHydrated" :data="ledgers" size="small" stripe empty-text=" ">
+      <el-table v-loading="!ledgerHydrated" :data="ledgers" size="small" stripe empty-text=" ">
         <template #empty>
           <el-empty v-if="ledgerHydrated" description="暂无流水" :image-size="64" />
         </template>

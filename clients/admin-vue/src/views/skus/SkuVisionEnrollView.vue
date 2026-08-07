@@ -103,12 +103,12 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table fit="false"
+        <el-table
           v-loading="loading"
           :data="paged"
           stripe
           border
-          table-layout="auto"
+         
           row-key="skuId"
           class="report-table sku-table"
           :default-sort="idDefaultSort"
@@ -324,7 +324,7 @@
         </el-form-item>
       </el-form>
       <el-alert v-if="testPreview?.hint" :title="testPreview.hint" :type="testPreview.needReview ? 'warning' : 'success'" show-icon />
-      <el-table fit="false" v-if="testPreview?.items?.length" :data="testPreview.items" size="small" stripe class="test-table">
+      <el-table v-if="testPreview?.items?.length" :data="testPreview.items" size="small" stripe class="test-table">
         <el-table-column prop="skuName" label="商品" align="center" />
         <el-table-column prop="quantity" label="数量" width="72" align="center" />
         <el-table-column label="置信度" width="88" align="center">
