@@ -1,10 +1,8 @@
 "use strict";
 const common_vendor = require("../common/vendor.js");
-var define_import_meta_env_default = {};
-const SUBSCRIBE_TMPL_IDS = (define_import_meta_env_default.VITE_WX_SUBSCRIBE_TMPL_IDS || "").split(",").map((s) => s.trim()).filter(Boolean);
+const SUBSCRIBE_TMPL_IDS = "".split(",").map((s) => s.trim()).filter(Boolean);
 async function requestOrderSubscribe() {
-  if (!SUBSCRIBE_TMPL_IDS.length)
-    return;
+  if (!SUBSCRIBE_TMPL_IDS.length) return;
   await new Promise((resolve) => {
     common_vendor.index.requestSubscribeMessage({
       tmplIds: SUBSCRIBE_TMPL_IDS,

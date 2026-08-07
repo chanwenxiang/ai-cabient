@@ -1,5 +1,7 @@
 {
   "enablePullDownRefresh": true,
   "navigationBarTitleText": "争议处理",
-  "usingComponents": {}
+  "usingComponents": {
+    "empty-state": "../../components/empty-state"
+  }
 }

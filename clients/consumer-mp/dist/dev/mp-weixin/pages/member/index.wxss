@@ -1,0 +1,123 @@
+
+.page.data-v-97d9768f {
+  min-height: 100vh;
+  padding: 24rpx 24rpx 48rpx;
+  background: linear-gradient(180deg, #e8f8f1 0%, #f5f7f8 220rpx, #f5f7f8 100%);
+}
+.hero.data-v-97d9768f {
+  position: relative;
+  overflow: hidden;
+  padding: 36rpx 32rpx 28rpx;
+  border-radius: 28rpx;
+  color: #fff;
+  background: linear-gradient(135deg, #064e3b 0%, #059669 55%, #0d9488 100%);
+  box-shadow: 0 16rpx 40rpx rgba(5, 150, 105, 0.28);
+}
+.hero.lv-silver.data-v-97d9768f { background: linear-gradient(135deg, #334155, #64748b 60%, #94a3b8);
+}
+.hero.lv-gold.data-v-97d9768f { background: linear-gradient(135deg, #92400e, #d97706 55%, #f59e0b);
+}
+.hero.lv-platinum.data-v-97d9768f { background: linear-gradient(135deg, #1e1b4b, #4338ca 55%, #6366f1);
+}
+.hero-top.data-v-97d9768f { display: flex; justify-content: space-between; align-items: flex-start; gap: 20rpx;
+}
+.hero-kicker.data-v-97d9768f { display: block; font-size: 20rpx; letter-spacing: 2rpx; opacity: 0.7;
+}
+.hero-level.data-v-97d9768f { display: block; margin-top: 8rpx; font-size: 40rpx; font-weight: 800;
+}
+.spent-chip.data-v-97d9768f {
+  min-width: 140rpx;
+  padding: 16rpx 22rpx;
+  border-radius: 20rpx;
+  background: rgba(255, 255, 255, 0.16);
+  text-align: right;
+}
+.spent-num.data-v-97d9768f { display: block; font-size: 36rpx; font-weight: 800; line-height: 1;
+}
+.spent-unit.data-v-97d9768f { display: block; margin-top: 6rpx; font-size: 22rpx; opacity: 0.85;
+}
+.progress-block.data-v-97d9768f { margin-top: 28rpx;
+}
+.progress-track.data-v-97d9768f { height: 10rpx; border-radius: 999rpx; background: rgba(255, 255, 255, 0.22); overflow: hidden;
+}
+.progress-fill.data-v-97d9768f { height: 100%; border-radius: 999rpx; background: #fff;
+}
+.progress-text.data-v-97d9768f { display: block; margin-top: 14rpx; font-size: 22rpx; opacity: 0.88; line-height: 1.4;
+}
+.quick-grid.data-v-97d9768f {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12rpx;
+  margin-top: 22rpx;
+}
+.quick.data-v-97d9768f {
+  padding: 22rpx 10rpx;
+  border-radius: 20rpx;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.05);
+}
+.quick-mark.data-v-97d9768f {
+  display: inline-flex;
+  width: 56rpx;
+  height: 56rpx;
+  margin: 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16rpx;
+  background: #f0fdf4;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #059669;
+}
+.quick-title.data-v-97d9768f { display: block; margin-top: 8rpx; font-size: 24rpx; font-weight: 650; color: #1f2a24;
+}
+.quick-desc.data-v-97d9768f { display: block; margin-top: 4rpx; font-size: 20rpx; color: #8a968e;
+}
+.section.data-v-97d9768f {
+  margin-top: 24rpx;
+  padding: 28rpx 24rpx;
+  border-radius: 24rpx;
+  background: #fff;
+  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
+}
+.section-title.data-v-97d9768f { font-size: 30rpx; font-weight: 700; color: #1b3027;
+}
+.benefit-row.data-v-97d9768f { display: flex; gap: 18rpx; padding: 18rpx 0; border-bottom: 1rpx solid #f0f2f1;
+}
+.benefit-row.data-v-97d9768f:last-child { border-bottom: 0;
+}
+.benefit-mark.data-v-97d9768f {
+  width: 56rpx;
+  height: 56rpx;
+  flex-shrink: 0;
+  border-radius: 16rpx;
+  background: #f0fdf4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #059669;
+}
+.benefit-title.data-v-97d9768f { display: block; font-size: 28rpx; font-weight: 650; color: #223029;
+}
+.benefit-desc.data-v-97d9768f { display: block; margin-top: 6rpx; font-size: 22rpx; color: #849087;
+}
+.level-row.data-v-97d9768f {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 18rpx;
+  margin-top: 12rpx;
+  border-radius: 16rpx;
+  background: #f8faf9;
+}
+.level-row.on.data-v-97d9768f { background: #ecfdf5; border: 1rpx solid #a7f3d0;
+}
+.level-name.data-v-97d9768f { display: block; font-size: 28rpx; font-weight: 650; color: #1b3027;
+}
+.level-range.data-v-97d9768f { display: block; margin-top: 4rpx; font-size: 22rpx; color: #849087;
+}
+.level-badge.data-v-97d9768f { font-size: 24rpx; color: #059669; font-weight: 700;
+}

@@ -14,7 +14,7 @@
         v-else
         mode="date"
         :value="startDate"
-        :start="pickerStart"
+        start="2020-01-01"
         :end="endDate"
         @change="onStartDate"
       >
@@ -34,7 +34,7 @@
         mode="date"
         :value="endDate"
         :start="startDate"
-        :end="pickerEnd"
+        end="2035-12-31"
         @change="onEndDate"
       >
         <text class="date-text">{{ endDate }}</text>
@@ -141,9 +141,6 @@ const canViewSettlements = computed(() => hasPerm(me.value, 'merchant:settlement
 const canExport = computed(() => hasPerm(me.value, 'merchant:settlements:export'));
 const canViewSplits = computed(() => hasPerm(me.value, 'merchant:splits:list'));
 const isH5 = typeof document !== 'undefined';
-/** 小程序 picker 限制可选年份，避免滚轮过长 */
-const pickerStart = '2020-01-01';
-const pickerEnd = '2035-12-31';
 
 function localDateISO(d: Date) {
   const y = d.getFullYear();

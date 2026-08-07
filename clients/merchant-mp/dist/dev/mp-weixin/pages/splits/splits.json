@@ -1,0 +1,7 @@
+{
+  "navigationBarTitleText": "分账明细",
+  "enablePullDownRefresh": true,
+  "usingComponents": {
+    "empty-state": "../../components/empty-state"
+  }
+}

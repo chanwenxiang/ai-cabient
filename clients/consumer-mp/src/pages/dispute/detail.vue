@@ -103,7 +103,6 @@ import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import { fetchEvidenceLocalPath } from '@/utils/dispute-evidence';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, fmtMoney, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
-import EmptyState from '@/components/empty-state.vue';
 import type { DisputeTicketDto, FileAttachmentDto, OrderLineDto } from '@aicabinet/shared-types';
 
 const loading = ref(true);
