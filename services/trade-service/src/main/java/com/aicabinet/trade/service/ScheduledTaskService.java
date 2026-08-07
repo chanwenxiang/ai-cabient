@@ -56,6 +56,17 @@ public class ScheduledTaskService {
         return toDto(row);
     }
 
+    /** 更新任务备注（说明这个任务干嘛的），留审计。 */
+    @Transactional
+    public ScheduledTaskDto setRemark(Long operatorId, String taskKey, String remark) {
+        ScheduledTask row = requireTask(taskKey);
+        row.setRemark(remark == null ? null : remark.trim());
+        row.setUpdatedAt(Instant.now());
+        taskRepository.save(row);
+        auditService.record(operatorId, "SCHEDULED_TASK_REMARK", "SCHEDULED_TASK", taskKey, row.getTaskName());
+        return toDto(row);
+    }
+
     /** 执行守卫：任务启用检查 + 分布式锁；返回是否允许本次执行。 */
     public boolean tryBegin(String taskKey, long leaseSeconds) {
         ScheduledTask row = taskRepository.selectById(taskKey);

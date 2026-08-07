@@ -97,13 +97,14 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compos
 
 表：`device_availability_kpi_daily`（`kpi_date` 主键，每日覆盖写入）。
 
-查询 API（需 `ops:analytics:view` 权限）：
+查询 API（需 `ops:device-kpi:view` 权限；后台页面「设备商品 → 设备可用性」默认展示当天）：
 
 ```text
-GET /api/v2/ops/admin/device-availability-kpi?days=30
+GET /api/v2/ops/admin/device-availability-kpi                  # 默认当天实时口径
+GET /api/v2/ops/admin/device-availability-kpi?date=2026-08-06  # 指定日期（有快照返回快照，无则实时计算）
 ```
 
-返回最近 N 天的日快照，可直接用于运营看板（锁机率、恢复时长、人工介入率等）。
+默认展示当天数据，只有选择日期时才查询该日期，避免一次拉全量。
 
 ## 六、相关：定时任务管理模块
 

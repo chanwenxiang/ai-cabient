@@ -15,6 +15,7 @@ const bizChildren: any[] = [
   { path: 'stock-health', name: 'stock-health', component: () => import('@/views/reports/StockHealthView.vue'), meta: { title: '库存健康', group: '概览' } },
   { path: 'devices', name: 'devices', component: () => import('@/views/devices/DeviceListView.vue'), meta: { title: '设备管理', group: '设备商品' } },
   { path: 'device-map', name: 'device-map', component: () => import('@/views/devices/DeviceMapView.vue'), meta: { title: '投放地图', group: '设备商品' } },
+  { path: 'device-kpi', name: 'device-kpi', component: () => import('@/views/devices/DeviceKpiView.vue'), meta: { title: '设备可用性', group: '设备商品' } },
   { path: 'repair-tickets', name: 'repair-tickets', component: () => import('@/views/devices/RepairTicketsView.vue'), meta: { title: '维修工单', group: '设备商品' } },
   { path: 'device-ops', name: 'device-ops', component: () => import('@/views/devices/DeviceOpsMonitorView.vue'), meta: { title: '设备运维', group: '设备商品' } },
   { path: 'devices/:id', name: 'device-detail', component: () => import('@/views/devices/DeviceDetailView.vue'), meta: { title: '设备详情', group: '设备商品', parentTitle: '设备管理', parentPath: '/devices' } },

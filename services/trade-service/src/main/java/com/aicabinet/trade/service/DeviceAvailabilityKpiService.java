@@ -14,7 +14,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.List;
 
 /**
  * 设备可用性 KPI 日快照：离线事件数、自动锁机/解锁数、人工解锁占比、
@@ -47,8 +46,31 @@ public class DeviceAvailabilityKpiService {
         return snapshotDaily(LocalDate.now(ZONE).minusDays(1));
     }
 
+    /** 默认口径：当天实时 KPI（不落库，随业务实时变化）。 */
+    @Transactional(readOnly = true)
+    public DeviceAvailabilityKpiDto today() {
+        return toDto(computeRow(LocalDate.now(ZONE)));
+    }
+
+    /** 指定日期：已有日快照返回快照（终值），无快照则按当天口径实时计算。 */
+    @Transactional(readOnly = true)
+    public DeviceAvailabilityKpiDto getByDate(LocalDate date) {
+        DeviceAvailabilityKpiDaily existing = kpiRepository.selectById(date);
+        return existing != null ? toDto(existing) : toDto(computeRow(date));
+    }
+
     @Transactional
     public DeviceAvailabilityKpiDto snapshotDaily(LocalDate date) {
+        DeviceAvailabilityKpiDaily row = computeRow(date);
+        row.setCreatedAt(Instant.now());
+        kpiRepository.save(row);
+        log.info("device availability kpi snapshot date={} offline={} autoLock={} autoUnlock={} manualUnlock={}",
+                date, row.getOfflineEvents(), row.getAutoLockCount(),
+                row.getAutoUnlockCount(), row.getManualUnlockCount());
+        return toDto(row);
+    }
+
+    private DeviceAvailabilityKpiDaily computeRow(LocalDate date) {
         Instant start = date.atStartOfDay(ZONE).toInstant();
         Instant end = date.plusDays(1).atStartOfDay(ZONE).toInstant();
 
@@ -73,19 +95,7 @@ public class DeviceAvailabilityKpiService {
         if (auto + manual > 0) {
             row.setManualInterventionRate((double) manual / (auto + manual));
         }
-        row.setCreatedAt(Instant.now());
-        kpiRepository.save(row);
-        log.info("device availability kpi snapshot date={} offline={} autoLock={} autoUnlock={} manualUnlock={}",
-                date, row.getOfflineEvents(), row.getAutoLockCount(),
-                row.getAutoUnlockCount(), row.getManualUnlockCount());
-        return toDto(row);
-    }
-
-    @Transactional(readOnly = true)
-    public List<DeviceAvailabilityKpiDto> recentDays(int days) {
-        return kpiRepository.findTopNByOrderByKpiDateDesc(days).stream()
-                .map(this::toDto)
-                .toList();
+        return row;
     }
 
     private DeviceAvailabilityKpiDto toDto(DeviceAvailabilityKpiDaily row) {

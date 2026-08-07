@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.ScheduledTaskDto;
 import com.aicabinet.common.dto.ScheduledTaskRunResultDto;
 import com.aicabinet.common.dto.ToggleScheduledTaskRequest;
+import com.aicabinet.common.dto.UpdateScheduledTaskRemarkRequest;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import com.aicabinet.trade.auth.RequiresPermissions;
 import com.aicabinet.trade.service.AdminAuditService;
@@ -61,6 +62,14 @@ public class ScheduledTaskController {
                                                     @PathVariable String taskKey,
                                                     @RequestBody ToggleScheduledTaskRequest body) {
         return ApiResponse.ok(taskService.setEnabled(operatorId(request), taskKey, body.enabled()));
+    }
+
+    @RequiresPermissions("ops:task:edit")
+    @PutMapping("/{taskKey}/remark")
+    public ApiResponse<ScheduledTaskDto> updateRemark(HttpServletRequest request,
+                                                      @PathVariable String taskKey,
+                                                      @RequestBody UpdateScheduledTaskRemarkRequest body) {
+        return ApiResponse.ok(taskService.setRemark(operatorId(request), taskKey, body.remark()));
     }
 
     @RequiresPermissions("ops:task:run")

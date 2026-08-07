@@ -89,7 +89,10 @@
           <el-table-column label="最近结果说明" min-width="200" align="center" show-overflow-tooltip>
             <template #default="{ row }">{{ row.lastMessage || '—' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="110" align="center" class-name="col-action">
+          <el-table-column label="备注" min-width="220" align="center" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.remark || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="190" align="center" class-name="col-action">
             <template #default="{ row }">
               <el-button
                 v-if="canRun"
@@ -101,7 +104,8 @@
               >
                 立即执行
               </el-button>
-              <span v-else class="cell-hint">—</span>
+              <el-button v-if="canEdit" size="small" plain @click="openRemark(row)">备注</el-button>
+              <span v-if="!canRun && !canEdit" class="cell-hint">—</span>
             </template>
           </el-table-column>
         </el-table>
@@ -117,11 +121,29 @@
       layout="total, sizes, prev, pager, next"
       background
     />
+
+    <el-dialog v-model="remarkVisible" title="任务备注" width="480px" destroy-on-close>
+      <div class="cell-hint" style="margin-bottom: 8px">
+        写清楚这个任务干什么用的，方便运维理解与交接
+      </div>
+      <el-input
+        v-model="remarkForm.remark"
+        type="textarea"
+        :rows="4"
+        maxlength="500"
+        show-word-limit
+        placeholder="例如：离线超时自动锁机停售，恢复稳定在线后可自动解锁"
+      />
+      <template #footer>
+        <el-button @click="remarkVisible = false">取消</el-button>
+        <el-button type="primary" :loading="remarkSaving" @click="saveRemark">保存</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
@@ -151,6 +173,9 @@ const size = ref(20);
 const items = ref<ScheduledTaskRow[]>([]);
 const togglingKey = ref('');
 const runningKey = ref('');
+const remarkVisible = ref(false);
+const remarkSaving = ref(false);
+const remarkForm = reactive({ taskKey: '', taskName: '', remark: '' });
 
 const canEdit = computed(() => auth.hasPerm('ops:task:edit'));
 const canRun = computed(() => auth.hasPerm('ops:task:run'));
@@ -245,6 +270,31 @@ async function onRun(row: ScheduledTaskRow) {
     ElMessage.error(e instanceof Error ? e.message : '执行失败');
   } finally {
     runningKey.value = '';
+  }
+}
+
+function openRemark(row: ScheduledTaskRow) {
+  remarkForm.taskKey = row.taskKey;
+  remarkForm.taskName = row.taskName;
+  remarkForm.remark = row.remark || '';
+  remarkVisible.value = true;
+}
+
+async function saveRemark() {
+  remarkSaving.value = true;
+  try {
+    await api.request(
+      `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(remarkForm.taskKey)}/remark`,
+      'PUT',
+      { remark: remarkForm.remark.trim() }
+    );
+    ElMessage.success('备注已保存');
+    remarkVisible.value = false;
+    await load();
+  } catch (e: any) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    remarkSaving.value = false;
   }
 }
 
