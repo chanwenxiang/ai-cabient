@@ -51,6 +51,12 @@ public class CabinetOpenLandingController {
         }
 
         String channel = resolveChannel(request.getHeader("User-Agent"));
+        if ("OTHER".equals(channel)) {
+            String openUrl = deviceQrService.buildOpenUrl(id);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.TEXT_HTML)
+                    .body(guidePage(id, openUrl));
+        }
         String target = resolveTargetUrl(id, channel);
         return ResponseEntity.status(HttpStatus.FOUND)
                 .header("Location", target)
@@ -65,7 +71,8 @@ public class CabinetOpenLandingController {
         if (ua.contains("MicroMessenger")) {
             return "WECHAT";
         }
-        return "ALIPAY";
+        // 桌面/其它浏览器：展示引导页，避免误跳到本机 H5 开发端口
+        return "OTHER";
     }
 
     String resolveTargetUrl(String deviceId, String channel) {
@@ -101,6 +108,28 @@ public class CabinetOpenLandingController {
                 HtmlUtils.htmlEscape(title),
                 HtmlUtils.htmlEscape(title),
                 HtmlUtils.htmlEscape(message));
+    }
+
+    private static String guidePage(String deviceId, String openUrl) {
+        String safeId = HtmlUtils.htmlEscape(deviceId);
+        String safeUrl = HtmlUtils.htmlEscape(openUrl == null ? "" : openUrl);
+        return """
+                <!DOCTYPE html><html lang="zh-CN"><head>
+                <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+                <title>扫码开门 · %s</title>
+                <style>
+                body{font-family:system-ui,sans-serif;margin:0;padding:48px 24px;background:#0b1220;color:#e8eef7;text-align:center}
+                .card{max-width:420px;margin:0 auto;padding:28px 22px;border-radius:16px;background:#121a2b;border:1px solid #243049}
+                h1{font-size:22px;margin:0 0 12px}p{color:#9db0c9;line-height:1.6;margin:8px 0}
+                code{display:block;margin-top:16px;padding:10px;border-radius:8px;background:#0b1220;color:#7dd3c7;font-size:12px;word-break:break-all}
+                </style></head>
+                <body><div class="card">
+                <h1>请用手机扫柜机码</h1>
+                <p>支付宝扫码进入消费页；微信扫码进入小程序（未配置时回落 H5）。</p>
+                <p>当前柜机 <strong>%s</strong></p>
+                <code>%s</code>
+                </div></body></html>
+                """.formatted(safeId, safeId, safeUrl);
     }
 
     private static String enc(String v) {
