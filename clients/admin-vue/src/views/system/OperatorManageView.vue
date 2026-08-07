@@ -599,6 +599,13 @@ async function openDevices(row: OperatorRow) {
   deviceDlg.value = true;
   deviceScopeLoading.value = true;
   try {
+    if (!auth.hasPerm('ops:device:list')) {
+      allDevices.value = [];
+      deviceIds.value = [];
+      deviceScopeMode.value = 'ALL';
+      ElMessage.warning('当前账号无设备列表权限，无法配置柜机范围');
+      return;
+    }
     if (!allDevices.value.length) {
       const list = await api.request<{ items: any[] }>('/api/v2/ops/admin/devices?page=0&size=200', 'GET');
       allDevices.value = (list.items || []).map((d: any) => ({ deviceId: d.deviceId, deviceName: d.deviceName }));

@@ -246,6 +246,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
+import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
@@ -282,11 +283,6 @@ interface Withdraw {
   paidAt?: string;
 }
 
-interface DeviceOpt {
-  deviceId: string;
-  deviceName?: string;
-}
-
 const auth = useAuthStore();
 const tab = ref('managers');
 const managersLoading = ref(false);
@@ -315,7 +311,7 @@ const createVisible = ref(false);
 const bindVisible = ref(false);
 const bindTarget = ref<Manager | null>(null);
 const bindDeviceId = ref('');
-const deviceOptions = ref<DeviceOpt[]>([]);
+const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 const ledgerVisible = ref(false);
 const ledgerHydrated = ref(false);
 const ledgers = ref<any[]>([]);
@@ -336,18 +332,6 @@ function yuan(cents?: number) {
 }
 function withdrawStatusLabel(s?: string) {
   return dictLabel('line_withdraw_status', s) || s || '未知状态';
-}
-
-async function loadDevices() {
-  try {
-    const res = await api.request<{ items: DeviceOpt[] } | DeviceOpt[]>(
-      '/api/v2/ops/admin/devices?page=0&size=200',
-      'GET'
-    );
-    deviceOptions.value = Array.isArray(res) ? res : res.items || [];
-  } catch {
-    deviceOptions.value = [];
-  }
 }
 
 async function loadManagers() {
@@ -450,7 +434,7 @@ function openBind(row: Manager) {
   bindTarget.value = row;
   bindDeviceId.value = '';
   bindVisible.value = true;
-  if (!deviceOptions.value.length) loadDevices();
+  if (!deviceOptions.value.length) void loadDeviceOptions();
 }
 
 async function confirmBind() {
@@ -545,7 +529,7 @@ async function payout(row: Withdraw) {
 }
 
 onMounted(async () => {
-  await loadDevices();
+  await loadDeviceOptions();
   await loadManagers();
 });
 </script>

@@ -95,7 +95,8 @@ router.beforeEach(async (to) => {
   }
   const nav = findNavByPath(to.path);
   if (nav?.perm && !auth.canAccessNav(nav)) {
-    const fallback = ['/dashboard', '/devices', '/orders', '/profile'].find((p) => {
+    // 按业务优先级回退：补货员等窄权限角色应落在自己常用页面而非个人中心
+    const fallback = ['/dashboard', '/replenishment', '/warehouse', '/stock-health', '/devices', '/orders', '/profile'].find((p) => {
       const item = findNavByPath(p);
       return !item?.perm || auth.canAccessNav(item);
     });

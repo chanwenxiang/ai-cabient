@@ -531,17 +531,31 @@ function goAction(row: OpsActionItem) {
 }
 
 async function fetchWorkbenchBundle() {
-  // 窄权限角色可能对 stats/workbench 403；勿互相拖垮
-  const [s, wb, ex] = await Promise.all([
-    api.request<OpsStats>('/api/v2/ops/admin/stats', 'GET').catch(() => null),
-    api.request<OpsWorkbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null),
-    canAccessPath('/exceptions')
-      ? api
-          .request<PageResult<{ exceptionId: string }>>('/api/v2/ops/admin/exceptions?status=OPEN&page=0&size=1', 'GET')
-          .catch(() => null)
-      : Promise.resolve(null)
-  ]);
-  return { s, wb, ex };
+  try {
+    // 聚合接口：一次请求返回 stats + workbench + 待处理异常数
+    const bundle = await api.request<{
+      stats: OpsStats;
+      workbench: OpsWorkbench;
+      openExceptionCount: number;
+    }>('/api/v2/ops/admin/workbench-bundle', 'GET');
+    return {
+      s: bundle.stats || null,
+      wb: bundle.workbench || null,
+      ex: { total: bundle.openExceptionCount || 0 } as PageResult<{ exceptionId: string }>
+    };
+  } catch {
+    // 兼容降级：窄权限角色可能对 stats/workbench 403；勿互相拖垮
+    const [s, wb, ex] = await Promise.all([
+      api.request<OpsStats>('/api/v2/ops/admin/stats', 'GET').catch(() => null),
+      api.request<OpsWorkbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null),
+      canAccessPath('/exceptions')
+        ? api
+            .request<PageResult<{ exceptionId: string }>>('/api/v2/ops/admin/exceptions?status=OPEN&page=0&size=1', 'GET')
+            .catch(() => null)
+        : Promise.resolve(null)
+    ]);
+    return { s, wb, ex };
+  }
 }
 
 async function load(opts?: { silent?: boolean }) {

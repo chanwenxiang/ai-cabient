@@ -1,3 +1,4 @@
+import { localizeApiMessage } from '@aicabinet/shared-uni/format';
 export class ApiClient {
     constructor(opts) {
         this.refreshPromise = null;
@@ -7,16 +8,32 @@ export class ApiClient {
         this.clearSession = opts.clearSession;
         this.onUnauthorized = opts.onUnauthorized;
         this.fetchImpl = opts.fetchImpl ?? fetch.bind(globalThis);
+        this.timeoutMs = opts.timeoutMs ?? 30000;
     }
     async request(path, method = 'GET', body, auth = true, retried = false) {
         const headers = { 'Content-Type': 'application/json' };
         if (auth && this.getToken())
             headers.Authorization = `Bearer ${this.getToken()}`;
-        const res = await this.fetchImpl(`${this.baseUrl}${path}`, {
-            method,
-            headers,
-            body: body != null ? JSON.stringify(body) : undefined
-        });
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+        let res;
+        try {
+            res = await this.fetchImpl(`${this.baseUrl}${path}`, {
+                method,
+                headers,
+                body: body != null ? JSON.stringify(body) : undefined,
+                signal: controller.signal
+            });
+        }
+        catch (e) {
+            if (controller.signal.aborted) {
+                throw new Error('请求超时，请稍后重试');
+            }
+            throw e;
+        }
+        finally {
+            clearTimeout(timer);
+        }
         const json = (await res.json().catch(() => ({})));
         if (res.status === 401 && auth && !retried) {
             const ok = await this.refreshSilently();
@@ -27,13 +44,13 @@ export class ApiClient {
         if (res.status === 401) {
             this.clearSession();
             this.onUnauthorized?.();
-            throw new Error(json.message || '登录已失效');
+            throw new Error(localizeApiMessage(json.message, '登录已失效'));
         }
         if (res.status === 403) {
-            throw new Error(json.message || '权限不足');
+            throw new Error(localizeApiMessage(json.message, '权限不足'));
         }
         if (!res.ok || json.code !== 0) {
-            throw new Error(json.message || `请求失败 (${res.status})`);
+            throw new Error(localizeApiMessage(json.message, `请求失败 (${res.status})`));
         }
         return json.data;
     }
@@ -45,7 +62,7 @@ export class ApiClient {
         this.refreshPromise = (async () => {
             try {
                 const data = await this.request('/api/v2/auth/refresh', 'POST', undefined, true, true);
-                this.setToken(data.token, data.userId);
+                this.setToken(data.token, data.userId, data.expiresInSeconds);
                 return true;
             }
             catch {
@@ -57,11 +74,19 @@ export class ApiClient {
         })();
         return this.refreshPromise;
     }
-    loginByPassword(phone, password) {
-        return this.request('/api/v2/auth/admin-password-login', 'POST', { phoneNumber: phone, password }, false);
+    loginByPassword(phone, password, captcha) {
+        return this.request('/api/v2/auth/admin-password-login', 'POST', {
+            phoneNumber: phone,
+            password,
+            captchaId: captcha?.captchaId,
+            captchaCode: captcha?.captchaCode
+        }, false);
+    }
+    fetchCaptcha() {
+        return this.request('/api/v2/auth/captcha', 'GET', undefined, false);
     }
     merchantLogin(phone, password) {
-        return this.request('/api/v2/auth/admin-password-login', 'POST', { phoneNumber: phone, password }, false);
+        return this.request('/api/v2/auth/merchant-password-login', 'POST', { phoneNumber: phone, password }, false);
     }
 }
 export * from '@aicabinet/shared-types';

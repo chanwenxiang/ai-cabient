@@ -1946,13 +1946,13 @@ async function load() {
       api.request<Row[]>('/api/v2/ops/admin/replenishment/routes', 'GET'),
       api.request<Row[]>('/api/v2/ops/admin/replenishment/requests?status=ALL', 'GET'),
       api
-        .request<PageResult<Row>>('/api/v2/ops/admin/devices?page=0&size=200', 'GET')
-        .catch(() => ({ items: [] as Row[], page: 0, size: 0, total: 0 })),
+        .request<Row[]>('/api/v2/ops/admin/devices/ref', 'GET')
+        .catch(() => [] as Row[]),
       api.request<Row[]>('/api/v2/ops/admin/slots/discrepancies', 'GET').catch(() => [])
     ]);
     routes.value = r || [];
     allRequests.value = req || [];
-    devices.value = devicePage?.items || [];
+    devices.value = devicePage || [];
     clearRoutesSelection();
     clearRequestsSelection();
     const lowStock: Row[] = [];

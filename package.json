@@ -18,5 +18,10 @@
   "engines": {
     "node": ">=24.18.0",
     "pnpm": ">=9.15.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@vitejs/plugin-vue": "5.0.4"
+    }
   }
 }

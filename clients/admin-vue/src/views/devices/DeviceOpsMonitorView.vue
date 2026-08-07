@@ -108,11 +108,14 @@
 import { computed, onMounted, ref } from 'vue';
 import PagePager from '@/components/PagePager.vue';
 import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage, type Sort } from 'element-plus';
-import { api } from '@/api/client';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
-import { useDictOptions } from '@/composables/useDictOptions';
+  import { ElMessage, type Sort } from 'element-plus';
+  import { api } from '@/api/client';
+  import { useDeviceOptions } from '@/composables/useDeviceOptions';
+  import { formatDateTime } from '@aicabinet/shared-uni/format';
+  import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
+  import { useDictOptions } from '@/composables/useDictOptions';
+  
+  const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 
 interface OpsEvent {
   eventId: number;
@@ -125,18 +128,12 @@ interface OpsEvent {
   createdAt?: string;
 }
 
-interface DeviceOpt {
-  deviceId: string;
-  deviceName?: string;
-}
-
 const loading = ref(false);
 const listHydrated = ref(false);
 const eventType = ref('');
 const severity = ref('');
 const deviceFilter = ref('');
 const items = ref<OpsEvent[]>([]);
-const deviceOptions = ref<DeviceOpt[]>([]);
 const page = ref(1);
 const size = ref(50);
 const total = ref(0);
@@ -171,18 +168,6 @@ function onSortChange(payload: Sort) {
   load();
 }
 
-async function loadDevices() {
-  try {
-    const res = await api.request<{ items: DeviceOpt[] } | DeviceOpt[]>(
-      '/api/v2/ops/admin/devices?page=0&size=200',
-      'GET'
-    );
-    deviceOptions.value = Array.isArray(res) ? res : res.items || [];
-  } catch {
-    deviceOptions.value = [];
-  }
-}
-
 async function load() {
   loading.value = true;
   try {
@@ -212,7 +197,7 @@ function search() {
 }
 
 onMounted(async () => {
-  await loadDevices();
+  await loadDeviceOptions();
   await load();
 });
 </script>

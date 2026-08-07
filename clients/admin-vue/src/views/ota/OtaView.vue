@@ -28,6 +28,14 @@
           <el-table-column label="灰度%" width="80" align="center">
             <template #default="{ row }">{{ row.grayPercent ?? 100 }}</template>
           </el-table-column>
+          <el-table-column label="定向设备" width="110" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.deviceAllowlist?.length" size="small" type="warning" effect="plain">
+                {{ row.deviceAllowlist.length }} 台
+              </el-tag>
+              <span v-else>全量</span>
+            </template>
+          </el-table-column>
           <el-table-column prop="minVersion" label="最低版本" width="110" align="center" class-name="col-text" />
           <el-table-column label="发布时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
@@ -35,6 +43,17 @@
             </template>
           </el-table-column>
           <el-table-column prop="releaseNotes" label="说明" min-width="180" show-overflow-tooltip align="center" />
+          <el-table-column label="操作" width="100" fixed="right" align="center" class-name="col-action">
+            <template #default="{ row }">
+              <el-button
+                v-if="row.status === 'PUBLISHED'"
+                v-hasPermi="['ops:ota:publish']"
+                link
+                type="danger"
+                @click="unpublish(row)"
+              >下架</el-button>
+            </template>
+          </el-table-column>
         </el-table>
       </div>
     </div>
@@ -60,6 +79,24 @@
       <el-form-item label="灰度 %">
         <el-input-number v-model="form.grayPercent" :min="1" :max="100" />
       </el-form-item>
+      <el-form-item label="定向设备">
+        <el-select
+          v-model="form.deviceAllowlist"
+          multiple
+          filterable
+          clearable
+          placeholder="不选则全量 / 按灰度%"
+          style="width: 100%"
+        >
+          <el-option
+            v-for="d in deviceOptions"
+            :key="d.deviceId"
+            :label="`${d.deviceName || d.deviceId}（${d.deviceId}）`"
+            :value="d.deviceId"
+          />
+        </el-select>
+        <div class="field-hint">指定后仅这些柜机收到该版本（定向优先于灰度）</div>
+      </el-form-item>
       <el-form-item label="强制升级">
         <el-switch v-model="form.mandatory" />
       </el-form-item>
@@ -77,8 +114,9 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
+import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface OtaRelease {
@@ -93,8 +131,10 @@ interface OtaRelease {
   status?: string;
   publishedAt?: string;
   grayPercent?: number;
+  deviceAllowlist?: string[];
 }
 
+const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 const loading = ref(false);
 const listHydrated = ref(false);
 const saving = ref(false);
@@ -108,7 +148,8 @@ const form = reactive({
   releaseNotes: '',
   mandatory: false,
   minVersion: '',
-  grayPercent: 100
+  grayPercent: 100,
+  deviceAllowlist: [] as string[]
 });
 
 async function load() {
@@ -132,7 +173,9 @@ function openPublish() {
   form.mandatory = false;
   form.minVersion = '';
   form.grayPercent = 100;
+  form.deviceAllowlist = [];
   dialog.value = true;
+  void loadDeviceOptions();
 }
 
 async function publish() {
@@ -151,6 +194,7 @@ async function publish() {
       mandatory: form.mandatory,
       minVersion: form.minVersion.trim() || undefined,
       grayPercent: form.grayPercent,
+      deviceAllowlist: form.deviceAllowlist.length ? form.deviceAllowlist : undefined,
       status: 'PUBLISHED'
     });
     ElMessage.success('已发布');
@@ -163,5 +207,33 @@ async function publish() {
   }
 }
 
+async function unpublish(row: OtaRelease) {
+  try {
+    await ElMessageBox.confirm(`确认下架版本 ${row.appVersion}？设备端将停止收到该版本。`, '下架版本', {
+      type: 'warning',
+      confirmButtonText: '下架',
+      cancelButtonText: '取消'
+    });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/ota/releases/${row.releaseId}/unpublish`, 'POST', {});
+    ElMessage.success('已下架');
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '下架失败');
+  }
+}
+
 onMounted(load);
 </script>
+
+<style scoped>
+.field-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+</style>
