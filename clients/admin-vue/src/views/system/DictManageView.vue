@@ -42,11 +42,6 @@
                 <template #empty>
                   <el-empty v-if="typesHydrated && !loadingTypes" description="暂无字典类型" :image-size="64" />
                 </template>
-                <el-table-column prop="dictType" label="字典类型" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
-                  <template #default="{ row }">
-                    <span class="cell-id">{{ row.dictType }}</span>
-                  </template>
-                </el-table-column>
                 <el-table-column label="类型" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
                   <template #default="{ row }">{{ row.dictName || '无' }}</template>
                 </el-table-column>
@@ -73,7 +68,7 @@
               <div class="page-card-head__meta">
                 <div class="page-card-head__title">
                   <span class="title">字典数据{{ selected ? ` · ${selected.dictName}` : '' }}</span>
-                  <span class="hint">{{ selected ? selected.dictType : '请先选择左侧类型' }}</span>
+                  <span class="hint">{{ selected ? `${itemsHydrated ? displayItems.length : 0} 项` : '请先选择左侧类型' }}</span>
                 </div>
               </div>
               <div class="page-card-head__actions">

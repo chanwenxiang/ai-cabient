@@ -453,6 +453,14 @@ button, input, textarea, select { font: inherit; }
   border-bottom: 1px solid var(--layout-border);
 }
 
+/* 页面级滚动后：卡片表头吸顶，列表/内容滚动时标题不随之下滑 */
+.layout-main-scroll .page-card > .el-card__header {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  background: var(--layout-card);
+}
+
 .page-card > .el-card__body {
   padding: var(--admin-space-xl, 20px);
 }
