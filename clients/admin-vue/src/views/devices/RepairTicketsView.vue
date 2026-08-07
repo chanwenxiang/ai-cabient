@@ -72,7 +72,7 @@
     </el-form>
 
     <div class="table-scroll">
-      <el-table :data="displayRows"
+      <el-table fit="false" :data="displayRows"
         :default-sort="idDefaultSort"
         @selection-change="onSelectionChange"
         @sort-change="onIdSortChange" v-loading="loading" stripe border class="report-table" empty-text=" ">
@@ -122,7 +122,7 @@
         <el-table-column label="关闭时间" width="170" align="center">
           <template #default="{ row }">{{ formatDateTime(row.closedAt) || '无' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="280" fixed="right" align="center" class-name="col-action">
+        <el-table-column label="操作" width="280" align="center" class-name="col-action">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">详情</el-button>
             <template v-if="auth.hasPerm('ops:repair:edit')">

@@ -70,7 +70,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
+        <el-table fit="false"
           v-loading="loading"
           :data="displayItems"
           :default-sort="idDefaultSort"
@@ -167,7 +167,7 @@
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="220" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="220" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions :actions="sessionActions(row)" @action="(k) => onAction(String(k), row)" />
             </template>

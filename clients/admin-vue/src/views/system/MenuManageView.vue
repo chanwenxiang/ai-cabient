@@ -52,7 +52,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
+        <el-table fit="false"
           ref="tableRef"
           v-loading="loading"
           :data="tableRows"
@@ -99,7 +99,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="120" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions :actions="menuActions(row)" @action="(k) => onMenuAction(k, row)" />
             </template>

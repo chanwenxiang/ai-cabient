@@ -24,7 +24,7 @@
           />
           <div class="table-scroll dict-type-scroll">
             <div class="table-scroll-inner">
-              <el-table
+              <el-table fit="false"
                 ref="typeTableRef"
                 v-loading="loadingTypes"
                 :data="filteredTypes"
@@ -51,7 +51,7 @@
                   <template #default="{ row }">{{ row.dictName || '无' }}</template>
                 </el-table-column>
                 <el-table-column prop="itemCount" label="项数" width="56" align="center" />
-                <el-table-column v-if="canEdit" label="操作" width="64" class-name="col-action" align="center" fixed="right">
+                <el-table-column v-if="canEdit" label="操作" width="64" class-name="col-action" align="center">
                   <template #default="{ row }">
                     <el-button link type="primary" @click.stop="openType(row)">编辑</el-button>
                   </template>
@@ -88,7 +88,7 @@
           </template>
           <div class="table-scroll dict-item-scroll">
             <div class="table-scroll-inner">
-              <el-table
+              <el-table fit="false"
                 v-loading="loadingItems"
                 :data="displayItems"
                 stripe
@@ -131,7 +131,7 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column v-if="canEdit" label="操作" width="120" class-name="col-action" align="center" fixed="right">
+                <el-table-column v-if="canEdit" label="操作" width="120" class-name="col-action" align="center">
                   <template #default="{ row }">
                     <el-button link type="primary" @click="openItem(row)">编辑</el-button>
                     <el-button link type="danger" @click="removeItem(row)">删除</el-button>

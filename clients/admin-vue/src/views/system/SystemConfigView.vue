@@ -38,7 +38,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
+        <el-table fit="false"
           v-loading="loading"
           :data="paged"
           stripe
@@ -72,7 +72,6 @@
             width="120"
             class-name="col-action"
             align="center"
-            fixed="right"
           >
             <template #default="{ row }">
               <TableActions

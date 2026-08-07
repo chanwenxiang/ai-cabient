@@ -67,7 +67,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
+        <el-table fit="false"
           v-loading="loading"
           :data="items"
           stripe
@@ -176,7 +176,7 @@
               <span class="cell-datetime">{{ formatDateTime(row.resolvedAt) || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="220" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="220" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 :actions="rowActions(row)"
@@ -345,7 +345,7 @@
 
           <div v-if="selected.suggestedItems?.length" class="items-block">
             <div class="items-title">识别建议（只读）</div>
-            <el-table :data="selected.suggestedItems" size="small" stripe border>
+            <el-table fit="false" :data="selected.suggestedItems" size="small" stripe border>
               <el-table-column prop="skuName" label="商品" min-width="120" align="center" class-name="col-text" />
               <el-table-column prop="skuId" label="SKU" min-width="100" align="center" class-name="col-text" show-overflow-tooltip />
               <el-table-column prop="quantity" label="数量" width="72" align="center" />

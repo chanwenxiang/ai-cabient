@@ -85,7 +85,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
+        <el-table fit="false"
           v-loading="loading"
           :data="displayItems"
           :default-sort="idDefaultSort"
@@ -226,7 +226,7 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="220" align="center" class-name="col-action" fixed="right">
+          <el-table-column label="操作" width="220" align="center" class-name="col-action">
             <template #default="{ row }">
               <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
             </template>
@@ -314,7 +314,7 @@
           </div>
 
           <h4 class="section-title">商品行</h4>
-          <el-table :data="detail.lines || detail.items || []" size="small" border empty-text=" ">
+          <el-table fit="false" :data="detail.lines || detail.items || []" size="small" border empty-text=" ">
             <template #empty>
               <el-empty v-if="!detailLoading" description="无商品行" :image-size="48" />
             </template>

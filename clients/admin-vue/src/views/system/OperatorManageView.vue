@@ -38,7 +38,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
+        <el-table fit="false"
           v-loading="loading"
           :data="operators"
           stripe
@@ -56,7 +56,7 @@
             </template>
           </el-table-column>
           <el-table-column label="账号" min-width="120" align="center" class-name="col-text">
-            <template #default="{ row }">{{ row.name || row.phoneNumber || '无' }}</template>
+            <template #default="{ row }">{{ row.name || '未命名' }}</template>
           </el-table-column>
           <el-table-column label="手机号" width="140" align="center" class-name="col-text">
             <template #default="{ row }">{{ row.phoneNumber || '无' }}</template>
@@ -101,7 +101,7 @@
               <el-tag v-else size="small" type="success" effect="plain">全局</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="120" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions :actions="rowActions(row)" :max-primary="2" @action="(k) => onRowAction(k, row)" />
             </template>
@@ -126,7 +126,14 @@
           <el-input v-model="form.name" maxlength="64" />
         </el-form-item>
         <el-form-item label="手机号" required>
-          <el-input v-model="form.phoneNumber" maxlength="11" placeholder="11位手机号" />
+          <el-input
+            v-model="form.phoneNumber"
+            type="tel"
+            maxlength="11"
+            inputmode="numeric"
+            placeholder="11位手机号"
+            @input="form.phoneNumber = form.phoneNumber.replace(/\D/g, '')"
+          />
         </el-form-item>
         <el-form-item :label="form.userId ? '新密码' : '密码'" :required="!form.userId">
           <el-input

@@ -37,7 +37,7 @@
         </el-form>
 
         <div class="table-scroll">
-          <el-table
+          <el-table fit="false"
             :data="managers"
             v-loading="managersLoading"
             stripe
@@ -81,7 +81,7 @@
             <el-table-column label="创建时间" width="170" align="center">
               <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="300" fixed="right" align="center" class-name="col-action">
+            <el-table-column label="操作" width="300" align="center" class-name="col-action">
               <template #default="{ row }">
                 <el-button v-hasPermi="['ops:line-manager:edit']" link type="primary" @click="openBind(row)">绑柜</el-button>
                 <el-button v-hasPermi="['ops:line-manager:edit']" link @click="adjust(row)">调账</el-button>
@@ -121,7 +121,7 @@
         </el-form>
 
         <div class="table-scroll">
-          <el-table :data="withdraws" v-loading="withdrawsLoading" stripe border class="report-table" empty-text=" ">
+          <el-table fit="false" :data="withdraws" v-loading="withdrawsLoading" stripe border class="report-table" empty-text=" ">
             <template #empty><el-empty v-if="withdrawsHydrated && !withdrawsLoading" description="暂无提现申请" /></template>
             <el-table-column prop="requestId" label="单号" width="80" align="center" />
             <el-table-column prop="requestNo" label="幂等号" min-width="160" show-overflow-tooltip align="center" />
@@ -143,7 +143,7 @@
             <el-table-column label="打款时间" width="170" align="center">
               <template #default="{ row }">{{ formatDateTime(row.paidAt) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="200" fixed="right" align="center" class-name="col-action">
+            <el-table-column label="操作" width="200" align="center" class-name="col-action">
               <template #default="{ row }">
                 <template v-if="row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:line-withdraw:review')">
                   <el-button link type="success" @click="review(row, true)">通过并打款</el-button>
@@ -215,7 +215,7 @@
     </el-dialog>
 
     <el-drawer v-model="ledgerVisible" title="钱包流水" size="520px">
-      <el-table v-loading="!ledgerHydrated" :data="ledgers" size="small" stripe empty-text=" ">
+      <el-table fit="false" v-loading="!ledgerHydrated" :data="ledgers" size="small" stripe empty-text=" ">
         <template #empty>
           <el-empty v-if="ledgerHydrated" description="暂无流水" :image-size="64" />
         </template>

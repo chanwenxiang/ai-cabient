@@ -26,7 +26,7 @@
         </el-form>
 
         <div class="table-scroll">
-          <el-table :data="wallets" v-loading="walletsLoading" stripe border class="report-table" empty-text=" ">
+          <el-table fit="false" :data="wallets" v-loading="walletsLoading" stripe border class="report-table" empty-text=" ">
             <template #empty><el-empty v-if="walletsHydrated && !walletsLoading" description="暂无商户钱包" /></template>
             <el-table-column prop="merchantId" label="商户ID" min-width="120" align="center" />
             <el-table-column prop="merchantName" label="名称" min-width="140" show-overflow-tooltip align="center" />
@@ -41,11 +41,11 @@
               <template #default="{ row }">{{ yuan(row.availableCents) }}</template>
             </el-table-column>
             <el-table-column prop="status" label="状态" width="90" align="center" />
-            <el-table-column label="操作" width="260" fixed="right" align="center" class-name="col-action">
+            <el-table-column label="操作" width="260" align="center" class-name="col-action">
               <template #default="{ row }">
-                <el-button v-hasPermi="['ops:merchant-withdraw:adjust']" link type="primary" @click="adjust(row)">调账</el-button>
+                <el-button v-hasPermi="['ops:merchant-withdraw:adjust']" link type="primary" @click="openAdjust(row)">调账</el-button>
                 <el-button link @click="showLedgers(row)">流水</el-button>
-                <el-button v-hasPermi="['ops:merchant-withdraw:adjust']" link type="warning" @click="proxyWithdraw(row)">代提现</el-button>
+                <el-button v-hasPermi="['ops:merchant-withdraw:adjust']" link type="warning" @click="openWithdraw(row)">代提现</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -80,7 +80,7 @@
         </el-form>
 
         <div class="table-scroll">
-          <el-table :data="withdraws" v-loading="withdrawsLoading" stripe border class="report-table" empty-text=" ">
+          <el-table fit="false" :data="withdraws" v-loading="withdrawsLoading" stripe border class="report-table" empty-text=" ">
             <template #empty><el-empty v-if="withdrawsHydrated && !withdrawsLoading" description="暂无提现申请" /></template>
             <el-table-column prop="requestId" label="单号" width="80" align="center" />
             <el-table-column prop="requestNo" label="幂等号" min-width="160" show-overflow-tooltip align="center" />
@@ -99,7 +99,7 @@
             <el-table-column label="申请时间" width="170" align="center">
               <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="200" fixed="right" align="center" class-name="col-action">
+            <el-table-column label="操作" width="200" align="center" class-name="col-action">
               <template #default="{ row }">
                 <template v-if="row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:merchant-withdraw:review')">
                   <el-button link type="success" @click="review(row, true)">通过并打款</el-button>
@@ -129,7 +129,7 @@
     </el-tabs>
 
     <el-drawer v-model="ledgerVisible" title="钱包流水" size="520px">
-      <el-table v-loading="!ledgerHydrated" :data="ledgers" size="small" stripe empty-text=" ">
+      <el-table fit="false" v-loading="!ledgerHydrated" :data="ledgers" size="small" stripe empty-text=" ">
         <template #empty>
           <el-empty v-if="ledgerHydrated" description="暂无流水" :image-size="64" />
         </template>
@@ -149,6 +149,65 @@
         </el-table-column>
       </el-table>
     </el-drawer>
+
+    <el-dialog v-model="adjustVisible" title="商户调账" width="460px" append-to-body destroy-on-close :close-on-click-modal="false">
+      <div v-if="adjustTarget" class="dialog-merchant">
+        <div class="dialog-merchant__name">{{ adjustTarget.merchantName || adjustTarget.merchantId }}</div>
+        <div class="dialog-merchant__id">商户 {{ adjustTarget.merchantId }}</div>
+        <div class="dialog-balance">
+          <span>当前余额 <b>¥{{ yuan(adjustTarget.balanceCents) }}</b></span>
+          <span>可用 <b>¥{{ yuan(adjustTarget.availableCents) }}</b></span>
+        </div>
+      </div>
+      <el-form label-position="top" @submit.prevent="submitAdjust">
+        <el-form-item label="调整金额（元，负数扣减）" required>
+          <el-input-number
+            v-model="adjustForm.amount"
+            :precision="2"
+            :step="10"
+            :min="-1000000"
+            :max="1000000"
+            controls-position="right"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="adjustForm.remark" maxlength="100" placeholder="选填" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="adjustVisible = false">取消</el-button>
+        <el-button type="primary" :loading="adjustSaving" @click="submitAdjust">确认调账</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="withdrawVisible" title="代商户提现" width="460px" append-to-body destroy-on-close :close-on-click-modal="false">
+      <div v-if="withdrawTarget" class="dialog-merchant">
+        <div class="dialog-merchant__name">{{ withdrawTarget.merchantName || withdrawTarget.merchantId }}</div>
+        <div class="dialog-merchant__id">商户 {{ withdrawTarget.merchantId }}</div>
+        <div class="dialog-balance">
+          <span>可用余额 <b>¥{{ yuan(withdrawTarget.availableCents) }}</b></span>
+          <span>冻结 <b>¥{{ yuan(withdrawTarget.frozenCents) }}</b></span>
+        </div>
+      </div>
+      <el-form label-position="top" @submit.prevent="submitWithdraw">
+        <el-form-item label="提现金额（元）" required>
+          <el-input-number
+            v-model="withdrawForm.amount"
+            :precision="2"
+            :step="10"
+            :min="1"
+            :max="10000000"
+            controls-position="right"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="withdrawVisible = false">取消</el-button>
+        <el-button type="warning" :loading="withdrawSaving" @click="submitWithdraw">确认提现</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -207,6 +266,14 @@ const wdStatus = ref('');
 const ledgerVisible = ref(false);
 const ledgerHydrated = ref(false);
 const ledgers = ref<any[]>([]);
+const adjustVisible = ref(false);
+const adjustSaving = ref(false);
+const adjustTarget = ref<WalletRow | null>(null);
+const adjustForm = ref({ amount: 0, remark: '' });
+const withdrawVisible = ref(false);
+const withdrawSaving = ref(false);
+const withdrawTarget = ref<WalletRow | null>(null);
+const withdrawForm = ref({ amount: 0 });
 
 const withdrawStatusOptions = useDictOptions('merchant_withdraw_status');
 
@@ -291,25 +358,33 @@ async function loadWithdraws() {
   }
 }
 
-async function adjust(row: WalletRow) {
+function openAdjust(row: WalletRow) {
+  adjustTarget.value = row;
+  adjustForm.value = { amount: 0, remark: '' };
+  adjustVisible.value = true;
+}
+
+async function submitAdjust() {
+  if (!adjustTarget.value) return;
+  if (!adjustForm.value.amount || Number.isNaN(adjustForm.value.amount)) {
+    ElMessage.warning('请输入调整金额');
+    return;
+  }
+  adjustSaving.value = true;
   try {
-    const { value } = await ElMessageBox.prompt('调账金额（元，负数扣减）', `调账 · ${row.merchantName || row.merchantId}`, {
-      inputPattern: /^-?\d+(\.\d{1,2})?$/,
-      inputErrorMessage: '请输入金额',
-      confirmButtonText: '确定',
-      cancelButtonText: '取消'
-    });
-    const amountCents = Math.round(Number(value) * 100);
-    await api.request(`/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(row.merchantId)}/adjust`, 'POST', {
-      amountCents,
-      remark: '运营调账'
-    });
+    const amountCents = Math.round(Number(adjustForm.value.amount) * 100);
+    await api.request(
+      `/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(adjustTarget.value.merchantId)}/adjust`,
+      'POST',
+      { amountCents, remark: adjustForm.value.remark.trim() || '运营调账' }
+    );
     ElMessage.success('已调账');
+    adjustVisible.value = false;
     await loadWallets();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '调账失败');
-    }
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '调账失败');
+  } finally {
+    adjustSaving.value = false;
   }
 }
 
@@ -329,25 +404,34 @@ async function showLedgers(row: WalletRow) {
   }
 }
 
-async function proxyWithdraw(row: WalletRow) {
+function openWithdraw(row: WalletRow) {
+  withdrawTarget.value = row;
+  withdrawForm.value = { amount: 0 };
+  withdrawVisible.value = true;
+}
+
+async function submitWithdraw() {
+  if (!withdrawTarget.value) return;
+  if (!withdrawForm.value.amount || Number(withdrawForm.value.amount) <= 0) {
+    ElMessage.warning('请输入大于 0 的提现金额');
+    return;
+  }
+  withdrawSaving.value = true;
   try {
-    const { value } = await ElMessageBox.prompt('代提现金额（元）', `代提现 · ${row.merchantName || row.merchantId}`, {
-      inputPattern: /^\d+(\.\d{1,2})?$/,
-      inputErrorMessage: '请输入金额',
-      confirmButtonText: '确定',
-      cancelButtonText: '取消'
-    });
-    const amountCents = Math.round(Number(value) * 100);
-    await api.request(`/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(row.merchantId)}/withdraw`, 'POST', {
-      amountCents
-    });
+    const amountCents = Math.round(Number(withdrawForm.value.amount) * 100);
+    await api.request(
+      `/api/v2/ops/admin/merchant-wallets/${encodeURIComponent(withdrawTarget.value.merchantId)}/withdraw`,
+      'POST',
+      { amountCents }
+    );
     ElMessage.success('已提交提现');
+    withdrawVisible.value = false;
     tab.value = 'withdraws';
     await loadWithdraws();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '代提现失败');
-    }
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '代提现失败');
+  } finally {
+    withdrawSaving.value = false;
   }
 }
 
@@ -390,3 +474,33 @@ async function payout(row: Withdraw) {
 
 onMounted(reload);
 </script>
+
+<style scoped>
+.dialog-merchant {
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--layout-border);
+  border-radius: 10px;
+  background: var(--el-fill-color-light);
+}
+.dialog-merchant__name {
+  font-weight: 600;
+  font-size: 15px;
+}
+.dialog-merchant__id {
+  color: var(--layout-muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.dialog-balance {
+  display: flex;
+  gap: 20px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--layout-muted);
+}
+.dialog-balance b {
+  color: var(--layout-text);
+  font-variant-numeric: tabular-nums;
+}
+</style>

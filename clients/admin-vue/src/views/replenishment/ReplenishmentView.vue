@@ -60,7 +60,7 @@
       <el-tab-pane label="补货路线" name="routes">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               v-loading="isTabLoading('routes')"
               :data="pagedRoutes"
               stripe
@@ -81,13 +81,13 @@
                   <span>负责人：{{ row.assigneeUserId || '未分配' }}</span>
                   <span>预计里程：{{ row.totalDistanceM ? `${row.totalDistanceM} 米` : '未计算' }}</span>
                 </div>
-                <el-table :data="sortedRouteTasks(row.tasks)" size="small" class="line-table" empty-text=" ">
-                  <el-table-column label="任务" width="88" align="center" class-name="col-text">
+                <el-table fit="false" :data="sortedRouteTasks(row.tasks)" size="small" class="line-table" empty-text=" ">
+                  <el-table-column label="任务" width="70" align="center" class-name="col-text">
                     <template #default="scope">
-                      <span class="cell-id">#{{ scope.row.taskId }}</span>
+                      <span class="cell-id">{{ scope.row.taskId }}</span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="设备" min-width="140" align="center">
+                  <el-table-column label="设备" min-width="110" align="center">
                     <template #default="scope">
                       {{ deviceName(scope.row.deviceId) }}
                       <el-tag
@@ -97,24 +97,24 @@
                       >{{ deviceOnline(scope.row.deviceId) ? '在线' : '离线' }}</el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column label="设备ID" min-width="120" align="center">
+                  <el-table-column label="设备ID" min-width="100" align="center">
                     <template #default="scope">
                       <span class="mono">{{ scope.row.deviceId }}</span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="任务状态" width="110" align="center">
+                  <el-table-column label="任务状态" width="92" align="center">
                     <template #default="scope">
                       <el-tag :type="dictTagType(scope.row.status)" size="small">
                         {{ dictLabel('replenishment_task_status', scope.row.status) }}
                       </el-tag>
                     </template>
                   </el-table-column>
-                  <el-table-column label="人员" width="88" align="center">
+                  <el-table-column label="人员" width="70" align="center">
                     <template #default="scope">
                       <span class="mono">{{ scope.row.assigneeUserId || row.assigneeUserId || '无' }}</span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="签到" min-width="150" align="center">
+                  <el-table-column label="签到" min-width="124" align="center">
                     <template #default="scope">
                       <div class="check-in-cell">
                         <el-tag :type="scope.row.checkInAt ? 'success' : 'info'" size="small">
@@ -131,21 +131,21 @@
                       </div>
                     </template>
                   </el-table-column>
-                  <el-table-column label="用时" width="88" align="center">
+                  <el-table-column label="用时" width="70" align="center">
                     <template #default="scope">{{ formatTaskDuration(scope.row) }}</template>
                   </el-table-column>
-                  <el-table-column label="完成" width="148" align="center" class-name="col-text">
+                  <el-table-column label="完成" width="122" align="center" class-name="col-text">
                     <template #default="scope">
                       <span class="cell-datetime">{{ scope.row.completedAt ? formatDateTime(scope.row.completedAt) : '无' }}</span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="出库单" width="88" align="center">
+                  <el-table-column label="出库单" width="70" align="center">
                     <template #default="scope">
-                      <el-tag v-if="scope.row.outboundId" size="small" type="warning">#{{ scope.row.outboundId }}</el-tag>
+                      <el-tag v-if="scope.row.outboundId" size="small" type="warning">{{ scope.row.outboundId }}</el-tag>
                       <span v-else class="muted">现场</span>
                     </template>
                   </el-table-column>
-                  <el-table-column label="操作" :width="canEdit ? 280 : 88" align="center" class-name="col-action" fixed="right">
+                  <el-table-column label="操作" :width="canEdit ? 210 : 70" align="center" class-name="col-action">
                     <template #default="scope">
                       <el-button link type="primary" @click="openTaskLines(scope.row)">明细</el-button>
                       <el-button
@@ -199,7 +199,7 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column v-if="showRouteCancelColumn" label="操作" width="100" align="center" class-name="col-action" fixed="right">
+          <el-table-column v-if="showRouteCancelColumn" label="操作" width="100" align="center" class-name="col-action">
             <template #default="{ row }">
               <el-button
                 v-if="canCancelEmptyRoute(row)"
@@ -239,7 +239,7 @@
         </el-form>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               v-loading="isTabLoading('fulfillment')"
               :data="pagedFulfillment"
               stripe
@@ -253,7 +253,7 @@
               <template #empty><el-empty v-if="listHydrated && !isTabLoading('fulfillment')" :description="fulfillmentEmptyText" /></template>
               <el-table-column prop="taskId" label="任务" width="88" align="center" class-name="col-text" sortable="custom">
                 <template #default="{ row }">
-                  <span class="cell-id">#{{ row.taskId }}</span>
+                  <span class="cell-id">{{ row.taskId }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="设备" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
@@ -312,7 +312,7 @@
                   <span class="cell-datetime">{{ row.completedAt ? formatDateTime(row.completedAt) : '无' }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="120" align="center" class-name="col-action" fixed="right">
+              <el-table-column label="操作" width="120" align="center" class-name="col-action">
                 <template #default="{ row }">
                   <el-button link type="primary" @click="openTaskLines(row)">
                     理货明细
@@ -345,7 +345,7 @@
         </div>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               v-loading="isTabLoading('requests')"
               :data="pagedRequests"
               stripe
@@ -396,7 +396,7 @@
                 link
                 type="primary"
                 @click="goRequestTask(row)"
-              >#{{ row.replenishmentTaskId }}</el-button>
+              >{{ row.replenishmentTaskId }}</el-button>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
@@ -405,7 +405,7 @@
               <span class="cell-datetime">{{ formatDateTime(row.submittedAt || row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column v-if="showRequestActionColumn" label="操作" width="160" class-name="col-action" align="center" fixed="right">
+          <el-table-column v-if="showRequestActionColumn" label="操作" width="160" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 v-if="requestActionsFor(row).length"
@@ -429,7 +429,7 @@
         </div>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               v-loading="isTabLoading('shortage') || shortageLoading"
               :data="pagedShortages"
               stripe
@@ -460,7 +460,7 @@
                   <el-tag :type="stockTagType(row)" size="small">{{ stockLabel(row) }}</el-tag>
                 </template>
               </el-table-column>
-              <el-table-column v-if="canEdit" label="操作" width="100" align="center" class-name="col-action" fixed="right">
+              <el-table-column v-if="canEdit" label="操作" width="100" align="center" class-name="col-action">
                 <template #default="{ row }">
                   <el-button link type="primary" @click="planSingleDevice(row.deviceId)">补货</el-button>
                 </template>
@@ -483,7 +483,7 @@
         </div>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               v-loading="isTabLoading('expiry') || expiryLoading"
               :data="pagedExpiry"
               stripe
@@ -521,7 +521,7 @@
                   <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="操作" width="240" align="center" class-name="col-action" fixed="right">
+              <el-table-column label="操作" width="240" align="center" class-name="col-action">
                 <template #default="{ row }">
                   <el-button
                     v-if="canEdit"
@@ -617,7 +617,7 @@
           </div>
         </div>
         <div class="table-scroll">
-        <el-table :data="taskLines" stripe border size="small" empty-text=" ">
+        <el-table fit="false" :data="taskLines" stripe border size="small" empty-text=" ">
           <template #empty>
             <el-empty v-if="!linesLoading" description="暂无理货明细（未上架或未确认）" :image-size="48" />
           </template>

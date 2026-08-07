@@ -71,7 +71,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
+        <el-table fit="false"
           v-loading="loading"
           :data="paged"
           stripe
@@ -154,7 +154,7 @@
           <el-table-column label="操作人" min-width="110" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.updatedByName || '—' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="120" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="120" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 :actions="skuActions(row)"

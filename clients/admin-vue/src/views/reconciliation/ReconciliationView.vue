@@ -70,7 +70,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
+        <el-table fit="false"
           v-loading="loading"
           :data="paged"
           stripe
@@ -113,7 +113,7 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="88" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="88" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 :actions="[{ key: 'detail', label: '详情', icon: View, type: 'primary' }]"
@@ -184,7 +184,7 @@
               </span>
             </el-descriptions-item>
           </el-descriptions>
-          <el-table
+          <el-table fit="false"
             :data="detail.lines || []"
             stripe
             border

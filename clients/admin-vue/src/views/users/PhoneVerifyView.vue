@@ -34,7 +34,7 @@
       </el-form-item>
     </el-form>
 
-    <el-table v-loading="loading" :data="displayItems"
+    <el-table fit="false" v-loading="loading" :data="displayItems"
         :default-sort="idDefaultSort"
         @sort-change="onIdSortChange" stripe border class="report-table" empty-text=" ">
       <template #empty><el-empty v-if="listHydrated && !loading" description="暂无验证记录" /></template>

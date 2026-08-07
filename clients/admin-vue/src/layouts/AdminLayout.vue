@@ -739,9 +739,8 @@ onUnmounted(() => {
   gap: var(--admin-space-md, 12px);
   padding: var(--admin-space-md, 12px) var(--admin-space-lg, 16px);
   box-sizing: border-box;
-  /* 只纵向滚；横向交给表格自身，避免双滚动条 */
-  overflow-x: hidden;
-  overflow-y: auto;
+  /* 页面级滚动：内容超宽时由页面横向滚动，而非表格内部滚动 */
+  overflow: auto;
   /* 切页时滚动条显隐不再挤动内容宽度 */
   scrollbar-gutter: stable;
   /* 侧栏展开/滚动条变化时，禁止浏览器滚动锚定带动主区上下跳 */
@@ -751,10 +750,10 @@ onUnmounted(() => {
   overscroll-behavior: contain;
 }
 
-/* 页面根节点横向铺满主区 */
+/* 页面根节点横向铺满主区；允许超宽内容撑开触发页面级横向滚动 */
 .layout-main-scroll > * {
   width: 100%;
-  max-width: 100%;
+  max-width: none;
   min-width: 0;
   box-sizing: border-box;
 }

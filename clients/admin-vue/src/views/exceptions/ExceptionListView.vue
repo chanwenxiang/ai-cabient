@@ -60,7 +60,7 @@
 
       <div class="table-scroll">
         <div class="table-scroll-inner">
-          <el-table
+          <el-table fit="false"
             v-loading="loading"
             :data="displayItems"
             stripe
@@ -171,7 +171,7 @@
                 <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="220" class-name="col-action" align="center" fixed="right">
+            <el-table-column label="操作" width="220" class-name="col-action" align="center">
               <template #default="{ row }">
                 <TableActions :actions="exceptionActions(row)" @action="(key) => onExceptionAction(key, row)" />
               </template>

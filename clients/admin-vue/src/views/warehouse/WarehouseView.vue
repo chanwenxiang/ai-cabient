@@ -143,7 +143,7 @@
       <el-tab-pane label="仓库概览" name="warehouses">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               v-loading="isTabLoading('warehouses')"
               :data="pagedWarehouses"
               :default-sort="warehouseIdDefaultSort"
@@ -172,7 +172,7 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column v-if="canEdit" label="操作" width="88" class-name="col-action" align="center" fixed="right">
+              <el-table-column v-if="canEdit" label="操作" width="88" class-name="col-action" align="center">
                 <template #default="{ row }">
                   <TableActions
                     :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
@@ -188,7 +188,7 @@
       <el-tab-pane v-if="canProcurementList" label="供应商" name="suppliers">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               class="report-table"
               v-loading="isTabLoading('suppliers')"
               :data="pagedSuppliers"
@@ -215,7 +215,7 @@
               <el-tag :type="dictTagType(row.status)" size="small">{{ dictLabel('supplier_status', row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="88" class-name="col-action" align="center" fixed="right">
+          <el-table-column v-if="canEdit" label="操作" width="88" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
@@ -232,7 +232,7 @@
       <el-tab-pane v-if="canProcurementList" label="采购单" name="purchase">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               class="report-table"
               v-loading="isTabLoading('purchase')"
               :data="pagedPurchaseOrders"
@@ -245,7 +245,7 @@
           <el-table-column type="expand" align="center">
             <template #default="{ row }">
               <div class="expand-panel">
-                <el-table :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
+                <el-table fit="false" :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
                   <el-table-column label="商品" min-width="180" align="center">
                     <template #default="scope">
                       {{ skuName(scope.row.skuId) }}
@@ -280,7 +280,7 @@
               <el-tag :type="dictTagType(row.status)" size="small">{{ dictLabel('purchase_order_status', row.status) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="100" class-name="col-action" align="center" fixed="right">
+          <el-table-column v-if="canEdit" label="操作" width="100" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 v-if="['CREATED', 'PARTIAL_RECEIVED'].includes(row.status)"
@@ -299,7 +299,7 @@
       <el-tab-pane v-if="canProcurementList" label="采购退货" name="returns">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               class="report-table"
               v-loading="isTabLoading('returns')"
               :data="pagedPurchaseReturns"
@@ -312,7 +312,7 @@
           <el-table-column type="expand" align="center">
             <template #default="{ row }">
               <div class="expand-panel">
-                <el-table :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
+                <el-table fit="false" :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
                   <el-table-column label="商品" min-width="180" align="center">
                     <template #default="scope">
                       {{ skuName(scope.row.skuId) }}
@@ -353,7 +353,7 @@
       <el-tab-pane label="出库单" name="outbounds">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               class="report-table"
               v-loading="isTabLoading('outbounds')"
               :data="pagedOutbounds"
@@ -368,7 +368,7 @@
           <el-table-column type="expand" align="center">
             <template #default="{ row }">
               <div class="expand-panel" :data-testid="`outbound-expand-${row.outboundId}`">
-                <el-table :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
+                <el-table fit="false" :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
                   <el-table-column label="目标设备" min-width="180" align="center">
                     <template #default="scope">
                       {{ deviceName(scope.row.deviceId) }}
@@ -393,7 +393,7 @@
           </el-table-column>
           <el-table-column label="出库单" min-width="110" align="center">
             <template #default="{ row }">
-              <span :data-testid="`outbound-id-${row.outboundId}`" class="outbound-id-cell">#{{ row.outboundId }}</span>
+              <span :data-testid="`outbound-id-${row.outboundId}`" class="outbound-id-cell">{{ row.outboundId }}</span>
             </template>
           </el-table-column>
           <el-table-column prop="routeId" label="路线" min-width="88" align="center" />
@@ -410,7 +410,7 @@
           <el-table-column label="创建时间" min-width="170" align="center">
             <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
           </el-table-column>
-          <el-table-column v-if="canEdit" label="操作" width="110" class-name="col-action" align="center" fixed="right">
+          <el-table-column v-if="canEdit" label="操作" width="110" class-name="col-action" align="center">
             <template #default="{ row }">
               <div :data-testid="`outbound-row-${row.outboundId}`">
                 <TableActions
@@ -433,7 +433,7 @@
       <el-tab-pane label="在途" name="transit">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               class="report-table"
               v-loading="isTabLoading('transit')"
               :data="pagedInTransit"
@@ -492,7 +492,7 @@
       <el-tab-pane label="批次库存" name="inventory">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               class="report-table"
               v-loading="isTabLoading('inventory')"
               :data="pagedInventory"
@@ -529,7 +529,7 @@
         <p class="muted tip">仅显示最近 100 条</p>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               class="report-table"
               v-loading="isTabLoading('movements')"
               :data="pagedMovements"
@@ -665,7 +665,7 @@
 
     <el-dialog v-model="receiveDialog" title="采购收货" width="700px" class="dialog-wide" destroy-on-close>
       <div class="table-scroll">
-      <el-table :data="receiveForm.lines" class="receive-table">
+      <el-table fit="false" :data="receiveForm.lines" class="receive-table">
         <el-table-column label="商品" min-width="180" align="center">
           <template #default="{ row }">
             {{ skuName(row.skuId) }}
@@ -711,7 +711,7 @@
         </el-form-item>
       </el-form>
       <div class="table-scroll">
-      <el-table :data="returnForm.lines" class="receive-table">
+      <el-table fit="false" :data="returnForm.lines" class="receive-table">
         <el-table-column label="商品" min-width="180" align="center">
           <template #default="{ row }">
             {{ skuName(row.skuId) }}
@@ -786,7 +786,7 @@
       @closed="onOutboundConfirmClosed"
     >
       <p class="outbound-confirm-body">
-        <span class="outbound-confirm-id" data-testid="outbound-confirm-id">出库单 #{{ outboundConfirm.outboundId }}</span>
+        <span class="outbound-confirm-id" data-testid="outbound-confirm-id">出库单 {{ outboundConfirm.outboundId }}</span>
         <br />
         {{ outboundConfirm.message }}
       </p>

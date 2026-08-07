@@ -22,7 +22,7 @@
       <el-tab-pane label="风险事件" name="events">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               v-loading="eventsLoading"
               :data="events"
               stripe
@@ -85,7 +85,7 @@
       <el-tab-pane label="黑名单" name="blacklist">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table
+            <el-table fit="false"
               v-loading="blacklistLoading"
               :data="blacklist"
               stripe
@@ -121,8 +121,7 @@
                 label="操作"
                 width="88"
                 class-name="col-action"
-                align="center"
-               fixed="right">
+                align="center">
                 <template #default="{ row }">
                   <TableActions
                     :actions="[{ key: 'remove', label: '移出', icon: Delete, type: 'danger' }]"
