@@ -30,7 +30,6 @@ app.mount('#app');
 function fitWideTables() {
   requestAnimationFrame(() => {
     document.querySelectorAll<HTMLElement>('.table-scroll').forEach((scroll) => {
-      if (scroll.closest('.page-fill')) return;
       const colgroup = scroll.querySelector('colgroup');
       const cols = colgroup ? colgroup.querySelectorAll<HTMLElement>('col') : [];
       let natural = 0;
