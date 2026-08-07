@@ -24,16 +24,16 @@
           />
           <div class="table-scroll dict-type-scroll">
             <div class="table-scroll-inner">
-              <el-table fit="false"
+              <el-table
                 ref="typeTableRef"
                 v-loading="loadingTypes"
                 :data="filteredTypes"
                 highlight-current-row
-                height="100%"
+                
                 border
                 class="report-table"
                 empty-text=" "
-                table-layout="auto"
+               
                 row-key="dictType"
                 :default-sort="typeDefaultSort"
                 @sort-change="onTypeSortChange"
@@ -83,14 +83,14 @@
           </template>
           <div class="table-scroll dict-item-scroll">
             <div class="table-scroll-inner">
-              <el-table fit="false"
+              <el-table
                 v-loading="loadingItems"
                 :data="displayItems"
                 stripe
                 border
-                height="100%"
+                
                 class="report-table"
-                table-layout="auto"
+               
                 row-key="dictDataId"
                 empty-text=" "
                 :default-sort="itemDefaultSort"
@@ -553,17 +553,18 @@ onBeforeUnmount(() => {
 
 <style scoped>
 /* 固定双栏：不依赖 el-col md 断点，窗口缩小仍并排，避免右侧被挤到下方 */
+/* 双栏独立滚动：左右各自纵向滚动，表头随栏固定（非吸顶），白底完整 */
 .dict-page {
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-height: 0;
-  height: auto;
-  overflow: visible;
+  overflow: hidden;
 }
 .dict-split {
   flex: 1 1 auto;
   min-height: 0;
-  height: auto;
+  height: 100%;
   display: grid;
   gap: 0 10px;
   align-items: stretch;
@@ -597,25 +598,29 @@ onBeforeUnmount(() => {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  height: auto;
+  height: 100%;
 }
 .dict-card {
   flex: 1 1 auto;
-  height: auto;
+  height: 100%;
   min-height: 0;
   display: flex;
   flex-direction: column;
   margin-bottom: 0;
 }
+/* 表头随栏自然固定，不做吸顶 */
 .dict-card :deep(.el-card__header) {
   flex-shrink: 0;
+  position: static !important;
+  background: var(--layout-card);
 }
 .dict-card :deep(.el-card__body) {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow: hidden;
+  background: var(--layout-card);
 }
 .type-search {
   flex-shrink: 0;
@@ -627,7 +632,8 @@ onBeforeUnmount(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
 }
 .dict-type-scroll .table-scroll-inner,
 .dict-item-scroll .table-scroll-inner {
@@ -643,28 +649,13 @@ onBeforeUnmount(() => {
 .dict-type-scroll :deep(.el-table__inner-wrapper),
 .dict-item-scroll :deep(.el-table__inner-wrapper) {
   height: auto !important;
-  display: flex !important;
-  flex-direction: column;
+  display: block !important;
 }
 .dict-type-scroll :deep(.el-table__body-wrapper),
 .dict-item-scroll :deep(.el-table__body-wrapper) {
-  flex: 1 1 auto !important;
-  min-height: 0 !important;
   height: auto !important;
   max-height: none !important;
 }
-.dict-type-scroll :deep(.el-table .el-scrollbar),
-.dict-item-scroll :deep(.el-table .el-scrollbar) {
-  height: 100% !important;
-}
-/* 双栏字典：恢复表内纵滚（压过全局「只横滚」） */
-.dict-type-scroll :deep(.el-table .el-scrollbar__wrap),
-.dict-item-scroll :deep(.el-table .el-scrollbar__wrap) {
-  overflow-x: visible !important;
-  overflow-y: visible !important;
-}
-
-/* 极窄屏才叠栏；左侧限高，选中后右侧仍在附近 */
 @media (max-width: 720px) {
   .dict-page {
     height: auto;
