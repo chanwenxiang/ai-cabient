@@ -23,6 +23,7 @@ const PATH_ICONS: Record<string, Component> = {
   '/fund-bills': Coin,
   '/devices': Monitor,
   '/device-map': Location,
+  '/device-kpi': DataBoard,
   '/repair-tickets': Tools,
   '/device-ops': Tools,
   '/sessions': Key,

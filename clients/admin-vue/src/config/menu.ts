@@ -37,6 +37,7 @@ const BASE_NAV: NavItem[] = [
   { path: '/device-ops', title: '设备运维', group: '设备商品', perm: 'ops:device-ops:list', keywords: ['运维', '离线', '锁机', 'device-ops'] },
   { path: '/devices', title: '设备管理', group: '设备商品', perm: 'ops:device:list', keywords: ['柜机', 'device'] },
   { path: '/device-map', title: '投放地图', group: '设备商品', perm: 'ops:device-map:view', keywords: ['地图', '点位', '坐标', '投放'] },
+  { path: '/device-kpi', title: '设备可用性', group: '设备商品', perm: 'ops:device-kpi:view', keywords: ['设备', '可用性', 'KPI', '锁机', '恢复', '离线'] },
   { path: '/repair-tickets', title: '维修工单', group: '设备商品', perm: 'ops:repair:list', keywords: ['维修', '工单', 'repair'] },
   { path: '/skus', title: '商品管理', group: '设备商品', perm: 'ops:sku:list', keywords: ['sku', '商品', '定价', '条码', '品牌'] },
   { path: '/sku-vision', title: '识别入驻', group: '设备商品', perm: 'ops:sku:list', keywords: ['sku', '识别', '入驻', 'yolo', 'vision', '类名'] },
