@@ -143,7 +143,7 @@
       <el-tab-pane label="仓库概览" name="warehouses">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               v-loading="isTabLoading('warehouses')"
               :data="pagedWarehouses"
               :default-sort="warehouseIdDefaultSort"
@@ -151,7 +151,7 @@
               stripe
               border
               class="report-table"
-              table-layout="auto"
+             
               row-key="warehouseId"
               @selection-change="onSelectionChange" empty-text=" ">
               <template #empty><el-empty v-if="hydratedTabs.has('warehouses') && !isTabLoading('warehouses')" description="暂无仓库" /></template>
@@ -188,7 +188,7 @@
       <el-tab-pane v-if="canProcurementList" label="供应商" name="suppliers">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               class="report-table"
               v-loading="isTabLoading('suppliers')"
               :data="pagedSuppliers"
@@ -196,7 +196,7 @@
               @sort-change="onSupplierIdSortChange"
               stripe
               border
-              table-layout="auto"
+             
               row-key="supplierId"
               @selection-change="onSelectionChange" empty-text=" ">
           <el-table-column type="selection" width="48" align="center" />
@@ -232,20 +232,20 @@
       <el-tab-pane v-if="canProcurementList" label="采购单" name="purchase">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               class="report-table"
               v-loading="isTabLoading('purchase')"
               :data="pagedPurchaseOrders"
               stripe
               border
-              table-layout="auto"
+             
               row-key="purchaseOrderId"
               @selection-change="onSelectionChange" empty-text=" ">
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column type="expand" align="center">
             <template #default="{ row }">
               <div class="expand-panel">
-                <el-table fit="false" :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
+                <el-table :data="row.lines || []" size="small" border class="line-table">
                   <el-table-column label="商品" min-width="180" align="center">
                     <template #default="scope">
                       {{ skuName(scope.row.skuId) }}
@@ -299,20 +299,20 @@
       <el-tab-pane v-if="canProcurementList" label="采购退货" name="returns">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               class="report-table"
               v-loading="isTabLoading('returns')"
               :data="pagedPurchaseReturns"
               stripe
               border
-              table-layout="auto"
+             
               row-key="returnId"
               @selection-change="onSelectionChange" empty-text=" ">
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column type="expand" align="center">
             <template #default="{ row }">
               <div class="expand-panel">
-                <el-table fit="false" :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
+                <el-table :data="row.lines || []" size="small" border class="line-table">
                   <el-table-column label="商品" min-width="180" align="center">
                     <template #default="scope">
                       {{ skuName(scope.row.skuId) }}
@@ -353,13 +353,13 @@
       <el-tab-pane label="出库单" name="outbounds">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               class="report-table"
               v-loading="isTabLoading('outbounds')"
               :data="pagedOutbounds"
               stripe
               border
-              table-layout="auto"
+             
               row-key="outboundId"
               :row-class-name="outboundRowClassName"
               data-testid="outbound-table"
@@ -368,7 +368,7 @@
           <el-table-column type="expand" align="center">
             <template #default="{ row }">
               <div class="expand-panel" :data-testid="`outbound-expand-${row.outboundId}`">
-                <el-table fit="false" :data="row.lines || []" size="small" border table-layout="auto" class="line-table">
+                <el-table :data="row.lines || []" size="small" border class="line-table">
                   <el-table-column label="目标设备" min-width="180" align="center">
                     <template #default="scope">
                       {{ deviceName(scope.row.deviceId) }}
@@ -433,13 +433,13 @@
       <el-tab-pane label="在途" name="transit">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               class="report-table"
               v-loading="isTabLoading('transit')"
               :data="pagedInTransit"
               stripe
               border
-              table-layout="auto"
+             
               :row-key="transitRowKey"
               :row-class-name="transitRowClassName"
               @selection-change="onSelectionChange" empty-text=" ">
@@ -492,13 +492,13 @@
       <el-tab-pane label="批次库存" name="inventory">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               class="report-table"
               v-loading="isTabLoading('inventory')"
               :data="pagedInventory"
               stripe
               border
-              table-layout="auto"
+             
               :row-key="inventoryRowKey"
               @selection-change="onSelectionChange" empty-text=" ">
           <el-table-column type="selection" width="48" align="center" />
@@ -529,13 +529,13 @@
         <p class="muted tip">仅显示最近 100 条</p>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               class="report-table"
               v-loading="isTabLoading('movements')"
               :data="pagedMovements"
               stripe
               border
-              table-layout="auto"
+             
               row-key="movementId"
               @selection-change="onSelectionChange" empty-text=" ">
           <el-table-column type="selection" width="48" align="center" />
@@ -665,7 +665,7 @@
 
     <el-dialog v-model="receiveDialog" title="采购收货" width="700px" class="dialog-wide" destroy-on-close>
       <div class="table-scroll">
-      <el-table fit="false" :data="receiveForm.lines" class="receive-table">
+      <el-table :data="receiveForm.lines" class="receive-table">
         <el-table-column label="商品" min-width="180" align="center">
           <template #default="{ row }">
             {{ skuName(row.skuId) }}
@@ -711,7 +711,7 @@
         </el-form-item>
       </el-form>
       <div class="table-scroll">
-      <el-table fit="false" :data="returnForm.lines" class="receive-table">
+      <el-table :data="returnForm.lines" class="receive-table">
         <el-table-column label="商品" min-width="180" align="center">
           <template #default="{ row }">
             {{ skuName(row.skuId) }}

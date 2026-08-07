@@ -60,7 +60,7 @@
       <el-tab-pane label="补货路线" name="routes">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               v-loading="isTabLoading('routes')"
               :data="pagedRoutes"
               stripe
@@ -81,7 +81,7 @@
                   <span>负责人：{{ row.assigneeUserId || '未分配' }}</span>
                   <span>预计里程：{{ row.totalDistanceM ? `${row.totalDistanceM} 米` : '未计算' }}</span>
                 </div>
-                <el-table fit="false" :data="sortedRouteTasks(row.tasks)" size="small" class="line-table" empty-text=" ">
+                <el-table :data="sortedRouteTasks(row.tasks)" size="small" class="line-table" empty-text=" ">
                   <el-table-column label="任务" width="70" align="center" class-name="col-text">
                     <template #default="scope">
                       <span class="cell-id">{{ scope.row.taskId }}</span>
@@ -239,7 +239,7 @@
         </el-form>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               v-loading="isTabLoading('fulfillment')"
               :data="pagedFulfillment"
               stripe
@@ -345,7 +345,7 @@
         </div>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               v-loading="isTabLoading('requests')"
               :data="pagedRequests"
               stripe
@@ -429,7 +429,7 @@
         </div>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               v-loading="isTabLoading('shortage') || shortageLoading"
               :data="pagedShortages"
               stripe
@@ -483,7 +483,7 @@
         </div>
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               v-loading="isTabLoading('expiry') || expiryLoading"
               :data="pagedExpiry"
               stripe
@@ -617,7 +617,7 @@
           </div>
         </div>
         <div class="table-scroll">
-        <el-table fit="false" :data="taskLines" stripe border size="small" empty-text=" ">
+        <el-table :data="taskLines" stripe border size="small" empty-text=" ">
           <template #empty>
             <el-empty v-if="!linesLoading" description="暂无理货明细（未上架或未确认）" :image-size="48" />
           </template>

@@ -52,13 +52,13 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table fit="false"
+        <el-table
           v-loading="loading"
           :data="paged"
           stripe
           border
           class="report-table"
-          table-layout="auto"
+         
           row-key="couponDefId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"

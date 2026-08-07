@@ -75,7 +75,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table fit="false"
+        <el-table
           v-loading="loading"
           :data="displayItems"
           :default-sort="idDefaultSort"
@@ -83,7 +83,7 @@
           stripe
           border
           class="report-table"
-          table-layout="auto"
+         
           row-key="sessionId"
           :row-class-name="rowClassName"
           @selection-change="onSelectionChange" empty-text=" ">

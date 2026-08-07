@@ -106,14 +106,14 @@
       </template>
       <div class="table-scroll">
         <div class="table-scroll-inner">
-          <el-table fit="false"
+          <el-table
             class="report-table sku-table"
             :data="displayTopSkus"
             :default-sort="idDefaultSort"
             @sort-change="onIdSortChange"
             stripe
             border
-            table-layout="auto"
+           
             row-key="skuId"
             @selection-change="onTopSkusSelectionChange" empty-text=" ">
             <template #empty><el-empty v-if="listHydrated && !loading" description="暂无商品毛利数据" /></template>

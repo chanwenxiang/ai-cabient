@@ -22,7 +22,7 @@
       <el-tab-pane label="风险事件" name="events">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               v-loading="eventsLoading"
               :data="events"
               stripe
@@ -85,7 +85,7 @@
       <el-tab-pane label="黑名单" name="blacklist">
         <div class="table-scroll">
           <div class="table-scroll-inner">
-            <el-table fit="false"
+            <el-table
               v-loading="blacklistLoading"
               :data="blacklist"
               stripe

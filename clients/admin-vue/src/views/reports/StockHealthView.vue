@@ -112,7 +112,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table fit="false" v-loading="loading" :data="rows" stripe border class="report-table" empty-text=" ">
+        <el-table v-loading="loading" :data="rows" stripe border class="report-table" empty-text=" ">
           <template #empty><el-empty v-if="listHydrated && !loading" description="暂无异常库存" /></template>
           <el-table-column label="维度" width="96" align="center">
             <template #default="{ row }">

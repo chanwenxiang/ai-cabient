@@ -67,7 +67,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table fit="false"
+        <el-table
           v-loading="loading"
           :data="items"
           stripe
@@ -345,7 +345,7 @@
 
           <div v-if="selected.suggestedItems?.length" class="items-block">
             <div class="items-title">识别建议（只读）</div>
-            <el-table fit="false" :data="selected.suggestedItems" size="small" stripe border>
+            <el-table :data="selected.suggestedItems" size="small" stripe border>
               <el-table-column prop="skuName" label="商品" min-width="120" align="center" class-name="col-text" />
               <el-table-column prop="skuId" label="SKU" min-width="100" align="center" class-name="col-text" show-overflow-tooltip />
               <el-table-column prop="quantity" label="数量" width="72" align="center" />

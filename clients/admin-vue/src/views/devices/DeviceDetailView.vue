@@ -374,7 +374,7 @@
         <el-button v-if="canAccessPath('/repair-tickets')" @click="goPath('/repair-tickets', { deviceId })">工单列表</el-button>
         <el-button v-hasPermi="['ops:repair:edit']" type="primary" plain @click="createRepair">新建工单</el-button>
       </div>
-      <el-table fit="false" v-if="repairTickets.length" :data="repairTickets" size="small" class="repair-mini-table">
+      <el-table v-if="repairTickets.length" :data="repairTickets" size="small" class="repair-mini-table">
         <el-table-column prop="ticketId" label="#" width="70" align="center" />
         <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip align="center" />
         <el-table-column prop="status" label="状态" width="100" align="center">
@@ -494,7 +494,7 @@
 
         <el-tab-pane label="关联单据" name="related">
           <h4 class="section-title">最近开门记录</h4>
-          <el-table fit="false"
+          <el-table
             v-loading="!relatedHydrated"
             :data="sessions"
             stripe
@@ -535,7 +535,7 @@
           </el-table>
 
           <h4 class="section-title">最近订单</h4>
-          <el-table fit="false"
+          <el-table
             v-loading="!relatedHydrated"
             :data="orders"
             stripe

@@ -56,7 +56,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table fit="false" v-loading="loading" :data="paged" stripe border class="report-table" row-key="id" empty-text=" ">
+        <el-table v-loading="loading" :data="paged" stripe border class="report-table" row-key="id" empty-text=" ">
           <template #empty>
             <el-empty v-if="listHydrated && !loading" :description="emptyText" />
           </template>

@@ -52,7 +52,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table fit="false"
+        <el-table
           ref="tableRef"
           v-loading="loading"
           :data="tableRows"
