@@ -121,11 +121,11 @@ async function load() {
         })
         .sort((x, y) => String(y.createdAt || '').localeCompare(String(x.createdAt || '')));
     }
-  } catch (e: any) {
+  } catch (e) {
     if (!uni.getStorageSync('merchant_token')) return;
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
     list.value = [];
-    error.value = e?.message || '加载失败';
+    error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
   }

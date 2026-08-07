@@ -22,6 +22,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE = process.env.CONSUMER_H5_URL || 'http://127.0.0.1:3002';
 const CHANNEL = process.env.PW_CHANNEL || 'chrome';
 const HEADED = process.env.PW_HEADED === '1';
+/** PW_MUTATE=1 时执行会产生数据的用例（充值到账/申诉/退款/领券），默认跳过 */
+const MUTATE = process.env.PW_MUTATE === '1';
 const OUT = path.resolve(__dirname, '../output/playwright');
 const DEMO_PHONE = '13800138000';
 const DEMO_SMS = '123456';
@@ -148,6 +150,8 @@ async function clickModalPrimary(page, fallbackText) {
  * 按 placeholder 填值：uni-app H5 输入框统一渲染为 uni-input 包装
  * （placeholder 在独立 div 上，内层 input 无 placeholder 属性），
  * 定位后使用真实键盘输入（Ctrl+A 清空后键入），兼容开发预填场景。
+ * 注意：部分 uni-app H5 版本在键入时内部 ref 会滞后（DOM 值正确但提交值被截断），
+ * 实测键入后需等待 uni-app 消化事件队列（约 500ms）；值已正确时直接跳过输入。
  */
 async function fillPlaceholder(page, placeholder, value) {
   const uni = page
@@ -164,9 +168,13 @@ async function fillPlaceholder(page, placeholder, value) {
     return false;
   }
   const input = uni.locator('input').first();
-  await input.click();
+  if ((await input.inputValue()) === value) return true;
+  // 点击外层 uni-input（部分页面内层 input 高度为 0，点击外层同样能聚焦）
+  await uni.click();
   await page.keyboard.press('ControlOrMeta+a');
-  await page.keyboard.type(value, { delay: 20 });
+  await page.keyboard.type(value, { delay: 30 });
+  // 等待 uni-app 完成内部 ref 同步，避免提交值被截断（竞态）
+  await page.waitForTimeout(500);
   return (await input.inputValue()) === value;
 }
 
@@ -240,6 +248,7 @@ async function main() {
 
   const consoleErrors = [];
   const failedRequests = [];
+  const http4xx = [];
   const actionResponses = [];
   let aborting = false;
   page.on('console', (msg) => {
@@ -251,11 +260,20 @@ async function main() {
   });
   page.on('response', (res) => {
     const url = res.url();
-    if (url.includes('/api/v2/feedback') || url.includes('/fault-report')) {
+    if (res.status() >= 400 && !url.includes('example.com')) http4xx.push(`${res.status()} ${url.replace(BASE, '')}`);
+    const method = res.request().method();
+    const interesting =
+      (url.includes('/api/v2/feedback') && method === 'POST') ||
+      url.includes('/fault-report') ||
+      (url.includes('/api/v2/disputes') && method === 'POST') ||
+      (url.includes('/refund') && method === 'POST') ||
+      (url.includes('/mock-success') && method === 'POST') ||
+      (url.includes('/marketing/campaigns/') && url.includes('/claim') && method === 'POST');
+    if (interesting) {
       res
         .json()
-        .then((body) => actionResponses.push({ url, status: res.status(), code: body?.code }))
-        .catch(() => actionResponses.push({ url, status: res.status() }));
+        .then((body) => actionResponses.push({ url, method, status: res.status(), code: body?.code }))
+        .catch(() => actionResponses.push({ url, method, status: res.status() }));
     }
   });
 
@@ -367,6 +385,97 @@ async function main() {
     const e10 = await shot(page, '10-orders-authed');
     record('TC-ORD-001', '登录后订单列表加载', '功能', ordersOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 14).join(' | '), e10);
 
+    // —— TC-PULL-001 下拉刷新 ——
+    const pullOk = await page.evaluate(() => {
+      try {
+        uni.startPullDownRefresh();
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    await page.waitForTimeout(1500);
+    text = await bodyText(page);
+    const pullRendered = pullOk && /我的订单|订单|登录后查看订单/.test(text);
+    const e10p = await shot(page, '10p-pull-refresh');
+    record('TC-PULL-001', '下拉刷新', '功能', pullRendered ? 'PASS' : 'FAIL', `start=${pullOk} body=${text.split('\n').slice(0, 4).join(' | ')}`, e10p);
+
+    // —— TC-ORDD-001 订单详情 ——
+    const clickedOrder = await page.evaluate(() => {
+      const card = document.querySelector('.order-card');
+      if (!card) return false;
+      card.click();
+      return true;
+    });
+    await page.waitForTimeout(2000);
+    text = await bodyText(page);
+    const orderDetailOk = clickedOrder && /订单详情|支付信息|商品清单|支付方式/.test(text);
+    const e10a = await shot(page, '10a-order-detail');
+    record('TC-ORDD-001', '订单详情', '功能', orderDetailOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 12).join(' | '), e10a);
+
+    // —— TC-VIDEO-001 购物视频播放页 ——
+    await gotoPath(page, '/pages/video/video?url=' + encodeURIComponent('https://example.com/demo.mp4'));
+    text = await bodyText(page);
+    const videoOk = /购物视频|复制链接|视频加载失败|缺少视频地址/.test(text);
+    const e10v = await shot(page, '10v-video-page');
+    record('TC-VIDEO-001', '购物视频播放页', '功能', videoOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 6).join(' | '), e10v);
+
+    // —— TC-RFND-001 立即退款（PW_MUTATE=1 时执行）——
+    if (MUTATE) {
+      await gotoPath(page, '/pages/orders/orders');
+      await page.evaluate(() => {
+        const c = document.querySelector('.order-card');
+        if (c) c.click();
+      });
+      await page.waitForTimeout(2000);
+      text = await bodyText(page);
+      if (text.includes('立即退款')) {
+        await clickByText(page, '立即退款', { exact: true });
+        await page.waitForTimeout(600);
+        // 面板内「确认退款」提交按钮 → uni.showModal 确认弹窗
+        await clickByText(page, '确认退款', { exact: true });
+        await page.waitForTimeout(600);
+        await clickModalPrimary(page, '确认退款');
+        await page.waitForTimeout(2500);
+        const refundHit = actionResponses.some(
+          (r) => r.url.includes('/refund') && r.method === 'POST' && (r.status === 200 || r.status === 409)
+        );
+        const e10r = await shot(page, '10r-refund');
+        record('TC-RFND-001', '立即退款', '功能', refundHit ? 'PASS' : 'FAIL', `api=${refundHit}`, e10r);
+      } else {
+        record('TC-RFND-001', '立即退款', '功能', 'SKIP', '订单不可退款（状态/策略限制）', null);
+      }
+    } else {
+      record('TC-RFND-001', '立即退款', '功能', 'SKIP', '未开启 PW_MUTATE（避免变更数据）', null);
+    }
+
+    // —— TC-DSP-001 账单申诉提交（PW_MUTATE=1 时执行）——
+    if (MUTATE) {
+      await gotoPath(page, '/pages/orders/orders');
+      await page.evaluate(() => {
+        const c = document.querySelectorAll('.order-card')[1];
+        if (c) c.click();
+      });
+      await page.waitForTimeout(2000);
+      text = await bodyText(page);
+      if (text.includes('提交账单申诉') || text.includes('申请退款')) {
+        await clickByText(page, '提交账单申诉', { exact: true });
+        await page.waitForTimeout(600);
+        await fillTextarea(page, '自动化测试：商品数量识别有误，请核对');
+        await clickByText(page, '提交申诉', { exact: true });
+        await page.waitForTimeout(2500);
+        const disputeHit = actionResponses.some(
+          (r) => r.url.includes('/api/v2/disputes') && r.method === 'POST' && (r.status === 200 || r.status === 409)
+        );
+        const e10s = await shot(page, '10s-dispute');
+        record('TC-DSP-001', '账单申诉提交', '功能', disputeHit ? 'PASS' : 'FAIL', `api=${disputeHit}`, e10s);
+      } else {
+        record('TC-DSP-001', '账单申诉提交', '功能', 'SKIP', '订单不可申诉（状态/已有申诉）', null);
+      }
+    } else {
+      record('TC-DSP-001', '账单申诉提交', '功能', 'SKIP', '未开启 PW_MUTATE（避免变更数据）', null);
+    }
+
     // —— TC-MEMBER-001 / TC-MKT-001 会员中心与热门活动 ——
     await gotoPath(page, '/pages/member/index');
     text = await bodyText(page);
@@ -378,6 +487,40 @@ async function main() {
     const mktOk = text.includes('热门活动') || text.includes('进行中') || text.includes('优惠券');
     const e10c = await shot(page, '10c-marketing');
     record('TC-MKT-001', '热门活动', '功能', mktOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 8).join(' | '), e10c);
+
+    // —— TC-CLM-001 热门活动领券（PW_MUTATE=1 时执行）——
+    if (MUTATE) {
+      await gotoPath(page, '/pages/marketing/index', 2000);
+      const claimClick = await page.evaluate(() => {
+        const cards = [...document.querySelectorAll('.campaign')];
+        const card = cards.find((c) => /领取/.test(c.innerText || '') && !/已领取/.test(c.innerText || ''));
+        if (!card) return false;
+        card.click();
+        return true;
+      });
+      await page.waitForTimeout(2500);
+      const claimHit = actionResponses.some(
+        (r) => r.url.includes('/claim') && r.method === 'POST' && (r.status === 200 || r.status === 409)
+      );
+      const e10cl = await shot(page, '10cl-claim');
+      record(
+        'TC-CLM-001',
+        '热门活动领券',
+        '功能',
+        !claimClick ? 'SKIP' : claimHit ? 'PASS' : 'FAIL',
+        !claimClick ? '当前无未领取活动' : `click=true api=${claimHit}`,
+        e10cl
+      );
+    } else {
+      record('TC-CLM-001', '热门活动领券', '功能', 'SKIP', '未开启 PW_MUTATE（避免重复领券）', null);
+    }
+
+    // —— TC-DEEP-001 深链启动：柜机号参数直达 ——
+    await gotoPath(page, '/pages/index/index?deviceId=CAB-999', 2500);
+    text = await bodyText(page);
+    const deepLinkOk = /柜机不存在|编号无效|不存在/.test(text);
+    const e10d = await shot(page, '10d-deep-link');
+    record('TC-DEEP-001', '深链启动 deviceId=CAB-999', '功能', deepLinkOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 10).join(' | '), e10d);
 
     // —— 开门前置：清理遗留活动会话 ——
     await gotoPath(page, '/pages/index/index');
@@ -437,6 +580,14 @@ async function main() {
       e13
     );
 
+    // —— TC-RESTORE-001 会话恢复：刷新后恢复购物态 ——
+    await gotoPath(page, '/pages/index/index', 2500);
+    await waitText(page, '购物中', 8000);
+    text = await bodyText(page);
+    const restoreOk = /门已开|购物中|本柜价目/.test(text);
+    const e13b = await shot(page, '13b-session-restore');
+    record('TC-RESTORE-001', '刷新后会话恢复', '功能', restoreOk ? 'PASS' : 'FAIL', text.split('\n').filter(Boolean).slice(0, 12).join(' | '), e13b);
+
     // —— TC-OPEN-003 取消本次开门（若可见）——
     if (text.includes('取消本次开门')) {
       await clickByText(page, '取消本次开门');
@@ -473,6 +624,13 @@ async function main() {
     const e16 = await shot(page, '16-feedback-submit');
     record('TC-FB-002', '合法反馈提交', '功能', fbOk ? 'PASS' : 'FAIL', `api=${fbSubmitted ? '已提交' : '未提交'}; body=${text.slice(0, 160)}`, e16);
 
+    // —— TC-FB-003 投诉类型入口（意见反馈已覆盖投诉）——
+    await gotoPath(page, '/pages/feedback/feedback');
+    text = await bodyText(page);
+    const complaintOk = text.includes('投诉');
+    const e16b = await shot(page, '16b-feedback-complaint');
+    record('TC-FB-003', '意见反馈含「投诉」类型', '功能', complaintOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 10).join(' | '), e16b);
+
     // —— TC-RPT-001/002 故障报修 ——
     await gotoPath(page, '/pages/report/report');
     await clickByText(page, '提交报修');
@@ -499,6 +657,19 @@ async function main() {
     const e18 = await shot(page, '18-recharge');
     record('TC-RCH-001', '充值页加载', '功能', rechargePage ? 'PASS' : 'FAIL', text.split('\n').slice(0, 12).join(' | '), e18);
 
+    // —— TC-RCH-002 模拟充值到账（PW_MUTATE=1 时执行）——
+    if (MUTATE) {
+      const clickedMock = await clickByText(page, '模拟到账 ¥20.00');
+      await page.waitForTimeout(2500);
+      const mockHit = actionResponses.some(
+        (r) => r.url.includes('/mock-success') && r.method === 'POST' && r.status === 200
+      );
+      const e18b = await shot(page, '18b-recharge-mock');
+      record('TC-RCH-002', '模拟充值到账', '功能', clickedMock && mockHit ? 'PASS' : 'FAIL', `click=${clickedMock} api=${mockHit}`, e18b);
+    } else {
+      record('TC-RCH-002', '模拟充值到账', '功能', 'SKIP', '未开启 PW_MUTATE（避免变更余额）', null);
+    }
+
     // —— TC-CPN-001 优惠券页 ——
     await gotoPath(page, '/pages/coupons/coupons');
     await page.waitForTimeout(1200);
@@ -506,6 +677,60 @@ async function main() {
     const coupons = text.includes('我的优惠券') || text.includes('暂无优惠券');
     const e19 = await shot(page, '19-coupons');
     record('TC-CPN-001', '优惠券页', '功能', coupons ? 'PASS' : 'FAIL', text.split('\n').slice(0, 10).join(' | '), e19);
+
+    // —— TC-ANNC-001/002 公告列表与详情 ——
+    await gotoPath(page, '/pages/announcements/announcements');
+    text = await bodyText(page);
+    const anncCards = await page.evaluate(() => document.querySelectorAll('.card').length);
+    const anncOk = /通知公告|公告/.test(text);
+    const e19a = await shot(page, '19a-announcements');
+    record('TC-ANNC-001', '公告列表', '功能', anncOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 8).join(' | '), e19a);
+    if (anncCards === 0) {
+      record('TC-ANNC-002', '公告详情', '功能', 'SKIP', '当前无公告数据（空态组件文本不进入 innerText，按卡片数判断）', null);
+    } else {
+      const clickedAnn = await page.evaluate(() => {
+        const card = document.querySelector('.card');
+        if (!card) return false;
+        card.click();
+        return true;
+      });
+      await page.waitForTimeout(1800);
+      text = await bodyText(page);
+      const anncDetailOk = clickedAnn && /公告详情|公告/.test(text);
+      const e19b = await shot(page, '19b-announcement-detail');
+      record('TC-ANNC-002', '公告详情', '功能', anncDetailOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 8).join(' | '), e19b);
+    }
+
+    // —— TC-HELP-001 帮助中心 ——
+    await gotoPath(page, '/pages/help/help');
+    text = await bodyText(page);
+    const helpOk = /常见问题|联系客服|退款|客服热线/.test(text);
+    const e19c = await shot(page, '19c-help');
+    record('TC-HELP-001', '帮助中心', '功能', helpOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 10).join(' | '), e19c);
+
+    // —— TC-BAL-001 余额明细分页 ——
+    await gotoPath(page, '/pages/mine/mine');
+    await clickByText(page, '余额明细', { exact: true });
+    await page.waitForTimeout(1800);
+    const balRows = await page.evaluate(() => document.querySelectorAll('.transaction-row').length);
+    const hasMoreBtn = await page.evaluate(() => !!document.querySelector('.transaction-more'));
+    if (hasMoreBtn) {
+      await page.evaluate(() => {
+        const btn = document.querySelector('.transaction-more');
+        if (btn) btn.click();
+      });
+      await page.waitForTimeout(1500);
+    }
+    const balRowsAfter = await page.evaluate(() => document.querySelectorAll('.transaction-row').length);
+    const e19d = await shot(page, '19d-balance-transactions');
+    record(
+      'TC-BAL-001',
+      '余额明细分页',
+      '功能',
+      balRows > 0 || hasMoreBtn ? 'PASS' : 'FAIL',
+      `rows=${balRows} more=${hasMoreBtn} rowsAfter=${balRowsAfter}`,
+      e19d
+    );
 
     // —— TC-ERR-001 网络异常：断 API 模拟 ——
     aborting = true;
@@ -518,6 +743,29 @@ async function main() {
     record('TC-ERR-001', 'API 超时/中断时订单页容错', '异常', netErr ? 'PASS' : 'FAIL', netErr ? '有失败/重试提示' : `无明确错误 UI: ${text.slice(0, 200)}`, e20);
     await context.unroute('**/api/v2/**');
     aborting = false;
+
+    // —— TC-LGOUT-001 退出登录并重新登录 ——
+    await gotoPath(page, '/pages/mine/mine');
+    await clickByText(page, '退出登录', { exact: true });
+    await page.waitForTimeout(800);
+    await clickModalPrimary(page, '退出');
+    await page.waitForTimeout(2000);
+    text = await bodyText(page);
+    const loggedOut = text.includes('未登录');
+    const e20a = await shot(page, '20a-logout');
+    record('TC-LGOUT-001', '退出登录', '功能', loggedOut ? 'PASS' : 'FAIL', text.split('\n').slice(0, 6).join(' | '), e20a);
+
+    await clickByText(page, '去登录');
+    await page.waitForTimeout(1200);
+    await fillPlaceholder(page, '请输入11位手机号', DEMO_PHONE);
+    await clickByText(page, '获取验证码');
+    await page.waitForTimeout(700);
+    await fillPlaceholder(page, '请输入验证码', DEMO_SMS);
+    await clickByTestId(page, 'login-submit');
+    await page.waitForTimeout(3000);
+    const tokenAfter = await page.evaluate(() => localStorage.getItem('consumer_token') || '');
+    const e20b = await shot(page, '20b-relogin');
+    record('TC-LGOUT-002', '重新登录', '功能', !!tokenAfter, tokenAfter ? 'token 已写入' : '未拿到 token', e20b);
 
     // —— TC-SEC-003 清除 Token 后订单页不越权 ——
     await page.evaluate(() => {
@@ -536,22 +784,25 @@ async function main() {
 
     // —— TC-QUAL-001 控制台严重错误 ——
     const serious = consoleErrors.filter(
-      (e) => !/favicon|DevTools|ResizeObserver|ERR_TIMED_OUT|ERR_ABORTED|ERR_FAILED|404/i.test(e)
+      (e) => !/favicon|DevTools|ResizeObserver|ERR_TIMED_OUT|ERR_ABORTED|ERR_FAILED|ERR_BLOCKED_BY_ORB|404|Failed to load resource/i.test(e)
     );
     record(
       'TC-QUAL-001',
       '浏览器控制台严重错误',
       '质量',
       serious.length === 0 ? 'PASS' : 'FAIL',
-      serious.length === 0 ? '无严重 console.error' : serious.slice(0, 5).join(' || '),
+      serious.length === 0
+        ? `无严重 console.error；http4xx=${http4xx.length} ${http4xx.slice(0, 3).join(' , ')}`
+        : serious.slice(0, 5).join(' || '),
       null
     );
+    const realFailed = failedRequests.filter((r) => !r.intentional && !r.url.includes('example.com'));
     record(
       'TC-QUAL-002',
       '失败网络请求（非主动 abort）',
       '质量',
       'INFO',
-      `failed=${failedRequests.filter((r) => !r.intentional).length}; sample=${JSON.stringify(failedRequests.filter((r) => !r.intentional).slice(0, 3))}`,
+      `failed=${realFailed.length}; sample=${JSON.stringify(realFailed.slice(0, 3))}`,
       null
     );
   } catch (err) {

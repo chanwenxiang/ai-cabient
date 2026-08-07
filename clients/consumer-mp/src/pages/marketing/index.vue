@@ -101,10 +101,10 @@ async function load() {
     } else {
       couponCount.value = 0;
     }
-  } catch (e: any) {
+  } catch (e) {
     banners.value = [];
     campaigns.value = [];
-    uni.showToast({ title: e?.message || '加载失败', icon: 'none' });
+    uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
   } finally {
     loading.value = false;
   }
@@ -144,8 +144,8 @@ async function onCampaignClick(c: MarketingCampaignDto) {
       /* keep previous count */
     }
     setTimeout(() => openPath('/pages/coupons/coupons'), 400);
-  } catch (e: any) {
-    const msg = e?.message || '领取失败';
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '领取失败';
     uni.showToast({ title: msg, icon: 'none' });
     if (String(msg).includes('已领取')) {
       c.claimed = true;

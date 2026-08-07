@@ -75,3 +75,30 @@ jobs:
         with:
           name: test-results
           path: '**/target/surefire-reports/*.xml'
+
+  mini-programs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.18.0'
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Consumer MP type-check
+        run: pnpm --filter @aicabinet/consumer-mp run type-check
+
+      - name: Merchant MP type-check
+        run: pnpm --filter @aicabinet/merchant-mp run type-check
+
+      - name: Consumer MP H5 build
+        run: pnpm --filter @aicabinet/consumer-mp run build:h5
+
+      - name: Merchant MP H5 build
+        run: pnpm --filter @aicabinet/merchant-mp run build:h5

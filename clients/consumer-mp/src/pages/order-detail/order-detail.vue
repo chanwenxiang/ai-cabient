@@ -133,8 +133,9 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { consumerApi, get } from '@/utils/consumer-api';
+import { consumerApi } from '@/utils/consumer-api';
 import { emptyDisplay, formatDateTimeMinute, orderStatusLabel, fmtMoney } from '@aicabinet/shared-uni/format';
+import type { OrderDetailDto } from '@aicabinet/shared-types';
 import {
   DISPUTE_REASON_CHIPS,
   appendChipToReason,
@@ -150,7 +151,7 @@ import {
 } from '@/utils/dispute-evidence';
 
 const orderId = ref('');
-const order = ref<any>(null);
+const order = ref<OrderDetailDto | null>(null);
 const loading = ref(true);
 const error = ref('');
 const videoUrl = ref('');
@@ -171,7 +172,7 @@ const supportPhoneDial = ref('4008880018');
 let bootstrapPromise: Promise<void> | null = null;
 let bootstrapTarget = '';
 
-function resolveOrderId(opt?: any): string {
+function resolveOrderId(opt?: Record<string, string | undefined>): string {
   const fromOpt = String(opt?.orderId || opt?.id || '').trim();
   if (fromOpt) return fromOpt;
   if (typeof window === 'undefined' || typeof window.location === 'undefined') return '';
@@ -186,7 +187,7 @@ function resolveOrderId(opt?: any): string {
   }
 }
 
-async function bootstrap(opt?: any) {
+async function bootstrap(opt?: Record<string, string | undefined>) {
   const nextId = resolveOrderId(opt);
   if (!nextId) {
     orderId.value = '';
@@ -219,7 +220,7 @@ async function bootstrap(opt?: any) {
   await bootstrapPromise;
 }
 
-onLoad((opt: any) => {
+onLoad((opt) => {
   void bootstrap(opt);
 });
 
@@ -265,16 +266,15 @@ async function reload() {
   loading.value = true;
   error.value = '';
   try {
-    const res = await get('/api/v2/orders/' + orderId.value);
-    order.value = res.data;
+    order.value = await consumerApi.getOrder(orderId.value);
     if (order.value?.videoUri) videoUrl.value = order.value.videoUri;
     if (order.value?.status === 'DISPUTED') disputeFiled.value = true;
     if (order.value?.status === 'REFUNDED') {
       refundDone.value = true;
       disputeFiled.value = true;
     }
-  } catch (e: any) {
-    error.value = e?.message || '加载失败';
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
   }
@@ -344,15 +344,9 @@ function formatTime(t: string) {
 
 function playVideo() {
   if (!videoUrl.value) return;
-  // #ifdef H5
-  if (typeof window !== 'undefined') {
-    window.open(videoUrl.value, '_blank');
-    return;
-  }
-  // #endif
-  uni.setClipboardData({
-    data: videoUrl.value,
-    success: () => uni.showToast({ title: '视频链接已复制，请到浏览器打开', icon: 'none' })
+  // 统一进入原生视频播放页（H5 / 小程序均可）
+  uni.navigateTo({
+    url: `/pages/video/video?url=${encodeURIComponent(videoUrl.value)}`
   });
 }
 

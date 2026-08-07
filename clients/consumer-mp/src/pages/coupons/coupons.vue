@@ -50,7 +50,7 @@
 import { computed, ref, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
+import { consumerApi, ensureConsumerAuth, type CouponDto } from '@/utils/consumer-api';
 import { formatDateTimeMinute, fmtMoney } from '@aicabinet/shared-uni/format';
 
 const tabs = [
@@ -63,7 +63,7 @@ const tabs = [
 const activeTab = ref('');
 const loading = ref(false);
 const loadError = ref('');
-const list = ref<any[]>([]);
+const list = ref<CouponDto[]>([]);
 
 const emptyTitle = computed(() => {
   if (activeTab.value === 'UNUSED') return '暂无未使用优惠券';
@@ -91,9 +91,9 @@ async function load() {
   loadError.value = '';
   try {
     list.value = await consumerApi.myCoupons(activeTab.value || undefined);
-  } catch (e: any) {
+  } catch (e) {
     list.value = [];
-    loadError.value = e?.message || '加载失败';
+    loadError.value = e instanceof Error ? e.message : '加载失败';
     uni.showToast({ title: loadError.value, icon: 'none' });
   } finally {
     loading.value = false;

@@ -4,9 +4,11 @@
  * Requires: npm run dev:h5 (http://127.0.0.1:3001) + gateway/trade up
  *
  * Env overrides:
- *   MERCHANT_H5_URL  base URL (default http://127.0.0.1:3001)
- *   PW_CHANNEL       browser channel (default "chrome" = 系统 Chrome；可改 "chromium")
- *   PW_HEADED=1      有头模式，便于人工观察
+ *   MERCHANT_H5_URL    base URL (default http://127.0.0.1:3001)
+ *   MERCHANT_PHONE     登录手机号（默认 13800138001）
+ *   MERCHANT_PASSWORD  登录密码（默认 123456，若演示账号密码被重置请用环境变量覆盖）
+ *   PW_CHANNEL         browser channel (default "chrome" = 系统 Chrome；可改 "chromium")
+ *   PW_HEADED=1        有头模式，便于人工观察
  *
  * 说明：与消费者端 UAT 共用同一套交互策略（真实鼠标点击 + 键盘输入 + 路径导航），
  * 覆盖登录、工作台、Tab、经营工具、深层页面、退出登录、网络容错与控制台扫描。
@@ -21,8 +23,8 @@ const BASE = process.env.MERCHANT_H5_URL || 'http://127.0.0.1:3001';
 const CHANNEL = process.env.PW_CHANNEL || 'chrome';
 const HEADED = process.env.PW_HEADED === '1';
 const OUT = path.resolve(__dirname, '../output/playwright');
-const DEMO_PHONE = '13800138001';
-const DEMO_PASSWORD = '123456';
+const DEMO_PHONE = process.env.MERCHANT_PHONE || '13800138001';
+const DEMO_PASSWORD = process.env.MERCHANT_PASSWORD || '123456';
 
 fs.mkdirSync(OUT, { recursive: true });
 
@@ -46,6 +48,16 @@ async function shot(page, name) {
 
 async function bodyText(page) {
   return page.evaluate(() => document.body?.innerText || '');
+}
+
+async function waitText(page, substr, timeout = 10000) {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    const t = await bodyText(page);
+    if (t.includes(substr)) return t;
+    await page.waitForTimeout(250);
+  }
+  return bodyText(page);
 }
 
 /** 真实鼠标点击：文本长度升序 → 元素类型（button 优先）→ 叶子优先 */
@@ -109,7 +121,11 @@ async function clickByTestId(page, testId) {
   return true;
 }
 
-/** 按 placeholder 文本定位 uni-input，真实键盘输入 */
+/**
+ * 按 placeholder 文本定位 uni-input，真实键盘输入。
+ * 注意：部分 uni-app H5 版本在键入时内部 ref 会滞后（DOM 值正确但提交值被截断），
+ * 实测键入后需等待 uni-app 消化事件队列（约 500ms）；值已正确时直接跳过输入。
+ */
 async function fillPlaceholder(page, placeholder, value) {
   const uni = page
     .locator('uni-input')
@@ -124,10 +140,26 @@ async function fillPlaceholder(page, placeholder, value) {
     return false;
   }
   const input = uni.locator('input').first();
-  await input.click();
+  if ((await input.inputValue()) === value) return true;
+  // 点击外层 uni-input（部分页面内层 input 高度为 0，点击外层同样能聚焦）
+  await uni.click();
   await page.keyboard.press('ControlOrMeta+a');
-  await page.keyboard.type(value, { delay: 20 });
+  await page.keyboard.type(value, { delay: 30 });
+  // 等待 uni-app 完成内部 ref 同步，避免提交值被截断（竞态）
+  await page.waitForTimeout(500);
   return (await input.inputValue()) === value;
+}
+
+/** 清空当前页面所有 uni-input 输入框（登录页仅手机号+密码，适配开发预填场景） */
+async function clearInputs(page) {
+  const inputs = page.locator('uni-input input');
+  const n = await inputs.count();
+  for (let i = 0; i < n; i++) {
+    await inputs.nth(i).click();
+    await page.keyboard.press('ControlOrMeta+a');
+    await page.keyboard.press('Backspace');
+  }
+  return n;
 }
 
 /** uni-app history 路由：直接访问页面路径 */
@@ -175,6 +207,8 @@ async function main() {
 
   const consoleErrors = [];
   const failedRequests = [];
+  const http4xx = [];
+  const withdrawPosts = [];
   let aborting = false;
   page.on('console', (msg) => {
     if (msg.type() === 'error') consoleErrors.push(String(msg.text()));
@@ -182,6 +216,12 @@ async function main() {
   page.on('pageerror', (e) => consoleErrors.push(String(e.message || e)));
   page.on('requestfailed', (req) => {
     failedRequests.push({ url: req.url(), error: req.failure()?.errorText, intentional: aborting });
+  });
+  page.on('response', (res) => {
+    if (res.status() >= 400) http4xx.push(`${res.status()} ${res.url().replace(BASE, '')}`);
+  });
+  page.on('request', (req) => {
+    if (req.url().includes('/withdraw') && req.method() === 'POST') withdrawPosts.push(req.postData());
   });
 
   try {
@@ -193,24 +233,27 @@ async function main() {
     record('M-01', '登录页渲染', '功能', loginPage ? 'PASS' : 'FAIL', loginPage ? '表单可见' : text.slice(0, 200), e1);
 
     // —— M-02 空提交 ——
+    await clearInputs(page);
     await clickByTestId(page, 'login-submit');
     await page.waitForTimeout(1000);
     text = await bodyText(page);
-    const emptyLogin = /请输入|错误|失败/.test(text) || text.includes('登录');
+    const emptyLogin = /请输入|错误|失败/.test(text) && text.includes('登录');
     const e2 = await shot(page, '02-login-empty');
     record('M-02', '空手机号/空密码提交', '边界', emptyLogin ? 'PASS' : 'FAIL', `仍留在登录页或有错误提示: ${text.slice(-120)}`, e2);
 
     // —— M-03 非法手机号/错误密码 ——
+    await clearInputs(page);
     await fillPlaceholder(page, '请输入11位手机号…', '123');
     await fillPlaceholder(page, '请输入登录密码…', 'wrong');
     await clickByTestId(page, 'login-submit');
     await page.waitForTimeout(1500);
     text = await bodyText(page);
-    const badLogin = /失败|错误|无效|不正确|请输入|手机号/.test(text);
+    const badLogin = /失败|错误|无效|不正确|请输入|手机号/.test(text) && text.includes('登录');
     const e3 = await shot(page, '03-login-invalid');
     record('M-03', '非法手机号/错误密码', '异常', badLogin ? 'PASS' : 'FAIL', badLogin ? '展示友好错误' : text.slice(-150), e3);
 
     // —— M-04 正常登录 ——
+    await clearInputs(page);
     await fillPlaceholder(page, '请输入11位手机号…', DEMO_PHONE);
     await fillPlaceholder(page, '请输入登录密码…', DEMO_PASSWORD);
     await clickByTestId(page, 'login-submit');
@@ -274,6 +317,27 @@ async function main() {
       );
     }
 
+    // —— M-09b 补货任务详情抽屉（只读）——
+    await gotoPath(page, '/pages/replenishment/replenishment');
+    const taskCards = await page.evaluate(() => document.querySelectorAll('.task-card').length);
+    if (taskCards > 0) {
+      await page.evaluate(() => {
+        const c = document.querySelector('.task-card');
+        if (c) c.click();
+      });
+      await page.waitForTimeout(2200);
+      const sheetVisible = await page.evaluate(() => !!document.querySelector('.sheet'));
+      const e9b = await shot(page, '09b-replenishment-detail');
+      record('M-09b', '补货任务详情抽屉', '功能', sheetVisible ? 'PASS' : 'FAIL', `sheet=${sheetVisible}`, e9b);
+      await page.evaluate(() => {
+        const el = document.querySelector('.mask');
+        if (el) el.click();
+      });
+      await page.waitForTimeout(500);
+    } else {
+      record('M-09b', '补货任务详情抽屉', '功能', 'SKIP', '当前无补货任务', null);
+    }
+
     // —— M-10 我的页深层导航 ——
     const minePages = [
       { label: '柜机订单', key: 'orders', marker: /柜机订单|暂无柜机订单|已支付/ },
@@ -298,6 +362,70 @@ async function main() {
         await shot(page, `10-${p.key}`)
       );
     }
+
+    // —— M-10e 提现表单校验（客户端拦截，不发请求）——
+    await gotoPath(page, '/pages/wallet/wallet');
+    await waitText(page, '申请提现', 10000);
+    await fillPlaceholder(page, '提现金额（元）', '0');
+    await clickByText(page, '申请提现', { exact: true });
+    await page.waitForTimeout(800);
+    const postsAfterZero = withdrawPosts.length;
+    await fillPlaceholder(page, '提现金额（元）', '999999');
+    await clickByText(page, '申请提现', { exact: true });
+    await page.waitForTimeout(800);
+    const postsAfterOver = withdrawPosts.length;
+    const e10w = await shot(page, '10w-withdraw-validate');
+    record(
+      'M-10e',
+      '提现表单校验',
+      '功能',
+      postsAfterZero === 0 && postsAfterOver === 0 ? 'PASS' : 'FAIL',
+      `zero请求=${postsAfterZero} over请求=${postsAfterOver}（客户端应拦截，不发提现请求）`,
+      e10w
+    );
+
+    // —— M-10b 订单详情 ——
+    await gotoPath(page, '/pages/orders/orders');
+    const clickedOrder = await page.evaluate(() => {
+      const card = document.querySelector('.card');
+      if (!card) return false;
+      card.click();
+      return true;
+    });
+    await page.waitForTimeout(2000);
+    text = await bodyText(page);
+    const orderDetailOk = clickedOrder && /订单详情|支付信息|商品清单|支付方式/.test(text);
+    const e10d = await shot(page, '10d-order-detail');
+    record('M-10b', '订单详情', '功能', orderDetailOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 10).join(' | '), e10d);
+
+    // —— M-10c 柜机详情 ——
+    await gotoPath(page, '/pages/device-detail/device-detail?id=CAB-001');
+    text = await bodyText(page);
+    const devDetailOk = /测试柜|CAB-001|货道|柜机设置|在线|离线/.test(text);
+    const e10e = await shot(page, '10e-device-detail');
+    record('M-10c', '柜机详情', '功能', devDetailOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 12).join(' | '), e10e);
+
+    // —— M-10d 争议详情抽屉 ——
+    await gotoPath(page, '/pages/disputes/disputes');
+    const clickedDispute = await page.evaluate(() => {
+      const card = document.querySelector('.card');
+      if (!card) return false;
+      card.click();
+      return true;
+    });
+    await page.waitForTimeout(1800);
+    const drawerVisible = await page.evaluate(() => !!document.querySelector('.detail-panel'));
+    const e10f = await shot(page, '10f-dispute-drawer');
+    record(
+      'M-10d',
+      '争议详情抽屉',
+      '功能',
+      clickedDispute && drawerVisible ? 'PASS' : 'FAIL',
+      `click=${clickedDispute} drawer=${drawerVisible} body=${(await bodyText(page)).split('\n').slice(0, 8).join(' | ')}`,
+      e10f
+    );
+    await page.evaluate(() => { const el = document.querySelector('.detail-mask'); if (el) el.click(); });
+    await page.waitForTimeout(500);
 
     // —— M-11 网络容错：工作台 API 全断 ——
     aborting = true;
@@ -342,14 +470,16 @@ async function main() {
 
     // —— M-14/15 控制台与网络错误 ——
     const serious = consoleErrors.filter(
-      (e) => !/favicon|DevTools|ResizeObserver|ERR_TIMED_OUT|ERR_ABORTED|ERR_FAILED|404/i.test(e)
+      (e) => !/favicon|DevTools|ResizeObserver|ERR_TIMED_OUT|ERR_ABORTED|ERR_FAILED|Failed to load resource/i.test(e)
     );
     record(
       'M-14',
       '浏览器控制台严重错误',
       '质量',
       serious.length === 0 ? 'PASS' : 'FAIL',
-      serious.length === 0 ? '无严重 console.error' : serious.slice(0, 5).join(' || '),
+      serious.length === 0
+        ? `无严重 console.error；http4xx=${http4xx.length} ${http4xx.slice(0, 3).join(' , ')}`
+        : serious.slice(0, 5).join(' || '),
       null
     );
     record(

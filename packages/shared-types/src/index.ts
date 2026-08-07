@@ -626,6 +626,9 @@ export interface OrderDetailDto {
   deviceId?: string;
   status: string;
   payChannel?: string;
+  payTime?: string;
+  /** 柜机购物视频地址（可空） */
+  videoUri?: string;
   paymentOperationId?: string;
   balanceBeforeCents?: number;
   balanceAfterCents?: number;
