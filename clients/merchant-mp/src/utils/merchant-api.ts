@@ -524,7 +524,7 @@ export function canEditPricing(me: import('@aicabinet/shared-types').MerchantMe 
 }
 
 /** 若依风格：精确码或分段通配 merchant:replenishment:*（@aicabinet/shared-rbac） */
-export function hasPerm(me: import('@aicabinet/shared-types').MerchantMe | null, code: string) {
+export function hasPerm(me: import('@aicabinet/shared-types').MerchantMe | null | undefined, code: string) {
   return matchPermission(me?.permissions, code);
 }
 
@@ -544,5 +544,6 @@ export function alertTypeLabel(type: string) {
 }
 
 export function merchantAlertTitle(_type: string, title: string) {
-  return String(title || '').replaceAll('设备', '柜机');
+  // 用 replace + 正则而非 replaceAll（ES2021），兼容旧版微信基础库 / WebView
+  return String(title || '').replace(/设备/g, '柜机');
 }

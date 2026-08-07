@@ -97,7 +97,8 @@ export function mergeTodoItems(input: {
     return true;
   });
 
-  const merged = [...exceptionItems, ...workbenchFiltered, ...expiryItems];
+  // 显式标注为 TodoListItem，避免三源对象在 filter 回调里联合类型缺字段（TS2339）
+  const merged: TodoListItem[] = [...exceptionItems, ...workbenchFiltered, ...expiryItems];
   const seen = new Set<string>();
   return merged.filter((a) => {
     const key = `${typeKey(a.type)}|${deviceKey(a.deviceId)}|${a.ticketId || a.exceptionId || a.title}`;

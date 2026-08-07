@@ -311,6 +311,9 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let devicePollTimer: ReturnType<typeof setInterval> | null = null;
 let countdownTimer: ReturnType<typeof setInterval> | null = null;
 let prepResolve: ((ok: boolean) => void) | null = null;
+/** 设备状态去抖：避免 2s 会话轮询期间重复请求 /devices/{id}/status */
+let lastDeviceStatusRefreshAt = 0;
+let lastDeviceStatusRefreshDevice = '';
 
 const recognitionSlow = computed(
   () =>
@@ -612,6 +615,10 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
       uni.showToast({ title: formatError(productsResult.reason), icon: 'none' });
     }
     if (sessionResult.status !== 'fulfilled') {
+      // 超时兜底：请求超时但服务端可能已创建会话，先尝试认领，避免孤儿会话
+      if (await adoptOrphanSession(cabinetId)) {
+        return;
+      }
       scanned.value = false;
       deviceId.value = '';
       lastFailedDeviceId.value = cabinetId;
@@ -637,6 +644,33 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
     opening.value = false;
     enteringFlow.value = false;
   }
+}
+
+/**
+ * 开门请求超时后认领服务端可能已创建的会话（同柜机、非终态）。
+ * 成功则接管会话继续轮询，返回 true；否则走原失败路径。
+ */
+async function adoptOrphanSession(cabinetId: string): Promise<boolean> {
+  try {
+    const s = await consumerApi.activeSession();
+    const matched =
+      s &&
+      String(s.deviceId || '').trim().toUpperCase() === String(cabinetId || '').trim().toUpperCase() &&
+      ['CREATED', 'OPENING', 'SHOPPING', 'RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(s.state);
+    if (matched) {
+      lastFailedDeviceId.value = '';
+      lastFailedChannel.value = null;
+      sessionId.value = s.sessionId;
+      uni.setStorageSync('active_session_id', s.sessionId);
+      applySessionView(s);
+      startPoll();
+      uni.showToast({ title: '已恢复开门会话', icon: 'none' });
+      return true;
+    }
+  } catch {
+    /* 查询失败仍按原失败路径处理 */
+  }
+  return false;
 }
 
 function setLandingError(message: string, kind: OpenErrorKind = 'other') {
@@ -876,6 +910,17 @@ async function refreshDeviceStatus() {
   }
 }
 
+/** 设备状态去抖：仅在设备变化或距上次刷新 ≥30s 时拉取，避免会话轮询重复请求 */
+function refreshDeviceStatusThrottled(device: string) {
+  const now = Date.now();
+  const changed = device !== lastDeviceStatusRefreshDevice;
+  const expired = now - lastDeviceStatusRefreshAt >= 30000;
+  if (!changed && !expired) return;
+  lastDeviceStatusRefreshDevice = device;
+  lastDeviceStatusRefreshAt = now;
+  void refreshDeviceStatus();
+}
+
 async function reopenShop() {
   if (!deviceId.value) return;
   await startShoppingFlow(deviceId.value);
@@ -1025,7 +1070,7 @@ function applySessionView(s: SessionDto) {
     stopRecognitionTimer();
     recognitionDeferred.value = false;
   }
-  if (s.deviceId && deviceId.value) refreshDeviceStatus();
+  if (s.deviceId && deviceId.value) refreshDeviceStatusThrottled(s.deviceId);
 }
 
 function startOpeningCountdown(createdAt?: string) {
@@ -1108,7 +1153,7 @@ function stopPoll() {
 function startDevicePoll() {
   stopDevicePoll();
   devicePollTimer = setInterval(() => {
-    if (!opening.value && scanned.value && deviceId.value) refreshDeviceStatus();
+    if (!opening.value && scanned.value && deviceId.value) refreshDeviceStatusThrottled(deviceId.value);
   }, 30000);
 }
 

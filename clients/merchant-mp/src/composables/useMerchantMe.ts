@@ -25,7 +25,9 @@ export async function refreshMerchantMe(): Promise<MerchantMe> {
       return me;
     } finally {
       if (seq === meSeq) loadingRef.value = false;
-      if (inflight === p) inflight = null;
+      // refreshMerchantMe 入口已保证单飞（inflight 存在时直接复用），
+      // 完成后直接清空即可，无需比较 promise 引用。
+      inflight = null;
     }
   })();
   inflight = p;

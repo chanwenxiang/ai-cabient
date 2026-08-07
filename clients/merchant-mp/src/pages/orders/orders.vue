@@ -31,7 +31,10 @@
           <text>{{ formatTime(item.createdAt) }}</text>
         </view>
       </view>
-      <text v-if="listTruncated" class="trunc-hint">仅显示前 {{ list.length }} 条，共 {{ listTotal }} 条</text>
+      <view v-if="hasMore" class="load-more" role="button" aria-label="加载更多订单" @click="loadMore">
+        {{ loadingMore ? '加载中…' : `加载更多（已显示 ${list.length}/${listTotal}）` }}
+      </view>
+      <text v-else-if="listTruncated" class="trunc-hint">共 {{ listTotal }} 条，已全部加载</text>
     </view>
   </view>
 </template>
@@ -49,10 +52,14 @@ const { me, refresh: refreshMe } = useMerchantMe();
 const canList = computed(() => hasPerm(me.value, 'merchant:orders:list'));
 
 const loading = ref(false);
+const loadingMore = ref(false);
 const error = ref('');
 const list = ref<MerchantOrderSummary[]>([]);
 let loadSeq = 0;
 const listTotal = ref(0);
+const pageIndex = ref(0);
+const hasMore = ref(false);
+const PAGE_SIZE = 50;
 
 const listTruncated = computed(
   () => listTotal.value > 0 && list.value.length > 0 && listTotal.value > list.value.length
@@ -85,7 +92,7 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const res = await merchantApi.orders(undefined, 0, 50);
+    const res = await merchantApi.orders(undefined, 0, PAGE_SIZE);
     if (seq !== loadSeq) return;
     if (Array.isArray(res)) {
       list.value = res;
@@ -94,13 +101,41 @@ async function load() {
       list.value = res?.items || [];
       listTotal.value = res?.total ?? list.value.length;
     }
+    pageIndex.value = 0;
+    hasMore.value = list.value.length < listTotal.value;
   } catch (e) {
     if (seq !== loadSeq) return;
     list.value = [];
     listTotal.value = 0;
+    hasMore.value = false;
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     if (seq === loadSeq) loading.value = false;
+  }
+}
+
+async function loadMore() {
+  if (!hasMore.value || loadingMore.value || loading.value) return;
+  loadingMore.value = true;
+  try {
+    const next = pageIndex.value + 1;
+    const res = await merchantApi.orders(undefined, next, PAGE_SIZE);
+    const items = Array.isArray(res) ? res : res?.items || [];
+    if (!items.length) {
+      hasMore.value = false;
+      return;
+    }
+    const seen = new Set(list.value.map((o) => o.orderId));
+    const appended = items.filter((o) => o.orderId && !seen.has(o.orderId));
+    list.value = list.value.concat(appended);
+    pageIndex.value = next;
+    const total = Array.isArray(res) ? list.value.length : Number(res?.total ?? list.value.length);
+    listTotal.value = total;
+    hasMore.value = list.value.length < total && items.length >= PAGE_SIZE;
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
+  } finally {
+    loadingMore.value = false;
   }
 }
 
@@ -156,5 +191,13 @@ function onDetail(item: MerchantOrderSummary) {
   color: #94a3b8;
   font-size: 22rpx;
   margin-top: 8rpx;
+}
+.load-more {
+  display: block;
+  text-align: center;
+  color: var(--brand, #0f766e);
+  font-size: 24rpx;
+  font-weight: 600;
+  padding: 20rpx 0 8rpx;
 }
 </style>

@@ -24,7 +24,11 @@ export async function pickAndUploadEvidence(
       count: remain,
       sizeType: ['compressed'],
       sourceType: ['album', 'camera'],
-      success: (res) => resolve(res.tempFilePaths || []),
+      success: (res) => {
+        // @dcloudio/types 中 tempFilePaths 声明为 string | string[]，统一归一化为数组
+        const raw = res.tempFilePaths || [];
+        resolve(Array.isArray(raw) ? raw : [raw]);
+      },
       fail: () => resolve([])
     });
   });
