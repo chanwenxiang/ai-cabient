@@ -8,7 +8,10 @@
     "build:mp-weixin:dev": "node ../../scripts/sync-consumer-mp-api.mjs && uni build -p mp-weixin --mode development",
     "build:mp-weixin:prod": "npm run build:mp-weixin",
     "dev:h5": "uni",
-    "build:h5": "uni build"
+    "build:h5": "uni build",
+    "type-check": "tsc --noEmit",
+    "test:uat": "node tests/consumer-h5-uat.mjs",
+    "test:ci": "npm run type-check && npm run test:uat"
   },
   "engines": {
     "node": ">=24.18.0"
