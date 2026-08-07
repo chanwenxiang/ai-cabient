@@ -80,6 +80,22 @@ public class RepairTicketController {
     }
 
     @RequiresPermissions("ops:repair:edit")
+    @PostMapping("/batch-assign")
+    public ApiResponse<Integer> batchAssign(
+            HttpServletRequest request,
+            @RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
+        List<Object> rawIds = (List<Object>) body.getOrDefault("ticketIds", List.of());
+        List<Long> ids = rawIds.stream()
+                .map(o -> Long.valueOf(String.valueOf(o)))
+                .toList();
+        return ApiResponse.ok(repairTicketService.batchAssign(
+                operator(request),
+                ids,
+                String.valueOf(body.getOrDefault("assignee", ""))));
+    }
+
+    @RequiresPermissions("ops:repair:edit")
     @PostMapping("/{ticketId}/transition")
     public ApiResponse<RepairTicketDto> transition(
             HttpServletRequest request,

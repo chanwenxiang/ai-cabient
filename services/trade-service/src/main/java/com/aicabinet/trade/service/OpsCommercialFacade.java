@@ -72,6 +72,11 @@ public class OpsCommercialFacade {
         return otaService.publishRelease(operatorId, body);
     }
 
+    public OtaReleaseDto unpublishOta(Long operatorId, Long releaseId) {
+        permissionService.requirePermission(operatorId, "ops:ota:publish");
+        return otaService.unpublishRelease(operatorId, releaseId);
+    }
+
     public PageResult<RiskEventDto> listRiskEvents(Long operatorId, int page, int size) {
         permissionService.requirePermission(operatorId, "ops:risk:list");
         var p = riskEventRepository.findAllByOrderByCreatedAtDesc(PageRequest.of(page, size));
@@ -343,7 +348,7 @@ public class OpsCommercialFacade {
     }
 
     public List<SlotDiscrepancyAlertDto> listSlotDiscrepancies(Long operatorId, String deviceId) {
-        permissionService.requirePermission(operatorId, "ops:device:list");
+        permissionService.requireAnyPermission(operatorId, "ops:device:list", "ops:replenishment:list");
         return deviceSlotService.listDiscrepancyAlerts(operatorId, deviceId);
     }
 
@@ -439,6 +444,10 @@ public class OpsCommercialFacade {
 
     public OpsMeDto myProfile(Long operatorId) {
         return rbacService.myProfile(operatorId);
+    }
+
+    public void changeMyPassword(Long operatorId, ChangePasswordRequest request) {
+        rbacService.changeMyPassword(operatorId, request);
     }
 
     private RiskEventDto toRiskDto(RiskEvent e) {

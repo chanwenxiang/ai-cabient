@@ -68,6 +68,14 @@ public class AdminDashboardController {
         return ApiResponse.ok(cacheService.get("dashboard:workbench", String.valueOf(opId), 30_000L, () -> adminService.workbench(opId)));
     }
 
+    /** 工作台聚合：stats + workbench + 待处理异常数，一次请求。 */
+    @RequiresPermissions("ops:dashboard:view")
+    @GetMapping("/workbench-bundle")
+    public ApiResponse<OpsDashboardBundleDto> workbenchBundle(HttpServletRequest request) {
+        Long opId = operatorId(request);
+        return ApiResponse.ok(adminService.dashboardBundle(opId));
+    }
+
     @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/trend")
     public ApiResponse<AdminTrendDto> trend(
@@ -392,7 +400,7 @@ public class AdminDashboardController {
         return ApiResponse.ok(unpaidOrderService.collect(operatorId(request), orderId));
     }
 
-    @RequiresPermissions("ops:sku:list")
+    @RequiresPermissions(value = {"ops:sku:list", "ops:replenishment:list", "ops:warehouse:list"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/skus")
     public ApiResponse<List<SkuCatalogDto>> skus(
             HttpServletRequest request,
@@ -408,6 +416,18 @@ public class AdminDashboardController {
                 cacheKey,
                 60_000L,
                 () -> adminService.listSkus(opId, q, status, category)));
+    }
+
+    /** 设备基础信息只读（履约角色设备下拉），按账号商户范围过滤。 */
+    @RequiresPermissions(value = {"ops:device:list", "ops:device:ref"}, logical = RequiresPermissions.Logical.OR)
+    @GetMapping("/devices/ref")
+    public ApiResponse<List<DeviceRefDto>> deviceRefs(HttpServletRequest request) {
+        Long opId = operatorId(request);
+        return ApiResponse.ok(cacheService.get(
+                "admin:devices:ref",
+                String.valueOf(opId),
+                60_000L,
+                () -> adminService.listDeviceRefs(opId)));
     }
 
     @RequiresPermissions(value = {"ops:sku:edit", "ops:sku:import"}, logical = RequiresPermissions.Logical.OR)
@@ -477,4 +497,3 @@ public class AdminDashboardController {
                 .body(csv);
     }
 }
-

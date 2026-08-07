@@ -2,6 +2,7 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.AlipayLoginRequest;
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.AdminPasswordResetRequest;
 import com.aicabinet.common.dto.CaptchaResponse;
 import com.aicabinet.common.dto.LoginRequest;
 import com.aicabinet.common.dto.LoginResponse;
@@ -60,6 +61,14 @@ public class AuthController {
     public ApiResponse<LoginResponse> adminPasswordLogin(@Valid @RequestBody PasswordLoginRequest request) {
         captchaService.verifyOrThrow(request.captchaId(), request.captchaCode());
         return ApiResponse.ok(authService.adminLoginByPassword(request));
+    }
+
+    /** 运营后台忘记密码：短信验证码 + 图形验证码后重置密码。 */
+    @PostMapping("/admin-password-reset")
+    public ApiResponse<Void> adminPasswordReset(@Valid @RequestBody AdminPasswordResetRequest request) {
+        captchaService.verifyOrThrow(request.captchaId(), request.captchaCode());
+        authService.adminResetPassword(request);
+        return ApiResponse.ok(null);
     }
 
     /** 商户端密码登录：同运营鉴权边界，但不要求图形验证码。 */

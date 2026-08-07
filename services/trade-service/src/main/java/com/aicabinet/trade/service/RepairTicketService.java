@@ -148,6 +148,32 @@ public class RepairTicketService {
         return toDto(ticket);
     }
 
+    /** 批量指派：只更新未关闭（OPEN / IN_PROGRESS）的工单。 */
+    @Transactional
+    public int batchAssign(Long operatorId, List<Long> ticketIds, String assignee) {
+        permissionService.requirePermission(operatorId, "ops:repair:edit");
+        String name = trimToNull(assignee);
+        if (name == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写指派人");
+        }
+        if (ticketIds == null || ticketIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择工单");
+        }
+        int count = 0;
+        for (Long ticketId : ticketIds) {
+            RepairTicket ticket = requireTicket(ticketId);
+            if ("DONE".equals(ticket.getStatus()) || "CANCELLED".equals(ticket.getStatus())) {
+                continue;
+            }
+            ticket.setAssignee(name);
+            ticket.setUpdatedAt(Instant.now());
+            ticketMapper.updateById(ticket);
+            appendEvent(ticketId, ticket.getStatus(), ticket.getStatus(), "ASSIGN", operatorId, "批量指派给 " + name);
+            count++;
+        }
+        return count;
+    }
+
     @Transactional
     public RepairTicketDto transition(Long operatorId, long ticketId, String toStatus, String remark) {
         return transition(operatorId, ticketId, toStatus, remark, false);

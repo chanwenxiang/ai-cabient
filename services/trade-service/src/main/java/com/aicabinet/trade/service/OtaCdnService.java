@@ -29,10 +29,11 @@ public class OtaCdnService {
     }
 
     public boolean isInGrayRollout(String deviceId, OtaRelease release) {
-        if (release.getGrayPercent() >= 100) {
+        // 定向白名单优先：指定了设备白名单时，只有白名单内设备参与（否则 gray=100 会绕过白名单）
+        if (isInAllowlist(deviceId, release.getDeviceAllowlist())) {
             return true;
         }
-        if (isInAllowlist(deviceId, release.getDeviceAllowlist())) {
+        if (release.getGrayPercent() >= 100) {
             return true;
         }
         int bucket = Math.floorMod(deviceId.hashCode(), 100);

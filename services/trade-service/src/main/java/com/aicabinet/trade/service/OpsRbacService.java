@@ -354,6 +354,23 @@ public class OpsRbacService {
         userInfoRepository.save(user);
     }
 
+    /** 运营账号自助修改密码（个人中心）。 */
+    @Transactional
+    public void changeMyPassword(Long operatorId, ChangePasswordRequest request) {
+        String newPassword = request.newPassword();
+        if (newPassword == null || newPassword.length() < 6 || newPassword.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新密码长度需在 6-64 位之间");
+        }
+        UserInfo user = userInfoRepository.findById(operatorId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        String hash = user.getPasswordHash();
+        if (hash == null || hash.isBlank() || !passwordEncoder.matches(request.oldPassword(), hash)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "原密码错误");
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userInfoRepository.save(user);
+    }
+
     @Transactional(readOnly = true)
     public OpsUserRolesDto getUserRoles(Long operatorId, Long userId) {
         permissionService.requirePermission(operatorId, "ops:rbac:assign");

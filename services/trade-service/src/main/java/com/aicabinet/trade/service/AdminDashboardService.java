@@ -90,6 +90,7 @@ public class AdminDashboardService {
     private final WarehouseInTransitMapper inTransitRepository;
     private final BalanceLedgerService balanceLedgerService;
     private final RefundPolicyService refundPolicyService;
+    private final OpsExceptionMapper exceptionRepository;
 
     public AdminDashboardService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
@@ -118,7 +119,8 @@ public class AdminDashboardService {
                                  PaymentReconciliationMapper reconciliationRepository,
                                  WarehouseInTransitMapper inTransitRepository,
                                  BalanceLedgerService balanceLedgerService,
-                                 RefundPolicyService refundPolicyService) {
+                                 RefundPolicyService refundPolicyService,
+                                 OpsExceptionMapper exceptionRepository) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -147,6 +149,28 @@ public class AdminDashboardService {
         this.inTransitRepository = inTransitRepository;
         this.balanceLedgerService = balanceLedgerService;
         this.refundPolicyService = refundPolicyService;
+        this.exceptionRepository = exceptionRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public List<DeviceRefDto> listDeviceRefs(Long operatorId) {
+        permissionService.requireAnyPermission(operatorId, "ops:device:list", "ops:device:ref");
+        return merchantScopeService.allowedDevices(operatorId).stream()
+                .sorted(java.util.Comparator.comparing(DeviceInfo::getDeviceId))
+                .limit(500)
+                .map(d -> new DeviceRefDto(d.getDeviceId(), d.getDeviceName(), d.getOnlineStatus(), d.getMerchantId()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public OpsDashboardBundleDto dashboardBundle(Long operatorId) {
+        permissionService.requirePermission(operatorId, "ops:dashboard:view");
+        AdminStatsDto stats = stats(operatorId);
+        OpsWorkbenchDto wb = workbench(operatorId);
+        long open = exceptionRepository
+                .findByStatusOrderByCreatedAtDesc("OPEN", PageRequest.of(0, 1))
+                .getTotalElements();
+        return new OpsDashboardBundleDto(stats, wb, open);
     }
 
     public AdminStatsDto stats(Long operatorId) {
@@ -931,7 +955,7 @@ public class AdminDashboardService {
     }
 
     public List<SkuCatalogDto> listSkus(Long operatorId, String q, String status, String category) {
-        permissionService.requirePermission(operatorId, "ops:sku:list");
+        permissionService.requireAnyPermission(operatorId, "ops:sku:list", "ops:replenishment:list", "ops:warehouse:list");
         var query = Wrappers.<SkuCatalog>lambdaQuery().orderByAsc(SkuCatalog::getSkuCode).orderByAsc(SkuCatalog::getSkuId);
         if (status != null && !status.isBlank() && !"ALL".equalsIgnoreCase(status.trim())) {
             query.eq(SkuCatalog::getStatus, status.trim().toUpperCase());
