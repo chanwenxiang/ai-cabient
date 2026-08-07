@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.domain.DisputeTicket;
 import com.aicabinet.trade.mapper.DisputeTicketMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -31,9 +32,18 @@ public class DisputeSlaScheduler {
         this.alertService = alertService;
     }
 
+    @Autowired
+    private ScheduledTaskService taskService;
+
     @Scheduled(fixedRate = 900_000)
     @Transactional
     public void checkDisputeSla() {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("dispute-sla", 600)) {
+            return;
+        }
+        boolean failed = false;
+        try {
         if (!disputeSlaProperties.schedulerEnabled()) {
             return;
         }
@@ -69,6 +79,15 @@ public class DisputeSlaScheduler {
         }
         if (reminders > 0 || overdue > 0) {
             log.info("dispute sla scan reminders={} overdue={} scanned={}", reminders, overdue, openTickets.size());
+        }
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish("dispute-sla", "FAILED", e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish("dispute-sla", "SUCCESS", null, start);
+            }
         }
     }
 }

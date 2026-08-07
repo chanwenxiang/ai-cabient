@@ -7,6 +7,7 @@ import com.aicabinet.trade.mapper.ReplenishmentTaskLineMapper;
 import com.aicabinet.trade.mapper.ReplenishmentTaskMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +32,9 @@ public class ReplenishmentTimeoutScheduler {
     private final SessionService sessionService;
     private final OpsExceptionService opsExceptionService;
 
+    @Autowired
+    private ScheduledTaskService taskService;
+
     public ReplenishmentTimeoutScheduler(ReplenishmentTaskMapper taskRepository,
                                          ReplenishmentTaskLineMapper taskLineRepository,
                                          ReplenishmentRouteMapper routeRepository,
@@ -46,6 +50,12 @@ public class ReplenishmentTimeoutScheduler {
     @Scheduled(fixedRate = 60_000)
     @Transactional
     public void expireStaleCheckedInTasks() {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("replenishment-timeout", 600)) {
+            return;
+        }
+        boolean failed = false;
+        try {
         Instant cutoff = Instant.now().minus(STALE_CHECK_IN_HOURS, ChronoUnit.HOURS);
         List<ReplenishmentTask> stale = taskRepository.findByStatusAndCheckInAtBefore(
                 "IN_PROGRESS", cutoff, 100);
@@ -63,6 +73,15 @@ public class ReplenishmentTimeoutScheduler {
         }
         if (n > 0) {
             log.info("expired stale checked-in replenishment tasks count={}", n);
+        }
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish("replenishment-timeout", "FAILED", e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish("replenishment-timeout", "SUCCESS", null, start);
+            }
         }
     }
 

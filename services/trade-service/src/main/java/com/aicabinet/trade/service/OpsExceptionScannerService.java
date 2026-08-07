@@ -4,6 +4,7 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.config.OpsMonitoringProperties;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +20,9 @@ public class OpsExceptionScannerService {
     private final OpsExceptionService exceptionService;
     private final OpsMonitoringProperties properties;
 
+    @Autowired
+    private ScheduledTaskService taskService;
+
     public OpsExceptionScannerService(ShoppingSessionMapper sessionRepository,
                                       OpsExceptionService exceptionService,
                                       OpsMonitoringProperties properties) {
@@ -29,6 +33,12 @@ public class OpsExceptionScannerService {
 
     @Scheduled(fixedDelayString = "${aicabinet.ops-monitoring.scan-interval-ms:30000}")
     public void scan() {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("ops-exception-scanner", 600)) {
+            return;
+        }
+        boolean failed = false;
+        try {
         if (!properties.enabled()) return;
         scanDoorOpen();
         scanUpdatedState(SessionState.WAITING_UPLOAD, properties.uploadStuckMinutes(),
@@ -37,6 +47,15 @@ public class OpsExceptionScannerService {
                 "RECOGNITION_STUCK", "HIGH", "商品识别滞留");
         scanUpdatedState(SessionState.SETTLING, properties.settlementStuckMinutes(),
                 "SETTLEMENT_STUCK", "CRITICAL", "订单结算滞留");
+    } catch (Exception e) {
+        failed = true;
+        taskService.finish("ops-exception-scanner", "FAILED", e.getMessage(), start);
+        throw e;
+    } finally {
+        if (!failed) {
+            taskService.finish("ops-exception-scanner", "SUCCESS", null, start);
+        }
+    }
     }
 
     private void scanDoorOpen() {

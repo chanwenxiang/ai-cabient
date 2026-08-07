@@ -338,3 +338,15 @@ This command starts the full Docker stack, waits for `trade-service`, `device-se
 - `scripts/e2e-shopping.ps1`
 
 `INTERNAL_API_KEY` is read from the current shell first, then from `infra/.env`.
+
+## XXL-JOB 调度中心（可选）
+
+如需使用 XXL-JOB 管理定时任务（如设备稳定在线自动解锁、设备可用性 KPI 日快照）：
+
+```powershell
+docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.xxljob.yml `
+  --profile apps --profile xxljob up -d --build
+```
+
+同时设置 `XXL_JOB_ENABLED=true` 让 trade-service 执行器注册到调度中心。
+详见 [docs/DEVICE_AUTO_UNLOCK_AND_KPI.md](../docs/DEVICE_AUTO_UNLOCK_AND_KPI.md)。

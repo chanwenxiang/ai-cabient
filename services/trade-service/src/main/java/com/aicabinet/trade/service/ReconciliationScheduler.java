@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.config.ReconciliationProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -16,6 +17,9 @@ public class ReconciliationScheduler {
     private final ReconciliationService reconciliationService;
     private final ReconciliationProperties properties;
 
+    @Autowired
+    private ScheduledTaskService taskService;
+
     public ReconciliationScheduler(ReconciliationService reconciliationService,
                                    ReconciliationProperties properties) {
         this.reconciliationService = reconciliationService;
@@ -24,15 +28,30 @@ public class ReconciliationScheduler {
 
     @Scheduled(cron = "${aicabinet.reconciliation.scheduled-cron:0 30 1 * * *}")
     public void runDailyReconciliation() {
-        if (!properties.scheduledEnabled()) {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("reconciliation", 1800)) {
             return;
         }
-        LocalDate yesterday = LocalDate.now().minusDays(1);
+        boolean failed = false;
         try {
-            reconciliationService.runDaily(null, yesterday, "WECHAT");
-            log.info("scheduled reconciliation completed for date={}", yesterday);
+            if (!properties.scheduledEnabled()) {
+                return;
+            }
+            LocalDate yesterday = LocalDate.now().minusDays(1);
+            try {
+                reconciliationService.runDaily(null, yesterday, "WECHAT");
+                log.info("scheduled reconciliation completed for date={}", yesterday);
+            } catch (Exception e) {
+                log.error("scheduled reconciliation failed for date={}", yesterday, e);
+            }
         } catch (Exception e) {
-            log.error("scheduled reconciliation failed for date={}", yesterday, e);
+            failed = true;
+            taskService.finish("reconciliation", "FAILED", e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish("reconciliation", "SUCCESS", null, start);
+            }
         }
     }
 }

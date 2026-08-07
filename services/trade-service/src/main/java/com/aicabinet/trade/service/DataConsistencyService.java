@@ -64,8 +64,11 @@ public class DataConsistencyService {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @Autowired
-    private ObjectMapper objectMapper;
+@Autowired
+private ObjectMapper objectMapper;
+
+@Autowired
+private ScheduledTaskService taskService;
 
     /** 记录业务变更（可选审计）；失败不影响主流程。 */
     public void logChange(String tableName, String recordId, String operation,
@@ -86,7 +89,22 @@ public class DataConsistencyService {
 
     @Scheduled(fixedDelay = 300000)
     public void performConsistencyCheck() {
-        runConsistencyCheck();
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("data-consistency", 900)) {
+            return;
+        }
+        boolean failed = false;
+        try {
+            runConsistencyCheck();
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish("data-consistency", "FAILED", e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish("data-consistency", "SUCCESS", null, start);
+            }
+        }
     }
 
     /** 立即巡检（运营手动触发 / 联调）。返回当前仍为 FAIL 的条数。 */

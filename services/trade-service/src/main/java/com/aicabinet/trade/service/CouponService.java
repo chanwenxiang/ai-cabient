@@ -6,6 +6,7 @@ import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,8 @@ import java.util.*;
 
 @Service
 public class CouponService {
+    @Autowired
+    private ScheduledTaskService taskService;
 
     private static final Logger log = LoggerFactory.getLogger(CouponService.class);
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -263,13 +266,28 @@ public class CouponService {
     @Scheduled(cron = "0 0 2 * * *")
     @Transactional
     public void expireOverdueCoupons() {
-        List<UserCoupon> expired = userCouponRepository.findByStatusAndExpireAtBefore("UNUSED", Instant.now());
-        for (UserCoupon uc : expired) {
-            uc.setStatus("EXPIRED");
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("coupon-expire", 600)) {
+            return;
         }
-        userCouponRepository.saveAll(expired);
-        if (!expired.isEmpty()) {
-            log.info("expired {} overdue coupons", expired.size());
+        boolean failed = false;
+        try {
+            List<UserCoupon> expired = userCouponRepository.findByStatusAndExpireAtBefore("UNUSED", Instant.now());
+            for (UserCoupon uc : expired) {
+                uc.setStatus("EXPIRED");
+            }
+            userCouponRepository.saveAll(expired);
+            if (!expired.isEmpty()) {
+                log.info("expired {} overdue coupons", expired.size());
+            }
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish("coupon-expire", "FAILED", e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish("coupon-expire", "SUCCESS", null, start);
+            }
         }
     }
 
@@ -312,4 +330,3 @@ public class CouponService {
         return sb.toString();
     }
 }
-

@@ -23,6 +23,7 @@ import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.http.HttpStatus;
@@ -69,6 +70,9 @@ public class SessionService {
     private final CabinetOrderMapper orderRepository;
     private final DisputeService disputeService;
     private final ConsumerPreauthService consumerPreauthService;
+
+    @Autowired
+    private ScheduledTaskService taskService;
 
     public SessionService(ShoppingSessionMapper repository,
                           DeviceServiceClient deviceClient,
@@ -736,6 +740,12 @@ public class SessionService {
     @Scheduled(fixedRate = 30_000)
     @Transactional
     public void expireStaleOpeningSessions() {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("session-opening-expire", 600)) {
+            return;
+        }
+        boolean failed = false;
+        try {
         Instant cutoff = Instant.now().minus(OPENING_EXPIRE_SECONDS, ChronoUnit.SECONDS);
         repository.findByStateInAndCreatedAtBefore(
                         List.of(SessionState.OPENING, SessionState.CREATED), cutoff, 500)
@@ -748,12 +758,27 @@ public class SessionService {
                             s.getOrderId(), s.getUserId(), "开门超时", "开门命令在90秒内未得到设备响应");
                     log.warn("opening session expired session={} device={}", s.getSessionId(), s.getDeviceId());
                 });
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish("session-opening-expire", "FAILED", e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish("session-opening-expire", "SUCCESS", null, start);
+            }
+        }
     }
 
     /** 补货会话长时间停在购物态：超时清理，避免挡消费者开门。 */
     @Scheduled(fixedRate = 60_000)
     @Transactional
     public void expireStaleRestockShoppingSessions() {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("session-restock-expire", 600)) {
+            return;
+        }
+        boolean failed = false;
+        try {
         Instant cutoff = Instant.now().minus(RESTOCK_SHOPPING_EXPIRE_MINUTES, ChronoUnit.MINUTES);
         repository.findByStateInAndUpdatedAtBefore(
                         List.of(SessionState.SHOPPING, SessionState.WAITING_UPLOAD), cutoff, 500)
@@ -773,12 +798,27 @@ public class SessionService {
                     log.warn("restock shopping session expired session={} device={}",
                             s.getSessionId(), s.getDeviceId());
                 });
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish("session-restock-expire", "FAILED", e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish("session-restock-expire", "SUCCESS", null, start);
+            }
+        }
     }
 
     /** 识别/结算长时间无结果：转争议，避免占柜机与前端一直卡在「识别中」。 */
     @Scheduled(fixedRate = 60_000)
     @Transactional
     public void expireStaleRecognizingSessions() {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("session-recognizing-expire", 600)) {
+            return;
+        }
+        boolean failed = false;
+        try {
         Instant cutoff = Instant.now().minus(10, ChronoUnit.MINUTES);
         repository.findByStateInAndUpdatedAtBefore(
                         List.of(SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD, SessionState.SETTLING),
@@ -823,6 +863,15 @@ public class SessionService {
                         log.warn("识别超时升级失败 session={}", s.getSessionId(), e);
                     }
                 });
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish("session-recognizing-expire", "FAILED", e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish("session-recognizing-expire", "SUCCESS", null, start);
+            }
+        }
     }
 
     private void closeStaleRestockRecognizing(ShoppingSession session) {

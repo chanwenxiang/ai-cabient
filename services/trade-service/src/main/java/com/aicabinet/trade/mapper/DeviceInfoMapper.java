@@ -59,6 +59,26 @@ public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
                 .last("LIMIT " + lim));
     }
 
+    /** updateById 默认跳过 null 字段，离线置空 online_since 需要显式 SQL。 */
+    default void clearOnlineSince(String deviceId) {
+        update(null, Wrappers.<DeviceInfo>lambdaUpdate()
+                .eq(DeviceInfo::getDeviceId, deviceId)
+                .set(DeviceInfo::getOnlineSince, null));
+    }
+
+    /** 锁机中且已稳定在线超过 cutff 的设备（用于稳定在线自动解锁）。 */
+    default List<DeviceInfo> findByOnlineStatusAndSalesLockedTrueAndOnlineSinceBefore(
+            String onlineStatus, java.time.Instant cutoff, int limit) {
+        int lim = Math.max(1, Math.min(limit, 500));
+        return selectList(Wrappers.<DeviceInfo>lambdaQuery()
+                .eq(DeviceInfo::getOnlineStatus, onlineStatus)
+                .eq(DeviceInfo::getSalesLocked, true)
+                .isNotNull(DeviceInfo::getOnlineSince)
+                .lt(DeviceInfo::getOnlineSince, cutoff)
+                .orderByAsc(DeviceInfo::getOnlineSince)
+                .last("LIMIT " + lim));
+    }
+
     default List<DeviceInfo> findByOnlineStatusNot(String onlineStatus) {
     return selectList(Wrappers.<DeviceInfo>lambdaQuery().ne(DeviceInfo::getOnlineStatus, onlineStatus).orderByAsc(DeviceInfo::getUpdatedAt));
     }

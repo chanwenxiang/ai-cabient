@@ -8,6 +8,7 @@ import com.aicabinet.trade.mapper.MerchantMapper;
 import com.aicabinet.trade.mapper.OrderRevenueSplitMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,9 @@ public class ProfitSharingRetryScheduler {
     private final MerchantMapper merchantRepository;
     private final WeChatProfitSharingService profitSharingService;
 
+    @Autowired
+    private ScheduledTaskService taskService;
+
     public ProfitSharingRetryScheduler(ProfitSharingProperties profitSharingProperties,
                                        OrderRevenueSplitMapper splitRepository,
                                        MerchantMapper merchantRepository,
@@ -39,31 +43,47 @@ public class ProfitSharingRetryScheduler {
     @Scheduled(fixedRate = 900_000)
     @Transactional
     public void retryFailedSplits() {
-        if (!profitSharingProperties.enabled() || !profitSharingProperties.retryEnabled()) {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("profit-sharing-retry", 600)) {
             return;
         }
-        if (!profitSharingService.isApiReady()) {
-            return;
-        }
-        int batch = Math.min(profitSharingProperties.retryBatchSize(), 20);
-        List<OrderRevenueSplit> failed = splitRepository.findTop20ByStatusOrderByCreatedAtAsc("WECHAT_FAILED");
-        if (failed.isEmpty()) {
-            return;
-        }
-        if (failed.size() > batch) {
-            failed = failed.subList(0, batch);
-        }
-        var merchantIds = failed.stream()
-                .map(OrderRevenueSplit::getMerchantId)
-                .filter(id -> id != null && !id.isBlank())
-                .collect(Collectors.toSet());
-        Map<String, Merchant> merchants = merchantIds.isEmpty()
-                ? Map.of()
-                : merchantRepository.findAllById(merchantIds).stream()
-                .collect(Collectors.toMap(Merchant::getMerchantId, m -> m, (a, b) -> a));
-        int retried = profitSharingService.retryFailedSplits(failed, merchants);
-        if (retried > 0) {
-            log.info("profit sharing retry attempted count={}", retried);
+        boolean failed = false;
+        try {
+            if (!profitSharingProperties.enabled() || !profitSharingProperties.retryEnabled()) {
+                return;
+            }
+            if (!profitSharingService.isApiReady()) {
+                return;
+            }
+            int batch = Math.min(profitSharingProperties.retryBatchSize(), 20);
+            List<OrderRevenueSplit> failedSplits =
+                    splitRepository.findTop20ByStatusOrderByCreatedAtAsc("WECHAT_FAILED");
+            if (failedSplits.isEmpty()) {
+                return;
+            }
+            if (failedSplits.size() > batch) {
+                failedSplits = failedSplits.subList(0, batch);
+            }
+            var merchantIds = failedSplits.stream()
+                    .map(OrderRevenueSplit::getMerchantId)
+                    .filter(id -> id != null && !id.isBlank())
+                    .collect(Collectors.toSet());
+            Map<String, Merchant> merchants = merchantIds.isEmpty()
+                    ? Map.of()
+                    : merchantRepository.findAllById(merchantIds).stream()
+                    .collect(Collectors.toMap(Merchant::getMerchantId, m -> m, (a, b) -> a));
+            int retried = profitSharingService.retryFailedSplits(failedSplits, merchants);
+            if (retried > 0) {
+                log.info("profit sharing retry attempted count={}", retried);
+            }
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish("profit-sharing-retry", "FAILED", e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish("profit-sharing-retry", "SUCCESS", null, start);
+            }
         }
     }
 }
