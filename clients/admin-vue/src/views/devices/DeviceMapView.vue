@@ -1,5 +1,5 @@
 <template>
-  <div class="map-page" v-loading="loading">
+  <div class="map-page" :class="{ 'map-dark': isDark }" v-loading="loading">
     <div ref="mapEl" class="map-canvas" />
 
     <div class="map-float-bar">
@@ -112,6 +112,7 @@ import 'leaflet.markercluster';
 import { api } from '@/api/client';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { dictOptions } from '@aicabinet/shared-dict';
+import { useSettingsStore } from '@/stores/settings';
 
 interface MapPoint {
   deviceId: string;
@@ -128,6 +129,8 @@ interface MapPoint {
 }
 
 const { goPath } = useNavAccess();
+const settings = useSettingsStore();
+const isDark = computed(() => settings.theme === 'dark');
 const loading = ref(false);
 const listHydrated = ref(false);
 const lifecycleStatus = ref('DEPLOYED');
@@ -400,7 +403,7 @@ onBeforeUnmount(() => {
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid var(--el-border-color-lighter);
-  background: #dce8f5;
+  background: var(--layout-bg);
 }
 .map-canvas {
   width: 100%;
@@ -419,9 +422,9 @@ onBeforeUnmount(() => {
   align-items: center;
   padding: 10px 12px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.96);
+  background: color-mix(in srgb, var(--layout-card) 96%, transparent);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  border: 1px solid var(--layout-border);
 }
 .float-input {
   width: 180px;
@@ -432,8 +435,8 @@ onBeforeUnmount(() => {
   bottom: 14px;
   z-index: 500;
   font-size: 12px;
-  color: #334155;
-  background: rgba(255, 255, 255, 0.92);
+  color: var(--layout-text);
+  background: color-mix(in srgb, var(--layout-card) 92%, transparent);
   padding: 4px 10px;
   border-radius: 999px;
   box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
@@ -461,8 +464,8 @@ onBeforeUnmount(() => {
   z-index: 500;
   border-radius: 10px;
   padding: 12px;
-  background: rgba(255, 255, 255, 0.96);
-  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: color-mix(in srgb, var(--layout-card) 96%, transparent);
+  border: 1px solid var(--layout-border);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
   overflow: hidden;
 }
@@ -574,5 +577,13 @@ onBeforeUnmount(() => {
 .teardrop-pin {
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
   line-height: 0;
+}
+/* 暗色模式下把高德/Esri 亮色底图反相为深色，避免刺眼 */
+.map-page.map-dark .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(200deg) brightness(0.88) contrast(0.9) saturate(0.7);
+}
+.map-page.map-dark .leaflet-control-zoom a {
+  background: var(--layout-card);
+  color: var(--layout-text);
 }
 </style>

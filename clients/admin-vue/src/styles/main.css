@@ -856,9 +856,6 @@ button, input, textarea, select { font: inherit; }
   background: var(--el-table-header-bg-color, #f5f5f5);
   background-clip: padding-box;
 }
-html.dark .table-scroll .el-table__header-wrapper th.el-table__cell,
-html.dark .table-scroll .el-table__header th.el-table__cell,
-html.dark .table-scroll .el-table__body-header th.el-table__cell,
 [data-theme='dark'] .table-scroll .el-table__header-wrapper th.el-table__cell,
 [data-theme='dark'] .table-scroll .el-table__header th.el-table__cell,
 [data-theme='dark'] .table-scroll .el-table__body-header th.el-table__cell {
@@ -953,10 +950,6 @@ html.dark .table-scroll .el-table__body-header th.el-table__cell,
   background: var(--el-table-header-bg-color, #f5f5f5);
   background-clip: padding-box;
 }
-html.dark .layout-main-scroll .el-table__header th.el-table__cell,
-html.dark .page-card .el-table__header th.el-table__cell,
-html.dark .layout-main-scroll .el-table__body-header th.el-table__cell,
-html.dark .page-card .el-table__body-header th.el-table__cell,
 [data-theme='dark'] .layout-main-scroll .el-table__header th.el-table__cell,
 [data-theme='dark'] .page-card .el-table__header th.el-table__cell,
 [data-theme='dark'] .layout-main-scroll .el-table__body-header th.el-table__cell,

@@ -1,9 +1,10 @@
 <template>
-  <div class="global-search">
+  <div class="global-search" title="全局搜索（Ctrl+K）">
     <el-input
       v-model="keyword"
       aria-label="全局搜索"
       placeholder="搜索页面名称或关键词 (Ctrl+K)…"
+      title="全局搜索（Ctrl+K）"
       :prefix-icon="Search"
       clearable
       class="search-input"
