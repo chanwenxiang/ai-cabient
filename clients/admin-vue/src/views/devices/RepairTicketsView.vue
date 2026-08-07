@@ -72,14 +72,14 @@
     </el-form>
 
     <div class="table-scroll">
-      <el-table fit="false" :data="displayRows"
+      <el-table :data="displayRows"
         :default-sort="idDefaultSort"
         @selection-change="onSelectionChange"
         @sort-change="onIdSortChange" v-loading="loading" stripe border class="report-table" empty-text=" ">
         <template #empty><el-empty v-if="listHydrated && !loading" description="暂无维修工单" /></template>
         <el-table-column type="selection" width="46" align="center" />
-        <el-table-column prop="ticketId" label="工单号" width="90" align="center" sortable="custom" />
-        <el-table-column prop="deviceId" label="设备" min-width="130" align="center">
+        <el-table-column prop="ticketId" label="工单号" width="70" align="center" sortable="custom" />
+        <el-table-column prop="deviceId" label="设备" min-width="96" align="center">
           <template #default="{ row }">
             <el-button
               v-if="canAccessPath('/devices')"
@@ -92,37 +92,31 @@
             <span v-else>{{ row.deviceId }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="title" label="标题" min-width="150" show-overflow-tooltip align="center" />
-        <el-table-column prop="faultType" label="故障类型" width="110" align="center">
+        <el-table-column prop="title" label="标题" min-width="110" show-overflow-tooltip align="center" />
+        <el-table-column prop="faultType" label="故障类型" width="80" align="center">
           <template #default="{ row }">{{ faultLabel(row.faultType) }}</template>
         </el-table-column>
-        <el-table-column prop="priority" label="优先级" width="90" align="center">
+        <el-table-column prop="priority" label="优先级" width="64" align="center">
           <template #default="{ row }">{{ priorityLabel(row.priority) }}</template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
+        <el-table-column prop="status" label="状态" width="72" align="center">
           <template #default="{ row }">
             <el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="负责人" width="110" show-overflow-tooltip align="center">
+        <el-table-column label="负责人" width="84" show-overflow-tooltip align="center">
           <template #default="{ row }">{{ row.assignee || '无' }}</template>
         </el-table-column>
-        <el-table-column label="备注" min-width="140" show-overflow-tooltip align="center">
+        <el-table-column label="备注" min-width="96" show-overflow-tooltip align="center">
           <template #default="{ row }">{{ row.remark || '无' }}</template>
         </el-table-column>
-        <el-table-column label="创建人" width="100" align="center">
-          <template #default="{ row }">{{ row.createdBy || '无' }}</template>
-        </el-table-column>
-        <el-table-column label="创建时间" width="170" align="center">
+        <el-table-column label="创建时间" width="124" align="center">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) || '无' }}</template>
         </el-table-column>
-        <el-table-column label="更新时间" width="170" align="center">
-          <template #default="{ row }">{{ formatDateTime(row.updatedAt) || '无' }}</template>
-        </el-table-column>
-        <el-table-column label="关闭时间" width="170" align="center">
+        <el-table-column label="关闭时间" width="104" align="center">
           <template #default="{ row }">{{ formatDateTime(row.closedAt) || '无' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="280" align="center" class-name="col-action">
+        <el-table-column label="操作" width="170" align="center" class-name="col-action">
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">详情</el-button>
             <template v-if="auth.hasPerm('ops:repair:edit')">

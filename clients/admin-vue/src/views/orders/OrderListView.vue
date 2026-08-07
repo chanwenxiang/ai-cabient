@@ -85,7 +85,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table fit="false"
+        <el-table
           v-loading="loading"
           :data="displayItems"
           :default-sort="idDefaultSort"
@@ -103,14 +103,14 @@
             />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="orderId" label="订单号" min-width="168" align="center" sortable="custom">
+          <el-table-column prop="orderId" label="订单号" min-width="140" align="center" sortable="custom">
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="openDetail(row)">
                 <span class="cell-id">{{ row.orderId }}</span>
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="会话" min-width="150" align="center" show-overflow-tooltip>
+          <el-table-column label="会话" min-width="110" align="center" show-overflow-tooltip>
             <template #default="{ row }">
               <button
                 v-if="row.sessionId"
@@ -124,7 +124,7 @@
           <el-table-column label="用户" width="96" align="center">
             <template #default="{ row }">{{ row.userId ?? '无' }}</template>
           </el-table-column>
-          <el-table-column label="设备" min-width="120" align="center">
+          <el-table-column label="设备" min-width="100" align="center">
             <template #default="{ row }">
               <button
                 v-if="row.deviceId"
@@ -135,33 +135,33 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="流水号" min-width="150" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column label="流水号" min-width="110" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="mono">{{ row.payTradeNo || row.paymentOperationId || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="订单状态" width="100" align="center">
+          <el-table-column label="订单状态" width="90" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="orderStatusType(row.status)">
                 {{ dictLabel('order_status', row.status) || row.status || '未知状态' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="支付状态" width="96" align="center">
+          <el-table-column label="支付状态" width="84" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="paymentStatusType(row.status)" effect="plain">
                 {{ paymentStatusLabel(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="退款状态" width="96" align="center">
+          <el-table-column label="退款状态" width="84" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="refundTagType(row.status)" effect="plain">
                 {{ refundColumnLabel(row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="支付渠道" width="100" align="center">
+          <el-table-column label="支付渠道" width="84" align="center">
             <template #default="{ row }">
               <el-tag size="small" effect="plain">
                 {{ dictLabel('pay_channel', row.payChannel) || row.payChannel || '未知渠道' }}
@@ -177,7 +177,7 @@
           </el-table-column>
           <el-table-column
             label="商品"
-            min-width="180"
+            min-width="140"
             align="center"
             class-name="col-goods"
             label-class-name="col-goods"
@@ -208,7 +208,7 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="金额" width="110" align="center">
+          <el-table-column label="金额" width="100" align="center">
             <template #default="{ row }">¥{{ money(row.totalAmountCents) }}</template>
           </el-table-column>
           <el-table-column
@@ -221,12 +221,12 @@
               <span :class="{ 'is-overdue-age': isUnpaidOverdue(row) }">{{ formatOrderAge(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="创建时间" width="172" align="center" show-overflow-tooltip>
+          <el-table-column label="创建时间" width="140" align="center" show-overflow-tooltip>
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="220" align="center" class-name="col-action">
+          <el-table-column label="操作" width="180" align="center" class-name="col-action">
             <template #default="{ row }">
               <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
             </template>
@@ -314,7 +314,7 @@
           </div>
 
           <h4 class="section-title">商品行</h4>
-          <el-table fit="false" :data="detail.lines || detail.items || []" size="small" border empty-text=" ">
+          <el-table :data="detail.lines || detail.items || []" size="small" border empty-text=" ">
             <template #empty>
               <el-empty v-if="!detailLoading" description="无商品行" :image-size="48" />
             </template>

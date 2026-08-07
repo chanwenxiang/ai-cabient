@@ -663,8 +663,8 @@ button, input, textarea, select { font: inherit; }
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll {
   flex: 1 1 auto;
   min-height: 240px;
-  max-height: none;
-  overflow: visible;
+  max-height: min(70vh, calc(100vh - 220px));
+  overflow: auto;
 }
 
 /*
@@ -691,7 +691,7 @@ button, input, textarea, select { font: inherit; }
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__header,
@@ -703,25 +703,25 @@ button, input, textarea, select { font: inherit; }
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: visible;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content > .el-tab-pane,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content > .el-tab-pane {
-  height: auto;
+  height: 100%;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: visible;
+  overflow: auto;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .page-pager,
@@ -799,7 +799,7 @@ button, input, textarea, select { font: inherit; }
   min-width: 0;
   min-height: 240px;
   display: block;
-  overflow: visible;
+  overflow: auto;
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--layout-border);
   border-radius: 8px;
@@ -833,10 +833,6 @@ button, input, textarea, select { font: inherit; }
 }
 
 /* 窄表行仍铺满容器：列宽保持声明值，剩余留白在末列后 */
-.table-scroll .el-table__header table,
-.table-scroll .el-table__body table {
-  min-width: 100%;
-}
 
 .table-scroll .el-table__header-wrapper {
   overflow: visible !important;
