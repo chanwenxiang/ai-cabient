@@ -93,6 +93,7 @@
         <span class="header-hint">当前范围：近 {{ days }} 天</span>
       </div>
       <el-radio-group v-model="days" size="default" @change="onDaysChange">
+        <el-radio-button :value="1">今天</el-radio-button>
         <el-radio-button :value="7">近 7 天</el-radio-button>
         <el-radio-button :value="30">近 30 天</el-radio-button>
         <el-radio-button :value="90">近 90 天</el-radio-button>
@@ -315,7 +316,7 @@ const opsKind = ref<ChartKind>('line');
 
 function parseDays(raw: unknown): number {
   const n = Number(raw);
-  return n === 30 || n === 90 ? n : 7;
+  return n === 1 || n === 7 || n === 30 || n === 90 ? n : 1;
 }
 
 function onDaysChange() {
