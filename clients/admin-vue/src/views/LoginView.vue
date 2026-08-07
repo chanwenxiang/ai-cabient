@@ -139,7 +139,7 @@ import { useAuthStore } from '@/stores/auth';
 import { api } from '@/api/client';
 import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import { safeRedirectPath } from '@/utils/safe-redirect';
-import loginBgUrl from '@/assets/login-bg.svg';
+import loginBgUrl from '@/assets/login-bg-v2.svg';
 
 const phone = ref(localStorage.getItem('admin_phone') || (ENABLE_TEST_TOOLS ? '13900000001' : ''));
 const password = ref(ENABLE_TEST_TOOLS ? '123456' : '');

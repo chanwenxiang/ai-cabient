@@ -311,7 +311,7 @@ async function onLogin() {
   min-height: 100vh;
   overflow-x: hidden;
   overflow-y: hidden;
-  background: #f5c842;
+  background: #0b1220;
 }
 .login-wrap.phone-open {
   overflow-y: auto;
@@ -356,7 +356,7 @@ async function onLogin() {
   right: 6%;
   width: 200rpx;
   height: 200rpx;
-  background: rgba(255, 180, 60, 0.38);
+  background: rgba(45, 212, 191, 0.30);
   animation: orbFloatA 9s ease-in-out infinite;
 }
 .anim-orb-b {
@@ -364,7 +364,7 @@ async function onLogin() {
   left: 4%;
   width: 160rpx;
   height: 160rpx;
-  background: rgba(255, 230, 140, 0.32);
+  background: rgba(56, 189, 248, 0.26);
   animation: orbFloatB 11s ease-in-out infinite;
 }
 .anim-shimmer {
@@ -406,7 +406,7 @@ async function onLogin() {
   bottom: 0;
   height: 48%;
   z-index: 1;
-  background: linear-gradient(180deg, rgba(245, 200, 66, 0) 0%, rgba(255, 247, 231, 0.86) 52%, #fff7e6 100%);
+  background: linear-gradient(180deg, rgba(11, 18, 32, 0) 0%, rgba(11, 18, 32, 0.86) 52%, #0b1220 100%);
 }
 .login-content {
   position: relative;
@@ -425,12 +425,12 @@ async function onLogin() {
   font-size: 56rpx;
   font-weight: 800;
   display: block;
-  color: #5c3d1e;
+  color: #f0fdfa;
   letter-spacing: 2rpx;
 }
 .tagline {
   font-size: 30rpx;
-  color: #7a5a32;
+  color: #a5b4c8;
   display: block;
   margin-top: 10rpx;
 }
@@ -441,15 +441,15 @@ async function onLogin() {
   margin-top: 18rpx;
   padding: 10rpx 22rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(13, 148, 136, 0.18);
 }
 .badge-icon {
-  color: #07c160;
+  color: #2dd4bf;
   font-size: 24rpx;
   font-weight: 700;
 }
 .badge-text {
-  color: #4b5563;
+  color: #cbd5e1;
   font-size: 22rpx;
 }
 .login-spacer {
