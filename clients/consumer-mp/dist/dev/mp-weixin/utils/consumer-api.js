@@ -5,9 +5,9 @@ const BASE_URL = config_api.API_BASE_URL;
 function formatRequestError(errMsg, path) {
   const raw = errMsg || "网络错误";
   if (raw === "request:fail" || raw.includes("request:fail")) {
-    return `无法连接服务器 ${BASE_URL}${path}。请确认 trade-service 已启动，并在微信开发者工具勾选「不校验合法域名」`;
+    return "网络不太稳定，请稍后再试。开发调试时可在微信开发者工具勾选「不校验合法域名」";
   }
-  return raw;
+  return common_vendor.localizeApiMessage(raw);
 }
 const TOKEN_KEY = "consumer_token";
 const USER_KEY = "consumer_user_id";
@@ -25,6 +25,7 @@ function clearConsumerSession() {
   common_vendor.index.removeStorageSync("consumer_server_boot");
   common_vendor.index.removeStorageSync("active_session_id");
   common_vendor.index.removeStorageSync(OPEN_ATTEMPT_KEY);
+  common_vendor.clearDictOverrides();
 }
 function randomId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`;
@@ -32,8 +33,7 @@ function randomId() {
 function getOrCreateOpenAttempt(deviceId) {
   const normalized = deviceId.trim().toUpperCase();
   const saved = common_vendor.index.getStorageSync(OPEN_ATTEMPT_KEY);
-  if (saved && saved.deviceId === normalized && saved.idempotencyKey)
-    return saved;
+  if (saved && saved.deviceId === normalized && saved.idempotencyKey) return saved;
   const attempt = { deviceId: normalized, idempotencyKey: `consumer-open-${randomId()}`, createdAt: Date.now() };
   common_vendor.index.setStorageSync(OPEN_ATTEMPT_KEY, attempt);
   return attempt;
@@ -49,12 +49,11 @@ function applyTokenSession(data) {
   if (data.serverBootEpoch != null) {
     common_vendor.index.setStorageSync("consumer_server_boot", data.serverBootEpoch);
   }
+  void "./dict-runtime.js".then((m) => m.loadRuntimeDict());
 }
 async function refreshTokenSilently() {
-  if (!getConsumerToken())
-    return false;
-  if (refreshInFlight)
-    return refreshInFlight;
+  if (!getConsumerToken()) return false;
+  if (refreshInFlight) return refreshInFlight;
   const pending = new Promise((resolve, reject) => {
     common_vendor.index.request({
       url: BASE_URL + "/api/v2/auth/refresh",
@@ -70,7 +69,7 @@ async function refreshTokenSilently() {
         reject(new Error("登录已失效"));
       },
       fail(err) {
-        reject(new Error(formatRequestError(err.errMsg, "/api/v2/auth/refresh")));
+        reject(new Error(formatRequestError(err.errMsg)));
       }
     });
   }).finally(() => {
@@ -82,14 +81,10 @@ async function refreshTokenSilently() {
 async function get(path, auth = true) {
   return { data: await request(path, "GET", void 0, auth) };
 }
-async function post(path, data, auth = true) {
-  return { data: await request(path, "POST", data, auth) };
-}
 function request(path, method = "GET", data, auth = true, retried = false) {
   return new Promise((resolve, reject) => {
     const header = { "Content-Type": "application/json" };
-    if (auth && getConsumerToken())
-      header.Authorization = "Bearer " + getConsumerToken();
+    if (auth && getConsumerToken()) header.Authorization = "Bearer " + getConsumerToken();
     common_vendor.index.request({
       url: BASE_URL + path,
       method,
@@ -110,35 +105,83 @@ function request(path, method = "GET", data, auth = true, retried = false) {
         }
         if (res.statusCode === 401 || res.statusCode === 403) {
           clearConsumerSession();
-          reject(new Error((body == null ? void 0 : body.message) || "登录已失效"));
+          reject(new Error(common_vendor.localizeApiMessage(body == null ? void 0 : body.message, "登录已失效")));
           return;
         }
         if (res.statusCode >= 200 && res.statusCode < 300 && (body == null ? void 0 : body.code) === 0) {
           resolve(body.data);
           return;
         }
-        reject(new Error((body == null ? void 0 : body.message) || `请求失败 (${res.statusCode})`));
+        const err = new Error(
+          common_vendor.localizeApiMessage(body == null ? void 0 : body.message, `请求失败 (${res.statusCode})`)
+        );
+        err.status = res.statusCode;
+        reject(err);
       },
       fail(err) {
-        reject(new Error(formatRequestError(err.errMsg, path)));
+        reject(new Error(formatRequestError(err.errMsg)));
+      }
+    });
+  });
+}
+function uploadDisputeEvidenceFile(filePath) {
+  return new Promise((resolve, reject) => {
+    if (!getConsumerToken()) {
+      reject(new Error("请先登录"));
+      return;
+    }
+    common_vendor.index.uploadFile({
+      url: BASE_URL + "/api/v2/disputes/evidence",
+      filePath,
+      name: "file",
+      header: { Authorization: "Bearer " + getConsumerToken() },
+      timeout: 3e4,
+      success(res) {
+        try {
+          const body = JSON.parse(String(res.data || "{}"));
+          if (res.statusCode >= 200 && res.statusCode < 300 && (body == null ? void 0 : body.code) === 0 && body.data) {
+            resolve(body.data);
+            return;
+          }
+          reject(new Error(common_vendor.localizeApiMessage(body == null ? void 0 : body.message, `上传失败 (${res.statusCode})`)));
+        } catch {
+          reject(new Error("上传响应解析失败"));
+        }
+      },
+      fail(err) {
+        reject(new Error(formatRequestError(err.errMsg)));
       }
     });
   });
 }
 async function bootstrapConsumerSession() {
-  if (!getConsumerToken())
-    return false;
+  if (!getConsumerToken()) return false;
+  let bootEpoch;
   try {
     const boot = await request("/api/v2/auth/server-boot", "GET", void 0, false);
-    const saved = common_vendor.index.getStorageSync("consumer_server_boot");
-    if (saved && boot.serverBootEpoch != null && String(saved) !== String(boot.serverBootEpoch)) {
+    bootEpoch = boot.serverBootEpoch;
+  } catch {
+    return !!getConsumerToken();
+  }
+  const saved = common_vendor.index.getStorageSync("consumer_server_boot");
+  if (saved !== "" && saved != null && bootEpoch != null && String(saved) !== String(bootEpoch)) {
+    clearConsumerSession();
+    return false;
+  }
+  try {
+    const ok = await refreshTokenSilently();
+    if (ok && bootEpoch != null) {
+      common_vendor.index.setStorageSync("consumer_server_boot", bootEpoch);
+    }
+    return ok;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const authFail = msg.includes("登录已失效") || /401|403/.test(msg);
+    if (authFail) {
       clearConsumerSession();
       return false;
     }
-    return await refreshTokenSilently();
-  } catch {
-    clearConsumerSession();
-    return false;
+    return !!getConsumerToken();
   }
 }
 function consumerPasswordLogin(phone, password) {
@@ -171,10 +214,8 @@ function wxLoginCode() {
     common_vendor.index.login({
       provider: "weixin",
       success(res) {
-        if (res.code)
-          resolve(res.code);
-        else
-          reject(new Error("微信授权失败"));
+        if (res.code) resolve(res.code);
+        else reject(new Error("微信授权失败"));
       },
       fail(err) {
         reject(new Error(err.errMsg || "微信授权失败"));
@@ -185,8 +226,7 @@ function wxLoginCode() {
 async function ensureConsumerAuth() {
   if (getConsumerToken()) {
     const ok = await bootstrapConsumerSession();
-    if (ok)
-      return true;
+    if (ok) return true;
   }
   try {
     const code = await wxLoginCode();
@@ -196,16 +236,32 @@ async function ensureConsumerAuth() {
     return false;
   }
 }
-function requireConsumerAuth(message = "请先完成微信授权") {
+function currentPagePath() {
+  try {
+    const pages = getCurrentPages();
+    const cur = pages[pages.length - 1];
+    if (!(cur == null ? void 0 : cur.route)) return "/pages/index/index";
+    const base = "/" + cur.route;
+    const opts = cur.options || {};
+    const qs = Object.keys(opts).filter((k) => opts[k] != null && opts[k] !== "").map((k) => `${encodeURIComponent(k)}=${encodeURIComponent(String(opts[k]))}`).join("&");
+    return qs ? `${base}?${qs}` : base;
+  } catch {
+    return "/pages/index/index";
+  }
+}
+function requireConsumerAuth(message = "请先完成微信授权", redirect) {
   return ensureConsumerAuth().then((ok) => {
     if (!ok) {
+      const target = redirect || currentPagePath();
       common_vendor.index.showModal({
         title: "需要授权",
         content: message,
         confirmText: "去验证",
         success(res) {
           if (res.confirm) {
-            common_vendor.index.navigateTo({ url: "/pages/login/login" });
+            common_vendor.index.navigateTo({
+              url: "/pages/login/login?redirect=" + encodeURIComponent(target)
+            });
           }
         }
       });
@@ -235,31 +291,38 @@ const consumerApi = {
     `/api/v2/payment/recharge/${encodeURIComponent(orderId)}/mock-success`,
     "POST"
   ),
+  cancelRecharge: (orderId) => request(
+    `/api/v2/payment/recharge/${encodeURIComponent(orderId)}/cancel`,
+    "POST"
+  ),
   balanceTransactions: (page = 0, size = 20) => request(
     `/api/v2/account/transactions?page=${page}&size=${size}`
   ),
   verifyIdentity: (body) => request("/api/v2/account/verify", "POST", body),
   signPayScore: () => request("/api/v2/account/payscore/sign", "POST"),
+  signAlipayAgreement: () => request("/api/v2/account/alipay-agreement/sign", "POST"),
   deviceStatus: (deviceId) => request(
     `/api/v2/devices/${encodeURIComponent(deviceId)}/status`
   ),
   deviceProducts: (deviceId) => request(
     `/api/v2/devices/${encodeURIComponent(deviceId)}/products`
   ),
-  createSession: async (deviceId) => {
+  createSession: async (deviceId, entryChannel) => {
     const attempt = getOrCreateOpenAttempt(deviceId);
+    const body = {
+      deviceId: attempt.deviceId,
+      idempotencyKey: attempt.idempotencyKey
+    };
+    const channel = String(entryChannel || "").trim().toUpperCase();
+    if (channel === "WECHAT" || channel === "ALIPAY") {
+      body.entryChannel = channel;
+    }
     try {
-      return await request("/api/v2/sessions", "POST", {
-        deviceId: attempt.deviceId,
-        idempotencyKey: attempt.idempotencyKey
-      });
+      return await request("/api/v2/sessions", "POST", body);
     } catch (firstError) {
       await new Promise((resolve) => setTimeout(resolve, 600));
       try {
-        return await request("/api/v2/sessions", "POST", {
-          deviceId: attempt.deviceId,
-          idempotencyKey: attempt.idempotencyKey
-        });
+        return await request("/api/v2/sessions", "POST", body);
       } catch {
         throw firstError;
       }
@@ -276,11 +339,46 @@ const consumerApi = {
   getOrder: (orderId) => request(`/api/v2/orders/${orderId}`),
   fileDispute: (body) => request("/api/v2/disputes", "POST", body),
   listMyDisputes: () => request("/api/v2/disputes/mine"),
+  getMyDispute: (opts) => {
+    const q = [
+      opts.ticketId ? `ticketId=${encodeURIComponent(opts.ticketId)}` : "",
+      opts.sessionId ? `sessionId=${encodeURIComponent(opts.sessionId)}` : ""
+    ].filter(Boolean).join("&");
+    return request(
+      `/api/v2/disputes/mine/detail${q ? `?${q}` : ""}`
+    );
+  },
+  uploadDisputeEvidence: (filePath) => uploadDisputeEvidenceFile(filePath),
+  refundOrder: (orderId, body) => request(
+    `/api/v2/orders/${encodeURIComponent(orderId)}/refund`,
+    "POST",
+    body
+  ),
   consumerPublicConfig: () => request("/api/v2/public/consumer-config", "GET", null, false),
   reportDeviceFault: (deviceId, body) => request(
     `/api/v2/devices/${encodeURIComponent(deviceId)}/fault-report`,
     "POST",
     body
+  ),
+  submitFeedback: (body) => request("/api/v2/feedback", "POST", body),
+  listMyFeedback: () => request("/api/v2/feedback/mine"),
+  memberProfile: () => request("/api/v2/member/profile"),
+  marketingBanners: () => request("/api/v2/marketing/banners", "GET", void 0, false),
+  marketingCampaigns: () => request("/api/v2/marketing/campaigns/active", "GET", void 0, false),
+  claimCampaign: (activityId) => request(`/api/v2/marketing/campaigns/${activityId}/claim`, "POST"),
+  myCoupons: (status) => request(status ? `/api/v2/coupons?status=${encodeURIComponent(status)}` : "/api/v2/coupons"),
+  couponCount: () => request("/api/v2/coupons/count"),
+  listAnnouncements: () => request(
+    "/api/v2/announcements",
+    "GET",
+    void 0,
+    false
+  ),
+  getAnnouncement: (id) => request(
+    `/api/v2/announcements/${id}`,
+    "GET",
+    void 0,
+    false
   )
 };
 exports.clearConsumerSession = clearConsumerSession;
@@ -292,6 +390,6 @@ exports.consumerWxLogin = consumerWxLogin;
 exports.ensureConsumerAuth = ensureConsumerAuth;
 exports.get = get;
 exports.getConsumerToken = getConsumerToken;
-exports.post = post;
+exports.request = request;
 exports.requireConsumerAuth = requireConsumerAuth;
 exports.sendSmsCode = sendSmsCode;

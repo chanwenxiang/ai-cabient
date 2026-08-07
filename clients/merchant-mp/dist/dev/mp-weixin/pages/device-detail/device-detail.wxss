@@ -1,15 +1,44 @@
 
 .title.data-v-ec644104 { font-size: 32rpx; font-weight: 600; display: block;
 }
+.locked-banner.data-v-ec644104 {
+  display: block;
+  margin-top: 12rpx;
+  padding: 12rpx 16rpx;
+  border-radius: 12rpx;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 24rpx;
+  line-height: 1.4;
+}
 .section.data-v-ec644104 { font-weight: 600;
 }
 .row.data-v-ec644104 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx;
+}
+.pref-row.data-v-ec644104 {
+  margin-top: 16rpx;
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  font-size: 26rpx;
+  color: #0f766e;
+}
+.pref-star.data-v-ec644104 { color: #cbd5e1; font-size: 32rpx;
+}
+.pref-star.on.data-v-ec644104 { color: #f59e0b;
 }
 .input.data-v-ec644104 { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin: 8px 0;
 }
 .input-sm.data-v-ec644104 { width: 100%; font-size: 22rpx; margin-top: 4rpx; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px;
 }
 .slot-code.data-v-ec644104 { font-weight: 600; display: block;
+}
+.action-row.data-v-ec644104 {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+.action-btn.data-v-ec644104 { flex: 1; margin-top: 0;
 }
 .err.data-v-ec644104 { color: #ef4444;
 }

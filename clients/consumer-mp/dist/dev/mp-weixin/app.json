@@ -7,9 +7,16 @@
     "pages/login/login",
     "pages/result/result",
     "pages/report/report",
+    "pages/feedback/feedback",
     "pages/recharge/recharge",
     "pages/order-detail/order-detail",
-    "pages/coupons/coupons"
+    "pages/coupons/coupons",
+    "pages/member/index",
+    "pages/marketing/index",
+    "pages/dispute/detail",
+    "pages/help/help",
+    "pages/announcements/announcements",
+    "pages/announcements/detail"
   ],
   "window": {
     "navigationBarTextStyle": "black",
@@ -19,7 +26,7 @@
   },
   "tabBar": {
     "color": "#888888",
-    "selectedColor": "#07c160",
+    "selectedColor": "#059669",
     "backgroundColor": "#ffffff",
     "borderStyle": "black",
     "list": [

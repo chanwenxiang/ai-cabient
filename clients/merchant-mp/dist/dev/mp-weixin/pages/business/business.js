@@ -1,39 +1,105 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
 const utils_merchantApi = require("../../utils/merchant-api.js");
+const composables_useMerchantMe = require("../../composables/useMerchantMe.js");
 const _sfc_main = /* @__PURE__ */ common_vendor.defineComponent({
   __name: "business",
   setup(__props) {
+    const { me, refresh: refreshMe } = composables_useMerchantMe.useMerchantMe();
+    const canViewBusiness = common_vendor.computed(
+      () => utils_merchantApi.hasPerm(me.value, "merchant:reports:view") || utils_merchantApi.hasPerm(me.value, "merchant:analytics:view")
+    );
+    const canExport = common_vendor.computed(() => utils_merchantApi.hasPerm(me.value, "merchant:reports:export"));
     const periods = [7, 30, 90];
     const days = common_vendor.ref(30);
     const loading = common_vendor.ref(true);
     const error = common_vendor.ref("");
+    let loadSeq = 0;
     const analytics = common_vendor.ref({ days: 30, revenueCents: 0, cogsCents: 0, grossMarginCents: 0, writeOffCostCents: 0, topSkus: [] });
     const settlement = common_vendor.ref({ pendingAmountCents: 0, pendingSplitCount: 0, settledMonthCents: 0, failedSplitCount: 0 });
-    const marginRate = common_vendor.computed(() => analytics.value.revenueCents ? `${(analytics.value.grossMarginCents / analytics.value.revenueCents * 100).toFixed(1)}%` : "—");
+    const marginRate = common_vendor.computed(() => analytics.value.revenueCents ? `${(analytics.value.grossMarginCents / analytics.value.revenueCents * 100).toFixed(1)}%` : "暂无");
     const money = (cents = 0) => `¥${(cents / 100).toFixed(2)}`;
     function skuMarginRate(sku) {
-      return sku.revenueCents ? `${(sku.grossMarginCents / sku.revenueCents * 100).toFixed(1)}%` : "—";
+      return sku.revenueCents ? `${(sku.grossMarginCents / sku.revenueCents * 100).toFixed(1)}%` : "暂无";
     }
-    async function load() {
-      loading.value = true;
+    async function ensureAccess() {
+      if (!utils_merchantApi.getToken()) {
+        common_vendor.index.reLaunch({ url: "/pages/login/login" });
+        return false;
+      }
+      try {
+        await refreshMe();
+      } catch {
+        if (!utils_merchantApi.getToken()) return false;
+        me.value = common_vendor.index.getStorageSync("merchant_me") || null;
+      }
+      if (!canViewBusiness.value) {
+        loading.value = false;
+        common_vendor.index.showToast({ title: "无经营分析权限", icon: "none" });
+        common_vendor.index.navigateBack({ fail: () => common_vendor.index.switchTab({ url: "/pages/home/home" }) });
+        return false;
+      }
+      return true;
+    }
+    async function load(soft = false) {
+      var _a;
+      const seq = ++loadSeq;
+      if (!await ensureAccess()) {
+        if (seq === loadSeq) loading.value = false;
+        return;
+      }
+      if (seq !== loadSeq) return;
+      if (!soft || !((_a = analytics.value.topSkus) == null ? void 0 : _a.length)) loading.value = true;
       error.value = "";
       try {
-        [analytics.value, settlement.value] = await Promise.all([utils_merchantApi.merchantApi.analytics(days.value), utils_merchantApi.merchantApi.settlements()]);
+        const [a, s] = await Promise.all([
+          utils_merchantApi.merchantApi.analytics(days.value).catch(() => null),
+          utils_merchantApi.merchantApi.settlements().catch(() => null)
+        ]);
+        if (seq !== loadSeq) return;
+        if (!a && !s) {
+          error.value = "经营数据加载失败";
+          return;
+        }
+        analytics.value = a || analytics.value;
+        settlement.value = s || settlement.value;
       } catch (e) {
+        if (seq !== loadSeq) return;
         error.value = e instanceof Error ? e.message : "加载失败";
       } finally {
-        loading.value = false;
+        if (seq === loadSeq) loading.value = false;
       }
     }
     function changeDays(value) {
-      if (days.value === value)
-        return;
+      if (days.value === value) return;
       days.value = value;
-      load();
+      void load(true);
     }
-    common_vendor.onLoad(load);
-    common_vendor.onPullDownRefresh(() => load().finally(() => common_vendor.index.stopPullDownRefresh()));
+    function goFailedSplits() {
+      if (!utils_merchantApi.hasPerm(me.value, "merchant:splits:list")) {
+        common_vendor.index.showToast({ title: "无分账明细权限", icon: "none" });
+        return;
+      }
+      common_vendor.index.navigateTo({ url: "/pages/splits/splits?status=FAILED" });
+    }
+    function onExport() {
+      if (!canExport.value) {
+        common_vendor.index.showToast({ title: "无导出权限", icon: "none" });
+        return;
+      }
+      const url = utils_merchantApi.merchantApi.exportDeviceReportsUrl();
+      void utils_merchantApi.downloadAuthedFile(url).then(async (tempFilePath) => {
+        await utils_merchantApi.openExportedFile(tempFilePath, `device-reports-${days.value}d.xlsx`);
+        common_vendor.index.showToast({ title: "导出成功", icon: "success" });
+      }).catch((e) => {
+        common_vendor.index.showToast({ title: e instanceof Error ? e.message : "导出失败", icon: "none" });
+      });
+    }
+    common_vendor.onLoad(() => void load(false));
+    common_vendor.onShow(() => {
+      if (!loading.value) void load(true);
+    });
+    common_vendor.onPullDownRefresh(() => load(false).finally(() => common_vendor.index.stopPullDownRefresh()));
     return (_ctx, _cache) => {
       var _a, _b, _c;
       return common_vendor.e({
@@ -71,7 +137,12 @@ const _sfc_main = /* @__PURE__ */ common_vendor.defineComponent({
       }, !((_c = analytics.value.topSkus) == null ? void 0 : _c.length) ? {} : {}, {
         o: settlement.value.failedSplitCount
       }, settlement.value.failedSplitCount ? {
-        p: common_vendor.t(settlement.value.failedSplitCount)
+        p: common_vendor.t(settlement.value.failedSplitCount),
+        q: common_vendor.o(goFailedSplits)
+      } : {}, {
+        r: canExport.value
+      }, canExport.value ? {
+        s: common_vendor.o(onExport)
       } : {}), {
         c: error.value
       });

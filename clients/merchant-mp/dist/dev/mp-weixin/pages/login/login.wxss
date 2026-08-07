@@ -99,11 +99,11 @@ to { transform: scale(1.045) translateY(-10rpx);
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 0 32rpx calc(32rpx + env(safe-area-inset-bottom));
+  padding: calc(48rpx + env(safe-area-inset-top)) 32rpx calc(32rpx + env(safe-area-inset-bottom));
 }
 .hero.data-v-cdfe2409 {
   flex-shrink: 0;
-  padding-top: 48rpx;
+  padding-top: 0;
   text-align: center;
 }
 .brand.data-v-cdfe2409 {
@@ -201,6 +201,10 @@ to { transform: scale(1.045) translateY(-10rpx);
   font-size: 30rpx;
   font-weight: 600;
   box-shadow: 0 10rpx 28rpx rgba(15, 118, 110, 0.28);
+}
+.btn-primary.disabled.data-v-cdfe2409 {
+  opacity: 0.55;
+  pointer-events: none;
 }
 .err.data-v-cdfe2409 {
   color: #ef4444;

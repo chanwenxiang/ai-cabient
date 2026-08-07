@@ -6,11 +6,20 @@
     "pages/device-detail/device-detail",
     "pages/pricing/pricing",
     "pages/replenishment/replenishment",
+    "pages/request/request",
     "pages/business/business",
     "pages/alerts/alerts",
     "pages/mine/mine",
     "pages/settlements/settlements",
-    "pages/disputes/disputes"
+    "pages/disputes/disputes",
+    "pages/orders/orders",
+    "pages/order-detail/order-detail",
+    "pages/announcements/announcements",
+    "pages/announcements/detail",
+    "pages/team/team",
+    "pages/splits/splits",
+    "pages/wallet/wallet",
+    "pages/line-wallet/line-wallet"
   ],
   "window": {
     "navigationBarTextStyle": "white",
@@ -25,7 +34,7 @@
     "list": [
       {
         "pagePath": "pages/home/home",
-        "text": "概览",
+        "text": "工作台",
         "iconPath": "static/tab/home.png",
         "selectedIconPath": "static/tab/home-active.png"
       },

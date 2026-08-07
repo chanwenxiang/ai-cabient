@@ -1,6 +1,10 @@
 "use strict";
 const common_vendor = require("../../common/vendor.js");
 const utils_consumerApi = require("../../utils/consumer-api.js");
+if (!Array) {
+  const _component_empty_state = common_vendor.resolveComponent("empty-state");
+  _component_empty_state();
+}
 const _sfc_main = /* @__PURE__ */ common_vendor.defineComponent({
   __name: "coupons",
   setup(__props) {
@@ -12,29 +16,49 @@ const _sfc_main = /* @__PURE__ */ common_vendor.defineComponent({
     ];
     const activeTab = common_vendor.ref("");
     const loading = common_vendor.ref(false);
+    const loadError = common_vendor.ref("");
     const list = common_vendor.ref([]);
-    common_vendor.onShow(() => load());
+    const emptyTitle = common_vendor.computed(() => {
+      if (activeTab.value === "UNUSED") return "暂无未使用优惠券";
+      if (activeTab.value === "USED") return "暂无已使用优惠券";
+      if (activeTab.value === "EXPIRED") return "暂无已过期优惠券";
+      return "暂无优惠券";
+    });
+    const emptyHint = common_vendor.computed(
+      () => activeTab.value ? "可切换状态再试，或去热门活动领券" : "可先去逛逛热门活动，或扫码购物后领取优惠券"
+    );
+    common_vendor.onShow(async () => {
+      if (!await utils_consumerApi.ensureConsumerAuth()) {
+        common_vendor.index.navigateTo({ url: "/pages/login/login?redirect=" + encodeURIComponent("/pages/coupons/coupons") });
+        return;
+      }
+      await load();
+    });
     common_vendor.watch(activeTab, () => load());
     async function load() {
       loading.value = true;
+      loadError.value = "";
       try {
-        const params = activeTab.value ? `?status=${activeTab.value}` : "";
-        const res = await utils_consumerApi.get("/api/v2/coupons" + params);
-        list.value = res.data ?? [];
-      } catch {
+        list.value = await utils_consumerApi.consumerApi.myCoupons(activeTab.value || void 0);
+      } catch (e) {
         list.value = [];
+        loadError.value = (e == null ? void 0 : e.message) || "加载失败";
+        common_vendor.index.showToast({ title: loadError.value, icon: "none" });
       } finally {
         loading.value = false;
       }
     }
     function typeText(t) {
-      const map = { AMOUNT_OFF: "满减券", PERCENT_OFF: "折扣券", FREE_SHIPPING: "免运费", EXCHANGE: "兑换券" };
-      return map[t] || t;
+      return common_vendor.displayLabel("coupon_type", t, "优惠券");
     }
     function formatTime(t) {
-      if (!t)
-        return "";
-      return t.substring(0, 10);
+      return common_vendor.formatDateTimeMinute(t, "暂无").slice(0, 10);
+    }
+    function goShop() {
+      common_vendor.index.switchTab({ url: "/pages/index/index" });
+    }
+    function goMarketing() {
+      common_vendor.index.navigateTo({ url: "/pages/marketing/index" });
     }
     return (_ctx, _cache) => {
       return common_vendor.e({
@@ -47,15 +71,30 @@ const _sfc_main = /* @__PURE__ */ common_vendor.defineComponent({
           };
         }),
         b: loading.value
-      }, loading.value ? {} : !list.value.length ? {} : {
-        d: common_vendor.f(list.value, (c, k0, i0) => {
+      }, loading.value ? {} : loadError.value ? {
+        d: common_vendor.o(load),
+        e: common_vendor.p({
+          icon: "!",
+          title: "优惠券加载失败",
+          hint: loadError.value
+        })
+      } : !list.value.length ? {
+        g: common_vendor.o(goShop),
+        h: common_vendor.o(goMarketing),
+        i: common_vendor.p({
+          icon: "券",
+          title: emptyTitle.value,
+          hint: emptyHint.value
+        })
+      } : {
+        j: common_vendor.f(list.value, (c, k0, i0) => {
           return common_vendor.e({
-            a: common_vendor.t((c.denominationCents / 100).toFixed(0)),
+            a: common_vendor.t(common_vendor.unref(common_vendor.fmtMoney)(c.denominationCents)),
             b: common_vendor.t(typeText(c.couponType)),
             c: common_vendor.t(c.couponName),
             d: c.minSpendCents > 0
           }, c.minSpendCents > 0 ? {
-            e: common_vendor.t((c.minSpendCents / 100).toFixed(0))
+            e: common_vendor.t(common_vendor.unref(common_vendor.fmtMoney)(c.minSpendCents))
           } : {}, {
             f: common_vendor.t(formatTime(c.expireAt)),
             g: c.status === "USED"
@@ -67,7 +106,8 @@ const _sfc_main = /* @__PURE__ */ common_vendor.defineComponent({
           });
         })
       }, {
-        c: !list.value.length
+        c: loadError.value,
+        f: !list.value.length
       });
     };
   }

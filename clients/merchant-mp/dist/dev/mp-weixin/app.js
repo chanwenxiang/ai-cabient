@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, Symbol.toStringTag, { value: "Module" });
 const common_vendor = require("./common/vendor.js");
+const utils_dictRuntime = require("./utils/dict-runtime.js");
 if (!Math) {
   "./pages/login/login.js";
   "./pages/home/home.js";
@@ -8,18 +9,27 @@ if (!Math) {
   "./pages/device-detail/device-detail.js";
   "./pages/pricing/pricing.js";
   "./pages/replenishment/replenishment.js";
+  "./pages/request/request.js";
   "./pages/business/business.js";
   "./pages/alerts/alerts.js";
   "./pages/mine/mine.js";
   "./pages/settlements/settlements.js";
   "./pages/disputes/disputes.js";
+  "./pages/orders/orders.js";
+  "./pages/order-detail/order-detail.js";
+  "./pages/announcements/announcements.js";
+  "./pages/announcements/detail.js";
+  "./pages/team/team.js";
+  "./pages/splits/splits.js";
+  "./pages/wallet/wallet.js";
+  "./pages/line-wallet/line-wallet.js";
 }
 const _sfc_main = /* @__PURE__ */ common_vendor.defineComponent({
   __name: "App",
   setup(__props) {
     common_vendor.onLaunch(() => {
-      if (!common_vendor.index.getStorageSync("merchant_token"))
-        return;
+      if (!common_vendor.index.getStorageSync("merchant_token")) return;
+      void utils_dictRuntime.loadRuntimeDict();
     });
     return () => {
     };

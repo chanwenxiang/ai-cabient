@@ -1,5 +1,7 @@
 {
   "navigationBarTitleText": "待办",
   "enablePullDownRefresh": true,
-  "usingComponents": {}
+  "usingComponents": {
+    "empty-state": "../../components/empty-state"
+  }
 }

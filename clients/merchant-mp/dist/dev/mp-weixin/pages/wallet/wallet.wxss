@@ -1,0 +1,57 @@
+
+.summary-card.data-v-22d1a5ac, .action-card.data-v-22d1a5ac, .section.data-v-22d1a5ac {
+  background: #fff;
+  border-radius: var(--card-radius, 22rpx);
+  padding: 28rpx;
+  margin-bottom: 20rpx;
+  border: 1rpx solid var(--card-border, #e2e8f0);
+}
+.role-tag.data-v-22d1a5ac { font-size: 22rpx; color: var(--brand, #0f766e); font-weight: 600;
+}
+.name.data-v-22d1a5ac { display: block; margin-top: 8rpx; color: var(--text-muted, #64748b); font-size: 24rpx;
+}
+.bal-row.data-v-22d1a5ac { display: flex; justify-content: space-between; align-items: baseline; margin-top: 24rpx;
+}
+.bal-label.data-v-22d1a5ac { color: var(--text-muted, #64748b);
+}
+.bal-value.data-v-22d1a5ac { font-size: 48rpx; font-weight: 700; color: #0f172a;
+}
+.bal-sub.data-v-22d1a5ac { display: flex; gap: 24rpx; margin-top: 12rpx; color: var(--text-subtle, #94a3b8); font-size: 22rpx;
+}
+.amount-input.data-v-22d1a5ac {
+  width: 100%;
+  background: #f8fafc;
+  border: 1rpx solid #e2e8f0;
+  border-radius: 16rpx;
+  padding: 20rpx;
+  margin-bottom: 16rpx;
+  box-sizing: border-box;
+}
+.tip.data-v-22d1a5ac { display: block; margin-top: 12rpx; font-size: 22rpx; color: var(--text-subtle, #94a3b8); line-height: 1.45;
+}
+.section-title.data-v-22d1a5ac { font-weight: 600; margin-bottom: 12rpx; display: block;
+}
+.row-item.data-v-22d1a5ac { padding: 16rpx 0; border-bottom: 1rpx solid #f1f5f9;
+}
+.row-main.data-v-22d1a5ac { display: flex; justify-content: space-between; gap: 16rpx; font-size: 28rpx;
+}
+.row-sub.data-v-22d1a5ac { font-size: 22rpx; color: var(--text-subtle, #94a3b8); margin-top: 4rpx; display: block;
+}
+.status.data-v-22d1a5ac { color: var(--brand, #0f766e); font-weight: 500;
+}
+.credit.data-v-22d1a5ac { color: #059669; font-weight: 600;
+}
+.debit.data-v-22d1a5ac { color: #b91c1c; font-weight: 600;
+}
+.banner-err.data-v-22d1a5ac {
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 16rpx 20rpx;
+  border-radius: 12rpx;
+  margin-bottom: 16rpx;
+  font-size: 26rpx;
+}
+.banner-retry.data-v-22d1a5ac { margin-left: 16rpx; text-decoration: underline;
+}
+.loading-inline.data-v-22d1a5ac { text-align: center; color: var(--text-subtle, #94a3b8); padding: 40rpx;
+}

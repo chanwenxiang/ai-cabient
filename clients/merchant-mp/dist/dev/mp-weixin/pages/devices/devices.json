@@ -1,5 +1,7 @@
 {
   "navigationBarTitleText": "柜机",
   "enablePullDownRefresh": true,
-  "usingComponents": {}
+  "usingComponents": {
+    "empty-state": "../../components/empty-state"
+  }
 }

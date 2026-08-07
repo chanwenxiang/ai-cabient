@@ -50,7 +50,6 @@
 import { computed, ref, watch } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import EmptyState from '@/components/empty-state.vue';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
 import { formatDateTimeMinute, fmtMoney } from '@aicabinet/shared-uni/format';
 

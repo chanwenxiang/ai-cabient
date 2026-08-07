@@ -7,17 +7,21 @@ const LOCAL_SKU_IMAGES = {
   "SKU-MILK-001": "/static/sku/milk.png",
   "SKU-NOODLE-001": "/static/sku/noodle.png"
 };
-const CATEGORY_EMOJI = {
-  饮料: "🥤",
-  零食: "🍟",
-  乳品: "🥛",
-  方便食品: "🍜"
+const CATEGORY_GLYPH = {
+  饮料: "饮",
+  零食: "零",
+  乳品: "乳",
+  方便食品: "面"
 };
 function productThumb(p) {
   return LOCAL_SKU_IMAGES[p.skuId] || "";
 }
-function productEmoji(p) {
-  return CATEGORY_EMOJI[p.category || ""] || "🛒";
+function productGlyph(p) {
+  const fromCat = CATEGORY_GLYPH[p.category || ""];
+  if (fromCat) return fromCat;
+  const name = String(p.skuName || "").trim();
+  if (name) return name.slice(0, 1);
+  return "品";
 }
-exports.productEmoji = productEmoji;
+exports.productGlyph = productGlyph;
 exports.productThumb = productThumb;

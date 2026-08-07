@@ -727,8 +727,8 @@ function promisify$1(name, fn) {
     if (hasCallback(args)) {
       return wrapperReturnValue(name, invokeApi(name, fn, args, rest));
     }
-    return wrapperReturnValue(name, handlePromise(new Promise((resolve, reject) => {
-      invokeApi(name, fn, extend(args, { success: resolve, fail: reject }), rest);
+    return wrapperReturnValue(name, handlePromise(new Promise((resolve2, reject) => {
+      invokeApi(name, fn, extend(args, { success: resolve2, fail: reject }), rest);
     })));
   };
 }
@@ -1004,7 +1004,7 @@ function invokeGetPushCidCallbacks(cid2, errMsg) {
   getPushCidCallbacks.length = 0;
 }
 const API_GET_PUSH_CLIENT_ID = "getPushClientId";
-const getPushClientId = defineAsyncApi(API_GET_PUSH_CLIENT_ID, (_, { resolve, reject }) => {
+const getPushClientId = defineAsyncApi(API_GET_PUSH_CLIENT_ID, (_, { resolve: resolve2, reject }) => {
   Promise.resolve().then(() => {
     if (typeof enabled === "undefined") {
       enabled = false;
@@ -1013,7 +1013,7 @@ const getPushClientId = defineAsyncApi(API_GET_PUSH_CLIENT_ID, (_, { resolve, re
     }
     getPushCidCallbacks.push((cid2, errMsg) => {
       if (cid2) {
-        resolve({ cid: cid2 });
+        resolve2({ cid: cid2 });
       } else {
         reject(errMsg);
       }
@@ -1078,9 +1078,9 @@ function promisify(name, api) {
     if (isFunction(options.success) || isFunction(options.fail) || isFunction(options.complete)) {
       return wrapperReturnValue(name, invokeApi(name, api, options, rest));
     }
-    return wrapperReturnValue(name, handlePromise(new Promise((resolve, reject) => {
+    return wrapperReturnValue(name, handlePromise(new Promise((resolve2, reject) => {
       invokeApi(name, api, extend({}, options, {
-        success: resolve,
+        success: resolve2,
         fail: reject
       }), rest);
     })));
@@ -3725,6 +3725,47 @@ function setCurrentRenderingInstance(instance) {
   currentRenderingInstance = instance;
   instance && instance.type.__scopeId || null;
   return prev;
+}
+const COMPONENTS = "components";
+function resolveComponent(name, maybeSelfReference) {
+  return resolveAsset(COMPONENTS, name, true, maybeSelfReference) || name;
+}
+function resolveAsset(type, name, warnMissing = true, maybeSelfReference = false) {
+  const instance = currentRenderingInstance || currentInstance;
+  if (instance) {
+    const Component2 = instance.type;
+    {
+      const selfName = getComponentName(
+        Component2,
+        false
+      );
+      if (selfName && (selfName === name || selfName === camelize(name) || selfName === capitalize(camelize(name)))) {
+        return Component2;
+      }
+    }
+    const res = (
+      // local registration
+      // check instance[type] first which is resolved for options API
+      resolve(instance[type] || Component2[type], name) || // global registration
+      resolve(instance.appContext[type], name)
+    );
+    if (!res && maybeSelfReference) {
+      return Component2;
+    }
+    if (warnMissing && !res) {
+      const extra = `
+If this is a native custom element, make sure to exclude it from component resolution via compilerOptions.isCustomElement.`;
+      warn$1(`Failed to resolve ${type.slice(0, -1)}: ${name}${extra}`);
+    }
+    return res;
+  } else {
+    warn$1(
+      `resolve${capitalize(type.slice(0, -1))} can only be used in render() or setup().`
+    );
+  }
+}
+function resolve(registry, name) {
+  return registry && (registry[name] || registry[camelize(name)] || registry[capitalize(camelize(name))]);
 }
 const INITIAL_WATCHER_VALUE = {};
 function watch(source, cb, options) {
@@ -7540,146 +7581,35 @@ const onLaunch = /* @__PURE__ */ createHook(ON_LAUNCH);
 const onLoad = /* @__PURE__ */ createHook(ON_LOAD);
 const onUnload = /* @__PURE__ */ createHook(ON_UNLOAD);
 const onPullDownRefresh = /* @__PURE__ */ createHook(ON_PULL_DOWN_REFRESH);
-const DEVICE_ID_RE = /^[A-Z0-9][A-Z0-9_-]{1,63}$/;
-function normalizeDeviceId(raw) {
-  if (!raw)
-    return "";
-  const id = String(raw).trim().toUpperCase();
-  return DEVICE_ID_RE.test(id) ? id : "";
-}
-function parseQueryString(query) {
-  const out = {};
-  if (!query)
-    return out;
-  const q = query.startsWith("?") ? query.slice(1) : query;
-  q.split(/[&;]/).forEach((pair) => {
-    if (!pair)
-      return;
-    const idx = pair.indexOf("=");
-    if (idx === -1) {
-      out[decodeURIComponent(pair)] = "";
-      return;
-    }
-    out[decodeURIComponent(pair.slice(0, idx))] = decodeURIComponent(pair.slice(idx + 1));
-  });
-  return out;
-}
-function pickDeviceIdFromParams(params) {
-  const keys = ["deviceId", "device_id", "d", "cabinetId", "cabinet_id", "id", "sn"];
-  for (const k of keys) {
-    const v = normalizeDeviceId(params[k]);
-    if (v)
-      return v;
-  }
-  return "";
-}
-function tryParseJson(text) {
-  try {
-    const obj = JSON.parse(text);
-    if (obj && typeof obj === "object")
-      return pickDeviceIdFromParams(obj);
-  } catch {
-  }
-  return "";
-}
-function extractFromUrl(raw) {
-  var _a;
-  try {
-    const url = new URL(raw);
-    const fromQuery = pickDeviceIdFromParams(parseQueryString(url.search));
-    if (fromQuery)
-      return fromQuery;
-    const parts = url.pathname.split("/").filter(Boolean);
-    for (let i = parts.length - 1; i >= 0; i--) {
-      const id = normalizeDeviceId(parts[i]);
-      if (id)
-        return id;
-    }
-    if ((_a = url.hash) == null ? void 0 : _a.includes("=")) {
-      const fromHash = pickDeviceIdFromParams(parseQueryString(url.hash.replace(/^#/, "")));
-      if (fromHash)
-        return fromHash;
-    }
-  } catch {
-  }
-  return "";
-}
-function parseCabinetScan(raw) {
-  const text = (raw || "").trim();
-  if (!text) {
-    return { deviceId: "", channel: "UNKNOWN", autoOpen: false, alipayOnly: false, raw: text };
-  }
-  let deviceId2 = normalizeDeviceId(text);
-  if (deviceId2)
-    return { deviceId: deviceId2, channel: "PLAIN", autoOpen: true, alipayOnly: false, raw: text };
-  deviceId2 = tryParseJson(text);
-  if (deviceId2)
-    return { deviceId: deviceId2, channel: "JSON", autoOpen: true, alipayOnly: false, raw: text };
-  const lower = text.toLowerCase();
-  if (/(weixin:\/\/|wxp:\/\/|servicewechat\.com)/.test(lower)) {
-    const queryMatch = text.match(/[?&]query=([^&]+)/i);
-    if (queryMatch) {
-      deviceId2 = pickDeviceIdFromParams(parseQueryString(decodeURIComponent(queryMatch[1])));
-    }
-    if (!deviceId2)
-      deviceId2 = extractFromUrl(text);
-    if (deviceId2)
-      return { deviceId: deviceId2, channel: "WECHAT", autoOpen: true, alipayOnly: false, raw: text };
-  }
-  const alipayOnly = /alipays:\/\/|platformapi\/startapp|ds\.alipay\.com/.test(lower);
-  if (lower.includes("alipay")) {
-    let alipayDeviceId = "";
-    const queryMatch = text.match(/[?&]query=([^&]+)/i);
-    if (queryMatch) {
-      alipayDeviceId = pickDeviceIdFromParams(parseQueryString(decodeURIComponent(queryMatch[1])));
-    }
-    if (!alipayDeviceId)
-      alipayDeviceId = extractFromUrl(text) || normalizeDeviceId(text);
-    if (alipayOnly && !alipayDeviceId) {
-      return { deviceId: "", channel: "ALIPAY", autoOpen: false, alipayOnly: true, raw: text };
-    }
-    if (alipayDeviceId) {
-      return { deviceId: alipayDeviceId, channel: "ALIPAY", autoOpen: true, alipayOnly: false, raw: text };
-    }
-  }
-  deviceId2 = extractFromUrl(text);
-  if (deviceId2) {
-    const channel = /alipay/i.test(text) ? "ALIPAY" : /weixin|wx/i.test(text) ? "WECHAT" : "URL";
-    return { deviceId: deviceId2, channel, autoOpen: true, alipayOnly: false, raw: text };
-  }
-  const sceneParams = parseQueryString(text.includes("=") ? text : "");
-  deviceId2 = pickDeviceIdFromParams(sceneParams);
-  if (deviceId2) {
-    return {
-      deviceId: deviceId2,
-      channel: "SCENE",
-      autoOpen: sceneParams.autoOpen === "1" || sceneParams.open === "1",
-      alipayOnly: false,
-      raw: text
-    };
-  }
-  return { deviceId: "", channel: "UNKNOWN", autoOpen: false, alipayOnly: false, raw: text };
-}
-function parseLaunchOptions(options = {}) {
-  let deviceId2 = options.deviceId || options.d || options.device_id || "";
-  let autoOpen = options.autoOpen === "1" || options.open === "1";
-  if (!deviceId2 && options.q) {
-    const parsed = parseCabinetScan(decodeURIComponent(options.q));
-    deviceId2 = parsed.deviceId;
-    autoOpen = autoOpen || parsed.autoOpen;
-  }
-  if (!deviceId2 && options.scene) {
-    try {
-      const scene = decodeURIComponent(options.scene);
-      const parsed = parseCabinetScan(scene);
-      deviceId2 = parsed.deviceId || normalizeDeviceId(scene);
-      autoOpen = autoOpen || parsed.autoOpen;
-    } catch {
-    }
-  }
-  return { deviceId: normalizeDeviceId(deviceId2), autoOpen };
-}
 let runtimeOverrides = {};
+let runtimeLoaded = false;
+const OPS_MANAGED_DICT_TYPES = /* @__PURE__ */ new Set(["route_code", "category_code"]);
+function isOpsManagedDict(type) {
+  return OPS_MANAGED_DICT_TYPES.has(type);
+}
+function setDictOverrides(map2, options) {
+  runtimeOverrides = map2 || {};
+  runtimeLoaded = options == null ? void 0 : options.loaded;
+}
+function clearDictOverrides() {
+  runtimeOverrides = {};
+  runtimeLoaded = false;
+}
+function buildOverridesFromRuntime(payload) {
+  const map2 = {};
+  for (const [type, rows] of Object.entries((payload == null ? void 0 : payload.itemsByType) || {})) {
+    map2[type] = {};
+    for (const row of rows || []) {
+      if (row.status && row.status !== "ACTIVE") continue;
+      if (!row.dictValue) continue;
+      map2[type][row.dictValue] = row.dictLabel || row.dictValue;
+    }
+  }
+  return map2;
+}
+function entriesToOptions(map2) {
+  return Object.entries(map2 || {}).map(([value, label]) => ({ value, label }));
+}
 const DICT = {
   device_type: { AI_CABINET_V1: "AI智能柜 V1" },
   session_state: {
@@ -7701,8 +7631,66 @@ const DICT = {
     UPLOADED: "已上传",
     FAILED: "上传失败"
   },
-  dispute_status: { OPEN: "待审核", RESOLVED: "已结案", CLOSED: "已结案" },
+  dispute_status: { OPEN: "待审核", RESOLVED: "已结案", CLOSED: "已关闭" },
+  dispute_category: {
+    USER_APPEAL: "用户申诉",
+    RECOGNITION: "识别争议",
+    VIDEO_MISSING: "录像缺失",
+    PAYMENT: "支付相关",
+    INVENTORY: "库存相关",
+    BILL: "账单争议",
+    OTHER: "其他"
+  },
+  dispute_priority: {
+    LOW: "低",
+    NORMAL: "普通",
+    HIGH: "高",
+    URGENT: "紧急"
+  },
   pay_channel: { WECHAT: "微信", ALIPAY: "支付宝", MOCK: "其他", BALANCE: "余额", UNKNOWN: "未知" },
+  recharge_status: {
+    CREATED: "已创建",
+    PENDING: "待支付",
+    PAID: "已支付",
+    SUCCESS: "成功",
+    FAILED: "失败",
+    REFUNDED: "已退款",
+    CANCELLED: "已取消",
+    CLOSED: "已关闭"
+  },
+  risk_event_type: {
+    MULTI_DEVICE: "多设备异常",
+    HIGH_FREQUENCY: "高频开门",
+    DISPUTE_SPIKE: "争议激增",
+    PAYMENT_FAIL: "支付失败聚集",
+    BLACKLIST_HIT: "黑名单命中",
+    MALICIOUS_OPEN: "高频恶意开门",
+    DISPUTE_CREATED: "用户发起争议",
+    FREQUENT_DISPUTE: "频繁发起争议",
+    BLACKLIST_ADD: "人工加入黑名单",
+    BLACKLIST_AUTO: "自动加入黑名单",
+    FRAUD: "欺诈嫌疑",
+    ABNORMAL: "异常行为"
+  },
+  risk_severity: {
+    INFO: "提示",
+    WARN: "警告",
+    BLOCK: "已拦截",
+    HIGH: "高风险",
+    CRITICAL: "严重"
+  },
+  feedback_type: {
+    COMPLAINT: "投诉",
+    SUGGESTION: "建议",
+    BUG: "缺陷",
+    PRAISE: "表扬"
+  },
+  feedback_status: {
+    PENDING: "待处理",
+    HANDLED: "已回复",
+    REPLIED: "已回复",
+    CLOSED: "已关闭"
+  },
   split_status: {
     PENDING: "待处理",
     LEDGER_ONLY: "仅记账",
@@ -7711,10 +7699,122 @@ const DICT = {
     WECHAT_FAILED: "失败",
     SUBMITTED: "已提交",
     SUCCESS: "成功",
-    FAILED: "失败"
+    FAILED: "失败",
+    SETTLED: "已完结",
+    VOIDED: "已冲正"
   },
   merchant_status: { ACTIVE: "正常", INACTIVE: "停用", PENDING: "待审核" },
   online_status: { ONLINE: "在线", OFFLINE: "离线", UNKNOWN: "未知" },
+  device_lifecycle: {
+    IDLE: "未投放",
+    INBOUND: "入库",
+    DEPLOYED: "投放",
+    RETURNING: "返厂中",
+    RETIRED: "退役"
+  },
+  device_coop_mode: {
+    SELF: "自营",
+    FRANCHISE: "加盟",
+    CONSIGN: "联营"
+  },
+  repair_ticket_status: {
+    OPEN: "待处理",
+    IN_PROGRESS: "处理中",
+    DONE: "已完成",
+    CANCELLED: "已取消"
+  },
+  line_manager_status: {
+    ACTIVE: "启用",
+    DISABLED: "停用"
+  },
+  announcement_status: {
+    DRAFT: "草稿",
+    PUBLISHED: "已发布",
+    ARCHIVED: "存档"
+  },
+  announcement_audience: {
+    ALL: "全部用户",
+    MERCHANT: "商户",
+    CONSUMER: "消费者"
+  },
+  promotion_type: {
+    FULL_REDUCE: "满减",
+    DISCOUNT: "折扣",
+    BUY_GIFT: "买赠",
+    SECOND_HALF: "第二件半价"
+  },
+  coupon_type: {
+    AMOUNT_OFF: "满减券",
+    PERCENT_OFF: "折扣券",
+    FREE_SHIPPING: "免运费",
+    EXCHANGE: "兑换券"
+  },
+  /** 通用启用态（优惠券/活动等） */
+  enable_status: {
+    ACTIVE: "启用",
+    INACTIVE: "停用",
+    DISABLED: "停用",
+    ENDED: "已结束"
+  },
+  sku_enrollment_status: {
+    DRAFT: "草稿",
+    MAPPING: "映射中",
+    TESTED: "已测试",
+    PRODUCTION: "生产"
+  },
+  fund_ledger_type: {
+    ORDER_PAYMENT: "订单支付",
+    PLATFORM_FEE: "平台抽成",
+    CHANNEL_FEE: "通道费",
+    MERCHANT_CREDIT: "商户入账"
+  },
+  /** 商户/线长钱包流水类型 */
+  wallet_ledger_type: {
+    MERCHANT_CREDIT: "商户入账",
+    LINE_COMMISSION: "线长佣金",
+    WITHDRAW_FREEZE: "提现冻结",
+    WITHDRAW_RELEASE: "提现解冻",
+    WITHDRAW_PAID: "提现打款",
+    ADJUST: "调账",
+    REVERSE: "冲正"
+  },
+  fund_direction: {
+    IN: "收入",
+    OUT: "支出"
+  },
+  device_ops_event: {
+    OFFLINE: "离线",
+    NO_SALES: "无销售",
+    UNLOCK: "开锁",
+    FAULT: "故障/锁机",
+    AISLE_AUDIT: "货道巡检",
+    MAINBOARD: "主板"
+  },
+  repair_fault_type: {
+    DOOR: "门锁",
+    COOLING: "制冷",
+    NETWORK: "网络",
+    PAYMENT: "支付",
+    VISION: "识别",
+    POWER: "供电",
+    OTHER: "其他"
+  },
+  line_withdraw_status: {
+    PENDING_REVIEW: "待审核",
+    APPROVED: "已通过",
+    PAYING: "打款中",
+    PAID: "已打款",
+    REJECTED: "已驳回",
+    FAILED: "失败"
+  },
+  merchant_withdraw_status: {
+    PENDING_REVIEW: "待审核",
+    APPROVED: "已通过",
+    PAYING: "打款中",
+    PAID: "已打款",
+    REJECTED: "已驳回",
+    FAILED: "失败"
+  },
   supplier_status: { ACTIVE: "启用", INACTIVE: "停用" },
   purchase_order_status: {
     CREATED: "待收货",
@@ -7739,7 +7839,9 @@ const DICT = {
   in_transit_status: { IN_TRANSIT: "在途", RECEIVED: "已签收", LOST: "丢失", DAMAGED: "破损" },
   warehouse_movement_type: {
     PURCHASE_RECEIVE: "采购收货",
+    PURCHASE_RETURN: "采购退货",
     MANUAL_INBOUND: "手工入库",
+    INBOUND_MANUAL: "手工入库",
     OUTBOUND: "出库",
     OUTBOUND_SHIP: "发运",
     RETURN: "退回",
@@ -7747,7 +7849,10 @@ const DICT = {
   },
   business_reference_type: {
     PURCHASE_ORDER: "采购单",
+    PURCHASE_RETURN: "采购退货",
     OUTBOUND_ORDER: "出库单",
+    WAREHOUSE_INBOUND: "仓库入库",
+    WAREHOUSE_OUTBOUND: "仓库出库",
     REPLENISHMENT_TASK: "补货任务",
     INVENTORY_ADJUSTMENT: "库存调整",
     MANUAL: "人工操作"
@@ -7769,12 +7874,14 @@ const DICT = {
     OPEN_TIMEOUT: "开门超时",
     UPLOAD_STUCK: "录像上传滞留",
     RECOGNITION_STUCK: "识别滞留",
+    RECOGNITION_TIMEOUT: "识别超时",
     RECOGNITION_FAILED: "识别存疑需人工审核",
     RECOGNITION_UNAVAILABLE: "识别服务不可用",
     BALANCE_INSUFFICIENT: "余额不足",
     SETTLEMENT_FAILED: "结算失败",
     SETTLEMENT_STUCK: "结算滞留",
-    INVENTORY_MISMATCH: "库存差异"
+    INVENTORY_MISMATCH: "库存差异",
+    SLOT_DISCREPANCY: "货道账实差异"
   },
   ops_exception_action: {
     OPS_EXCEPTION_CLAIM: "领取异常",
@@ -7789,6 +7896,15 @@ const DICT = {
     MERCHANT_OPS_EXCEPTION_RESOLVE: "商家处理异常"
   },
   reconciliation_status: { MATCHED: "已平账", MISMATCH: "存在差异", PENDING: "待处理", FAILED: "失败" },
+  settlement_batch_status: {
+    PENDING: "待结算",
+    PROCESSING: "结算中",
+    SETTLED: "已结算",
+    PAID: "已支付",
+    FAILED: "失败",
+    PARTIAL_FAILED: "部分失败",
+    COMPLETED: "已完成"
+  },
   sku_status: { ACTIVE: "在售", INACTIVE: "停用", DISABLED: "禁售" },
   order_status: {
     PENDING: "待支付",
@@ -7797,24 +7913,79 @@ const DICT = {
     COMPLETED: "已完成",
     DISPUTED: "争议中",
     REFUNDED: "已退款",
+    PARTIAL_REFUNDED: "部分退款",
     FAILED: "处理失败",
     CANCELLED: "已取消"
-  }
+  },
+  route_code: {
+    R01: "路线 R01",
+    "R-DEMO-01": "演示路线 01",
+    "R-DEMO-02": "演示路线 02",
+    "R-DEMO-X": "演示路线 X"
+  },
+  /** 商品类目：运营在字典管理维护；runtime 为准 */
+  category_code: {}
 };
 function dictLabel(type, code) {
   var _a, _b;
   const key = String(code || "").toUpperCase();
   const override = ((_a = runtimeOverrides[type]) == null ? void 0 : _a[key]) ?? ((_b = runtimeOverrides[type]) == null ? void 0 : _b[String(code || "")]);
-  if (override)
-    return override;
+  if (override) return override;
   const map2 = DICT[type];
-  if (!map2)
+  if (!map2) {
+    if (code && /^[A-Z][A-Z0-9_]*$/.test(String(code))) return "未知";
     return code || "-";
-  return map2[key] ?? map2[code] ?? code ?? "-";
+  }
+  const hit = map2[key] ?? map2[code];
+  if (hit) return hit;
+  if (code && /^[A-Z][A-Z0-9_]*$/.test(String(code))) return "未知";
+  return code ?? "-";
+}
+function displayLabel(type, code, empty = "-") {
+  if (code == null || String(code).trim() === "") return empty;
+  const label = dictLabel(type, code);
+  if (!label || label === "-") return empty;
+  if (/^[A-Z][A-Z0-9_]*$/.test(label)) return empty === "-" ? "未知" : empty;
+  return label;
+}
+function dictOptions(type) {
+  const baseline = DICT[type];
+  const override = runtimeOverrides[type];
+  if (isOpsManagedDict(type)) {
+    if (runtimeLoaded) {
+      return entriesToOptions(override);
+    }
+    return entriesToOptions(baseline);
+  }
+  if (runtimeLoaded && override && Object.keys(override).length) {
+    return entriesToOptions(override);
+  }
+  if (override && Object.keys(override).length) {
+    return entriesToOptions(override);
+  }
+  return entriesToOptions(baseline);
+}
+const EMPTY = {
+  none: "无",
+  text: "暂无",
+  device: "无柜机",
+  session: "无会话",
+  order: "无单号",
+  money: "暂无",
+  date: "暂无",
+  status: "未知状态",
+  channel: "未知渠道",
+  batch: "无批次",
+  expiry: "未填",
+  reason: "暂无说明"
+};
+function emptyDisplay(value, kind = "text") {
+  if (value == null) return EMPTY[kind];
+  const s = String(value).trim();
+  return s ? s : EMPTY[kind];
 }
 function parseDate(value) {
-  if (value == null || value === "")
-    return null;
+  if (value == null || value === "") return null;
   const date = value instanceof Date ? value : new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
@@ -7825,116 +7996,344 @@ function part(parts, type) {
   var _a;
   return ((_a = parts.find((item) => item.type === type)) == null ? void 0 : _a.value) ?? "";
 }
-function formatDateTimeShort(value, fallback = "-") {
+function formatDateTimeMinute(value, fallback = EMPTY.date) {
   const date = parseDate(value ?? null);
-  if (!date)
-    return value != null && value !== "" ? String(value) : fallback;
+  if (!date) return value != null && value !== "" ? String(value) : fallback;
+  const parts = dateParts(date, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+  return `${part(parts, "year")}-${part(parts, "month")}-${part(parts, "day")} ${part(parts, "hour")}:${part(parts, "minute")}`;
+}
+function formatDateTimeShort(value, fallback = EMPTY.date) {
+  const date = parseDate(value ?? null);
+  if (!date) return value != null && value !== "" ? String(value) : fallback;
   const parts = dateParts(date, { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
   return `${part(parts, "month")}/${part(parts, "day")} ${part(parts, "hour")}:${part(parts, "minute")}`;
 }
-function fmtMoney(cents) {
-  if (cents == null)
-    return "-";
+function fmtMoney(cents, empty = EMPTY.money) {
+  if (cents == null) return empty;
   return "¥" + (cents / 100).toFixed(2);
 }
-function formatError(err) {
-  if (!err)
-    return "未知错误";
-  if (typeof err === "string")
-    return err;
+function errorText(err) {
+  if (!err) return "";
+  if (typeof err === "string") return err;
   const e2 = err;
-  if (e2.status === 429)
-    return "开门过于频繁，请稍后再试";
-  if (e2.message) {
-    const msg = String(e2.message);
-    if (/too many door open/i.test(msg))
-      return "开门过于频繁，请稍后再试";
-    if (/余额|balance/i.test(msg))
-      return "余额不足，请先充值";
-    if (/device not found/i.test(msg))
-      return "设备不存在，请检查设备编号";
-    if (/[\u4e00-\u9fff]/.test(msg))
-      return msg;
-    return "操作失败，请稍后重试";
+  return String(e2.message || e2.errMsg || "");
+}
+function classifyOpenError(err) {
+  const e2 = err;
+  const msg = errorText(err);
+  if ((e2 == null ? void 0 : e2.status) === 429 || /too many door open|过于频繁/i.test(msg)) return "rate_limit";
+  if ((e2 == null ? void 0 : e2.status) === 404 || /设备不存在|柜机不存在|device not found|编号无效|检查设备编号|检查柜机编号/i.test(msg)) {
+    return "device_not_found";
   }
-  if (e2.errMsg)
-    return String(e2.errMsg);
+  if (/余额不足|请先充值|insufficient balance|BALANCE/i.test(msg)) return "balance";
+  if (/暂停营业|已锁机|sales.?lock|LOCKED/i.test(msg)) return "device_paused";
+  if (/补货|使用中|占用|SESSION|REPLENISHMENT|正在购物/i.test(msg)) return "device_busy";
+  return "other";
+}
+function formatError(err) {
+  if (!err) return "未知错误";
+  const kind = classifyOpenError(err);
+  if (kind === "rate_limit") return "开门过于频繁，请稍后再试";
+  if (kind === "balance") return "可用余额不足，请先充值后再开门（默认预授权约 ¥20，或开通免密支付）";
+  if (kind === "device_not_found") return "柜机不存在或编号有误，请重新扫描柜门二维码";
+  if (kind === "device_paused") return "柜机已暂停营业，请稍后再试或换一台";
+  if (kind === "device_busy") return "柜机正在使用或补货中，请稍后再试";
+  if (typeof err === "string") return localizeApiMessage(err);
+  const e2 = err;
+  if (e2.message) return localizeApiMessage(String(e2.message));
+  if (e2.errMsg) return localizeApiMessage(String(e2.errMsg));
   return "请求失败";
 }
-function orderStatusLabel(status) {
-  return dictLabel("order_status", status);
+function localizeApiMessage(message, fallback = "操作失败，请稍后重试") {
+  const msg = String(message || "").trim();
+  if (!msg) return fallback;
+  if (/[\u4e00-\u9fff]/.test(msg)) return msg;
+  if (/requestPayment:fail\s*cancel|cancel.*payment|user cancel/i.test(msg)) {
+    return "已取消支付";
+  }
+  if (/request:fail|timeout|network|ERR_NETWORK|Failed to fetch|ECONN/i.test(msg)) {
+    return "网络异常，请稍后重试";
+  }
+  if (/unauthorized|token.*(expired|invalid)|login.*(required|expired)/i.test(msg)) {
+    return "登录已失效，请重新登录";
+  }
+  if (/forbidden|permission|access denied/i.test(msg)) {
+    return "权限不足";
+  }
+  if (/not found|404/i.test(msg)) {
+    return "未找到相关数据";
+  }
+  if (/conflict|already exists|duplicate/i.test(msg)) {
+    return "操作冲突，请刷新后重试";
+  }
+  if (/too many|rate limit|429/i.test(msg)) {
+    return "操作过于频繁，请稍后再试";
+  }
+  if (/internal|server error|500/i.test(msg)) {
+    return "服务暂时不可用，请稍后重试";
+  }
+  if (/^[A-Z][A-Z0-9_ .\-:()]+$/.test(msg)) {
+    return fallback;
+  }
+  return fallback;
 }
-const SESSION_STATE_LABEL = {
-  CREATED: "已创建",
-  OPENING: "开门中",
-  SHOPPING: "购物中，取货后请关门",
-  RECOGNIZING: "识别中",
-  WAITING_UPLOAD: "等待上传视频",
-  SETTLING: "结算中",
-  COMPLETED: "已完成",
-  DISPUTED: "待人工审核",
-  FAILED: "失败",
-  CANCELLED: "已取消"
-};
+function localizeDisputeReason(reason) {
+  const r = (reason || "").trim();
+  if (!r) return "";
+  if (/recognition needs manual review/i.test(r) || /no charge yet/i.test(r)) {
+    return "商品识别结果需要人工确认，本次暂未扣款。审核完成后会生成账单。";
+  }
+  if (/confidence/i.test(r) && /threshold|below|manual/i.test(r)) {
+    return "部分商品识别置信度不足，需人工确认后再扣款。";
+  }
+  if (/timeout|识别超时|STIMEOUT/i.test(r)) {
+    return "识别超时，本次暂未扣款，工作人员正在核对账单。";
+  }
+  if (/非生产|重力信号|仅有重力|重力回填|模拟\/兜底|模拟识别|gravity-fill|gravity-mismatch|mock-v/i.test(r)) {
+    return "商品识别结果需要人工确认，本次暂未扣款。审核完成后会生成账单。";
+  }
+  const letters = (r.match(/[A-Za-z]/g) || []).length;
+  const cjk = (r.match(/[\u4e00-\u9fff]/g) || []).length;
+  if (letters >= 8 && cjk === 0) {
+    return "商品识别结果需要人工确认，本次暂未扣款。审核完成后会生成账单。";
+  }
+  return r;
+}
+function orderStatusLabel(status) {
+  return displayLabel("order_status", status, "未知状态");
+}
+const DEVICE_ID_RE = /^[A-Z0-9][A-Z0-9_-]{1,63}$/;
+function normalizeDeviceId(raw) {
+  if (!raw) return "";
+  const id = String(raw).trim().toUpperCase();
+  return DEVICE_ID_RE.test(id) ? id : "";
+}
+function parseQueryString(query) {
+  const out = {};
+  if (!query) return out;
+  const q = query.startsWith("?") ? query.slice(1) : query;
+  q.split(/[&;]/).forEach((pair) => {
+    if (!pair) return;
+    const idx = pair.indexOf("=");
+    if (idx === -1) {
+      out[decodeURIComponent(pair)] = "";
+      return;
+    }
+    out[decodeURIComponent(pair.slice(0, idx))] = decodeURIComponent(pair.slice(idx + 1));
+  });
+  return out;
+}
+function pickDeviceIdFromParams(params) {
+  const keys = ["deviceId", "device_id", "d", "cabinetId", "cabinet_id", "id", "sn"];
+  for (const k of keys) {
+    const v = normalizeDeviceId(params[k]);
+    if (v) return v;
+  }
+  return "";
+}
+function pickChannelFromParams(params) {
+  const raw = String(params.channel || params.entryChannel || params.payChannel || "").trim().toUpperCase();
+  return raw === "WECHAT" || raw === "ALIPAY" ? raw : "";
+}
+function tryParseJson(text) {
+  try {
+    const obj = JSON.parse(text);
+    if (obj && typeof obj === "object") return pickDeviceIdFromParams(obj);
+  } catch {
+  }
+  return "";
+}
+function extractFromUrl(raw) {
+  var _a;
+  try {
+    const url = new URL(raw);
+    const params = parseQueryString(url.search);
+    const fromQuery = pickDeviceIdFromParams(params);
+    const channel = pickChannelFromParams(params);
+    if (fromQuery) return { deviceId: fromQuery, channel };
+    const parts = url.pathname.split("/").filter(Boolean);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const id = normalizeDeviceId(parts[i]);
+      if (id) return { deviceId: id, channel };
+    }
+    if ((_a = url.hash) == null ? void 0 : _a.includes("=")) {
+      const hashParams = parseQueryString(url.hash.replace(/^#/, ""));
+      const fromHash = pickDeviceIdFromParams(hashParams);
+      if (fromHash) return { deviceId: fromHash, channel: channel || pickChannelFromParams(hashParams) };
+    }
+    return { deviceId: "", channel };
+  } catch {
+  }
+  return { deviceId: "", channel: "" };
+}
+function parseCabinetScan(raw) {
+  const text = (raw || "").trim();
+  if (!text) {
+    return { deviceId: "", channel: "UNKNOWN", autoOpen: false, alipayOnly: false, raw: text };
+  }
+  let deviceId2 = normalizeDeviceId(text);
+  if (deviceId2) return { deviceId: deviceId2, channel: "PLAIN", autoOpen: true, alipayOnly: false, raw: text };
+  deviceId2 = tryParseJson(text);
+  if (deviceId2) return { deviceId: deviceId2, channel: "JSON", autoOpen: true, alipayOnly: false, raw: text };
+  const lower = text.toLowerCase();
+  if (/(weixin:\/\/|wxp:\/\/|servicewechat\.com)/.test(lower)) {
+    const queryMatch = text.match(/[?&]query=([^&]+)/i);
+    if (queryMatch) {
+      deviceId2 = pickDeviceIdFromParams(parseQueryString(decodeURIComponent(queryMatch[1])));
+    }
+    const fromUrl2 = extractFromUrl(text);
+    if (!deviceId2) deviceId2 = fromUrl2.deviceId;
+    if (deviceId2) {
+      return {
+        deviceId: deviceId2,
+        channel: fromUrl2.channel || "WECHAT",
+        autoOpen: true,
+        alipayOnly: false,
+        raw: text
+      };
+    }
+  }
+  const alipayOnly = /alipays:\/\/|platformapi\/startapp|ds\.alipay\.com/.test(lower);
+  if (lower.includes("alipay")) {
+    let alipayDeviceId = "";
+    const queryMatch = text.match(/[?&]query=([^&]+)/i);
+    if (queryMatch) {
+      alipayDeviceId = pickDeviceIdFromParams(parseQueryString(decodeURIComponent(queryMatch[1])));
+    }
+    const fromUrl2 = extractFromUrl(text);
+    if (!alipayDeviceId) alipayDeviceId = fromUrl2.deviceId || normalizeDeviceId(text);
+    if (alipayOnly && !alipayDeviceId) {
+      return { deviceId: "", channel: "ALIPAY", autoOpen: false, alipayOnly: true, raw: text };
+    }
+    if (alipayDeviceId) {
+      return {
+        deviceId: alipayDeviceId,
+        channel: fromUrl2.channel || "ALIPAY",
+        autoOpen: true,
+        alipayOnly: false,
+        raw: text
+      };
+    }
+  }
+  const fromUrl = extractFromUrl(text);
+  if (fromUrl.deviceId) {
+    const channel = fromUrl.channel || (/alipay/i.test(text) ? "ALIPAY" : /weixin|wx/i.test(text) ? "WECHAT" : "URL");
+    return { deviceId: fromUrl.deviceId, channel, autoOpen: true, alipayOnly: false, raw: text };
+  }
+  const sceneParams = parseQueryString(text.includes("=") ? text : "");
+  deviceId2 = pickDeviceIdFromParams(sceneParams);
+  if (deviceId2) {
+    return {
+      deviceId: deviceId2,
+      channel: pickChannelFromParams(sceneParams) || "SCENE",
+      autoOpen: sceneParams.autoOpen === "1" || sceneParams.open === "1",
+      alipayOnly: false,
+      raw: text
+    };
+  }
+  return { deviceId: "", channel: "UNKNOWN", autoOpen: false, alipayOnly: false, raw: text };
+}
+function parseLaunchOptions(options = {}) {
+  let deviceId2 = options.deviceId || options.d || options.device_id || "";
+  let autoOpen = options.autoOpen === "1" || options.open === "1";
+  let channel = normalizeEntryChannelFromRaw(options.channel || options.entryChannel || options.payChannel);
+  if (!deviceId2 && options.q) {
+    const parsed = parseCabinetScan(decodeURIComponent(options.q));
+    deviceId2 = parsed.deviceId;
+    autoOpen = autoOpen || parsed.autoOpen;
+    if (!channel) channel = normalizeEntryChannelFromRaw(parsed.channel);
+  }
+  if (!deviceId2 && options.scene) {
+    try {
+      const scene = decodeURIComponent(options.scene);
+      const parsed = parseCabinetScan(scene);
+      deviceId2 = parsed.deviceId || normalizeDeviceId(scene);
+      autoOpen = autoOpen || parsed.autoOpen;
+      if (!channel) channel = normalizeEntryChannelFromRaw(parsed.channel);
+    } catch {
+    }
+  }
+  return { deviceId: normalizeDeviceId(deviceId2), autoOpen, channel };
+}
+function normalizeEntryChannelFromRaw(raw) {
+  const c = String(raw || "").trim().toUpperCase();
+  if (c === "WECHAT" || c === "ALIPAY") return c;
+  return "";
+}
+function sessionStateLabel(state) {
+  return state ? dictLabel("session_state", state) : "准备中";
+}
 const SESSION_STATE_HINT = {
   CREATED: "正在准备开门，请稍候",
   OPENING: "柜门正在打开，请稍候",
   SHOPPING: "门已打开，请随意取货；关柜门后自动识别并结算",
   RECOGNIZING: "已关门，正在识别您取走的商品",
-  WAITING_UPLOAD: "等待设备上传购物视频",
+  WAITING_UPLOAD: "等待柜机上传购物视频",
   SETTLING: "识别完成，正在扣款结算",
   COMPLETED: "购物已完成，可查看账单",
   DISPUTED: "识别结果需人工确认，请稍后再查或联系客服",
   FAILED: "购物未完成，请检查余额或稍后重试",
   CANCELLED: "会话已取消"
 };
-function sessionStateLabel(state) {
-  return state && SESSION_STATE_LABEL[state] || "-";
-}
 function sessionStateHint(state) {
   return state && SESSION_STATE_HINT[state] || "";
 }
 function sessionStateTone(state) {
-  if (!state)
-    return "idle";
-  if (state === "COMPLETED")
-    return "success";
-  if (state === "FAILED" || state === "CANCELLED")
-    return "error";
-  if (state === "DISPUTED")
-    return "wait";
-  if (state === "SHOPPING" || state === "OPENING" || state === "CREATED")
-    return "active";
-  if (state === "RECOGNIZING" || state === "WAITING_UPLOAD" || state === "SETTLING")
-    return "wait";
+  if (!state) return "idle";
+  if (state === "COMPLETED") return "success";
+  if (state === "FAILED" || state === "CANCELLED") return "error";
+  if (state === "DISPUTED") return "wait";
+  if (state === "SHOPPING" || state === "OPENING" || state === "CREATED") return "active";
+  if (state === "RECOGNIZING" || state === "WAITING_UPLOAD" || state === "SETTLING") return "wait";
   return "idle";
 }
+const DEFAULT_PREAUTH_CENTS = 2e3;
+exports.DEFAULT_PREAUTH_CENTS = DEFAULT_PREAUTH_CENTS;
 exports._export_sfc = _export_sfc;
+exports.buildOverridesFromRuntime = buildOverridesFromRuntime;
+exports.classifyOpenError = classifyOpenError;
+exports.clearDictOverrides = clearDictOverrides;
 exports.computed = computed;
 exports.createSSRApp = createSSRApp;
 exports.defineComponent = defineComponent;
+exports.dictOptions = dictOptions;
+exports.displayLabel = displayLabel;
 exports.e = e;
+exports.emptyDisplay = emptyDisplay;
 exports.f = f;
 exports.fmtMoney = fmtMoney;
+exports.formatDateTimeMinute = formatDateTimeMinute;
 exports.formatDateTimeShort = formatDateTimeShort;
 exports.formatError = formatError;
 exports.index = index;
+exports.localizeApiMessage = localizeApiMessage;
+exports.localizeDisputeReason = localizeDisputeReason;
 exports.n = n;
 exports.o = o;
 exports.onHide = onHide;
 exports.onLaunch = onLaunch;
 exports.onLoad = onLoad;
+exports.onMounted = onMounted;
 exports.onPullDownRefresh = onPullDownRefresh;
 exports.onShow = onShow;
 exports.onUnload = onUnload;
+exports.onUnmounted = onUnmounted;
 exports.orderStatusLabel = orderStatusLabel;
 exports.p = p;
 exports.parseCabinetScan = parseCabinetScan;
 exports.parseLaunchOptions = parseLaunchOptions;
 exports.ref = ref;
+exports.resolveComponent = resolveComponent;
 exports.sessionStateHint = sessionStateHint;
 exports.sessionStateLabel = sessionStateLabel;
 exports.sessionStateTone = sessionStateTone;
+exports.setDictOverrides = setDictOverrides;
 exports.t = t;
 exports.unref = unref;
 exports.watch = watch;
