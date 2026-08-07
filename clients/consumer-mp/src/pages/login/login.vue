@@ -30,7 +30,7 @@
           :class="{ disabled: loading }"
           @click="onWxLogin"
         >
-          {{ loading && wxMode ? '授权中…' : '微信授权登录' }}
+          {{ loading && wxMode ? '授权中…' : wxBtnLabel }}
         </view>
 
         <view class="divider" role="separator" aria-hidden="true">
@@ -120,7 +120,7 @@
 
 <script setup lang="ts">
 import { onLoad, onUnload } from '@dcloudio/uni-app';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import {
   consumerPasswordLogin,
   consumerSmsLogin,
@@ -135,6 +135,7 @@ import loginBgUrl from '@/static/login-bg.png';
 const redirect = ref('/pages/index/index');
 // H5 无法微信静默授权，默认展开手机号，减少多点一次
 const showPhoneForm = ref(typeof window !== 'undefined');
+const wxBtnLabel = computed(() => (typeof window !== 'undefined' ? '手机号登录' : '微信授权登录'));
 const mode = ref<'password' | 'sms'>('sms');
 const phone = ref(import.meta.env.DEV ? '13800138000' : '');
 const password = ref('');
@@ -196,6 +197,11 @@ function goBack() {
 
 async function onWxLogin() {
   if (loading.value) return;
+  // #ifdef H5
+  // H5 无法微信授权：直接展开手机号表单
+  showPhoneForm.value = true;
+  return;
+  // #endif
   loading.value = true;
   wxMode.value = true;
   err.value = '';

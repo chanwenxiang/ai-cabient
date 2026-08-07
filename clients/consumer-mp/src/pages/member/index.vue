@@ -112,8 +112,8 @@ async function load() {
     ]);
     profile.value = p;
     couponCount.value = Number(count) || 0;
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '加载失败', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
   }
 }
 

@@ -637,6 +637,16 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
     applySessionView(s);
     startPoll();
   } catch (e) {
+    // 未成功创建会话即失败：回到落地页展示错误，避免停留在“空柜机购物页”
+    if (!sessionId.value) {
+      scanned.value = false;
+      deviceId.value = '';
+      deviceName.value = '';
+      deviceStatusText.value = '';
+      products.value = [];
+      lastFailedDeviceId.value = cabinetId;
+      lastFailedChannel.value = entryChannel.value;
+    }
     setLandingError(formatError(e), 'other');
     uni.showToast({ title: formatError(e), icon: 'none' });
   } finally {
@@ -765,7 +775,7 @@ function dismissReview() {
 
 function goReviewDetail() {
   const sid = reviewSessionId.value || String(uni.getStorageSync('last_disputed_session_id') || '');
-  const tid = (reviewTicket.value as any)?.ticketId || '';
+  const tid = reviewTicket.value?.ticketId || '';
   const q = [
     tid ? `ticketId=${encodeURIComponent(tid)}` : '',
     sid ? `sessionId=${encodeURIComponent(sid)}` : ''
@@ -1112,8 +1122,14 @@ async function restoreActiveSession() {
     }
     applySessionView(s);
     startPoll();
-  } catch {
-    // 保留本地会话；弱网或服务短暂不可用时，下次 onShow 继续恢复。
+  } catch (e) {
+    // 404/已失效：本地会话已不存在，清掉避免每次进首页都白查；
+    // 弱网或服务短暂不可用时保留，下次 onShow 继续恢复。
+    const status = (e as { status?: number } | null)?.status;
+    if (status === 404) {
+      uni.removeStorageSync('active_session_id');
+      clearOpenAttempt();
+    }
   }
 }
 

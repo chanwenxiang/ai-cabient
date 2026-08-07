@@ -28,6 +28,7 @@
 
       <view class="action-card">
         <input class="amount-input" type="digit" v-model="amountYuan" placeholder="提现金额（元）" />
+        <text v-if="maxWithdrawYuan" class="withdraw-hint">最多可提现 ¥{{ maxWithdrawYuan }}</text>
         <button class="btn-primary" :disabled="submitting" @click="submitWithdraw">申请提现</button>
         <text class="tip">分账入账后可提现；演示环境默认 Mock 打款。大额需运营审核。</text>
       </view>
@@ -76,18 +77,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay } from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
-import { merchantApi, getToken, handleUnauthorized } from '@/utils/merchant-api';
+import { merchantApi, getToken, handleUnauthorized, type WalletOverview } from '@/utils/merchant-api';
 
 const loading = ref(false);
 const submitting = ref(false);
 const loadError = ref('');
 const amountYuan = ref('');
-const overview = ref<any>(null);
+const overview = ref<WalletOverview | null>(null);
+const maxWithdrawYuan = computed(() =>
+  overview.value?.availableCents != null ? yuan(overview.value.availableCents) : ''
+);
 
 function yuan(cents?: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
@@ -117,8 +121,8 @@ async function load() {
   loadError.value = '';
   try {
     overview.value = await merchantApi.wallet();
-  } catch (e: any) {
-    loadError.value = e?.message || '加载失败';
+  } catch (e) {
+    loadError.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
   }
@@ -130,17 +134,23 @@ async function submitWithdraw() {
     uni.showToast({ title: '请输入金额', icon: 'none' });
     return;
   }
+  const available = Number(overview.value?.availableCents ?? 0);
+  if (Math.round(yuanNum * 100) > available) {
+    uni.showToast({ title: `超出可提现余额（最多 ¥${yuan(available)}）`, icon: 'none' });
+    return;
+  }
   submitting.value = true;
   try {
     await merchantApi.walletWithdraw({
       amountCents: Math.round(yuanNum * 100),
-      requestNo: 'MW-' + Date.now()
+      // 客户端请求号：时间戳 + 随机段，降低同毫秒重复请求的幂等碰撞风险
+      requestNo: 'MW-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10)
     });
     uni.showToast({ title: '已提交', icon: 'success' });
     amountYuan.value = '';
     await load();
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '提交失败', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '提交失败', icon: 'none' });
   } finally {
     submitting.value = false;
   }
@@ -171,6 +181,12 @@ onShow(load);
   padding: 20rpx;
   margin-bottom: 16rpx;
   box-sizing: border-box;
+}
+.withdraw-hint {
+  display: block;
+  font-size: 22rpx;
+  color: #94a3b8;
+  margin: -6rpx 0 12rpx;
 }
 .tip { display: block; margin-top: 12rpx; font-size: 22rpx; color: var(--text-subtle, #94a3b8); line-height: 1.45; }
 .section-title { font-weight: 600; margin-bottom: 12rpx; display: block; }

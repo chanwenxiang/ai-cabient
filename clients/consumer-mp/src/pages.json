@@ -96,6 +96,15 @@
                       "path":  "pages/order-detail/order-detail"
                   },
                   {
+                      "path":  "pages/video/video",
+                      "style":  {
+                                    "navigationBarTitleText":  "购物视频",
+                                    "navigationBarBackgroundColor":  "#000000",
+                                    "navigationBarTextStyle":  "white",
+                                    "backgroundColor":  "#000000"
+                                }
+                  },
+                  {
                       "path":  "pages/coupons/coupons",
                       "style":  {
                                     "navigationBarTitleText":  "我的优惠券",

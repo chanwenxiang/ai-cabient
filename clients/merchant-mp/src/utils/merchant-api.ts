@@ -38,8 +38,80 @@ export type MerchantReplenishmentRequest = {
   lines?: MerchantReplenishmentRequestLine[];
 };
 
+export type WalletLedger = {
+  ledgerId?: string;
+  entryType?: string;
+  amountCents?: number;
+  remark?: string;
+  createdAt?: string;
+};
+
+export type WithdrawRecord = {
+  requestId?: string;
+  requestNo?: string;
+  amountCents?: number;
+  status?: string;
+  createdAt?: string;
+};
+
+export type WalletOverview = {
+  bound: boolean;
+  merchantId?: string;
+  merchantName?: string;
+  balanceCents?: number;
+  frozenCents?: number;
+  availableCents?: number;
+  recentLedgers?: WalletLedger[];
+  recentWithdraws?: WithdrawRecord[];
+};
+
+export type LineWalletOverview = {
+  bound: boolean;
+  managerId?: number;
+  managerName?: string;
+  phone?: string;
+  balanceCents?: number;
+  frozenCents?: number;
+  availableCents?: number;
+  recentLedgers?: WalletLedger[];
+  recentWithdraws?: WithdrawRecord[];
+};
+
 export function getToken() {
   return uni.getStorageSync('merchant_token') || '';
+}
+
+let refreshInFlight: Promise<boolean> | null = null;
+
+/** 401 时静默刷新 token（单飞）；刷新失败才走 handleUnauthorized */
+async function refreshTokenSilently(): Promise<boolean> {
+  if (!getToken()) return false;
+  if (refreshInFlight) return refreshInFlight;
+  const pending = new Promise<boolean>((resolve, reject) => {
+    uni.request({
+      url: API_BASE_URL + '/api/v2/auth/refresh',
+      method: 'POST',
+      header: { Authorization: 'Bearer ' + getToken(), 'Content-Type': 'application/json' },
+      timeout: 20_000,
+      success(res) {
+        const body = res.data as { code?: number; data?: { token: string; userId?: string } };
+        if (res.statusCode === 200 && body?.code === 0 && body.data?.token) {
+          uni.setStorageSync('merchant_token', body.data.token);
+          if (body.data.userId) uni.setStorageSync('merchant_user_id', body.data.userId);
+          resolve(true);
+          return;
+        }
+        reject(new Error('登录已失效'));
+      },
+      fail() {
+        reject(new Error('网络错误'));
+      }
+    });
+  }).finally(() => {
+    refreshInFlight = null;
+  });
+  refreshInFlight = pending;
+  return pending;
 }
 
 export function clearSession() {
@@ -127,7 +199,8 @@ export function request<T>(
   path: string,
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' = 'GET',
   data?: unknown,
-  auth = true
+  auth = true,
+  retried = false
 ): Promise<T> {
   return new Promise((resolve, reject) => {
     const header: Record<string, string> = { 'Content-Type': 'application/json' };
@@ -141,6 +214,12 @@ export function request<T>(
       success(res) {
         const body = res.data as { code?: number; message?: string; data?: T };
         if (res.statusCode === 401) {
+          if (auth && !retried) {
+            refreshTokenSilently()
+              .then(() => request<T>(path, method, data, auth, true).then(resolve, reject))
+              .catch(() => reject(handleUnauthorized(body?.message)));
+            return;
+          }
           reject(handleUnauthorized(body?.message));
           return;
         }
@@ -315,7 +394,7 @@ export const merchantApi = {
     }>(
       `/api/v2/merchant/exceptions?status=${encodeURIComponent(status)}&page=${page}&size=${size}`
     ),
-  /** OPEN + PROCESSING；按页拉满，返回去重后的 items 与合计 total */
+  /** OPEN + PROCESSING；最多拉 3 页（300 条），返回去重后的 items 与合计 total */
   openExceptions: async (pageSize = 100) => {
     type ExRow = {
       exceptionId: string;
@@ -325,11 +404,13 @@ export const merchantApi = {
       deviceId?: string;
     };
     const size = Math.min(Math.max(pageSize, 1), 100);
+    const MAX_PAGES = 3;
     const mergePages = async (status: string) => {
       const first = await merchantApi.exceptions(status, 0, size);
       const items: ExRow[] = [...(first.items || [])];
       const total = first.total ?? items.length;
-      const pages = Math.ceil(total / size);
+      // 限制页数，避免异常量大时首页/待办请求风暴；超出部分以后端聚合接口为准
+      const pages = Math.min(Math.ceil(total / size), MAX_PAGES);
       for (let p = 1; p < pages; p++) {
         const next = await merchantApi.exceptions(status, p, size);
         items.push(...(next.items || []));
@@ -357,30 +438,11 @@ export const merchantApi = {
       '/api/v2/merchant/settlements/overview'
     ),
   lineWallet: () =>
-    request<{
-      bound: boolean;
-      managerId?: number;
-      managerName?: string;
-      phone?: string;
-      balanceCents?: number;
-      frozenCents?: number;
-      availableCents?: number;
-      recentLedgers?: any[];
-      recentWithdraws?: any[];
-    }>('/api/v2/merchant/line-wallet'),
+    request<LineWalletOverview>('/api/v2/merchant/line-wallet'),
   lineWalletWithdraw: (body: { amountCents: number; requestNo?: string }) =>
     request('/api/v2/merchant/line-wallet/withdraw', 'POST', body),
   wallet: () =>
-    request<{
-      bound: boolean;
-      merchantId?: string;
-      merchantName?: string;
-      balanceCents?: number;
-      frozenCents?: number;
-      availableCents?: number;
-      recentLedgers?: any[];
-      recentWithdraws?: any[];
-    }>('/api/v2/merchant/wallet'),
+    request<WalletOverview>('/api/v2/merchant/wallet'),
   walletWithdraw: (body: { amountCents: number; requestNo?: string }) =>
     request('/api/v2/merchant/wallet/withdraw', 'POST', body),
   dailySettlements: (from: string, to: string) =>

@@ -351,6 +351,8 @@ export async function ensureConsumerAuth(): Promise<boolean> {
     }
     const channel = (readQueryParam('channel') || readQueryParam('entryChannel') || '').toUpperCase();
     if (channel === 'ALIPAY') {
+      // 生产 H5 不允许 mock 建档：真实渠道必须走支付宝授权回跳（authCode）
+      if (!isDevBuild) return false;
       // mock / 无授权回跳时：用稳定本地标识完成建档，便于联调开门
       const mockId = uni.getStorageSync('mock_alipay_user_id') || `mock_h5_${Date.now()}`;
       uni.setStorageSync('mock_alipay_user_id', mockId);

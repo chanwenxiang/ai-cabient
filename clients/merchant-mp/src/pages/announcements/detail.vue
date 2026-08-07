@@ -23,6 +23,7 @@ import { ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { merchantApi } from '@/utils/merchant-api';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import { markAnnouncementRead } from '@aicabinet/shared-uni/announcement-read';
 import type { AnnouncementDto } from '@aicabinet/shared-types';
 
 const loading = ref(true);
@@ -49,9 +50,10 @@ async function load() {
   error.value = '';
   try {
     item.value = await merchantApi.getAnnouncement(announceId);
-  } catch (e: any) {
+    markAnnouncementRead(item.value?.announceId);
+  } catch (e) {
     item.value = null;
-    error.value = e?.message || '加载失败';
+    error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
   }

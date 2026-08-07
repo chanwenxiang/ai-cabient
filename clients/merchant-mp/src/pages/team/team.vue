@@ -157,7 +157,7 @@ onPullDownRefresh(async () => {
   }
 });
 
-function eventInput(e: any) {
+function eventInput(e: { detail?: { value?: unknown }; target?: { value?: unknown } }) {
   return String(e?.detail?.value ?? '');
 }
 
@@ -204,11 +204,11 @@ async function load() {
         /* keep defaults */
       }
     }
-  } catch (e: any) {
+  } catch (e) {
     if (!uni.getStorageSync('merchant_token')) return;
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
     list.value = [];
-    error.value = e?.message || '加载失败';
+    error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
   }
@@ -236,8 +236,8 @@ async function onInvite() {
     uni.showToast({ title: '已邀请', icon: 'success' });
     inviteVisible.value = false;
     await load();
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '邀请失败', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '邀请失败', icon: 'none' });
   } finally {
     saving.value = false;
   }
@@ -251,8 +251,8 @@ async function onSaveRole() {
     uni.showToast({ title: '已更新角色', icon: 'success' });
     manageVisible.value = false;
     await load();
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '更新失败', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '更新失败', icon: 'none' });
   } finally {
     saving.value = false;
   }
@@ -270,8 +270,8 @@ async function onResetPassword() {
     await merchantApi.resetTeamUserPassword(manageUser.value.userId, pwd);
     uni.showToast({ title: '密码已重置', icon: 'success' });
     resetPassword.value = '';
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '重置失败', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '重置失败', icon: 'none' });
   } finally {
     saving.value = false;
   }
@@ -285,8 +285,8 @@ async function onDisable() {
     uni.showToast({ title: '已停用', icon: 'success' });
     manageVisible.value = false;
     await load();
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '停用失败', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '停用失败', icon: 'none' });
   } finally {
     saving.value = false;
   }
@@ -300,8 +300,8 @@ async function onEnable() {
     uni.showToast({ title: '已启用', icon: 'success' });
     manageVisible.value = false;
     await load();
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '启用失败', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '启用失败', icon: 'none' });
   } finally {
     saving.value = false;
   }

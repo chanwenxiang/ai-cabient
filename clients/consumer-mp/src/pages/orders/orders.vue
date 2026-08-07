@@ -210,7 +210,9 @@ function filterCountSuffix(value: 'all' | 'paid' | 'pending' | 'issue' | 'refund
     if (value === 'all' && timeRange.value === 'all' && ordersTotal.value > 0) {
       return ` ${ordersTotal.value}`;
     }
-    return '';
+    // 未加载完时展示「至少 N+」，避免把部分计数当成全局
+    const loaded = countBy(value);
+    return loaded > 0 ? ` ${loaded}+` : '';
   }
   return ` ${countBy(value)}`;
 }

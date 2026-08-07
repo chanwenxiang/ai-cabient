@@ -93,6 +93,9 @@
             {{ formatTransactionAmount(item.amountCents) }}
           </view>
         </view>
+        <view v-if="transactionsHasMore" class="transaction-more" role="button" @click="loadTransactions(false)">
+          {{ transactionsLoading ? '加载中…' : `加载更多（已显示 ${transactions.length} 条）` }}
+        </view>
       </view>
       <view class="menu-cell" @click="goAnnouncements">
         <text class="menu-icon">告</text>
@@ -223,6 +226,9 @@ const account = ref<AccountDto | null>(null);
 const showTransactions = ref(false);
 const transactionsLoading = ref(false);
 const transactions = ref<BalanceTransactionDto[]>([]);
+const transactionsPage = ref(0);
+const transactionsHasMore = ref(false);
+const TRANSACTION_PAGE_SIZE = 10;
 const rechargeLoading = ref(false);
 const mockRechargeEnabled = ref(false);
 const alipayRechargeEnabled = ref(false);
@@ -304,12 +310,27 @@ onShow(async () => {
   if (showTransactions.value) loadTransactions();
 });
 
-function loadTransactions() {
+function loadTransactions(reset = true): Promise<void> {
+  if (transactionsLoading.value) return Promise.resolve();
+  if (!reset && !transactionsHasMore.value) return Promise.resolve();
   transactionsLoading.value = true;
-  consumerApi
-    .balanceTransactions(0, 10)
-    .then((page) => {
-      transactions.value = page.items || [];
+  const page = reset ? 0 : transactionsPage.value + 1;
+  return consumerApi
+    .balanceTransactions(page, TRANSACTION_PAGE_SIZE)
+    .then((data) => {
+      // 注意：回调参数命名为 data，避免遮蔽外层请求页码 page
+      const items = data.items || [];
+      const total = Number(data.total ?? items.length);
+      if (reset) {
+        transactions.value = items;
+      } else {
+        const seen = new Set(transactions.value.map((t) => t.transactionId));
+        transactions.value = transactions.value.concat(items.filter((t) => t.transactionId && !seen.has(t.transactionId)));
+      }
+      transactionsPage.value = page;
+      transactionsHasMore.value =
+        items.length >= TRANSACTION_PAGE_SIZE &&
+        transactions.value.length < Math.max(total, transactions.value.length);
     })
     .catch(() => {
       /* ignore */
@@ -346,8 +367,7 @@ async function refreshAccount() {
   account.value = await consumerApi.account();
   syncBalanceDisplay(account.value);
   if (showTransactions.value) {
-    const page = await consumerApi.balanceTransactions(0, 10);
-    transactions.value = page.items || [];
+    await loadTransactions(true);
   }
 }
 
@@ -678,6 +698,13 @@ function onLogout() {
 .transaction-time { display: block; margin-top: 6rpx; font-size: 22rpx; color: #999; }
 .transaction-amount { font-size: 30rpx; font-weight: 600; color: #191919; }
 .transaction-amount.income { color: #07c160; }
+.transaction-more {
+  text-align: center;
+  padding: 20rpx 0 6rpx;
+  font-size: 24rpx;
+  color: var(--brand, #059669);
+  font-weight: 600;
+}
 .transaction-empty { padding: 28rpx; text-align: center; color: #849087; font-size: 25rpx; }
 .transaction-empty-title { display: block; font-size: 26rpx; font-weight: 650; color: #64748b; }
 .transaction-empty-hint { display: block; margin-top: 8rpx; font-size: 22rpx; color: #94a3b8; }

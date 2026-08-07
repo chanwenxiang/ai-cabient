@@ -23,6 +23,7 @@
           <text v-if="priorityLabel(item.priority)" class="tag" :class="priorityClass(item.priority)">
             {{ priorityLabel(item.priority) }}
           </text>
+          <text v-if="unread(item.announceId)" class="unread-dot" aria-label="未读">新</text>
           <text class="time">{{ formatTime(item.publishAt) }}</text>
         </view>
         <text class="title">{{ item.title }}</text>
@@ -37,11 +38,17 @@ import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi } from '@/utils/consumer-api';
 import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import { announcementReadMap } from '@aicabinet/shared-uni/announcement-read';
 import type { AnnouncementDto } from '@aicabinet/shared-types';
 
 const loading = ref(true);
 const error = ref('');
 const list = ref<AnnouncementDto[]>([]);
+const readMap = ref<Record<string, number>>({});
+
+function unread(id?: number) {
+  return id != null && readMap.value[String(id)] == null;
+}
 
 onShow(() => {
   void load();
@@ -52,9 +59,10 @@ async function load() {
   error.value = '';
   try {
     list.value = (await consumerApi.listAnnouncements()) || [];
-  } catch (e: any) {
+    readMap.value = announcementReadMap();
+  } catch (e) {
     list.value = [];
-    error.value = e?.message || '加载失败';
+    error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
   }
@@ -134,6 +142,15 @@ function priorityClass(p?: string) {
 }
 .tag.high { color: #b45309; background: #fef3c7; }
 .tag.urgent { color: #b91c1c; background: #fee2e2; }
+.unread-dot {
+  color: #fff;
+  background: #ef4444;
+  font-size: 20rpx;
+  line-height: 1;
+  padding: 6rpx 10rpx;
+  border-radius: 999rpx;
+  margin-left: 8rpx;
+}
 .time { color: #94a3b8; font-size: 22rpx; margin-left: auto; }
 .title {
   display: block;

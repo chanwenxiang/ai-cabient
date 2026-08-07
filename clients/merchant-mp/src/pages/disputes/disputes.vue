@@ -50,7 +50,37 @@
           <text v-else class="reply-hint">查看详情 ›</text>
         </view>
       </view>
-      <text v-if="listTruncated" class="trunc-hint">仅显示前 {{ list.length }} 条，共 {{ listTotal }} 条</text>
+      <view v-if="hasMore" class="load-more" role="button" aria-label="加载更多争议" @click="loadMore">
+        {{ loadingMore ? '加载中…' : `加载更多（已显示 ${list.length}/${listTotal}）` }}
+      </view>
+      <text v-else-if="listTruncated" class="trunc-hint">共 {{ listTotal }} 条，已全部加载</text>
+    </view>
+
+    <!-- 争议详情底部抽屉：替代 uni.showModal 长文本，小屏可滚动 -->
+    <view v-if="detailVisible" class="detail-mask" @click.self="detailVisible = false" @touchmove.stop.prevent>
+      <view class="detail-panel" @click.stop>
+        <view class="detail-handle" />
+        <text class="detail-title">{{ statusText(detail?.status) }}</text>
+        <text class="detail-reason">{{ localizeDisputeReason(detail?.reason) || emptyDisplay(detail?.reason, 'reason') }}</text>
+        <scroll-view scroll-y class="detail-scroll">
+          <view class="detail-rows">
+            <view class="detail-row"><text class="detail-lbl">单号</text><text class="detail-val">{{ emptyDisplay(detail?.ticketId, 'order') }}</text></view>
+            <view class="detail-row"><text class="detail-lbl">状态</text><text class="detail-val">{{ statusText(detail?.status) }}</text></view>
+            <view class="detail-row"><text class="detail-lbl">柜机</text><text class="detail-val">{{ emptyDisplay(detail?.deviceId, 'device') }}</text></view>
+            <view v-if="detail?.orderId" class="detail-row"><text class="detail-lbl">订单</text><text class="detail-val">{{ detail.orderId }}</text></view>
+            <view v-if="detail?.billedAmountCents != null" class="detail-row">
+              <text class="detail-lbl">金额</text><text class="detail-val">{{ fmtMoney(detail.billedAmountCents) }}</text>
+            </view>
+            <view v-if="detail?.lastMessage" class="detail-row"><text class="detail-lbl">最新</text><text class="detail-val">{{ detail.lastMessage }}</text></view>
+          </view>
+        </scroll-view>
+        <view class="detail-actions">
+          <button v-if="canReplyDetail" class="primary-btn" @click="replyFromDetail">回复</button>
+          <button v-if="detail?.orderId" class="btn-outline" @click="goOrderFromDetail">查看订单</button>
+          <button v-else-if="detail?.deviceId" class="btn-outline" @click="goDeviceFromDetail">查看柜机</button>
+          <button class="btn-outline" @click="detailVisible = false">关闭</button>
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -78,12 +108,19 @@ const tabs = [
 
 const activeTab = ref('OPEN');
 const loading = ref(false);
+const loadingMore = ref(false);
 const error = ref('');
 const list = ref<MerchantDisputeTicket[]>([]);
 let loadSeq = 0;
 const listTotal = ref(0);
+const pageIndex = ref(0);
+const hasMore = ref(false);
+const PAGE_SIZE = 100;
 const pendingTicketId = ref('');
 const pendingSessionId = ref('');
+const detailVisible = ref(false);
+const detail = ref<MerchantDisputeTicket | null>(null);
+const canReplyDetail = ref(false);
 
 const activeTabLabel = computed(() => tabs.find((t) => t.key === activeTab.value)?.label || '');
 const listTruncated = computed(
@@ -139,6 +176,8 @@ async function load() {
       list.value = res?.items || [];
       listTotal.value = res?.total ?? list.value.length;
     }
+    pageIndex.value = 0;
+    hasMore.value = list.value.length < listTotal.value;
     if (pendingSessionId.value) {
       const sid = pendingSessionId.value;
       pendingSessionId.value = '';
@@ -188,62 +227,74 @@ function formatTime(t?: string) {
 }
 
 async function onDetail(item: MerchantDisputeTicket) {
-  let detail: MerchantDisputeTicket = { ...item };
+  let row: MerchantDisputeTicket = { ...item };
   let canReplyFromApi: boolean | undefined;
   try {
     const res = await merchantApi.disputeDetail(item.ticketId);
-    if (res?.ticket) detail = { ...item, ...res.ticket };
+    if (res?.ticket) row = { ...item, ...res.ticket };
     canReplyFromApi = res?.canReply;
     const lastMsg = res?.messages?.length
       ? res.messages[res.messages.length - 1]?.body
-      : detail.lastMessage;
-    if (lastMsg) detail = { ...detail, lastMessage: lastMsg };
+      : row.lastMessage;
+    if (lastMsg) row = { ...row, lastMessage: lastMsg };
   } catch {
     // 列表摘要兜底
   }
-  const amount =
-    detail.billedAmountCents != null
-      ? fmtMoney(detail.billedAmountCents)
-      : '';
-  const lines = [
-    `单号：${emptyDisplay(detail.ticketId, 'order')}`,
-    `状态：${statusText(detail.status)}`,
-    `柜机：${emptyDisplay(detail.deviceId, 'device')}`,
-    detail.orderId ? `订单：${detail.orderId}` : '',
-    amount ? `金额：${amount}` : '',
-    `原因：${localizeDisputeReason(detail.reason) || emptyDisplay(detail.reason, 'reason')}`,
-    detail.lastMessage ? `最新：${detail.lastMessage}` : ''
-  ]
-    .filter(Boolean)
-    .join('\n');
-  const replyable =
-    canReplyFromApi != null ? canReplyFromApi && canReply.value : canReplyTicket(detail);
-  const hasOrder = !!detail.orderId;
-  uni.showModal({
-    title: '争议详情',
-    content: lines,
-    showCancel: true,
-    cancelText: replyable ? '关闭' : hasOrder || detail.deviceId ? '关闭' : '知道了',
-    confirmText: replyable ? '回复' : hasOrder ? '查看订单' : detail.deviceId ? '查看柜机' : '知道了',
-    success(res) {
-      if (!res.confirm) return;
-      if (replyable) {
-        onReply(detail);
-        return;
-      }
-      if (hasOrder) {
-        uni.navigateTo({
-          url: `/pages/order-detail/order-detail?orderId=${encodeURIComponent(detail.orderId!)}`
-        });
-        return;
-      }
-      if (detail.deviceId) {
-        uni.navigateTo({
-          url: `/pages/device-detail/device-detail?id=${encodeURIComponent(detail.deviceId)}`
-        });
-      }
+  detail.value = row;
+  canReplyDetail.value =
+    canReplyFromApi != null ? canReplyFromApi && canReply.value : canReplyTicket(row);
+  detailVisible.value = true;
+}
+
+function replyFromDetail() {
+  if (!detail.value) return;
+  detailVisible.value = false;
+  void onReply(detail.value);
+}
+
+function goOrderFromDetail() {
+  const oid = detail.value?.orderId;
+  detailVisible.value = false;
+  if (oid) {
+    uni.navigateTo({
+      url: `/pages/order-detail/order-detail?orderId=${encodeURIComponent(oid)}`
+    });
+  }
+}
+
+async function loadMore() {
+  if (!hasMore.value || loadingMore.value || loading.value) return;
+  loadingMore.value = true;
+  try {
+    const next = pageIndex.value + 1;
+    const res = await merchantApi.disputes(activeTab.value, next, PAGE_SIZE);
+    const items = Array.isArray(res) ? res : res?.items || [];
+    if (!items.length) {
+      hasMore.value = false;
+      return;
     }
-  });
+    const seen = new Set(list.value.map((t) => t.ticketId));
+    const appended = items.filter((t) => t.ticketId && !seen.has(t.ticketId));
+    list.value = list.value.concat(appended);
+    pageIndex.value = next;
+    const total = Array.isArray(res) ? list.value.length : Number(res?.total ?? list.value.length);
+    listTotal.value = total;
+    hasMore.value = list.value.length < total && items.length >= PAGE_SIZE;
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
+  } finally {
+    loadingMore.value = false;
+  }
+}
+
+function goDeviceFromDetail() {
+  const deviceId = detail.value?.deviceId;
+  detailVisible.value = false;
+  if (deviceId) {
+    uni.navigateTo({
+      url: `/pages/device-detail/device-detail?id=${encodeURIComponent(deviceId)}`
+    });
+  }
 }
 
 async function onReply(item: MerchantDisputeTicket) {
@@ -343,5 +394,98 @@ async function onReply(item: MerchantDisputeTicket) {
   color: #94a3b8;
   font-size: 22rpx;
   padding: 8rpx 0 24rpx;
+}
+.load-more {
+  display: block;
+  text-align: center;
+  color: var(--brand, #0f766e);
+  font-size: 24rpx;
+  font-weight: 600;
+  padding: 20rpx 0 8rpx;
+}
+.detail-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  z-index: 300;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.detail-panel {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 28rpx 28rpx 0 0;
+  padding: 18rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+}
+.detail-handle {
+  width: 64rpx;
+  height: 8rpx;
+  background: #cbd5e1;
+  border-radius: 4rpx;
+  margin: 0 auto 20rpx;
+  flex-shrink: 0;
+}
+.detail-title {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: center;
+  flex-shrink: 0;
+}
+.detail-reason {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 26rpx;
+  color: #475569;
+  line-height: 1.5;
+  text-align: center;
+  flex-shrink: 0;
+}
+.detail-scroll {
+  flex: 1;
+  min-height: 0;
+  margin-top: 16rpx;
+}
+.detail-rows {
+  border-top: 1rpx solid #f1f5f9;
+}
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 20rpx;
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid #f1f5f9;
+}
+.detail-lbl { font-size: 24rpx; color: #94a3b8; flex-shrink: 0; }
+.detail-val {
+  font-size: 24rpx;
+  color: #1e293b;
+  text-align: right;
+  word-break: break-all;
+  max-width: 70%;
+}
+.detail-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 14rpx;
+  margin-top: 20rpx;
+  flex-shrink: 0;
+}
+.detail-actions .primary-btn,
+.detail-actions .btn-outline {
+  margin: 0;
+  min-height: 80rpx;
+  line-height: 80rpx;
+  border-radius: 40rpx;
+  font-size: 28rpx;
+  font-weight: 600;
+  text-align: center;
 }
 </style>

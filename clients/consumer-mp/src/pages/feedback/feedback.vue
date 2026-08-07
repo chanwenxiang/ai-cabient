@@ -164,9 +164,9 @@ async function loadHistory() {
       return;
     }
     history.value = (await consumerApi.listMyFeedback()) || [];
-  } catch (e: any) {
+  } catch (e) {
     history.value = [];
-    historyError.value = e?.message || '加载失败';
+    historyError.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     historyLoading.value = false;
   }

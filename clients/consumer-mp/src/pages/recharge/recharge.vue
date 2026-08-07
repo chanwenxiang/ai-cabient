@@ -11,10 +11,23 @@
         :key="item.value"
         class="amount-card"
         :class="{ selected: selectedAmount === item.value }"
-        @click="selectedAmount = item.value"
+        @click="selectAmount(item.value)"
       >
         <text class="amount-value">{{ fmtMoney(item.value) }}</text>
       </view>
+    </view>
+
+    <view class="custom-row">
+      <text class="custom-label">自定义金额（元）</text>
+      <input
+        class="custom-input"
+        type="digit"
+        :value="customAmountYuan"
+        placeholder="如 33.5"
+        maxlength="8"
+        @input="onCustomAmount"
+      />
+      <text v-if="customAmountError" class="custom-error">{{ customAmountError }}</text>
     </view>
 
     <button
@@ -114,6 +127,7 @@ import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
 import { formatDateTimeMinute, fmtMoney } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
+import type { PageResult, RechargeOrderDto } from '@aicabinet/shared-types';
 import {
   resolveMockEnabled,
   resolveSandboxRecharge,
@@ -133,10 +147,12 @@ const amounts = [
 
 const balanceYuan = ref('0.00');
 const selectedAmount = ref(2000);
+const customAmountYuan = ref('');
+const customAmountError = ref('');
 const loading = ref(false);
 const recordsLoading = ref(false);
 const cancelling = ref(false);
-const records = ref<any[]>([]);
+const records = ref<RechargeOrderDto[]>([]);
 const alipayRechargeEnabled = ref(false);
 const wechatRechargeEnabled = ref(false);
 const wechatPayLive = ref(false);
@@ -151,7 +167,7 @@ const visibleRecords = computed(() =>
 
 onShow(async () => {
   await ensureConsumerAuth();
-  loadConfig();
+  await loadConfig();
   // 先展示余额/记录，避免 pending 轮询期间长时间停在 ¥0.00
   await Promise.all([loadBalance(), loadRecords()]);
   const paid = await resumePendingRechargeIfAny();
@@ -169,6 +185,38 @@ function goBack() {
     return;
   }
   uni.switchTab({ url: '/pages/mine/mine' });
+}
+
+function selectAmount(value: number) {
+  customAmountYuan.value = '';
+  customAmountError.value = '';
+  selectedAmount.value = value;
+}
+
+function onCustomAmount(e: unknown) {
+  const raw = String(
+    (e as { detail?: { value?: unknown }; target?: { value?: unknown } })?.detail?.value ??
+      (e as { target?: { value?: unknown } })?.target?.value ??
+      ''
+  ).trim();
+  customAmountYuan.value = raw;
+  customAmountError.value = '';
+  if (!raw) {
+    selectedAmount.value = 0;
+    return;
+  }
+  const yuan = Number(raw);
+  if (!Number.isFinite(yuan) || yuan <= 0) {
+    selectedAmount.value = 0;
+    customAmountError.value = '请输入大于 0 的金额';
+    return;
+  }
+  if (yuan > 5000) {
+    selectedAmount.value = 0;
+    customAmountError.value = '单次充值不超过 ¥5000';
+    return;
+  }
+  selectedAmount.value = Math.round(yuan * 100);
 }
 
 async function loadConfig() {
@@ -205,7 +253,7 @@ async function loadBalance() {
 async function loadRecords() {
   recordsLoading.value = true;
   try {
-    const res = await get<{ items?: any[] } | any[]>('/api/v2/payment/recharges');
+    const res = await get<PageResult<RechargeOrderDto> | RechargeOrderDto[]>('/api/v2/payment/recharges');
     const data = res.data;
     records.value = Array.isArray(data) ? data : data?.items ?? [];
   } catch {
@@ -245,8 +293,8 @@ async function cancelOne(orderId: string) {
     await consumerApi.cancelRecharge(orderId);
     uni.showToast({ title: '已取消', icon: 'none' });
     await loadRecords();
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '取消失败', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '取消失败', icon: 'none' });
   } finally {
     cancelling.value = false;
   }
@@ -294,8 +342,8 @@ async function onRecharge() {
     uni.showToast({ title: '充值成功', icon: 'success' });
     await loadBalance();
     await loadRecords();
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '充值失败', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '充值失败', icon: 'none' });
   } finally {
     loading.value = false;
   }
@@ -313,8 +361,8 @@ async function onWeChatRecharge() {
     });
     await loadBalance();
     await loadRecords();
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '微信充值失败', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '微信充值失败', icon: 'none' });
   } finally {
     loading.value = false;
   }
@@ -333,8 +381,8 @@ async function onAlipayRecharge() {
     uni.showToast({ title: '支付宝模拟充值成功', icon: 'success' });
     await loadBalance();
     await loadRecords();
-  } catch (e: any) {
-    uni.showToast({ title: e?.message || '支付宝下单失败', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '支付宝下单失败', icon: 'none' });
   } finally {
     loading.value = false;
   }
@@ -351,6 +399,27 @@ async function onAlipayRecharge() {
 .amount-card.selected { border-color: #059669; background: #ecfdf5; }
 .amount-value { font-size: 40rpx; font-weight: 700; color: #333; }
 .amount-bonus { font-size: 22rpx; color: #ff6b35; margin-top: 8rpx; display: block; }
+.custom-row {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 20rpx;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex-wrap: wrap;
+}
+.custom-label { font-size: 24rpx; color: #64748b; flex-shrink: 0; }
+.custom-input {
+  flex: 1;
+  min-width: 200rpx;
+  background: #f8faf9;
+  border: 1rpx solid #e4ebe7;
+  border-radius: 12rpx;
+  padding: 16rpx 20rpx;
+  font-size: 28rpx;
+}
+.custom-error { width: 100%; font-size: 22rpx; color: #dc2626; }
 .btn-primary {
   width: 100%;
   height: 88rpx;
