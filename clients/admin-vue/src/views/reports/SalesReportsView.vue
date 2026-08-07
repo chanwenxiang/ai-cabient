@@ -81,7 +81,14 @@ const loading = ref(false);
 const listHydrated = ref(false);
 const dim = ref('PRODUCT');
 const deviceId = ref('');
-const range = ref<[string, string] | null>(null);
+function todayStr() {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// 默认当天；只有选择日期范围时才按范围查询
+const range = ref<[string, string] | null>([todayStr(), todayStr()]);
 const rows = ref<any[]>([]);
 
 async function load() {
