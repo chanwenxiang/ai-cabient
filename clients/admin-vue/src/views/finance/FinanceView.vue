@@ -106,7 +106,7 @@
       </template>
       <div class="table-scroll">
         <div class="table-scroll-inner">
-          <el-table
+          <el-table fit="false"
             class="report-table sku-table"
             :data="displayTopSkus"
             :default-sort="idDefaultSort"

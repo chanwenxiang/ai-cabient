@@ -103,7 +103,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
+        <el-table fit="false"
           v-loading="loading"
           :data="paged"
           stripe
@@ -195,7 +195,7 @@
           <el-table-column label="检测阈值" width="96" align="center">
             <template #default="{ row }">{{ formatConfidence(row.detectionMinConfidence ?? 0.5) }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="200" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="200" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 :actions="skuActions(row)"
@@ -324,7 +324,7 @@
         </el-form-item>
       </el-form>
       <el-alert v-if="testPreview?.hint" :title="testPreview.hint" :type="testPreview.needReview ? 'warning' : 'success'" show-icon />
-      <el-table v-if="testPreview?.items?.length" :data="testPreview.items" size="small" stripe class="test-table">
+      <el-table fit="false" v-if="testPreview?.items?.length" :data="testPreview.items" size="small" stripe class="test-table">
         <el-table-column prop="skuName" label="商品" align="center" />
         <el-table-column prop="quantity" label="数量" width="72" align="center" />
         <el-table-column label="置信度" width="88" align="center">

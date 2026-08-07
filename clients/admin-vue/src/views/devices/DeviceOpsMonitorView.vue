@@ -55,7 +55,7 @@
     </el-form>
 
     <div class="table-scroll">
-      <el-table
+      <el-table fit="false"
         v-loading="loading"
         :data="displayItems"
         stripe

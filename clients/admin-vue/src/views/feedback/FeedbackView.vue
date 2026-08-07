@@ -34,7 +34,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
+        <el-table fit="false"
           v-loading="loading"
           :data="sortedList"
           stripe
@@ -105,8 +105,7 @@
             label="操作"
             width="88"
             class-name="col-action"
-            align="center"
-           fixed="right">
+            align="center">
             <template #default="{ row }">
               <TableActions
                 v-if="row.status === 'PENDING'"

@@ -63,7 +63,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
+        <el-table fit="false"
           v-loading="loading"
           :data="paged"
           border
@@ -107,7 +107,7 @@
               <span class="cell-datetime">{{ formatTime(row.publishAt) || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="160" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="160" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions :actions="rowActions(row)" :max-primary="2" @action="(k) => onRowAction(k, row)" />
             </template>

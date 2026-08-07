@@ -76,7 +76,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
+        <el-table fit="false"
           v-loading="loading"
           :data="paged"
           stripe
@@ -122,7 +122,7 @@
           </el-table-column>
           <el-table-column prop="sessionTotal" label="累计会话" min-width="96" align="center" />
           <el-table-column prop="sessionActive" label="进行中" min-width="88" align="center" />
-          <el-table-column v-if="canAccessPath('/devices')" label="操作" width="96" class-name="col-action" align="center" fixed="right">
+          <el-table-column v-if="canAccessPath('/devices')" label="操作" width="96" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
                 :actions="[{ key: 'detail', label: '详情', icon: View, type: 'primary' }]"

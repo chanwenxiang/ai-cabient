@@ -34,7 +34,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
+        <el-table fit="false"
           v-loading="loading"
           :data="items"
           stripe
@@ -62,7 +62,7 @@
             <template #default="{ row }">¥{{ ((row.balanceCents || 0) / 100).toFixed(2) }}</template>
           </el-table-column>
           <el-table-column label="用户" min-width="120" class-name="col-text" label-class-name="col-text" align="center" header-align="center">
-            <template #default="{ row }">{{ row.name || row.phoneNumber || '无' }}</template>
+            <template #default="{ row }">{{ row.name || '未命名' }}</template>
           </el-table-column>
           <el-table-column label="手机号" width="140" class-name="col-text" label-class-name="col-text" align="center" header-align="center">
             <template #default="{ row }">{{ row.phoneNumber || '无' }}</template>
@@ -116,6 +116,34 @@
         @size-change="onSizeChange"
       />
   </el-card>
+
+  <el-dialog v-model="adjustVisible" title="调整用户余额" width="460px" append-to-body destroy-on-close :close-on-click-modal="false">
+    <div v-if="adjustRow" class="adjust-user">
+      <div class="adjust-user__name">{{ adjustRow.name || '未命名' }}</div>
+      <div class="adjust-user__id">用户 {{ adjustRow.userId }} · {{ adjustRow.phoneNumber || '无手机号' }}</div>
+      <div class="adjust-user__balance">当前余额 <b>¥{{ ((adjustRow.balanceCents || 0) / 100).toFixed(2) }}</b></div>
+    </div>
+    <el-form label-position="top" @submit.prevent="submitAdjust">
+      <el-form-item label="变动金额（元，正数发放、负数扣回）" required>
+        <el-input-number
+          v-model="adjustForm.amount"
+          :precision="2"
+          :step="10"
+          :min="-1000000"
+          :max="1000000"
+          controls-position="right"
+          style="width: 100%"
+        />
+      </el-form-item>
+      <el-form-item label="调整原因" required>
+        <el-input v-model="adjustForm.reason" type="textarea" :rows="2" maxlength="100" placeholder="必填，提交后不可删除" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="adjustVisible = false">取消</el-button>
+      <el-button type="primary" :loading="adjustSaving" @click="submitAdjust">确认调整</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
@@ -167,7 +195,7 @@ const showActionColumn = computed(
 
 function onUserAction(key: string, row: UserRow) {
   if (key === 'verify') verifyUser(row);
-  else if (key === 'adjust') adjust(row);
+  else if (key === 'adjust') openAdjust(row);
 }
 
 async function verifyUser(row: UserRow) {
@@ -193,6 +221,10 @@ async function verifyUser(row: UserRow) {
 const loading = ref(false);
 const listHydrated = ref(false);
 const keyword = ref('');
+const adjustVisible = ref(false);
+const adjustSaving = ref(false);
+const adjustRow = ref<UserRow | null>(null);
+const adjustForm = ref({ amount: 0, reason: '' });
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
@@ -309,36 +341,37 @@ function onSizeChange() {
   load();
 }
 
-async function adjust(row: UserRow) {
+function openAdjust(row: UserRow) {
+  adjustRow.value = row;
+  adjustForm.value = { amount: 0, reason: '' };
+  adjustVisible.value = true;
+}
+
+async function submitAdjust() {
+  if (!adjustRow.value) return;
+  if (!adjustForm.value.amount || Number.isNaN(adjustForm.value.amount)) {
+    ElMessage.warning('请输入变动金额');
+    return;
+  }
+  if (!adjustForm.value.reason.trim()) {
+    ElMessage.warning('请填写调整原因');
+    return;
+  }
+  adjustSaving.value = true;
   try {
-    const amount = await ElMessageBox.prompt(
-      `当前余额 ¥${((row.balanceCents || 0) / 100).toFixed(2)}。输入变动金额，正数发放、负数扣回。`,
-      '调整余额',
-      {
-        inputPattern: /^-?\d+(\.\d{1,2})?$/,
-        inputErrorMessage: '请输入正确金额',
-        confirmButtonText: '下一步',
-        cancelButtonText: '取消'
-      }
-    );
-    const reason = await ElMessageBox.prompt('必须填写调整原因，提交后不可删除', '确认资金操作', {
-      inputValidator: (v) => !!String(v || '').trim() || '必须填写原因',
-      confirmButtonText: '确认提交',
-      cancelButtonText: '取消',
-      type: 'warning'
-    });
-    const deltaCents = Math.round(Number(amount.value) * 100);
-    await api.request(`/api/v2/ops/admin/users/${row.userId}/balance`, 'POST', {
+    const deltaCents = Math.round(Number(adjustForm.value.amount) * 100);
+    await api.request(`/api/v2/ops/admin/users/${adjustRow.value.userId}/balance`, 'POST', {
       deltaCents,
-      reason: reason.value,
-      idempotencyKey: `admin-${row.userId}-${Date.now()}`
+      reason: adjustForm.value.reason.trim(),
+      idempotencyKey: `admin-${adjustRow.value.userId}-${Date.now()}`
     });
     ElMessage.success('余额已调整');
+    adjustVisible.value = false;
     await load();
-  } catch (e: any) {
-    if (e !== 'cancel' && e !== 'close') {
-      ElMessage.error(e instanceof Error ? e.message : '调整失败');
-    }
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '调整失败');
+  } finally {
+    adjustSaving.value = false;
   }
 }
 
@@ -384,8 +417,29 @@ onActivated(() => {
   font-family: inherit;
 }
 .muted { color: var(--el-text-color-secondary); }
-/* 覆盖全局 min-width:0，避免窄屏下 fixed 操作列压扁并遮住余额/手机号 */
-.table-scroll-inner {
-  min-width: 980px !important;
+.adjust-user {
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border: 1px solid var(--layout-border);
+  border-radius: 10px;
+  background: var(--el-fill-color-light);
+}
+.adjust-user__name {
+  font-weight: 600;
+  font-size: 15px;
+}
+.adjust-user__id {
+  color: var(--layout-muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.adjust-user__balance {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--layout-muted);
+}
+.adjust-user__balance b {
+  color: var(--layout-text);
+  font-variant-numeric: tabular-nums;
 }
 </style>

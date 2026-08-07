@@ -163,7 +163,7 @@
 
       <div class="table-scroll">
         <div class="table-scroll-inner">
-          <el-table
+          <el-table fit="false"
             class="action-table"
             :data="pagedActions"
             stripe
@@ -192,7 +192,7 @@
               <template #default="{ row }">{{ contextLabel(row) }}</template>
             </el-table-column>
             <el-table-column prop="detail" label="详情" min-width="220" show-overflow-tooltip align="center" class-name="col-text" />
-            <el-table-column label="操作" width="88" class-name="col-action" align="center" fixed="right">
+            <el-table-column label="操作" width="88" class-name="col-action" align="center">
               <template #default="{ row }">
                 <TableActions
                   v-if="canHandleAction(row)"

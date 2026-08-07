@@ -56,7 +56,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table v-loading="loading" :data="paged" stripe border class="report-table" row-key="id" empty-text=" ">
+        <el-table fit="false" v-loading="loading" :data="paged" stripe border class="report-table" row-key="id" empty-text=" ">
           <template #empty>
             <el-empty v-if="listHydrated && !loading" :description="emptyText" />
           </template>
@@ -104,7 +104,7 @@
               <span class="cell-datetime">{{ formatDateTime(row.checkedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="120" align="center" fixed="right">
+          <el-table-column label="操作" width="120" align="center">
             <template #default="{ row }">
               <el-button
                 v-if="canFix && isFixable(row.checkType)"

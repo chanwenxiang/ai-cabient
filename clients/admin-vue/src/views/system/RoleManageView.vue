@@ -44,7 +44,7 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table
+        <el-table fit="false"
           v-loading="loading"
           :data="filteredRoles"
           stripe
@@ -81,7 +81,7 @@
           <el-table-column prop="remark" label="备注" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
             <template #default="{ row }">{{ row.remark || '无' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="140" class-name="col-action" align="center" fixed="right">
+          <el-table-column label="操作" width="140" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions :actions="roleActions(row)" @action="(k) => onRoleAction(k, row)" />
             </template>

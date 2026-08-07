@@ -26,7 +26,7 @@
             placeholder="请输入11位手机号…"
             size="large"
             :disabled="loading"
-            @input="err = ''"
+            @input="onPhoneInput"
             @keyup.enter="focusPassword"
           />
         </el-form-item>
@@ -172,6 +172,11 @@ onUnmounted(() => {
 
 function focusPassword() {
   passwordInput.value?.focus?.();
+}
+
+function onPhoneInput() {
+  phone.value = phone.value.replace(/\D/g, '');
+  err.value = '';
 }
 
 function focusCaptcha() {

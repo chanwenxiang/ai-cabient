@@ -564,7 +564,8 @@ button, input, textarea, select { font: inherit; }
   max-width: 100%;
   margin-bottom: 16px;
   min-width: 0;
-  overflow: visible;
+  /* 卡片不裁剪内容：宽表格交由页面横向滚动 */
+  overflow: visible !important;
   box-sizing: border-box;
 }
 
@@ -654,8 +655,8 @@ button, input, textarea, select { font: inherit; }
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll {
   flex: 1 1 auto;
   min-height: 240px;
-  max-height: min(70vh, calc(100vh - 220px));
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
 }
 
 /*
@@ -682,7 +683,7 @@ button, input, textarea, select { font: inherit; }
   min-height: 0;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__header,
@@ -694,25 +695,25 @@ button, input, textarea, select { font: inherit; }
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content > .el-tab-pane,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) > .el-tabs__content > .el-tab-pane {
-  height: 100%;
+  height: auto;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  overflow: auto;
+  overflow: visible;
 }
 
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .page-pager,
@@ -790,7 +791,7 @@ button, input, textarea, select { font: inherit; }
   min-width: 0;
   min-height: 240px;
   display: block;
-  overflow: auto;
+  overflow: visible;
   -webkit-overflow-scrolling: touch;
   border: 1px solid var(--layout-border);
   border-radius: 8px;
@@ -821,6 +822,12 @@ button, input, textarea, select { font: inherit; }
   height: auto !important;
   display: block !important;
   overflow: visible !important;
+}
+
+/* 窄表行仍铺满容器：列宽保持声明值，剩余留白在末列后 */
+.table-scroll .el-table__header table,
+.table-scroll .el-table__body table {
+  min-width: 100%;
 }
 
 .table-scroll .el-table__header-wrapper {

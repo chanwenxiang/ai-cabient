@@ -374,7 +374,7 @@
         <el-button v-if="canAccessPath('/repair-tickets')" @click="goPath('/repair-tickets', { deviceId })">工单列表</el-button>
         <el-button v-hasPermi="['ops:repair:edit']" type="primary" plain @click="createRepair">新建工单</el-button>
       </div>
-      <el-table v-if="repairTickets.length" :data="repairTickets" size="small" class="repair-mini-table">
+      <el-table fit="false" v-if="repairTickets.length" :data="repairTickets" size="small" class="repair-mini-table">
         <el-table-column prop="ticketId" label="#" width="70" align="center" />
         <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip align="center" />
         <el-table-column prop="status" label="状态" width="100" align="center">
@@ -401,11 +401,8 @@
               </div>
             </el-descriptions-item>
             <el-descriptions-item label="地址">{{ metricsHydrated ? (metrics?.address || '无') : '—' }}</el-descriptions-item>
-            <el-descriptions-item label="App / 固件">
-              {{ metricsHydrated
-                ? `${metrics?.appVersion || '无'} / ${metrics?.firmwareVersion || '无'}`
-                : '—' }}
-            </el-descriptions-item>
+            <el-descriptions-item label="App 版本">{{ metricsHydrated ? (metrics?.appVersion || '无') : '—' }}</el-descriptions-item>
+            <el-descriptions-item label="固件版本">{{ metricsHydrated ? (metrics?.firmwareVersion || '无') : '—' }}</el-descriptions-item>
             <el-descriptions-item label="目标温度">
               <div class="temp-set-row">
                 <el-input-number
@@ -497,7 +494,7 @@
 
         <el-tab-pane label="关联单据" name="related">
           <h4 class="section-title">最近开门记录</h4>
-          <el-table
+          <el-table fit="false"
             v-loading="!relatedHydrated"
             :data="sessions"
             stripe
@@ -525,7 +522,7 @@
                 <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="88" class-name="col-action" align="center" fixed="right">
+            <el-table-column label="操作" width="88" class-name="col-action" align="center">
               <template #default="{ row }">
                 <TableActions
                   v-if="canAccessPath('/sessions')"
@@ -538,7 +535,7 @@
           </el-table>
 
           <h4 class="section-title">最近订单</h4>
-          <el-table
+          <el-table fit="false"
             v-loading="!relatedHydrated"
             :data="orders"
             stripe
@@ -564,7 +561,7 @@
                 <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="88" class-name="col-action" align="center" fixed="right">
+            <el-table-column label="操作" width="88" class-name="col-action" align="center">
               <template #default="{ row }">
                 <TableActions
                   v-if="canAccessPath('/orders')"
