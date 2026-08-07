@@ -198,8 +198,9 @@ async function saveSettings() {
     opsRemark: formRemark.value.trim() || null
   };
   if (formTargetTemp.value !== '') {
-    const temp = Number.parseInt(formTargetTemp.value, 10);
-    if (!Number.isFinite(temp)) {
+    const temp = Number(formTargetTemp.value);
+    // 用 Number + Number.isInteger 替代 parseInt，避免 "25.5" 被静默截断为 25
+    if (!Number.isInteger(temp)) {
       uni.showToast({ title: '目标温度须为整数', icon: 'none' });
       return;
     }
@@ -231,8 +232,8 @@ async function saveSlots() {
     enabled?: boolean;
   }[] = [];
   for (const s of slots.value) {
-    const par = Number.parseInt(slotPar.value[s.slotCode] || String(s.parLevel), 10);
-    if (!Number.isFinite(par) || par < 0) {
+    const par = Number(slotPar.value[s.slotCode] || s.parLevel);
+    if (!Number.isInteger(par) || par < 0) {
       uni.showToast({ title: `货道 ${s.slotCode} 容量无效`, icon: 'none' });
       return;
     }

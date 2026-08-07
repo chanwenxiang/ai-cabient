@@ -12,6 +12,7 @@
     "dev:merchant-h5": "pnpm --filter @aicabinet/merchant-mp dev:h5",
     "build:merchant-mp": "pnpm --filter @aicabinet/merchant-mp build:mp-weixin",
     "build:packages": "pnpm -r --filter @aicabinet/shared-types --filter @aicabinet/shared-dict --filter @aicabinet/shared-rbac --filter @aicabinet/shared-api build",
+    "test:mp": "pnpm --filter @aicabinet/consumer-mp run test:ci && pnpm --filter @aicabinet/merchant-mp run test:ci",
     "check:nav-perms": "node scripts/check-nav-perms.mjs",
     "smoke:realms": "node scripts/smoke-realms.mjs"
   },

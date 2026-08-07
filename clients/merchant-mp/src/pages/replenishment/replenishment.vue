@@ -770,7 +770,11 @@ async function addEvidence() {
       count: 5 - evidenceItems.value.length,
       sizeType: ['compressed'],
       sourceType: ['album', 'camera'],
-      success: (res) => resolve(res.tempFilePaths || []),
+      success: (res) => {
+        // @dcloudio/types 中 tempFilePaths 声明为 string | string[]，统一归一化为数组
+        const raw = res.tempFilePaths || [];
+        resolve(Array.isArray(raw) ? raw : [raw]);
+      },
       fail: () => resolve([])
     });
   });
@@ -1113,9 +1117,16 @@ async function confirmLines() {
   try {
     lines.value = (await merchantApi.confirmReplenishmentLines(
       selected.value.taskId,
-      positive.map(({ lineId, ...line }) => ({
-        ...line,
-        lineType: line.lineType || 'RESTOCK'
+      positive.map((line) => ({
+        // 显式构造请求 DTO（对齐后端 SubmitReplenishmentLinesRequest），
+        // 不把 applied 等前端 UI 状态发回服务端
+        skuId: line.skuId,
+        quantity: line.quantity,
+        lineType: line.lineType || 'RESTOCK',
+        batchNo: line.batchNo,
+        productionDate: line.productionDate,
+        expiryDate: line.expiryDate,
+        slotId: line.slotId
       }))
     )) as Line[];
     linesConfirmed.value = true;
