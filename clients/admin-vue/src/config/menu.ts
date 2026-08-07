@@ -23,6 +23,7 @@ export const NAV_GROUPS = [
 
 const BASE_NAV: NavItem[] = [
   { path: '/dashboard', title: '运营工作台', group: '概览', perm: 'ops:dashboard:view', keywords: ['工作台', 'dashboard', '异常', '预警'] },
+  { path: '/big-screen', title: '运营大屏', group: '概览', perm: 'ops:bigscreen:view', keywords: ['大屏', '监控', 'big screen', '驾驶舱'] },
   { path: '/analytics', title: '数据分析', group: '概览', perm: 'ops:analytics:view', keywords: ['图表', '趋势', '营收', 'analytics', '看板'] },
   { path: '/reports', title: '设备报表', group: '概览', perm: 'ops:report:device', keywords: ['报表', 'report', '设备营收'] },
   { path: '/finance', title: '财务毛利', group: '概览', perm: 'ops:finance:view', keywords: ['财务', '毛利', '成本', 'finance'] },

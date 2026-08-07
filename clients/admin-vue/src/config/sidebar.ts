@@ -15,6 +15,7 @@ export interface SidebarNode {
 
 const PATH_ICONS: Record<string, Component> = {
   '/dashboard': Odometer,
+  '/big-screen': DataBoard,
   '/analytics': DataAnalysis,
   '/reports': DataBoard,
   '/finance': Money,
