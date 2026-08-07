@@ -95,6 +95,42 @@
       </div>
 
       <div class="bs-panel">
+        <div class="bs-panel-title">货柜统计</div>
+        <div class="bs-panel-body">
+          <div class="bs-row"><span>货柜总数</span><b>{{ stats?.deviceTotal ?? 0 }}</b></div>
+          <div class="bs-row"><span>在售货柜</span><b class="good">{{ workbench?.devicesOnSale ?? 0 }}</b></div>
+          <div class="bs-row"><span>停售货柜</span><b>{{ workbench?.devicesSalesLocked ?? 0 }}</b></div>
+          <div class="bs-row"><span>离线货柜</span><b class="warn">{{ workbench?.offlineDevices ?? 0 }}</b></div>
+          <div class="bs-row"><span>设备在线率</span><b>{{ pct(sla?.deviceOnlineRate) }}</b></div>
+          <div class="bs-row"><span>当前会话</span><b>{{ stats?.sessionActive ?? 0 }}</b></div>
+        </div>
+      </div>
+
+      <div class="bs-panel">
+        <div class="bs-panel-title">销售统计（今日）</div>
+        <div class="bs-panel-body">
+          <div class="bs-row"><span>销售金额</span><b class="money">{{ yuan(finance?.revenueTodayCents) }}</b></div>
+          <div class="bs-row"><span>订单数量</span><b>{{ finance?.orderToday ?? stats?.orderToday ?? 0 }}</b></div>
+          <div class="bs-row"><span>客单价</span><b>{{ yuan(finance?.averageOrderValueTodayCents) }}</b></div>
+          <div class="bs-row"><span>待处理争议</span><b class="warn">{{ workbench?.openDisputes ?? 0 }}</b></div>
+          <div class="bs-row"><span>未支付订单</span><b>{{ workbench?.pendingUnpaidOrders ?? 0 }}</b></div>
+          <div class="bs-row"><span>低库存 SKU</span><b class="warn">{{ stats?.lowStockSkuCount ?? 0 }}</b></div>
+        </div>
+      </div>
+
+      <div class="bs-panel">
+        <div class="bs-panel-title">商品排行（今日）</div>
+        <div class="bs-panel-body">
+          <div v-for="(p, i) in topProducts" :key="p.dimLabel" class="bs-rank">
+            <span class="bs-rank-idx">{{ i + 1 }}</span>
+            <span class="bs-rank-name">{{ p.dimLabel }}</span>
+            <span class="bs-rank-num">{{ yuan(p.revenueCents) }}</span>
+          </div>
+          <div v-if="!topProducts.length" class="bs-empty">暂无商品数据</div>
+        </div>
+      </div>
+
+      <div class="bs-panel">
         <div class="bs-panel-title">设备可用性 KPI（今天）</div>
         <div class="bs-panel-body">
           <div class="bs-row"><span>离线事件</span><b>{{ kpi?.offlineEvents ?? 0 }}</b></div>
@@ -118,7 +154,19 @@
         </div>
       </div>
 
-      <div class="bs-panel">
+      <div class="bs-panel bs-panel--wide">
+        <div class="bs-panel-title">货柜排行（今日营收）</div>
+        <div class="bs-panel-body bs-rank-grid">
+          <div v-for="(d, i) in topDevices" :key="d.deviceId" class="bs-rank">
+            <span class="bs-rank-idx">{{ i + 1 }}</span>
+            <span class="bs-rank-name">{{ d.deviceName || d.deviceId }}</span>
+            <span class="bs-rank-num">{{ yuan(d.revenueTodayCents) }}</span>
+          </div>
+          <div v-if="!topDevices.length" class="bs-empty">暂无货柜数据</div>
+        </div>
+      </div>
+
+      <div class="bs-panel bs-panel--full">
         <div class="bs-panel-title">支付渠道（近 7 天）</div>
         <div class="bs-panel-body">
           <div v-for="ch in channels" :key="ch.channel" class="bs-bar-row">
@@ -151,7 +199,7 @@ interface AdminStats {
   revenueTodayCents: number; orderTotal: number; revenueTotalCents: number;
   recognitionAutoRate24h: number; doorSuccessRate24h: number; lowStockSkuCount: number;
   pendingSplitCount: number; nearExpiryLotCount: number; expiredLotCount: number;
-  pullOffOpenCount: number; slotDiscrepancyCount: number;
+  pullOffOpenCount: number; slotDiscrepancyCount: number; sessionActive: number;
 }
 interface Workbench {
   devicesOnSale: number; devicesSalesLocked: number; offlineDevices: number;
@@ -179,7 +227,7 @@ interface SlaMetrics {
 }
 interface FinanceStats {
   revenueTodayCents: number; grossMarginTodayCents: number; grossMarginRateToday: number;
-  orderToday: number;
+  orderToday: number; averageOrderValueTodayCents: number;
 }
 interface Kpi {
   offlineEvents: number; autoLockCount: number; autoUnlockCount: number;
@@ -196,14 +244,33 @@ const finance = ref<FinanceStats | null>(null);
 const kpi = ref<Kpi | null>(null);
 const channels = ref<ChannelStat[]>([]);
 const trend = ref<DailyStat[]>([]);
+const deviceRanks = ref<DeviceRank[]>([]);
+const productRanks = ref<ProductRank[]>([]);
 
 interface DailyStat {
   date: string;
   orderCount: number;
   revenueCents: number;
 }
+interface DeviceRank {
+  deviceId: string;
+  deviceName?: string;
+  orderToday: number;
+  revenueTodayCents: number;
+}
+interface ProductRank {
+  dimLabel: string;
+  orderCount: number;
+  revenueCents: number;
+}
 
 const actionItems = computed(() => (workbench.value?.actionItems ?? []).slice(0, 8));
+const topDevices = computed(() =>
+  [...deviceRanks.value].sort((a, b) => b.revenueTodayCents - a.revenueTodayCents).slice(0, 5)
+);
+const topProducts = computed(() =>
+  [...productRanks.value].sort((a, b) => b.revenueCents - a.revenueCents).slice(0, 5)
+);
 
 const trendPoints = computed(() => {
   const data = trend.value;
@@ -244,6 +311,12 @@ function goBack() {
   window.history.length > 1 ? window.history.back() : (window.location.href = '/admin/#/dashboard');
 }
 
+function todayStr() {
+  const d = new Date();
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 const risks = computed(() => [
   { label: '待上传', value: workbench.value?.waitingUploads ?? 0 },
   { label: '卡点会话', value: workbench.value?.staleSessions ?? 0 },
@@ -280,14 +353,17 @@ function barWidth(ch: ChannelStat) {
 
 async function load() {
   loading.value = true;
-  const [s, w, sl, f, k, ch, t] = await Promise.all([
+  const today = todayStr();
+  const [s, w, sl, f, k, ch, t, dr, pr] = await Promise.all([
     api.request<AdminStats>('/api/v2/ops/admin/stats', 'GET').catch(() => null),
     api.request<Workbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null),
     api.request<SlaMetrics>('/api/v2/ops/admin/sla', 'GET').catch(() => null),
     api.request<FinanceStats>('/api/v2/ops/admin/finance/stats', 'GET').catch(() => null),
     api.request<Kpi>('/api/v2/ops/admin/device-availability-kpi', 'GET').catch(() => null),
     api.request<{ orderPayChannels: ChannelStat[] }>('/api/v2/ops/admin/trend/channels?days=7', 'GET').catch(() => null),
-    api.request<{ last7Days: DailyStat[] }>('/api/v2/ops/admin/trend?days=7', 'GET').catch(() => null)
+    api.request<{ last7Days: DailyStat[] }>('/api/v2/ops/admin/trend?days=7', 'GET').catch(() => null),
+    api.request<DeviceRank[]>('/api/v2/ops/admin/reports/devices', 'GET').catch(() => null),
+    api.request<ProductRank[]>(`/api/v2/ops/admin/sales-reports?dim=PRODUCT&fromDate=${today}&toDate=${today}`, 'GET').catch(() => null)
   ]);
   stats.value = s;
   workbench.value = w;
@@ -296,6 +372,8 @@ async function load() {
   kpi.value = k;
   channels.value = ch?.orderPayChannels ?? [];
   trend.value = t?.last7Days ?? [];
+  deviceRanks.value = dr ?? [];
+  productRanks.value = pr ?? [];
   loading.value = false;
 }
 
@@ -375,6 +453,7 @@ onBeforeUnmount(() => {
   padding: 14px;
 }
 .bs-panel--wide { grid-column: span 2; }
+.bs-panel--full { grid-column: 1 / -1; }
 .bs-panel-title { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: var(--layout-muted); }
 .bs-panel-body { display: flex; flex-direction: column; gap: 8px; }
 .bs-row { display: flex; justify-content: space-between; font-size: 14px; }
@@ -384,6 +463,15 @@ onBeforeUnmount(() => {
 .bs-row b.warn { color: var(--el-color-danger, #ef4444); }
 .bs-line { width: 100%; height: 150px; display: block; }
 .bs-line-labels { display: flex; justify-content: space-between; font-size: 12px; color: var(--layout-muted); }
+.bs-rank-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.bs-rank { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; }
+.bs-rank-idx {
+  width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+  background: var(--app-primary, #0f766e); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 12px;
+}
+.bs-rank-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--layout-text); }
+.bs-rank-num { color: var(--layout-muted); }
 .bs-action { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; }
 .bs-action-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex-shrink: 0; }
 .bs-action-dot.is-danger { background: var(--el-color-danger, #ef4444); }
