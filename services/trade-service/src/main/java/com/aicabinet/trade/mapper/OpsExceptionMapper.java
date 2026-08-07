@@ -17,6 +17,15 @@ public interface OpsExceptionMapper extends BaseTradeMapper<OpsException> {
     return Optional.ofNullable(selectOne(Wrappers.<OpsException>lambdaQuery().eq(OpsException::getDedupKey, dedupKey).in(OpsException::getStatus, statuses).last("LIMIT 1")));
     }
 
+    default Optional<OpsException> findFirstByExceptionTypeAndDeviceIdAndStatusIn(
+            String exceptionType, String deviceId, Collection<String> statuses) {
+        return Optional.ofNullable(selectOne(Wrappers.<OpsException>lambdaQuery()
+                .eq(OpsException::getExceptionType, exceptionType)
+                .eq(OpsException::getDeviceId, deviceId)
+                .in(OpsException::getStatus, statuses)
+                .last("LIMIT 1")));
+    }
+
     default List<OpsException> findBySessionIdAndStatusIn(String sessionId, Collection<String> statuses) {
     return selectList(Wrappers.<OpsException>lambdaQuery().eq(OpsException::getSessionId, sessionId).in(OpsException::getStatus, statuses));
     }
@@ -78,6 +87,30 @@ public interface OpsExceptionMapper extends BaseTradeMapper<OpsException> {
             pageable.getPageNumber() + 1L, pageable.getPageSize());
     var result = selectPage(mpPage, Wrappers.<OpsException>lambdaQuery().in(OpsException::getDeviceId, deviceIds).eq(OpsException::getStatus, status).orderByDesc(OpsException::getCreatedAt));
     return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
+    }
+
+    default long countByExceptionTypeAndCreatedAtBetween(
+            String exceptionType, Instant start, Instant end) {
+        Long c = selectCount(Wrappers.<OpsException>lambdaQuery()
+                .eq(OpsException::getExceptionType, exceptionType)
+                .ge(OpsException::getCreatedAt, start)
+                .lt(OpsException::getCreatedAt, end));
+        return c == null ? 0 : c;
+    }
+
+    /** 当日已解决异常的创建→解决平均时长（小时）；全部未解决返回 null。 */
+    default Double avgResolutionHoursByExceptionTypeAndCreatedAtBetween(
+            String exceptionType, Instant start, Instant end) {
+        List<Object> rows = selectObjs(Wrappers.<OpsException>query()
+                .select("AVG(EXTRACT(EPOCH FROM (resolved_at - created_at)) / 3600.0)")
+                .eq("exception_type", exceptionType)
+                .ge("created_at", start)
+                .lt("created_at", end)
+                .isNotNull("resolved_at"));
+        if (rows == null || rows.isEmpty() || rows.get(0) == null) {
+            return null;
+        }
+        return ((Number) rows.get(0)).doubleValue();
     }
 
 }

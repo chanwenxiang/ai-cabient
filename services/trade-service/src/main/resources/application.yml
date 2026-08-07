@@ -159,6 +159,8 @@ aicabinet:
     enabled: ${MERCHANT_AI_ENABLED:true}
     base-url: ${MERCHANT_AI_BASE_URL:http://localhost:11434}
     model: ${MERCHANT_AI_MODEL:qwen2.5:1.5b}
+  xxljob:
+    enabled: ${XXL_JOB_ENABLED:false}
 
 management:
   endpoints:
@@ -202,3 +204,16 @@ springdoc:
     display-request-duration: true
     tags-sorter: alpha
     operations-sorter: method
+
+# XXL-JOB 执行器（调度中心独立部署；XXL_JOB_ENABLED=true 时启用并注册）
+xxl:
+  job:
+    admin:
+      addresses: ${XXL_JOB_ADMIN_ADDRESSES:}
+    access-token: ${XXL_JOB_ACCESS_TOKEN:}
+    executor:
+      appname: ${XXL_JOB_EXECUTOR_APPNAME:trade-service}
+      ip: ${XXL_JOB_EXECUTOR_IP:}
+      port: ${XXL_JOB_EXECUTOR_PORT:9999}
+      log-path: ${XXL_JOB_EXECUTOR_LOG_PATH:./logs/xxl-job/jobhandler}
+      log-retention-days: ${XXL_JOB_EXECUTOR_LOG_RETENTION_DAYS:30}

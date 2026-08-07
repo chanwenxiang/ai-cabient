@@ -9,6 +9,7 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DisputeTicketMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.SlaDailySnapshotMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +33,9 @@ public class SlaMetricsService {
     private final MerchantScopeService merchantScopeService;
     private final DisputeTicketMapper disputeRepository;
     private final DisputeSlaService disputeSlaService;
+
+    @Autowired
+    private ScheduledTaskService taskService;
 
     public SlaMetricsService(ShoppingSessionMapper sessionRepository,
                              DeviceInfoMapper deviceRepository,
@@ -72,9 +76,24 @@ public class SlaMetricsService {
     @Scheduled(cron = "0 5 0 * * *")
     @Transactional
     public void snapshotDaily() {
-        LocalDate yesterday = LocalDate.now().minusDays(1);
-        SlaDailySnapshot snap = buildSnapshot(yesterday);
-        snapshotRepository.save(snap);
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("sla-snapshot", 600)) {
+            return;
+        }
+        boolean failed = false;
+        try {
+            LocalDate yesterday = LocalDate.now().minusDays(1);
+            SlaDailySnapshot snap = buildSnapshot(yesterday);
+            snapshotRepository.save(snap);
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish("sla-snapshot", "FAILED", e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish("sla-snapshot", "SUCCESS", null, start);
+            }
+        }
     }
 
     @Transactional

@@ -22,6 +22,9 @@ public class DeviceInfo {
 
     private String onlineStatus;
 
+    /** 最近一次恢复在线的时间（离线时置空），用于稳定在线自动解锁 */
+    private Instant onlineSince;
+
     private String appVersion;
 
     private String firmwareVersion;
@@ -95,6 +98,8 @@ public class DeviceInfo {
     public void setDeviceType(String deviceType) { this.deviceType = deviceType; }
     public String getOnlineStatus() { return onlineStatus; }
     public void setOnlineStatus(String onlineStatus) { this.onlineStatus = onlineStatus; }
+    public Instant getOnlineSince() { return onlineSince; }
+    public void setOnlineSince(Instant onlineSince) { this.onlineSince = onlineSince; }
     public String getAppVersion() { return appVersion; }
     public void setAppVersion(String appVersion) { this.appVersion = appVersion; }
     public String getFirmwareVersion() { return firmwareVersion; }

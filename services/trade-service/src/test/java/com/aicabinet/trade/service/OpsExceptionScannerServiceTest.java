@@ -26,6 +26,9 @@ class OpsExceptionScannerServiceTest {
                 invocation.getArgument(0) == SessionState.SETTLING ? List.of(session) : List.of());
         var scanner = new OpsExceptionScannerService(sessions, exceptions,
                 new OpsMonitoringProperties(true, 10, 5, 3, 3));
+        ScheduledTaskService tasks = mock(ScheduledTaskService.class);
+        when(tasks.tryBegin(anyString(), anyLong())).thenReturn(true);
+        org.springframework.test.util.ReflectionTestUtils.setField(scanner, "taskService", tasks);
 
         scanner.scan();
 

@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -17,18 +18,36 @@ public class FinanceMarginLockScheduler {
 
     private final FundBillService fundBillService;
 
+    @Autowired
+    private ScheduledTaskService taskService;
+
     public FinanceMarginLockScheduler(FundBillService fundBillService) {
         this.fundBillService = fundBillService;
     }
 
     @Scheduled(cron = "0 5 0 * * *", zone = "Asia/Shanghai")
     public void solidifyYesterday() {
-        LocalDate yesterday = LocalDate.now(ZONE).minusDays(1);
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("finance-margin", 1800)) {
+            return;
+        }
+        boolean failed = false;
         try {
-            fundBillService.solidifyMargin(null, yesterday);
-            log.info("finance margin solidified for {}", yesterday);
+            LocalDate yesterday = LocalDate.now(ZONE).minusDays(1);
+            try {
+                fundBillService.solidifyMargin(null, yesterday);
+                log.info("finance margin solidified for {}", yesterday);
+            } catch (Exception e) {
+                log.warn("finance margin solidify failed for {}: {}", yesterday, e.getMessage());
+            }
         } catch (Exception e) {
-            log.warn("finance margin solidify failed for {}: {}", yesterday, e.getMessage());
+            failed = true;
+            taskService.finish("finance-margin", "FAILED", e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish("finance-margin", "SUCCESS", null, start);
+            }
         }
     }
 }

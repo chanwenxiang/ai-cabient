@@ -1,0 +1,252 @@
+<template>
+  <el-card class="page-card report-page" shadow="never">
+    <template #header>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">定时任务</span>
+            <span class="hint">任务启停即时生效；手动触发走分布式锁，集群下单实例执行</span>
+          </div>
+        </div>
+        <div class="page-card-head__actions">
+          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+        </div>
+      </div>
+    </template>
+
+    <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
+      <el-form-item label="关键词">
+        <el-input
+          v-model="keyword"
+          clearable
+          placeholder="任务名 / 标识 / 分组 / 调度"
+          style="width: 220px"
+          @keyup.enter="search"
+          @clear="search"
+        />
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="search">查询</el-button>
+        <el-button @click="reset">重置</el-button>
+      </el-form-item>
+    </el-form>
+
+    <div class="table-scroll">
+      <div class="table-scroll-inner">
+        <el-table
+          v-loading="loading"
+          :data="paged"
+          stripe
+          border
+          class="report-table"
+          row-key="taskKey"
+          empty-text=" "
+        >
+          <template #empty>
+            <el-empty v-if="listHydrated && !loading" description="暂无定时任务" />
+          </template>
+          <el-table-column label="任务名称" min-width="170" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span class="cell-id">{{ row.taskName }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="任务标识" min-width="200" align="center" class-name="col-text">
+            <template #default="{ row }">{{ row.taskKey }}</template>
+          </el-table-column>
+          <el-table-column label="分组" width="110" align="center">
+            <template #default="{ row }">{{ row.taskGroup }}</template>
+          </el-table-column>
+          <el-table-column label="调度说明" width="130" align="center">
+            <template #default="{ row }">{{ row.scheduleDesc || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="状态" width="110" align="center">
+            <template #default="{ row }">
+              <el-switch
+                v-if="canEdit"
+                :model-value="row.enabled"
+                :loading="togglingKey === row.taskKey"
+                @change="(v: boolean) => onToggle(row, v)"
+              />
+              <el-tag v-else :type="row.enabled ? 'success' : 'info'">
+                {{ row.enabled ? '启用' : '停用' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="最近执行" min-width="200" align="center">
+            <template #default="{ row }">
+              <template v-if="row.lastRunAt">
+                <div>{{ formatDateTime(row.lastRunAt) }}</div>
+                <el-tag size="small" :type="resultType(row.lastResult)">
+                  {{ resultLabel(row.lastResult) }}
+                </el-tag>
+                <div v-if="row.lastDurationMs != null" class="cell-hint">
+                  耗时 {{ formatDuration(row.lastDurationMs) }}
+                </div>
+              </template>
+              <span v-else class="cell-hint">尚未执行</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="最近结果说明" min-width="200" align="center" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.lastMessage || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="110" align="center" class-name="col-action">
+            <template #default="{ row }">
+              <el-button
+                v-if="canRun"
+                size="small"
+                type="primary"
+                plain
+                :loading="runningKey === row.taskKey"
+                @click="onRun(row)"
+              >
+                立即执行
+              </el-button>
+              <span v-else class="cell-hint">—</span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
+
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="filtered.length"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+    />
+  </el-card>
+</template>
+
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue';
+import { Refresh } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { api } from '@/api/client';
+import PagePager from '@/components/PagePager.vue';
+import { useAuthStore } from '@/stores/auth';
+import { formatDateTime } from '@aicabinet/shared-uni/format';
+
+interface ScheduledTaskRow {
+  taskKey: string;
+  taskName: string;
+  taskGroup: string;
+  scheduleDesc?: string;
+  enabled: boolean;
+  lastRunAt?: string;
+  lastResult?: string;
+  lastMessage?: string;
+  lastDurationMs?: number;
+  remark?: string;
+}
+
+const auth = useAuthStore();
+const loading = ref(false);
+const listHydrated = ref(false);
+const keyword = ref('');
+const page = ref(1);
+const size = ref(20);
+const items = ref<ScheduledTaskRow[]>([]);
+const togglingKey = ref('');
+const runningKey = ref('');
+
+const canEdit = computed(() => auth.hasPerm('ops:task:edit'));
+const canRun = computed(() => auth.hasPerm('ops:task:run'));
+
+const filtered = computed(() => {
+  const q = keyword.value.trim().toLowerCase();
+  if (!q) return items.value;
+  return items.value.filter((row) =>
+    [row.taskName, row.taskKey, row.taskGroup, row.scheduleDesc]
+      .some((x) => String(x || '').toLowerCase().includes(q))
+  );
+});
+
+const paged = computed(() => {
+  const start = (page.value - 1) * size.value;
+  return filtered.value.slice(start, start + size.value);
+});
+
+function resultType(result?: string) {
+  if (result === 'SUCCESS') return 'success';
+  if (result === 'FAILED') return 'danger';
+  if (result === 'SKIPPED') return 'warning';
+  return 'info';
+}
+
+function resultLabel(result?: string) {
+  return { SUCCESS: '成功', FAILED: '失败', SKIPPED: '跳过' }[result || ''] || result || '—';
+}
+
+function formatDuration(ms: number) {
+  if (ms < 1000) return `${ms} ms`;
+  return `${(ms / 1000).toFixed(1)} s`;
+}
+
+function search() {
+  page.value = 1;
+}
+
+function reset() {
+  keyword.value = '';
+  page.value = 1;
+}
+
+async function load() {
+  loading.value = true;
+  try {
+    items.value = await api.request<ScheduledTaskRow[]>('/api/v2/ops/admin/scheduled-tasks', 'GET');
+    listHydrated.value = true;
+  } catch (e: any) {
+    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function onToggle(row: ScheduledTaskRow, enabled: boolean) {
+  togglingKey.value = row.taskKey;
+  try {
+    await api.request(
+      `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/enabled`,
+      'PUT',
+      { enabled }
+    );
+    row.enabled = enabled;
+    ElMessage.success(enabled ? `已启用「${row.taskName}」` : `已停用「${row.taskName}」`);
+  } catch (e: any) {
+    ElMessage.error(e instanceof Error ? e.message : '操作失败');
+  } finally {
+    togglingKey.value = '';
+  }
+}
+
+async function onRun(row: ScheduledTaskRow) {
+  try {
+    await ElMessageBox.confirm(`确认立即执行「${row.taskName}」？`, '立即执行', { type: 'warning' });
+  } catch {
+    return;
+  }
+  runningKey.value = row.taskKey;
+  try {
+    const res = await api.request<{ result: string; message: string }>(
+      `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/run`,
+      'POST'
+    );
+    if (res?.result === 'SKIPPED') {
+      ElMessage.warning(res.message || '任务已跳过');
+    } else {
+      ElMessage.success(res?.message || '已触发执行');
+    }
+    await load();
+  } catch (e: any) {
+    ElMessage.error(e instanceof Error ? e.message : '执行失败');
+  } finally {
+    runningKey.value = '';
+  }
+}
+
+onMounted(load);
+</script>
