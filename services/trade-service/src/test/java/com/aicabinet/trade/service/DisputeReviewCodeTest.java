@@ -26,7 +26,9 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -48,6 +50,7 @@ class DisputeReviewCodeTest {
     @Mock UserInfoMapper userInfoRepository;
     @Mock OpsExceptionService opsExceptionService;
     @Mock FileAttachmentService fileAttachmentService;
+    @Mock SystemConfigService systemConfigService;
 
     private DisputeService service;
 
@@ -58,6 +61,8 @@ class DisputeReviewCodeTest {
                 permissionService, merchantScopeService, null, merchantPortalGuard, skuCatalogRepository,
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
                 fileAttachmentService, null);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "systemConfigService", systemConfigService);
+        lenient().when(systemConfigService.getInt(anyString(), anyInt())).thenAnswer(i -> i.getArgument(1));
     }
 
     @Test

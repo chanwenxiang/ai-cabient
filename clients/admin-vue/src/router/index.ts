@@ -48,6 +48,7 @@ const bizChildren: any[] = [
   { path: 'rbac', redirect: '/roles' },
   { path: 'dicts', name: 'dicts', component: () => import('@/views/system/DictManageView.vue'), meta: { title: '字典管理', group: '系统' } },
   { path: 'system-configs', name: 'system-configs', component: () => import('@/views/system/SystemConfigView.vue'), meta: { title: '参数配置', group: '系统' } },
+  { path: 'alert-rules', name: 'alert-rules', component: () => import('@/views/system/AlertRuleView.vue'), meta: { title: '告警规则', group: '系统' } },
   { path: 'scheduled-tasks', name: 'scheduled-tasks', component: () => import('@/views/system/ScheduledTaskView.vue'), meta: { title: '定时任务', group: '系统' } },
   { path: 'announcements', name: 'announcements', component: () => import('@/views/announcements/AnnouncementsView.vue'), meta: { title: '通知公告', group: '系统' } },
   { path: 'audit', name: 'audit', component: () => import('@/views/system/AuditLogView.vue'), meta: { title: '审计日志', group: '系统' } },

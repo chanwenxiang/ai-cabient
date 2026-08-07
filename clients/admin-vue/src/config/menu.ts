@@ -69,6 +69,7 @@ const BASE_NAV: NavItem[] = [
   { path: '/menus', title: '菜单管理', group: '系统', perm: 'ops:rbac:menu', keywords: ['菜单', '目录', '按钮', 'M', 'C', 'F', '权限树'] },
   { path: '/dicts', title: '字典管理', group: '系统', perm: 'ops:dict:list', keywords: ['字典', 'dict', '枚举'] },
   { path: '/system-configs', title: '参数配置', group: '系统', perm: 'ops:config:list', keywords: ['参数', '配置', 'config', 'settings'] },
+  { path: '/alert-rules', title: '告警规则', group: '系统', perm: 'ops:config:list', keywords: ['告警', '规则', 'SLA', '阈值', '卡点'] },
   { path: '/scheduled-tasks', title: '定时任务', group: '系统', perm: 'ops:task:list', keywords: ['定时', '任务', '调度', 'job', 'task'] },
   { path: '/announcements', title: '通知公告', group: '系统', perm: 'ops:announcement:list', keywords: ['公告', '通知', 'announce'] },
   { path: '/audit', title: '审计日志', group: '系统', perm: 'ops:audit:list', keywords: ['审计', '日志', 'audit'] },

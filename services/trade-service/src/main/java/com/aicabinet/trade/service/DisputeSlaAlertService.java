@@ -4,6 +4,7 @@ import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.domain.DisputeTicket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -18,6 +19,9 @@ public class DisputeSlaAlertService {
     private final DisputeSlaProperties disputeSlaProperties;
     private final RestClient restClient;
 
+    @Autowired
+    private SystemConfigService systemConfigService;
+
     public DisputeSlaAlertService(DisputeSlaProperties disputeSlaProperties) {
         this.disputeSlaProperties = disputeSlaProperties;
         this.restClient = RestClient.create();
@@ -25,20 +29,25 @@ public class DisputeSlaAlertService {
 
     public void sendReminder(DisputeTicket ticket) {
         String msg = String.format("[争议SLA提醒] 工单 %s 会话 %s 将在 %dh 内到期，请尽快审核",
-                ticket.getTicketId(), ticket.getSessionId(), disputeSlaProperties.reminderHoursBefore());
+                ticket.getTicketId(), ticket.getSessionId(),
+                systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_REMINDER_HOURS,
+                        disputeSlaProperties.reminderHoursBefore()));
         log.warn(msg);
         postWebhook("DISPUTE_SLA_REMINDER", ticket, msg);
     }
 
     public void sendOverdue(DisputeTicket ticket) {
         String msg = String.format("[争议SLA超时] 工单 %s 会话 %s 已超过 %dh 未结案",
-                ticket.getTicketId(), ticket.getSessionId(), disputeSlaProperties.hours());
+                ticket.getTicketId(), ticket.getSessionId(),
+                systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_HOURS,
+                        disputeSlaProperties.hours()));
         log.error(msg);
         postWebhook("DISPUTE_SLA_OVERDUE", ticket, msg);
     }
 
     private void postWebhook(String type, DisputeTicket ticket, String message) {
-        String url = disputeSlaProperties.alertWebhookUrl();
+        String url = systemConfigService.getValue(SystemConfigService.DISPUTE_SLA_WEBHOOK,
+                disputeSlaProperties.alertWebhookUrl());
         if (url == null || url.isBlank()) {
             return;
         }

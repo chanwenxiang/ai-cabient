@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.mapper.DisputeTicketMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +14,9 @@ public class DisputeSlaService {
 
     private final DisputeTicketMapper disputeRepository;
     private final DisputeSlaProperties disputeSlaProperties;
+
+    @Autowired
+    private SystemConfigService systemConfigService;
 
     public DisputeSlaService(DisputeTicketMapper disputeRepository,
                              DisputeSlaProperties disputeSlaProperties) {
@@ -28,7 +32,10 @@ public class DisputeSlaService {
     @Transactional(readOnly = true)
     public long countNearSla() {
         Instant now = Instant.now();
-        Instant threshold = now.plus(disputeSlaProperties.reminderHoursBefore(), ChronoUnit.HOURS);
+        Instant threshold = now.plus(
+                systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_REMINDER_HOURS,
+                        disputeSlaProperties.reminderHoursBefore()),
+                ChronoUnit.HOURS);
         return disputeRepository.countNearSla(now, threshold);
     }
 

@@ -29,6 +29,9 @@ class OpsExceptionScannerServiceTest {
         ScheduledTaskService tasks = mock(ScheduledTaskService.class);
         when(tasks.tryBegin(anyString(), anyLong())).thenReturn(true);
         org.springframework.test.util.ReflectionTestUtils.setField(scanner, "taskService", tasks);
+        SystemConfigService cfg = mock(SystemConfigService.class);
+        when(cfg.getInt(anyString(), anyInt())).thenAnswer(i -> i.getArgument(1));
+        org.springframework.test.util.ReflectionTestUtils.setField(scanner, "systemConfigService", cfg);
 
         scanner.scan();
 
