@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.constants.CabinetConstants;
 import com.aicabinet.common.dto.LoginRequest;
 import com.aicabinet.common.dto.LoginResponse;
+import com.aicabinet.common.dto.AdminPasswordResetRequest;
 import com.aicabinet.common.dto.PasswordLoginRequest;
 import com.aicabinet.common.dto.WxLoginRequest;
 import com.aicabinet.common.dto.AlipayLoginRequest;
@@ -101,6 +102,27 @@ public class AuthService {
         requireOperator(response.userId());
         requireActiveAccount(response.userId());
         return response;
+    }
+
+    /** 运营后台忘记密码：短信验证码 + 图形验证码校验后重置。 */
+    @Transactional
+    public void adminResetPassword(AdminPasswordResetRequest request) {
+        String phone = normalizePhone(request.phoneNumber());
+        if (!phone.matches("1\\d{10}")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
+        }
+        String newPassword = request.newPassword();
+        if (newPassword == null || newPassword.length() < 6 || newPassword.length() > 64) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "新密码长度需在 6-64 位之间");
+        }
+        UserInfo user = requireExistingUser(phone);
+        requireOperator(user.getUserId());
+        requireActiveAccount(user.getUserId());
+        if (!smsCodeService.verifyCode(phone, request.smsCode())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_CODE);
+        }
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
+        userInfoRepository.save(user);
     }
 
     /** 微信小程序 wx.login：已绑定 openId 直接登录；否则自动建档（竞品扫码免注册） */

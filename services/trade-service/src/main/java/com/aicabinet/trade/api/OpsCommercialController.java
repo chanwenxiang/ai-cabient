@@ -126,6 +126,15 @@ public class OpsCommercialController {
         return ApiResponse.ok(facade.publishOta(operatorId(request), body));
     }
 
+    /** 下架（回滚）：停止推送该版本。 */
+    @RequiresPermissions("ops:ota:publish")
+    @PostMapping("/ota/releases/{releaseId}/unpublish")
+    public ApiResponse<OtaReleaseDto> unpublishOta(
+            HttpServletRequest request,
+            @PathVariable Long releaseId) {
+        return ApiResponse.ok(facade.unpublishOta(operatorId(request), releaseId));
+    }
+
     // --- 风控 ---
     @RequiresPermissions("ops:risk:list")
     @GetMapping("/risk/events")
@@ -374,7 +383,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(null);
     }
 
-    @RequiresPermissions("ops:device:list")
+    @RequiresPermissions(value = {"ops:device:list", "ops:replenishment:list"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/slots/discrepancies")
     public ApiResponse<List<SlotDiscrepancyAlertDto>> slotDiscrepancies(
             HttpServletRequest request,
@@ -762,6 +771,15 @@ public class OpsCommercialController {
     @GetMapping("/rbac/me")
     public ApiResponse<OpsMeDto> myProfile(HttpServletRequest request) {
         return ApiResponse.ok(facade.myProfile(operatorId(request)));
+    }
+
+    /** 个人中心：自助修改登录密码。 */
+    @PutMapping("/rbac/me/password")
+    public ApiResponse<Void> changeMyPassword(
+            @Valid @RequestBody ChangePasswordRequest body,
+            HttpServletRequest request) {
+        facade.changeMyPassword(operatorId(request), body);
+        return ApiResponse.ok(null);
     }
 
     private Long operatorId(HttpServletRequest request) {

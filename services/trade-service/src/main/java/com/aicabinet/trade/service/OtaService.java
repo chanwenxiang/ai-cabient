@@ -6,8 +6,10 @@ import com.aicabinet.trade.domain.OtaRelease;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.OtaReleaseMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.List;
@@ -59,6 +61,19 @@ public class OtaService {
         release.setStatus("PUBLISHED");
         release.setPublishedAt(Instant.now());
         return toDto(releaseRepository.save(release));
+    }
+
+    /** 下架（回滚）：停止向设备推送该版本，设备端 check 将回落到更早的已发布版本。 */
+    @Transactional
+    public OtaReleaseDto unpublishRelease(Long operatorId, Long releaseId) {
+        OtaRelease release = releaseRepository.findById(releaseId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "发布版本不存在"));
+        if (!"PUBLISHED".equalsIgnoreCase(release.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "仅已发布版本可下架");
+        }
+        release.setStatus("UNPUBLISHED");
+        releaseRepository.save(release);
+        return toDto(release);
     }
 
     @Transactional(readOnly = true)
