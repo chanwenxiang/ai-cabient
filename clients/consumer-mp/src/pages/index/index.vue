@@ -2,7 +2,6 @@
   <view class="page-root">
     <!-- 落地页：仅 Tab 进入时展示，柜码直达不经过此页 -->
     <view v-if="showLanding" class="landing">
-      <image class="hero-illustration" :src="heroIllustration" mode="widthFix" />
       <view class="landing-overlay" />
 
       <view class="landing-content">
@@ -287,7 +286,6 @@ import {
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
 import { productGlyph, productThumb } from '@/utils/product-thumb';
-import heroIllustration from '@/static/login-bg.png';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import {
   delay,
@@ -1277,14 +1275,11 @@ function stopDevicePoll() {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background: #f5c842;
-}
-.hero-illustration {
-  position: absolute;
-  top: 140rpx;
-  left: 0;
-  width: 100%;
-  z-index: 0;
+  background:
+    radial-gradient(1100rpx 760rpx at 112% -8%, rgba(94, 234, 212, 0.38), transparent 62%),
+    radial-gradient(900rpx 720rpx at -18% 34%, rgba(45, 212, 191, 0.3), transparent 56%),
+    radial-gradient(760rpx 640rpx at 78% 112%, rgba(16, 185, 129, 0.32), transparent 60%),
+    linear-gradient(170deg, #115e59 0%, #0d9488 56%, #0f766e 100%);
 }
 .landing-overlay {
   position: absolute;
@@ -1293,7 +1288,7 @@ function stopDevicePoll() {
   bottom: 0;
   height: 42%;
   z-index: 1;
-  background: linear-gradient(180deg, rgba(245, 200, 66, 0) 0%, rgba(245, 200, 66, 0.55) 100%);
+  background: linear-gradient(180deg, rgba(13, 148, 136, 0) 0%, rgba(6, 78, 59, 0.5) 100%);
 }
 .landing-content {
   position: relative;
@@ -1312,13 +1307,14 @@ function stopDevicePoll() {
 .brand {
   font-size: 56rpx;
   font-weight: 800;
-  color: #5c3d1e;
+  color: #ffffff;
   display: block;
   letter-spacing: 2rpx;
+  text-shadow: 0 4rpx 20rpx rgba(6, 78, 59, 0.35);
 }
 .tagline {
   font-size: 30rpx;
-  color: #7a5a32;
+  color: rgba(255, 255, 255, 0.86);
   margin-top: 10rpx;
   display: block;
 }
@@ -1329,15 +1325,17 @@ function stopDevicePoll() {
   margin-top: 18rpx;
   padding: 10rpx 22rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.16);
+  border: 1rpx solid rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(12rpx);
 }
 .pay-badge-icon {
-  color: #07c160;
+  color: #a7f3d0;
   font-size: 24rpx;
   font-weight: 700;
 }
 .pay-badge-text {
-  color: #4b5563;
+  color: #ffffff;
   font-size: 22rpx;
 }
 .flow-steps {
@@ -1351,12 +1349,12 @@ function stopDevicePoll() {
 }
 .flow-step {
   font-size: 22rpx;
-  color: #7a5a32;
+  color: rgba(255, 255, 255, 0.92);
   font-weight: 600;
 }
 .flow-sep {
   font-size: 20rpx;
-  color: #c4a574;
+  color: rgba(255, 255, 255, 0.45);
 }
 
 .resume-card {
@@ -1364,18 +1362,18 @@ function stopDevicePoll() {
   background: rgba(255, 255, 255, 0.92);
   border-radius: 20rpx;
   padding: 24rpx 28rpx;
-  border-left: 6rpx solid #ea580c;
-  box-shadow: 0 8rpx 24rpx rgba(92, 61, 30, 0.1);
+  border-left: 6rpx solid #2dd4bf;
+  box-shadow: 0 10rpx 28rpx rgba(6, 78, 59, 0.16);
 }
 .resume-title {
   font-size: 30rpx;
   font-weight: 600;
-  color: #ea580c;
+  color: #0f766e;
   display: block;
 }
 .resume-sub {
   font-size: 24rpx;
-  color: #7a5a32;
+  color: #64748b;
   margin-top: 4rpx;
   display: block;
 }
@@ -1431,12 +1429,12 @@ function stopDevicePoll() {
   margin-top: 20rpx;
   font-size: 34rpx;
   font-weight: 700;
-  color: #5c3d1e;
+  color: #ffffff;
 }
 .scan-tip {
   margin-top: 16rpx;
   font-size: 24rpx;
-  color: #7a5a32;
+  color: rgba(255, 255, 255, 0.82);
 }
 
 .landing-foot {
@@ -1447,7 +1445,7 @@ function stopDevicePoll() {
   display: block;
   text-align: center;
   font-size: 24rpx;
-  color: #9a7b4f;
+  color: rgba(255, 255, 255, 0.76);
   padding: 12rpx 0;
 }
 .manual-form {
@@ -1963,7 +1961,6 @@ function stopDevicePoll() {
 /* visual overrides (merged) */
 .landing {
   padding: 0;
-  background: #f5c842;
 }
 .landing-head {
   padding-top: 52rpx;
@@ -1975,21 +1972,10 @@ function stopDevicePoll() {
 .tagline {
   font-size: 31rpx;
 }
-.hero-illustration {
-  top: 150rpx;
-}
 .resume-card {
   margin-top: 22rpx;
   padding: 24rpx 28rpx;
-  border-left: 6rpx solid #ea580c;
   border-radius: 22rpx;
-  box-shadow: 0 12rpx 34rpx rgba(92, 61, 30, 0.1);
-}
-.resume-title {
-  color: #ea580c;
-}
-.resume-sub {
-  color: #7a5a32;
 }
 .landing-error {
   display: flex;
@@ -2094,9 +2080,6 @@ function stopDevicePoll() {
 }
 .landing-foot {
   padding-bottom: 22rpx;
-}
-.manual-link {
-  color: #9a7b4f;
 }
 .device-bar {
   margin: 18rpx 20rpx 0;

@@ -533,11 +533,11 @@ async function onLogin() {
   flex-shrink: 0;
   padding: 36rpx 32rpx 40rpx;
   border-radius: 32rpx 32rpx 24rpx 24rpx;
-  background: rgba(255, 248, 225, 0.94);
-  border: 2rpx solid rgba(245, 158, 11, 0.22);
+  background: rgba(255, 255, 255, 0.92);
+  border: 2rpx solid rgba(13, 148, 136, 0.18);
   box-shadow:
-    0 -8rpx 40rpx rgba(234, 88, 12, 0.1),
-    0 16rpx 48rpx rgba(146, 64, 14, 0.08);
+    0 -8rpx 40rpx rgba(6, 78, 59, 0.12),
+    0 16rpx 48rpx rgba(6, 78, 59, 0.1);
 }
 .phone-open .form-card {
   padding-top: 28rpx;
@@ -556,11 +556,11 @@ async function onLogin() {
   font-weight: 700;
   display: block;
   margin-bottom: 8rpx;
-  color: #5c3d1e;
+  color: #134e4a;
 }
 .subtitle {
   font-size: 24rpx;
-  color: #a16207;
+  color: #64748b;
   display: block;
   margin-bottom: 28rpx;
   line-height: 1.5;
@@ -589,7 +589,7 @@ async function onLogin() {
 .divider-line {
   flex: 1;
   height: 1rpx;
-  background: rgba(180, 83, 9, 0.2);
+  background: rgba(13, 148, 136, 0.16);
 }
 .divider-toggle {
   position: relative;
@@ -602,14 +602,14 @@ async function onLogin() {
   align-items: center;
   justify-content: center;
   border-radius: 999rpx;
-  background: #fff8e1;
-  border: 2rpx solid rgba(180, 83, 9, 0.22);
+  background: #ffffff;
+  border: 2rpx solid rgba(13, 148, 136, 0.22);
   box-sizing: border-box;
   cursor: pointer;
 }
 .divider-text {
   font-size: 26rpx;
-  color: #b45309;
+  color: #0d9488;
   font-weight: 600;
   line-height: 1.2;
   pointer-events: none;
@@ -620,14 +620,14 @@ async function onLogin() {
   margin-bottom: 28rpx;
   padding: 6rpx;
   border-radius: 16rpx;
-  background: rgba(254, 230, 138, 0.55);
+  background: rgba(204, 251, 241, 0.6);
 }
 .tab-item {
   flex: 1;
   padding: 16rpx 0;
   text-align: center;
   font-size: 28rpx;
-  color: #92400e;
+  color: #64748b;
   border-radius: 12rpx;
   transition:
     color 0.2s ease,
@@ -636,10 +636,10 @@ async function onLogin() {
     font-weight 0.2s ease;
 }
 .tab-item.on {
-  color: #ea580c;
+  color: #0d9488;
   font-weight: 600;
-  background: rgba(255, 251, 235, 0.96);
-  box-shadow: 0 2rpx 8rpx rgba(234, 88, 12, 0.12);
+  background: #ffffff;
+  box-shadow: 0 2rpx 8rpx rgba(13, 148, 136, 0.12);
 }
 .field {
   margin-bottom: 20rpx;
@@ -647,7 +647,7 @@ async function onLogin() {
 .field-label {
   display: block;
   font-size: 26rpx;
-  color: #7a5a32;
+  color: #475569;
   font-weight: 500;
   margin-bottom: 10rpx;
 }
@@ -656,12 +656,12 @@ async function onLogin() {
   width: 100%;
   height: 88rpx;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.68);
-  border: 2rpx solid rgba(251, 191, 36, 0.42);
+  background: #ffffff;
+  border: 2rpx solid rgba(13, 148, 136, 0.28);
   border-radius: 16rpx;
   padding: 0 28rpx;
   font-size: 28rpx;
-  color: #5c3d1e;
+  color: #0f172a;
   line-height: 88rpx;
 }
 .row {
@@ -682,8 +682,8 @@ async function onLogin() {
   min-width: 180rpx;
   height: 88rpx;
   border-radius: 16rpx;
-  background: #fff7ed;
-  color: #ea580c;
+  background: #ecfdf5;
+  color: #0d9488;
   font-size: 26rpx;
   font-weight: 600;
   white-space: nowrap;
