@@ -1,4 +1,4 @@
-﻿# 代码问题修复清单
+# 代码问题修复清单
 
 ## 一、概述
 
@@ -200,11 +200,11 @@
 | 文档 | 路径 | 内容 |
 |------|------|------|
 | 上线执行计划 | docs/GO_LIVE_EXECUTION_PLAN.md | 整体上线规划 |
-| 运营后台分析 | docs/ANALYSIS_ADMIN_VUE.md | 运营后台详情 |
-| 消费者小程序分析 | docs/ANALYSIS_CONSUMER_MP.md | 消费者端详情 |
-| 商户小程序分析 | docs/ANALYSIS_MERCHANT_MP.md | 商户端详情 |
-| 后端服务分析 | docs/ANALYSIS_BACKEND_SERVICES.md | 后端详情 |
-| 硬件对接分析 | docs/ANALYSIS_HARDWARE_INTEGRATION.md | 硬件详情 |
+| 运营后台分析 | docs/archive/ANALYSIS_ADMIN_VUE.md | 运营后台详情 |
+| 消费者小程序分析 | docs/archive/ANALYSIS_CONSUMER_MP.md | 消费者端详情 |
+| 商户小程序分析 | docs/archive/ANALYSIS_MERCHANT_MP.md | 商户端详情 |
+| 后端服务分析 | docs/archive/ANALYSIS_BACKEND_SERVICES.md | 后端详情 |
+| 硬件对接分析 | docs/archive/ANALYSIS_HARDWARE_INTEGRATION.md | 硬件详情 |
 
 ---
 

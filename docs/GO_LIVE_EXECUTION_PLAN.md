@@ -1,4 +1,4 @@
-﻿# AI开门柜项目上线执行文档
+# AI开门柜项目上线执行文档
 
 ## 文档概述
 
@@ -569,7 +569,7 @@ INTERNAL_API_KEY=
 - [模块说明](docs/MODULES.md)
 - [商户平台API](docs/MERCHANT_PLATFORM.md)
 - [测试报告](TESTING_COMPLETE_FINAL_REPORT.md)
-- [浏览器UAT报告](docs/BROWSER_FULL_UAT_REPORT.md)
+- [浏览器UAT报告](docs/BROWSER_MIN_UAT.md)
 - [上线准备清单](docs/production-launch-checklist.md)
 
 ### B. 关键代码路径

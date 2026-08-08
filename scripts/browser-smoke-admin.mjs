@@ -3,7 +3,7 @@ import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
-const outDir = path.resolve('docs/uat-screenshots/2026-08-05');
+const outDir = path.resolve('docs/uat-screenshots/' + new Date().toISOString().slice(0, 10));
 fs.mkdirSync(outDir, { recursive: true });
 
 function redis(cmd) {
