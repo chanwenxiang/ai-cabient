@@ -61,6 +61,8 @@ aicabinet:
   auth:
     jwt-secret: ${JWT_SECRET:ai-cabinet-dev-secret-key-32bytes!!}
     expiration-seconds: ${JWT_EXPIRATION_SECONDS:1800}
+    cookie-enabled: ${AUTH_COOKIE_ENABLED:true}
+    cookie-secure: ${AUTH_COOKIE_SECURE:false}
     sms:
       mock-code: "123456"
       ttl-seconds: 300

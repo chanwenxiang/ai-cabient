@@ -8,6 +8,7 @@ import com.aicabinet.common.dto.PasswordLoginRequest;
 import com.aicabinet.common.dto.WxLoginRequest;
 import com.aicabinet.common.dto.AlipayLoginRequest;
 import com.aicabinet.trade.auth.JwtService;
+import com.aicabinet.trade.config.AuthProperties;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.UserAccountMapper;
@@ -34,6 +35,7 @@ public class AuthService {
     private final SmsCodeService smsCodeService;
     private final PasswordEncoder passwordEncoder;
     private final ServerBootMarker serverBootMarker;
+    private final AuthProperties authProperties;
 
     public AuthService(UserInfoMapper userInfoRepository,
                        UserAccountMapper userAccountRepository,
@@ -42,7 +44,8 @@ public class AuthService {
                        AlipayOauthClient alipayOauthClient,
                        SmsCodeService smsCodeService,
                        PasswordEncoder passwordEncoder,
-                       ServerBootMarker serverBootMarker) {
+                       ServerBootMarker serverBootMarker,
+                       AuthProperties authProperties) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.jwtService = jwtService;
@@ -51,6 +54,7 @@ public class AuthService {
         this.smsCodeService = smsCodeService;
         this.passwordEncoder = passwordEncoder;
         this.serverBootMarker = serverBootMarker;
+        this.authProperties = authProperties;
     }
 
     public void sendSmsCode(String phoneNumber) {
@@ -224,7 +228,7 @@ public class AuthService {
     private LoginResponse tokenFor(UserInfo user) {
         String token = jwtService.createToken(user.getUserId());
         return new LoginResponse(token, user.getUserId(), jwtService.getExpirationSeconds(),
-                serverBootMarker.epochMillis());
+                serverBootMarker.epochMillis(), authProperties.cookieEnabled());
     }
 
     public long currentServerBootEpoch() {
