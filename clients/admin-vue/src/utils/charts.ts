@@ -116,10 +116,28 @@ function rgba(color: string, a: number): string {
   return `rgba(${rgb.r},${rgb.g},${rgb.b},${a})`;
 }
 
+/** Catmull-Rom 平滑曲线：折线升级为连续贝塞尔，视觉上更柔和。 */
+function smoothPath(box: PlotBox, values: number[]): string {
+  const pts = values.map((v, i) => ({ x: xAt(box, i), y: yAt(box, v) }));
+  if (!pts.length) return '';
+  if (pts.length === 1) return `M${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`;
+  let d = `M${pts[0].x.toFixed(2)},${pts[0].y.toFixed(2)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] || pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] || p2;
+    const c1x = p1.x + (p2.x - p0.x) / 6;
+    const c1y = p1.y + (p2.y - p0.y) / 6;
+    const c2x = p2.x - (p3.x - p1.x) / 6;
+    const c2y = p2.y - (p3.y - p1.y) / 6;
+    d += ` C${c1x.toFixed(2)},${c1y.toFixed(2)} ${c2x.toFixed(2)},${c2y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)}`;
+  }
+  return d;
+}
+
 function pathLine(box: PlotBox, values: number[]): string {
-  return values
-    .map((v, i) => `${i === 0 ? 'M' : 'L'}${xAt(box, i).toFixed(2)},${yAt(box, v).toFixed(2)}`)
-    .join(' ');
+  return smoothPath(box, values);
 }
 
 function areaPath(box: PlotBox, values: number[]): string {

@@ -62,7 +62,23 @@ export default defineConfig(({ mode }) => {
     build: {
       outDir: OUT_DIR,
       emptyOutDir: true,
-      chunkSizeWarningLimit: 600
+      chunkSizeWarningLimit: 600,
+      rollupOptions: {
+        output: {
+          // 按依赖库拆分 vendor chunk：业务代码与三方库分离，缓存命中率更高，
+          // 避免所有三方库挤进单个 index chunk（构建时曾超过 700KB）。
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return undefined;
+            if (id.includes('/vue/') || id.includes('vue-router') || id.includes('/pinia/')) {
+              return 'vendor-vue';
+            }
+            if (id.includes('element-plus')) return 'vendor-element-plus';
+            if (id.includes('leaflet')) return 'vendor-leaflet';
+            if (id.includes('dayjs') || id.includes('lodash')) return 'vendor-misc';
+            return 'vendor';
+          }
+        }
+      }
     }
   };
 });
