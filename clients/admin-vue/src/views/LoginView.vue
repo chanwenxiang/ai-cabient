@@ -544,10 +544,12 @@ async function onSubmit() {
   max-width: 400px;
   padding: 36px 32px 28px;
   border-radius: 16px;
-  border: 1px solid rgba(148, 210, 198, 0.42);
-  background: transparent;
-  backdrop-filter: blur(8px);
-  box-shadow: none;
+  border: 1px solid rgba(148, 210, 198, 0.22);
+  background: rgba(8, 24, 30, 0.58);
+  backdrop-filter: blur(26px);
+  box-shadow:
+    0 24px 64px rgba(2, 10, 14, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 .card-header {
   margin-bottom: 28px;
