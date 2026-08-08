@@ -36,6 +36,7 @@ public class LineWithdrawService {
     private final LineWithdrawPayoutService payoutService;
     private final LineWithdrawProperties properties;
     private final PermissionService permissionService;
+    private final AdminAuditService auditService;
 
     public LineWithdrawService(LineWithdrawRequestMapper withdrawMapper,
                                LineManagerMapper managerMapper,
@@ -43,7 +44,8 @@ public class LineWithdrawService {
                                LineWalletService lineWalletService,
                                LineWithdrawPayoutService payoutService,
                                LineWithdrawProperties properties,
-                               PermissionService permissionService) {
+                               PermissionService permissionService,
+                               AdminAuditService auditService) {
         this.withdrawMapper = withdrawMapper;
         this.managerMapper = managerMapper;
         this.lineManagerService = lineManagerService;
@@ -51,6 +53,7 @@ public class LineWithdrawService {
         this.payoutService = payoutService;
         this.properties = properties;
         this.permissionService = permissionService;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -105,10 +108,16 @@ public class LineWithdrawService {
             withdrawMapper.updateById(request);
             lineWalletService.releaseFrozen(request.getManagerId(), request.getAmountCents(),
                     "WITHDRAW", String.valueOf(request.getRequestId()), "提现驳回释放");
+            auditService.record(operatorId, "LINE_WITHDRAW_REVIEW", "LINE_WITHDRAW",
+                    String.valueOf(requestId), "驳回；金额(分)=" + request.getAmountCents()
+                            + "；备注=" + trim(remark));
             return toDto(request);
         }
         request.setStatus("APPROVED");
         withdrawMapper.updateById(request);
+        auditService.record(operatorId, "LINE_WITHDRAW_REVIEW", "LINE_WITHDRAW",
+                String.valueOf(requestId), "通过；金额(分)=" + request.getAmountCents()
+                        + "；备注=" + trim(remark));
         return attemptPayout(request, operatorId);
     }
 
@@ -119,6 +128,8 @@ public class LineWithdrawService {
         if (!Set.of("APPROVED", "FAILED").contains(request.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打款");
         }
+        auditService.record(operatorId, "LINE_WITHDRAW_PAYOUT", "LINE_WITHDRAW",
+                String.valueOf(requestId), "打款金额(分)=" + request.getAmountCents());
         return attemptPayout(request, operatorId);
     }
 

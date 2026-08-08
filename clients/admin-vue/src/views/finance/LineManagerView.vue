@@ -590,6 +590,11 @@ async function adjust(row: Manager) {
       inputErrorMessage: '请输入金额'
     });
     const amountCents = Math.round(Number(value) * 100);
+    await ElMessageBox.confirm(
+      `确认对线长 ${row.managerName || row.managerId} 调账 ¥${(amountCents / 100).toFixed(2)}？该操作将写入审计日志。`,
+      '调账二次确认',
+      { type: 'warning', confirmButtonText: '确认调账', cancelButtonText: '取消' }
+    );
     await api.request(`/api/v2/ops/admin/line-managers/${row.managerId}/adjust`, 'POST', {
       amountCents,
       remark: '运营调账'
@@ -624,6 +629,11 @@ async function proxyWithdraw(row: Manager) {
       inputErrorMessage: '请输入金额'
     });
     const amountCents = Math.round(Number(value) * 100);
+    await ElMessageBox.confirm(
+      `确认代线长 ${row.managerName || row.managerId} 发起提现 ¥${(amountCents / 100).toFixed(2)}？`,
+      '代提现二次确认',
+      { type: 'warning', confirmButtonText: '确认提交', cancelButtonText: '取消' }
+    );
     await api.request(`/api/v2/ops/admin/line-managers/${row.managerId}/withdraw`, 'POST', {
       amountCents
     });
@@ -638,6 +648,11 @@ async function proxyWithdraw(row: Manager) {
 
 async function review(row: Withdraw, approve: boolean) {
   try {
+    await ElMessageBox.confirm(
+      approve ? `确认通过该提现申请并打款 ¥${yuan(row.amountCents)}？` : `确认驳回该提现申请？`,
+      approve ? '通过并打款' : '驳回申请',
+      { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' }
+    );
     await api.request(`/api/v2/ops/admin/line-withdraws/${row.requestId}/review`, 'POST', {
       approve,
       remark: approve ? '审核通过' : '审核驳回'
@@ -651,6 +666,11 @@ async function review(row: Withdraw, approve: boolean) {
 
 async function payout(row: Withdraw) {
   try {
+    await ElMessageBox.confirm(
+      `确认对该提现申请（¥${yuan(row.amountCents)}）重新打款？`,
+      '重试打款',
+      { type: 'warning', confirmButtonText: '确定', cancelButtonText: '取消' }
+    );
     await api.request(`/api/v2/ops/admin/line-withdraws/${row.requestId}/payout`, 'POST', {});
     ElMessage.success('已触发打款');
     await loadWithdraws();
