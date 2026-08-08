@@ -290,6 +290,16 @@ export function consumerAlipayLogin(authCode: string) {
   );
 }
 
+/** H5 微信网页授权登录（公众号 OAuth code）。 */
+export function consumerWxH5Login(code: string) {
+  return request<LoginResponse>('/api/v2/auth/wx-h5-login', 'POST', { code }, false).then(
+    (data) => {
+      applyTokenSession(data);
+      return data;
+    }
+  );
+}
+
 function readQueryParam(name: string): string {
   try {
     if (typeof window === 'undefined') return '';
@@ -312,6 +322,8 @@ function stripAuthCodeFromUrl() {
     url.searchParams.delete('authCode');
     url.searchParams.delete('app_id');
     url.searchParams.delete('source');
+    url.searchParams.delete('code');
+    url.searchParams.delete('state');
     if (url.hash.includes('?')) {
       const [path, qs] = url.hash.split('?');
       const sp = new URLSearchParams(qs);
@@ -319,6 +331,8 @@ function stripAuthCodeFromUrl() {
       sp.delete('authCode');
       sp.delete('app_id');
       sp.delete('source');
+      sp.delete('code');
+      sp.delete('state');
       const next = sp.toString();
       url.hash = next ? `${path}?${next}` : path;
     }
@@ -352,17 +366,25 @@ export async function ensureConsumerAuth(): Promise<boolean> {
   }
   // #ifdef H5
   try {
+    const channel = (
+      readQueryParam('channel') ||
+      readQueryParam('entryChannel') ||
+      ''
+    ).toUpperCase();
     const authCode = readQueryParam('auth_code') || readQueryParam('authCode');
     if (authCode) {
       await consumerAlipayLogin(authCode);
       stripAuthCodeFromUrl();
       return true;
     }
-    const channel = (
-      readQueryParam('channel') ||
-      readQueryParam('entryChannel') ||
-      ''
-    ).toUpperCase();
+    // 微信网页授权回跳：state=wechat + code
+    const state = (readQueryParam('state') || '').toLowerCase();
+    const wxCode = readQueryParam('code');
+    if (wxCode && (state === 'wechat' || channel === 'WECHAT')) {
+      await consumerWxH5Login(wxCode);
+      stripAuthCodeFromUrl();
+      return true;
+    }
     if (channel === 'ALIPAY') {
       // 生产 H5 不允许 mock 建档：真实渠道必须走支付宝授权回跳（authCode）
       if (!isDevBuild) return false;

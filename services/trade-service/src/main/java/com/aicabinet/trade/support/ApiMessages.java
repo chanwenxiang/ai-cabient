@@ -104,6 +104,7 @@ public final class ApiMessages {
     public static final String DEVICE_IDS_REQUIRED = "请指定设备列表";
     public static final String BIND_OPENID_DISABLED = "生产环境不允许绑定微信 OpenID";
     public static final String WECHAT_MINIAPP_NOT_CONFIGURED = "微信小程序未配置";
+    public static final String WECHAT_WEB_NOT_CONFIGURED = "微信公众号网页授权未配置";
     public static final String RECONCILIATION_NOT_FOUND = "对账记录不存在";
     public static final String MISSING_OUT_TRADE_NO = "缺少商户订单号";
     public static final String UNSUPPORTED_CHANNEL = "不支持的支付渠道";

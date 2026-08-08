@@ -18,6 +18,7 @@ import com.aicabinet.trade.sms.SmsCodeService;
 import com.aicabinet.trade.support.ApiMessages;
 import com.aicabinet.trade.support.ServerBootMarker;
 import com.aicabinet.trade.wechat.WeChatMiniAppClient;
+import com.aicabinet.trade.wechat.WeChatWebOAuthClient;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -31,6 +32,7 @@ public class AuthService {
     private final UserAccountMapper userAccountRepository;
     private final JwtService jwtService;
     private final WeChatMiniAppClient weChatMiniAppClient;
+    private final WeChatWebOAuthClient weChatWebOAuthClient;
     private final AlipayOauthClient alipayOauthClient;
     private final SmsCodeService smsCodeService;
     private final PasswordEncoder passwordEncoder;
@@ -41,6 +43,7 @@ public class AuthService {
                        UserAccountMapper userAccountRepository,
                        JwtService jwtService,
                        WeChatMiniAppClient weChatMiniAppClient,
+                       WeChatWebOAuthClient weChatWebOAuthClient,
                        AlipayOauthClient alipayOauthClient,
                        SmsCodeService smsCodeService,
                        PasswordEncoder passwordEncoder,
@@ -50,6 +53,7 @@ public class AuthService {
         this.userAccountRepository = userAccountRepository;
         this.jwtService = jwtService;
         this.weChatMiniAppClient = weChatMiniAppClient;
+        this.weChatWebOAuthClient = weChatWebOAuthClient;
         this.alipayOauthClient = alipayOauthClient;
         this.smsCodeService = smsCodeService;
         this.passwordEncoder = passwordEncoder;
@@ -133,21 +137,32 @@ public class AuthService {
     @Transactional
     public LoginResponse wxLogin(WxLoginRequest request) {
         var session = weChatMiniAppClient.code2Session(request.code());
-        var byOpenId = userInfoRepository.findByWxOpenId(session.openId());
+        return loginOrCreateByOpenId(session.openId(), request.phoneNumber());
+    }
+
+    /** H5 微信网页授权：公众号 OAuth code → openid 后同小程序建档/登录。 */
+    @Transactional
+    public LoginResponse wxH5Login(String code, String phoneNumber) {
+        var session = weChatWebOAuthClient.webCode2Session(code);
+        return loginOrCreateByOpenId(session.openId(), phoneNumber);
+    }
+
+    private LoginResponse loginOrCreateByOpenId(String openId, String phoneNumber) {
+        var byOpenId = userInfoRepository.findByWxOpenId(openId);
         if (byOpenId.isPresent()) {
             return tokenFor(byOpenId.get());
         }
-        String phone = request.phoneNumber() != null ? normalizePhone(request.phoneNumber()) : "";
+        String phone = phoneNumber != null ? normalizePhone(phoneNumber) : "";
         if (!phone.isBlank()) {
             if (!phone.matches("1\\d{10}")) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
             }
             UserInfo user = requireExistingUser(phone);
-            user.setWxOpenId(session.openId());
+            user.setWxOpenId(openId);
             userInfoRepository.save(user);
             return tokenFor(user);
         }
-        return tokenFor(createWxConsumer(session.openId()));
+        return tokenFor(createWxConsumer(openId));
     }
 
     /** 支付宝 H5 授权：已绑定 user_id 直接登录；否则自动建档 */
