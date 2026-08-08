@@ -37,9 +37,15 @@ withDefaults(
   padding: 36rpx 16rpx;
 }
 .empty-icon {
-  font-size: 64rpx;
-  line-height: 1;
-  margin-bottom: 12rpx;
+  width: 104rpx;
+  height: 104rpx;
+  border-radius: 28rpx;
+  background: #ecfdf5;
+  color: #0f766e;
+  font-size: 52rpx;
+  font-weight: 700;
+  line-height: 104rpx;
+  margin-bottom: 16rpx;
 }
 .empty-title {
   font-size: 28rpx;

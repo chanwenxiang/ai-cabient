@@ -689,15 +689,15 @@ function onLogout() {
   background: rgba(255, 255, 255, 0.35);
 }
 .tag.warn {
-  background: #fff3cd;
-  color: #856404;
+  background: #ecfdf5;
+  color: #0f766e;
 }
 .setup-banner {
   margin: 20rpx 24rpx 0;
   padding: 24rpx 26rpx;
   border-radius: 21rpx;
-  background: linear-gradient(135deg, #fff7df, #fffbeb);
-  box-shadow: 0 8rpx 22rpx rgba(217, 119, 6, 0.08);
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  box-shadow: 0 8rpx 22rpx rgba(15, 118, 110, 0.22);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -705,17 +705,17 @@ function onLogout() {
 .setup-title {
   font-size: 30rpx;
   font-weight: 600;
-  color: #d48806;
+  color: #ffffff;
   display: block;
 }
 .setup-desc {
   font-size: 24rpx;
-  color: #ad6800;
+  color: rgba(255, 255, 255, 0.82);
   display: block;
   margin-top: 4rpx;
 }
 .setup-arrow {
-  color: #d48806;
+  color: #ffffff;
   font-size: 28rpx;
   font-weight: 500;
   white-space: nowrap;

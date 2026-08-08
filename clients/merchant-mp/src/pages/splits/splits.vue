@@ -14,7 +14,7 @@
     </view>
     <empty-state
       v-else-if="!list.length"
-      icon="💱"
+      icon="分"
       :title="tab === 'FAILED' ? '暂无分账异常' : '暂无分账记录'"
       hint="订单分账后会出现在这里；失败单请核对微信收款账户"
     />

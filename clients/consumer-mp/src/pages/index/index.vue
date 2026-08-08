@@ -1371,21 +1371,22 @@ function stopDevicePoll() {
 
 .resume-card {
   margin-top: 24rpx;
-  background: rgba(255, 255, 255, 0.92);
+  background: rgba(8, 24, 30, 0.5);
   border-radius: 20rpx;
   padding: 24rpx 28rpx;
-  border-left: 6rpx solid #2dd4bf;
-  box-shadow: 0 10rpx 28rpx rgba(6, 78, 59, 0.16);
+  border: 2rpx solid rgba(148, 210, 198, 0.28);
+  backdrop-filter: blur(16rpx);
+  box-shadow: 0 10rpx 28rpx rgba(2, 12, 16, 0.28);
 }
 .resume-title {
   font-size: 30rpx;
   font-weight: 600;
-  color: #0f766e;
+  color: #ecfeff;
   display: block;
 }
 .resume-sub {
   font-size: 24rpx;
-  color: #64748b;
+  color: rgba(207, 250, 254, 0.72);
   margin-top: 4rpx;
   display: block;
 }
@@ -1423,11 +1424,11 @@ function stopDevicePoll() {
   width: 220rpx;
   height: 220rpx;
   border-radius: 50%;
-  background: linear-gradient(145deg, #fb923c, #ea580c);
+  background: linear-gradient(145deg, #0d9488, #14b8a6);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 16rpx 48rpx rgba(234, 88, 12, 0.38);
+  box-shadow: 0 16rpx 48rpx rgba(13, 148, 136, 0.38);
 }
 .scan-icon-box {
   width: 96rpx;
