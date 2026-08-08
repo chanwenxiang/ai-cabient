@@ -544,12 +544,12 @@ async function onSubmit() {
   max-width: 400px;
   padding: 36px 32px 28px;
   border-radius: 16px;
-  border: 1px solid rgba(45, 212, 191, 0.28);
-  backdrop-filter: blur(16px);
-  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  backdrop-filter: blur(18px);
+  background: rgba(250, 255, 253, 0.78);
   box-shadow:
-    0 24px 64px rgba(2, 6, 23, 0.45),
-    inset 0 1px 0 rgba(148, 163, 184, 0.12);
+    0 24px 64px rgba(2, 20, 26, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
 }
 .card-header {
   margin-bottom: 28px;
@@ -572,11 +572,11 @@ async function onSubmit() {
   margin: 0 0 6px;
   font-size: 1.75rem;
   font-weight: 700;
-  color: #e2e8f0;
+  color: #134e4a;
   letter-spacing: 0.02em;
 }
 .sub {
-  color: #94a3b8;
+  color: #5b7a72;
   margin: 0;
   font-size: 0.95rem;
 }
@@ -585,30 +585,30 @@ async function onSubmit() {
 }
 .login-card :deep(.el-form-item__label) {
   font-weight: 500;
-  color: #cbd5e1;
+  color: #115e59;
   padding-bottom: 6px;
   line-height: 1.4;
 }
 .login-card :deep(.el-input__wrapper) {
   border-radius: 10px;
-  background: rgba(30, 41, 59, 0.85);
-  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.22) inset;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.28) inset;
   padding: 4px 12px;
 }
 .login-card :deep(.el-input__inner) {
-  color: #f1f5f9;
+  color: #0f2a26;
 }
 .login-card :deep(.el-input__inner::placeholder) {
-  color: #64748b;
+  color: #8aa39c;
 }
 .login-card :deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px rgba(45, 212, 191, 0.38) inset;
+  box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.46) inset;
 }
 .login-card :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.55) inset;
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.5) inset;
 }
 .login-card :deep(.el-input__password) {
-  color: #94a3b8;
+  color: #5b7a72;
 }
 .submit-btn {
   width: 100%;
@@ -631,12 +631,12 @@ async function onSubmit() {
   flex: 0 0 120px;
   height: 40px;
   padding: 0;
-  border: 1px solid rgba(45, 212, 191, 0.28);
+  border: 1px solid rgba(13, 148, 136, 0.32);
   border-radius: 10px;
-  background: rgba(30, 41, 59, 0.9);
+  background: rgba(255, 255, 255, 0.82);
   cursor: pointer;
   overflow: hidden;
-  color: #94a3b8;
+  color: #0d9488;
   font-size: 12px;
 }
 .captcha-img-btn:disabled {
@@ -660,23 +660,30 @@ async function onSubmit() {
   align-items: center;
   justify-content: space-between;
   margin-top: 12px;
-  color: #94a3b8;
+  color: #5b7a72;
+  --el-color-primary: #0f766e;
+  --el-color-primary-light-3: #5aa89e;
+  --el-color-primary-light-5: #9dcfc7;
+  --el-color-primary-light-7: #d3ece6;
+  --el-color-primary-light-8: #e6f5f1;
+  --el-color-primary-light-9: #f2faf8;
+  --el-color-primary-dark-2: #0b5c55;
 }
 .login-extras :deep(.el-checkbox__label) {
-  color: #cbd5e1;
+  color: #3f5f57;
   font-size: 13px;
 }
 .link-btn {
   border: none;
   background: transparent;
-  color: #5eead4;
+  color: #0d9488;
   font-size: 13px;
   cursor: pointer;
   padding: 2px 4px;
 }
 .link-btn:hover,
 .link-btn:focus-visible {
-  color: #99f6e4;
+  color: #0f766e;
   outline: none;
   text-decoration: underline;
 }

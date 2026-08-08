@@ -16,7 +16,6 @@ export function clearSession() {
   localStorage.removeItem(COOKIE_AUTH_KEY);
   localStorage.removeItem('admin_permissions');
   localStorage.removeItem('admin_active_nav');
-  localStorage.removeItem('admin_phone');
 }
 
 export const api = new ApiClient({
