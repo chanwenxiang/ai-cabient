@@ -126,8 +126,10 @@
 import { onLoad, onUnload } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import {
+  consumerApi,
   consumerPasswordLogin,
   consumerSmsLogin,
+  consumerWxH5Login,
   consumerWxLogin,
   ensureConsumerAuth,
   sendSmsCode
@@ -139,7 +141,7 @@ import loginBgUrl from '@/static/login-bg.png';
 const redirect = ref('/pages/index/index');
 // H5 无法微信静默授权，默认展开手机号，减少多点一次
 const showPhoneForm = ref(typeof window !== 'undefined');
-const wxBtnLabel = computed(() => (typeof window !== 'undefined' ? '手机号登录' : '微信授权登录'));
+const wxBtnLabel = computed(() => '微信授权登录');
 const mode = ref<'password' | 'sms'>('sms');
 const phone = ref(import.meta.env.DEV ? '13800138000' : '');
 const password = ref('');
@@ -206,8 +208,27 @@ function goBack() {
 async function onWxLogin() {
   if (loading.value) return;
   // #ifdef H5
-  // H5 无法微信授权：直接展开手机号表单
+  // H5 微信网页授权：公众号 OAuth 跳转；dev mock 直连建档；未配置则回落手机号
+  try {
+    const cfg = await consumerApi.consumerPublicConfig();
+    const oauthUrl = String(cfg?.wechatH5OauthUrl || '').trim();
+    if (oauthUrl) {
+      window.location.href = oauthUrl;
+      return;
+    }
+    if (cfg?.wechatH5OauthEnabled === 'true') {
+      loading.value = true;
+      wxMode.value = true;
+      err.value = '';
+      await consumerWxH5Login('dev-mock-web-code');
+      finishLogin();
+      return;
+    }
+  } catch {
+    /* fall through to phone login */
+  }
   showPhoneForm.value = true;
+  err.value = '当前环境未配置微信网页授权，请使用手机号登录';
   return;
   // #endif
   loading.value = true;
