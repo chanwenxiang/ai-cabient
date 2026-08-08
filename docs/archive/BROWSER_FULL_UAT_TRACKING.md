@@ -2,8 +2,8 @@
 
 执行日期：2026-07-12  
 执行人：Agent（Browser MCP 真实点击 + CDP）  
-截图目录：`docs/uat-screenshots/2026-07-12/full-uat/`  
-计划：[`BROWSER_FULL_UAT_PLAN.md`](BROWSER_FULL_UAT_PLAN.md)
+截图目录：`uat-screenshots/2026-07-12/full-uat/`  
+计划：[`BROWSER_FULL_UAT_PLAN.md`](../BROWSER_FULL_UAT_PLAN.md)
 
 > MIN-UAT-28 已覆盖项标注「继承 MIN-UAT」；本轮用 Browser MCP 复验或补跑剩余项。
 
@@ -105,7 +105,7 @@
 
 ### MIN 层 C 复测同步（2026-08-04）
 
-> 证据：`docs/uat-screenshots/2026-08-04/` · 跟踪：[`BROWSER_MIN_UAT_TRACKING.md`](BROWSER_MIN_UAT_TRACKING.md)
+> 证据：`uat-screenshots/2026-08-04/` · 跟踪：[`BROWSER_MIN_UAT_TRACKING.md`](../BROWSER_MIN_UAT.md)
 
 | MIN ID | 复测 | 备注 |
 |--------|------|------|

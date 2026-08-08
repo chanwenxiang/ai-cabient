@@ -55,5 +55,5 @@ python train_sku_yolo.py --data data.yaml --epochs 80 --name cabinet-skus-v1
 
 ## 5. 验收
 
-- 单 SKU 识别准确率 ≥ 95%（试点柜千次取放，见 `FINAL_END_TO_END_TEST_PLAN.md`）
+- 单 SKU 识别准确率 ≥ 95%（试点柜千次取放，见 `BROWSER_MIN_UAT.md`）
 - `vision_enrollment_status=PRODUCTION` 且设备库存白名单校验通过后才自动扣款

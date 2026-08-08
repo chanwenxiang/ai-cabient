@@ -2,7 +2,7 @@
 
 **日期**：2026-07-12  
 **执行方式**：Cursor Browser MCP（真实导航、点击、输入、CDP 辅助）  
-**计划**：[`BROWSER_FULL_UAT_PLAN.md`](BROWSER_FULL_UAT_PLAN.md)  
+**计划**：[`BROWSER_FULL_UAT_PLAN.md`](../BROWSER_FULL_UAT_PLAN.md)  
 **跟踪表**：[`BROWSER_FULL_UAT_TRACKING.md`](BROWSER_FULL_UAT_TRACKING.md)
 
 ---
