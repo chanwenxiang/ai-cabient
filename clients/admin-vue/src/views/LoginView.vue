@@ -484,9 +484,9 @@ async function onSubmit() {
   z-index: 2;
   background: linear-gradient(
     160deg,
-    rgba(4, 25, 30, 0.55) 0%,
-    rgba(6, 36, 43, 0.38) 46%,
-    rgba(3, 20, 25, 0.68) 100%
+    rgba(4, 25, 30, 0.4) 0%,
+    rgba(6, 36, 43, 0.22) 46%,
+    rgba(3, 20, 25, 0.5) 100%
   );
 }
 @keyframes gridDrift {
@@ -544,12 +544,12 @@ async function onSubmit() {
   max-width: 400px;
   padding: 36px 32px 28px;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  backdrop-filter: blur(18px);
-  background: rgba(250, 255, 253, 0.78);
+  border: 1px solid rgba(148, 210, 198, 0.24);
+  backdrop-filter: blur(20px);
+  background: rgba(10, 28, 34, 0.4);
   box-shadow:
-    0 24px 64px rgba(2, 20, 26, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    0 24px 64px rgba(2, 10, 14, 0.38),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
 .card-header {
   margin-bottom: 28px;
@@ -572,11 +572,11 @@ async function onSubmit() {
   margin: 0 0 6px;
   font-size: 1.75rem;
   font-weight: 700;
-  color: #134e4a;
+  color: #ecfeff;
   letter-spacing: 0.02em;
 }
 .sub {
-  color: #5b7a72;
+  color: rgba(207, 250, 254, 0.72);
   margin: 0;
   font-size: 0.95rem;
 }
@@ -585,30 +585,30 @@ async function onSubmit() {
 }
 .login-card :deep(.el-form-item__label) {
   font-weight: 500;
-  color: #115e59;
+  color: rgba(204, 251, 241, 0.88);
   padding-bottom: 6px;
   line-height: 1.4;
 }
 .login-card :deep(.el-input__wrapper) {
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.28) inset;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 0 0 1px rgba(148, 210, 198, 0.26) inset;
   padding: 4px 12px;
 }
 .login-card :deep(.el-input__inner) {
-  color: #0f2a26;
+  color: #f0fdfa;
 }
 .login-card :deep(.el-input__inner::placeholder) {
-  color: #8aa39c;
+  color: rgba(148, 210, 198, 0.55);
 }
 .login-card :deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px rgba(13, 148, 136, 0.46) inset;
+  box-shadow: 0 0 0 1px rgba(94, 234, 212, 0.42) inset;
 }
 .login-card :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.5) inset;
+  box-shadow: 0 0 0 2px rgba(45, 212, 191, 0.5) inset;
 }
 .login-card :deep(.el-input__password) {
-  color: #5b7a72;
+  color: rgba(148, 210, 198, 0.72);
 }
 .submit-btn {
   width: 100%;
@@ -631,12 +631,12 @@ async function onSubmit() {
   flex: 0 0 120px;
   height: 40px;
   padding: 0;
-  border: 1px solid rgba(13, 148, 136, 0.32);
+  border: 1px solid rgba(148, 210, 198, 0.3);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.1);
   cursor: pointer;
   overflow: hidden;
-  color: #0d9488;
+  color: rgba(207, 250, 254, 0.8);
   font-size: 12px;
 }
 .captcha-img-btn:disabled {
@@ -660,7 +660,7 @@ async function onSubmit() {
   align-items: center;
   justify-content: space-between;
   margin-top: 12px;
-  color: #5b7a72;
+  color: rgba(207, 250, 254, 0.72);
   --el-color-primary: #0f766e;
   --el-color-primary-light-3: #5aa89e;
   --el-color-primary-light-5: #9dcfc7;
@@ -670,20 +670,20 @@ async function onSubmit() {
   --el-color-primary-dark-2: #0b5c55;
 }
 .login-extras :deep(.el-checkbox__label) {
-  color: #3f5f57;
+  color: rgba(204, 251, 241, 0.82);
   font-size: 13px;
 }
 .link-btn {
   border: none;
   background: transparent;
-  color: #0d9488;
+  color: #5eead4;
   font-size: 13px;
   cursor: pointer;
   padding: 2px 4px;
 }
 .link-btn:hover,
 .link-btn:focus-visible {
-  color: #0f766e;
+  color: #99f6e4;
   outline: none;
   text-decoration: underline;
 }
@@ -700,7 +700,7 @@ async function onSubmit() {
   flex: 0 0 auto;
 }
 .hint {
-  color: #64748b;
+  color: rgba(207, 250, 254, 0.6);
   font-size: 0.8rem;
   margin: 20px 0 0;
   text-align: center;
