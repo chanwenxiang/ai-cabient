@@ -72,10 +72,7 @@
               @click="filter = f.value"
               >{{ f.label }}{{ filterCountSuffix(f.value) }}</text
             >
-          </view>
-        </scroll-view>
-        <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false">
-          <view class="order-filters time-filters">
+            <view class="filter-sep" aria-hidden="true" />
             <text
               v-for="t in timeFilters"
               :key="t.value"
@@ -615,11 +612,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .order-filters {
   display: inline-flex;
   gap: 12rpx;
-  padding: 8rpx 24rpx 10rpx;
+  padding: 14rpx 24rpx 16rpx;
+  align-items: center;
 }
-.time-filters {
-  padding-top: 0;
-  padding-bottom: 16rpx;
+.filter-sep {
+  flex-shrink: 0;
+  width: 2rpx;
+  height: 28rpx;
+  margin: 0 6rpx;
+  background: rgba(100, 116, 139, 0.24);
 }
 .filter-chip {
   white-space: nowrap;
@@ -634,7 +635,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .filter-chip.time {
   padding: 10rpx 20rpx;
   font-size: 22rpx;
-  background: #f3faf7;
+  background: rgba(255, 255, 255, 0.72);
   border-color: #dceee6;
 }
 .filter-chip.active {

@@ -2,6 +2,7 @@
   <view class="page-root">
     <!-- 落地页：仅 Tab 进入时展示，柜码直达不经过此页 -->
     <view v-if="showLanding" class="landing">
+      <image class="landing-bg" :src="landingBgUrl" mode="aspectFill" aria-hidden="true" />
       <view class="landing-overlay" />
 
       <view class="landing-content">
@@ -272,6 +273,7 @@ import {
   requireConsumerAuth
 } from '@/utils/consumer-api';
 import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrcode';
+import landingBgUrl from '@/static/bg-shop-indoor.jpg';
 import {
   sessionStateHint,
   sessionStateLabel,
@@ -1275,20 +1277,30 @@ function stopDevicePoll() {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  background:
-    radial-gradient(1100rpx 760rpx at 112% -8%, rgba(94, 234, 212, 0.38), transparent 62%),
-    radial-gradient(900rpx 720rpx at -18% 34%, rgba(45, 212, 191, 0.3), transparent 56%),
-    radial-gradient(760rpx 640rpx at 78% 112%, rgba(16, 185, 129, 0.32), transparent 60%),
-    linear-gradient(170deg, #115e59 0%, #0d9488 56%, #0f766e 100%);
+  background: #0b3d38;
+}
+.landing-bg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
 }
 .landing-overlay {
   position: absolute;
   left: 0;
+  top: 0;
   right: 0;
   bottom: 0;
-  height: 42%;
   z-index: 1;
-  background: linear-gradient(180deg, rgba(13, 148, 136, 0) 0%, rgba(6, 78, 59, 0.5) 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(6, 66, 60, 0.52) 0%,
+    rgba(10, 94, 84, 0.22) 34%,
+    rgba(9, 78, 70, 0.3) 66%,
+    rgba(4, 42, 38, 0.78) 100%
+  );
 }
 .landing-content {
   position: relative;

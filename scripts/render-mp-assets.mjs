@@ -1,15 +1,13 @@
 /**
- * 渲染小程序视觉资产（tab 图标 / 登录背景 / 商品演示图）。
+ * 渲染小程序视觉资产（tab 图标 / 商品演示图）。
  *
  * 用法：node scripts/render-mp-assets.mjs
  * 依赖：系统 Chrome（Playwright channel=chrome）；产物为 PNG，覆盖以下文件：
  *   clients/consumer-mp/src/static/tab/*.png
  *   clients/merchant-mp/src/static/tab/*.png
- *   clients/{consumer,merchant}-mp/src/static/login-bg.png
  *   clients/consumer-mp/src/static/sku/*.png
  */
 import { chromium } from 'playwright';
-import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -18,8 +16,23 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GRAY = '#94a3b8';
 const TEAL = '#0d9488';
 
-const ICON_TEMPLATE = (glyph, color) =>
-  `<svg xmlns="http://www.w3.org/2000/svg" width="81" height="81" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph}</svg>`;
+/** 精致 tab 图标：144x144（2x），圆角渐变底 + 白色线性图标。 */
+const ICON_TEMPLATE = (glyph, active) =>
+  active
+    ? `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 48 48">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f766e"/>
+      <stop offset="1" stop-color="#14b8a6"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="40" height="40" rx="13" fill="url(#g)"/>
+  <g transform="translate(12,12) scale(1)" fill="none" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>
+</svg>`
+    : `<svg xmlns="http://www.w3.org/2000/svg" width="144" height="144" viewBox="0 0 48 48">
+  <rect x="4" y="4" width="40" height="40" rx="13" fill="#eef2f1"/>
+  <g transform="translate(12,12) scale(1)" fill="none" stroke="${GRAY}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${glyph}</g>
+</svg>`;
 
 const ICONS = {
   home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-5h4v5"/>',
@@ -31,36 +44,6 @@ const ICONS = {
   alerts:
     '<path d="M12 4a6 6 0 0 1 6 6v4l2 3H4l2-3v-4a6 6 0 0 1 6-6Z"/><path d="M10 20a2 2 0 0 0 4 0"/>'
 };
-
-/** 登录背景：品牌渐变 + 柔光 + 细网格（750x1334，与当前文件名兼容）。 */
-function loginBackgroundSvg() {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="750" height="1334" viewBox="0 0 750 1334">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1">
-      <stop offset="0" stop-color="#0f766e"/>
-      <stop offset="0.55" stop-color="#0d9488"/>
-      <stop offset="1" stop-color="#064e3b"/>
-    </linearGradient>
-    <radialGradient id="glowA" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#5eead4" stop-opacity="0.5"/>
-      <stop offset="1" stop-color="#5eead4" stop-opacity="0"/>
-    </radialGradient>
-    <radialGradient id="glowB" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.18"/>
-      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
-    </radialGradient>
-    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
-      <path d="M48 0H0v48" fill="none" stroke="#ffffff" stroke-opacity="0.05" stroke-width="1"/>
-    </pattern>
-  </defs>
-  <rect width="750" height="1334" fill="url(#bg)"/>
-  <rect width="750" height="1334" fill="url(#grid)"/>
-  <circle cx="120" cy="180" r="230" fill="url(#glowA)"/>
-  <circle cx="640" cy="420" r="300" fill="url(#glowA)"/>
-  <circle cx="360" cy="980" r="320" fill="url(#glowB)"/>
-  <circle cx="70" cy="1120" r="180" fill="url(#glowA)" opacity="0.7"/>
-</svg>`;
-}
 
 /** 商品演示图：浅色卡片 + 简洁产品剪影（400x400）。 */
 function skuSvg({ bg, shape, label }) {
@@ -103,41 +86,33 @@ const SKU_LABELS = {
 async function main() {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
-    const iconPage = await browser.newPage({ viewport: { width: 81, height: 81 } });
+    const iconPage = await browser.newPage({ viewport: { width: 144, height: 144 } });
     for (const [name, glyph] of Object.entries(ICONS)) {
-      for (const [suffix, color] of [
-        ['', GRAY],
-        ['-active', TEAL]
+      for (const [suffix, active] of [
+        ['', false],
+        ['-active', true]
       ]) {
         const file = path.join(root, `clients/consumer-mp/src/static/tab/${name}${suffix}.png`);
         await iconPage.setContent(
-          `<div style="width:81px;height:81px">${ICON_TEMPLATE(glyph, color)}</div>`
+          `<div style="width:144px;height:144px">${ICON_TEMPLATE(glyph, active)}</div>`
         );
         await iconPage.screenshot({ path: file, omitBackground: true });
       }
     }
     // 商户端复用 home/mine；devices/alerts 专属
     for (const [name, glyph] of Object.entries(ICONS)) {
-      for (const [suffix, color] of [
-        ['', GRAY],
-        ['-active', TEAL]
+      for (const [suffix, active] of [
+        ['', false],
+        ['-active', true]
       ]) {
         const file = path.join(root, `clients/merchant-mp/src/static/tab/${name}${suffix}.png`);
         await iconPage.setContent(
-          `<div style="width:81px;height:81px">${ICON_TEMPLATE(glyph, color)}</div>`
+          `<div style="width:144px;height:144px">${ICON_TEMPLATE(glyph, active)}</div>`
         );
         await iconPage.screenshot({ path: file, omitBackground: true });
       }
     }
     await iconPage.close();
-
-    const bgPage = await browser.newPage({ viewport: { width: 750, height: 1334 } });
-    await bgPage.setContent(loginBackgroundSvg());
-    const bgConsumer = path.join(root, 'clients/consumer-mp/src/static/login-bg.png');
-    const bgMerchant = path.join(root, 'clients/merchant-mp/src/static/login-bg.png');
-    await bgPage.screenshot({ path: bgConsumer });
-    writeFileSync(bgMerchant, readFileSync(bgConsumer));
-    await bgPage.close();
 
     const skuPage = await browser.newPage({ viewport: { width: 400, height: 400 } });
     for (const [name, shape] of Object.entries(SKU_SHAPES)) {

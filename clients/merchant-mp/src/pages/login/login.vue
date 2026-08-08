@@ -1,7 +1,7 @@
 <template>
   <view class="login-wrap">
     <view class="login-bg-scene" aria-hidden="true">
-      <image class="login-illustration login-illustration-anim" :src="loginBgUrl" mode="widthFix" />
+      <image class="login-illustration login-illustration-anim" :src="loginBgUrl" mode="aspectFill" />
       <view class="anim-orb anim-orb-a" />
       <view class="anim-orb anim-orb-b" />
       <view class="anim-shimmer" />
@@ -32,6 +32,7 @@
             maxlength="11"
             aria-label="手机号"
             placeholder="请输入11位手机号…"
+            placeholder-class="ph"
             confirm-type="next"
             data-testid="login-phone"
           />
@@ -44,6 +45,7 @@
             password
             aria-label="密码"
             placeholder="请输入登录密码…"
+            placeholder-class="ph"
             confirm-type="go"
             data-testid="login-password"
             @confirm="onLogin"
@@ -69,7 +71,7 @@
 import { ref } from 'vue';
 import { merchantLogin, merchantApi } from '@/utils/merchant-api';
 import { showDevTools } from '@/utils/runtime-flags';
-import loginBgUrl from '@/static/login-bg.png';
+import loginBgUrl from '@/static/bg-vending-night.jpg';
 
 const isDev = showDevTools();
 const phone = ref(isDev ? '13800138001' : '');
@@ -117,9 +119,10 @@ async function onLogin() {
 }
 .login-bg-scene {
   position: absolute;
-  top: 120rpx;
+  top: 0;
   left: 0;
   width: 100%;
+  height: 100%;
   z-index: 0;
   overflow: hidden;
 }
@@ -127,6 +130,7 @@ async function onLogin() {
   position: relative;
   display: block;
   width: 100%;
+  height: 100%;
 }
 .login-illustration-anim {
   animation: illusKenBurns 22s ease-in-out infinite alternate;
@@ -219,15 +223,16 @@ async function onLogin() {
 .login-overlay {
   position: absolute;
   left: 0;
+  top: 0;
   right: 0;
   bottom: 0;
-  height: 48%;
   z-index: 1;
   background: linear-gradient(
     180deg,
-    rgba(11, 18, 32, 0) 0%,
-    rgba(11, 18, 32, 0.86) 52%,
-    #0b1220 100%
+    rgba(8, 26, 30, 0.46) 0%,
+    rgba(8, 26, 30, 0.18) 36%,
+    rgba(8, 26, 30, 0.3) 64%,
+    rgba(6, 22, 26, 0.82) 100%
   );
 }
 .login-content {
@@ -281,26 +286,26 @@ async function onLogin() {
   flex-shrink: 0;
   padding: 36rpx 32rpx 40rpx;
   border-radius: 32rpx 32rpx 24rpx 24rpx;
-  background: rgba(236, 253, 245, 0.94);
-  border: 2rpx solid rgba(20, 184, 166, 0.22);
+  background: rgba(9, 28, 34, 0.68);
+  border: 2rpx solid rgba(94, 234, 212, 0.22);
+  backdrop-filter: blur(28rpx);
   box-shadow:
-    0 -8rpx 40rpx rgba(15, 118, 110, 0.1),
-    0 16rpx 48rpx rgba(19, 78, 74, 0.08);
+    0 -8rpx 40rpx rgba(2, 12, 16, 0.18),
+    0 16rpx 48rpx rgba(2, 10, 14, 0.42);
 }
 .title {
   font-size: 36rpx;
   font-weight: 700;
   display: block;
   margin-bottom: 8rpx;
-  color: #134e4a;
+  color: #f0fdfa;
 }
 .subtitle {
   font-size: 24rpx;
-  color: #0f766e;
+  color: rgba(204, 251, 241, 0.74);
   display: block;
   margin-bottom: 32rpx;
   line-height: 1.5;
-  opacity: 0.82;
 }
 .field {
   margin-bottom: 20rpx;
@@ -308,7 +313,7 @@ async function onLogin() {
 .field-label {
   display: block;
   font-size: 26rpx;
-  color: #115e59;
+  color: #ccfbf1;
   font-weight: 500;
   margin-bottom: 10rpx;
 }
@@ -317,17 +322,20 @@ async function onLogin() {
   width: 100%;
   height: 88rpx;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.68);
-  border: 2rpx solid rgba(45, 212, 191, 0.38);
+  background: rgba(255, 255, 255, 0.09);
+  border: 2rpx solid rgba(148, 163, 184, 0.26);
   border-radius: 16rpx;
   padding: 0 28rpx;
   font-size: 28rpx;
-  color: #134e4a;
+  color: #f0fdfa;
   line-height: 88rpx;
 }
 .input:focus {
-  border-color: #0f766e;
-  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(94, 234, 212, 0.6);
+  background: rgba(255, 255, 255, 0.13);
+}
+.ph {
+  color: rgba(204, 251, 241, 0.4);
 }
 .btn-primary {
   margin-top: 12rpx;
@@ -353,7 +361,7 @@ async function onLogin() {
   font-size: 26rpx;
 }
 .hint {
-  color: #0f766e;
+  color: rgba(204, 251, 241, 0.62);
   font-size: 22rpx;
   display: block;
   margin-top: 20rpx;
