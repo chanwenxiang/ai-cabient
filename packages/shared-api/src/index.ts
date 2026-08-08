@@ -50,7 +50,11 @@ export class ApiClient {
     auth = true,
     retried = false
   ): Promise<T> {
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    // X-Requested-With：Cookie 会话的写请求需携带同源标记（后端 CSRF 双保险校验）
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-Requested-With': 'XMLHttpRequest'
+    };
     if (auth && this.getToken()) headers.Authorization = `Bearer ${this.getToken()}`;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);

@@ -63,6 +63,8 @@ aicabinet:
     expiration-seconds: ${JWT_EXPIRATION_SECONDS:1800}
     cookie-enabled: ${AUTH_COOKIE_ENABLED:true}
     cookie-secure: ${AUTH_COOKIE_SECURE:false}
+    login-max-failures: ${LOGIN_MAX_FAILURES:5}
+    login-lock-minutes: ${LOGIN_LOCK_MINUTES:10}
     sms:
       mock-code: "123456"
       ttl-seconds: 300
