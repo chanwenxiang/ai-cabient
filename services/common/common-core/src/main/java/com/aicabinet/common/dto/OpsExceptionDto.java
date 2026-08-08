@@ -7,7 +7,8 @@ public record OpsExceptionDto(
         String deviceId, String sessionId, String orderId, Long userId,
         String title, String detail, Long assigneeUserId, String resolution,
         Instant createdAt, Instant updatedAt, Instant resolvedAt,
-        Instant slaDueAt, boolean slaOverdue
+        Instant slaDueAt, boolean slaOverdue,
+        boolean archived, Instant archivedAt
 ) {
     public OpsExceptionDto(
             String exceptionId, String exceptionType, String severity, String status,
@@ -16,6 +17,7 @@ public record OpsExceptionDto(
             Instant createdAt, Instant updatedAt, Instant resolvedAt
     ) {
         this(exceptionId, exceptionType, severity, status, deviceId, sessionId, orderId, userId,
-                title, detail, assigneeUserId, resolution, createdAt, updatedAt, resolvedAt, null, false);
+                title, detail, assigneeUserId, resolution, createdAt, updatedAt, resolvedAt,
+                null, false, false, null);
     }
 }

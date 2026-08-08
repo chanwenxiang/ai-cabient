@@ -49,6 +49,12 @@ public interface OpsExceptionMapper extends BaseTradeMapper<OpsException> {
     }
 
     default Page<OpsException> findFiltered(String status, String severity, boolean overdueOnly, Pageable pageable) {
+        return findFiltered(status, severity, overdueOnly, null, pageable);
+    }
+
+    /** archived：null/false 仅看未归档（默认）；true 仅看已归档。 */
+    default Page<OpsException> findFiltered(String status, String severity, boolean overdueOnly,
+                                            Boolean archived, Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<OpsException>(
             pageable.getPageNumber() + 1L, pageable.getPageSize());
     var query = Wrappers.<OpsException>lambdaQuery();
@@ -66,6 +72,7 @@ public interface OpsExceptionMapper extends BaseTradeMapper<OpsException> {
     if (severity != null && !severity.isBlank()) {
         query.eq(OpsException::getSeverity, severity);
     }
+    query.eq(OpsException::getArchived, Boolean.TRUE.equals(archived));
     if (overdueOnly) {
         query.orderByAsc(OpsException::getSlaDueAt).orderByDesc(OpsException::getCreatedAt);
     } else {
@@ -78,14 +85,16 @@ public interface OpsExceptionMapper extends BaseTradeMapper<OpsException> {
     default Page<OpsException> findByDeviceIdInOrderByCreatedAtDesc(Collection<String> deviceIds, Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<OpsException>(
             pageable.getPageNumber() + 1L, pageable.getPageSize());
-    var result = selectPage(mpPage, Wrappers.<OpsException>lambdaQuery().in(OpsException::getDeviceId, deviceIds).orderByDesc(OpsException::getCreatedAt));
+    var result = selectPage(mpPage, Wrappers.<OpsException>lambdaQuery().in(OpsException::getDeviceId, deviceIds)
+            .eq(OpsException::getArchived, false).orderByDesc(OpsException::getCreatedAt));
     return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
     default Page<OpsException> findByDeviceIdInAndStatusOrderByCreatedAtDesc(Collection<String> deviceIds, String status, Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<OpsException>(
             pageable.getPageNumber() + 1L, pageable.getPageSize());
-    var result = selectPage(mpPage, Wrappers.<OpsException>lambdaQuery().in(OpsException::getDeviceId, deviceIds).eq(OpsException::getStatus, status).orderByDesc(OpsException::getCreatedAt));
+    var result = selectPage(mpPage, Wrappers.<OpsException>lambdaQuery().in(OpsException::getDeviceId, deviceIds)
+            .eq(OpsException::getStatus, status).eq(OpsException::getArchived, false).orderByDesc(OpsException::getCreatedAt));
     return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 

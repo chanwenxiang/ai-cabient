@@ -22,9 +22,11 @@ public class OpsExceptionController {
             @RequestParam(required=false) String status,
             @RequestParam(required=false) String severity,
             @RequestParam(required=false) String overdue,
+            @RequestParam(required=false) Boolean archived,
             @RequestParam(defaultValue="0") int page,
             @RequestParam(defaultValue="20") int size) {
-        return ApiResponse.ok(service.list(operator(request), status, severity, parseFlag(overdue), page, size));
+        return ApiResponse.ok(service.list(operator(request), status, severity,
+                parseFlag(overdue), archived, page, size));
     }
     @RequiresPermissions(value = {"ops:exception:list", "ops:exception:handle"}, logical = RequiresPermissions.Logical.OR)
     @GetMapping("/{id}") public ApiResponse<OpsExceptionDetailDto> detail(HttpServletRequest request,
@@ -102,6 +104,18 @@ public class OpsExceptionController {
     @PostMapping("/{id}/resolve") public ApiResponse<OpsExceptionDto> resolve(HttpServletRequest request,
             @PathVariable String id, @Valid @RequestBody ResolveOpsExceptionRequest body) {
         return ApiResponse.ok(service.resolve(operator(request), id, body.resolution()));
+    }
+
+    @RequiresPermissions("ops:exception:handle")
+    @PostMapping("/{id}/archive") public ApiResponse<OpsExceptionDto> archive(HttpServletRequest request,
+            @PathVariable String id) {
+        return ApiResponse.ok(service.archive(operator(request), id));
+    }
+
+    @RequiresPermissions("ops:exception:handle")
+    @PostMapping("/{id}/unarchive") public ApiResponse<OpsExceptionDto> unarchive(HttpServletRequest request,
+            @PathVariable String id) {
+        return ApiResponse.ok(service.unarchive(operator(request), id));
     }
 
     @RequiresPermissions(value = {"ops:exception:handle", "ops:repair:edit"}, logical = RequiresPermissions.Logical.AND)
