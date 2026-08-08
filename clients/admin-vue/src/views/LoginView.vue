@@ -544,12 +544,10 @@ async function onSubmit() {
   max-width: 400px;
   padding: 36px 32px 28px;
   border-radius: 16px;
-  border: 1px solid rgba(148, 210, 198, 0.24);
-  backdrop-filter: blur(20px);
-  background: rgba(10, 28, 34, 0.4);
-  box-shadow:
-    0 24px 64px rgba(2, 10, 14, 0.38),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(148, 210, 198, 0.42);
+  background: transparent;
+  backdrop-filter: blur(8px);
+  box-shadow: none;
 }
 .card-header {
   margin-bottom: 28px;
@@ -574,11 +572,13 @@ async function onSubmit() {
   font-weight: 700;
   color: #ecfeff;
   letter-spacing: 0.02em;
+  text-shadow: 0 2px 18px rgba(2, 10, 14, 0.75);
 }
 .sub {
   color: rgba(207, 250, 254, 0.72);
   margin: 0;
   font-size: 0.95rem;
+  text-shadow: 0 1px 10px rgba(2, 10, 14, 0.7);
 }
 .login-card :deep(.el-form-item) {
   margin-bottom: 20px;
@@ -588,12 +588,14 @@ async function onSubmit() {
   color: rgba(204, 251, 241, 0.88);
   padding-bottom: 6px;
   line-height: 1.4;
+  text-shadow: 0 1px 8px rgba(2, 10, 14, 0.65);
 }
 .login-card :deep(.el-input__wrapper) {
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(8, 24, 30, 0.42);
   box-shadow: 0 0 0 1px rgba(148, 210, 198, 0.26) inset;
   padding: 4px 12px;
+  backdrop-filter: blur(8px);
 }
 .login-card :deep(.el-input__inner) {
   color: #f0fdfa;
@@ -633,11 +635,12 @@ async function onSubmit() {
   padding: 0;
   border: 1px solid rgba(148, 210, 198, 0.3);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(8, 24, 30, 0.42);
   cursor: pointer;
   overflow: hidden;
   color: rgba(207, 250, 254, 0.8);
   font-size: 12px;
+  backdrop-filter: blur(8px);
 }
 .captcha-img-btn:disabled {
   opacity: 0.7;
@@ -661,6 +664,7 @@ async function onSubmit() {
   justify-content: space-between;
   margin-top: 12px;
   color: rgba(207, 250, 254, 0.72);
+  text-shadow: 0 1px 8px rgba(2, 10, 14, 0.6);
   --el-color-primary: #0f766e;
   --el-color-primary-light-3: #5aa89e;
   --el-color-primary-light-5: #9dcfc7;
