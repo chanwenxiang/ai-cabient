@@ -1,15 +1,15 @@
 <template>
   <div class="login-page">
-    <div
-      class="login-bg login-bg-drift"
-      :style="{ backgroundImage: `url(${loginBgUrl})` }"
-      aria-hidden="true"
-    />
+    <div class="login-bg" aria-hidden="true">
+      <span class="bg-aurora" />
+      <span class="bg-orb bg-orb-a" />
+      <span class="bg-orb bg-orb-b" />
+      <span class="bg-orb bg-orb-c" />
+    </div>
     <div class="login-bg-fx" aria-hidden="true">
       <span class="fx-grid" />
-      <span class="fx-orb fx-orb-a" />
-      <span class="fx-orb fx-orb-b" />
       <span class="fx-scan" />
+      <i v-for="p in particles" :key="p.left" class="fx-particle" :style="p.style" />
     </div>
     <div class="login-overlay" aria-hidden="true" />
     <div class="login-card">
@@ -195,7 +195,24 @@ import { useAuthStore } from '@/stores/auth';
 import { api } from '@/api/client';
 import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import { safeRedirectPath } from '@/utils/safe-redirect';
-import loginBgUrl from '@/assets/login-bg-v2.svg';
+
+/** 登录页动态背景粒子：固定参数，避免每次渲染随机跳动。 */
+const particles = Array.from({ length: 16 }, (_, i) => {
+  const left = ((i * 6.3 + 2) % 100).toFixed(1);
+  const size = 3 + (i % 3) * 2;
+  const delay = ((i * 1.37) % 14).toFixed(1);
+  const duration = (10 + (i % 6) * 2).toFixed(1);
+  return {
+    left,
+    style: {
+      left: `${left}%`,
+      width: `${size}px`,
+      height: `${size}px`,
+      animationDelay: `${delay}s`,
+      animationDuration: `${duration}s`
+    }
+  };
+});
 
 const phone = ref(localStorage.getItem('admin_phone') || (ENABLE_TEST_TOOLS ? '13900000001' : ''));
 const password = ref(ENABLE_TEST_TOOLS ? '123456' : '');
@@ -408,14 +425,53 @@ async function onSubmit() {
 .login-bg {
   position: absolute;
   inset: 0;
-  background-position: center;
-  background-size: cover;
-  background-repeat: no-repeat;
   z-index: 0;
+  overflow: hidden;
+  background: linear-gradient(160deg, #042f2e 0%, #0f766e 48%, #134e4a 78%, #042f2e 100%);
 }
-.login-bg-drift {
-  animation: bgDrift 26s ease-in-out infinite alternate;
-  transform-origin: center center;
+.bg-aurora {
+  position: absolute;
+  inset: -35%;
+  background: conic-gradient(
+    from 180deg at 50% 42%,
+    rgba(45, 212, 191, 0.2),
+    rgba(20, 184, 166, 0) 28%,
+    rgba(16, 185, 129, 0.18) 52%,
+    rgba(45, 212, 191, 0) 78%,
+    rgba(94, 234, 212, 0.22)
+  );
+  filter: blur(42px);
+  animation: auroraSpin 34s linear infinite;
+}
+.bg-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(72px);
+  will-change: transform;
+}
+.bg-orb-a {
+  top: -10%;
+  left: 6%;
+  width: 46vmax;
+  height: 46vmax;
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.34), transparent 68%);
+  animation: orbFloatA 16s ease-in-out infinite;
+}
+.bg-orb-b {
+  bottom: -16%;
+  right: 2%;
+  width: 42vmax;
+  height: 42vmax;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.3), transparent 66%);
+  animation: orbFloatB 21s ease-in-out infinite;
+}
+.bg-orb-c {
+  top: 40%;
+  left: 54%;
+  width: 30vmax;
+  height: 30vmax;
+  background: radial-gradient(circle, rgba(94, 234, 212, 0.22), transparent 62%);
+  animation: orbFloatC 26s ease-in-out infinite;
 }
 .login-bg-fx {
   position: absolute;
@@ -428,31 +484,12 @@ async function onSubmit() {
   position: absolute;
   inset: -40%;
   background-image:
-    linear-gradient(rgba(20, 184, 166, 0.08) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(20, 184, 166, 0.08) 1px, transparent 1px);
-  background-size: 48px 48px;
+    linear-gradient(rgba(94, 234, 212, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(94, 234, 212, 0.1) 1px, transparent 1px);
+  background-size: 52px 52px;
   animation: gridDrift 24s linear infinite;
-}
-.fx-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(64px);
-}
-.fx-orb-a {
-  top: 12%;
-  left: 18%;
-  width: 320px;
-  height: 320px;
-  background: rgba(15, 118, 110, 0.28);
-  animation: orbPulseA 10s ease-in-out infinite;
-}
-.fx-orb-b {
-  bottom: 8%;
-  right: 12%;
-  width: 280px;
-  height: 280px;
-  background: rgba(45, 212, 191, 0.2);
-  animation: orbPulseB 12s ease-in-out infinite;
+  -webkit-mask-image: radial-gradient(ellipse 78% 72% at 50% 36%, #000 32%, transparent 80%);
+  mask-image: radial-gradient(ellipse 78% 72% at 50% 36%, #000 32%, transparent 80%);
 }
 .fx-scan {
   position: absolute;
@@ -464,18 +501,25 @@ async function onSubmit() {
   animation: scanLine 7s linear infinite;
   opacity: 0.7;
 }
+.fx-particle {
+  position: absolute;
+  bottom: -14px;
+  border-radius: 50%;
+  background: rgba(94, 234, 212, 0.6);
+  box-shadow: 0 0 10px rgba(45, 212, 191, 0.55);
+  animation-name: particleRise;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
 .login-overlay {
   position: absolute;
   inset: 0;
   z-index: 2;
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.42), rgba(30, 58, 95, 0.32));
 }
-@keyframes bgDrift {
-  from {
-    transform: scale(1);
-  }
+@keyframes auroraSpin {
   to {
-    transform: scale(1.06);
+    transform: rotate(1turn);
   }
 }
 @keyframes gridDrift {
@@ -486,26 +530,47 @@ async function onSubmit() {
     transform: translate(48px, 48px);
   }
 }
-@keyframes orbPulseA {
+@keyframes orbFloatA {
   0%,
   100% {
     transform: translate(0, 0) scale(1);
-    opacity: 0.65;
   }
   50% {
-    transform: translate(28px, 22px) scale(1.12);
-    opacity: 1;
+    transform: translate(4vw, -3vh) scale(1.12);
   }
 }
-@keyframes orbPulseB {
+@keyframes orbFloatB {
   0%,
   100% {
     transform: translate(0, 0) scale(1);
-    opacity: 0.55;
   }
   50% {
-    transform: translate(-24px, -18px) scale(1.1);
-    opacity: 0.9;
+    transform: translate(-3vw, 2vh) scale(1.08);
+  }
+}
+@keyframes orbFloatC {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(2vw, 3vh) scale(1.16);
+  }
+}
+@keyframes particleRise {
+  0% {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.85;
+  }
+  85% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(28px, -108vh);
+    opacity: 0;
   }
 }
 @keyframes scanLine {
@@ -525,11 +590,13 @@ async function onSubmit() {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .login-bg-drift,
+  .bg-aurora,
+  .bg-orb-a,
+  .bg-orb-b,
+  .bg-orb-c,
   .fx-grid,
-  .fx-orb-a,
-  .fx-orb-b,
-  .fx-scan {
+  .fx-scan,
+  .fx-particle {
     animation: none;
   }
 }
