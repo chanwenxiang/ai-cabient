@@ -67,6 +67,7 @@
           :label="statusTabLabel(item.label, item.value)"
           :name="item.value"
         />
+        <el-tab-pane :label="archivedTabLabel" name="ARCHIVED" />
         <el-tab-pane label="全部" name="ALL" />
       </el-tabs>
 
@@ -204,7 +205,8 @@
             </el-table-column>
             <el-table-column label="状态" width="92" align="center">
               <template #default="{ row }">
-                <el-tag :type="dictTagType(row.status)" size="small">
+                <el-tag v-if="row.archived" type="info" size="small">已归档</el-tag>
+                <el-tag v-else :type="dictTagType(row.status)" size="small">
                   {{ dictLabel('exception_status', row.status) }}
                 </el-tag>
               </template>
@@ -528,6 +530,7 @@ import { computed, onActivated, onDeactivated, onMounted, reactive, ref, watch }
 import { useRoute, useRouter } from 'vue-router';
 import {
   CircleCheck,
+  FolderOpened,
   Monitor,
   Refresh,
   UserFilled,
@@ -577,6 +580,8 @@ interface OpsException {
   orderId?: string;
   userId?: number;
   assigneeUserId?: number;
+  archived?: boolean;
+  archivedAt?: string;
   createdAt?: string;
   updatedAt?: string;
   slaDueAt?: string;
@@ -614,7 +619,7 @@ const size = ref(20);
 const total = ref(0);
 const items = ref<OpsException[]>([]);
 const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort('exceptionId');
-const statusCounts = reactive({ OPEN: 0, PROCESSING: 0, RESOLVED: 0, CLOSED: 0 });
+const statusCounts = reactive({ OPEN: 0, PROCESSING: 0, RESOLVED: 0, CLOSED: 0, ARCHIVED: 0 });
 /** 首屏未完成加载前不展示「0 / 暂无」，避免与工作台计数短暂不一致 */
 const listHydrated = ref(false);
 const drawer = ref(false);
@@ -675,6 +680,7 @@ const { onExport } = useListCsv({
 
 const emptyHint = computed(() => {
   if (overdueOnly.value) return '当前筛选下无超时异常，可关闭「仅超时」或切换状态';
+  if (status.value === 'ARCHIVED') return '暂无归档异常';
   return status.value === 'OPEN' ? '当前无待处理异常，可切换「全部」查看历史' : '暂无异常';
 });
 
@@ -683,6 +689,11 @@ function statusTabLabel(label: string, value: string) {
   const key = value as keyof typeof statusCounts;
   return `${label} (${statusCounts[key] || 0})`;
 }
+
+const archivedTabLabel = computed(() => {
+  if (!listHydrated.value) return '已归档 (—)';
+  return `已归档 (${statusCounts.ARCHIVED || 0})`;
+});
 
 const DUE_SOON_MS = 2 * 60 * 60 * 1000;
 
@@ -758,6 +769,14 @@ function exceptionActions(row: OpsException): TableAction[] {
   } else if (canHandle.value && row.status !== 'RESOLVED') {
     acts.push({ key: 'resolve', label: '解决', icon: CircleCheck, type: 'success' });
   }
+  if (canHandle.value && row.status === 'RESOLVED') {
+    acts.push({
+      key: row.archived ? 'unarchive' : 'archive',
+      label: row.archived ? '取消归档' : '归档',
+      icon: FolderOpened,
+      overflow: true
+    });
+  }
   if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
     acts.push({ key: 'video', label: '录像', icon: VideoCamera, type: 'warning', overflow: true });
   }
@@ -770,7 +789,51 @@ function onExceptionAction(key: string, row: OpsException) {
   else if (key === 'claim') claim(row);
   else if (key === 'resolve') resolve(row);
   else if (key === 'repair') resolveWithRepairRow(row);
+  else if (key === 'archive') archiveRow(row);
+  else if (key === 'unarchive') unarchiveRow(row);
   else if (key === 'video') playVideo(row.sessionId);
+}
+
+async function archiveRow(row: OpsException) {
+  try {
+    await ElMessageBox.confirm(
+      '归档后将从默认列表隐藏，可在「已归档」中查看。确定归档该异常吗？',
+      '归档异常',
+      { type: 'warning', confirmButtonText: '归档', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/exceptions/${row.exceptionId}/archive`, 'POST');
+    ElMessage.success('已归档');
+    await load();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '归档失败');
+    }
+  }
+}
+
+async function unarchiveRow(row: OpsException) {
+  try {
+    await ElMessageBox.confirm(
+      '取消归档后，该异常将重新出现在「已解决」列表中。确定取消归档吗？',
+      '取消归档',
+      { type: 'warning', confirmButtonText: '取消归档', cancelButtonText: '返回' }
+    );
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/exceptions/${row.exceptionId}/unarchive`, 'POST');
+    ElMessage.success('已取消归档');
+    await load();
+  } catch (e: any) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error(e instanceof Error ? e.message : '取消归档失败');
+    }
+  }
 }
 
 async function playVideo(sessionId?: string) {
@@ -863,7 +926,8 @@ function goDisputes(sessionId?: string) {
 
 function syncRouteQuery() {
   const query: Record<string, string> = {};
-  if (status.value && status.value !== 'ALL') query.status = status.value;
+  if (status.value === 'ARCHIVED') query.archived = '1';
+  else if (status.value && status.value !== 'ALL') query.status = status.value;
   if (severity.value) query.severity = severity.value;
   if (overdueOnly.value) query.overdue = '1';
   router.replace({ query });
@@ -886,6 +950,16 @@ async function refreshStatusCounts() {
       }
     })
   );
+  try {
+    const q = new URLSearchParams({ page: '0', size: '1', archived: 'true' });
+    const data = await api.request<PageResult<OpsException>>(
+      `/api/v2/ops/admin/exceptions?${q}`,
+      'GET'
+    );
+    statusCounts.ARCHIVED = data.total || 0;
+  } catch {
+    /* keep previous */
+  }
 }
 
 function onStatusTab(name: string | number) {
@@ -900,6 +974,7 @@ async function load() {
   try {
     const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
     const apiStatus = status.value === 'ALL' ? '' : status.value;
+    if (status.value === 'ARCHIVED') q.set('archived', 'true');
     if (apiStatus) q.set('status', apiStatus);
     if (severity.value) q.set('severity', severity.value);
     if (overdueOnly.value) q.set('overdue', '1');
@@ -1257,8 +1332,9 @@ function applyRouteQuery() {
   const qStatus = typeof route.query.status === 'string' ? route.query.status : '';
   const qSeverity = typeof route.query.severity === 'string' ? route.query.severity : '';
   const qOverdue = route.query.overdue === '1' || route.query.overdue === 'true';
+  const qArchived = route.query.archived === '1' || route.query.archived === 'true';
   // Keep default OPEN when query omits status (matches page default).
-  const nextStatus = qStatus || 'OPEN';
+  const nextStatus = qArchived ? 'ARCHIVED' : qStatus || 'OPEN';
   if (nextStatus !== status.value) {
     status.value = nextStatus;
     changed = true;
@@ -1281,7 +1357,8 @@ async function reloadFromRouteQuery() {
 }
 
 watch(
-  () => [route.query.status, route.query.severity, route.query.overdue] as const,
+  () =>
+    [route.query.status, route.query.severity, route.query.overdue, route.query.archived] as const,
   () => {
     void reloadFromRouteQuery();
   }

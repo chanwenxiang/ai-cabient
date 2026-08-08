@@ -83,14 +83,20 @@ public class OpsExceptionService {
 
     @Transactional(readOnly = true)
     public PageResult<OpsExceptionDto> list(Long operatorId, String status, String severity,
-                                            boolean overdueOnly, int page, int size) {
+                                            boolean overdueOnly, Boolean archived, int page, int size) {
         requireExceptionRead(operatorId);
         var pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 100));
         String statusFilter = status == null || status.isBlank() ? null : status.trim().toUpperCase();
         String severityFilter = severity == null || severity.isBlank() ? null : severity.trim().toUpperCase();
-        var result = repository.findFiltered(statusFilter, severityFilter, overdueOnly, pageable);
+        var result = repository.findFiltered(statusFilter, severityFilter, overdueOnly, archived, pageable);
         return new PageResult<>(result.getContent().stream().map(this::toDto).toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements());
+    }
+
+    @Transactional(readOnly = true)
+    public PageResult<OpsExceptionDto> list(Long operatorId, String status, String severity,
+                                            boolean overdueOnly, int page, int size) {
+        return list(operatorId, status, severity, overdueOnly, null, page, size);
     }
 
     @Transactional(readOnly = true)
@@ -135,6 +141,39 @@ public class OpsExceptionService {
         item.setAssigneeUserId(operatorId); item.setStatus("RESOLVED"); item.setResolution(trim(resolution));
         item.setResolvedAt(Instant.now()); repository.save(item);
         auditService.record(operatorId, "OPS_EXCEPTION_RESOLVE", "OPS_EXCEPTION", exceptionId, trim(resolution));
+        return toDto(item);
+    }
+
+    @Transactional
+    public OpsExceptionDto archive(Long operatorId, String exceptionId) {
+        requireExceptionHandle(operatorId);
+        OpsException item = require(exceptionId);
+        if (!"RESOLVED".equals(item.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅已解决的异常可归档");
+        }
+        if (Boolean.TRUE.equals(item.getArchived())) {
+            return toDto(item);
+        }
+        item.setArchived(true);
+        item.setArchivedAt(Instant.now());
+        repository.save(item);
+        auditService.record(operatorId, "OPS_EXCEPTION_ARCHIVE", "OPS_EXCEPTION", exceptionId,
+                "异常已归档：" + item.getExceptionId());
+        return toDto(item);
+    }
+
+    @Transactional
+    public OpsExceptionDto unarchive(Long operatorId, String exceptionId) {
+        requireExceptionHandle(operatorId);
+        OpsException item = require(exceptionId);
+        if (!Boolean.TRUE.equals(item.getArchived())) {
+            return toDto(item);
+        }
+        item.setArchived(false);
+        item.setArchivedAt(null);
+        repository.save(item);
+        auditService.record(operatorId, "OPS_EXCEPTION_UNARCHIVE", "OPS_EXCEPTION", exceptionId,
+                "异常取消归档：" + item.getExceptionId());
         return toDto(item);
     }
 
@@ -370,7 +409,7 @@ public class OpsExceptionService {
         return new OpsExceptionDto(i.getExceptionId(), i.getExceptionType(),
             i.getSeverity(), i.getStatus(), i.getDeviceId(), i.getSessionId(), orderId, userId,
             i.getTitle(), i.getDetail(), i.getAssigneeUserId(), i.getResolution(), i.getCreatedAt(), i.getUpdatedAt(),
-            i.getResolvedAt(), sla, overdue);
+            i.getResolvedAt(), sla, overdue, Boolean.TRUE.equals(i.getArchived()), i.getArchivedAt());
     }
     private static String first(String... values) { for (String v : values) if (v != null && !v.isBlank() && !"null".equals(v)) return v; return "GLOBAL"; }
     private static String trim(String v) { if (v == null) return null; v=v.trim(); return v.length()>1000?v.substring(0,1000):v; }
