@@ -140,6 +140,38 @@
         </view>
         <text class="menu-arrow">›</text>
       </view>
+      <view class="menu-cell" @click="goPolicy('agreement')">
+        <text class="menu-icon">约</text>
+        <view class="menu-text">
+          <text class="menu-title">用户协议</text>
+          <text class="menu-desc">服务条款与使用规则</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view class="menu-cell" @click="goPolicy('privacy')">
+        <text class="menu-icon">隐</text>
+        <view class="menu-text">
+          <text class="menu-title">隐私政策</text>
+          <text class="menu-desc">信息收集、使用与保护</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view class="menu-cell" @click="goPolicy('refund')">
+        <text class="menu-icon">退</text>
+        <view class="menu-text">
+          <text class="menu-title">退款规则</text>
+          <text class="menu-desc">自助退款与人工申诉</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view class="menu-cell" @click="goPolicy('billing')">
+        <text class="menu-icon">账</text>
+        <view class="menu-text">
+          <text class="menu-title">账单说明</text>
+          <text class="menu-desc">订单构成与余额明细</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
     </view>
 
     <!-- 开发联调：仅 DEV 构建可见，生产包不打包展示 -->
@@ -530,6 +562,10 @@ function goFeedback() {
       ? `/pages/feedback/feedback?deviceId=${encodeURIComponent(id)}`
       : '/pages/feedback/feedback'
   });
+}
+
+function goPolicy(type: 'agreement' | 'privacy' | 'refund' | 'billing') {
+  uni.navigateTo({ url: `/pages/policy/detail?type=${type}` });
 }
 
 function onLogout() {
