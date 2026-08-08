@@ -9,8 +9,15 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:line-manager:edit']" type="primary" @click="openCreate">新建线长</el-button>
-          <el-button :icon="Refresh" :loading="tab === 'withdraws' ? withdrawsLoading : managersLoading" @click="reload">刷新</el-button>
+          <el-button v-hasPermi="['ops:line-manager:edit']" type="primary" @click="openCreate"
+            >新建线长</el-button
+          >
+          <el-button
+            :icon="Refresh"
+            :loading="tab === 'withdraws' ? withdrawsLoading : managersLoading"
+            @click="reload"
+            >刷新</el-button
+          >
         </div>
       </div>
     </template>
@@ -19,10 +26,22 @@
       <el-tab-pane label="线长成员" name="managers">
         <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="searchManagers">
           <el-form-item label="关键词">
-            <el-input v-model="keyword" clearable placeholder="姓名 / 手机" style="width: 180px" @keyup.enter="searchManagers" />
+            <el-input
+              v-model="keyword"
+              clearable
+              placeholder="姓名 / 手机"
+              style="width: 180px"
+              @keyup.enter="searchManagers"
+            />
           </el-form-item>
           <el-form-item label="状态">
-            <el-select v-model="mStatus" clearable placeholder="全部" style="width: 120px" @change="searchManagers">
+            <el-select
+              v-model="mStatus"
+              clearable
+              placeholder="全部"
+              style="width: 120px"
+              @change="searchManagers"
+            >
               <el-option
                 v-for="item in dictOptions('line_manager_status')"
                 :key="item.value"
@@ -47,8 +66,17 @@
             :default-sort="idDefaultSort"
             @sort-change="onIdSortChange"
           >
-            <template #empty><el-empty v-if="managersHydrated && !managersLoading" description="暂无线长" /></template>
-            <el-table-column prop="managerId" label="经理编号" width="100" align="center" class-name="col-text" sortable="custom">
+            <template #empty
+              ><el-empty v-if="managersHydrated && !managersLoading" description="暂无线长"
+            /></template>
+            <el-table-column
+              prop="managerId"
+              label="经理编号"
+              width="100"
+              align="center"
+              class-name="col-text"
+              sortable="custom"
+            >
               <template #default="{ row }">
                 <span class="cell-id">{{ row.managerId }}</span>
               </template>
@@ -57,9 +85,21 @@
               <template #default="{ row }">{{ row.managerName || '无' }}</template>
             </el-table-column>
             <el-table-column prop="phone" label="手机" width="120" align="center" />
-            <el-table-column prop="orgName" label="组织" min-width="110" show-overflow-tooltip align="center" />
+            <el-table-column
+              prop="orgName"
+              label="组织"
+              min-width="110"
+              show-overflow-tooltip
+              align="center"
+            />
             <el-table-column prop="userId" label="绑定用户" width="110" align="center" />
-            <el-table-column prop="wxOpenid" label="openid" min-width="140" show-overflow-tooltip align="center" />
+            <el-table-column
+              prop="wxOpenid"
+              label="openid"
+              min-width="140"
+              show-overflow-tooltip
+              align="center"
+            />
             <el-table-column label="余额(元)" width="100" align="center">
               <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
             </el-table-column>
@@ -70,7 +110,12 @@
               <template #default="{ row }">{{ (row.deviceIds || []).join(', ') || '无' }}</template>
             </el-table-column>
             <el-table-column prop="commissionRateBps" label="佣金bps" width="90" align="center" />
-            <el-table-column prop="commissionFixedCents" label="固定分/单" width="100" align="center" />
+            <el-table-column
+              prop="commissionFixedCents"
+              label="固定分/单"
+              width="100"
+              align="center"
+            />
             <el-table-column prop="status" label="状态" width="90" align="center">
               <template #default="{ row }">
                 <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
@@ -83,30 +128,51 @@
             </el-table-column>
             <el-table-column label="操作" width="300" align="center" class-name="col-action">
               <template #default="{ row }">
-                <el-button v-hasPermi="['ops:line-manager:edit']" link type="primary" @click="openBind(row)">绑柜</el-button>
-                <el-button v-hasPermi="['ops:line-manager:edit']" link @click="adjust(row)">调账</el-button>
+                <el-button
+                  v-hasPermi="['ops:line-manager:edit']"
+                  link
+                  type="primary"
+                  @click="openBind(row)"
+                  >绑柜</el-button
+                >
+                <el-button v-hasPermi="['ops:line-manager:edit']" link @click="adjust(row)"
+                  >调账</el-button
+                >
                 <el-button link @click="showLedgers(row)">流水</el-button>
-                <el-button v-hasPermi="['ops:line-manager:edit']" link type="warning" @click="proxyWithdraw(row)">代提现</el-button>
+                <el-button
+                  v-hasPermi="['ops:line-manager:edit']"
+                  link
+                  type="warning"
+                  @click="proxyWithdraw(row)"
+                  >代提现</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
         </div>
-        <PagePager :hydrated="managersHydrated"
-            v-model:current-page="mPage"
-            v-model:page-size="mSize"
-            :total="mTotal"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next"
-            background
-            @current-change="loadManagers"
-            @size-change="onManagerSizeChange"
-          />
+        <PagePager
+          :hydrated="managersHydrated"
+          v-model:current-page="mPage"
+          v-model:page-size="mSize"
+          :total="mTotal"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next"
+          background
+          @current-change="loadManagers"
+          @size-change="onManagerSizeChange"
+        />
       </el-tab-pane>
 
       <el-tab-pane label="提现审核" name="withdraws">
         <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="searchWithdraws">
           <el-form-item label="状态">
-            <el-select v-model="wStatus" clearable placeholder="全部" style="width: 160px" @change="searchWithdraws">
+            <el-select
+              v-model="wStatus"
+              clearable
+              placeholder="全部"
+              style="width: 160px"
+              @change="searchWithdraws"
+            >
               <el-option
                 v-for="item in withdrawStatusOptions"
                 :key="item.value"
@@ -121,10 +187,25 @@
         </el-form>
 
         <div class="table-scroll">
-          <el-table :data="withdraws" v-loading="withdrawsLoading" stripe border class="report-table" empty-text=" ">
-            <template #empty><el-empty v-if="withdrawsHydrated && !withdrawsLoading" description="暂无提现申请" /></template>
+          <el-table
+            :data="withdraws"
+            v-loading="withdrawsLoading"
+            stripe
+            border
+            class="report-table"
+            empty-text=" "
+          >
+            <template #empty
+              ><el-empty v-if="withdrawsHydrated && !withdrawsLoading" description="暂无提现申请"
+            /></template>
             <el-table-column prop="requestId" label="单号" width="80" align="center" />
-            <el-table-column prop="requestNo" label="幂等号" min-width="160" show-overflow-tooltip align="center" />
+            <el-table-column
+              prop="requestNo"
+              label="幂等号"
+              min-width="160"
+              show-overflow-tooltip
+              align="center"
+            />
             <el-table-column prop="managerName" label="线长" width="100" align="center" />
             <el-table-column prop="phone" label="手机" width="120" align="center" />
             <el-table-column label="金额(元)" width="100" align="center">
@@ -134,9 +215,27 @@
               <template #default="{ row }">{{ withdrawStatusLabel(row.status) }}</template>
             </el-table-column>
             <el-table-column prop="payChannel" label="通道" width="120" align="center" />
-            <el-table-column prop="payoutRef" label="回执" min-width="140" show-overflow-tooltip align="center" />
-            <el-table-column prop="payoutMessage" label="打款说明" min-width="140" show-overflow-tooltip align="center" />
-            <el-table-column prop="reviewRemark" label="审核备注" min-width="120" show-overflow-tooltip align="center" />
+            <el-table-column
+              prop="payoutRef"
+              label="回执"
+              min-width="140"
+              show-overflow-tooltip
+              align="center"
+            />
+            <el-table-column
+              prop="payoutMessage"
+              label="打款说明"
+              min-width="140"
+              show-overflow-tooltip
+              align="center"
+            />
+            <el-table-column
+              prop="reviewRemark"
+              label="审核备注"
+              min-width="120"
+              show-overflow-tooltip
+              align="center"
+            />
             <el-table-column label="申请时间" width="170" align="center">
               <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
@@ -145,30 +244,37 @@
             </el-table-column>
             <el-table-column label="操作" width="200" align="center" class-name="col-action">
               <template #default="{ row }">
-                <template v-if="row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:line-withdraw:review')">
+                <template
+                  v-if="row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:line-withdraw:review')"
+                >
                   <el-button link type="success" @click="review(row, true)">通过并打款</el-button>
                   <el-button link type="danger" @click="review(row, false)">驳回</el-button>
                 </template>
                 <el-button
-                  v-else-if="(row.status === 'APPROVED' || row.status === 'FAILED') && auth.hasPerm('ops:line-withdraw:review')"
+                  v-else-if="
+                    (row.status === 'APPROVED' || row.status === 'FAILED') &&
+                    auth.hasPerm('ops:line-withdraw:review')
+                  "
                   link
                   type="primary"
                   @click="payout(row)"
-                >重试打款</el-button>
+                  >重试打款</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
         </div>
-        <PagePager :hydrated="withdrawsHydrated"
-            v-model:current-page="wPage"
-            v-model:page-size="wSize"
-            :total="wTotal"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next"
-            background
-            @current-change="loadWithdraws"
-            @size-change="onWithdrawSizeChange"
-          />
+        <PagePager
+          :hydrated="withdrawsHydrated"
+          v-model:current-page="wPage"
+          v-model:page-size="wSize"
+          :total="wTotal"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next"
+          background
+          @current-change="loadWithdraws"
+          @size-change="onWithdrawSizeChange"
+        />
       </el-tab-pane>
     </el-tabs>
 
@@ -177,10 +283,18 @@
         <el-form-item label="姓名" required><el-input v-model="form.managerName" /></el-form-item>
         <el-form-item label="手机" required><el-input v-model="form.phone" /></el-form-item>
         <el-form-item label="组织"><el-input v-model="form.orgName" /></el-form-item>
-        <el-form-item label="openid"><el-input v-model="form.wxOpenid" placeholder="提现到零钱" /></el-form-item>
-        <el-form-item label="绑定用户ID"><el-input v-model="form.userId" placeholder="可选，商户小程序 userId" /></el-form-item>
-        <el-form-item label="佣金 bps"><el-input-number v-model="form.commissionRateBps" :min="0" :max="5000" /></el-form-item>
-        <el-form-item label="固定分/单"><el-input-number v-model="form.commissionFixedCents" :min="0" :max="100000" /></el-form-item>
+        <el-form-item label="openid"
+          ><el-input v-model="form.wxOpenid" placeholder="提现到零钱"
+        /></el-form-item>
+        <el-form-item label="绑定用户ID"
+          ><el-input v-model="form.userId" placeholder="可选，商户小程序 userId"
+        /></el-form-item>
+        <el-form-item label="佣金 bps"
+          ><el-input-number v-model="form.commissionRateBps" :min="0" :max="5000"
+        /></el-form-item>
+        <el-form-item label="固定分/单"
+          ><el-input-number v-model="form.commissionFixedCents" :min="0" :max="100000"
+        /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="createVisible = false">取消</el-button>
@@ -190,7 +304,9 @@
 
     <el-dialog v-model="bindVisible" title="绑柜" width="480px" destroy-on-close>
       <el-form label-width="90px">
-        <el-form-item label="线长">{{ bindTarget?.managerName }} · {{ bindTarget?.phone }}</el-form-item>
+        <el-form-item label="线长"
+          >{{ bindTarget?.managerName }} · {{ bindTarget?.phone }}</el-form-item
+        >
         <el-form-item label="设备" required>
           <el-select
             v-model="bindDeviceId"
@@ -230,7 +346,13 @@
           <template #default="{ row }">{{ yuan(row.frozenAfter) }}</template>
         </el-table-column>
         <el-table-column prop="refType" label="关联" width="110" align="center" />
-        <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip align="center" />
+        <el-table-column
+          prop="remark"
+          label="备注"
+          min-width="140"
+          show-overflow-tooltip
+          align="center"
+        />
         <el-table-column label="时间" width="160" align="center">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
@@ -444,9 +566,13 @@ async function confirmBind() {
   }
   saving.value = true;
   try {
-    await api.request(`/api/v2/ops/admin/line-managers/${bindTarget.value.managerId}/devices`, 'POST', {
-      deviceId: bindDeviceId.value
-    });
+    await api.request(
+      `/api/v2/ops/admin/line-managers/${bindTarget.value.managerId}/devices`,
+      'POST',
+      {
+        deviceId: bindDeviceId.value
+      }
+    );
     ElMessage.success('已绑定');
     bindVisible.value = false;
     await loadManagers();
@@ -479,7 +605,10 @@ async function showLedgers(row: Manager) {
   ledgers.value = [];
   ledgerVisible.value = true;
   try {
-    ledgers.value = await api.request(`/api/v2/ops/admin/line-managers/${row.managerId}/ledgers?limit=50`, 'GET');
+    ledgers.value = await api.request(
+      `/api/v2/ops/admin/line-managers/${row.managerId}/ledgers?limit=50`,
+      'GET'
+    );
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载流水失败');
     ledgers.value = [];
@@ -495,7 +624,9 @@ async function proxyWithdraw(row: Manager) {
       inputErrorMessage: '请输入金额'
     });
     const amountCents = Math.round(Number(value) * 100);
-    await api.request(`/api/v2/ops/admin/line-managers/${row.managerId}/withdraw`, 'POST', { amountCents });
+    await api.request(`/api/v2/ops/admin/line-managers/${row.managerId}/withdraw`, 'POST', {
+      amountCents
+    });
     ElMessage.success('已提交提现');
     tab.value = 'withdraws';
     wStatus.value = '';
@@ -541,9 +672,19 @@ onMounted(async () => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { font-size: 12px; color: var(--el-text-color-secondary); }
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
 .line-tabs {
   display: flex;
   flex-direction: column;

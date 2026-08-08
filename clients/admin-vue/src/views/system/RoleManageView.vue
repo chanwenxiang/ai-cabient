@@ -9,11 +9,30 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:rbac:role:add']" type="primary" @click="openCreate">新增角色</el-button>
-          <el-button v-hasPermi="['ops:rbac:role:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button v-hasPermi="['ops:rbac:role:import']" @click="onDownloadTemplate(['', '示例角色', 'ops_demo', '正常', '', '备注'])">导入模板</el-button>
-          <el-button v-hasPermi="['ops:rbac:role:import']" :loading="importing" @click="triggerImport">导入</el-button>
-          <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
+          <el-button v-hasPermi="['ops:rbac:role:add']" type="primary" @click="openCreate"
+            >新增角色</el-button
+          >
+          <el-button v-hasPermi="['ops:rbac:role:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
+          <el-button
+            v-hasPermi="['ops:rbac:role:import']"
+            @click="onDownloadTemplate(['', '示例角色', 'ops_demo', '正常', '', '备注'])"
+            >导入模板</el-button
+          >
+          <el-button
+            v-hasPermi="['ops:rbac:role:import']"
+            :loading="importing"
+            @click="triggerImport"
+            >导入</el-button
+          >
+          <input
+            ref="importInput"
+            type="file"
+            accept=".csv,text/csv"
+            class="hidden-input"
+            @change="onImportFile"
+          />
           <el-button :icon="Refresh" :loading="loading" @click="loadRoles">刷新</el-button>
         </div>
       </div>
@@ -31,7 +50,13 @@
         />
       </el-form-item>
       <el-form-item label="状态">
-        <el-select v-model="statusFilter" clearable placeholder="全部" style="width: 120px" @change="search">
+        <el-select
+          v-model="statusFilter"
+          clearable
+          placeholder="全部"
+          style="width: 120px"
+          @change="search"
+        >
           <el-option label="正常" value="ACTIVE" />
           <el-option label="停用" value="INACTIVE" />
         </el-select>
@@ -50,14 +75,24 @@
           stripe
           border
           class="report-table"
-         
           row-key="roleId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange" empty-text=" ">
-          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无角色" /></template>
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无角色"
+          /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="roleId" label="角色编号" width="80" align="center" class-name="col-text" sortable="custom">
+          <el-table-column
+            prop="roleId"
+            label="角色编号"
+            width="80"
+            align="center"
+            class-name="col-text"
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.roleId }}</span>
             </template>
@@ -66,7 +101,9 @@
             <template #default="{ row }">{{ row.roleName || row.roleKey || '无' }}</template>
           </el-table-column>
           <el-table-column label="权限字符" min-width="140" align="center" class-name="col-text">
-            <template #default="{ row }"><span class="cell-id">{{ row.roleKey }}</span></template>
+            <template #default="{ row }"
+              ><span class="cell-id">{{ row.roleKey }}</span></template
+            >
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">
@@ -78,7 +115,14 @@
           <el-table-column label="权限数" width="96" align="center">
             <template #default="{ row }">{{ permissionCountLabel(row) }}</template>
           </el-table-column>
-          <el-table-column prop="remark" label="备注" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            prop="remark"
+            label="备注"
+            min-width="160"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.remark || '无' }}</template>
           </el-table-column>
           <el-table-column label="操作" width="140" class-name="col-action" align="center">
@@ -90,10 +134,20 @@
       </div>
     </div>
 
-    <el-dialog v-model="formDlg" :title="form.roleId ? '编辑角色' : '新增角色'" width="480px" destroy-on-close>
+    <el-dialog
+      v-model="formDlg"
+      :title="form.roleId ? '编辑角色' : '新增角色'"
+      width="480px"
+      destroy-on-close
+    >
       <el-form label-width="88px">
         <el-form-item label="权限字符" required>
-          <el-input v-model="form.roleKey" :disabled="!!form.roleId" placeholder="如 ops_custom" maxlength="64" />
+          <el-input
+            v-model="form.roleKey"
+            :disabled="!!form.roleId"
+            placeholder="如 ops_custom"
+            maxlength="64"
+          />
         </el-form-item>
         <el-form-item label="角色名称" required>
           <el-input v-model="form.roleName" maxlength="64" />
@@ -114,7 +168,12 @@
       </template>
     </el-dialog>
 
-    <el-drawer v-model="permDlg" :title="`分配权限 · ${permRole?.roleName || ''}`" size="420px" destroy-on-close>
+    <el-drawer
+      v-model="permDlg"
+      :title="`分配权限 · ${permRole?.roleName || ''}`"
+      size="420px"
+      destroy-on-close
+    >
       <el-alert
         v-if="permRole?.roleKey === 'admin'"
         type="info"
@@ -124,7 +183,11 @@
         style="margin-bottom: 12px"
       />
       <div class="perm-toolbar">
-        <el-radio-group v-model="permCheckMode" size="small" :disabled="permRole?.roleKey === 'admin'">
+        <el-radio-group
+          v-model="permCheckMode"
+          size="small"
+          :disabled="permRole?.roleKey === 'admin'"
+        >
           <el-radio-button value="cascade">全选联动</el-radio-button>
           <el-radio-button value="strict">独立勾选</el-radio-button>
         </el-radio-group>
@@ -257,8 +320,11 @@ const filteredRoles = computed(() => {
   const rows = roles.value.filter((row) => {
     if (statusFilter.value && (row.status || 'ACTIVE') !== statusFilter.value) return false;
     if (!q) return true;
-    return [row.roleId, row.roleName, row.roleKey, row.remark]
-      .some((x) => String(x || '').toLowerCase().includes(q));
+    return [row.roleId, row.roleName, row.roleKey, row.remark].some((x) =>
+      String(x || '')
+        .toLowerCase()
+        .includes(q)
+    );
   });
   return sortById(rows);
 });
@@ -273,37 +339,38 @@ const statusByLabel: Record<string, string> = {
   INACTIVE: 'INACTIVE'
 };
 
-const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
-  filePrefix: '角色',
-  headers: ['角色ID', '角色名称', '权限字符', '状态', '权限数', '备注'],
-  toRows: () =>
-    pickSelected(filteredRoles.value).map((row) => [
-      row.roleId,
-      row.roleName,
-      row.roleKey,
-      row.status === 'ACTIVE' ? '正常' : '停用',
-      permissionCountLabel(row),
-      row.remark || ''
-    ]),
-  onImportRows: async (rows) => {
-    let ok = 0;
-    for (const row of rows) {
-      const roleKey = (row['权限字符'] || row.roleKey || '').trim();
-      const roleName = (row['角色名称'] || row.roleName || '').trim();
-      if (!roleKey || !roleName) continue;
-      await api.request('/api/v2/ops/admin/rbac/roles', 'POST', {
-        roleKey,
-        roleName,
-        remark: (row['备注'] || row.remark || '').trim(),
-        status: statusByLabel[row['状态'] || row.status] || 'ACTIVE'
-      });
-      ok++;
+const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
+  useListCsv({
+    filePrefix: '角色',
+    headers: ['角色ID', '角色名称', '权限字符', '状态', '权限数', '备注'],
+    toRows: () =>
+      pickSelected(filteredRoles.value).map((row) => [
+        row.roleId,
+        row.roleName,
+        row.roleKey,
+        row.status === 'ACTIVE' ? '正常' : '停用',
+        permissionCountLabel(row),
+        row.remark || ''
+      ]),
+    onImportRows: async (rows) => {
+      let ok = 0;
+      for (const row of rows) {
+        const roleKey = (row['权限字符'] || row.roleKey || '').trim();
+        const roleName = (row['角色名称'] || row.roleName || '').trim();
+        if (!roleKey || !roleName) continue;
+        await api.request('/api/v2/ops/admin/rbac/roles', 'POST', {
+          roleKey,
+          roleName,
+          remark: (row['备注'] || row.remark || '').trim(),
+          status: statusByLabel[row['状态'] || row.status] || 'ACTIVE'
+        });
+        ok++;
+      }
+      clearSelection();
+      await loadRoles();
+      return ok;
     }
-    clearSelection();
-    await loadRoles();
-    return ok;
-  }
-});
+  });
 
 async function loadRoles() {
   loading.value = true;
@@ -427,11 +494,9 @@ async function savePerms() {
     const checked = (tree.getCheckedKeys(false) || []) as number[];
     const half =
       permCheckMode.value === 'cascade' ? ((tree.getHalfCheckedKeys() || []) as number[]) : [];
-    await api.request(
-      `/api/v2/ops/admin/rbac/roles/${permRole.value.roleId}/permissions`,
-      'PUT',
-      [...new Set([...checked, ...half])]
-    );
+    await api.request(`/api/v2/ops/admin/rbac/roles/${permRole.value.roleId}/permissions`, 'PUT', [
+      ...new Set([...checked, ...half])
+    ]);
     ElMessage.success('权限已保存');
     permDlg.value = false;
     await Promise.all([loadRoles(), auth.refreshPermissions()]);
@@ -503,12 +568,31 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.hidden-input { display: none; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.hidden-input {
+  display: none;
+}
 .perm-toolbar {
   display: flex;
   align-items: center;
@@ -517,6 +601,13 @@ onActivated(() => {
   flex-wrap: wrap;
   margin-bottom: 12px;
 }
-.perm-toolbar__actions { display: flex; gap: 4px; }
-.perm-tree-wrap { min-height: 120px; max-height: calc(100vh - 260px); overflow: auto; }
+.perm-toolbar__actions {
+  display: flex;
+  gap: 4px;
+}
+.perm-tree-wrap {
+  min-height: 120px;
+  max-height: calc(100vh - 260px);
+  overflow: auto;
+}
 </style>

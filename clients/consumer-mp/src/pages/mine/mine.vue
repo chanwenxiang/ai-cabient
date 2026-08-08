@@ -10,11 +10,17 @@
           <text class="balance-number">{{ balanceYuan }}</text>
           <text class="balance-action">充值 ›</text>
         </view>
-        <text v-if="authed && frozenYuan !== '¥0.00'" class="guest-hint">冻结 {{ frozenYuan }} · 总余额 {{ totalBalanceYuan }}</text>
+        <text v-if="authed && frozenYuan !== '¥0.00'" class="guest-hint"
+          >冻结 {{ frozenYuan }} · 总余额 {{ totalBalanceYuan }}</text
+        >
         <text v-else class="guest-hint">登录后可查看订单与余额</text>
         <view v-if="authed" class="tags">
-          <text class="tag" :class="verified ? 'ok' : 'warn'">{{ verified ? '已实名' : '待实名' }}</text>
-          <text class="tag" :class="payReady ? 'ok' : 'warn'">{{ payReady ? '可开门' : '待开通支付' }}</text>
+          <text class="tag" :class="verified ? 'ok' : 'warn'">{{
+            verified ? '已实名' : '待实名'
+          }}</text>
+          <text class="tag" :class="payReady ? 'ok' : 'warn'">{{
+            payReady ? '可开门' : '待开通支付'
+          }}</text>
         </view>
       </view>
     </view>
@@ -93,7 +99,12 @@
             {{ formatTransactionAmount(item.amountCents) }}
           </view>
         </view>
-        <view v-if="transactionsHasMore" class="transaction-more" role="button" @click="loadTransactions(false)">
+        <view
+          v-if="transactionsHasMore"
+          class="transaction-more"
+          role="button"
+          @click="loadTransactions(false)"
+        >
           {{ transactionsLoading ? '加载中…' : `加载更多（已显示 ${transactions.length} 条）` }}
         </view>
       </view>
@@ -143,7 +154,9 @@
         <text class="menu-icon">微</text>
         <view class="menu-text">
           <text class="menu-title">{{ wechatPayLive ? '微信支付充值' : '微信模拟充值' }}</text>
-          <text class="menu-desc">{{ wechatPayLive ? '调起真实微信支付' : 'mock 预下单即时到账 ¥20' }}</text>
+          <text class="menu-desc">{{
+            wechatPayLive ? '调起真实微信支付' : 'mock 预下单即时到账 ¥20'
+          }}</text>
         </view>
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
       </view>
@@ -155,8 +168,12 @@
       >
         <text class="menu-icon">支</text>
         <view class="menu-text">
-          <text class="menu-title">{{ mockRechargeEnabled ? '支付宝模拟充值' : '支付宝沙箱充值' }}</text>
-          <text class="menu-desc">{{ mockRechargeEnabled ? 'mock 预下单即时到账 ¥20（无需进件）' : '跳转沙箱收银台充 ¥20' }}</text>
+          <text class="menu-title">{{
+            mockRechargeEnabled ? '支付宝模拟充值' : '支付宝沙箱充值'
+          }}</text>
+          <text class="menu-desc">{{
+            mockRechargeEnabled ? 'mock 预下单即时到账 ¥20（无需进件）' : '跳转沙箱收银台充 ¥20'
+          }}</text>
         </view>
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
       </view>
@@ -199,7 +216,12 @@
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
-import { clearConsumerSession, consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
+import {
+  clearConsumerSession,
+  consumerApi,
+  ensureConsumerAuth,
+  getConsumerToken
+} from '@/utils/consumer-api';
 import { formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
 import {
   availableCents,
@@ -207,11 +229,7 @@ import {
   payReadyHint,
   resolveClientPreauthCents
 } from '@/utils/account';
-import {
-  resumePendingRechargeIfAny,
-  runAlipayRecharge,
-  runWeChatRecharge
-} from '@/utils/recharge';
+import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
 import {
   resolveMockEnabled,
   resolveSandboxRecharge,
@@ -325,7 +343,9 @@ function loadTransactions(reset = true): Promise<void> {
         transactions.value = items;
       } else {
         const seen = new Set(transactions.value.map((t) => t.transactionId));
-        transactions.value = transactions.value.concat(items.filter((t) => t.transactionId && !seen.has(t.transactionId)));
+        transactions.value = transactions.value.concat(
+          items.filter((t) => t.transactionId && !seen.has(t.transactionId))
+        );
       }
       transactionsPage.value = page;
       transactionsHasMore.value =
@@ -506,7 +526,9 @@ function goHelp() {
 function goFeedback() {
   const id = uni.getStorageSync('last_device_id') || '';
   uni.navigateTo({
-    url: id ? `/pages/feedback/feedback?deviceId=${encodeURIComponent(id)}` : '/pages/feedback/feedback'
+    url: id
+      ? `/pages/feedback/feedback?deviceId=${encodeURIComponent(id)}`
+      : '/pages/feedback/feedback'
   });
 }
 
@@ -554,8 +576,18 @@ function onLogout() {
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.09);
 }
-.orb-a { width: 230rpx; height: 230rpx; right: -80rpx; top: -110rpx; }
-.orb-b { width: 120rpx; height: 120rpx; right: 120rpx; bottom: -80rpx; }
+.orb-a {
+  width: 230rpx;
+  height: 230rpx;
+  right: -80rpx;
+  top: -110rpx;
+}
+.orb-b {
+  width: 120rpx;
+  height: 120rpx;
+  right: 120rpx;
+  bottom: -80rpx;
+}
 .avatar {
   position: relative;
   width: 112rpx;
@@ -569,27 +601,61 @@ function onLogout() {
   font-size: 48rpx;
   box-shadow: 0 10rpx 25rpx rgba(0, 0, 0, 0.1);
 }
-.profile-info { position: relative; flex: 1; min-width: 0; }
-.hello { font-size: 36rpx; font-weight: 700; display: block; }
-.guest-hint { display: block; margin-top: 8rpx; font-size: 26rpx; opacity: 0.88; }
+.profile-info {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.hello {
+  font-size: 36rpx;
+  font-weight: 700;
+  display: block;
+}
+.guest-hint {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 26rpx;
+  opacity: 0.88;
+}
 .balance-row {
   display: flex;
   align-items: baseline;
   gap: 13rpx;
   margin-top: 9rpx;
 }
-.balance-label { font-size: 22rpx; opacity: 0.72; }
-.balance-number { font-size: 38rpx; font-weight: 800; letter-spacing: -1rpx; }
-.balance-action { margin-left: auto; font-size: 22rpx; opacity: 0.85; }
-.tags { display: flex; gap: 12rpx; margin-top: 15rpx; flex-wrap: wrap; }
+.balance-label {
+  font-size: 22rpx;
+  opacity: 0.72;
+}
+.balance-number {
+  font-size: 38rpx;
+  font-weight: 800;
+  letter-spacing: -1rpx;
+}
+.balance-action {
+  margin-left: auto;
+  font-size: 22rpx;
+  opacity: 0.85;
+}
+.tags {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 15rpx;
+  flex-wrap: wrap;
+}
 .tag {
   font-size: 22rpx;
   padding: 6rpx 15rpx;
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.2);
 }
-.tag.ok { background: rgba(255, 255, 255, 0.35); }
-.tag.warn { background: #fff3cd; color: #856404; }
+.tag.ok {
+  background: rgba(255, 255, 255, 0.35);
+}
+.tag.warn {
+  background: #fff3cd;
+  color: #856404;
+}
 .setup-banner {
   margin: 20rpx 24rpx 0;
   padding: 24rpx 26rpx;
@@ -600,9 +666,25 @@ function onLogout() {
   align-items: center;
   justify-content: space-between;
 }
-.setup-title { font-size: 30rpx; font-weight: 600; color: #d48806; display: block; }
-.setup-desc { font-size: 24rpx; color: #ad6800; display: block; margin-top: 4rpx; }
-.setup-arrow { color: #d48806; font-size: 28rpx; font-weight: 500; white-space: nowrap; margin-left: 16rpx; }
+.setup-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #d48806;
+  display: block;
+}
+.setup-desc {
+  font-size: 24rpx;
+  color: #ad6800;
+  display: block;
+  margin-top: 4rpx;
+}
+.setup-arrow {
+  color: #d48806;
+  font-size: 28rpx;
+  font-weight: 500;
+  white-space: nowrap;
+  margin-left: 16rpx;
+}
 
 .quick-grid {
   margin: 22rpx 24rpx 0;
@@ -632,10 +714,19 @@ function onLogout() {
   font-weight: 700;
   color: #059669;
 }
-.quick-label { font-size: 24rpx; color: #223029; font-weight: 500; }
+.quick-label {
+  font-size: 24rpx;
+  color: #223029;
+  font-weight: 500;
+}
 
-.menu-list { margin: 22rpx 24rpx 0; }
-.logout-wrap { margin-top: 12rpx; padding-bottom: 24rpx; }
+.menu-list {
+  margin: 22rpx 24rpx 0;
+}
+.logout-wrap {
+  margin-top: 12rpx;
+  padding-bottom: 24rpx;
+}
 .menu-cell {
   background: #fff;
   margin-bottom: 14rpx;
@@ -651,7 +742,10 @@ function onLogout() {
   border: 1rpx solid rgba(5, 150, 105, 0.32);
   background: linear-gradient(90deg, #fff, #f0fdf7);
 }
-.menu-cell.disabled { opacity: 0.6; pointer-events: none; }
+.menu-cell.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
 .menu-icon {
   display: flex;
   width: 72rpx;
@@ -664,9 +758,22 @@ function onLogout() {
   font-weight: 700;
   color: #059669;
 }
-.menu-text { flex: 1; min-width: 0; }
-.menu-title { font-size: 28rpx; font-weight: 650; color: #223029; display: block; }
-.menu-desc { margin-top: 5rpx; color: #849087; font-size: 22rpx; display: block; }
+.menu-text {
+  flex: 1;
+  min-width: 0;
+}
+.menu-title {
+  font-size: 28rpx;
+  font-weight: 650;
+  color: #223029;
+  display: block;
+}
+.menu-desc {
+  margin-top: 5rpx;
+  color: #849087;
+  font-size: 22rpx;
+  display: block;
+}
 .menu-badge {
   font-size: 22rpx;
   color: #fa5151;
@@ -674,10 +781,20 @@ function onLogout() {
   padding: 4rpx 12rpx;
   border-radius: 999rpx;
 }
-.menu-arrow { color: #ccc; font-size: 36rpx; }
-.danger { color: #fa5151; }
-.danger-cell { background: #fffafa; }
-.danger-cell .menu-icon { background: #fff1f0; color: #ef4444; }
+.menu-arrow {
+  color: #ccc;
+  font-size: 36rpx;
+}
+.danger {
+  color: #fa5151;
+}
+.danger-cell {
+  background: #fffafa;
+}
+.danger-cell .menu-icon {
+  background: #fff1f0;
+  color: #ef4444;
+}
 .transaction-list {
   background: #fff;
   border-radius: 22rpx;
@@ -693,11 +810,28 @@ function onLogout() {
   padding: 24rpx 0;
   border-bottom: 1rpx solid #eee;
 }
-.transaction-row:last-child { border-bottom: 0; }
-.transaction-title { display: block; font-size: 28rpx; color: #191919; }
-.transaction-time { display: block; margin-top: 6rpx; font-size: 22rpx; color: #999; }
-.transaction-amount { font-size: 30rpx; font-weight: 600; color: #191919; }
-.transaction-amount.income { color: #07c160; }
+.transaction-row:last-child {
+  border-bottom: 0;
+}
+.transaction-title {
+  display: block;
+  font-size: 28rpx;
+  color: #191919;
+}
+.transaction-time {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #999;
+}
+.transaction-amount {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #191919;
+}
+.transaction-amount.income {
+  color: #07c160;
+}
 .transaction-more {
   text-align: center;
   padding: 20rpx 0 6rpx;
@@ -705,9 +839,24 @@ function onLogout() {
   color: var(--brand, #059669);
   font-weight: 600;
 }
-.transaction-empty { padding: 28rpx; text-align: center; color: #849087; font-size: 25rpx; }
-.transaction-empty-title { display: block; font-size: 26rpx; font-weight: 650; color: #64748b; }
-.transaction-empty-hint { display: block; margin-top: 8rpx; font-size: 22rpx; color: #94a3b8; }
+.transaction-empty {
+  padding: 28rpx;
+  text-align: center;
+  color: #849087;
+  font-size: 25rpx;
+}
+.transaction-empty-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 650;
+  color: #64748b;
+}
+.transaction-empty-hint {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
+}
 
 .dev-section {
   margin: 8rpx 24rpx 0;

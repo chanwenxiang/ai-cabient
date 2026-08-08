@@ -12,7 +12,13 @@
                 </div>
               </div>
               <div class="page-card-head__actions">
-                <el-button v-hasPermi="['ops:dict:edit']" type="primary" size="small" @click="openType()">新增类型</el-button>
+                <el-button
+                  v-hasPermi="['ops:dict:edit']"
+                  type="primary"
+                  size="small"
+                  @click="openType()"
+                  >新增类型</el-button
+                >
               </div>
             </div>
           </template>
@@ -29,24 +35,38 @@
                 v-loading="loadingTypes"
                 :data="filteredTypes"
                 highlight-current-row
-                
                 border
                 class="report-table"
                 empty-text=" "
-               
                 row-key="dictType"
                 :default-sort="typeDefaultSort"
                 @sort-change="onTypeSortChange"
                 @current-change="onSelectType"
               >
                 <template #empty>
-                  <el-empty v-if="typesHydrated && !loadingTypes" description="暂无字典类型" :image-size="64" />
+                  <el-empty
+                    v-if="typesHydrated && !loadingTypes"
+                    description="暂无字典类型"
+                    :image-size="64"
+                  />
                 </template>
-                <el-table-column label="类型" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+                <el-table-column
+                  label="类型"
+                  min-width="120"
+                  align="center"
+                  class-name="col-text"
+                  show-overflow-tooltip
+                >
                   <template #default="{ row }">{{ row.dictName || '无' }}</template>
                 </el-table-column>
                 <el-table-column prop="itemCount" label="项数" width="56" align="center" />
-                <el-table-column v-if="canEdit" label="操作" width="64" class-name="col-action" align="center">
+                <el-table-column
+                  v-if="canEdit"
+                  label="操作"
+                  width="64"
+                  class-name="col-action"
+                  align="center"
+                >
                   <template #default="{ row }">
                     <el-button link type="primary" @click.stop="openType(row)">编辑</el-button>
                   </template>
@@ -56,11 +76,7 @@
           </div>
         </el-card>
       </section>
-      <div
-        class="dict-splitter"
-        title="拖动调整宽度"
-        @mousedown="startResize"
-      />
+      <div class="dict-splitter" title="拖动调整宽度" @mousedown="startResize" />
       <section ref="detailColRef" class="dict-col dict-col--items">
         <el-card class="page-card report-page dict-card" shadow="never">
           <template #header>
@@ -68,16 +84,52 @@
               <div class="page-card-head__meta">
                 <div class="page-card-head__title">
                   <span class="title">字典数据{{ selected ? ` · ${selected.dictName}` : '' }}</span>
-                  <span class="hint">{{ selected ? `${itemsHydrated ? displayItems.length : 0} 项` : '请先选择左侧类型' }}</span>
+                  <span class="hint">{{
+                    selected ? `${itemsHydrated ? displayItems.length : 0} 项` : '请先选择左侧类型'
+                  }}</span>
                 </div>
               </div>
               <div class="page-card-head__actions">
-                <el-button size="small" :loading="loadingTypes || loadingItems" @click="refreshAll">刷新</el-button>
-                <el-button v-hasPermi="['ops:dict:export']" size="small" :disabled="!selected" @click="onExport">{{ exportButtonLabel }}</el-button>
-                <el-button v-hasPermi="['ops:dict:import']" size="small" :disabled="!selected" @click="onDownloadTemplate(['DEMO', '示例标签', '0', '启用'])">导入模板</el-button>
-                <el-button v-hasPermi="['ops:dict:import']" size="small" :disabled="!selected" :loading="importing" @click="triggerImport">导入</el-button>
-                <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
-                <el-button v-hasPermi="['ops:dict:edit']" type="primary" size="small" :disabled="!selected" @click="openItem()">新增字典项</el-button>
+                <el-button size="small" :loading="loadingTypes || loadingItems" @click="refreshAll"
+                  >刷新</el-button
+                >
+                <el-button
+                  v-hasPermi="['ops:dict:export']"
+                  size="small"
+                  :disabled="!selected"
+                  @click="onExport"
+                  >{{ exportButtonLabel }}</el-button
+                >
+                <el-button
+                  v-hasPermi="['ops:dict:import']"
+                  size="small"
+                  :disabled="!selected"
+                  @click="onDownloadTemplate(['DEMO', '示例标签', '0', '启用'])"
+                  >导入模板</el-button
+                >
+                <el-button
+                  v-hasPermi="['ops:dict:import']"
+                  size="small"
+                  :disabled="!selected"
+                  :loading="importing"
+                  @click="triggerImport"
+                  >导入</el-button
+                >
+                <input
+                  ref="importInput"
+                  type="file"
+                  accept=".csv,text/csv"
+                  class="hidden-input"
+                  @change="onImportFile"
+                />
+                <el-button
+                  v-hasPermi="['ops:dict:edit']"
+                  type="primary"
+                  size="small"
+                  :disabled="!selected"
+                  @click="openItem()"
+                  >新增字典项</el-button
+                >
               </div>
             </div>
           </template>
@@ -88,9 +140,7 @@
                 :data="displayItems"
                 stripe
                 border
-                
                 class="report-table"
-               
                 row-key="dictDataId"
                 empty-text=" "
                 :default-sort="itemDefaultSort"
@@ -105,15 +155,34 @@
                   />
                 </template>
                 <el-table-column type="selection" width="48" align="center" />
-                <el-table-column prop="dictDataId" label="数据编号" width="80" align="center" class-name="col-text" sortable="custom">
+                <el-table-column
+                  prop="dictDataId"
+                  label="数据编号"
+                  width="80"
+                  align="center"
+                  class-name="col-text"
+                  sortable="custom"
+                >
                   <template #default="{ row }">
                     <span class="cell-id">{{ row.dictDataId }}</span>
                   </template>
                 </el-table-column>
-                <el-table-column label="字典项" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+                <el-table-column
+                  label="字典项"
+                  min-width="120"
+                  align="center"
+                  class-name="col-text"
+                  show-overflow-tooltip
+                >
                   <template #default="{ row }">{{ row.dictLabel || '无' }}</template>
                 </el-table-column>
-                <el-table-column label="值" min-width="100" align="center" class-name="col-text" show-overflow-tooltip>
+                <el-table-column
+                  label="值"
+                  min-width="100"
+                  align="center"
+                  class-name="col-text"
+                  show-overflow-tooltip
+                >
                   <template #default="{ row }">
                     <span class="cell-id">{{ row.dictValue }}</span>
                   </template>
@@ -126,7 +195,13 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column v-if="canEdit" label="操作" width="120" class-name="col-action" align="center">
+                <el-table-column
+                  v-if="canEdit"
+                  label="操作"
+                  width="120"
+                  class-name="col-action"
+                  align="center"
+                >
                   <template #default="{ row }">
                     <el-button link type="primary" @click="openItem(row)">编辑</el-button>
                     <el-button link type="danger" @click="removeItem(row)">删除</el-button>
@@ -139,31 +214,73 @@
       </section>
     </div>
 
-    <el-dialog v-model="typeDlg" :title="typeForm.dictType && types.some(t => t.dictType === typeForm.dictType) ? '编辑字典类型' : '新增字典类型'" width="480px">
+    <el-dialog
+      v-model="typeDlg"
+      :title="
+        typeForm.dictType && types.some((t) => t.dictType === typeForm.dictType)
+          ? '编辑字典类型'
+          : '新增字典类型'
+      "
+      width="480px"
+    >
       <el-form label-width="88px">
-        <el-form-item label="类型编码"><el-input v-model="typeForm.dictType" :disabled="!!editingType" placeholder="如 order_status（英文编码）" /></el-form-item>
-        <el-form-item label="类型名称"><el-input v-model="typeForm.dictName" placeholder="中文名称" /></el-form-item>
-        <el-form-item label="排序"><el-input-number v-model="typeForm.sortOrder" :min="0" /></el-form-item>
+        <el-form-item label="类型编码"
+          ><el-input
+            v-model="typeForm.dictType"
+            :disabled="!!editingType"
+            placeholder="如 order_status（英文编码）"
+        /></el-form-item>
+        <el-form-item label="类型名称"
+          ><el-input v-model="typeForm.dictName" placeholder="中文名称"
+        /></el-form-item>
+        <el-form-item label="排序"
+          ><el-input-number v-model="typeForm.sortOrder" :min="0"
+        /></el-form-item>
         <el-form-item label="状态">
-          <el-radio-group v-model="typeForm.status"><el-radio value="ACTIVE">启用</el-radio><el-radio value="INACTIVE">停用</el-radio></el-radio-group>
+          <el-radio-group v-model="typeForm.status"
+            ><el-radio value="ACTIVE">启用</el-radio
+            ><el-radio value="INACTIVE">停用</el-radio></el-radio-group
+          >
         </el-form-item>
-        <el-form-item label="备注"><el-input v-model="typeForm.remark" type="textarea" /></el-form-item>
+        <el-form-item label="备注"
+          ><el-input v-model="typeForm.remark" type="textarea"
+        /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="typeDlg = false">取消</el-button>
-        <el-button v-hasPermi="['ops:dict:edit']" type="primary" :loading="saving" @click="saveType">保存</el-button>
+        <el-button v-hasPermi="['ops:dict:edit']" type="primary" :loading="saving" @click="saveType"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
 
-    <el-dialog v-model="itemDlg" :title="itemForm.dictDataId ? '编辑字典项' : '新增字典项'" width="480px">
+    <el-dialog
+      v-model="itemDlg"
+      :title="itemForm.dictDataId ? '编辑字典项' : '新增字典项'"
+      width="480px"
+    >
       <el-form label-width="88px">
-        <el-form-item label="字典值"><el-input v-model="itemForm.dictValue" :disabled="!!itemForm.dictDataId" placeholder="如 COMPLETED（英文枚举值）" /></el-form-item>
-        <el-form-item label="显示标签"><el-input v-model="itemForm.dictLabel" placeholder="中文标签" /></el-form-item>
-        <el-form-item label="排序"><el-input-number v-model="itemForm.sortOrder" :min="0" /></el-form-item>
+        <el-form-item label="字典值"
+          ><el-input
+            v-model="itemForm.dictValue"
+            :disabled="!!itemForm.dictDataId"
+            placeholder="如 COMPLETED（英文枚举值）"
+        /></el-form-item>
+        <el-form-item label="显示标签"
+          ><el-input v-model="itemForm.dictLabel" placeholder="中文标签"
+        /></el-form-item>
+        <el-form-item label="排序"
+          ><el-input-number v-model="itemForm.sortOrder" :min="0"
+        /></el-form-item>
         <el-form-item label="状态">
-          <el-radio-group v-model="itemForm.status"><el-radio value="ACTIVE">启用</el-radio><el-radio value="INACTIVE">停用</el-radio></el-radio-group>
+          <el-radio-group v-model="itemForm.status"
+            ><el-radio value="ACTIVE">启用</el-radio
+            ><el-radio value="INACTIVE">停用</el-radio></el-radio-group
+          >
         </el-form-item>
-        <el-form-item label="备注"><el-input v-model="itemForm.remark" type="textarea" /></el-form-item>
+        <el-form-item label="备注"
+          ><el-input v-model="itemForm.remark" type="textarea"
+        /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="itemDlg = false">取消</el-button>
@@ -172,15 +289,31 @@
           v-hasPermi="['ops:dict:edit']"
           :loading="saving"
           @click="saveItem(true)"
-        >保存并继续</el-button>
-        <el-button v-hasPermi="['ops:dict:edit']" type="primary" :loading="saving" @click="saveItem(false)">保存</el-button>
+          >保存并继续</el-button
+        >
+        <el-button
+          v-hasPermi="['ops:dict:edit']"
+          type="primary"
+          :loading="saving"
+          @click="saveItem(false)"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onActivated, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
+import {
+  computed,
+  nextTick,
+  onActivated,
+  onBeforeUnmount,
+  onMounted,
+  reactive,
+  ref,
+  watch
+} from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage, ElMessageBox, type TableInstance } from 'element-plus';
 import { api } from '@/api/client';
@@ -249,8 +382,21 @@ const typeDlg = ref(false);
 const itemDlg = ref(false);
 const editingType = ref(false);
 const typesWidth = ref(readTypesWidth());
-const typeForm = reactive({ dictType: '', dictName: '', status: 'ACTIVE', remark: '', sortOrder: 0 });
-const itemForm = reactive({ dictDataId: 0, dictValue: '', dictLabel: '', status: 'ACTIVE', remark: '', sortOrder: 0 });
+const typeForm = reactive({
+  dictType: '',
+  dictName: '',
+  status: 'ACTIVE',
+  remark: '',
+  sortOrder: 0
+});
+const itemForm = reactive({
+  dictDataId: 0,
+  dictValue: '',
+  dictLabel: '',
+  status: 'ACTIVE',
+  remark: '',
+  sortOrder: 0
+});
 /** 刷新左侧表时忽略 current-change(null)，避免跳到别的类型 */
 let suppressTypeClear = false;
 
@@ -258,7 +404,9 @@ const filteredTypes = computed(() => {
   const q = typeQuery.value.trim().toLowerCase();
   const list = !q
     ? types.value
-    : types.value.filter((row) => row.dictType.toLowerCase().includes(q) || row.dictName.toLowerCase().includes(q));
+    : types.value.filter(
+        (row) => row.dictType.toLowerCase().includes(q) || row.dictName.toLowerCase().includes(q)
+      );
   return sortTypesById(list);
 });
 const displayItems = computed(() => sortItemsById(items.value));
@@ -273,39 +421,40 @@ const statusByLabel: Record<string, string> = {
   INACTIVE: 'INACTIVE'
 };
 
-const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
-  filePrefix: '字典项',
-  headers: ['值', '标签', '排序', '状态'],
-  toRows: () =>
-    pickSelected(items.value).map((row) => [
-      row.dictValue,
-      row.dictLabel,
-      row.sortOrder,
-      row.status === 'ACTIVE' ? '启用' : '停用'
-    ]),
-  onImportRows: async (rows) => {
-    if (!selected.value) throw new Error('请先选择字典类型');
-    let ok = 0;
-    const t = encodeURIComponent(selected.value.dictType);
-    for (const row of rows) {
-      const dictValue = (row['值'] || row.dictValue || '').trim();
-      const dictLabel = (row['标签'] || row.dictLabel || '').trim();
-      if (!dictValue || !dictLabel) continue;
-      const sortRaw = (row['排序'] || row.sortOrder || '0').trim();
-      await api.request(`/api/v2/ops/admin/dicts/${t}/items`, 'POST', {
-        dictValue,
-        dictLabel,
-        sortOrder: Number(sortRaw) || 0,
-        status: statusByLabel[row['状态'] || row.status] || 'ACTIVE',
-        remark: ''
-      });
-      ok++;
+const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
+  useListCsv({
+    filePrefix: '字典项',
+    headers: ['值', '标签', '排序', '状态'],
+    toRows: () =>
+      pickSelected(items.value).map((row) => [
+        row.dictValue,
+        row.dictLabel,
+        row.sortOrder,
+        row.status === 'ACTIVE' ? '启用' : '停用'
+      ]),
+    onImportRows: async (rows) => {
+      if (!selected.value) throw new Error('请先选择字典类型');
+      let ok = 0;
+      const t = encodeURIComponent(selected.value.dictType);
+      for (const row of rows) {
+        const dictValue = (row['值'] || row.dictValue || '').trim();
+        const dictLabel = (row['标签'] || row.dictLabel || '').trim();
+        if (!dictValue || !dictLabel) continue;
+        const sortRaw = (row['排序'] || row.sortOrder || '0').trim();
+        await api.request(`/api/v2/ops/admin/dicts/${t}/items`, 'POST', {
+          dictValue,
+          dictLabel,
+          sortOrder: Number(sortRaw) || 0,
+          status: statusByLabel[row['状态'] || row.status] || 'ACTIVE',
+          remark: ''
+        });
+        ok++;
+      }
+      clearSelection();
+      await Promise.all([loadItems(), loadTypes(), loadRuntimeDict()]);
+      return ok;
     }
-    clearSelection();
-    await Promise.all([loadItems(), loadTypes(), loadRuntimeDict()]);
-    return ok;
-  }
-});
+  });
 
 async function loadTypes() {
   loadingTypes.value = true;
@@ -338,7 +487,10 @@ async function loadItems() {
   }
   loadingItems.value = true;
   try {
-    items.value = await api.request<DictItemRow[]>(`/api/v2/ops/admin/dicts/${encodeURIComponent(selected.value.dictType)}/items`, 'GET');
+    items.value = await api.request<DictItemRow[]>(
+      `/api/v2/ops/admin/dicts/${encodeURIComponent(selected.value.dictType)}/items`,
+      'GET'
+    );
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载字典项失败');
     items.value = [];
@@ -511,7 +663,10 @@ function startResize(ev: MouseEvent) {
   const startX = ev.clientX;
   const startW = typesWidth.value;
   const onMove = (e: MouseEvent) => {
-    const next = Math.min(TYPES_WIDTH_MAX, Math.max(TYPES_WIDTH_MIN, startW + (e.clientX - startX)));
+    const next = Math.min(
+      TYPES_WIDTH_MAX,
+      Math.max(TYPES_WIDTH_MIN, startW + (e.clientX - startX))
+    );
     typesWidth.value = next;
   };
   const onUp = () => {
@@ -694,10 +849,30 @@ onBeforeUnmount(() => {
   gap: 8px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 2px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.35; }
-.page-card-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.hidden-input { display: none; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.hidden-input {
+  display: none;
+}
 </style>

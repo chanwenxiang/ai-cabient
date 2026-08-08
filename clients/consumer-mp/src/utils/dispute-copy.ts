@@ -22,8 +22,7 @@ function isRecognitionSucceeded(reason: string) {
   return /置信度|识别结果需人工|未识别到商品|识别到：|confidence|manual review/i.test(reason);
 }
 
-const GENERIC_MANUAL_REVIEW =
-  '商品识别结果需要人工确认，本次暂未扣款。审核完成后会生成账单。';
+const GENERIC_MANUAL_REVIEW = '商品识别结果需要人工确认，本次暂未扣款。审核完成后会生成账单。';
 
 /** 将后端/测试 reason 转成消费者可读中文，避免露出内部/英文话术 */
 export function localizeConsumerDisputeReason(reason?: string | null): string {
@@ -75,9 +74,7 @@ export function consumerAppealErrorMessage(error: unknown, fallback = '提交失
   const raw = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
   const msg = (raw || '').trim();
   if (!msg) return fallback;
-  if (
-    /本单已结案|不可再申诉|申诉通道已关闭|通道已关闭|关联争议已结案|无法再次退款/i.test(msg)
-  ) {
+  if (/本单已结案|不可再申诉|申诉通道已关闭|通道已关闭|关联争议已结案|无法再次退款/i.test(msg)) {
     return '本单已结案，不可再申诉';
   }
   if (/该会话已有申诉|已有申诉工单|已有进行中的申诉/i.test(msg)) {

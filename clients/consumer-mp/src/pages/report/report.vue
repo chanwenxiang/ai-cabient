@@ -7,12 +7,7 @@
 
     <view class="card">
       <text class="field-label">柜机编号</text>
-      <input
-        class="input"
-        :value="deviceId"
-        placeholder="例如 CAB-001"
-        @input="onDeviceInput"
-      />
+      <input class="input" :value="deviceId" placeholder="例如 CAB-001" @input="onDeviceInput" />
 
       <text class="field-label">问题类型</text>
       <view class="issue-grid">
@@ -35,7 +30,13 @@
         placeholder="描述具体情况，便于快速处理"
       />
 
-      <button class="btn-primary" hover-class="btn-hover" :loading="submitting" :disabled="submitting" @click="onSubmit">
+      <button
+        class="btn-primary"
+        hover-class="btn-hover"
+        :loading="submitting"
+        :disabled="submitting"
+        @click="onSubmit"
+      >
         {{ submitting ? '提交中…' : '提交报修' }}
       </button>
       <text v-if="err" class="err">{{ err }}</text>
@@ -113,12 +114,39 @@ function onSubmit() {
 </script>
 
 <style scoped>
-.page { min-height: 100vh; background: #f7f7f7; padding: 24rpx; box-sizing: border-box; }
-.hero { padding: 16rpx 8rpx 24rpx; }
-.hero-title { font-size: 40rpx; font-weight: 700; color: #191919; display: block; }
-.hero-sub { font-size: 26rpx; color: #888; margin-top: 8rpx; display: block; }
-.card { background: #fff; border-radius: 24rpx; padding: 32rpx; }
-.field-label { font-size: 26rpx; color: #666; display: block; margin-bottom: 12rpx; margin-top: 8rpx; }
+.page {
+  min-height: 100vh;
+  background: #f7f7f7;
+  padding: 24rpx;
+  box-sizing: border-box;
+}
+.hero {
+  padding: 16rpx 8rpx 24rpx;
+}
+.hero-title {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #191919;
+  display: block;
+}
+.hero-sub {
+  font-size: 26rpx;
+  color: #888;
+  margin-top: 8rpx;
+  display: block;
+}
+.card {
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 32rpx;
+}
+.field-label {
+  font-size: 26rpx;
+  color: #666;
+  display: block;
+  margin-bottom: 12rpx;
+  margin-top: 8rpx;
+}
 .input {
   background: #f7f7f7;
   border-radius: 12rpx;
@@ -126,7 +154,12 @@ function onSubmit() {
   font-size: 30rpx;
   margin-bottom: 16rpx;
 }
-.issue-grid { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 20rpx; }
+.issue-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 20rpx;
+}
 .issue-chip {
   padding: 14rpx 24rpx;
   border-radius: 32rpx;
@@ -134,7 +167,11 @@ function onSubmit() {
   font-size: 26rpx;
   color: #666;
 }
-.issue-chip.active { background: #e8f8ef; color: #07c160; font-weight: 600; }
+.issue-chip.active {
+  background: #e8f8ef;
+  color: #07c160;
+  font-weight: 600;
+}
 .textarea {
   width: 100%;
   min-height: 160rpx;
@@ -157,7 +194,17 @@ function onSubmit() {
   border: none;
   box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
 }
-.btn-primary::after { border: none; }
-.btn-hover { opacity: 0.85; }
-.err { color: #fa5151; font-size: 26rpx; display: block; margin-top: 16rpx; text-align: center; }
+.btn-primary::after {
+  border: none;
+}
+.btn-hover {
+  opacity: 0.85;
+}
+.err {
+  color: #fa5151;
+  font-size: 26rpx;
+  display: block;
+  margin-top: 16rpx;
+  text-align: center;
+}
 </style>

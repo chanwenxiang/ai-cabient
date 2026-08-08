@@ -9,7 +9,9 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:ota:publish']" type="primary" @click="openPublish">发布版本</el-button>
+          <el-button v-hasPermi="['ops:ota:publish']" type="primary" @click="openPublish"
+            >发布版本</el-button
+          >
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -17,10 +19,32 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table v-loading="loading" :data="items" stripe border class="report-table" row-key="releaseId" empty-text=" ">
-          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无固件版本" /></template>
-          <el-table-column prop="appVersion" label="版本" min-width="120" align="center" class-name="col-text" />
-          <el-table-column prop="channel" label="渠道" width="100" align="center" class-name="col-text" />
+        <el-table
+          v-loading="loading"
+          :data="items"
+          stripe
+          border
+          class="report-table"
+          row-key="releaseId"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无固件版本"
+          /></template>
+          <el-table-column
+            prop="appVersion"
+            label="版本"
+            min-width="120"
+            align="center"
+            class-name="col-text"
+          />
+          <el-table-column
+            prop="channel"
+            label="渠道"
+            width="100"
+            align="center"
+            class-name="col-text"
+          />
           <el-table-column prop="status" label="状态" width="100" align="center" />
           <el-table-column label="强制" width="80" align="center">
             <template #default="{ row }">{{ row.mandatory ? '是' : '否' }}</template>
@@ -36,13 +60,25 @@
               <span v-else>全量</span>
             </template>
           </el-table-column>
-          <el-table-column prop="minVersion" label="最低版本" width="110" align="center" class-name="col-text" />
+          <el-table-column
+            prop="minVersion"
+            label="最低版本"
+            width="110"
+            align="center"
+            class-name="col-text"
+          />
           <el-table-column label="发布时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.publishedAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column prop="releaseNotes" label="说明" min-width="180" show-overflow-tooltip align="center" />
+          <el-table-column
+            prop="releaseNotes"
+            label="说明"
+            min-width="180"
+            show-overflow-tooltip
+            align="center"
+          />
           <el-table-column label="操作" width="100" align="center" class-name="col-action">
             <template #default="{ row }">
               <el-button
@@ -51,7 +87,8 @@
                 link
                 type="danger"
                 @click="unpublish(row)"
-              >下架</el-button>
+                >下架</el-button
+              >
             </template>
           </el-table-column>
         </el-table>
@@ -209,11 +246,15 @@ async function publish() {
 
 async function unpublish(row: OtaRelease) {
   try {
-    await ElMessageBox.confirm(`确认下架版本 ${row.appVersion}？设备端将停止收到该版本。`, '下架版本', {
-      type: 'warning',
-      confirmButtonText: '下架',
-      cancelButtonText: '取消'
-    });
+    await ElMessageBox.confirm(
+      `确认下架版本 ${row.appVersion}？设备端将停止收到该版本。`,
+      '下架版本',
+      {
+        type: 'warning',
+        confirmButtonText: '下架',
+        cancelButtonText: '取消'
+      }
+    );
   } catch {
     return;
   }

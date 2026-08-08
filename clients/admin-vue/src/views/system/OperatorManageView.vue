@@ -9,11 +9,30 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:rbac:assign:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button v-hasPermi="['ops:rbac:assign:import']" @click="onDownloadTemplate(['', '张三', '13900000099', 'Passw0rd', '正常', ''])">导入模板</el-button>
-          <el-button v-hasPermi="['ops:rbac:assign:import']" :loading="importing" @click="triggerImport">导入</el-button>
-          <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
-          <el-button v-hasPermi="['ops:rbac:assign:add']" type="primary" @click="openCreate">新增账号</el-button>
+          <el-button v-hasPermi="['ops:rbac:assign:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
+          <el-button
+            v-hasPermi="['ops:rbac:assign:import']"
+            @click="onDownloadTemplate(['', '张三', '13900000099', 'Passw0rd', '正常', ''])"
+            >导入模板</el-button
+          >
+          <el-button
+            v-hasPermi="['ops:rbac:assign:import']"
+            :loading="importing"
+            @click="triggerImport"
+            >导入</el-button
+          >
+          <input
+            ref="importInput"
+            type="file"
+            accept=".csv,text/csv"
+            class="hidden-input"
+            @change="onImportFile"
+          />
+          <el-button v-hasPermi="['ops:rbac:assign:add']" type="primary" @click="openCreate"
+            >新增账号</el-button
+          >
           <el-button :icon="Refresh" :loading="loading" @click="reload">刷新</el-button>
         </div>
       </div>
@@ -47,10 +66,21 @@
           row-key="userId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange" empty-text=" ">
-          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无运营账号" /></template>
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无运营账号"
+          /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="userId" label="用户编号" width="100" align="center" class-name="col-text" sortable="custom">
+          <el-table-column
+            prop="userId"
+            label="用户编号"
+            width="100"
+            align="center"
+            class-name="col-text"
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.userId }}</span>
             </template>
@@ -68,7 +98,13 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="角色" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="角色"
+            min-width="160"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <template v-if="(row.roleNames || []).length">
                 <el-tag
@@ -84,11 +120,17 @@
               <span v-else class="muted">未分配</span>
             </template>
           </el-table-column>
-          <el-table-column label="数据范围" min-width="180" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="数据范围"
+            min-width="180"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <template v-if="(row.merchantNames || row.merchantIds || []).length">
                 <el-tag
-                  v-for="(name, idx) in (row.merchantNames || row.merchantIds)"
+                  v-for="(name, idx) in row.merchantNames || row.merchantIds"
                   :key="(row.merchantIds || [])[idx] || name"
                   size="small"
                   type="warning"
@@ -103,24 +145,34 @@
           </el-table-column>
           <el-table-column label="操作" width="120" class-name="col-action" align="center">
             <template #default="{ row }">
-              <TableActions :actions="rowActions(row)" :max-primary="2" @action="(k) => onRowAction(k, row)" />
+              <TableActions
+                :actions="rowActions(row)"
+                :max-primary="2"
+                @action="(k) => onRowAction(k, row)"
+              />
             </template>
           </el-table-column>
         </el-table>
       </div>
     </div>
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="total"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next"
-        background
-        @current-change="loadOperators"
-        @size-change="onSizeChange"
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+      @current-change="loadOperators"
+      @size-change="onSizeChange"
+    />
 
-    <el-dialog v-model="formDlg" :title="form.userId ? '编辑账号' : '新增账号'" width="460px" destroy-on-close>
+    <el-dialog
+      v-model="formDlg"
+      :title="form.userId ? '编辑账号' : '新增账号'"
+      width="460px"
+      destroy-on-close
+    >
       <el-form label-width="88px">
         <el-form-item label="姓名" required>
           <el-input v-model="form.name" maxlength="64" />
@@ -147,12 +199,19 @@
         <el-form-item label="状态">
           <el-radio-group v-model="form.status">
             <el-radio value="ACTIVE">正常</el-radio>
-            <el-radio value="INACTIVE" :disabled="form.userId === Number(auth.userId)">停用</el-radio>
+            <el-radio value="INACTIVE" :disabled="form.userId === Number(auth.userId)"
+              >停用</el-radio
+            >
           </el-radio-group>
         </el-form-item>
         <el-form-item v-if="!form.userId" label="角色">
           <el-checkbox-group v-model="form.roleIds">
-            <el-checkbox v-for="r in activeRoles" :key="r.roleId" :label="r.roleId" style="display: block; margin: 6px 0">
+            <el-checkbox
+              v-for="r in activeRoles"
+              :key="r.roleId"
+              :label="r.roleId"
+              style="display: block; margin: 6px 0"
+            >
               {{ r.roleName }}
             </el-checkbox>
           </el-checkbox-group>
@@ -181,7 +240,12 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="merchantDlg" title="商户范围（设备数据范围）" width="560px" destroy-on-close>
+    <el-dialog
+      v-model="merchantDlg"
+      title="商户范围（设备数据范围）"
+      width="560px"
+      destroy-on-close
+    >
       <div v-loading="merchantScopeLoading" class="scope-dlg-body">
         <el-alert
           type="info"
@@ -197,15 +261,17 @@
             <span class="muted">· {{ m.deviceCount ?? 0 }} 台设备</span>
           </el-checkbox>
         </el-checkbox-group>
-        <el-empty
-          v-else-if="!merchantScopeLoading"
-          description="暂无商户可分配"
-          :image-size="64"
-        />
+        <el-empty v-else-if="!merchantScopeLoading" description="暂无商户可分配" :image-size="64" />
       </div>
       <template #footer>
         <el-button @click="merchantDlg = false">取消</el-button>
-        <el-button type="primary" :loading="saving" :disabled="merchantScopeLoading" @click="saveMerchants">保存</el-button>
+        <el-button
+          type="primary"
+          :loading="saving"
+          :disabled="merchantScopeLoading"
+          @click="saveMerchants"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
 
@@ -223,7 +289,11 @@
           <el-radio value="ALL">全部货柜</el-radio>
           <el-radio value="PARTIAL">部分货柜</el-radio>
         </el-radio-group>
-        <el-checkbox-group v-if="deviceScopeMode === 'PARTIAL' && allDevices.length" v-model="deviceIds" class="merchant-group">
+        <el-checkbox-group
+          v-if="deviceScopeMode === 'PARTIAL' && allDevices.length"
+          v-model="deviceIds"
+          class="merchant-group"
+        >
           <el-checkbox v-for="d in allDevices" :key="d.deviceId" :label="d.deviceId">
             {{ d.deviceName || d.deviceId }}（{{ d.deviceId }}）
           </el-checkbox>
@@ -236,7 +306,13 @@
       </div>
       <template #footer>
         <el-button @click="deviceDlg = false">取消</el-button>
-        <el-button type="primary" :loading="saving" :disabled="deviceScopeLoading" @click="saveDevices">保存</el-button>
+        <el-button
+          type="primary"
+          :loading="saving"
+          :disabled="deviceScopeLoading"
+          @click="saveDevices"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
   </el-card>
@@ -332,52 +408,53 @@ const statusByLabel: Record<string, string> = {
   INACTIVE: 'INACTIVE'
 };
 
-const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
-  filePrefix: '运营账号',
-  headers: ['用户ID', '姓名', '手机号', '密码', '状态', '角色', '数据范围'],
-  toRows: () =>
-    pickSelected(operators.value).map((row) => [
-      row.userId,
-      row.name,
-      row.phoneNumber,
-      '',
-      row.status === 'ACTIVE' ? '正常' : '停用',
-      (row.roleNames || []).join('、') || '未分配',
-      (row.merchantNames || row.merchantIds || []).length
-        ? (row.merchantNames || row.merchantIds || []).join('、')
-        : '全局'
-    ]),
-  onImportRows: async (rows) => {
-    let ok = 0;
-    const roleByName = new Map(activeRoles.value.map((r) => [r.roleName, r.roleId]));
-    for (const row of rows) {
-      const name = (row['姓名'] || row.name || '').trim();
-      const phoneNumber = (row['手机号'] || row.phoneNumber || '').trim();
-      const password = (row['密码'] || row.password || '').trim();
-      if (!name || !/^1\d{10}$/.test(phoneNumber) || password.length < 6) continue;
-      const roleLabel = (row['角色'] || row.roleNames || '').trim();
-      const roleIds = roleLabel
-        ? roleLabel
-            .split(/[,，、]/)
-            .map((s) => s.trim())
-            .filter(Boolean)
-            .map((n) => roleByName.get(n))
-            .filter((id): id is number => id != null)
-        : [];
-      await api.request('/api/v2/ops/admin/rbac/operators', 'POST', {
-        name,
-        phoneNumber,
-        password,
-        status: statusByLabel[row['状态'] || row.status] || 'ACTIVE',
-        roleIds
-      });
-      ok++;
+const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
+  useListCsv({
+    filePrefix: '运营账号',
+    headers: ['用户ID', '姓名', '手机号', '密码', '状态', '角色', '数据范围'],
+    toRows: () =>
+      pickSelected(operators.value).map((row) => [
+        row.userId,
+        row.name,
+        row.phoneNumber,
+        '',
+        row.status === 'ACTIVE' ? '正常' : '停用',
+        (row.roleNames || []).join('、') || '未分配',
+        (row.merchantNames || row.merchantIds || []).length
+          ? (row.merchantNames || row.merchantIds || []).join('、')
+          : '全局'
+      ]),
+    onImportRows: async (rows) => {
+      let ok = 0;
+      const roleByName = new Map(activeRoles.value.map((r) => [r.roleName, r.roleId]));
+      for (const row of rows) {
+        const name = (row['姓名'] || row.name || '').trim();
+        const phoneNumber = (row['手机号'] || row.phoneNumber || '').trim();
+        const password = (row['密码'] || row.password || '').trim();
+        if (!name || !/^1\d{10}$/.test(phoneNumber) || password.length < 6) continue;
+        const roleLabel = (row['角色'] || row.roleNames || '').trim();
+        const roleIds = roleLabel
+          ? roleLabel
+              .split(/[,，、]/)
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .map((n) => roleByName.get(n))
+              .filter((id): id is number => id != null)
+          : [];
+        await api.request('/api/v2/ops/admin/rbac/operators', 'POST', {
+          name,
+          phoneNumber,
+          password,
+          status: statusByLabel[row['状态'] || row.status] || 'ACTIVE',
+          roleIds
+        });
+        ok++;
+      }
+      clearSelection();
+      await loadOperators();
+      return ok;
     }
-    clearSelection();
-    await loadOperators();
-    return ok;
-  }
-});
+  });
 
 function rowActions(row: OperatorRow): TableAction[] {
   const acts: TableAction[] = [];
@@ -387,11 +464,19 @@ function rowActions(row: OperatorRow): TableAction[] {
   if (auth.hasPerm('ops:rbac:assign:role')) {
     acts.push({ key: 'roles', label: '分配角色', icon: Key, type: 'success' });
   }
-  if (auth.hasPerm('ops:rbac:assign:merchant') || auth.hasPerm('ops:rbac:assign:device') || auth.hasPerm('ops:rbac:assign')) {
+  if (
+    auth.hasPerm('ops:rbac:assign:merchant') ||
+    auth.hasPerm('ops:rbac:assign:device') ||
+    auth.hasPerm('ops:rbac:assign')
+  ) {
     acts.push({ key: 'merchants', label: '商户范围', icon: OfficeBuilding, overflow: true });
     acts.push({ key: 'devices', label: '货柜范围', icon: Monitor, overflow: true });
   }
-  if (auth.hasPerm('ops:rbac:assign:disable') && row.status === 'ACTIVE' && row.userId !== Number(auth.userId)) {
+  if (
+    auth.hasPerm('ops:rbac:assign:disable') &&
+    row.status === 'ACTIVE' &&
+    row.userId !== Number(auth.userId)
+  ) {
     acts.push({ key: 'disable', label: '停用', icon: Delete, type: 'danger', overflow: true });
   }
   return acts;
@@ -427,7 +512,10 @@ async function loadOperators() {
   try {
     const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
     if (phone.value.trim()) q.set('phone', phone.value.trim());
-    const data = await api.request<PageResult<OperatorRow>>(`/api/v2/ops/admin/rbac/operators?${q}`, 'GET');
+    const data = await api.request<PageResult<OperatorRow>>(
+      `/api/v2/ops/admin/rbac/operators?${q}`,
+      'GET'
+    );
     operators.value = sortById(data.items || [], 'userId');
     total.value = data.total;
     clearSelection();
@@ -473,7 +561,14 @@ function onSizeChange() {
 }
 
 function openCreate() {
-  form.value = { userId: null, name: '', phoneNumber: '', password: '', status: 'ACTIVE', roleIds: [] };
+  form.value = {
+    userId: null,
+    name: '',
+    phoneNumber: '',
+    password: '',
+    status: 'ACTIVE',
+    roleIds: []
+  };
   formDlg.value = true;
 }
 
@@ -525,7 +620,9 @@ async function saveForm() {
 
 async function onDisable(row: OperatorRow) {
   try {
-    await ElMessageBox.confirm(`确认停用账号「${row.name || row.phoneNumber}」？`, '停用账号', { type: 'warning' });
+    await ElMessageBox.confirm(`确认停用账号「${row.name || row.phoneNumber}」？`, '停用账号', {
+      type: 'warning'
+    });
     await api.request(`/api/v2/ops/admin/rbac/operators/${row.userId}`, 'DELETE');
     ElMessage.success('已停用');
     await loadOperators();
@@ -546,7 +643,11 @@ async function saveRoles() {
   if (currentUserId.value == null) return;
   saving.value = true;
   try {
-    await api.request(`/api/v2/ops/admin/rbac/users/${currentUserId.value}/roles`, 'PUT', roleIds.value);
+    await api.request(
+      `/api/v2/ops/admin/rbac/users/${currentUserId.value}/roles`,
+      'PUT',
+      roleIds.value
+    );
     ElMessage.success('角色已更新');
     roleDlg.value = false;
     const tasks: Promise<unknown>[] = [loadOperators()];
@@ -614,8 +715,14 @@ async function openDevices(row: OperatorRow) {
       return;
     }
     if (!allDevices.value.length) {
-      const list = await api.request<{ items: any[] }>('/api/v2/ops/admin/devices?page=0&size=200', 'GET');
-      allDevices.value = (list.items || []).map((d: any) => ({ deviceId: d.deviceId, deviceName: d.deviceName }));
+      const list = await api.request<{ items: any[] }>(
+        '/api/v2/ops/admin/devices?page=0&size=200',
+        'GET'
+      );
+      allDevices.value = (list.items || []).map((d: any) => ({
+        deviceId: d.deviceId,
+        deviceName: d.deviceName
+      }));
     }
     const data = await api.request<{ scopeMode: string; deviceIds: string[] }>(
       `/api/v2/ops/admin/rbac/users/${row.userId}/devices`,
@@ -682,15 +789,48 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.role-tag { margin: 0 4px 4px 0; }
-.muted { color: var(--el-text-color-secondary); }
-.scope-alert { margin-bottom: 12px; }
-.hidden-input { display: none; }
-.merchant-group { display: flex; flex-direction: column; gap: 8px; max-height: 360px; overflow: auto; }
-.scope-dlg-body { min-height: 120px; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.role-tag {
+  margin: 0 4px 4px 0;
+}
+.muted {
+  color: var(--el-text-color-secondary);
+}
+.scope-alert {
+  margin-bottom: 12px;
+}
+.hidden-input {
+  display: none;
+}
+.merchant-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+}
+.scope-dlg-body {
+  min-height: 120px;
+}
 </style>

@@ -5,11 +5,16 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">争议审核</span>
-            <span class="hint">识别争议可按低置信 / 模拟识别 / 重力错配分拣；同屏对照录像改 SKU 后一键落账或免单</span>
+            <span class="hint"
+              >识别争议可按低置信 / 模拟识别 / 重力错配分拣；同屏对照录像改 SKU
+              后一键落账或免单</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:dispute:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:dispute:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load(false)">刷新</el-button>
         </div>
       </div>
@@ -40,7 +45,13 @@
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="状态">
-        <el-select v-model="status" clearable placeholder="全部" style="width: 140px" @change="search">
+        <el-select
+          v-model="status"
+          clearable
+          placeholder="全部"
+          style="width: 140px"
+          @change="search"
+        >
           <el-option
             v-for="item in dictOptions('dispute_status')"
             :key="item.value"
@@ -83,12 +94,26 @@
             <el-empty v-if="listHydrated && !loading" :description="emptyHint" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="ticketId" label="工单号" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+          <el-table-column
+            prop="ticketId"
+            label="工单号"
+            min-width="140"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.ticketId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="工单" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="工单"
+            min-width="160"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="openDetail(row)">
                 {{ row.reason || '无' }}
@@ -102,40 +127,65 @@
                 size="small"
                 :type="reviewChipType(row)"
                 effect="plain"
-              >{{ confidenceHint(row) }}</el-tag>
+                >{{ confidenceHint(row) }}</el-tag
+              >
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="设备" min-width="110" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="设备"
+            min-width="110"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <button
                 v-if="row.deviceId"
                 type="button"
                 class="link-cell"
                 @click="goDevice(row.deviceId)"
-              >{{ row.deviceId }}</button>
+              >
+                {{ row.deviceId }}
+              </button>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="会话" min-width="130" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="会话"
+            min-width="130"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <button
                 v-if="row.sessionId"
                 type="button"
                 class="link-cell mono"
                 @click="goSessions(row.deviceId, row.sessionId)"
-              >{{ row.sessionId }}</button>
+              >
+                {{ row.sessionId }}
+              </button>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="关联订单" min-width="130" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="关联订单"
+            min-width="130"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <button
                 v-if="row.orderId"
                 type="button"
                 class="link-cell mono"
                 @click="goOrders(row.deviceId, row.orderId)"
-              >{{ row.orderId }}</button>
+              >
+                {{ row.orderId }}
+              </button>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
@@ -146,7 +196,13 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="分类" width="100" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="分类"
+            width="100"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               {{ dictLabel('dispute_category', row.category) || row.category || '未知' }}
             </template>
@@ -178,26 +234,24 @@
           </el-table-column>
           <el-table-column label="操作" width="220" class-name="col-action" align="center">
             <template #default="{ row }">
-              <TableActions
-                :actions="rowActions(row)"
-                @action="(key) => onRowAction(key, row)"
-              />
+              <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
             </template>
           </el-table-column>
         </el-table>
       </div>
     </div>
 
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="total"
-        :page-sizes="[10, 20, 50]"
-        layout="total, sizes, prev, pager, next"
-        background
-        @current-change="() => load(false)"
-        @size-change="onSizeChange"
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50]"
+      layout="total, sizes, prev, pager, next"
+      background
+      @current-change="() => load(false)"
+      @size-change="onSizeChange"
+    />
 
     <el-drawer
       v-if="detailVisible"
@@ -225,7 +279,11 @@
           <div v-if="embedVideoUrl" class="video-wrap">
             <video :src="embedVideoUrl" controls playsinline class="session-video" />
           </div>
-          <el-empty v-else-if="videoAttempted && !videoLoading" description="暂无录像或加载失败" :image-size="72" />
+          <el-empty
+            v-else-if="videoAttempted && !videoLoading"
+            description="暂无录像或加载失败"
+            :image-size="72"
+          />
           <div v-else-if="videoLoading" class="video-loading">录像加载中…</div>
           <div v-else class="video-loading muted">尚未加载录像</div>
           <el-alert
@@ -239,33 +297,43 @@
           />
           <div class="drawer-actions drawer-actions--review">
             <el-button
-              v-if="selected.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))"
+              v-if="
+                selected.sessionId &&
+                (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))
+              "
               type="warning"
               :loading="videoLoading"
               @click="loadEmbedVideo(selected.sessionId, true)"
-            >重新加载录像</el-button>
+              >重新加载录像</el-button
+            >
             <el-button
-              v-if="selected.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))"
+              v-if="
+                selected.sessionId &&
+                (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))
+              "
               link
               type="primary"
               @click="playVideo(selected.sessionId)"
-            >新窗口打开</el-button>
-            <el-checkbox
-              v-model="videoReviewed"
-              :disabled="!embedVideoUrl && !noVideoAck"
-            >已对照录像核对</el-checkbox>
+              >新窗口打开</el-button
+            >
+            <el-checkbox v-model="videoReviewed" :disabled="!embedVideoUrl && !noVideoAck"
+              >已对照录像核对</el-checkbox
+            >
             <el-checkbox
               v-if="!embedVideoUrl && videoAttempted && !videoLoading"
               v-model="noVideoAck"
-            >无录像 / 无法播放，仍结案</el-checkbox>
+              >无录像 / 无法播放，仍结案</el-checkbox
+            >
             <el-button
               v-if="selected.deviceId && canAccessPath('/exceptions')"
               @click="goExceptions(selected.deviceId)"
-            >异常中心</el-button>
+              >异常中心</el-button
+            >
             <el-button
               v-if="selected.orderId || selected.deviceId"
               @click="goOrders(selected.deviceId, selected.orderId)"
-            >关联订单</el-button>
+              >关联订单</el-button
+            >
           </div>
         </section>
 
@@ -288,7 +356,9 @@
                 type="button"
                 class="link-cell mono"
                 @click="goSessions(selected.deviceId, selected.sessionId)"
-              >{{ selected.sessionId }}</button>
+              >
+                {{ selected.sessionId }}
+              </button>
               <span v-else>-</span>
             </el-descriptions-item>
             <el-descriptions-item label="设备">
@@ -297,7 +367,9 @@
                 type="button"
                 class="link-cell"
                 @click="goDevice(selected.deviceId)"
-              >{{ selected.deviceId }}</button>
+              >
+                {{ selected.deviceId }}
+              </button>
               <span v-else>-</span>
             </el-descriptions-item>
             <el-descriptions-item label="原因">
@@ -321,12 +393,20 @@
                   link
                   type="primary"
                   @click="goVisionMapping(selected)"
-                >去映射</el-button>
+                  >去映射</el-button
+                >
               </div>
             </el-descriptions-item>
-            <el-descriptions-item label="已扣金额">¥{{ money(selected.billedAmountCents) }}</el-descriptions-item>
+            <el-descriptions-item label="已扣金额"
+              >¥{{ money(selected.billedAmountCents) }}</el-descriptions-item
+            >
             <el-descriptions-item label="状态">
-              <el-tag v-if="resolveFeedback || selected.status !== 'OPEN'" type="success" effect="light" size="small">
+              <el-tag
+                v-if="resolveFeedback || selected.status !== 'OPEN'"
+                type="success"
+                effect="light"
+                size="small"
+              >
                 {{ resolveFeedback ? '已处理' : dictLabel('dispute_status', selected.status) }}
               </el-tag>
               <el-tag v-else size="small" type="warning">
@@ -337,7 +417,11 @@
               {{ formatDateTime(selected.resolvedAt) }}
             </el-descriptions-item>
             <el-descriptions-item v-if="selected.orderId" label="关联订单">
-              <button type="button" class="link-cell mono" @click="goOrders(selected.deviceId, selected.orderId)">
+              <button
+                type="button"
+                class="link-cell mono"
+                @click="goOrders(selected.deviceId, selected.orderId)"
+              >
                 {{ selected.orderId }}
               </button>
             </el-descriptions-item>
@@ -346,8 +430,21 @@
           <div v-if="selected.suggestedItems?.length" class="items-block">
             <div class="items-title">识别建议（只读）</div>
             <el-table :data="selected.suggestedItems" size="small" stripe border>
-              <el-table-column prop="skuName" label="商品" min-width="120" align="center" class-name="col-text" />
-              <el-table-column prop="skuId" label="SKU" min-width="100" align="center" class-name="col-text" show-overflow-tooltip />
+              <el-table-column
+                prop="skuName"
+                label="商品"
+                min-width="120"
+                align="center"
+                class-name="col-text"
+              />
+              <el-table-column
+                prop="skuId"
+                label="SKU"
+                min-width="100"
+                align="center"
+                class-name="col-text"
+                show-overflow-tooltip
+              />
               <el-table-column prop="quantity" label="数量" width="72" align="center" />
               <el-table-column label="单价" width="88" align="center">
                 <template #default="{ row }">¥{{ money(row.unitPriceCents) }}</template>
@@ -381,12 +478,20 @@
               <el-button type="danger" link @click="removeDraftLine(index)">删除</el-button>
             </div>
             <el-button @click="draftLines.push({ skuId: '', quantity: 1 })">添加商品</el-button>
-            <el-button link type="primary" @click="resetDraftFromSuggested">从识别建议填充</el-button>
+            <el-button link type="primary" @click="resetDraftFromSuggested"
+              >从识别建议填充</el-button
+            >
           </div>
         </div>
         <div class="ai-suggest-block">
           <div class="items-title">智能识别建议</div>
-          <input ref="disputeImageInput" type="file" accept="image/*" class="hidden-input" @change="onDisputeImagePick" />
+          <input
+            ref="disputeImageInput"
+            type="file"
+            accept="image/*"
+            class="hidden-input"
+            @change="onDisputeImagePick"
+          />
           <el-button size="small" :loading="suggestingDispute" @click="triggerDisputeImage">
             上传关键帧获取商品建议
           </el-button>
@@ -405,21 +510,24 @@
           type="primary"
           :loading="resolving"
           @click="resolveSelected('KEEP')"
-        >维持原账单</el-button>
+          >维持原账单</el-button
+        >
         <el-button
           v-hasPermi="['ops:dispute:resolve']"
           type="success"
           :loading="resolving"
           :disabled="!draftConfirmItems.length"
           @click="resolveSelected('ADJUST')"
-        >按调整明细落账</el-button>
+          >按调整明细落账</el-button
+        >
         <el-button
           v-hasPermi="['ops:dispute:resolve']"
           type="danger"
           plain
           :loading="resolving"
           @click="resolveSelected('WAIVE')"
-        >免单并退款</el-button>
+          >免单并退款</el-button
+        >
       </div>
     </el-drawer>
   </el-card>
@@ -438,7 +546,12 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
-import type { DevRecognitionPreviewDto, DisputeTicketDto, OrderLineDto, PageResult } from '@aicabinet/shared-types';
+import type {
+  DevRecognitionPreviewDto,
+  DisputeTicketDto,
+  OrderLineDto,
+  PageResult
+} from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
@@ -494,7 +607,19 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
 
 const { onExport } = useListCsv({
   filePrefix: '争议',
-  headers: ['工单', '设备', '会话', '关联订单', '状态', '分类', '优先级', '已扣金额', '原因', '创建时间', '结案时间'],
+  headers: [
+    '工单',
+    '设备',
+    '会话',
+    '关联订单',
+    '状态',
+    '分类',
+    '优先级',
+    '已扣金额',
+    '原因',
+    '创建时间',
+    '结案时间'
+  ],
   toRows: () =>
     pickSelected(items.value).map((row) => [
       row.ticketId,
@@ -515,9 +640,7 @@ const emptyHint = computed(() => {
   if (categoryTab.value === 'RECOGNITION' && reviewCodeTab.value !== 'ALL') {
     return `当前无「${confidenceHint({ reviewCode: reviewCodeTab.value, category: 'RECOGNITION' })}」待审工单`;
   }
-  return status.value === 'OPEN'
-    ? '当前无待审核工单，可切换「已结案」查看历史'
-    : '暂无数据';
+  return status.value === 'OPEN' ? '当前无待审核工单，可切换「已结案」查看历史' : '暂无数据';
 });
 
 const hasPriorBill = computed(() => (selected.value?.billedAmountCents || 0) > 0);
@@ -532,7 +655,10 @@ function resetDraftFromSuggested() {
   const suggested = selected.value?.suggestedItems || [];
   draftLines.value = suggested
     .filter((line: OrderLineDto) => line.skuId && (line.quantity || 0) > 0)
-    .map((line: OrderLineDto) => ({ skuId: String(line.skuId), quantity: Number(line.quantity) || 1 }));
+    .map((line: OrderLineDto) => ({
+      skuId: String(line.skuId),
+      quantity: Number(line.quantity) || 1
+    }));
   if (!draftLines.value.length) {
     draftLines.value = [{ skuId: '', quantity: 1 }];
   }
@@ -608,7 +734,9 @@ function disputeStatusType(s?: string) {
   return '';
 }
 
-function confidenceHint(row?: DisputeTicketDto | null | { reviewCode?: string; category?: string; reason?: string }) {
+function confidenceHint(
+  row?: DisputeTicketDto | null | { reviewCode?: string; category?: string; reason?: string }
+) {
   if (!row) return '';
   const code = String(row.reviewCode || '').toUpperCase();
   if (code === 'LOW_CONF') return '低置信';
@@ -636,14 +764,21 @@ function confidenceHint(row?: DisputeTicketDto | null | { reviewCode?: string; c
 function reviewChipType(row?: DisputeTicketDto | null) {
   const code = String(row?.reviewCode || '').toUpperCase();
   if (code === 'LOW_CONF' || code === 'EMPTY' || code === 'GRAVITY_MISMATCH') return 'danger';
-  if (code === 'MOCK' || code === 'GRAVITY_FILL' || code === 'UNMAPPED' || code === 'WHITELIST') return 'warning';
+  if (code === 'MOCK' || code === 'GRAVITY_FILL' || code === 'UNMAPPED' || code === 'WHITELIST')
+    return 'warning';
   return 'info';
 }
 
 function rowActions(row: DisputeTicketDto): TableAction[] {
   const actions: TableAction[] = [{ key: 'detail', label: '详情', icon: View, type: 'primary' }];
   if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
-    actions.push({ key: 'video', label: '录像', icon: VideoCamera, type: 'warning', overflow: true });
+    actions.push({
+      key: 'video',
+      label: '录像',
+      icon: VideoCamera,
+      type: 'warning',
+      overflow: true
+    });
   }
   if (row.reviewCode === 'UNMAPPED' || (row.detectedClasses && row.detectedClasses.length)) {
     actions.push({ key: 'mapping', label: '去映射', icon: Link, overflow: true });
@@ -818,7 +953,10 @@ async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'A
       : resolutionType === 'WAIVE'
         ? '免单并退回全部已扣余额'
         : '按调整明细落账（可能补扣或退差）';
-  if ((resolutionType === 'ADJUST' || resolutionType === 'CONFIRM') && !draftConfirmItems.value.length) {
+  if (
+    (resolutionType === 'ADJUST' || resolutionType === 'CONFIRM') &&
+    !draftConfirmItems.value.length
+  ) {
     ElMessage.warning('请先填写至少一行有效商品');
     return;
   }
@@ -827,10 +965,11 @@ async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'A
       `确认${action}？该操作会写入资金与审计记录。${noVideoAck.value ? '\n（已确认无录像仍结案）' : '\n（已确认对照录像）'}`,
       '确认争议处理',
       {
-      type: resolutionType === 'WAIVE' ? 'warning' : 'info',
-      confirmButtonText: '确认处理',
-      cancelButtonText: '取消'
-    });
+        type: resolutionType === 'WAIVE' ? 'warning' : 'info',
+        confirmButtonText: '确认处理',
+        cancelButtonText: '取消'
+      }
+    );
   } catch (e: any) {
     if (e === 'cancel' || e === 'close') return;
     ElMessage.error(e instanceof Error ? e.message : '确认失败');
@@ -900,14 +1039,21 @@ async function load(showToast = false) {
     if (categoryTab.value && categoryTab.value !== 'ALL') {
       q.set('category', categoryTab.value);
     }
-    if (categoryTab.value === 'RECOGNITION' && reviewCodeTab.value && reviewCodeTab.value !== 'ALL') {
+    if (
+      categoryTab.value === 'RECOGNITION' &&
+      reviewCodeTab.value &&
+      reviewCodeTab.value !== 'ALL'
+    ) {
       q.set('reviewCode', reviewCodeTab.value);
     }
     const classified = classifyKeyword(keyword.value);
     if (classified.sessionId) q.set('sessionId', classified.sessionId);
     if (classified.deviceId) q.set('deviceId', classified.deviceId);
     if (classified.orderId) q.set('orderId', classified.orderId);
-    const data = await api.request<PageResult<DisputeTicketDto>>(`/api/v2/ops/disputes?${q}`, 'GET');
+    const data = await api.request<PageResult<DisputeTicketDto>>(
+      `/api/v2/ops/disputes?${q}`,
+      'GET'
+    );
     items.value = sortById(data.items || [], 'ticketId');
     total.value = data.total || 0;
     clearSelection();
@@ -1065,20 +1211,45 @@ onMounted(async () => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; }
-.review-code-tabs { margin: 0 0 12px; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+}
+.review-code-tabs {
+  margin: 0 0 12px;
+}
 .detected-classes {
   margin-top: 4px;
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 1.4;
 }
-.reason-block { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.ticket-cell:hover strong { text-decoration: underline; }
+.reason-block {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.ticket-cell:hover strong {
+  text-decoration: underline;
+}
 .link-cell {
   appearance: none;
   border: 0;
@@ -1090,19 +1261,52 @@ onMounted(async () => {
   text-align: center;
   font: inherit;
 }
-.link-cell:hover { text-decoration: underline; }
-.link-cell.mono { font-family: inherit; font-size: inherit; }
-.muted { color: var(--el-text-color-secondary); }
-.resolve-feedback { margin-bottom: 16px; }
-.drawer-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
-.drawer-actions--review { margin-top: 16px; margin-bottom: 0; }
-.status-tabs { margin: 0 0 10px; }
-.items-block { margin-top: 20px; }
-.items-title { font-weight: 600; margin-bottom: 8px; }
-.ai-suggest-block { width: 100%; margin-bottom: 12px; }
-.suggest-alert { margin-top: 8px; }
-.no-video-guide { margin: 8px 0; }
-.hidden-input { display: none; }
+.link-cell:hover {
+  text-decoration: underline;
+}
+.link-cell.mono {
+  font-family: inherit;
+  font-size: inherit;
+}
+.muted {
+  color: var(--el-text-color-secondary);
+}
+.resolve-feedback {
+  margin-bottom: 16px;
+}
+.drawer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+.drawer-actions--review {
+  margin-top: 16px;
+  margin-bottom: 0;
+}
+.status-tabs {
+  margin: 0 0 10px;
+}
+.items-block {
+  margin-top: 20px;
+}
+.items-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.ai-suggest-block {
+  width: 100%;
+  margin-bottom: 12px;
+}
+.suggest-alert {
+  margin-top: 8px;
+}
+.no-video-guide {
+  margin: 8px 0;
+}
+.hidden-input {
+  display: none;
+}
 .workbench-grid {
   display: grid;
   grid-template-columns: minmax(280px, 1.1fr) minmax(280px, 1fr);
@@ -1110,7 +1314,9 @@ onMounted(async () => {
   align-items: start;
 }
 .workbench-media,
-.workbench-meta { min-width: 0; }
+.workbench-meta {
+  min-width: 0;
+}
 .video-wrap {
   border: 1px solid var(--el-border-color);
   border-radius: 8px;
@@ -1130,10 +1336,22 @@ onMounted(async () => {
   border: 1px dashed var(--el-border-color);
   border-radius: 8px;
 }
-.adjust-block { width: 100%; }
-.manual-lines { display: grid; gap: 10px; margin-top: 10px; }
-.manual-line { display: flex; gap: 8px; align-items: center; }
+.adjust-block {
+  width: 100%;
+}
+.manual-lines {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+.manual-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 @media (max-width: 900px) {
-  .workbench-grid { grid-template-columns: 1fr; }
+  .workbench-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -9,7 +9,9 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:user:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:user:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -43,10 +45,21 @@
           row-key="userId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange" empty-text=" ">
-          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无用户" /></template>
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无用户"
+          /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="userId" label="用户编号" width="100" align="center" class-name="col-text" sortable="custom">
+          <el-table-column
+            prop="userId"
+            label="用户编号"
+            width="100"
+            align="center"
+            class-name="col-text"
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.userId }}</span>
             </template>
@@ -59,12 +72,28 @@
             class-name="col-money"
             label-class-name="col-money"
           >
-            <template #default="{ row }">¥{{ ((row.balanceCents || 0) / 100).toFixed(2) }}</template>
+            <template #default="{ row }"
+              >¥{{ ((row.balanceCents || 0) / 100).toFixed(2) }}</template
+            >
           </el-table-column>
-          <el-table-column label="用户" min-width="120" class-name="col-text" label-class-name="col-text" align="center" header-align="center">
+          <el-table-column
+            label="用户"
+            min-width="120"
+            class-name="col-text"
+            label-class-name="col-text"
+            align="center"
+            header-align="center"
+          >
             <template #default="{ row }">{{ row.name || '未命名' }}</template>
           </el-table-column>
-          <el-table-column label="手机号" width="140" class-name="col-text" label-class-name="col-text" align="center" header-align="center">
+          <el-table-column
+            label="手机号"
+            width="140"
+            class-name="col-text"
+            label-class-name="col-text"
+            align="center"
+            header-align="center"
+          >
             <template #default="{ row }">{{ row.phoneNumber || '无' }}</template>
           </el-table-column>
           <el-table-column label="角色" width="110" align="center">
@@ -105,23 +134,35 @@
       </div>
     </div>
 
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="total"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next"
-        background
-        @current-change="load"
-        @size-change="onSizeChange"
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
   </el-card>
 
-  <el-dialog v-model="adjustVisible" title="调整用户余额" width="460px" append-to-body destroy-on-close :close-on-click-modal="false">
+  <el-dialog
+    v-model="adjustVisible"
+    title="调整用户余额"
+    width="460px"
+    append-to-body
+    destroy-on-close
+    :close-on-click-modal="false"
+  >
     <div v-if="adjustRow" class="adjust-user">
       <div class="adjust-user__name">{{ adjustRow.name || '未命名' }}</div>
-      <div class="adjust-user__id">用户 {{ adjustRow.userId }} · {{ adjustRow.phoneNumber || '无手机号' }}</div>
-      <div class="adjust-user__balance">当前余额 <b>¥{{ ((adjustRow.balanceCents || 0) / 100).toFixed(2) }}</b></div>
+      <div class="adjust-user__id">
+        用户 {{ adjustRow.userId }} · {{ adjustRow.phoneNumber || '无手机号' }}
+      </div>
+      <div class="adjust-user__balance">
+        当前余额 <b>¥{{ ((adjustRow.balanceCents || 0) / 100).toFixed(2) }}</b>
+      </div>
     </div>
     <el-form label-position="top" @submit.prevent="submitAdjust">
       <el-form-item label="变动金额（元，正数发放、负数扣回）" required>
@@ -136,7 +177,13 @@
         />
       </el-form-item>
       <el-form-item label="调整原因" required>
-        <el-input v-model="adjustForm.reason" type="textarea" :rows="2" maxlength="100" placeholder="必填，提交后不可删除" />
+        <el-input
+          v-model="adjustForm.reason"
+          type="textarea"
+          :rows="2"
+          maxlength="100"
+          placeholder="必填，提交后不可删除"
+        />
       </el-form-item>
     </el-form>
     <template #footer>
@@ -190,7 +237,8 @@ function userActions(row: UserRow): TableAction[] {
 }
 
 const showActionColumn = computed(
-  () => (canAdjust.value || canVerify.value) && items.value.some((row) => userActions(row).length > 0)
+  () =>
+    (canAdjust.value || canVerify.value) && items.value.some((row) => userActions(row).length > 0)
 );
 
 function onUserAction(key: string, row: UserRow) {
@@ -200,12 +248,16 @@ function onUserAction(key: string, row: UserRow) {
 
 async function verifyUser(row: UserRow) {
   try {
-    const { value } = await ElMessageBox.prompt('确认实名姓名（可留空）', `核验用户 ${row.userId}`, {
-      confirmButtonText: '确认已实名',
-      cancelButtonText: '取消',
-      inputPlaceholder: row.name || '真实姓名',
-      inputValue: row.name || ''
-    });
+    const { value } = await ElMessageBox.prompt(
+      '确认实名姓名（可留空）',
+      `核验用户 ${row.userId}`,
+      {
+        confirmButtonText: '确认已实名',
+        cancelButtonText: '取消',
+        inputPlaceholder: row.name || '真实姓名',
+        inputValue: row.name || ''
+      }
+    );
     await api.request(`/api/v2/ops/admin/users/${row.userId}/verify`, 'POST', {
       verified: true,
       realName: (value || '').trim() || undefined
@@ -405,18 +457,42 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; }
-.user-cell { display: grid; gap: 2px; line-height: 1.35; }
-.user-cell strong { font-weight: 650; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+}
+.user-cell {
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+}
+.user-cell strong {
+  font-weight: 650;
+}
 .user-cell small {
   color: var(--el-text-color-secondary);
   font-family: inherit;
 }
-.muted { color: var(--el-text-color-secondary); }
+.muted {
+  color: var(--el-text-color-secondary);
+}
 .adjust-user {
   padding: 12px 14px;
   margin-bottom: 16px;

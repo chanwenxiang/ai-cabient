@@ -10,4 +10,7 @@ const isH5DevBrowser =
   typeof navigator !== 'undefined' &&
   !/miniProgram|miniprogram/i.test(navigator.userAgent);
 
-export const API_BASE_URL = (isH5DevBrowser ? '' : envBase || 'http://localhost:8080').replace(/\/$/, '');
+export const API_BASE_URL = (isH5DevBrowser ? '' : envBase || 'http://localhost:8080').replace(
+  /\/$/,
+  ''
+);

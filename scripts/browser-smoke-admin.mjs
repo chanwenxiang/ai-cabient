@@ -66,7 +66,10 @@ async function visit(routePath, name) {
   const hasBusy = /系统繁忙|请求失败 \(500\)|NoSuchMethodError/.test(bodyText);
   let category = null;
   if (name === 'skus') {
-    const item = page.locator('.el-form-item').filter({ hasText: /^类目$/ }).first();
+    const item = page
+      .locator('.el-form-item')
+      .filter({ hasText: /^类目$/ })
+      .first();
     const select = item.locator('.el-select').first();
     await select.waitFor({ state: 'visible', timeout: 15000 });
     const input = select.locator('input').first();
@@ -109,7 +112,10 @@ await browser.close();
 
 const failed = results.filter((r) => r.hasBusy || r.apiErrors.some((e) => e.status >= 500));
 if (failed.length) {
-  console.error('SMOKE_FAILED', failed.map((f) => f.name));
+  console.error(
+    'SMOKE_FAILED',
+    failed.map((f) => f.name)
+  );
   process.exit(1);
 }
 console.log('SMOKE_OK');

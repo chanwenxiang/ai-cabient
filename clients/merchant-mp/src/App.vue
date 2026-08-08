@@ -151,8 +151,15 @@ button::after {
   transform: scale(0.985);
 }
 
-.meta { color: #64748b; font-size: 24rpx; }
-.slot-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.meta {
+  color: #64748b;
+  font-size: 24rpx;
+}
+.slot-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 .slot-cell {
   width: 30%;
   border: 1px solid #e2e8f0;

@@ -298,10 +298,7 @@ export function uploadReplenishmentEvidenceFile(
 }
 
 /** Auth-aware download for evidence stream URLs (image tags cannot send Bearer). */
-export function downloadReplenishmentEvidenceFile(
-  taskId: number,
-  fileId: number
-): Promise<string> {
+export function downloadReplenishmentEvidenceFile(taskId: number, fileId: number): Promise<string> {
   const url = `${API_BASE_URL}/api/v2/merchant/replenishment/tasks/${taskId}/evidence/${fileId}`;
   return downloadAuthedFile(url);
 }
@@ -310,14 +307,19 @@ export const merchantApi = {
   me: () => request<import('@aicabinet/shared-types').MerchantMe>('/api/v2/merchant/me'),
   stats: () => request<Record<string, number>>('/api/v2/merchant/stats'),
   trend: (days = 7) =>
-    request<{ last7Days?: { date: string; revenueCents: number }[] }>(`/api/v2/merchant/trend?days=${days}`),
-  devices: () => request<import('@aicabinet/shared-types').DeviceInfo[]>('/api/v2/merchant/devices'),
+    request<{ last7Days?: { date: string; revenueCents: number }[] }>(
+      `/api/v2/merchant/trend?days=${days}`
+    ),
+  devices: () =>
+    request<import('@aicabinet/shared-types').DeviceInfo[]>('/api/v2/merchant/devices'),
   deviceSettings: (id: string) =>
     request<Record<string, unknown>>(`/api/v2/merchant/devices/${encodeURIComponent(id)}/settings`),
   updateDeviceSettings: (id: string, body: Record<string, unknown>) =>
     request(`/api/v2/merchant/devices/${encodeURIComponent(id)}/settings`, 'PATCH', body),
   deviceSlots: (id: string) =>
-    request<import('@aicabinet/shared-types').DeviceSlot[]>(`/api/v2/merchant/devices/${encodeURIComponent(id)}/slots`),
+    request<import('@aicabinet/shared-types').DeviceSlot[]>(
+      `/api/v2/merchant/devices/${encodeURIComponent(id)}/slots`
+    ),
   upsertSlots: (id: string, body: import('@aicabinet/shared-types').UpsertDeviceSlotRequest[]) =>
     request(`/api/v2/merchant/devices/${encodeURIComponent(id)}/slots`, 'PUT', body),
   pricing: (deviceId?: string) =>
@@ -330,11 +332,14 @@ export const merchantApi = {
       'PATCH',
       body
     ),
-  workbench: () => request<import('@aicabinet/shared-types').MerchantWorkbench>('/api/v2/merchant/workbench'),
+  workbench: () =>
+    request<import('@aicabinet/shared-types').MerchantWorkbench>('/api/v2/merchant/workbench'),
   listAnnouncements: () =>
     request<import('@aicabinet/shared-types').AnnouncementDto[]>('/api/v2/merchant/announcements'),
   getAnnouncement: (id: number) =>
-    request<import('@aicabinet/shared-types').AnnouncementDto>(`/api/v2/merchant/announcements/${id}`),
+    request<import('@aicabinet/shared-types').AnnouncementDto>(
+      `/api/v2/merchant/announcements/${id}`
+    ),
   teamUsers: () =>
     request<import('@aicabinet/shared-types').MerchantUserDto[]>('/api/v2/merchant/team/users'),
   teamRoles: () =>
@@ -345,11 +350,12 @@ export const merchantApi = {
     displayName?: string;
     roleKey?: string;
   }) =>
-    request<import('@aicabinet/shared-types').MerchantUserDto>('/api/v2/merchant/team/users', 'POST', body),
-  updateTeamUser: (
-    userId: number,
-    body: { displayName?: string; roleKey?: string }
-  ) =>
+    request<import('@aicabinet/shared-types').MerchantUserDto>(
+      '/api/v2/merchant/team/users',
+      'POST',
+      body
+    ),
+  updateTeamUser: (userId: number, body: { displayName?: string; roleKey?: string }) =>
     request<import('@aicabinet/shared-types').MerchantUserDto>(
       `/api/v2/merchant/team/users/${userId}`,
       'PATCH',
@@ -374,13 +380,21 @@ export const merchantApi = {
   notifyPrefs: () =>
     request<{ wxBound: boolean; enabledAlertTypes: string[] }>('/api/v2/merchant/notify/prefs'),
   notifyWxBind: (code: string) =>
-    request<{ wxBound: boolean; enabledAlertTypes: string[] }>('/api/v2/merchant/notify/wx-bind', 'POST', {
-      code
-    }),
+    request<{ wxBound: boolean; enabledAlertTypes: string[] }>(
+      '/api/v2/merchant/notify/wx-bind',
+      'POST',
+      {
+        code
+      }
+    ),
   notifySubscribe: (alertTypes: string[]) =>
-    request<{ wxBound: boolean; enabledAlertTypes: string[] }>('/api/v2/merchant/notify/subscribe', 'POST', {
-      alertTypes
-    }),
+    request<{ wxBound: boolean; enabledAlertTypes: string[] }>(
+      '/api/v2/merchant/notify/subscribe',
+      'POST',
+      {
+        alertTypes
+      }
+    ),
   exceptions: (status = 'OPEN', page = 0, size = 100) =>
     request<{
       items: Array<{
@@ -431,18 +445,21 @@ export const merchantApi = {
     };
   },
   resolveInventoryException: (id: string, resolution: string) =>
-    request(`/api/v2/merchant/exceptions/${encodeURIComponent(id)}/resolve`, 'POST', { resolution }),
-  analytics: (days = 30) => request<import('@aicabinet/shared-types').MerchantAnalyticsOverview>(`/api/v2/merchant/analytics/overview?days=${days}`),
+    request(`/api/v2/merchant/exceptions/${encodeURIComponent(id)}/resolve`, 'POST', {
+      resolution
+    }),
+  analytics: (days = 30) =>
+    request<import('@aicabinet/shared-types').MerchantAnalyticsOverview>(
+      `/api/v2/merchant/analytics/overview?days=${days}`
+    ),
   settlements: () =>
     request<import('@aicabinet/shared-types').MerchantSettlementOverview>(
       '/api/v2/merchant/settlements/overview'
     ),
-  lineWallet: () =>
-    request<LineWalletOverview>('/api/v2/merchant/line-wallet'),
+  lineWallet: () => request<LineWalletOverview>('/api/v2/merchant/line-wallet'),
   lineWalletWithdraw: (body: { amountCents: number; requestNo?: string }) =>
     request('/api/v2/merchant/line-wallet/withdraw', 'POST', body),
-  wallet: () =>
-    request<WalletOverview>('/api/v2/merchant/wallet'),
+  wallet: () => request<WalletOverview>('/api/v2/merchant/wallet'),
   walletWithdraw: (body: { amountCents: number; requestNo?: string }) =>
     request('/api/v2/merchant/wallet/withdraw', 'POST', body),
   dailySettlements: (from: string, to: string) =>
@@ -482,9 +499,12 @@ export const merchantApi = {
     deviceId: string;
     notes?: string;
     lines: { skuId: string; requestedQty: number }[];
-  }) => request<MerchantReplenishmentRequest>('/api/v2/merchant/replenishment/requests', 'POST', body),
+  }) =>
+    request<MerchantReplenishmentRequest>('/api/v2/merchant/replenishment/requests', 'POST', body),
   replenishmentTasks: (status?: string) =>
-    request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/tasks${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+    request<Record<string, unknown>[]>(
+      `/api/v2/merchant/replenishment/tasks${status ? `?status=${encodeURIComponent(status)}` : ''}`
+    ),
   replenishmentTaskLines: (taskId: number) =>
     request<Record<string, unknown>[]>(`/api/v2/merchant/replenishment/tasks/${taskId}/lines`),
   checkInReplenishmentTask: (taskId: number, body?: { latitude?: number; longitude?: number }) =>
@@ -586,7 +606,10 @@ export function canEditPricing(me: import('@aicabinet/shared-types').MerchantMe 
 }
 
 /** 若依风格：精确码或分段通配 merchant:replenishment:*（@aicabinet/shared-rbac） */
-export function hasPerm(me: import('@aicabinet/shared-types').MerchantMe | null | undefined, code: string) {
+export function hasPerm(
+  me: import('@aicabinet/shared-types').MerchantMe | null | undefined,
+  code: string
+) {
   return matchPermission(me?.permissions, code);
 }
 

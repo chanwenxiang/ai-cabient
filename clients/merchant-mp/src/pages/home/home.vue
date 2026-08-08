@@ -1,9 +1,14 @@
 <template>
   <view class="page">
     <view v-if="loading && !meName" class="card"><text>加载中…</text></view>
-    <view v-else-if="error && !meName" class="card"><text class="err">{{ error }}</text></view>
+    <view v-else-if="error && !meName" class="card"
+      ><text class="err">{{ error }}</text></view
+    >
     <view v-else>
-      <view v-if="error" class="banner-err"><text>{{ error }}</text><text class="banner-retry" @click="load">重试</text></view>
+      <view v-if="error" class="banner-err"
+        ><text>{{ error }}</text
+        ><text class="banner-retry" @click="load">重试</text></view
+      >
       <view class="dash-header">
         <text class="hello">你好，{{ meName }}</text>
         <text class="sub">{{ merchantNames }}</text>
@@ -29,7 +34,9 @@
           <text class="scan-title">扫码到柜</text>
           <text class="scan-desc">扫描柜门二维码，查看库存或开始补货</text>
         </view>
-        <button class="scan-btn" hover-class="btn-hover" :loading="scanning" @click="onScan">扫码</button>
+        <button class="scan-btn" hover-class="btn-hover" :loading="scanning" @click="onScan">
+          扫码
+        </button>
       </view>
 
       <view
@@ -91,7 +98,9 @@
           <text class="empty-hint">可扫码巡柜看缺货，或从柜机列表进详情</text>
           <view class="empty-btns">
             <button class="empty-btn primary" :loading="scanning" @click="onScan">扫码到柜</button>
-            <button v-if="canDevices" class="empty-btn" @click="goTab('/pages/devices/devices')">柜机列表</button>
+            <button v-if="canDevices" class="empty-btn" @click="goTab('/pages/devices/devices')">
+              柜机列表
+            </button>
             <button class="empty-btn" @click="goReplenishment()">查看记录</button>
           </view>
         </view>
@@ -107,7 +116,9 @@
           <view class="task-copy">
             <text class="task-name">
               {{ deviceLabel(task.deviceId) }}
-              <text v-if="preferredId && task.deviceId === preferredId" class="pref-mark">常驻</text>
+              <text v-if="preferredId && task.deviceId === preferredId" class="pref-mark"
+                >常驻</text
+              >
             </text>
             <text class="task-meta">{{ task.deviceId }} · {{ statusLabel(task.status) }}</text>
           </view>
@@ -115,7 +126,11 @@
         </view>
       </view>
 
-      <view v-if="canAlerts && actionItems.length" class="card section-card" @click="goTab('/pages/alerts/alerts')">
+      <view
+        v-if="canAlerts && actionItems.length"
+        class="card section-card"
+        @click="goTab('/pages/alerts/alerts')"
+      >
         <view class="section-head">
           <text class="section">优先待办</text>
           <text class="section-more">查看全部 ›</text>
@@ -136,7 +151,10 @@
         </view>
       </view>
 
-      <view v-if="canPricing || canSettlements || canDisputes || canBusiness || canReplenishment" class="ops-block">
+      <view
+        v-if="canPricing || canSettlements || canDisputes || canBusiness || canReplenishment"
+        class="ops-block"
+      >
         <text class="ops-title">经营工具</text>
         <view class="ops-grid">
           <view v-if="canReplenishment" class="ops-card" @click="goRequest">
@@ -223,12 +241,7 @@ const canBusiness = computed(() => bizOk('business'));
 const canTrend = computed(
   () => hasPack(me.value, 'biz') && hasPerm(me.value, 'merchant:trend:view')
 );
-const canFinanceKpi = computed(
-  () =>
-    canBusiness.value ||
-    canSettlements.value ||
-    canTrend.value
-);
+const canFinanceKpi = computed(() => canBusiness.value || canSettlements.value || canTrend.value);
 
 const loading = ref(true);
 const taskPreviewLoading = ref(false);
@@ -358,40 +371,45 @@ async function load() {
     meName.value = profile.displayName || profile.phoneNumber || '同事';
     merchantNames.value = formatMerchantNames(profile.merchants);
 
-    const [s, trend, workbench, exceptionPage, expiryRows, devices, tasks, announcements] = await Promise.all([
-      merchantApi.stats().catch(() => ({} as Record<string, number>)),
-      canTrend.value
-        ? (merchantApi.trend(7) as Promise<{ last7Days?: { date: string; revenueCents: number }[] }>).catch(
-            () => ({ last7Days: [] })
-          )
-        : Promise.resolve({ last7Days: [] }),
-      canAlerts.value
-        ? merchantApi.workbench().catch(() => ({
-            offlineDevices: 0,
-            openDisputes: 0,
-            lowStockItems: 0,
-            expiryAlerts: 0,
-            slotDiscrepancies: 0,
-            actionItems: []
-          }))
-        : Promise.resolve({
-            offlineDevices: 0,
-            openDisputes: 0,
-            lowStockItems: 0,
-            expiryAlerts: 0,
-            slotDiscrepancies: 0,
-            actionItems: []
-          }),
-      canAlerts.value
-        ? merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 }))
-        : Promise.resolve({ items: [], total: 0 }),
-      canAlerts.value ? merchantApi.expiryAlerts().catch(() => []) : Promise.resolve([]),
-      canDevices.value || canReplenishment.value
-        ? merchantApi.devices().catch(() => [])
-        : Promise.resolve([]),
-      canReplenishment.value ? merchantApi.replenishmentTasks().catch(() => []) : Promise.resolve([]),
-      merchantApi.listAnnouncements().catch(() => [])
-    ]);
+    const [s, trend, workbench, exceptionPage, expiryRows, devices, tasks, announcements] =
+      await Promise.all([
+        merchantApi.stats().catch(() => ({}) as Record<string, number>),
+        canTrend.value
+          ? (
+              merchantApi.trend(7) as Promise<{
+                last7Days?: { date: string; revenueCents: number }[];
+              }>
+            ).catch(() => ({ last7Days: [] }))
+          : Promise.resolve({ last7Days: [] }),
+        canAlerts.value
+          ? merchantApi.workbench().catch(() => ({
+              offlineDevices: 0,
+              openDisputes: 0,
+              lowStockItems: 0,
+              expiryAlerts: 0,
+              slotDiscrepancies: 0,
+              actionItems: []
+            }))
+          : Promise.resolve({
+              offlineDevices: 0,
+              openDisputes: 0,
+              lowStockItems: 0,
+              expiryAlerts: 0,
+              slotDiscrepancies: 0,
+              actionItems: []
+            }),
+        canAlerts.value
+          ? merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 }))
+          : Promise.resolve({ items: [], total: 0 }),
+        canAlerts.value ? merchantApi.expiryAlerts().catch(() => []) : Promise.resolve([]),
+        canDevices.value || canReplenishment.value
+          ? merchantApi.devices().catch(() => [])
+          : Promise.resolve([]),
+        canReplenishment.value
+          ? merchantApi.replenishmentTasks().catch(() => [])
+          : Promise.resolve([]),
+        merchantApi.listAnnouncements().catch(() => [])
+      ]);
     if (seq !== loadSeq) return;
     latestAnnouncement.value = announcements?.[0] || null;
 
@@ -413,12 +431,14 @@ async function load() {
       : [];
     pendingCount.value = mergedTodos.length;
     setAlertsTabBadge(pendingCount.value);
-    actionItems.value = canAlerts.value ? mergedTodos.slice(0, 3).map((a) => ({
-      type: a.type,
-      title: a.title,
-      detail: a.detail,
-      deviceId: a.deviceId
-    })) : [];
+    actionItems.value = canAlerts.value
+      ? mergedTodos.slice(0, 3).map((a) => ({
+          type: a.type,
+          title: a.title,
+          detail: a.detail,
+          deviceId: a.deviceId
+        }))
+      : [];
     trendBars.value = canFinanceKpi.value
       ? days.map((d) => ({
           date: d.date,
@@ -437,11 +457,23 @@ async function load() {
     const openTasks = taskRows.filter((t) => t.status !== 'COMPLETED' && t.status !== 'CANCELLED');
     preferredId.value = getPreferredDeviceId();
     const preferred = preferredId.value;
-    const preferredKey = String(preferred || '').trim().toUpperCase();
+    const preferredKey = String(preferred || '')
+      .trim()
+      .toUpperCase();
     const sorted = preferredKey
       ? [
-          ...openTasks.filter((t) => String(t.deviceId || '').trim().toUpperCase() === preferredKey),
-          ...openTasks.filter((t) => String(t.deviceId || '').trim().toUpperCase() !== preferredKey)
+          ...openTasks.filter(
+            (t) =>
+              String(t.deviceId || '')
+                .trim()
+                .toUpperCase() === preferredKey
+          ),
+          ...openTasks.filter(
+            (t) =>
+              String(t.deviceId || '')
+                .trim()
+                .toUpperCase() !== preferredKey
+          )
         ]
       : openTasks;
     pendingTaskCount.value = canReplenishment.value ? sorted.length : 0;
@@ -473,18 +505,41 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #fff;
   border-radius: 0 0 32rpx 32rpx;
 }
-.hello { font-size: 36rpx; font-weight: 700; display: block; }
-.sub { font-size: 24rpx; opacity: 0.85; display: block; margin-top: 6rpx; }
+.hello {
+  font-size: 36rpx;
+  font-weight: 700;
+  display: block;
+}
+.sub {
+  font-size: 24rpx;
+  opacity: 0.85;
+  display: block;
+  margin-top: 6rpx;
+}
 .header-stats {
   display: flex;
   margin-top: 28rpx;
   padding-top: 24rpx;
   border-top: 1rpx solid rgba(255, 255, 255, 0.18);
 }
-.h-stat { flex: 1; text-align: center; }
-.h-val { display: block; font-size: 40rpx; font-weight: 800; }
-.h-val.urgent { color: #fecaca; }
-.h-label { display: block; margin-top: 4rpx; font-size: 22rpx; opacity: 0.8; }
+.h-stat {
+  flex: 1;
+  text-align: center;
+}
+.h-val {
+  display: block;
+  font-size: 40rpx;
+  font-weight: 800;
+}
+.h-val.urgent {
+  color: #fecaca;
+}
+.h-label {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  opacity: 0.8;
+}
 
 .scan-card {
   margin: -20rpx 24rpx 0;
@@ -499,9 +554,23 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   box-shadow: 0 12rpx 36rpx rgba(15, 118, 110, 0.12);
   border: 1rpx solid #ccfbf1;
 }
-.scan-copy { flex: 1; min-width: 0; }
-.scan-title { display: block; font-size: 32rpx; font-weight: 700; color: #134e4a; }
-.scan-desc { display: block; margin-top: 6rpx; font-size: 24rpx; color: #64748b; line-height: 1.4; }
+.scan-copy {
+  flex: 1;
+  min-width: 0;
+}
+.scan-title {
+  display: block;
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #134e4a;
+}
+.scan-desc {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  color: #64748b;
+  line-height: 1.4;
+}
 .scan-btn {
   margin: 0;
   flex-shrink: 0;
@@ -515,8 +584,12 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   font-weight: 700;
   box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.25);
 }
-.scan-btn::after { border: none; }
-.btn-hover { opacity: 0.88; }
+.scan-btn::after {
+  border: none;
+}
+.btn-hover {
+  opacity: 0.88;
+}
 
 .notice-strip {
   margin: 16rpx 24rpx 0;
@@ -572,8 +645,17 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   border-color: #99f6e4;
   background: linear-gradient(180deg, #f0fdfa, #fff);
 }
-.quick-icon { display: block; font-size: 36rpx; }
-.quick-label { display: block; margin-top: 8rpx; font-size: 24rpx; color: #334155; font-weight: 600; }
+.quick-icon {
+  display: block;
+  font-size: 36rpx;
+}
+.quick-label {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #334155;
+  font-weight: 600;
+}
 .quick-badge {
   position: absolute;
   top: 10rpx;
@@ -603,8 +685,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   justify-content: space-between;
   margin-bottom: 8rpx;
 }
-.section { font-weight: 700; font-size: 30rpx; color: #0f172a; }
-.section-more { color: #0f766e; font-size: 24rpx; }
+.section {
+  font-weight: 700;
+  font-size: 30rpx;
+  color: #0f172a;
+}
+.section-more {
+  color: #0f766e;
+  font-size: 24rpx;
+}
 .pref-tip {
   display: block;
   margin: 0 0 12rpx;
@@ -617,9 +706,21 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #94a3b8;
   font-size: 26rpx;
 }
-.empty-actions { padding-bottom: 16rpx; }
-.empty-title { display: block; color: #64748b; font-size: 28rpx; font-weight: 600; }
-.empty-hint { display: block; margin-top: 8rpx; font-size: 22rpx; color: #cbd5e1; }
+.empty-actions {
+  padding-bottom: 16rpx;
+}
+.empty-title {
+  display: block;
+  color: #64748b;
+  font-size: 28rpx;
+  font-weight: 600;
+}
+.empty-hint {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #cbd5e1;
+}
 .empty-btns {
   display: flex;
   flex-wrap: wrap;
@@ -638,8 +739,13 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   background: #ecfdf5;
   border: none;
 }
-.empty-btn.primary { color: #fff; background: #0f766e; }
-.empty-btn::after { border: none; }
+.empty-btn.primary {
+  color: #fff;
+  background: #0f766e;
+}
+.empty-btn::after {
+  border: none;
+}
 .task-row {
   display: flex;
   align-items: center;
@@ -648,10 +754,23 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.task-row-hover { opacity: 0.72; }
-.task-row:first-of-type { border-top: 0; }
-.task-copy, .task-name, .task-meta, .task-go, .pref-mark { pointer-events: none; }
-.task-copy { flex: 1; min-width: 0; }
+.task-row-hover {
+  opacity: 0.72;
+}
+.task-row:first-of-type {
+  border-top: 0;
+}
+.task-copy,
+.task-name,
+.task-meta,
+.task-go,
+.pref-mark {
+  pointer-events: none;
+}
+.task-copy {
+  flex: 1;
+  min-width: 0;
+}
 .task-name {
   display: block;
   font-size: 28rpx;
@@ -670,11 +789,27 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   font-size: 20rpx;
   font-weight: 700;
 }
-.task-meta { display: block; margin-top: 4rpx; font-size: 22rpx; color: #94a3b8; }
-.task-go { color: #0f766e; font-size: 26rpx; font-weight: 600; }
+.task-meta {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
+}
+.task-go {
+  color: #0f766e;
+  font-size: 26rpx;
+  font-weight: 600;
+}
 
-.todo-row { display: flex; align-items: flex-start; padding: 14rpx 0; border-top: 1rpx solid #f1f5f9; }
-.todo-row-hover { opacity: 0.72; }
+.todo-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 14rpx 0;
+  border-top: 1rpx solid #f1f5f9;
+}
+.todo-row-hover {
+  opacity: 0.72;
+}
 .todo-dot {
   width: 12rpx;
   height: 12rpx;
@@ -683,8 +818,14 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   border-radius: 50%;
   background: #f59e0b;
 }
-.todo-copy { min-width: 0; }
-.todo-title { display: block; font-size: 26rpx; color: #0f172a; }
+.todo-copy {
+  min-width: 0;
+}
+.todo-title {
+  display: block;
+  font-size: 26rpx;
+  color: #0f172a;
+}
 .todo-detail {
   display: block;
   margin-top: 4rpx;
@@ -695,7 +836,9 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   text-overflow: ellipsis;
 }
 
-.ops-block { margin: 28rpx 24rpx 0; }
+.ops-block {
+  margin: 28rpx 24rpx 0;
+}
 .ops-title {
   display: block;
   margin: 0 8rpx 14rpx;
@@ -703,7 +846,11 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #94a3b8;
   letter-spacing: 1rpx;
 }
-.ops-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; }
+.ops-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12rpx;
+}
 .ops-card {
   background: #fff;
   border-radius: 18rpx;
@@ -711,26 +858,58 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   text-align: center;
   border: 1rpx solid #e2e8f0;
 }
-.ops-label { font-size: 28rpx; color: #334155; font-weight: 600; }
+.ops-label {
+  font-size: 28rpx;
+  color: #334155;
+  font-weight: 600;
+}
 
 .kpi-mini {
   display: flex;
   gap: 12rpx;
   margin: 16rpx 0 20rpx;
 }
-.kpi-mini > view { flex: 1; }
-.kpi-label { display: block; font-size: 22rpx; color: #64748b; }
-.kpi-value { display: block; margin-top: 6rpx; font-size: 28rpx; font-weight: 700; color: #0f766e; }
-.bars { display: flex; align-items: flex-end; gap: 8rpx; height: 140rpx; }
-.bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; }
+.kpi-mini > view {
+  flex: 1;
+}
+.kpi-label {
+  display: block;
+  font-size: 22rpx;
+  color: #64748b;
+}
+.kpi-value {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #0f766e;
+}
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 8rpx;
+  height: 140rpx;
+}
+.bar-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
 .bar {
   width: 100%;
   background: linear-gradient(180deg, #14b8a6, #0f766e);
   border-radius: 6rpx 6rpx 0 0;
   min-height: 8rpx;
 }
-.bar-label { font-size: 20rpx; color: #64748b; margin-top: 6rpx; }
-.err { color: #ef4444; }
+.bar-label {
+  font-size: 20rpx;
+  color: #64748b;
+  margin-top: 6rpx;
+}
+.err {
+  color: #ef4444;
+}
 .banner-err {
   margin: 16rpx 24rpx 0;
   padding: 18rpx 22rpx;
@@ -743,5 +922,9 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   align-items: center;
   gap: 16rpx;
 }
-.banner-retry { color: #0f766e; font-weight: 600; flex-shrink: 0; }
+.banner-retry {
+  color: #0f766e;
+  font-weight: 600;
+  flex-shrink: 0;
+}
 </style>

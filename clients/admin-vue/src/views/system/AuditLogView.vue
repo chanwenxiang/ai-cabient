@@ -9,7 +9,9 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:audit:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:audit:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
           <el-switch v-model="mineOnly" active-text="仅看我的" @change="onMineChange" />
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
@@ -18,13 +20,36 @@
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="动作">
-        <el-select v-model="actionFilter" clearable filterable placeholder="全部" style="width: 180px" @change="search">
-          <el-option v-for="(label, key) in AUDIT_ACTION_LABELS" :key="key" :label="label" :value="key" />
+        <el-select
+          v-model="actionFilter"
+          clearable
+          filterable
+          placeholder="全部"
+          style="width: 180px"
+          @change="search"
+        >
+          <el-option
+            v-for="(label, key) in AUDIT_ACTION_LABELS"
+            :key="key"
+            :label="label"
+            :value="key"
+          />
         </el-select>
       </el-form-item>
       <el-form-item label="对象">
-        <el-select v-model="targetFilter" clearable placeholder="全部" style="width: 150px" @change="search">
-          <el-option v-for="(label, key) in AUDIT_TARGET_LABELS" :key="key" :label="label" :value="key" />
+        <el-select
+          v-model="targetFilter"
+          clearable
+          placeholder="全部"
+          style="width: 150px"
+          @change="search"
+        >
+          <el-option
+            v-for="(label, key) in AUDIT_TARGET_LABELS"
+            :key="key"
+            :label="label"
+            :value="key"
+          />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -44,12 +69,21 @@
           row-key="logId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange" empty-text=" ">
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
           <template #empty>
             <el-empty v-if="listHydrated && !loading" description="暂无审计日志" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="logId" label="日志编号" width="100" align="center" class-name="col-text" sortable="custom">
+          <el-table-column
+            prop="logId"
+            label="日志编号"
+            width="100"
+            align="center"
+            class-name="col-text"
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.logId }}</span>
             </template>
@@ -59,40 +93,71 @@
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作人" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="操作人"
+            min-width="120"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ operatorLabel(row) }}</template>
           </el-table-column>
-          <el-table-column label="动作" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="动作"
+            min-width="160"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <el-tag size="small" effect="plain">{{ auditActionLabel(row.action) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="对象类型" min-width="110" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="对象类型"
+            min-width="110"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ auditTargetLabel(row.targetType) }}</template>
           </el-table-column>
-          <el-table-column label="对象ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="对象ID"
+            min-width="120"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <span v-if="row.targetId" class="cell-id">{{ row.targetId }}</span>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="详情" min-width="220" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="详情"
+            min-width="220"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ formatOpsActionDetail(row.detail) }}</template>
           </el-table-column>
         </el-table>
       </div>
     </div>
 
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="total"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next"
-        background
-        @current-change="onPageChange"
-        @size-change="onSizeChange"
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+      @current-change="onPageChange"
+      @size-change="onSizeChange"
+    />
   </el-card>
 </template>
 
@@ -223,7 +288,10 @@ async function scanAuditPages(): Promise<AuditRow[]> {
       size: String(pageSize),
       sortDir: idSortDir.value
     });
-    const data = await api.request<PageResult<AuditRow>>(`/api/v2/ops/admin/audit-logs?${q}`, 'GET');
+    const data = await api.request<PageResult<AuditRow>>(
+      `/api/v2/ops/admin/audit-logs?${q}`,
+      'GET'
+    );
     const batch = data.items || [];
     serverTotal = data.total ?? batch.length;
     all.push(...batch);
@@ -258,7 +326,10 @@ async function load() {
         size: String(size.value),
         sortDir: idSortDir.value
       });
-      const data = await api.request<PageResult<AuditRow>>(`/api/v2/ops/admin/audit-logs?${q}`, 'GET');
+      const data = await api.request<PageResult<AuditRow>>(
+        `/api/v2/ops/admin/audit-logs?${q}`,
+        'GET'
+      );
       items.value = data.items || [];
       total.value = data.total || 0;
     }
@@ -331,10 +402,30 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.muted { color: var(--el-text-color-secondary); }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.muted {
+  color: var(--el-text-color-secondary);
+}
 </style>

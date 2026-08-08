@@ -305,20 +305,51 @@ export const DICT = {
         INVENTORY_ADJUSTMENT: '库存调整',
         MANUAL: '人工操作'
     },
-    replenishment_route_status: { PLANNED: '待执行', IN_PROGRESS: '执行中', COMPLETED: '已完成', CANCELLED: '已取消' },
-    replenishment_task_status: { PENDING: '待处理', IN_PROGRESS: '进行中', COMPLETED: '已完成', CANCELLED: '已取消' },
-    replenishment_request_status: { SUBMITTED: '待审核', ACCEPTED: '已接单', REJECTED: '已驳回', COMPLETED: '已完成' },
-    inventory_lot_status: { ON_SALE: '在售', NEAR_EXPIRY: '临期', BLOCKED: '已冻结', DEPLETED: '已耗尽' },
+    replenishment_route_status: {
+        PLANNED: '待执行',
+        IN_PROGRESS: '执行中',
+        COMPLETED: '已完成',
+        CANCELLED: '已取消'
+    },
+    replenishment_task_status: {
+        PENDING: '待处理',
+        IN_PROGRESS: '进行中',
+        COMPLETED: '已完成',
+        CANCELLED: '已取消'
+    },
+    replenishment_request_status: {
+        SUBMITTED: '待审核',
+        ACCEPTED: '已接单',
+        REJECTED: '已驳回',
+        COMPLETED: '已完成'
+    },
+    inventory_lot_status: {
+        ON_SALE: '在售',
+        NEAR_EXPIRY: '临期',
+        BLOCKED: '已冻结',
+        DEPLETED: '已耗尽'
+    },
     exception_severity: { CRITICAL: '紧急', HIGH: '高', MEDIUM: '中', LOW: '低' },
     exception_status: { OPEN: '待处理', PROCESSING: '处理中', RESOLVED: '已解决', CLOSED: '已关闭' },
     exception_type: {
-        DISPUTE: '消费争议', LOW_STOCK: '低库存', EXPIRY: '临期商品', REPLENISHMENT_REQUIRED: '待补货',
-        DEVICE_OFFLINE: '设备离线', DEVICE_FAULT: '设备故障', DOOR_OPEN_TOO_LONG: '长时间未关门',
-        OPEN_TIMEOUT: '开门超时', UPLOAD_STUCK: '录像上传滞留', RECOGNITION_STUCK: '识别滞留',
-        RECOGNITION_TIMEOUT: '识别超时', RECOGNITION_FAILED: '识别存疑需人工审核',
+        DISPUTE: '消费争议',
+        LOW_STOCK: '低库存',
+        EXPIRY: '临期商品',
+        REPLENISHMENT_REQUIRED: '待补货',
+        DEVICE_OFFLINE: '设备离线',
+        DEVICE_FAULT: '设备故障',
+        DOOR_OPEN_TOO_LONG: '长时间未关门',
+        OPEN_TIMEOUT: '开门超时',
+        UPLOAD_STUCK: '录像上传滞留',
+        RECOGNITION_STUCK: '识别滞留',
+        RECOGNITION_TIMEOUT: '识别超时',
+        RECOGNITION_FAILED: '识别存疑需人工审核',
         RECOGNITION_UNAVAILABLE: '识别服务不可用',
-        BALANCE_INSUFFICIENT: '余额不足', SETTLEMENT_FAILED: '结算失败', SETTLEMENT_STUCK: '结算滞留',
-        INVENTORY_MISMATCH: '库存差异', SLOT_DISCREPANCY: '货道账实差异'
+        BALANCE_INSUFFICIENT: '余额不足',
+        SETTLEMENT_FAILED: '结算失败',
+        SETTLEMENT_STUCK: '结算滞留',
+        INVENTORY_MISMATCH: '库存差异',
+        SLOT_DISCREPANCY: '货道账实差异'
     },
     ops_exception_action: {
         OPS_EXCEPTION_CLAIM: '领取异常',
@@ -332,7 +363,12 @@ export const DICT = {
         OPS_EXCEPTION_AUTO_RESOLVE: '系统自动解决',
         MERCHANT_OPS_EXCEPTION_RESOLVE: '商家处理异常'
     },
-    reconciliation_status: { MATCHED: '已平账', MISMATCH: '存在差异', PENDING: '待处理', FAILED: '失败' },
+    reconciliation_status: {
+        MATCHED: '已平账',
+        MISMATCH: '存在差异',
+        PENDING: '待处理',
+        FAILED: '失败'
+    },
     settlement_batch_status: {
         PENDING: '待结算',
         PROCESSING: '结算中',
@@ -344,9 +380,15 @@ export const DICT = {
     },
     sku_status: { ACTIVE: '在售', INACTIVE: '停用', DISABLED: '禁售' },
     order_status: {
-        PENDING: '待支付', PROCESSING: '处理中', PAID: '已支付', COMPLETED: '已完成',
-        DISPUTED: '争议中', REFUNDED: '已退款', PARTIAL_REFUNDED: '部分退款',
-        FAILED: '处理失败', CANCELLED: '已取消'
+        PENDING: '待支付',
+        PROCESSING: '处理中',
+        PAID: '已支付',
+        COMPLETED: '已完成',
+        DISPUTED: '争议中',
+        REFUNDED: '已退款',
+        PARTIAL_REFUNDED: '部分退款',
+        FAILED: '处理失败',
+        CANCELLED: '已取消'
     },
     route_code: {
         R01: '路线 R01',
@@ -358,13 +400,40 @@ export const DICT = {
     category_code: {}
 };
 const STATUS_TAGS = {
-    ACTIVE: 'success', ONLINE: 'success', COMPLETED: 'success', RECEIVED: 'success', SUCCESS: 'success', ON_SALE: 'success',
-    MATCHED: 'success', RESOLVED: 'success', CLOSED: 'success',
-    CREATED: 'info', DRAFT: 'info', PENDING: 'info', SUBMITTED: 'info', OPEN: 'warning',
+    ACTIVE: 'success',
+    ONLINE: 'success',
+    COMPLETED: 'success',
+    RECEIVED: 'success',
+    SUCCESS: 'success',
+    ON_SALE: 'success',
+    MATCHED: 'success',
+    RESOLVED: 'success',
+    CLOSED: 'success',
+    CREATED: 'info',
+    DRAFT: 'info',
+    PENDING: 'info',
+    SUBMITTED: 'info',
+    OPEN: 'warning',
     PROCESSING: 'warning',
-    LOW: 'info', MEDIUM: 'warning',
-    PARTIAL_RECEIVED: 'warning', PICKED: 'warning', IN_PROGRESS: 'warning', IN_TRANSIT: 'warning', NEAR_EXPIRY: 'warning', PARTIAL: 'warning', HIGH: 'warning',
-    INACTIVE: 'danger', OFFLINE: 'danger', FAILED: 'danger', REJECTED: 'danger', CANCELLED: 'danger', BLOCKED: 'danger', LOST: 'danger', DAMAGED: 'danger', CRITICAL: 'danger', MISMATCH: 'danger'
+    LOW: 'info',
+    MEDIUM: 'warning',
+    PARTIAL_RECEIVED: 'warning',
+    PICKED: 'warning',
+    IN_PROGRESS: 'warning',
+    IN_TRANSIT: 'warning',
+    NEAR_EXPIRY: 'warning',
+    PARTIAL: 'warning',
+    HIGH: 'warning',
+    INACTIVE: 'danger',
+    OFFLINE: 'danger',
+    FAILED: 'danger',
+    REJECTED: 'danger',
+    CANCELLED: 'danger',
+    BLOCKED: 'danger',
+    LOST: 'danger',
+    DAMAGED: 'danger',
+    CRITICAL: 'danger',
+    MISMATCH: 'danger'
 };
 export function dictLabel(type, code) {
     const key = String(code || '').toUpperCase();
@@ -421,7 +490,10 @@ export function dictOptions(type) {
         }
         return entriesToOptions(baseline);
     }
-    // 系统枚举：有 ACTIVE 覆盖则用覆盖；否则编译期默认（避免下拉被清空）
+    // 系统枚举：runtime 已成功且该类型有 ACTIVE 覆盖 → 只用覆盖（停用项立即从下拉消失）
+    if (runtimeLoaded && override && Object.keys(override).length) {
+        return entriesToOptions(override);
+    }
     if (override && Object.keys(override).length) {
         return entriesToOptions(override);
     }

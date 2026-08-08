@@ -13,7 +13,9 @@ export function useNavAccess() {
     return !nav?.perm || auth.canAccessNav(nav);
   }
 
-  function firstAccessiblePath(candidates: string[] = ['/dashboard', '/devices', '/orders', '/profile']) {
+  function firstAccessiblePath(
+    candidates: string[] = ['/dashboard', '/devices', '/orders', '/profile']
+  ) {
     return candidates.find((p) => canAccessPath(p)) || '/profile';
   }
 

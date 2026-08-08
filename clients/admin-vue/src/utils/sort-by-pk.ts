@@ -8,7 +8,14 @@ export function comparePrimaryKey(a: unknown, b: unknown): number {
   const sb = String(b).trim();
   const na = Number(sa);
   const nb = Number(sb);
-  if (sa !== '' && sb !== '' && Number.isFinite(na) && Number.isFinite(nb) && /^-?\d+(\.\d+)?$/.test(sa) && /^-?\d+(\.\d+)?$/.test(sb)) {
+  if (
+    sa !== '' &&
+    sb !== '' &&
+    Number.isFinite(na) &&
+    Number.isFinite(nb) &&
+    /^-?\d+(\.\d+)?$/.test(sa) &&
+    /^-?\d+(\.\d+)?$/.test(sb)
+  ) {
     return na === nb ? 0 : na < nb ? -1 : 1;
   }
   return sa.localeCompare(sb, 'zh-CN', { numeric: true, sensitivity: 'base' });

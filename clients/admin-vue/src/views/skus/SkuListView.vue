@@ -9,15 +9,41 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:sku:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:sku:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
           <el-button
             v-hasPermi="['ops:sku:import']"
-            @click="onDownloadTemplate(['', '6901234567890', '示例可乐', '可口可乐', '330ml', '瓶', '3.50', '1.20', '饮料', '上架'])"
-          >导入模板</el-button>
-          <el-button v-hasPermi="['ops:sku:import']" :loading="importing" @click="triggerImport">导入</el-button>
-          <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
+            @click="
+              onDownloadTemplate([
+                '',
+                '6901234567890',
+                '示例可乐',
+                '可口可乐',
+                '330ml',
+                '瓶',
+                '3.50',
+                '1.20',
+                '饮料',
+                '上架'
+              ])
+            "
+            >导入模板</el-button
+          >
+          <el-button v-hasPermi="['ops:sku:import']" :loading="importing" @click="triggerImport"
+            >导入</el-button
+          >
+          <input
+            ref="importInput"
+            type="file"
+            accept=".csv,text/csv"
+            class="hidden-input"
+            @change="onImportFile"
+          />
           <el-button v-if="canAccessPath('/sku-vision')" @click="goVision">识别入驻</el-button>
-          <el-button v-hasPermi="['ops:sku:edit']" type="primary" @click="openEdit()">新建商品</el-button>
+          <el-button v-hasPermi="['ops:sku:edit']" type="primary" @click="openEdit()"
+            >新建商品</el-button
+          >
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -65,7 +91,8 @@
           :disabled="!selectedKeys.length"
           :loading="batchDelisting"
           @click="batchDelist"
-        >批量下架</el-button>
+          >批量下架</el-button
+        >
       </el-form-item>
     </el-form>
 
@@ -76,17 +103,25 @@
           :data="paged"
           stripe
           border
-         
           row-key="skuId"
           class="report-table sku-table"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange" empty-text=" ">
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
           <template #empty>
             <el-empty v-if="listHydrated && !loading" :description="skuEmptyText" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="skuCode" label="编号" width="84" align="center" class-name="col-text" sortable="custom">
+          <el-table-column
+            prop="skuCode"
+            label="编号"
+            width="84"
+            align="center"
+            class-name="col-text"
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.skuCode ?? '—' }}</span>
             </template>
@@ -105,10 +140,23 @@
               <div v-else class="sku-thumb sku-thumb--empty">无图</div>
             </template>
           </el-table-column>
-          <el-table-column prop="barcode" label="条码" min-width="80" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            prop="barcode"
+            label="条码"
+            min-width="80"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.barcode || '无' }}</template>
           </el-table-column>
-          <el-table-column label="名称" min-width="96" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="名称"
+            min-width="96"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <button
                 type="button"
@@ -119,10 +167,24 @@
               </button>
             </template>
           </el-table-column>
-          <el-table-column prop="brand" label="品牌" min-width="72" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            prop="brand"
+            label="品牌"
+            min-width="72"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.brand || '无' }}</template>
           </el-table-column>
-          <el-table-column prop="spec" label="规格" min-width="72" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            prop="spec"
+            label="规格"
+            min-width="72"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.spec || '无' }}</template>
           </el-table-column>
           <el-table-column prop="unit" label="单位" width="64" align="center">
@@ -133,10 +195,21 @@
           </el-table-column>
           <el-table-column label="成本" width="84" align="center" class-name="col-money">
             <template #default="{ row }">
-              {{ row.purchaseCostCents != null ? `¥${(row.purchaseCostCents / 100).toFixed(2)}` : '无' }}
+              {{
+                row.purchaseCostCents != null
+                  ? `¥${(row.purchaseCostCents / 100).toFixed(2)}`
+                  : '无'
+              }}
             </template>
           </el-table-column>
-          <el-table-column prop="category" label="类目" min-width="88" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            prop="category"
+            label="类目"
+            min-width="88"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ categoryLabel(row.category) }}</template>
           </el-table-column>
           <el-table-column label="状态" width="80" align="center">
@@ -163,19 +236,23 @@
         </el-table>
       </div>
     </div>
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="filtered.length"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next"
-        background
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="filtered.length"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+    />
 
     <el-dialog v-model="editDialog" :title="form.existing ? '编辑商品' : '新建商品'" width="640px">
       <el-form label-width="108px">
         <el-form-item label="数字编号">
-          <el-input :model-value="form.skuCode ? String(form.skuCode) : '保存后自动分配'" disabled />
+          <el-input
+            :model-value="form.skuCode ? String(form.skuCode) : '保存后自动分配'"
+            disabled
+          />
         </el-form-item>
         <el-form-item label="商品名称" required>
           <el-input v-model="form.skuName" placeholder="如 可口可乐" />
@@ -199,12 +276,7 @@
           <el-input-number v-model="form.costYuan" :min="0" :step="0.1" :precision="2" />
         </el-form-item>
         <el-form-item label="类目">
-          <el-select
-            v-model="form.category"
-            clearable
-            placeholder="请选择类目"
-            style="width: 100%"
-          >
+          <el-select v-model="form.category" clearable placeholder="请选择类目" style="width: 100%">
             <el-option
               v-for="item in categoryOptions"
               :key="item.value"
@@ -233,7 +305,9 @@
             >
               <el-button :loading="imageUploading" type="primary" plain>上传图片</el-button>
             </el-upload>
-            <el-button v-if="form.imageUrl" link type="danger" @click="form.imageUrl = ''">清除</el-button>
+            <el-button v-if="form.imageUrl" link type="danger" @click="form.imageUrl = ''"
+              >清除</el-button
+            >
             <div class="field-hint">支持 jpg/png/webp/gif，单张不超过 5MB</div>
             <img
               v-if="form.imageUrl.trim()"
@@ -250,7 +324,9 @@
       </el-form>
       <template #footer>
         <el-button @click="editDialog = false">取消</el-button>
-        <el-button v-hasPermi="['ops:sku:edit']" type="primary" :loading="saving" @click="saveEdit">保存</el-button>
+        <el-button v-hasPermi="['ops:sku:edit']" type="primary" :loading="saving" @click="saveEdit"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
   </el-card>
@@ -364,15 +440,26 @@ const filtered = computed(() => {
     if (saleTab.value === 'ACTIVE' && row.status !== 'ACTIVE') return false;
     if (cat && !categoryMatches(row.category, cat)) return false;
     if (!q) return true;
-    return [row.skuCode, row.skuId, row.skuName, row.barcode, row.brand, categoryLabel(row.category)]
-      .some((x) => String(x || '').toLowerCase().includes(q));
+    return [
+      row.skuCode,
+      row.skuId,
+      row.skuName,
+      row.barcode,
+      row.brand,
+      categoryLabel(row.category)
+    ].some((x) =>
+      String(x || '')
+        .toLowerCase()
+        .includes(q)
+    );
   });
   return sortById(rows, (r) => r.skuCode ?? r.skuId);
 });
 
 const skuEmptyText = computed(() => {
   if (saleTab.value === 'ACTIVE') {
-    if (keyword.value.trim() || categoryFilter.value.trim()) return '在售列表无匹配商品，可清空筛选或切换到「所有商品」';
+    if (keyword.value.trim() || categoryFilter.value.trim())
+      return '在售列表无匹配商品，可清空筛选或切换到「所有商品」';
     return '暂无在售商品，可切换到「所有商品」查看已下架项';
   }
   if (keyword.value.trim() || categoryFilter.value.trim()) return '无匹配商品';
@@ -483,7 +570,8 @@ function toUpsertBody(row: SkuCatalog, status: string): UpsertSkuRequest {
     nearExpiryPriceCents: row.nearExpiryPriceCents,
     minChargeConfidence: row.minChargeConfidence,
     yoloClassName: row.yoloClassName,
-    visionEnrollmentStatus: row.visionEnrollmentStatus as UpsertSkuRequest['visionEnrollmentStatus'],
+    visionEnrollmentStatus:
+      row.visionEnrollmentStatus as UpsertSkuRequest['visionEnrollmentStatus'],
     detectionMinConfidence: row.detectionMinConfidence,
     referenceImageUrlsJson: row.referenceImageUrlsJson
   };
@@ -512,7 +600,11 @@ async function batchDelist() {
   try {
     for (const row of targets) {
       try {
-        await api.request(`/api/v2/ops/admin/skus/${encodeURIComponent(row.skuId)}`, 'PUT', toUpsertBody(row, 'INACTIVE'));
+        await api.request(
+          `/api/v2/ops/admin/skus/${encodeURIComponent(row.skuId)}`,
+          'PUT',
+          toUpsertBody(row, 'INACTIVE')
+        );
         const idx = items.value.findIndex((x) => x.skuId === row.skuId);
         if (idx >= 0) items.value[idx] = { ...items.value[idx], status: 'INACTIVE' };
         ok += 1;
@@ -537,72 +629,91 @@ const skuStatusByLabel: Record<string, string> = {
   DISABLED: 'DISABLED'
 };
 
-const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
-  filePrefix: '商品',
-  headers: ['编号', '条码', '名称', '品牌', '规格', '单位', '售价', '成本', '类目', '商品状态', '添加时间', '操作人'],
-  toRows: () =>
-    pickSelected(filtered.value).map((row) => [
-      row.skuCode != null ? String(row.skuCode) : '',
-      row.barcode || '',
-      row.skuName,
-      row.brand || '',
-      row.spec || '',
-      row.unit || '件',
-      ((row.priceCents || 0) / 100).toFixed(2),
-      row.purchaseCostCents != null ? (row.purchaseCostCents / 100).toFixed(2) : '',
-      categoryLabel(row.category) || '',
-      skuStatusLabel(row.status),
-      formatDateTime(row.createdAt),
-      row.updatedByName || ''
-    ]),
-  onImportRows: async (rows) => {
-    let ok = 0;
-    for (const row of rows) {
-      const skuName = (row['名称'] || row.skuName || '').trim();
-      if (!skuName) continue;
-      const barcode = (row['条码'] || row.barcode || '').trim() || undefined;
-      const priceCents = Math.round((Number(row['售价'] || row.priceYuan) || 0) * 100);
-      const status = skuStatusByLabel[row['商品状态'] || row.status] || 'ACTIVE';
-      const costRaw = row['成本'] ?? row.purchaseCostYuan;
-      const purchaseCostCents =
-        costRaw != null && String(costRaw).trim() !== ''
-          ? Math.round((Number(costRaw) || 0) * 100)
+const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
+  useListCsv({
+    filePrefix: '商品',
+    headers: [
+      '编号',
+      '条码',
+      '名称',
+      '品牌',
+      '规格',
+      '单位',
+      '售价',
+      '成本',
+      '类目',
+      '商品状态',
+      '添加时间',
+      '操作人'
+    ],
+    toRows: () =>
+      pickSelected(filtered.value).map((row) => [
+        row.skuCode != null ? String(row.skuCode) : '',
+        row.barcode || '',
+        row.skuName,
+        row.brand || '',
+        row.spec || '',
+        row.unit || '件',
+        ((row.priceCents || 0) / 100).toFixed(2),
+        row.purchaseCostCents != null ? (row.purchaseCostCents / 100).toFixed(2) : '',
+        categoryLabel(row.category) || '',
+        skuStatusLabel(row.status),
+        formatDateTime(row.createdAt),
+        row.updatedByName || ''
+      ]),
+    onImportRows: async (rows) => {
+      let ok = 0;
+      for (const row of rows) {
+        const skuName = (row['名称'] || row.skuName || '').trim();
+        if (!skuName) continue;
+        const barcode = (row['条码'] || row.barcode || '').trim() || undefined;
+        const priceCents = Math.round((Number(row['售价'] || row.priceYuan) || 0) * 100);
+        const status = skuStatusByLabel[row['商品状态'] || row.status] || 'ACTIVE';
+        const costRaw = row['成本'] ?? row.purchaseCostYuan;
+        const purchaseCostCents =
+          costRaw != null && String(costRaw).trim() !== ''
+            ? Math.round((Number(costRaw) || 0) * 100)
+            : undefined;
+        const existing = barcode
+          ? items.value.find((i) => i.barcode && i.barcode === barcode)
           : undefined;
-      const existing = barcode
-        ? items.value.find((i) => i.barcode && i.barcode === barcode)
-        : undefined;
-      const body: UpsertSkuRequest = {
-        skuId: existing?.skuId,
-        skuName,
-        priceCents: priceCents || 350,
-        barcode,
-        brand: (row['品牌'] || row.brand || '').trim() || undefined,
-        spec: (row['规格'] || row.spec || '').trim() || undefined,
-        unit: (row['单位'] || row.unit || '').trim() || '件',
-        category: normalizeCategoryToCode(row['类目'] || row.category) || undefined,
-        purchaseCostCents,
-        status,
-        visionEnabled: existing?.visionEnabled ?? true,
-        yoloClassName: existing?.yoloClassName,
-        visionEnrollmentStatus: existing?.visionEnrollmentStatus as UpsertSkuRequest['visionEnrollmentStatus'],
-        minChargeConfidence: existing?.minChargeConfidence,
-        detectionMinConfidence: existing?.detectionMinConfidence,
-        referenceImageUrlsJson: existing?.referenceImageUrlsJson
-      };
-      if (existing) {
-        await api.request(`/api/v2/ops/admin/skus/${encodeURIComponent(existing.skuId)}`, 'PUT', body);
-      } else {
-        await api.request('/api/v2/ops/admin/skus', 'POST', body);
+        const body: UpsertSkuRequest = {
+          skuId: existing?.skuId,
+          skuName,
+          priceCents: priceCents || 350,
+          barcode,
+          brand: (row['品牌'] || row.brand || '').trim() || undefined,
+          spec: (row['规格'] || row.spec || '').trim() || undefined,
+          unit: (row['单位'] || row.unit || '').trim() || '件',
+          category: normalizeCategoryToCode(row['类目'] || row.category) || undefined,
+          purchaseCostCents,
+          status,
+          visionEnabled: existing?.visionEnabled ?? true,
+          yoloClassName: existing?.yoloClassName,
+          visionEnrollmentStatus:
+            existing?.visionEnrollmentStatus as UpsertSkuRequest['visionEnrollmentStatus'],
+          minChargeConfidence: existing?.minChargeConfidence,
+          detectionMinConfidence: existing?.detectionMinConfidence,
+          referenceImageUrlsJson: existing?.referenceImageUrlsJson
+        };
+        if (existing) {
+          await api.request(
+            `/api/v2/ops/admin/skus/${encodeURIComponent(existing.skuId)}`,
+            'PUT',
+            body
+          );
+        } else {
+          await api.request('/api/v2/ops/admin/skus', 'POST', body);
+        }
+        ok++;
       }
-      ok++;
+      clearSelection();
+      await load();
+      return ok;
     }
-    clearSelection();
-    await load();
-    return ok;
-  }
-});
+  });
 
-function skuActions(row: SkuCatalog): TableAction[] {
+function skuActions(_row: SkuCatalog): TableAction[] {
   const acts: TableAction[] = [];
   if (canEdit.value) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
@@ -704,7 +815,8 @@ async function saveEdit() {
       visionEnabled: form.visionEnabled,
       minChargeConfidence: form.minChargeConfidence,
       yoloClassName: form.yoloClassName,
-      visionEnrollmentStatus: form.visionEnrollmentStatus as UpsertSkuRequest['visionEnrollmentStatus'],
+      visionEnrollmentStatus:
+        form.visionEnrollmentStatus as UpsertSkuRequest['visionEnrollmentStatus'],
       detectionMinConfidence: form.detectionMinConfidence,
       referenceImageUrlsJson: form.referenceImageUrlsJson,
       shelfLifeDays: form.shelfLifeDays,
@@ -728,7 +840,9 @@ async function saveEdit() {
     else items.value.push(updated);
     items.value.sort((a, b) => (a.skuCode ?? 0) - (b.skuCode ?? 0));
     editDialog.value = false;
-    ElMessage.success(form.existing ? '已保存商品' : `已新建，编号 ${updated.skuCode ?? updated.skuId}`);
+    ElMessage.success(
+      form.existing ? '已保存商品' : `已新建，编号 ${updated.skuCode ?? updated.skuId}`
+    );
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
@@ -769,7 +883,8 @@ function applyRouteQuery() {
     categoryFilter.value = qCat;
     changed = true;
   }
-  const qSale = typeof route.query.sale === 'string' && route.query.sale ? route.query.sale : 'ACTIVE';
+  const qSale =
+    typeof route.query.sale === 'string' && route.query.sale ? route.query.sale : 'ACTIVE';
   if (qSale !== saleTab.value) {
     saleTab.value = qSale;
     changed = true;
@@ -812,7 +927,9 @@ onActivated(() => {
 </script>
 
 <style scoped>
-.status-tabs { margin: 0 0 10px; }
+.status-tabs {
+  margin: 0 0 10px;
+}
 .page-card-head {
   display: flex;
   justify-content: space-between;
@@ -820,11 +937,28 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .sku-thumb {
   width: 40px;
   height: 40px;
@@ -880,7 +1014,13 @@ onActivated(() => {
   font: inherit;
   font-weight: 650;
 }
-.link-cell:hover { text-decoration: underline; }
-.sku-table { font-size: 14px; }
-.hidden-input { display: none; }
+.link-cell:hover {
+  text-decoration: underline;
+}
+.sku-table {
+  font-size: 14px;
+}
+.hidden-input {
+  display: none;
+}
 </style>

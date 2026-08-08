@@ -24,7 +24,10 @@ export function useDeviceOptions() {
     }
     deviceOptionsLoading.value = true;
     try {
-      deviceOptions.value = await api.request<DeviceOption[]>('/api/v2/ops/admin/devices/ref', 'GET');
+      deviceOptions.value = await api.request<DeviceOption[]>(
+        '/api/v2/ops/admin/devices/ref',
+        'GET'
+      );
     } catch {
       deviceOptions.value = [];
     } finally {

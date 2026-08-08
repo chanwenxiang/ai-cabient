@@ -5,7 +5,9 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">订单管理</span>
-            <span class="hint">支付 / 退款状态分列；待支付支持账龄追缴；可按订单或按商品行导出</span>
+            <span class="hint"
+              >支付 / 退款状态分列；待支付支持账龄追缴；可按订单或按商品行导出</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -43,7 +45,13 @@
         />
       </el-form-item>
       <el-form-item label="渠道">
-        <el-select v-model="payChannel" clearable placeholder="全部" style="width: 120px" @change="search">
+        <el-select
+          v-model="payChannel"
+          clearable
+          placeholder="全部"
+          style="width: 120px"
+          @change="search"
+        >
           <el-option
             v-for="item in dictOptions('pay_channel')"
             :key="item.value"
@@ -68,7 +76,9 @@
         <el-button @click="reset">重置</el-button>
       </el-form-item>
       <el-form-item v-if="statusTab === 'PENDING'">
-        <el-checkbox v-model="overdueOnly" @change="onOverdueToggle">仅超时未付（≥30 分钟）</el-checkbox>
+        <el-checkbox v-model="overdueOnly" @change="onOverdueToggle"
+          >仅超时未付（≥30 分钟）</el-checkbox
+        >
       </el-form-item>
     </el-form>
 
@@ -78,9 +88,11 @@
       :closable="false"
       show-icon
       class="chase-banner"
-      :title="listHydrated
-        ? `本页 ${displayItems.length} 条超时未付（账龄 ≥ 30 分钟，按账龄降序）`
-        : '超时未付 — 加载中…'"
+      :title="
+        listHydrated
+          ? `本页 ${displayItems.length} 条超时未付（账龄 ≥ 30 分钟，按账龄降序）`
+          : '超时未付 — 加载中…'
+      "
     />
 
     <div class="table-scroll">
@@ -95,7 +107,9 @@
           class="report-table"
           row-key="orderId"
           :row-class-name="orderRowClass"
-          @selection-change="onSelectionChange" empty-text=" ">
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
           <template #empty>
             <el-empty
               v-if="listHydrated && !loading"
@@ -103,7 +117,13 @@
             />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="orderId" label="订单号" min-width="140" align="center" sortable="custom">
+          <el-table-column
+            prop="orderId"
+            label="订单号"
+            min-width="140"
+            align="center"
+            sortable="custom"
+          >
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="openDetail(row)">
                 <span class="cell-id">{{ row.orderId }}</span>
@@ -117,7 +137,9 @@
                 type="button"
                 class="link-cell mono"
                 @click="goSessions(row.deviceId, row.sessionId)"
-              >{{ row.sessionId }}</button>
+              >
+                {{ row.sessionId }}
+              </button>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
@@ -131,11 +153,19 @@
                 type="button"
                 class="link-cell"
                 @click="goDevice(row.deviceId)"
-              >{{ row.deviceId }}</button>
+              >
+                {{ row.deviceId }}
+              </button>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="流水号" min-width="110" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="流水号"
+            min-width="110"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <span class="mono">{{ row.payTradeNo || row.paymentOperationId || '无' }}</span>
             </template>
@@ -170,7 +200,11 @@
           </el-table-column>
           <el-table-column label="扣库存" width="88" align="center">
             <template #default="{ row }">
-              <el-tag size="small" :type="row.inventoryDeducted ? 'success' : 'info'" effect="plain">
+              <el-tag
+                size="small"
+                :type="row.inventoryDeducted ? 'success' : 'info'"
+                effect="plain"
+              >
                 {{ row.inventoryDeducted ? '已扣' : '未扣' }}
               </el-tag>
             </template>
@@ -184,16 +218,12 @@
           >
             <template #default="{ row }">
               <div
-                v-for="disp in [goodsDisplay(row)]"
-                :key="row.orderId"
+                v-for="(disp, idx) in [goodsDisplay(row)]"
+                :key="`${row.orderId}-${idx}`"
                 class="goods-cell"
               >
                 <template v-if="disp.lines.length">
-                  <div
-                    v-for="(g, i) in disp.lines"
-                    :key="`${row.orderId}-${i}`"
-                    class="goods-line"
-                  >
+                  <div v-for="(g, i) in disp.lines" :key="`${row.orderId}-${i}`" class="goods-line">
                     <span class="goods-name">{{ g.title }}</span>
                     <span v-if="g.qty" class="goods-qty">×{{ g.qty }}</span>
                   </div>
@@ -211,14 +241,11 @@
           <el-table-column label="金额" width="100" align="center">
             <template #default="{ row }">¥{{ money(row.totalAmountCents) }}</template>
           </el-table-column>
-          <el-table-column
-            v-if="statusTab === 'PENDING'"
-            label="账龄"
-            width="110"
-            align="center"
-          >
+          <el-table-column v-if="statusTab === 'PENDING'" label="账龄" width="110" align="center">
             <template #default="{ row }">
-              <span :class="{ 'is-overdue-age': isUnpaidOverdue(row) }">{{ formatOrderAge(row.createdAt) }}</span>
+              <span :class="{ 'is-overdue-age': isUnpaidOverdue(row) }">{{
+                formatOrderAge(row.createdAt)
+              }}</span>
             </template>
           </el-table-column>
           <el-table-column label="创建时间" width="140" align="center" show-overflow-tooltip>
@@ -235,16 +262,17 @@
       </div>
     </div>
 
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="total"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
-        background
-        @current-change="load"
-        @size-change="onSizeChange"
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next, jumper"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
 
     <el-drawer v-model="detailOpen" title="订单详情" size="480px" destroy-on-close>
       <div v-loading="detailLoading">
@@ -259,7 +287,9 @@
                 type="button"
                 class="link-cell mono"
                 @click="goSessions(detail.deviceId, detail.sessionId)"
-              >{{ detail.sessionId }}</button>
+              >
+                {{ detail.sessionId }}
+              </button>
               <span v-else>-</span>
             </el-descriptions-item>
             <el-descriptions-item label="设备">
@@ -268,49 +298,68 @@
                 type="button"
                 class="link-cell"
                 @click="goDevice(detail.deviceId)"
-              >{{ detail.deviceId }}</button>
+              >
+                {{ detail.deviceId }}
+              </button>
               <span v-else>-</span>
             </el-descriptions-item>
             <el-descriptions-item label="状态">
               {{ dictLabel('order_status', detail.status) }}
             </el-descriptions-item>
-            <el-descriptions-item label="金额">¥{{ money(detail.totalAmountCents) }}</el-descriptions-item>
+            <el-descriptions-item label="金额"
+              >¥{{ money(detail.totalAmountCents) }}</el-descriptions-item
+            >
             <el-descriptions-item label="支付渠道">
               {{ dictLabel('pay_channel', detail.payChannel) || detail.payChannel || '未知渠道' }}
             </el-descriptions-item>
-            <el-descriptions-item label="创建时间">{{ formatDateTime(detail.createdAt) }}</el-descriptions-item>
+            <el-descriptions-item label="创建时间">{{
+              formatDateTime(detail.createdAt)
+            }}</el-descriptions-item>
           </el-descriptions>
 
           <div class="drawer-actions">
             <el-button
-              v-if="detail.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))"
+              v-if="
+                detail.sessionId &&
+                (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))
+              "
               type="warning"
               :loading="videoLoading"
               @click="playVideo(detail.sessionId)"
-            >播放会话录像</el-button>
+              >播放会话录像</el-button
+            >
             <el-button
               v-if="detail.status === 'PENDING' && auth.hasPerm('ops:order:remind')"
               type="warning"
               @click="remindOrder(detail)"
-            >催付</el-button>
+              >催付</el-button
+            >
             <el-button
-              v-if="detail.status === 'PENDING' && (auth.hasPerm('ops:order:remind') || auth.hasPerm('ops:order:cancel') || auth.hasPerm('ops:order:refund'))"
+              v-if="
+                detail.status === 'PENDING' &&
+                (auth.hasPerm('ops:order:remind') ||
+                  auth.hasPerm('ops:order:cancel') ||
+                  auth.hasPerm('ops:order:refund'))
+              "
               type="success"
               plain
               @click="collectUnpaid(detail)"
-            >补扣收款</el-button>
+              >补扣收款</el-button
+            >
             <el-button
               v-if="detail.status === 'PENDING' && auth.hasPerm('ops:order:cancel')"
               type="danger"
               plain
               @click="cancelUnpaid(detail)"
-            >关单</el-button>
+              >关单</el-button
+            >
             <el-button
               v-if="canRefund(detail.status) && auth.hasPerm('ops:order:refund')"
               type="danger"
               :loading="refundingId === detail.orderId"
               @click="refundOrder(detail)"
-            >原路退款</el-button>
+              >原路退款</el-button
+            >
           </div>
 
           <h4 class="section-title">商品行</h4>
@@ -318,7 +367,13 @@
             <template #empty>
               <el-empty v-if="!detailLoading" description="无商品行" :image-size="48" />
             </template>
-            <el-table-column prop="skuName" label="商品" min-width="120" align="center" class-name="col-text" />
+            <el-table-column
+              prop="skuName"
+              label="商品"
+              min-width="120"
+              align="center"
+              class-name="col-text"
+            />
             <el-table-column prop="quantity" label="数量" width="70" align="center" />
             <el-table-column label="小计" width="90" align="center">
               <template #default="{ row }">
@@ -329,22 +384,27 @@
 
           <h4 class="section-title">时间线</h4>
           <el-timeline class="order-timeline">
-            <el-timeline-item :timestamp="formatDateTime(detail.createdAt)" type="primary">下单</el-timeline-item>
+            <el-timeline-item :timestamp="formatDateTime(detail.createdAt)" type="primary"
+              >下单</el-timeline-item
+            >
             <el-timeline-item
               v-if="detail.paidAt || detail.status === 'PAID' || detail.status === 'COMPLETED'"
               :timestamp="formatDateTime(detail.paidAt || detail.updatedAt || detail.createdAt)"
               type="success"
-            >扣款完成</el-timeline-item>
+              >扣款完成</el-timeline-item
+            >
             <el-timeline-item
               v-if="detail.status === 'REFUNDED'"
               :timestamp="formatDateTime(detail.updatedAt)"
               type="warning"
-            >已退款</el-timeline-item>
+              >已退款</el-timeline-item
+            >
             <el-timeline-item
               v-if="detail.sessionId"
               :timestamp="formatDateTime(detail.createdAt)"
               type="info"
-            >关联会话 {{ detail.sessionId }}</el-timeline-item>
+              >关联会话 {{ detail.sessionId }}</el-timeline-item
+            >
           </el-timeline>
         </template>
       </div>
@@ -355,7 +415,17 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { CopyDocument, Link, Refresh, VideoCamera, View, Wallet, Bell, CircleClose, Coin } from '@element-plus/icons-vue';
+import {
+  CopyDocument,
+  Link,
+  Refresh,
+  VideoCamera,
+  View,
+  Wallet,
+  Bell,
+  CircleClose,
+  Coin
+} from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
@@ -397,7 +467,7 @@ function goodsDisplay(row: OrderSummary) {
   return {
     lines: parseGoodsLines(summary),
     extraKinds: extraMatch ? Number(extraMatch[1]) : null,
-    total: row.lineCount ?? 0,
+    total: row.lineCount ?? 0
   };
 }
 
@@ -418,7 +488,11 @@ const overdueOnly = ref(false);
 const focusOrderId = ref('');
 const items = ref<OrderSummary[]>([]);
 
-const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById } = useIdColumnSort<OrderSummary>('orderId');
+const {
+  defaultSort: idDefaultSort,
+  onSortChange: onIdSortChange,
+  sortById
+} = useIdColumnSort<OrderSummary>('orderId');
 const page = ref(1);
 const size = ref(20);
 const total = ref(0);
@@ -593,15 +667,31 @@ function rowActions(row: OrderSummary): TableAction[] {
     if (auth.hasPerm('ops:order:remind')) {
       actions.push({ key: 'remind', label: '催付', icon: Bell, type: 'warning' });
     }
-    if (auth.hasPerm('ops:order:remind') || auth.hasPerm('ops:order:cancel') || auth.hasPerm('ops:order:refund')) {
+    if (
+      auth.hasPerm('ops:order:remind') ||
+      auth.hasPerm('ops:order:cancel') ||
+      auth.hasPerm('ops:order:refund')
+    ) {
       actions.push({ key: 'collect', label: '补扣', icon: Coin, overflow: true });
     }
     if (auth.hasPerm('ops:order:cancel')) {
-      actions.push({ key: 'cancel', label: '关单', icon: CircleClose, type: 'danger', overflow: true });
+      actions.push({
+        key: 'cancel',
+        label: '关单',
+        icon: CircleClose,
+        type: 'danger',
+        overflow: true
+      });
     }
   }
   if (row.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))) {
-    actions.push({ key: 'video', label: '录像', icon: VideoCamera, type: 'warning', overflow: true });
+    actions.push({
+      key: 'video',
+      label: '录像',
+      icon: VideoCamera,
+      type: 'warning',
+      overflow: true
+    });
   }
   if (canRefund(row.status) && auth.hasPerm('ops:order:refund')) {
     actions.push({
@@ -663,7 +753,10 @@ async function openDetail(row: OrderSummary) {
   // 切换订单才清空，避免同单软刷新（退款后重拉）闪空白抽屉
   if (detail.value?.orderId !== row.orderId) detail.value = null;
   try {
-    detail.value = await api.request(`/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}`, 'GET');
+    detail.value = await api.request(
+      `/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}`,
+      'GET'
+    );
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '详情加载失败');
     detailOpen.value = false;
@@ -679,7 +772,8 @@ async function refundOrder(row: { orderId: string; status?: string }) {
       '订单退款',
       {
         inputPlaceholder: '请填写退款原因（至少4字）',
-        inputValidator: (v) => !!String(v || '').trim() && String(v).trim().length >= 4 || '请填写至少4字原因',
+        inputValidator: (v) =>
+          (!!String(v || '').trim() && String(v).trim().length >= 4) || '请填写至少4字原因',
         confirmButtonText: '确认退款',
         type: 'warning'
       }
@@ -729,7 +823,10 @@ async function collectUnpaid(row: { orderId: string }) {
       '补扣收款',
       { confirmButtonText: '确认补扣', type: 'warning' }
     );
-    await api.request(`/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}/collect`, 'POST');
+    await api.request(
+      `/api/v2/ops/admin/orders/${encodeURIComponent(row.orderId)}/collect`,
+      'POST'
+    );
     ElMessage.success('补扣成功');
     if (detailOpen.value && detail.value?.orderId === row.orderId) {
       await openDetail(row as OrderSummary);
@@ -749,7 +846,8 @@ async function cancelUnpaid(row: { orderId: string }) {
       '关闭待支付',
       {
         inputPlaceholder: '关单原因（至少4字）',
-        inputValidator: (v) => !!String(v || '').trim() && String(v).trim().length >= 4 || '请填写至少4字原因',
+        inputValidator: (v) =>
+          (!!String(v || '').trim() && String(v).trim().length >= 4) || '请填写至少4字原因',
         confirmButtonText: '仅关单',
         distinguishCancelAndClose: true,
         type: 'warning'
@@ -821,7 +919,10 @@ async function load() {
     } else if (status.value) {
       q.set('status', status.value);
     }
-    const data = await api.request<PageResult<OrderSummary>>(`/api/v2/ops/admin/orders?${q}`, 'GET');
+    const data = await api.request<PageResult<OrderSummary>>(
+      `/api/v2/ops/admin/orders?${q}`,
+      'GET'
+    );
     items.value = data.items || [];
     total.value = data.total || 0;
     clearSelection();
@@ -959,7 +1060,7 @@ watch(
       route.query.deviceId,
       route.query.status,
       route.query.overdue,
-      route.query.orderId,
+      route.query.orderId
     ] as const,
   () => {
     void reloadFromRouteQuery();
@@ -1055,10 +1156,19 @@ onActivated(() => {
 .muted {
   color: var(--el-text-color-secondary);
 }
-.chase-banner { margin: 0 0 10px; }
-.is-overdue-age { color: var(--el-color-danger); font-weight: 600; }
+.chase-banner {
+  margin: 0 0 10px;
+}
+.is-overdue-age {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
 :deep(.el-table .is-unpaid-overdue > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-warning) 8%, var(--el-table-bg-color, #fff)) !important;
+  background: color-mix(
+    in srgb,
+    var(--el-color-warning) 8%,
+    var(--el-table-bg-color, #fff)
+  ) !important;
 }
 .status-tabs {
   margin: 0 0 8px;

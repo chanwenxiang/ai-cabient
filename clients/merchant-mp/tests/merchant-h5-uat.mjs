@@ -64,37 +64,50 @@ async function waitText(page, substr, timeout = 10000) {
 async function clickByText(page, text, { exact = false, timeout = 6000 } = {}) {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) {
-    const target = await page.evaluate(({ text, exact }) => {
-      const nodes = [...document.querySelectorAll('uni-text, uni-view, uni-button, button, span, div, a, text, view')];
-      const tagRank = (t) => {
-        if (t === 'UNI-BUTTON' || t === 'BUTTON') return 0;
-        if (t === 'A') return 1;
-        if (t === 'UNI-TEXT' || t === 'TEXT' || t === 'SPAN') return 2;
-        return 3;
-      };
-      const hits = nodes
-        .map((e, i) => {
-          const t = (e.innerText || e.textContent || '').trim();
-          return { i, len: t.length, rank: tagRank(e.tagName), kids: e.children.length, match: exact ? t === text : t.includes(text) };
-        })
-        .filter((h) => h.match && h.len > 0)
-        .sort((a, b) => a.len - b.len || a.rank - b.rank || a.kids - b.kids);
-      if (!hits.length) return null;
-      const el = nodes[hits[0].i];
-      const r = el.getBoundingClientRect();
-      if (
-        r.width > 0 &&
-        r.height > 0 &&
-        r.top >= 0 &&
-        r.top < window.innerHeight &&
-        r.left >= 0 &&
-        r.left < window.innerWidth
-      ) {
-        return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
-      }
-      el.click();
-      return { clicked: true };
-    }, { text, exact });
+    const target = await page.evaluate(
+      ({ text, exact }) => {
+        const nodes = [
+          ...document.querySelectorAll(
+            'uni-text, uni-view, uni-button, button, span, div, a, text, view'
+          )
+        ];
+        const tagRank = (t) => {
+          if (t === 'UNI-BUTTON' || t === 'BUTTON') return 0;
+          if (t === 'A') return 1;
+          if (t === 'UNI-TEXT' || t === 'TEXT' || t === 'SPAN') return 2;
+          return 3;
+        };
+        const hits = nodes
+          .map((e, i) => {
+            const t = (e.innerText || e.textContent || '').trim();
+            return {
+              i,
+              len: t.length,
+              rank: tagRank(e.tagName),
+              kids: e.children.length,
+              match: exact ? t === text : t.includes(text)
+            };
+          })
+          .filter((h) => h.match && h.len > 0)
+          .sort((a, b) => a.len - b.len || a.rank - b.rank || a.kids - b.kids);
+        if (!hits.length) return null;
+        const el = nodes[hits[0].i];
+        const r = el.getBoundingClientRect();
+        if (
+          r.width > 0 &&
+          r.height > 0 &&
+          r.top >= 0 &&
+          r.top < window.innerHeight &&
+          r.left >= 0 &&
+          r.left < window.innerWidth
+        ) {
+          return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+        }
+        el.click();
+        return { clicked: true };
+      },
+      { text, exact }
+    );
     if (target === null) {
       await page.waitForTimeout(300);
       continue;
@@ -221,7 +234,8 @@ async function main() {
     if (res.status() >= 400) http4xx.push(`${res.status()} ${res.url().replace(BASE, '')}`);
   });
   page.on('request', (req) => {
-    if (req.url().includes('/withdraw') && req.method() === 'POST') withdrawPosts.push(req.postData());
+    if (req.url().includes('/withdraw') && req.method() === 'POST')
+      withdrawPosts.push(req.postData());
   });
 
   try {
@@ -230,7 +244,14 @@ async function main() {
     let text = await bodyText(page);
     const loginPage = text.includes('手机号') && text.includes('密码') && text.includes('登录');
     const e1 = await shot(page, '01-login');
-    record('M-01', '登录页渲染', '功能', loginPage ? 'PASS' : 'FAIL', loginPage ? '表单可见' : text.slice(0, 200), e1);
+    record(
+      'M-01',
+      '登录页渲染',
+      '功能',
+      loginPage ? 'PASS' : 'FAIL',
+      loginPage ? '表单可见' : text.slice(0, 200),
+      e1
+    );
 
     // —— M-02 空提交 ——
     await clearInputs(page);
@@ -239,7 +260,14 @@ async function main() {
     text = await bodyText(page);
     const emptyLogin = /请输入|错误|失败/.test(text) && text.includes('登录');
     const e2 = await shot(page, '02-login-empty');
-    record('M-02', '空手机号/空密码提交', '边界', emptyLogin ? 'PASS' : 'FAIL', `仍留在登录页或有错误提示: ${text.slice(-120)}`, e2);
+    record(
+      'M-02',
+      '空手机号/空密码提交',
+      '边界',
+      emptyLogin ? 'PASS' : 'FAIL',
+      `仍留在登录页或有错误提示: ${text.slice(-120)}`,
+      e2
+    );
 
     // —— M-03 非法手机号/错误密码 ——
     await clearInputs(page);
@@ -250,7 +278,14 @@ async function main() {
     text = await bodyText(page);
     const badLogin = /失败|错误|无效|不正确|请输入|手机号/.test(text) && text.includes('登录');
     const e3 = await shot(page, '03-login-invalid');
-    record('M-03', '非法手机号/错误密码', '异常', badLogin ? 'PASS' : 'FAIL', badLogin ? '展示友好错误' : text.slice(-150), e3);
+    record(
+      'M-03',
+      '非法手机号/错误密码',
+      '异常',
+      badLogin ? 'PASS' : 'FAIL',
+      badLogin ? '展示友好错误' : text.slice(-150),
+      e3
+    );
 
     // —— M-04 正常登录 ——
     await clearInputs(page);
@@ -261,14 +296,28 @@ async function main() {
     text = await bodyText(page);
     const token = await page.evaluate(() => localStorage.getItem('merchant_token') || '');
     const e4 = await shot(page, '04-login-success');
-    record('M-04', `密码登录 ${DEMO_PHONE}`, '功能', !!token, token ? 'token 已写入' : `无 token: ${text.slice(0, 200)}`, e4);
+    record(
+      'M-04',
+      `密码登录 ${DEMO_PHONE}`,
+      '功能',
+      !!token,
+      token ? 'token 已写入' : `无 token: ${text.slice(0, 200)}`,
+      e4
+    );
 
     // —— M-05 工作台 ——
     await page.waitForTimeout(1200);
     text = await bodyText(page);
     const homeOk = text.includes('扫码到柜') && (text.includes('你好') || text.includes('工作台'));
     const e5 = await shot(page, '05-home');
-    record('M-05', '工作台首页', '功能', homeOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 14).join(' | '), e5);
+    record(
+      'M-05',
+      '工作台首页',
+      '功能',
+      homeOk ? 'PASS' : 'FAIL',
+      text.split('\n').slice(0, 14).join(' | '),
+      e5
+    );
 
     // —— M-06/07/08 Tab：柜机 / 待办 / 我的 ——
     await clickByText(page, '柜机', { exact: true });
@@ -276,21 +325,42 @@ async function main() {
     text = await bodyText(page);
     const devicesOk = /柜机|暂无|在线|离线|停售/.test(text);
     const e6 = await shot(page, '06-devices');
-    record('M-06', '柜机列表', '功能', devicesOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 12).join(' | '), e6);
+    record(
+      'M-06',
+      '柜机列表',
+      '功能',
+      devicesOk ? 'PASS' : 'FAIL',
+      text.split('\n').slice(0, 12).join(' | '),
+      e6
+    );
 
     await clickByText(page, '待办', { exact: true });
     await page.waitForTimeout(2000);
     text = await bodyText(page);
     const alertsOk = /待办|审核|离线|库存|临期|暂无/.test(text);
     const e7 = await shot(page, '07-alerts');
-    record('M-07', '待办页', '功能', alertsOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 12).join(' | '), e7);
+    record(
+      'M-07',
+      '待办页',
+      '功能',
+      alertsOk ? 'PASS' : 'FAIL',
+      text.split('\n').slice(0, 12).join(' | '),
+      e7
+    );
 
     await clickByText(page, '我的', { exact: true });
     await page.waitForTimeout(1500);
     text = await bodyText(page);
     const mineOk = text.includes('退出登录');
     const e8 = await shot(page, '08-mine');
-    record('M-08', '我的页', '功能', mineOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 14).join(' | '), e8);
+    record(
+      'M-08',
+      '我的页',
+      '功能',
+      mineOk ? 'PASS' : 'FAIL',
+      text.split('\n').slice(0, 14).join(' | '),
+      e8
+    );
 
     // —— M-09 工作台经营工具 ——
     const homePages = [
@@ -328,7 +398,14 @@ async function main() {
       await page.waitForTimeout(2200);
       const sheetVisible = await page.evaluate(() => !!document.querySelector('.sheet'));
       const e9b = await shot(page, '09b-replenishment-detail');
-      record('M-09b', '补货任务详情抽屉', '功能', sheetVisible ? 'PASS' : 'FAIL', `sheet=${sheetVisible}`, e9b);
+      record(
+        'M-09b',
+        '补货任务详情抽屉',
+        '功能',
+        sheetVisible ? 'PASS' : 'FAIL',
+        `sheet=${sheetVisible}`,
+        e9b
+      );
       await page.evaluate(() => {
         const el = document.querySelector('.mask');
         if (el) el.click();
@@ -396,14 +473,28 @@ async function main() {
     text = await bodyText(page);
     const orderDetailOk = clickedOrder && /订单详情|支付信息|商品清单|支付方式/.test(text);
     const e10d = await shot(page, '10d-order-detail');
-    record('M-10b', '订单详情', '功能', orderDetailOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 10).join(' | '), e10d);
+    record(
+      'M-10b',
+      '订单详情',
+      '功能',
+      orderDetailOk ? 'PASS' : 'FAIL',
+      text.split('\n').slice(0, 10).join(' | '),
+      e10d
+    );
 
     // —— M-10c 柜机详情 ——
     await gotoPath(page, '/pages/device-detail/device-detail?id=CAB-001');
     text = await bodyText(page);
     const devDetailOk = /测试柜|CAB-001|货道|柜机设置|在线|离线/.test(text);
     const e10e = await shot(page, '10e-device-detail');
-    record('M-10c', '柜机详情', '功能', devDetailOk ? 'PASS' : 'FAIL', text.split('\n').slice(0, 12).join(' | '), e10e);
+    record(
+      'M-10c',
+      '柜机详情',
+      '功能',
+      devDetailOk ? 'PASS' : 'FAIL',
+      text.split('\n').slice(0, 12).join(' | '),
+      e10e
+    );
 
     // —— M-10d 争议详情抽屉 ——
     await gotoPath(page, '/pages/disputes/disputes');
@@ -424,7 +515,10 @@ async function main() {
       `click=${clickedDispute} drawer=${drawerVisible} body=${(await bodyText(page)).split('\n').slice(0, 8).join(' | ')}`,
       e10f
     );
-    await page.evaluate(() => { const el = document.querySelector('.detail-mask'); if (el) el.click(); });
+    await page.evaluate(() => {
+      const el = document.querySelector('.detail-mask');
+      if (el) el.click();
+    });
     await page.waitForTimeout(500);
 
     // —— M-11 网络容错：工作台 API 全断 ——
@@ -435,7 +529,14 @@ async function main() {
     text = await bodyText(page);
     const degraded = /扫码到柜|你好|工作台|重试|网络/.test(text) && text.length > 20;
     const e11 = await shot(page, '11-network-fail');
-    record('M-11', 'API 中断时工作台容错', '异常', degraded ? 'PASS' : 'FAIL', `页面仍可渲染/有容错: ${text.split('\n').slice(0, 8).join(' | ')}`, e11);
+    record(
+      'M-11',
+      'API 中断时工作台容错',
+      '异常',
+      degraded ? 'PASS' : 'FAIL',
+      `页面仍可渲染/有容错: ${text.split('\n').slice(0, 8).join(' | ')}`,
+      e11
+    );
     await context.unroute('**/api/v2/**');
     aborting = false;
 
@@ -451,7 +552,14 @@ async function main() {
     text = await bodyText(page);
     const redirectLogin = text.includes('手机号') && text.includes('登录');
     const e12 = await shot(page, '12-unauth-redirect');
-    record('M-12', '未登录访问工作台重定向登录', '安全', redirectLogin ? 'PASS' : 'FAIL', text.split('\n').slice(0, 6).join(' | '), e12);
+    record(
+      'M-12',
+      '未登录访问工作台重定向登录',
+      '安全',
+      redirectLogin ? 'PASS' : 'FAIL',
+      text.split('\n').slice(0, 6).join(' | '),
+      e12
+    );
 
     // —— M-13 退出登录 ——
     await fillPlaceholder(page, '请输入11位手机号…', DEMO_PHONE);
@@ -466,11 +574,21 @@ async function main() {
     text = await bodyText(page);
     const loggedOut = text.includes('手机号') && text.includes('登录');
     const e13 = await shot(page, '13-logout');
-    record('M-13', '退出登录', '功能', loggedOut ? 'PASS' : 'FAIL', text.split('\n').slice(0, 6).join(' | '), e13);
+    record(
+      'M-13',
+      '退出登录',
+      '功能',
+      loggedOut ? 'PASS' : 'FAIL',
+      text.split('\n').slice(0, 6).join(' | '),
+      e13
+    );
 
     // —— M-14/15 控制台与网络错误 ——
     const serious = consoleErrors.filter(
-      (e) => !/favicon|DevTools|ResizeObserver|ERR_TIMED_OUT|ERR_ABORTED|ERR_FAILED|Failed to load resource/i.test(e)
+      (e) =>
+        !/favicon|DevTools|ResizeObserver|ERR_TIMED_OUT|ERR_ABORTED|ERR_FAILED|Failed to load resource/i.test(
+          e
+        )
     );
     record(
       'M-14',
@@ -491,7 +609,14 @@ async function main() {
       null
     );
   } catch (err) {
-    record('M-RUNNER', 'UAT 执行异常', '质量', 'FAIL', String(err?.stack || err), await shot(page, '99-crash').catch(() => null));
+    record(
+      'M-RUNNER',
+      'UAT 执行异常',
+      '质量',
+      'FAIL',
+      String(err?.stack || err),
+      await shot(page, '99-crash').catch(() => null)
+    );
   } finally {
     const summary = {
       base: BASE,
@@ -512,12 +637,27 @@ async function main() {
       '',
       '| ID | Category | Status | Name | Detail |',
       '|----|----------|--------|------|--------|',
-      ...results.map((r) => `| ${r.id} | ${r.category} | ${r.status} | ${r.name} | ${(r.detail || '').replace(/\|/g, '/').slice(0, 120)} |`),
+      ...results.map(
+        (r) =>
+          `| ${r.id} | ${r.category} | ${r.status} | ${r.name} | ${(r.detail || '').replace(/\|/g, '/').slice(0, 120)} |`
+      ),
       ''
     ].join('\n');
     fs.writeFileSync(path.join(OUT, 'uat-report.md'), md, 'utf8');
     console.log('\n=== SUMMARY ===');
-    console.log(JSON.stringify({ pass: summary.pass, fail: summary.fail, skip: summary.skip, info: summary.info, report: reportPath }, null, 2));
+    console.log(
+      JSON.stringify(
+        {
+          pass: summary.pass,
+          fail: summary.fail,
+          skip: summary.skip,
+          info: summary.info,
+          report: reportPath
+        },
+        null,
+        2
+      )
+    );
     await browser.close();
     process.exit(summary.fail > 0 ? 1 : 0);
   }

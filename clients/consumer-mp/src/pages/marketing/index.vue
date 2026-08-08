@@ -1,6 +1,13 @@
 ﻿<template>
   <view class="page">
-    <swiper class="banner" circular autoplay :interval="4200" indicator-dots indicator-active-color="#059669">
+    <swiper
+      class="banner"
+      circular
+      autoplay
+      :interval="4200"
+      indicator-dots
+      indicator-active-color="#059669"
+    >
       <swiper-item v-for="b in banners" :key="b.id">
         <view class="banner-card" :class="'tone-' + b.tone" @click="openPath(b.ctaPath)">
           <view class="banner-copy">
@@ -83,14 +90,18 @@ async function load() {
       consumerApi.marketingBanners(),
       consumerApi.marketingCampaigns()
     ]);
-    banners.value = b?.length ? b : [{
-      id: 0,
-      title: '领券更优惠',
-      subtitle: '满减与新客礼等你领取',
-      tone: 'mint',
-      emoji: '惠',
-      ctaPath: '/pages/coupons/coupons'
-    }];
+    banners.value = b?.length
+      ? b
+      : [
+          {
+            id: 0,
+            title: '领券更优惠',
+            subtitle: '满减与新客礼等你领取',
+            tone: 'mint',
+            emoji: '惠',
+            ctaPath: '/pages/coupons/coupons'
+          }
+        ];
     campaigns.value = c || [];
     if (authed.value) {
       try {
@@ -112,7 +123,11 @@ async function load() {
 
 function openPath(path?: string) {
   if (!path) return;
-  if (path.startsWith('/pages/index') || path.startsWith('/pages/orders') || path.startsWith('/pages/mine')) {
+  if (
+    path.startsWith('/pages/index') ||
+    path.startsWith('/pages/orders') ||
+    path.startsWith('/pages/mine')
+  ) {
     uni.switchTab({ url: path });
     return;
   }
@@ -173,8 +188,15 @@ function formatRange(start?: string, end?: string) {
 </script>
 
 <style scoped>
-.page { min-height: 100vh; padding: 24rpx; background: #f5f7f8; }
-.banner { height: 280rpx; margin-bottom: 20rpx; }
+.page {
+  min-height: 100vh;
+  padding: 24rpx;
+  background: #f5f7f8;
+}
+.banner {
+  height: 280rpx;
+  margin-bottom: 20rpx;
+}
 .banner-card {
   height: 260rpx;
   margin: 0 4rpx;
@@ -186,13 +208,38 @@ function formatRange(start?: string, end?: string) {
   color: #fff;
   background: linear-gradient(135deg, #064e3b, #0d9488);
 }
-.banner-card.tone-amber { background: linear-gradient(135deg, #92400e, #f59e0b); }
-.banner-card.tone-sky { background: linear-gradient(135deg, #0c4a6e, #0ea5e9); }
-.banner-card.tone-rose { background: linear-gradient(135deg, #9f1239, #fb7185); }
-.banner-card.tone-mint { background: linear-gradient(135deg, #064e3b, #10b981); }
-.banner-title { display: block; font-size: 40rpx; font-weight: 800; }
-.banner-sub { display: block; margin-top: 10rpx; font-size: 24rpx; opacity: 0.9; max-width: 420rpx; }
-.banner-cta { display: inline-block; margin-top: 22rpx; padding: 8rpx 18rpx; border-radius: 999rpx; background: rgba(255,255,255,0.2); font-size: 22rpx; }
+.banner-card.tone-amber {
+  background: linear-gradient(135deg, #92400e, #f59e0b);
+}
+.banner-card.tone-sky {
+  background: linear-gradient(135deg, #0c4a6e, #0ea5e9);
+}
+.banner-card.tone-rose {
+  background: linear-gradient(135deg, #9f1239, #fb7185);
+}
+.banner-card.tone-mint {
+  background: linear-gradient(135deg, #064e3b, #10b981);
+}
+.banner-title {
+  display: block;
+  font-size: 40rpx;
+  font-weight: 800;
+}
+.banner-sub {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  opacity: 0.9;
+  max-width: 420rpx;
+}
+.banner-cta {
+  display: inline-block;
+  margin-top: 22rpx;
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.2);
+  font-size: 22rpx;
+}
 .banner-mark {
   width: 96rpx;
   height: 96rpx;
@@ -217,12 +264,33 @@ function formatRange(start?: string, end?: string) {
   background: #fff;
   box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
 }
-.entry.mint { background: linear-gradient(90deg, #fff, #ecfdf5); border: 1rpx solid #d1fae5; }
-.entry-title { display: block; font-size: 30rpx; font-weight: 700; color: #1b3027; }
-.entry-sub { display: block; margin-top: 6rpx; font-size: 22rpx; color: #849087; }
-.entry-arrow { font-size: 36rpx; color: #cbd5e1; }
+.entry.mint {
+  background: linear-gradient(90deg, #fff, #ecfdf5);
+  border: 1rpx solid #d1fae5;
+}
+.entry-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #1b3027;
+}
+.entry-sub {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #849087;
+}
+.entry-arrow {
+  font-size: 36rpx;
+  color: #cbd5e1;
+}
 
-.section-title { margin: 18rpx 0 14rpx; font-size: 30rpx; font-weight: 750; color: #1b3027; }
+.section-title {
+  margin: 18rpx 0 14rpx;
+  font-size: 30rpx;
+  font-weight: 750;
+  color: #1b3027;
+}
 .campaign {
   padding: 26rpx 24rpx;
   margin-bottom: 16rpx;
@@ -240,16 +308,55 @@ function formatRange(start?: string, end?: string) {
   color: #065f46;
   background: #d1fae5;
 }
-.campaign-badge.tone-amber { color: #92400e; background: #fef3c7; }
-.campaign-badge.tone-sky { color: #075985; background: #e0f2fe; }
-.campaign-badge.tone-rose { color: #9f1239; background: #ffe4e6; }
-.campaign-title { display: block; margin-top: 14rpx; font-size: 32rpx; font-weight: 750; color: #1b3027; }
-.campaign-desc { display: block; margin-top: 8rpx; font-size: 24rpx; color: #849087; line-height: 1.5; }
-.campaign-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 18rpx; }
-.campaign-time { font-size: 22rpx; color: #94a3b8; }
-.campaign-cta { font-size: 24rpx; color: #059669; font-weight: 700; }
-.campaign-cta.muted { color: #94a3b8; }
-.empty { text-align: center; padding: 60rpx 0; color: #999; }
+.campaign-badge.tone-amber {
+  color: #92400e;
+  background: #fef3c7;
+}
+.campaign-badge.tone-sky {
+  color: #075985;
+  background: #e0f2fe;
+}
+.campaign-badge.tone-rose {
+  color: #9f1239;
+  background: #ffe4e6;
+}
+.campaign-title {
+  display: block;
+  margin-top: 14rpx;
+  font-size: 32rpx;
+  font-weight: 750;
+  color: #1b3027;
+}
+.campaign-desc {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #849087;
+  line-height: 1.5;
+}
+.campaign-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 18rpx;
+}
+.campaign-time {
+  font-size: 22rpx;
+  color: #94a3b8;
+}
+.campaign-cta {
+  font-size: 24rpx;
+  color: #059669;
+  font-weight: 700;
+}
+.campaign-cta.muted {
+  color: #94a3b8;
+}
+.empty {
+  text-align: center;
+  padding: 60rpx 0;
+  color: #999;
+}
 .empty-btn {
   margin: 0;
   width: 320rpx;
@@ -260,6 +367,12 @@ function formatRange(start?: string, end?: string) {
   border-radius: 36rpx;
   font-size: 28rpx;
 }
-.empty-btn.ghost { background: #fff; color: #059669; border: 2rpx solid #059669; }
-.empty-btn::after { border: none; }
+.empty-btn.ghost {
+  background: #fff;
+  color: #059669;
+  border: 2rpx solid #059669;
+}
+.empty-btn::after {
+  border: none;
+}
 </style>

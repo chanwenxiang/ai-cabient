@@ -5,11 +5,15 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">录像上传队列</span>
-            <span class="hint">设备自动上传状态；滞留超过 {{ SLA_MINUTES }} 分钟高亮，便于日间跟进</span>
+            <span class="hint"
+              >设备自动上传状态；滞留超过 {{ SLA_MINUTES }} 分钟高亮，便于日间跟进</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:upload:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:upload:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -38,9 +42,11 @@
       :closable="false"
       show-icon
       class="sla-banner"
-      :title="stuckOnly
-        ? `当前筛选共 ${total} 条滞留上传（超过 ${SLA_MINUTES} 分钟）`
-        : `本页 ${pageStuckCount} 条已滞留，可勾选「仅滞留」优先处理`"
+      :title="
+        stuckOnly
+          ? `当前筛选共 ${total} 条滞留上传（超过 ${SLA_MINUTES} 分钟）`
+          : `本页 ${pageStuckCount} 条已滞留，可勾选「仅滞留」优先处理`
+      "
     />
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
@@ -55,7 +61,13 @@
         />
       </el-form-item>
       <el-form-item label="上传状态">
-        <el-select v-model="uploadStatus" clearable placeholder="全部" style="width: 140px" @change="search">
+        <el-select
+          v-model="uploadStatus"
+          clearable
+          placeholder="全部"
+          style="width: 140px"
+          @change="search"
+        >
           <el-option
             v-for="item in uploadStatusOptions"
             :key="item.value"
@@ -83,15 +95,23 @@
           stripe
           border
           class="report-table"
-         
           row-key="sessionId"
           :row-class-name="rowClassName"
-          @selection-change="onSelectionChange" empty-text=" ">
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
           <template #empty>
             <el-empty v-if="listHydrated && !loading" :description="emptyHint" :image-size="88" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="sessionId" label="会话编号" min-width="168" align="center" class-name="col-text" sortable="custom">
+          <el-table-column
+            prop="sessionId"
+            label="会话编号"
+            min-width="168"
+            align="center"
+            class-name="col-text"
+            sortable="custom"
+          >
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="goSession(row.sessionId)">
                 <span class="cell-id">{{ row.sessionId }}</span>
@@ -114,9 +134,17 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="对象路径" min-width="180" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="对象路径"
+            min-width="180"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
-              <span v-if="objectKey(row.videoUri)" class="cell-id">{{ objectKey(row.videoUri) }}</span>
+              <span v-if="objectKey(row.videoUri)" class="cell-id">{{
+                objectKey(row.videoUri)
+              }}</span>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
@@ -127,7 +155,13 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="等待原因" min-width="200" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="等待原因"
+            min-width="200"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <span>{{ waitReason(row) }}</span>
             </template>
@@ -141,7 +175,9 @@
                 </template>
                 <template v-else-if="isDueSoon(row)">
                   <el-tag type="warning" size="small">临近时限</el-tag>
-                  <small class="sla-meta">已等 {{ formatAge(ageMs(row)) }} · 剩 {{ formatAge(remainMs(row)) }}</small>
+                  <small class="sla-meta"
+                    >已等 {{ formatAge(ageMs(row)) }} · 剩 {{ formatAge(remainMs(row)) }}</small
+                  >
                 </template>
                 <template v-else>
                   <span class="cell-datetime">已等 {{ formatAge(ageMs(row)) }}</span>
@@ -152,7 +188,9 @@
           </el-table-column>
           <el-table-column label="预览" width="80" align="center">
             <template #default="{ row }">
-              <el-link v-if="row.videoUri" type="primary" @click.prevent="playVideo(row.sessionId)">播放</el-link>
+              <el-link v-if="row.videoUri" type="primary" @click.prevent="playVideo(row.sessionId)"
+                >播放</el-link
+              >
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
@@ -170,16 +208,17 @@
       </div>
     </div>
 
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="total"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next"
-        background
-        @current-change="load"
-        @size-change="onSizeChange"
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
   </el-card>
 </template>
 
@@ -229,8 +268,12 @@ const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const items = ref<SessionRow[]>([]);
-const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById, idSortDir } =
-  useIdColumnSort<SessionRow>('sessionId');
+const {
+  defaultSort: idDefaultSort,
+  onSortChange: onIdSortChange,
+  sortById,
+  idSortDir
+} = useIdColumnSort<SessionRow>('sessionId');
 
 const focusSessionId = ref('');
 const uploadStatusDict = useDictOptions('upload_status');
@@ -245,9 +288,8 @@ function matchUploadStatus(row: SessionRow) {
   return String(row.uploadStatus || '').toUpperCase() === uploadStatus.value.toUpperCase();
 }
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } = useTableSelection<SessionRow>(
-  (row) => row.sessionId
-);
+const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
+  useTableSelection<SessionRow>((row) => row.sessionId);
 
 const displayItems = computed(() => {
   const list = [...items.value];
@@ -257,7 +299,9 @@ const displayItems = computed(() => {
     const as = isStuck(a) ? 1 : 0;
     const bs = isStuck(b) ? 1 : 0;
     if (as !== bs) return bs - as;
-    return String(a.sessionId).localeCompare(String(b.sessionId), undefined, { numeric: true }) * dir;
+    return (
+      String(a.sessionId).localeCompare(String(b.sessionId), undefined, { numeric: true }) * dir
+    );
   });
 });
 
@@ -271,7 +315,17 @@ const emptyHint = computed(() =>
 
 const { onExport } = useListCsv({
   filePrefix: '录像上传队列',
-  headers: ['会话编号', '用户', '设备', '上传状态', '等待原因', '滞留分钟', '是否滞留', '关门时间', '更新时间'],
+  headers: [
+    '会话编号',
+    '用户',
+    '设备',
+    '上传状态',
+    '等待原因',
+    '滞留分钟',
+    '是否滞留',
+    '关门时间',
+    '更新时间'
+  ],
   toRows: () =>
     pickSelected(displayItems.value).map((row) => [
       row.sessionId,
@@ -404,7 +458,10 @@ function applyRouteQuery() {
     stuckOnly.value = qStuck;
     changed = true;
   }
-  if (typeof route.query.uploadStatus === 'string' && route.query.uploadStatus !== uploadStatus.value) {
+  if (
+    typeof route.query.uploadStatus === 'string' &&
+    route.query.uploadStatus !== uploadStatus.value
+  ) {
     uploadStatus.value = route.query.uploadStatus;
     changed = true;
   } else if (!route.query.uploadStatus && uploadStatus.value) {
@@ -442,7 +499,10 @@ async function scanWaitingPages(
       state: 'WAITING_UPLOAD'
     });
     if (keyword.value.trim()) q.set('q', keyword.value.trim());
-    const data = await api.request<PageResult<SessionRow>>(`/api/v2/ops/admin/sessions?${q}`, 'GET');
+    const data = await api.request<PageResult<SessionRow>>(
+      `/api/v2/ops/admin/sessions?${q}`,
+      'GET'
+    );
     const batch = data.items || [];
     serverTotal = data.total ?? batch.length;
     for (const row of batch) {
@@ -485,7 +545,10 @@ async function load() {
         state: 'WAITING_UPLOAD'
       });
       if (keyword.value.trim()) q.set('q', keyword.value.trim());
-      const data = await api.request<PageResult<SessionRow>>(`/api/v2/ops/admin/sessions?${q}`, 'GET');
+      const data = await api.request<PageResult<SessionRow>>(
+        `/api/v2/ops/admin/sessions?${q}`,
+        'GET'
+      );
       items.value = data.items || [];
       total.value = data.total ?? 0;
     }
@@ -555,7 +618,13 @@ async function reloadFromRouteQuery() {
 
 watch(
   () =>
-    [route.query.keyword, route.query.q, route.query.deviceId, route.query.stuck, route.query.sessionId] as const,
+    [
+      route.query.keyword,
+      route.query.q,
+      route.query.deviceId,
+      route.query.stuck,
+      route.query.sessionId
+    ] as const,
   () => {
     void reloadFromRouteQuery();
   }
@@ -578,18 +647,51 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-size: 15px; font-weight: 600; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; }
-.list-lead { margin: 0 0 8px; }
-.help-toggle { padding-left: 0; }
-.upload-hint { margin: 8px 0 0; }
-.sla-banner { margin-bottom: 10px; }
-.sla-cell { display: grid; gap: 2px; line-height: 1.35; }
-.sla-meta { color: var(--el-text-color-secondary); font-size: 11px; }
-.sla-meta.danger { color: var(--el-color-danger); }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+}
+.list-lead {
+  margin: 0 0 8px;
+}
+.help-toggle {
+  padding-left: 0;
+}
+.upload-hint {
+  margin: 8px 0 0;
+}
+.sla-banner {
+  margin-bottom: 10px;
+}
+.sla-cell {
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+}
+.sla-meta {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+}
+.sla-meta.danger {
+  color: var(--el-color-danger);
+}
 .link-cell {
   appearance: none;
   border: 0;
@@ -601,13 +703,25 @@ onActivated(() => {
   font: inherit;
   text-align: center;
 }
-.link-cell:hover { text-decoration: underline; }
-.muted { color: var(--el-text-color-placeholder); }
+.link-cell:hover {
+  text-decoration: underline;
+}
+.muted {
+  color: var(--el-text-color-placeholder);
+}
 :deep(.el-table .is-overdue > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-danger) 6%, var(--el-table-bg-color, #fff)) !important;
+  background: color-mix(
+    in srgb,
+    var(--el-color-danger) 6%,
+    var(--el-table-bg-color, #fff)
+  ) !important;
 }
 :deep(.el-table .is-due-soon > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-warning) 7%, var(--el-table-bg-color, #fff)) !important;
+  background: color-mix(
+    in srgb,
+    var(--el-color-warning) 7%,
+    var(--el-table-bg-color, #fff)
+  ) !important;
 }
 :deep(.el-table .is-focus > td.el-table__cell) {
   outline: 1px solid color-mix(in srgb, var(--el-color-primary) 45%, transparent);

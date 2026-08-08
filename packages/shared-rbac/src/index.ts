@@ -22,7 +22,10 @@ export const OPS_ADMIN_PERM = 'ops:admin';
  * @param granted 用户已授权权限码列表
  * @param code 待校验权限码；空/缺省视为通过（前端「无 perm 约束」）
  */
-export function matchPermission(granted: readonly string[] | null | undefined, code?: string | null): boolean {
+export function matchPermission(
+  granted: readonly string[] | null | undefined,
+  code?: string | null
+): boolean {
   if (!code) return true;
   const perms = granted || [];
   if (perms.includes(OPS_ADMIN_PERM)) return true;
@@ -78,7 +81,9 @@ export type MerchantPackId = 'field' | 'biz' | 'team';
 export function isMerchantPackAgnostic(permCode?: string | null): boolean {
   if (!permCode || !permCode.trim()) return true;
   const code = permCode.trim();
-  return code === 'merchant' || code === 'merchant:portal:access' || code.startsWith('merchant:nav:');
+  return (
+    code === 'merchant' || code === 'merchant:portal:access' || code.startsWith('merchant:nav:')
+  );
 }
 
 function matchesPrefix(code: string, prefixes: readonly string[]): boolean {

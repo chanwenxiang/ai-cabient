@@ -16,7 +16,10 @@
           <view class="progress-fill" :style="{ width: progressWidth }" />
         </view>
         <text class="progress-text">
-          <text v-if="profile?.nextLevelName">距{{ profile.nextLevelName }}还差约 {{ formatYuan(profile.spentToNextLevel) }} 消费</text>
+          <text v-if="profile?.nextLevelName"
+            >距{{ profile.nextLevelName }}还差约
+            {{ formatYuan(profile.spentToNextLevel) }} 消费</text
+          >
           <text v-else>已达最高等级</text>
         </text>
       </view>
@@ -60,10 +63,18 @@
 
     <view class="section">
       <text class="section-title">等级说明</text>
-      <view v-for="lv in profile?.levels || []" :key="lv.levelCode" class="level-row" :class="{ on: lv.levelCode === profile?.levelCode }">
+      <view
+        v-for="lv in profile?.levels || []"
+        :key="lv.levelCode"
+        class="level-row"
+        :class="{ on: lv.levelCode === profile?.levelCode }"
+      >
         <view>
           <text class="level-name">{{ lv.levelName }}</text>
-          <text class="level-range">累计消费 {{ formatYuan(Number(lv.minSpent || 0)) }}{{ lv.maxSpent != null ? ' - ' + formatYuan(Number(lv.maxSpent)) : '+' }}</text>
+          <text class="level-range"
+            >累计消费 {{ formatYuan(Number(lv.minSpent || 0))
+            }}{{ lv.maxSpent != null ? ' - ' + formatYuan(Number(lv.maxSpent)) : '+' }}</text
+          >
         </view>
         <text v-if="lv.levelCode === profile?.levelCode" class="level-badge">当前</text>
       </view>
@@ -74,17 +85,19 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
-import {
-  consumerApi,
-  ensureConsumerAuth,
-  type MemberProfileDto
-} from '@/utils/consumer-api';
+import { consumerApi, ensureConsumerAuth, type MemberProfileDto } from '@/utils/consumer-api';
 
 const profile = ref<MemberProfileDto | null>(null);
 const couponCount = ref(0);
 
-const progressWidth = computed(() => `${Math.min(100, Math.max(0, profile.value?.progressPercent || 0))}%`);
-const yuanFmt = new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY', maximumFractionDigits: 0 });
+const progressWidth = computed(
+  () => `${Math.min(100, Math.max(0, profile.value?.progressPercent || 0))}%`
+);
+const yuanFmt = new Intl.NumberFormat('zh-CN', {
+  style: 'currency',
+  currency: 'CNY',
+  maximumFractionDigits: 0
+});
 function formatYuan(n: number) {
   return yuanFmt.format(Number.isFinite(n) ? n : 0);
 }
@@ -98,7 +111,9 @@ const benefits = [
 
 onShow(async () => {
   if (!(await ensureConsumerAuth())) {
-    uni.navigateTo({ url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/member/index') });
+    uni.navigateTo({
+      url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/member/index')
+    });
     return;
   }
   await load();
@@ -106,10 +121,7 @@ onShow(async () => {
 
 async function load() {
   try {
-    const [p, count] = await Promise.all([
-      consumerApi.memberProfile(),
-      consumerApi.couponCount()
-    ]);
+    const [p, count] = await Promise.all([consumerApi.memberProfile(), consumerApi.couponCount()]);
     profile.value = p;
     couponCount.value = Number(count) || 0;
   } catch (e) {
@@ -146,12 +158,33 @@ function goShop() {
   background: linear-gradient(135deg, #064e3b 0%, #059669 55%, #0d9488 100%);
   box-shadow: 0 16rpx 40rpx rgba(5, 150, 105, 0.28);
 }
-.hero.lv-silver { background: linear-gradient(135deg, #334155, #64748b 60%, #94a3b8); }
-.hero.lv-gold { background: linear-gradient(135deg, #92400e, #d97706 55%, #f59e0b); }
-.hero.lv-platinum { background: linear-gradient(135deg, #1e1b4b, #4338ca 55%, #6366f1); }
-.hero-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 20rpx; }
-.hero-kicker { display: block; font-size: 20rpx; letter-spacing: 2rpx; opacity: 0.7; }
-.hero-level { display: block; margin-top: 8rpx; font-size: 40rpx; font-weight: 800; }
+.hero.lv-silver {
+  background: linear-gradient(135deg, #334155, #64748b 60%, #94a3b8);
+}
+.hero.lv-gold {
+  background: linear-gradient(135deg, #92400e, #d97706 55%, #f59e0b);
+}
+.hero.lv-platinum {
+  background: linear-gradient(135deg, #1e1b4b, #4338ca 55%, #6366f1);
+}
+.hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20rpx;
+}
+.hero-kicker {
+  display: block;
+  font-size: 20rpx;
+  letter-spacing: 2rpx;
+  opacity: 0.7;
+}
+.hero-level {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 40rpx;
+  font-weight: 800;
+}
 .spent-chip {
   min-width: 140rpx;
   padding: 16rpx 22rpx;
@@ -159,12 +192,39 @@ function goShop() {
   background: rgba(255, 255, 255, 0.16);
   text-align: right;
 }
-.spent-num { display: block; font-size: 36rpx; font-weight: 800; line-height: 1; }
-.spent-unit { display: block; margin-top: 6rpx; font-size: 22rpx; opacity: 0.85; }
-.progress-block { margin-top: 28rpx; }
-.progress-track { height: 10rpx; border-radius: 999rpx; background: rgba(255, 255, 255, 0.22); overflow: hidden; }
-.progress-fill { height: 100%; border-radius: 999rpx; background: #fff; }
-.progress-text { display: block; margin-top: 14rpx; font-size: 22rpx; opacity: 0.88; line-height: 1.4; }
+.spent-num {
+  display: block;
+  font-size: 36rpx;
+  font-weight: 800;
+  line-height: 1;
+}
+.spent-unit {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  opacity: 0.85;
+}
+.progress-block {
+  margin-top: 28rpx;
+}
+.progress-track {
+  height: 10rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.22);
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 999rpx;
+  background: #fff;
+}
+.progress-text {
+  display: block;
+  margin-top: 14rpx;
+  font-size: 22rpx;
+  opacity: 0.88;
+  line-height: 1.4;
+}
 
 .quick-grid {
   display: grid;
@@ -192,8 +252,19 @@ function goShop() {
   font-weight: 700;
   color: #059669;
 }
-.quick-title { display: block; margin-top: 8rpx; font-size: 24rpx; font-weight: 650; color: #1f2a24; }
-.quick-desc { display: block; margin-top: 4rpx; font-size: 20rpx; color: #8a968e; }
+.quick-title {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  font-weight: 650;
+  color: #1f2a24;
+}
+.quick-desc {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 20rpx;
+  color: #8a968e;
+}
 
 .section {
   margin-top: 24rpx;
@@ -202,10 +273,21 @@ function goShop() {
   background: #fff;
   box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
 }
-.section-title { font-size: 30rpx; font-weight: 700; color: #1b3027; }
+.section-title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #1b3027;
+}
 
-.benefit-row { display: flex; gap: 18rpx; padding: 18rpx 0; border-bottom: 1rpx solid #f0f2f1; }
-.benefit-row:last-child { border-bottom: 0; }
+.benefit-row {
+  display: flex;
+  gap: 18rpx;
+  padding: 18rpx 0;
+  border-bottom: 1rpx solid #f0f2f1;
+}
+.benefit-row:last-child {
+  border-bottom: 0;
+}
 .benefit-mark {
   width: 56rpx;
   height: 56rpx;
@@ -219,8 +301,18 @@ function goShop() {
   font-weight: 700;
   color: #059669;
 }
-.benefit-title { display: block; font-size: 28rpx; font-weight: 650; color: #223029; }
-.benefit-desc { display: block; margin-top: 6rpx; font-size: 22rpx; color: #849087; }
+.benefit-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 650;
+  color: #223029;
+}
+.benefit-desc {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #849087;
+}
 
 .level-row {
   display: flex;
@@ -231,8 +323,25 @@ function goShop() {
   border-radius: 16rpx;
   background: #f8faf9;
 }
-.level-row.on { background: #ecfdf5; border: 1rpx solid #a7f3d0; }
-.level-name { display: block; font-size: 28rpx; font-weight: 650; color: #1b3027; }
-.level-range { display: block; margin-top: 4rpx; font-size: 22rpx; color: #849087; }
-.level-badge { font-size: 24rpx; color: #059669; font-weight: 700; }
+.level-row.on {
+  background: #ecfdf5;
+  border: 1rpx solid #a7f3d0;
+}
+.level-name {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 650;
+  color: #1b3027;
+}
+.level-range {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #849087;
+}
+.level-badge {
+  font-size: 24rpx;
+  color: #059669;
+  font-weight: 700;
+}
 </style>
