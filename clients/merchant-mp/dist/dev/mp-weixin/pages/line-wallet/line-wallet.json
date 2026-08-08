@@ -1,7 +1,0 @@
-{
-  "navigationBarTitleText": "线长钱包",
-  "enablePullDownRefresh": true,
-  "usingComponents": {
-    "empty-state": "../../components/empty-state"
-  }
-}

@@ -1,7 +1,0 @@
-{
-  "enablePullDownRefresh": true,
-  "navigationBarTitleText": "柜机订单",
-  "usingComponents": {
-    "empty-state": "../../components/empty-state"
-  }
-}
