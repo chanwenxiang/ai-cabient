@@ -539,9 +539,9 @@ async function onLogin() {
   flex-shrink: 0;
   padding: 36rpx 32rpx 40rpx;
   border-radius: 32rpx 32rpx 24rpx 24rpx;
-  background: rgba(9, 28, 34, 0.68);
-  border: 2rpx solid rgba(94, 234, 212, 0.22);
-  backdrop-filter: blur(28rpx);
+  background: rgba(8, 24, 30, 0.58);
+  border: 2rpx solid rgba(148, 210, 198, 0.22);
+  backdrop-filter: blur(52rpx);
   box-shadow:
     0 -8rpx 40rpx rgba(2, 12, 16, 0.18),
     0 16rpx 48rpx rgba(2, 10, 14, 0.42);
@@ -663,17 +663,18 @@ async function onLogin() {
   width: 100%;
   height: 88rpx;
   box-sizing: border-box;
-  background: rgba(255, 255, 255, 0.09);
-  border: 2rpx solid rgba(148, 163, 184, 0.26);
+  background: rgba(8, 24, 30, 0.42);
+  border: 2rpx solid rgba(148, 210, 198, 0.3);
   border-radius: 16rpx;
   padding: 0 28rpx;
   font-size: 28rpx;
   color: #f0fdfa;
   line-height: 88rpx;
+  backdrop-filter: blur(16rpx);
 }
 .input:focus {
-  border-color: rgba(94, 234, 212, 0.6);
-  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(94, 234, 212, 0.7);
+  background: rgba(8, 24, 30, 0.55);
 }
 .ph {
   color: rgba(204, 251, 241, 0.4);
@@ -696,12 +697,13 @@ async function onLogin() {
   min-width: 180rpx;
   height: 88rpx;
   border-radius: 16rpx;
-  background: rgba(255, 255, 255, 0.09);
-  border: 2rpx solid rgba(94, 234, 212, 0.24);
+  background: rgba(8, 24, 30, 0.42);
+  border: 2rpx solid rgba(148, 210, 198, 0.3);
   color: #5eead4;
   font-size: 26rpx;
   font-weight: 600;
   white-space: nowrap;
+  backdrop-filter: blur(16rpx);
 }
 .btn-primary {
   margin-top: 12rpx;
