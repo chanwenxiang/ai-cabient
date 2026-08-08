@@ -169,30 +169,30 @@
                 </configuration>
                 <executions>
                     <execution>
-                        <id>install-node-and-npm</id>
+                        <id>install-node-and-pnpm</id>
                         <goals>
-                            <goal>install-node-and-npm</goal>
+                            <goal>install-node-and-pnpm</goal>
                         </goals>
                         <configuration>
                             <nodeVersion>${node.version}</nodeVersion>
-                            <npmVersion>${npm.version}</npmVersion>
+                            <pnpmVersion>${pnpm.version}</pnpmVersion>
                         </configuration>
                     </execution>
                     <execution>
-                        <id>npm-install-admin</id>
+                        <id>pnpm-install-admin</id>
                         <goals>
-                            <goal>npm</goal>
+                            <goal>pnpm</goal>
                         </goals>
                         <configuration>
                             <workingDirectory>${project.basedir}/../../clients/admin-vue</workingDirectory>
-                            <arguments>install --no-audit --no-fund</arguments>
+                            <arguments>install --frozen-lockfile</arguments>
                             <skip>${skip.admin.build}</skip>
                         </configuration>
                     </execution>
                     <execution>
-                        <id>npm-build-admin</id>
+                        <id>pnpm-build-admin</id>
                         <goals>
-                            <goal>npm</goal>
+                            <goal>pnpm</goal>
                         </goals>
                         <phase>generate-resources</phase>
                         <configuration>

@@ -19,7 +19,7 @@ COPY packages/shared-types/src packages/shared-types/src
 COPY packages/shared-api/src packages/shared-api/src
 COPY packages/shared-uni/src packages/shared-uni/src
 
-COPY clients/admin-vue/package.json clients/admin-vue/package-lock.json clients/admin-vue/
+COPY clients/admin-vue/package.json clients/admin-vue/
 COPY clients/admin-vue/index.html clients/admin-vue/vite.config.ts clients/admin-vue/tsconfig.json clients/admin-vue/
 COPY clients/admin-vue/public clients/admin-vue/public
 COPY clients/admin-vue/src clients/admin-vue/src

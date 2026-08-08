@@ -57,6 +57,10 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: "6379"
 
+      # Maven 构建会重新生成 static/admin；若与提交的产物不一致说明前端改了没同步产物
+      - name: Verify admin UI artifacts are up-to-date
+        run: git diff --exit-code -- services/trade-service/src/main/resources/static/admin
+
       - name: Build (device-service)
         run: mvn compile -pl services/device-service -am
         env:
@@ -90,6 +94,21 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: pnpm build:packages
+
+      - name: Shared RBAC unit tests
+        run: pnpm --filter @aicabinet/shared-rbac test
+
+      - name: Nav-permission alignment check
+        run: pnpm check:nav-perms
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
 
       - name: Consumer MP type-check
         run: pnpm --filter @aicabinet/consumer-mp run type-check
