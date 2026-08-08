@@ -150,6 +150,15 @@
       }
     },
     {
+      "path": "pages/policy/detail",
+      "style": {
+        "navigationBarTitleText": "条款说明",
+        "navigationBarBackgroundColor": "#ffffff",
+        "backgroundColor": "#f7f7f7",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
       "path": "pages/announcements/announcements",
       "style": {
         "navigationBarTitleText": "通知公告",
