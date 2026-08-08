@@ -1,203 +1,203 @@
 {
-    "pages":  [
-                  {
-                      "path":  "pages/index/index",
-                      "style":  {
-                                    "navigationBarTitleText":  "开门购物",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "navigationBarTextStyle":  "black",
-                                    "backgroundColor":  "#f7f7f7",
-                                    "backgroundTextStyle":  "dark",
-                                    "disableScroll":  true
-                                }
-                  },
-                  {
-                      "path":  "pages/orders/orders",
-                      "style":  {
-                                    "navigationBarTitleText":  "我的订单",
-                                    "navigationStyle":  "custom",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "navigationBarTextStyle":  "black",
-                                    "backgroundColor":  "#f7f7f7",
-                                    "backgroundTextStyle":  "dark",
-                                    "enablePullDownRefresh":  true
-                                }
-                  },
-                  {
-                      "path":  "pages/mine/mine",
-                      "style":  {
-                                    "navigationBarTitleText":  "我的",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "navigationBarTextStyle":  "black",
-                                    "backgroundColor":  "#f7f7f7"
-                                }
-                  },
-                  {
-                      "path":  "pages/verify/verify",
-                      "style":  {
-                                    "navigationBarTitleText":  "开通支付",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "navigationBarTextStyle":  "black",
-                                    "backgroundColor":  "#f7f7f7"
-                                }
-                  },
-                  {
-                      "path":  "pages/login/login",
-                      "style":  {
-                                    "navigationBarTitleText":  "登录",
-                                    "navigationStyle":  "custom",
-                                    "backgroundColor":  "#f7f7f7"
-                                }
-                  },
-                  {
-                      "path":  "pages/result/result",
-                      "style":  {
-                                    "navigationBarTitleText":  "账单结果",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "navigationBarTextStyle":  "black",
-                                    "backgroundColor":  "#f7f7f7",
-                                    "enablePullDownRefresh":  false
-                                }
-                  },
-                  {
-                      "path":  "pages/report/report",
-                      "style":  {
-                                    "navigationBarTitleText":  "故障报修",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "navigationBarTextStyle":  "black",
-                                    "backgroundColor":  "#f7f7f7"
-                                }
-                  },
-                  {
-                      "path":  "pages/feedback/feedback",
-                      "style":  {
-                                    "navigationBarTitleText":  "意见反馈",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "navigationBarTextStyle":  "black",
-                                    "backgroundColor":  "#f7f7f7"
-                                }
-                  },
-                  {
-                      "style":  {
-                                    "navigationBarTitleText":  "账户充值",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "backgroundColor":  "#f7f7f7",
-                                    "navigationBarTextStyle":  "black"
-                                },
-                      "path":  "pages/recharge/recharge"
-                  },
-                  {
-                      "style":  {
-                                    "navigationBarTitleText":  "订单详情",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "backgroundColor":  "#f7f7f7",
-                                    "navigationBarTextStyle":  "black"
-                                },
-                      "path":  "pages/order-detail/order-detail"
-                  },
-                  {
-                      "path":  "pages/video/video",
-                      "style":  {
-                                    "navigationBarTitleText":  "购物视频",
-                                    "navigationBarBackgroundColor":  "#000000",
-                                    "navigationBarTextStyle":  "white",
-                                    "backgroundColor":  "#000000"
-                                }
-                  },
-                  {
-                      "path":  "pages/coupons/coupons",
-                      "style":  {
-                                    "navigationBarTitleText":  "我的优惠券",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "backgroundColor":  "#f7f7f7",
-                                    "navigationBarTextStyle":  "black"
-                                }
-                  },
-                  {
-                      "path":  "pages/member/index",
-                      "style":  {
-                                    "navigationBarTitleText":  "会员中心",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "backgroundColor":  "#f5f7f8",
-                                    "navigationBarTextStyle":  "black"
-                                }
-                  },
-                  {
-                      "path":  "pages/marketing/index",
-                      "style":  {
-                                    "navigationBarTitleText":  "热门活动",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "backgroundColor":  "#f5f7f8",
-                                    "navigationBarTextStyle":  "black"
-                                }
-                  },
-                  {
-                      "path":  "pages/dispute/detail",
-                      "style":  {
-                                    "navigationBarTitleText":  "账单审核",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "backgroundColor":  "#f7f7f7",
-                                    "navigationBarTextStyle":  "black"
-                                }
-                  },
-                  {
-                      "path":  "pages/help/help",
-                      "style":  {
-                                    "navigationBarTitleText":  "帮助中心",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "backgroundColor":  "#f7f7f7",
-                                    "navigationBarTextStyle":  "black"
-                                }
-                  },
-                  {
-                      "path":  "pages/announcements/announcements",
-                      "style":  {
-                                    "navigationBarTitleText":  "通知公告",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "backgroundColor":  "#f7f7f7",
-                                    "navigationBarTextStyle":  "black"
-                                }
-                  },
-                  {
-                      "path":  "pages/announcements/detail",
-                      "style":  {
-                                    "navigationBarTitleText":  "公告详情",
-                                    "navigationBarBackgroundColor":  "#ffffff",
-                                    "backgroundColor":  "#f7f7f7",
-                                    "navigationBarTextStyle":  "black"
-                                }
-                  }
-              ],
-    "tabBar":  {
-                   "color":  "#888888",
-                   "selectedColor":  "#059669",
-                   "backgroundColor":  "#ffffff",
-                   "borderStyle":  "black",
-                   "list":  [
-                                {
-                                    "pagePath":  "pages/index/index",
-                                    "text":  "首页",
-                                    "iconPath":  "static/tab/home.png",
-                                    "selectedIconPath":  "static/tab/home-active.png"
-                                },
-                                {
-                                    "pagePath":  "pages/orders/orders",
-                                    "text":  "订单",
-                                    "iconPath":  "static/tab/orders.png",
-                                    "selectedIconPath":  "static/tab/orders-active.png"
-                                },
-                                {
-                                    "pagePath":  "pages/mine/mine",
-                                    "text":  "我的",
-                                    "iconPath":  "static/tab/mine.png",
-                                    "selectedIconPath":  "static/tab/mine-active.png"
-                                }
-                            ]
-               },
-    "globalStyle":  {
-                        "navigationBarTextStyle":  "black",
-                        "navigationBarBackgroundColor":  "#ffffff",
-                        "backgroundColor":  "#f7f7f7",
-                        "backgroundTextStyle":  "dark"
-                    }
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "开门购物",
+        "navigationBarBackgroundColor": "#ffffff",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#f7f7f7",
+        "backgroundTextStyle": "dark",
+        "disableScroll": true
+      }
+    },
+    {
+      "path": "pages/orders/orders",
+      "style": {
+        "navigationBarTitleText": "我的订单",
+        "navigationStyle": "custom",
+        "navigationBarBackgroundColor": "#ffffff",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#f7f7f7",
+        "backgroundTextStyle": "dark",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
+      "path": "pages/mine/mine",
+      "style": {
+        "navigationBarTitleText": "我的",
+        "navigationBarBackgroundColor": "#ffffff",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#f7f7f7"
+      }
+    },
+    {
+      "path": "pages/verify/verify",
+      "style": {
+        "navigationBarTitleText": "开通支付",
+        "navigationBarBackgroundColor": "#ffffff",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#f7f7f7"
+      }
+    },
+    {
+      "path": "pages/login/login",
+      "style": {
+        "navigationBarTitleText": "登录",
+        "navigationStyle": "custom",
+        "backgroundColor": "#f7f7f7"
+      }
+    },
+    {
+      "path": "pages/result/result",
+      "style": {
+        "navigationBarTitleText": "账单结果",
+        "navigationBarBackgroundColor": "#ffffff",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#f7f7f7",
+        "enablePullDownRefresh": false
+      }
+    },
+    {
+      "path": "pages/report/report",
+      "style": {
+        "navigationBarTitleText": "故障报修",
+        "navigationBarBackgroundColor": "#ffffff",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#f7f7f7"
+      }
+    },
+    {
+      "path": "pages/feedback/feedback",
+      "style": {
+        "navigationBarTitleText": "意见反馈",
+        "navigationBarBackgroundColor": "#ffffff",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#f7f7f7"
+      }
+    },
+    {
+      "style": {
+        "navigationBarTitleText": "账户充值",
+        "navigationBarBackgroundColor": "#ffffff",
+        "backgroundColor": "#f7f7f7",
+        "navigationBarTextStyle": "black"
+      },
+      "path": "pages/recharge/recharge"
+    },
+    {
+      "style": {
+        "navigationBarTitleText": "订单详情",
+        "navigationBarBackgroundColor": "#ffffff",
+        "backgroundColor": "#f7f7f7",
+        "navigationBarTextStyle": "black"
+      },
+      "path": "pages/order-detail/order-detail"
+    },
+    {
+      "path": "pages/video/video",
+      "style": {
+        "navigationBarTitleText": "购物视频",
+        "navigationBarBackgroundColor": "#000000",
+        "navigationBarTextStyle": "white",
+        "backgroundColor": "#000000"
+      }
+    },
+    {
+      "path": "pages/coupons/coupons",
+      "style": {
+        "navigationBarTitleText": "我的优惠券",
+        "navigationBarBackgroundColor": "#ffffff",
+        "backgroundColor": "#f7f7f7",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/member/index",
+      "style": {
+        "navigationBarTitleText": "会员中心",
+        "navigationBarBackgroundColor": "#ffffff",
+        "backgroundColor": "#f5f7f8",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/marketing/index",
+      "style": {
+        "navigationBarTitleText": "热门活动",
+        "navigationBarBackgroundColor": "#ffffff",
+        "backgroundColor": "#f5f7f8",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/dispute/detail",
+      "style": {
+        "navigationBarTitleText": "账单审核",
+        "navigationBarBackgroundColor": "#ffffff",
+        "backgroundColor": "#f7f7f7",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/help/help",
+      "style": {
+        "navigationBarTitleText": "帮助中心",
+        "navigationBarBackgroundColor": "#ffffff",
+        "backgroundColor": "#f7f7f7",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/announcements/announcements",
+      "style": {
+        "navigationBarTitleText": "通知公告",
+        "navigationBarBackgroundColor": "#ffffff",
+        "backgroundColor": "#f7f7f7",
+        "navigationBarTextStyle": "black"
+      }
+    },
+    {
+      "path": "pages/announcements/detail",
+      "style": {
+        "navigationBarTitleText": "公告详情",
+        "navigationBarBackgroundColor": "#ffffff",
+        "backgroundColor": "#f7f7f7",
+        "navigationBarTextStyle": "black"
+      }
+    }
+  ],
+  "tabBar": {
+    "color": "#94a3b8",
+    "selectedColor": "#0d9488",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "首页",
+        "iconPath": "static/tab/home.png",
+        "selectedIconPath": "static/tab/home-active.png"
+      },
+      {
+        "pagePath": "pages/orders/orders",
+        "text": "订单",
+        "iconPath": "static/tab/orders.png",
+        "selectedIconPath": "static/tab/orders-active.png"
+      },
+      {
+        "pagePath": "pages/mine/mine",
+        "text": "我的",
+        "iconPath": "static/tab/mine.png",
+        "selectedIconPath": "static/tab/mine-active.png"
+      }
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarBackgroundColor": "#ffffff",
+    "backgroundColor": "#f7f7f7",
+    "backgroundTextStyle": "dark"
+  }
 }

@@ -39,18 +39,28 @@
                 v-if="landingErrorKind === 'balance'"
                 class="error-action primary"
                 @click="goRechargeFromError"
-              >去充值</text>
+                >去充值</text
+              >
               <text
                 v-else-if="lastFailedDeviceId"
                 class="error-action primary"
                 @click="retryLastOpen"
-              >重试开门</text>
+                >重试开门</text
+              >
               <text
                 v-if="landingErrorKind === 'device_not_found'"
                 class="error-action"
                 @click="onScan"
-              >重新扫码</text>
-              <text class="error-action" @click="landingError = ''; showManual = true">换一台</text>
+                >重新扫码</text
+              >
+              <text
+                class="error-action"
+                @click="
+                  landingError = '';
+                  showManual = true;
+                "
+                >换一台</text
+              >
             </view>
           </view>
           <text
@@ -58,13 +68,19 @@
             role="button"
             aria-label="关闭错误提示"
             @click="landingError = ''"
-          >×</text>
+            >×</text
+          >
         </view>
 
         <view class="landing-spacer" />
 
         <view class="landing-action">
-          <button class="scan-circle" hover-class="scan-circle-hover" :disabled="opening || enteringFlow" @click="onScan">
+          <button
+            class="scan-circle"
+            hover-class="scan-circle-hover"
+            :disabled="opening || enteringFlow"
+            @click="onScan"
+          >
             <view class="scan-circle-inner">
               <view class="scan-icon-box">
                 <view class="scan-corner tl" />
@@ -118,7 +134,9 @@
       <view class="device-bar">
         <view class="device-info">
           <text class="device-name">{{ deviceName || deviceId }}</text>
-          <text class="device-status" :class="{ offline: deviceOffline }">{{ deviceStatusText }}</text>
+          <text class="device-status" :class="{ offline: deviceOffline }">{{
+            deviceStatusText
+          }}</text>
         </view>
         <view class="device-actions">
           <text class="device-report" @click="goReport">报修</text>
@@ -126,7 +144,11 @@
         </view>
       </view>
 
-      <view v-if="reviewSessionId && !sessionActive" class="settlement-review-card" :class="'tone-' + reviewCopy.tone">
+      <view
+        v-if="reviewSessionId && !sessionActive"
+        class="settlement-review-card"
+        :class="'tone-' + reviewCopy.tone"
+      >
         <view class="review-icon" :class="'tone-' + reviewCopy.tone">{{ reviewCopy.icon }}</view>
         <view class="review-copy">
           <text class="review-title">{{ reviewCopy.title }}</text>
@@ -149,7 +171,9 @@
       </view>
 
       <scroll-view scroll-y class="product-scroll" :show-scrollbar="false" enhanced>
-        <view v-if="productsLoading" class="card loading-card"><text class="meta">加载商品中…</text></view>
+        <view v-if="productsLoading" class="card loading-card"
+          ><text class="meta">加载商品中…</text></view
+        >
         <view v-else-if="!products.length" class="card loading-card catalog-empty">
           <text class="empty-title">本柜暂无上架商品</text>
           <text class="empty-hint">仍可开门购物；实付以关门识别为准。有疑问可故障报修或换一台</text>
@@ -180,7 +204,9 @@
       <view class="cart-bar">
         <view class="cart-info">
           <text class="cart-hint">{{ cartBarHint }}</text>
-          <text v-if="sessionActive && state === 'SHOPPING'" class="cart-sub">拿错可放回，关门后按最终取走结算</text>
+          <text v-if="sessionActive && state === 'SHOPPING'" class="cart-sub"
+            >拿错可放回，关门后按最终取走结算</text
+          >
         </view>
         <view v-if="sessionActive" class="cart-status-chip" :class="stateTone">
           {{ cartBarAction }}
@@ -216,14 +242,12 @@
       >
         取消本次开门
       </button>
-      <button
-        v-if="recognitionSlow"
-        class="flow-cancel"
-        @click="deferRecognitionWait"
-      >
+      <button v-if="recognitionSlow" class="flow-cancel" @click="deferRecognitionWait">
         稍后再看结果
       </button>
-      <text v-if="recognitionSlow" class="flow-slow-hint">识别时间较长，可先离开，账单出来后在「订单」查看</text>
+      <text v-if="recognitionSlow" class="flow-slow-hint"
+        >识别时间较长，可先离开，账单出来后在「订单」查看</text
+      >
     </view>
 
     <OpenPrepDrawer
@@ -249,16 +273,36 @@ import {
   requireConsumerAuth
 } from '@/utils/consumer-api';
 import { parseCabinetScan, parseLaunchOptions } from '@aicabinet/shared-uni/qrcode';
-import { sessionStateHint, sessionStateLabel, sessionStateTone } from '@aicabinet/shared-uni/session-labels';
-import { classifyOpenError, formatError, fmtMoney, type OpenErrorKind } from '@aicabinet/shared-uni/format';
+import {
+  sessionStateHint,
+  sessionStateLabel,
+  sessionStateTone
+} from '@aicabinet/shared-uni/session-labels';
+import {
+  classifyOpenError,
+  formatError,
+  fmtMoney,
+  type OpenErrorKind
+} from '@aicabinet/shared-uni/format';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
 import { productGlyph, productThumb } from '@/utils/product-thumb';
 import heroIllustration from '@/static/login-bg.png';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
-import { delay, requestDisputeSubscribe, requestOrderSubscribe, showBillToast, showDisputeResolvedToast } from '@/utils/notify';
+import {
+  delay,
+  requestDisputeSubscribe,
+  requestOrderSubscribe,
+  showBillToast,
+  showDisputeResolvedToast
+} from '@/utils/notify';
 import { showDevTools } from '@/utils/runtime-flags';
-import type { AccountDto, DeviceProduct, DisputeTicketDto, SessionDto } from '@aicabinet/shared-types';
+import type {
+  AccountDto,
+  DeviceProduct,
+  DisputeTicketDto,
+  SessionDto
+} from '@aicabinet/shared-types';
 
 const devTools = showDevTools();
 /** H5 无可靠扫码时始终提供手输；微信小程序仅开发构建显示 */
@@ -267,7 +311,9 @@ const isH5 = ref(false);
 isH5.value = true;
 // #endif
 const showManualEntry = computed(() => devTools || isH5.value);
-const manualEntryLabel = computed(() => (isH5.value ? '手动输入柜机编号' : '开发：手动输入柜机编号'));
+const manualEntryLabel = computed(() =>
+  isH5.value ? '手动输入柜机编号' : '开发：手动输入柜机编号'
+);
 
 const deviceInput = ref('');
 const deviceId = ref('');
@@ -321,9 +367,12 @@ const recognitionSlow = computed(
     recognitionElapsedSec.value >= 90
 );
 
-const sessionActive = computed(() =>
-  !!sessionId.value &&
-  ['CREATED', 'OPENING', 'SHOPPING', 'RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)
+const sessionActive = computed(
+  () =>
+    !!sessionId.value &&
+    ['CREATED', 'OPENING', 'SHOPPING', 'RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(
+      state.value
+    )
 );
 
 const showLanding = computed(() => !scanned.value && !enteringFlow.value);
@@ -345,23 +394,34 @@ const landingErrorTitle = computed(() => {
   }
 });
 
-const canReopen = computed(() =>
-  scanned.value && !!deviceId.value && !sessionActive.value && !opening.value && !enteringFlow.value
+const canReopen = computed(
+  () =>
+    scanned.value &&
+    !!deviceId.value &&
+    !sessionActive.value &&
+    !opening.value &&
+    !enteringFlow.value
 );
 
 const flowOverlayVisible = computed(() => {
   if (showPrepDrawer.value) return false;
-  if (recognitionDeferred.value && ['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)) {
+  if (
+    recognitionDeferred.value &&
+    ['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)
+  ) {
     return false;
   }
   if (enteringFlow.value && !scanned.value) return true;
   if (opening.value && !sessionId.value) return true;
-  if (['OPENING', 'CREATED', 'RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)) return true;
+  if (['OPENING', 'CREATED', 'RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value))
+    return true;
   return false;
 });
 
-const flowOverlayPulse = computed(() =>
-  ['OPENING', 'CREATED', 'RECOGNIZING', 'SETTLING', 'WAITING_UPLOAD'].includes(state.value) || opening.value
+const flowOverlayPulse = computed(
+  () =>
+    ['OPENING', 'CREATED', 'RECOGNIZING', 'SETTLING', 'WAITING_UPLOAD'].includes(state.value) ||
+    opening.value
 );
 
 const flowOverlayTitle = computed(() => {
@@ -431,7 +491,9 @@ onLoad(async (opts) => {
         launch = fromSearch;
       } else if (window.location.hash.includes('deviceId=')) {
         const hashQuery = window.location.hash.split('?')[1] || '';
-        const fromHash = parseLaunchOptions(Object.fromEntries(new URLSearchParams(hashQuery).entries()));
+        const fromHash = parseLaunchOptions(
+          Object.fromEntries(new URLSearchParams(hashQuery).entries())
+        );
         if (fromHash.deviceId) launch = fromHash;
       }
     } catch {
@@ -592,7 +654,12 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
       }
       setLandingError(msg, kind);
       uni.showToast({
-        title: kind === 'device_paused' ? '柜机暂停营业' : kind === 'device_busy' ? '柜机正忙' : '暂时无法开门',
+        title:
+          kind === 'device_paused'
+            ? '柜机暂停营业'
+            : kind === 'device_busy'
+              ? '柜机正忙'
+              : '暂时无法开门',
         icon: 'none'
       });
       return;
@@ -665,8 +732,15 @@ async function adoptOrphanSession(cabinetId: string): Promise<boolean> {
     const s = await consumerApi.activeSession();
     const matched =
       s &&
-      String(s.deviceId || '').trim().toUpperCase() === String(cabinetId || '').trim().toUpperCase() &&
-      ['CREATED', 'OPENING', 'SHOPPING', 'RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(s.state);
+      String(s.deviceId || '')
+        .trim()
+        .toUpperCase() ===
+        String(cabinetId || '')
+          .trim()
+          .toUpperCase() &&
+      ['CREATED', 'OPENING', 'SHOPPING', 'RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(
+        s.state
+      );
     if (matched) {
       lastFailedDeviceId.value = '';
       lastFailedChannel.value = null;
@@ -858,7 +932,9 @@ function confirmDevice() {
   let raw = deviceInput.value;
   // #ifdef H5
   if (!raw.trim() && typeof document !== 'undefined') {
-    const el = document.querySelector('.manual-form input, .uni-input-input, input') as HTMLInputElement | null;
+    const el = document.querySelector(
+      '.manual-form input, .uni-input-input, input'
+    ) as HTMLInputElement | null;
     if (el?.value) raw = el.value;
   }
   // #endif
@@ -1086,7 +1162,9 @@ function applySessionView(s: SessionDto) {
 function startOpeningCountdown(createdAt?: string) {
   stopOpeningCountdown();
   const started = createdAt ? new Date(createdAt).getTime() : Date.now();
-  const tick = () => { openingSeconds.value = Math.max(0, 90 - Math.floor((Date.now() - started) / 1000)); };
+  const tick = () => {
+    openingSeconds.value = Math.max(0, 90 - Math.floor((Date.now() - started) / 1000));
+  };
   tick();
   countdownTimer = setInterval(tick, 1000);
 }
@@ -1147,7 +1225,8 @@ function startPoll() {
         await finishSession(s.state, sid);
       } else if (['FAILED', 'CANCELLED'].includes(s.state)) {
         stopPoll();
-        const hint = sessionStateHint(s.state) || (s.state === 'CANCELLED' ? '会话已取消' : '购物未完成');
+        const hint =
+          sessionStateHint(s.state) || (s.state === 'CANCELLED' ? '会话已取消' : '购物未完成');
         uni.removeStorageSync('active_session_id');
         clearOpenAttempt();
         clearSessionUi();
@@ -1169,7 +1248,8 @@ function stopPoll() {
 function startDevicePoll() {
   stopDevicePoll();
   devicePollTimer = setInterval(() => {
-    if (!opening.value && scanned.value && deviceId.value) refreshDeviceStatusThrottled(deviceId.value);
+    if (!opening.value && scanned.value && deviceId.value)
+      refreshDeviceStatusThrottled(deviceId.value);
   }, 30000);
 }
 
@@ -1322,8 +1402,13 @@ function stopDevicePoll() {
   flex-direction: column;
   align-items: center;
 }
-.scan-circle::after { border: none; }
-.scan-circle-hover { opacity: 0.9; transform: scale(0.98); }
+.scan-circle::after {
+  border: none;
+}
+.scan-circle-hover {
+  opacity: 0.9;
+  transform: scale(0.98);
+}
 .scan-circle-inner {
   width: 220rpx;
   height: 220rpx;
@@ -1365,7 +1450,9 @@ function stopDevicePoll() {
   color: #9a7b4f;
   padding: 12rpx 0;
 }
-.manual-form { margin-top: 8rpx; }
+.manual-form {
+  margin-top: 8rpx;
+}
 .field-label {
   display: block;
   font-size: 24rpx;
@@ -1392,8 +1479,12 @@ function stopDevicePoll() {
   height: 88rpx;
   box-shadow: 0 10rpx 28rpx rgba(5, 150, 105, 0.28);
 }
-.btn-primary::after { border: none; }
-.btn-hover { opacity: 0.85; }
+.btn-primary::after {
+  border: none;
+}
+.btn-hover {
+  opacity: 0.85;
+}
 
 .scan-corner {
   position: absolute;
@@ -1402,10 +1493,30 @@ function stopDevicePoll() {
   border-color: rgba(255, 255, 255, 0.95);
   border-style: solid;
 }
-.scan-corner.tl { top: 0; left: 0; border-width: 5rpx 0 0 5rpx; border-radius: 4rpx 0 0 0; }
-.scan-corner.tr { top: 0; right: 0; border-width: 5rpx 5rpx 0 0; border-radius: 0 4rpx 0 0; }
-.scan-corner.bl { bottom: 0; left: 0; border-width: 0 0 5rpx 5rpx; border-radius: 0 0 0 4rpx; }
-.scan-corner.br { bottom: 0; right: 0; border-width: 0 5rpx 5rpx 0; border-radius: 0 0 4rpx 0; }
+.scan-corner.tl {
+  top: 0;
+  left: 0;
+  border-width: 5rpx 0 0 5rpx;
+  border-radius: 4rpx 0 0 0;
+}
+.scan-corner.tr {
+  top: 0;
+  right: 0;
+  border-width: 5rpx 5rpx 0 0;
+  border-radius: 0 4rpx 0 0;
+}
+.scan-corner.bl {
+  bottom: 0;
+  left: 0;
+  border-width: 0 0 5rpx 5rpx;
+  border-radius: 0 0 0 4rpx;
+}
+.scan-corner.br {
+  bottom: 0;
+  right: 0;
+  border-width: 0 5rpx 5rpx 0;
+  border-radius: 0 0 4rpx 0;
+}
 .scan-line {
   width: 8rpx;
   height: 40rpx;
@@ -1429,12 +1540,35 @@ function stopDevicePoll() {
   align-items: center;
   justify-content: space-between;
 }
-.device-name { font-size: 32rpx; font-weight: 600; color: #191919; display: block; }
-.device-status { font-size: 24rpx; color: #07c160; display: block; margin-top: 4rpx; }
-.device-status.offline { color: #fa5151; }
-.device-actions { display: flex; align-items: center; gap: 20rpx; flex-shrink: 0; }
-.device-change { font-size: 26rpx; color: #576b95; }
-.device-report { font-size: 24rpx; color: #888; }
+.device-name {
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #191919;
+  display: block;
+}
+.device-status {
+  font-size: 24rpx;
+  color: #07c160;
+  display: block;
+  margin-top: 4rpx;
+}
+.device-status.offline {
+  color: #fa5151;
+}
+.device-actions {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  flex-shrink: 0;
+}
+.device-change {
+  font-size: 26rpx;
+  color: #576b95;
+}
+.device-report {
+  font-size: 24rpx;
+  color: #888;
+}
 
 .shopping-banner {
   margin: 12rpx 24rpx 0;
@@ -1482,9 +1616,15 @@ function stopDevicePoll() {
   min-height: 0;
   margin-top: 12rpx;
 }
-.list-bottom { height: 16rpx; }
+.list-bottom {
+  height: 16rpx;
+}
 
-.loading-card { text-align: center; padding: 48rpx; margin: 0 16rpx; }
+.loading-card {
+  text-align: center;
+  padding: 48rpx;
+  margin: 0 16rpx;
+}
 .catalog-empty .empty-title {
   display: block;
   font-size: 30rpx;
@@ -1535,12 +1675,25 @@ function stopDevicePoll() {
   overflow: hidden;
   margin-bottom: 12rpx;
 }
-.product-thumb.cat-drink { background: linear-gradient(135deg, #e6f4ff, #bae0ff); }
-.product-thumb.cat-snack { background: linear-gradient(135deg, #fff7e6, #ffe58f); }
-.product-thumb.cat-dairy { background: linear-gradient(135deg, #f9f0ff, #d3adf7); }
-.product-thumb.cat-food { background: linear-gradient(135deg, #fff2e8, #ffbb96); }
-.product-thumb.cat-default { background: #f5f5f5; }
-.product-img { width: 100%; height: 100%; }
+.product-thumb.cat-drink {
+  background: linear-gradient(135deg, #e6f4ff, #bae0ff);
+}
+.product-thumb.cat-snack {
+  background: linear-gradient(135deg, #fff7e6, #ffe58f);
+}
+.product-thumb.cat-dairy {
+  background: linear-gradient(135deg, #f9f0ff, #d3adf7);
+}
+.product-thumb.cat-food {
+  background: linear-gradient(135deg, #fff2e8, #ffbb96);
+}
+.product-thumb.cat-default {
+  background: #f5f5f5;
+}
+.product-img {
+  width: 100%;
+  height: 100%;
+}
 .product-mark {
   width: 96rpx;
   height: 96rpx;
@@ -1588,8 +1741,18 @@ function stopDevicePoll() {
   justify-content: space-between;
   border-top: 1rpx solid #e5e5e5;
 }
-.cart-hint { font-size: 28rpx; color: #1e293b; font-weight: 600; display: block; }
-.cart-sub { font-size: 22rpx; color: #888; display: block; margin-top: 4rpx; }
+.cart-hint {
+  font-size: 28rpx;
+  color: #1e293b;
+  font-weight: 600;
+  display: block;
+}
+.cart-sub {
+  font-size: 22rpx;
+  color: #888;
+  display: block;
+  margin-top: 4rpx;
+}
 .cart-cta {
   margin: 0;
   padding: 0 48rpx;
@@ -1601,7 +1764,9 @@ function stopDevicePoll() {
   font-size: 30rpx;
   font-weight: 500;
 }
-.cart-cta::after { border: none; }
+.cart-cta::after {
+  border: none;
+}
 .settlement-review-card {
   display: flex;
   gap: 18rpx;
@@ -1610,7 +1775,7 @@ function stopDevicePoll() {
   border: 1rpx solid #fed7aa;
   border-radius: 20rpx;
   background: linear-gradient(135deg, #fffaf0, #fff7ed);
-  box-shadow: 0 9rpx 26rpx rgba(194, 65, 12, .08);
+  box-shadow: 0 9rpx 26rpx rgba(194, 65, 12, 0.08);
 }
 .settlement-review-card.tone-success {
   border-color: #bbf7d0;
@@ -1636,17 +1801,51 @@ function stopDevicePoll() {
   font-weight: 800;
   font-size: 24rpx;
 }
-.review-icon.tone-wait { background: #059669; }
-.review-icon.tone-success { background: #059669; }
-.review-icon.tone-warn { background: #ef4444; }
-.review-copy { min-width: 0; flex: 1; }
-.review-title, .review-detail { display: block; }
-.review-title { color: #9a3412; font-size: 26rpx; font-weight: 750; }
-.review-detail { margin-top: 7rpx; color: #9a5b39; font-size: 22rpx; line-height: 1.55; }
-.review-actions { display: flex; flex-wrap: wrap; gap: 22rpx; margin-top: 15rpx; }
-.review-link { color: #c2410c; font-size: 23rpx; font-weight: 600; }
-.review-link.primary { color: #047857; }
-.review-link.subtle { color: #9ca3af; }
+.review-icon.tone-wait {
+  background: #059669;
+}
+.review-icon.tone-success {
+  background: #059669;
+}
+.review-icon.tone-warn {
+  background: #ef4444;
+}
+.review-copy {
+  min-width: 0;
+  flex: 1;
+}
+.review-title,
+.review-detail {
+  display: block;
+}
+.review-title {
+  color: #9a3412;
+  font-size: 26rpx;
+  font-weight: 750;
+}
+.review-detail {
+  margin-top: 7rpx;
+  color: #9a5b39;
+  font-size: 22rpx;
+  line-height: 1.55;
+}
+.review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 22rpx;
+  margin-top: 15rpx;
+}
+.review-link {
+  color: #c2410c;
+  font-size: 23rpx;
+  font-weight: 600;
+}
+.review-link.primary {
+  color: #047857;
+}
+.review-link.subtle {
+  color: #9ca3af;
+}
 .cart-status-chip {
   padding: 0 32rpx;
   height: 80rpx;
@@ -1657,9 +1856,18 @@ function stopDevicePoll() {
   color: #07c160;
   background: #e8f8ef;
 }
-.cart-status-chip.wait { color: #fa9d3b; background: #fff7e6; }
-.cart-status-chip.active { color: #07c160; background: #e8f8ef; }
-.cart-status-chip.error { color: #fa5151; background: #ffecec; }
+.cart-status-chip.wait {
+  color: #fa9d3b;
+  background: #fff7e6;
+}
+.cart-status-chip.active {
+  color: #07c160;
+  background: #e8f8ef;
+}
+.cart-status-chip.error {
+  color: #fa5151;
+  background: #ffecec;
+}
 
 .flow-overlay {
   position: fixed;
@@ -1673,9 +1881,15 @@ function stopDevicePoll() {
   padding: 48rpx;
   box-sizing: border-box;
 }
-.flow-overlay.wait { background: #fffdf5; }
-.flow-overlay.active { background: #f0fdf4; }
-.flow-overlay.error { background: #fff5f5; }
+.flow-overlay.wait {
+  background: #fffdf5;
+}
+.flow-overlay.active {
+  background: #f0fdf4;
+}
+.flow-overlay.error {
+  background: #fff5f5;
+}
 .flow-spinner {
   width: 120rpx;
   height: 120rpx;
@@ -1688,7 +1902,9 @@ function stopDevicePoll() {
   animation: spin 1.2s linear infinite;
 }
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .flow-spinner.pulse {
@@ -1732,7 +1948,9 @@ function stopDevicePoll() {
   color: #576b95;
   font-size: 26rpx;
 }
-.flow-cancel::after { border: none; }
+.flow-cancel::after {
+  border: none;
+}
 .flow-slow-hint {
   margin-top: 16rpx;
   padding: 0 40rpx;
@@ -1743,48 +1961,211 @@ function stopDevicePoll() {
 }
 
 /* visual overrides (merged) */
-.landing{padding:0;background:#f5c842}
-.landing-head{padding-top:52rpx;text-align:center}
-.brand{font-size:58rpx}
-.tagline{font-size:31rpx}
-.hero-illustration{top:150rpx}
-.resume-card{margin-top:22rpx;padding:24rpx 28rpx;border-left:6rpx solid #ea580c;border-radius:22rpx;box-shadow:0 12rpx 34rpx rgba(92,61,30,.1)}
-.resume-title{color:#ea580c}
-.resume-sub{color:#7a5a32}
-.landing-error{display:flex;align-items:flex-start;gap:18rpx;margin-top:20rpx;padding:22rpx;border:1rpx solid #fecaca;border-radius:20rpx;background:rgba(255,247,247,.94);box-shadow:0 9rpx 24rpx rgba(220,38,38,.07)}
-.landing-error.kind-balance{border-color:#fcd34d;background:rgba(255,251,235,.96);box-shadow:0 9rpx 24rpx rgba(217,119,6,.08)}
-.landing-error.kind-balance .error-icon{background:#f59e0b}
-.landing-error.kind-balance .error-title{color:#92400e}
-.landing-error.kind-balance .error-detail{color:#b45309}
-.landing-error.kind-device_not_found{border-color:#cbd5e1;background:rgba(248,250,252,.96)}
-.landing-error.kind-device_not_found .error-icon{background:#64748b}
-.landing-error.kind-device_not_found .error-title{color:#334155}
-.landing-error.kind-device_not_found .error-detail{color:#475569}
-.error-icon{display:flex;flex:0 0 42rpx;height:42rpx;align-items:center;justify-content:center;border-radius:50%;color:#fff;background:#ef4444;font-weight:800}
-.error-copy{min-width:0;flex:1}
-.error-title,.error-detail{display:block}
-.error-title{color:#991b1b;font-size:25rpx;font-weight:700}
-.error-detail{margin-top:6rpx;color:#b45353;font-size:22rpx;line-height:1.5}
-.error-actions{display:flex;flex-wrap:wrap;gap:16rpx;margin-top:14rpx}
-.error-action{padding:8rpx 18rpx;border-radius:999rpx;border:1rpx solid #f0b4b4;color:#9f1239;font-size:22rpx;background:#fff}
-.error-action.primary{border-color:#059669;color:#047857;background:#ecfdf5}
-.error-close{padding:0 5rpx;color:#b98b8b;font-size:34rpx;line-height:1}
-.scan-circle-inner{width:228rpx;height:228rpx;box-shadow:0 18rpx 52rpx rgba(234,88,12,.4)}
-.scan-circle-text{font-size:36rpx}
-.landing-foot{padding-bottom:22rpx}
-.manual-link{color:#9a7b4f}
-.device-bar{margin:18rpx 20rpx 0;padding:25rpx;border:1rpx solid #edf2ef;border-radius:22rpx;box-shadow:0 9rpx 28rpx rgba(15,23,42,.055)}
-.device-status{margin-top:7rpx;font-weight:600}
-.catalog-notice{margin:14rpx 20rpx 0;padding:18rpx 20rpx;border:1rpx solid #fde7a9;border-radius:15rpx;background:#fffbeb}
-.product-grid{padding:0 20rpx;gap:18rpx}
-.product-cell{width:calc(50% - 9rpx);padding:15rpx;border:1rpx solid #eef2f0;border-radius:22rpx;box-shadow:0 9rpx 26rpx rgba(15,23,42,.055)}
-.product-thumb{height:210rpx;border-radius:17rpx}
-.product-name{font-size:27rpx;font-weight:600;color:#26342d}
-.product-price{color:#047857;font-size:34rpx}
-.cart-bar{border-top:0;box-shadow:0 -10rpx 32rpx rgba(15,23,42,.08);padding:18rpx 24rpx}
-.cart-cta{background:linear-gradient(135deg,#059669,#0d9488);box-shadow:0 8rpx 22rpx rgba(5,150,105,.22)}
-.flow-overlay{background:radial-gradient(circle at 50% 35%,#ecfdf5,#fff 55%)}
-.flow-spinner{width:132rpx;height:132rpx;border-width:10rpx;box-shadow:0 16rpx 44rpx rgba(5,150,105,.13)}
-.flow-title{font-size:44rpx;color:#173026}
-.flow-device{padding:10rpx 18rpx;border-radius:999rpx;background:#ecfdf5;font-weight:600}
+.landing {
+  padding: 0;
+  background: #f5c842;
+}
+.landing-head {
+  padding-top: 52rpx;
+  text-align: center;
+}
+.brand {
+  font-size: 58rpx;
+}
+.tagline {
+  font-size: 31rpx;
+}
+.hero-illustration {
+  top: 150rpx;
+}
+.resume-card {
+  margin-top: 22rpx;
+  padding: 24rpx 28rpx;
+  border-left: 6rpx solid #ea580c;
+  border-radius: 22rpx;
+  box-shadow: 0 12rpx 34rpx rgba(92, 61, 30, 0.1);
+}
+.resume-title {
+  color: #ea580c;
+}
+.resume-sub {
+  color: #7a5a32;
+}
+.landing-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 18rpx;
+  margin-top: 20rpx;
+  padding: 22rpx;
+  border: 1rpx solid #fecaca;
+  border-radius: 20rpx;
+  background: rgba(255, 247, 247, 0.94);
+  box-shadow: 0 9rpx 24rpx rgba(220, 38, 38, 0.07);
+}
+.landing-error.kind-balance {
+  border-color: #fcd34d;
+  background: rgba(255, 251, 235, 0.96);
+  box-shadow: 0 9rpx 24rpx rgba(217, 119, 6, 0.08);
+}
+.landing-error.kind-balance .error-icon {
+  background: #f59e0b;
+}
+.landing-error.kind-balance .error-title {
+  color: #92400e;
+}
+.landing-error.kind-balance .error-detail {
+  color: #b45309;
+}
+.landing-error.kind-device_not_found {
+  border-color: #cbd5e1;
+  background: rgba(248, 250, 252, 0.96);
+}
+.landing-error.kind-device_not_found .error-icon {
+  background: #64748b;
+}
+.landing-error.kind-device_not_found .error-title {
+  color: #334155;
+}
+.landing-error.kind-device_not_found .error-detail {
+  color: #475569;
+}
+.error-icon {
+  display: flex;
+  flex: 0 0 42rpx;
+  height: 42rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #ef4444;
+  font-weight: 800;
+}
+.error-copy {
+  min-width: 0;
+  flex: 1;
+}
+.error-title,
+.error-detail {
+  display: block;
+}
+.error-title {
+  color: #991b1b;
+  font-size: 25rpx;
+  font-weight: 700;
+}
+.error-detail {
+  margin-top: 6rpx;
+  color: #b45353;
+  font-size: 22rpx;
+  line-height: 1.5;
+}
+.error-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-top: 14rpx;
+}
+.error-action {
+  padding: 8rpx 18rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid #f0b4b4;
+  color: #9f1239;
+  font-size: 22rpx;
+  background: #fff;
+}
+.error-action.primary {
+  border-color: #059669;
+  color: #047857;
+  background: #ecfdf5;
+}
+.error-close {
+  padding: 0 5rpx;
+  color: #b98b8b;
+  font-size: 34rpx;
+  line-height: 1;
+}
+.scan-circle-inner {
+  width: 228rpx;
+  height: 228rpx;
+  box-shadow: 0 18rpx 52rpx rgba(234, 88, 12, 0.4);
+}
+.scan-circle-text {
+  font-size: 36rpx;
+}
+.landing-foot {
+  padding-bottom: 22rpx;
+}
+.manual-link {
+  color: #9a7b4f;
+}
+.device-bar {
+  margin: 18rpx 20rpx 0;
+  padding: 25rpx;
+  border: 1rpx solid #edf2ef;
+  border-radius: 22rpx;
+  box-shadow: 0 9rpx 28rpx rgba(15, 23, 42, 0.055);
+}
+.device-status {
+  margin-top: 7rpx;
+  font-weight: 600;
+}
+.catalog-notice {
+  margin: 14rpx 20rpx 0;
+  padding: 18rpx 20rpx;
+  border: 1rpx solid #fde7a9;
+  border-radius: 15rpx;
+  background: #fffbeb;
+}
+.product-grid {
+  padding: 0 20rpx;
+  gap: 18rpx;
+}
+.product-cell {
+  width: calc(50% - 9rpx);
+  padding: 15rpx;
+  border: 1rpx solid #eef2f0;
+  border-radius: 22rpx;
+  box-shadow: 0 9rpx 26rpx rgba(15, 23, 42, 0.055);
+}
+.product-thumb {
+  height: 210rpx;
+  border-radius: 17rpx;
+}
+.product-name {
+  font-size: 27rpx;
+  font-weight: 600;
+  color: #26342d;
+}
+.product-price {
+  color: #047857;
+  font-size: 34rpx;
+}
+.cart-bar {
+  border-top: 0;
+  box-shadow: 0 -10rpx 32rpx rgba(15, 23, 42, 0.08);
+  padding: 18rpx 24rpx;
+}
+.cart-cta {
+  background: linear-gradient(135deg, #059669, #0d9488);
+  box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.22);
+}
+.flow-overlay {
+  background: radial-gradient(circle at 50% 35%, #ecfdf5, #fff 55%);
+}
+.flow-spinner {
+  width: 132rpx;
+  height: 132rpx;
+  border-width: 10rpx;
+  box-shadow: 0 16rpx 44rpx rgba(5, 150, 105, 0.13);
+}
+.flow-title {
+  font-size: 44rpx;
+  color: #173026;
+}
+.flow-device {
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  background: #ecfdf5;
+  font-weight: 600;
+}
 </style>

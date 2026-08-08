@@ -1,7 +1,7 @@
 package com.aicabinet.trade.client;
 
 import com.aicabinet.common.constants.InternalApiConstants;
-import com.aicabinet.trade.config.InternalApiProperties;
+import com.aicabinet.common.security.InternalApiProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;

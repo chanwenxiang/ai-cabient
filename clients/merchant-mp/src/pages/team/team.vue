@@ -1,13 +1,9 @@
 <template>
   <view class="page">
     <view class="toolbar">
-      <button
-        v-if="canInvite"
-        class="invite-btn"
-        size="mini"
-        :loading="saving"
-        @click="openInvite"
-      >邀请成员</button>
+      <button v-if="canInvite" class="invite-btn" size="mini" :loading="saving" @click="openInvite">
+        邀请成员
+      </button>
     </view>
 
     <view v-if="loading" class="card state">加载中…</view>
@@ -27,8 +23,10 @@
       <view v-for="u in list" :key="u.userId" class="card row" @click="openManage(u)">
         <view class="avatar">{{ (u.displayName || u.phoneNumber || '员').slice(0, 1) }}</view>
         <view class="meta">
-          <text class="name">{{ u.displayName || u.phoneNumber || ('用户 ' + u.userId) }}</text>
-          <text class="sub">{{ u.phoneNumber || '无手机号' }} · {{ u.roleName || roleLabel(u.roleKey) }}</text>
+          <text class="name">{{ u.displayName || u.phoneNumber || '用户 ' + u.userId }}</text>
+          <text class="sub"
+            >{{ u.phoneNumber || '无手机号' }} · {{ u.roleName || roleLabel(u.roleKey) }}</text
+          >
           <text v-if="u.status === 'INACTIVE'" class="inactive">已停用</text>
         </view>
         <text v-if="u.self" class="self-tag">我</text>
@@ -39,9 +37,27 @@
     <view v-if="inviteVisible" class="mask" @click="inviteVisible = false">
       <view class="dialog" @click.stop>
         <text class="dialog-title">邀请成员</text>
-        <input class="input" type="number" maxlength="11" placeholder="手机号" :value="form.phoneNumber" @input="form.phoneNumber = eventInput($event)" />
-        <input class="input" password placeholder="初始密码（至少 6 位）" :value="form.password" @input="form.password = eventInput($event)" />
-        <input class="input" placeholder="显示名（选填）" :value="form.displayName" @input="form.displayName = eventInput($event)" />
+        <input
+          class="input"
+          type="number"
+          maxlength="11"
+          placeholder="手机号"
+          :value="form.phoneNumber"
+          @input="form.phoneNumber = eventInput($event)"
+        />
+        <input
+          class="input"
+          password
+          placeholder="初始密码（至少 6 位）"
+          :value="form.password"
+          @input="form.password = eventInput($event)"
+        />
+        <input
+          class="input"
+          placeholder="显示名（选填）"
+          :value="form.displayName"
+          @input="form.displayName = eventInput($event)"
+        />
         <view class="role-row wrap">
           <text
             v-for="r in roles"
@@ -49,7 +65,8 @@
             class="role-chip"
             :class="{ active: form.roleKey === r.roleKey }"
             @click="form.roleKey = r.roleKey"
-          >{{ r.roleName }}</text>
+            >{{ r.roleName }}</text
+          >
         </view>
         <view class="dialog-actions">
           <button class="btn ghost" @click="inviteVisible = false">取消</button>
@@ -61,7 +78,10 @@
     <view v-if="manageVisible && manageUser" class="mask" @click="manageVisible = false">
       <view class="dialog" @click.stop>
         <text class="dialog-title">{{ manageUser.displayName || manageUser.phoneNumber }}</text>
-        <text class="hint">{{ manageUser.phoneNumber }} · {{ manageUser.roleName || roleLabel(manageUser.roleKey) }}</text>
+        <text class="hint"
+          >{{ manageUser.phoneNumber }} ·
+          {{ manageUser.roleName || roleLabel(manageUser.roleKey) }}</text
+        >
 
         <view v-if="canEdit" class="section">
           <text class="section-title">角色</text>
@@ -72,14 +92,21 @@
               class="role-chip"
               :class="{ active: manageRoleKey === r.roleKey }"
               @click="manageRoleKey = r.roleKey"
-            >{{ r.roleName }}</text>
+              >{{ r.roleName }}</text
+            >
           </view>
           <button class="btn block" :loading="saving" @click="onSaveRole">保存角色</button>
         </view>
 
         <view v-if="canReset" class="section">
           <text class="section-title">重置密码</text>
-          <input class="input" password placeholder="新密码（至少 6 位）" :value="resetPassword" @input="resetPassword = eventInput($event)" />
+          <input
+            class="input"
+            password
+            placeholder="新密码（至少 6 位）"
+            :value="resetPassword"
+            @input="resetPassword = eventInput($event)"
+          />
           <button class="btn block" :loading="saving" @click="onResetPassword">确认重置</button>
         </view>
 
@@ -89,13 +116,10 @@
             class="btn danger block"
             :loading="saving"
             @click="onDisable"
-          >停用该成员</button>
-          <button
-            v-else
-            class="btn block"
-            :loading="saving"
-            @click="onEnable"
-          >重新启用</button>
+          >
+            停用该成员
+          </button>
+          <button v-else class="btn block" :loading="saving" @click="onEnable">重新启用</button>
         </view>
 
         <button class="btn ghost block" @click="manageVisible = false">关闭</button>
@@ -309,8 +333,16 @@ async function onEnable() {
 </script>
 
 <style scoped>
-.page { padding: 24rpx; min-height: 100vh; box-sizing: border-box; }
-.toolbar { display: flex; justify-content: flex-end; margin-bottom: 12rpx; }
+.page {
+  padding: 24rpx;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+.toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12rpx;
+}
 .invite-btn {
   background: #0f766e;
   color: #fff;
@@ -325,55 +357,167 @@ async function onEnable() {
   margin-bottom: 16rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.06);
 }
-.state { display: flex; flex-direction: column; align-items: center; gap: 16rpx; color: #64748b; }
-.err { color: #b91c1c; }
-.retry { background: #0f766e; color: #fff; border: none; }
-.row { display: flex; align-items: center; gap: 20rpx; }
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16rpx;
+  color: #64748b;
+}
+.err {
+  color: #b91c1c;
+}
+.retry {
+  background: #0f766e;
+  color: #fff;
+  border: none;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
 .avatar {
-  width: 72rpx; height: 72rpx; border-radius: 50%;
-  background: #ccfbf1; color: #0f766e; font-weight: 700;
-  display: flex; align-items: center; justify-content: center;
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  background: #ccfbf1;
+  color: #0f766e;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.meta { flex: 1; min-width: 0; }
-.name { display: block; font-size: 30rpx; font-weight: 650; color: #134e4a; }
-.sub { display: block; margin-top: 6rpx; font-size: 24rpx; color: #64748b; }
-.inactive { display: block; margin-top: 4rpx; font-size: 22rpx; color: #b91c1c; }
-.self-tag, .more {
-  font-size: 22rpx; color: #0f766e; background: #ecfdf5;
-  padding: 6rpx 12rpx; border-radius: 999rpx; font-weight: 600;
+.meta {
+  flex: 1;
+  min-width: 0;
 }
-.more { background: #f1f5f9; color: #64748b; }
+.name {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 650;
+  color: #134e4a;
+}
+.sub {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 24rpx;
+  color: #64748b;
+}
+.inactive {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #b91c1c;
+}
+.self-tag,
+.more {
+  font-size: 22rpx;
+  color: #0f766e;
+  background: #ecfdf5;
+  padding: 6rpx 12rpx;
+  border-radius: 999rpx;
+  font-weight: 600;
+}
+.more {
+  background: #f1f5f9;
+  color: #64748b;
+}
 .empty-btn {
-  margin-top: 16rpx; background: #0f766e; color: #fff; border: none; border-radius: 999rpx;
+  margin-top: 16rpx;
+  background: #0f766e;
+  color: #fff;
+  border: none;
+  border-radius: 999rpx;
 }
 .mask {
-  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.45);
-  display: flex; align-items: flex-end; z-index: 20;
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: flex-end;
+  z-index: 20;
 }
 .dialog {
-  width: 100%; background: #fff; border-radius: 28rpx 28rpx 0 0;
+  width: 100%;
+  background: #fff;
+  border-radius: 28rpx 28rpx 0 0;
   padding: 32rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
-  max-height: 85vh; overflow-y: auto;
+  max-height: 85vh;
+  overflow-y: auto;
 }
-.dialog-title { display: block; font-size: 32rpx; font-weight: 700; color: #134e4a; margin-bottom: 8rpx; }
-.hint { display: block; font-size: 24rpx; color: #64748b; margin-bottom: 20rpx; }
+.dialog-title {
+  display: block;
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #134e4a;
+  margin-bottom: 8rpx;
+}
+.hint {
+  display: block;
+  font-size: 24rpx;
+  color: #64748b;
+  margin-bottom: 20rpx;
+}
 .input {
-  background: #f8fafc; border-radius: 14rpx; padding: 22rpx 20rpx;
-  margin-bottom: 16rpx; font-size: 28rpx;
+  background: #f8fafc;
+  border-radius: 14rpx;
+  padding: 22rpx 20rpx;
+  margin-bottom: 16rpx;
+  font-size: 28rpx;
 }
-.role-row { display: flex; gap: 12rpx; margin: 8rpx 0 24rpx; }
-.role-row.wrap { flex-wrap: wrap; }
+.role-row {
+  display: flex;
+  gap: 12rpx;
+  margin: 8rpx 0 24rpx;
+}
+.role-row.wrap {
+  flex-wrap: wrap;
+}
 .role-chip {
-  padding: 12rpx 24rpx; border-radius: 999rpx; background: #f1f5f9; color: #64748b; font-size: 26rpx;
+  padding: 12rpx 24rpx;
+  border-radius: 999rpx;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 26rpx;
 }
-.role-chip.active { background: #ccfbf1; color: #0f766e; font-weight: 650; }
-.dialog-actions { display: flex; gap: 16rpx; }
-.section { margin-bottom: 28rpx; }
-.section-title { display: block; font-size: 26rpx; font-weight: 650; color: #334155; margin-bottom: 12rpx; }
+.role-chip.active {
+  background: #ccfbf1;
+  color: #0f766e;
+  font-weight: 650;
+}
+.dialog-actions {
+  display: flex;
+  gap: 16rpx;
+}
+.section {
+  margin-bottom: 28rpx;
+}
+.section-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 650;
+  color: #334155;
+  margin-bottom: 12rpx;
+}
 .btn {
-  flex: 1; background: #0f766e; color: #fff; border: none; border-radius: 999rpx; font-size: 28rpx;
+  flex: 1;
+  background: #0f766e;
+  color: #fff;
+  border: none;
+  border-radius: 999rpx;
+  font-size: 28rpx;
 }
-.btn.block { width: 100%; margin-bottom: 12rpx; flex: none; }
-.btn.ghost { background: #f1f5f9; color: #475569; }
-.btn.danger { background: #b91c1c; }
+.btn.block {
+  width: 100%;
+  margin-bottom: 12rpx;
+  flex: none;
+}
+.btn.ghost {
+  background: #f1f5f9;
+  color: #475569;
+}
+.btn.danger {
+  background: #b91c1c;
+}
 </style>

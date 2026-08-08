@@ -5,13 +5,20 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">识别映射</span>
-            <span class="hint">端侧类名 → 商品；建档请在「商品管理 / 识别入驻」维护。生产=进入结算白名单；端侧可换任意识别算法，mock/低置信仍进争议</span>
+            <span class="hint"
+              >端侧类名 → 商品；建档请在「商品管理 /
+              识别入驻」维护。生产=进入结算白名单；端侧可换任意识别算法，mock/低置信仍进争议</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
           <el-button v-if="canAccessPath('/skus')" @click="goPath('/skus')">商品管理</el-button>
-          <el-button v-if="canAccessPath('/sku-vision')" @click="goPath('/sku-vision')">识别入驻</el-button>
-          <el-button v-hasPermi="['ops:vision:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-if="canAccessPath('/sku-vision')" @click="goPath('/sku-vision')"
+            >识别入驻</el-button
+          >
+          <el-button v-hasPermi="['ops:vision:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -45,15 +52,33 @@
           row-key="className"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange" empty-text=" ">
-          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无识别类名映射" /></template>
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无识别类名映射"
+          /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="className" label="类名" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+          <el-table-column
+            prop="className"
+            label="类名"
+            min-width="140"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.className || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="商品" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="商品"
+            min-width="160"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.skuName || row.skuId || '无' }}</template>
           </el-table-column>
           <el-table-column label="入驻状态" width="110" align="center">
@@ -97,14 +122,15 @@
       </div>
     </div>
 
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="filtered.length"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next"
-        background
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="filtered.length"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+    />
 
     <el-dialog v-model="dialogVisible" title="编辑识别映射" width="480px" destroy-on-close>
       <el-form label-width="100px">
@@ -203,7 +229,11 @@ const filtered = computed(() => {
   const rows = !q
     ? yoloMappings.value
     : yoloMappings.value.filter((row) =>
-        [row.className, row.skuId, row.skuName].some((x) => String(x || '').toLowerCase().includes(q))
+        [row.className, row.skuId, row.skuName].some((x) =>
+          String(x || '')
+            .toLowerCase()
+            .includes(q)
+        )
       );
   return sortById(rows);
 });
@@ -278,7 +308,10 @@ function reset() {
 
 async function loadSkus() {
   try {
-    const data = await api.request<SkuOption[] | { items?: SkuOption[] }>('/api/v2/ops/admin/skus', 'GET');
+    const data = await api.request<SkuOption[] | { items?: SkuOption[] }>(
+      '/api/v2/ops/admin/skus',
+      'GET'
+    );
     skuOptions.value = Array.isArray(data) ? data : data.items || [];
   } catch {
     skuOptions.value = [];
@@ -342,8 +375,13 @@ async function onDelete(row: YoloMappingRow) {
   const className = row.className;
   if (!className) return;
   try {
-    await ElMessageBox.confirm(`确认删除映射「${className}」？`, '删除识别映射', { type: 'warning' });
-    await api.request(`/api/v2/ops/admin/vision-mappings/yolo/${encodeURIComponent(className)}`, 'DELETE');
+    await ElMessageBox.confirm(`确认删除映射「${className}」？`, '删除识别映射', {
+      type: 'warning'
+    });
+    await api.request(
+      `/api/v2/ops/admin/vision-mappings/yolo/${encodeURIComponent(className)}`,
+      'DELETE'
+    );
     ElMessage.success('已删除');
     await load();
   } catch (e: any) {
@@ -388,11 +426,28 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .pipe-cell {
   display: flex;
   flex-direction: column;

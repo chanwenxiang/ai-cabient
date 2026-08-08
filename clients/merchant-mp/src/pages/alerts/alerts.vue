@@ -13,10 +13,22 @@
         </text>
       </view>
       <view class="kpi-grid">
-        <view class="kpi-card dispute"><text class="n">{{ counts.disputes }}</text><text class="l">审核</text></view>
-        <view class="kpi-card offline"><text class="n">{{ counts.offline }}</text><text class="l">故障</text></view>
-        <view class="kpi-card stock"><text class="n">{{ counts.lowStock }}</text><text class="l">库存</text></view>
-        <view class="kpi-card expiry"><text class="n">{{ counts.expiry }}</text><text class="l">临期</text></view>
+        <view class="kpi-card dispute"
+          ><text class="n">{{ counts.disputes }}</text
+          ><text class="l">审核</text></view
+        >
+        <view class="kpi-card offline"
+          ><text class="n">{{ counts.offline }}</text
+          ><text class="l">故障</text></view
+        >
+        <view class="kpi-card stock"
+          ><text class="n">{{ counts.lowStock }}</text
+          ><text class="l">库存</text></view
+        >
+        <view class="kpi-card expiry"
+          ><text class="n">{{ counts.expiry }}</text
+          ><text class="l">临期</text></view
+        >
       </view>
 
       <view
@@ -37,7 +49,9 @@
           class="resolve-btn"
           size="mini"
           @click.stop="resolveInventory(a)"
-        >完成库存核对</button>
+        >
+          完成库存核对
+        </button>
       </view>
       <empty-state
         v-if="!visibleItems.length"
@@ -143,7 +157,14 @@ async function load() {
         lowStockItems: 0,
         expiryAlerts: 0,
         slotDiscrepancies: 0,
-        actionItems: [] as { type?: string; title?: string; detail?: string; deviceId?: string; ticketId?: string; exceptionId?: string }[]
+        actionItems: [] as {
+          type?: string;
+          title?: string;
+          detail?: string;
+          deviceId?: string;
+          ticketId?: string;
+          exceptionId?: string;
+        }[]
       })),
       merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 })),
       merchantApi.expiryAlerts().catch(() => [])
@@ -163,9 +184,13 @@ async function load() {
       ['DEVICE_OFFLINE', 'DEVICE_FAULT', 'DOOR_OPEN_TOO_LONG'].includes(typeOf(a.type))
     ).length;
     const stock = deduped.filter((a) =>
-      ['LOW_STOCK', 'SLOT_DISCREPANCY', 'INVENTORY_MISMATCH', 'REPLENISHMENT', 'REPLENISHMENT_REQUIRED'].includes(
-        typeOf(a.type)
-      )
+      [
+        'LOW_STOCK',
+        'SLOT_DISCREPANCY',
+        'INVENTORY_MISMATCH',
+        'REPLENISHMENT',
+        'REPLENISHMENT_REQUIRED'
+      ].includes(typeOf(a.type))
     ).length;
     const expiry = deduped.filter((a) => typeOf(a.type) === 'EXPIRY').length;
     counts.value = {
@@ -275,15 +300,42 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   justify-content: space-between;
   gap: 12rpx;
 }
-.pref-toggle { color: #64748b; text-decoration: underline; }
-.kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12rpx; margin: 12rpx; }
-.kpi-card { border-radius: 16rpx; padding: 24rpx; text-align: center; }
-.kpi-card.dispute { background: #fef2f2; }
-.kpi-card.offline { background: #f1f5f9; }
-.kpi-card.stock { background: #fffbeb; }
-.kpi-card.expiry { background: #ecfdf5; }
-.n { font-size: 40rpx; font-weight: 700; display: block; }
-.l { font-size: 22rpx; color: #64748b; }
+.pref-toggle {
+  color: #64748b;
+  text-decoration: underline;
+}
+.kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12rpx;
+  margin: 12rpx;
+}
+.kpi-card {
+  border-radius: 16rpx;
+  padding: 24rpx;
+  text-align: center;
+}
+.kpi-card.dispute {
+  background: #fef2f2;
+}
+.kpi-card.offline {
+  background: #f1f5f9;
+}
+.kpi-card.stock {
+  background: #fffbeb;
+}
+.kpi-card.expiry {
+  background: #ecfdf5;
+}
+.n {
+  font-size: 40rpx;
+  font-weight: 700;
+  display: block;
+}
+.l {
+  font-size: 22rpx;
+  color: #64748b;
+}
 .alert-card {
   margin-top: 0;
   cursor: pointer;
@@ -293,16 +345,57 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   background: #f8fafc !important;
   opacity: 0.96;
 }
-.tag { font-size: 20rpx; padding: 4rpx 12rpx; border-radius: 6rpx; margin-right: 8rpx; pointer-events: none; }
-.tag.dispute { background: #fecaca; color: #dc2626; }
-.tag.offline { background: #e2e8f0; color: #475569; }
-.tag.stock { background: #fde68a; color: #d97706; }
-.tag.expiry { background: #a7f3d0; color: #059669; }
-.tag.default { background: #e2e8f0; color: #64748b; }
-.title { font-weight: 600; display: block; margin-top: 8rpx; pointer-events: none; }
-.meta { display: block; margin-top: 6rpx; color: #64748b; font-size: 24rpx; pointer-events: none; }
-.action { color: #0f766e; font-size: 24rpx; display: block; margin-top: 12rpx; pointer-events: none; }
-.err { color: #ef4444; display: block; }
+.tag {
+  font-size: 20rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 6rpx;
+  margin-right: 8rpx;
+  pointer-events: none;
+}
+.tag.dispute {
+  background: #fecaca;
+  color: #dc2626;
+}
+.tag.offline {
+  background: #e2e8f0;
+  color: #475569;
+}
+.tag.stock {
+  background: #fde68a;
+  color: #d97706;
+}
+.tag.expiry {
+  background: #a7f3d0;
+  color: #059669;
+}
+.tag.default {
+  background: #e2e8f0;
+  color: #64748b;
+}
+.title {
+  font-weight: 600;
+  display: block;
+  margin-top: 8rpx;
+  pointer-events: none;
+}
+.meta {
+  display: block;
+  margin-top: 6rpx;
+  color: #64748b;
+  font-size: 24rpx;
+  pointer-events: none;
+}
+.action {
+  color: #0f766e;
+  font-size: 24rpx;
+  display: block;
+  margin-top: 12rpx;
+  pointer-events: none;
+}
+.err {
+  color: #ef4444;
+  display: block;
+}
 .retry {
   margin-top: 16rpx;
   background: linear-gradient(135deg, #134e4a, #0f766e);
@@ -312,8 +405,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   border: none;
   box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
 }
-.retry::after { border: none; }
-.resolve-btn { margin-top: 14rpx; background: #0f766e; color: #fff; border: 0; }
+.retry::after {
+  border: none;
+}
+.resolve-btn {
+  margin-top: 14rpx;
+  background: #0f766e;
+  color: #fff;
+  border: 0;
+}
 .empty-btn {
   margin: 0;
   padding: 0 28rpx;
@@ -325,6 +425,11 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   background: #ecfdf5;
   border: none;
 }
-.empty-btn.primary { color: #fff; background: #0f766e; }
-.empty-btn::after { border: none; }
+.empty-btn.primary {
+  color: #fff;
+  background: #0f766e;
+}
+.empty-btn::after {
+  border: none;
+}
 </style>

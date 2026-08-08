@@ -1,7 +1,9 @@
 <template>
   <view class="page">
     <view class="tabs">
-      <view class="tab" :class="{ active: mode === 'create' }" @click="mode = 'create'">发起要货</view>
+      <view class="tab" :class="{ active: mode === 'create' }" @click="mode = 'create'"
+        >发起要货</view
+      >
       <view class="tab" :class="{ active: mode === 'list' }" @click="switchToList">我的申请</view>
     </view>
 
@@ -11,7 +13,9 @@
         <picker :range="deviceLabels" :value="deviceIndex" @change="onDevicePick">
           <view class="picker">{{ deviceLabels[deviceIndex] || '请选择柜机' }}</view>
         </picker>
-        <text v-if="preferredId && selectedDeviceId === preferredId" class="hint">当前为常驻柜</text>
+        <text v-if="preferredId && selectedDeviceId === preferredId" class="hint"
+          >当前为常驻柜</text
+        >
       </view>
 
       <view class="card">
@@ -23,7 +27,12 @@
         <view v-else-if="!draftLines.length" class="empty-inline">
           该柜机暂无可要货商品（无绑定货道 SKU）
         </view>
-        <view v-for="line in draftLines" :key="line.skuId" class="line-row" @click="toggleLine(line)">
+        <view
+          v-for="line in draftLines"
+          :key="line.skuId"
+          class="line-row"
+          @click="toggleLine(line)"
+        >
           <view class="check" :class="{ on: line.selected }">{{ line.selected ? '✓' : '' }}</view>
           <view class="line-copy">
             <text class="sku-name">{{ line.skuName }}</text>
@@ -42,14 +51,17 @@
 
       <view class="card">
         <text class="label">备注（可选）</text>
-        <input v-model="notes" class="input" placeholder="如：周末客流大，优先补可乐" maxlength="80" />
+        <input
+          v-model="notes"
+          class="input"
+          placeholder="如：周末客流大，优先补可乐"
+          maxlength="80"
+        />
       </view>
 
-      <view
-        class="btn-primary"
-        :class="{ disabled: submitting || !canSubmit }"
-        @click="submit"
-      >{{ submitting ? '提交中…' : `提交要货（${selectedCount} 种）` }}</view>
+      <view class="btn-primary" :class="{ disabled: submitting || !canSubmit }" @click="submit">{{
+        submitting ? '提交中…' : `提交要货（${selectedCount} 种）`
+      }}</view>
       <text v-if="!canRequest" class="err">当前账号无要货权限</text>
     </view>
 
@@ -61,7 +73,8 @@
           class="filter"
           :class="{ active: listStatus === t.value }"
           @click="changeListStatus(t.value)"
-        >{{ t.label }}</view>
+          >{{ t.label }}</view
+        >
       </view>
       <view v-if="listLoading" class="empty-inline">加载中…</view>
       <view v-else-if="listError" class="empty-inline err">{{ listError }}</view>
@@ -89,12 +102,13 @@
         </view>
         <text v-if="req.rejectReason" class="reject">驳回：{{ req.rejectReason }}</text>
         <text v-if="req.notes" class="notes">备注：{{ req.notes }}</text>
-        <view
-          v-if="req.status === 'ACCEPTED' && req.replenishmentTaskId"
-          class="detail-btn"
-        >去补货 ›</view>
+        <view v-if="req.status === 'ACCEPTED' && req.replenishmentTaskId" class="detail-btn"
+          >去补货 ›</view
+        >
       </view>
-      <text v-if="requests.length >= 100" class="trunc-hint">已加载 {{ requests.length }} 条申请</text>
+      <text v-if="requests.length >= 100" class="trunc-hint"
+        >已加载 {{ requests.length }} 条申请</text
+      >
     </view>
   </view>
 </template>
@@ -159,8 +173,12 @@ const listStatus = ref('');
 const listError = ref('');
 const requests = ref<MerchantReplenishmentRequest[]>([]);
 
-const selectedCount = computed(() => draftLines.value.filter((l) => l.selected && l.qty > 0).length);
-const canSubmit = computed(() => canRequest.value && !!selectedDeviceId.value && selectedCount.value > 0);
+const selectedCount = computed(
+  () => draftLines.value.filter((l) => l.selected && l.qty > 0).length
+);
+const canSubmit = computed(
+  () => canRequest.value && !!selectedDeviceId.value && selectedCount.value > 0
+);
 
 onLoad((opts) => {
   if (!uni.getStorageSync('merchant_token')) {
@@ -205,9 +223,16 @@ async function bootstrap(preferDeviceId?: string) {
     devices.value = [];
   }
   const prefer = preferDeviceId || preferredId.value;
-  const preferKey = String(prefer || '').trim().toUpperCase();
+  const preferKey = String(prefer || '')
+    .trim()
+    .toUpperCase();
   const idx = preferKey
-    ? devices.value.findIndex((d) => String(d.deviceId || '').trim().toUpperCase() === preferKey)
+    ? devices.value.findIndex(
+        (d) =>
+          String(d.deviceId || '')
+            .trim()
+            .toUpperCase() === preferKey
+      )
     : -1;
   deviceIndex.value = idx >= 0 ? idx : 0;
   if (mode.value === 'create') await loadDraft();
@@ -238,7 +263,9 @@ async function loadDraft() {
   draftLoading.value = true;
   try {
     const [suggest, slots] = await Promise.all([
-      merchantApi.replenishmentSuggestions(deviceId).catch(() => [] as MerchantReplenishmentSuggest[]),
+      merchantApi
+        .replenishmentSuggestions(deviceId)
+        .catch(() => [] as MerchantReplenishmentSuggest[]),
       merchantApi.deviceSlots(deviceId).catch(() => [] as DeviceSlot[])
     ]);
     if (seq !== draftSeq) return;
@@ -263,7 +290,8 @@ async function loadDraft() {
         existing.suggestQty = Math.max(existing.suggestQty, suggestQty);
         continue;
       }
-      const defaultQty = suggestQty > 0 ? suggestQty : Math.max(0, (Number(slot.parLevel) || 0) - book);
+      const defaultQty =
+        suggestQty > 0 ? suggestQty : Math.max(0, (Number(slot.parLevel) || 0) - book);
       bySku.set(skuId, {
         skuId,
         skuName: String(slot.assignedSkuName || skuId),
@@ -383,27 +411,75 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 </script>
 
 <style scoped>
-.page { min-height: 100vh; padding: 16rpx 20rpx 48rpx; background: #f0fdfa; }
-.tabs { display: flex; gap: 12rpx; margin-bottom: 16rpx; }
+.page {
+  min-height: 100vh;
+  padding: 16rpx 20rpx 48rpx;
+  background: #f0fdfa;
+}
+.tabs {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+}
 .tab {
-  flex: 1; text-align: center; padding: 18rpx 0; border-radius: 999rpx;
-  background: #fff; color: #64748b; font-size: 26rpx; border: 1rpx solid #e2e8f0;
+  flex: 1;
+  text-align: center;
+  padding: 18rpx 0;
+  border-radius: 999rpx;
+  background: #fff;
+  color: #64748b;
+  font-size: 26rpx;
+  border: 1rpx solid #e2e8f0;
 }
-.tab.active { background: #134e4a; color: #fff; border-color: #134e4a; font-weight: 600; }
-.panel { display: flex; flex-direction: column; gap: 16rpx; }
+.tab.active {
+  background: #134e4a;
+  color: #fff;
+  border-color: #134e4a;
+  font-weight: 600;
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
 .card {
-  background: #fff; border-radius: 16rpx; padding: 22rpx; border: 1rpx solid #e2e8f0;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 22rpx;
+  border: 1rpx solid #e2e8f0;
 }
-.label { display: block; font-size: 24rpx; color: #64748b; margin-bottom: 12rpx; }
+.label {
+  display: block;
+  font-size: 24rpx;
+  color: #64748b;
+  margin-bottom: 12rpx;
+}
 .picker {
-  padding: 18rpx 20rpx; border-radius: 12rpx; background: #f8fafc; border: 1rpx solid #e2e8f0;
-  font-size: 28rpx; color: #0f172a;
+  padding: 18rpx 20rpx;
+  border-radius: 12rpx;
+  background: #f8fafc;
+  border: 1rpx solid #e2e8f0;
+  font-size: 28rpx;
+  color: #0f172a;
   overflow: hidden;
   max-height: 88rpx;
 }
-.hint { font-size: 22rpx; color: #0f766e; margin-top: 10rpx; }
-.row-between { display: flex; justify-content: space-between; align-items: center; }
-.empty-inline { padding: 24rpx 0; text-align: center; color: #94a3b8; font-size: 24rpx; }
+.hint {
+  font-size: 22rpx;
+  color: #0f766e;
+  margin-top: 10rpx;
+}
+.row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.empty-inline {
+  padding: 24rpx 0;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 24rpx;
+}
 .trunc-hint {
   display: block;
   text-align: center;
@@ -412,28 +488,77 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   padding: 8rpx 0 16rpx;
 }
 .line-row {
-  display: flex; align-items: center; gap: 14rpx; padding: 16rpx 0;
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  padding: 16rpx 0;
   border-top: 1rpx solid #f1f5f9;
 }
-.line-row:first-of-type { border-top: none; }
+.line-row:first-of-type {
+  border-top: none;
+}
 .check {
-  width: 36rpx; height: 36rpx; border-radius: 8rpx; border: 2rpx solid #cbd5e1;
-  display: flex; align-items: center; justify-content: center; font-size: 22rpx; color: #fff;
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: 8rpx;
+  border: 2rpx solid #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22rpx;
+  color: #fff;
   flex-shrink: 0;
 }
-.check.on { background: #0f766e; border-color: #0f766e; }
-.line-copy { flex: 1; min-width: 0; }
-.sku-name { display: block; font-size: 28rpx; font-weight: 600; color: #0f172a; }
-.sku-meta { display: block; font-size: 22rpx; color: #94a3b8; margin-top: 4rpx; }
-.qty-box { display: flex; align-items: center; gap: 8rpx; }
-.qty-btn {
-  width: 48rpx; height: 48rpx; border-radius: 12rpx; background: #ecfdf5; color: #0f766e;
-  text-align: center; line-height: 48rpx; font-size: 30rpx; font-weight: 600;
+.check.on {
+  background: #0f766e;
+  border-color: #0f766e;
 }
-.qty-val { min-width: 40rpx; text-align: center; font-size: 28rpx; font-weight: 600; }
+.line-copy {
+  flex: 1;
+  min-width: 0;
+}
+.sku-name {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #0f172a;
+}
+.sku-meta {
+  display: block;
+  font-size: 22rpx;
+  color: #94a3b8;
+  margin-top: 4rpx;
+}
+.qty-box {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+}
+.qty-btn {
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: 12rpx;
+  background: #ecfdf5;
+  color: #0f766e;
+  text-align: center;
+  line-height: 48rpx;
+  font-size: 30rpx;
+  font-weight: 600;
+}
+.qty-val {
+  min-width: 40rpx;
+  text-align: center;
+  font-size: 28rpx;
+  font-weight: 600;
+}
 .input {
-  width: 100%; padding: 16rpx 18rpx; border-radius: 12rpx; background: #f8fafc;
-  border: 1rpx solid #e2e8f0; font-size: 26rpx; box-sizing: border-box;
+  width: 100%;
+  padding: 16rpx 18rpx;
+  border-radius: 12rpx;
+  background: #f8fafc;
+  border: 1rpx solid #e2e8f0;
+  font-size: 26rpx;
+  box-sizing: border-box;
 }
 .btn-primary {
   margin-top: 8rpx;
@@ -448,32 +573,93 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   font-size: 30rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.22);
 }
-.btn-primary::after { border: none; }
-.btn-primary.disabled { opacity: 0.45; }
-.err { color: #b91c1c; font-size: 24rpx; text-align: center; }
-.filters { display: flex; flex-wrap: wrap; gap: 10rpx; margin-bottom: 4rpx; }
+.btn-primary::after {
+  border: none;
+}
+.btn-primary.disabled {
+  opacity: 0.45;
+}
+.err {
+  color: #b91c1c;
+  font-size: 24rpx;
+  text-align: center;
+}
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-bottom: 4rpx;
+}
 .filter {
-  padding: 10rpx 20rpx; border-radius: 999rpx; background: #fff; color: #64748b;
-  font-size: 22rpx; border: 1rpx solid #e2e8f0;
+  padding: 10rpx 20rpx;
+  border-radius: 999rpx;
+  background: #fff;
+  color: #64748b;
+  font-size: 22rpx;
+  border: 1rpx solid #e2e8f0;
 }
-.filter.active { background: #ccfbf1; color: #0f766e; border-color: #99f6e4; font-weight: 600; }
-.req-card { display: flex; flex-direction: column; gap: 8rpx; }
-.req-card.clickable { cursor: pointer; -webkit-tap-highlight-color: transparent; }
-.req-card-hover { background: #f8fafc !important; }
-.req-id { font-size: 22rpx; color: #94a3b8; }
+.filter.active {
+  background: #ccfbf1;
+  color: #0f766e;
+  border-color: #99f6e4;
+  font-weight: 600;
+}
+.req-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+.req-card.clickable {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.req-card-hover {
+  background: #f8fafc !important;
+}
+.req-id {
+  font-size: 22rpx;
+  color: #94a3b8;
+}
 .status {
-  font-size: 22rpx; padding: 4rpx 12rpx; border-radius: 999rpx;
-  background: #fef3c7; color: #92400e;
+  font-size: 22rpx;
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+  background: #fef3c7;
+  color: #92400e;
 }
-.status.accepted { background: #dcfce7; color: #166534; }
-.status.rejected { background: #fee2e2; color: #991b1b; }
-.status.completed { background: #e0e7ff; color: #3730a3; }
-.lines { display: flex; flex-wrap: wrap; gap: 8rpx; margin-top: 8rpx; }
+.status.accepted {
+  background: #dcfce7;
+  color: #166534;
+}
+.status.rejected {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.status.completed {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+.lines {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-top: 8rpx;
+}
 .line-chip {
-  font-size: 22rpx; background: #f0fdfa; color: #0f766e; padding: 6rpx 12rpx; border-radius: 999rpx;
+  font-size: 22rpx;
+  background: #f0fdfa;
+  color: #0f766e;
+  padding: 6rpx 12rpx;
+  border-radius: 999rpx;
 }
-.reject { font-size: 22rpx; color: #b91c1c; }
-.notes { font-size: 22rpx; color: #64748b; }
+.reject {
+  font-size: 22rpx;
+  color: #b91c1c;
+}
+.notes {
+  font-size: 22rpx;
+  color: #64748b;
+}
 .req-card.clickable .req-id,
 .req-card.clickable .status,
 .req-card.clickable .sku-name,
@@ -481,9 +667,17 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 .req-card.clickable .lines,
 .req-card.clickable .reject,
 .req-card.clickable .notes,
-.req-card.clickable .detail-btn { pointer-events: none; }
+.req-card.clickable .detail-btn {
+  pointer-events: none;
+}
 .detail-btn {
-  margin-top: 12rpx; align-self: flex-start; padding: 12rpx 28rpx; border-radius: 999rpx;
-  background: #0f766e; color: #fff; font-size: 24rpx; font-weight: 600;
+  margin-top: 12rpx;
+  align-self: flex-start;
+  padding: 12rpx 28rpx;
+  border-radius: 999rpx;
+  background: #0f766e;
+  color: #fff;
+  font-size: 24rpx;
+  font-weight: 600;
 }
 </style>

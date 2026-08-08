@@ -43,12 +43,7 @@ interface PlotBox {
   labels: string[];
 }
 
-function plotBox(
-  labels: string[],
-  maxRaw: number,
-  height: number,
-  padL = 52
-): PlotBox {
+function plotBox(labels: string[], maxRaw: number, height: number, padL = 52): PlotBox {
   const W = 640;
   const H = height;
   const padR = 16;
@@ -100,7 +95,11 @@ function xLabelsSvg(box: PlotBox): string {
 
 function seriesMax(series: LineSeries[]): number {
   let maxY = 0;
-  series.forEach((s) => s.values.forEach((v) => { if (v > maxY) maxY = v; }));
+  series.forEach((s) =>
+    s.values.forEach((v) => {
+      if (v > maxY) maxY = v;
+    })
+  );
   return maxY;
 }
 
@@ -118,7 +117,9 @@ function rgba(color: string, a: number): string {
 }
 
 function pathLine(box: PlotBox, values: number[]): string {
-  return values.map((v, i) => `${i === 0 ? 'M' : 'L'}${xAt(box, i).toFixed(2)},${yAt(box, v).toFixed(2)}`).join(' ');
+  return values
+    .map((v, i) => `${i === 0 ? 'M' : 'L'}${xAt(box, i).toFixed(2)},${yAt(box, v).toFixed(2)}`)
+    .join(' ');
 }
 
 function areaPath(box: PlotBox, values: number[]): string {
@@ -135,24 +136,17 @@ function tipAttr(lines: string[]): string {
 }
 
 /** Column hit zones + crosshair for line/area (easier hover than tiny dots). */
-function lineHitZones(
-  box: PlotBox,
-  series: LineSeries[],
-  formatY: (v: number) => string
-): string {
+function lineHitZones(box: PlotBox, series: LineSeries[], formatY: (v: number) => string): string {
   const n = box.labels.length;
   if (!n) return '';
-  const half =
-    n <= 1 ? box.plotW / 2 : Math.max(10, box.plotW / (n - 1) / 2);
+  const half = n <= 1 ? box.plotW / 2 : Math.max(10, box.plotW / (n - 1) / 2);
 
   return box.labels
     .map((lb, i) => {
       const cx = xAt(box, i);
       const x = Math.max(box.padL, cx - half);
       const w = Math.min(box.W - box.padR, cx + half) - x;
-      const rows = series.map(
-        (s) => `${s.name}|${formatY(s.values[i] ?? 0)}|${s.color}`
-      );
+      const rows = series.map((s) => `${s.name}|${formatY(s.values[i] ?? 0)}|${s.color}`);
       const tip = tipAttr([lb, ...rows]);
       return `<g class="chart-col" data-tip="${tip}" data-i="${i}" data-x="${cx.toFixed(1)}">
         <rect class="chart-col-hit" x="${x.toFixed(1)}" y="${box.padT}" width="${Math.max(w, 8).toFixed(1)}" height="${box.plotH}" fill="transparent"/>
@@ -197,12 +191,14 @@ export function buildSeriesChart(opts: {
   const bodies = series
     .map((s, idx) => {
       const line = pathLine(box, s.values);
-      const area = kind === 'area'
-        ? `<path d="${areaPath(box, s.values)}" fill="url(#cg${idx})" stroke="none" pointer-events="none"/>`
-        : '';
-      const glow = kind === 'line'
-        ? `<path d="${line}" fill="none" stroke="${rgba(s.color, 0.25)}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>`
-        : '';
+      const area =
+        kind === 'area'
+          ? `<path d="${areaPath(box, s.values)}" fill="url(#cg${idx})" stroke="none" pointer-events="none"/>`
+          : '';
+      const glow =
+        kind === 'line'
+          ? `<path d="${line}" fill="none" stroke="${rgba(s.color, 0.25)}" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>`
+          : '';
       const stroke = `<path d="${line}" fill="none" stroke="${s.color}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>`;
       const dots = s.values
         .map((v, i) => {
@@ -278,10 +274,12 @@ export function buildGroupedBarChart(opts: {
     .join('');
 
   const defs = series
-    .map((s, si) => `<linearGradient id="bg${si}" x1="0" y1="0" x2="0" y2="1">
+    .map(
+      (s, si) => `<linearGradient id="bg${si}" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="${s.color}" stop-opacity="1"/>
       <stop offset="100%" stop-color="${s.color}" stop-opacity="0.55"/>
-    </linearGradient>`)
+    </linearGradient>`
+    )
     .join('');
 
   return `<svg viewBox="0 0 ${box.W} ${box.H}" preserveAspectRatio="xMidYMid meet" role="img" class="chart-svg chart-interactive">
@@ -338,7 +336,11 @@ export function buildDonutChart(opts: {
       const pct = ((Math.max(p.value, 0) / total) * 100).toFixed(1);
       const raw = Math.max(p.value, 0);
       const shown = formatValue ? formatValue(raw) : String(raw);
-      const tip = tipAttr([p.label, `${valueLabel}|${shown}|${p.color}`, `占比|${pct}%|${p.color}`]);
+      const tip = tipAttr([
+        p.label,
+        `${valueLabel}|${shown}|${p.color}`,
+        `占比|${pct}%|${p.color}`
+      ]);
       return `<path class="chart-arc" data-tip="${tip}" d="M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}" fill="none" stroke="${p.color}" stroke-width="${stroke}" stroke-linecap="butt"/>`;
     })
     .join('');
@@ -351,5 +353,8 @@ export function buildDonutChart(opts: {
 }
 
 function escapeXml(v: string | number): string {
-  return String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/"/g, '&quot;');
 }

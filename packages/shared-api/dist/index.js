@@ -7,6 +7,7 @@ export class ApiClient {
         this.setToken = opts.setToken;
         this.clearSession = opts.clearSession;
         this.onUnauthorized = opts.onUnauthorized;
+        this.hasSession = opts.hasSession ?? (() => Boolean(this.getToken()));
         this.fetchImpl = opts.fetchImpl ?? fetch.bind(globalThis);
         this.timeoutMs = opts.timeoutMs ?? 30000;
     }
@@ -55,7 +56,7 @@ export class ApiClient {
         return json.data;
     }
     async refreshSilently() {
-        if (!this.getToken())
+        if (!this.hasSession())
             return false;
         if (this.refreshPromise)
             return this.refreshPromise;

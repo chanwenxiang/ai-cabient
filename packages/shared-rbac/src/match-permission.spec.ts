@@ -14,7 +14,10 @@ assert(matchPermission(['ops:order:list'], 'ops:order:list') === true, 'exact');
 assert(matchPermission(['ops:rbac:role:*'], 'ops:rbac:role:add') === true, 'segment wildcard');
 assert(matchPermission(['ops:rbac:*'], 'ops:rbac:role:add') === true, 'parent wildcard');
 assert(matchPermission(['ops:order:list'], 'ops:order:refund') === false, 'no match');
-assert(matchPermission(['merchant:replenishment:*'], 'merchant:replenishment:view') === true, 'merchant wildcard');
+assert(
+  matchPermission(['merchant:replenishment:*'], 'merchant:replenishment:view') === true,
+  'merchant wildcard'
+);
 
 assert(permissionRealm('ops:dashboard:view') === 'ops', 'ops realm');
 assert(permissionRealm('merchant:orders:list') === 'merchant', 'merchant realm');

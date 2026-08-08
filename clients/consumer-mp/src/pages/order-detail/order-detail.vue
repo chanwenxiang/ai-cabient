@@ -16,7 +16,7 @@
 
       <view class="section">
         <text class="section-title">商品清单</text>
-        <view v-for="item in (order?.lines || [])" :key="item.skuId" class="item-row">
+        <view v-for="item in order?.lines || []" :key="item.skuId" class="item-row">
           <view class="item-info">
             <text class="item-name">{{ item.skuName || item.skuId || '商品' }}</text>
             <text class="item-qty">x{{ item.quantity }}</text>
@@ -26,7 +26,9 @@
         <view v-if="!(order?.lines || []).length" class="empty-lines">本次未识别到取走商品</view>
         <view class="total-row">
           <text class="total-label">商品合计</text>
-          <text class="total-amount">{{ fmtMoney(order?.originalAmountCents || order?.totalAmountCents || 0) }}</text>
+          <text class="total-amount">{{
+            fmtMoney(order?.originalAmountCents || order?.totalAmountCents || 0)
+          }}</text>
         </view>
         <view v-if="order?.couponDiscountCents" class="discount-row">
           <text class="discount-label">优惠券抵扣</text>
@@ -40,14 +42,30 @@
 
       <view class="section">
         <text class="section-title">支付信息</text>
-        <view class="info-row"><text class="info-label">支付方式</text><text class="info-value">{{ payChannelText }}</text></view>
-        <view class="info-row"><text class="info-label">扣款时间</text><text class="info-value">{{ formatTime(order?.payTime || order?.createdAt) }}</text></view>
-        <view class="info-row"><text class="info-label">订单编号</text><text class="info-value mono">{{ emptyDisplay(order?.orderId, 'order') }}</text></view>
-        <view class="info-row"><text class="info-label">柜机编号</text><text class="info-value mono">{{ emptyDisplay(order?.deviceId, 'device') }}</text></view>
+        <view class="info-row"
+          ><text class="info-label">支付方式</text
+          ><text class="info-value">{{ payChannelText }}</text></view
+        >
+        <view class="info-row"
+          ><text class="info-label">扣款时间</text
+          ><text class="info-value">{{
+            formatTime(order?.payTime || order?.createdAt)
+          }}</text></view
+        >
+        <view class="info-row"
+          ><text class="info-label">订单编号</text
+          ><text class="info-value mono">{{ emptyDisplay(order?.orderId, 'order') }}</text></view
+        >
+        <view class="info-row"
+          ><text class="info-label">柜机编号</text
+          ><text class="info-value mono">{{ emptyDisplay(order?.deviceId, 'device') }}</text></view
+        >
       </view>
 
       <view class="actions">
-        <button v-if="order?.deviceId" class="btn-primary" @click="reopenCabinet">再去本柜购物</button>
+        <button v-if="order?.deviceId" class="btn-primary" @click="reopenCabinet">
+          再去本柜购物
+        </button>
         <button v-if="videoUrl" class="btn-outline" @click="playVideo">查看购物视频</button>
         <button
           v-if="canRefund"
@@ -63,7 +81,9 @@
           :disabled="disputeLoading || refundLoading"
           @click="openDispute"
         >
-          {{ disputeFiled ? '申诉已提交' : (autoRefundEnabled ? '提交账单申诉' : '申请退款 / 账单申诉') }}
+          {{
+            disputeFiled ? '申诉已提交' : autoRefundEnabled ? '提交账单申诉' : '申请退款 / 账单申诉'
+          }}
         </button>
         <button class="btn-outline" @click="goHelp">帮助与客服</button>
       </view>
@@ -75,9 +95,11 @@
       <view class="dispute-panel" @click.stop>
         <text class="dispute-title">{{ refundMode ? '立即退款' : '申请退款 / 账单申诉' }}</text>
         <text class="dispute-sub">
-          {{ refundMode
-            ? '将原路退回本单已扣款项（余额/微信/支付宝）。可上传凭证图片辅助核对。'
-            : '仅提交申诉工单，运营审核后再退款。可上传凭证图片。' }}
+          {{
+            refundMode
+              ? '将原路退回本单已扣款项（余额/微信/支付宝）。可上传凭证图片辅助核对。'
+              : '仅提交申诉工单，运营审核后再退款。可上传凭证图片。'
+          }}
         </text>
         <view class="chip-row">
           <text
@@ -86,7 +108,8 @@
             class="reason-chip"
             :class="{ on: selectedCategory === chip.category }"
             @click="pickChip(chip)"
-          >{{ chip.label }}</text>
+            >{{ chip.label }}</text
+          >
         </view>
         <text class="field-label">申诉说明</text>
         <textarea
@@ -100,8 +123,19 @@
           <text class="evidence-label">申诉附图（选填，最多 5 张）</text>
           <view class="evidence-row">
             <view v-for="(img, idx) in evidence" :key="img.localPath + idx" class="evidence-item">
-              <image class="evidence-img" :src="previewEvidenceSrc(img)" mode="aspectFill" :alt="`证据图 ${idx + 1}`" />
-              <text class="evidence-del" role="button" aria-label="删除证据图" @click="removeEvidence(idx)">×</text>
+              <image
+                class="evidence-img"
+                :src="previewEvidenceSrc(img)"
+                mode="aspectFill"
+                :alt="`证据图 ${idx + 1}`"
+              />
+              <text
+                class="evidence-del"
+                role="button"
+                aria-label="删除证据图"
+                @click="removeEvidence(idx)"
+                >×</text
+              >
               <text v-if="img.uploading" class="evidence-uploading">上传中…</text>
             </view>
             <view
@@ -110,7 +144,8 @@
               role="button"
               aria-label="添加证据图"
               @click="onAddEvidence"
-            >+</view>
+              >+</view
+            >
           </view>
         </view>
         <button
@@ -119,9 +154,15 @@
           :disabled="disputeLoading || refundLoading"
           @click="submitAction"
         >
-          {{ refundMode
-            ? (refundLoading ? '退款中…' : '确认退款')
-            : (disputeLoading ? '提交中…' : '提交申诉') }}
+          {{
+            refundMode
+              ? refundLoading
+                ? '退款中…'
+                : '确认退款'
+              : disputeLoading
+                ? '提交中…'
+                : '提交申诉'
+          }}
         </button>
         <text class="dispute-cancel" @click="closeDispute">取消</text>
       </view>
@@ -134,7 +175,12 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
-import { emptyDisplay, formatDateTimeMinute, orderStatusLabel, fmtMoney } from '@aicabinet/shared-uni/format';
+import {
+  emptyDisplay,
+  formatDateTimeMinute,
+  orderStatusLabel,
+  fmtMoney
+} from '@aicabinet/shared-uni/format';
 import type { OrderDetailDto } from '@aicabinet/shared-types';
 import {
   DISPUTE_REASON_CHIPS,
@@ -298,7 +344,13 @@ const statusTitle = computed(() => orderStatusLabel(order.value?.status) || '订
 const canDispute = computed(() => {
   const s = order.value?.status;
   if (!order.value?.sessionId || disputeFiled.value) return false;
-  if (s === 'REFUNDED' || s === 'PARTIAL_REFUNDED' || s === 'DISPUTED' || s === 'CANCELLED' || s === 'FAILED') {
+  if (
+    s === 'REFUNDED' ||
+    s === 'PARTIAL_REFUNDED' ||
+    s === 'DISPUTED' ||
+    s === 'CANCELLED' ||
+    s === 'FAILED'
+  ) {
     return false;
   }
   return s === 'PAID' || s === 'COMPLETED';
@@ -500,35 +552,158 @@ function callSupport() {
 </script>
 
 <style scoped>
-.page-root { padding: 20rpx; background: #f7f7f7; min-height: 100vh; box-sizing: border-box; }
-.loading, .error { text-align: center; padding: 80rpx 0; color: #999; font-size: 28rpx; }
-.empty-lines { font-size: 26rpx; color: #999; padding: 12rpx 0; }
-.status-bar { display: flex; align-items: center; background: #fff; border-radius: 16rpx; padding: 30rpx; margin-bottom: 20rpx; }
-.status-bar.status-paid, .status-bar.status-completed { background: linear-gradient(135deg, #e8f5e9, #fff); }
-.status-bar.status-refunded { background: linear-gradient(135deg, #fff3e0, #fff); }
-.status-icon { width: 60rpx; height: 60rpx; border-radius: 30rpx; display: flex; align-items: center; justify-content: center; font-size: 32rpx; font-weight: 700; margin-right: 20rpx; background: linear-gradient(135deg, #059669, #0d9488); color: #fff; flex-shrink: 0; }
-.status-bar.status-refunded .status-icon { background: #ff9500; }
-.status-title { font-size: 32rpx; font-weight: 600; display: block; }
-.status-detail { font-size: 24rpx; color: #666; margin-top: 4rpx; display: block; }
-.section { background: #fff; border-radius: 16rpx; padding: 24rpx; margin-bottom: 20rpx; }
-.section-title { font-size: 28rpx; font-weight: 600; margin-bottom: 16rpx; display: block; color: #333; }
-.item-row { display: flex; justify-content: space-between; align-items: center; padding: 14rpx 0; border-bottom: 1rpx solid #f5f5f5; }
-.item-name { font-size: 28rpx; }
-.item-qty { font-size: 24rpx; color: #999; margin-left: 12rpx; }
-.item-price { font-size: 28rpx; font-weight: 500; }
-.total-row { display: flex; justify-content: space-between; padding: 20rpx 0 0; }
-.total-row.pay { padding-top: 12rpx; border-top: 1rpx solid #eee; margin-top: 8rpx; }
-.total-row.pay .total-amount { color: #059669; font-size: 34rpx; }
-.total-label { font-size: 28rpx; font-weight: 600; }
-.total-amount { font-size: 36rpx; font-weight: 700; color: #ff3b30; }
-.discount-row { display: flex; justify-content: space-between; padding: 8rpx 0; }
-.discount-label { font-size: 24rpx; color: #059669; }
-.discount-amount { font-size: 24rpx; color: #059669; }
-.info-row { display: flex; justify-content: space-between; padding: 12rpx 0; }
-.info-label { font-size: 26rpx; color: #666; }
-.info-value { font-size: 26rpx; color: #333; }
-.mono { font-family: monospace; font-size: 22rpx; }
-.actions { display: flex; flex-direction: column; gap: 20rpx; padding: 10rpx 0; }
+.page-root {
+  padding: 20rpx;
+  background: #f7f7f7;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+.loading,
+.error {
+  text-align: center;
+  padding: 80rpx 0;
+  color: #999;
+  font-size: 28rpx;
+}
+.empty-lines {
+  font-size: 26rpx;
+  color: #999;
+  padding: 12rpx 0;
+}
+.status-bar {
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+}
+.status-bar.status-paid,
+.status-bar.status-completed {
+  background: linear-gradient(135deg, #e8f5e9, #fff);
+}
+.status-bar.status-refunded {
+  background: linear-gradient(135deg, #fff3e0, #fff);
+}
+.status-icon {
+  width: 60rpx;
+  height: 60rpx;
+  border-radius: 30rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 32rpx;
+  font-weight: 700;
+  margin-right: 20rpx;
+  background: linear-gradient(135deg, #059669, #0d9488);
+  color: #fff;
+  flex-shrink: 0;
+}
+.status-bar.status-refunded .status-icon {
+  background: #ff9500;
+}
+.status-title {
+  font-size: 32rpx;
+  font-weight: 600;
+  display: block;
+}
+.status-detail {
+  font-size: 24rpx;
+  color: #666;
+  margin-top: 4rpx;
+  display: block;
+}
+.section {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+}
+.section-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+  display: block;
+  color: #333;
+}
+.item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+.item-name {
+  font-size: 28rpx;
+}
+.item-qty {
+  font-size: 24rpx;
+  color: #999;
+  margin-left: 12rpx;
+}
+.item-price {
+  font-size: 28rpx;
+  font-weight: 500;
+}
+.total-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 20rpx 0 0;
+}
+.total-row.pay {
+  padding-top: 12rpx;
+  border-top: 1rpx solid #eee;
+  margin-top: 8rpx;
+}
+.total-row.pay .total-amount {
+  color: #059669;
+  font-size: 34rpx;
+}
+.total-label {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+.total-amount {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #ff3b30;
+}
+.discount-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 8rpx 0;
+}
+.discount-label {
+  font-size: 24rpx;
+  color: #059669;
+}
+.discount-amount {
+  font-size: 24rpx;
+  color: #059669;
+}
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12rpx 0;
+}
+.info-label {
+  font-size: 26rpx;
+  color: #666;
+}
+.info-value {
+  font-size: 26rpx;
+  color: #333;
+}
+.mono {
+  font-family: monospace;
+  font-size: 22rpx;
+}
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 20rpx;
+  padding: 10rpx 0;
+}
 .btn-primary {
   width: 100%;
   display: block;
@@ -558,7 +733,10 @@ function callSupport() {
   font-weight: 600;
   text-align: center;
 }
-.btn-outline.danger { border-color: #ef4444; color: #b91c1c; }
+.btn-outline.danger {
+  border-color: #ef4444;
+  color: #b91c1c;
+}
 .btn-refund {
   width: 100%;
   display: block;
@@ -574,9 +752,26 @@ function callSupport() {
   text-align: center;
   box-shadow: 0 8rpx 24rpx rgba(239, 68, 68, 0.22);
 }
-.btn-primary::after, .btn-outline::after, .btn-refund::after, .btn-submit::after { border: none; }
-.support { text-align: center; padding: 30rpx; color: #059669; font-size: 24rpx; }
-.dispute-mask { position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 100; display: flex; align-items: flex-end; }
+.btn-primary::after,
+.btn-outline::after,
+.btn-refund::after,
+.btn-submit::after {
+  border: none;
+}
+.support {
+  text-align: center;
+  padding: 30rpx;
+  color: #059669;
+  font-size: 24rpx;
+}
+.dispute-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+}
 .dispute-panel {
   width: 100%;
   max-height: 90vh;
@@ -587,20 +782,123 @@ function callSupport() {
   padding: 32rpx 28rpx calc(32rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
-.dispute-title { font-size: 34rpx; font-weight: 700; display: block; }
-.dispute-sub { font-size: 24rpx; color: #888; display: block; margin: 12rpx 0 20rpx; line-height: 1.5; }
-.chip-row { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 16rpx; }
-.reason-chip { padding: 10rpx 18rpx; border-radius: 999rpx; background: #f3f4f6; color: #374151; font-size: 24rpx; border: 1rpx solid transparent; }
-.reason-chip.on { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
-.dispute-input { width: 100%; min-height: 140rpx; background: #f7f7f7; border-radius: 12rpx; padding: 20rpx; box-sizing: border-box; font-size: 28rpx; margin-bottom: 16rpx; }
-.evidence-block { margin-bottom: 20rpx; }
-.evidence-label { display: block; font-size: 24rpx; color: #6b7280; margin-bottom: 12rpx; }
-.evidence-row { display: flex; flex-wrap: wrap; gap: 16rpx; }
-.evidence-item { position: relative; width: 140rpx; height: 140rpx; }
-.evidence-img { width: 140rpx; height: 140rpx; border-radius: 12rpx; background: #f3f4f6; }
-.evidence-del { position: absolute; top: -8rpx; right: -8rpx; width: 36rpx; height: 36rpx; border-radius: 50%; background: #111; color: #fff; text-align: center; line-height: 36rpx; font-size: 24rpx; }
-.evidence-uploading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); color: #fff; font-size: 22rpx; border-radius: 12rpx; }
-.evidence-add { width: 140rpx; height: 140rpx; border-radius: 12rpx; border: 2rpx dashed #d1d5db; color: #9ca3af; font-size: 48rpx; display: flex; align-items: center; justify-content: center; }
-.btn-submit { width: 100%; height: 88rpx; line-height: 88rpx; background: #ef4444; color: #fff; border-radius: 44rpx; font-size: 30rpx; border: none; }
-.dispute-cancel { display: block; text-align: center; color: #888; margin-top: 20rpx; font-size: 28rpx; padding: 8rpx; }
+.dispute-title {
+  font-size: 34rpx;
+  font-weight: 700;
+  display: block;
+}
+.dispute-sub {
+  font-size: 24rpx;
+  color: #888;
+  display: block;
+  margin: 12rpx 0 20rpx;
+  line-height: 1.5;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+}
+.reason-chip {
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 24rpx;
+  border: 1rpx solid transparent;
+}
+.reason-chip.on {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+.dispute-input {
+  width: 100%;
+  min-height: 140rpx;
+  background: #f7f7f7;
+  border-radius: 12rpx;
+  padding: 20rpx;
+  box-sizing: border-box;
+  font-size: 28rpx;
+  margin-bottom: 16rpx;
+}
+.evidence-block {
+  margin-bottom: 20rpx;
+}
+.evidence-label {
+  display: block;
+  font-size: 24rpx;
+  color: #6b7280;
+  margin-bottom: 12rpx;
+}
+.evidence-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+.evidence-item {
+  position: relative;
+  width: 140rpx;
+  height: 140rpx;
+}
+.evidence-img {
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 12rpx;
+  background: #f3f4f6;
+}
+.evidence-del {
+  position: absolute;
+  top: -8rpx;
+  right: -8rpx;
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: 50%;
+  background: #111;
+  color: #fff;
+  text-align: center;
+  line-height: 36rpx;
+  font-size: 24rpx;
+}
+.evidence-uploading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 22rpx;
+  border-radius: 12rpx;
+}
+.evidence-add {
+  width: 140rpx;
+  height: 140rpx;
+  border-radius: 12rpx;
+  border: 2rpx dashed #d1d5db;
+  color: #9ca3af;
+  font-size: 48rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.btn-submit {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: #ef4444;
+  color: #fff;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+  border: none;
+}
+.dispute-cancel {
+  display: block;
+  text-align: center;
+  color: #888;
+  margin-top: 20rpx;
+  font-size: 28rpx;
+  padding: 8rpx;
+}
 </style>

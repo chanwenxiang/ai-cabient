@@ -1,7 +1,9 @@
 <template>
   <view class="page">
     <view class="tabs">
-      <text class="tab" :class="{ active: tab === 'FAILED' }" @click="switchTab('FAILED')">失败</text>
+      <text class="tab" :class="{ active: tab === 'FAILED' }" @click="switchTab('FAILED')"
+        >失败</text
+      >
       <text class="tab" :class="{ active: tab === 'ALL' }" @click="switchTab('ALL')">全部</text>
     </view>
 
@@ -23,7 +25,11 @@
           <text class="time">{{ formatTime(s.createdAt) }}</text>
         </view>
         <text class="title">订单 {{ s.orderId }}</text>
-        <text class="meta">柜机 {{ emptyDisplay(s.deviceId, 'device') }} · 商户所得 ¥{{ money(s.merchantCents) }}</text>
+        <text class="meta"
+          >柜机 {{ emptyDisplay(s.deviceId, 'device') }} · 商户所得 ¥{{
+            money(s.merchantCents)
+          }}</text
+        >
         <text v-if="s.failureReason" class="fail">失败原因：{{ s.failureReason }}</text>
       </view>
     </view>
@@ -133,31 +139,99 @@ async function load() {
 </script>
 
 <style scoped>
-.page { padding: 24rpx; min-height: 100vh; box-sizing: border-box; }
+.page {
+  padding: 24rpx;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
 .tabs {
-  display: flex; gap: 12rpx; margin-bottom: 16rpx;
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
 }
 .tab {
-  padding: 12rpx 28rpx; border-radius: 999rpx; background: #fff; color: #64748b; font-size: 26rpx;
+  padding: 12rpx 28rpx;
+  border-radius: 999rpx;
+  background: #fff;
+  color: #64748b;
+  font-size: 26rpx;
   border: 1rpx solid #e2e8f0;
 }
-.tab.active { background: #0f766e; color: #fff; border-color: #0f766e; font-weight: 650; }
+.tab.active {
+  background: #0f766e;
+  color: #fff;
+  border-color: #0f766e;
+  font-weight: 650;
+}
 .card {
-  background: #fff; border-radius: 20rpx; padding: 28rpx; margin-bottom: 16rpx;
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 28rpx;
+  margin-bottom: 16rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.06);
 }
-.state { display: flex; flex-direction: column; align-items: center; gap: 16rpx; color: #64748b; }
-.err { color: #b91c1c; }
-.retry { background: #0f766e; color: #fff; border: none; }
-.head { display: flex; align-items: center; gap: 12rpx; margin-bottom: 10rpx; }
-.tag {
-  font-size: 22rpx; line-height: 1; padding: 8rpx 12rpx; border-radius: 999rpx; font-weight: 600;
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16rpx;
+  color: #64748b;
 }
-.tag.fail { color: #b91c1c; background: #fee2e2; }
-.tag.ok { color: #047857; background: #d1fae5; }
-.tag.warn { color: #b45309; background: #fef3c7; }
-.time { margin-left: auto; color: #94a3b8; font-size: 22rpx; }
-.title { display: block; font-size: 30rpx; font-weight: 650; color: #134e4a; }
-.meta { display: block; margin-top: 8rpx; font-size: 24rpx; color: #64748b; }
-.fail { display: block; margin-top: 12rpx; font-size: 24rpx; color: #b91c1c; line-height: 1.5; }
+.err {
+  color: #b91c1c;
+}
+.retry {
+  background: #0f766e;
+  color: #fff;
+  border: none;
+}
+.head {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 10rpx;
+}
+.tag {
+  font-size: 22rpx;
+  line-height: 1;
+  padding: 8rpx 12rpx;
+  border-radius: 999rpx;
+  font-weight: 600;
+}
+.tag.fail {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+.tag.ok {
+  color: #047857;
+  background: #d1fae5;
+}
+.tag.warn {
+  color: #b45309;
+  background: #fef3c7;
+}
+.time {
+  margin-left: auto;
+  color: #94a3b8;
+  font-size: 22rpx;
+}
+.title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 650;
+  color: #134e4a;
+}
+.meta {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #64748b;
+}
+.fail {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: #b91c1c;
+  line-height: 1.5;
+}
 </style>

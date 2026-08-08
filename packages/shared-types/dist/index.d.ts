@@ -14,6 +14,8 @@ export interface LoginResponse {
     userId: string;
     expiresInSeconds?: number;
     serverBootEpoch?: number;
+    /** 服务端已写入 HttpOnly 会话 Cookie 时，浏览器端无需持久化 token */
+    cookieEnabled?: boolean;
 }
 export interface DeviceInfo {
     deviceId: string;
@@ -166,6 +168,7 @@ export interface DisputeSummary {
 }
 export interface SkuCatalog {
     skuId: string;
+    skuCode?: number;
     skuName: string;
     priceCents: number;
     weightGrams?: number;
@@ -174,6 +177,9 @@ export interface SkuCatalog {
     description?: string;
     category?: string;
     barcode?: string;
+    brand?: string;
+    spec?: string;
+    unit?: string;
     status?: string;
     shelfLifeDays?: number;
     nearExpiryDays?: number;
@@ -188,6 +194,8 @@ export interface SkuCatalog {
     detectionMinConfidence?: number;
     referenceImageUrlsJson?: string;
     createdAt?: string;
+    updatedByUserId?: number;
+    updatedByName?: string;
 }
 export interface SkuVisionEnrollmentRow {
     sku: SkuCatalog;
@@ -207,7 +215,8 @@ export interface SkuVisionEnrollmentPipeline {
     }>;
 }
 export interface UpsertSkuRequest {
-    skuId: string;
+    /** 新建可空，服务端生成 SKU-{skuCode} */
+    skuId?: string;
     skuName: string;
     priceCents: number;
     weightGrams?: number;
@@ -216,6 +225,9 @@ export interface UpsertSkuRequest {
     description?: string;
     category?: string;
     barcode?: string;
+    brand?: string;
+    spec?: string;
+    unit?: string;
     status?: string;
     shelfLifeDays?: number;
     nearExpiryDays?: number;
@@ -228,6 +240,8 @@ export interface UpsertSkuRequest {
     visionEnrollmentStatus?: string;
     detectionMinConfidence?: number;
     referenceImageUrlsJson?: string;
+    /** 只读；写入时服务端忽略 */
+    skuCode?: number;
 }
 export interface UpsertSkuVisionEnrollmentRequest {
     sku: UpsertSkuRequest;
@@ -354,6 +368,10 @@ export interface AccountDto {
     userId?: string | number;
     phoneNumber?: string;
     balanceCents: number;
+    /** 开门预授权等冻结金额（分）；与后端 AccountDto 同源 */
+    frozenCents: number;
+    /** 可用余额 = balance - frozen */
+    availableCents: number;
     verified?: boolean;
     operator?: boolean;
     payPreferredChannel?: string;
@@ -418,7 +436,40 @@ export interface DeviceStatusDto {
     /** NONE | SESSION | REPLENISHMENT | LOCKED */
     busyReason?: string;
     message?: string;
+    /** 本柜开门预授权门槛（分），与后端 DeviceStatusDto.preauthCents 一致 */
+    preauthCents?: number;
 }
+/** 运营工作台指标（与 OpsWorkbenchDto 对齐） */
+export interface OpsWorkbench {
+    openDisputes?: number;
+    overdueDisputes?: number;
+    offlineDevices?: number;
+    waitingUploads?: number;
+    lowStockItems?: number;
+    pendingReplenishments?: number;
+    staleSessions?: number;
+    reconciliationMismatches?: number;
+    splitExceptions?: number;
+    inTransitOverdue?: number;
+    devicesOnSale?: number;
+    devicesSalesLocked?: number;
+    pendingUnpaidOrders?: number;
+    actionItems?: Array<{
+        type: string;
+        severity?: string;
+        title: string;
+        detail?: string;
+        deviceId?: string;
+        sessionId?: string;
+        ticketId?: string;
+        skuId?: string;
+        taskId?: number | string;
+        createdAt?: string;
+        dueAt?: string;
+    }>;
+}
+/** 默认开门预授权（分）= ¥20，与 CabinetConstants.MIN_BALANCE_CENTS 一致 */
+export declare const DEFAULT_PREAUTH_CENTS = 2000;
 export interface DeviceProduct {
     skuId: string;
     skuName: string;
@@ -538,6 +589,9 @@ export interface OrderDetailDto {
     deviceId?: string;
     status: string;
     payChannel?: string;
+    payTime?: string;
+    /** 柜机购物视频地址（可空） */
+    videoUri?: string;
     paymentOperationId?: string;
     balanceBeforeCents?: number;
     balanceAfterCents?: number;

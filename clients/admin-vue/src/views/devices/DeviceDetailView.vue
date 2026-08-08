@@ -5,10 +5,16 @@
         <div class="page-head-meta">
           <div class="page-title-row">
             <span class="page-title">{{ device?.deviceName || deviceId }}</span>
-            <el-tag v-if="device" :type="device.onlineStatus === 'ONLINE' ? 'success' : 'info'" size="small">
+            <el-tag
+              v-if="device"
+              :type="device.onlineStatus === 'ONLINE' ? 'success' : 'info'"
+              size="small"
+            >
               {{ dictLabel('online_status', device.onlineStatus) }}
             </el-tag>
-            <el-tag v-if="asset.lifecycleStatus" size="small" effect="plain">{{ lifecycleLabel(asset.lifecycleStatus) }}</el-tag>
+            <el-tag v-if="asset.lifecycleStatus" size="small" effect="plain">{{
+              lifecycleLabel(asset.lifecycleStatus)
+            }}</el-tag>
             <el-tag v-if="metrics?.salesLocked" type="danger" size="small">已锁机</el-tag>
           </div>
           <span class="page-hint">设备 ID {{ deviceId }} · 资产投放与远程运维</span>
@@ -30,7 +36,14 @@
           <div class="qr-actions">
             <el-button size="small" :loading="qrLoading" @click="loadQr">刷新</el-button>
             <el-button size="small" :disabled="!qrUrl" @click="copyQrLink">复制链接</el-button>
-            <el-button type="primary" size="small" :disabled="!qrUrl" :loading="qrDownloading" @click="downloadQr">下载 PNG</el-button>
+            <el-button
+              type="primary"
+              size="small"
+              :disabled="!qrUrl"
+              :loading="qrDownloading"
+              @click="downloadQr"
+              >下载 PNG</el-button
+            >
           </div>
         </div>
       </template>
@@ -38,7 +51,9 @@
         <div v-if="qrPreviewUrl" class="qr-preview">
           <img :src="qrPreviewUrl" alt="柜机二维码" />
         </div>
-        <div v-else class="qr-empty">{{ qrHydrated ? (qrLoading ? '加载中…' : '暂无二维码') : '加载中…' }}</div>
+        <div v-else class="qr-empty">
+          {{ qrHydrated ? (qrLoading ? '加载中…' : '暂无二维码') : '加载中…' }}
+        </div>
         <div class="qr-meta">
           <div class="qr-url mono">{{ qrUrl || '—' }}</div>
         </div>
@@ -50,10 +65,14 @@
         <button
           type="button"
           class="stat-tile"
-          :aria-label="metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : '填充率 — 加载中…'"
+          :aria-label="
+            metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : '填充率 — 加载中…'
+          "
         >
           <div class="stat-label">填充率</div>
-          <div class="stat-value">{{ metricsHydrated ? `${metrics?.fillRatePct ?? 0}%` : '—' }}</div>
+          <div class="stat-value">
+            {{ metricsHydrated ? `${metrics?.fillRatePct ?? 0}%` : '—' }}
+          </div>
           <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
         </button>
       </el-col>
@@ -62,7 +81,9 @@
           type="button"
           class="stat-tile"
           :class="{ warn: metricsHydrated && (metrics?.oosSlotCount || 0) > 0 }"
-          :aria-label="metricsHydrated ? `缺货货道 ${metrics?.oosSlotCount ?? 0}` : '缺货货道 — 加载中…'"
+          :aria-label="
+            metricsHydrated ? `缺货货道 ${metrics?.oosSlotCount ?? 0}` : '缺货货道 — 加载中…'
+          "
         >
           <div class="stat-label">缺货货道</div>
           <div class="stat-value">{{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '—' }}</div>
@@ -74,10 +95,16 @@
           type="button"
           class="stat-tile"
           :class="{ warn: metricsHydrated && (metrics?.lowStockSlotCount || 0) > 0 }"
-          :aria-label="metricsHydrated ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}` : '低库存货道 — 加载中…'"
+          :aria-label="
+            metricsHydrated
+              ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}`
+              : '低库存货道 — 加载中…'
+          "
         >
           <div class="stat-label">低库存货道</div>
-          <div class="stat-value">{{ metricsHydrated ? (metrics?.lowStockSlotCount ?? 0) : '—' }}</div>
+          <div class="stat-value">
+            {{ metricsHydrated ? (metrics?.lowStockSlotCount ?? 0) : '—' }}
+          </div>
           <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
         </button>
       </el-col>
@@ -86,10 +113,14 @@
           type="button"
           class="stat-tile"
           :class="{ warn: metricsHydrated && (metrics?.nearExpiryLotCount || 0) > 0 }"
-          :aria-label="metricsHydrated ? `临期批次 ${metrics?.nearExpiryLotCount ?? 0}` : '临期批次 — 加载中…'"
+          :aria-label="
+            metricsHydrated ? `临期批次 ${metrics?.nearExpiryLotCount ?? 0}` : '临期批次 — 加载中…'
+          "
         >
           <div class="stat-label">临期批次</div>
-          <div class="stat-value">{{ metricsHydrated ? (metrics?.nearExpiryLotCount ?? 0) : '—' }}</div>
+          <div class="stat-value">
+            {{ metricsHydrated ? (metrics?.nearExpiryLotCount ?? 0) : '—' }}
+          </div>
           <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
         </button>
       </el-col>
@@ -133,24 +164,41 @@
             size="small"
             :loading="assetSaving"
             @click="saveAsset"
-          >保存资产</el-button>
+            >保存资产</el-button
+          >
         </div>
       </template>
       <el-form label-width="100px" class="asset-form" @submit.prevent>
         <el-row :gutter="12">
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="IMEI">
-              <el-input v-model="asset.imei" :disabled="!canEditDevice" clearable placeholder="主板/通信识别" />
+              <el-input
+                v-model="asset.imei"
+                :disabled="!canEditDevice"
+                clearable
+                placeholder="主板/通信识别"
+              />
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="资产方">
-              <el-input v-model="asset.assetOwner" :disabled="!canEditDevice" clearable placeholder="自营/加盟商名" />
+              <el-input
+                v-model="asset.assetOwner"
+                :disabled="!canEditDevice"
+                clearable
+                placeholder="自营/加盟商名"
+              />
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="合作方式">
-              <el-select v-model="asset.coopMode" :disabled="!canEditDevice" clearable placeholder="选择" style="width:100%">
+              <el-select
+                v-model="asset.coopMode"
+                :disabled="!canEditDevice"
+                clearable
+                placeholder="选择"
+                style="width: 100%"
+              >
                 <el-option
                   v-for="item in dictOptions('device_coop_mode')"
                   :key="item.value"
@@ -162,13 +210,29 @@
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="开门押金(分)">
-              <el-input-number v-model="asset.depositCents" :disabled="!canEditDevice" :min="0" :step="100" controls-position="right" style="width:100%" />
-              <div class="field-hint">&gt;0 时作为该柜开门预授权冻结额；否则用系统配置 checkout.preauth_cents（默认 2000）</div>
+              <el-input-number
+                v-model="asset.depositCents"
+                :disabled="!canEditDevice"
+                :min="0"
+                :step="100"
+                controls-position="right"
+                style="width: 100%"
+              />
+              <div class="field-hint">
+                &gt;0 时作为该柜开门预授权冻结额；否则用系统配置 checkout.preauth_cents（默认 2000）
+              </div>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="流量费(分/月)">
-              <el-input-number v-model="asset.dataFeeCents" :disabled="!canEditDevice" :min="0" :step="100" controls-position="right" style="width:100%" />
+              <el-input-number
+                v-model="asset.dataFeeCents"
+                :disabled="!canEditDevice"
+                :min="0"
+                :step="100"
+                controls-position="right"
+                style="width: 100%"
+              />
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
@@ -181,7 +245,7 @@
                 allow-create
                 default-first-option
                 placeholder="选择或输入路线"
-                style="width:100%"
+                style="width: 100%"
               >
                 <el-option
                   v-for="item in dictOptions('route_code')"
@@ -194,7 +258,12 @@
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="运营标签">
-              <el-input v-model="asset.opsTags" :disabled="!canEditDevice" clearable placeholder="逗号分隔" />
+              <el-input
+                v-model="asset.opsTags"
+                :disabled="!canEditDevice"
+                clearable
+                placeholder="逗号分隔"
+              />
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
@@ -226,40 +295,98 @@
           <el-col :xs="24" :sm="12" :md="16">
             <el-form-item label="投放地址">
               <div class="address-row">
-                <el-input v-model="asset.address" :disabled="!canEditDevice" clearable placeholder="门店/点位地址" />
+                <el-input
+                  v-model="asset.address"
+                  :disabled="!canEditDevice"
+                  clearable
+                  placeholder="门店/点位地址"
+                />
                 <el-button
                   v-hasPermi="['ops:device:edit']"
                   :disabled="!canEditDevice || !asset.address?.trim() || !geoConfigured"
                   :loading="geoLoading"
                   :title="geoConfigured ? '调用高德解析经纬度' : '未配置 AMAP_WEB_KEY'"
                   @click="resolveAddress"
-                >解析坐标</el-button>
+                  >解析坐标</el-button
+                >
               </div>
-              <div v-if="!geoConfigured" class="field-hint">未配置 AMAP_WEB_KEY，地址解析不可用</div>
+              <div v-if="!geoConfigured" class="field-hint">
+                未配置 AMAP_WEB_KEY，地址解析不可用
+              </div>
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="12" :md="8">
             <el-form-item label="生命周期">
               <el-tag size="small">{{ lifecycleLabel(asset.lifecycleStatus) }}</el-tag>
-              <span v-if="asset.deployedAt" class="muted asset-deployed">投放 {{ formatDateTime(asset.deployedAt) }}</span>
+              <span v-if="asset.deployedAt" class="muted asset-deployed"
+                >投放 {{ formatDateTime(asset.deployedAt) }}</span
+              >
             </el-form-item>
           </el-col>
           <el-col :xs="24" :sm="24" :md="16">
             <el-form-item label="备注">
-              <el-input v-model="asset.lifecycleRemark" :disabled="!canEditDevice" clearable placeholder="投放/退役备注" />
+              <el-input
+                v-model="asset.lifecycleRemark"
+                :disabled="!canEditDevice"
+                clearable
+                placeholder="投放/退役备注"
+              />
             </el-form-item>
           </el-col>
         </el-row>
       </el-form>
       <div class="cmd-section-label">生命周期操作</div>
       <div class="cmd-bar">
-        <el-button v-hasPermi="['ops:device:edit']" :loading="lifeLoading === 'BIND'" @click="lifecycleBind">绑定商户</el-button>
-        <el-button v-hasPermi="['ops:device:edit']" :loading="lifeLoading === 'UNBIND'" @click="runLifecycle('UNBIND')">解绑</el-button>
-        <el-button v-hasPermi="['ops:device:edit']" type="primary" plain :loading="lifeLoading === 'DEPLOY'" @click="runLifecycle('DEPLOY')">投放</el-button>
-        <el-button v-hasPermi="['ops:device:edit']" plain :loading="lifeLoading === 'UNDEPLOY'" @click="runLifecycle('UNDEPLOY')">撤回未投放</el-button>
-        <el-button v-hasPermi="['ops:device:edit']" type="warning" plain :loading="lifeLoading === 'RETURN'" @click="runLifecycle('RETURN')">返厂</el-button>
-        <el-button v-hasPermi="['ops:device:edit']" type="danger" plain :loading="lifeLoading === 'RETIRE'" @click="runLifecycle('RETIRE', true)">退役</el-button>
-        <el-button v-hasPermi="['ops:device:edit']" plain :loading="lifeLoading === 'INBOUND'" @click="runLifecycle('INBOUND')">入库</el-button>
+        <el-button
+          v-hasPermi="['ops:device:edit']"
+          :loading="lifeLoading === 'BIND'"
+          @click="lifecycleBind"
+          >绑定商户</el-button
+        >
+        <el-button
+          v-hasPermi="['ops:device:edit']"
+          :loading="lifeLoading === 'UNBIND'"
+          @click="runLifecycle('UNBIND')"
+          >解绑</el-button
+        >
+        <el-button
+          v-hasPermi="['ops:device:edit']"
+          type="primary"
+          plain
+          :loading="lifeLoading === 'DEPLOY'"
+          @click="runLifecycle('DEPLOY')"
+          >投放</el-button
+        >
+        <el-button
+          v-hasPermi="['ops:device:edit']"
+          plain
+          :loading="lifeLoading === 'UNDEPLOY'"
+          @click="runLifecycle('UNDEPLOY')"
+          >撤回未投放</el-button
+        >
+        <el-button
+          v-hasPermi="['ops:device:edit']"
+          type="warning"
+          plain
+          :loading="lifeLoading === 'RETURN'"
+          @click="runLifecycle('RETURN')"
+          >返厂</el-button
+        >
+        <el-button
+          v-hasPermi="['ops:device:edit']"
+          type="danger"
+          plain
+          :loading="lifeLoading === 'RETIRE'"
+          @click="runLifecycle('RETIRE', true)"
+          >退役</el-button
+        >
+        <el-button
+          v-hasPermi="['ops:device:edit']"
+          plain
+          :loading="lifeLoading === 'INBOUND'"
+          @click="runLifecycle('INBOUND')"
+          >入库</el-button
+        >
       </div>
     </el-card>
 
@@ -289,28 +416,32 @@
           type="primary"
           :loading="cmdLoading === 'OPEN_DOOR'"
           @click="sendCommand('OPEN_DOOR')"
-        >运维远程开门</el-button>
+          >运维远程开门</el-button
+        >
         <el-button
           v-if="!metrics?.salesLocked"
           v-hasPermi="['ops:device:edit']"
           type="warning"
           :loading="cmdLoading === 'LOCK'"
           @click="sendCommand('LOCK')"
-        >锁机停售</el-button>
+          >锁机停售</el-button
+        >
         <el-button
           v-else
           v-hasPermi="['ops:device:edit']"
           type="success"
           :loading="cmdLoading === 'UNLOCK'"
           @click="sendCommand('UNLOCK')"
-        >解锁营业</el-button>
+          >解锁营业</el-button
+        >
         <el-button
           v-hasPermi="['ops:device:edit']"
           type="danger"
           plain
           :loading="cmdLoading === 'REBOOT'"
           @click="sendCommand('REBOOT')"
-        >重启设备</el-button>
+          >重启设备</el-button
+        >
       </div>
 
       <div class="cmd-section-label">柜机策略锁</div>
@@ -324,17 +455,35 @@
       />
       <el-form v-if="policy" label-width="120px" class="policy-form" @submit.prevent>
         <el-form-item label="营业锁机">
-          <el-switch v-model="policy.salesLocked" :disabled="!canEditDevice" @change="() => savePolicy()" />
+          <el-switch
+            v-model="policy.salesLocked"
+            :disabled="!canEditDevice"
+            @change="() => savePolicy()"
+          />
         </el-form-item>
         <el-form-item label="价格锁">
-          <el-switch v-model="policy.priceLocked" :disabled="!canEditDevice" @change="() => savePolicy()" />
+          <el-switch
+            v-model="policy.priceLocked"
+            :disabled="!canEditDevice"
+            @change="() => savePolicy()"
+          />
         </el-form-item>
         <el-form-item label="禁改 SKU">
-          <el-switch v-model="policy.skuEditForbidden" :disabled="!canEditDevice" @change="() => savePolicy()" />
+          <el-switch
+            v-model="policy.skuEditForbidden"
+            :disabled="!canEditDevice"
+            @change="() => savePolicy()"
+          />
         </el-form-item>
         <el-form-item label="禁售">
-          <el-switch v-model="policy.saleForbidden" :disabled="!canEditDevice" @change="() => savePolicy()" />
-          <div class="field-hint">禁售会同时营业锁机；停售期间仍可签到后补货开门（不产生消费者账单）</div>
+          <el-switch
+            v-model="policy.saleForbidden"
+            :disabled="!canEditDevice"
+            @change="() => savePolicy()"
+          />
+          <div class="field-hint">
+            禁售会同时营业锁机；停售期间仍可签到后补货开门（不产生消费者账单）
+          </div>
         </el-form-item>
       </el-form>
 
@@ -371,12 +520,29 @@
 
       <div class="cmd-section-label">维修工单</div>
       <div class="cmd-bar">
-        <el-button v-if="canAccessPath('/repair-tickets')" @click="goPath('/repair-tickets', { deviceId })">工单列表</el-button>
-        <el-button v-hasPermi="['ops:repair:edit']" type="primary" plain @click="createRepair">新建工单</el-button>
+        <el-button
+          v-if="canAccessPath('/repair-tickets')"
+          @click="goPath('/repair-tickets', { deviceId })"
+          >工单列表</el-button
+        >
+        <el-button v-hasPermi="['ops:repair:edit']" type="primary" plain @click="createRepair"
+          >新建工单</el-button
+        >
       </div>
-      <el-table v-if="repairTickets.length" :data="repairTickets" size="small" class="repair-mini-table">
+      <el-table
+        v-if="repairTickets.length"
+        :data="repairTickets"
+        size="small"
+        class="repair-mini-table"
+      >
         <el-table-column prop="ticketId" label="#" width="70" align="center" />
-        <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip align="center" />
+        <el-table-column
+          prop="title"
+          label="标题"
+          min-width="140"
+          show-overflow-tooltip
+          align="center"
+        />
         <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">{{ repairStatusLabel(row.status) }}</template>
         </el-table-column>
@@ -396,13 +562,25 @@
             </el-descriptions-item>
             <el-descriptions-item label="商户">
               <div class="name-cell inline">
-                <strong>{{ metricsHydrated ? (device?.merchantName || device?.merchantId || '无') : '—' }}</strong>
-                <small v-if="metricsHydrated && device?.merchantId && device?.merchantName" class="cell-id">{{ device.merchantId }}</small>
+                <strong>{{
+                  metricsHydrated ? device?.merchantName || device?.merchantId || '无' : '—'
+                }}</strong>
+                <small
+                  v-if="metricsHydrated && device?.merchantId && device?.merchantName"
+                  class="cell-id"
+                  >{{ device.merchantId }}</small
+                >
               </div>
             </el-descriptions-item>
-            <el-descriptions-item label="地址">{{ metricsHydrated ? (metrics?.address || '无') : '—' }}</el-descriptions-item>
-            <el-descriptions-item label="App 版本">{{ metricsHydrated ? (metrics?.appVersion || '无') : '—' }}</el-descriptions-item>
-            <el-descriptions-item label="固件版本">{{ metricsHydrated ? (metrics?.firmwareVersion || '无') : '—' }}</el-descriptions-item>
+            <el-descriptions-item label="地址">{{
+              metricsHydrated ? metrics?.address || '无' : '—'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="App 版本">{{
+              metricsHydrated ? metrics?.appVersion || '无' : '—'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="固件版本">{{
+              metricsHydrated ? metrics?.firmwareVersion || '无' : '—'
+            }}</el-descriptions-item>
             <el-descriptions-item label="目标温度">
               <div class="temp-set-row">
                 <el-input-number
@@ -421,16 +599,25 @@
                   plain
                   :loading="cmdLoading === 'SET_TEMP'"
                   @click="setTargetTemp"
-                >下发温度</el-button>
+                  >下发温度</el-button
+                >
               </div>
             </el-descriptions-item>
             <el-descriptions-item label="温度上报">
-              <span class="cell-datetime">{{ metricsHydrated ? (formatDateTime(metrics?.tempReportedAt) || '无') : '—' }}</span>
+              <span class="cell-datetime">{{
+                metricsHydrated ? formatDateTime(metrics?.tempReportedAt) || '无' : '—'
+              }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="告警联系人">{{ metricsHydrated ? (metrics?.alertContactName || '无') : '—' }}</el-descriptions-item>
-            <el-descriptions-item label="联系电话">{{ metricsHydrated ? (metrics?.alertContactPhone || '无') : '—' }}</el-descriptions-item>
+            <el-descriptions-item label="告警联系人">{{
+              metricsHydrated ? metrics?.alertContactName || '无' : '—'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="联系电话">{{
+              metricsHydrated ? metrics?.alertContactPhone || '无' : '—'
+            }}</el-descriptions-item>
             <el-descriptions-item label="最近会话">
-              <span class="cell-id">{{ metricsHydrated ? (device?.activeSessionId || '无') : '—' }}</span>
+              <span class="cell-id">{{
+                metricsHydrated ? device?.activeSessionId || '无' : '—'
+              }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="会话状态">
               <template v-if="metricsHydrated">
@@ -442,12 +629,18 @@
               <span v-else>—</span>
             </el-descriptions-item>
             <el-descriptions-item label="最近补货">
-              <span class="cell-datetime">{{ metricsHydrated ? (formatDateTime(metrics?.lastRestockAt) || '无') : '—' }}</span>
+              <span class="cell-datetime">{{
+                metricsHydrated ? formatDateTime(metrics?.lastRestockAt) || '无' : '—'
+              }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="库存准确率">
-              {{ metricsHydrated
-                ? (metrics?.inventoryAccuracyPct != null ? `${metrics.inventoryAccuracyPct}%` : '无')
-                : '—' }}
+              {{
+                metricsHydrated
+                  ? metrics?.inventoryAccuracyPct != null
+                    ? `${metrics.inventoryAccuracyPct}%`
+                    : '无'
+                  : '—'
+              }}
             </el-descriptions-item>
           </el-descriptions>
         </el-tab-pane>
@@ -460,15 +653,17 @@
               size="small"
               :loading="applying"
               @click="applyTemplate"
-            >套用模板</el-button>
+              >套用模板</el-button
+            >
             <el-button size="small" :icon="Refresh" @click="loadDetail">刷新货道</el-button>
           </div>
-          <SlotGrid v-if="slotsHydrated && slots.length" :slots="slots" :editable="canEditSlots" @edit="openEditor" />
-          <el-empty
-            v-else-if="slotsHydrated"
-            description="暂无货道配置"
-            :image-size="64"
+          <SlotGrid
+            v-if="slotsHydrated && slots.length"
+            :slots="slots"
+            :editable="canEditSlots"
+            @edit="openEditor"
           />
+          <el-empty v-else-if="slotsHydrated" description="暂无货道配置" :image-size="64" />
           <div v-else class="muted">货道加载中…</div>
         </el-tab-pane>
 
@@ -483,7 +678,9 @@
               >
                 <div class="life-event">
                   <strong>{{ lifecycleActionLabel(ev.action) }}</strong>
-                  <span class="muted">{{ lifecycleLabel(ev.fromStatus) }} → {{ lifecycleLabel(ev.toStatus) }}</span>
+                  <span class="muted"
+                    >{{ lifecycleLabel(ev.fromStatus) }} → {{ lifecycleLabel(ev.toStatus) }}</span
+                  >
                   <div v-if="ev.remark" class="life-remark">{{ ev.remark }}</div>
                 </div>
               </el-timeline-item>
@@ -500,19 +697,37 @@
             stripe
             border
             size="small"
-            class="report-table" empty-text=" ">
-            <template #empty><el-empty v-if="relatedHydrated" description="暂无会话" :image-size="48" /></template>
-            <el-table-column label="会话" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+            class="report-table"
+            empty-text=" "
+          >
+            <template #empty
+              ><el-empty v-if="relatedHydrated" description="暂无会话" :image-size="48"
+            /></template>
+            <el-table-column
+              label="会话"
+              min-width="160"
+              align="center"
+              class-name="col-text"
+              show-overflow-tooltip
+            >
               <template #default="{ row }">
                 <span class="cell-id">{{ row.sessionId }}</span>
               </template>
             </el-table-column>
             <el-table-column label="状态" width="100" align="center">
               <template #default="{ row }">
-                <el-tag size="small" effect="plain">{{ dictLabel('session_state', row.state) }}</el-tag>
+                <el-tag size="small" effect="plain">{{
+                  dictLabel('session_state', row.state)
+                }}</el-tag>
               </template>
             </el-table-column>
-            <el-table-column label="订单" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+            <el-table-column
+              label="订单"
+              min-width="120"
+              align="center"
+              class-name="col-text"
+              show-overflow-tooltip
+            >
               <template #default="{ row }">
                 <span class="cell-id">{{ row.orderId || '无' }}</span>
               </template>
@@ -527,7 +742,13 @@
                 <TableActions
                   v-if="canAccessPath('/sessions')"
                   :actions="[{ key: 'sessions', label: '查看', icon: View, type: 'primary' }]"
-                  @action="() => goPath('/sessions', row.sessionId ? { deviceId, sessionId: row.sessionId } : { deviceId })"
+                  @action="
+                    () =>
+                      goPath(
+                        '/sessions',
+                        row.sessionId ? { deviceId, sessionId: row.sessionId } : { deviceId }
+                      )
+                  "
                 />
                 <span v-else class="muted">—</span>
               </template>
@@ -541,20 +762,34 @@
             stripe
             border
             size="small"
-            class="report-table" empty-text=" ">
-            <template #empty><el-empty v-if="relatedHydrated" description="暂无订单" :image-size="48" /></template>
-            <el-table-column label="订单" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+            class="report-table"
+            empty-text=" "
+          >
+            <template #empty
+              ><el-empty v-if="relatedHydrated" description="暂无订单" :image-size="48"
+            /></template>
+            <el-table-column
+              label="订单"
+              min-width="160"
+              align="center"
+              class-name="col-text"
+              show-overflow-tooltip
+            >
               <template #default="{ row }">
                 <span class="cell-id">{{ row.orderId }}</span>
               </template>
             </el-table-column>
             <el-table-column label="状态" width="100" align="center">
               <template #default="{ row }">
-                <el-tag size="small" effect="plain">{{ dictLabel('order_status', row.status) }}</el-tag>
+                <el-tag size="small" effect="plain">{{
+                  dictLabel('order_status', row.status)
+                }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column label="金额" width="100" align="center" class-name="col-money">
-              <template #default="{ row }">¥{{ ((row.totalAmountCents || 0) / 100).toFixed(2) }}</template>
+              <template #default="{ row }"
+                >¥{{ ((row.totalAmountCents || 0) / 100).toFixed(2) }}</template
+              >
             </el-table-column>
             <el-table-column label="时间" width="168" align="center" class-name="col-text">
               <template #default="{ row }">
@@ -562,7 +797,7 @@
               </template>
             </el-table-column>
             <el-table-column label="操作" width="88" class-name="col-action" align="center">
-              <template #default="{ row }">
+              <template #default>
                 <TableActions
                   v-if="canAccessPath('/orders')"
                   :actions="[{ key: 'orders', label: '查看', icon: View, type: 'primary' }]"
@@ -579,18 +814,37 @@
     <el-dialog v-model="editorVisible" :title="`编辑货道 ${editForm.slotCode}`" width="520px">
       <el-form label-width="110px">
         <el-form-item label="SKU">
-          <el-select v-model="editForm.assignedSkuId" filterable clearable placeholder="选择商品" style="width:100%">
-            <el-option v-for="s in skus" :key="s.skuId" :label="`${s.skuName} (${s.skuId})`" :value="s.skuId" />
+          <el-select
+            v-model="editForm.assignedSkuId"
+            filterable
+            clearable
+            placeholder="选择商品"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="s in skus"
+              :key="s.skuId"
+              :label="`${s.skuName} (${s.skuId})`"
+              :value="s.skuId"
+            />
           </el-select>
         </el-form-item>
-        <el-form-item label="目标陈列"><el-input-number v-model="editForm.parLevel" :min="0" /></el-form-item>
-        <el-form-item label="最低库存"><el-input-number v-model="editForm.minLevel" :min="0" /></el-form-item>
-        <el-form-item label="最大容量"><el-input-number v-model="editForm.maxLevel" :min="0" /></el-form-item>
+        <el-form-item label="目标陈列"
+          ><el-input-number v-model="editForm.parLevel" :min="0"
+        /></el-form-item>
+        <el-form-item label="最低库存"
+          ><el-input-number v-model="editForm.minLevel" :min="0"
+        /></el-form-item>
+        <el-form-item label="最大容量"
+          ><el-input-number v-model="editForm.maxLevel" :min="0"
+        /></el-form-item>
         <el-form-item label="启用"><el-switch v-model="editForm.enabled" /></el-form-item>
         <el-divider content-position="left">现场盘点</el-divider>
         <el-form-item label="账面库存">
           <span>{{ editForm.bookQty }}</span>
-          <span v-if="editForm.hasDiscrepancy" class="slot-diff warn"> · 账实差异 {{ editForm.qtyDiff }}</span>
+          <span v-if="editForm.hasDiscrepancy" class="slot-diff warn">
+            · 账实差异 {{ editForm.qtyDiff }}</span
+          >
         </el-form-item>
         <el-form-item label="实盘数量">
           <el-input-number v-model="editForm.physicalQty" :min="0" />
@@ -601,11 +855,24 @@
       </el-form>
       <template #footer>
         <el-button @click="editorVisible = false">取消</el-button>
-        <el-button v-hasPermi="['ops:device:edit']" :loading="stocktaking" @click="stocktakeSlot">仅记实盘</el-button>
-        <el-button v-hasPermi="['ops:device:edit']" type="warning" :loading="stocktaking" @click="stocktakeAndAdjust">
+        <el-button v-hasPermi="['ops:device:edit']" :loading="stocktaking" @click="stocktakeSlot"
+          >仅记实盘</el-button
+        >
+        <el-button
+          v-hasPermi="['ops:device:edit']"
+          type="warning"
+          :loading="stocktaking"
+          @click="stocktakeAndAdjust"
+        >
           按实盘调账面
         </el-button>
-        <el-button v-hasPermi="['ops:device:edit']" type="primary" :loading="saving" @click="saveSlot">保存配置</el-button>
+        <el-button
+          v-hasPermi="['ops:device:edit']"
+          type="primary"
+          :loading="saving"
+          @click="saveSlot"
+          >保存配置</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -622,7 +889,13 @@ import TableActions from '@/components/TableActions.vue';
 import SlotGrid from '@/components/SlotGrid.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
-import type { DeviceInfo, DeviceSlot, PageResult, SkuCatalog, UpsertDeviceSlotRequest } from '@aicabinet/shared-types';
+import type {
+  DeviceInfo,
+  DeviceSlot,
+  PageResult,
+  SkuCatalog,
+  UpsertDeviceSlotRequest
+} from '@aicabinet/shared-types';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface DeviceRow {
@@ -672,7 +945,7 @@ interface DeviceDetail {
 
 const route = useRoute();
 const auth = useAuthStore();
-const { router, canAccessPath, goPath } = useNavAccess();
+const { canAccessPath, goPath } = useNavAccess();
 const deviceId = route.params.id as string;
 const canEditSlots = computed(() => auth.hasPerm('ops:device:edit'));
 const canEditDevice = computed(() => auth.hasPerm('ops:device:edit'));
@@ -718,7 +991,9 @@ const asset = reactive({
   merchantId: '' as string
 });
 const lifecycleEvents = ref<LifecycleEventRow[]>([]);
-const repairTickets = ref<Array<{ ticketId: number; title: string; status: string; createdAt?: string }>>([]);
+const repairTickets = ref<
+  Array<{ ticketId: number; title: string; status: string; createdAt?: string }>
+>([]);
 const slots = ref<DeviceSlot[]>([]);
 const skus = ref<SkuCatalog[]>([]);
 const sessions = ref<any[]>([]);
@@ -733,25 +1008,39 @@ let qrObjectUrl: string | null = null;
 
 function lifecycleLabel(status?: string | null) {
   switch ((status || '').toUpperCase()) {
-    case 'INBOUND': return '入库';
-    case 'IDLE': return '未投放';
-    case 'DEPLOYED': return '投放';
-    case 'RETURNING': return '返厂中';
-    case 'RETIRED': return '退役';
-    default: return status || '未知状态';
+    case 'INBOUND':
+      return '入库';
+    case 'IDLE':
+      return '未投放';
+    case 'DEPLOYED':
+      return '投放';
+    case 'RETURNING':
+      return '返厂中';
+    case 'RETIRED':
+      return '退役';
+    default:
+      return status || '未知状态';
   }
 }
 
 function lifecycleActionLabel(action?: string | null) {
   switch ((action || '').toUpperCase()) {
-    case 'BIND': return '绑定商户';
-    case 'UNBIND': return '解绑';
-    case 'DEPLOY': return '投放';
-    case 'UNDEPLOY': return '撤回未投放';
-    case 'RETURN': return '返厂';
-    case 'RETIRE': return '退役';
-    case 'INBOUND': return '入库';
-    default: return action || '未知';
+    case 'BIND':
+      return '绑定商户';
+    case 'UNBIND':
+      return '解绑';
+    case 'DEPLOY':
+      return '投放';
+    case 'UNDEPLOY':
+      return '撤回未投放';
+    case 'RETURN':
+      return '返厂';
+    case 'RETIRE':
+      return '退役';
+    case 'INBOUND':
+      return '入库';
+    default:
+      return action || '未知';
   }
 }
 
@@ -981,10 +1270,11 @@ async function resolveAddress() {
   }
   geoLoading.value = true;
   try {
-    const data = await api.request<{ longitude: number; latitude: number; formattedAddress?: string }>(
-      `/api/v2/ops/admin/geo/geocode?address=${encodeURIComponent(address)}`,
-      'GET'
-    );
+    const data = await api.request<{
+      longitude: number;
+      latitude: number;
+      formattedAddress?: string;
+    }>(`/api/v2/ops/admin/geo/geocode?address=${encodeURIComponent(address)}`, 'GET');
     asset.longitude = data.longitude;
     asset.latitude = data.latitude;
     if (data.formattedAddress) {
@@ -1042,11 +1332,15 @@ async function runLifecycle(action: string, requireRemark = false, merchantId?: 
       );
       remark = String(value).trim();
     } else {
-      await ElMessageBox.confirm(`确认执行「${lifecycleActionLabel(action)}」？`, lifecycleActionLabel(action), {
-        type: 'warning',
-        confirmButtonText: '确认',
-        cancelButtonText: '取消'
-      });
+      await ElMessageBox.confirm(
+        `确认执行「${lifecycleActionLabel(action)}」？`,
+        lifecycleActionLabel(action),
+        {
+          type: 'warning',
+          confirmButtonText: '确认',
+          cancelButtonText: '取消'
+        }
+      );
     }
     lifeLoading.value = action;
     const row = await api.request<DeviceInfo>(
@@ -1143,7 +1437,10 @@ async function sendCommand(command: string) {
     const { value: reason } = await ElMessageBox.prompt(hint, '运维指令', {
       inputValidator: (v) => !!String(v || '').trim() || '必须填写原因',
       confirmButtonText: '确认下发',
-      type: command === 'REBOOT' || command === 'LOCK' || command === 'OPEN_DOOR' ? 'warning' : undefined
+      type:
+        command === 'REBOOT' || command === 'LOCK' || command === 'OPEN_DOOR'
+          ? 'warning'
+          : undefined
     });
     cmdLoading.value = command;
     const result = await api.request<{ message?: string; salesLocked?: boolean }>(
@@ -1206,7 +1503,6 @@ function goRestockTasks() {
   goPath('/replenishment', { tab: 'routes', deviceId });
 }
 
-
 async function applyTemplate() {
   applying.value = true;
   try {
@@ -1232,7 +1528,8 @@ function openEditor(slot: DeviceSlot) {
   editForm.maxLevel = slot.maxLevel;
   editForm.enabled = slot.enabled;
   editForm.bookQty = slot.bookQty ?? 0;
-  editForm.physicalQty = slot.lastPhysicalQty != null ? Number(slot.lastPhysicalQty) : (slot.bookQty ?? 0);
+  editForm.physicalQty =
+    slot.lastPhysicalQty != null ? Number(slot.lastPhysicalQty) : (slot.bookQty ?? 0);
   editForm.qtyDiff = slot.qtyDiff ?? 0;
   editForm.hasDiscrepancy = !!slot.hasDiscrepancy;
   editForm.adjustBookQty = false;
@@ -1293,14 +1590,16 @@ async function stocktakeAndAdjust() {
 
 async function saveSlot() {
   saving.value = true;
-  const body: UpsertDeviceSlotRequest[] = [{
-    slotCode: editForm.slotCode,
-    assignedSkuId: editForm.assignedSkuId || '',
-    parLevel: editForm.parLevel,
-    minLevel: editForm.minLevel,
-    maxLevel: editForm.maxLevel,
-    enabled: editForm.enabled
-  }];
+  const body: UpsertDeviceSlotRequest[] = [
+    {
+      slotCode: editForm.slotCode,
+      assignedSkuId: editForm.assignedSkuId || '',
+      parLevel: editForm.parLevel,
+      minLevel: editForm.minLevel,
+      maxLevel: editForm.maxLevel,
+      enabled: editForm.enabled
+    }
+  ];
   try {
     slots.value = await api.request<DeviceSlot[]>(
       `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/slots`,
@@ -1341,19 +1640,78 @@ onActivated(() => {
 </script>
 
 <style scoped>
-.device-ops { display: flex; flex-direction: column; gap: 12px; }
-.page-head-meta { display: flex; flex-direction: column; gap: 4px; }
-.page-title-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.page-title { font-weight: 600; font-size: 15px; }
-.page-hint { font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.4; }
-.stat-row { margin-top: 4px; }
-.qr-card .qr-actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.qr-body { display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap; }
-.qr-preview { width: 180px; height: 180px; border: 1px solid var(--el-border-color); border-radius: 8px; overflow: hidden; background: #fff; }
-.qr-preview img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.qr-empty { width: 180px; height: 180px; display: flex; align-items: center; justify-content: center; color: var(--el-text-color-secondary); border: 1px dashed var(--el-border-color); border-radius: 8px; }
-.qr-meta { flex: 1; min-width: 220px; }
-.qr-url { font-size: 13px; word-break: break-all; margin-bottom: 8px; }
+.device-ops {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.page-head-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.page-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.page-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.page-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+}
+.stat-row {
+  margin-top: 4px;
+}
+.qr-card .qr-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.qr-body {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.qr-preview {
+  width: 180px;
+  height: 180px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+.qr-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+.qr-empty {
+  width: 180px;
+  height: 180px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--el-text-color-secondary);
+  border: 1px dashed var(--el-border-color);
+  border-radius: 8px;
+}
+.qr-meta {
+  flex: 1;
+  min-width: 220px;
+}
+.qr-url {
+  font-size: 13px;
+  word-break: break-all;
+  margin-bottom: 8px;
+}
 .stat-tile {
   display: block;
   width: 100%;
@@ -1367,50 +1725,135 @@ onActivated(() => {
   padding: 12px 14px;
   margin-bottom: 8px;
 }
-.stat-tile.warn { background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff)); }
-.stat-label { font-size: 12px; color: var(--el-text-color-secondary); }
-.stat-value { font-size: 22px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
-.stat-hint { margin-top: 2px; font-size: 12px; color: var(--el-text-color-secondary); }
-.slot-diff.warn { color: #ea580c; margin-left: 6px; font-size: 12px; }
-.page-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.4; }
-.open-door-alert { margin-bottom: 14px; }
+.stat-tile.warn {
+  background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff));
+}
+.stat-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.stat-value {
+  font-size: 22px;
+  font-weight: 600;
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.stat-hint {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.slot-diff.warn {
+  color: #ea580c;
+  margin-left: 6px;
+  font-size: 12px;
+}
+.page-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+}
+.open-door-alert {
+  margin-bottom: 14px;
+}
 .cmd-section-label {
   margin: 4px 0 8px;
   font-size: 12px;
   font-weight: 600;
   color: var(--el-text-color-secondary);
 }
-.cmd-bar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; align-items: center; }
-.policy-lock-alert { margin-bottom: 12px; }
-.field-hint { font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.4; margin-top: 4px; }
+.cmd-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+.policy-lock-alert {
+  margin-bottom: 12px;
+}
+.field-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.4;
+  margin-top: 4px;
+}
 .address-row {
   display: flex;
   gap: 8px;
   width: 100%;
   align-items: center;
 }
-.address-row .el-input { flex: 1; }
-.lock-restock-hint { margin: 8px 0 12px; }
+.address-row .el-input {
+  flex: 1;
+}
+.lock-restock-hint {
+  margin: 8px 0 12px;
+}
 .temp-set-row {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
-.muted { color: var(--el-text-color-placeholder); font-size: 13px; }
-.asset-form { margin-bottom: 4px; }
-.asset-deployed { margin-left: 8px; }
-.life-event { display: flex; flex-direction: column; gap: 2px; }
-.life-remark { font-size: 12px; color: var(--el-text-color-regular); }
-.lifecycle-pane { min-height: 120px; }
-.slot-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
-.section-title { margin: 16px 0 8px; font-size: 14px; font-weight: 600; }
-.name-cell { display: grid; gap: 2px; line-height: 1.35; }
-.name-cell.inline { display: inline-grid; }
-.name-cell strong { font-weight: 650; }
+.muted {
+  color: var(--el-text-color-placeholder);
+  font-size: 13px;
+}
+.asset-form {
+  margin-bottom: 4px;
+}
+.asset-deployed {
+  margin-left: 8px;
+}
+.life-event {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.life-remark {
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+}
+.lifecycle-pane {
+  min-height: 120px;
+}
+.slot-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.section-title {
+  margin: 16px 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+.name-cell {
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+}
+.name-cell.inline {
+  display: inline-grid;
+}
+.name-cell strong {
+  font-weight: 650;
+}
 .name-cell small {
   color: var(--el-text-color-secondary);
   font-family: inherit;

@@ -5,6 +5,7 @@
   "scripts": {
     "dev:admin": "pnpm --filter @aicabinet/admin-vue dev",
     "build:admin": "pnpm --filter @aicabinet/admin-vue build",
+    "build:admin:typecheck": "pnpm --filter @aicabinet/admin-vue type-check",
     "dev:consumer-mp": "pnpm --filter @aicabinet/consumer-mp dev:mp-weixin",
     "dev:consumer-h5": "pnpm --filter @aicabinet/consumer-mp dev:h5",
     "build:consumer-mp": "pnpm --filter @aicabinet/consumer-mp build:mp-weixin",
@@ -12,9 +13,15 @@
     "dev:merchant-h5": "pnpm --filter @aicabinet/merchant-mp dev:h5",
     "build:merchant-mp": "pnpm --filter @aicabinet/merchant-mp build:mp-weixin",
     "build:packages": "pnpm -r --filter @aicabinet/shared-types --filter @aicabinet/shared-dict --filter @aicabinet/shared-rbac --filter @aicabinet/shared-api build",
+    "check:shared": "pnpm build:packages && pnpm --filter @aicabinet/shared-rbac test && pnpm check:nav-perms",
     "test:mp": "pnpm --filter @aicabinet/consumer-mp run test:ci && pnpm --filter @aicabinet/merchant-mp run test:ci",
     "check:nav-perms": "node scripts/check-nav-perms.mjs",
-    "smoke:realms": "node scripts/smoke-realms.mjs"
+    "smoke:realms": "node scripts/smoke-realms.mjs",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write \"clients/**/*.{ts,vue,js,mjs,css,html,json}\" \"packages/**/*.{ts,json}\" \"scripts/**/*.mjs\"",
+    "format:check": "prettier --check \"clients/**/*.{ts,vue,js,mjs,css,html,json}\" \"packages/**/*.{ts,json}\" \"scripts/**/*.mjs\"",
+    "check": "pnpm lint && pnpm format:check && pnpm check:shared"
   },
   "engines": {
     "node": ">=24.18.0",
@@ -24,5 +31,13 @@
     "overrides": {
       "@vitejs/plugin-vue": "5.0.4"
     }
+  },
+  "devDependencies": {
+    "eslint": "^9",
+    "eslint-config-prettier": "^9",
+    "eslint-plugin-vue": "^9",
+    "globals": "^15",
+    "prettier": "^3",
+    "typescript-eslint": "^8"
   }
 }

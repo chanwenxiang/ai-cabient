@@ -19,10 +19,19 @@
         <text v-if="payChannelText" class="pay-channel">{{ payChannelText }}</text>
         <text v-if="order.totalAmountCents <= 0" class="zero-hint">本次未取走商品，未产生扣款</text>
       </view>
-      <view v-if="order.balanceBeforeCents != null && order.balanceAfterCents != null" class="card balance-card">
-        <view><text class="balance-caption">扣款前余额</text><text class="balance-number">{{ fmtMoney(order.balanceBeforeCents) }}</text></view>
+      <view
+        v-if="order.balanceBeforeCents != null && order.balanceAfterCents != null"
+        class="card balance-card"
+      >
+        <view
+          ><text class="balance-caption">扣款前余额</text
+          ><text class="balance-number">{{ fmtMoney(order.balanceBeforeCents) }}</text></view
+        >
         <text class="balance-arrow">→</text>
-        <view><text class="balance-caption">扣款后余额</text><text class="balance-number strong">{{ fmtMoney(order.balanceAfterCents) }}</text></view>
+        <view
+          ><text class="balance-caption">扣款后余额</text
+          ><text class="balance-number strong">{{ fmtMoney(order.balanceAfterCents) }}</text></view
+        >
         <text class="trial-note">本页余额为账户余额展示；免密渠道扣款以微信/支付宝为准</text>
       </view>
 
@@ -36,7 +45,10 @@
         </view>
         <text v-else class="empty-lines">本次未识别到取走商品</text>
         <view
-          v-if="order.originalAmountCents != null && order.originalAmountCents !== order.totalAmountCents"
+          v-if="
+            order.originalAmountCents != null &&
+            order.originalAmountCents !== order.totalAmountCents
+          "
           class="sum-row"
         >
           <text class="sum-label">商品合计</text>
@@ -56,11 +68,15 @@
         <view v-if="sessionId && !disputeFiled && !refundDone" class="secondary-actions">
           <text class="secondary-link warn" @click="openDispute">账单有问题</text>
           <text v-if="canRefundNow" class="secondary-dot">·</text>
-          <text v-if="canRefundNow" class="secondary-link danger" @click="openRefund">申请退款</text>
+          <text v-if="canRefundNow" class="secondary-link danger" @click="openRefund"
+            >申请退款</text
+          >
           <text class="secondary-dot">·</text>
           <text class="secondary-link" @click="goHelp">帮助</text>
         </view>
-        <text v-else-if="disputeFiled && !refundDone" class="dispute-done">申诉已提交，请在「订单」查看进度</text>
+        <text v-else-if="disputeFiled && !refundDone" class="dispute-done"
+          >申诉已提交，请在「订单」查看进度</text
+        >
         <text v-else-if="refundDone" class="dispute-done">退款已完成</text>
       </view>
     </view>
@@ -75,9 +91,11 @@
       <view class="dispute-panel" @click.stop>
         <text class="dispute-title">{{ refundMode ? '立即退款' : '账单申诉' }}</text>
         <text class="dispute-sub">
-          {{ refundMode
-            ? '将原路退回本单已扣款项，可上传凭证图片'
-            : '提交申诉后由运营审核；可上传凭证图片' }}
+          {{
+            refundMode
+              ? '将原路退回本单已扣款项，可上传凭证图片'
+              : '提交申诉后由运营审核；可上传凭证图片'
+          }}
         </text>
         <view class="chip-row">
           <text
@@ -86,7 +104,8 @@
             class="reason-chip"
             :class="{ on: selectedCategory === chip.category }"
             @click="pickChip(chip)"
-          >{{ chip.label }}</text>
+            >{{ chip.label }}</text
+          >
         </view>
         <text class="field-label">申诉说明</text>
         <textarea
@@ -100,8 +119,19 @@
           <text class="evidence-label">申诉附图（选填）</text>
           <view class="evidence-row">
             <view v-for="(img, idx) in evidence" :key="img.localPath + idx" class="evidence-item">
-              <image class="evidence-img" :src="previewEvidenceSrc(img)" mode="aspectFill" :aria-label="`证据图 ${idx + 1}`" />
-              <text class="evidence-del" role="button" aria-label="删除证据图" @click="removeEvidence(idx)">×</text>
+              <image
+                class="evidence-img"
+                :src="previewEvidenceSrc(img)"
+                mode="aspectFill"
+                :aria-label="`证据图 ${idx + 1}`"
+              />
+              <text
+                class="evidence-del"
+                role="button"
+                aria-label="删除证据图"
+                @click="removeEvidence(idx)"
+                >×</text
+              >
               <text v-if="img.uploading" class="evidence-uploading">上传中…</text>
             </view>
             <view
@@ -110,7 +140,8 @@
               role="button"
               aria-label="添加证据图"
               @click="onAddEvidence"
-            >+</view>
+              >+</view
+            >
           </view>
         </view>
         <button
@@ -120,9 +151,15 @@
           :disabled="disputeLoading || refundLoading"
           @click="submitAction"
         >
-          {{ refundMode
-            ? (refundLoading ? '退款中…' : '确认退款')
-            : (disputeLoading ? '提交中…' : '提交申诉') }}
+          {{
+            refundMode
+              ? refundLoading
+                ? '退款中…'
+                : '确认退款'
+              : disputeLoading
+                ? '提交中…'
+                : '提交申诉'
+          }}
         </button>
         <text class="dispute-cancel" @click="closeDispute">取消</text>
       </view>
@@ -500,8 +537,18 @@ function goHelp() {
   font-size: 40rpx;
   font-weight: 700;
 }
-.success-title { font-size: 40rpx; font-weight: 700; display: block; margin-top: 16rpx; }
-.success-status { font-size: 26rpx; opacity: 0.9; display: block; margin-top: 4rpx; }
+.success-title {
+  font-size: 40rpx;
+  font-weight: 700;
+  display: block;
+  margin-top: 16rpx;
+}
+.success-status {
+  font-size: 26rpx;
+  opacity: 0.9;
+  display: block;
+  margin-top: 4rpx;
+}
 .amount-card {
   text-align: center;
   margin: -32rpx 24rpx 18rpx;
@@ -511,7 +558,11 @@ function goHelp() {
   border-radius: 28rpx;
   box-shadow: 0 16rpx 42rpx rgba(15, 23, 42, 0.1);
 }
-.amount-label { font-size: 24rpx; color: #64748b; display: block; }
+.amount-label {
+  font-size: 24rpx;
+  color: #64748b;
+  display: block;
+}
 .amount {
   font-size: 66rpx;
   font-weight: 800;
@@ -520,8 +571,18 @@ function goHelp() {
   display: block;
   margin-top: 4rpx;
 }
-.pay-channel { font-size: 24rpx; color: #64748b; display: block; margin-top: 12rpx; }
-.zero-hint { font-size: 24rpx; color: #888; display: block; margin-top: 12rpx; }
+.pay-channel {
+  font-size: 24rpx;
+  color: #64748b;
+  display: block;
+  margin-top: 12rpx;
+}
+.zero-hint {
+  font-size: 24rpx;
+  color: #888;
+  display: block;
+  margin-top: 12rpx;
+}
 .balance-card {
   display: flex;
   align-items: center;
@@ -529,23 +590,92 @@ function goHelp() {
   flex-wrap: wrap;
   border-radius: 24rpx;
 }
-.balance-caption { display: block; font-size: 23rpx; color: #888; }
-.balance-number { display: block; margin-top: 6rpx; font-size: 30rpx; color: #555; }
-.balance-number.strong { color: #07c160; font-weight: 700; }
-.balance-arrow { color: #bbb; }
-.trial-note { width: 100%; margin-top: 18rpx; padding-top: 14rpx; border-top: 1rpx solid #eee; font-size: 22rpx; color: #ad6800; }
-.section-title { font-size: 29rpx; font-weight: 600; color: #26342d; display: block; margin-bottom: 12rpx; }
-.line { display: flex; justify-content: space-between; padding: 18rpx 0; border-bottom: 1px solid #f1f5f9; }
-.line-name { color: #1e293b; font-weight: 600; }
-.line-amt { color: #07c160; font-weight: 600; }
-.empty-lines { font-size: 26rpx; color: #888; }
-.sum-row { display: flex; justify-content: space-between; padding: 14rpx 0 0; margin-top: 8rpx; }
-.sum-row.discount .sum-value { color: #d97706; font-weight: 600; }
-.sum-row.points .sum-value { color: #059669; font-weight: 700; }
-.sum-label { font-size: 26rpx; color: #64748b; }
-.sum-value { font-size: 28rpx; color: #1e293b; font-weight: 600; }
-.coupon-hint { display: block; margin-top: 8rpx; font-size: 22rpx; color: #ad6800; }
-.footer-actions { padding: 20rpx 24rpx 38rpx; display: flex; flex-direction: column; gap: 16rpx; }
+.balance-caption {
+  display: block;
+  font-size: 23rpx;
+  color: #888;
+}
+.balance-number {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 30rpx;
+  color: #555;
+}
+.balance-number.strong {
+  color: #07c160;
+  font-weight: 700;
+}
+.balance-arrow {
+  color: #bbb;
+}
+.trial-note {
+  width: 100%;
+  margin-top: 18rpx;
+  padding-top: 14rpx;
+  border-top: 1rpx solid #eee;
+  font-size: 22rpx;
+  color: #ad6800;
+}
+.section-title {
+  font-size: 29rpx;
+  font-weight: 600;
+  color: #26342d;
+  display: block;
+  margin-bottom: 12rpx;
+}
+.line {
+  display: flex;
+  justify-content: space-between;
+  padding: 18rpx 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.line-name {
+  color: #1e293b;
+  font-weight: 600;
+}
+.line-amt {
+  color: #07c160;
+  font-weight: 600;
+}
+.empty-lines {
+  font-size: 26rpx;
+  color: #888;
+}
+.sum-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 14rpx 0 0;
+  margin-top: 8rpx;
+}
+.sum-row.discount .sum-value {
+  color: #d97706;
+  font-weight: 600;
+}
+.sum-row.points .sum-value {
+  color: #059669;
+  font-weight: 700;
+}
+.sum-label {
+  font-size: 26rpx;
+  color: #64748b;
+}
+.sum-value {
+  font-size: 28rpx;
+  color: #1e293b;
+  font-weight: 600;
+}
+.coupon-hint {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #ad6800;
+}
+.footer-actions {
+  padding: 20rpx 24rpx 38rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
 .secondary-actions {
   display: flex;
   align-items: center;
@@ -554,10 +684,21 @@ function goHelp() {
   gap: 8rpx;
   padding: 12rpx 0 8rpx;
 }
-.secondary-link { font-size: 26rpx; color: #64748b; padding: 8rpx; }
-.secondary-link.warn { color: #d48806; }
-.secondary-link.danger { color: #ef4444; }
-.secondary-dot { color: #cbd5e1; font-size: 26rpx; }
+.secondary-link {
+  font-size: 26rpx;
+  color: #64748b;
+  padding: 8rpx;
+}
+.secondary-link.warn {
+  color: #d48806;
+}
+.secondary-link.danger {
+  color: #ef4444;
+}
+.secondary-dot {
+  color: #cbd5e1;
+  font-size: 26rpx;
+}
 .action-btn {
   margin: 0;
   height: 88rpx;
@@ -569,7 +710,9 @@ function goHelp() {
   font-weight: 700;
   box-shadow: 0 10rpx 26rpx rgba(5, 150, 105, 0.22);
 }
-.action-btn::after { border: none; }
+.action-btn::after {
+  border: none;
+}
 .ghost-btn {
   margin: 0;
   height: 88rpx;
@@ -580,9 +723,18 @@ function goHelp() {
   border-radius: 44rpx;
   font-size: 30rpx;
 }
-.ghost-btn::after { border: none; }
-.ghost-btn.warn { color: #d48806; border: 1rpx solid #ffd591; background: #fffbeb; }
-.ghost-btn.subtle { color: #999; font-size: 28rpx; }
+.ghost-btn::after {
+  border: none;
+}
+.ghost-btn.warn {
+  color: #d48806;
+  border: 1rpx solid #ffd591;
+  background: #fffbeb;
+}
+.ghost-btn.subtle {
+  color: #999;
+  font-size: 28rpx;
+}
 .refund-btn {
   margin: 0;
   height: 88rpx;
@@ -594,9 +746,18 @@ function goHelp() {
   font-weight: 600;
   border: none;
 }
-.refund-btn::after { border: none; }
-.refund-submit { background: #ef4444; }
-.chip-row { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 16rpx; }
+.refund-btn::after {
+  border: none;
+}
+.refund-submit {
+  background: #ef4444;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+}
 .reason-chip {
   padding: 10rpx 18rpx;
   border-radius: 999rpx;
@@ -605,21 +766,97 @@ function goHelp() {
   font-size: 24rpx;
   border: 1rpx solid transparent;
 }
-.reason-chip.on { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
-.evidence-block { margin-bottom: 16rpx; }
-.evidence-label { display: block; font-size: 24rpx; color: #888; margin-bottom: 10rpx; }
-.evidence-row { display: flex; flex-wrap: wrap; gap: 14rpx; }
-.evidence-item { position: relative; width: 120rpx; height: 120rpx; }
-.evidence-img { width: 120rpx; height: 120rpx; border-radius: 10rpx; background: #f3f4f6; }
-.evidence-del { position: absolute; top: -8rpx; right: -8rpx; width: 32rpx; height: 32rpx; border-radius: 50%; background: #111; color: #fff; text-align: center; line-height: 32rpx; font-size: 22rpx; }
-.evidence-uploading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.45); color: #fff; font-size: 20rpx; border-radius: 10rpx; }
-.evidence-add { width: 120rpx; height: 120rpx; border-radius: 10rpx; border: 2rpx dashed #d1d5db; color: #9ca3af; font-size: 40rpx; display: flex; align-items: center; justify-content: center; }
-.dispute-done { text-align: center; font-size: 26rpx; color: #07c160; padding: 8rpx 0; }
-.btn-hover { opacity: 0.85; }
-.err { color: #fa5151; display: block; margin-bottom: 24rpx; text-align: center; }
-.error-card { margin: 24rpx; padding: 40rpx 28rpx; text-align: center; }
-.error-card .action-btn { margin-top: 12rpx; }
-.error-card .ghost-btn { margin-top: 16rpx; }
+.reason-chip.on {
+  background: #fef2f2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+.evidence-block {
+  margin-bottom: 16rpx;
+}
+.evidence-label {
+  display: block;
+  font-size: 24rpx;
+  color: #888;
+  margin-bottom: 10rpx;
+}
+.evidence-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+}
+.evidence-item {
+  position: relative;
+  width: 120rpx;
+  height: 120rpx;
+}
+.evidence-img {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 10rpx;
+  background: #f3f4f6;
+}
+.evidence-del {
+  position: absolute;
+  top: -8rpx;
+  right: -8rpx;
+  width: 32rpx;
+  height: 32rpx;
+  border-radius: 50%;
+  background: #111;
+  color: #fff;
+  text-align: center;
+  line-height: 32rpx;
+  font-size: 22rpx;
+}
+.evidence-uploading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 20rpx;
+  border-radius: 10rpx;
+}
+.evidence-add {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 10rpx;
+  border: 2rpx dashed #d1d5db;
+  color: #9ca3af;
+  font-size: 40rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dispute-done {
+  text-align: center;
+  font-size: 26rpx;
+  color: #07c160;
+  padding: 8rpx 0;
+}
+.btn-hover {
+  opacity: 0.85;
+}
+.err {
+  color: #fa5151;
+  display: block;
+  margin-bottom: 24rpx;
+  text-align: center;
+}
+.error-card {
+  margin: 24rpx;
+  padding: 40rpx 28rpx;
+  text-align: center;
+}
+.error-card .action-btn {
+  margin-top: 12rpx;
+}
+.error-card .ghost-btn {
+  margin-top: 16rpx;
+}
 
 .dispute-mask {
   position: fixed;
@@ -641,8 +878,19 @@ function goHelp() {
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.dispute-title { font-size: 34rpx; font-weight: 700; display: block; text-align: center; }
-.dispute-sub { font-size: 26rpx; color: #888; display: block; text-align: center; margin: 12rpx 0 24rpx; }
+.dispute-title {
+  font-size: 34rpx;
+  font-weight: 700;
+  display: block;
+  text-align: center;
+}
+.dispute-sub {
+  font-size: 26rpx;
+  color: #888;
+  display: block;
+  text-align: center;
+  margin: 12rpx 0 24rpx;
+}
 .dispute-input {
   width: 100%;
   min-height: 180rpx;

@@ -10,9 +10,13 @@
         </div>
         <div class="page-card-head__actions">
           <el-tag type="info" effect="plain">仅预览，不扣款</el-tag>
-          <el-button v-if="canAccessPath('/vision-mappings')" @click="goPath('/vision-mappings')">识别映射</el-button>
+          <el-button v-if="canAccessPath('/vision-mappings')" @click="goPath('/vision-mappings')"
+            >识别映射</el-button
+          >
           <el-button v-if="canAccessPath('/skus')" @click="goPath('/skus')">商品管理</el-button>
-          <el-button v-if="canAccessPath('/sku-vision')" @click="goPath('/sku-vision')">识别入驻</el-button>
+          <el-button v-if="canAccessPath('/sku-vision')" @click="goPath('/sku-vision')"
+            >识别入驻</el-button
+          >
         </div>
       </div>
     </template>
@@ -27,8 +31,21 @@
           @drop.prevent="onDrop"
           @click="triggerPick"
         >
-          <input ref="fileInput" type="file" accept="image/*" class="hidden-input" @change="onPick" />
-          <img v-if="previewUrl" :src="previewUrl" alt="预览" class="preview-image" width="640" height="360" />
+          <input
+            ref="fileInput"
+            type="file"
+            accept="image/*"
+            class="hidden-input"
+            @change="onPick"
+          />
+          <img
+            v-if="previewUrl"
+            :src="previewUrl"
+            alt="预览"
+            class="preview-image"
+            width="640"
+            height="360"
+          />
           <div v-else class="drop-placeholder">
             <el-icon :size="48"><UploadFilled /></el-icon>
             <p>点击或拖拽上传商品图片</p>
@@ -37,7 +54,13 @@
         </div>
 
         <div class="actions">
-          <el-button v-hasPermi="['ops:sku:demo']" type="primary" :loading="recognizing" :disabled="!imageFile" @click="runRecognize">
+          <el-button
+            v-hasPermi="['ops:sku:demo']"
+            type="primary"
+            :loading="recognizing"
+            :disabled="!imageFile"
+            @click="runRecognize"
+          >
             开始识别
           </el-button>
           <el-button :disabled="!imageFile" @click="clearImage">清空</el-button>
@@ -69,8 +92,12 @@
                 </div>
               </div>
               <div class="item-price">
-                <div v-if="item.unitPriceCents != null" class="unit">¥{{ cents(item.unitPriceCents) }}</div>
-                <div v-if="item.lineAmountCents != null" class="line">小计 ¥{{ cents(item.lineAmountCents) }}</div>
+                <div v-if="item.unitPriceCents != null" class="unit">
+                  ¥{{ cents(item.unitPriceCents) }}
+                </div>
+                <div v-if="item.lineAmountCents != null" class="line">
+                  小计 ¥{{ cents(item.lineAmountCents) }}
+                </div>
                 <div class="confidence">置信度 {{ Math.round((item.confidence || 0) * 100) }}%</div>
               </div>
             </div>
@@ -88,7 +115,9 @@
           </el-descriptions>
 
           <el-descriptions :column="1" border size="small" class="meta-block">
-            <el-descriptions-item label="模型">{{ result.modelVersion || '无' }}</el-descriptions-item>
+            <el-descriptions-item label="模型">{{
+              result.modelVersion || '无'
+            }}</el-descriptions-item>
             <el-descriptions-item label="整体置信度">
               {{ Math.round((result.overallConfidence || 0) * 100) }}%
             </el-descriptions-item>
@@ -193,11 +222,29 @@ onBeforeUnmount(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
 
 .demo-layout {
   display: grid;
@@ -206,7 +253,9 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 900px) {
-  .demo-layout { grid-template-columns: 1fr; }
+  .demo-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 .drop-zone {
@@ -219,7 +268,10 @@ onBeforeUnmount(() => {
   cursor: pointer;
   overflow: hidden;
   background: var(--el-fill-color-light);
-  transition: border-color 0.2s, background 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    box-shadow 0.2s;
 }
 
 .drop-zone.dragging,
@@ -248,7 +300,9 @@ onBeforeUnmount(() => {
   color: var(--el-text-color-primary);
 }
 
-.hidden-input { display: none; }
+.hidden-input {
+  display: none;
+}
 
 .actions {
   display: flex;
@@ -256,8 +310,12 @@ onBeforeUnmount(() => {
   margin-top: 16px;
 }
 
-.result-panel { min-height: 320px; }
-.result-alert { margin-bottom: 16px; }
+.result-panel {
+  min-height: 320px;
+}
+.result-alert {
+  margin-bottom: 16px;
+}
 
 .result-list {
   display: flex;
@@ -275,8 +333,15 @@ onBeforeUnmount(() => {
   background: var(--el-fill-color-light);
 }
 
-.name-cell { display: grid; gap: 2px; line-height: 1.35; }
-.name-cell strong { font-weight: 650; font-size: 16px; }
+.name-cell {
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+}
+.name-cell strong {
+  font-weight: 650;
+  font-size: 16px;
+}
 .name-cell small {
   color: var(--el-text-color-secondary);
   font-family: inherit;
@@ -316,6 +381,10 @@ onBeforeUnmount(() => {
   font-size: 16px;
 }
 
-.meta-block { margin-top: 16px; }
-.loading-block { padding: 8px 0; }
+.meta-block {
+  margin-top: 16px;
+}
+.loading-block {
+  padding: 8px 0;
+}
 </style>

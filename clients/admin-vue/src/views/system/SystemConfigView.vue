@@ -9,11 +9,27 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:config:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button v-hasPermi="['ops:config:import']" @click="onDownloadTemplate(['demo.config.key', 'value', '说明', ''])">导入模板</el-button>
-          <el-button v-hasPermi="['ops:config:import']" :loading="importing" @click="triggerImport">导入</el-button>
-          <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
-          <el-button v-hasPermi="['ops:config:edit']" type="primary" @click="openCreate">新增</el-button>
+          <el-button v-hasPermi="['ops:config:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
+          <el-button
+            v-hasPermi="['ops:config:import']"
+            @click="onDownloadTemplate(['demo.config.key', 'value', '说明', ''])"
+            >导入模板</el-button
+          >
+          <el-button v-hasPermi="['ops:config:import']" :loading="importing" @click="triggerImport"
+            >导入</el-button
+          >
+          <input
+            ref="importInput"
+            type="file"
+            accept=".csv,text/csv"
+            class="hidden-input"
+            @change="onImportFile"
+          />
+          <el-button v-hasPermi="['ops:config:edit']" type="primary" @click="openCreate"
+            >新增</el-button
+          >
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -45,7 +61,9 @@
           border
           class="report-table"
           row-key="configKey"
-          @selection-change="onSelectionChange" empty-text=" ">
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
           <template #empty>
             <el-empty v-if="listHydrated && !loading" description="暂无参数" />
           </template>
@@ -58,7 +76,13 @@
           <el-table-column label="说明" min-width="160" align="center" class-name="col-text">
             <template #default="{ row }">{{ row.description || '无说明' }}</template>
           </el-table-column>
-          <el-table-column label="配置值" min-width="200" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="配置值"
+            min-width="200"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.configValue || '无' }}</template>
           </el-table-column>
           <el-table-column label="更新时间" width="168" align="center" class-name="col-text">
@@ -84,19 +108,29 @@
       </div>
     </div>
 
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="filtered.length"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next"
-        background
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="filtered.length"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+    />
 
-    <el-dialog v-model="dialogVisible" :title="creating ? '新增参数' : '编辑参数'" width="480px" destroy-on-close>
+    <el-dialog
+      v-model="dialogVisible"
+      :title="creating ? '新增参数' : '编辑参数'"
+      width="480px"
+      destroy-on-close
+    >
       <el-form label-width="88px">
         <el-form-item label="配置键" required>
-          <el-input v-model="form.configKey" :disabled="!creating" placeholder="例如 consumer.service_phone" />
+          <el-input
+            v-model="form.configKey"
+            :disabled="!creating"
+            placeholder="例如 consumer.service_phone"
+          />
         </el-form-item>
         <el-form-item label="配置值" required>
           <el-input v-model="form.configValue" type="textarea" :rows="3" />
@@ -107,7 +141,9 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button v-hasPermi="['ops:config:edit']" type="primary" :loading="saving" @click="save">保存</el-button>
+        <el-button v-hasPermi="['ops:config:edit']" type="primary" :loading="saving" @click="save"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
   </el-card>
@@ -153,8 +189,11 @@ const filtered = computed(() => {
   const rows = !q
     ? items.value
     : items.value.filter((row) =>
-        [row.configKey, row.configValue, row.description]
-          .some((x) => String(x || '').toLowerCase().includes(q))
+        [row.configKey, row.configValue, row.description].some((x) =>
+          String(x || '')
+            .toLowerCase()
+            .includes(q)
+        )
       );
   return sortByPrimaryKey(rows, 'configKey', 'asc');
 });
@@ -175,8 +214,8 @@ function rowActions(_row: SystemConfigRow): TableAction[] {
   return acts;
 }
 
-const showActionColumn = computed(() =>
-  auth.hasPerm('ops:config:edit') || auth.hasPerm('ops:config:delete')
+const showActionColumn = computed(
+  () => auth.hasPerm('ops:config:edit') || auth.hasPerm('ops:config:delete')
 );
 
 async function onRowAction(key: string, row: SystemConfigRow) {
@@ -211,40 +250,34 @@ watch(keyword, () => {
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<SystemConfigRow>((r) => r.configKey);
 
-const {
-  importing,
-  importInput,
-  onExport,
-  onDownloadTemplate,
-  triggerImport,
-  onImportFile
-} = useListCsv({
-  filePrefix: '参数配置',
-  headers: ['配置键', '配置值', '说明', '更新时间'],
-  toRows: () =>
-    pickSelected(filtered.value).map((row) => [
-      row.configKey,
-      row.configValue,
-      row.description || '',
-      formatDateTime(row.updatedAt)
-    ]),
-  onImportRows: async (rows) => {
-    let ok = 0;
-    for (const row of rows) {
-      const configKey = (row['配置键'] || row.configKey || '').trim();
-      const configValue = (row['配置值'] || row.configValue || '').trim();
-      if (!configKey || !configValue) continue;
-      await api.request('/api/v2/ops/admin/system-configs', 'PUT', {
-        configKey,
-        configValue,
-        description: (row['说明'] || row.description || '').trim()
-      });
-      ok++;
+const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
+  useListCsv({
+    filePrefix: '参数配置',
+    headers: ['配置键', '配置值', '说明', '更新时间'],
+    toRows: () =>
+      pickSelected(filtered.value).map((row) => [
+        row.configKey,
+        row.configValue,
+        row.description || '',
+        formatDateTime(row.updatedAt)
+      ]),
+    onImportRows: async (rows) => {
+      let ok = 0;
+      for (const row of rows) {
+        const configKey = (row['配置键'] || row.configKey || '').trim();
+        const configValue = (row['配置值'] || row.configValue || '').trim();
+        if (!configKey || !configValue) continue;
+        await api.request('/api/v2/ops/admin/system-configs', 'PUT', {
+          configKey,
+          configValue,
+          description: (row['说明'] || row.description || '').trim()
+        });
+        ok++;
+      }
+      await load();
+      return ok;
     }
-    await load();
-    return ok;
-  }
-});
+  });
 
 function syncRouteQuery() {
   const query: Record<string, string> = {};
@@ -353,10 +386,29 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.hidden-input { display: none; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.hidden-input {
+  display: none;
+}
 </style>

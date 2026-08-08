@@ -1,7 +1,0 @@
-{
-  "navigationBarTitleText": "补货任务",
-  "enablePullDownRefresh": true,
-  "usingComponents": {
-    "empty-state": "../../components/empty-state"
-  }
-}

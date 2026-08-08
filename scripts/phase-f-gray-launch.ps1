@@ -149,7 +149,7 @@ if ($blocking.Count -gt 0) {
     Write-Host "Blocked items for real-funds gray launch:"
     $blocking | ForEach-Object { Write-Host "  - $($_.Name): $($_.Detail)" }
     Write-Host ""
-    Write-Host "See ai-cabinet/docs/FINAL_END_TO_END_TEST_PLAN.md §10 / §14"
+    Write-Host "See ai-cabinet/docs/BROWSER_MIN_UAT.md §10 / §14"
 }
 
 if ($devGrayFailed.Count -gt 0) {

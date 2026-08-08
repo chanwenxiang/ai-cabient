@@ -7,7 +7,9 @@ export const MIN_BALANCE_CENTS = DEFAULT_PREAUTH_CENTS;
 export type EntryChannel = 'WECHAT' | 'ALIPAY';
 
 export function normalizeEntryChannel(channel?: string | null): EntryChannel | null {
-  const c = String(channel || '').trim().toUpperCase();
+  const c = String(channel || '')
+    .trim()
+    .toUpperCase();
   if (c === 'WECHAT' || c === 'ALIPAY') return c;
   return null;
 }
@@ -43,7 +45,9 @@ export function channelLabel(channel?: string | null): string {
 }
 
 /** 可用余额口径：优先后端 availableCents，否则 balance - frozen */
-export function availableCents(acc?: Pick<AccountDto, 'balanceCents' | 'availableCents' | 'frozenCents'> | null): number {
+export function availableCents(
+  acc?: Pick<AccountDto, 'balanceCents' | 'availableCents' | 'frozenCents'> | null
+): number {
   if (!acc) return 0;
   if (acc.availableCents != null) return Math.max(0, acc.availableCents);
   return Math.max(0, (acc.balanceCents || 0) - Math.max(0, acc.frozenCents || 0));

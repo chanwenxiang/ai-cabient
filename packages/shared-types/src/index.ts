@@ -16,6 +16,8 @@ export interface LoginResponse {
   userId: string;
   expiresInSeconds?: number;
   serverBootEpoch?: number;
+  /** 服务端已写入 HttpOnly 会话 Cookie 时，浏览器端无需持久化 token */
+  cookieEnabled?: boolean;
 }
 
 export interface DeviceInfo {
@@ -310,7 +312,13 @@ export interface MerchantWorkbench {
   expiryAlerts: number;
   slotDiscrepancies?: number;
   pendingSplits?: number;
-  actionItems: { type: string; title: string; detail?: string; deviceId?: string; ticketId?: string }[];
+  actionItems: {
+    type: string;
+    title: string;
+    detail?: string;
+    deviceId?: string;
+    ticketId?: string;
+  }[];
 }
 
 export interface MerchantSkuPerformance {

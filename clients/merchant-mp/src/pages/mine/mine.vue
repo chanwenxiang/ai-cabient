@@ -58,11 +58,19 @@
           <text class="menu-title">微信订阅提醒</text>
           <text class="menu-desc">{{ notifyDesc }}</text>
         </view>
-        <button class="bind-btn" size="mini" :loading="notifyBusy" :disabled="!subscribeReady" @click="onBindWx">
+        <button
+          class="bind-btn"
+          size="mini"
+          :loading="notifyBusy"
+          :disabled="!subscribeReady"
+          @click="onBindWx"
+        >
           {{ wxBound ? '重新绑定' : '开启提醒' }}
         </button>
       </view>
-      <view v-if="!subscribeReady" class="notify-warn">未配置订阅消息模板（VITE_WX_SUBSCRIBE_TMPL_IDS），当前仅可保存偏好，无法向微信申请推送授权。</view>
+      <view v-if="!subscribeReady" class="notify-warn"
+        >未配置订阅消息模板（VITE_WX_SUBSCRIBE_TMPL_IDS），当前仅可保存偏好，无法向微信申请推送授权。</view
+      >
       <view class="notify-types">
         <label v-for="t in alertTypeOptions" :key="t.value" class="notify-type">
           <switch
@@ -111,7 +119,12 @@ import {
   wxLoginCode
 } from '@/utils/notify';
 import { canAccessNav, useMerchantMe } from '@/composables/useMerchantMe';
-import { MERCHANT_BIZ_NAV, MERCHANT_FIELD_NAV, MERCHANT_TEAM_NAV, type MerchantNavItem } from '@/config/merchant-nav';
+import {
+  MERCHANT_BIZ_NAV,
+  MERCHANT_FIELD_NAV,
+  MERCHANT_TEAM_NAV,
+  type MerchantNavItem
+} from '@/config/merchant-nav';
 import type { MerchantMe } from '@aicabinet/shared-types';
 import { formatMerchantNames } from '@/utils/merchant-display';
 
@@ -278,17 +291,36 @@ function onLogout() {
   font-size: 44rpx;
   font-weight: 700;
 }
-.profile-info { flex: 1; min-width: 0; }
-.hello { font-size: 36rpx; font-weight: 700; display: block; }
-.sub { font-size: 26rpx; opacity: 0.9; display: block; margin-top: 4rpx; }
-.phone { font-size: 24rpx; opacity: 0.75; display: block; margin-top: 4rpx; }
+.profile-info {
+  flex: 1;
+  min-width: 0;
+}
+.hello {
+  font-size: 36rpx;
+  font-weight: 700;
+  display: block;
+}
+.sub {
+  font-size: 26rpx;
+  opacity: 0.9;
+  display: block;
+  margin-top: 4rpx;
+}
+.phone {
+  font-size: 24rpx;
+  opacity: 0.75;
+  display: block;
+  margin-top: 4rpx;
+}
 .section-label {
   margin: 28rpx 32rpx 10rpx;
   font-size: 22rpx;
   color: #94a3b8;
   letter-spacing: 1rpx;
 }
-.menu-list { margin: 0 24rpx; }
+.menu-list {
+  margin: 0 24rpx;
+}
 .menu-cell {
   background: #fff;
   border-radius: 20rpx;
@@ -316,10 +348,26 @@ function onLogout() {
   color: #0f766e;
   font-weight: 700;
 }
-.menu-text { flex: 1; min-width: 0; }
-.menu-title { font-size: 30rpx; font-weight: 600; display: block; color: #1e293b; }
-.menu-desc { font-size: 24rpx; color: #94a3b8; display: block; margin-top: 4rpx; }
-.menu-arrow { color: #cbd5e1; font-size: 36rpx; }
+.menu-text {
+  flex: 1;
+  min-width: 0;
+}
+.menu-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  display: block;
+  color: #1e293b;
+}
+.menu-desc {
+  font-size: 24rpx;
+  color: #94a3b8;
+  display: block;
+  margin-top: 4rpx;
+}
+.menu-arrow {
+  color: #cbd5e1;
+  font-size: 36rpx;
+}
 .notify-card {
   background: #fff;
   border-radius: 20rpx;
@@ -348,7 +396,10 @@ function onLogout() {
   font-size: 22rpx;
   line-height: 1.4;
 }
-.notify-types { display: grid; gap: 12rpx; }
+.notify-types {
+  display: grid;
+  gap: 12rpx;
+}
 .notify-type {
   display: flex;
   align-items: center;
@@ -364,7 +415,13 @@ function onLogout() {
   border-radius: 12rpx;
   font-size: 28rpx;
 }
-.danger { color: #ef4444; }
-.danger-cell { background: #fffafa; }
-.danger-cell .menu-icon { background: #fff1f0; }
+.danger {
+  color: #ef4444;
+}
+.danger-cell {
+  background: #fffafa;
+}
+.danger-cell .menu-icon {
+  background: #fff1f0;
+}
 </style>

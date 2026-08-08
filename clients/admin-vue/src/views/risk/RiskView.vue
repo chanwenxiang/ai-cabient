@@ -12,8 +12,15 @@
           <el-button v-if="canBlacklist && tab === 'blacklist'" type="primary" @click="openAdd">
             加入黑名单
           </el-button>
-          <el-button v-hasPermi="['ops:risk:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button :icon="Refresh" :loading="tab === 'blacklist' ? blacklistLoading : eventsLoading" @click="reloadCurrent">刷新</el-button>
+          <el-button v-hasPermi="['ops:risk:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
+          <el-button
+            :icon="Refresh"
+            :loading="tab === 'blacklist' ? blacklistLoading : eventsLoading"
+            @click="reloadCurrent"
+            >刷新</el-button
+          >
         </div>
       </div>
     </template>
@@ -32,12 +39,16 @@
               row-key="eventId"
               @selection-change="onEventsSelectionChange"
             >
-              <template #empty><el-empty v-if="eventsHydrated && !eventsLoading" description="暂无风险事件" /></template>
+              <template #empty
+                ><el-empty v-if="eventsHydrated && !eventsLoading" description="暂无风险事件"
+              /></template>
               <el-table-column type="selection" width="48" align="center" />
               <el-table-column label="事件" min-width="140" align="center" class-name="col-text">
                 <template #default="{ row }">
                   <div class="id-cell">
-                    <strong>{{ dictLabel('risk_event_type', row.eventType) || row.eventType || '未知' }}</strong>
+                    <strong>{{
+                      dictLabel('risk_event_type', row.eventType) || row.eventType || '未知'
+                    }}</strong>
                     <small>{{ row.eventId }}</small>
                   </div>
                 </template>
@@ -70,16 +81,17 @@
             </el-table>
           </div>
         </div>
-        <PagePager :hydrated="eventsHydrated"
-            v-model:current-page="eventPage"
-            v-model:page-size="eventSize"
-            :total="eventTotal"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next"
-            background
-            @current-change="loadEvents"
-            @size-change="onEventSizeChange"
-          />
+        <PagePager
+          :hydrated="eventsHydrated"
+          v-model:current-page="eventPage"
+          v-model:page-size="eventSize"
+          :total="eventTotal"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next"
+          background
+          @current-change="loadEvents"
+          @size-change="onEventSizeChange"
+        />
       </el-tab-pane>
 
       <el-tab-pane label="黑名单" name="blacklist">
@@ -95,7 +107,9 @@
               row-key="userId"
               @selection-change="onBlacklistSelectionChange"
             >
-              <template #empty><el-empty v-if="blacklistHydrated && !blacklistLoading" description="暂无黑名单" /></template>
+              <template #empty
+                ><el-empty v-if="blacklistHydrated && !blacklistLoading" description="暂无黑名单"
+              /></template>
               <el-table-column type="selection" width="48" align="center" />
               <el-table-column label="用户" width="120" align="center" class-name="col-text">
                 <template #default="{ row }">
@@ -108,7 +122,13 @@
                   </button>
                 </template>
               </el-table-column>
-              <el-table-column label="原因" min-width="220" align="center" class-name="col-text" show-overflow-tooltip>
+              <el-table-column
+                label="原因"
+                min-width="220"
+                align="center"
+                class-name="col-text"
+                show-overflow-tooltip
+              >
                 <template #default="{ row }">{{ row.reason || '无' }}</template>
               </el-table-column>
               <el-table-column label="加入时间" width="168" align="center" class-name="col-text">
@@ -121,7 +141,8 @@
                 label="操作"
                 width="88"
                 class-name="col-action"
-                align="center">
+                align="center"
+              >
                 <template #default="{ row }">
                   <TableActions
                     :actions="[{ key: 'remove', label: '移出', icon: Delete, type: 'danger' }]"
@@ -422,13 +443,36 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.id-cell { display: grid; gap: 2px; line-height: 1.35; }
-.id-cell strong { font-weight: 650; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.id-cell {
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+}
+.id-cell strong {
+  font-weight: 650;
+}
 .id-cell small {
   color: var(--el-text-color-secondary);
   font-family: inherit;
@@ -443,6 +487,10 @@ onActivated(() => {
   cursor: pointer;
   font: inherit;
 }
-.link-cell:hover { text-decoration: underline; }
-.muted { color: var(--el-text-color-secondary); }
+.link-cell:hover {
+  text-decoration: underline;
+}
+.muted {
+  color: var(--el-text-color-secondary);
+}
 </style>

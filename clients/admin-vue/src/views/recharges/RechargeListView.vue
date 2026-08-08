@@ -9,7 +9,9 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:recharge:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:recharge:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -26,7 +28,13 @@
         />
       </el-form-item>
       <el-form-item label="状态">
-        <el-select v-model="status" clearable placeholder="全部" style="width: 140px" @change="search">
+        <el-select
+          v-model="status"
+          clearable
+          placeholder="全部"
+          style="width: 140px"
+          @change="search"
+        >
           <el-option
             v-for="item in dictOptions('recharge_status')"
             :key="item.value"
@@ -52,10 +60,21 @@
           border
           class="report-table"
           row-key="orderId"
-          @selection-change="onSelectionChange" empty-text=" ">
-          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无充值记录" /></template>
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无充值记录"
+          /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="orderId" label="充值单" min-width="168" align="center" class-name="col-text" sortable="custom">
+          <el-table-column
+            prop="orderId"
+            label="充值单"
+            min-width="168"
+            align="center"
+            class-name="col-text"
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.orderId }}</span>
             </template>
@@ -76,7 +95,9 @@
           <el-table-column label="状态" width="110" align="center">
             <template #default="{ row }">
               <el-tag :type="dictTagType(String(row.status || ''))" size="small">
-                {{ dictLabel('recharge_status', String(row.status || '')) || row.status || '未知状态' }}
+                {{
+                  dictLabel('recharge_status', String(row.status || '')) || row.status || '未知状态'
+                }}
               </el-tag>
             </template>
           </el-table-column>
@@ -104,16 +125,17 @@
       </div>
     </div>
 
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="total"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next"
-        background
-        @current-change="load"
-        @size-change="onSizeChange"
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
   </el-card>
 </template>
 
@@ -145,7 +167,11 @@ const total = ref(0);
 const status = ref('');
 const keyword = ref('');
 const items = ref<Record<string, unknown>[]>([]);
-const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById } = useIdColumnSort<Record<string, unknown>>('orderId');
+const {
+  defaultSort: idDefaultSort,
+  onSortChange: onIdSortChange,
+  sortById
+} = useIdColumnSort<Record<string, unknown>>('orderId');
 const displayItems = computed(() => sortById(items.value));
 
 const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } = useTableSelection<
@@ -296,9 +322,25 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+}
 </style>

@@ -31,7 +31,13 @@
           <text>{{ formatTime(item.createdAt) }}</text>
         </view>
       </view>
-      <view v-if="hasMore" class="load-more" role="button" aria-label="加载更多订单" @click="loadMore">
+      <view
+        v-if="hasMore"
+        class="load-more"
+        role="button"
+        aria-label="加载更多订单"
+        @click="loadMore"
+      >
         {{ loadingMore ? '加载中…' : `加载更多（已显示 ${list.length}/${listTotal}）` }}
       </view>
       <text v-else-if="listTruncated" class="trunc-hint">共 {{ listTotal }} 条，已全部加载</text>
@@ -42,7 +48,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
-import { emptyDisplay, formatDateTimeShort, orderStatusLabel, fmtMoney } from '@aicabinet/shared-uni/format';
+import {
+  emptyDisplay,
+  formatDateTimeShort,
+  orderStatusLabel,
+  fmtMoney
+} from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi, type MerchantOrderSummary } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
@@ -165,9 +176,21 @@ function onDetail(item: MerchantOrderSummary) {
 </script>
 
 <style scoped>
-.page-root { /* globals in App.vue */ }
-.loading, .empty { text-align: center; padding: 80rpx 24rpx; color: var(--text-muted, #64748b); font-size: 28rpx; }
-.err { color: var(--danger, #b91c1c); display: block; margin-bottom: 20rpx; }
+.page-root {
+  /* globals in App.vue */
+}
+.loading,
+.empty {
+  text-align: center;
+  padding: 80rpx 24rpx;
+  color: var(--text-muted, #64748b);
+  font-size: 28rpx;
+}
+.err {
+  color: var(--danger, #b91c1c);
+  display: block;
+  margin-bottom: 20rpx;
+}
 .card {
   background: #fff;
   border-radius: var(--card-radius, 22rpx);
@@ -175,16 +198,57 @@ function onDetail(item: MerchantOrderSummary) {
   margin: 0 0 16rpx;
   border: 1rpx solid var(--card-border, #e2e8f0);
 }
-.card-hover { background: #f8fafc !important; }
-.card-header { display: flex; justify-content: space-between; margin-bottom: 10rpx; }
-.card-id { font-size: 22rpx; color: #94a3b8; }
-.card-status { font-size: 22rpx; color: #92400e; background: #fef3c7; padding: 4rpx 12rpx; border-radius: 999rpx; }
-.card-status.PAID, .card-status.COMPLETED { color: #166534; background: #dcfce7; }
-.card-status.REFUNDED, .card-status.PARTIAL_REFUNDED { color: #1e40af; background: #dbeafe; }
-.card-status.DISPUTED { color: #9a3412; background: #ffedd5; }
-.card-status.CANCELLED, .card-status.FAILED { color: #475569; background: #e2e8f0; }
-.card-amount { font-size: 36rpx; font-weight: 700; color: #0f172a; margin: 8rpx 0; }
-.card-meta { display: flex; justify-content: space-between; margin-top: 12rpx; font-size: 22rpx; color: #94a3b8; }
+.card-hover {
+  background: #f8fafc !important;
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10rpx;
+}
+.card-id {
+  font-size: 22rpx;
+  color: #94a3b8;
+}
+.card-status {
+  font-size: 22rpx;
+  color: #92400e;
+  background: #fef3c7;
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+}
+.card-status.PAID,
+.card-status.COMPLETED {
+  color: #166534;
+  background: #dcfce7;
+}
+.card-status.REFUNDED,
+.card-status.PARTIAL_REFUNDED {
+  color: #1e40af;
+  background: #dbeafe;
+}
+.card-status.DISPUTED {
+  color: #9a3412;
+  background: #ffedd5;
+}
+.card-status.CANCELLED,
+.card-status.FAILED {
+  color: #475569;
+  background: #e2e8f0;
+}
+.card-amount {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 8rpx 0;
+}
+.card-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
+}
 .trunc-hint {
   display: block;
   text-align: center;

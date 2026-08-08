@@ -9,7 +9,9 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:report:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:report:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -59,7 +61,13 @@
         />
       </el-form-item>
       <el-form-item label="状态">
-        <el-select v-model="onlineFilter" clearable placeholder="全部" style="width: 120px" @change="search">
+        <el-select
+          v-model="onlineFilter"
+          clearable
+          placeholder="全部"
+          style="width: 120px"
+          @change="search"
+        >
           <el-option
             v-for="item in dictOptions('online_status').filter((o) => o.value !== 'UNKNOWN')"
             :key="item.value"
@@ -85,14 +93,30 @@
           row-key="deviceId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange" empty-text=" ">
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="deviceId" label="设备编号" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+          <el-table-column
+            prop="deviceId"
+            label="设备编号"
+            min-width="140"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.deviceId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="设备" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="设备"
+            min-width="140"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <button
                 v-if="canAccessPath('/devices')"
@@ -122,7 +146,13 @@
           </el-table-column>
           <el-table-column prop="sessionTotal" label="累计会话" min-width="96" align="center" />
           <el-table-column prop="sessionActive" label="进行中" min-width="88" align="center" />
-          <el-table-column v-if="canAccessPath('/devices')" label="操作" width="96" class-name="col-action" align="center">
+          <el-table-column
+            v-if="canAccessPath('/devices')"
+            label="操作"
+            width="96"
+            class-name="col-action"
+            align="center"
+          >
             <template #default="{ row }">
               <TableActions
                 :actions="[{ key: 'detail', label: '详情', icon: View, type: 'primary' }]"
@@ -130,22 +160,25 @@
               />
             </template>
           </el-table-column>
-          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无设备报表数据" /></template>
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无设备报表数据"
+          /></template>
         </el-table>
       </div>
     </div>
 
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="filtered.length"
-        :page-sizes="[10, 20, 50]"
-        :layout="paginationLayout"
-        :pager-count="pagerCount"
-        background
-        @current-change="() => {}"
-        @size-change="onSizeChange"
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="filtered.length"
+      :page-sizes="[10, 20, 50]"
+      :layout="paginationLayout"
+      :pager-count="pagerCount"
+      background
+      @current-change="() => {}"
+      @size-change="onSizeChange"
+    />
   </el-card>
 </template>
 
@@ -199,7 +232,11 @@ const filtered = computed(() => {
     if (deviceId.value && r.deviceId !== deviceId.value) return false;
     if (onlineFilter.value && r.onlineStatus !== onlineFilter.value) return false;
     if (!kw) return true;
-    return [r.deviceId, r.deviceName].some((v) => String(v || '').toLowerCase().includes(kw));
+    return [r.deviceId, r.deviceName].some((v) =>
+      String(v || '')
+        .toLowerCase()
+        .includes(kw)
+    );
   });
   return sortById(list, 'deviceId');
 });
@@ -458,7 +495,9 @@ onUnmounted(() => {
 }
 .kpi-tile.is-clickable {
   cursor: pointer;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease;
 }
 .kpi-tile.is-clickable:hover,
 .kpi-tile.is-clickable:focus-visible {
@@ -476,10 +515,18 @@ onUnmounted(() => {
   width: 3px;
 }
 
-.kpi-tile.accent-teal::before { background: #2dd4bf; }
-.kpi-tile.accent-blue::before { background: #60a5fa; }
-.kpi-tile.accent-violet::before { background: #a78bfa; }
-.kpi-tile.accent-amber::before { background: #fbbf24; }
+.kpi-tile.accent-teal::before {
+  background: #2dd4bf;
+}
+.kpi-tile.accent-blue::before {
+  background: #60a5fa;
+}
+.kpi-tile.accent-violet::before {
+  background: #a78bfa;
+}
+.kpi-tile.accent-amber::before {
+  background: #fbbf24;
+}
 
 .kpi-label {
   font-size: 13px;

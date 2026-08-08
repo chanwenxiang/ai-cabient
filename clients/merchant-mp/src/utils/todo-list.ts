@@ -40,7 +40,9 @@ function typeKey(type?: string) {
 }
 
 function deviceKey(deviceId?: string) {
-  return String(deviceId || '').trim().toUpperCase();
+  return String(deviceId || '')
+    .trim()
+    .toUpperCase();
 }
 
 /** 与待办页同一套合并/去重，供角标与列表共用 */

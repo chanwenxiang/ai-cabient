@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.AdminAuditLog;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import java.time.Instant;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
 import org.springframework.data.domain.Page;
@@ -39,6 +40,24 @@ public interface AdminAuditLogMapper extends BaseTradeMapper<AdminAuditLog> {
 
     default List<AdminAuditLog> findByTargetTypeAndTargetIdOrderByCreatedAtAsc(String targetType, String targetId) {
     return selectList(Wrappers.<AdminAuditLog>lambdaQuery().eq(AdminAuditLog::getTargetType, targetType).eq(AdminAuditLog::getTargetId, targetId).orderByAsc(AdminAuditLog::getCreatedAt));
+    }
+
+    default long countByActionAndCreatedAtBetween(String action, Instant start, Instant end) {
+        Long c = selectCount(Wrappers.<AdminAuditLog>lambdaQuery()
+                .eq(AdminAuditLog::getAction, action)
+                .ge(AdminAuditLog::getCreatedAt, start)
+                .lt(AdminAuditLog::getCreatedAt, end));
+        return c == null ? 0 : c;
+    }
+
+    default long countByActionAndOperatorIdNotAndCreatedAtBetween(
+            String action, Long operatorId, Instant start, Instant end) {
+        Long c = selectCount(Wrappers.<AdminAuditLog>lambdaQuery()
+                .eq(AdminAuditLog::getAction, action)
+                .ne(AdminAuditLog::getOperatorId, operatorId)
+                .ge(AdminAuditLog::getCreatedAt, start)
+                .lt(AdminAuditLog::getCreatedAt, end));
+        return c == null ? 0 : c;
     }
 
 }

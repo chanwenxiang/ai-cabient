@@ -46,6 +46,10 @@ public class FileAttachmentService {
     private final MinioProperties minioProperties;
     private final Path localRoot;
 
+    /** 集群模式应关闭本地回退：MinIO 不可用时直接报错，避免文件只存在单节点。 */
+    @Value("${app.storage.local-fallback-enabled:true}")
+    private boolean localFallbackEnabled;
+
     public FileAttachmentService(FileAttachmentMapper fileAttachmentMapper,
                                  MinioVideoService minioVideoService,
                                  MinioProperties minioProperties,
@@ -81,7 +85,7 @@ public class FileAttachmentService {
         String token = UUID.randomUUID().toString().replace("-", "");
         String objectKey = ObjectStorageKeys.disputeEvidenceKey(userId, token, ext);
         String storagePath = minioVideoService.putObject(objectKey, bytes, contentType)
-                .orElseGet(() -> writeLocal(objectKey, bytes));
+                .orElseGet(() -> fallbackStore(objectKey, bytes));
         FileAttachment row = new FileAttachment();
         row.setRefType(REF_PENDING);
         row.setRefId(String.valueOf(userId));
@@ -169,7 +173,7 @@ public class FileAttachmentService {
         String token = UUID.randomUUID().toString().replace("-", "");
         String objectKey = ObjectStorageKeys.replenishmentEvidenceKey(taskId, userId, token, ext);
         String storagePath = minioVideoService.putObject(objectKey, bytes, contentType)
-                .orElseGet(() -> writeLocal(objectKey, bytes));
+                .orElseGet(() -> fallbackStore(objectKey, bytes));
         FileAttachment row = new FileAttachment();
         row.setRefType(REF_REPLENISHMENT);
         row.setRefId(String.valueOf(taskId));
@@ -216,7 +220,7 @@ public class FileAttachmentService {
         String token = UUID.randomUUID().toString().replace("-", "");
         String objectKey = ObjectStorageKeys.skuImageKey(operatorId, token, ext);
         String storagePath = minioVideoService.putObject(objectKey, bytes, contentType)
-                .orElseGet(() -> writeLocal(objectKey, bytes));
+                .orElseGet(() -> fallbackStore(objectKey, bytes));
         FileAttachment row = new FileAttachment();
         row.setRefType(REF_SKU_IMAGE);
         row.setRefId(String.valueOf(operatorId));
@@ -294,6 +298,15 @@ public class FileAttachmentService {
             url = "/api/v2/disputes/evidence/" + row.getFileId();
         }
         return FileAttachmentDto.of(row.getFileId(), row.getFileName(), row.getContentType(), row.getFileSize(), url);
+    }
+
+    /** MinIO 不可用时的兜底：允许本地回退时写本地磁盘，否则直接报错（集群模式）。 */
+    private String fallbackStore(String objectKey, byte[] data) {
+        if (!localFallbackEnabled) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "对象存储不可用且已禁用本地回退（集群模式），请检查 MinIO");
+        }
+        return writeLocal(objectKey, data);
     }
 
     private String writeLocal(String objectKey, byte[] data) {

@@ -66,7 +66,7 @@ public class MqttEventListener implements MqttCallbackExtended {
         client.connect(connectOptionsFactory.create());
         subscribeEvents();
         connectionRegistry.setListenerConnected(true);
-        log.info("MQTT event listener connected, subscribed {}", MqttTopics.ALL_EVENTS);
+        log.info("MQTT event listener connected, subscribed {}", MqttTopics.ALL_EVENTS_SHARED);
     }
 
     @PreDestroy
@@ -89,7 +89,7 @@ public class MqttEventListener implements MqttCallbackExtended {
         try {
             subscribeEvents();
             log.info("MQTT event listener {}connected to {}, subscribed {}",
-                    reconnect ? "re" : "", serverURI, MqttTopics.ALL_EVENTS);
+                    reconnect ? "re" : "", serverURI, MqttTopics.ALL_EVENTS_SHARED);
         } catch (MqttException e) {
             connectionRegistry.setListenerConnected(false);
             log.error("failed to resubscribe MQTT events after reconnect", e);
@@ -235,7 +235,8 @@ public class MqttEventListener implements MqttCallbackExtended {
 
     private void subscribeEvents() throws MqttException {
         if (client != null && client.isConnected()) {
-            client.subscribe(MqttTopics.ALL_EVENTS, 1);
+            // Shared subscription: only one instance receives each event with replicas
+            client.subscribe(MqttTopics.ALL_EVENTS_SHARED, 1);
         }
     }
 

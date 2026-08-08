@@ -32,6 +32,7 @@ import com.aicabinet.trade.support.MerchantPortalGuard;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -67,8 +68,10 @@ public class DisputeService {
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final MerchantPortalGuard merchantPortalGuard;
     private final SkuCatalogMapper skuCatalogRepository;
-    private final DisputeSlaProperties disputeSlaProperties;
-    private final UserInfoMapper userInfoRepository;
+private final DisputeSlaProperties disputeSlaProperties;
+@Autowired
+private SystemConfigService systemConfigService;
+private final UserInfoMapper userInfoRepository;
     private final OpsExceptionService opsExceptionService;
     private final FileAttachmentService fileAttachmentService;
     private final RefundPolicyService refundPolicyService;
@@ -297,7 +300,9 @@ public class DisputeService {
             ticket.setDetectedClasses(detectedClassesJson);
         }
         Instant now = Instant.now();
-        ticket.setSlaDueAt(now.plus(disputeSlaProperties.hours(), ChronoUnit.HOURS));
+        ticket.setSlaDueAt(now.plus(
+                systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_HOURS, disputeSlaProperties.hours()),
+                ChronoUnit.HOURS));
         disputeRepository.save(ticket);
         riskControlService.onDisputeCreated(userId, sessionId);
         return toDto(ticket);
@@ -516,7 +521,9 @@ public class DisputeService {
         ticket.setClosedAt(null);
         ticket.setReopenedAt(Instant.now());
         if (ticket.getSlaDueAt() == null || !ticket.getSlaDueAt().isAfter(Instant.now())) {
-            ticket.setSlaDueAt(Instant.now().plus(disputeSlaProperties.hours(), ChronoUnit.HOURS));
+        ticket.setSlaDueAt(Instant.now().plus(
+                systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_HOURS, disputeSlaProperties.hours()),
+                ChronoUnit.HOURS));
         }
         session.setState(SessionState.DISPUTED);
         sessionRepository.save(session);

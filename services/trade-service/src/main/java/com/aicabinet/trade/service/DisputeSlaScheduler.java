@@ -3,6 +3,7 @@ package com.aicabinet.trade.service;
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.domain.DisputeTicket;
 import com.aicabinet.trade.mapper.DisputeTicketMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -31,14 +32,29 @@ public class DisputeSlaScheduler {
         this.alertService = alertService;
     }
 
+    @Autowired
+    private ScheduledTaskService taskService;
+
+    @Autowired
+    private SystemConfigService systemConfigService;
+
     @Scheduled(fixedRate = 900_000)
     @Transactional
     public void checkDisputeSla() {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("dispute-sla", 600)) {
+            return;
+        }
+        boolean failed = false;
+        try {
         if (!disputeSlaProperties.schedulerEnabled()) {
             return;
         }
         Instant now = Instant.now();
-        Instant reminderThreshold = now.plus(disputeSlaProperties.reminderHoursBefore(), ChronoUnit.HOURS);
+        Instant reminderThreshold = now.plus(
+                systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_REMINDER_HOURS,
+                        disputeSlaProperties.reminderHoursBefore()),
+                ChronoUnit.HOURS);
 
         List<DisputeTicket> openTickets = disputeRepository.findOpenNeedingSlaScan(SCAN_BATCH);
         int reminders = 0;
@@ -46,7 +62,10 @@ public class DisputeSlaScheduler {
         for (DisputeTicket ticket : openTickets) {
             boolean dirty = false;
             if (ticket.getSlaDueAt() == null) {
-                ticket.setSlaDueAt(ticket.getCreatedAt().plus(disputeSlaProperties.hours(), ChronoUnit.HOURS));
+                ticket.setSlaDueAt(ticket.getCreatedAt().plus(
+                        systemConfigService.getInt(SystemConfigService.DISPUTE_SLA_HOURS,
+                                disputeSlaProperties.hours()),
+                        ChronoUnit.HOURS));
                 dirty = true;
             }
             if (ticket.getSlaReminderAt() == null
@@ -69,6 +88,15 @@ public class DisputeSlaScheduler {
         }
         if (reminders > 0 || overdue > 0) {
             log.info("dispute sla scan reminders={} overdue={} scanned={}", reminders, overdue, openTickets.size());
+        }
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish("dispute-sla", "FAILED", e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish("dispute-sla", "SUCCESS", null, start);
+            }
         }
     }
 }

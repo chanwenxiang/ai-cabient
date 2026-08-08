@@ -61,6 +61,8 @@ aicabinet:
   auth:
     jwt-secret: ${JWT_SECRET:ai-cabinet-dev-secret-key-32bytes!!}
     expiration-seconds: ${JWT_EXPIRATION_SECONDS:1800}
+    cookie-enabled: ${AUTH_COOKIE_ENABLED:true}
+    cookie-secure: ${AUTH_COOKIE_SECURE:false}
     sms:
       mock-code: "123456"
       ttl-seconds: 300
@@ -159,6 +161,13 @@ aicabinet:
     enabled: ${MERCHANT_AI_ENABLED:true}
     base-url: ${MERCHANT_AI_BASE_URL:http://localhost:11434}
     model: ${MERCHANT_AI_MODEL:qwen2.5:1.5b}
+  xxljob:
+    enabled: ${XXL_JOB_ENABLED:false}
+
+app:
+  storage:
+    local-dir: ${APP_STORAGE_LOCAL_DIR:./data/attachments}
+    local-fallback-enabled: ${APP_STORAGE_LOCAL_FALLBACK_ENABLED:true}
 
 management:
   endpoints:
@@ -202,3 +211,16 @@ springdoc:
     display-request-duration: true
     tags-sorter: alpha
     operations-sorter: method
+
+# XXL-JOB 执行器（调度中心独立部署；XXL_JOB_ENABLED=true 时启用并注册）
+xxl:
+  job:
+    admin:
+      addresses: ${XXL_JOB_ADMIN_ADDRESSES:}
+    access-token: ${XXL_JOB_ACCESS_TOKEN:}
+    executor:
+      appname: ${XXL_JOB_EXECUTOR_APPNAME:trade-service}
+      ip: ${XXL_JOB_EXECUTOR_IP:}
+      port: ${XXL_JOB_EXECUTOR_PORT:9999}
+      log-path: ${XXL_JOB_EXECUTOR_LOG_PATH:./logs/xxl-job/jobhandler}
+      log-retention-days: ${XXL_JOB_EXECUTOR_LOG_RETENTION_DAYS:30}

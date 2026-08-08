@@ -7,6 +7,7 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DeviceTemperatureReadingMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,6 +27,9 @@ public class DevicePresenceService {
     private final OpsExceptionService opsExceptionService;
     private final SystemConfigService systemConfigService;
     private final AdminAuditService auditService;
+
+    @Autowired
+    private ScheduledTaskService taskService;
 
     public DevicePresenceService(DeviceInfoMapper deviceRepository,
                                  DeviceTemperatureReadingMapper temperatureReadingRepository,
@@ -54,7 +58,12 @@ public class DevicePresenceService {
     @Transactional
     public void heartbeat(String deviceId, String appVersion, String firmwareVersion, Integer currentTempC) {
         DeviceInfo device = deviceRepository.findById(deviceId).orElseGet(() -> registerUnknown(deviceId));
+        boolean wasOnline = "ONLINE".equalsIgnoreCase(device.getOnlineStatus());
         device.setOnlineStatus("ONLINE");
+        if (!wasOnline || device.getOnlineSince() == null) {
+            // 记录本次恢复在线的时间点（持续在线时保留原值，用于统计稳定在线时长）
+            device.setOnlineSince(Instant.now());
+        }
         if (appVersion != null && !appVersion.isBlank()) {
             device.setAppVersion(appVersion);
         }
@@ -82,16 +91,33 @@ public class DevicePresenceService {
     @Scheduled(fixedRate = 60_000)
     @Transactional
     public void markStaleDevicesOffline() {
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("device-presence", 600)) {
+            return;
+        }
+        boolean failed = false;
+        try {
         Instant cutoff = Instant.now().minus(OFFLINE_AFTER_MINUTES, ChronoUnit.MINUTES);
         deviceRepository.findByOnlineStatusAndUpdatedAtBefore("ONLINE", cutoff).forEach(d -> {
             d.setOnlineStatus("OFFLINE");
+            d.setOnlineSince(null);
             deviceRepository.save(d);
+            deviceRepository.clearOnlineSince(d.getDeviceId());
             opsExceptionService.report("DEVICE_OFFLINE", "CRITICAL", d.getDeviceId(), null,
                     null, null, "设备离线", "连续 " + OFFLINE_AFTER_MINUTES + " 分钟未收到心跳");
             log.info("device marked offline device={}", d.getDeviceId());
         });
         autoLockLongOfflineDevices();
         cabinetMetrics.refreshDeviceGauges(deviceRepository);
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish("device-presence", "FAILED", e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish("device-presence", "SUCCESS", null, start);
+            }
+        }
     }
 
     /** 离线超过配置分钟数后自动锁机停售（需运营手动解锁）。 */
@@ -122,6 +148,7 @@ public class DevicePresenceService {
         device.setDeviceName(deviceId);
         device.setDeviceType("AI_CABINET_V1");
         device.setOnlineStatus("ONLINE");
+        device.setOnlineSince(Instant.now());
         return deviceRepository.save(device);
     }
 }

@@ -50,13 +50,31 @@
         </el-select>
       </el-form-item>
       <el-form-item label="商户">
-        <el-input v-model="merchantId" clearable placeholder="商户编号" style="width: 140px" @keyup.enter="load" />
+        <el-input
+          v-model="merchantId"
+          clearable
+          placeholder="商户编号"
+          style="width: 140px"
+          @keyup.enter="load"
+        />
       </el-form-item>
       <el-form-item label="路线">
-        <el-input v-model="routeCode" clearable placeholder="路线编码" style="width: 120px" @keyup.enter="load" />
+        <el-input
+          v-model="routeCode"
+          clearable
+          placeholder="路线编码"
+          style="width: 120px"
+          @keyup.enter="load"
+        />
       </el-form-item>
       <el-form-item label="生命周期">
-        <el-select v-model="lifecycleStatus" clearable placeholder="默认投放" style="width: 130px" @change="load">
+        <el-select
+          v-model="lifecycleStatus"
+          clearable
+          placeholder="默认投放"
+          style="width: 130px"
+          @change="load"
+        >
           <el-option
             v-for="item in dictOptions('device_lifecycle')"
             :key="item.value"
@@ -112,31 +130,78 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table v-loading="loading" :data="rows" stripe border class="report-table" empty-text=" ">
-          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无异常库存" /></template>
+        <el-table
+          v-loading="loading"
+          :data="rows"
+          stripe
+          border
+          class="report-table"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无异常库存"
+          /></template>
           <el-table-column label="维度" width="96" align="center">
             <template #default="{ row }">
-              <el-tag :type="dimTag(row.dimension)" size="small">{{ dimLabel(row.dimension) }}</el-tag>
+              <el-tag :type="dimTag(row.dimension)" size="small">{{
+                dimLabel(row.dimension)
+              }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="设备" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="设备"
+            min-width="120"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.deviceName || row.deviceId || '无' }}</template>
           </el-table-column>
-          <el-table-column label="设备ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="设备ID"
+            min-width="120"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.deviceId || '无' }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="商户" min-width="110" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="商户"
+            min-width="110"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.merchantId || '无' }}</template>
           </el-table-column>
-          <el-table-column label="路线" width="90" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="路线"
+            width="90"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.routeCode || '无' }}</template>
           </el-table-column>
-          <el-table-column label="SKU" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="SKU"
+            min-width="120"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.skuName || row.skuId || '无' }}</template>
           </el-table-column>
-          <el-table-column label="SKU ID" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="SKU ID"
+            min-width="120"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.skuId || '无' }}</span>
             </template>
@@ -151,7 +216,9 @@
             <template #default="{ row }">{{ row.lowThreshold ?? '无' }}</template>
           </el-table-column>
           <el-table-column label="缺货率" width="88" align="center">
-            <template #default="{ row }">{{ Number(row.stockoutRatePct || 0).toFixed(1) }}%</template>
+            <template #default="{ row }"
+              >{{ Number(row.stockoutRatePct || 0).toFixed(1) }}%</template
+            >
           </el-table-column>
           <el-table-column label="断货天" width="80" align="center">
             <template #default="{ row }">{{ row.daysOutOfStock ?? '无' }}</template>
@@ -161,10 +228,7 @@
           </el-table-column>
           <el-table-column label="操作" width="220" class-name="col-action" align="center">
             <template #default="{ row }">
-              <TableActions
-                :actions="rowActions(row)"
-                @action="(key) => onRowAction(key, row)"
-              />
+              <TableActions :actions="rowActions(row)" @action="(key) => onRowAction(key, row)" />
             </template>
           </el-table-column>
         </el-table>
@@ -222,15 +286,16 @@ const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 const deviceCount = computed(() => new Set(rows.value.map((r) => r.deviceId).filter(Boolean)).size);
 
 /** 断货/低库存柜机（临期不进一键补货） */
-const planDeviceIds = computed(() =>
-  [
-    ...new Set(
-      rows.value
-        .filter((r) => r.dimension === 'STOCKOUT' || r.dimension === 'LOW')
-        .map((r) => r.deviceId)
-        .filter(Boolean)
-    )
-  ] as string[]
+const planDeviceIds = computed(
+  () =>
+    [
+      ...new Set(
+        rows.value
+          .filter((r) => r.dimension === 'STOCKOUT' || r.dimension === 'LOW')
+          .map((r) => r.deviceId)
+          .filter(Boolean)
+      )
+    ] as string[]
 );
 
 function rowActions(row: StockHealthRow): TableAction[] {
@@ -337,10 +402,14 @@ function countBy(dim: string) {
 
 function dimLabel(dim?: string) {
   switch (dim) {
-    case 'STOCKOUT': return '断货';
-    case 'LOW': return '低库存';
-    case 'NEAR_EXPIRY': return '临期';
-    default: return dim || '未知';
+    case 'STOCKOUT':
+      return '断货';
+    case 'LOW':
+      return '低库存';
+    case 'NEAR_EXPIRY':
+      return '临期';
+    default:
+      return dim || '未知';
   }
 }
 
@@ -415,9 +484,19 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { font-size: 12px; color: var(--el-text-color-secondary); }
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
 .kpi-row {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -425,7 +504,9 @@ onActivated(() => {
   margin-bottom: 14px;
 }
 @media (max-width: 900px) {
-  .kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 .kpi-tile {
   display: block;
@@ -442,8 +523,22 @@ onActivated(() => {
 .kpi-tile.warn {
   background: color-mix(in srgb, var(--el-color-warning) 12%, var(--layout-card, #fff));
 }
-.kpi-label { font-size: 12px; color: var(--el-text-color-secondary); }
-.kpi-value { margin-top: 4px; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.kpi-hint { margin-top: 2px; font-size: 12px; color: var(--el-text-color-secondary); }
-.muted { color: var(--el-text-color-placeholder); }
+.kpi-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.kpi-value {
+  margin-top: 4px;
+  font-size: 20px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-hint {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.muted {
+  color: var(--el-text-color-placeholder);
+}
 </style>

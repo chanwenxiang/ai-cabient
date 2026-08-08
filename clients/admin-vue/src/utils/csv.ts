@@ -35,7 +35,10 @@ export function downloadCsv(filename: string, headers: string[], rows: Array<Arr
 
 /** Minimal CSV parser: supports quoted fields and commas. */
 export function parseCsv(text: string): string[][] {
-  const raw = text.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const raw = text
+    .replace(/^\uFEFF/, '')
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n');
   const rows: string[][] = [];
   let row: string[] = [];
   let cell = '';

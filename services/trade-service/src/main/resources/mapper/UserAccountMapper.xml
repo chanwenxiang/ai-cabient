@@ -5,7 +5,7 @@
 
   <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.UserAccount">
     <![CDATA[
-    SELECT a.* FROM user_account a WHERE a.user_id = #{userId}
+    SELECT a.* FROM user_account a WHERE a.user_id = #{userId} FOR UPDATE
     ]]>
   </select>
 </mapper>

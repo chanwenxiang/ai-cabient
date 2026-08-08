@@ -36,6 +36,15 @@ public class SystemConfigService {
     public static final String RECHARGE_AUTO_CANCEL_MINUTES = "recharge.pending.auto_cancel_minutes";
     /** 设备离线超过该分钟数后自动锁机停售, 0=不自动锁机. */
     public static final String DEVICE_OFFLINE_AUTO_LOCK_MINUTES = "device.offline.auto_sales_lock_minutes";
+    public static final String DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED = "device.offline.auto_unlock_enabled";
+    public static final String DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES = "device.offline.auto_unlock_stable_minutes";
+    public static final String DISPUTE_SLA_HOURS = "dispute.sla.hours";
+    public static final String DISPUTE_SLA_REMINDER_HOURS = "dispute.sla.reminder_hours";
+    public static final String DISPUTE_SLA_WEBHOOK = "dispute.sla.webhook";
+    public static final String OPS_SCAN_DOOR_OPEN_MINUTES = "ops.scan.door_open_minutes";
+    public static final String OPS_SCAN_UPLOAD_STUCK_MINUTES = "ops.scan.upload_stuck_minutes";
+    public static final String OPS_SCAN_RECOGNITION_STUCK_MINUTES = "ops.scan.recognition_stuck_minutes";
+    public static final String OPS_SCAN_SETTLEMENT_STUCK_MINUTES = "ops.scan.settlement_stuck_minutes";
     /** 消费者开门预授权冻结金额(分), 优先于配置文件, 柜机押金可覆盖. */
     public static final String CHECKOUT_PREAUTH_CENTS = "checkout.preauth_cents";
 
@@ -165,6 +174,17 @@ public class SystemConfigService {
         upsertIfAbsent(UNPAID_AUTO_BLACKLIST, "false", "待支付超时关单时是否自动拉黑用户");
         upsertIfAbsent(RECHARGE_AUTO_CANCEL_MINUTES, "30", "待支付充值单超时自动取消分钟数, 0=关闭");
         upsertIfAbsent(DEVICE_OFFLINE_AUTO_LOCK_MINUTES, "10", "设备离线超时自动锁机分钟数, 0=关闭");
+        upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_ENABLED, "false",
+                "设备恢复稳定在线后是否自动解锁起售（默认关闭）");
+        upsertIfAbsent(DEVICE_STABLE_ONLINE_AUTO_UNLOCK_MINUTES, "15",
+                "自动解锁前需保持稳定在线分钟数, 0=关闭");
+        upsertIfAbsent(DISPUTE_SLA_HOURS, "48", "争议工单 SLA 处理时限（小时）");
+        upsertIfAbsent(DISPUTE_SLA_REMINDER_HOURS, "12", "争议 SLA 到期前提醒提前量（小时）");
+        upsertIfAbsent(DISPUTE_SLA_WEBHOOK, "", "争议 SLA 提醒/逾期推送 Webhook URL（留空不推送）");
+        upsertIfAbsent(OPS_SCAN_DOOR_OPEN_MINUTES, "10", "柜门开启超时告警分钟数");
+        upsertIfAbsent(OPS_SCAN_UPLOAD_STUCK_MINUTES, "5", "视频上传卡点告警分钟数");
+        upsertIfAbsent(OPS_SCAN_RECOGNITION_STUCK_MINUTES, "3", "识别卡点告警分钟数");
+        upsertIfAbsent(OPS_SCAN_SETTLEMENT_STUCK_MINUTES, "3", "结算卡点告警分钟数");
         upsertIfAbsent(CHECKOUT_PREAUTH_CENTS,
                 String.valueOf(com.aicabinet.common.constants.CabinetConstants.MIN_BALANCE_CENTS),
                 "消费者开门预授权冻结金额(分)");

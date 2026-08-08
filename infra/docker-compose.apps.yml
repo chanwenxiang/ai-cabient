@@ -90,6 +90,10 @@ services:
       PROFIT_SHARING_RETRY_BATCH_SIZE: ${PROFIT_SHARING_RETRY_BATCH_SIZE:-20}
       AICABINET_SECURITY_MOCK_ENABLED: ${AICABINET_MOCK_ENABLED:-true}
       RECON_MOCK_ENABLED: ${RECON_MOCK_ENABLED:-true}
+      XXL_JOB_ENABLED: ${XXL_JOB_ENABLED:-false}
+      XXL_JOB_ADMIN_ADDRESSES: ${XXL_JOB_ADMIN_ADDRESSES:-http://xxl-job-admin:8080/xxl-job-admin}
+      XXL_JOB_ACCESS_TOKEN: ${XXL_JOB_ACCESS_TOKEN:-}
+      XXL_JOB_EXECUTOR_PORT: ${XXL_JOB_EXECUTOR_PORT:-9999}
     depends_on:
       postgres:
         condition: service_healthy
@@ -117,6 +121,8 @@ services:
       INTERNAL_API_KEY: ${INTERNAL_API_KEY}
       MQTT_BROKER: ${MQTT_BROKER:-tcp://emqx:1883}
       AICABINET_TRADE_SERVICE_URL: http://trade-service:8080
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
     depends_on:
       emqx:
         condition: service_started

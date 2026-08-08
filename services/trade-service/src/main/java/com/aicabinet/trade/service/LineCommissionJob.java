@@ -10,6 +10,7 @@ import com.aicabinet.trade.mapper.LineDeviceMapper;
 import com.aicabinet.trade.mapper.LineManagerMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +34,9 @@ public class LineCommissionJob {
     private final LineCommissionDailyMapper commissionDailyMapper;
     private final LineWalletService lineWalletService;
 
+    @Autowired
+    private ScheduledTaskService taskService;
+
     public LineCommissionJob(LineManagerMapper managerMapper,
                              LineDeviceMapper deviceMapper,
                              CabinetOrderMapper orderMapper,
@@ -48,7 +52,13 @@ public class LineCommissionJob {
     @Scheduled(cron = "0 20 0 * * *", zone = "Asia/Shanghai")
     @Transactional
     public void postDailyCommission() {
-        LocalDate bizDate = LocalDate.now(ZONE).minusDays(1);
+        long taskStart = System.nanoTime();
+        if (!taskService.tryBegin("line-commission", 1800)) {
+            return;
+        }
+        boolean failed = false;
+        try {
+            LocalDate bizDate = LocalDate.now(ZONE).minusDays(1);
         Instant start = bizDate.atStartOfDay(ZONE).toInstant();
         Instant end = bizDate.plusDays(1).atStartOfDay(ZONE).toInstant();
         List<LineDevice> bindings = deviceMapper.findByStatus(LineManagerService.STATUS_ACTIVE);
@@ -94,5 +104,14 @@ public class LineCommissionJob {
         if (posted > 0) {
             log.info("Line commission posted for {} device-day rows on {}", posted, bizDate);
         }
+    } catch (Exception e) {
+        failed = true;
+            taskService.finish("line-commission", "FAILED", e.getMessage(), taskStart);
+        throw e;
+    } finally {
+        if (!failed) {
+            taskService.finish("line-commission", "SUCCESS", null, taskStart);
+        }
     }
+}
 }

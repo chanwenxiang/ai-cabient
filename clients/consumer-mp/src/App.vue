@@ -118,7 +118,10 @@ button::after {
   box-shadow: 0 10rpx 32rpx rgba(15, 23, 42, 0.055);
 }
 
-.meta { color: #888; font-size: 26rpx; }
+.meta {
+  color: #888;
+  font-size: 26rpx;
+}
 
 .btn-primary,
 .action-btn,
@@ -168,19 +171,48 @@ button::after {
   box-shadow: 0 8rpx 24rpx rgba(239, 68, 68, 0.22);
 }
 
-button, .btn-primary, .btn-ghost, .btn-outline, .menu-cell, .filter-chip, .scan-btn, .tip-btn {
-  transition: transform .18s ease, opacity .18s ease, box-shadow .18s ease;
+button,
+.btn-primary,
+.btn-ghost,
+.btn-outline,
+.menu-cell,
+.filter-chip,
+.scan-btn,
+.tip-btn {
+  transition:
+    transform 0.18s ease,
+    opacity 0.18s ease,
+    box-shadow 0.18s ease;
 }
-button:active, .btn-primary:active, .btn-ghost:active, .btn-outline:active, .menu-cell:active, .filter-chip:active, .tip-btn:active {
-  transform: scale(.985);
-  opacity: .88;
+button:active,
+.btn-primary:active,
+.btn-ghost:active,
+.btn-outline:active,
+.menu-cell:active,
+.filter-chip:active,
+.tip-btn:active {
+  transform: scale(0.985);
+  opacity: 0.88;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  button, .btn-primary, .btn-ghost, .btn-outline, .menu-cell, .filter-chip, .scan-btn, .tip-btn {
+  button,
+  .btn-primary,
+  .btn-ghost,
+  .btn-outline,
+  .menu-cell,
+  .filter-chip,
+  .scan-btn,
+  .tip-btn {
     transition: none;
   }
-  button:active, .btn-primary:active, .btn-ghost:active, .btn-outline:active, .menu-cell:active, .filter-chip:active, .tip-btn:active {
+  button:active,
+  .btn-primary:active,
+  .btn-ghost:active,
+  .btn-outline:active,
+  .menu-cell:active,
+  .filter-chip:active,
+  .tip-btn:active {
     transform: none;
     opacity: 1;
   }
@@ -196,7 +228,7 @@ button:active, .btn-primary:active, .btn-ghost:active, .btn-outline:active, .men
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
-    box-shadow: 0 22px 70px rgba(15, 23, 42, .14);
+    box-shadow: 0 22px 70px rgba(15, 23, 42, 0.14);
   }
 }
 </style>

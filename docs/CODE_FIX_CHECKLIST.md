@@ -1,4 +1,4 @@
-﻿# 代码问题修复清单
+# 代码问题修复清单
 
 ## 一、概述
 
@@ -200,11 +200,11 @@
 | 文档 | 路径 | 内容 |
 |------|------|------|
 | 上线执行计划 | docs/GO_LIVE_EXECUTION_PLAN.md | 整体上线规划 |
-| 运营后台分析 | docs/ANALYSIS_ADMIN_VUE.md | 运营后台详情 |
-| 消费者小程序分析 | docs/ANALYSIS_CONSUMER_MP.md | 消费者端详情 |
-| 商户小程序分析 | docs/ANALYSIS_MERCHANT_MP.md | 商户端详情 |
-| 后端服务分析 | docs/ANALYSIS_BACKEND_SERVICES.md | 后端详情 |
-| 硬件对接分析 | docs/ANALYSIS_HARDWARE_INTEGRATION.md | 硬件详情 |
+| 运营后台分析 | docs/archive/ANALYSIS_ADMIN_VUE.md | 运营后台详情 |
+| 消费者小程序分析 | docs/archive/ANALYSIS_CONSUMER_MP.md | 消费者端详情 |
+| 商户小程序分析 | docs/archive/ANALYSIS_MERCHANT_MP.md | 商户端详情 |
+| 后端服务分析 | docs/archive/ANALYSIS_BACKEND_SERVICES.md | 后端详情 |
+| 硬件对接分析 | docs/archive/ANALYSIS_HARDWARE_INTEGRATION.md | 硬件详情 |
 
 ---
 
@@ -218,3 +218,25 @@
 
 **文档状态**: 初稿完成
 **下一步**: 逐项修复问题，更新状态
+
+---
+
+## 七、状态更新（2026-08-07 三端体检）
+
+以下条目经本轮复核已完成或已过时，状态以此为准：
+
+| 条目 | 状态 | 说明 |
+|---|---|---|
+| FE-006 表格无空状态 | ✅ 已完成 | 41/41 个表格均有空状态提示 |
+| FE-007 图表移动端 | ✅ 已完成 | 图表栅格 <640px 自动单列，SVG 自适应宽度 |
+| 消费者退款入口 | ✅ 已实现 | 订单详情支持「立即退款/申请退款」与账单申诉 |
+| 商户/线长提现 | ✅ 已实现 | 商户钱包与线长钱包均支持自主提现 |
+| 积分商城 | ➖ 已下线 | 积分体系已下线（V131/V136），无需实现 |
+| 运营数据导出 | ✅ 大部分已支持 | 表格 CSV 导出（useListCsv）已覆盖主要列表 |
+| 批次过期处理 | ✅ 已实现 | `ExpiryAlertScheduler` 每小时临期扫描告警 |
+| 识别 Demo 生产隐藏 | ✅ 已门控 | `ENABLE_TEST_TOOLS` 生产构建默认关闭 |
+| 测试余额入口 | ✅ 已移除 | 余额调整改为 `ops:user:balance` 权限操作 |
+| 商户财务改价瞬时 500 | ✅ 未复现 | `scripts/repro-merchant-pricing-500.ps1` 30 并发：合法 200/未授权 403，无 500 |
+
+告警规则配置已上线（系统 → 告警规则，SLA/卡点/自动处置阈值页面可配）；
+运营大屏已上线（概览 → 运营大屏，全屏自动刷新，30s 轮询核心指标）。

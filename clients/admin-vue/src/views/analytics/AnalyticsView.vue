@@ -26,10 +26,14 @@
             @keydown.enter="goPath('/finance')"
           >
             <div class="stat-label">今日营收</div>
-            <div class="stat-value">{{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '—' }}</div>
+            <div class="stat-value">
+              {{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '—' }}
+            </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
-              <template v-else>{{ canAccessPath('/finance') ? '查看财务毛利' : '今日快照' }}</template>
+              <template v-else>{{
+                canAccessPath('/finance') ? '查看财务毛利' : '今日快照'
+              }}</template>
             </div>
           </div>
         </el-col>
@@ -43,10 +47,12 @@
             @keydown.enter="goPath('/orders')"
           >
             <div class="stat-label">今日订单</div>
-            <div class="stat-value">{{ listHydrated ? (stats.orderToday || 0) : '—' }}</div>
+            <div class="stat-value">{{ listHydrated ? stats.orderToday || 0 : '—' }}</div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
-              <template v-else>{{ canAccessPath('/orders') ? '查看订单列表' : '今日快照' }}</template>
+              <template v-else>{{
+                canAccessPath('/orders') ? '查看订单列表' : '今日快照'
+              }}</template>
             </div>
           </div>
         </el-col>
@@ -60,10 +66,14 @@
             @keydown.enter="goPath('/sessions')"
           >
             <div class="stat-label">24h 开门成功率</div>
-            <div class="stat-value">{{ listHydrated ? `${((stats.doorSuccessRate24h || 0) * 100).toFixed(1)}%` : '—' }}</div>
+            <div class="stat-value">
+              {{ listHydrated ? `${((stats.doorSuccessRate24h || 0) * 100).toFixed(1)}%` : '—' }}
+            </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
-              <template v-else>{{ canAccessPath('/sessions') ? '查看开门记录' : '近 24 小时' }}</template>
+              <template v-else>{{
+                canAccessPath('/sessions') ? '查看开门记录' : '近 24 小时'
+              }}</template>
             </div>
           </div>
         </el-col>
@@ -77,10 +87,16 @@
             @keydown.enter="goPath('/disputes')"
           >
             <div class="stat-label">24h 自动识别率</div>
-            <div class="stat-value">{{ listHydrated ? `${((stats.recognitionAutoRate24h || 0) * 100).toFixed(1)}%` : '—' }}</div>
+            <div class="stat-value">
+              {{
+                listHydrated ? `${((stats.recognitionAutoRate24h || 0) * 100).toFixed(1)}%` : '—'
+              }}
+            </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
-              <template v-else>{{ canAccessPath('/disputes') ? '查看争议审核' : '近 24 小时' }}</template>
+              <template v-else>{{
+                canAccessPath('/disputes') ? '查看争议审核' : '近 24 小时'
+              }}</template>
             </div>
           </div>
         </el-col>
@@ -93,6 +109,7 @@
         <span class="header-hint">当前范围：近 {{ days }} 天</span>
       </div>
       <el-radio-group v-model="days" size="default" @change="onDaysChange">
+        <el-radio-button :value="1">今天</el-radio-button>
         <el-radio-button :value="7">近 7 天</el-radio-button>
         <el-radio-button :value="30">近 30 天</el-radio-button>
         <el-radio-button :value="90">近 90 天</el-radio-button>
@@ -103,34 +120,80 @@
       <ChartPanel title="营收趋势" :hint="`近 ${days} 天 · 元`">
         <template #actions>
           <div class="chart-type-switch" role="group" aria-label="图表类型">
-            <button type="button" :class="{ active: revenueKind === 'line' }" @click="revenueKind = 'line'">折线</button>
-            <button type="button" :class="{ active: revenueKind === 'area' }" @click="revenueKind = 'area'">面积</button>
-            <button type="button" :class="{ active: revenueKind === 'bar' }" @click="revenueKind = 'bar'">柱状</button>
+            <button
+              type="button"
+              :class="{ active: revenueKind === 'line' }"
+              @click="revenueKind = 'line'"
+            >
+              折线
+            </button>
+            <button
+              type="button"
+              :class="{ active: revenueKind === 'area' }"
+              @click="revenueKind = 'area'"
+            >
+              面积
+            </button>
+            <button
+              type="button"
+              :class="{ active: revenueKind === 'bar' }"
+              @click="revenueKind = 'bar'"
+            >
+              柱状
+            </button>
           </div>
         </template>
         <Transition name="chart-fade" mode="out-in">
           <ChartBox v-if="revenueSvg" :key="revenueKind" :svg="revenueSvg" />
-          <el-empty v-else-if="listHydrated" key="empty" description="暂无营收趋势" :image-size="64" />
+          <el-empty
+            v-else-if="listHydrated"
+            key="empty"
+            description="暂无营收趋势"
+            :image-size="64"
+          />
         </Transition>
         <template #footer>
-          <span class="chart-legend-item"><i style="background:#2dd4bf" />营收（元）</span>
+          <span class="chart-legend-item"><i style="background: #2dd4bf" />营收（元）</span>
         </template>
       </ChartPanel>
 
       <ChartPanel title="订单量" :hint="`近 ${days} 天 · 单`">
         <template #actions>
           <div class="chart-type-switch" role="group" aria-label="图表类型">
-            <button type="button" :class="{ active: orderKind === 'line' }" @click="orderKind = 'line'">折线</button>
-            <button type="button" :class="{ active: orderKind === 'area' }" @click="orderKind = 'area'">面积</button>
-            <button type="button" :class="{ active: orderKind === 'bar' }" @click="orderKind = 'bar'">柱状</button>
+            <button
+              type="button"
+              :class="{ active: orderKind === 'line' }"
+              @click="orderKind = 'line'"
+            >
+              折线
+            </button>
+            <button
+              type="button"
+              :class="{ active: orderKind === 'area' }"
+              @click="orderKind = 'area'"
+            >
+              面积
+            </button>
+            <button
+              type="button"
+              :class="{ active: orderKind === 'bar' }"
+              @click="orderKind = 'bar'"
+            >
+              柱状
+            </button>
           </div>
         </template>
         <Transition name="chart-fade" mode="out-in">
           <ChartBox v-if="orderSvg" :key="orderKind" :svg="orderSvg" />
-          <el-empty v-else-if="listHydrated" key="empty" description="暂无订单趋势" :image-size="64" />
+          <el-empty
+            v-else-if="listHydrated"
+            key="empty"
+            description="暂无订单趋势"
+            :image-size="64"
+          />
         </Transition>
         <template #footer>
-          <span class="chart-legend-item"><i style="background:#60a5fa" />订单量</span>
+          <span class="chart-legend-item"><i style="background: #60a5fa" />订单量</span>
         </template>
       </ChartPanel>
     </div>
@@ -169,18 +232,29 @@
       <ChartPanel title="识别质量" :hint="`近 ${days} 天 · 识别率 vs 争议率`">
         <template #actions>
           <div class="chart-type-switch" role="group" aria-label="图表类型">
-            <button type="button" :class="{ active: opsKind === 'line' }" @click="opsKind = 'line'">折线</button>
-            <button type="button" :class="{ active: opsKind === 'area' }" @click="opsKind = 'area'">面积</button>
-            <button type="button" :class="{ active: opsKind === 'bar' }" @click="opsKind = 'bar'">柱状</button>
+            <button type="button" :class="{ active: opsKind === 'line' }" @click="opsKind = 'line'">
+              折线
+            </button>
+            <button type="button" :class="{ active: opsKind === 'area' }" @click="opsKind = 'area'">
+              面积
+            </button>
+            <button type="button" :class="{ active: opsKind === 'bar' }" @click="opsKind = 'bar'">
+              柱状
+            </button>
           </div>
         </template>
         <Transition name="chart-fade" mode="out-in">
           <ChartBox v-if="opsSvg" :key="opsKind" :svg="opsSvg" />
-          <el-empty v-else-if="listHydrated" key="empty" description="暂无识别质量数据" :image-size="64" />
+          <el-empty
+            v-else-if="listHydrated"
+            key="empty"
+            description="暂无识别质量数据"
+            :image-size="64"
+          />
         </Transition>
         <template #footer>
-          <span class="chart-legend-item"><i style="background:#2dd4bf" />自动识别率</span>
-          <span class="chart-legend-item"><i style="background:#fbbf24" />争议率</span>
+          <span class="chart-legend-item"><i style="background: #2dd4bf" />自动识别率</span>
+          <span class="chart-legend-item"><i style="background: #fbbf24" />争议率</span>
         </template>
       </ChartPanel>
 
@@ -200,8 +274,13 @@
             <ChartBox v-if="deviceSvg" :svg="deviceSvg" donut />
             <el-empty v-else-if="listHydrated" description="暂无设备数据" :image-size="64" />
             <ul v-if="deviceSvg" class="donut-legend-list">
-              <li><i style="background:#2dd4bf" />在线 {{ listHydrated ? (stats.deviceOnline || 0) : '—' }}</li>
-              <li><i style="background:#64748b" />离线 {{ listHydrated ? offlineDevices : '—' }}</li>
+              <li>
+                <i style="background: #2dd4bf" />在线
+                {{ listHydrated ? stats.deviceOnline || 0 : '—' }}
+              </li>
+              <li>
+                <i style="background: #64748b" />离线 {{ listHydrated ? offlineDevices : '—' }}
+              </li>
             </ul>
           </div>
         </ChartPanel>
@@ -212,7 +291,7 @@
               {{ listHydrated ? `¥${((stats.revenueTotalCents || 0) / 100).toFixed(2)}` : '—' }}
             </el-descriptions-item>
             <el-descriptions-item label="累计订单">
-              {{ listHydrated ? (stats.orderTotal || 0) : '—' }}
+              {{ listHydrated ? stats.orderTotal || 0 : '—' }}
             </el-descriptions-item>
             <el-descriptions-item label="待审争议">
               <template v-if="!listHydrated">—</template>
@@ -280,10 +359,24 @@ interface AdminStats {
   deviceTotal?: number;
 }
 
-interface DailyStat { date: string; orderCount: number; revenueCents: number }
-interface OpsDaily { date: string; recognitionRate: number; disputeRate: number }
-interface FinanceStats { grossMarginRateToday?: number }
-interface ChannelStat { channel: string; count: number; amountCents: number }
+interface DailyStat {
+  date: string;
+  orderCount: number;
+  revenueCents: number;
+}
+interface OpsDaily {
+  date: string;
+  recognitionRate: number;
+  disputeRate: number;
+}
+interface FinanceStats {
+  grossMarginRateToday?: number;
+}
+interface ChannelStat {
+  channel: string;
+  count: number;
+  amountCents: number;
+}
 interface ChannelBreakdown {
   orderPayChannels?: ChannelStat[];
   rechargeChannels?: ChannelStat[];
@@ -315,7 +408,7 @@ const opsKind = ref<ChartKind>('line');
 
 function parseDays(raw: unknown): number {
   const n = Number(raw);
-  return n === 30 || n === 90 ? n : 7;
+  return n === 1 || n === 7 || n === 30 || n === 90 ? n : 1;
 }
 
 function onDaysChange() {
@@ -323,7 +416,9 @@ function onDaysChange() {
   load({ resetSeries: true });
 }
 
-const offlineDevices = computed(() => Math.max((stats.value.deviceTotal || 0) - (stats.value.deviceOnline || 0), 0));
+const offlineDevices = computed(() =>
+  Math.max((stats.value.deviceTotal || 0) - (stats.value.deviceOnline || 0), 0)
+);
 const labels = computed(() => trend.value.map((d) => shortDate(d.date)));
 
 function channelParts(statsList?: ChannelStat[]) {
@@ -345,7 +440,9 @@ const revenueSvg = computed(() => {
   if (!trend.value.length) return '';
   return buildSeriesChart({
     labels: labels.value,
-    series: [{ name: '营收', values: trend.value.map((d) => d.revenueCents / 100), color: '#2dd4bf' }],
+    series: [
+      { name: '营收', values: trend.value.map((d) => d.revenueCents / 100), color: '#2dd4bf' }
+    ],
     kind: revenueKind.value,
     formatY: (v) => formatYuan(v * 100)
   });
@@ -366,7 +463,11 @@ const opsSvg = computed(() => {
   return buildSeriesChart({
     labels: opsTrend.value.map((d) => shortDate(d.date)),
     series: [
-      { name: '自动识别率', values: opsTrend.value.map((d) => d.recognitionRate * 100), color: '#2dd4bf' },
+      {
+        name: '自动识别率',
+        values: opsTrend.value.map((d) => d.recognitionRate * 100),
+        color: '#2dd4bf'
+      },
       { name: '争议率', values: opsTrend.value.map((d) => d.disputeRate * 100), color: '#fbbf24' }
     ],
     kind: opsKind.value,
@@ -385,7 +486,11 @@ const orderChannelSvg = computed(() =>
 
 const rechargeChannelSvg = computed(() =>
   buildDonutChart({
-    parts: rechargeChannelParts.value.map((p) => ({ label: p.label, value: p.value, color: p.color })),
+    parts: rechargeChannelParts.value.map((p) => ({
+      label: p.label,
+      value: p.value,
+      color: p.color
+    })),
     formatCenter: (cents) => (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2),
     formatValue: (cents) => `¥${(cents / 100).toFixed(2)}`,
     valueLabel: '金额'
@@ -423,7 +528,9 @@ async function load(opts?: { resetSeries?: boolean }) {
         .request<{ last7Days: OpsDaily[] }>(`/api/v2/ops/admin/trend/ops?days=${d}`, 'GET')
         .catch(() => null),
       api.request<FinanceStats>('/api/v2/ops/admin/finance/stats', 'GET').catch(() => null),
-      api.request<ChannelBreakdown>(`/api/v2/ops/admin/trend/channels?days=${d}`, 'GET').catch(() => ({}))
+      api
+        .request<ChannelBreakdown>(`/api/v2/ops/admin/trend/channels?days=${d}`, 'GET')
+        .catch(() => ({}))
     ]);
     if (!s && !t && !o && !f) {
       ElMessage.error('经营分析数据加载失败');
@@ -464,11 +571,28 @@ onMounted(load);
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.page-card-head__actions { display: flex; gap: 8px; align-items: center; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
 .header-hint {
   display: block;
   margin-top: 4px;
@@ -512,7 +636,10 @@ onMounted(load);
 }
 .stat-tile.is-clickable {
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 .stat-tile.is-clickable:hover,
 .stat-tile.is-clickable:focus-visible {
@@ -521,15 +648,40 @@ onMounted(load);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--app-primary, #0f766e) 16%, transparent);
   outline: none;
 }
-.stat-tile.accent-teal::before { background: #2dd4bf; }
-.stat-tile.accent-blue::before { background: #60a5fa; }
-.stat-tile.accent-violet::before { background: #a78bfa; }
-.stat-tile.accent-amber::before { background: #fbbf24; }
-.stat-label { font-size: 13px; color: var(--layout-muted); }
-.stat-value { font-size: 24px; font-weight: 700; margin-top: 6px; color: var(--layout-text); }
-.stat-hint { font-size: 12px; color: var(--layout-muted); margin-top: 8px; }
-.muted { color: var(--layout-muted); font-size: 12px; }
-.donut-legend-list .muted { margin-left: 4px; }
+.stat-tile.accent-teal::before {
+  background: #2dd4bf;
+}
+.stat-tile.accent-blue::before {
+  background: #60a5fa;
+}
+.stat-tile.accent-violet::before {
+  background: #a78bfa;
+}
+.stat-tile.accent-amber::before {
+  background: #fbbf24;
+}
+.stat-label {
+  font-size: 13px;
+  color: var(--layout-muted);
+}
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  margin-top: 6px;
+  color: var(--layout-text);
+}
+.stat-hint {
+  font-size: 12px;
+  color: var(--layout-muted);
+  margin-top: 8px;
+}
+.muted {
+  color: var(--layout-muted);
+  font-size: 12px;
+}
+.donut-legend-list .muted {
+  margin-left: 4px;
+}
 .snapshot-desc :deep(.el-descriptions__label) {
   width: 110px;
 }

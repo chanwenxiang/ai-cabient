@@ -6,7 +6,7 @@ import com.aicabinet.common.dto.DoorEventRequest;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.dto.VideoAttachRequest;
 import com.aicabinet.common.enums.DoorState;
-import com.aicabinet.device.config.InternalApiProperties;
+import com.aicabinet.common.security.InternalApiProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;

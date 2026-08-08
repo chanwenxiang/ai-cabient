@@ -1,10 +1,10 @@
 package com.aicabinet.trade.auth;
 
+import com.aicabinet.trade.config.AuthProperties;
 import com.aicabinet.trade.support.ServerBootMarker;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
@@ -21,12 +21,13 @@ public class JwtService {
     private final long expirationSeconds;
     private final ServerBootMarker serverBootMarker;
 
-    public JwtService(
-            @Value("${aicabinet.auth.jwt-secret:ai-cabinet-dev-secret-key-32bytes!!}") String secret,
-            @Value("${aicabinet.auth.expiration-seconds:1800}") long expirationSeconds,
-            ServerBootMarker serverBootMarker) {
+    public JwtService(AuthProperties authProperties, ServerBootMarker serverBootMarker) {
+        String secret = authProperties.jwtSecret();
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException("aicabinet.auth.jwt-secret must be configured");
+        }
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-        this.expirationSeconds = expirationSeconds;
+        this.expirationSeconds = authProperties.expirationSeconds();
         this.serverBootMarker = serverBootMarker;
     }
 
