@@ -48,7 +48,9 @@ for (const url of candidates) {
   }
 }
 if (!reachable) {
-  console.warn(`trade-service/gateway not reachable at ${candidates.join(' | ')} — start backend first`);
+  console.warn(
+    `trade-service/gateway not reachable at ${candidates.join(' | ')} — start backend first`
+  );
   base = candidates[0];
 }
 

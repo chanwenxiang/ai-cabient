@@ -84,16 +84,30 @@ function copyUrl() {
   text-align: center;
   color: #94a3b8;
 }
-.state-title { display: block; font-size: 32rpx; font-weight: 600; color: #e2e8f0; }
-.state-desc { display: block; margin-top: 12rpx; font-size: 26rpx; }
-.state .btn-primary { margin-top: 40rpx; }
+.state-title {
+  display: block;
+  font-size: 32rpx;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+.state-desc {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 26rpx;
+}
+.state .btn-primary {
+  margin-top: 40rpx;
+}
 .tips {
   margin-top: 24rpx;
   display: flex;
   align-items: center;
   gap: 16rpx;
 }
-.tip { color: #94a3b8; font-size: 24rpx; }
+.tip {
+  color: #94a3b8;
+  font-size: 24rpx;
+}
 .copy-btn {
   background: rgba(255, 255, 255, 0.12);
   color: #e2e8f0;

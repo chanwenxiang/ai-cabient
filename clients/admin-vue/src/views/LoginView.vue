@@ -1,6 +1,10 @@
 <template>
   <div class="login-page">
-    <div class="login-bg login-bg-drift" :style="{ backgroundImage: `url(${loginBgUrl})` }" aria-hidden="true" />
+    <div
+      class="login-bg login-bg-drift"
+      :style="{ backgroundImage: `url(${loginBgUrl})` }"
+      aria-hidden="true"
+    />
     <div class="login-bg-fx" aria-hidden="true">
       <span class="fx-grid" />
       <span class="fx-orb fx-orb-a" />
@@ -72,28 +76,54 @@
             </button>
           </div>
         </el-form-item>
-        <el-button type="primary" native-type="submit" :loading="loading" :disabled="loading" class="submit-btn">登录</el-button>
+        <el-button
+          type="primary"
+          native-type="submit"
+          :loading="loading"
+          :disabled="loading"
+          class="submit-btn"
+          >登录</el-button
+        >
         <p v-if="err" class="err" role="alert">{{ err }}</p>
         <div class="login-extras">
           <el-checkbox v-model="rememberPhone" size="small">记住手机号</el-checkbox>
           <button type="button" class="link-btn" @click="openResetDialog">忘记密码？</button>
         </div>
       </el-form>
-        <p v-if="ENABLE_TEST_TOOLS" class="hint">
-          演示账号（密码均为 123456）：<br />
-          超管 13900000001 · 财务 13900000002 · 运营 13900000003<br />
-          补货 13900000004 · 只读 13900000005
-        </p>
+      <p v-if="ENABLE_TEST_TOOLS" class="hint">
+        演示账号（密码均为 123456）：<br />
+        超管 13900000001 · 财务 13900000002 · 运营 13900000003<br />
+        补货 13900000004 · 只读 13900000005
+      </p>
     </div>
 
-    <el-dialog v-model="resetVisible" title="重置密码" width="440px" append-to-body destroy-on-close :close-on-click-modal="false">
+    <el-dialog
+      v-model="resetVisible"
+      title="重置密码"
+      width="440px"
+      append-to-body
+      destroy-on-close
+      :close-on-click-modal="false"
+    >
       <el-form label-position="top" @submit.prevent="submitReset">
         <el-form-item label="手机号">
-          <el-input v-model="resetForm.phoneNumber" type="tel" maxlength="11" inputmode="numeric" placeholder="请输入 11 位手机号" />
+          <el-input
+            v-model="resetForm.phoneNumber"
+            type="tel"
+            maxlength="11"
+            inputmode="numeric"
+            placeholder="请输入 11 位手机号"
+          />
         </el-form-item>
         <el-form-item label="图形验证码">
           <div class="captcha-row">
-            <el-input v-model="resetCaptchaCode" maxlength="8" autocomplete="off" spellcheck="false" placeholder="图形验证码…" />
+            <el-input
+              v-model="resetCaptchaCode"
+              maxlength="8"
+              autocomplete="off"
+              spellcheck="false"
+              placeholder="图形验证码…"
+            />
             <button
               type="button"
               class="captcha-img-btn"
@@ -103,24 +133,50 @@
               :disabled="resetCaptchaLoading"
               @click="loadResetCaptcha"
             >
-              <img v-if="resetCaptchaImage" :src="resetCaptchaImage" alt="验证码" width="120" height="40" />
+              <img
+                v-if="resetCaptchaImage"
+                :src="resetCaptchaImage"
+                alt="验证码"
+                width="120"
+                height="40"
+              />
               <span v-else>{{ resetCaptchaLoading ? '加载中…' : '点击获取' }}</span>
             </button>
           </div>
         </el-form-item>
         <el-form-item label="短信验证码">
           <div class="sms-row">
-            <el-input v-model="resetForm.smsCode" maxlength="6" inputmode="numeric" placeholder="6 位短信验证码" />
-            <el-button :disabled="smsCooldown > 0 || !/^1\d{10}$/.test(resetForm.phoneNumber.trim())" @click="sendSmsCode">
+            <el-input
+              v-model="resetForm.smsCode"
+              maxlength="6"
+              inputmode="numeric"
+              placeholder="6 位短信验证码"
+            />
+            <el-button
+              :disabled="smsCooldown > 0 || !/^1\d{10}$/.test(resetForm.phoneNumber.trim())"
+              @click="sendSmsCode"
+            >
               {{ smsCooldown > 0 ? `${smsCooldown}s 后重发` : '发送验证码' }}
             </el-button>
           </div>
         </el-form-item>
         <el-form-item label="新密码">
-          <el-input v-model="resetForm.newPassword" type="password" show-password autocomplete="new-password" placeholder="6-64 位" />
+          <el-input
+            v-model="resetForm.newPassword"
+            type="password"
+            show-password
+            autocomplete="new-password"
+            placeholder="6-64 位"
+          />
         </el-form-item>
         <el-form-item label="确认新密码">
-          <el-input v-model="resetForm.confirmPassword" type="password" show-password autocomplete="new-password" placeholder="再次输入新密码" />
+          <el-input
+            v-model="resetForm.confirmPassword"
+            type="password"
+            show-password
+            autocomplete="new-password"
+            placeholder="再次输入新密码"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -415,26 +471,58 @@ async function onSubmit() {
   background: linear-gradient(135deg, rgba(15, 23, 42, 0.42), rgba(30, 58, 95, 0.32));
 }
 @keyframes bgDrift {
-  from { transform: scale(1); }
-  to { transform: scale(1.06); }
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.06);
+  }
 }
 @keyframes gridDrift {
-  from { transform: translate(0, 0); }
-  to { transform: translate(48px, 48px); }
+  from {
+    transform: translate(0, 0);
+  }
+  to {
+    transform: translate(48px, 48px);
+  }
 }
 @keyframes orbPulseA {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.65; }
-  50% { transform: translate(28px, 22px) scale(1.12); opacity: 1; }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.65;
+  }
+  50% {
+    transform: translate(28px, 22px) scale(1.12);
+    opacity: 1;
+  }
 }
 @keyframes orbPulseB {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
-  50% { transform: translate(-24px, -18px) scale(1.1); opacity: 0.9; }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate(-24px, -18px) scale(1.1);
+    opacity: 0.9;
+  }
 }
 @keyframes scanLine {
-  0% { top: -2%; opacity: 0; }
-  8% { opacity: 0.7; }
-  92% { opacity: 0.7; }
-  100% { top: 102%; opacity: 0; }
+  0% {
+    top: -2%;
+    opacity: 0;
+  }
+  8% {
+    opacity: 0.7;
+  }
+  92% {
+    opacity: 0.7;
+  }
+  100% {
+    top: 102%;
+    opacity: 0;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .login-bg-drift,
@@ -455,7 +543,9 @@ async function onSubmit() {
   border: 1px solid rgba(45, 212, 191, 0.28);
   backdrop-filter: blur(16px);
   background: rgba(15, 23, 42, 0.78);
-  box-shadow: 0 24px 64px rgba(2, 6, 23, 0.45), inset 0 1px 0 rgba(148, 163, 184, 0.12);
+  box-shadow:
+    0 24px 64px rgba(2, 6, 23, 0.45),
+    inset 0 1px 0 rgba(148, 163, 184, 0.12);
 }
 .card-header {
   margin-bottom: 28px;

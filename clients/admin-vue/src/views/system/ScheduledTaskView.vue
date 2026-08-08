@@ -86,7 +86,12 @@
               <span v-else class="cell-hint">尚未执行</span>
             </template>
           </el-table-column>
-          <el-table-column label="最近结果说明" min-width="200" align="center" show-overflow-tooltip>
+          <el-table-column
+            label="最近结果说明"
+            min-width="200"
+            align="center"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.lastMessage || '—' }}</template>
           </el-table-column>
           <el-table-column label="备注" min-width="220" align="center" show-overflow-tooltip>
@@ -205,8 +210,11 @@ const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();
   if (!q) return items.value;
   return items.value.filter((row) =>
-    [row.taskName, row.taskKey, row.taskGroup, row.scheduleDesc]
-      .some((x) => String(x || '').toLowerCase().includes(q))
+    [row.taskName, row.taskKey, row.taskGroup, row.scheduleDesc].some((x) =>
+      String(x || '')
+        .toLowerCase()
+        .includes(q)
+    )
   );
 });
 
@@ -271,7 +279,9 @@ async function onToggle(row: ScheduledTaskRow, enabled: boolean) {
 
 async function onRun(row: ScheduledTaskRow) {
   try {
-    await ElMessageBox.confirm(`确认立即执行「${row.taskName}」？`, '立即执行', { type: 'warning' });
+    await ElMessageBox.confirm(`确认立即执行「${row.taskName}」？`, '立即执行', {
+      type: 'warning'
+    });
   } catch {
     return;
   }

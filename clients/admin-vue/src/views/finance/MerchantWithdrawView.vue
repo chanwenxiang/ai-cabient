@@ -9,7 +9,12 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button :icon="Refresh" :loading="tab === 'withdraws' ? withdrawsLoading : walletsLoading" @click="reload">刷新</el-button>
+          <el-button
+            :icon="Refresh"
+            :loading="tab === 'withdraws' ? withdrawsLoading : walletsLoading"
+            @click="reload"
+            >刷新</el-button
+          >
         </div>
       </div>
     </template>
@@ -18,7 +23,13 @@
       <el-tab-pane label="商户钱包" name="wallets">
         <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="searchWallets">
           <el-form-item label="关键词">
-            <el-input v-model="keyword" clearable placeholder="商户编号 / 名称 / 手机" style="width: 220px" @keyup.enter="searchWallets" />
+            <el-input
+              v-model="keyword"
+              clearable
+              placeholder="商户编号 / 名称 / 手机"
+              style="width: 220px"
+              @keyup.enter="searchWallets"
+            />
           </el-form-item>
           <el-form-item>
             <el-button type="primary" @click="searchWallets">查询</el-button>
@@ -26,10 +37,25 @@
         </el-form>
 
         <div class="table-scroll">
-          <el-table :data="wallets" v-loading="walletsLoading" stripe border class="report-table" empty-text=" ">
-            <template #empty><el-empty v-if="walletsHydrated && !walletsLoading" description="暂无商户钱包" /></template>
+          <el-table
+            :data="wallets"
+            v-loading="walletsLoading"
+            stripe
+            border
+            class="report-table"
+            empty-text=" "
+          >
+            <template #empty
+              ><el-empty v-if="walletsHydrated && !walletsLoading" description="暂无商户钱包"
+            /></template>
             <el-table-column prop="merchantId" label="商户ID" min-width="120" align="center" />
-            <el-table-column prop="merchantName" label="名称" min-width="140" show-overflow-tooltip align="center" />
+            <el-table-column
+              prop="merchantName"
+              label="名称"
+              min-width="140"
+              show-overflow-tooltip
+              align="center"
+            />
             <el-table-column prop="contactPhone" label="联系电话" width="130" align="center" />
             <el-table-column label="余额(元)" width="110" align="center">
               <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
@@ -43,29 +69,48 @@
             <el-table-column prop="status" label="状态" width="90" align="center" />
             <el-table-column label="操作" width="260" align="center" class-name="col-action">
               <template #default="{ row }">
-                <el-button v-hasPermi="['ops:merchant-withdraw:adjust']" link type="primary" @click="openAdjust(row)">调账</el-button>
+                <el-button
+                  v-hasPermi="['ops:merchant-withdraw:adjust']"
+                  link
+                  type="primary"
+                  @click="openAdjust(row)"
+                  >调账</el-button
+                >
                 <el-button link @click="showLedgers(row)">流水</el-button>
-                <el-button v-hasPermi="['ops:merchant-withdraw:adjust']" link type="warning" @click="openWithdraw(row)">代提现</el-button>
+                <el-button
+                  v-hasPermi="['ops:merchant-withdraw:adjust']"
+                  link
+                  type="warning"
+                  @click="openWithdraw(row)"
+                  >代提现</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
         </div>
-        <PagePager :hydrated="walletsHydrated"
-            v-model:current-page="wPage"
-            v-model:page-size="wSize"
-            :total="wTotal"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next"
-            background
-            @current-change="loadWallets"
-            @size-change="onWalletSizeChange"
-          />
+        <PagePager
+          :hydrated="walletsHydrated"
+          v-model:current-page="wPage"
+          v-model:page-size="wSize"
+          :total="wTotal"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next"
+          background
+          @current-change="loadWallets"
+          @size-change="onWalletSizeChange"
+        />
       </el-tab-pane>
 
       <el-tab-pane label="提现审核" name="withdraws">
         <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="searchWithdraws">
           <el-form-item label="状态">
-            <el-select v-model="wdStatus" clearable placeholder="全部" style="width: 160px" @change="searchWithdraws">
+            <el-select
+              v-model="wdStatus"
+              clearable
+              placeholder="全部"
+              style="width: 160px"
+              @change="searchWithdraws"
+            >
               <el-option
                 v-for="item in withdrawStatusOptions"
                 :key="item.value"
@@ -80,12 +125,33 @@
         </el-form>
 
         <div class="table-scroll">
-          <el-table :data="withdraws" v-loading="withdrawsLoading" stripe border class="report-table" empty-text=" ">
-            <template #empty><el-empty v-if="withdrawsHydrated && !withdrawsLoading" description="暂无提现申请" /></template>
+          <el-table
+            :data="withdraws"
+            v-loading="withdrawsLoading"
+            stripe
+            border
+            class="report-table"
+            empty-text=" "
+          >
+            <template #empty
+              ><el-empty v-if="withdrawsHydrated && !withdrawsLoading" description="暂无提现申请"
+            /></template>
             <el-table-column prop="requestId" label="单号" width="80" align="center" />
-            <el-table-column prop="requestNo" label="幂等号" min-width="160" show-overflow-tooltip align="center" />
+            <el-table-column
+              prop="requestNo"
+              label="幂等号"
+              min-width="160"
+              show-overflow-tooltip
+              align="center"
+            />
             <el-table-column prop="merchantId" label="商户ID" width="120" align="center" />
-            <el-table-column prop="merchantName" label="商户" min-width="120" show-overflow-tooltip align="center" />
+            <el-table-column
+              prop="merchantName"
+              label="商户"
+              min-width="120"
+              show-overflow-tooltip
+              align="center"
+            />
             <el-table-column label="金额(元)" width="100" align="center">
               <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
             </el-table-column>
@@ -93,38 +159,65 @@
               <template #default="{ row }">{{ withdrawStatusLabel(row.status) }}</template>
             </el-table-column>
             <el-table-column prop="payChannel" label="通道" width="100" align="center" />
-            <el-table-column prop="payoutRef" label="回执" min-width="140" show-overflow-tooltip align="center" />
-            <el-table-column prop="payoutMessage" label="打款说明" min-width="140" show-overflow-tooltip align="center" />
-            <el-table-column prop="reviewRemark" label="审核备注" min-width="120" show-overflow-tooltip align="center" />
+            <el-table-column
+              prop="payoutRef"
+              label="回执"
+              min-width="140"
+              show-overflow-tooltip
+              align="center"
+            />
+            <el-table-column
+              prop="payoutMessage"
+              label="打款说明"
+              min-width="140"
+              show-overflow-tooltip
+              align="center"
+            />
+            <el-table-column
+              prop="reviewRemark"
+              label="审核备注"
+              min-width="120"
+              show-overflow-tooltip
+              align="center"
+            />
             <el-table-column label="申请时间" width="170" align="center">
               <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
             <el-table-column label="操作" width="200" align="center" class-name="col-action">
               <template #default="{ row }">
-                <template v-if="row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:merchant-withdraw:review')">
+                <template
+                  v-if="
+                    row.status === 'PENDING_REVIEW' && auth.hasPerm('ops:merchant-withdraw:review')
+                  "
+                >
                   <el-button link type="success" @click="review(row, true)">通过并打款</el-button>
                   <el-button link type="danger" @click="review(row, false)">驳回</el-button>
                 </template>
                 <el-button
-                  v-else-if="(row.status === 'APPROVED' || row.status === 'FAILED') && auth.hasPerm('ops:merchant-withdraw:review')"
+                  v-else-if="
+                    (row.status === 'APPROVED' || row.status === 'FAILED') &&
+                    auth.hasPerm('ops:merchant-withdraw:review')
+                  "
                   link
                   type="primary"
                   @click="payout(row)"
-                >重试打款</el-button>
+                  >重试打款</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
         </div>
-        <PagePager :hydrated="withdrawsHydrated"
-            v-model:current-page="wdPage"
-            v-model:page-size="wdSize"
-            :total="wdTotal"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next"
-            background
-            @current-change="loadWithdraws"
-            @size-change="onWdSizeChange"
-          />
+        <PagePager
+          :hydrated="withdrawsHydrated"
+          v-model:current-page="wdPage"
+          v-model:page-size="wdSize"
+          :total="wdTotal"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next"
+          background
+          @current-change="loadWithdraws"
+          @size-change="onWdSizeChange"
+        />
       </el-tab-pane>
     </el-tabs>
 
@@ -143,20 +236,39 @@
         <el-table-column label="冻结后" width="100" align="center">
           <template #default="{ row }">{{ yuan(row.frozenAfter) }}</template>
         </el-table-column>
-        <el-table-column prop="remark" label="备注" min-width="140" show-overflow-tooltip align="center" />
+        <el-table-column
+          prop="remark"
+          label="备注"
+          min-width="140"
+          show-overflow-tooltip
+          align="center"
+        />
         <el-table-column label="时间" width="160" align="center">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
       </el-table>
     </el-drawer>
 
-    <el-dialog v-model="adjustVisible" title="商户调账" width="460px" append-to-body destroy-on-close :close-on-click-modal="false">
+    <el-dialog
+      v-model="adjustVisible"
+      title="商户调账"
+      width="460px"
+      append-to-body
+      destroy-on-close
+      :close-on-click-modal="false"
+    >
       <div v-if="adjustTarget" class="dialog-merchant">
-        <div class="dialog-merchant__name">{{ adjustTarget.merchantName || adjustTarget.merchantId }}</div>
+        <div class="dialog-merchant__name">
+          {{ adjustTarget.merchantName || adjustTarget.merchantId }}
+        </div>
         <div class="dialog-merchant__id">商户 {{ adjustTarget.merchantId }}</div>
         <div class="dialog-balance">
-          <span>当前余额 <b>¥{{ yuan(adjustTarget.balanceCents) }}</b></span>
-          <span>可用 <b>¥{{ yuan(adjustTarget.availableCents) }}</b></span>
+          <span
+            >当前余额 <b>¥{{ yuan(adjustTarget.balanceCents) }}</b></span
+          >
+          <span
+            >可用 <b>¥{{ yuan(adjustTarget.availableCents) }}</b></span
+          >
         </div>
       </div>
       <el-form label-position="top" @submit.prevent="submitAdjust">
@@ -181,13 +293,26 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="withdrawVisible" title="代商户提现" width="460px" append-to-body destroy-on-close :close-on-click-modal="false">
+    <el-dialog
+      v-model="withdrawVisible"
+      title="代商户提现"
+      width="460px"
+      append-to-body
+      destroy-on-close
+      :close-on-click-modal="false"
+    >
       <div v-if="withdrawTarget" class="dialog-merchant">
-        <div class="dialog-merchant__name">{{ withdrawTarget.merchantName || withdrawTarget.merchantId }}</div>
+        <div class="dialog-merchant__name">
+          {{ withdrawTarget.merchantName || withdrawTarget.merchantId }}
+        </div>
         <div class="dialog-merchant__id">商户 {{ withdrawTarget.merchantId }}</div>
         <div class="dialog-balance">
-          <span>可用余额 <b>¥{{ yuan(withdrawTarget.availableCents) }}</b></span>
-          <span>冻结 <b>¥{{ yuan(withdrawTarget.frozenCents) }}</b></span>
+          <span
+            >可用余额 <b>¥{{ yuan(withdrawTarget.availableCents) }}</b></span
+          >
+          <span
+            >冻结 <b>¥{{ yuan(withdrawTarget.frozenCents) }}</b></span
+          >
         </div>
       </div>
       <el-form label-position="top" @submit.prevent="submitWithdraw">
@@ -205,14 +330,16 @@
       </el-form>
       <template #footer>
         <el-button @click="withdrawVisible = false">取消</el-button>
-        <el-button type="warning" :loading="withdrawSaving" @click="submitWithdraw">确认提现</el-button>
+        <el-button type="warning" :loading="withdrawSaving" @click="submitWithdraw"
+          >确认提现</el-button
+        >
       </template>
     </el-dialog>
   </el-card>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { onMounted, ref } from 'vue';
 import PagePager from '@/components/PagePager.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -457,11 +584,15 @@ async function review(row: Withdraw, approve: boolean) {
 
 async function payout(row: Withdraw) {
   try {
-    await ElMessageBox.confirm(`确认对该提现申请（¥${yuan(row.amountCents)}）重新打款？`, '重试打款', {
-      type: 'warning',
-      confirmButtonText: '确定',
-      cancelButtonText: '取消'
-    });
+    await ElMessageBox.confirm(
+      `确认对该提现申请（¥${yuan(row.amountCents)}）重新打款？`,
+      '重试打款',
+      {
+        type: 'warning',
+        confirmButtonText: '确定',
+        cancelButtonText: '取消'
+      }
+    );
     await api.request(`/api/v2/ops/admin/merchant-withdraws/${row.requestId}/payout`, 'POST', {});
     ElMessage.success('已重试打款');
     await loadWithdraws();

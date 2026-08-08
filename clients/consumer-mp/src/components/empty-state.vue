@@ -10,16 +10,19 @@
 </template>
 
 <script setup lang="ts">
-withDefaults(defineProps<{
-  title: string;
-  hint?: string;
-  icon?: string;
-  compact?: boolean;
-}>(), {
-  hint: '',
-  icon: '',
-  compact: false
-});
+withDefaults(
+  defineProps<{
+    title: string;
+    hint?: string;
+    icon?: string;
+    compact?: boolean;
+  }>(),
+  {
+    hint: '',
+    icon: '',
+    compact: false
+  }
+);
 </script>
 
 <style scoped>

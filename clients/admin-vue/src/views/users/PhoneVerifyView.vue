@@ -22,7 +22,9 @@
       <el-form-item label="渠道">
         <el-select v-model="channel" clearable placeholder="全部" style="width: 120px">
           <el-option
-            v-for="item in dictOptions('pay_channel').filter((o) => ['WECHAT', 'ALIPAY'].includes(o.value))"
+            v-for="item in dictOptions('pay_channel').filter((o) =>
+              ['WECHAT', 'ALIPAY'].includes(o.value)
+            )"
             :key="item.value"
             :label="item.label"
             :value="item.value"
@@ -34,10 +36,19 @@
       </el-form-item>
     </el-form>
 
-    <el-table v-loading="loading" :data="displayItems"
-        :default-sort="idDefaultSort"
-        @sort-change="onIdSortChange" stripe border class="report-table" empty-text=" ">
-      <template #empty><el-empty v-if="listHydrated && !loading" description="暂无验证记录" /></template>
+    <el-table
+      v-loading="loading"
+      :data="displayItems"
+      :default-sort="idDefaultSort"
+      @sort-change="onIdSortChange"
+      stripe
+      border
+      class="report-table"
+      empty-text=" "
+    >
+      <template #empty
+        ><el-empty v-if="listHydrated && !loading" description="暂无验证记录"
+      /></template>
       <el-table-column prop="logId" label="记录ID" width="100" align="center" sortable="custom" />
       <el-table-column prop="phone" label="手机号" width="140" align="center" />
       <el-table-column prop="userId" label="用户ID" width="120" align="center" />
@@ -46,7 +57,11 @@
       </el-table-column>
       <el-table-column prop="merchantId" label="商户" min-width="140" align="center" />
       <el-table-column label="验证时间" width="170" align="center">
-        <template #default="{ row }">{{ String(row.verifiedAt || '').replace('T', ' ').slice(0, 19) }}</template>
+        <template #default="{ row }">{{
+          String(row.verifiedAt || '')
+            .replace('T', ' ')
+            .slice(0, 19)
+        }}</template>
       </el-table-column>
     </el-table>
 
@@ -61,7 +76,9 @@
         <el-form-item label="渠道">
           <el-select v-model="form.channel" style="width: 100%">
             <el-option
-              v-for="item in dictOptions('pay_channel').filter((o) => ['WECHAT', 'ALIPAY'].includes(o.value))"
+              v-for="item in dictOptions('pay_channel').filter((o) =>
+                ['WECHAT', 'ALIPAY'].includes(o.value)
+              )"
               :key="item.value"
               :label="item.label"
               :value="item.value"
@@ -94,7 +111,11 @@ const saving = ref(false);
 const phone = ref('');
 const channel = ref('');
 const items = ref<any[]>([]);
-const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById } = useIdColumnSort('logId');
+const {
+  defaultSort: idDefaultSort,
+  onSortChange: onIdSortChange,
+  sortById
+} = useIdColumnSort('logId');
 const displayItems = computed(() => sortById(items.value));
 const dlg = ref(false);
 const form = reactive({ phone: '', userId: '', channel: 'WECHAT', merchantId: '' });
@@ -105,7 +126,10 @@ async function load() {
     const q = new URLSearchParams({ page: '0', size: '50' });
     if (phone.value) q.set('phone', phone.value);
     if (channel.value) q.set('channel', channel.value);
-    const data = await api.request<{ items: any[] }>(`/api/v2/ops/admin/phone-verify/logs?${q}`, 'GET');
+    const data = await api.request<{ items: any[] }>(
+      `/api/v2/ops/admin/phone-verify/logs?${q}`,
+      'GET'
+    );
     items.value = data.items || [];
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');

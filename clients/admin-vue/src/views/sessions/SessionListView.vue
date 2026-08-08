@@ -5,11 +5,16 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">开门记录</span>
-            <span class="hint">按设备 / 会话状态筛选；活跃态超过 {{ STALE_MINUTES }} 分钟高亮滞留，便于日间跟进</span>
+            <span class="hint"
+              >按设备 / 会话状态筛选；活跃态超过
+              {{ STALE_MINUTES }} 分钟高亮滞留，便于日间跟进</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:session:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:session:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -31,7 +36,13 @@
         />
       </el-form-item>
       <el-form-item label="类型">
-        <el-select v-model="kindFilter" clearable placeholder="全部" style="width: 120px" @change="search">
+        <el-select
+          v-model="kindFilter"
+          clearable
+          placeholder="全部"
+          style="width: 120px"
+          @change="search"
+        >
           <el-option label="消费" value="CONSUMER" />
           <el-option label="补货" value="RESTOCK" />
           <el-option label="运维" value="OPS" />
@@ -63,9 +74,11 @@
       :closable="false"
       show-icon
       class="sla-banner"
-      :title="stuckOnly
-        ? `当前筛选共 ${total} 条滞留会话（活跃态超过 ${STALE_MINUTES} 分钟）`
-        : `本页 ${pageStuckCount} 条可能滞留，可勾选「仅滞留」或从工作台「异常会话」进入`"
+      :title="
+        stuckOnly
+          ? `当前筛选共 ${total} 条滞留会话（活跃态超过 ${STALE_MINUTES} 分钟）`
+          : `本页 ${pageStuckCount} 条可能滞留，可勾选「仅滞留」或从工作台「异常会话」进入`
+      "
     />
 
     <div class="table-scroll">
@@ -80,12 +93,26 @@
           class="report-table"
           row-key="sessionId"
           :row-class-name="rowClassName"
-          @selection-change="onSelectionChange" empty-text=" ">
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
           <template #empty>
-            <el-empty v-if="listHydrated && !loading" :description="stuckOnly ? `当前无超过 ${STALE_MINUTES} 分钟的滞留会话` : '暂无开门记录'" />
+            <el-empty
+              v-if="listHydrated && !loading"
+              :description="
+                stuckOnly ? `当前无超过 ${STALE_MINUTES} 分钟的滞留会话` : '暂无开门记录'
+              "
+            />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="sessionId" label="会话编号" min-width="160" align="center" class-name="col-text" sortable="custom">
+          <el-table-column
+            prop="sessionId"
+            label="会话编号"
+            min-width="160"
+            align="center"
+            class-name="col-text"
+            sortable="custom"
+          >
             <template #default="{ row }">
               <button type="button" class="link-cell mono" @click="openTimeline(row)">
                 <span class="cell-id">{{ row.sessionId }}</span>
@@ -109,18 +136,28 @@
                 type="button"
                 class="link-cell"
                 @click="goPath(`/devices/${encodeURIComponent(row.deviceId)}`)"
-              >{{ row.deviceId }}</button>
+              >
+                {{ row.deviceId }}
+              </button>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="订单" min-width="130" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="订单"
+            min-width="130"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <button
                 v-if="row.orderId"
                 type="button"
                 class="link-cell mono"
                 @click="goOrders(row.deviceId)"
-              >{{ row.orderId }}</button>
+              >
+                {{ row.orderId }}
+              </button>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
@@ -131,7 +168,13 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="等待原因" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="等待原因"
+            min-width="160"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <span>{{ waitReason(row) }}</span>
             </template>
@@ -159,7 +202,13 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="失败原因" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="失败原因"
+            min-width="140"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ failReasonText(row) }}</template>
           </el-table-column>
           <el-table-column label="更新时间" width="160" align="center" class-name="col-text">
@@ -169,23 +218,27 @@
           </el-table-column>
           <el-table-column label="操作" width="220" class-name="col-action" align="center">
             <template #default="{ row }">
-              <TableActions :actions="sessionActions(row)" @action="(k) => onAction(String(k), row)" />
+              <TableActions
+                :actions="sessionActions(row)"
+                @action="(k) => onAction(String(k), row)"
+              />
             </template>
           </el-table-column>
         </el-table>
       </div>
     </div>
 
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="total"
-        :page-sizes="[10, 20, 50]"
-        layout="total, sizes, prev, pager, next"
-        background
-        @current-change="load"
-        @size-change="onSizeChange"
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50]"
+      layout="total, sizes, prev, pager, next"
+      background
+      @current-change="load"
+      @size-change="onSizeChange"
+    />
 
     <el-drawer v-model="timelineOpen" title="会话时间线" size="420px" destroy-on-close>
       <template v-if="timelineRow">
@@ -199,7 +252,9 @@
               type="button"
               class="link-cell"
               @click="goPath(`/devices/${encodeURIComponent(timelineRow.deviceId)}`)"
-            >{{ timelineRow.deviceId }}</button>
+            >
+              {{ timelineRow.deviceId }}
+            </button>
             <span v-else>-</span>
           </el-descriptions-item>
           <el-descriptions-item label="订单">
@@ -208,7 +263,9 @@
               type="button"
               class="link-cell mono"
               @click="goOrders(timelineRow.deviceId)"
-            >{{ timelineRow.orderId }}</button>
+            >
+              {{ timelineRow.orderId }}
+            </button>
             <span v-else>-</span>
           </el-descriptions-item>
           <el-descriptions-item label="状态">
@@ -228,20 +285,26 @@
         </el-timeline>
         <div class="tl-actions">
           <el-button
-            v-if="timelineRow.sessionId && (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))"
+            v-if="
+              timelineRow.sessionId &&
+              (auth.hasPerm('ops:session:list') || auth.hasPerm('ops:session:upload'))
+            "
             type="warning"
             :loading="videoLoading"
             @click="playVideo(timelineRow.sessionId)"
-          >播放录像</el-button>
+            >播放录像</el-button
+          >
           <el-button
             v-if="timelineRow.deviceId && canAccessPath('/upload-queue')"
             @click="goPath('/upload-queue', { deviceId: timelineRow.deviceId })"
-          >录像上传队列</el-button>
+            >录像上传队列</el-button
+          >
           <el-button
             v-if="timelineRow.orderId && canAccessPath('/orders')"
             type="primary"
             @click="goOrders(timelineRow.deviceId)"
-          >查看订单</el-button>
+            >查看订单</el-button
+          >
         </div>
       </template>
     </el-drawer>
@@ -251,7 +314,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { CircleClose, Clock, CopyDocument, Refresh, View, VideoCamera } from '@element-plus/icons-vue';
+import {
+  CircleClose,
+  Clock,
+  CopyDocument,
+  Refresh,
+  View,
+  VideoCamera
+} from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
@@ -320,8 +390,12 @@ const page = ref(1);
 const size = ref(20);
 const total = ref(0);
 const items = ref<SessionRow[]>([]);
-const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById, idSortDir } =
-  useIdColumnSort<SessionRow>('sessionId');
+const {
+  defaultSort: idDefaultSort,
+  onSortChange: onIdSortChange,
+  sortById,
+  idSortDir
+} = useIdColumnSort<SessionRow>('sessionId');
 const timelineOpen = ref(false);
 const timelineRow = ref<SessionRow | null>(null);
 const stateOptions = useDictOptions('session_state');
@@ -348,7 +422,19 @@ const pageStuckCount = computed(() => items.value.filter((r) => isStuck(r)).leng
 
 const { onExport: exportSelectedCsv } = useListCsv({
   filePrefix: '开门记录',
-  headers: ['会话编号', '类型', '用户', '设备', '订单', '状态', '等待原因', '滞留分钟', '是否滞留', '失败原因', '更新时间'],
+  headers: [
+    '会话编号',
+    '类型',
+    '用户',
+    '设备',
+    '订单',
+    '状态',
+    '等待原因',
+    '滞留分钟',
+    '是否滞留',
+    '失败原因',
+    '更新时间'
+  ],
   toRows: () =>
     pickSelected(displayItems.value).map((row) => [
       row.sessionId,
@@ -460,7 +546,8 @@ function waitReason(row: SessionRow) {
   if (s === 'WAITING_UPLOAD') {
     if (upload === 'FAILED') return '录像上传失败，待设备侧重试';
     if (upload === 'UPLOADING') return stuck ? '上传中断或极慢' : '等待录像上传完成';
-    if (upload === 'LOCAL_QUEUED') return stuck ? '本地排队超时，可能弱网/离线' : '设备本地排队待推送';
+    if (upload === 'LOCAL_QUEUED')
+      return stuck ? '本地排队超时，可能弱网/离线' : '设备本地排队待推送';
     return stuck ? '关门后长期待上传' : '关门后等待录像上报';
   }
   if (s === 'RECOGNIZING') return stuck ? '识别滞留，需人工跟进' : '视觉识别处理中';
@@ -505,14 +592,13 @@ function sessionStateType(s?: string) {
   if (s === 'COMPLETED') return 'success';
   if (s === 'CANCELLED') return 'info';
   if (s === 'FAILED') return 'danger';
-  if (s === 'SHOPPING' || s === 'OPEN' || s === 'DOOR_OPEN' || s === 'WAITING_UPLOAD') return 'warning';
+  if (s === 'SHOPPING' || s === 'OPEN' || s === 'DOOR_OPEN' || s === 'WAITING_UPLOAD')
+    return 'warning';
   return '';
 }
 
 function sessionActions(row: SessionRow): TableAction[] {
-  const acts: TableAction[] = [
-    { key: 'timeline', label: '时间线', icon: Clock, type: 'primary' }
-  ];
+  const acts: TableAction[] = [{ key: 'timeline', label: '时间线', icon: Clock, type: 'primary' }];
   if (row.deviceId && canAccessPath('/devices')) {
     acts.push({ key: 'device', label: '看设备', icon: View, type: 'info' });
   }
@@ -521,10 +607,22 @@ function sessionActions(row: SessionRow): TableAction[] {
   }
   acts.push({ key: 'copy', label: '复制会话ID', icon: CopyDocument, type: 'info', overflow: true });
   if (row.deviceId && canAccessPath('/upload-queue')) {
-    acts.push({ key: 'video', label: '录像队列', icon: VideoCamera, type: 'warning', overflow: true });
+    acts.push({
+      key: 'video',
+      label: '录像队列',
+      icon: VideoCamera,
+      type: 'warning',
+      overflow: true
+    });
   }
   if (canCancel(row.state) && auth.hasPerm('ops:session:cancel')) {
-    acts.push({ key: 'cancel', label: '取消会话', icon: CircleClose, type: 'danger', overflow: true });
+    acts.push({
+      key: 'cancel',
+      label: '取消会话',
+      icon: CircleClose,
+      type: 'danger',
+      overflow: true
+    });
   }
   return acts;
 }
@@ -537,8 +635,10 @@ function sessionTimeline(row: SessionRow) {
     detail?: string;
   }[] = [];
   steps.push({ label: '创建会话', time: formatDateTime(row.createdAt), type: 'primary' });
-  if (row.openTime) steps.push({ label: '开门', time: formatDateTime(row.openTime), type: 'success' });
-  if (row.closeTime) steps.push({ label: '关门', time: formatDateTime(row.closeTime), type: 'success' });
+  if (row.openTime)
+    steps.push({ label: '开门', time: formatDateTime(row.openTime), type: 'success' });
+  if (row.closeTime)
+    steps.push({ label: '关门', time: formatDateTime(row.closeTime), type: 'success' });
   if (row.uploadStatus && row.uploadStatus !== 'NONE') {
     steps.push({
       label: '录像上传',
@@ -548,11 +648,21 @@ function sessionTimeline(row: SessionRow) {
     });
   }
   if (row.orderId) {
-    steps.push({ label: '生成订单', time: formatDateTime(row.updatedAt), type: 'success', detail: row.orderId });
+    steps.push({
+      label: '生成订单',
+      time: formatDateTime(row.updatedAt),
+      type: 'success',
+      detail: row.orderId
+    });
   }
   const fail = row.failureReason || row.failReason;
   if (fail) {
-    steps.push({ label: '失败', time: formatDateTime(row.updatedAt), type: 'danger', detail: fail });
+    steps.push({
+      label: '失败',
+      time: formatDateTime(row.updatedAt),
+      type: 'danger',
+      detail: fail
+    });
   }
   steps.push({
     label: `当前：${dictLabel('session_state', row.state)}`,
@@ -645,7 +755,10 @@ async function load() {
       while (scanned < maxScan && scanned < serverTotal) {
         const q = new URLSearchParams({ page: String(apiPage), size: String(pageSize) });
         appendSessionFilters(q);
-        const data = await api.request<PageResult<SessionRow>>(`/api/v2/ops/admin/sessions?${q}`, 'GET');
+        const data = await api.request<PageResult<SessionRow>>(
+          `/api/v2/ops/admin/sessions?${q}`,
+          'GET'
+        );
         const batch = data.items || [];
         serverTotal = data.total ?? batch.length;
         stuck.push(...batch.filter((r) => isStuck(r)));
@@ -660,7 +773,10 @@ async function load() {
     } else {
       const q = new URLSearchParams({ page: String(page.value - 1), size: String(size.value) });
       appendSessionFilters(q);
-      const data = await api.request<PageResult<SessionRow>>(`/api/v2/ops/admin/sessions?${q}`, 'GET');
+      const data = await api.request<PageResult<SessionRow>>(
+        `/api/v2/ops/admin/sessions?${q}`,
+        'GET'
+      );
       items.value = data.items;
       total.value = data.total;
     }
@@ -777,7 +893,14 @@ async function reloadFromRouteQuery() {
 
 watch(
   () =>
-    [route.query.keyword, route.query.q, route.query.deviceId, route.query.state, route.query.stuck, route.query.sessionId] as const,
+    [
+      route.query.keyword,
+      route.query.q,
+      route.query.deviceId,
+      route.query.state,
+      route.query.stuck,
+      route.query.sessionId
+    ] as const,
   () => {
     void reloadFromRouteQuery();
   }
@@ -800,16 +923,48 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.status-tabs { margin: 0 0 10px; }
-.sla-banner { margin-bottom: 10px; }
-.sla-cell { display: grid; gap: 2px; line-height: 1.35; text-align: center; justify-items: center; }
-.sla-meta { color: var(--el-text-color-secondary); font-size: 11px; }
-.sla-meta.danger { color: var(--el-color-danger); }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.status-tabs {
+  margin: 0 0 10px;
+}
+.sla-banner {
+  margin-bottom: 10px;
+}
+.sla-cell {
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+  text-align: center;
+  justify-items: center;
+}
+.sla-meta {
+  color: var(--el-text-color-secondary);
+  font-size: 11px;
+}
+.sla-meta.danger {
+  color: var(--el-color-danger);
+}
 .link-cell {
   appearance: none;
   border: 0;
@@ -821,17 +976,43 @@ onActivated(() => {
   text-align: center;
   font: inherit;
 }
-.link-cell:hover { text-decoration: underline; }
-.link-cell.mono { font-family: inherit; font-size: inherit; }
-.muted { color: var(--el-text-color-secondary); }
-.mb12 { margin-bottom: 12px; }
-.tl-detail { margin-top: 4px; font-size: 12px; color: var(--el-text-color-secondary); }
-.tl-actions { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+.link-cell:hover {
+  text-decoration: underline;
+}
+.link-cell.mono {
+  font-family: inherit;
+  font-size: inherit;
+}
+.muted {
+  color: var(--el-text-color-secondary);
+}
+.mb12 {
+  margin-bottom: 12px;
+}
+.tl-detail {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.tl-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 :deep(.el-table .is-overdue > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-danger) 6%, var(--el-table-bg-color, #fff)) !important;
+  background: color-mix(
+    in srgb,
+    var(--el-color-danger) 6%,
+    var(--el-table-bg-color, #fff)
+  ) !important;
 }
 :deep(.el-table .is-due-soon > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-warning) 7%, var(--el-table-bg-color, #fff)) !important;
+  background: color-mix(
+    in srgb,
+    var(--el-color-warning) 7%,
+    var(--el-table-bg-color, #fff)
+  ) !important;
 }
 /* 固定操作列保持实心底，避免滞留/临近高亮行透视 */
 :deep(.el-table .is-overdue > td.el-table-fixed-column--right),

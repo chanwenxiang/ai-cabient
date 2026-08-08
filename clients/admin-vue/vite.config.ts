@@ -6,7 +6,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const OUT_DIR = path.resolve(__dirname, '../../services/trade-service/src/main/resources/static/admin');
+const OUT_DIR = path.resolve(
+  __dirname,
+  '../../services/trade-service/src/main/resources/static/admin'
+);
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, __dirname, '');
@@ -25,12 +28,24 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(__dirname, 'src'),
         // 业务代码走响应式包装；dict-runtime / 包装内部走 core，避免循环依赖
         '@aicabinet/shared-dict': path.resolve(__dirname, 'src/utils/shared-dict-reactive.ts'),
-        '@aicabinet/shared-dict-core': path.resolve(__dirname, '../../packages/shared-dict/src/index.ts'),
-        '@aicabinet/shared-rbac': path.resolve(__dirname, '../../packages/shared-rbac/src/index.ts'),
-        '@aicabinet/shared-types': path.resolve(__dirname, '../../packages/shared-types/src/index.ts'),
+        '@aicabinet/shared-dict-core': path.resolve(
+          __dirname,
+          '../../packages/shared-dict/src/index.ts'
+        ),
+        '@aicabinet/shared-rbac': path.resolve(
+          __dirname,
+          '../../packages/shared-rbac/src/index.ts'
+        ),
+        '@aicabinet/shared-types': path.resolve(
+          __dirname,
+          '../../packages/shared-types/src/index.ts'
+        ),
         '@aicabinet/shared-api': path.resolve(__dirname, '../../packages/shared-api/src/index.ts'),
         '@aicabinet/shared-uni': path.resolve(__dirname, '../../packages/shared-uni/src'),
-        '@aicabinet/shared-uni/format': path.resolve(__dirname, '../../packages/shared-uni/src/format.ts')
+        '@aicabinet/shared-uni/format': path.resolve(
+          __dirname,
+          '../../packages/shared-uni/src/format.ts'
+        )
       }
     },
     server: {

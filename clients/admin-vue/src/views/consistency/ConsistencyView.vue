@@ -9,7 +9,9 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-if="canRun" type="primary" :loading="running" @click="runCheck">立即巡检</el-button>
+          <el-button v-if="canRun" type="primary" :loading="running" @click="runCheck"
+            >立即巡检</el-button
+          >
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -42,7 +44,13 @@
         />
       </el-form-item>
       <el-form-item label="类型">
-        <el-select v-model="typeFilter" clearable placeholder="全部" style="width: 140px" @change="onSearch">
+        <el-select
+          v-model="typeFilter"
+          clearable
+          placeholder="全部"
+          style="width: 140px"
+          @change="onSearch"
+        >
           <el-option label="订单金额" value="ORDER_AMOUNT" />
           <el-option label="支付净额" value="PAYMENT_AMOUNT" />
           <el-option label="库存汇总" value="INVENTORY_MISMATCH" />
@@ -56,16 +64,32 @@
 
     <div class="table-scroll">
       <div class="table-scroll-inner">
-        <el-table v-loading="loading" :data="paged" stripe border class="report-table" row-key="id" empty-text=" ">
+        <el-table
+          v-loading="loading"
+          :data="paged"
+          stripe
+          border
+          class="report-table"
+          row-key="id"
+          empty-text=" "
+        >
           <template #empty>
             <el-empty v-if="listHydrated && !loading" :description="emptyText" />
           </template>
           <el-table-column label="类型" width="160" align="center">
             <template #default="{ row }">
-              <el-tag size="small" :type="typeTag(row.checkType)">{{ typeLabel(row.checkType) }}</el-tag>
+              <el-tag size="small" :type="typeTag(row.checkType)">{{
+                typeLabel(row.checkType)
+              }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="键" min-width="200" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="键"
+            min-width="200"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <el-button
                 v-if="keyLink(row)"
@@ -79,7 +103,14 @@
               <code v-else class="mono">{{ row.checkKey }}</code>
             </template>
           </el-table-column>
-          <el-table-column prop="tableName" label="表" width="140" align="center" class-name="col-text" show-overflow-tooltip />
+          <el-table-column
+            prop="tableName"
+            label="表"
+            width="140"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          />
           <el-table-column label="期望" min-width="100" align="center" class-name="col-text">
             <template #default="{ row }">{{ row.expectedValue }}</template>
           </el-table-column>
@@ -88,7 +119,13 @@
               <span class="is-mismatch">{{ row.actualValue }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="说明" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="说明"
+            min-width="160"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <span v-if="row.errorMessage" class="err-msg">{{ row.errorMessage }}</span>
               <span v-else class="muted">—</span>
@@ -121,14 +158,15 @@
         </el-table>
       </div>
     </div>
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="filtered.length"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next"
-        background
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="filtered.length"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+    />
   </el-card>
 </template>
 
@@ -195,8 +233,11 @@ const filtered = computed(() => {
   return items.value.filter((row) => {
     if (type && row.checkType !== type) return false;
     if (!q) return true;
-    return [row.checkKey, row.tableName, row.errorMessage]
-      .some((x) => String(x || '').toLowerCase().includes(q));
+    return [row.checkKey, row.tableName, row.errorMessage].some((x) =>
+      String(x || '')
+        .toLowerCase()
+        .includes(q)
+    );
   });
 });
 
@@ -272,7 +313,10 @@ function openKey(row: Row) {
   if (kind === 'device') {
     const deviceId = row.checkKey.split('|', 2)[0];
     if (deviceId) {
-      void router.push({ path: `/devices/${encodeURIComponent(deviceId)}`, query: { id: deviceId } });
+      void router.push({
+        path: `/devices/${encodeURIComponent(deviceId)}`,
+        query: { id: deviceId }
+      });
     }
   }
 }

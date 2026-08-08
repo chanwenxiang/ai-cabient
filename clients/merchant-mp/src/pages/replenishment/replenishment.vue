@@ -22,17 +22,25 @@
           v-if="preferredId && filterDeviceId !== preferredId"
           class="clear-pill"
           @click="usePreferredDevice"
-        >常驻柜</button>
-        <button v-if="filterDeviceId" class="clear-pill" @click="clearDeviceFilter">清除筛选</button>
+        >
+          常驻柜
+        </button>
+        <button v-if="filterDeviceId" class="clear-pill" @click="clearDeviceFilter">
+          清除筛选
+        </button>
       </view>
       <text v-if="filterDeviceId" class="filter-tip">
         当前筛选：{{ filterDeviceId }}
         <text v-if="filterDeviceId === preferredId">（常驻柜）</text>
       </text>
-      <text v-else-if="preferredId" class="filter-tip muted">常驻柜 {{ preferredId }} · 点「常驻柜」快速筛选</text>
+      <text v-else-if="preferredId" class="filter-tip muted"
+        >常驻柜 {{ preferredId }} · 点「常驻柜」快速筛选</text
+      >
       <view v-if="!loading && pendingCount === 0" class="idle-tip">
         <text class="idle-title">今日暂无待补货</text>
-        <text class="idle-desc">可扫码巡柜查看缺货，或切换「已完成」回顾记录；新任务由调度下发</text>
+        <text class="idle-desc"
+          >可扫码巡柜查看缺货，或切换「已完成」回顾记录；新任务由调度下发</text
+        >
       </view>
     </view>
 
@@ -43,7 +51,8 @@
         class="filter-chip"
         :class="{ active: status === item.value }"
         @click="changeStatus(item.value)"
-      >{{ item.label }}</text>
+        >{{ item.label }}</text
+      >
     </view>
 
     <view v-if="loading" class="empty">任务加载中…</view>
@@ -58,12 +67,16 @@
           v-if="pendingCount === 0 && completedCount > 0 && status !== 'COMPLETED'"
           class="empty-scan"
           @click="changeStatus('COMPLETED')"
-        >查看已完成</button>
+        >
+          查看已完成
+        </button>
         <button
           v-if="status && pendingCount === 0 && completedCount > 0"
           class="empty-scan ghost"
           @click="changeStatus('')"
-        >查看全部</button>
+        >
+          查看全部
+        </button>
         <button class="empty-scan" @click="onScan">扫码到柜</button>
       </view>
     </empty-state>
@@ -107,15 +120,21 @@
         </view>
         <view class="step-row four">
           <view class="step" :class="stepClass(1)">
-            <text class="step-num">{{ selected?.status === 'COMPLETED' || selected?.checkInAt ? '✓' : '1' }}</text>
+            <text class="step-num">{{
+              selected?.status === 'COMPLETED' || selected?.checkInAt ? '✓' : '1'
+            }}</text>
             <text class="step-label">签到</text>
           </view>
           <view class="step" :class="stepClass(2)">
-            <text class="step-num">{{ selected?.status === 'COMPLETED' || doorOpened || currentStep() > 2 ? '✓' : '2' }}</text>
+            <text class="step-num">{{
+              selected?.status === 'COMPLETED' || doorOpened || currentStep() > 2 ? '✓' : '2'
+            }}</text>
             <text class="step-label">开门</text>
           </view>
           <view class="step" :class="stepClass(3)">
-            <text class="step-num">{{ selected?.status === 'COMPLETED' || linesConfirmed || currentStep() > 3 ? '✓' : '3' }}</text>
+            <text class="step-num">{{
+              selected?.status === 'COMPLETED' || linesConfirmed || currentStep() > 3 ? '✓' : '3'
+            }}</text>
             <text class="step-label">核对</text>
           </view>
           <view class="step" :class="stepClass(4)">
@@ -131,7 +150,9 @@
           data-testid="replenish-checkin"
           :disabled="submitting"
           @click="checkIn"
-        >现场签到</button>
+        >
+          现场签到
+        </button>
         <button
           v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
           class="primary-btn"
@@ -139,18 +160,24 @@
           data-testid="replenish-open-door"
           :disabled="submitting"
           @click="openDoor"
-        >{{ doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门' }}</button>
+        >
+          {{ doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门' }}
+        </button>
         <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">
           只读查看 — 需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
         </text>
         <text v-if="doorOpened && openSessionId" class="door-tip">
-          已开门 · 会话 {{ emptyDisplay(openSessionId, 'session') }} · 关门后继续核对{{ detailIsPullOff ? '下架' : '上架' }}
+          已开门 · 会话 {{ emptyDisplay(openSessionId, 'session') }} · 关门后继续核对{{
+            detailIsPullOff ? '下架' : '上架'
+          }}
         </text>
 
         <view class="section-heading">
           <view>
             <text class="section-title">现场照片</text>
-            <text class="section-subtitle">{{ selected?.checkInAt ? '最多 5 张，便于后台核对履约' : '签到后可拍照留存，最多 5 张' }}</text>
+            <text class="section-subtitle">{{
+              selected?.checkInAt ? '最多 5 张，便于后台核对履约' : '签到后可拍照留存，最多 5 张'
+            }}</text>
           </view>
           <text class="line-count">{{ evidenceItems.length }} 张</text>
         </view>
@@ -165,21 +192,30 @@
             @click="previewEvidence(idx)"
           />
           <view
-            v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt && evidenceItems.length < 5"
+            v-if="
+              canRequest &&
+              selected?.status !== 'COMPLETED' &&
+              selected?.checkInAt &&
+              evidenceItems.length < 5
+            "
             class="evidence-add"
             role="button"
             aria-label="添加现场照片"
             @click="addEvidence"
-          >+</view>
+            >+</view
+          >
           <text
             v-else-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
             class="evidence-hint"
-          >签到后可拍照</text>
+            >签到后可拍照</text
+          >
         </view>
 
         <view class="section-heading">
           <view>
-            <text class="section-title">{{ detailIsPullOff ? '本次下架商品' : '本次补货商品' }}</text>
+            <text class="section-title">{{
+              detailIsPullOff ? '本次下架商品' : '本次补货商品'
+            }}</text>
             <text class="section-subtitle">{{
               detailIsPullOff
                 ? '请逐项核对下架数量与批次'
@@ -192,9 +228,15 @@
         </view>
         <view v-if="detailLoading" class="empty small">明细加载中…</view>
         <view v-else-if="!lines.length" class="empty small lines-empty">
-          <view class="lines-empty-title">{{ detailIsPullOff ? '暂无下架明细' : '暂无补货明细' }}</view>
+          <view class="lines-empty-title">{{
+            detailIsPullOff ? '暂无下架明细' : '暂无补货明细'
+          }}</view>
           <view class="lines-empty-tip">
-            {{ detailIsPullOff ? '可先开门执行下架；有任务明细时会显示在此核对' : '可先开门上架；有出库明细时会显示在此核对' }}
+            {{
+              detailIsPullOff
+                ? '可先开门执行下架；有任务明细时会显示在此核对'
+                : '可先开门上架；有出库明细时会显示在此核对'
+            }}
           </view>
         </view>
         <view
@@ -209,12 +251,18 @@
               <text class="device-code">{{ line.skuId }}</text>
             </view>
             <view
-              v-if="canRequest && selected?.status !== 'COMPLETED' && !linesConfirmed && !line.applied"
+              v-if="
+                canRequest && selected?.status !== 'COMPLETED' && !linesConfirmed && !line.applied
+              "
               class="qty-stepper"
             >
-              <text class="qty-btn" role="button" aria-label="减少数量" @click="adjustQty(line, -1)">−</text>
+              <text class="qty-btn" role="button" aria-label="减少数量" @click="adjustQty(line, -1)"
+                >−</text
+              >
               <text class="qty">{{ line.quantity }}</text>
-              <text class="qty-btn" role="button" aria-label="增加数量" @click="adjustQty(line, 1)">+</text>
+              <text class="qty-btn" role="button" aria-label="增加数量" @click="adjustQty(line, 1)"
+                >+</text
+              >
             </view>
             <text v-else class="qty">× {{ line.quantity }}</text>
           </view>
@@ -225,12 +273,12 @@
           </view>
           <view
             v-if="
-              canRequest
-                && selected?.status !== 'COMPLETED'
-                && !linesConfirmed
-                && !line.applied
-                && !isPullOffType(line.lineType)
-                && !line.slotId
+              canRequest &&
+              selected?.status !== 'COMPLETED' &&
+              !linesConfirmed &&
+              !line.applied &&
+              !isPullOffType(line.lineType) &&
+              !line.slotId
             "
             class="slot-pick"
           >
@@ -242,7 +290,8 @@
                 class="slot-chip"
                 :class="{ disabled: opt.room <= 0, active: line.slotId === opt.slotCode }"
                 @click="assignSlot(line, opt)"
-              >{{ opt.slotCode }} · 余{{ opt.room }}</text>
+                >{{ opt.slotCode }} · 余{{ opt.room }}</text
+              >
             </view>
             <text v-else class="slot-empty">暂无可用货道，请先腾出容量或将数量调为 0</text>
           </view>
@@ -253,11 +302,18 @@
           <view
             v-if="selected?.status !== 'COMPLETED' && line.slotId && slotHint(line)"
             class="line-cap"
-            :class="{ full: slotHeadroom(line) <= 0, warn: slotHeadroom(line) > 0 && line.quantity > slotHeadroom(line) }"
-          >{{ slotHint(line) }}</view>
+            :class="{
+              full: slotHeadroom(line) <= 0,
+              warn: slotHeadroom(line) > 0 && line.quantity > slotHeadroom(line)
+            }"
+            >{{ slotHint(line) }}</view
+          >
         </view>
 
-        <view v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt" class="action-dock">
+        <view
+          v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
+          class="action-dock"
+        >
           <button
             v-if="!linesConfirmed"
             class="secondary-btn"
@@ -265,14 +321,18 @@
             data-testid="replenish-confirm-lines"
             :disabled="submitting || !lines.length"
             @click="confirmLines"
-          >确认商品与数量</button>
+          >
+            确认商品与数量
+          </button>
           <button
             class="primary-btn"
             role="button"
             data-testid="replenish-complete"
             :disabled="submitting || !lines.length || !linesConfirmed"
             @click="completeTask"
-          >{{ detailIsPullOff ? '确认全部下架' : '确认全部上架' }}</button>
+          >
+            {{ detailIsPullOff ? '确认全部下架' : '确认全部上架' }}
+          </button>
         </view>
         <view v-if="selected?.status === 'COMPLETED'" class="complete-banner">
           {{
@@ -306,7 +366,9 @@
             :aria-label="confirmDialog.cancelText"
             data-testid="confirm-cancel"
             @click.stop="resolveConfirm(false)"
-          >{{ confirmDialog.cancelText }}</button>
+          >
+            {{ confirmDialog.cancelText }}
+          </button>
           <button
             type="button"
             class="confirm-btn ok"
@@ -314,7 +376,9 @@
             :aria-label="confirmDialog.confirmText"
             data-testid="confirm-ok"
             @click.stop="resolveConfirm(true)"
-          >{{ confirmDialog.confirmText }}</button>
+          >
+            {{ confirmDialog.confirmText }}
+          </button>
         </view>
       </view>
     </view>
@@ -481,7 +545,12 @@ const tasks = computed(() => {
   let rows = allTasks.value.filter((t) => t.status !== 'CANCELLED');
   if (filterDeviceId.value) {
     const key = filterDeviceId.value.trim().toUpperCase();
-    rows = rows.filter((t) => String(t.deviceId || '').trim().toUpperCase() === key);
+    rows = rows.filter(
+      (t) =>
+        String(t.deviceId || '')
+          .trim()
+          .toUpperCase() === key
+    );
   }
   if (status.value) {
     rows = rows.filter((t) => t.status === status.value);
@@ -496,7 +565,9 @@ const tasks = computed(() => {
 });
 
 const pendingCount = computed(
-  () => allTasks.value.filter((item) => item.status !== 'COMPLETED' && item.status !== 'CANCELLED').length
+  () =>
+    allTasks.value.filter((item) => item.status !== 'COMPLETED' && item.status !== 'CANCELLED')
+      .length
 );
 const completedCount = computed(
   () => allTasks.value.filter((item) => item.status === 'COMPLETED').length
@@ -564,9 +635,7 @@ function usePreferredDevice() {
 }
 
 function goRequest() {
-  const q = filterDeviceId.value
-    ? `?deviceId=${encodeURIComponent(filterDeviceId.value)}`
-    : '';
+  const q = filterDeviceId.value ? `?deviceId=${encodeURIComponent(filterDeviceId.value)}` : '';
   uni.navigateTo({ url: `/pages/request/request${q}` });
 }
 
@@ -576,7 +645,8 @@ onLoad((opts) => {
 });
 
 function deviceName(id?: string) {
-  const d = devices.value.find((item) => item.deviceId === id) as { deviceName?: string } | undefined;
+  const d = devices.value.find((item) => item.deviceId === id) as
+    { deviceName?: string } | undefined;
   return d?.deviceName || emptyDisplay(id, 'device');
 }
 
@@ -640,15 +710,15 @@ async function load() {
     let open: Task | undefined;
     const wantedTaskId = focusTaskId.value;
     if (pendingDeepLink && focusTaskId.value) {
-      open = allTasks.value.find(
-        (t) => t.taskId === focusTaskId.value && t.status !== 'CANCELLED'
-      );
+      open = allTasks.value.find((t) => t.taskId === focusTaskId.value && t.status !== 'CANCELLED');
       focusTaskId.value = null;
     } else if (pendingDeepLink && !detailVisible.value && filterDeviceId.value) {
       const key = filterDeviceId.value.trim().toUpperCase();
       open = allTasks.value.find(
         (t) =>
-          String(t.deviceId || '').trim().toUpperCase() === key &&
+          String(t.deviceId || '')
+            .trim()
+            .toUpperCase() === key &&
           t.status !== 'COMPLETED' &&
           t.status !== 'CANCELLED'
       );
@@ -692,7 +762,9 @@ async function onScan() {
     status.value = '';
     const open = allTasks.value.find(
       (t) =>
-        String(t.deviceId || '').trim().toUpperCase() === key &&
+        String(t.deviceId || '')
+          .trim()
+          .toUpperCase() === key &&
         t.status !== 'COMPLETED' &&
         t.status !== 'CANCELLED'
     );
@@ -892,7 +964,9 @@ function assignSlot(line: Line, opt: { slotCode: string; room: number }) {
 function slotHeadroom(line: Line): number {
   const code = String(line.slotId || '').toUpperCase();
   if (!code) {
-    const rooms = slotOptionsFor(line).map((o) => o.room).filter((n) => n > 0);
+    const rooms = slotOptionsFor(line)
+      .map((o) => o.room)
+      .filter((n) => n > 0);
     return rooms.length ? Math.max(...rooms) : 0;
   }
   const cap = slotCaps.value[code];
@@ -907,7 +981,8 @@ function slotHint(line: Line): string {
   if (!cap || cap.maxLevel <= 0) return '';
   const room = slotHeadroom(line);
   if (room <= 0) return `货道已满（${cap.bookQty}/${cap.maxLevel}），请将数量调为 0 或换货道`;
-  if (line.quantity > room) return `超出容量：最多再补 ${room}（已有 ${cap.bookQty}/${cap.maxLevel}）`;
+  if (line.quantity > room)
+    return `超出容量：最多再补 ${room}（已有 ${cap.bookQty}/${cap.maxLevel}）`;
   return `还可补 ${room}（已有 ${cap.bookQty}/${cap.maxLevel}）`;
 }
 
@@ -941,7 +1016,11 @@ function getLocationWithTimeout(timeoutMs = 5000): Promise<UniApp.GetLocationSuc
         if (settled) return;
         settled = true;
         clearTimeout(timer);
-        reject(err instanceof Error ? err : new Error(String((err as { errMsg?: string })?.errMsg || '定位失败')));
+        reject(
+          err instanceof Error
+            ? err
+            : new Error(String((err as { errMsg?: string })?.errMsg || '定位失败'))
+        );
       }
     });
   });
@@ -972,7 +1051,10 @@ async function checkIn() {
     submitting.value = true;
   }
   try {
-    selected.value = (await merchantApi.checkInReplenishmentTask(selected.value.taskId, body)) as Task;
+    selected.value = (await merchantApi.checkInReplenishmentTask(
+      selected.value.taskId,
+      body
+    )) as Task;
     syncTaskInList(selected.value);
     uni.showToast({
       title: locationOk ? '签到成功' : '已签到（未带定位）',
@@ -989,7 +1071,10 @@ async function checkIn() {
       });
       if (retry) {
         try {
-          selected.value = (await merchantApi.checkInReplenishmentTask(selected.value.taskId, {})) as Task;
+          selected.value = (await merchantApi.checkInReplenishmentTask(
+            selected.value.taskId,
+            {}
+          )) as Task;
           syncTaskInList(selected.value);
           uni.showToast({ title: '已签到（未校验距离）', icon: 'none' });
         } catch (e2) {
@@ -1108,7 +1193,9 @@ async function confirmLines() {
     uni.showToast({ title: '调低后无有效数量，请换货道或取消该行', icon: 'none' });
     return;
   }
-  const unassigned = positive.filter((l) => !isPullOffType(l.lineType) && !String(l.slotId || '').trim());
+  const unassigned = positive.filter(
+    (l) => !isPullOffType(l.lineType) && !String(l.slotId || '').trim()
+  );
   if (unassigned.length) {
     uni.showToast({ title: '请先为待分配行选择货道', icon: 'none' });
     return;
@@ -1243,9 +1330,24 @@ onPullDownRefresh(load);
   background: rgba(255, 255, 255, 0.09);
   pointer-events: none;
 }
-.orb-one { width: 160rpx; height: 160rpx; right: -54rpx; top: -68rpx; }
-.orb-two { width: 88rpx; height: 88rpx; right: 80rpx; bottom: -55rpx; }
-.eyebrow, .title, .subtitle { display: block; position: relative; }
+.orb-one {
+  width: 160rpx;
+  height: 160rpx;
+  right: -54rpx;
+  top: -68rpx;
+}
+.orb-two {
+  width: 88rpx;
+  height: 88rpx;
+  right: 80rpx;
+  bottom: -55rpx;
+}
+.eyebrow,
+.title,
+.subtitle {
+  display: block;
+  position: relative;
+}
 .eyebrow {
   font-size: 22rpx;
   opacity: 0.75;
@@ -1255,8 +1357,17 @@ onPullDownRefresh(load);
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.12);
 }
-.title { margin-top: 12rpx; font-size: 42rpx; font-weight: 800; }
-.subtitle { margin-top: 10rpx; font-size: 24rpx; opacity: 0.82; line-height: 1.55; }
+.title {
+  margin-top: 12rpx;
+  font-size: 42rpx;
+  font-weight: 800;
+}
+.subtitle {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  opacity: 0.82;
+  line-height: 1.55;
+}
 .stats {
   position: relative;
   display: flex;
@@ -1265,16 +1376,26 @@ onPullDownRefresh(load);
   padding-top: 22rpx;
   border-top: 1rpx solid rgba(255, 255, 255, 0.16);
 }
-.stat-value, .stat-label { display: block; }
-.stat-value { font-size: 40rpx; font-weight: 800; }
-.stat-label { font-size: 22rpx; opacity: 0.75; }
+.stat-value,
+.stat-label {
+  display: block;
+}
+.stat-value {
+  font-size: 40rpx;
+  font-weight: 800;
+}
+.stat-label {
+  font-size: 22rpx;
+  opacity: 0.75;
+}
 .hero-actions {
   position: relative;
   display: flex;
   gap: 16rpx;
   margin-top: 24rpx;
 }
-.scan-pill, .clear-pill {
+.scan-pill,
+.clear-pill {
   margin: 0;
   height: 72rpx;
   line-height: 72rpx;
@@ -1283,9 +1404,18 @@ onPullDownRefresh(load);
   font-size: 26rpx;
   font-weight: 600;
 }
-.scan-pill { background: #fff; color: #0f766e; }
-.clear-pill { background: rgba(255, 255, 255, 0.18); color: #fff; }
-.scan-pill::after, .clear-pill::after { border: none; }
+.scan-pill {
+  background: #fff;
+  color: #0f766e;
+}
+.clear-pill {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.scan-pill::after,
+.clear-pill::after {
+  border: none;
+}
 .filter-tip {
   position: relative;
   display: block;
@@ -1293,7 +1423,9 @@ onPullDownRefresh(load);
   font-size: 22rpx;
   opacity: 0.85;
 }
-.filter-tip.muted { opacity: 0.7; }
+.filter-tip.muted {
+  opacity: 0.7;
+}
 .idle-tip {
   position: relative;
   margin-top: 18rpx;
@@ -1301,8 +1433,18 @@ onPullDownRefresh(load);
   border-radius: 16rpx;
   background: rgba(255, 255, 255, 0.14);
 }
-.idle-title { display: block; font-size: 24rpx; font-weight: 700; }
-.idle-desc { display: block; margin-top: 6rpx; font-size: 22rpx; opacity: 0.88; line-height: 1.4; }
+.idle-title {
+  display: block;
+  font-size: 24rpx;
+  font-weight: 700;
+}
+.idle-desc {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  opacity: 0.88;
+  line-height: 1.4;
+}
 
 .filters {
   display: flex;
@@ -1313,7 +1455,9 @@ onPullDownRefresh(load);
   -webkit-overflow-scrolling: touch;
   padding-bottom: 4rpx;
 }
-.filters .filter-chip { flex-shrink: 0; }
+.filters .filter-chip {
+  flex-shrink: 0;
+}
 
 .task-card {
   position: relative;
@@ -1327,7 +1471,10 @@ onPullDownRefresh(load);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.task-card-hover { background: #f8fafc !important; opacity: 0.96; }
+.task-card-hover {
+  background: #f8fafc !important;
+  opacity: 0.96;
+}
 .task-accent {
   position: absolute;
   left: 0;
@@ -1337,16 +1484,37 @@ onPullDownRefresh(load);
   background: linear-gradient(#10b981, #0d9488);
   pointer-events: none;
 }
-.task-head, .task-meta, .line-main, .line-meta, .sheet-head {
+.task-head,
+.task-meta,
+.line-main,
+.line-meta,
+.sheet-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18rpx;
 }
-.device-name, .device-code, .status, .task-meta, .task-note { pointer-events: none; }
-.device-name, .device-code { display: block; }
-.device-name { font-size: 30rpx; font-weight: 700; color: #0f172a; }
-.device-code { margin-top: 4rpx; color: #94a3b8; font-size: 21rpx; }
+.device-name,
+.device-code,
+.status,
+.task-meta,
+.task-note {
+  pointer-events: none;
+}
+.device-name,
+.device-code {
+  display: block;
+}
+.device-name {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #0f172a;
+}
+.device-code {
+  margin-top: 4rpx;
+  color: #94a3b8;
+  font-size: 21rpx;
+}
 .status {
   padding: 8rpx 16rpx;
   border-radius: 999rpx;
@@ -1355,8 +1523,16 @@ onPullDownRefresh(load);
   font-size: 22rpx;
   font-weight: 600;
 }
-.status.completed { color: #166534; background: #dcfce7; }
-.task-meta, .line-meta { margin-top: 16rpx; color: #64748b; font-size: 22rpx; }
+.status.completed {
+  color: #166534;
+  background: #dcfce7;
+}
+.task-meta,
+.line-meta {
+  margin-top: 16rpx;
+  color: #64748b;
+  font-size: 22rpx;
+}
 .line-type {
   color: #0f766e;
   background: #ecfdf5;
@@ -1372,18 +1548,52 @@ onPullDownRefresh(load);
   color: #0f766e;
   background: #ecfdf5;
 }
-.line-cap.warn { color: #b45309; background: #fffbeb; }
-.line-cap.full { color: #b91c1c; background: #fef2f2; }
-.slot-pick { margin-top: 12rpx; }
-.slot-pick-label { display: block; font-size: 22rpx; color: #0f766e; margin-bottom: 8rpx; font-weight: 600; }
-.slot-chips { display: flex; flex-wrap: wrap; gap: 10rpx; }
-.slot-chip {
-  padding: 8rpx 16rpx; border-radius: 999rpx; background: #ecfdf5; color: #0f766e;
-  font-size: 22rpx; border: 1rpx solid #99f6e4;
+.line-cap.warn {
+  color: #b45309;
+  background: #fffbeb;
 }
-.slot-chip.active { background: #0f766e; color: #fff; border-color: #0f766e; }
-.slot-chip.disabled { opacity: 0.4; background: #f1f5f9; color: #94a3b8; border-color: #e2e8f0; }
-.slot-empty { font-size: 22rpx; color: #b91c1c; }
+.line-cap.full {
+  color: #b91c1c;
+  background: #fef2f2;
+}
+.slot-pick {
+  margin-top: 12rpx;
+}
+.slot-pick-label {
+  display: block;
+  font-size: 22rpx;
+  color: #0f766e;
+  margin-bottom: 8rpx;
+  font-weight: 600;
+}
+.slot-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx;
+}
+.slot-chip {
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  background: #ecfdf5;
+  color: #0f766e;
+  font-size: 22rpx;
+  border: 1rpx solid #99f6e4;
+}
+.slot-chip.active {
+  background: #0f766e;
+  color: #fff;
+  border-color: #0f766e;
+}
+.slot-chip.disabled {
+  opacity: 0.4;
+  background: #f1f5f9;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+}
+.slot-empty {
+  font-size: 22rpx;
+  color: #b91c1c;
+}
 .task-note {
   margin-top: 16rpx;
   padding: 16rpx;
@@ -1392,7 +1602,9 @@ onPullDownRefresh(load);
   background: #f8fafc;
   font-size: 22rpx;
 }
-.detail-btn, .primary-btn, .secondary-btn {
+.detail-btn,
+.primary-btn,
+.secondary-btn {
   margin-top: 22rpx;
   border: 0;
   border-radius: 18rpx;
@@ -1405,9 +1617,20 @@ onPullDownRefresh(load);
   text-align: center;
   pointer-events: none;
 }
-.detail-btn, .primary-btn { color: #fff; background: #0f766e; }
-.secondary-btn { color: #0f766e; background: #ccfbf1; }
-.detail-btn::after, .primary-btn::after, .secondary-btn::after { border: none; }
+.detail-btn,
+.primary-btn {
+  color: #fff;
+  background: #0f766e;
+}
+.secondary-btn {
+  color: #0f766e;
+  background: #ccfbf1;
+}
+.detail-btn::after,
+.primary-btn::after,
+.secondary-btn::after {
+  border: none;
+}
 
 .empty {
   padding: 80rpx 20rpx;
@@ -1415,7 +1638,9 @@ onPullDownRefresh(load);
   color: #94a3b8;
   font-size: 28rpx;
 }
-.empty.small { padding: 30rpx; }
+.empty.small {
+  padding: 30rpx;
+}
 .empty-actions-row {
   display: flex;
   flex-wrap: wrap;
@@ -1439,7 +1664,9 @@ onPullDownRefresh(load);
   color: #0f766e;
   background: #ecfdf5;
 }
-.empty-scan::after { border: none; }
+.empty-scan::after {
+  border: none;
+}
 
 .mask {
   position: fixed;
@@ -1472,8 +1699,16 @@ onPullDownRefresh(load);
   border-radius: 4rpx;
   background: #cbd5e1;
 }
-.sheet-title { display: block; font-size: 34rpx; font-weight: 800; }
-.close { padding: 10rpx; color: #64748b; font-size: 46rpx; }
+.sheet-title {
+  display: block;
+  font-size: 34rpx;
+  font-weight: 800;
+}
+.close {
+  padding: 10rpx;
+  color: #64748b;
+  font-size: 46rpx;
+}
 .step-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1483,9 +1718,14 @@ onPullDownRefresh(load);
   border-radius: 18rpx;
   background: #f8fafc;
 }
-.step-row.four { grid-template-columns: repeat(4, 1fr); }
+.step-row.four {
+  grid-template-columns: repeat(4, 1fr);
+}
 @media (max-width: 380px) {
-  .step-row.four { grid-template-columns: repeat(2, 1fr); gap: 12rpx 8rpx; }
+  .step-row.four {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12rpx 8rpx;
+  }
 }
 .door-tip {
   display: block;
@@ -1497,7 +1737,11 @@ onPullDownRefresh(load);
   font-size: 22rpx;
   line-height: 1.4;
 }
-.step { text-align: center; color: #94a3b8; font-size: 21rpx; }
+.step {
+  text-align: center;
+  color: #94a3b8;
+  font-size: 21rpx;
+}
 .step-num {
   display: flex;
   width: 44rpx;
@@ -1510,26 +1754,56 @@ onPullDownRefresh(load);
   background: #e2e8f0;
   font-size: 24rpx;
 }
-.step-label { display: block; }
-.step.done { color: #0f766e; }
-.step.done .step-num { color: #fff; background: #0f766e; }
-.step.current { color: #0f766e; font-weight: 600; }
+.step-label {
+  display: block;
+}
+.step.done {
+  color: #0f766e;
+}
+.step.done .step-num {
+  color: #fff;
+  background: #0f766e;
+}
+.step.current {
+  color: #0f766e;
+  font-weight: 600;
+}
 .step.current .step-num {
   color: #fff;
   background: #0f766e;
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.2);
 }
-.lines-empty { display: flex; flex-direction: column; gap: 6px; }
-.lines-empty-title { font-size: 13px; color: #64748b; }
-.lines-empty-tip { font-size: 12px; color: #94a3b8; line-height: 1.4; }
+.lines-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.lines-empty-title {
+  font-size: 13px;
+  color: #64748b;
+}
+.lines-empty-tip {
+  font-size: 12px;
+  color: #94a3b8;
+  line-height: 1.4;
+}
 .section-heading {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   margin: 28rpx 0 14rpx;
 }
-.section-title { display: block; font-size: 28rpx; font-weight: 700; }
-.section-subtitle { display: block; margin-top: 4rpx; color: #94a3b8; font-size: 22rpx; }
+.section-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 700;
+}
+.section-subtitle {
+  display: block;
+  margin-top: 4rpx;
+  color: #94a3b8;
+  font-size: 22rpx;
+}
 .line-count {
   padding: 6rpx 12rpx;
   border-radius: 999rpx;
@@ -1553,7 +1827,13 @@ onPullDownRefresh(load);
   white-space: nowrap;
   max-width: 360rpx;
 }
-.qty { color: #0f766e; font-size: 30rpx; font-weight: 800; min-width: 40rpx; text-align: center; }
+.qty {
+  color: #0f766e;
+  font-size: 30rpx;
+  font-weight: 800;
+  min-width: 40rpx;
+  text-align: center;
+}
 .qty-stepper {
   display: flex;
   align-items: center;
@@ -1585,7 +1865,10 @@ onPullDownRefresh(load);
   font-size: 32rpx;
   margin-right: 16rpx;
 }
-.product-copy { flex: 1; min-width: 0; }
+.product-copy {
+  flex: 1;
+  min-width: 0;
+}
 .evidence-row {
   display: flex;
   flex-wrap: wrap;
@@ -1688,5 +1971,7 @@ onPullDownRefresh(load);
   color: #fff;
   background: linear-gradient(135deg, #0f766e, #14b8a6);
 }
-button[disabled] { opacity: 0.45; }
+button[disabled] {
+  opacity: 0.45;
+}
 </style>

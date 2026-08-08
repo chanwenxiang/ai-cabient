@@ -49,7 +49,10 @@
 
     <view class="card tip-card">
       <text class="tip-title">账单有疑问？</text>
-      <text class="tip-body">可在「订单详情」或购物结果页提交申诉。审核通过后会退回余额或原支付渠道，通常 24 小时内处理。</text>
+      <text class="tip-body"
+        >可在「订单详情」或购物结果页提交申诉。审核通过后会退回余额或原支付渠道，通常 24
+        小时内处理。</text
+      >
       <button class="tip-btn" hover-class="btn-hover" @click="goOrders">查看我的订单</button>
     </view>
   </view>
@@ -254,7 +257,9 @@ function goOrders() {
   border: none;
   box-shadow: 0 8rpx 20rpx rgba(5, 150, 105, 0.2);
 }
-.tip-btn::after { border: none; }
+.tip-btn::after {
+  border: none;
+}
 .btn-hover {
   opacity: 0.88;
 }

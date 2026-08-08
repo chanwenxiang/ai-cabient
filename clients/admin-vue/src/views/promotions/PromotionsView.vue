@@ -9,10 +9,25 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:promotion:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button v-hasPermi="['ops:promotion:import']" @click="onDownloadTemplate">导入模板</el-button>
-          <el-button v-hasPermi="['ops:promotion:import']" :loading="importing" @click="triggerImport">导入</el-button>
-          <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
+          <el-button v-hasPermi="['ops:promotion:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
+          <el-button v-hasPermi="['ops:promotion:import']" @click="onDownloadTemplate"
+            >导入模板</el-button
+          >
+          <el-button
+            v-hasPermi="['ops:promotion:import']"
+            :loading="importing"
+            @click="triggerImport"
+            >导入</el-button
+          >
+          <input
+            ref="importInput"
+            type="file"
+            accept=".csv,text/csv"
+            class="hidden-input"
+            @change="onImportFile"
+          />
           <el-button
             v-if="selectedIds.length"
             v-hasPermi="['ops:promotion:stop']"
@@ -21,7 +36,9 @@
           >
             批量停用 ({{ selectedIds.length }})
           </el-button>
-          <el-button v-hasPermi="['ops:promotion:create']" type="primary" @click="openCreate">新建活动</el-button>
+          <el-button v-hasPermi="['ops:promotion:create']" type="primary" @click="openCreate"
+            >新建活动</el-button
+          >
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -39,7 +56,13 @@
         />
       </el-form-item>
       <el-form-item label="状态">
-        <el-select v-model="statusFilter" clearable placeholder="全部" style="width: 120px" @change="search">
+        <el-select
+          v-model="statusFilter"
+          clearable
+          placeholder="全部"
+          style="width: 120px"
+          @change="search"
+        >
           <el-option label="启用" value="ACTIVE" />
           <el-option label="停用" value="INACTIVE" />
         </el-select>
@@ -61,10 +84,21 @@
           row-key="activityId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange" empty-text=" ">
-          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无活动" /></template>
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无活动"
+          /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="activityId" label="活动编号" width="80" align="center" class-name="col-text" sortable="custom">
+          <el-table-column
+            prop="activityId"
+            label="活动编号"
+            width="80"
+            align="center"
+            class-name="col-text"
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.activityId }}</span>
             </template>
@@ -74,12 +108,16 @@
           </el-table-column>
           <el-table-column label="类型" width="120" align="center">
             <template #default="{ row }">
-              <el-tag size="small" effect="plain">{{ typeMap[row.activityType] || row.activityType }}</el-tag>
+              <el-tag size="small" effect="plain">{{
+                typeMap[row.activityType] || row.activityType
+              }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="时间" min-width="200" align="center" class-name="col-text">
             <template #default="{ row }">
-              <span class="cell-datetime">{{ formatTime(row.startTime) }} ~ {{ formatTime(row.endTime) }}</span>
+              <span class="cell-datetime"
+                >{{ formatTime(row.startTime) }} ~ {{ formatTime(row.endTime) }}</span
+              >
             </template>
           </el-table-column>
           <el-table-column label="预算" width="110" align="center" class-name="col-money">
@@ -113,18 +151,26 @@
         </el-table>
       </div>
     </div>
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="filtered.length"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next"
-        background
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="filtered.length"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+    />
 
-    <el-dialog v-model="showDialog" :title="editingId ? '编辑活动' : '新建活动'" width="560px" destroy-on-close>
+    <el-dialog
+      v-model="showDialog"
+      :title="editingId ? '编辑活动' : '新建活动'"
+      width="560px"
+      destroy-on-close
+    >
       <el-form :model="form" label-width="96px">
-        <el-form-item label="活动名称" required><el-input v-model="form.activityName" maxlength="80" /></el-form-item>
+        <el-form-item label="活动名称" required
+          ><el-input v-model="form.activityName" maxlength="80"
+        /></el-form-item>
         <el-form-item label="活动类型">
           <el-select v-model="form.activityType" style="width: 100%">
             <el-option
@@ -135,13 +181,33 @@
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="开始时间"><el-date-picker v-model="form.startTime" type="datetime" style="width: 100%" /></el-form-item>
-        <el-form-item label="结束时间"><el-date-picker v-model="form.endTime" type="datetime" style="width: 100%" /></el-form-item>
+        <el-form-item label="开始时间"
+          ><el-date-picker v-model="form.startTime" type="datetime" style="width: 100%"
+        /></el-form-item>
+        <el-form-item label="结束时间"
+          ><el-date-picker v-model="form.endTime" type="datetime" style="width: 100%"
+        /></el-form-item>
         <el-form-item label="预算(元)">
-          <el-input-number v-model="form.budgetYuan" :min="0" :step="1" :precision="2" controls-position="right" style="width: 100%" />
+          <el-input-number
+            v-model="form.budgetYuan"
+            :min="0"
+            :step="1"
+            :precision="2"
+            controls-position="right"
+            style="width: 100%"
+          />
         </el-form-item>
-        <el-form-item label="每人限制"><el-input-number v-model="form.userLimit" :min="1" :max="100" controls-position="right" style="width: 100%" /></el-form-item>
-        <el-form-item label="描述"><el-input v-model="form.description" type="textarea" /></el-form-item>
+        <el-form-item label="每人限制"
+          ><el-input-number
+            v-model="form.userLimit"
+            :min="1"
+            :max="100"
+            controls-position="right"
+            style="width: 100%"
+        /></el-form-item>
+        <el-form-item label="描述"
+          ><el-input v-model="form.description" type="textarea"
+        /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showDialog = false">取消</el-button>
@@ -188,8 +254,11 @@ const filtered = computed(() => {
     if (statusFilter.value === 'ACTIVE' && !isEnabled(row.status)) return false;
     if (statusFilter.value === 'INACTIVE' && isEnabled(row.status)) return false;
     if (!q) return true;
-    return [row.activityId, row.activityName, row.activityType]
-      .some((x) => String(x || '').toLowerCase().includes(q));
+    return [row.activityId, row.activityName, row.activityType].some((x) =>
+      String(x || '')
+        .toLowerCase()
+        .includes(q)
+    );
   });
   return sortById(rows);
 });
@@ -206,7 +275,16 @@ const exportButtonLabel = computed(() =>
   selectedIds.value.length ? `导出选中 (${selectedIds.value.length})` : '导出'
 );
 
-const CSV_HEADERS = ['活动名称', '类型', '开始时间', '结束时间', '预算(元)', '每人限制', '描述', '状态'];
+const CSV_HEADERS = [
+  '活动名称',
+  '类型',
+  '开始时间',
+  '结束时间',
+  '预算(元)',
+  '每人限制',
+  '描述',
+  '状态'
+];
 
 const emptyForm = () => ({
   activityName: '',
@@ -223,10 +301,13 @@ const typeMap: Record<string, string> = Object.fromEntries(
   dictOptions('promotion_type').map((o) => [o.value, o.label])
 );
 const typeCodeByLabel: Record<string, string> = Object.fromEntries(
-  dictOptions('promotion_type').flatMap((o) => [
-    [o.label, o.value],
-    [o.value, o.value]
-  ] as [string, string][])
+  dictOptions('promotion_type').flatMap(
+    (o) =>
+      [
+        [o.label, o.value],
+        [o.value, o.value]
+      ] as [string, string][]
+  )
 );
 
 function yuan(cents: number) {
@@ -309,7 +390,8 @@ async function onSubmit() {
   if (!f.startTime || !f.endTime) return ElMessage.warning('请选择活动时间');
   const start = new Date(f.startTime);
   const end = new Date(f.endTime);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return ElMessage.warning('活动时间无效');
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))
+    return ElMessage.warning('活动时间无效');
   if (end <= start) return ElMessage.warning('结束时间需晚于开始时间');
   const body = {
     activityName: f.activityName.trim(),
@@ -342,7 +424,9 @@ async function onToggleStatus(row: any) {
   const enable = !isEnabled(row.status);
   const action = enable ? '启用' : '停用';
   try {
-    await ElMessageBox.confirm(`确认${action}活动「${row.activityName}」？`, '活动状态', { type: 'warning' });
+    await ElMessageBox.confirm(`确认${action}活动「${row.activityName}」？`, '活动状态', {
+      type: 'warning'
+    });
     if (enable) {
       await api.request(`/api/v2/ops/promotions/${row.activityId}/launch`, 'POST');
     } else {
@@ -358,7 +442,9 @@ async function onToggleStatus(row: any) {
 }
 
 async function batchDisable() {
-  const targets = list.value.filter((r) => selectedIds.value.includes(r.activityId) && isEnabled(r.status));
+  const targets = list.value.filter(
+    (r) => selectedIds.value.includes(r.activityId) && isEnabled(r.status)
+  );
   if (!targets.length) return ElMessage.warning('请勾选已启用的活动');
   try {
     await ElMessageBox.confirm(`确认停用选中的 ${targets.length} 个活动？`, '批量停用');
@@ -398,7 +484,16 @@ function onExport() {
 
 function onDownloadTemplate() {
   downloadCsv(csvFileName('营销活动导入模板'), CSV_HEADERS, [
-    ['示例满减活动', '满减', '2026-07-16 00:00', '2026-08-16 23:59', '1000', '1', '示例描述', '停用']
+    [
+      '示例满减活动',
+      '满减',
+      '2026-07-16 00:00',
+      '2026-08-16 23:59',
+      '1000',
+      '1',
+      '示例描述',
+      '停用'
+    ]
   ]);
 }
 
@@ -524,11 +619,33 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.muted { color: var(--layout-muted); font-size: 13px; }
-.hidden-input { display: none; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.muted {
+  color: var(--layout-muted);
+  font-size: 13px;
+}
+.hidden-input {
+  display: none;
+}
 </style>

@@ -18,9 +18,15 @@
             >
               补货调度
             </el-button>
-            <el-button v-hasPermi="['ops:dispute']" plain @click="goPath('/disputes')">争议审核</el-button>
-            <el-button v-hasPermi="['ops:device:list']" plain @click="goPath('/devices')">设备管理</el-button>
-            <el-button v-hasPermi="['ops:device-kpi:view']" plain @click="goPath('/device-kpi')">设备可用性</el-button>
+            <el-button v-hasPermi="['ops:dispute']" plain @click="goPath('/disputes')"
+              >争议审核</el-button
+            >
+            <el-button v-hasPermi="['ops:device:list']" plain @click="goPath('/devices')"
+              >设备管理</el-button
+            >
+            <el-button v-hasPermi="['ops:device-kpi:view']" plain @click="goPath('/device-kpi')"
+              >设备可用性</el-button
+            >
             <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
           </div>
         </div>
@@ -37,7 +43,9 @@
             @keydown.enter="goPath('/devices', { salesLocked: 'false' })"
           >
             <div class="stat-label">在售货柜</div>
-            <div class="stat-value">{{ listHydrated ? (workbench?.devicesOnSale ?? '无') : '—' }}</div>
+            <div class="stat-value">
+              {{ listHydrated ? (workbench?.devicesOnSale ?? '无') : '—' }}
+            </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
               <template v-else>
@@ -79,10 +87,14 @@
             @keydown.enter="goPath('/finance')"
           >
             <div class="stat-label">今日营收</div>
-            <div class="stat-value">{{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '—' }}</div>
+            <div class="stat-value">
+              {{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '—' }}
+            </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
-              <template v-else>{{ canAccessPath('/finance') ? '查看财务毛利' : '今日快照' }}</template>
+              <template v-else>{{
+                canAccessPath('/finance') ? '查看财务毛利' : '今日快照'
+              }}</template>
             </div>
           </div>
         </el-col>
@@ -103,7 +115,13 @@
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
               <template v-else-if="canAccessPath('/exceptions')">
-                {{ openExceptionCount ? '进入异常中心' : (totalIssues ? `其它待办 ${totalIssues}` : '运行正常') }}
+                {{
+                  openExceptionCount
+                    ? '进入异常中心'
+                    : totalIssues
+                      ? `其它待办 ${totalIssues}`
+                      : '运行正常'
+                }}
               </template>
               <template v-else>{{ totalIssues ? `其它待办 ${totalIssues}` : '运行正常' }}</template>
             </div>
@@ -155,7 +173,9 @@
       </p>
 
       <div class="table-toolbar">
-        <span class="table-meta">待处理明细 {{ listHydrated ? sortedActions.length : '—' }} 条</span>
+        <span class="table-meta"
+          >待处理明细 {{ listHydrated ? sortedActions.length : '—' }} 条</span
+        >
         <el-radio-group v-model="severityFilter" size="small">
           <el-radio-button value="all">全部</el-radio-button>
           <el-radio-button value="urgent">仅紧急</el-radio-button>
@@ -164,13 +184,7 @@
 
       <div class="table-scroll">
         <div class="table-scroll-inner">
-          <el-table
-            class="action-table"
-            :data="pagedActions"
-            stripe
-            border
-            empty-text=" "
-          >
+          <el-table class="action-table" :data="pagedActions" stripe border empty-text=" ">
             <template #empty>
               <el-empty
                 v-if="listHydrated && !loading"
@@ -188,11 +202,31 @@
             <el-table-column label="类型" width="110" align="center">
               <template #default="{ row }">{{ typeLabel(row.type) }}</template>
             </el-table-column>
-            <el-table-column prop="title" label="标题" min-width="140" show-overflow-tooltip align="center" class-name="col-text" />
-            <el-table-column label="关联" min-width="160" show-overflow-tooltip align="center" class-name="col-text">
+            <el-table-column
+              prop="title"
+              label="标题"
+              min-width="140"
+              show-overflow-tooltip
+              align="center"
+              class-name="col-text"
+            />
+            <el-table-column
+              label="关联"
+              min-width="160"
+              show-overflow-tooltip
+              align="center"
+              class-name="col-text"
+            >
               <template #default="{ row }">{{ contextLabel(row) }}</template>
             </el-table-column>
-            <el-table-column prop="detail" label="详情" min-width="220" show-overflow-tooltip align="center" class-name="col-text" />
+            <el-table-column
+              prop="detail"
+              label="详情"
+              min-width="220"
+              show-overflow-tooltip
+              align="center"
+              class-name="col-text"
+            />
             <el-table-column label="操作" width="88" class-name="col-action" align="center">
               <template #default="{ row }">
                 <TableActions
@@ -277,7 +311,12 @@ const quickLinks = computed<QuickLink[]>(() => [
     path: '/exceptions',
     query: { status: 'OPEN' }
   },
-  { label: '待审争议', count: workbench.value?.openDisputes || 0, path: '/disputes', query: { status: 'OPEN' } },
+  {
+    label: '待审争议',
+    count: workbench.value?.openDisputes || 0,
+    path: '/disputes',
+    query: { status: 'OPEN' }
+  },
   {
     label: '超时待支付',
     count: workbench.value?.pendingUnpaidOrders || 0,
@@ -302,24 +341,24 @@ const quickLinks = computed<QuickLink[]>(() => [
     path: '/upload-queue',
     query: { stuck: '1' }
   },
-          {
-            label: '缺货柜/SKU',
-            count: stats.value.lowStockSkuCount || workbench.value?.lowStockItems || 0,
-            path: '/stock-health',
-            query: { dimension: 'LOW' }
-          },
-          {
-            label: '临期批次',
-            count: stats.value.nearExpiryLotCount || 0,
-            path: '/stock-health',
-            query: { dimension: 'NEAR_EXPIRY' }
-          },
-          {
-            label: '补货任务',
-            count: workbench.value?.pendingReplenishments || 0,
-            path: '/replenishment',
-            query: { tab: 'routes' }
-          },
+  {
+    label: '缺货柜/SKU',
+    count: stats.value.lowStockSkuCount || workbench.value?.lowStockItems || 0,
+    path: '/stock-health',
+    query: { dimension: 'LOW' }
+  },
+  {
+    label: '临期批次',
+    count: stats.value.nearExpiryLotCount || 0,
+    path: '/stock-health',
+    query: { dimension: 'NEAR_EXPIRY' }
+  },
+  {
+    label: '补货任务',
+    count: workbench.value?.pendingReplenishments || 0,
+    path: '/replenishment',
+    query: { tab: 'routes' }
+  },
   {
     label: '异常会话',
     count: workbench.value?.staleSessions || 0,
@@ -434,19 +473,21 @@ function priority(severity = '') {
 
 function typeLabel(type = '') {
   return (
-    {
-      DISPUTE: '账单争议',
-      DEVICE_OFFLINE: '设备离线',
-      UPLOAD_STUCK: '录像滞留',
-      SESSION_STALE: '会话超时',
-      LOW_STOCK: '库存不足',
-      REPLENISHMENT: '补货任务',
-      RECON_MISMATCH: '对账差异',
-      RECONCILIATION_MISMATCH: '对账差异',
-      SPLIT_EXCEPTION: '分账异常',
-      IN_TRANSIT_OVERDUE: '签收超时'
-    } as Record<string, string>
-  )[type] || type;
+    (
+      {
+        DISPUTE: '账单争议',
+        DEVICE_OFFLINE: '设备离线',
+        UPLOAD_STUCK: '录像滞留',
+        SESSION_STALE: '会话超时',
+        LOW_STOCK: '库存不足',
+        REPLENISHMENT: '补货任务',
+        RECON_MISMATCH: '对账差异',
+        RECONCILIATION_MISMATCH: '对账差异',
+        SPLIT_EXCEPTION: '分账异常',
+        IN_TRANSIT_OVERDUE: '签收超时'
+      } as Record<string, string>
+    )[type] || type
+  );
 }
 
 function contextLabel(row: OpsActionItem) {
@@ -507,7 +548,10 @@ function goAction(row: OpsActionItem) {
       return;
     case 'LOW_STOCK':
     case 'REPLENISHMENT':
-      router.push({ path: '/replenishment', query: { tab: row.type === 'LOW_STOCK' ? 'shortage' : 'routes', ...q } });
+      router.push({
+        path: '/replenishment',
+        query: { tab: row.type === 'LOW_STOCK' ? 'shortage' : 'routes', ...q }
+      });
       return;
     case 'IN_TRANSIT_OVERDUE':
       router.push({ path: '/warehouse', query: { tab: 'transit', overdue: '1', ...q } });
@@ -551,7 +595,10 @@ async function fetchWorkbenchBundle() {
       api.request<OpsWorkbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null),
       canAccessPath('/exceptions')
         ? api
-            .request<PageResult<{ exceptionId: string }>>('/api/v2/ops/admin/exceptions?status=OPEN&page=0&size=1', 'GET')
+            .request<PageResult<{ exceptionId: string }>>(
+              '/api/v2/ops/admin/exceptions?status=OPEN&page=0&size=1',
+              'GET'
+            )
             .catch(() => null)
         : Promise.resolve(null)
     ]);
@@ -602,12 +649,32 @@ onMounted(() => load({ silent: true }));
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.page-card-head__actions { display: flex; gap: 8px; align-items: center; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.no-perm { color: var(--el-text-color-placeholder); font-size: 13px; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.no-perm {
+  color: var(--el-text-color-placeholder);
+  font-size: 13px;
+}
 .queue-card {
   margin-top: 16px;
 }
@@ -624,7 +691,10 @@ onMounted(() => load({ silent: true }));
 }
 .stat-tile.is-clickable {
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
 }
 .stat-tile.is-clickable:hover,
 .stat-tile.is-clickable:focus-visible {
@@ -671,7 +741,10 @@ onMounted(() => load({ silent: true }));
   background: var(--el-fill-color-blank, var(--layout-card));
   cursor: pointer;
   text-align: center;
-  transition: border-color 0.15s ease, transform 0.15s ease, background 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    transform 0.15s ease,
+    background 0.15s ease;
 }
 .quick-tile:hover,
 .quick-tile:focus-visible {

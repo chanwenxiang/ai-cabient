@@ -74,7 +74,7 @@ export function isMerchantPackAgnostic(permCode) {
     if (!permCode || !permCode.trim())
         return true;
     const code = permCode.trim();
-    return code === 'merchant' || code === 'merchant:portal:access' || code.startsWith('merchant:nav:');
+    return (code === 'merchant' || code === 'merchant:portal:access' || code.startsWith('merchant:nav:'));
 }
 function matchesPrefix(code, prefixes) {
     for (const prefix of prefixes) {

@@ -1,8 +1,19 @@
 <template>
   <view class="page">
     <view class="page-nav">
-      <view class="nav-back" hover-class="nav-back-hover" role="button" aria-label="返回" @click="goBack">
-        <image class="nav-back-svg" src="/static/nav-back.svg" mode="aspectFit" aria-hidden="true" />
+      <view
+        class="nav-back"
+        hover-class="nav-back-hover"
+        role="button"
+        aria-label="返回"
+        @click="goBack"
+      >
+        <image
+          class="nav-back-svg"
+          src="/static/nav-back.svg"
+          mode="aspectFit"
+          aria-hidden="true"
+        />
       </view>
       <text class="nav-title">我的订单</text>
       <view class="nav-side" />
@@ -59,7 +70,8 @@
               class="filter-chip"
               :class="{ active: filter === f.value }"
               @click="filter = f.value"
-            >{{ f.label }}{{ filterCountSuffix(f.value) }}</text>
+              >{{ f.label }}{{ filterCountSuffix(f.value) }}</text
+            >
           </view>
         </scroll-view>
         <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false">
@@ -70,7 +82,8 @@
               class="filter-chip time"
               :class="{ active: timeRange === t.value }"
               @click="timeRange = t.value"
-            >{{ t.label }}</text>
+              >{{ t.label }}</text
+            >
           </view>
         </scroll-view>
       </view>
@@ -108,7 +121,9 @@
           <text class="empty-desc">可切换时间或状态再试</text>
         </view>
         <view v-if="loadingMore" class="load-more">加载中…</view>
-        <view v-else-if="hasMore && orders.length" class="load-more hint" @click="loadMore">上拉加载更多</view>
+        <view v-else-if="hasMore && orders.length" class="load-more hint" @click="loadMore"
+          >上拉加载更多</view
+        >
         <view v-else-if="orders.length && !hasMore" class="load-more hint">没有更多了</view>
         <view class="list-foot">
           <view class="foot-actions">
@@ -145,7 +160,9 @@ const filter = ref<'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelle
 type TimeRange = 'all' | 'today' | '7d' | '30d';
 const timeRange = ref<TimeRange>('all');
 const reviewingDisputes = computed(() =>
-  disputes.value.filter((d) => d.status === 'OPEN' && !orders.value.some((o) => o.sessionId === d.sessionId))
+  disputes.value.filter(
+    (d) => d.status === 'OPEN' && !orders.value.some((o) => o.sessionId === d.sessionId)
+  )
 );
 const filters = [
   { label: '全部', value: 'all' as const },
@@ -162,7 +179,9 @@ const timeFilters = [
   { label: '近30天', value: '30d' as const }
 ];
 const visibleOrders = computed(() =>
-  orders.value.filter((o) => matchesFilter(o, filter.value) && matchesTimeRange(o.createdAt, timeRange.value))
+  orders.value.filter(
+    (o) => matchesFilter(o, filter.value) && matchesTimeRange(o.createdAt, timeRange.value)
+  )
 );
 
 function startOfTodayShanghai(): number {
@@ -190,11 +209,15 @@ function matchesTimeRange(createdAt: string | undefined, range: TimeRange) {
   return true;
 }
 
-function matchesFilter(order: OrderSummary, value: 'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelled') {
+function matchesFilter(
+  order: OrderSummary,
+  value: 'all' | 'paid' | 'pending' | 'issue' | 'refunded' | 'cancelled'
+) {
   if (value === 'paid') return order.status === 'PAID' || order.status === 'COMPLETED';
   if (value === 'pending') return order.status === 'PENDING' || order.status === 'PROCESSING';
   if (value === 'issue') return order.status === 'DISPUTED' || order.status === 'FAILED';
-  if (value === 'refunded') return order.status === 'REFUNDED' || order.status === 'PARTIAL_REFUNDED';
+  if (value === 'refunded')
+    return order.status === 'REFUNDED' || order.status === 'PARTIAL_REFUNDED';
   if (value === 'cancelled') return order.status === 'CANCELLED';
   return true;
 }
@@ -279,7 +302,9 @@ function goShop() {
 async function onAuth() {
   const ok = await ensureConsumerAuth();
   if (!ok) {
-    uni.navigateTo({ url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/orders/orders') });
+    uni.navigateTo({
+      url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/orders/orders')
+    });
     return;
   }
   await load();
@@ -416,7 +441,9 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   width: 26px;
   height: 26px;
 }
-.nav-back-hover { opacity: 0.6; }
+.nav-back-hover {
+  opacity: 0.6;
+}
 .nav-title {
   flex: 1;
   text-align: center;
@@ -436,10 +463,23 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   flex-direction: column;
   align-items: center;
 }
-.state-wrap.compact { padding: 80rpx 24rpx; }
-.meta { color: #849087; }
-.empty-title { font-size: 34rpx; font-weight: 700; color: #223029; }
-.empty-desc { font-size: 26rpx; color: #849087; margin-top: 12rpx; line-height: 1.55; }
+.state-wrap.compact {
+  padding: 80rpx 24rpx;
+}
+.meta {
+  color: #849087;
+}
+.empty-title {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #223029;
+}
+.empty-desc {
+  font-size: 26rpx;
+  color: #849087;
+  margin-top: 12rpx;
+  line-height: 1.55;
+}
 .action-btn {
   margin: 40rpx 0 0;
   width: 360rpx;
@@ -451,7 +491,10 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   font-size: 30rpx;
   font-weight: 600;
 }
-.action-btn::after, .ghost-btn::after { border: none; }
+.action-btn::after,
+.ghost-btn::after {
+  border: none;
+}
 .ghost-btn {
   margin: 20rpx 0 0;
   width: 360rpx;
@@ -463,7 +506,9 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   font-size: 28rpx;
   border: 1rpx solid #e4ebe7;
 }
-.btn-hover { opacity: 0.88; }
+.btn-hover {
+  opacity: 0.88;
+}
 
 .orders-main {
   flex: 1;
@@ -480,7 +525,10 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #68766e;
   letter-spacing: 1rpx;
 }
-.review-section { flex-shrink: 0; padding: 0 24rpx; }
+.review-section {
+  flex-shrink: 0;
+  padding: 0 24rpx;
+}
 .review-card {
   display: flex;
   gap: 18rpx;
@@ -491,9 +539,18 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   border: 1rpx solid #edf1ef;
   box-shadow: 0 10rpx 28rpx rgba(15, 23, 42, 0.05);
 }
-.review-card.tone-wait { background: linear-gradient(135deg, #fff, #f0fdf7); border-color: rgba(5, 150, 105, 0.22); }
-.review-card.tone-warn { background: linear-gradient(135deg, #fff, #fff7ed); border-color: rgba(217, 119, 6, 0.25); }
-.review-card.tone-success { background: linear-gradient(135deg, #fff, #ecfdf5); border-color: rgba(16, 185, 129, 0.28); }
+.review-card.tone-wait {
+  background: linear-gradient(135deg, #fff, #f0fdf7);
+  border-color: rgba(5, 150, 105, 0.22);
+}
+.review-card.tone-warn {
+  background: linear-gradient(135deg, #fff, #fff7ed);
+  border-color: rgba(217, 119, 6, 0.25);
+}
+.review-card.tone-success {
+  background: linear-gradient(135deg, #fff, #ecfdf5);
+  border-color: rgba(16, 185, 129, 0.28);
+}
 .review-icon {
   width: 64rpx;
   height: 64rpx;
@@ -507,10 +564,25 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   font-weight: 700;
   flex-shrink: 0;
 }
-.tone-warn .review-icon { background: #fff7ed; color: #c2410c; }
-.review-body { flex: 1; min-width: 0; }
-.review-top { display: flex; align-items: center; justify-content: space-between; gap: 12rpx; }
-.review-title { font-size: 28rpx; font-weight: 700; color: #223029; }
+.tone-warn .review-icon {
+  background: #fff7ed;
+  color: #c2410c;
+}
+.review-body {
+  flex: 1;
+  min-width: 0;
+}
+.review-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+}
+.review-title {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #223029;
+}
 .review-detail {
   display: block;
   margin-top: 10rpx;
@@ -524,17 +596,31 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   align-items: center;
   margin-top: 14rpx;
 }
-.review-time { font-size: 22rpx; color: #a1aaa5; }
-.review-link { font-size: 24rpx; color: #059669; font-weight: 600; }
+.review-time {
+  font-size: 22rpx;
+  color: #a1aaa5;
+}
+.review-link {
+  font-size: 24rpx;
+  color: #059669;
+  font-weight: 600;
+}
 
-.filter-block { flex-shrink: 0; }
-.filter-scroll { white-space: nowrap; }
+.filter-block {
+  flex-shrink: 0;
+}
+.filter-scroll {
+  white-space: nowrap;
+}
 .order-filters {
   display: inline-flex;
   gap: 12rpx;
   padding: 8rpx 24rpx 10rpx;
 }
-.time-filters { padding-top: 0; padding-bottom: 16rpx; }
+.time-filters {
+  padding-top: 0;
+  padding-bottom: 16rpx;
+}
 .filter-chip {
   white-space: nowrap;
   padding: 12rpx 22rpx;
@@ -563,7 +649,10 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   box-shadow: 0 6rpx 16rpx rgba(4, 120, 87, 0.18);
 }
 
-.list { flex: 1; min-height: 0; }
+.list {
+  flex: 1;
+  min-height: 0;
+}
 .order-card {
   margin: 0 24rpx 16rpx;
   padding: 26rpx 28rpx;
@@ -572,10 +661,27 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   border: 1rpx solid #edf1ef;
   box-shadow: 0 10rpx 28rpx rgba(15, 23, 42, 0.05);
 }
-.order-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16rpx; }
-.order-meta { min-width: 0; }
-.order-device-name { display: block; font-size: 30rpx; font-weight: 700; color: #223029; }
-.order-id { display: block; margin-top: 6rpx; font-size: 22rpx; color: #a1aaa5; }
+.order-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+.order-meta {
+  min-width: 0;
+}
+.order-device-name {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #223029;
+}
+.order-id {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #a1aaa5;
+}
 .chip {
   flex-shrink: 0;
   font-size: 22rpx;
@@ -583,12 +689,30 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   border-radius: 999rpx;
   font-weight: 650;
 }
-.chip.paid { background: #e8f8ef; color: #059669; }
-.chip.pending { background: #fff8e6; color: #d97706; }
-.chip.disputed { background: #ffecec; color: #ef4444; }
-.chip.refunded { background: #fff3e0; color: #ea580c; }
-.chip.cancelled { background: #f3f4f6; color: #6b7280; }
-.chip.default { background: #f0f0f0; color: #888; }
+.chip.paid {
+  background: #e8f8ef;
+  color: #059669;
+}
+.chip.pending {
+  background: #fff8e6;
+  color: #d97706;
+}
+.chip.disputed {
+  background: #ffecec;
+  color: #ef4444;
+}
+.chip.refunded {
+  background: #fff3e0;
+  color: #ea580c;
+}
+.chip.cancelled {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+.chip.default {
+  background: #f0f0f0;
+  color: #888;
+}
 .order-mid {
   display: flex;
   justify-content: space-between;
@@ -596,8 +720,16 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin-top: 22rpx;
   gap: 16rpx;
 }
-.order-summary { font-size: 26rpx; color: #53645b; }
-.amt { color: #047857; font-weight: 800; font-size: 40rpx; letter-spacing: -1rpx; }
+.order-summary {
+  font-size: 26rpx;
+  color: #53645b;
+}
+.amt {
+  color: #047857;
+  font-weight: 800;
+  font-size: 40rpx;
+  letter-spacing: -1rpx;
+}
 .order-bottom {
   display: flex;
   justify-content: space-between;
@@ -606,7 +738,12 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   padding-top: 16rpx;
   border-top: 1rpx dashed #e3e9e6;
 }
-.order-bottom-left { display: flex; align-items: center; gap: 12rpx; flex-wrap: wrap; }
+.order-bottom-left {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  flex-wrap: wrap;
+}
 .order-channel {
   font-size: 22rpx;
   color: #576b95;
@@ -614,18 +751,38 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   padding: 2rpx 10rpx;
   border-radius: 6rpx;
 }
-.order-time { font-size: 22rpx; color: #a1aaa5; }
-.order-hint { font-size: 24rpx; color: #059669; font-weight: 600; }
+.order-time {
+  font-size: 22rpx;
+  color: #a1aaa5;
+}
+.order-hint {
+  font-size: 24rpx;
+  color: #059669;
+  font-weight: 600;
+}
 .load-more {
   padding: 20rpx 0 8rpx;
   text-align: center;
   font-size: 24rpx;
   color: #94a3b8;
 }
-.load-more.hint { color: #64748b; }
-.list-foot { padding: 28rpx 24rpx 60rpx; text-align: center; }
-.foot-link { font-size: 26rpx; color: #576b95; }
-.foot-actions { display: flex; gap: 20rpx; justify-content: center; flex-wrap: wrap; }
+.load-more.hint {
+  color: #64748b;
+}
+.list-foot {
+  padding: 28rpx 24rpx 60rpx;
+  text-align: center;
+}
+.foot-link {
+  font-size: 26rpx;
+  color: #576b95;
+}
+.foot-actions {
+  display: flex;
+  gap: 20rpx;
+  justify-content: center;
+  flex-wrap: wrap;
+}
 .foot-btn {
   padding: 14rpx 28rpx;
   border-radius: 999rpx;

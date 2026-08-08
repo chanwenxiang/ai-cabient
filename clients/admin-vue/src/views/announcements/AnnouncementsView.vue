@@ -9,11 +9,30 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:announcement:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button v-hasPermi="['ops:announcement:import']" @click="onDownloadTemplate(['示例公告', '公告正文', '全部', '普通', '已发布', ''])">导入模板</el-button>
-          <el-button v-hasPermi="['ops:announcement:import']" :loading="importing" @click="triggerImport">导入</el-button>
-          <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
-          <el-button v-hasPermi="['ops:announcement:create']" type="primary" @click="openCreate">发布公告</el-button>
+          <el-button v-hasPermi="['ops:announcement:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
+          <el-button
+            v-hasPermi="['ops:announcement:import']"
+            @click="onDownloadTemplate(['示例公告', '公告正文', '全部', '普通', '已发布', ''])"
+            >导入模板</el-button
+          >
+          <el-button
+            v-hasPermi="['ops:announcement:import']"
+            :loading="importing"
+            @click="triggerImport"
+            >导入</el-button
+          >
+          <input
+            ref="importInput"
+            type="file"
+            accept=".csv,text/csv"
+            class="hidden-input"
+            @change="onImportFile"
+          />
+          <el-button v-hasPermi="['ops:announcement:create']" type="primary" @click="openCreate"
+            >发布公告</el-button
+          >
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -31,7 +50,13 @@
         />
       </el-form-item>
       <el-form-item label="状态">
-        <el-select v-model="statusFilter" clearable placeholder="全部" style="width: 120px" @change="search">
+        <el-select
+          v-model="statusFilter"
+          clearable
+          placeholder="全部"
+          style="width: 120px"
+          @change="search"
+        >
           <el-option
             v-for="item in dictOptions('announcement_status')"
             :key="item.value"
@@ -41,7 +66,13 @@
         </el-select>
       </el-form-item>
       <el-form-item label="优先级">
-        <el-select v-model="priorityFilter" clearable placeholder="全部" style="width: 120px" @change="search">
+        <el-select
+          v-model="priorityFilter"
+          clearable
+          placeholder="全部"
+          style="width: 120px"
+          @change="search"
+        >
           <el-option
             v-for="item in dictOptions('dispute_priority')"
             :key="item.value"
@@ -72,12 +103,21 @@
           row-key="announceId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange" empty-text=" ">
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
           <template #empty>
             <el-empty v-if="listHydrated && !loading" description="暂无公告" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="announceId" label="公告编号" width="100" align="center" class-name="col-text" sortable="custom">
+          <el-table-column
+            prop="announceId"
+            label="公告编号"
+            width="100"
+            align="center"
+            class-name="col-text"
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.announceId ?? '无' }}</span>
             </template>
@@ -93,7 +133,9 @@
             </template>
           </el-table-column>
           <el-table-column label="目标" width="100" align="center">
-            <template #default="{ row }">{{ displayLabel('announcement_audience', row.targetScope) }}</template>
+            <template #default="{ row }">{{
+              displayLabel('announcement_audience', row.targetScope)
+            }}</template>
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">
@@ -109,29 +151,45 @@
           </el-table-column>
           <el-table-column label="操作" width="160" class-name="col-action" align="center">
             <template #default="{ row }">
-              <TableActions :actions="rowActions(row)" :max-primary="2" @action="(k) => onRowAction(k, row)" />
+              <TableActions
+                :actions="rowActions(row)"
+                :max-primary="2"
+                @action="(k) => onRowAction(k, row)"
+              />
             </template>
           </el-table-column>
         </el-table>
       </div>
     </div>
 
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="filtered.length"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next"
-        background
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="filtered.length"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+    />
 
-    <el-dialog v-model="showForm" :title="editingId ? '编辑公告' : '发布公告'" width="480px" destroy-on-close>
+    <el-dialog
+      v-model="showForm"
+      :title="editingId ? '编辑公告' : '发布公告'"
+      width="480px"
+      destroy-on-close
+    >
       <el-form :model="form" label-width="80px">
         <el-form-item label="标题" required>
           <el-input v-model="form.title" maxlength="100" show-word-limit />
         </el-form-item>
         <el-form-item label="内容" required>
-          <el-input v-model="form.content" type="textarea" :rows="6" maxlength="2000" show-word-limit />
+          <el-input
+            v-model="form.content"
+            type="textarea"
+            :rows="6"
+            maxlength="2000"
+            show-word-limit
+          />
         </el-form-item>
         <el-form-item label="目标">
           <el-select v-model="form.targetScope">
@@ -162,24 +220,34 @@
           type="primary"
           :loading="saving"
           @click="onSaveSubmit"
-        >保存</el-button>
+          >保存</el-button
+        >
         <el-button
           v-else
           v-hasPermi="['ops:announcement:publish']"
           type="primary"
           :loading="saving"
           @click="onPublishSubmit"
-        >发布</el-button>
+          >发布</el-button
+        >
       </template>
     </el-dialog>
 
     <el-dialog v-model="previewVisible" title="公告详情" width="480px" destroy-on-close>
       <el-descriptions v-if="previewRow" :column="2" border>
         <el-descriptions-item label="标题" :span="2">{{ previewRow.title }}</el-descriptions-item>
-        <el-descriptions-item label="优先级">{{ priorityMap[previewRow.priority] || previewRow.priority }}</el-descriptions-item>
-        <el-descriptions-item label="目标">{{ displayLabel('announcement_audience', previewRow.targetScope) }}</el-descriptions-item>
-        <el-descriptions-item label="状态">{{ displayLabel('announcement_status', previewRow.status) }}</el-descriptions-item>
-        <el-descriptions-item label="发布时间">{{ formatTime(previewRow.publishAt) || '无' }}</el-descriptions-item>
+        <el-descriptions-item label="优先级">{{
+          priorityMap[previewRow.priority] || previewRow.priority
+        }}</el-descriptions-item>
+        <el-descriptions-item label="目标">{{
+          displayLabel('announcement_audience', previewRow.targetScope)
+        }}</el-descriptions-item>
+        <el-descriptions-item label="状态">{{
+          displayLabel('announcement_status', previewRow.status)
+        }}</el-descriptions-item>
+        <el-descriptions-item label="发布时间">{{
+          formatTime(previewRow.publishAt) || '无'
+        }}</el-descriptions-item>
         <el-descriptions-item label="内容" :span="2">
           <div class="announcement-content">{{ previewRow.content || '暂无内容' }}</div>
         </el-descriptions-item>
@@ -231,7 +299,13 @@ const filtered = computed(() => {
   const rows = list.value.filter((row) => {
     if (statusFilter.value && row.status !== statusFilter.value) return false;
     if (priorityFilter.value && row.priority !== priorityFilter.value) return false;
-    if (q && !String(row.title || '').toLowerCase().includes(q)) return false;
+    if (
+      q &&
+      !String(row.title || '')
+        .toLowerCase()
+        .includes(q)
+    )
+      return false;
     return true;
   });
   return sortById(rows);
@@ -246,62 +320,65 @@ watch([keyword, statusFilter, priorityFilter], () => {
   page.value = 1;
 });
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } = useTableSelection<any>(
-  (r) => r.announceId ?? `${r.title}-${r.publishAt}`
-);
+const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
+  useTableSelection<any>((r) => r.announceId ?? `${r.title}-${r.publishAt}`);
 
-const statusMap: Record<string, string> = Object.fromEntries(
-  dictOptions('announcement_status').map((o) => [o.value, o.label])
-);
 const priorityMap: Record<string, string> = Object.fromEntries(
   dictOptions('dispute_priority').map((o) => [o.value, o.label])
 );
 const scopeCodeByLabel: Record<string, string> = Object.fromEntries(
-  dictOptions('announcement_audience').flatMap((o) => [
-    [o.label, o.value],
-    [o.value, o.value],
-    ...(o.value === 'ALL' ? ([['全部', 'ALL']] as [string, string][]) : [])
-  ] as [string, string][])
+  dictOptions('announcement_audience').flatMap(
+    (o) =>
+      [
+        [o.label, o.value],
+        [o.value, o.value],
+        ...(o.value === 'ALL' ? ([['全部', 'ALL']] as [string, string][]) : [])
+      ] as [string, string][]
+  )
 );
 const priorityCodeByLabel: Record<string, string> = Object.fromEntries(
-  dictOptions('dispute_priority').flatMap((o) => [
-    [o.label, o.value],
-    [o.value, o.value]
-  ] as [string, string][])
+  dictOptions('dispute_priority').flatMap(
+    (o) =>
+      [
+        [o.label, o.value],
+        [o.value, o.value]
+      ] as [string, string][]
+  )
 );
 
 const CSV_HEADERS = ['标题', '内容', '目标', '优先级', '状态', '发布时间'];
 
-const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
-  filePrefix: '公告',
-  headers: CSV_HEADERS,
-  toRows: () =>
-    pickSelected(filtered.value).map((row) => [
-      row.title,
-      row.content || '',
-      displayLabel('announcement_audience', row.targetScope),
-      priorityMap[row.priority] || row.priority,
-      displayLabel('announcement_status', row.status),
-      formatTime(row.publishAt)
-    ]),
-  onImportRows: async (rows) => {
-    let ok = 0;
-    for (const row of rows) {
-      const title = row['标题'] || row.title;
-      if (!title?.trim()) continue;
-      await post('/api/v2/ops/announcements', {
-        title: title.trim(),
-        content: row['内容'] || row.content || '',
-        targetScope: scopeCodeByLabel[row['目标'] || row.targetScope] || 'ALL',
-        priority: priorityCodeByLabel[row['优先级'] || row.priority] || 'NORMAL',
-        publishAt: new Date().toISOString()
-      });
-      ok++;
+const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
+  useListCsv({
+    filePrefix: '公告',
+    headers: CSV_HEADERS,
+    toRows: () =>
+      pickSelected(filtered.value).map((row) => [
+        row.title,
+        row.content || '',
+        displayLabel('announcement_audience', row.targetScope),
+        priorityMap[row.priority] || row.priority,
+        displayLabel('announcement_status', row.status),
+        formatTime(row.publishAt)
+      ]),
+    onImportRows: async (rows) => {
+      let ok = 0;
+      for (const row of rows) {
+        const title = row['标题'] || row.title;
+        if (!title?.trim()) continue;
+        await post('/api/v2/ops/announcements', {
+          title: title.trim(),
+          content: row['内容'] || row.content || '',
+          targetScope: scopeCodeByLabel[row['目标'] || row.targetScope] || 'ALL',
+          priority: priorityCodeByLabel[row['优先级'] || row.priority] || 'NORMAL',
+          publishAt: new Date().toISOString()
+        });
+        ok++;
+      }
+      await load();
+      return ok;
     }
-    await load();
-    return ok;
-  }
-});
+  });
 
 function syncRouteQuery() {
   const query: Record<string, string> = {};
@@ -361,7 +438,12 @@ async function load() {
 }
 
 function priorityType(p: string) {
-  const m: Record<string, string> = { LOW: 'info', NORMAL: 'primary', HIGH: 'warning', URGENT: 'danger' };
+  const m: Record<string, string> = {
+    LOW: 'info',
+    NORMAL: 'primary',
+    HIGH: 'warning',
+    URGENT: 'danger'
+  };
   return m[p] || 'info';
 }
 
@@ -524,12 +606,40 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-size: 15px; font-weight: 600; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.error-state { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.hidden-input { display: none; }
-.announcement-content { white-space: pre-wrap; word-break: break-word; line-height: 1.7; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-size: 15px;
+  font-weight: 600;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.error-state {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.hidden-input {
+  display: none;
+}
+.announcement-content {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.7;
+}
 </style>

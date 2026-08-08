@@ -8,11 +8,15 @@
         <picker :range="deviceOptions" range-key="label" @change="onDevicePick">
           <view class="picker">柜机：{{ selectedLabel }}</view>
         </picker>
-        <text v-if="!canEdit" class="meta warn">定价只读 — 需平台开启「允许商户改价」且具备 pricing:edit 权限</text>
+        <text v-if="!canEdit" class="meta warn"
+          >定价只读 — 需平台开启「允许商户改价」且具备 pricing:edit 权限</text
+        >
       </view>
 
       <view v-if="loading && !rows.length" class="card">加载中…</view>
-      <view v-else-if="error && !rows.length" class="card"><text class="err">{{ error }}</text></view>
+      <view v-else-if="error && !rows.length" class="card"
+        ><text class="err">{{ error }}</text></view
+      >
       <view v-else>
         <view v-if="error" class="banner-err">
           <text>{{ error }}</text>
@@ -21,7 +25,9 @@
         <view v-for="p in rows" :key="draftKey(p)" class="card row">
           <view class="row-main">
             <text class="name">{{ p.skuName }}</text>
-            <text class="meta">{{ p.deviceName || p.deviceId }} · 基准 {{ money(p.basePriceCents) }}</text>
+            <text class="meta"
+              >{{ p.deviceName || p.deviceId }} · 基准 {{ money(p.basePriceCents) }}</text
+            >
             <text v-if="p.minPriceCents != null || p.maxPriceCents != null" class="meta range">
               可改 {{ p.minPriceCents != null ? money(p.minPriceCents) : '未设' }}–{{
                 p.maxPriceCents != null ? money(p.maxPriceCents) : '未设'
@@ -78,12 +84,10 @@ let pendingReload: 'soft' | 'hard' | null = null;
 const canView = computed(() => hasPerm(me.value, 'merchant:pricing:view'));
 const canEdit = computed(() => canEditPricingWithPerm(me.value));
 
-const deviceOptions = computed(() =>
-  [
-    { deviceId: '', label: '全部柜机' },
-    ...devices.value.map((d) => ({ deviceId: d.deviceId, label: d.deviceName || d.deviceId }))
-  ]
-);
+const deviceOptions = computed(() => [
+  { deviceId: '', label: '全部柜机' },
+  ...devices.value.map((d) => ({ deviceId: d.deviceId, label: d.deviceName || d.deviceId }))
+]);
 
 const selectedLabel = computed(() => {
   const hit = deviceOptions.value.find((d) => d.deviceId === selectedDeviceId.value);
@@ -226,14 +230,44 @@ async function savePrice(p: MerchantSkuPricing) {
   overflow: hidden;
   max-height: 48px;
 }
-.warn { color: #d97706; display: block; margin-top: 8rpx; }
-.row { display: flex; justify-content: space-between; align-items: flex-start; gap: 16rpx; }
-.row-main { flex: 1; min-width: 0; }
-.name { font-weight: 600; display: block; }
-.meta { color: #64748b; font-size: 22rpx; display: block; margin-top: 4rpx; }
-.meta.range { color: #94a3b8; }
-.effective { font-size: 32rpx; font-weight: 700; color: #0f766e; display: block; }
-.price-col { text-align: right; min-width: 160rpx; }
+.warn {
+  color: #d97706;
+  display: block;
+  margin-top: 8rpx;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16rpx;
+}
+.row-main {
+  flex: 1;
+  min-width: 0;
+}
+.name {
+  font-weight: 600;
+  display: block;
+}
+.meta {
+  color: #64748b;
+  font-size: 22rpx;
+  display: block;
+  margin-top: 4rpx;
+}
+.meta.range {
+  color: #94a3b8;
+}
+.effective {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #0f766e;
+  display: block;
+}
+.price-col {
+  text-align: right;
+  min-width: 160rpx;
+}
 .input {
   width: 140rpx;
   text-align: right;
@@ -242,7 +276,12 @@ async function savePrice(p: MerchantSkuPricing) {
   padding: 6px;
   margin-top: 6rpx;
 }
-.saving { display: block; margin-top: 6rpx; font-size: 20rpx; color: #0f766e; }
+.saving {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 20rpx;
+  color: #0f766e;
+}
 .banner-err {
   margin: 0 0 12rpx;
   padding: 16rpx 20rpx;
@@ -254,6 +293,11 @@ async function savePrice(p: MerchantSkuPricing) {
   justify-content: space-between;
   gap: 12rpx;
 }
-.banner-retry { color: #0f766e; font-weight: 600; }
-.err { color: #ef4444; }
+.banner-retry {
+  color: #0f766e;
+  font-weight: 600;
+}
+.err {
+  color: #ef4444;
+}
 </style>

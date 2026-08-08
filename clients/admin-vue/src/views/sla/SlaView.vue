@@ -134,7 +134,9 @@ onMounted(load);
 </script>
 
 <style scoped>
-.stat-row { margin-bottom: 16px; }
+.stat-row {
+  margin-bottom: 16px;
+}
 .stat-tile {
   display: block;
   width: 100%;
@@ -148,8 +150,21 @@ onMounted(load);
   color: inherit;
   font: inherit;
 }
-.stat-label { color: var(--el-text-color-secondary); font-size: 13px; margin-bottom: 6px; }
-.stat-value { font-size: 20px; font-weight: 600; }
-.stat-hint { margin-top: 4px; font-size: 12px; color: var(--el-text-color-secondary); }
-.rt-block { margin-top: 8px; }
+.stat-label {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.stat-value {
+  font-size: 20px;
+  font-weight: 600;
+}
+.stat-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.rt-block {
+  margin-top: 8px;
+}
 </style>

@@ -36,7 +36,9 @@ function pickDeviceIdFromParams(params: Record<string, string | undefined>): str
 }
 
 function pickChannelFromParams(params: Record<string, string | undefined>): string {
-  const raw = String(params.channel || params.entryChannel || params.payChannel || '').trim().toUpperCase();
+  const raw = String(params.channel || params.entryChannel || params.payChannel || '')
+    .trim()
+    .toUpperCase();
   return raw === 'WECHAT' || raw === 'ALIPAY' ? raw : '';
 }
 
@@ -65,7 +67,8 @@ function extractFromUrl(raw: string): { deviceId: string; channel: string } {
     if (url.hash?.includes('=')) {
       const hashParams = parseQueryString(url.hash.replace(/^#/, ''));
       const fromHash = pickDeviceIdFromParams(hashParams);
-      if (fromHash) return { deviceId: fromHash, channel: channel || pickChannelFromParams(hashParams) };
+      if (fromHash)
+        return { deviceId: fromHash, channel: channel || pickChannelFromParams(hashParams) };
     }
     return { deviceId: '', channel };
   } catch {
@@ -162,7 +165,9 @@ export function parseCabinetScan(raw?: string | null): ScanResult {
 export function parseLaunchOptions(options: Record<string, string | undefined> = {}) {
   let deviceId = options.deviceId || options.d || options.device_id || '';
   let autoOpen = options.autoOpen === '1' || options.open === '1';
-  let channel = normalizeEntryChannelFromRaw(options.channel || options.entryChannel || options.payChannel);
+  let channel = normalizeEntryChannelFromRaw(
+    options.channel || options.entryChannel || options.payChannel
+  );
   if (!deviceId && options.q) {
     const parsed = parseCabinetScan(decodeURIComponent(options.q));
     deviceId = parsed.deviceId;
@@ -184,7 +189,9 @@ export function parseLaunchOptions(options: Record<string, string | undefined> =
 }
 
 function normalizeEntryChannelFromRaw(raw?: string | null): string {
-  const c = String(raw || '').trim().toUpperCase();
+  const c = String(raw || '')
+    .trim()
+    .toUpperCase();
   if (c === 'WECHAT' || c === 'ALIPAY') return c;
   return '';
 }

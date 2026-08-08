@@ -9,7 +9,10 @@ function readEnvFile(file) {
     if (!line || line.startsWith('#')) continue;
     const separator = line.indexOf('=');
     if (separator < 1) continue;
-    values[line.slice(0, separator).trim()] = line.slice(separator + 1).trim().replace(/^['"]|['"]$/g, '');
+    values[line.slice(0, separator).trim()] = line
+      .slice(separator + 1)
+      .trim()
+      .replace(/^['"]|['"]$/g, '');
   }
   return values;
 }
@@ -17,7 +20,8 @@ function readEnvFile(file) {
 const packageDir = process.cwd();
 const production = readEnvFile(join(packageDir, '.env.production'));
 const local = readEnvFile(join(packageDir, '.env.production.local'));
-const apiBaseUrl = process.env.VITE_API_BASE_URL || local.VITE_API_BASE_URL || production.VITE_API_BASE_URL || '';
+const apiBaseUrl =
+  process.env.VITE_API_BASE_URL || local.VITE_API_BASE_URL || production.VITE_API_BASE_URL || '';
 
 let parsed;
 try {
@@ -26,10 +30,16 @@ try {
   // Handled by the validation error below.
 }
 
-const invalidHost = !parsed || ['localhost', '127.0.0.1', 'your-production-host', 'api.example.com'].includes(parsed.hostname);
+const invalidHost =
+  !parsed ||
+  ['localhost', '127.0.0.1', 'your-production-host', 'api.example.com'].includes(parsed.hostname);
 if (!parsed || parsed.protocol !== 'https:' || invalidHost) {
-  console.error('Production mini-program build requires VITE_API_BASE_URL to be a real HTTPS API domain.');
-  console.error('Set it in .env.production.local or in the build environment. See .env.production.example.');
+  console.error(
+    'Production mini-program build requires VITE_API_BASE_URL to be a real HTTPS API domain.'
+  );
+  console.error(
+    'Set it in .env.production.local or in the build environment. See .env.production.example.'
+  );
   process.exit(1);
 }
 

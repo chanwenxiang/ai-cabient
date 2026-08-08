@@ -79,7 +79,10 @@ export function canEditPricingForMe(me: MerchantMe | null): boolean {
   return (me.merchants || []).some((m) => m.allowMerchantPricingEdit);
 }
 
-export function canEditPlanogramForMerchant(me: MerchantMe | null, merchantId?: string | null): boolean {
+export function canEditPlanogramForMerchant(
+  me: MerchantMe | null,
+  merchantId?: string | null
+): boolean {
   if (!me || !merchantId) return false;
   if (!hasPack(me, 'field')) return false;
   const m = (me.merchants || []).find((x) => x.merchantId === merchantId);

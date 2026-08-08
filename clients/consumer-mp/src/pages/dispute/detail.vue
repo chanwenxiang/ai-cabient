@@ -5,12 +5,7 @@
       <text class="err">{{ error }}</text>
       <button class="btn-primary" @click="bootstrap">重试</button>
     </view>
-    <empty-state
-      v-else-if="!ticket"
-      icon="审"
-      title="未找到审核单"
-      hint="可能已归档或尚未生成"
-    />
+    <empty-state v-else-if="!ticket" icon="审" title="未找到审核单" hint="可能已归档或尚未生成" />
     <view v-else-if="ticket">
       <view class="hero" :class="'tone-' + copy.tone">
         <text class="hero-icon">{{ copy.icon }}</text>
@@ -78,17 +73,16 @@
       </view>
 
       <view class="actions">
-        <button
-          v-if="ticket.orderId"
-          class="btn-primary"
-          hover-class="btn-hover"
-          @click="goOrder"
-        >查看账单订单</button>
+        <button v-if="ticket.orderId" class="btn-primary" hover-class="btn-hover" @click="goOrder">
+          查看账单订单
+        </button>
         <button
           :class="ticket.orderId ? 'btn-ghost' : 'btn-primary'"
           hover-class="btn-hover"
           @click="goOrders"
-        >返回订单列表</button>
+        >
+          返回订单列表
+        </button>
         <text class="contact-link" @click="contactOps">联系客服 {{ servicePhone }}</text>
       </view>
     </view>
@@ -305,64 +299,190 @@ function contactOps() {
 function previewEvidence(img: FileAttachmentDto) {
   const src = evidenceSrc(img);
   if (!src) return;
-  const list = (ticket.value?.evidence || [])
-    .map((e) => evidenceSrc(e))
-    .filter(Boolean);
+  const list = (ticket.value?.evidence || []).map((e) => evidenceSrc(e)).filter(Boolean);
   uni.previewImage({ urls: list.length ? list : [src], current: src });
 }
 </script>
 
 <style scoped>
-.page-root { min-height: 100vh; background: #f7f7f7; padding-bottom: 48rpx; }
-.state { padding: 120rpx 48rpx; text-align: center; }
-.meta { color: #888; }
-.err { display: block; color: #fa5151; margin-bottom: 24rpx; }
+.page-root {
+  min-height: 100vh;
+  background: #f7f7f7;
+  padding-bottom: 48rpx;
+}
+.state {
+  padding: 120rpx 48rpx;
+  text-align: center;
+}
+.meta {
+  color: #888;
+}
+.err {
+  display: block;
+  color: #fa5151;
+  margin-bottom: 24rpx;
+}
 .hero {
   padding: 48rpx 40rpx 56rpx;
   color: #fff;
   border-radius: 0 0 32rpx 32rpx;
 }
-.hero.tone-wait { background: linear-gradient(145deg, #0f766e, #14b8a6); }
-.hero.tone-warn { background: linear-gradient(145deg, #b45309, #f59e0b); }
-.hero.tone-success { background: linear-gradient(145deg, #047857, #10b981); }
+.hero.tone-wait {
+  background: linear-gradient(145deg, #0f766e, #14b8a6);
+}
+.hero.tone-warn {
+  background: linear-gradient(145deg, #b45309, #f59e0b);
+}
+.hero.tone-success {
+  background: linear-gradient(145deg, #047857, #10b981);
+}
 .hero-icon {
-  width: 72rpx; height: 72rpx; border-radius: 50%;
-  background: rgba(255,255,255,.22); display: flex; align-items: center; justify-content: center;
-  font-size: 36rpx; font-weight: 700; margin-bottom: 16rpx;
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36rpx;
+  font-weight: 700;
+  margin-bottom: 16rpx;
 }
-.hero-title { display: block; font-size: 36rpx; font-weight: 700; }
-.hero-status { display: block; margin-top: 8rpx; font-size: 26rpx; opacity: .92; }
+.hero-title {
+  display: block;
+  font-size: 36rpx;
+  font-weight: 700;
+}
+.hero-status {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 26rpx;
+  opacity: 0.92;
+}
 .card {
-  margin: 20rpx 24rpx 0; padding: 28rpx; background: #fff; border-radius: 20rpx;
-  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, .04);
+  margin: 20rpx 24rpx 0;
+  padding: 28rpx;
+  background: #fff;
+  border-radius: 20rpx;
+  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
 }
-.section-title { display: block; font-size: 30rpx; font-weight: 700; color: #1e293b; margin-bottom: 12rpx; }
-.section-sub { display: block; font-size: 22rpx; color: #94a3b8; margin-bottom: 12rpx; }
-.evidence-row { display: flex; flex-wrap: wrap; gap: 16rpx; }
-.evidence-img { width: 160rpx; height: 160rpx; border-radius: 12rpx; background: #f1f5f9; }
-.reason { display: block; font-size: 28rpx; color: #334155; line-height: 1.55; margin-bottom: 16rpx; }
-.info-row { display: flex; justify-content: space-between; padding: 10rpx 0; }
-.info-label { font-size: 24rpx; color: #94a3b8; }
-.info-value { font-size: 24rpx; color: #475569; max-width: 70%; text-align: right; }
-.info-value.mono { font-family: ui-monospace, monospace; font-size: 22rpx; }
-.line { display: flex; justify-content: space-between; padding: 14rpx 0; border-bottom: 1rpx solid #f1f5f9; }
-.line-name { color: #1e293b; font-size: 28rpx; }
-.line-amt { color: #059669; font-weight: 600; }
-.empty-lines { font-size: 26rpx; color: #94a3b8; padding: 8rpx 0; }
+.section-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 12rpx;
+}
+.section-sub {
+  display: block;
+  font-size: 22rpx;
+  color: #94a3b8;
+  margin-bottom: 12rpx;
+}
+.evidence-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+.evidence-img {
+  width: 160rpx;
+  height: 160rpx;
+  border-radius: 12rpx;
+  background: #f1f5f9;
+}
+.reason {
+  display: block;
+  font-size: 28rpx;
+  color: #334155;
+  line-height: 1.55;
+  margin-bottom: 16rpx;
+}
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 10rpx 0;
+}
+.info-label {
+  font-size: 24rpx;
+  color: #94a3b8;
+}
+.info-value {
+  font-size: 24rpx;
+  color: #475569;
+  max-width: 70%;
+  text-align: right;
+}
+.info-value.mono {
+  font-family: ui-monospace, monospace;
+  font-size: 22rpx;
+}
+.line {
+  display: flex;
+  justify-content: space-between;
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid #f1f5f9;
+}
+.line-name {
+  color: #1e293b;
+  font-size: 28rpx;
+}
+.line-amt {
+  color: #059669;
+  font-weight: 600;
+}
+.empty-lines {
+  font-size: 26rpx;
+  color: #94a3b8;
+  padding: 8rpx 0;
+}
 .bill-row {
-  display: flex; justify-content: space-between; align-items: center;
-  margin-top: 16rpx; padding-top: 16rpx; border-top: 1rpx solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16rpx;
+  padding-top: 16rpx;
+  border-top: 1rpx solid #e2e8f0;
 }
-.bill-label { font-size: 28rpx; color: #64748b; }
-.bill-amount { font-size: 40rpx; font-weight: 800; color: #047857; }
-.actions { padding: 28rpx 24rpx 8rpx; display: flex; flex-direction: column; gap: 16rpx; }
-.btn-primary, .btn-ghost {
-  margin: 0; height: 88rpx; line-height: 88rpx; border-radius: 44rpx; font-size: 30rpx;
+.bill-label {
+  font-size: 28rpx;
+  color: #64748b;
 }
-.btn-primary { background: linear-gradient(135deg, #059669, #0d9488); color: #fff; font-weight: 700; }
-.btn-primary::after, .btn-ghost::after { border: none; }
-.btn-ghost { background: #fff; color: #334155; border: 1rpx solid #e2e8f0; }
-.btn-hover { opacity: 0.88; }
+.bill-amount {
+  font-size: 40rpx;
+  font-weight: 800;
+  color: #047857;
+}
+.actions {
+  padding: 28rpx 24rpx 8rpx;
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+.btn-primary,
+.btn-ghost {
+  margin: 0;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+}
+.btn-primary {
+  background: linear-gradient(135deg, #059669, #0d9488);
+  color: #fff;
+  font-weight: 700;
+}
+.btn-primary::after,
+.btn-ghost::after {
+  border: none;
+}
+.btn-ghost {
+  background: #fff;
+  color: #334155;
+  border: 1rpx solid #e2e8f0;
+}
+.btn-hover {
+  opacity: 0.88;
+}
 .contact-link {
   display: block;
   text-align: center;

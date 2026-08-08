@@ -7,7 +7,8 @@
         class="filter-chip"
         :class="{ active: activeTab === t.key }"
         @click="switchTab(t.key)"
-      >{{ t.label }}</text>
+        >{{ t.label }}</text
+      >
     </view>
 
     <view v-if="loading" class="loading"><text>加载中…</text></view>
@@ -40,44 +41,77 @@
           <text>{{ item.deviceId || '无柜机' }}</text>
           <text>{{ formatTime(item.createdAt) }}</text>
         </view>
-        <view v-if="item.lastMessage" class="card-msg"><text>{{ item.lastMessage }}</text></view>
+        <view v-if="item.lastMessage" class="card-msg"
+          ><text>{{ item.lastMessage }}</text></view
+        >
         <view class="card-action">
-          <text
-            v-if="canReplyTicket(item)"
-            class="reply-hint"
-            @click.stop="onReply(item)"
-          >回复 ›</text>
+          <text v-if="canReplyTicket(item)" class="reply-hint" @click.stop="onReply(item)"
+            >回复 ›</text
+          >
           <text v-else class="reply-hint">查看详情 ›</text>
         </view>
       </view>
-      <view v-if="hasMore" class="load-more" role="button" aria-label="加载更多争议" @click="loadMore">
+      <view
+        v-if="hasMore"
+        class="load-more"
+        role="button"
+        aria-label="加载更多争议"
+        @click="loadMore"
+      >
         {{ loadingMore ? '加载中…' : `加载更多（已显示 ${list.length}/${listTotal}）` }}
       </view>
       <text v-else-if="listTruncated" class="trunc-hint">共 {{ listTotal }} 条，已全部加载</text>
     </view>
 
     <!-- 争议详情底部抽屉：替代 uni.showModal 长文本，小屏可滚动 -->
-    <view v-if="detailVisible" class="detail-mask" @click.self="detailVisible = false" @touchmove.stop.prevent>
+    <view
+      v-if="detailVisible"
+      class="detail-mask"
+      @click.self="detailVisible = false"
+      @touchmove.stop.prevent
+    >
       <view class="detail-panel" @click.stop>
         <view class="detail-handle" />
         <text class="detail-title">{{ statusText(detail?.status) }}</text>
-        <text class="detail-reason">{{ localizeDisputeReason(detail?.reason) || emptyDisplay(detail?.reason, 'reason') }}</text>
+        <text class="detail-reason">{{
+          localizeDisputeReason(detail?.reason) || emptyDisplay(detail?.reason, 'reason')
+        }}</text>
         <scroll-view scroll-y class="detail-scroll">
           <view class="detail-rows">
-            <view class="detail-row"><text class="detail-lbl">单号</text><text class="detail-val">{{ emptyDisplay(detail?.ticketId, 'order') }}</text></view>
-            <view class="detail-row"><text class="detail-lbl">状态</text><text class="detail-val">{{ statusText(detail?.status) }}</text></view>
-            <view class="detail-row"><text class="detail-lbl">柜机</text><text class="detail-val">{{ emptyDisplay(detail?.deviceId, 'device') }}</text></view>
-            <view v-if="detail?.orderId" class="detail-row"><text class="detail-lbl">订单</text><text class="detail-val">{{ detail.orderId }}</text></view>
+            <view class="detail-row"
+              ><text class="detail-lbl">单号</text
+              ><text class="detail-val">{{ emptyDisplay(detail?.ticketId, 'order') }}</text></view
+            >
+            <view class="detail-row"
+              ><text class="detail-lbl">状态</text
+              ><text class="detail-val">{{ statusText(detail?.status) }}</text></view
+            >
+            <view class="detail-row"
+              ><text class="detail-lbl">柜机</text
+              ><text class="detail-val">{{ emptyDisplay(detail?.deviceId, 'device') }}</text></view
+            >
+            <view v-if="detail?.orderId" class="detail-row"
+              ><text class="detail-lbl">订单</text
+              ><text class="detail-val">{{ detail.orderId }}</text></view
+            >
             <view v-if="detail?.billedAmountCents != null" class="detail-row">
-              <text class="detail-lbl">金额</text><text class="detail-val">{{ fmtMoney(detail.billedAmountCents) }}</text>
+              <text class="detail-lbl">金额</text
+              ><text class="detail-val">{{ fmtMoney(detail.billedAmountCents) }}</text>
             </view>
-            <view v-if="detail?.lastMessage" class="detail-row"><text class="detail-lbl">最新</text><text class="detail-val">{{ detail.lastMessage }}</text></view>
+            <view v-if="detail?.lastMessage" class="detail-row"
+              ><text class="detail-lbl">最新</text
+              ><text class="detail-val">{{ detail.lastMessage }}</text></view
+            >
           </view>
         </scroll-view>
         <view class="detail-actions">
           <button v-if="canReplyDetail" class="primary-btn" @click="replyFromDetail">回复</button>
-          <button v-if="detail?.orderId" class="btn-outline" @click="goOrderFromDetail">查看订单</button>
-          <button v-else-if="detail?.deviceId" class="btn-outline" @click="goDeviceFromDetail">查看柜机</button>
+          <button v-if="detail?.orderId" class="btn-outline" @click="goOrderFromDetail">
+            查看订单
+          </button>
+          <button v-else-if="detail?.deviceId" class="btn-outline" @click="goDeviceFromDetail">
+            查看柜机
+          </button>
           <button class="btn-outline" @click="detailVisible = false">关闭</button>
         </view>
       </view>
@@ -89,7 +123,12 @@
 import { ref, computed } from 'vue';
 import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay, formatDateTimeShort, localizeDisputeReason, fmtMoney } from '@aicabinet/shared-uni/format';
+import {
+  emptyDisplay,
+  formatDateTimeShort,
+  localizeDisputeReason,
+  fmtMoney
+} from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi, type MerchantDisputeTicket } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
@@ -330,10 +369,26 @@ async function onReply(item: MerchantDisputeTicket) {
   min-height: 100vh;
   box-sizing: border-box;
 }
-.tabs-pill { margin-bottom: 20rpx; }
-.tab.active { color: #0f766e; font-weight: 600; border-bottom: 4rpx solid #0f766e; }
-.loading, .empty { text-align: center; color: #999; padding: 80rpx 0; font-size: 28rpx; }
-.err { color: #ef4444; display: block; margin-bottom: 20rpx; }
+.tabs-pill {
+  margin-bottom: 20rpx;
+}
+.tab.active {
+  color: #0f766e;
+  font-weight: 600;
+  border-bottom: 4rpx solid #0f766e;
+}
+.loading,
+.empty {
+  text-align: center;
+  color: #999;
+  padding: 80rpx 0;
+  font-size: 28rpx;
+}
+.err {
+  color: #ef4444;
+  display: block;
+  margin-bottom: 20rpx;
+}
 .retry {
   margin: 0 auto;
   width: 200rpx;
@@ -347,7 +402,9 @@ async function onReply(item: MerchantDisputeTicket) {
   box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
   border: none;
 }
-.retry::after { border: none; }
+.retry::after {
+  border: none;
+}
 .card {
   background: #fff;
   border-radius: 16rpx;
@@ -357,13 +414,42 @@ async function onReply(item: MerchantDisputeTicket) {
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.card-hover { background: #f8fafc !important; }
-.card-header { display: flex; justify-content: space-between; margin-bottom: 10rpx; }
-.card-id, .card-status, .card-title, .card-meta, .card-msg { pointer-events: none; }
-.card-id { font-size: 22rpx; color: #94a3b8; }
-.card-status { font-size: 22rpx; color: #92400e; background: #fef3c7; padding: 4rpx 12rpx; border-radius: 999rpx; }
-.card-status.RESOLVED, .card-status.resolved { color: #166534; background: #dcfce7; }
-.card-status.CLOSED, .card-status.closed { color: #475569; background: #e2e8f0; }
+.card-hover {
+  background: #f8fafc !important;
+}
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10rpx;
+}
+.card-id,
+.card-status,
+.card-title,
+.card-meta,
+.card-msg {
+  pointer-events: none;
+}
+.card-id {
+  font-size: 22rpx;
+  color: #94a3b8;
+}
+.card-status {
+  font-size: 22rpx;
+  color: #92400e;
+  background: #fef3c7;
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+}
+.card-status.RESOLVED,
+.card-status.resolved {
+  color: #166534;
+  background: #dcfce7;
+}
+.card-status.CLOSED,
+.card-status.closed {
+  color: #475569;
+  background: #e2e8f0;
+}
 .card-title {
   display: block;
   font-size: 28rpx;
@@ -373,7 +459,13 @@ async function onReply(item: MerchantDisputeTicket) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.card-meta { display: flex; justify-content: space-between; margin-top: 12rpx; font-size: 22rpx; color: #94a3b8; }
+.card-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
+}
 .card-msg {
   margin-top: 12rpx;
   padding: 12rpx;
@@ -386,8 +478,15 @@ async function onReply(item: MerchantDisputeTicket) {
   -webkit-line-clamp: 2;
   overflow: hidden;
 }
-.card-action { margin-top: 12rpx; text-align: right; color: #0f766e; font-size: 24rpx; }
-.reply-hint { font-weight: 600; }
+.card-action {
+  margin-top: 12rpx;
+  text-align: right;
+  color: #0f766e;
+  font-size: 24rpx;
+}
+.reply-hint {
+  font-weight: 600;
+}
 .trunc-hint {
   display: block;
   text-align: center;
@@ -463,7 +562,11 @@ async function onReply(item: MerchantDisputeTicket) {
   padding: 18rpx 0;
   border-bottom: 1rpx solid #f1f5f9;
 }
-.detail-lbl { font-size: 24rpx; color: #94a3b8; flex-shrink: 0; }
+.detail-lbl {
+  font-size: 24rpx;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
 .detail-val {
   font-size: 24rpx;
   color: #1e293b;

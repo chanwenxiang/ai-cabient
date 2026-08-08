@@ -55,7 +55,11 @@
           <span class="result-title">{{ hit.title }}</span>
           <span class="result-meta">{{ hit.meta }}</span>
         </button>
-        <el-empty v-if="keyword && !results.length && !recordResults.length" description="无匹配结果" :image-size="64" />
+        <el-empty
+          v-if="keyword && !results.length && !recordResults.length"
+          description="无匹配结果"
+          :image-size="64"
+        />
         <div v-if="!keyword" class="hint">可搜索：设备、订单、争议、对账、个人中心等</div>
       </div>
     </el-dialog>
@@ -124,7 +128,8 @@ async function searchRecords(q: string) {
   const hits: RecordHit[] = [];
   const take = (perm: string, url: string, pick: (items: any[]) => RecordHit[]) => {
     if (!auth.hasPerm(perm)) return Promise.resolve();
-    return api.request<any>(url, 'GET')
+    return api
+      .request<any>(url, 'GET')
       .then((data) => {
         const items = Array.isArray(data) ? data : data?.items || [];
         hits.push(...pick(items));
@@ -132,47 +137,60 @@ async function searchRecords(q: string) {
       .catch(() => {});
   };
   await Promise.all([
-    take('ops:device:list', `/api/v2/ops/admin/devices?page=0&size=5&q=${encodeURIComponent(q)}`, (items) =>
-      items.map((d: any) => ({
-        type: 'device',
-        title: d.deviceName || d.deviceId,
-        meta: `设备 ${d.deviceId} · ${d.onlineStatus === 'ONLINE' ? '在线' : '离线'}`,
-        path: `/devices/${encodeURIComponent(d.deviceId)}`
-      }))
+    take(
+      'ops:device:list',
+      `/api/v2/ops/admin/devices?page=0&size=5&q=${encodeURIComponent(q)}`,
+      (items) =>
+        items.map((d: any) => ({
+          type: 'device',
+          title: d.deviceName || d.deviceId,
+          meta: `设备 ${d.deviceId} · ${d.onlineStatus === 'ONLINE' ? '在线' : '离线'}`,
+          path: `/devices/${encodeURIComponent(d.deviceId)}`
+        }))
     ),
-    take('ops:order:list', `/api/v2/ops/admin/orders?page=0&size=5&orderId=${encodeURIComponent(q)}`, (items) =>
-      items.map((o: any) => ({
-        type: 'order',
-        title: String(o.orderId || ''),
-        meta: `订单 · ${o.payChannel || o.channel || ''} · ${o.status || ''}`,
-        path: '/orders',
-        query: { orderId: String(o.orderId) }
-      }))
+    take(
+      'ops:order:list',
+      `/api/v2/ops/admin/orders?page=0&size=5&orderId=${encodeURIComponent(q)}`,
+      (items) =>
+        items.map((o: any) => ({
+          type: 'order',
+          title: String(o.orderId || ''),
+          meta: `订单 · ${o.payChannel || o.channel || ''} · ${o.status || ''}`,
+          path: '/orders',
+          query: { orderId: String(o.orderId) }
+        }))
     ),
-    take('ops:session:list', `/api/v2/ops/admin/sessions?page=0&size=5&q=${encodeURIComponent(q)}`, (items) =>
-      items.map((s: any) => ({
-        type: 'session',
-        title: String(s.sessionId || ''),
-        meta: `会话 · ${s.deviceId || ''} · ${s.state || ''}`,
-        path: '/sessions',
-        query: { sessionId: String(s.sessionId) }
-      }))
+    take(
+      'ops:session:list',
+      `/api/v2/ops/admin/sessions?page=0&size=5&q=${encodeURIComponent(q)}`,
+      (items) =>
+        items.map((s: any) => ({
+          type: 'session',
+          title: String(s.sessionId || ''),
+          meta: `会话 · ${s.deviceId || ''} · ${s.state || ''}`,
+          path: '/sessions',
+          query: { sessionId: String(s.sessionId) }
+        }))
     ),
-    take('ops:user:list', `/api/v2/ops/admin/users?page=0&size=5&phone=${encodeURIComponent(q)}`, (items) =>
-      items.map((u: any) => ({
-        type: 'user',
-        title: String(u.phoneNumber || u.userId || ''),
-        meta: `用户 ${u.userId || ''}`,
-        path: '/users',
-        query: { keyword: String(u.phoneNumber || u.userId || '') }
-      }))
+    take(
+      'ops:user:list',
+      `/api/v2/ops/admin/users?page=0&size=5&phone=${encodeURIComponent(q)}`,
+      (items) =>
+        items.map((u: any) => ({
+          type: 'user',
+          title: String(u.phoneNumber || u.userId || ''),
+          meta: `用户 ${u.userId || ''}`,
+          path: '/users',
+          query: { keyword: String(u.phoneNumber || u.userId || '') }
+        }))
     ),
     take('ops:merchant:list', '/api/v2/ops/admin/merchants', (items) =>
       items
-        .filter((m: any) =>
-          String(m.merchantId || '').includes(q) ||
-          String(m.merchantName || '').includes(q) ||
-          String(m.contactPhone || '').includes(q)
+        .filter(
+          (m: any) =>
+            String(m.merchantId || '').includes(q) ||
+            String(m.merchantName || '').includes(q) ||
+            String(m.contactPhone || '').includes(q)
         )
         .slice(0, 5)
         .map((m: any) => ({
@@ -258,20 +276,32 @@ onUnmounted(() => {
   border: 1px solid var(--layout-border);
   margin-bottom: 8px;
 }
-.result-item:hover { background: var(--layout-hover); }
+.result-item:hover {
+  background: var(--layout-hover);
+}
 .result-item:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px var(--el-color-primary);
 }
-.result-title { display: block; font-weight: 600; }
-.result-meta { font-size: 12px; color: var(--layout-muted); }
+.result-title {
+  display: block;
+  font-weight: 600;
+}
+.result-meta {
+  font-size: 12px;
+  color: var(--layout-muted);
+}
 .result-section {
   font-size: 12px;
   color: var(--layout-muted);
   margin: 4px 2px 6px;
   font-weight: 600;
 }
-.hint { color: var(--layout-muted); font-size: 13px; padding: 8px 0; }
+.hint {
+  color: var(--layout-muted);
+  font-size: 13px;
+  padding: 8px 0;
+}
 @media (max-width: 900px) {
   .global-search {
     max-width: 40px;

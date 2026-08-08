@@ -1,6 +1,32 @@
 import type { Component } from 'vue';
 import {
-  Box, Briefcase, Coin, Collection, Cpu, DataAnalysis, DataBoard, Document, Goods, House, Key, Location, Lock, Menu, Monitor, Money, Notebook, Odometer, OfficeBuilding, Setting, Timer, Tools, Upload, User, UserFilled, View, Wallet, Warning
+  Box,
+  Coin,
+  Collection,
+  Cpu,
+  DataAnalysis,
+  DataBoard,
+  Document,
+  Goods,
+  House,
+  Key,
+  Location,
+  Lock,
+  Menu,
+  Monitor,
+  Money,
+  Notebook,
+  Odometer,
+  OfficeBuilding,
+  Setting,
+  Timer,
+  Tools,
+  Upload,
+  User,
+  UserFilled,
+  View,
+  Wallet,
+  Warning
 } from '@element-plus/icons-vue';
 import { NAV_ITEMS, type NavItem } from '@/config/menu';
 
@@ -106,12 +132,14 @@ export function buildSidebarTree(canAccess: (item: NavItem) => boolean): Sidebar
   return GROUP_META.flatMap((group): SidebarNode[] => {
     const groupItems = accessible.filter((item) => GROUP_KEY[item.group] === group.key);
     if (!groupItems.length) return [];
-    return [{
-      key: group.key,
-      label: group.label,
-      icon: group.icon,
-      children: groupItems.map(toLeaf)
-    }];
+    return [
+      {
+        key: group.key,
+        label: group.label,
+        icon: group.icon,
+        children: groupItems.map(toLeaf)
+      }
+    ];
   });
 }
 

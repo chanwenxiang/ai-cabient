@@ -35,8 +35,7 @@ export function buildPermTree(flat: PermRow[]): PermRow[] {
   const sortRec = (nodes: PermRow[]) => {
     nodes.sort(
       (a, b) =>
-        (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
-        (a.permissionId ?? 0) - (b.permissionId ?? 0)
+        (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || (a.permissionId ?? 0) - (b.permissionId ?? 0)
     );
     nodes.forEach((n) => n.children?.length && sortRec(n.children));
   };

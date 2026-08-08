@@ -25,9 +25,12 @@ export async function loadRuntimeDict() {
   }
   try {
     const data = await api.request('/api/v2/dicts/runtime', 'GET');
-    setDictOverrides(buildOverridesFromRuntime(data as Parameters<typeof buildOverridesFromRuntime>[0]), {
-      loaded: true
-    });
+    setDictOverrides(
+      buildOverridesFromRuntime(data as Parameters<typeof buildOverridesFromRuntime>[0]),
+      {
+        loaded: true
+      }
+    );
     bumpDictRuntime();
   } catch {
     // 失败：不 clear、不设 loaded，系统枚举与未加载的可配字典仍走 DICT 兜底

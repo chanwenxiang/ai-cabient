@@ -5,10 +5,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import {
-  merchantPackForPerm,
-  permissionRealm
-} from '../packages/shared-rbac/dist/index.js';
+import { merchantPackForPerm, permissionRealm } from '../packages/shared-rbac/dist/index.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const errors = [];

@@ -2,28 +2,28 @@
   <view>
     <view v-if="!canView" class="card"><text class="err">当前账号无柜机详情权限</text></view>
     <view v-else-if="loading" class="card">加载中…</view>
-    <view v-else-if="error" class="card"><text class="err">{{ error }}</text></view>
+    <view v-else-if="error" class="card"
+      ><text class="err">{{ error }}</text></view
+    >
     <view v-else>
       <view class="card">
         <text class="title">{{ deviceName }}</text>
-        <text class="meta">{{ deviceId }} · {{ online ? '在线' : '离线' }}{{ salesLocked ? ' · 停售中' : '' }}</text>
-        <text v-if="salesLocked" class="locked-banner">柜机已锁机停售，消费者无法开门；补货仍可按任务操作</text>
+        <text class="meta"
+          >{{ deviceId }} · {{ online ? '在线' : '离线' }}{{ salesLocked ? ' · 停售中' : '' }}</text
+        >
+        <text v-if="salesLocked" class="locked-banner"
+          >柜机已锁机停售，消费者无法开门；补货仍可按任务操作</text
+        >
         <text class="meta">当前 {{ currentTemp }} / 目标 {{ targetTemp }}</text>
         <view class="pref-row" @click="togglePreferred">
           <text class="pref-star" :class="{ on: isPreferred }">★</text>
           <text>{{ isPreferred ? '常驻柜（点击取消）' : '设为常驻柜' }}</text>
         </view>
         <view class="action-row">
-          <view
-            v-if="canReplenishView"
-            class="btn-primary action-btn"
-            @click="goReplenishment"
-          >补货任务</view>
-          <view
-            v-if="canRequest"
-            class="btn-primary action-btn"
-            @click="goRequest"
-          >发起要货</view>
+          <view v-if="canReplenishView" class="btn-primary action-btn" @click="goReplenishment"
+            >补货任务</view
+          >
+          <view v-if="canRequest" class="btn-primary action-btn" @click="goRequest">发起要货</view>
         </view>
       </view>
 
@@ -44,7 +44,9 @@
           <view v-for="s in slots" :key="s.slotCode" class="slot-cell">
             <text class="slot-code">{{ s.slotCode }}</text>
             <text>{{ s.assignedSkuName || '空' }}</text>
-            <text class="meta">库存 {{ s.bookQty }}/{{ s.maxLevel || s.parLevel || '未设上限' }}</text>
+            <text class="meta"
+              >库存 {{ s.bookQty }}/{{ s.maxLevel || s.parLevel || '未设上限' }}</text
+            >
             <input
               v-if="canEditSlots"
               v-model="slotPar[s.slotCode]"
@@ -54,7 +56,7 @@
             />
           </view>
         </view>
-        <view v-if="canEditSlots" class="btn-primary" style="margin-top:12px" @click="saveSlots">
+        <view v-if="canEditSlots" class="btn-primary" style="margin-top: 12px" @click="saveSlots">
           {{ savingSlots ? '保存中…' : '保存货道' }}
         </view>
       </view>
@@ -156,8 +158,12 @@ async function loadDetail() {
     });
     slotPar.value = par;
     isPreferred.value =
-      String(getPreferredDeviceId() || '').trim().toUpperCase() ===
-      String(deviceId.value || '').trim().toUpperCase();
+      String(getPreferredDeviceId() || '')
+        .trim()
+        .toUpperCase() ===
+      String(deviceId.value || '')
+        .trim()
+        .toUpperCase();
   } catch (e) {
     if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';
@@ -263,7 +269,11 @@ async function saveSlots() {
 </script>
 
 <style scoped>
-.title { font-size: 32rpx; font-weight: 600; display: block; }
+.title {
+  font-size: 32rpx;
+  font-weight: 600;
+  display: block;
+}
 .locked-banner {
   display: block;
   margin-top: 12rpx;
@@ -274,8 +284,15 @@ async function saveSlots() {
   font-size: 24rpx;
   line-height: 1.4;
 }
-.section { font-weight: 600; }
-.row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12rpx; }
+.section {
+  font-weight: 600;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
 .pref-row {
   margin-top: 16rpx;
   display: flex;
@@ -284,16 +301,42 @@ async function saveSlots() {
   font-size: 26rpx;
   color: #0f766e;
 }
-.pref-star { color: #cbd5e1; font-size: 32rpx; }
-.pref-star.on { color: #f59e0b; }
-.input { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin: 8px 0; }
-.input-sm { width: 100%; font-size: 22rpx; margin-top: 4rpx; border: 1px solid #e2e8f0; border-radius: 4px; padding: 4px; }
-.slot-code { font-weight: 600; display: block; }
+.pref-star {
+  color: #cbd5e1;
+  font-size: 32rpx;
+}
+.pref-star.on {
+  color: #f59e0b;
+}
+.input {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 10px;
+  margin: 8px 0;
+}
+.input-sm {
+  width: 100%;
+  font-size: 22rpx;
+  margin-top: 4rpx;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 4px;
+}
+.slot-code {
+  font-weight: 600;
+  display: block;
+}
 .action-row {
   display: flex;
   gap: 12px;
   margin-top: 16px;
 }
-.action-btn { flex: 1; margin-top: 0; }
-.err { color: #ef4444; }
+.action-btn {
+  flex: 1;
+  margin-top: 0;
+}
+.err {
+  color: #ef4444;
+}
 </style>

@@ -5,7 +5,10 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">菜单管理</span>
-            <span class="hint">运营侧栏叶子菜单与本树 ACTIVE「菜单 C」一一对应（一级目录 = 侧栏分组）。停用菜单会从侧栏隐藏。商户树仅用于角色授权；小程序导航由功能包裁剪。</span>
+            <span class="hint"
+              >运营侧栏叶子菜单与本树 ACTIVE「菜单 C」一一对应（一级目录 =
+              侧栏分组）。停用菜单会从侧栏隐藏。商户树仅用于角色授权；小程序导航由功能包裁剪。</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -17,8 +20,12 @@
           <el-switch v-model="showInactive" active-text="含停用" @change="syncRouteQuery" />
           <el-button link type="primary" @click="selectAllRows">全选</el-button>
           <el-button link @click="clearAllRows">清空</el-button>
-          <el-button v-hasPermi="['ops:rbac:menu:add']" type="primary" @click="openCreate()">新增</el-button>
-          <el-button v-hasPermi="['ops:rbac:menu:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:rbac:menu:add']" type="primary" @click="openCreate()"
+            >新增</el-button
+          >
+          <el-button v-hasPermi="['ops:rbac:menu:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -36,7 +43,13 @@
         />
       </el-form-item>
       <el-form-item label="类型">
-        <el-select v-model="typeFilter" clearable placeholder="全部" style="width: 120px" @change="syncRouteQuery">
+        <el-select
+          v-model="typeFilter"
+          clearable
+          placeholder="全部"
+          style="width: 120px"
+          @change="syncRouteQuery"
+        >
           <el-option label="目录 M" value="M" />
           <el-option label="菜单 C" value="C" />
           <el-option label="按钮 F" value="F" />
@@ -63,7 +76,9 @@
           stripe
           border
           class="report-table menu-tree-table"
-          @selection-change="onSelectionChange" empty-text=" ">
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
           <template #empty>
             <el-empty v-if="listHydrated && !loading" description="暂无菜单" />
           </template>
@@ -82,13 +97,23 @@
           </el-table-column>
           <el-table-column label="类型" width="88" align="center">
             <template #default="{ row }">
-              <el-tag :type="typeTag(row.permType)" size="small">{{ typeText(row.permType) }}</el-tag>
+              <el-tag :type="typeTag(row.permType)" size="small">{{
+                typeText(row.permType)
+              }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="权限标识" min-width="200" align="center" class-name="col-text">
-            <template #default="{ row }"><span class="cell-id">{{ row.permCode }}</span></template>
+            <template #default="{ row }"
+              ><span class="cell-id">{{ row.permCode }}</span></template
+            >
           </el-table-column>
-          <el-table-column label="路由" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="路由"
+            min-width="140"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.path || '无' }}</template>
           </el-table-column>
           <el-table-column prop="sortOrder" label="排序" width="72" align="center" />
@@ -108,10 +133,21 @@
       </div>
     </div>
 
-    <el-dialog v-model="dlg" :title="form.permissionId ? '编辑菜单' : '新增菜单'" width="520px" destroy-on-close>
+    <el-dialog
+      v-model="dlg"
+      :title="form.permissionId ? '编辑菜单' : '新增菜单'"
+      width="520px"
+      destroy-on-close
+    >
       <el-form label-width="88px">
         <el-form-item label="上级">
-          <el-select v-model="form.parentId" filterable clearable placeholder="顶级" style="width: 100%">
+          <el-select
+            v-model="form.parentId"
+            filterable
+            clearable
+            placeholder="顶级"
+            style="width: 100%"
+          >
             <el-option :value="0" label="顶级目录" />
             <el-option
               v-for="p in parentOptions"
@@ -315,8 +351,7 @@ const tableRows = computed(() => {
 function sortPermTreeInPlace(nodes: PermRow[]) {
   nodes.sort(
     (a, b) =>
-      (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
-      (a.permissionId ?? 0) - (b.permissionId ?? 0)
+      (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || (a.permissionId ?? 0) - (b.permissionId ?? 0)
   );
   for (const n of nodes) {
     if (n.children?.length) sortPermTreeInPlace(n.children);
@@ -344,9 +379,8 @@ function setExpandAll(expand: boolean) {
   });
 }
 
-const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } = useTableSelection<PermRow>(
-  (r) => r.permissionId
-);
+const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
+  useTableSelection<PermRow>((r) => r.permissionId);
 
 function selectAllRows() {
   const rows = flattenTableRows(tableRows.value);
@@ -553,7 +587,14 @@ function reloadFromRouteQuery() {
 }
 
 watch(
-  () => [route.query.scope, route.query.opsOnly, route.query.type, route.query.q, route.query.inactive] as const,
+  () =>
+    [
+      route.query.scope,
+      route.query.opsOnly,
+      route.query.type,
+      route.query.q,
+      route.query.inactive
+    ] as const,
   () => {
     reloadFromRouteQuery();
   }
@@ -576,12 +617,34 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; flex: 1; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.45; max-width: 52rem; }
-.page-card-head__actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.name-only { font-weight: 650; }
+.page-card-head__meta {
+  min-width: 0;
+  flex: 1;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  max-width: 52rem;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.name-only {
+  font-weight: 650;
+}
 .cell-id {
   color: var(--el-text-color-secondary);
 }

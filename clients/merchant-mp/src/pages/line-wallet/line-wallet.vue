@@ -15,7 +15,10 @@
     <template v-else-if="overview && overview.bound">
       <view class="summary-card">
         <text class="role-tag">线长 · 可自主提现</text>
-        <text class="name">{{ emptyDisplay(overview.managerName, 'text') }} · {{ emptyDisplay(overview.phone, 'text') }}</text>
+        <text class="name"
+          >{{ emptyDisplay(overview.managerName, 'text') }} ·
+          {{ emptyDisplay(overview.phone, 'text') }}</text
+        >
         <view class="bal-row">
           <text class="bal-label">可用余额</text>
           <text class="bal-value">¥{{ yuan(overview.availableCents) }}</text>
@@ -27,7 +30,12 @@
       </view>
 
       <view class="action-card">
-        <input class="amount-input" type="digit" v-model="amountYuan" placeholder="提现金额（元）" />
+        <input
+          class="amount-input"
+          type="digit"
+          v-model="amountYuan"
+          placeholder="提现金额（元）"
+        />
         <text v-if="maxWithdrawYuan" class="withdraw-hint">最多可提现 ¥{{ maxWithdrawYuan }}</text>
         <button class="btn-primary" :disabled="submitting" @click="submitWithdraw">申请提现</button>
         <text class="tip">提交后由运营审核；演示环境默认 Mock 打款到账。</text>
@@ -82,7 +90,12 @@ import { onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay } from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
-import { merchantApi, getToken, handleUnauthorized, type LineWalletOverview } from '@/utils/merchant-api';
+import {
+  merchantApi,
+  getToken,
+  handleUnauthorized,
+  type LineWalletOverview
+} from '@/utils/merchant-api';
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -160,19 +173,47 @@ onShow(load);
 </script>
 
 <style scoped>
-.summary-card, .action-card, .section {
+.summary-card,
+.action-card,
+.section {
   background: #fff;
   border-radius: var(--card-radius, 22rpx);
   padding: 28rpx;
   margin-bottom: 20rpx;
   border: 1rpx solid var(--card-border, #e2e8f0);
 }
-.role-tag { font-size: 22rpx; color: var(--brand, #0f766e); font-weight: 600; }
-.name { display: block; margin-top: 8rpx; color: var(--text-muted, #64748b); font-size: 24rpx; }
-.bal-row { display: flex; justify-content: space-between; align-items: baseline; margin-top: 24rpx; }
-.bal-label { color: var(--text-muted, #64748b); }
-.bal-value { font-size: 48rpx; font-weight: 700; color: #0f172a; }
-.bal-sub { display: flex; gap: 24rpx; margin-top: 12rpx; color: var(--text-subtle, #94a3b8); font-size: 22rpx; }
+.role-tag {
+  font-size: 22rpx;
+  color: var(--brand, #0f766e);
+  font-weight: 600;
+}
+.name {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--text-muted, #64748b);
+  font-size: 24rpx;
+}
+.bal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 24rpx;
+}
+.bal-label {
+  color: var(--text-muted, #64748b);
+}
+.bal-value {
+  font-size: 48rpx;
+  font-weight: 700;
+  color: #0f172a;
+}
+.bal-sub {
+  display: flex;
+  gap: 24rpx;
+  margin-top: 12rpx;
+  color: var(--text-subtle, #94a3b8);
+  font-size: 22rpx;
+}
 .amount-input {
   width: 100%;
   background: #f8fafc;
@@ -188,14 +229,46 @@ onShow(load);
   color: #94a3b8;
   margin: -6rpx 0 12rpx;
 }
-.tip { display: block; margin-top: 12rpx; font-size: 22rpx; color: var(--text-subtle, #94a3b8); line-height: 1.45; }
-.section-title { font-weight: 600; margin-bottom: 12rpx; display: block; }
-.row-item { padding: 16rpx 0; border-bottom: 1rpx solid #f1f5f9; }
-.row-main { display: flex; justify-content: space-between; gap: 16rpx; font-size: 28rpx; }
-.row-sub { font-size: 22rpx; color: var(--text-subtle, #94a3b8); margin-top: 4rpx; display: block; }
-.status { color: var(--brand, #0f766e); font-weight: 500; }
-.credit { color: #059669; font-weight: 600; }
-.debit { color: #b91c1c; font-weight: 600; }
+.tip {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: var(--text-subtle, #94a3b8);
+  line-height: 1.45;
+}
+.section-title {
+  font-weight: 600;
+  margin-bottom: 12rpx;
+  display: block;
+}
+.row-item {
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #f1f5f9;
+}
+.row-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 16rpx;
+  font-size: 28rpx;
+}
+.row-sub {
+  font-size: 22rpx;
+  color: var(--text-subtle, #94a3b8);
+  margin-top: 4rpx;
+  display: block;
+}
+.status {
+  color: var(--brand, #0f766e);
+  font-weight: 500;
+}
+.credit {
+  color: #059669;
+  font-weight: 600;
+}
+.debit {
+  color: #b91c1c;
+  font-weight: 600;
+}
 .banner-err {
   background: #fef2f2;
   color: #b91c1c;
@@ -204,6 +277,13 @@ onShow(load);
   margin-bottom: 16rpx;
   font-size: 26rpx;
 }
-.banner-retry { margin-left: 16rpx; text-decoration: underline; }
-.loading-inline { text-align: center; color: var(--text-subtle, #94a3b8); padding: 40rpx; }
+.banner-retry {
+  margin-left: 16rpx;
+  text-decoration: underline;
+}
+.loading-inline {
+  text-align: center;
+  color: var(--text-subtle, #94a3b8);
+  padding: 40rpx;
+}
 </style>

@@ -5,9 +5,7 @@ export function useTableSelection<T>(getRowKey: (row: T) => string | number) {
   const selectedKeys = ref<Array<string | number>>([]);
 
   function onSelectionChange(rows: T[]) {
-    selectedKeys.value = rows
-      .map((r) => getRowKey(r))
-      .filter((k) => k != null && k !== '');
+    selectedKeys.value = rows.map((r) => getRowKey(r)).filter((k) => k != null && k !== '');
   }
 
   function pickSelected(all: T[]): T[] {
