@@ -115,8 +115,18 @@ export const useSettingsStore = defineStore('settings', () => {
   watch([theme, fontSize, primaryColor, sidebarCollapsed, tableActionMode], persist);
 
   return {
-    theme, fontSize, primaryColor, sidebarCollapsed, tableActionMode,
-    toggleTheme, setFontSize, setPrimaryColor, setTableActionMode,
-    toggleSidebarCollapsed, setSidebarCollapsed, init, PRIMARY_COLORS
+    theme,
+    fontSize,
+    primaryColor,
+    sidebarCollapsed,
+    tableActionMode,
+    toggleTheme,
+    setFontSize,
+    setPrimaryColor,
+    setTableActionMode,
+    toggleSidebarCollapsed,
+    setSidebarCollapsed,
+    init,
+    PRIMARY_COLORS
   };
 });

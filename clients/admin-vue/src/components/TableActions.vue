@@ -6,7 +6,13 @@
     @click.stop
   >
     <template v-for="act in primary" :key="act.key">
-      <el-tooltip :content="act.label" placement="top" :show-after="120" :hide-after="0" :disabled="showLabel">
+      <el-tooltip
+        :content="act.label"
+        placement="top"
+        :show-after="120"
+        :hide-after="0"
+        :disabled="showLabel"
+      >
         <span class="action-icon-wrap" :class="{ 'is-disabled': act.disabled }">
           <button
             type="button"
@@ -140,7 +146,11 @@ const more = computed(() => {
   background: var(--layout-card, #ffffff);
   color: var(--layout-muted, #64748b);
   cursor: pointer;
-  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.15s ease,
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease,
+    transform 0.15s ease,
     box-shadow 0.15s ease;
 }
 .action-icon-btn.is-primary {

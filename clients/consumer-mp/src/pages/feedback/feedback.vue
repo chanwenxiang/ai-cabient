@@ -1,7 +1,9 @@
 <template>
   <view class="page">
     <view class="tabs">
-      <text class="tab" :class="{ active: tab === 'submit' }" @click="tab = 'submit'">提交反馈</text>
+      <text class="tab" :class="{ active: tab === 'submit' }" @click="tab = 'submit'"
+        >提交反馈</text
+      >
       <text class="tab" :class="{ active: tab === 'mine' }" @click="onMineTab">我的反馈</text>
     </view>
 
@@ -80,7 +82,9 @@
         <view v-for="item in history" :key="item.feedbackId" class="card history-card">
           <view class="history-head">
             <text class="history-type">{{ typeLabel(item.feedbackType) }}</text>
-            <text class="history-status" :class="statusClass(item.status)">{{ statusLabel(item.status) }}</text>
+            <text class="history-status" :class="statusClass(item.status)">{{
+              statusLabel(item.status)
+            }}</text>
           </view>
           <text class="history-content">{{ item.content }}</text>
           <text class="history-time">{{ formatTime(item.createdAt) }}</text>
@@ -159,7 +163,8 @@ async function loadHistory() {
   try {
     if (!(await ensureConsumerAuth())) {
       uni.navigateTo({
-        url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/feedback/feedback?tab=mine')
+        url:
+          '/pages/login/login?redirect=' + encodeURIComponent('/pages/feedback/feedback?tab=mine')
       });
       return;
     }
@@ -211,17 +216,56 @@ async function onSubmit() {
 </script>
 
 <style scoped>
-.page { min-height: 100vh; background: #f7f7f7; padding: 24rpx; box-sizing: border-box; }
-.tabs { display: flex; gap: 12rpx; margin-bottom: 16rpx; }
-.tab {
-  padding: 12rpx 28rpx; border-radius: 999rpx; background: #fff; color: #666; font-size: 26rpx;
+.page {
+  min-height: 100vh;
+  background: #f7f7f7;
+  padding: 24rpx;
+  box-sizing: border-box;
 }
-.tab.active { background: #059669; color: #fff; font-weight: 650; }
-.hero { padding: 8rpx 8rpx 24rpx; }
-.hero-title { font-size: 40rpx; font-weight: 700; color: #191919; display: block; }
-.hero-sub { font-size: 26rpx; color: #888; margin-top: 8rpx; display: block; }
-.card { background: #fff; border-radius: 24rpx; padding: 32rpx; }
-.field-label { font-size: 26rpx; color: #666; display: block; margin-bottom: 12rpx; margin-top: 8rpx; }
+.tabs {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 16rpx;
+}
+.tab {
+  padding: 12rpx 28rpx;
+  border-radius: 999rpx;
+  background: #fff;
+  color: #666;
+  font-size: 26rpx;
+}
+.tab.active {
+  background: #059669;
+  color: #fff;
+  font-weight: 650;
+}
+.hero {
+  padding: 8rpx 8rpx 24rpx;
+}
+.hero-title {
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #191919;
+  display: block;
+}
+.hero-sub {
+  font-size: 26rpx;
+  color: #888;
+  margin-top: 8rpx;
+  display: block;
+}
+.card {
+  background: #fff;
+  border-radius: 24rpx;
+  padding: 32rpx;
+}
+.field-label {
+  font-size: 26rpx;
+  color: #666;
+  display: block;
+  margin-bottom: 12rpx;
+  margin-top: 8rpx;
+}
 .input {
   background: #f7f7f7;
   border-radius: 12rpx;
@@ -229,7 +273,12 @@ async function onSubmit() {
   font-size: 30rpx;
   margin-bottom: 16rpx;
 }
-.issue-grid { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 20rpx; }
+.issue-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-bottom: 20rpx;
+}
 .issue-chip {
   padding: 14rpx 24rpx;
   border-radius: 32rpx;
@@ -237,7 +286,11 @@ async function onSubmit() {
   font-size: 26rpx;
   color: #666;
 }
-.issue-chip.active { background: #e8f8ef; color: #07c160; font-weight: 600; }
+.issue-chip.active {
+  background: #e8f8ef;
+  color: #07c160;
+  font-weight: 600;
+}
 .textarea {
   width: 100%;
   min-height: 180rpx;
@@ -248,7 +301,13 @@ async function onSubmit() {
   box-sizing: border-box;
   margin-bottom: 8rpx;
 }
-.counter { display: block; text-align: right; font-size: 22rpx; color: #bbb; margin-bottom: 12rpx; }
+.counter {
+  display: block;
+  text-align: right;
+  font-size: 22rpx;
+  color: #bbb;
+  margin-bottom: 12rpx;
+}
 .btn-primary {
   margin: 16rpx 0 0;
   background: linear-gradient(135deg, #059669, #0d9488);
@@ -261,31 +320,109 @@ async function onSubmit() {
   border: none;
   box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
 }
-.btn-primary[disabled] { opacity: 0.55; }
-.btn-primary::after { border: none; }
-.btn-hover { opacity: 0.85; }
-.err { color: #fa5151; font-size: 26rpx; display: block; margin-top: 16rpx; text-align: center; }
+.btn-primary[disabled] {
+  opacity: 0.55;
+}
+.btn-primary::after {
+  border: none;
+}
+.btn-hover {
+  opacity: 0.85;
+}
+.err {
+  color: #fa5151;
+  font-size: 26rpx;
+  display: block;
+  margin-top: 16rpx;
+  text-align: center;
+}
 .state {
-  display: flex; flex-direction: column; align-items: center; gap: 16rpx;
-  padding: 64rpx 24rpx; color: #888; font-size: 28rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16rpx;
+  padding: 64rpx 24rpx;
+  color: #888;
+  font-size: 28rpx;
 }
-.retry { background: #059669; color: #fff; border: none; }
-.history-list { display: flex; flex-direction: column; gap: 16rpx; }
-.history-card { padding: 28rpx; }
-.history-head { display: flex; align-items: center; gap: 12rpx; margin-bottom: 12rpx; }
-.history-type { font-size: 28rpx; font-weight: 650; color: #191919; }
+.retry {
+  background: #059669;
+  color: #fff;
+  border: none;
+}
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+}
+.history-card {
+  padding: 28rpx;
+}
+.history-head {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+}
+.history-type {
+  font-size: 28rpx;
+  font-weight: 650;
+  color: #191919;
+}
 .history-status {
-  margin-left: auto; font-size: 22rpx; padding: 6rpx 12rpx; border-radius: 999rpx; font-weight: 600;
+  margin-left: auto;
+  font-size: 22rpx;
+  padding: 6rpx 12rpx;
+  border-radius: 999rpx;
+  font-weight: 600;
 }
-.history-status.ok { color: #047857; background: #d1fae5; }
-.history-status.pending { color: #b45309; background: #fef3c7; }
-.history-status.muted { color: #64748b; background: #f1f5f9; }
-.history-content { display: block; font-size: 28rpx; color: #334155; line-height: 1.55; }
-.history-time { display: block; margin-top: 10rpx; font-size: 22rpx; color: #94a3b8; }
+.history-status.ok {
+  color: #047857;
+  background: #d1fae5;
+}
+.history-status.pending {
+  color: #b45309;
+  background: #fef3c7;
+}
+.history-status.muted {
+  color: #64748b;
+  background: #f1f5f9;
+}
+.history-content {
+  display: block;
+  font-size: 28rpx;
+  color: #334155;
+  line-height: 1.55;
+}
+.history-time {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
+}
 .reply-box {
-  margin-top: 16rpx; padding: 20rpx; border-radius: 16rpx; background: #f0fdf4;
+  margin-top: 16rpx;
+  padding: 20rpx;
+  border-radius: 16rpx;
+  background: #f0fdf4;
 }
-.reply-label { display: block; font-size: 22rpx; color: #059669; font-weight: 650; margin-bottom: 8rpx; }
-.reply-body { display: block; font-size: 26rpx; color: #334155; line-height: 1.55; }
-.reply-time { display: block; margin-top: 8rpx; font-size: 22rpx; color: #94a3b8; }
+.reply-label {
+  display: block;
+  font-size: 22rpx;
+  color: #059669;
+  font-weight: 650;
+  margin-bottom: 8rpx;
+}
+.reply-body {
+  display: block;
+  font-size: 26rpx;
+  color: #334155;
+  line-height: 1.55;
+}
+.reply-time {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
+}
 </style>

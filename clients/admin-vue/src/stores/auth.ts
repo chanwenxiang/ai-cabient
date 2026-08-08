@@ -1,7 +1,13 @@
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
 import { matchPermission } from '@aicabinet/shared-rbac';
-import { api, applyLoginSession, isLoggedIn, isSessionSoftExpired, clearSession } from '@/api/client';
+import {
+  api,
+  applyLoginSession,
+  isLoggedIn,
+  isSessionSoftExpired,
+  logoutSession
+} from '@/api/client';
 import { loadRuntimeDict, resetRuntimeDict } from '@/stores/dict-runtime';
 
 const PERM_KEY = 'admin_permissions';
@@ -168,8 +174,8 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function logout() {
-    clearSession();
+  async function logout() {
+    await logoutSession();
     resetRuntimeDict();
     userId.value = '';
     permissions.value = [];

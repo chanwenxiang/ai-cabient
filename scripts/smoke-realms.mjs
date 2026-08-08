@@ -17,7 +17,9 @@ async function json(path, opts = {}) {
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok || (body.code != null && body.code !== 0)) {
-    throw new Error(`${opts.method || 'GET'} ${path} => ${res.status} ${body.message || JSON.stringify(body)}`);
+    throw new Error(
+      `${opts.method || 'GET'} ${path} => ${res.status} ${body.message || JSON.stringify(body)}`
+    );
   }
   return body.data;
 }

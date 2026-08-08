@@ -1,5 +1,6 @@
 package com.aicabinet.device.config;
 
+import com.aicabinet.common.security.InternalApiAuthInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;

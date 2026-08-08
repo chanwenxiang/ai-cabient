@@ -1,6 +1,6 @@
 # SKU 专用视觉模型与生产部署
 
-对齐 [`FINAL_END_TO_END_TEST_PLAN.md`](FINAL_END_TO_END_TEST_PLAN.md) §10 / §12 阶段 F。
+对齐 [`BROWSER_MIN_UAT.md`](BROWSER_MIN_UAT.md) §10 / §12 阶段 F。
 
 ## 目标
 

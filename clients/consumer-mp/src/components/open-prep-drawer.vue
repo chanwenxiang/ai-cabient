@@ -37,12 +37,14 @@
               class="channel-chip"
               :class="{ on: pickedChannel === 'WECHAT' }"
               @click="pickedChannel = 'WECHAT'"
-            >微信</text>
+              >微信</text
+            >
             <text
               class="channel-chip"
               :class="{ on: pickedChannel === 'ALIPAY' }"
               @click="pickedChannel = 'ALIPAY'"
-            >支付宝</text>
+              >支付宝</text
+            >
           </view>
         </view>
         <button
@@ -71,7 +73,9 @@
             <text>可用余额</text>
             <text class="balance-val">{{ balanceYuan }}</text>
           </view>
-          <text v-if="frozenYuan !== '¥0.00'" class="balance-sub">含冻结 {{ frozenYuan }}（开门预授权等）</text>
+          <text v-if="frozenYuan !== '¥0.00'" class="balance-sub"
+            >含冻结 {{ frozenYuan }}（开门预授权等）</text
+          >
           <text class="balance-warning">{{ payReadyHintText }}</text>
           <text v-if="balanceInsufficient" class="balance-warning">
             可用余额不足预授权 ¥{{ needYuan }}，请先充值或开通免密后再开门
@@ -104,7 +108,9 @@
             :disabled="busy"
             @click="onAlipayRecharge"
           >
-            {{ busy ? '处理中…' : (mockRechargeEnabled ? '支付宝模拟充值 ¥20' : '支付宝沙箱充值 ¥20') }}
+            {{
+              busy ? '处理中…' : mockRechargeEnabled ? '支付宝模拟充值 ¥20' : '支付宝沙箱充值 ¥20'
+            }}
           </button>
           <view class="support-link" @click="goRechargePage">去充值页选择金额 ›</view>
         </view>
@@ -180,26 +186,31 @@ watch(
   }
 );
 
-consumerApi.consumerPublicConfig().then((cfg) => {
-  mockRechargeEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
-  alipayRechargeEnabled.value = resolveSandboxRecharge(cfg?.alipayRechargeEnabled);
-  wechatPayLive.value = cfg?.wechatPayLive === 'true';
-  wechatRechargeEnabled.value = resolveWechatRechargeVisible({
-    wechatRechargeEnabled: cfg?.wechatRechargeEnabled,
-    wechatPayLive: cfg?.wechatPayLive
+consumerApi
+  .consumerPublicConfig()
+  .then((cfg) => {
+    mockRechargeEnabled.value = resolveMockEnabled(cfg?.mockEnabled);
+    alipayRechargeEnabled.value = resolveSandboxRecharge(cfg?.alipayRechargeEnabled);
+    wechatPayLive.value = cfg?.wechatPayLive === 'true';
+    wechatRechargeEnabled.value = resolveWechatRechargeVisible({
+      wechatRechargeEnabled: cfg?.wechatRechargeEnabled,
+      wechatPayLive: cfg?.wechatPayLive
+    });
+    payScoreSignEnabled.value = cfg?.payScoreSignEnabled !== 'false';
+    const p = Number(cfg?.preauthCents);
+    configPreauthCents.value = Number.isFinite(p) && p > 0 ? p : null;
+  })
+  .catch(() => {
+    mockRechargeEnabled.value = false;
+    alipayRechargeEnabled.value = false;
+    wechatRechargeEnabled.value = false;
+    wechatPayLive.value = false;
+    payScoreSignEnabled.value = true;
   });
-  payScoreSignEnabled.value = cfg?.payScoreSignEnabled !== 'false';
-  const p = Number(cfg?.preauthCents);
-  configPreauthCents.value = Number.isFinite(p) && p > 0 ? p : null;
-}).catch(() => {
-  mockRechargeEnabled.value = false;
-  alipayRechargeEnabled.value = false;
-  wechatRechargeEnabled.value = false;
-  wechatPayLive.value = false;
-  payScoreSignEnabled.value = true;
-});
 
-const entryChannel = computed(() => normalizeEntryChannel(props.entryChannel) || pickedChannel.value);
+const entryChannel = computed(
+  () => normalizeEntryChannel(props.entryChannel) || pickedChannel.value
+);
 const preauthCents = computed(() =>
   resolveClientPreauthCents({
     devicePreauthCents: props.devicePreauthCents,
@@ -211,7 +222,9 @@ const needYuan = computed(() => preauthYuanLabel(preauthCents.value));
 const balanceYuan = computed(() => fmtMoney(availableCents(account.value)));
 const frozenYuan = computed(() => fmtMoney(Math.max(0, account.value?.frozenCents || 0)));
 const payReady = computed(() => isPayReady(account.value, entryChannel.value, preauthCents.value));
-const payReadyHintText = computed(() => payReadyHint(account.value, entryChannel.value, preauthCents.value));
+const payReadyHintText = computed(() =>
+  payReadyHint(account.value, entryChannel.value, preauthCents.value)
+);
 const balanceInsufficient = computed(() => {
   if (!account.value || payReady.value) return false;
   return availableCents(account.value) < preauthCents.value;
@@ -333,13 +346,15 @@ async function onAlipayRecharge() {
 
 async function onMockRecharge() {
   if (busy.value) return;
-  const confirmed = await new Promise<boolean>((resolve) => uni.showModal({
-    title: '确认模拟充值',
-    content: '将发放 ¥20.00 余额（仅开发联调，不会真实扣款）。',
-    confirmText: '确认发放',
-    success: (result) => resolve(result.confirm),
-    fail: () => resolve(false)
-  }));
+  const confirmed = await new Promise<boolean>((resolve) =>
+    uni.showModal({
+      title: '确认模拟充值',
+      content: '将发放 ¥20.00 余额（仅开发联调，不会真实扣款）。',
+      confirmText: '确认发放',
+      success: (result) => resolve(result.confirm),
+      fail: () => resolve(false)
+    })
+  );
   if (!confirmed) return;
   busy.value = true;
   err.value = '';
@@ -351,7 +366,9 @@ async function onMockRecharge() {
     uni.showToast({ title: '余额已到账', icon: 'success' });
   } catch (error) {
     err.value = error instanceof Error ? error.message : '余额发放失败';
-  } finally { busy.value = false; }
+  } finally {
+    busy.value = false;
+  }
 }
 
 function contactOps() {
@@ -427,7 +444,9 @@ function onCancel() {
   font-size: 22rpx;
   color: #888;
 }
-.prep-step.done { color: #07c160; }
+.prep-step.done {
+  color: #07c160;
+}
 .prep-dot {
   width: 48rpx;
   height: 48rpx;
@@ -452,8 +471,12 @@ function onCancel() {
   background: #e5e5e5;
   margin: 0 12rpx 20rpx;
 }
-.prep-line.done { background: #07c160; }
-.drawer-body { margin-top: 8rpx; }
+.prep-line.done {
+  background: #07c160;
+}
+.drawer-body {
+  margin-top: 8rpx;
+}
 .field-label {
   font-size: 26rpx;
   color: #666;
@@ -482,7 +505,10 @@ function onCancel() {
   font-size: 28rpx;
   color: #666;
 }
-.balance-val { color: #191919; font-weight: 600; }
+.balance-val {
+  color: #191919;
+  font-weight: 600;
+}
 .btn-primary {
   margin: 0;
   background: linear-gradient(135deg, #059669, #0d9488);
@@ -494,7 +520,9 @@ function onCancel() {
   height: 88rpx;
   box-shadow: 0 9rpx 24rpx rgba(5, 150, 105, 0.2);
 }
-.btn-primary::after { border: none; }
+.btn-primary::after {
+  border: none;
+}
 .btn-alipay {
   margin: 16rpx 0 0;
   background: #1677ff;
@@ -505,7 +533,9 @@ function onCancel() {
   line-height: 88rpx;
   height: 88rpx;
 }
-.btn-alipay::after { border: none; }
+.btn-alipay::after {
+  border: none;
+}
 .btn-wechat {
   margin: 16rpx 0 0;
   background: #07c160;
@@ -516,7 +546,9 @@ function onCancel() {
   line-height: 88rpx;
   height: 88rpx;
 }
-.btn-wechat::after { border: none; }
+.btn-wechat::after {
+  border: none;
+}
 .btn-ghost-fill {
   margin: 16rpx 0 0;
   background: #f0fdf4;
@@ -528,8 +560,12 @@ function onCancel() {
   height: 88rpx;
   border: 1rpx solid #bbf7d0;
 }
-.btn-ghost-fill::after { border: none; }
-.btn-hover { opacity: 0.85; }
+.btn-ghost-fill::after {
+  border: none;
+}
+.btn-hover {
+  opacity: 0.85;
+}
 .hint {
   font-size: 24rpx;
   color: #b2b2b2;
@@ -549,10 +585,29 @@ function onCancel() {
   margin-bottom: 8rpx;
   font-weight: 600;
 }
-.balance-sub { display: block; margin: 8rpx 0 12rpx; color: #64748b; font-size: 22rpx; }
-.balance-warning { display: block; padding: 20rpx; border-radius: 12rpx; background: #fff7e6; color: #ad6800; font-size: 25rpx; line-height: 1.5; }
-.channel-pick { margin-bottom: 16rpx; }
-.channel-chips { display: flex; gap: 16rpx; margin-top: 12rpx; }
+.balance-sub {
+  display: block;
+  margin: 8rpx 0 12rpx;
+  color: #64748b;
+  font-size: 22rpx;
+}
+.balance-warning {
+  display: block;
+  padding: 20rpx;
+  border-radius: 12rpx;
+  background: #fff7e6;
+  color: #ad6800;
+  font-size: 25rpx;
+  line-height: 1.5;
+}
+.channel-pick {
+  margin-bottom: 16rpx;
+}
+.channel-chips {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 12rpx;
+}
 .channel-chip {
   flex: 1;
   text-align: center;
@@ -569,7 +624,20 @@ function onCancel() {
   border-color: #34d399;
   font-weight: 600;
 }
-.balance-warning + .btn-primary{margin-top:22rpx}.support-link{padding:22rpx 0 4rpx;text-align:center;color:#059669;font-size:25rpx;font-weight:500}.support-link.muted{color:#64748b;font-weight:400}
+.balance-warning + .btn-primary {
+  margin-top: 22rpx;
+}
+.support-link {
+  padding: 22rpx 0 4rpx;
+  text-align: center;
+  color: #059669;
+  font-size: 25rpx;
+  font-weight: 500;
+}
+.support-link.muted {
+  color: #64748b;
+  font-weight: 400;
+}
 .err {
   color: #fa5151;
   font-size: 26rpx;

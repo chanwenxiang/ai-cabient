@@ -1,4 +1,4 @@
-﻿# AI开门柜项目上线执行文档索引
+# AI开门柜项目上线执行文档索引
 
 ## 文档概览
 
@@ -16,11 +16,11 @@
 ### 端分析文档
 | 文档 | 大小 | 说明 |
 |------|------|------|
-| [ANALYSIS_ADMIN_VUE.md](ANALYSIS_ADMIN_VUE.md) | 8KB | 运营管理后台详细分析 |
-| [ANALYSIS_CONSUMER_MP.md](ANALYSIS_CONSUMER_MP.md) | 9KB | 消费者小程序详细分析 |
-| [ANALYSIS_MERCHANT_MP.md](ANALYSIS_MERCHANT_MP.md) | 8KB | 补货员/商户小程序详细分析 |
-| [ANALYSIS_BACKEND_SERVICES.md](ANALYSIS_BACKEND_SERVICES.md) | 12KB | 后端服务详细分析 |
-| [ANALYSIS_HARDWARE_INTEGRATION.md](ANALYSIS_HARDWARE_INTEGRATION.md) | 13KB | 硬件对接详细分析 |
+| [ANALYSIS_ADMIN_VUE.md](archive/ANALYSIS_ADMIN_VUE.md) | 8KB | 运营管理后台详细分析 |
+| [ANALYSIS_CONSUMER_MP.md](archive/ANALYSIS_CONSUMER_MP.md) | 9KB | 消费者小程序详细分析 |
+| [ANALYSIS_MERCHANT_MP.md](archive/ANALYSIS_MERCHANT_MP.md) | 8KB | 补货员/商户小程序详细分析 |
+| [ANALYSIS_BACKEND_SERVICES.md](archive/ANALYSIS_BACKEND_SERVICES.md) | 12KB | 后端服务详细分析 |
+| [ANALYSIS_HARDWARE_INTEGRATION.md](archive/ANALYSIS_HARDWARE_INTEGRATION.md) | 13KB | 硬件对接详细分析 |
 
 ### 问题修复文档
 | 文档 | 大小 | 说明 |
@@ -31,10 +31,7 @@
 | 文档 | 说明 |
 |------|------|
 | [BROWSER_MIN_UAT.md](BROWSER_MIN_UAT.md) | 最小可执行 UAT 包 |
-| [BROWSER_MIN_UAT_TRACKING.md](BROWSER_MIN_UAT_TRACKING.md) | MIN 执行跟踪（含 2026-08-04 复测） |
-| [BROWSER_MIN_UAT_REPORT.md](BROWSER_MIN_UAT_REPORT.md) | MIN 执行报告 |
 | [BROWSER_FULL_UAT_PLAN.md](BROWSER_FULL_UAT_PLAN.md) | 全量 UAT 计划 |
-| [BROWSER_FULL_UAT_TRACKING.md](BROWSER_FULL_UAT_TRACKING.md) | 全量执行跟踪 |
 
 ---
 
@@ -72,10 +69,10 @@
 | 角色 | 推荐阅读顺序 |
 |------|--------------|
 | **项目经理** | GO_LIVE_EXECUTION_PLAN.md → CODE_FIX_CHECKLIST.md |
-| **后端开发** | ANALYSIS_BACKEND_SERVICES.md → ANALYSIS_HARDWARE_INTEGRATION.md |
-| **前端开发** | ANALYSIS_ADMIN_VUE.md → ANALYSIS_CONSUMER_MP.md → ANALYSIS_MERCHANT_MP.md |
+| **后端开发** | archive/ANALYSIS_BACKEND_SERVICES.md → archive/ANALYSIS_HARDWARE_INTEGRATION.md |
+| **前端开发** | archive/ANALYSIS_ADMIN_VUE.md → archive/ANALYSIS_CONSUMER_MP.md → archive/ANALYSIS_MERCHANT_MP.md |
 | **测试工程师** | CODE_FIX_CHECKLIST.md → 各端验证清单 |
-| **运维工程师** | ANALYSIS_HARDWARE_INTEGRATION.md → 生产部署配置 |
+| **运维工程师** | archive/ANALYSIS_HARDWARE_INTEGRATION.md → 生产部署配置 |
 
 ### 按阶段查看
 | 阶段 | 推荐文档 |
@@ -83,7 +80,7 @@
 | **当前状态分析** | 各ANALYSIS_*.md文档 |
 | **问题识别** | CODE_FIX_CHECKLIST.md |
 | **上线规划** | GO_LIVE_EXECUTION_PLAN.md |
-| **硬件对接** | ANALYSIS_HARDWARE_INTEGRATION.md |
+| **硬件对接** | archive/ANALYSIS_HARDWARE_INTEGRATION.md |
 
 ---
 
@@ -127,3 +124,7 @@ Week 9-10: 正式上线
 **创建日期**: 2026-07-17
 **文档版本**: v1.0
 **下次更新**: 灰度测试阶段
+
+## 历史归档
+
+以下为历史执行产物，已归档至 [docs/archive/](archive/)：ANALYSIS_*（端分析）、BROWSER_FULL_UAT_REPORT/TRACKING、BROWSER_REGRESSION_TRACKING、superpowers/（设计会话）、uat-screenshots/（旧截图证据）。

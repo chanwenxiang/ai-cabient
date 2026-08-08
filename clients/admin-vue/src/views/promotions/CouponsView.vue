@@ -9,10 +9,36 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:coupon:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button v-hasPermi="['ops:coupon:import']" @click="onDownloadTemplate(['示例优惠券', '满减券', '5', '0', '90', '30', '100', '示例描述', '停用'])">导入模板</el-button>
-          <el-button v-hasPermi="['ops:coupon:import']" :loading="importing" @click="triggerImport">导入</el-button>
-          <input ref="importInput" type="file" accept=".csv,text/csv" class="hidden-input" @change="onImportFile" />
+          <el-button v-hasPermi="['ops:coupon:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
+          <el-button
+            v-hasPermi="['ops:coupon:import']"
+            @click="
+              onDownloadTemplate([
+                '示例优惠券',
+                '满减券',
+                '5',
+                '0',
+                '90',
+                '30',
+                '100',
+                '示例描述',
+                '停用'
+              ])
+            "
+            >导入模板</el-button
+          >
+          <el-button v-hasPermi="['ops:coupon:import']" :loading="importing" @click="triggerImport"
+            >导入</el-button
+          >
+          <input
+            ref="importInput"
+            type="file"
+            accept=".csv,text/csv"
+            class="hidden-input"
+            @change="onImportFile"
+          />
           <el-button
             v-if="selectedIds.length && auth.hasPerm('ops:coupon:edit')"
             type="warning"
@@ -20,8 +46,12 @@
           >
             批量停用 ({{ selectedIds.length }})
           </el-button>
-          <el-button v-hasPermi="['ops:coupon:create']" type="primary" @click="openCreate">新建优惠券</el-button>
-          <el-button v-hasPermi="['ops:coupon:create']" @click="showIssue = true">手动发券</el-button>
+          <el-button v-hasPermi="['ops:coupon:create']" type="primary" @click="openCreate"
+            >新建优惠券</el-button
+          >
+          <el-button v-hasPermi="['ops:coupon:create']" @click="showIssue = true"
+            >手动发券</el-button
+          >
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -39,7 +69,13 @@
         />
       </el-form-item>
       <el-form-item label="状态">
-        <el-select v-model="statusFilter" clearable placeholder="全部" style="width: 120px" @change="search">
+        <el-select
+          v-model="statusFilter"
+          clearable
+          placeholder="全部"
+          style="width: 120px"
+          @change="search"
+        >
           <el-option label="启用" value="ACTIVE" />
           <el-option label="停用" value="INACTIVE" />
         </el-select>
@@ -58,14 +94,24 @@
           stripe
           border
           class="report-table"
-         
           row-key="couponDefId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange" empty-text=" ">
-          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无优惠券" /></template>
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无优惠券"
+          /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="couponDefId" label="券定义编号" width="100" align="center" class-name="col-text" sortable="custom">
+          <el-table-column
+            prop="couponDefId"
+            label="券定义编号"
+            width="100"
+            align="center"
+            class-name="col-text"
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.couponDefId }}</span>
             </template>
@@ -75,7 +121,9 @@
           </el-table-column>
           <el-table-column label="类型" width="100" align="center">
             <template #default="{ row }">
-              <el-tag size="small" effect="plain">{{ typeMap[row.couponType] || row.couponType }}</el-tag>
+              <el-tag size="small" effect="plain">{{
+                typeMap[row.couponType] || row.couponType
+              }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="面值" width="96" align="center" class-name="col-money">
@@ -88,7 +136,9 @@
             <template #default="{ row }">{{ row.validityDays }}天</template>
           </el-table-column>
           <el-table-column label="发行/总量" width="110" align="center">
-            <template #default="{ row }">{{ row.issuedCount }}/{{ row.maxIssueCount || '不限' }}</template>
+            <template #default="{ row }"
+              >{{ row.issuedCount }}/{{ row.maxIssueCount || '不限' }}</template
+            >
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">
@@ -115,18 +165,26 @@
         </el-table>
       </div>
     </div>
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="filtered.length"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next"
-        background
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="filtered.length"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+    />
 
-    <el-dialog v-model="showCreate" :title="editingId ? '编辑优惠券' : '新建优惠券'" width="500px" destroy-on-close>
+    <el-dialog
+      v-model="showCreate"
+      :title="editingId ? '编辑优惠券' : '新建优惠券'"
+      width="500px"
+      destroy-on-close
+    >
       <el-form :model="createForm" label-width="100px">
-        <el-form-item label="名称" required><el-input v-model="createForm.couponName" /></el-form-item>
+        <el-form-item label="名称" required
+          ><el-input v-model="createForm.couponName"
+        /></el-form-item>
         <el-form-item label="类型">
           <el-select v-model="createForm.couponType" style="width: 100%">
             <el-option
@@ -138,21 +196,54 @@
           </el-select>
         </el-form-item>
         <el-form-item label="面值(元)">
-          <el-input-number v-model="createForm.denominationYuan" :min="0.01" :step="0.5" :precision="2" controls-position="right" style="width: 100%" />
+          <el-input-number
+            v-model="createForm.denominationYuan"
+            :min="0.01"
+            :step="0.5"
+            :precision="2"
+            controls-position="right"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="最低消费(元)">
-          <el-input-number v-model="createForm.minSpendYuan" :min="0" :step="1" :precision="2" controls-position="right" style="width: 100%" />
+          <el-input-number
+            v-model="createForm.minSpendYuan"
+            :min="0"
+            :step="1"
+            :precision="2"
+            controls-position="right"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="折扣百分比">
-          <el-input-number v-model="createForm.discountPercent" :min="1" :max="99" controls-position="right" style="width: 100%" />
+          <el-input-number
+            v-model="createForm.discountPercent"
+            :min="1"
+            :max="99"
+            controls-position="right"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="有效天数">
-          <el-input-number v-model="createForm.validityDays" :min="1" :max="365" controls-position="right" style="width: 100%" />
+          <el-input-number
+            v-model="createForm.validityDays"
+            :min="1"
+            :max="365"
+            controls-position="right"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="总量限制">
-          <el-input-number v-model="createForm.maxIssueCount" :min="0" controls-position="right" style="width: 100%" />
+          <el-input-number
+            v-model="createForm.maxIssueCount"
+            :min="0"
+            controls-position="right"
+            style="width: 100%"
+          />
         </el-form-item>
-        <el-form-item label="描述"><el-input v-model="createForm.description" type="textarea" /></el-form-item>
+        <el-form-item label="描述"
+          ><el-input v-model="createForm.description" type="textarea"
+        /></el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="showCreate = false">取消</el-button>
@@ -173,7 +264,12 @@
           </el-select>
         </el-form-item>
         <el-form-item label="用户ID">
-          <el-input-number v-model="issueForm.userId" :min="1" controls-position="right" style="width: 100%" />
+          <el-input-number
+            v-model="issueForm.userId"
+            :min="1"
+            controls-position="right"
+            style="width: 100%"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -218,8 +314,11 @@ const filtered = computed(() => {
     if (statusFilter.value === 'ACTIVE' && row.status !== 'ACTIVE') return false;
     if (statusFilter.value === 'INACTIVE' && row.status === 'ACTIVE') return false;
     if (!q) return true;
-    return [row.couponDefId, row.couponName, row.couponType]
-      .some((x) => String(x || '').toLowerCase().includes(q));
+    return [row.couponDefId, row.couponName, row.couponType].some((x) =>
+      String(x || '')
+        .toLowerCase()
+        .includes(q)
+    );
   });
   return sortById(rows);
 });
@@ -232,16 +331,28 @@ watch([keyword, statusFilter], () => {
 });
 const showIssue = ref(false);
 
-const { selectedKeys: selectedIds, onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
-  useTableSelection<any>((r) => r.couponDefId);
+const {
+  selectedKeys: selectedIds,
+  onSelectionChange,
+  pickSelected,
+  exportButtonLabel,
+  clearSelection
+} = useTableSelection<any>((r) => r.couponDefId);
 
 async function batchDisable() {
-  const targets = list.value.filter((r) => selectedIds.value.includes(r.couponDefId) && r.status === 'ACTIVE');
+  const targets = list.value.filter(
+    (r) => selectedIds.value.includes(r.couponDefId) && r.status === 'ACTIVE'
+  );
   if (!targets.length) return ElMessage.warning('请勾选已启用的优惠券');
   try {
-    await ElMessageBox.confirm(`确认停用选中的 ${targets.length} 张优惠券？`, '批量停用', { type: 'warning' });
+    await ElMessageBox.confirm(`确认停用选中的 ${targets.length} 张优惠券？`, '批量停用', {
+      type: 'warning'
+    });
     for (const row of targets) {
-      await api.request(`/api/v2/coupons/definitions/${row.couponDefId}/status?status=INACTIVE`, 'PUT');
+      await api.request(
+        `/api/v2/coupons/definitions/${row.couponDefId}/status?status=INACTIVE`,
+        'PUT'
+      );
     }
     ElMessage.success(`已停用 ${targets.length} 张优惠券`);
     clearSelection();
@@ -272,59 +383,75 @@ const typeMap: Record<string, string> = Object.fromEntries(
   dictOptions('coupon_type').map((o) => [o.value, o.label])
 );
 const typeCodeByLabel: Record<string, string> = Object.fromEntries(
-  dictOptions('coupon_type').flatMap((o) => [
-    [o.label, o.value],
-    [o.value, o.value]
-  ] as [string, string][])
+  dictOptions('coupon_type').flatMap(
+    (o) =>
+      [
+        [o.label, o.value],
+        [o.value, o.value]
+      ] as [string, string][]
+  )
 );
 const activeCoupons = computed(() => list.value.filter((d) => d.status === 'ACTIVE'));
 
-const CSV_HEADERS = ['名称', '类型', '面值(元)', '最低消费(元)', '折扣百分比', '有效天数', '总量限制', '描述', '状态'];
+const CSV_HEADERS = [
+  '名称',
+  '类型',
+  '面值(元)',
+  '最低消费(元)',
+  '折扣百分比',
+  '有效天数',
+  '总量限制',
+  '描述',
+  '状态'
+];
 
-const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } = useListCsv({
-  filePrefix: '优惠券',
-  headers: CSV_HEADERS,
-  toRows: () =>
-    pickSelected(filtered.value).map((row) => [
-      row.couponName,
-      typeMap[row.couponType] || row.couponType,
-      yuan(row.denominationCents),
-      yuan(row.minSpendCents),
-      row.discountPercent ?? '',
-      row.validityDays,
-      row.maxIssueCount || 0,
-      row.description || '',
-      displayLabel('enable_status', row.status, '未知状态')
-    ]),
-  onImportRows: async (rows) => {
-    let ok = 0;
-    for (const row of rows) {
-      const name = row['名称'] || row.couponName;
-      if (!name?.trim()) continue;
-      const created = await api.request<any>('/api/v2/coupons/definitions', 'POST', {
-        couponName: name.trim(),
-        couponType: typeCodeByLabel[row['类型'] || row.couponType] || 'AMOUNT_OFF',
-        denominationCents: Math.round((Number(row['面值(元)'] || row.denominationYuan) || 0) * 100),
-        minSpendCents: Math.round((Number(row['最低消费(元)'] || row.minSpendYuan) || 0) * 100),
-        discountPercent: Number(row['折扣百分比'] || row.discountPercent) || 90,
-        validityDays: Number(row['有效天数'] || row.validityDays) || 30,
-        maxIssueCount: Number(row['总量限制'] || row.maxIssueCount) || 0,
-        description: row['描述'] || row.description || ''
-      });
-      const statusRaw = (row['状态'] || row.status || '').trim();
-      const wantsActive = statusRaw === '启用' || statusRaw.toUpperCase() === 'ACTIVE';
-      if (!wantsActive && created?.couponDefId) {
-        await api.request(
-          `/api/v2/coupons/definitions/${created.couponDefId}/status?status=INACTIVE`,
-          'PUT'
-        );
+const { importing, importInput, onExport, onDownloadTemplate, triggerImport, onImportFile } =
+  useListCsv({
+    filePrefix: '优惠券',
+    headers: CSV_HEADERS,
+    toRows: () =>
+      pickSelected(filtered.value).map((row) => [
+        row.couponName,
+        typeMap[row.couponType] || row.couponType,
+        yuan(row.denominationCents),
+        yuan(row.minSpendCents),
+        row.discountPercent ?? '',
+        row.validityDays,
+        row.maxIssueCount || 0,
+        row.description || '',
+        displayLabel('enable_status', row.status, '未知状态')
+      ]),
+    onImportRows: async (rows) => {
+      let ok = 0;
+      for (const row of rows) {
+        const name = row['名称'] || row.couponName;
+        if (!name?.trim()) continue;
+        const created = await api.request<any>('/api/v2/coupons/definitions', 'POST', {
+          couponName: name.trim(),
+          couponType: typeCodeByLabel[row['类型'] || row.couponType] || 'AMOUNT_OFF',
+          denominationCents: Math.round(
+            (Number(row['面值(元)'] || row.denominationYuan) || 0) * 100
+          ),
+          minSpendCents: Math.round((Number(row['最低消费(元)'] || row.minSpendYuan) || 0) * 100),
+          discountPercent: Number(row['折扣百分比'] || row.discountPercent) || 90,
+          validityDays: Number(row['有效天数'] || row.validityDays) || 30,
+          maxIssueCount: Number(row['总量限制'] || row.maxIssueCount) || 0,
+          description: row['描述'] || row.description || ''
+        });
+        const statusRaw = (row['状态'] || row.status || '').trim();
+        const wantsActive = statusRaw === '启用' || statusRaw.toUpperCase() === 'ACTIVE';
+        if (!wantsActive && created?.couponDefId) {
+          await api.request(
+            `/api/v2/coupons/definitions/${created.couponDefId}/status?status=INACTIVE`,
+            'PUT'
+          );
+        }
+        ok++;
       }
-      ok++;
+      await load();
+      return ok;
     }
-    await load();
-    return ok;
-  }
-});
+  });
 
 function yuan(cents: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
@@ -455,8 +582,13 @@ async function onToggleStatus(row: any) {
   const next = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
   const action = next === 'INACTIVE' ? '停用' : '启用';
   try {
-    await ElMessageBox.confirm(`确认${action}优惠券「${row.couponName}」？`, '优惠券状态', { type: 'warning' });
-    await api.request(`/api/v2/coupons/definitions/${row.couponDefId}/status?status=${next}`, 'PUT');
+    await ElMessageBox.confirm(`确认${action}优惠券「${row.couponName}」？`, '优惠券状态', {
+      type: 'warning'
+    });
+    await api.request(
+      `/api/v2/coupons/definitions/${row.couponDefId}/status?status=${next}`,
+      'PUT'
+    );
     ElMessage.success(`已${action}`);
     await load();
   } catch (e: any) {
@@ -529,10 +661,29 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.hidden-input { display: none; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.hidden-input {
+  display: none;
+}
 </style>

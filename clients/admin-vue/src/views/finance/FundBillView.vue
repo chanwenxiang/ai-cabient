@@ -9,8 +9,15 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:fund:export']" @click="exportCsv">{{ exportLabel }}</el-button>
-          <el-button :icon="Refresh" :loading="tab === 'ledger' ? ledgerLoading : loading" @click="reloadCurrent">刷新</el-button>
+          <el-button v-hasPermi="['ops:fund:export']" @click="exportCsv">{{
+            exportLabel
+          }}</el-button>
+          <el-button
+            :icon="Refresh"
+            :loading="tab === 'ledger' ? ledgerLoading : loading"
+            @click="reloadCurrent"
+            >刷新</el-button
+          >
         </div>
       </div>
     </template>
@@ -60,16 +67,34 @@
           border
           class="report-table"
           row-key="rowKey"
-          @selection-change="onBillSelectionChange" empty-text=" ">
-          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无账单" /></template>
+          @selection-change="onBillSelectionChange"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无账单"
+          /></template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column prop="bizDate" label="账期" width="120" align="center" />
-          <el-table-column prop="merchantId" label="商户编号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+          <el-table-column
+            prop="merchantId"
+            label="商户编号"
+            min-width="120"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.merchantId }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="商户" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="商户"
+            min-width="120"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.merchantName || '无' }}</template>
           </el-table-column>
           <el-table-column label="订单实付" width="110" align="center">
@@ -96,20 +121,27 @@
             </template>
           </el-table-column>
         </el-table>
-        <PagePager :hydrated="listHydrated"
-            v-model:current-page="billPage"
-            v-model:page-size="billSize"
-            :total="filteredBills.length"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next"
-            background
-          />
+        <PagePager
+          :hydrated="listHydrated"
+          v-model:current-page="billPage"
+          v-model:page-size="billSize"
+          :total="filteredBills.length"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next"
+          background
+        />
       </el-tab-pane>
 
       <el-tab-pane label="账务明细" name="ledger">
         <el-form inline class="filter-bar filter-bar--compact">
           <el-form-item label="财务类型">
-            <el-select v-model="financialType" clearable placeholder="全部" style="width: 160px" @change="onLedgerFilterChange">
+            <el-select
+              v-model="financialType"
+              clearable
+              placeholder="全部"
+              style="width: 160px"
+              @change="onLedgerFilterChange"
+            >
               <el-option
                 v-for="item in dictOptions('fund_ledger_type')"
                 :key="item.value"
@@ -119,7 +151,13 @@
             </el-select>
           </el-form-item>
           <el-form-item label="收支">
-            <el-select v-model="direction" clearable placeholder="全部" style="width: 120px" @change="onLedgerFilterChange">
+            <el-select
+              v-model="direction"
+              clearable
+              placeholder="全部"
+              style="width: 120px"
+              @change="onLedgerFilterChange"
+            >
               <el-option
                 v-for="item in dictOptions('fund_direction')"
                 :key="item.value"
@@ -138,16 +176,29 @@
           border
           class="report-table"
           row-key="entryId"
-          @selection-change="onLedgerSelectionChange" empty-text=" ">
-          <template #empty><el-empty v-if="ledgerHydrated && !ledgerLoading" description="暂无流水" /></template>
+          @selection-change="onLedgerSelectionChange"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="ledgerHydrated && !ledgerLoading" description="暂无流水"
+          /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="entryId" label="分录号" width="100" align="center" class-name="col-text" sortable="custom">
+          <el-table-column
+            prop="entryId"
+            label="分录号"
+            width="100"
+            align="center"
+            class-name="col-text"
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.entryId }}</span>
             </template>
           </el-table-column>
           <el-table-column label="财务类型" width="140" align="center">
-            <template #default="{ row }">{{ dictLabel('fund_ledger_type', row.financialType) }}</template>
+            <template #default="{ row }">{{
+              dictLabel('fund_ledger_type', row.financialType)
+            }}</template>
           </el-table-column>
           <el-table-column label="收支" width="80" align="center">
             <template #default="{ row }">
@@ -159,23 +210,36 @@
           <el-table-column label="金额" width="110" align="center">
             <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
           </el-table-column>
-          <el-table-column prop="orderId" label="订单" min-width="160" show-overflow-tooltip align="center" />
+          <el-table-column
+            prop="orderId"
+            label="订单"
+            min-width="160"
+            show-overflow-tooltip
+            align="center"
+          />
           <el-table-column prop="deviceId" label="货柜" width="120" align="center" />
-          <el-table-column prop="merchantName" label="商户" min-width="140" show-overflow-tooltip align="center" />
+          <el-table-column
+            prop="merchantName"
+            label="商户"
+            min-width="140"
+            show-overflow-tooltip
+            align="center"
+          />
           <el-table-column label="时间" width="170" align="center">
             <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
           </el-table-column>
         </el-table>
-        <PagePager :hydrated="ledgerHydrated"
-            v-model:current-page="ledgerPage"
-            v-model:page-size="ledgerSize"
-            :total="ledgerPagerTotal"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next"
-            background
-            @current-change="loadLedger"
-            @size-change="onLedgerSizeChange"
-          />
+        <PagePager
+          :hydrated="ledgerHydrated"
+          v-model:current-page="ledgerPage"
+          v-model:page-size="ledgerSize"
+          :total="ledgerPagerTotal"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next"
+          background
+          @current-change="loadLedger"
+          @size-change="onLedgerSizeChange"
+        />
       </el-tab-pane>
     </el-tabs>
   </el-card>
@@ -250,8 +314,12 @@ const filteredBills = computed(() => {
   if (q) {
     rows = rows.filter(
       (r) =>
-        String(r.merchantId || '').toLowerCase().includes(q) ||
-        String(r.merchantName || '').toLowerCase().includes(q)
+        String(r.merchantId || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(r.merchantName || '')
+          .toLowerCase()
+          .includes(q)
     );
   }
   return rows;
@@ -268,10 +336,18 @@ const filteredLedger = computed(() => {
   if (q) {
     rows = rows.filter(
       (r) =>
-        String(r.orderId || '').toLowerCase().includes(q) ||
-        String(r.deviceId || '').toLowerCase().includes(q) ||
-        String(r.merchantName || '').toLowerCase().includes(q) ||
-        String(r.entryId || '').toLowerCase().includes(q)
+        String(r.orderId || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(r.deviceId || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(r.merchantName || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(r.entryId || '')
+          .toLowerCase()
+          .includes(q)
     );
   }
   return rows;
@@ -312,17 +388,29 @@ const {
   onSelectionChange: onLedgerSelectionChange,
   pickSelected: pickLedger,
   exportButtonLabel: ledgerExportLabel,
-  selectedKeys: ledgerSelectedKeys,
   clearSelection: clearLedgerSelection
 } = useTableSelection<LedgerRow>((r) => r.entryId);
 
 const exportLabel = computed(() =>
-  tab.value === 'ledger' ? ledgerExportLabel.value.replace('导出', '导出明细') : billsExportLabel.value.replace('导出', '导出日账单')
+  tab.value === 'ledger'
+    ? ledgerExportLabel.value.replace('导出', '导出明细')
+    : billsExportLabel.value.replace('导出', '导出日账单')
 );
 
 const { onExport: exportBillsCsv } = useListCsv({
   filePrefix: '资金日账单',
-  headers: ['账期', '商户编号', '商户名称', '订单实付', '平台抽成', '通道费', '已入账', '待入账', '笔数', '固化'],
+  headers: [
+    '账期',
+    '商户编号',
+    '商户名称',
+    '订单实付',
+    '平台抽成',
+    '通道费',
+    '已入账',
+    '待入账',
+    '笔数',
+    '固化'
+  ],
   toRows: () =>
     pickBills(filteredBills.value).map((row) => [
       row.bizDate,
@@ -471,7 +559,9 @@ onMounted(loadBills);
 </script>
 
 <style scoped>
-.t1-alert { margin-bottom: 12px; }
+.t1-alert {
+  margin-bottom: 12px;
+}
 .range-hint {
   margin-left: 8px;
   font-size: 12px;

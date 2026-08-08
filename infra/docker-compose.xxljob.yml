@@ -1,0 +1,34 @@
+# XXL-JOB 调度中心（可选覆盖层）：需要与主栈叠加使用
+#   docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.xxljob.yml \
+#     --profile apps --profile xxljob up -d --build
+# 同时设置 XXL_JOB_ENABLED=true 让 trade-service 执行器注册到调度中心。
+services:
+  xxl-job-mysql:
+    image: mysql:8.0
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${XXL_JOB_MYSQL_PASSWORD:-xxljob}
+      MYSQL_DATABASE: xxl_job
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - xxljob-mysql-data:/var/lib/mysql
+      - ./xxl-job/tables_xxl_job.sql:/docker-entrypoint-initdb.d/tables_xxl_job.sql:ro
+    profiles: ["xxljob"]
+
+  xxl-job-admin:
+    image: xuxueli/xxl-job-admin:3.4.2
+    environment:
+      PARAMS: "--spring.datasource.url=jdbc:mysql://xxl-job-mysql:3306/xxl_job?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true --spring.datasource.username=root --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:-xxljob} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:-}"
+    depends_on:
+      xxl-job-mysql:
+        condition: service_healthy
+    ports:
+      - "${XXL_JOB_ADMIN_PORT:-18080}:8080"
+    profiles: ["xxljob"]
+
+volumes:
+  xxljob-mysql-data:

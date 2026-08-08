@@ -5,8 +5,8 @@
 适用范围：Docker 集成环境 + 三端 H5 测试壳 + 运营后台静态包  
 执行方式：**必须使用 Cursor Browser MCP 真实操作**（禁止仅凭 curl/代码推理宣称通过）
 
-> 本文档独立于 [`FINAL_END_TO_END_TEST_PLAN.md`](FINAL_END_TO_END_TEST_PLAN.md)，专注**浏览器可触达**的 UI/UX/业务验收。  
-> 基线报告：[`browser-e2e-test-report.md`](browser-e2e-test-report.md)
+> 本文档独立于 [`BROWSER_MIN_UAT.md`](BROWSER_MIN_UAT.md)，专注**浏览器可触达**的 UI/UX/业务验收。  
+> 基线报告：[`BROWSER_MIN_UAT.md`](BROWSER_MIN_UAT.md)
 
 ---
 
@@ -20,7 +20,7 @@
 | Vision mock | `false`（真 YOLO 联调场景） |
 | 统计 | PASS ___ / FAIL ___ / BLOCK ___ / SKIP ___ |
 
-跟踪表：[`BROWSER_FULL_UAT_TRACKING.md`](BROWSER_FULL_UAT_TRACKING.md)  
+跟踪表/报告（历史）：`docs/archive/BROWSER_FULL_UAT_TRACKING.md` · `docs/archive/BROWSER_FULL_UAT_REPORT.md`  
 截图目录：`docs/uat-screenshots/YYYY-MM-DD/`
 
 ---
@@ -409,8 +409,8 @@ Base：`http://localhost:5175`
 ### 全量 DoD
 
 - M1~M5 + L1~L7 全部 DoD 达成  
-- 输出 [`BROWSER_FULL_UAT_REPORT.md`](BROWSER_FULL_UAT_REPORT.md)  
-- 与 [`browser-e2e-test-report.md`](browser-e2e-test-report.md) 对比新增覆盖与已知限制
+- 输出执行报告（历史：`docs/archive/BROWSER_FULL_UAT_REPORT.md`）  
+- 与 [`BROWSER_MIN_UAT.md`](BROWSER_MIN_UAT.md) 对比新增覆盖与已知限制
 
 ---
 

@@ -9,10 +9,16 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:repair:edit']" :disabled="!selectedRows.length" @click="openAssign">
+          <el-button
+            v-hasPermi="['ops:repair:edit']"
+            :disabled="!selectedRows.length"
+            @click="openAssign"
+          >
             批量指派{{ selectedRows.length ? `（${selectedRows.length}）` : '' }}
           </el-button>
-          <el-button v-hasPermi="['ops:repair:edit']" type="primary" @click="openCreate">新建工单</el-button>
+          <el-button v-hasPermi="['ops:repair:edit']" type="primary" @click="openCreate"
+            >新建工单</el-button
+          >
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -20,7 +26,13 @@
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="状态">
-        <el-select v-model="status" clearable placeholder="全部" style="width: 140px" @change="search">
+        <el-select
+          v-model="status"
+          clearable
+          placeholder="全部"
+          style="width: 140px"
+          @change="search"
+        >
           <el-option
             v-for="item in statusOptions"
             :key="item.value"
@@ -47,7 +59,13 @@
         </el-select>
       </el-form-item>
       <el-form-item label="优先级">
-        <el-select v-model="priority" clearable placeholder="全部" style="width: 120px" @change="search">
+        <el-select
+          v-model="priority"
+          clearable
+          placeholder="全部"
+          style="width: 120px"
+          @change="search"
+        >
           <el-option
             v-for="item in priorityOptions"
             :key="item.value"
@@ -57,7 +75,14 @@
         </el-select>
       </el-form-item>
       <el-form-item label="故障类型">
-        <el-select v-model="faultType" clearable filterable placeholder="全部" style="width: 140px" @change="search">
+        <el-select
+          v-model="faultType"
+          clearable
+          filterable
+          placeholder="全部"
+          style="width: 140px"
+          @change="search"
+        >
           <el-option
             v-for="item in faultOptions"
             :key="item.value"
@@ -72,13 +97,28 @@
     </el-form>
 
     <div class="table-scroll">
-      <el-table :data="displayRows"
+      <el-table
+        :data="displayRows"
         :default-sort="idDefaultSort"
         @selection-change="onSelectionChange"
-        @sort-change="onIdSortChange" v-loading="loading" stripe border class="report-table" empty-text=" ">
-        <template #empty><el-empty v-if="listHydrated && !loading" description="暂无维修工单" /></template>
+        @sort-change="onIdSortChange"
+        v-loading="loading"
+        stripe
+        border
+        class="report-table"
+        empty-text=" "
+      >
+        <template #empty
+          ><el-empty v-if="listHydrated && !loading" description="暂无维修工单"
+        /></template>
         <el-table-column type="selection" width="46" align="center" />
-        <el-table-column prop="ticketId" label="工单号" width="70" align="center" sortable="custom" />
+        <el-table-column
+          prop="ticketId"
+          label="工单号"
+          width="70"
+          align="center"
+          sortable="custom"
+        />
         <el-table-column prop="deviceId" label="设备" min-width="96" align="center">
           <template #default="{ row }">
             <el-button
@@ -92,7 +132,13 @@
             <span v-else>{{ row.deviceId }}</span>
           </template>
         </el-table-column>
-        <el-table-column prop="title" label="标题" min-width="110" show-overflow-tooltip align="center" />
+        <el-table-column
+          prop="title"
+          label="标题"
+          min-width="110"
+          show-overflow-tooltip
+          align="center"
+        />
         <el-table-column prop="faultType" label="故障类型" width="80" align="center">
           <template #default="{ row }">{{ faultLabel(row.faultType) }}</template>
         </el-table-column>
@@ -101,7 +147,9 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="72" align="center">
           <template #default="{ row }">
-            <el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
+            <el-tag :type="statusType(row.status)" size="small">{{
+              statusLabel(row.status)
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="负责人" width="84" show-overflow-tooltip align="center">
@@ -120,33 +168,53 @@
           <template #default="{ row }">
             <el-button link type="primary" @click="openDetail(row)">详情</el-button>
             <template v-if="auth.hasPerm('ops:repair:edit')">
-              <el-button v-if="row.status === 'OPEN'" link type="warning" @click="transition(row, 'IN_PROGRESS')">开始处理</el-button>
-              <el-button v-if="row.status === 'IN_PROGRESS'" link type="success" @click="transition(row, 'DONE')">完成</el-button>
+              <el-button
+                v-if="row.status === 'OPEN'"
+                link
+                type="warning"
+                @click="transition(row, 'IN_PROGRESS')"
+                >开始处理</el-button
+              >
+              <el-button
+                v-if="row.status === 'IN_PROGRESS'"
+                link
+                type="success"
+                @click="transition(row, 'DONE')"
+                >完成</el-button
+              >
               <el-button
                 v-if="row.status === 'OPEN' || row.status === 'IN_PROGRESS'"
                 link
                 type="danger"
                 @click="transition(row, 'CANCELLED')"
-              >取消</el-button>
+                >取消</el-button
+              >
             </template>
           </template>
         </el-table-column>
       </el-table>
     </div>
 
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page1"
-        v-model:page-size="size"
-        layout="total, prev, pager, next"
-        :total="total"
-        @current-change="load"
-        @size-change="search"
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page1"
+      v-model:page-size="size"
+      layout="total, prev, pager, next"
+      :total="total"
+      @current-change="load"
+      @size-change="search"
+    />
 
     <el-dialog v-model="createVisible" title="新建维修工单" width="560px" destroy-on-close>
       <el-form label-width="90px">
         <el-form-item label="设备" required>
-          <el-select v-model="form.deviceId" filterable clearable placeholder="从设备列表选择" style="width: 100%">
+          <el-select
+            v-model="form.deviceId"
+            filterable
+            clearable
+            placeholder="从设备列表选择"
+            style="width: 100%"
+          >
             <el-option
               v-for="d in deviceOptions"
               :key="d.deviceId"
@@ -159,7 +227,14 @@
           <el-input v-model="form.title" />
         </el-form-item>
         <el-form-item label="故障类型">
-          <el-select v-model="form.faultType" filterable allow-create clearable placeholder="选择或输入" style="width: 100%">
+          <el-select
+            v-model="form.faultType"
+            filterable
+            allow-create
+            clearable
+            placeholder="选择或输入"
+            style="width: 100%"
+          >
             <el-option
               v-for="item in faultOptions"
               :key="item.value"
@@ -198,19 +273,41 @@
             <el-descriptions-item label="工单号">{{ detail.ticket.ticketId }}</el-descriptions-item>
             <el-descriptions-item label="设备">{{ detail.ticket.deviceId }}</el-descriptions-item>
             <el-descriptions-item label="标题">{{ detail.ticket.title }}</el-descriptions-item>
-            <el-descriptions-item label="故障类型">{{ faultLabel(detail.ticket.faultType) }}</el-descriptions-item>
-            <el-descriptions-item label="状态">{{ statusLabel(detail.ticket.status) }}</el-descriptions-item>
-            <el-descriptions-item label="优先级">{{ priorityLabel(detail.ticket.priority) }}</el-descriptions-item>
-            <el-descriptions-item label="负责人">{{ detail.ticket.assignee || '无' }}</el-descriptions-item>
-            <el-descriptions-item label="创建人">{{ detail.ticket.createdBy || '无' }}</el-descriptions-item>
-            <el-descriptions-item label="备注">{{ detail.ticket.remark || '无' }}</el-descriptions-item>
-            <el-descriptions-item label="创建时间">{{ formatDateTime(detail.ticket.createdAt) }}</el-descriptions-item>
-            <el-descriptions-item label="更新时间">{{ formatDateTime(detail.ticket.updatedAt) }}</el-descriptions-item>
-            <el-descriptions-item label="关闭时间">{{ formatDateTime(detail.ticket.closedAt) }}</el-descriptions-item>
+            <el-descriptions-item label="故障类型">{{
+              faultLabel(detail.ticket.faultType)
+            }}</el-descriptions-item>
+            <el-descriptions-item label="状态">{{
+              statusLabel(detail.ticket.status)
+            }}</el-descriptions-item>
+            <el-descriptions-item label="优先级">{{
+              priorityLabel(detail.ticket.priority)
+            }}</el-descriptions-item>
+            <el-descriptions-item label="负责人">{{
+              detail.ticket.assignee || '无'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="创建人">{{
+              detail.ticket.createdBy || '无'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="备注">{{
+              detail.ticket.remark || '无'
+            }}</el-descriptions-item>
+            <el-descriptions-item label="创建时间">{{
+              formatDateTime(detail.ticket.createdAt)
+            }}</el-descriptions-item>
+            <el-descriptions-item label="更新时间">{{
+              formatDateTime(detail.ticket.updatedAt)
+            }}</el-descriptions-item>
+            <el-descriptions-item label="关闭时间">{{
+              formatDateTime(detail.ticket.closedAt)
+            }}</el-descriptions-item>
           </el-descriptions>
           <div class="event-title">流转记录</div>
           <el-timeline v-if="detail.events?.length">
-            <el-timeline-item v-for="e in detail.events" :key="e.eventId" :timestamp="formatDateTime(e.createdAt)">
+            <el-timeline-item
+              v-for="e in detail.events"
+              :key="e.eventId"
+              :timestamp="formatDateTime(e.createdAt)"
+            >
               {{ e.action }}：{{ e.fromStatus || '无' }} → {{ e.toStatus }}
               <span v-if="e.remark">（{{ e.remark }}）</span>
             </el-timeline-item>
@@ -222,7 +319,13 @@
     </el-drawer>
   </el-card>
 
-  <el-dialog v-model="assignVisible" title="批量指派" width="420px" destroy-on-close :close-on-click-modal="false">
+  <el-dialog
+    v-model="assignVisible"
+    title="批量指派"
+    width="420px"
+    destroy-on-close
+    :close-on-click-modal="false"
+  >
     <el-alert
       type="info"
       :closable="false"
@@ -291,7 +394,11 @@ const loading = ref(false);
 const listHydrated = ref(false);
 const saving = ref(false);
 const rows = ref<Ticket[]>([]);
-const { defaultSort: idDefaultSort, onSortChange: onIdSortChange, sortById } = useIdColumnSort<Ticket>('ticketId');
+const {
+  defaultSort: idDefaultSort,
+  onSortChange: onIdSortChange,
+  sortById
+} = useIdColumnSort<Ticket>('ticketId');
 const displayRows = computed(() => sortById(rows.value));
 const total = ref(0);
 const page1 = ref(1);
@@ -340,10 +447,14 @@ async function submitAssign() {
   }
   assignSaving.value = true;
   try {
-    const count = await api.request<number>('/api/v2/ops/admin/repair-tickets/batch-assign', 'POST', {
-      ticketIds: selectedRows.value.map((r) => r.ticketId),
-      assignee: name
-    });
+    const count = await api.request<number>(
+      '/api/v2/ops/admin/repair-tickets/batch-assign',
+      'POST',
+      {
+        ticketIds: selectedRows.value.map((r) => r.ticketId),
+        assignee: name
+      }
+    );
     ElMessage.success(`已指派 ${count} 张工单`);
     assignVisible.value = false;
     selectedRows.value = [];
@@ -359,7 +470,14 @@ function statusLabel(s?: string) {
   return dictLabel('repair_ticket_status', s) || s || '未知状态';
 }
 function statusType(s?: string) {
-  return ({ OPEN: 'warning', IN_PROGRESS: '', DONE: 'success', CANCELLED: 'info' } as Record<string, string>)[s || ''] || '';
+  return (
+    (
+      { OPEN: 'warning', IN_PROGRESS: '', DONE: 'success', CANCELLED: 'info' } as Record<
+        string,
+        string
+      >
+    )[s || ''] || ''
+  );
 }
 function priorityLabel(p?: string) {
   return dictLabel('dispute_priority', p) || p || '未知';
@@ -438,7 +556,10 @@ async function openDetail(row: Ticket) {
   }
   detailVisible.value = true;
   try {
-    detail.value = await api.request<Detail>(`/api/v2/ops/admin/repair-tickets/${row.ticketId}`, 'GET');
+    detail.value = await api.request<Detail>(
+      `/api/v2/ops/admin/repair-tickets/${row.ticketId}`,
+      'GET'
+    );
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载详情失败');
     if (!detailHydrated.value) detail.value = null;
@@ -476,10 +597,14 @@ async function transition(row: Ticket, next: string) {
       if (prompt === null) return;
       remark = prompt.value || undefined;
     } else {
-      const { value } = await ElMessageBox.prompt(`将工单流转为「${statusLabel(next)}」`, '状态流转', {
-        inputPlaceholder: '可选备注',
-        confirmButtonText: '确认'
-      }).catch(() => ({ value: null as string | null }));
+      const { value } = await ElMessageBox.prompt(
+        `将工单流转为「${statusLabel(next)}」`,
+        '状态流转',
+        {
+          inputPlaceholder: '可选备注',
+          confirmButtonText: '确认'
+        }
+      ).catch(() => ({ value: null as string | null }));
       if (value === null) return;
       remark = value || undefined;
     }
@@ -511,11 +636,32 @@ onMounted(async () => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { font-size: 12px; color: var(--el-text-color-secondary); }
-.page-pager { margin-top: 12px; display: flex; justify-content: flex-end; }
-.event-title { margin: 16px 0 8px; font-weight: 600; }
-.repair-detail-pane { min-height: 160px; }
-.assign-alert { margin-bottom: 4px; }
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.page-pager {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+.event-title {
+  margin: 16px 0 8px;
+  font-weight: 600;
+}
+.repair-detail-pane {
+  min-height: 160px;
+}
+.assign-alert {
+  margin-bottom: 4px;
+}
 </style>

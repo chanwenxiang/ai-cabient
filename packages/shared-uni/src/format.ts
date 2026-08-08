@@ -15,7 +15,7 @@ export const EMPTY = {
   channel: '未知渠道',
   batch: '无批次',
   expiry: '未填',
-  reason: '暂无说明',
+  reason: '暂无说明'
 } as const;
 
 export type EmptyKind = keyof typeof EMPTY;
@@ -37,7 +37,11 @@ function parseDate(value: DateInput): Date | null {
 }
 
 function dateParts(date: Date, options: Intl.DateTimeFormatOptions) {
-  return new Intl.DateTimeFormat('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false, ...options }).formatToParts(date);
+  return new Intl.DateTimeFormat('zh-CN', {
+    timeZone: 'Asia/Shanghai',
+    hour12: false,
+    ...options
+  }).formatToParts(date);
 }
 
 function part(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes) {
@@ -54,7 +58,7 @@ export function formatDateTime(value?: DateInput, fallback: string = EMPTY.none)
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-    second: '2-digit',
+    second: '2-digit'
   });
   return `${part(parts, 'year')}-${part(parts, 'month')}-${part(parts, 'day')} ${part(parts, 'hour')}:${part(parts, 'minute')}:${part(parts, 'second')}`;
 }
@@ -68,7 +72,7 @@ export function formatDateTimeMinute(value?: DateInput, fallback: string = EMPTY
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
-    minute: '2-digit',
+    minute: '2-digit'
   });
   return `${part(parts, 'year')}-${part(parts, 'month')}-${part(parts, 'day')} ${part(parts, 'hour')}:${part(parts, 'minute')}`;
 }
@@ -77,7 +81,12 @@ export function formatDateTimeMinute(value?: DateInput, fallback: string = EMPTY
 export function formatDateTimeShort(value?: DateInput, fallback: string = EMPTY.date): string {
   const date = parseDate(value ?? null);
   if (!date) return value != null && value !== '' ? String(value) : fallback;
-  const parts = dateParts(date, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const parts = dateParts(date, {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
   return `${part(parts, 'month')}/${part(parts, 'day')} ${part(parts, 'hour')}:${part(parts, 'minute')}`;
 }
 
@@ -87,12 +96,7 @@ export function fmtMoney(cents?: number | null, empty: string = EMPTY.money) {
 }
 
 export type OpenErrorKind =
-  | 'balance'
-  | 'device_not_found'
-  | 'device_paused'
-  | 'device_busy'
-  | 'rate_limit'
-  | 'other';
+  'balance' | 'device_not_found' | 'device_paused' | 'device_busy' | 'rate_limit' | 'other';
 
 function errorText(err: unknown): string {
   if (!err) return '';
@@ -105,7 +109,10 @@ export function classifyOpenError(err: unknown): OpenErrorKind {
   const e = err as { status?: number; message?: string; errMsg?: string } | null;
   const msg = errorText(err);
   if (e?.status === 429 || /too many door open|过于频繁/i.test(msg)) return 'rate_limit';
-  if (e?.status === 404 || /设备不存在|柜机不存在|device not found|编号无效|检查设备编号|检查柜机编号/i.test(msg)) {
+  if (
+    e?.status === 404 ||
+    /设备不存在|柜机不存在|device not found|编号无效|检查设备编号|检查柜机编号/i.test(msg)
+  ) {
     return 'device_not_found';
   }
   if (/余额不足|请先充值|insufficient balance|BALANCE/i.test(msg)) return 'balance';
@@ -118,7 +125,8 @@ export function formatError(err: unknown): string {
   if (!err) return '未知错误';
   const kind = classifyOpenError(err);
   if (kind === 'rate_limit') return '开门过于频繁，请稍后再试';
-  if (kind === 'balance') return '可用余额不足，请先充值后再开门（默认预授权约 ¥20，或开通免密支付）';
+  if (kind === 'balance')
+    return '可用余额不足，请先充值后再开门（默认预授权约 ¥20，或开通免密支付）';
   if (kind === 'device_not_found') return '柜机不存在或编号有误，请重新扫描柜门二维码';
   if (kind === 'device_paused') return '柜机已暂停营业，请稍后再试或换一台';
   if (kind === 'device_busy') return '柜机正在使用或补货中，请稍后再试';
@@ -133,7 +141,10 @@ export function formatError(err: unknown): string {
  * 将后端 / SDK 英文或技术错误文案转为用户可读中文。
  * 已含中文的业务提示原样返回。
  */
-export function localizeApiMessage(message?: string | null, fallback = '操作失败，请稍后重试'): string {
+export function localizeApiMessage(
+  message?: string | null,
+  fallback = '操作失败，请稍后重试'
+): string {
   const msg = String(message || '').trim();
   if (!msg) return fallback;
   if (/[\u4e00-\u9fff]/.test(msg)) return msg;
@@ -182,7 +193,11 @@ export function localizeDisputeReason(reason?: string | null): string {
   if (/timeout|识别超时|STIMEOUT/i.test(r)) {
     return '识别超时，本次暂未扣款，工作人员正在核对账单。';
   }
-  if (/非生产|重力信号|仅有重力|重力回填|模拟\/兜底|模拟识别|gravity-fill|gravity-mismatch|mock-v/i.test(r)) {
+  if (
+    /非生产|重力信号|仅有重力|重力回填|模拟\/兜底|模拟识别|gravity-fill|gravity-mismatch|mock-v/i.test(
+      r
+    )
+  ) {
     return '商品识别结果需要人工确认，本次暂未扣款。审核完成后会生成账单。';
   }
   const letters = (r.match(/[A-Za-z]/g) || []).length;

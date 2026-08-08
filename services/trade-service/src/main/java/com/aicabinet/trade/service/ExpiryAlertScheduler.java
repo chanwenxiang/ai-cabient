@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +14,9 @@ public class ExpiryAlertScheduler {
 
     private final InventoryLotService inventoryLotService;
 
+    @Autowired
+    private ScheduledTaskService taskService;
+
     public ExpiryAlertScheduler(InventoryLotService inventoryLotService) {
         this.inventoryLotService = inventoryLotService;
     }
@@ -20,9 +24,24 @@ public class ExpiryAlertScheduler {
     @Scheduled(fixedRate = 3_600_000)
     @Transactional
     public void scanExpiry() {
-        int alerts = inventoryLotService.scanExpiryAlerts();
-        if (alerts > 0) {
-            log.info("expiry scan created/updated alerts={}", alerts);
+        long start = System.nanoTime();
+        if (!taskService.tryBegin("expiry-alert", 600)) {
+            return;
+        }
+        boolean failed = false;
+        try {
+            int alerts = inventoryLotService.scanExpiryAlerts();
+            if (alerts > 0) {
+                log.info("expiry scan created/updated alerts={}", alerts);
+            }
+        } catch (Exception e) {
+            failed = true;
+            taskService.finish("expiry-alert", "FAILED", e.getMessage(), start);
+            throw e;
+        } finally {
+            if (!failed) {
+                taskService.finish("expiry-alert", "SUCCESS", null, start);
+            }
         }
     }
 }

@@ -76,7 +76,9 @@ export function buildOverridesFromRuntime(
   return map;
 }
 
-function entriesToOptions(map: Record<string, string> | undefined): { value: string; label: string }[] {
+function entriesToOptions(
+  map: Record<string, string> | undefined
+): { value: string; label: string }[] {
   return Object.entries(map || {}).map(([value, label]) => ({ value, label }));
 }
 
@@ -327,20 +329,51 @@ export const DICT = {
     INVENTORY_ADJUSTMENT: '库存调整',
     MANUAL: '人工操作'
   },
-  replenishment_route_status: { PLANNED: '待执行', IN_PROGRESS: '执行中', COMPLETED: '已完成', CANCELLED: '已取消' },
-  replenishment_task_status: { PENDING: '待处理', IN_PROGRESS: '进行中', COMPLETED: '已完成', CANCELLED: '已取消' },
-  replenishment_request_status: { SUBMITTED: '待审核', ACCEPTED: '已接单', REJECTED: '已驳回', COMPLETED: '已完成' },
-  inventory_lot_status: { ON_SALE: '在售', NEAR_EXPIRY: '临期', BLOCKED: '已冻结', DEPLETED: '已耗尽' },
+  replenishment_route_status: {
+    PLANNED: '待执行',
+    IN_PROGRESS: '执行中',
+    COMPLETED: '已完成',
+    CANCELLED: '已取消'
+  },
+  replenishment_task_status: {
+    PENDING: '待处理',
+    IN_PROGRESS: '进行中',
+    COMPLETED: '已完成',
+    CANCELLED: '已取消'
+  },
+  replenishment_request_status: {
+    SUBMITTED: '待审核',
+    ACCEPTED: '已接单',
+    REJECTED: '已驳回',
+    COMPLETED: '已完成'
+  },
+  inventory_lot_status: {
+    ON_SALE: '在售',
+    NEAR_EXPIRY: '临期',
+    BLOCKED: '已冻结',
+    DEPLETED: '已耗尽'
+  },
   exception_severity: { CRITICAL: '紧急', HIGH: '高', MEDIUM: '中', LOW: '低' },
   exception_status: { OPEN: '待处理', PROCESSING: '处理中', RESOLVED: '已解决', CLOSED: '已关闭' },
   exception_type: {
-    DISPUTE: '消费争议', LOW_STOCK: '低库存', EXPIRY: '临期商品', REPLENISHMENT_REQUIRED: '待补货',
-    DEVICE_OFFLINE: '设备离线', DEVICE_FAULT: '设备故障', DOOR_OPEN_TOO_LONG: '长时间未关门',
-    OPEN_TIMEOUT: '开门超时', UPLOAD_STUCK: '录像上传滞留', RECOGNITION_STUCK: '识别滞留',
-    RECOGNITION_TIMEOUT: '识别超时', RECOGNITION_FAILED: '识别存疑需人工审核',
+    DISPUTE: '消费争议',
+    LOW_STOCK: '低库存',
+    EXPIRY: '临期商品',
+    REPLENISHMENT_REQUIRED: '待补货',
+    DEVICE_OFFLINE: '设备离线',
+    DEVICE_FAULT: '设备故障',
+    DOOR_OPEN_TOO_LONG: '长时间未关门',
+    OPEN_TIMEOUT: '开门超时',
+    UPLOAD_STUCK: '录像上传滞留',
+    RECOGNITION_STUCK: '识别滞留',
+    RECOGNITION_TIMEOUT: '识别超时',
+    RECOGNITION_FAILED: '识别存疑需人工审核',
     RECOGNITION_UNAVAILABLE: '识别服务不可用',
-    BALANCE_INSUFFICIENT: '余额不足', SETTLEMENT_FAILED: '结算失败', SETTLEMENT_STUCK: '结算滞留',
-    INVENTORY_MISMATCH: '库存差异', SLOT_DISCREPANCY: '货道账实差异'
+    BALANCE_INSUFFICIENT: '余额不足',
+    SETTLEMENT_FAILED: '结算失败',
+    SETTLEMENT_STUCK: '结算滞留',
+    INVENTORY_MISMATCH: '库存差异',
+    SLOT_DISCREPANCY: '货道账实差异'
   },
   ops_exception_action: {
     OPS_EXCEPTION_CLAIM: '领取异常',
@@ -354,7 +387,12 @@ export const DICT = {
     OPS_EXCEPTION_AUTO_RESOLVE: '系统自动解决',
     MERCHANT_OPS_EXCEPTION_RESOLVE: '商家处理异常'
   },
-  reconciliation_status: { MATCHED: '已平账', MISMATCH: '存在差异', PENDING: '待处理', FAILED: '失败' },
+  reconciliation_status: {
+    MATCHED: '已平账',
+    MISMATCH: '存在差异',
+    PENDING: '待处理',
+    FAILED: '失败'
+  },
   settlement_batch_status: {
     PENDING: '待结算',
     PROCESSING: '结算中',
@@ -366,9 +404,15 @@ export const DICT = {
   },
   sku_status: { ACTIVE: '在售', INACTIVE: '停用', DISABLED: '禁售' },
   order_status: {
-    PENDING: '待支付', PROCESSING: '处理中', PAID: '已支付', COMPLETED: '已完成',
-    DISPUTED: '争议中', REFUNDED: '已退款', PARTIAL_REFUNDED: '部分退款',
-    FAILED: '处理失败', CANCELLED: '已取消'
+    PENDING: '待支付',
+    PROCESSING: '处理中',
+    PAID: '已支付',
+    COMPLETED: '已完成',
+    DISPUTED: '争议中',
+    REFUNDED: '已退款',
+    PARTIAL_REFUNDED: '部分退款',
+    FAILED: '处理失败',
+    CANCELLED: '已取消'
   },
   route_code: {
     R01: '路线 R01',
@@ -385,13 +429,40 @@ export type DictType = keyof typeof DICT;
 export type DictTagType = 'success' | 'warning' | 'danger' | 'info' | 'primary';
 
 const STATUS_TAGS: Record<string, DictTagType> = {
-  ACTIVE: 'success', ONLINE: 'success', COMPLETED: 'success', RECEIVED: 'success', SUCCESS: 'success', ON_SALE: 'success',
-  MATCHED: 'success', RESOLVED: 'success', CLOSED: 'success',
-  CREATED: 'info', DRAFT: 'info', PENDING: 'info', SUBMITTED: 'info', OPEN: 'warning',
+  ACTIVE: 'success',
+  ONLINE: 'success',
+  COMPLETED: 'success',
+  RECEIVED: 'success',
+  SUCCESS: 'success',
+  ON_SALE: 'success',
+  MATCHED: 'success',
+  RESOLVED: 'success',
+  CLOSED: 'success',
+  CREATED: 'info',
+  DRAFT: 'info',
+  PENDING: 'info',
+  SUBMITTED: 'info',
+  OPEN: 'warning',
   PROCESSING: 'warning',
-  LOW: 'info', MEDIUM: 'warning',
-  PARTIAL_RECEIVED: 'warning', PICKED: 'warning', IN_PROGRESS: 'warning', IN_TRANSIT: 'warning', NEAR_EXPIRY: 'warning', PARTIAL: 'warning', HIGH: 'warning',
-  INACTIVE: 'danger', OFFLINE: 'danger', FAILED: 'danger', REJECTED: 'danger', CANCELLED: 'danger', BLOCKED: 'danger', LOST: 'danger', DAMAGED: 'danger', CRITICAL: 'danger', MISMATCH: 'danger'
+  LOW: 'info',
+  MEDIUM: 'warning',
+  PARTIAL_RECEIVED: 'warning',
+  PICKED: 'warning',
+  IN_PROGRESS: 'warning',
+  IN_TRANSIT: 'warning',
+  NEAR_EXPIRY: 'warning',
+  PARTIAL: 'warning',
+  HIGH: 'warning',
+  INACTIVE: 'danger',
+  OFFLINE: 'danger',
+  FAILED: 'danger',
+  REJECTED: 'danger',
+  CANCELLED: 'danger',
+  BLOCKED: 'danger',
+  LOST: 'danger',
+  DAMAGED: 'danger',
+  CRITICAL: 'danger',
+  MISMATCH: 'danger'
 };
 
 export function dictLabel(type: DictType | string, code: string | null | undefined): string {
@@ -617,26 +688,34 @@ export function formatOpsActionDetail(detail: string | null | undefined): string
   text = text.replace(/\bassignee=(\d+)/gi, '接收人：用户 $1');
   text = text.replace(/\breason=/gi, '原因：');
   text = text.replace(/\bresult=/gi, '结果：');
-  text = text.replace(/人工免单，退回余额 (\d+) 分/g, (_, cents) =>
-    `人工免单，退回余额 ¥${(+cents / 100).toFixed(2)}`);
-  text = text.replace(/原金额=(\d+) 分，最终金额=(\d+) 分，差额=(-?\d+) 分/g,
-    (_, orig, final, adj) => `原金额 ¥${(+orig / 100).toFixed(2)}，最终金额 ¥${(+final / 100).toFixed(2)}，差额 ¥${(+adj / 100).toFixed(2)}`);
+  text = text.replace(
+    /人工免单，退回余额 (\d+) 分/g,
+    (_, cents) => `人工免单，退回余额 ¥${(+cents / 100).toFixed(2)}`
+  );
+  text = text.replace(
+    /原金额=(\d+) 分，最终金额=(\d+) 分，差额=(-?\d+) 分/g,
+    (_, orig, final, adj) =>
+      `原金额 ¥${(+orig / 100).toFixed(2)}，最终金额 ¥${(+final / 100).toFixed(2)}，差额 ¥${(+adj / 100).toFixed(2)}`
+  );
 
   // minutes=10 / deviceId=CAB-001,sessionId=... / key=value;key=value
-  text = text.replace(/([A-Za-z][A-Za-z0-9_]*)\s*=\s*([^,;]+)/g, (full, key: string, raw: string) => {
-    const k = String(key).toLowerCase();
-    const value = String(raw).trim();
-    const label = AUDIT_DETAIL_KEY_LABELS[k];
-    if (!label) return full;
-    if (k === 'minutes') return `离线超过 ${value} 分钟自动锁机`;
-    if (k === 'hours') return `超时 ${value} 小时`;
-    if (k === 'blacklist' || k === 'notifyedge') {
-      const on = /^(true|1|yes)$/i.test(value);
-      return `${label}：${on ? '是' : '否'}`;
+  text = text.replace(
+    /([A-Za-z][A-Za-z0-9_]*)\s*=\s*([^,;]+)/g,
+    (full, key: string, raw: string) => {
+      const k = String(key).toLowerCase();
+      const value = String(raw).trim();
+      const label = AUDIT_DETAIL_KEY_LABELS[k];
+      if (!label) return full;
+      if (k === 'minutes') return `离线超过 ${value} 分钟自动锁机`;
+      if (k === 'hours') return `超时 ${value} 小时`;
+      if (k === 'blacklist' || k === 'notifyedge') {
+        const on = /^(true|1|yes)$/i.test(value);
+        return `${label}：${on ? '是' : '否'}`;
+      }
+      if (k === 'targettempc') return `${label}：${value}℃`;
+      return `${label}：${value}`;
     }
-    if (k === 'targettempc') return `${label}：${value}℃`;
-    return `${label}：${value}`;
-  });
+  );
 
   text = text.replace(/;\s*/g, '；').replace(/,\s*/g, '，');
 

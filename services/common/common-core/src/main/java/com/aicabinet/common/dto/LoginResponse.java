@@ -4,5 +4,6 @@ public record LoginResponse(
         String token,
         Long userId,
         long expiresInSeconds,
-        long serverBootEpoch
+        long serverBootEpoch,
+        boolean cookieEnabled
 ) {}

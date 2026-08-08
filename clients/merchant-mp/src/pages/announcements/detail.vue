@@ -77,7 +77,11 @@ function priorityClass(p?: string) {
 </script>
 
 <style scoped>
-.page { padding: 24rpx; min-height: 100vh; box-sizing: border-box; }
+.page {
+  padding: 24rpx;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
 .card {
   background: #fff;
   border-radius: 20rpx;
@@ -91,7 +95,10 @@ function priorityClass(p?: string) {
   gap: 16rpx;
   color: #64748b;
 }
-.err { color: #b91c1c; text-align: center; }
+.err {
+  color: #b91c1c;
+  text-align: center;
+}
 .retry {
   background: #0f766e;
   color: #fff;
@@ -110,9 +117,18 @@ function priorityClass(p?: string) {
   border-radius: 999rpx;
   font-weight: 600;
 }
-.tag.high { color: #b45309; background: #fef3c7; }
-.tag.urgent { color: #b91c1c; background: #fee2e2; }
-.time { color: #94a3b8; font-size: 24rpx; }
+.tag.high {
+  color: #b45309;
+  background: #fef3c7;
+}
+.tag.urgent {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+.time {
+  color: #94a3b8;
+  font-size: 24rpx;
+}
 .title {
   display: block;
   font-size: 40rpx;

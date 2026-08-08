@@ -20,7 +20,11 @@
         @click="goDetail(item.announceId)"
       >
         <view class="head">
-          <text v-if="priorityLabel(item.priority)" class="tag" :class="priorityClass(item.priority)">
+          <text
+            v-if="priorityLabel(item.priority)"
+            class="tag"
+            :class="priorityClass(item.priority)"
+          >
             {{ priorityLabel(item.priority) }}
           </text>
           <text v-if="unread(item.announceId)" class="unread-dot" aria-label="未读">新</text>
@@ -91,7 +95,9 @@ function formatTime(t?: string) {
 }
 
 function previewText(content?: string) {
-  const text = String(content || '').replace(/\s+/g, ' ').trim();
+  const text = String(content || '')
+    .replace(/\s+/g, ' ')
+    .trim();
   return text.length > 80 ? `${text.slice(0, 80)}…` : text;
 }
 
@@ -109,7 +115,11 @@ function priorityClass(p?: string) {
 </script>
 
 <style scoped>
-.page { padding: 24rpx; min-height: 100vh; box-sizing: border-box; }
+.page {
+  padding: 24rpx;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
 .card {
   background: #fff;
   border-radius: 20rpx;
@@ -124,13 +134,18 @@ function priorityClass(p?: string) {
   gap: 16rpx;
   color: #64748b;
 }
-.err { color: #b91c1c; text-align: center; }
+.err {
+  color: #b91c1c;
+  text-align: center;
+}
 .retry {
   background: #0f766e;
   color: #fff;
   border: none;
 }
-.item-hover { opacity: 0.92; }
+.item-hover {
+  opacity: 0.92;
+}
 .head {
   display: flex;
   align-items: center;
@@ -144,8 +159,14 @@ function priorityClass(p?: string) {
   border-radius: 999rpx;
   font-weight: 600;
 }
-.tag.high { color: #b45309; background: #fef3c7; }
-.tag.urgent { color: #b91c1c; background: #fee2e2; }
+.tag.high {
+  color: #b45309;
+  background: #fef3c7;
+}
+.tag.urgent {
+  color: #b91c1c;
+  background: #fee2e2;
+}
 .unread-dot {
   color: #fff;
   background: #ef4444;
@@ -155,7 +176,11 @@ function priorityClass(p?: string) {
   border-radius: 999rpx;
   margin-left: 8rpx;
 }
-.time { margin-left: auto; color: #94a3b8; font-size: 22rpx; }
+.time {
+  margin-left: auto;
+  color: #94a3b8;
+  font-size: 22rpx;
+}
 .title {
   display: block;
   font-size: 32rpx;

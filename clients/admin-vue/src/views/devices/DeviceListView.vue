@@ -5,7 +5,9 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">设备管理</span>
-            <span class="hint">运营状态看板：在线 / 离线 / 在售 / 停售一键筛选；可批量锁机停售或解锁营业</span>
+            <span class="hint"
+              >运营状态看板：在线 / 离线 / 在售 / 停售一键筛选；可批量锁机停售或解锁营业</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -16,7 +18,8 @@
             :disabled="!selectedKeys.length"
             :loading="batchCmdLoading === 'LOCK'"
             @click="batchCommand('LOCK')"
-          >批量停售</el-button>
+            >批量停售</el-button
+          >
           <el-button
             v-hasPermi="['ops:device:edit']"
             type="success"
@@ -24,23 +27,30 @@
             :disabled="!selectedKeys.length"
             :loading="batchCmdLoading === 'UNLOCK'"
             @click="batchCommand('UNLOCK')"
-          >批量恢复</el-button>
+            >批量恢复</el-button
+          >
           <el-button
             v-hasPermi="['ops:device:edit']"
             plain
             :disabled="!selectedKeys.length"
             :loading="batchCmdLoading === 'DEPLOY'"
             @click="batchLifecycle('DEPLOY')"
-          >批量投放</el-button>
+            >批量投放</el-button
+          >
           <el-button
             v-hasPermi="['ops:device:edit']"
             plain
             :disabled="!selectedKeys.length"
             :loading="batchCmdLoading === 'UNDEPLOY'"
             @click="batchLifecycle('UNDEPLOY')"
-          >批量未投放</el-button>
-          <el-button v-hasPermi="['ops:device:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button v-hasPermi="['ops:device:create']" type="primary" @click="openCreate">新建设备</el-button>
+            >批量未投放</el-button
+          >
+          <el-button v-hasPermi="['ops:device:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
+          <el-button v-hasPermi="['ops:device:create']" type="primary" @click="openCreate"
+            >新建设备</el-button
+          >
           <el-button :icon="Refresh" :loading="loading" @click="load(false)">刷新</el-button>
         </div>
       </div>
@@ -60,7 +70,9 @@
       >
         <span class="ops-board__label">{{ tile.label }}</span>
         <span class="ops-board__value">{{ formatBoardCount(tile.key) }}</span>
-        <span v-if="tile.hint" class="ops-board__hint">{{ boardHydrated ? tile.hint : '加载中…' }}</span>
+        <span v-if="tile.hint" class="ops-board__hint">{{
+          boardHydrated ? tile.hint : '加载中…'
+        }}</span>
       </button>
     </div>
 
@@ -92,7 +104,13 @@
         />
       </el-form-item>
       <el-form-item label="生命周期">
-        <el-select v-model="lifecycleFilter" clearable placeholder="全部" style="width: 130px" @change="search">
+        <el-select
+          v-model="lifecycleFilter"
+          clearable
+          placeholder="全部"
+          style="width: 130px"
+          @change="search"
+        >
           <el-option
             v-for="item in dictOptions('device_lifecycle')"
             :key="item.value"
@@ -102,7 +120,13 @@
         </el-select>
       </el-form-item>
       <el-form-item label="合作方式">
-        <el-select v-model="coopFilter" clearable placeholder="全部" style="width: 120px" @change="search">
+        <el-select
+          v-model="coopFilter"
+          clearable
+          placeholder="全部"
+          style="width: 120px"
+          @change="search"
+        >
           <el-option
             v-for="item in dictOptions('device_coop_mode')"
             :key="item.value"
@@ -145,12 +169,22 @@
           row-key="deviceId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange" empty-text=" ">
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
           <template #empty>
             <el-empty v-if="listHydrated && !loading" description="暂无设备" />
           </template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="deviceId" label="设备编号" min-width="140" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+          <el-table-column
+            prop="deviceId"
+            label="设备编号"
+            min-width="140"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.deviceId }}</span>
             </template>
@@ -162,7 +196,13 @@
               </button>
             </template>
           </el-table-column>
-          <el-table-column label="类型" min-width="100" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="类型"
+            min-width="100"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ dictLabel('device_type', row.deviceType) }}</template>
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
@@ -184,27 +224,66 @@
               <el-tag size="small" effect="plain">{{ lifecycleLabel(row.lifecycleStatus) }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="IMEI" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="IMEI"
+            min-width="120"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.imei || '无' }}</template>
           </el-table-column>
-          <el-table-column label="资产方" min-width="100" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="资产方"
+            min-width="100"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.assetOwner || '无' }}</template>
           </el-table-column>
-          <el-table-column label="路线" width="90" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="路线"
+            width="90"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.routeCode || '无' }}</template>
           </el-table-column>
-          <el-table-column label="商户" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="商户"
+            min-width="120"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.merchantName || row.merchantId || '无' }}</template>
           </el-table-column>
-          <el-table-column label="退款方式" min-width="168" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="退款方式"
+            min-width="168"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
-              <el-tag :type="effectivePolicy(row) === 'DISPUTE_ONLY' ? 'warning' : 'success'" size="small">
+              <el-tag
+                :type="effectivePolicy(row) === 'DISPUTE_ONLY' ? 'warning' : 'success'"
+                size="small"
+              >
                 {{ policyLabel(effectivePolicy(row)) }}
               </el-tag>
               <span v-if="!row.refundPolicy" class="inherit-hint">全局默认</span>
             </template>
           </el-table-column>
-          <el-table-column label="最近会话" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="最近会话"
+            min-width="140"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <span v-if="row.activeSessionId" class="mono">{{ row.activeSessionId }}</span>
               <span v-else class="muted">无</span>
@@ -212,10 +291,18 @@
           </el-table-column>
           <el-table-column label="会话状态" min-width="100" align="center">
             <template #default="{ row }">
-              {{ row.activeSessionState ? dictLabel('session_state', row.activeSessionState) : '无' }}
+              {{
+                row.activeSessionState ? dictLabel('session_state', row.activeSessionState) : '无'
+              }}
             </template>
           </el-table-column>
-          <el-table-column label="更新时间" min-width="168" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="更新时间"
+            min-width="168"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
@@ -232,18 +319,26 @@
       </div>
     </div>
 
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="total"
-        :page-sizes="[10, 20, 50]"
-        layout="total, sizes, prev, pager, next"
-        background
-        @current-change="() => load(false)"
-        @size-change="onSizeChange"
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="total"
+      :page-sizes="[10, 20, 50]"
+      layout="total, sizes, prev, pager, next"
+      background
+      @current-change="() => load(false)"
+      @size-change="onSizeChange"
+    />
 
-    <el-dialog v-model="createVisible" title="新建设备" width="480px" destroy-on-close append-to-body align-center>
+    <el-dialog
+      v-model="createVisible"
+      title="新建设备"
+      width="480px"
+      destroy-on-close
+      append-to-body
+      align-center
+    >
       <el-form label-width="88px">
         <el-form-item label="设备编号" required>
           <el-input v-model="createForm.deviceId" placeholder="例如 CAB-001…" />
@@ -252,7 +347,12 @@
           <el-input v-model="createForm.deviceName" placeholder="可选…" />
         </el-form-item>
         <el-form-item label="设备类型">
-          <el-select v-model="createForm.deviceType" clearable placeholder="可选" style="width: 100%">
+          <el-select
+            v-model="createForm.deviceType"
+            clearable
+            placeholder="可选"
+            style="width: 100%"
+          >
             <el-option
               v-for="item in dictOptions('device_type')"
               :key="item.value"
@@ -312,7 +412,13 @@
       </el-form>
       <template #footer>
         <el-button @click="policyVisible = false">取消</el-button>
-        <el-button v-hasPermi="['ops:device:edit']" type="primary" :loading="policySaving" @click="savePolicy">保存</el-button>
+        <el-button
+          v-hasPermi="['ops:device:edit']"
+          type="primary"
+          :loading="policySaving"
+          @click="savePolicy"
+          >保存</el-button
+        >
       </template>
     </el-dialog>
   </el-card>
@@ -430,7 +536,13 @@ function tabFromRouteQuery(): BoardTab {
   }
   if (typeof route.query.tab === 'string') {
     const tab = route.query.tab.toUpperCase();
-    if (tab === 'ONLINE' || tab === 'OFFLINE' || tab === 'ON_SALE' || tab === 'LOCKED' || tab === 'ALL') {
+    if (
+      tab === 'ONLINE' ||
+      tab === 'OFFLINE' ||
+      tab === 'ON_SALE' ||
+      tab === 'LOCKED' ||
+      tab === 'ALL'
+    ) {
       return tab as BoardTab;
     }
   }
@@ -466,7 +578,23 @@ const policyHint = computed(() => {
 
 const { onExport } = useListCsv({
   filePrefix: '设备',
-  headers: ['设备编号', '名称', '类型', '在线', '运营态', '生命周期', 'IMEI', '资产方', '路线', '商户编号', '商户', '退款方式', '最近会话', '会话状态', '更新时间'],
+  headers: [
+    '设备编号',
+    '名称',
+    '类型',
+    '在线',
+    '运营态',
+    '生命周期',
+    'IMEI',
+    '资产方',
+    '路线',
+    '商户编号',
+    '商户',
+    '退款方式',
+    '最近会话',
+    '会话状态',
+    '更新时间'
+  ],
   toRows: () =>
     pickSelected(devices.value).map((row) => [
       row.deviceId,
@@ -536,11 +664,11 @@ async function batchCommand(command: 'LOCK' | 'UNLOCK') {
   }
   const label = command === 'LOCK' ? '锁机停售' : '解锁营业';
   try {
-    await ElMessageBox.confirm(
-      `将对 ${targets.length} 台设备执行「${label}」，确认继续？`,
-      label,
-      { type: 'warning', confirmButtonText: '确认', cancelButtonText: '取消' }
-    );
+    await ElMessageBox.confirm(`将对 ${targets.length} 台设备执行「${label}」，确认继续？`, label, {
+      type: 'warning',
+      confirmButtonText: '确认',
+      cancelButtonText: '取消'
+    });
   } catch {
     return;
   }
@@ -578,12 +706,14 @@ async function batchCommand(command: 'LOCK' | 'UNLOCK') {
 function goDetail(row: DeviceInfo) {
   if (!row?.deviceId) return;
   // 使用具名路由 + encode，避免偶发路径匹配失败被 catch-all 打回工作台
-  router.push({
-    name: 'device-detail',
-    params: { id: row.deviceId },
-  }).catch(() => {
-    router.push(`/devices/${encodeURIComponent(row.deviceId)}`);
-  });
+  router
+    .push({
+      name: 'device-detail',
+      params: { id: row.deviceId }
+    })
+    .catch(() => {
+      router.push(`/devices/${encodeURIComponent(row.deviceId)}`);
+    });
 }
 
 function deviceActions(_row: DeviceInfo): TableAction[] {
@@ -606,9 +736,7 @@ function onRowAction(key: string, row: DeviceInfo) {
 
 function openPolicy(row: DeviceInfo) {
   policyForm.deviceId = row.deviceId;
-  policyForm.deviceLabel = row.deviceName
-    ? `${row.deviceName}（${row.deviceId}）`
-    : row.deviceId;
+  policyForm.deviceLabel = row.deviceName ? `${row.deviceName}（${row.deviceId}）` : row.deviceId;
   policyForm.refundPolicy = row.refundPolicy || 'INHERIT';
   policyVisible.value = true;
 }
@@ -631,7 +759,9 @@ async function savePolicy() {
     } else {
       await load(false);
     }
-    ElMessage.success(`已保存：${policyLabel(updated.effectiveRefundPolicy || updated.refundPolicy)}`);
+    ElMessage.success(
+      `已保存：${policyLabel(updated.effectiveRefundPolicy || updated.refundPolicy)}`
+    );
     policyVisible.value = false;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
@@ -668,7 +798,10 @@ async function refreshBoardCounts() {
           if (keyword.value.trim()) q.set('q', keyword.value.trim());
           if (spec.online) q.set('online', spec.online);
           if (spec.salesLocked) q.set('salesLocked', spec.salesLocked);
-          const data = await api.request<PageResult<DeviceInfo>>(`/api/v2/ops/admin/devices?${q}`, 'GET');
+          const data = await api.request<PageResult<DeviceInfo>>(
+            `/api/v2/ops/admin/devices?${q}`,
+            'GET'
+          );
           boardCounts[spec.key] = data.total || 0;
         } catch {
           /* keep previous */
@@ -728,7 +861,10 @@ async function load(showToast = false) {
 
 async function loadMerchants() {
   try {
-    merchantOptions.value = await api.request<MerchantOption[]>('/api/v2/ops/admin/merchants', 'GET');
+    merchantOptions.value = await api.request<MerchantOption[]>(
+      '/api/v2/ops/admin/merchants',
+      'GET'
+    );
   } catch {
     merchantOptions.value = [];
   }
@@ -799,7 +935,8 @@ function applyRouteQuery() {
     keyword.value = nextKeyword;
     changed = true;
   }
-  const nextLifecycle = typeof route.query.lifecycleStatus === 'string' ? route.query.lifecycleStatus : '';
+  const nextLifecycle =
+    typeof route.query.lifecycleStatus === 'string' ? route.query.lifecycleStatus : '';
   if (nextLifecycle !== lifecycleFilter.value) {
     lifecycleFilter.value = nextLifecycle;
     changed = true;
@@ -874,7 +1011,10 @@ onActivated(() => {
   cursor: pointer;
   display: grid;
   gap: 2px;
-  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
   color: inherit;
   font: inherit;
   min-width: 0;

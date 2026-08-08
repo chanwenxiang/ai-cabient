@@ -52,8 +52,12 @@
 
         <view v-if="showPhoneForm">
           <view class="tabs">
-            <view :class="['tab-item', mode === 'sms' ? 'on' : '']" @click="mode = 'sms'">验证码</view>
-            <view :class="['tab-item', mode === 'password' ? 'on' : '']" @click="mode = 'password'">密码</view>
+            <view :class="['tab-item', mode === 'sms' ? 'on' : '']" @click="mode = 'sms'"
+              >验证码</view
+            >
+            <view :class="['tab-item', mode === 'password' ? 'on' : '']" @click="mode = 'password'"
+              >密码</view
+            >
           </view>
 
           <view class="field">
@@ -179,7 +183,11 @@ function decodeRedirectParam(raw: string) {
 
 function finishLogin() {
   const target = redirect.value.split('?')[0];
-  if (target.startsWith('/pages/index') || target.startsWith('/pages/orders') || target.startsWith('/pages/mine')) {
+  if (
+    target.startsWith('/pages/index') ||
+    target.startsWith('/pages/orders') ||
+    target.startsWith('/pages/mine')
+  ) {
     uni.switchTab({ url: target });
   } else {
     uni.redirectTo({
@@ -290,7 +298,11 @@ async function onLogin() {
     }
     try {
       const wxCode = await new Promise<string>((resolve, reject) => {
-        uni.login({ provider: 'weixin', success: (r) => (r.code ? resolve(r.code) : reject()), fail: reject });
+        uni.login({
+          provider: 'weixin',
+          success: (r) => (r.code ? resolve(r.code) : reject()),
+          fail: reject
+        });
       });
       await consumerWxLogin(wxCode, phoneNum);
     } catch {
@@ -311,7 +323,7 @@ async function onLogin() {
   min-height: 100vh;
   overflow-x: hidden;
   overflow-y: hidden;
-  background: #f5c842;
+  background: #0b1220;
 }
 .login-wrap.phone-open {
   overflow-y: auto;
@@ -356,7 +368,7 @@ async function onLogin() {
   right: 6%;
   width: 200rpx;
   height: 200rpx;
-  background: rgba(255, 180, 60, 0.38);
+  background: rgba(45, 212, 191, 0.3);
   animation: orbFloatA 9s ease-in-out infinite;
 }
 .anim-orb-b {
@@ -364,32 +376,62 @@ async function onLogin() {
   left: 4%;
   width: 160rpx;
   height: 160rpx;
-  background: rgba(255, 230, 140, 0.32);
+  background: rgba(56, 189, 248, 0.26);
   animation: orbFloatB 11s ease-in-out infinite;
 }
 .anim-shimmer {
   position: absolute;
   inset: 0;
-  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.14) 50%, transparent 62%);
+  background: linear-gradient(
+    115deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.14) 50%,
+    transparent 62%
+  );
   background-size: 220% 220%;
   animation: shimmerSweep 10s ease-in-out infinite;
   pointer-events: none;
 }
 @keyframes illusKenBurns {
-  from { transform: scale(1) translateY(0); }
-  to { transform: scale(1.045) translateY(-10rpx); }
+  from {
+    transform: scale(1) translateY(0);
+  }
+  to {
+    transform: scale(1.045) translateY(-10rpx);
+  }
 }
 @keyframes orbFloatA {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
-  50% { transform: translate(-16rpx, 20rpx) scale(1.08); opacity: 0.85; }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate(-16rpx, 20rpx) scale(1.08);
+    opacity: 0.85;
+  }
 }
 @keyframes orbFloatB {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.45; }
-  50% { transform: translate(20rpx, -14rpx) scale(1.06); opacity: 0.75; }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translate(20rpx, -14rpx) scale(1.06);
+    opacity: 0.75;
+  }
 }
 @keyframes shimmerSweep {
-  0%, 100% { background-position: 120% 0; opacity: 0.4; }
-  50% { background-position: -20% 0; opacity: 0.75; }
+  0%,
+  100% {
+    background-position: 120% 0;
+    opacity: 0.4;
+  }
+  50% {
+    background-position: -20% 0;
+    opacity: 0.75;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .login-illustration-anim,
@@ -406,7 +448,12 @@ async function onLogin() {
   bottom: 0;
   height: 48%;
   z-index: 1;
-  background: linear-gradient(180deg, rgba(245, 200, 66, 0) 0%, rgba(255, 247, 231, 0.86) 52%, #fff7e6 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(11, 18, 32, 0) 0%,
+    rgba(11, 18, 32, 0.86) 52%,
+    #0b1220 100%
+  );
 }
 .login-content {
   position: relative;
@@ -425,12 +472,12 @@ async function onLogin() {
   font-size: 56rpx;
   font-weight: 800;
   display: block;
-  color: #5c3d1e;
+  color: #f0fdfa;
   letter-spacing: 2rpx;
 }
 .tagline {
   font-size: 30rpx;
-  color: #7a5a32;
+  color: #a5b4c8;
   display: block;
   margin-top: 10rpx;
 }
@@ -441,15 +488,15 @@ async function onLogin() {
   margin-top: 18rpx;
   padding: 10rpx 22rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(13, 148, 136, 0.18);
 }
 .badge-icon {
-  color: #07c160;
+  color: #2dd4bf;
   font-size: 24rpx;
   font-weight: 700;
 }
 .badge-text {
-  color: #4b5563;
+  color: #cbd5e1;
   font-size: 22rpx;
 }
 .login-spacer {
@@ -467,7 +514,9 @@ async function onLogin() {
   border-radius: 32rpx 32rpx 24rpx 24rpx;
   background: rgba(255, 248, 225, 0.94);
   border: 2rpx solid rgba(245, 158, 11, 0.22);
-  box-shadow: 0 -8rpx 40rpx rgba(234, 88, 12, 0.1), 0 16rpx 48rpx rgba(146, 64, 14, 0.08);
+  box-shadow:
+    0 -8rpx 40rpx rgba(234, 88, 12, 0.1),
+    0 16rpx 48rpx rgba(146, 64, 14, 0.08);
 }
 .phone-open .form-card {
   padding-top: 28rpx;
@@ -559,7 +608,11 @@ async function onLogin() {
   font-size: 28rpx;
   color: #92400e;
   border-radius: 12rpx;
-  transition: color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, font-weight 0.2s ease;
+  transition:
+    color 0.2s ease,
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    font-weight 0.2s ease;
 }
 .tab-item.on {
   color: #ea580c;
@@ -567,7 +620,9 @@ async function onLogin() {
   background: rgba(255, 251, 235, 0.96);
   box-shadow: 0 2rpx 8rpx rgba(234, 88, 12, 0.12);
 }
-.field { margin-bottom: 20rpx; }
+.field {
+  margin-bottom: 20rpx;
+}
 .field-label {
   display: block;
   font-size: 26rpx;

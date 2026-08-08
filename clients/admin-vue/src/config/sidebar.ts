@@ -1,6 +1,32 @@
 import type { Component } from 'vue';
 import {
-  Box, Briefcase, Coin, Collection, Cpu, DataAnalysis, DataBoard, Document, Goods, House, Key, Location, Lock, Menu, Monitor, Money, Notebook, Odometer, OfficeBuilding, Setting, Timer, Tools, Upload, User, UserFilled, View, Wallet, Warning
+  Box,
+  Coin,
+  Collection,
+  Cpu,
+  DataAnalysis,
+  DataBoard,
+  Document,
+  Goods,
+  House,
+  Key,
+  Location,
+  Lock,
+  Menu,
+  Monitor,
+  Money,
+  Notebook,
+  Odometer,
+  OfficeBuilding,
+  Setting,
+  Timer,
+  Tools,
+  Upload,
+  User,
+  UserFilled,
+  View,
+  Wallet,
+  Warning
 } from '@element-plus/icons-vue';
 import { NAV_ITEMS, type NavItem } from '@/config/menu';
 
@@ -15,6 +41,7 @@ export interface SidebarNode {
 
 const PATH_ICONS: Record<string, Component> = {
   '/dashboard': Odometer,
+  '/big-screen': DataBoard,
   '/analytics': DataAnalysis,
   '/reports': DataBoard,
   '/finance': Money,
@@ -23,6 +50,7 @@ const PATH_ICONS: Record<string, Component> = {
   '/fund-bills': Coin,
   '/devices': Monitor,
   '/device-map': Location,
+  '/device-kpi': DataBoard,
   '/repair-tickets': Tools,
   '/device-ops': Tools,
   '/sessions': Key,
@@ -52,6 +80,8 @@ const PATH_ICONS: Record<string, Component> = {
   '/menus': Menu,
   '/dicts': Collection,
   '/system-configs': Tools,
+  '/alert-rules': Warning,
+  '/scheduled-tasks': Timer,
   '/promotions': DataAnalysis,
   '/coupons': Goods,
   '/feedback': Warning,
@@ -102,12 +132,14 @@ export function buildSidebarTree(canAccess: (item: NavItem) => boolean): Sidebar
   return GROUP_META.flatMap((group): SidebarNode[] => {
     const groupItems = accessible.filter((item) => GROUP_KEY[item.group] === group.key);
     if (!groupItems.length) return [];
-    return [{
-      key: group.key,
-      label: group.label,
-      icon: group.icon,
-      children: groupItems.map(toLeaf)
-    }];
+    return [
+      {
+        key: group.key,
+        label: group.label,
+        icon: group.icon,
+        children: groupItems.map(toLeaf)
+      }
+    ];
   });
 }
 

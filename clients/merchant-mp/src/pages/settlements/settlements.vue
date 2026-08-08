@@ -70,7 +70,10 @@
     </view>
 
     <view class="tip-card">
-      <text class="tip-text">T+1 结算：当日支付流水通常次日完成入账。可提现余额请到「商户钱包」申请提现；线长佣金请走「线长钱包」。</text>
+      <text class="tip-text"
+        >T+1
+        结算：当日支付流水通常次日完成入账。可提现余额请到「商户钱包」申请提现；线长佣金请走「线长钱包」。</text
+      >
       <text v-if="profitNote" class="tip-meta">{{ profitNote }}</text>
       <text v-if="canViewSplits" class="tip-link" @click="goSplits">查看分账明细 ›</text>
     </view>
@@ -83,9 +86,15 @@
           <view class="device-info">
             <text class="device-name">{{ d.date }}</text>
             <text class="device-orders">
-              {{ d.orderCount }} 笔 · 实付 ¥{{ (d.grossCents / 100).toFixed(2) }} · 抽成 ¥{{ (d.platformCents / 100).toFixed(2) }}
+              {{ d.orderCount }} 笔 · 实付 ¥{{ (d.grossCents / 100).toFixed(2) }} · 抽成 ¥{{
+                (d.platformCents / 100).toFixed(2)
+              }}
             </text>
-            <text class="device-orders">待分 ¥{{ (d.pendingCents / 100).toFixed(2) }} · 已结 ¥{{ (d.settledCents / 100).toFixed(2) }}</text>
+            <text class="device-orders"
+              >待分 ¥{{ (d.pendingCents / 100).toFixed(2) }} · 已结 ¥{{
+                (d.settledCents / 100).toFixed(2)
+              }}</text
+            >
           </view>
           <text class="device-amount">¥{{ (d.merchantCents / 100).toFixed(2) }}</text>
         </view>
@@ -107,7 +116,9 @@
         <view v-for="b in batches" :key="b.batchNo" class="device-row">
           <view class="device-info">
             <text class="device-name">{{ b.batchNo }}</text>
-            <text class="device-orders">{{ batchStatusLabel(b.batchStatus) }} · {{ b.orderCount }} 笔</text>
+            <text class="device-orders"
+              >{{ batchStatusLabel(b.batchStatus) }} · {{ b.orderCount }} 笔</text
+            >
           </view>
           <text class="device-amount">¥{{ (b.merchantCents / 100).toFixed(2) }}</text>
         </view>
@@ -132,9 +143,19 @@ import { onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { hasPerm, merchantApi, downloadAuthedFile, openExportedFile, getToken } from '@/utils/merchant-api';
+import {
+  hasPerm,
+  merchantApi,
+  downloadAuthedFile,
+  openExportedFile,
+  getToken
+} from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
-import type { MerchantDailySettlement, MerchantMe, MerchantSettlementBatch } from '@aicabinet/shared-types';
+import type {
+  MerchantDailySettlement,
+  MerchantMe,
+  MerchantSettlementBatch
+} from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canViewSettlements = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
@@ -204,7 +225,13 @@ async function load() {
     loadError.value = '开始日期不能晚于结束日期';
     daily.value = [];
     batches.value = [];
-    summary.value = { gross: '0.00', platformFee: '0.00', merchantIncome: '0.00', pending: '0.00', settledMonth: '0.00' };
+    summary.value = {
+      gross: '0.00',
+      platformFee: '0.00',
+      merchantIncome: '0.00',
+      pending: '0.00',
+      settledMonth: '0.00'
+    };
     profitNote.value = '';
     loading.value = false;
     return;
@@ -307,7 +334,11 @@ function onExport() {
 </script>
 
 <style scoped>
-.page-root { padding: 20rpx; background: #f0fdfa; min-height: 100vh; }
+.page-root {
+  padding: 20rpx;
+  background: #f0fdfa;
+  min-height: 100vh;
+}
 .date-bar {
   display: flex;
   align-items: center;
@@ -322,7 +353,11 @@ function onExport() {
   position: relative;
   z-index: 2;
 }
-.date-text { font-size: 28rpx; color: #0f766e; font-weight: 500; }
+.date-text {
+  font-size: 28rpx;
+  color: #0f766e;
+  font-weight: 500;
+}
 .date-input {
   flex: 1;
   min-width: 0;
@@ -339,22 +374,62 @@ function onExport() {
   padding: 0 12rpx;
   box-sizing: border-box;
 }
-.date-sep { color: #999; flex-shrink: 0; }
+.date-sep {
+  color: #999;
+  flex-shrink: 0;
+}
 /* 兜底：若仍混入 uni picker 系统输入，禁止把年列表撑进文档流 */
 .date-bar :deep(.uni-picker-system_input),
 .date-bar :deep(input.uni-input-input) {
   max-height: 56rpx !important;
   overflow: hidden !important;
 }
-.summary-card { background: linear-gradient(135deg, #0f766e, #134e4a); border-radius: 16rpx; padding: 30rpx; margin-bottom: 20rpx; }
-.summary-row { display: flex; justify-content: space-between; padding: 12rpx 0; }
-.summary-row.total { border-top: 1rpx solid rgba(255,255,255,.2); margin-top: 10rpx; padding-top: 20rpx; }
-.summary-label { color: rgba(255,255,255,.8); font-size: 26rpx; }
-.summary-value { color: #fff; font-size: 30rpx; font-weight: 600; }
-.summary-value.minus { color: rgba(255,255,255,.7); }
-.tip-card { background: #ecfdf5; border-radius: 12rpx; padding: 20rpx; margin-bottom: 20rpx; }
-.tip-text { font-size: 24rpx; color: #0f766e; display: block; line-height: 1.5; }
-.tip-meta { font-size: 22rpx; color: #64748b; margin-top: 8rpx; display: block; }
+.summary-card {
+  background: linear-gradient(135deg, #0f766e, #134e4a);
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 20rpx;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 12rpx 0;
+}
+.summary-row.total {
+  border-top: 1rpx solid rgba(255, 255, 255, 0.2);
+  margin-top: 10rpx;
+  padding-top: 20rpx;
+}
+.summary-label {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 26rpx;
+}
+.summary-value {
+  color: #fff;
+  font-size: 30rpx;
+  font-weight: 600;
+}
+.summary-value.minus {
+  color: rgba(255, 255, 255, 0.7);
+}
+.tip-card {
+  background: #ecfdf5;
+  border-radius: 12rpx;
+  padding: 20rpx;
+  margin-bottom: 20rpx;
+}
+.tip-text {
+  font-size: 24rpx;
+  color: #0f766e;
+  display: block;
+  line-height: 1.5;
+}
+.tip-meta {
+  font-size: 22rpx;
+  color: #64748b;
+  margin-top: 8rpx;
+  display: block;
+}
 .tip-link {
   display: block;
   margin-top: 12rpx;
@@ -373,7 +448,10 @@ function onExport() {
   justify-content: space-between;
   gap: 12rpx;
 }
-.banner-retry { color: #0f766e; font-weight: 600; }
+.banner-retry {
+  color: #0f766e;
+  font-weight: 600;
+}
 .section-warn {
   margin-bottom: 12rpx;
   padding: 12rpx 16rpx;
@@ -382,14 +460,46 @@ function onExport() {
   color: #c2410c;
   font-size: 22rpx;
 }
-.section { background: #fff; border-radius: 16rpx; padding: 24rpx; margin-bottom: 20rpx; }
-.section-title { font-size: 28rpx; font-weight: 600; margin-bottom: 16rpx; display: block; }
-.device-row { display: flex; justify-content: space-between; align-items: center; padding: 14rpx 0; border-bottom: 1rpx solid #f0fdfa; }
-.device-name { font-size: 28rpx; display: block; }
-.device-orders { font-size: 22rpx; color: #999; }
-.device-amount { font-size: 28rpx; font-weight: 600; }
-.loading-inline { font-size: 24rpx; color: #94a3b8; padding: 24rpx 0; text-align: center; }
-.actions { padding: 20rpx 0; }
+.section {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+}
+.section-title {
+  font-size: 28rpx;
+  font-weight: 600;
+  margin-bottom: 16rpx;
+  display: block;
+}
+.device-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid #f0fdfa;
+}
+.device-name {
+  font-size: 28rpx;
+  display: block;
+}
+.device-orders {
+  font-size: 22rpx;
+  color: #999;
+}
+.device-amount {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+.loading-inline {
+  font-size: 24rpx;
+  color: #94a3b8;
+  padding: 24rpx 0;
+  text-align: center;
+}
+.actions {
+  padding: 20rpx 0;
+}
 .btn-outline {
   width: 100%;
   height: 80rpx;
@@ -402,5 +512,7 @@ function onExport() {
   font-weight: 600;
   text-align: center;
 }
-.btn-outline::after { border: none; }
+.btn-outline::after {
+  border: none;
+}
 </style>

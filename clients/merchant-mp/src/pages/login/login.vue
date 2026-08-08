@@ -56,7 +56,8 @@
           role="button"
           data-testid="login-submit"
           @click="onLogin"
-        >{{ loading ? '登录中…' : '登录' }}</view>
+          >{{ loading ? '登录中…' : '登录' }}</view
+        >
         <text v-if="err" class="err" data-testid="login-error">{{ err }}</text>
         <text v-if="isDev" class="hint">开发演示：13800138001 / 123456</text>
       </view>
@@ -112,7 +113,7 @@ async function onLogin() {
   position: relative;
   min-height: 100vh;
   overflow: hidden;
-  background: linear-gradient(180deg, #ccfbf1 0%, #99f6e4 100%);
+  background: linear-gradient(180deg, #0b1220 0%, #0e3a46 100%);
 }
 .login-bg-scene {
   position: absolute;
@@ -142,7 +143,7 @@ async function onLogin() {
   right: 8%;
   width: 190rpx;
   height: 190rpx;
-  background: rgba(45, 212, 191, 0.42);
+  background: rgba(45, 212, 191, 0.3);
   animation: orbFloatA 9s ease-in-out infinite;
 }
 .anim-orb-b {
@@ -150,32 +151,62 @@ async function onLogin() {
   left: 5%;
   width: 170rpx;
   height: 170rpx;
-  background: rgba(110, 231, 183, 0.34);
+  background: rgba(56, 189, 248, 0.26);
   animation: orbFloatB 11s ease-in-out infinite;
 }
 .anim-shimmer {
   position: absolute;
   inset: 0;
-  background: linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.16) 50%, transparent 62%);
+  background: linear-gradient(
+    115deg,
+    transparent 38%,
+    rgba(255, 255, 255, 0.16) 50%,
+    transparent 62%
+  );
   background-size: 220% 220%;
   animation: shimmerSweep 10s ease-in-out infinite;
   pointer-events: none;
 }
 @keyframes illusKenBurns {
-  from { transform: scale(1) translateY(0); }
-  to { transform: scale(1.045) translateY(-10rpx); }
+  from {
+    transform: scale(1) translateY(0);
+  }
+  to {
+    transform: scale(1.045) translateY(-10rpx);
+  }
 }
 @keyframes orbFloatA {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.55; }
-  50% { transform: translate(-14rpx, 18rpx) scale(1.08); opacity: 0.85; }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translate(-14rpx, 18rpx) scale(1.08);
+    opacity: 0.85;
+  }
 }
 @keyframes orbFloatB {
-  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.45; }
-  50% { transform: translate(18rpx, -12rpx) scale(1.06); opacity: 0.75; }
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translate(18rpx, -12rpx) scale(1.06);
+    opacity: 0.75;
+  }
 }
 @keyframes shimmerSweep {
-  0%, 100% { background-position: 120% 0; opacity: 0.35; }
-  50% { background-position: -20% 0; opacity: 0.7; }
+  0%,
+  100% {
+    background-position: 120% 0;
+    opacity: 0.35;
+  }
+  50% {
+    background-position: -20% 0;
+    opacity: 0.7;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .login-illustration-anim,
@@ -192,7 +223,12 @@ async function onLogin() {
   bottom: 0;
   height: 48%;
   z-index: 1;
-  background: linear-gradient(180deg, rgba(204, 251, 241, 0) 0%, rgba(236, 253, 245, 0.86) 52%, #ecfdf5 100%);
+  background: linear-gradient(
+    180deg,
+    rgba(11, 18, 32, 0) 0%,
+    rgba(11, 18, 32, 0.86) 52%,
+    #0b1220 100%
+  );
 }
 .login-content {
   position: relative;
@@ -211,12 +247,12 @@ async function onLogin() {
   font-size: 56rpx;
   font-weight: 800;
   display: block;
-  color: #134e4a;
+  color: #f0fdfa;
   letter-spacing: 2rpx;
 }
 .tagline {
   font-size: 30rpx;
-  color: #0f766e;
+  color: #a5b4c8;
   display: block;
   margin-top: 10rpx;
 }
@@ -227,14 +263,14 @@ async function onLogin() {
   margin-top: 18rpx;
   padding: 10rpx 22rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.78);
+  background: rgba(13, 148, 136, 0.18);
 }
 .badge-icon {
-  color: #0f766e;
+  color: #2dd4bf;
   font-size: 22rpx;
 }
 .badge-text {
-  color: #475569;
+  color: #cbd5e1;
   font-size: 22rpx;
 }
 .login-spacer {
@@ -247,7 +283,9 @@ async function onLogin() {
   border-radius: 32rpx 32rpx 24rpx 24rpx;
   background: rgba(236, 253, 245, 0.94);
   border: 2rpx solid rgba(20, 184, 166, 0.22);
-  box-shadow: 0 -8rpx 40rpx rgba(15, 118, 110, 0.1), 0 16rpx 48rpx rgba(19, 78, 74, 0.08);
+  box-shadow:
+    0 -8rpx 40rpx rgba(15, 118, 110, 0.1),
+    0 16rpx 48rpx rgba(19, 78, 74, 0.08);
 }
 .title {
   font-size: 36rpx;

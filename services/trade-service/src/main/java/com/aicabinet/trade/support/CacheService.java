@@ -1,9 +1,15 @@
 package com.aicabinet.trade.support;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.ScanOptions;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -17,6 +23,7 @@ import java.util.function.Supplier;
 public class CacheService {
 
     private static final Logger log = LoggerFactory.getLogger(CacheService.class);
+    private static final String KEY_PREFIX = "aicabinet:cache:";
 
     private static class CacheEntry {
         final Object value;
@@ -31,6 +38,14 @@ public class CacheService {
     private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
     private final Map<String, Long> hitCount = new ConcurrentHashMap<>();
     private final Map<String, Long> missCount = new ConcurrentHashMap<>();
+    private final StringRedisTemplate redis;
+    private final ObjectMapper objectMapper;
+
+    @Autowired
+    public CacheService(ObjectProvider<StringRedisTemplate> redisProvider, ObjectMapper objectMapper) {
+        this.redis = redisProvider.getIfAvailable();
+        this.objectMapper = objectMapper;
+    }
 
     /**
      * 获取缓存，不存在或已过期则通过 loader 加载并缓存。
@@ -40,7 +55,20 @@ public class CacheService {
      * @param loader 重新加载数据的函数
      */
     public <T> T get(String prefix, String key, long ttlMs, Supplier<T> loader) {
-        String cacheKey = prefix + ":" + key;
+        String cacheKey = KEY_PREFIX + prefix + ":" + key;
+        if (redis != null) {
+            try {
+                String raw = redis.opsForValue().get(cacheKey);
+                if (raw != null) {
+                    hitCount.merge(prefix, 1L, Long::sum);
+                    @SuppressWarnings("unchecked")
+                    T cached = (T) deserialize(raw);
+                    return cached;
+                }
+            } catch (Exception e) {
+                log.warn("redis cache read failed, fallback local: {}", e.toString());
+            }
+        }
         CacheEntry entry = cache.get(cacheKey);
         if (entry != null && !entry.isExpired()) {
             hitCount.merge(prefix, 1L, Long::sum);
@@ -52,6 +80,13 @@ public class CacheService {
         T value = loader.get();
         if (value != null) {
             cache.put(cacheKey, new CacheEntry(value, ttlMs));
+            if (redis != null) {
+                try {
+                    redis.opsForValue().set(cacheKey, serialize(value), Duration.ofMillis(ttlMs));
+                } catch (Exception e) {
+                    log.warn("redis cache write failed: {}", e.toString());
+                }
+            }
         }
         return value;
     }
@@ -68,8 +103,16 @@ public class CacheService {
      */
     public void evict(String prefix) {
         long before = cache.size();
-        cache.entrySet().removeIf(e -> e.getKey().startsWith(prefix + ":"));
+        String redisPrefix = KEY_PREFIX + prefix + ":";
+        cache.entrySet().removeIf(e -> e.getKey().startsWith(redisPrefix));
         long evicted = before - cache.size();
+        if (redis != null) {
+            try (var cursor = redis.scan(ScanOptions.scanOptions().match(redisPrefix + "*").count(200).build())) {
+                cursor.forEachRemaining(redis::delete);
+            } catch (Exception e) {
+                log.warn("redis cache evict failed: {}", e.toString());
+            }
+        }
         if (evicted > 0) {
             log.debug("cache evicted prefix={} items={}", prefix, evicted);
         }
@@ -80,7 +123,27 @@ public class CacheService {
      */
     public void evictAll() {
         cache.clear();
+        if (redis != null) {
+            try (var cursor = redis.scan(ScanOptions.scanOptions().match(KEY_PREFIX + "*").count(200).build())) {
+                cursor.forEachRemaining(redis::delete);
+            } catch (Exception e) {
+                log.warn("redis cache evictAll failed: {}", e.toString());
+            }
+        }
         log.info("cache fully evicted");
+    }
+
+    private record Envelope(String type, String json) {}
+
+    private String serialize(Object value) throws Exception {
+        return objectMapper.writeValueAsString(
+                new Envelope(value.getClass().getName(), objectMapper.writeValueAsString(value)));
+    }
+
+    private Object deserialize(String raw) throws Exception {
+        Envelope envelope = objectMapper.readValue(raw, Envelope.class);
+        Class<?> type = Class.forName(envelope.type());
+        return objectMapper.readValue(envelope.json(), type);
     }
 
     /**

@@ -1,1 +1,0 @@
-<view class="{{['empty-state', 'data-v-1644c0f1', g && 'compact']}}"><text wx:if="{{a}}" class="empty-icon data-v-1644c0f1">{{b}}</text><text class="empty-title data-v-1644c0f1">{{c}}</text><text wx:if="{{d}}" class="empty-hint data-v-1644c0f1">{{e}}</text><view wx:if="{{f}}" class="empty-actions data-v-1644c0f1"><slot/></view></view>

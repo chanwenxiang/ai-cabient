@@ -1,0 +1,12 @@
+node_modules
+**/dist
+**/output
+**/target
+**/package-lock.json
+pnpm-lock.yaml
+infra
+docs
+vision-service
+services
+edge
+testdata

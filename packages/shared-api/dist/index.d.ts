@@ -14,6 +14,8 @@ export interface ApiClientOptions {
     setToken: (token: string, userId: string, expiresAt?: number) => void;
     clearSession: () => void;
     onUnauthorized?: () => void;
+    /** 会话存在性判定（默认取 getToken 非空；HttpOnly Cookie 模式下需自行提供） */
+    hasSession?: () => boolean;
     /** 单次请求超时（毫秒），默认 30s */
     timeoutMs?: number;
     fetchImpl?: typeof fetch;
@@ -24,6 +26,7 @@ export declare class ApiClient {
     private readonly setToken;
     private readonly clearSession;
     private readonly onUnauthorized?;
+    private readonly hasSession;
     private readonly fetchImpl;
     private readonly timeoutMs;
     private refreshPromise;

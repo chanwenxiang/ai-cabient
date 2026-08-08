@@ -9,7 +9,9 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:feedback:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:feedback:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -17,7 +19,13 @@
 
     <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="search">
       <el-form-item label="状态">
-        <el-select v-model="status" clearable placeholder="全部" style="width: 140px" @change="search">
+        <el-select
+          v-model="status"
+          clearable
+          placeholder="全部"
+          style="width: 140px"
+          @change="search"
+        >
           <el-option
             v-for="item in dictOptions('feedback_status')"
             :key="item.value"
@@ -43,10 +51,21 @@
           row-key="feedbackId"
           :default-sort="idDefaultSort"
           @sort-change="onIdSortChange"
-          @selection-change="onSelectionChange" empty-text=" ">
-          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无反馈" /></template>
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无反馈"
+          /></template>
           <el-table-column type="selection" width="48" align="center" />
-          <el-table-column prop="feedbackId" label="反馈编号" width="100" align="center" class-name="col-text" sortable="custom">
+          <el-table-column
+            prop="feedbackId"
+            label="反馈编号"
+            width="100"
+            align="center"
+            class-name="col-text"
+            sortable="custom"
+          >
             <template #default="{ row }">
               <span class="cell-id">{{ row.feedbackId }}</span>
             </template>
@@ -56,7 +75,13 @@
               {{ dictLabel('feedback_type', row.feedbackType) || '反馈' }}
             </template>
           </el-table-column>
-          <el-table-column label="内容" min-width="220" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="内容"
+            min-width="220"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">{{ row.content || '无' }}</template>
           </el-table-column>
           <el-table-column label="用户" width="100" align="center" class-name="col-text">
@@ -72,7 +97,13 @@
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
-          <el-table-column label="设备" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
+          <el-table-column
+            label="设备"
+            min-width="120"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
             <template #default="{ row }">
               <button
                 v-if="row.deviceId"
@@ -105,7 +136,8 @@
             label="操作"
             width="88"
             class-name="col-action"
-            align="center">
+            align="center"
+          >
             <template #default="{ row }">
               <TableActions
                 v-if="row.status === 'PENDING'"
@@ -283,13 +315,35 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; }
-.feedback-cell { display: grid; gap: 2px; line-height: 1.35; }
-.feedback-cell strong { font-weight: 650; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+}
+.feedback-cell {
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+}
+.feedback-cell strong {
+  font-weight: 650;
+}
 .feedback-cell small {
   color: var(--el-text-color-secondary);
   font-size: 11px;
@@ -312,7 +366,16 @@ onActivated(() => {
   cursor: pointer;
   font: inherit;
 }
-.link-cell:hover { text-decoration: underline; }
-.muted { color: var(--layout-muted); font-size: 13px; }
-.reply-content { margin: 0 0 12px; color: var(--layout-muted); line-height: 1.5; }
+.link-cell:hover {
+  text-decoration: underline;
+}
+.muted {
+  color: var(--layout-muted);
+  font-size: 13px;
+}
+.reply-content {
+  margin: 0 0 12px;
+  color: var(--layout-muted);
+  line-height: 1.5;
+}
 </style>

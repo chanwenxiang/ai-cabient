@@ -60,7 +60,9 @@
             </el-button>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item command="theme">{{ settings.theme === 'dark' ? '切换浅色' : '切换深色' }}</el-dropdown-item>
+                <el-dropdown-item command="theme">{{
+                  settings.theme === 'dark' ? '切换浅色' : '切换深色'
+                }}</el-dropdown-item>
                 <el-dropdown-item divided disabled>字号</el-dropdown-item>
                 <el-dropdown-item command="font-sm">字号：小</el-dropdown-item>
                 <el-dropdown-item command="font-md">字号：中</el-dropdown-item>
@@ -69,7 +71,11 @@
                 <el-dropdown-item command="action-icon">操作列：图标</el-dropdown-item>
                 <el-dropdown-item command="action-label">操作列：图标+文字</el-dropdown-item>
                 <el-dropdown-item divided disabled>主题色</el-dropdown-item>
-                <el-dropdown-item v-for="c in PRIMARY_OPTIONS" :key="c.id" :command="'color-' + c.id">
+                <el-dropdown-item
+                  v-for="c in PRIMARY_OPTIONS"
+                  :key="c.id"
+                  :command="'color-' + c.id"
+                >
                   <span class="color-dot" :style="{ background: c.color }" /> {{ c.label }}
                 </el-dropdown-item>
               </el-dropdown-menu>
@@ -115,7 +121,8 @@
               @keydown.enter.prevent="router.push(tag.path)"
               @keydown.space.prevent="router.push(tag.path)"
               @close.prevent="closeTag(tag.path)"
-            >{{ tag.title }}</el-tag>
+              >{{ tag.title }}</el-tag
+            >
           </span>
         </div>
         <div v-if="tags.length > 1" class="tags-actions">
@@ -145,7 +152,11 @@
           <keep-alive :max="12">
             <component
               :is="Component"
-              :key="viewRoute.name === 'dicts' ? String(viewRoute.path) : `${viewRoute.path}#d${dictRuntimeEpoch}`"
+              :key="
+                viewRoute.name === 'dicts'
+                  ? String(viewRoute.path)
+                  : `${viewRoute.path}#d${dictRuntimeEpoch}`
+              "
             />
           </keep-alive>
         </router-view>
@@ -158,9 +169,7 @@
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessageBox, type MenuInstance } from 'element-plus';
-import {
-  Fold, Expand, Brush
-} from '@element-plus/icons-vue';
+import { Fold, Expand, Brush } from '@element-plus/icons-vue';
 import { buildSidebarTree, sidebarOpenKeysForPath } from '@/config/sidebar';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
@@ -348,7 +357,10 @@ function scrollActiveTagIntoView() {
   nextTick(() => {
     const root = tagsScrollRef.value;
     if (!root) return;
-    const escaped = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(route.path) : route.path.replace(/"/g, '\\"');
+    const escaped =
+      typeof CSS !== 'undefined' && CSS.escape
+        ? CSS.escape(route.path)
+        : route.path.replace(/"/g, '\\"');
     const active = root.querySelector(`.tag-wrap[data-path="${escaped}"]`) as HTMLElement | null;
     if (!active) return;
     // 只用标签条横向滚动；禁止 scrollIntoView，避免带动右侧主内容区纵向跳动
@@ -462,7 +474,7 @@ async function onUserCommand(cmd: string) {
     } catch {
       return;
     }
-    auth.logout();
+    await auth.logout();
     router.push('/login');
   }
 }
@@ -545,10 +557,24 @@ onUnmounted(() => {
   flex-shrink: 0;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
-.brand:hover { background: rgba(255, 255, 255, 0.06); }
-.brand.collapsed { justify-content: center; padding: 14px 0; }
-.brand-toggle { font-size: 18px; color: #94a3b8; flex-shrink: 0; }
-.brand-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.brand:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.brand.collapsed {
+  justify-content: center;
+  padding: 14px 0;
+}
+.brand-toggle {
+  font-size: 18px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.brand-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .brand-mini {
   display: inline-flex;
   align-items: center;
@@ -560,8 +586,14 @@ onUnmounted(() => {
   font-size: 14px;
 }
 .brand-text.hidden,
-.brand-mini.hidden { display: none; }
-.sidebar-scroll { flex: 1; min-height: 0; overscroll-behavior: contain; }
+.brand-mini.hidden {
+  display: none;
+}
+.sidebar-scroll {
+  flex: 1;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
 :deep(.sidebar-scroll .el-scrollbar__wrap) {
   overscroll-behavior: contain;
 }
@@ -638,8 +670,14 @@ onUnmounted(() => {
   outline: none;
   box-shadow: 0 0 0 2px var(--el-color-primary);
 }
-.user-trigger:hover { background: var(--layout-hover); }
-.user-avatar { background: var(--app-primary); color: #fff; flex-shrink: 0; }
+.user-trigger:hover {
+  background: var(--layout-hover);
+}
+.user-avatar {
+  background: var(--app-primary);
+  color: #fff;
+  flex-shrink: 0;
+}
 .user-text {
   line-height: 1.3;
   min-width: 0;
@@ -727,8 +765,14 @@ onUnmounted(() => {
     display: none;
   }
 }
-.tag-item { flex-shrink: 0; cursor: pointer; }
-.tag-wrap { display: inline-flex; flex-shrink: 0; }
+.tag-item {
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.tag-wrap {
+  display: inline-flex;
+  flex-shrink: 0;
+}
 .layout-main-scroll {
   flex: 1;
   width: 100%;
@@ -757,8 +801,16 @@ onUnmounted(() => {
   min-width: 0;
   box-sizing: border-box;
 }
-.color-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
-:deep(.el-menu--collapse) { width: 64px; }
+.color-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+:deep(.el-menu--collapse) {
+  width: 64px;
+}
 :deep(.el-sub-menu__title) {
   cursor: pointer;
   user-select: none;
@@ -782,8 +834,13 @@ onUnmounted(() => {
 :deep(.el-sub-menu .el-sub-menu .el-menu-item) {
   padding-left: 56px !important;
 }
-:deep(.el-sub-menu__title), :deep(.el-menu-item) { height: 44px; }
-:deep(.sidebar-scroll .el-scrollbar__view) { padding-bottom: 8px; }
+:deep(.el-sub-menu__title),
+:deep(.el-menu-item) {
+  height: 44px;
+}
+:deep(.sidebar-scroll .el-scrollbar__view) {
+  padding-bottom: 8px;
+}
 </style>
 
 <style>
@@ -819,6 +876,10 @@ onUnmounted(() => {
   font-size: 13px;
   cursor: pointer;
 }
-.tag-context-menu li:hover { background: var(--layout-hover); }
-.tag-context-menu li.danger { color: #f87171; }
+.tag-context-menu li:hover {
+  background: var(--layout-hover);
+}
+.tag-context-menu li.danger {
+  color: #f87171;
+}
 </style>

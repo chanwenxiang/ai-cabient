@@ -5,12 +5,21 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">商户与分账</span>
-            <span class="hint">组织树、功能包与自助写开关；分账明细可提交微信分账。功能包关闭后对应小程序入口与 API 一并失效。</span>
+            <span class="hint"
+              >组织树、功能包与自助写开关；分账明细可提交微信分账。功能包关闭后对应小程序入口与 API
+              一并失效。</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:merchant:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
-          <el-button :icon="Refresh" :loading="loading || loadingMerchants || loadingStatus" @click="refresh">
+          <el-button v-hasPermi="['ops:merchant:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
+          <el-button
+            :icon="Refresh"
+            :loading="loading || loadingMerchants || loadingStatus"
+            @click="refresh"
+          >
             刷新
           </el-button>
         </div>
@@ -28,7 +37,9 @@
         />
         <div class="org-toolbar">
           <el-button v-if="canEdit" type="primary" @click="openOrgEdit()">新建商户</el-button>
-          <el-button :icon="Refresh" :loading="loadingMerchants" @click="loadMerchants">刷新</el-button>
+          <el-button :icon="Refresh" :loading="loadingMerchants" @click="loadMerchants"
+            >刷新</el-button
+          >
         </div>
         <el-tree
           v-if="merchantTree.length || loadingMerchants || !merchantsHydrated"
@@ -48,8 +59,12 @@
                 <small>{{ data.merchantId }} · 设备 {{ data.deviceCount || 0 }}</small>
               </div>
               <div class="org-node__actions">
-                <el-button v-if="canEdit" link type="primary" @click.stop="openOrgEdit(data)">编辑</el-button>
-                <el-button v-if="canEdit" link @click.stop="openAssignDevices(data)">挂载货柜</el-button>
+                <el-button v-if="canEdit" link type="primary" @click.stop="openOrgEdit(data)"
+                  >编辑</el-button
+                >
+                <el-button v-if="canEdit" link @click.stop="openAssignDevices(data)"
+                  >挂载货柜</el-button
+                >
               </div>
             </div>
           </template>
@@ -97,19 +112,39 @@
               row-key="merchantId"
               :default-sort="idDefaultSort"
               @sort-change="onIdSortChange"
-              @selection-change="onMerchantsSelectionChange" empty-text=" ">
-              <template #empty><el-empty v-if="merchantsHydrated && !loadingMerchants" description="暂无商户" /></template>
+              @selection-change="onMerchantsSelectionChange"
+              empty-text=" "
+            >
+              <template #empty
+                ><el-empty v-if="merchantsHydrated && !loadingMerchants" description="暂无商户"
+              /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column prop="merchantId" label="商户编号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip sortable="custom">
+              <el-table-column
+                prop="merchantId"
+                label="商户编号"
+                min-width="120"
+                align="center"
+                class-name="col-text"
+                show-overflow-tooltip
+                sortable="custom"
+              >
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.merchantId }}</span>
                 </template>
               </el-table-column>
-              <el-table-column label="商户" min-width="140" align="center" class-name="col-text" show-overflow-tooltip>
+              <el-table-column
+                label="商户"
+                min-width="140"
+                align="center"
+                class-name="col-text"
+                show-overflow-tooltip
+              >
                 <template #default="{ row }">{{ row.merchantName || '无' }}</template>
               </el-table-column>
               <el-table-column label="抽成" width="96" align="center">
-                <template #default="{ row }">{{ (row.platformRateBps / 100).toFixed(1) }}%</template>
+                <template #default="{ row }"
+                  >{{ (row.platformRateBps / 100).toFixed(1) }}%</template
+                >
               </el-table-column>
               <el-table-column label="现场作业" width="100" align="center">
                 <template #default="{ row }">
@@ -170,14 +205,15 @@
             </el-table>
           </div>
         </div>
-        <PagePager :hydrated="merchantsHydrated"
-            v-model:current-page="merchantPage"
-            v-model:page-size="merchantSize"
-            :total="filteredMerchants.length"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next"
-            background
-          />
+        <PagePager
+          :hydrated="merchantsHydrated"
+          v-model:current-page="merchantPage"
+          v-model:page-size="merchantSize"
+          :total="filteredMerchants.length"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next"
+          background
+        />
       </el-tab-pane>
 
       <el-tab-pane label="运营配置" name="ops-config">
@@ -190,7 +226,13 @@
         />
         <el-form inline class="filter-bar">
           <el-form-item label="商户">
-            <el-select v-model="opsConfigMerchantId" filterable placeholder="选择商户" style="width: 280px" @change="loadOpsConfig">
+            <el-select
+              v-model="opsConfigMerchantId"
+              filterable
+              placeholder="选择商户"
+              style="width: 280px"
+              @change="loadOpsConfig"
+            >
               <el-option
                 v-for="m in merchants"
                 :key="m.merchantId"
@@ -201,55 +243,71 @@
           </el-form-item>
         </el-form>
         <div v-loading="opsConfigLoading" style="min-height: 120px">
-        <el-form v-if="opsConfig" label-width="140px" style="max-width: 640px">
-          <el-form-item label="备货类型">
-            <el-radio-group v-model="opsConfig.stockingType">
-              <el-radio value="CAPACITY">容量</el-radio>
-              <el-radio value="SALES">销量</el-radio>
-            </el-radio-group>
-          </el-form-item>
-          <el-form-item label="缺货阈值%">
-            <el-input-number v-model="opsConfig.stockoutThresholdPct" :min="1" :max="100" />
-          </el-form-item>
-          <el-form-item label="理货模式">
-            <el-radio-group v-model="opsConfig.tallyMode">
-              <el-radio value="INDEPENDENT">盘点补货独立</el-radio>
-              <el-radio value="ONCE">一次性盘点补货</el-radio>
-            </el-radio-group>
-          </el-form-item>
-          <el-form-item label="使用备货单">
-            <el-switch v-model="opsConfig.useStockingList" />
-          </el-form-item>
-          <el-form-item label="补货输入">
-            <el-radio-group v-model="opsConfig.replenishInputType">
-              <el-radio value="ADD_QTY">补充数量</el-radio>
-              <el-radio value="AFTER_QTY">补后数量</el-radio>
-            </el-radio-group>
-          </el-form-item>
-          <el-form-item label="盘点拍照">
-            <el-switch v-model="opsConfig.photoStocktake" />
-          </el-form-item>
-          <el-form-item label="补货拍照">
-            <el-switch v-model="opsConfig.photoReplenish" />
-          </el-form-item>
-          <el-form-item label="进行中订单上限">
-            <el-radio-group v-model="opsConfig.maxInflightOrders">
-              <el-radio :value="0">0</el-radio>
-              <el-radio :value="1">1</el-radio>
-              <el-radio :value="2">2</el-radio>
-            </el-radio-group>
-          </el-form-item>
-          <el-form-item>
-            <el-button v-if="canEdit" type="primary" :loading="savingOpsConfig" @click="saveOpsConfig">保存配置</el-button>
-          </el-form-item>
-        </el-form>
-        <el-empty v-else-if="!opsConfigLoading && opsConfigMerchantId" description="暂无运营配置" :image-size="64" />
+          <el-form v-if="opsConfig" label-width="140px" style="max-width: 640px">
+            <el-form-item label="备货类型">
+              <el-radio-group v-model="opsConfig.stockingType">
+                <el-radio value="CAPACITY">容量</el-radio>
+                <el-radio value="SALES">销量</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item label="缺货阈值%">
+              <el-input-number v-model="opsConfig.stockoutThresholdPct" :min="1" :max="100" />
+            </el-form-item>
+            <el-form-item label="理货模式">
+              <el-radio-group v-model="opsConfig.tallyMode">
+                <el-radio value="INDEPENDENT">盘点补货独立</el-radio>
+                <el-radio value="ONCE">一次性盘点补货</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item label="使用备货单">
+              <el-switch v-model="opsConfig.useStockingList" />
+            </el-form-item>
+            <el-form-item label="补货输入">
+              <el-radio-group v-model="opsConfig.replenishInputType">
+                <el-radio value="ADD_QTY">补充数量</el-radio>
+                <el-radio value="AFTER_QTY">补后数量</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item label="盘点拍照">
+              <el-switch v-model="opsConfig.photoStocktake" />
+            </el-form-item>
+            <el-form-item label="补货拍照">
+              <el-switch v-model="opsConfig.photoReplenish" />
+            </el-form-item>
+            <el-form-item label="进行中订单上限">
+              <el-radio-group v-model="opsConfig.maxInflightOrders">
+                <el-radio :value="0">0</el-radio>
+                <el-radio :value="1">1</el-radio>
+                <el-radio :value="2">2</el-radio>
+              </el-radio-group>
+            </el-form-item>
+            <el-form-item>
+              <el-button
+                v-if="canEdit"
+                type="primary"
+                :loading="savingOpsConfig"
+                @click="saveOpsConfig"
+                >保存配置</el-button
+              >
+            </el-form-item>
+          </el-form>
+          <el-empty
+            v-else-if="!opsConfigLoading && opsConfigMerchantId"
+            description="暂无运营配置"
+            :image-size="64"
+          />
         </div>
         <el-divider content-position="left">商户侧推荐岗位</el-divider>
         <el-table :data="roleTemplates" stripe border>
           <el-table-column prop="templateName" label="岗位" width="120" align="center" />
           <el-table-column prop="description" label="说明" min-width="220" align="center" />
-          <el-table-column prop="permissionHint" label="权限提示" min-width="240" show-overflow-tooltip align="center" />
+          <el-table-column
+            prop="permissionHint"
+            label="权限提示"
+            min-width="240"
+            show-overflow-tooltip
+            align="center"
+          />
         </el-table>
       </el-tab-pane>
 
@@ -264,8 +322,10 @@
           <template #title>
             {{ psStatus.note }}
             <span class="status-meta">
-              启用={{ psStatus.enabled ? '是' : '否' }} · API={{ psStatus.apiReady ? '就绪' : '未就绪' }} ·
-              微信={{ psStatus.wechatPayConfigured }}
+              启用={{ psStatus.enabled ? '是' : '否' }} · API={{
+                psStatus.apiReady ? '就绪' : '未就绪'
+              }}
+              · 微信={{ psStatus.wechatPayConfigured }}
             </span>
           </template>
         </el-alert>
@@ -278,9 +338,19 @@
           description="余额支付且商户未配置微信分账接收方时会记为「仅记账」，商户份额已入钱包。可用「确认完结」移出工作台待跟进；有微信通道时再点「提交」。"
         />
 
-        <el-form inline class="filter-bar filter-bar--compact" @submit.prevent="onSplitFilterChange">
+        <el-form
+          inline
+          class="filter-bar filter-bar--compact"
+          @submit.prevent="onSplitFilterChange"
+        >
           <el-form-item label="状态">
-            <el-select v-model="status" clearable placeholder="全部" style="width: 150px" @change="onSplitFilterChange">
+            <el-select
+              v-model="status"
+              clearable
+              placeholder="全部"
+              style="width: 150px"
+              @change="onSplitFilterChange"
+            >
               <el-option
                 v-for="item in dictOptions('split_status')"
                 :key="item.value"
@@ -297,7 +367,8 @@
               type="success"
               :loading="acting"
               @click="batchConfirmLedger"
-            >批量确认完结 ({{ selectedLedgerCount }})</el-button>
+              >批量确认完结 ({{ selectedLedgerCount }})</el-button
+            >
           </el-form-item>
         </el-form>
 
@@ -310,25 +381,52 @@
               border
               class="report-table"
               row-key="splitId"
-              @selection-change="onSplitsSelectionChange" empty-text=" ">
-              <template #empty><el-empty v-if="splitsLoaded && !loading" description="暂无分账明细" /></template>
+              @selection-change="onSplitsSelectionChange"
+              empty-text=" "
+            >
+              <template #empty
+                ><el-empty v-if="splitsLoaded && !loading" description="暂无分账明细"
+              /></template>
               <el-table-column type="selection" width="48" align="center" />
-              <el-table-column label="分账编号" min-width="150" align="center" class-name="col-text">
-                <template #default="{ row }"><span class="cell-id">{{ row.splitId }}</span></template>
+              <el-table-column
+                label="分账编号"
+                min-width="150"
+                align="center"
+                class-name="col-text"
+              >
+                <template #default="{ row }"
+                  ><span class="cell-id">{{ row.splitId }}</span></template
+                >
               </el-table-column>
-              <el-table-column label="订单" min-width="130" align="center" class-name="col-text" show-overflow-tooltip>
+              <el-table-column
+                label="订单"
+                min-width="130"
+                align="center"
+                class-name="col-text"
+                show-overflow-tooltip
+              >
                 <template #default="{ row }">
                   <button
                     v-if="row.orderId"
                     type="button"
                     class="link-cell mono"
                     @click="goOrder(row.orderId)"
-                  >{{ row.orderId }}</button>
+                  >
+                    {{ row.orderId }}
+                  </button>
                   <span v-else class="muted">无</span>
                 </template>
               </el-table-column>
-              <el-table-column label="商户" min-width="120" align="center" class-name="col-text" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.merchantName || row.merchantId || '无' }}</template>
+              <el-table-column
+                label="商户"
+                min-width="120"
+                align="center"
+                class-name="col-text"
+                show-overflow-tooltip
+              >
+                <template #default="{ row }">{{
+                  row.merchantName || row.merchantId || '无'
+                }}</template>
               </el-table-column>
               <el-table-column label="商户收入" width="110" align="center" class-name="col-money">
                 <template #default="{ row }">¥{{ money(row.merchantCents) }}</template>
@@ -340,7 +438,13 @@
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column label="失败原因" min-width="160" align="center" class-name="col-text" show-overflow-tooltip>
+              <el-table-column
+                label="失败原因"
+                min-width="160"
+                align="center"
+                class-name="col-text"
+                show-overflow-tooltip
+              >
                 <template #default="{ row }">{{ row.failureReason || '无' }}</template>
               </el-table-column>
               <el-table-column
@@ -362,16 +466,17 @@
           </div>
         </div>
 
-        <PagePager :hydrated="splitsLoaded"
-            v-model:current-page="splitPage"
-            v-model:page-size="splitSize"
-            :total="splitTotal"
-            :page-sizes="[10, 20, 50, 100]"
-            layout="total, sizes, prev, pager, next, jumper"
-            background
-            @current-change="loadSplits"
-            @size-change="onSplitSizeChange"
-          />
+        <PagePager
+          :hydrated="splitsLoaded"
+          v-model:current-page="splitPage"
+          v-model:page-size="splitSize"
+          :total="splitTotal"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          background
+          @current-change="loadSplits"
+          @size-change="onSplitSizeChange"
+        />
       </el-tab-pane>
     </el-tabs>
 
@@ -395,19 +500,34 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="orgDialog" :title="orgForm.editing ? '编辑商户组织' : '新建商户'" width="520px" destroy-on-close>
+    <el-dialog
+      v-model="orgDialog"
+      :title="orgForm.editing ? '编辑商户组织' : '新建商户'"
+      width="520px"
+      destroy-on-close
+    >
       <p class="dialog-hint">
         上级商户可见全部下级货柜。抽成单位为 bps：1000 = 10%，按订单实付计入平台。
       </p>
       <el-form label-position="top">
         <el-form-item label="商户 ID" required>
-          <el-input v-model="orgForm.merchantId" :disabled="orgForm.editing" placeholder="如 MCH-EAST" />
+          <el-input
+            v-model="orgForm.merchantId"
+            :disabled="orgForm.editing"
+            placeholder="如 MCH-EAST"
+          />
         </el-form-item>
         <el-form-item label="名称" required>
           <el-input v-model="orgForm.merchantName" placeholder="组织 / 商户名称" />
         </el-form-item>
         <el-form-item label="上级商户">
-          <el-select v-model="orgForm.parentMerchantId" clearable filterable placeholder="无上级（根节点）" style="width: 100%">
+          <el-select
+            v-model="orgForm.parentMerchantId"
+            clearable
+            filterable
+            placeholder="无上级（根节点）"
+            style="width: 100%"
+          >
             <el-option
               v-for="m in parentOptions"
               :key="m.merchantId"
@@ -430,8 +550,8 @@
     <el-dialog v-model="assignDialog" title="挂载货柜到商户" width="560px" destroy-on-close>
       <div v-loading="assignDevicesLoading">
         <p class="dialog-hint">
-          将设备归属到 <strong>{{ assignTarget?.merchantName || assignTarget?.merchantId }}</strong>。
-          已归属其它商户的设备会改挂到当前商户。
+          将设备归属到 <strong>{{ assignTarget?.merchantName || assignTarget?.merchantId }}</strong
+          >。 已归属其它商户的设备会改挂到当前商户。
         </p>
         <el-select
           v-model="assignDeviceIds"
@@ -464,7 +584,8 @@
           :loading="assignSaving"
           :disabled="assignDevicesLoading || !allDevices.length"
           @click="saveAssignDevices"
-        >保存归属</el-button>
+          >保存归属</el-button
+        >
       </template>
     </el-dialog>
   </el-card>
@@ -483,7 +604,12 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
-import type { MerchantDto, PageResult, ProfitSharingStatus, RevenueSplit } from '@aicabinet/shared-types';
+import type {
+  MerchantDto,
+  PageResult,
+  ProfitSharingStatus,
+  RevenueSplit
+} from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const route = useRoute();
@@ -519,8 +645,12 @@ const filteredMerchants = computed(() => {
   if (!q) return merchants.value;
   return merchants.value.filter(
     (m) =>
-      String(m.merchantId || '').toLowerCase().includes(q) ||
-      String(m.merchantName || '').toLowerCase().includes(q)
+      String(m.merchantId || '')
+        .toLowerCase()
+        .includes(q) ||
+      String(m.merchantName || '')
+        .toLowerCase()
+        .includes(q)
   );
 });
 
@@ -590,7 +720,10 @@ const merchantTree = computed(() => {
   }
   const sortRec = (nodes: OrgNode[]) => {
     nodes.sort((a, b) =>
-      String(a.merchantName || a.merchantId).localeCompare(String(b.merchantName || b.merchantId), 'zh')
+      String(a.merchantName || a.merchantId).localeCompare(
+        String(b.merchantName || b.merchantId),
+        'zh'
+      )
     );
     nodes.forEach((n) => n.children.length && sortRec(n.children));
   };
@@ -626,7 +759,17 @@ const exportButtonLabel = computed(() =>
 
 const { onExport: exportMerchants } = useListCsv({
   filePrefix: '商户',
-  headers: ['商户编号', '名称', '抽成', '现场作业', '经营工具', '团队设置', '商户改货道', '商户改价', '设备数'],
+  headers: [
+    '商户编号',
+    '名称',
+    '抽成',
+    '现场作业',
+    '经营工具',
+    '团队设置',
+    '商户改货道',
+    '商户改价',
+    '设备数'
+  ],
   toRows: () =>
     pickMerchants(filteredMerchants.value).map((row) => [
       row.merchantId,
@@ -923,7 +1066,9 @@ async function batchConfirmLedger() {
     clearSplitsSelection();
     await loadSplits();
   } catch (e) {
-    ElMessage.error(e instanceof Error ? `已成功 ${ok} 笔；失败：${e.message}` : `已成功 ${ok} 笔后失败`);
+    ElMessage.error(
+      e instanceof Error ? `已成功 ${ok} 笔；失败：${e.message}` : `已成功 ${ok} 笔后失败`
+    );
     await loadSplits();
   } finally {
     acting.value = false;
@@ -1069,9 +1214,9 @@ async function openAssignDevices(row: MerchantDto) {
       return;
     }
     if (!allDevices.value.length) {
-      allDevices.value = await api.request('/api/v2/ops/admin/devices?page=0&size=200', 'GET').then((page: any) =>
-        page?.items || page || []
-      );
+      allDevices.value = await api
+        .request('/api/v2/ops/admin/devices?page=0&size=200', 'GET')
+        .then((page: any) => page?.items || page || []);
     }
     assignDeviceIds.value = allDevices.value
       .filter((d) => d.merchantId === row.merchantId)
@@ -1177,11 +1322,27 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+}
 .link-cell {
   appearance: none;
   border: 0;
@@ -1193,14 +1354,39 @@ onActivated(() => {
   text-align: center;
   font: inherit;
 }
-.link-cell:hover { text-decoration: underline; }
-.link-cell.mono { font-family: inherit; font-size: inherit; }
-.status-banner { margin-bottom: 12px; }
-.status-meta { margin-left: 8px; font-weight: 400; opacity: 0.85; font-size: 12px; }
-.muted { color: var(--layout-muted); font-size: 13px; }
-.dialog-hint { margin: 0 0 12px; color: var(--layout-muted); line-height: 1.5; }
-.dialog-hint code { font-size: 12px; }
-.org-toolbar { display: flex; gap: 8px; margin-bottom: 12px; }
+.link-cell:hover {
+  text-decoration: underline;
+}
+.link-cell.mono {
+  font-family: inherit;
+  font-size: inherit;
+}
+.status-banner {
+  margin-bottom: 12px;
+}
+.status-meta {
+  margin-left: 8px;
+  font-weight: 400;
+  opacity: 0.85;
+  font-size: 12px;
+}
+.muted {
+  color: var(--layout-muted);
+  font-size: 13px;
+}
+.dialog-hint {
+  margin: 0 0 12px;
+  color: var(--layout-muted);
+  line-height: 1.5;
+}
+.dialog-hint code {
+  font-size: 12px;
+}
+.org-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
 .org-tree {
   padding: 8px 12px;
   border: 1px solid var(--el-border-color);
@@ -1251,5 +1437,9 @@ onActivated(() => {
   font-size: 12px;
   line-height: 1.3;
 }
-.org-node__actions { display: flex; gap: 4px; flex-shrink: 0; }
+.org-node__actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
 </style>

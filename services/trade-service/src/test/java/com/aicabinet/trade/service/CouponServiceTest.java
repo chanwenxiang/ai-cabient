@@ -29,6 +29,7 @@ class CouponServiceTest {
     @Mock private CouponDefinitionMapper definitionRepository;
     @Mock private UserCouponMapper userCouponRepository;
     @Mock private UserInfoMapper userInfoRepository;
+    @Mock private ScheduledTaskService taskService;
 
     private CouponService couponService;
 
@@ -36,6 +37,8 @@ class CouponServiceTest {
     void setUp() {
         couponService = new CouponService(
                 definitionRepository, userCouponRepository, userInfoRepository);
+        org.springframework.test.util.ReflectionTestUtils.setField(couponService, "taskService", taskService);
+        lenient().when(taskService.tryBegin(anyString(), anyLong())).thenReturn(true);
     }
 
     @Test

@@ -30,9 +30,15 @@ public class CompensationTaskScheduler {
     
     @Autowired
     private TccTransactionCoordinator txCoordinator;
+
+    @Autowired
+    private ScheduledTaskService taskService;
     
     @Scheduled(fixedDelay = 30000)
     public void processCompensationTasks() {
+        if (!taskService.isEnabled("compensation-process")) {
+            return;
+        }
         RLock lock = lockService.acquireLock("compensation:scheduler", 60);
         if (lock == null) {
             log.debug("Another instance is processing compensation tasks");
@@ -108,6 +114,9 @@ public class CompensationTaskScheduler {
     
     @Scheduled(fixedDelay = 60000)
     public void retryFailedTransactions() {
+        if (!taskService.isEnabled("compensation-retry")) {
+            return;
+        }
         RLock lock = lockService.acquireLock("tx:retry:scheduler", 60);
         if (lock == null) {
             return;

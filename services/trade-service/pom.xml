@@ -135,6 +135,11 @@
             <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
             <version>3.5.5</version>
         </dependency>
+        <!-- XXL-JOB 分布式任务调度（执行器；调度中心单独部署） -->
+        <dependency>
+            <groupId>com.xuxueli</groupId>
+            <artifactId>xxl-job-core</artifactId>
+        </dependency>
         <dependency>
             <groupId>com.google.zxing</groupId>
             <artifactId>core</artifactId>
@@ -164,30 +169,30 @@
                 </configuration>
                 <executions>
                     <execution>
-                        <id>install-node-and-npm</id>
+                        <id>install-node-and-pnpm</id>
                         <goals>
-                            <goal>install-node-and-npm</goal>
+                            <goal>install-node-and-pnpm</goal>
                         </goals>
                         <configuration>
                             <nodeVersion>${node.version}</nodeVersion>
-                            <npmVersion>${npm.version}</npmVersion>
+                            <pnpmVersion>${pnpm.version}</pnpmVersion>
                         </configuration>
                     </execution>
                     <execution>
-                        <id>npm-install-admin</id>
+                        <id>pnpm-install-admin</id>
                         <goals>
-                            <goal>npm</goal>
+                            <goal>pnpm</goal>
                         </goals>
                         <configuration>
                             <workingDirectory>${project.basedir}/../../clients/admin-vue</workingDirectory>
-                            <arguments>install --no-audit --no-fund</arguments>
+                            <arguments>install --frozen-lockfile</arguments>
                             <skip>${skip.admin.build}</skip>
                         </configuration>
                     </execution>
                     <execution>
-                        <id>npm-build-admin</id>
+                        <id>pnpm-build-admin</id>
                         <goals>
-                            <goal>npm</goal>
+                            <goal>pnpm</goal>
                         </goals>
                         <phase>generate-resources</phase>
                         <configuration>

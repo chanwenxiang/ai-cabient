@@ -88,7 +88,10 @@ function priorityClass(p?: string) {
   color: #64748b;
   font-size: 28rpx;
 }
-.err { color: #b91c1c; text-align: center; }
+.err {
+  color: #b91c1c;
+  text-align: center;
+}
 .retry {
   background: #059669;
   color: #fff;
@@ -113,9 +116,18 @@ function priorityClass(p?: string) {
   border-radius: 999rpx;
   font-weight: 600;
 }
-.tag.high { color: #b45309; background: #fef3c7; }
-.tag.urgent { color: #b91c1c; background: #fee2e2; }
-.time { color: #94a3b8; font-size: 24rpx; }
+.tag.high {
+  color: #b45309;
+  background: #fef3c7;
+}
+.tag.urgent {
+  color: #b91c1c;
+  background: #fee2e2;
+}
+.time {
+  color: #94a3b8;
+  font-size: 24rpx;
+}
 .title {
   display: block;
   font-size: 40rpx;

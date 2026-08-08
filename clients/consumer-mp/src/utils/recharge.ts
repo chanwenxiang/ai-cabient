@@ -205,7 +205,10 @@ export function invokeWxRequestPayment(wxPay: WxPayLike): Promise<void> {
  * - live + 小程序：requestPayment + 轮询到账
  * - mock / H5：预下单后 mock-success 即时到账（本地可测）
  */
-export async function runWeChatRecharge(amountCents: number, idempotencyKey: string): Promise<{
+export async function runWeChatRecharge(
+  amountCents: number,
+  idempotencyKey: string
+): Promise<{
   orderId: string;
   mode: 'mock' | 'live';
 }> {
@@ -232,7 +235,10 @@ export async function runWeChatRecharge(amountCents: number, idempotencyKey: str
  * - live：跳转表单/链接（沙箱进件）
  * - mock：预下单后走统一 mock-success 即时到账（无真实进件）
  */
-export async function runAlipayRecharge(amountCents: number, idempotencyKey: string): Promise<{
+export async function runAlipayRecharge(
+  amountCents: number,
+  idempotencyKey: string
+): Promise<{
   orderId: string;
   mode: 'mock' | 'live';
 }> {

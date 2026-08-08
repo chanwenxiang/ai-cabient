@@ -19,14 +19,18 @@
       <el-avatar :size="64" class="avatar">{{ initial }}</el-avatar>
       <div class="name-cell">
         <strong class="display-name">{{ profileReady ? auth.displayName : '—' }}</strong>
-        <small>{{ profileReady ? (auth.phone || '无') : '—' }}</small>
-        <small class="cell-id">ID {{ profileReady ? (auth.userId || '无') : '—' }}</small>
+        <small>{{ profileReady ? auth.phone || '无' : '—' }}</small>
+        <small class="cell-id">ID {{ profileReady ? auth.userId || '无' : '—' }}</small>
       </div>
     </div>
 
     <el-descriptions :column="1" border class="profile-desc">
-      <el-descriptions-item label="角色">{{ profileReady ? auth.roleText : '—' }}</el-descriptions-item>
-      <el-descriptions-item label="数据范围">{{ profileReady ? auth.dataScopeText : '—' }}</el-descriptions-item>
+      <el-descriptions-item label="角色">{{
+        profileReady ? auth.roleText : '—'
+      }}</el-descriptions-item>
+      <el-descriptions-item label="数据范围">{{
+        profileReady ? auth.dataScopeText : '—'
+      }}</el-descriptions-item>
       <el-descriptions-item label="权限数">
         {{ profileReady ? (auth.profile?.permissionCount ?? permissions.length) : '—' }}
       </el-descriptions-item>
@@ -45,7 +49,13 @@
         <span class="meta">共 {{ permissions.length }} 项</span>
       </div>
       <div class="perm-tags">
-        <el-tag v-for="p in permissions.slice(0, 30)" :key="p" size="small" effect="plain" class="perm-tag">
+        <el-tag
+          v-for="p in permissions.slice(0, 30)"
+          :key="p"
+          size="small"
+          effect="plain"
+          class="perm-tag"
+        >
           {{ p }}
         </el-tag>
       </div>
@@ -173,11 +183,27 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+}
 
 .profile-head {
   display: flex;
@@ -190,25 +216,53 @@ onActivated(() => {
   font-size: 24px;
   flex-shrink: 0;
 }
-.name-cell { display: grid; gap: 2px; line-height: 1.35; }
-.display-name { font-size: 18px; font-weight: 650; }
+.name-cell {
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+}
+.display-name {
+  font-size: 18px;
+  font-weight: 650;
+}
 .name-cell small {
   color: var(--el-text-color-secondary);
   font-size: 12px;
 }
-.cell-id { font-family: inherit; font-size: inherit; }
+.cell-id {
+  font-family: inherit;
+  font-size: inherit;
+}
 
-.profile-desc { margin-top: 20px; max-width: 560px; }
+.profile-desc {
+  margin-top: 20px;
+  max-width: 560px;
+}
 
-.perm-block { margin-top: 24px; }
+.perm-block {
+  margin-top: 24px;
+}
 .perm-head {
   display: flex;
   align-items: baseline;
   gap: 10px;
   margin-bottom: 10px;
 }
-.perm-head h4 { margin: 0; font-size: 14px; }
-.perm-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-.perm-tag { font-family: var(--app-font-mono); }
-.meta { color: var(--el-text-color-secondary); margin: 8px 0 0; font-size: 12px; }
+.perm-head h4 {
+  margin: 0;
+  font-size: 14px;
+}
+.perm-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.perm-tag {
+  font-family: var(--app-font-mono);
+}
+.meta {
+  color: var(--el-text-color-secondary);
+  margin: 8px 0 0;
+  font-size: 12px;
+}
 </style>

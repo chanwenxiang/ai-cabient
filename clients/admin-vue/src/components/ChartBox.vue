@@ -1,10 +1,5 @@
 <template>
-  <div
-    ref="hostRef"
-    class="chart-host"
-    @pointermove="onMove"
-    @pointerleave="hide"
-  >
+  <div ref="hostRef" class="chart-host" @pointermove="onMove" @pointerleave="hide">
     <div class="chart-box" :class="{ donut: donut }" v-html="svg" />
     <Teleport to="body">
       <div
@@ -86,7 +81,6 @@ function onMove(e: PointerEvent) {
     clearActive();
     activeEl = hit;
     hit.classList.add('is-active');
-    const idx = hit.getAttribute('data-i');
     // column hover lights all series points at same x index
     if (hit.classList.contains('chart-col')) {
       const i = hit.getAttribute('data-i');
@@ -163,7 +157,9 @@ onBeforeUnmount(hide);
 
 /* Line points lit on column hover */
 .chart-box :deep(.chart-pt .chart-pt-dot) {
-  transition: r 0.12s ease, stroke-width 0.12s ease;
+  transition:
+    r 0.12s ease,
+    stroke-width 0.12s ease;
 }
 .chart-box :deep(.chart-pt.is-lit .chart-pt-halo) {
   r: 9;
@@ -178,7 +174,9 @@ onBeforeUnmount(hide);
 /* Bars */
 .chart-box :deep(.chart-bar) {
   cursor: pointer;
-  transition: opacity 0.12s ease, filter 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    filter 0.12s ease;
 }
 .chart-box :deep(.chart-bar:hover),
 .chart-box :deep(.chart-bar.is-active) {
@@ -192,7 +190,10 @@ onBeforeUnmount(hide);
 /* Donut arcs */
 .chart-box :deep(.chart-arc) {
   cursor: pointer;
-  transition: stroke-width 0.15s ease, opacity 0.15s ease, filter 0.15s ease;
+  transition:
+    stroke-width 0.15s ease,
+    opacity 0.15s ease,
+    filter 0.15s ease;
 }
 .chart-box :deep(.chart-arc:hover),
 .chart-box :deep(.chart-arc.is-active) {

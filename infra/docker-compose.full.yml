@@ -176,6 +176,8 @@ services:
       MQTT_CLIENT_ID: device-service-docker
       AICABINET_TRADE_SERVICE_URL: http://trade-service:8080
       INTERNAL_API_KEY: ${INTERNAL_API_KEY:-dev-internal-key-change-me}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
     ports: ["18081:8081"]
     depends_on:
       emqx: { condition: service_started }

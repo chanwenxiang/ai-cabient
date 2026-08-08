@@ -13,7 +13,7 @@
 
       <view class="section">
         <text class="section-title">商品明细</text>
-        <view v-for="(line, i) in (order.lines || [])" :key="i" class="line">
+        <view v-for="(line, i) in order.lines || []" :key="i" class="line">
           <view class="line-info">
             <text class="line-name">{{ line.skuName || line.skuId || '商品' }}</text>
             <text class="line-qty">x{{ line.quantity }}</text>
@@ -33,19 +33,29 @@
 
       <view class="section">
         <text class="section-title">订单信息</text>
-        <view class="info-row"><text class="lbl">订单号</text><text class="val mono">{{ emptyDisplay(order.orderId, 'order') }}</text></view>
-        <view class="info-row"><text class="lbl">会话</text><text class="val mono">{{ emptyDisplay(order.sessionId, 'session') }}</text></view>
-        <view class="info-row"><text class="lbl">柜机</text><text class="val mono">{{ emptyDisplay(order.deviceId, 'device') }}</text></view>
-        <view class="info-row"><text class="lbl">支付方式</text><text class="val">{{ payChannelText }}</text></view>
-        <view class="info-row"><text class="lbl">创建时间</text><text class="val">{{ formatTime(order.createdAt) }}</text></view>
+        <view class="info-row"
+          ><text class="lbl">订单号</text
+          ><text class="val mono">{{ emptyDisplay(order.orderId, 'order') }}</text></view
+        >
+        <view class="info-row"
+          ><text class="lbl">会话</text
+          ><text class="val mono">{{ emptyDisplay(order.sessionId, 'session') }}</text></view
+        >
+        <view class="info-row"
+          ><text class="lbl">柜机</text
+          ><text class="val mono">{{ emptyDisplay(order.deviceId, 'device') }}</text></view
+        >
+        <view class="info-row"
+          ><text class="lbl">支付方式</text><text class="val">{{ payChannelText }}</text></view
+        >
+        <view class="info-row"
+          ><text class="lbl">创建时间</text
+          ><text class="val">{{ formatTime(order.createdAt) }}</text></view
+        >
       </view>
 
       <view class="actions">
-        <button
-          v-if="order.deviceId"
-          class="btn-primary"
-          @click="goDevice"
-        >查看柜机</button>
+        <button v-if="order.deviceId" class="btn-primary" @click="goDevice">查看柜机</button>
         <button class="btn-outline" @click="goDisputes">相关争议</button>
       </view>
     </view>
@@ -56,7 +66,12 @@
 import { computed, ref } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay, formatDateTimeShort, orderStatusLabel, fmtMoney } from '@aicabinet/shared-uni/format';
+import {
+  emptyDisplay,
+  formatDateTimeShort,
+  orderStatusLabel,
+  fmtMoney
+} from '@aicabinet/shared-uni/format';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { MerchantMe } from '@aicabinet/shared-types';
@@ -171,8 +186,18 @@ function goDisputes() {
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
-.loading, .empty { text-align: center; padding: 80rpx 24rpx; color: #64748b; font-size: 28rpx; }
-.err { color: #b91c1c; display: block; margin-bottom: 20rpx; }
+.loading,
+.empty {
+  text-align: center;
+  padding: 80rpx 24rpx;
+  color: #64748b;
+  font-size: 28rpx;
+}
+.err {
+  color: #b91c1c;
+  display: block;
+  margin-bottom: 20rpx;
+}
 .retry {
   display: inline-block;
   margin-top: 12rpx;
@@ -186,27 +211,64 @@ function goDisputes() {
   font-weight: 600;
   box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
 }
-.retry::after { border: none; }
+.retry::after {
+  border: none;
+}
 .status-bar {
   background: linear-gradient(145deg, #0f766e, #14b8a6);
-  color: #fff; border-radius: 16rpx; padding: 28rpx 24rpx; margin-bottom: 20rpx;
+  color: #fff;
+  border-radius: 16rpx;
+  padding: 28rpx 24rpx;
+  margin-bottom: 20rpx;
 }
-.status-bar.s-disputed { background: linear-gradient(145deg, #9a3412, #ea580c); }
-.status-bar.s-refunded, .status-bar.s-partial_refunded {
+.status-bar.s-disputed {
+  background: linear-gradient(145deg, #9a3412, #ea580c);
+}
+.status-bar.s-refunded,
+.status-bar.s-partial_refunded {
   background: linear-gradient(145deg, #1e3a8a, #3b82f6);
 }
-.status-bar.s-pending, .status-bar.s-processing {
+.status-bar.s-pending,
+.status-bar.s-processing {
   background: linear-gradient(145deg, #854d0e, #ca8a04);
 }
-.status-title { display: block; font-size: 30rpx; font-weight: 600; }
-.status-amt { display: block; margin-top: 8rpx; font-size: 44rpx; font-weight: 700; }
+.status-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 600;
+}
+.status-amt {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 44rpx;
+  font-weight: 700;
+}
 .section {
-  background: #fff; border-radius: 16rpx; padding: 24rpx; margin-bottom: 16rpx;
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 16rpx;
   border: 1rpx solid #e2e8f0;
 }
-.section-title { display: block; font-size: 26rpx; font-weight: 600; color: #0f172a; margin-bottom: 16rpx; }
-.line { display: flex; justify-content: space-between; align-items: center; padding: 12rpx 0; }
-.line-info { display: flex; gap: 12rpx; align-items: baseline; min-width: 0; }
+.section-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 16rpx;
+}
+.line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12rpx 0;
+}
+.line-info {
+  display: flex;
+  gap: 12rpx;
+  align-items: baseline;
+  min-width: 0;
+}
 .line-name {
   font-size: 28rpx;
   color: #0f172a;
@@ -215,20 +277,62 @@ function goDisputes() {
   white-space: nowrap;
   max-width: 360rpx;
 }
-.line-qty { font-size: 24rpx; color: #94a3b8; }
-.line-amt { font-size: 28rpx; color: #0f172a; font-weight: 600; }
-.sum-row {
-  display: flex; justify-content: space-between; margin-top: 12rpx;
-  padding-top: 12rpx; border-top: 1rpx solid #f1f5f9; font-size: 26rpx; color: #64748b;
+.line-qty {
+  font-size: 24rpx;
+  color: #94a3b8;
 }
-.sum-row.strong { color: #0f172a; font-weight: 700; font-size: 30rpx; }
-.info-row { display: flex; justify-content: space-between; gap: 16rpx; padding: 10rpx 0; font-size: 26rpx; }
-.lbl { color: #94a3b8; flex-shrink: 0; }
-.val { color: #0f172a; text-align: right; word-break: break-all; }
-.mono { font-family: ui-monospace, monospace; font-size: 24rpx; }
-.muted { color: #94a3b8; font-size: 26rpx; padding: 12rpx 0; }
-.actions { display: flex; flex-direction: column; gap: 16rpx; margin-top: 8rpx; }
-.btn-primary, .btn-outline {
+.line-amt {
+  font-size: 28rpx;
+  color: #0f172a;
+  font-weight: 600;
+}
+.sum-row {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12rpx;
+  padding-top: 12rpx;
+  border-top: 1rpx solid #f1f5f9;
+  font-size: 26rpx;
+  color: #64748b;
+}
+.sum-row.strong {
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 30rpx;
+}
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 10rpx 0;
+  font-size: 26rpx;
+}
+.lbl {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.val {
+  color: #0f172a;
+  text-align: right;
+  word-break: break-all;
+}
+.mono {
+  font-family: ui-monospace, monospace;
+  font-size: 24rpx;
+}
+.muted {
+  color: #94a3b8;
+  font-size: 26rpx;
+  padding: 12rpx 0;
+}
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16rpx;
+  margin-top: 8rpx;
+}
+.btn-primary,
+.btn-outline {
   width: 100%;
   display: block;
   box-sizing: border-box;
@@ -252,5 +356,8 @@ function goDisputes() {
   min-height: 80rpx;
   line-height: 80rpx;
 }
-.btn-primary::after, .btn-outline::after { border: none; }
+.btn-primary::after,
+.btn-outline::after {
+  border: none;
+}
 </style>

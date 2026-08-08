@@ -170,7 +170,8 @@
   height: 10px;
   border-radius: 999px;
   flex-shrink: 0;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--layout-card-bg, var(--el-bg-color)) 80%, transparent);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--layout-card-bg, var(--el-bg-color)) 80%, transparent);
 }
 
 .chart-type-switch {
@@ -192,7 +193,10 @@
   padding: 6px 11px;
   border-radius: 8px;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .chart-type-switch button:hover {
@@ -260,7 +264,9 @@
 
 .chart-fade-enter-active,
 .chart-fade-leave-active {
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease;
   width: 100%;
 }
 

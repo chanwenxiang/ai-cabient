@@ -35,11 +35,7 @@
       >
         <template #prepend>关键字</template>
       </el-input>
-      <el-select
-        v-model="lifecycleStatus"
-        style="width: 120px"
-        @change="load"
-      >
+      <el-select v-model="lifecycleStatus" style="width: 120px" @change="load">
         <el-option
           v-for="item in lifecycleOptions"
           :key="item.value"
@@ -79,7 +75,10 @@
               {{ p.onlineStatus === 'ONLINE' ? '在线' : '离线' }}
             </el-tag>
           </div>
-          <div class="row-sub">{{ p.deviceId }} · {{ lifecycleLabel(p.lifecycleStatus) }} · {{ p.salesLocked ? '停售' : '可售' }}</div>
+          <div class="row-sub">
+            {{ p.deviceId }} · {{ lifecycleLabel(p.lifecycleStatus) }} ·
+            {{ p.salesLocked ? '停售' : '可售' }}
+          </div>
           <div class="row-sub">{{ p.address || '无地址' }}</div>
           <div class="row-actions">
             <el-button
@@ -165,13 +164,20 @@ const filteredPoints = computed(() => {
       const mid = String(p.merchantId || '').toUpperCase();
       if (!(mid.includes('DEFAULT') || mid.includes('SELF') || mid.includes('自营'))) return false;
     }
-    if (machine && !String(p.deviceId || '').toLowerCase().includes(machine)) return false;
+    if (
+      machine &&
+      !String(p.deviceId || '')
+        .toLowerCase()
+        .includes(machine)
+    )
+      return false;
     if (area) {
       const hay = `${p.address || ''} ${p.routeCode || ''}`.toLowerCase();
       if (!hay.includes(area)) return false;
     }
     if (kw) {
-      const hay = `${p.deviceId || ''} ${p.deviceName || ''} ${p.merchantId || ''} ${p.address || ''}`.toLowerCase();
+      const hay =
+        `${p.deviceId || ''} ${p.deviceName || ''} ${p.merchantId || ''} ${p.address || ''}`.toLowerCase();
       if (!hay.includes(kw)) return false;
     }
     return true;
@@ -191,7 +197,10 @@ async function load() {
   try {
     const q = new URLSearchParams();
     if (lifecycleStatus.value) q.set('lifecycleStatus', lifecycleStatus.value);
-    points.value = await api.request<MapPoint[]>(`/api/v2/ops/admin/devices/map-points?${q}`, 'GET');
+    points.value = await api.request<MapPoint[]>(
+      `/api/v2/ops/admin/devices/map-points?${q}`,
+      'GET'
+    );
     await nextTick();
     renderMarkers();
   } catch (e) {
@@ -226,24 +235,36 @@ function ensureMap() {
 
   // 优先高德彩色路网（参考图风格）；失败再切 Esri / GeoQ
   const layers = [
-    L.tileLayer('https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}', {
-      maxZoom: 18,
-      subdomains: '1234',
-      attribution: '© 高德'
-    }),
-    L.tileLayer('https://wprd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}', {
-      maxZoom: 18,
-      subdomains: '1234',
-      attribution: '© 高德'
-    }),
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 19,
-      attribution: '© Esri'
-    }),
-    L.tileLayer('https://map.geoq.cn/ArcGIS/rest/services/ChinaOnlineCommunity/MapServer/tile/{z}/{y}/{x}', {
-      maxZoom: 16,
-      attribution: '© GeoQ'
-    })
+    L.tileLayer(
+      'https://webrd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}',
+      {
+        maxZoom: 18,
+        subdomains: '1234',
+        attribution: '© 高德'
+      }
+    ),
+    L.tileLayer(
+      'https://wprd0{s}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=7&x={x}&y={y}&z={z}',
+      {
+        maxZoom: 18,
+        subdomains: '1234',
+        attribution: '© 高德'
+      }
+    ),
+    L.tileLayer(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+      {
+        maxZoom: 19,
+        attribution: '© Esri'
+      }
+    ),
+    L.tileLayer(
+      'https://map.geoq.cn/ArcGIS/rest/services/ChinaOnlineCommunity/MapServer/tile/{z}/{y}/{x}',
+      {
+        maxZoom: 16,
+        attribution: '© GeoQ'
+      }
+    )
   ];
   const attach = (i: number) => {
     if (!map || i >= layers.length) return;
@@ -376,7 +397,10 @@ function focusPoint(p: MapPoint) {
 }
 
 function escapeHtml(s: string) {
-  return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c);
+  return s.replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] || c
+  );
 }
 function escapeAttr(s: string) {
   return s.replace(/"/g, '&quot;');
@@ -454,7 +478,9 @@ onBeforeUnmount(() => {
   cursor: default;
   pointer-events: none;
 }
-.tile-hint { color: var(--el-color-warning); }
+.tile-hint {
+  color: var(--el-color-warning);
+}
 .map-side-panel {
   position: absolute;
   top: 14px;
@@ -469,7 +495,11 @@ onBeforeUnmount(() => {
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
   overflow: hidden;
 }
-.map-side__title { font-weight: 600; margin-bottom: 8px; font-size: 13px; }
+.map-side__title {
+  font-weight: 600;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
 .map-side__item {
   padding: 10px 8px;
   border-radius: 8px;
@@ -482,13 +512,33 @@ onBeforeUnmount(() => {
   background: var(--el-fill-color-light);
   border-color: var(--el-color-primary-light-5);
 }
-.row-main { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
-.row-sub { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 2px; }
-.row-actions { margin-top: 4px; }
+.row-main {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+.row-sub {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-top: 2px;
+}
+.row-actions {
+  margin-top: 4px;
+}
 @media (max-width: 1100px) {
-  .map-float-bar { left: 12px; right: 12px; }
-  .map-side-panel { display: none; }
-  .map-float-meta { left: 12px; top: auto; bottom: 14px; }
+  .map-float-bar {
+    left: 12px;
+    right: 12px;
+  }
+  .map-side-panel {
+    display: none;
+  }
+  .map-float-meta {
+    left: 12px;
+    top: auto;
+    bottom: 14px;
+  }
 }
 </style>
 
@@ -507,10 +557,18 @@ onBeforeUnmount(() => {
   justify-content: center;
   --c: #3b82f6;
 }
-.pulse-purple { --c: #9b2cf3; }
-.pulse-red { --c: #ef4444; }
-.pulse-yellow { --c: #f5c518; }
-.pulse-blue { --c: #3b82f6; }
+.pulse-purple {
+  --c: #9b2cf3;
+}
+.pulse-red {
+  --c: #ef4444;
+}
+.pulse-yellow {
+  --c: #f5c518;
+}
+.pulse-blue {
+  --c: #3b82f6;
+}
 
 .pulse-core {
   position: relative;
@@ -528,7 +586,9 @@ onBeforeUnmount(() => {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
   border: 2px solid rgba(255, 255, 255, 0.85);
 }
-.pulse-yellow .pulse-core { color: #1f2937; }
+.pulse-yellow .pulse-core {
+  color: #1f2937;
+}
 
 .pulse-ring {
   position: absolute;
@@ -544,8 +604,12 @@ onBeforeUnmount(() => {
   pointer-events: none;
   animation: map-pulse-ring 2.4s ease-out infinite;
 }
-.pulse-ring.r2 { animation-delay: 0.8s; }
-.pulse-ring.r3 { animation-delay: 1.6s; }
+.pulse-ring.r2 {
+  animation-delay: 0.8s;
+}
+.pulse-ring.r3 {
+  animation-delay: 1.6s;
+}
 
 @keyframes map-pulse-ring {
   0% {

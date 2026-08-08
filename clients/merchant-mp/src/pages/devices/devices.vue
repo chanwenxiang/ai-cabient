@@ -2,7 +2,9 @@
   <view class="page-root devices-page">
     <view class="toolbar">
       <button class="scan-btn" :loading="scanning" @click="onScan">扫码到柜</button>
-      <button v-if="canReplenishment" class="replenish-btn" @click="goReplenishment">补货任务</button>
+      <button v-if="canReplenishment" class="replenish-btn" @click="goReplenishment">
+        补货任务
+      </button>
     </view>
     <view v-if="loading" class="card">加载中…</view>
     <view v-else-if="error" class="card">
@@ -24,12 +26,11 @@
             class="chip"
             :class="{ active: filter === f.value }"
             @click="filter = f.value"
-          >{{ f.label }} {{ countFor(f.value) }}</text>
-          <text
-            class="chip"
-            :class="{ active: onlyPreferred }"
-            @click="toggleOnlyPreferred"
-          >常驻柜 {{ preferredId ? '1' : '0' }}</text>
+            >{{ f.label }} {{ countFor(f.value) }}</text
+          >
+          <text class="chip" :class="{ active: onlyPreferred }" @click="toggleOnlyPreferred"
+            >常驻柜 {{ preferredId ? '1' : '0' }}</text
+          >
         </view>
         <view v-if="preferredId" class="pref-hint">
           <text>常驻：{{ preferredLabel }}</text>
@@ -58,7 +59,8 @@
             :aria-label="preferredId === d.deviceId ? '取消常驻柜' : '设为常驻柜'"
             :class="{ on: preferredId === d.deviceId }"
             @click.stop="togglePreferred(d.deviceId)"
-          >★</text>
+            >★</text
+          >
           <text v-if="d.salesLocked" class="status-locked">停售</text>
           <text :class="d.online ? 'status-on' : 'status-off'">
             {{ d.online ? '在线' : '离线' }}
@@ -198,7 +200,10 @@ async function load() {
   try {
     const list = await merchantApi.devices();
     if (seq !== loadSeq) return;
-    devices.value = list.map((d) => ({ ...d, online: (d.onlineStatus || '').toUpperCase() === 'ONLINE' }));
+    devices.value = list.map((d) => ({
+      ...d,
+      online: (d.onlineStatus || '').toUpperCase() === 'ONLINE'
+    }));
   } catch (e) {
     if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';
@@ -226,7 +231,12 @@ async function onScan() {
     const id = await scanCabinetDeviceId();
     if (!id) return;
     const key = id.trim().toUpperCase();
-    const hit = devices.value.find((d) => String(d.deviceId || '').trim().toUpperCase() === key);
+    const hit = devices.value.find(
+      (d) =>
+        String(d.deviceId || '')
+          .trim()
+          .toUpperCase() === key
+    );
     if (!hit) {
       uni.showToast({ title: '未找到该柜机或无权限', icon: 'none' });
       return;
@@ -254,7 +264,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   padding: 16rpx 24rpx 0;
   background: #f0fdfa;
 }
-.scan-btn, .replenish-btn {
+.scan-btn,
+.replenish-btn {
   flex: 1;
   margin: 0;
   height: 72rpx;
@@ -263,9 +274,19 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   font-size: 26rpx;
   font-weight: 600;
 }
-.scan-btn { background: #0f766e; color: #fff; }
-.replenish-btn { background: #fff; color: #0f766e; border: 1rpx solid #99f6e4; }
-.scan-btn::after, .replenish-btn::after { border: none; }
+.scan-btn {
+  background: #0f766e;
+  color: #fff;
+}
+.replenish-btn {
+  background: #fff;
+  color: #0f766e;
+  border: 1rpx solid #99f6e4;
+}
+.scan-btn::after,
+.replenish-btn::after {
+  border: none;
+}
 .device-card {
   display: flex;
   justify-content: space-between;
@@ -273,16 +294,65 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.device-card-hover { background: #f8fafc !important; opacity: 0.96; }
-.device-right { display: flex; align-items: center; gap: 16rpx; }
-.star { color: #cbd5e1; font-size: 36rpx; padding: 8rpx; position: relative; z-index: 1; }
-.star.on { color: #f59e0b; }
-.name, .meta, .status-on, .status-off, .online-dot { pointer-events: none; }
-.filters { position: sticky; top: 0; z-index: 2; background: #f0fdfa; padding: 16rpx 24rpx 12rpx; }
-.search { height: 72rpx; box-sizing: border-box; background: #fff; border: 1rpx solid #ccfbf1; border-radius: 36rpx; padding: 0 28rpx; font-size: 26rpx; }
-.chips { display: flex; gap: 12rpx; margin-top: 14rpx; flex-wrap: wrap; }
-.chip { padding: 10rpx 24rpx; border-radius: 28rpx; color: #64748b; background: #fff; font-size: 23rpx; }
-.chip.active { color: #fff; background: #0f766e; }
+.device-card-hover {
+  background: #f8fafc !important;
+  opacity: 0.96;
+}
+.device-right {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+.star {
+  color: #cbd5e1;
+  font-size: 36rpx;
+  padding: 8rpx;
+  position: relative;
+  z-index: 1;
+}
+.star.on {
+  color: #f59e0b;
+}
+.name,
+.meta,
+.status-on,
+.status-off,
+.online-dot {
+  pointer-events: none;
+}
+.filters {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f0fdfa;
+  padding: 16rpx 24rpx 12rpx;
+}
+.search {
+  height: 72rpx;
+  box-sizing: border-box;
+  background: #fff;
+  border: 1rpx solid #ccfbf1;
+  border-radius: 36rpx;
+  padding: 0 28rpx;
+  font-size: 26rpx;
+}
+.chips {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 14rpx;
+  flex-wrap: wrap;
+}
+.chip {
+  padding: 10rpx 24rpx;
+  border-radius: 28rpx;
+  color: #64748b;
+  background: #fff;
+  font-size: 23rpx;
+}
+.chip.active {
+  color: #fff;
+  background: #0f766e;
+}
 .pref-hint {
   margin-top: 12rpx;
   display: flex;
@@ -290,12 +360,31 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   font-size: 22rpx;
   color: #0f766e;
 }
-.pref-clear { color: #64748b; }
-.empty { text-align: center; color: #64748b; }
-.device-left { display: flex; align-items: center; gap: 16rpx; flex: 1; }
-.online-dot { width: 16rpx; height: 16rpx; border-radius: 50%; }
-.online-dot.on { background: #16a34a; box-shadow: 0 0 8rpx rgba(22,163,74,0.5); }
-.online-dot.off { background: #cbd5e1; }
+.pref-clear {
+  color: #64748b;
+}
+.empty {
+  text-align: center;
+  color: #64748b;
+}
+.device-left {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  flex: 1;
+}
+.online-dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+}
+.online-dot.on {
+  background: #16a34a;
+  box-shadow: 0 0 8rpx rgba(22, 163, 74, 0.5);
+}
+.online-dot.off {
+  background: #cbd5e1;
+}
 .name {
   font-weight: 600;
   display: block;
@@ -305,10 +394,27 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.status-on { color: #16a34a; font-weight: 600; font-size: 26rpx; }
-.status-off { color: #94a3b8; font-size: 26rpx; }
-.status-locked { color: #b45309; font-weight: 700; font-size: 24rpx; background: #fef3c7; padding: 4rpx 12rpx; border-radius: 999rpx; }
-.err { color: #ef4444; display: block; }
+.status-on {
+  color: #16a34a;
+  font-weight: 600;
+  font-size: 26rpx;
+}
+.status-off {
+  color: #94a3b8;
+  font-size: 26rpx;
+}
+.status-locked {
+  color: #b45309;
+  font-weight: 700;
+  font-size: 24rpx;
+  background: #fef3c7;
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+}
+.err {
+  color: #ef4444;
+  display: block;
+}
 .retry {
   margin-top: 16rpx;
   background: linear-gradient(135deg, #134e4a, #0f766e);
@@ -318,5 +424,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   border: none;
   box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.2);
 }
-.retry::after { border: none; }
+.retry::after {
+  border: none;
+}
 </style>

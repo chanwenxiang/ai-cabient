@@ -14,6 +14,12 @@ import org.springframework.data.domain.Pageable;
 @Mapper
 public interface ShoppingSessionMapper extends BaseTradeMapper<ShoppingSession> {
 
+    ShoppingSession _findByIdForUpdateRaw(@Param("sessionId") String sessionId);
+
+    default Optional<ShoppingSession> findByIdForUpdate(String sessionId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(sessionId));
+    }
+
     default Optional<ShoppingSession> findByIdempotencyKey(String idempotencyKey) {
     return Optional.ofNullable(selectOne(Wrappers.<ShoppingSession>lambdaQuery().eq(ShoppingSession::getIdempotencyKey, idempotencyKey)));
     }

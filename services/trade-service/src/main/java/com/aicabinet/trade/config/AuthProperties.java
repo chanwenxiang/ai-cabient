@@ -6,6 +6,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public record AuthProperties(
         String jwtSecret,
         long expirationSeconds,
+        boolean cookieEnabled,
+        boolean cookieSecure,
         SmsProperties sms
 ) {
     public record SmsProperties(

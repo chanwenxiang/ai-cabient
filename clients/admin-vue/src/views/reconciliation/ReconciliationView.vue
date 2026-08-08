@@ -10,7 +10,9 @@
         </div>
         <div class="page-card-head__actions">
           <el-button v-if="canRun" type="primary" @click="openRunDialog">执行对账</el-button>
-          <el-button v-hasPermi="['ops:reconciliation:export']" @click="onExport">{{ exportButtonLabel }}</el-button>
+          <el-button v-hasPermi="['ops:reconciliation:export']" @click="onExport">{{
+            exportButtonLabel
+          }}</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -37,7 +39,13 @@
         />
       </el-form-item>
       <el-form-item label="渠道">
-        <el-select v-model="channel" clearable placeholder="全部" style="width: 140px" @change="search">
+        <el-select
+          v-model="channel"
+          clearable
+          placeholder="全部"
+          style="width: 140px"
+          @change="search"
+        >
           <el-option
             v-for="item in dictOptions('pay_channel')"
             :key="item.value"
@@ -47,7 +55,13 @@
         </el-select>
       </el-form-item>
       <el-form-item label="状态">
-        <el-select v-model="statusFilter" clearable placeholder="全部" style="width: 140px" @change="search">
+        <el-select
+          v-model="statusFilter"
+          clearable
+          placeholder="全部"
+          style="width: 140px"
+          @change="search"
+        >
           <el-option
             v-for="item in dictOptions('reconciliation_status')"
             :key="item.value"
@@ -78,8 +92,12 @@
           class="report-table"
           :row-class-name="rowClassName"
           row-key="reconId"
-          @selection-change="onSelectionChange" empty-text=" ">
-          <template #empty><el-empty v-if="listHydrated && !loading" description="暂无对账记录" /></template>
+          @selection-change="onSelectionChange"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无对账记录"
+          /></template>
           <el-table-column type="selection" width="48" align="center" />
           <el-table-column label="对账" min-width="160" align="center" class-name="col-text">
             <template #default="{ row }">
@@ -91,7 +109,9 @@
           </el-table-column>
           <el-table-column label="渠道" width="100" align="center">
             <template #default="{ row }">
-              <el-tag size="small" effect="plain">{{ dictLabel('pay_channel', row.channel) }}</el-tag>
+              <el-tag size="small" effect="plain">{{
+                dictLabel('pay_channel', row.channel)
+              }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="110" align="center">
@@ -124,14 +144,15 @@
         </el-table>
       </div>
     </div>
-    <PagePager :hydrated="listHydrated"
-        v-model:current-page="page"
-        v-model:page-size="size"
-        :total="filtered.length"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next"
-        background
-      />
+    <PagePager
+      :hydrated="listHydrated"
+      v-model:current-page="page"
+      v-model:page-size="size"
+      :total="filtered.length"
+      :page-sizes="[10, 20, 50, 100]"
+      layout="total, sizes, prev, pager, next"
+      background
+    />
 
     <el-dialog v-model="runDialog" title="执行对账" width="480px" destroy-on-close>
       <p class="dialog-hint">按 T+1 节奏核对渠道流水与平台订单；请选择账期日期与渠道后执行。</p>
@@ -169,7 +190,9 @@
             <el-descriptions-item label="对账ID">
               <span class="cell-id">{{ detail.summary?.reconId }}</span>
             </el-descriptions-item>
-            <el-descriptions-item label="日期">{{ detail.summary?.reconDate }}</el-descriptions-item>
+            <el-descriptions-item label="日期">{{
+              detail.summary?.reconDate
+            }}</el-descriptions-item>
             <el-descriptions-item label="渠道">
               {{ dictLabel('pay_channel', detail.summary?.channel) }}
             </el-descriptions-item>
@@ -190,12 +213,29 @@
             border
             style="margin-top: 16px"
             max-height="360"
-            size="small" empty-text=" "
+            size="small"
+            empty-text=" "
           >
-            <el-table-column prop="platformTradeNo" label="平台流水" min-width="140" align="center" class-name="col-text" show-overflow-tooltip />
-            <el-table-column prop="merchantOrderNo" label="商户单号" min-width="120" align="center" class-name="col-text" show-overflow-tooltip />
+            <el-table-column
+              prop="platformTradeNo"
+              label="平台流水"
+              min-width="140"
+              align="center"
+              class-name="col-text"
+              show-overflow-tooltip
+            />
+            <el-table-column
+              prop="merchantOrderNo"
+              label="商户单号"
+              min-width="120"
+              align="center"
+              class-name="col-text"
+              show-overflow-tooltip
+            />
             <el-table-column label="金额" width="100" align="center">
-              <template #default="{ row }">¥{{ ((row.amountCents || 0) / 100).toFixed(2) }}</template>
+              <template #default="{ row }"
+                >¥{{ ((row.amountCents || 0) / 100).toFixed(2) }}</template
+              >
             </el-table-column>
             <el-table-column label="匹配" width="80" align="center">
               <template #default="{ row }">
@@ -257,8 +297,12 @@ const filtered = computed(() => {
   if (q) {
     rows = rows.filter(
       (r) =>
-        String(r.reconId || '').toLowerCase().includes(q) ||
-        String(r.reconDate || '').toLowerCase().includes(q) ||
+        String(r.reconId || '')
+          .toLowerCase()
+          .includes(q) ||
+        String(r.reconDate || '')
+          .toLowerCase()
+          .includes(q) ||
         dictLabel('pay_channel', r.channel).toLowerCase().includes(q)
     );
   }
@@ -274,8 +318,9 @@ const { onSelectionChange, pickSelected, exportButtonLabel, clearSelection } =
   useTableSelection<Row>((r) => r.reconId);
 
 const totalCount = computed(() => filtered.value.length);
-const mismatchBatchCount = computed(() =>
-  filtered.value.filter((row) => (row.mismatchCount ?? 0) > 0 || row.status === 'MISMATCH').length
+const mismatchBatchCount = computed(
+  () =>
+    filtered.value.filter((row) => (row.mismatchCount ?? 0) > 0 || row.status === 'MISMATCH').length
 );
 const matchedBatchCount = computed(() => totalCount.value - mismatchBatchCount.value);
 
@@ -315,7 +360,10 @@ async function load() {
     const q = new URLSearchParams();
     if (channel.value) q.set('channel', channel.value);
     const qs = q.toString();
-    const rows = await api.request<Row[]>(`/api/v2/ops/admin/reconciliation${qs ? `?${qs}` : ''}`, 'GET');
+    const rows = await api.request<Row[]>(
+      `/api/v2/ops/admin/reconciliation${qs ? `?${qs}` : ''}`,
+      'GET'
+    );
     allItems.value = rows || [];
     clearSelection();
   } catch (e) {
@@ -434,12 +482,31 @@ onActivated(() => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.page-card-head__meta { min-width: 0; }
-.page-card-head__title { display: flex; flex-direction: column; gap: 4px; }
-.title { font-weight: 600; font-size: 15px; }
-.hint { color: var(--el-text-color-secondary); font-size: 12px; line-height: 1.4; }
-.page-card-head__actions { display: flex; gap: 8px; flex-wrap: wrap; }
-.t1-alert { margin: 0 0 12px; }
+.page-card-head__meta {
+  min-width: 0;
+}
+.page-card-head__title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.title {
+  font-weight: 600;
+  font-size: 15px;
+}
+.hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.page-card-head__actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.t1-alert {
+  margin: 0 0 12px;
+}
 .kpi-tags {
   display: flex;
   gap: 8px;
@@ -461,19 +528,34 @@ onActivated(() => {
   font: inherit;
   line-height: 1.35;
 }
-.recon-cell strong { color: var(--el-color-primary); font-weight: 650; }
-.recon-detail-pane { min-height: 160px; }
+.recon-cell strong {
+  color: var(--el-color-primary);
+  font-weight: 650;
+}
+.recon-detail-pane {
+  min-height: 160px;
+}
 .recon-cell small {
   color: var(--el-text-color-secondary);
   font-family: inherit;
 }
-.recon-cell:hover strong { text-decoration: underline; }
+.recon-cell:hover strong {
+  text-decoration: underline;
+}
 .is-mismatch {
   color: var(--el-color-danger);
   font-weight: 650;
 }
 :deep(.el-table .is-mismatch-row > td.el-table__cell) {
-  background: color-mix(in srgb, var(--el-color-danger) 6%, var(--el-table-bg-color, #fff)) !important;
+  background: color-mix(
+    in srgb,
+    var(--el-color-danger) 6%,
+    var(--el-table-bg-color, #fff)
+  ) !important;
 }
-.dialog-hint { margin: 0 0 12px; color: var(--layout-muted); line-height: 1.5; }
+.dialog-hint {
+  margin: 0 0 12px;
+  color: var(--layout-muted);
+  line-height: 1.5;
+}
 </style>

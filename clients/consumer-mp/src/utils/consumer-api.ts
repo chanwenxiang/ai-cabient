@@ -54,7 +54,11 @@ export function getOrCreateOpenAttempt(deviceId: string): OpenAttempt {
   const normalized = deviceId.trim().toUpperCase();
   const saved = uni.getStorageSync(OPEN_ATTEMPT_KEY) as OpenAttempt | '';
   if (saved && saved.deviceId === normalized && saved.idempotencyKey) return saved;
-  const attempt = { deviceId: normalized, idempotencyKey: `consumer-open-${randomId()}`, createdAt: Date.now() };
+  const attempt = {
+    deviceId: normalized,
+    idempotencyKey: `consumer-open-${randomId()}`,
+    createdAt: Date.now()
+  };
   uni.setStorageSync(OPEN_ATTEMPT_KEY, attempt);
   return attempt;
 }
@@ -204,7 +208,12 @@ export async function bootstrapConsumerSession() {
   if (!getConsumerToken()) return false;
   let bootEpoch: number | string | undefined;
   try {
-    const boot = await request<{ serverBootEpoch?: number }>('/api/v2/auth/server-boot', 'GET', undefined, false);
+    const boot = await request<{ serverBootEpoch?: number }>(
+      '/api/v2/auth/server-boot',
+      'GET',
+      undefined,
+      false
+    );
     bootEpoch = boot.serverBootEpoch;
   } catch {
     // 仅网关/服务短暂不可达：不清会话（不等于服务已重启）
@@ -213,12 +222,7 @@ export async function bootstrapConsumerSession() {
 
   const saved = uni.getStorageSync('consumer_server_boot');
   // 服务重启会换 boot epoch → 必须清会话，要求重新登录
-  if (
-    saved !== '' &&
-    saved != null &&
-    bootEpoch != null &&
-    String(saved) !== String(bootEpoch)
-  ) {
+  if (saved !== '' && saved != null && bootEpoch != null && String(saved) !== String(bootEpoch)) {
     clearConsumerSession();
     return false;
   }
@@ -242,16 +246,24 @@ export async function bootstrapConsumerSession() {
 }
 
 export function consumerPasswordLogin(phone: string, password: string) {
-  return request<LoginResponse>('/api/v2/auth/password-login', 'POST', { phoneNumber: phone, password }, false).then(
-    (data) => {
-      applyTokenSession(data);
-      return data;
-    }
-  );
+  return request<LoginResponse>(
+    '/api/v2/auth/password-login',
+    'POST',
+    { phoneNumber: phone, password },
+    false
+  ).then((data) => {
+    applyTokenSession(data);
+    return data;
+  });
 }
 
 export function consumerSmsLogin(phone: string, code: string) {
-  return request<LoginResponse>('/api/v2/auth/login', 'POST', { phoneNumber: phone, code }, false).then((data) => {
+  return request<LoginResponse>(
+    '/api/v2/auth/login',
+    'POST',
+    { phoneNumber: phone, code },
+    false
+  ).then((data) => {
     applyTokenSession(data);
     return data;
   });
@@ -270,15 +282,12 @@ export function consumerWxLogin(code: string, phoneNumber?: string) {
 }
 
 export function consumerAlipayLogin(authCode: string) {
-  return request<LoginResponse>(
-    '/api/v2/auth/alipay/login',
-    'POST',
-    { authCode },
-    false
-  ).then((data) => {
-    applyTokenSession(data);
-    return data;
-  });
+  return request<LoginResponse>('/api/v2/auth/alipay/login', 'POST', { authCode }, false).then(
+    (data) => {
+      applyTokenSession(data);
+      return data;
+    }
+  );
 }
 
 function readQueryParam(name: string): string {
@@ -349,7 +358,11 @@ export async function ensureConsumerAuth(): Promise<boolean> {
       stripAuthCodeFromUrl();
       return true;
     }
-    const channel = (readQueryParam('channel') || readQueryParam('entryChannel') || '').toUpperCase();
+    const channel = (
+      readQueryParam('channel') ||
+      readQueryParam('entryChannel') ||
+      ''
+    ).toUpperCase();
     if (channel === 'ALIPAY') {
       // 生产 H5 不允许 mock 建档：真实渠道必须走支付宝授权回跳（authCode）
       if (!isDevBuild) return false;
@@ -383,7 +396,8 @@ export async function ensureConsumerAuth(): Promise<boolean> {
 function currentPagePath(): string {
   try {
     const pages = getCurrentPages();
-    const cur = pages[pages.length - 1] as { route?: string; options?: Record<string, string> } | undefined;
+    const cur = pages[pages.length - 1] as
+      { route?: string; options?: Record<string, string> } | undefined;
     if (!cur?.route) return '/pages/index/index';
     const base = '/' + cur.route;
     const opts = cur.options || {};
@@ -397,7 +411,10 @@ function currentPagePath(): string {
   }
 }
 
-export function requireConsumerAuth(message = '请先完成微信授权', redirect?: string): Promise<boolean> {
+export function requireConsumerAuth(
+  message = '请先完成微信授权',
+  redirect?: string
+): Promise<boolean> {
   return ensureConsumerAuth().then((ok) => {
     if (!ok) {
       const target = redirect || currentPagePath();
@@ -419,26 +436,48 @@ export function requireConsumerAuth(message = '请先完成微信授权', redire
 }
 
 export function sendSmsCode(phone: string) {
-  return request<void>(`/api/v2/auth/sms-code?phoneNumber=${encodeURIComponent(phone)}`, 'POST', null, false);
+  return request<void>(
+    `/api/v2/auth/sms-code?phoneNumber=${encodeURIComponent(phone)}`,
+    'POST',
+    null,
+    false
+  );
 }
 
 export const consumerApi = {
   account: () => request<import('@aicabinet/shared-types').AccountDto>('/api/v2/account'),
-  createRechargePrepay: (channel: 'WECHAT' | 'ALIPAY', amountCents: number, idempotencyKey: string) =>
-    request<import('@aicabinet/shared-types').RechargePrepayResponse>('/api/v2/payment/recharge/prepay', 'POST', {
-      channel, amountCents, idempotencyKey
-    }),
+  createRechargePrepay: (
+    channel: 'WECHAT' | 'ALIPAY',
+    amountCents: number,
+    idempotencyKey: string
+  ) =>
+    request<import('@aicabinet/shared-types').RechargePrepayResponse>(
+      '/api/v2/payment/recharge/prepay',
+      'POST',
+      {
+        channel,
+        amountCents,
+        idempotencyKey
+      }
+    ),
   getRechargeOrder: (orderId: string) =>
     request<import('@aicabinet/shared-types').RechargeOrderDto>(
       `/api/v2/payment/recharge/${encodeURIComponent(orderId)}`
     ),
   createMockRecharge: (amountCents: number, idempotencyKey: string) =>
-    request<import('@aicabinet/shared-types').RechargePrepayResponse>('/api/v2/payment/recharge/prepay', 'POST', {
-      channel: 'WECHAT', amountCents, idempotencyKey
-    }),
+    request<import('@aicabinet/shared-types').RechargePrepayResponse>(
+      '/api/v2/payment/recharge/prepay',
+      'POST',
+      {
+        channel: 'WECHAT',
+        amountCents,
+        idempotencyKey
+      }
+    ),
   confirmMockRecharge: (orderId: string) =>
     request<import('@aicabinet/shared-types').RechargeOrderDto>(
-      `/api/v2/payment/recharge/${encodeURIComponent(orderId)}/mock-success`, 'POST'
+      `/api/v2/payment/recharge/${encodeURIComponent(orderId)}/mock-success`,
+      'POST'
     ),
   cancelRecharge: (orderId: string) =>
     request<import('@aicabinet/shared-types').RechargeOrderDto>(
@@ -446,15 +485,23 @@ export const consumerApi = {
       'POST'
     ),
   balanceTransactions: (page = 0, size = 20) =>
-    request<import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').BalanceTransactionDto>>(
-      `/api/v2/account/transactions?page=${page}&size=${size}`
-    ),
+    request<
+      import('@aicabinet/shared-types').PageResult<
+        import('@aicabinet/shared-types').BalanceTransactionDto
+      >
+    >(`/api/v2/account/transactions?page=${page}&size=${size}`),
   verifyIdentity: (body: import('@aicabinet/shared-types').VerifyIdentityRequest) =>
     request<import('@aicabinet/shared-types').AccountDto>('/api/v2/account/verify', 'POST', body),
   signPayScore: () =>
-    request<import('@aicabinet/shared-types').PayContractDto>('/api/v2/account/payscore/sign', 'POST'),
+    request<import('@aicabinet/shared-types').PayContractDto>(
+      '/api/v2/account/payscore/sign',
+      'POST'
+    ),
   signAlipayAgreement: () =>
-    request<import('@aicabinet/shared-types').PayContractDto>('/api/v2/account/alipay-agreement/sign', 'POST'),
+    request<import('@aicabinet/shared-types').PayContractDto>(
+      '/api/v2/account/alipay-agreement/sign',
+      'POST'
+    ),
   deviceStatus: (deviceId: string) =>
     request<import('@aicabinet/shared-types').DeviceStatusDto>(
       `/api/v2/devices/${encodeURIComponent(deviceId)}/status`
@@ -469,16 +516,26 @@ export const consumerApi = {
       deviceId: attempt.deviceId,
       idempotencyKey: attempt.idempotencyKey
     };
-    const channel = String(entryChannel || '').trim().toUpperCase();
+    const channel = String(entryChannel || '')
+      .trim()
+      .toUpperCase();
     if (channel === 'WECHAT' || channel === 'ALIPAY') {
       body.entryChannel = channel;
     }
     try {
-      return await request<import('@aicabinet/shared-types').SessionDto>('/api/v2/sessions', 'POST', body);
+      return await request<import('@aicabinet/shared-types').SessionDto>(
+        '/api/v2/sessions',
+        'POST',
+        body
+      );
     } catch (firstError) {
       await new Promise((resolve) => setTimeout(resolve, 600));
       try {
-        return await request<import('@aicabinet/shared-types').SessionDto>('/api/v2/sessions', 'POST', body);
+        return await request<import('@aicabinet/shared-types').SessionDto>(
+          '/api/v2/sessions',
+          'POST',
+          body
+        );
       } catch {
         throw firstError;
       }
@@ -489,15 +546,27 @@ export const consumerApi = {
   getSession: (sessionId: string) =>
     request<import('@aicabinet/shared-types').SessionDto>(`/api/v2/sessions/${sessionId}`),
   cancelSession: (sessionId: string) =>
-    request<import('@aicabinet/shared-types').SessionDto>(`/api/v2/sessions/${sessionId}/cancel`, 'POST'),
-  updateSessionCart: (sessionId: string, body: import('@aicabinet/shared-types').SessionCartRequest) =>
-    request<import('@aicabinet/shared-types').SessionDto>(`/api/v2/sessions/${sessionId}/cart`, 'PUT', body),
-  getSessionOrder: (sessionId: string) =>
-    request<import('@aicabinet/shared-types').OrderDetailDto>(`/api/v2/sessions/${sessionId}/order`),
-  listOrders: (page = 0, size = 20) =>
-    request<import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').OrderSummary>>(
-      `/api/v2/orders?page=${page}&size=${size}`
+    request<import('@aicabinet/shared-types').SessionDto>(
+      `/api/v2/sessions/${sessionId}/cancel`,
+      'POST'
     ),
+  updateSessionCart: (
+    sessionId: string,
+    body: import('@aicabinet/shared-types').SessionCartRequest
+  ) =>
+    request<import('@aicabinet/shared-types').SessionDto>(
+      `/api/v2/sessions/${sessionId}/cart`,
+      'PUT',
+      body
+    ),
+  getSessionOrder: (sessionId: string) =>
+    request<import('@aicabinet/shared-types').OrderDetailDto>(
+      `/api/v2/sessions/${sessionId}/order`
+    ),
+  listOrders: (page = 0, size = 20) =>
+    request<
+      import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').OrderSummary>
+    >(`/api/v2/orders?page=${page}&size=${size}`),
   getOrder: (orderId: string) =>
     request<import('@aicabinet/shared-types').OrderDetailDto>(`/api/v2/orders/${orderId}`),
   fileDispute: (body: import('@aicabinet/shared-types').FileDisputeRequest) =>
@@ -524,7 +593,10 @@ export const consumerApi = {
     ),
   consumerPublicConfig: () =>
     request<Record<string, string>>('/api/v2/public/consumer-config', 'GET', null, false),
-  reportDeviceFault: (deviceId: string, body: import('@aicabinet/shared-types').DeviceFaultReportRequest) =>
+  reportDeviceFault: (
+    deviceId: string,
+    body: import('@aicabinet/shared-types').DeviceFaultReportRequest
+  ) =>
     request<{ reportId: string; message: string }>(
       `/api/v2/devices/${encodeURIComponent(deviceId)}/fault-report`,
       'POST',
@@ -543,7 +615,9 @@ export const consumerApi = {
   claimCampaign: (activityId: number) =>
     request<CouponDto>(`/api/v2/marketing/campaigns/${activityId}/claim`, 'POST'),
   myCoupons: (status?: string) =>
-    request<CouponDto[]>(status ? `/api/v2/coupons?status=${encodeURIComponent(status)}` : '/api/v2/coupons'),
+    request<CouponDto[]>(
+      status ? `/api/v2/coupons?status=${encodeURIComponent(status)}` : '/api/v2/coupons'
+    ),
   couponCount: () => request<number>('/api/v2/coupons/count'),
   listAnnouncements: () =>
     request<import('@aicabinet/shared-types').AnnouncementDto[]>(

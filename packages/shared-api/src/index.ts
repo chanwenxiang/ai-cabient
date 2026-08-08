@@ -14,6 +14,8 @@ export interface ApiClientOptions {
   setToken: (token: string, userId: string, expiresAt?: number) => void;
   clearSession: () => void;
   onUnauthorized?: () => void;
+  /** 会话存在性判定（默认取 getToken 非空；HttpOnly Cookie 模式下需自行提供） */
+  hasSession?: () => boolean;
   /** 单次请求超时（毫秒），默认 30s */
   timeoutMs?: number;
   fetchImpl?: typeof fetch;
@@ -25,6 +27,7 @@ export class ApiClient {
   private readonly setToken: ApiClientOptions['setToken'];
   private readonly clearSession: () => void;
   private readonly onUnauthorized?: () => void;
+  private readonly hasSession: () => boolean;
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
   private refreshPromise: Promise<boolean> | null = null;
@@ -35,11 +38,18 @@ export class ApiClient {
     this.setToken = opts.setToken;
     this.clearSession = opts.clearSession;
     this.onUnauthorized = opts.onUnauthorized;
+    this.hasSession = opts.hasSession ?? (() => Boolean(this.getToken()));
     this.fetchImpl = opts.fetchImpl ?? fetch.bind(globalThis);
     this.timeoutMs = opts.timeoutMs ?? 30000;
   }
 
-  async request<T>(path: string, method = 'GET', body?: unknown, auth = true, retried = false): Promise<T> {
+  async request<T>(
+    path: string,
+    method = 'GET',
+    body?: unknown,
+    auth = true,
+    retried = false
+  ): Promise<T> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (auth && this.getToken()) headers.Authorization = `Bearer ${this.getToken()}`;
     const controller = new AbortController();
@@ -81,11 +91,17 @@ export class ApiClient {
   }
 
   async refreshSilently(): Promise<boolean> {
-    if (!this.getToken()) return false;
+    if (!this.hasSession()) return false;
     if (this.refreshPromise) return this.refreshPromise;
     this.refreshPromise = (async () => {
       try {
-        const data = await this.request<LoginResponse>('/api/v2/auth/refresh', 'POST', undefined, true, true);
+        const data = await this.request<LoginResponse>(
+          '/api/v2/auth/refresh',
+          'POST',
+          undefined,
+          true,
+          true
+        );
         this.setToken(data.token, data.userId, data.expiresInSeconds);
         return true;
       } catch {
@@ -97,7 +113,11 @@ export class ApiClient {
     return this.refreshPromise;
   }
 
-  loginByPassword(phone: string, password: string, captcha?: { captchaId: string; captchaCode: string }) {
+  loginByPassword(
+    phone: string,
+    password: string,
+    captcha?: { captchaId: string; captchaCode: string }
+  ) {
     return this.request<LoginResponse>(
       '/api/v2/auth/admin-password-login',
       'POST',
@@ -112,11 +132,21 @@ export class ApiClient {
   }
 
   fetchCaptcha() {
-    return this.request<{ captchaId: string; imageBase64: string }>('/api/v2/auth/captcha', 'GET', undefined, false);
+    return this.request<{ captchaId: string; imageBase64: string }>(
+      '/api/v2/auth/captcha',
+      'GET',
+      undefined,
+      false
+    );
   }
 
   merchantLogin(phone: string, password: string) {
-    return this.request<LoginResponse>('/api/v2/auth/merchant-password-login', 'POST', { phoneNumber: phone, password }, false);
+    return this.request<LoginResponse>(
+      '/api/v2/auth/merchant-password-login',
+      'POST',
+      { phoneNumber: phone, password },
+      false
+    );
   }
 }
 
