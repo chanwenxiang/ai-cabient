@@ -12,7 +12,11 @@ export class ApiClient {
         this.timeoutMs = opts.timeoutMs ?? 30000;
     }
     async request(path, method = 'GET', body, auth = true, retried = false) {
-        const headers = { 'Content-Type': 'application/json' };
+        // X-Requested-With：Cookie 会话的写请求需携带同源标记（后端 CSRF 双保险校验）
+        const headers = {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+        };
         if (auth && this.getToken())
             headers.Authorization = `Bearer ${this.getToken()}`;
         const controller = new AbortController();

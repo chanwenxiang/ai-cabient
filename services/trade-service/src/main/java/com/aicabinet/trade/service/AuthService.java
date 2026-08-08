@@ -8,6 +8,7 @@ import com.aicabinet.common.dto.PasswordLoginRequest;
 import com.aicabinet.common.dto.WxLoginRequest;
 import com.aicabinet.common.dto.AlipayLoginRequest;
 import com.aicabinet.trade.auth.JwtService;
+import com.aicabinet.trade.auth.LoginThrottleService;
 import com.aicabinet.trade.config.AuthProperties;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
@@ -38,6 +39,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final ServerBootMarker serverBootMarker;
     private final AuthProperties authProperties;
+    private final LoginThrottleService loginThrottleService;
 
     public AuthService(UserInfoMapper userInfoRepository,
                        UserAccountMapper userAccountRepository,
@@ -48,7 +50,8 @@ public class AuthService {
                        SmsCodeService smsCodeService,
                        PasswordEncoder passwordEncoder,
                        ServerBootMarker serverBootMarker,
-                       AuthProperties authProperties) {
+                       AuthProperties authProperties,
+                       LoginThrottleService loginThrottleService) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.jwtService = jwtService;
@@ -59,6 +62,7 @@ public class AuthService {
         this.passwordEncoder = passwordEncoder;
         this.serverBootMarker = serverBootMarker;
         this.authProperties = authProperties;
+        this.loginThrottleService = loginThrottleService;
     }
 
     public void sendSmsCode(String phoneNumber) {
@@ -79,8 +83,9 @@ public class AuthService {
         }
         UserInfo user = requireExistingUser(phone);
         if (!smsCodeService.verifyCode(phone, code)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_CODE);
+            throwLockedOr(phone, ApiMessages.INVALID_CODE);
         }
+        loginThrottleService.clearFailures(phone);
         return tokenFor(user);
     }
 
@@ -92,6 +97,7 @@ public class AuthService {
         }
         UserInfo user = requireExistingUser(phone);
         verifyPassword(user, request.password());
+        loginThrottleService.clearFailures(phone);
         return tokenFor(user);
     }
 
@@ -222,8 +228,16 @@ public class AuthService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.PASSWORD_NOT_SET);
         }
         if (rawPassword == null || !passwordEncoder.matches(rawPassword, hash)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PASSWORD);
+            throwLockedOr(user.getPhoneNumber(), ApiMessages.INVALID_PASSWORD);
         }
+    }
+
+    private void throwLockedOr(String phone, String fallbackMessage) {
+        String locked = loginThrottleService.recordFailure(phone).orElse(null);
+        if (locked != null) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, locked);
+        }
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, fallbackMessage);
     }
 
     private static void requireOperator(long userId) {
