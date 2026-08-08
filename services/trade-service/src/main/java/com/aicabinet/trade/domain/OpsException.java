@@ -26,6 +26,8 @@ public class OpsException {
     private Instant updatedAt;
     private Instant resolvedAt;
     private Instant slaDueAt;
+    private Boolean archived;
+    private Instant archivedAt;
 
     public String getExceptionId() { return exceptionId; }
     public void setExceptionId(String v) { exceptionId = v; }
@@ -59,4 +61,8 @@ public class OpsException {
     public void setResolvedAt(Instant v) { resolvedAt = v; }
     public Instant getSlaDueAt() { return slaDueAt; }
     public void setSlaDueAt(Instant v) { slaDueAt = v; }
+    public Boolean getArchived() { return archived; }
+    public void setArchived(Boolean v) { archived = v; }
+    public Instant getArchivedAt() { return archivedAt; }
+    public void setArchivedAt(Instant v) { archivedAt = v; }
 }
