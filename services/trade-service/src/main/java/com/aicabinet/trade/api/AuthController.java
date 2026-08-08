@@ -96,6 +96,14 @@ public class AuthController {
         return ApiResponse.ok(withSessionCookie(response, authService.wxLogin(request)));
     }
 
+    /** H5 微信网页授权登录（公众号 OAuth code）。 */
+    @PostMapping("/wx-h5-login")
+    public ApiResponse<LoginResponse> wxH5Login(@Valid @RequestBody WxLoginRequest request,
+                                                HttpServletResponse response) {
+        return ApiResponse.ok(withSessionCookie(
+                response, authService.wxH5Login(request.code(), request.phoneNumber())));
+    }
+
     @PostMapping("/alipay/login")
     public ApiResponse<LoginResponse> alipayLogin(@Valid @RequestBody AlipayLoginRequest request,
                                                   HttpServletResponse response) {

@@ -88,6 +88,10 @@ aicabinet:
     app-secret: ${WECHAT_MINIAPP_SECRET:}
     subscribe-template-id: ${WECHAT_MERCHANT_SUBSCRIBE_TEMPLATE:}
     notify-page: pages/alerts/alerts
+  wechat-web:
+    enabled: ${WECHAT_WEB_ENABLED:true}
+    app-id: ${WECHAT_WEB_APP_ID:}
+    app-secret: ${WECHAT_WEB_APP_SECRET:}
   minio:
     endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
     public-endpoint: ${MINIO_PUBLIC_ENDPOINT:}
