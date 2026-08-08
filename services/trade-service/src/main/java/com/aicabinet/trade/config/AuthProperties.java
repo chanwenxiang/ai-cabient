@@ -8,6 +8,8 @@ public record AuthProperties(
         long expirationSeconds,
         boolean cookieEnabled,
         boolean cookieSecure,
+        int loginMaxFailures,
+        int loginLockMinutes,
         SmsProperties sms
 ) {
     public record SmsProperties(
