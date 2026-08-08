@@ -27,9 +27,8 @@
         <skip.admin.build>false</skip.admin.build>
         <frontend-maven-plugin.version>1.15.1</frontend-maven-plugin.version>
         <node.version>v24.18.0</node.version>
-        <npm.version>11.16.0</npm.version>
+        <pnpm.version>9.15.9</pnpm.version>
         <resilience4j.version>2.2.0</resilience4j.version>
-        <xxl-job.version>3.4.2</xxl-job.version>
         <xxl-job.version>3.4.2</xxl-job.version>
     </properties>
 
