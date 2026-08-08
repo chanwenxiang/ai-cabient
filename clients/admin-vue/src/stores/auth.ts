@@ -87,7 +87,6 @@ export const useAuthStore = defineStore('auth', () => {
     applyLoginSession(data);
     userId.value = data.userId;
     phone.value = phoneNumber;
-    localStorage.setItem('admin_phone', phoneNumber);
     await Promise.all([loadPermissions(), loadActiveNav(), loadProfile(), loadRuntimeDict()]);
   }
 
@@ -164,7 +163,6 @@ export const useAuthStore = defineStore('auth', () => {
       userId.value = String(me.userId);
       if (me.phoneNumber) {
         phone.value = me.phoneNumber;
-        localStorage.setItem('admin_phone', me.phoneNumber);
       }
       localStorage.setItem('admin_userId', String(me.userId));
     } catch {
