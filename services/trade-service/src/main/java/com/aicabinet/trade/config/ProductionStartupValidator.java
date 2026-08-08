@@ -1,5 +1,6 @@
 package com.aicabinet.trade.config;
 
+import com.aicabinet.common.security.InternalApiProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;

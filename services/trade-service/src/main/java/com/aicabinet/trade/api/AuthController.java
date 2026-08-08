@@ -9,9 +9,12 @@ import com.aicabinet.common.dto.LoginResponse;
 import com.aicabinet.common.dto.PasswordLoginRequest;
 import com.aicabinet.common.dto.WxLoginRequest;
 import com.aicabinet.trade.auth.JwtService;
+import com.aicabinet.trade.auth.SessionCookieService;
 import com.aicabinet.trade.service.AuthService;
 import com.aicabinet.trade.service.CaptchaService;
 import com.aicabinet.trade.support.ApiMessages;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -24,11 +27,16 @@ public class AuthController {
     private final AuthService authService;
     private final JwtService jwtService;
     private final CaptchaService captchaService;
+    private final SessionCookieService sessionCookieService;
 
-    public AuthController(AuthService authService, JwtService jwtService, CaptchaService captchaService) {
+    public AuthController(AuthService authService,
+                          JwtService jwtService,
+                          CaptchaService captchaService,
+                          SessionCookieService sessionCookieService) {
         this.authService = authService;
         this.jwtService = jwtService;
         this.captchaService = captchaService;
+        this.sessionCookieService = sessionCookieService;
     }
 
     @GetMapping("/captcha")
@@ -43,24 +51,28 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
-        return ApiResponse.ok(authService.login(request));
+    public ApiResponse<LoginResponse> login(@Valid @RequestBody LoginRequest request,
+                                            HttpServletResponse response) {
+        return ApiResponse.ok(withSessionCookie(response, authService.login(request)));
     }
 
     @PostMapping("/admin-login")
-    public ApiResponse<LoginResponse> adminLogin(@Valid @RequestBody LoginRequest request) {
-        return ApiResponse.ok(authService.adminLogin(request));
+    public ApiResponse<LoginResponse> adminLogin(@Valid @RequestBody LoginRequest request,
+                                                 HttpServletResponse response) {
+        return ApiResponse.ok(withSessionCookie(response, authService.adminLogin(request)));
     }
 
     @PostMapping("/password-login")
-    public ApiResponse<LoginResponse> passwordLogin(@Valid @RequestBody PasswordLoginRequest request) {
-        return ApiResponse.ok(authService.loginByPassword(request));
+    public ApiResponse<LoginResponse> passwordLogin(@Valid @RequestBody PasswordLoginRequest request,
+                                                    HttpServletResponse response) {
+        return ApiResponse.ok(withSessionCookie(response, authService.loginByPassword(request)));
     }
 
     @PostMapping("/admin-password-login")
-    public ApiResponse<LoginResponse> adminPasswordLogin(@Valid @RequestBody PasswordLoginRequest request) {
+    public ApiResponse<LoginResponse> adminPasswordLogin(@Valid @RequestBody PasswordLoginRequest request,
+                                                         HttpServletResponse response) {
         captchaService.verifyOrThrow(request.captchaId(), request.captchaCode());
-        return ApiResponse.ok(authService.adminLoginByPassword(request));
+        return ApiResponse.ok(withSessionCookie(response, authService.adminLoginByPassword(request)));
     }
 
     /** 运营后台忘记密码：短信验证码 + 图形验证码后重置密码。 */
@@ -73,18 +85,21 @@ public class AuthController {
 
     /** 商户端密码登录：同运营鉴权边界，但不要求图形验证码。 */
     @PostMapping("/merchant-password-login")
-    public ApiResponse<LoginResponse> merchantPasswordLogin(@Valid @RequestBody PasswordLoginRequest request) {
-        return ApiResponse.ok(authService.adminLoginByPassword(request));
+    public ApiResponse<LoginResponse> merchantPasswordLogin(@Valid @RequestBody PasswordLoginRequest request,
+                                                            HttpServletResponse response) {
+        return ApiResponse.ok(withSessionCookie(response, authService.adminLoginByPassword(request)));
     }
 
     @PostMapping("/wx-login")
-    public ApiResponse<LoginResponse> wxLogin(@Valid @RequestBody WxLoginRequest request) {
-        return ApiResponse.ok(authService.wxLogin(request));
+    public ApiResponse<LoginResponse> wxLogin(@Valid @RequestBody WxLoginRequest request,
+                                              HttpServletResponse response) {
+        return ApiResponse.ok(withSessionCookie(response, authService.wxLogin(request)));
     }
 
     @PostMapping("/alipay/login")
-    public ApiResponse<LoginResponse> alipayLogin(@Valid @RequestBody AlipayLoginRequest request) {
-        return ApiResponse.ok(authService.alipayLogin(request));
+    public ApiResponse<LoginResponse> alipayLogin(@Valid @RequestBody AlipayLoginRequest request,
+                                                  HttpServletResponse response) {
+        return ApiResponse.ok(withSessionCookie(response, authService.alipayLogin(request)));
     }
 
     @GetMapping("/server-boot")
@@ -94,17 +109,39 @@ public class AuthController {
 
     @PostMapping("/refresh")
     public ApiResponse<LoginResponse> refresh(
-            @RequestHeader(value = "Authorization", required = false) String authorization) {
-        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            HttpServletRequest request,
+            HttpServletResponse response) {
+        String token = null;
+        if (authorization != null && authorization.startsWith("Bearer ")) {
+            token = authorization.substring(7);
+        }
+        if (token == null) {
+            token = sessionCookieService.resolveToken(request);
+        }
+        if (token == null || token.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.MISSING_TOKEN);
         }
         try {
-            Long userId = jwtService.validateAndGetUserId(authorization.substring(7));
-            return ApiResponse.ok(authService.refreshSession(userId));
+            Long userId = jwtService.validateAndGetUserId(token);
+            LoginResponse refreshed = authService.refreshSession(userId);
+            return ApiResponse.ok(withSessionCookie(response, refreshed));
         } catch (JwtService.InvalidSessionTokenException e) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.INVALID_TOKEN);
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, ApiMessages.INVALID_TOKEN);
         }
+    }
+
+    /** 登出：清除会话 Cookie（幂等；纯 Bearer 客户端调用无副作用）。 */
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(HttpServletResponse response) {
+        sessionCookieService.clearSessionCookie(response);
+        return ApiResponse.ok(null);
+    }
+
+    private LoginResponse withSessionCookie(HttpServletResponse response, LoginResponse loginResponse) {
+        sessionCookieService.writeSessionCookie(response, loginResponse.token());
+        return loginResponse;
     }
 }

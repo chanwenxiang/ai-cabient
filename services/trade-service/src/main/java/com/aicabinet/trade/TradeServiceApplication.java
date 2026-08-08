@@ -1,10 +1,10 @@
 package com.aicabinet.trade;
 
+import com.aicabinet.common.security.InternalApiProperties;
 import com.aicabinet.trade.config.AuthProperties;
 import com.aicabinet.trade.config.CorsProperties;
 import com.aicabinet.trade.config.CheckoutProperties;
 import com.aicabinet.trade.config.OpsMonitoringProperties;
-import com.aicabinet.trade.config.InternalApiProperties;
 import com.aicabinet.trade.config.LineWithdrawProperties;
 import com.aicabinet.trade.config.MerchantWithdrawProperties;
 import com.aicabinet.trade.config.MinioProperties;

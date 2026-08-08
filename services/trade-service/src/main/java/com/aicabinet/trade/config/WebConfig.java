@@ -1,5 +1,6 @@
 package com.aicabinet.trade.config;
 
+import com.aicabinet.common.security.InternalApiAuthInterceptor;
 import com.aicabinet.trade.auth.AuthInterceptor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
@@ -26,26 +27,25 @@ public class WebConfig implements WebMvcConfigurer {
         registry.addInterceptor(internalApiAuthInterceptor)
                 .addPathPatterns("/internal/**");
 
+        // 默认拒绝：/api/v2/** 一律要求登录，仅显式放行公开/回调端点。
+        // 新增控制器无需改这里即可获得鉴权；若确属公开接口，才追加到 excludePathPatterns。
         registry.addInterceptor(authInterceptor)
-                .addPathPatterns(
-                        "/api/v2/sessions/**",
-                        "/api/v2/orders/**",
-                        "/api/v2/account/**",
-                        "/api/v2/payment/recharge/**",
-                        "/api/v2/payment/recharges/**",
-                        "/api/v2/devices/**",
-                        "/api/v2/disputes/**",
-                        "/api/v2/feedback/**",
-                        "/api/v2/ops/**",
-                        "/api/v2/coupons/**",
-                        "/api/v2/member/**",
-                        "/api/v2/merchant/**",
-                        "/api/v2/dicts/**",
-                        "/api/v2/marketing/campaigns/*/claim")
+                .addPathPatterns("/api/v2/**")
                 .excludePathPatterns(
+                        // 登录/刷新/验证码
                         "/api/v2/auth/**",
+                        // 支付平台回调（各自做签名验签，不适用登录态）
                         "/api/v2/payment/wechat/**",
-                        "/api/v2/payment/alipay/**");
+                        "/api/v2/payment/alipay/**",
+                        // 消费者公开公告
+                        "/api/v2/announcements/**",
+                        // 商品图等 <img> 直链
+                        "/api/v2/media/**",
+                        // 消费者公开配置
+                        "/api/v2/public/**",
+                        // 营销活动/轮播（游客可见；领券 /claim 仍需登录）
+                        "/api/v2/marketing/banners",
+                        "/api/v2/marketing/campaigns/active");
     }
 
     @Override

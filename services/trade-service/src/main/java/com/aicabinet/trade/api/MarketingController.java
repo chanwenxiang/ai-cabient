@@ -30,10 +30,10 @@ public class MarketingController {
         return ApiResponse.ok(marketingService.banners());
     }
 
+    /** 游客可见：不依赖登录态（AuthInterceptor 公开放行，userId 恒为 null）。 */
     @GetMapping("/campaigns/active")
-    public ApiResponse<List<MarketingCampaignDto>> activeCampaigns(HttpServletRequest request) {
-        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
-        return ApiResponse.ok(marketingService.activeCampaigns(userId));
+    public ApiResponse<List<MarketingCampaignDto>> activeCampaigns() {
+        return ApiResponse.ok(marketingService.activeCampaigns());
     }
 
     @PostMapping("/campaigns/{id}/claim")
