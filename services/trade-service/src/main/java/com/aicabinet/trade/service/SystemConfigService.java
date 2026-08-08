@@ -4,8 +4,10 @@ import com.aicabinet.common.dto.SystemConfigDto;
 import com.aicabinet.common.dto.UpsertSystemConfigRequest;
 import com.aicabinet.trade.config.AlipayProperties;
 import com.aicabinet.trade.config.PayScoreProperties;
+import com.aicabinet.trade.config.QrProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
+import com.aicabinet.trade.config.WeChatWebProperties;
 import com.aicabinet.trade.domain.SystemConfig;
 import com.aicabinet.trade.mapper.SystemConfigMapper;
 import org.springframework.http.HttpStatus;
@@ -53,17 +55,23 @@ public class SystemConfigService {
     private final AlipayProperties alipayProperties;
     private final WeChatPayProperties weChatPayProperties;
     private final PayScoreProperties payScoreProperties;
+    private final WeChatWebProperties weChatWebProperties;
+    private final QrProperties qrProperties;
 
     public SystemConfigService(SystemConfigMapper repository,
                                SecurityProperties securityProperties,
                                AlipayProperties alipayProperties,
                                WeChatPayProperties weChatPayProperties,
-                               PayScoreProperties payScoreProperties) {
+                               PayScoreProperties payScoreProperties,
+                               WeChatWebProperties weChatWebProperties,
+                               QrProperties qrProperties) {
         this.repository = repository;
         this.securityProperties = securityProperties;
         this.alipayProperties = alipayProperties;
         this.weChatPayProperties = weChatPayProperties;
         this.payScoreProperties = payScoreProperties;
+        this.weChatWebProperties = weChatWebProperties;
+        this.qrProperties = qrProperties;
     }
 
     @Transactional(readOnly = true)
@@ -117,9 +125,31 @@ public class SystemConfigService {
         map.put("paymentModeHint", securityProperties.mockEnabled()
                 ? "模拟支付(无真实进件), 充值可一键到账, 订单退款退回余额"
                 : "真实/沙箱支付");
+        // H5 微信网页授权：已配置公众号密钥时下发真实 OAuth 跳转 URL；dev mock 下前端直连 wx-h5-login
+        boolean webOauthConfigured = weChatWebProperties.isConfigured();
+        boolean webOauthOk = webOauthConfigured
+                || (securityProperties.mockEnabled() && weChatWebProperties.enabled());
+        map.put("wechatH5OauthEnabled", String.valueOf(webOauthOk));
+        if (webOauthConfigured) {
+            map.put("wechatH5OauthUrl", buildWechatH5OauthUrl());
+        }
         map.put("preauthCents", getValue(CHECKOUT_PREAUTH_CENTS,
                 String.valueOf(com.aicabinet.common.constants.CabinetConstants.MIN_BALANCE_CENTS)));
         return map;
+    }
+
+    private String buildWechatH5OauthUrl() {
+        String redirect = qrProperties.normalizedConsumerH5Base();
+        try {
+            return "https://open.weixin.qq.com/connect/oauth2/authorize"
+                    + "?appid=" + java.net.URLEncoder.encode(weChatWebProperties.appId(),
+                            java.nio.charset.StandardCharsets.UTF_8)
+                    + "&redirect_uri=" + java.net.URLEncoder.encode(redirect,
+                            java.nio.charset.StandardCharsets.UTF_8)
+                    + "&response_type=code&scope=snsapi_base&state=wechat#wechat_redirect";
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     @Transactional
