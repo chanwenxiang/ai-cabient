@@ -1,7 +1,7 @@
 <template>
   <view class="login-wrap" :class="{ 'phone-open': showPhoneForm }">
     <view class="login-bg-scene" aria-hidden="true">
-      <image class="login-illustration login-illustration-anim" :src="loginBgUrl" mode="widthFix" />
+      <image class="login-illustration login-illustration-anim" :src="loginBgUrl" mode="aspectFill" />
       <view class="anim-orb anim-orb-a" />
       <view class="anim-orb anim-orb-b" />
       <view class="anim-shimmer" />
@@ -68,6 +68,7 @@
               maxlength="11"
               :value="phone"
               placeholder="请输入11位手机号"
+              placeholder-class="ph"
               @input="phone = eventInputValue($event)"
             />
           </view>
@@ -79,6 +80,7 @@
               password
               :value="password"
               placeholder="请输入登录密码"
+              placeholder-class="ph"
               @input="password = eventInputValue($event)"
             />
           </view>
@@ -91,6 +93,7 @@
                 maxlength="6"
                 :value="code"
                 placeholder="请输入验证码"
+                placeholder-class="ph"
                 @input="code = eventInputValue($event)"
               />
               <view
@@ -136,7 +139,7 @@ import {
 } from '@/utils/consumer-api';
 import { eventInputValue, readDomFieldValue, readDomPassword } from '@/utils/form-bind';
 import { showDevTools } from '@/utils/runtime-flags';
-import loginBgUrl from '@/static/login-bg.png';
+import loginBgUrl from '@/static/bg-cooler.jpg';
 
 const redirect = ref('/pages/index/index');
 // H5 无法微信静默授权，默认展开手机号，减少多点一次
@@ -363,9 +366,10 @@ async function onLogin() {
 }
 .login-bg-scene {
   position: absolute;
-  top: 140rpx;
+  top: 0;
   left: 0;
   width: 100%;
+  height: 100%;
   z-index: 0;
   overflow: hidden;
 }
@@ -373,6 +377,7 @@ async function onLogin() {
   position: relative;
   display: block;
   width: 100%;
+  height: 100%;
 }
 .login-illustration-anim {
   animation: illusKenBurns 22s ease-in-out infinite alternate;
@@ -465,15 +470,16 @@ async function onLogin() {
 .login-overlay {
   position: absolute;
   left: 0;
+  top: 0;
   right: 0;
   bottom: 0;
-  height: 48%;
   z-index: 1;
   background: linear-gradient(
     180deg,
-    rgba(11, 18, 32, 0) 0%,
-    rgba(11, 18, 32, 0.86) 52%,
-    #0b1220 100%
+    rgba(8, 26, 30, 0.46) 0%,
+    rgba(8, 26, 30, 0.18) 36%,
+    rgba(8, 26, 30, 0.3) 64%,
+    rgba(6, 22, 26, 0.82) 100%
   );
 }
 .login-content {
@@ -533,11 +539,12 @@ async function onLogin() {
   flex-shrink: 0;
   padding: 36rpx 32rpx 40rpx;
   border-radius: 32rpx 32rpx 24rpx 24rpx;
-  background: rgba(255, 255, 255, 0.92);
-  border: 2rpx solid rgba(13, 148, 136, 0.18);
+  background: rgba(9, 28, 34, 0.68);
+  border: 2rpx solid rgba(94, 234, 212, 0.22);
+  backdrop-filter: blur(28rpx);
   box-shadow:
-    0 -8rpx 40rpx rgba(6, 78, 59, 0.12),
-    0 16rpx 48rpx rgba(6, 78, 59, 0.1);
+    0 -8rpx 40rpx rgba(2, 12, 16, 0.18),
+    0 16rpx 48rpx rgba(2, 10, 14, 0.42);
 }
 .phone-open .form-card {
   padding-top: 28rpx;
@@ -556,11 +563,11 @@ async function onLogin() {
   font-weight: 700;
   display: block;
   margin-bottom: 8rpx;
-  color: #134e4a;
+  color: #f0fdfa;
 }
 .subtitle {
   font-size: 24rpx;
-  color: #64748b;
+  color: rgba(204, 251, 241, 0.74);
   display: block;
   margin-bottom: 28rpx;
   line-height: 1.5;
@@ -589,7 +596,7 @@ async function onLogin() {
 .divider-line {
   flex: 1;
   height: 1rpx;
-  background: rgba(13, 148, 136, 0.16);
+  background: rgba(148, 163, 184, 0.24);
 }
 .divider-toggle {
   position: relative;
@@ -602,14 +609,14 @@ async function onLogin() {
   align-items: center;
   justify-content: center;
   border-radius: 999rpx;
-  background: #ffffff;
-  border: 2rpx solid rgba(13, 148, 136, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  border: 2rpx solid rgba(94, 234, 212, 0.24);
   box-sizing: border-box;
   cursor: pointer;
 }
 .divider-text {
   font-size: 26rpx;
-  color: #0d9488;
+  color: #5eead4;
   font-weight: 600;
   line-height: 1.2;
   pointer-events: none;
@@ -620,14 +627,14 @@ async function onLogin() {
   margin-bottom: 28rpx;
   padding: 6rpx;
   border-radius: 16rpx;
-  background: rgba(204, 251, 241, 0.6);
+  background: rgba(255, 255, 255, 0.07);
 }
 .tab-item {
   flex: 1;
   padding: 16rpx 0;
   text-align: center;
   font-size: 28rpx;
-  color: #64748b;
+  color: rgba(204, 251, 241, 0.62);
   border-radius: 12rpx;
   transition:
     color 0.2s ease,
@@ -636,10 +643,10 @@ async function onLogin() {
     font-weight 0.2s ease;
 }
 .tab-item.on {
-  color: #0d9488;
+  color: #ffffff;
   font-weight: 600;
-  background: #ffffff;
-  box-shadow: 0 2rpx 8rpx rgba(13, 148, 136, 0.12);
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  box-shadow: 0 4rpx 12rpx rgba(13, 148, 136, 0.28);
 }
 .field {
   margin-bottom: 20rpx;
@@ -647,7 +654,7 @@ async function onLogin() {
 .field-label {
   display: block;
   font-size: 26rpx;
-  color: #475569;
+  color: #ccfbf1;
   font-weight: 500;
   margin-bottom: 10rpx;
 }
@@ -656,13 +663,20 @@ async function onLogin() {
   width: 100%;
   height: 88rpx;
   box-sizing: border-box;
-  background: #ffffff;
-  border: 2rpx solid rgba(13, 148, 136, 0.28);
+  background: rgba(255, 255, 255, 0.09);
+  border: 2rpx solid rgba(148, 163, 184, 0.26);
   border-radius: 16rpx;
   padding: 0 28rpx;
   font-size: 28rpx;
-  color: #0f172a;
+  color: #f0fdfa;
   line-height: 88rpx;
+}
+.input:focus {
+  border-color: rgba(94, 234, 212, 0.6);
+  background: rgba(255, 255, 255, 0.13);
+}
+.ph {
+  color: rgba(204, 251, 241, 0.4);
 }
 .row {
   display: flex;
@@ -682,8 +696,9 @@ async function onLogin() {
   min-width: 180rpx;
   height: 88rpx;
   border-radius: 16rpx;
-  background: #ecfdf5;
-  color: #0d9488;
+  background: rgba(255, 255, 255, 0.09);
+  border: 2rpx solid rgba(94, 234, 212, 0.24);
+  color: #5eead4;
   font-size: 26rpx;
   font-weight: 600;
   white-space: nowrap;
@@ -708,7 +723,7 @@ async function onLogin() {
 .btn-ghost {
   margin-top: 20rpx;
   text-align: center;
-  color: #047857;
+  color: #99f6e4;
   font-size: 28rpx;
   padding: 8rpx;
 }
@@ -723,7 +738,7 @@ async function onLogin() {
   display: block;
   margin-top: 18rpx;
   text-align: center;
-  color: #92400e;
+  color: rgba(204, 251, 241, 0.62);
   font-size: 22rpx;
   line-height: 1.4;
   opacity: 0.85;

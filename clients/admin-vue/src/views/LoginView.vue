@@ -1,11 +1,10 @@
 <template>
   <div class="login-page">
-    <div class="login-bg" aria-hidden="true">
-      <span class="bg-aurora" />
-      <span class="bg-orb bg-orb-a" />
-      <span class="bg-orb bg-orb-b" />
-      <span class="bg-orb bg-orb-c" />
-    </div>
+    <div
+      class="login-bg"
+      aria-hidden="true"
+      :style="{ backgroundImage: `url(${bgVendingNight})` }"
+    />
     <div class="login-bg-fx" aria-hidden="true">
       <span class="fx-grid" />
       <span class="fx-scan" />
@@ -195,6 +194,7 @@ import { useAuthStore } from '@/stores/auth';
 import { api } from '@/api/client';
 import { ENABLE_TEST_TOOLS } from '@/config/feature-flags';
 import { safeRedirectPath } from '@/utils/safe-redirect';
+import bgVendingNight from '@/assets/bg-vending-night.jpg';
 
 /** 登录页动态背景粒子：固定参数，避免每次渲染随机跳动。 */
 const particles = Array.from({ length: 16 }, (_, i) => {
@@ -427,51 +427,18 @@ async function onSubmit() {
   inset: 0;
   z-index: 0;
   overflow: hidden;
-  background: linear-gradient(160deg, #042f2e 0%, #0f766e 48%, #134e4a 78%, #042f2e 100%);
+  background-color: #082f34;
+  background-position: center;
+  background-size: cover;
+  animation: bgKenBurns 28s ease-in-out infinite alternate;
 }
-.bg-aurora {
-  position: absolute;
-  inset: -35%;
-  background: conic-gradient(
-    from 180deg at 50% 42%,
-    rgba(45, 212, 191, 0.2),
-    rgba(20, 184, 166, 0) 28%,
-    rgba(16, 185, 129, 0.18) 52%,
-    rgba(45, 212, 191, 0) 78%,
-    rgba(94, 234, 212, 0.22)
-  );
-  filter: blur(42px);
-  animation: auroraSpin 34s linear infinite;
-}
-.bg-orb {
-  position: absolute;
-  border-radius: 50%;
-  filter: blur(72px);
-  will-change: transform;
-}
-.bg-orb-a {
-  top: -10%;
-  left: 6%;
-  width: 46vmax;
-  height: 46vmax;
-  background: radial-gradient(circle, rgba(45, 212, 191, 0.34), transparent 68%);
-  animation: orbFloatA 16s ease-in-out infinite;
-}
-.bg-orb-b {
-  bottom: -16%;
-  right: 2%;
-  width: 42vmax;
-  height: 42vmax;
-  background: radial-gradient(circle, rgba(16, 185, 129, 0.3), transparent 66%);
-  animation: orbFloatB 21s ease-in-out infinite;
-}
-.bg-orb-c {
-  top: 40%;
-  left: 54%;
-  width: 30vmax;
-  height: 30vmax;
-  background: radial-gradient(circle, rgba(94, 234, 212, 0.22), transparent 62%);
-  animation: orbFloatC 26s ease-in-out infinite;
+@keyframes bgKenBurns {
+  from {
+    transform: scale(1) translate(0, 0);
+  }
+  to {
+    transform: scale(1.08) translate(-1.2%, -1%);
+  }
 }
 .login-bg-fx {
   position: absolute;
@@ -484,8 +451,8 @@ async function onSubmit() {
   position: absolute;
   inset: -40%;
   background-image:
-    linear-gradient(rgba(94, 234, 212, 0.1) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(94, 234, 212, 0.1) 1px, transparent 1px);
+    linear-gradient(rgba(94, 234, 212, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(94, 234, 212, 0.055) 1px, transparent 1px);
   background-size: 52px 52px;
   animation: gridDrift 24s linear infinite;
   -webkit-mask-image: radial-gradient(ellipse 78% 72% at 50% 36%, #000 32%, transparent 80%);
@@ -515,12 +482,12 @@ async function onSubmit() {
   position: absolute;
   inset: 0;
   z-index: 2;
-  background: linear-gradient(135deg, rgba(15, 23, 42, 0.42), rgba(30, 58, 95, 0.32));
-}
-@keyframes auroraSpin {
-  to {
-    transform: rotate(1turn);
-  }
+  background: linear-gradient(
+    160deg,
+    rgba(4, 25, 30, 0.55) 0%,
+    rgba(6, 36, 43, 0.38) 46%,
+    rgba(3, 20, 25, 0.68) 100%
+  );
 }
 @keyframes gridDrift {
   from {
@@ -528,33 +495,6 @@ async function onSubmit() {
   }
   to {
     transform: translate(48px, 48px);
-  }
-}
-@keyframes orbFloatA {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(4vw, -3vh) scale(1.12);
-  }
-}
-@keyframes orbFloatB {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(-3vw, 2vh) scale(1.08);
-  }
-}
-@keyframes orbFloatC {
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-  50% {
-    transform: translate(2vw, 3vh) scale(1.16);
   }
 }
 @keyframes particleRise {
@@ -590,13 +530,10 @@ async function onSubmit() {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .bg-aurora,
-  .bg-orb-a,
-  .bg-orb-b,
-  .bg-orb-c,
   .fx-grid,
   .fx-scan,
-  .fx-particle {
+  .fx-particle,
+  .login-bg {
     animation: none;
   }
 }
