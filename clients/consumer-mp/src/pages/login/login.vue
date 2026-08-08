@@ -728,6 +728,8 @@ async function onLogin() {
   color: #99f6e4;
   font-size: 28rpx;
   padding: 8rpx;
+  background: transparent;
+  border: none;
 }
 .err {
   color: #ef4444;

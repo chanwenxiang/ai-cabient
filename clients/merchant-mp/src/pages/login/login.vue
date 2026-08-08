@@ -239,8 +239,10 @@ async function onLogin() {
   position: relative;
   z-index: 2;
   min-height: 100vh;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   padding: calc(48rpx + env(safe-area-inset-top)) 32rpx calc(32rpx + env(safe-area-inset-bottom));
 }
 .hero {
@@ -279,8 +281,8 @@ async function onLogin() {
   font-size: 22rpx;
 }
 .login-spacer {
-  flex: 1;
-  min-height: 120rpx;
+  flex: 0 0 auto;
+  min-height: 40rpx;
 }
 .form-card {
   flex-shrink: 0;

@@ -98,7 +98,7 @@
 
     <view class="menu-list">
       <view class="menu-cell danger-cell" @click="onLogout">
-        <text class="menu-icon">🚪</text>
+        <text class="menu-icon">退</text>
         <view class="menu-text">
           <text class="menu-title danger">退出登录</text>
         </view>
@@ -391,8 +391,8 @@ function onLogout() {
   margin-bottom: 16rpx;
   padding: 12rpx 16rpx;
   border-radius: 12rpx;
-  background: #fff7ed;
-  color: #c2410c;
+  background: #ecfdf5;
+  color: #0f766e;
   font-size: 22rpx;
   line-height: 1.4;
 }

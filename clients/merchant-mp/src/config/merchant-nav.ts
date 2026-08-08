@@ -21,7 +21,7 @@ export const MERCHANT_FIELD_NAV: MerchantNavItem[] = [
     url: '/pages/replenishment/replenishment',
     perm: 'merchant:replenishment:view',
     pack: 'field',
-    icon: '📦'
+    icon: '补'
   },
   {
     key: 'devices',
@@ -31,7 +31,7 @@ export const MERCHANT_FIELD_NAV: MerchantNavItem[] = [
     tab: true,
     perm: 'merchant:devices:list',
     pack: 'field',
-    icon: '🗄️'
+    icon: '柜'
   },
   {
     key: 'alerts',
@@ -41,7 +41,7 @@ export const MERCHANT_FIELD_NAV: MerchantNavItem[] = [
     tab: true,
     perm: 'merchant:alerts:view',
     pack: 'field',
-    icon: '🔔'
+    icon: '待'
   }
 ];
 
@@ -53,7 +53,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/pricing/pricing',
     perm: 'merchant:pricing:view',
     pack: 'biz',
-    icon: '¥'
+    icon: '价'
   },
   {
     key: 'settlements',
@@ -62,7 +62,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/settlements/settlements',
     perm: 'merchant:settlements:view',
     pack: 'biz',
-    icon: '📑'
+    icon: '账'
   },
   {
     key: 'wallet',
@@ -71,7 +71,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/wallet/wallet',
     perm: 'merchant:wallet:view',
     pack: 'biz',
-    icon: '💰'
+    icon: '财'
   },
   {
     key: 'splits',
@@ -80,7 +80,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/splits/splits',
     perm: 'merchant:splits:list',
     pack: 'biz',
-    icon: '💱'
+    icon: '分'
   },
   {
     key: 'line-wallet',
@@ -89,7 +89,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/line-wallet/line-wallet',
     perm: 'merchant:line-wallet:view',
     pack: 'biz',
-    icon: '👛'
+    icon: '线'
   },
   {
     key: 'orders',
@@ -98,7 +98,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/orders/orders',
     perm: 'merchant:orders:list',
     pack: 'biz',
-    icon: '🧾'
+    icon: '单'
   },
   {
     key: 'disputes',
@@ -107,7 +107,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/disputes/disputes',
     perm: 'merchant:disputes:list',
     pack: 'biz',
-    icon: '⚖️'
+    icon: '议'
   },
   {
     key: 'business',
@@ -116,7 +116,7 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     url: '/pages/business/business',
     perm: ['merchant:reports:view', 'merchant:analytics:view'],
     pack: 'biz',
-    icon: '📈'
+    icon: '绩'
   }
 ];
 
@@ -128,6 +128,6 @@ export const MERCHANT_TEAM_NAV: MerchantNavItem[] = [
     url: '/pages/team/team',
     perm: 'merchant:users:list',
     pack: 'team',
-    icon: '👥'
+    icon: '队'
   }
 ];

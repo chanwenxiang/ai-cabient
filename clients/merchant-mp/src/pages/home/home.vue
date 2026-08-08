@@ -59,7 +59,7 @@
           aria-label="补货任务"
           @click="goReplenishment()"
         >
-          <text class="quick-icon" aria-hidden="true">📦</text>
+          <text class="quick-icon" aria-hidden="true">补</text>
           <text class="quick-label">补货任务</text>
           <text v-if="pendingTaskCount" class="quick-badge">{{ pendingTaskCount }}</text>
         </view>
@@ -70,7 +70,7 @@
           aria-label="柜机列表"
           @click="goTab('/pages/devices/devices')"
         >
-          <text class="quick-icon" aria-hidden="true">🗄️</text>
+          <text class="quick-icon" aria-hidden="true">柜</text>
           <text class="quick-label">柜机列表</text>
         </view>
         <view
@@ -80,7 +80,7 @@
           aria-label="待办事项"
           @click="goTab('/pages/alerts/alerts')"
         >
-          <text class="quick-icon" aria-hidden="true">🔔</text>
+          <text class="quick-icon" aria-hidden="true">待</text>
           <text class="quick-label">待办事项</text>
           <text v-if="pendingCount" class="quick-badge">{{ pendingCount }}</text>
         </view>
@@ -597,16 +597,16 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   display: flex;
   align-items: center;
   gap: 12rpx;
-  background: #fffbeb;
-  border: 1rpx solid #fde68a;
+  background: #ecfdf5;
+  border: 1rpx solid #99f6e4;
   border-radius: 16rpx;
 }
 .notice-tag {
   flex-shrink: 0;
   font-size: 20rpx;
   font-weight: 700;
-  color: #b45309;
-  background: #fef3c7;
+  color: #0f766e;
+  background: #ccfbf1;
   padding: 6rpx 10rpx;
   border-radius: 8rpx;
 }
@@ -647,7 +647,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .quick-icon {
   display: block;
-  font-size: 36rpx;
+  width: 76rpx;
+  height: 76rpx;
+  margin: 0 auto;
+  border-radius: 20rpx;
+  background: #ecfdf5;
+  color: #0f766e;
+  font-size: 34rpx;
+  font-weight: 700;
+  line-height: 76rpx;
 }
 .quick-label {
   display: block;
