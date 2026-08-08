@@ -35,19 +35,22 @@ public class LineManagerService {
     private final DeviceInfoMapper deviceInfoMapper;
     private final LineWalletService lineWalletService;
     private final PermissionService permissionService;
+    private final AdminAuditService auditService;
 
     public LineManagerService(LineManagerMapper managerMapper,
                               LineDeviceMapper deviceMapper,
                               LineWalletLedgerMapper ledgerMapper,
                               DeviceInfoMapper deviceInfoMapper,
                               LineWalletService lineWalletService,
-                              PermissionService permissionService) {
+                              PermissionService permissionService,
+                              AdminAuditService auditService) {
         this.managerMapper = managerMapper;
         this.deviceMapper = deviceMapper;
         this.ledgerMapper = ledgerMapper;
         this.deviceInfoMapper = deviceInfoMapper;
         this.lineWalletService = lineWalletService;
         this.permissionService = permissionService;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -211,6 +214,8 @@ public class LineManagerService {
         } else {
             lineWalletService.debit(managerId, -amountCents, "ADJUST", "OPS_ADJUST", refId, remark);
         }
+        auditService.record(operatorId, "LINE_MANAGER_ADJUST", "LINE_MANAGER",
+                String.valueOf(managerId), "金额(分)=" + amountCents + "；备注=" + remark);
         return toDto(requireManager(managerId));
     }
 

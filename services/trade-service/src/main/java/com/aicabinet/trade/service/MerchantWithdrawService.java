@@ -44,6 +44,7 @@ public class MerchantWithdrawService {
     private final MerchantWithdrawProperties properties;
     private final MerchantFeaturePackService merchantFeaturePackService;
     private final PermissionService permissionService;
+    private final AdminAuditService auditService;
 
     public MerchantWithdrawService(MerchantWithdrawRequestMapper withdrawMapper,
                                    MerchantMapper merchantMapper,
@@ -53,7 +54,8 @@ public class MerchantWithdrawService {
                                    MerchantWithdrawPayoutService payoutService,
                                    MerchantWithdrawProperties properties,
                                    MerchantFeaturePackService merchantFeaturePackService,
-                                   PermissionService permissionService) {
+                                   PermissionService permissionService,
+                                   AdminAuditService auditService) {
         this.withdrawMapper = withdrawMapper;
         this.merchantMapper = merchantMapper;
         this.accountMapper = accountMapper;
@@ -63,6 +65,7 @@ public class MerchantWithdrawService {
         this.properties = properties;
         this.merchantFeaturePackService = merchantFeaturePackService;
         this.permissionService = permissionService;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -108,6 +111,8 @@ public class MerchantWithdrawService {
         } else {
             merchantWalletService.debit(merchantId, -amountCents, "ADJUST", "OPS_ADJUST", refId, note);
         }
+        auditService.record(operatorId, "MERCHANT_WALLET_ADJUST", "MERCHANT_WALLET", merchantId,
+                "金额(分)=" + amountCents + "；备注=" + note);
         return toAccountDto(requireMerchant(merchantId));
     }
 
@@ -193,10 +198,16 @@ public class MerchantWithdrawService {
             withdrawMapper.updateById(request);
             merchantWalletService.releaseFrozen(request.getMerchantId(), request.getAmountCents(),
                     "WITHDRAW", String.valueOf(request.getRequestId()), "提现驳回释放");
+            auditService.record(operatorId, "MERCHANT_WITHDRAW_REVIEW", "MERCHANT_WITHDRAW",
+                    String.valueOf(requestId), "驳回；金额(分)=" + request.getAmountCents()
+                            + "；备注=" + trim(remark));
             return toDto(request);
         }
         request.setStatus("APPROVED");
         withdrawMapper.updateById(request);
+        auditService.record(operatorId, "MERCHANT_WITHDRAW_REVIEW", "MERCHANT_WITHDRAW",
+                String.valueOf(requestId), "通过；金额(分)=" + request.getAmountCents()
+                        + "；备注=" + trim(remark));
         return attemptPayout(request, operatorId);
     }
 
@@ -207,6 +218,8 @@ public class MerchantWithdrawService {
         if (!Set.of("APPROVED", "FAILED").contains(request.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打款");
         }
+        auditService.record(operatorId, "MERCHANT_WITHDRAW_PAYOUT", "MERCHANT_WITHDRAW",
+                String.valueOf(requestId), "打款金额(分)=" + request.getAmountCents());
         return attemptPayout(request, operatorId);
     }
 
