@@ -81,7 +81,6 @@ infra/docker-rebuild.log
 .agents/
 .codex/
 .pnpm-store/
-)
 
 # Playwright MCP / agent session dumps
 .playwright-mcp/
@@ -99,3 +98,28 @@ scripts/_tmp*
 /login-*.png
 /*-before.png
 /*-after.png
+
+# Local env files with real sandbox credentials (untracked 2026-08-08)
+infra/.env.sandbox
+infra/.env.vision-dev
+
+# Vision datasets: keep docs/taxonomy, ignore image/label/raw/meta payloads
+vision-service/datasets/*
+!vision-service/datasets/README.md
+!vision-service/datasets/retail_taxonomy.json
+!vision-service/datasets/cabinet-skus-v1/
+vision-service/datasets/**/images/
+vision-service/datasets/**/labels/
+vision-service/datasets/**/raw/
+vision-service/datasets/**/meta/
+
+# Vision model weights / experiment output / runtime cache
+vision-service/models/*.pt
+vision-service/yolov8n.pt
+vision-service/runs/
+vision-service/cache/videos/
+
+# MQTT / simulator runtime lock files
+*.lck
+data/mqtt-paho/
+edge/device-simulator/sim-*/
