@@ -1,7 +1,0 @@
-{
-  "enablePullDownRefresh": true,
-  "navigationBarTitleText": "结算对账",
-  "usingComponents": {
-    "empty-state": "../../components/empty-state"
-  }
-}

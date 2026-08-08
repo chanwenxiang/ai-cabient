@@ -1,6 +1,0 @@
-{
-  "navigationBarTitleText": "点位定价",
-  "usingComponents": {
-    "empty-state": "../../components/empty-state"
-  }
-}
