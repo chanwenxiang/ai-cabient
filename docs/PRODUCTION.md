@@ -234,6 +234,8 @@ docker compose -f docker-compose.yml -f docker-compose.apps.yml --profile apps u
 | `JWT_SECRET` | ≥32 字符 |
 | `INTERNAL_API_KEY` | 服务间调用 |
 | `VISION_API_KEY` | vision 识别 |
+| `AUTH_COOKIE_ENABLED` | admin 浏览器会话 Cookie 开关（默认 `true`；小程序不受影响） |
+| `AUTH_COOKIE_SECURE` | 生产 HTTPS 下必须设为 `true`，否则浏览器拒绝携带 Cookie |
 | `POSTGRES_PASSWORD` | 数据库密码 |
 | `WECHAT_*` | 微信支付 V3 + 小程序 |
 | `SMS_WEBHOOK_URL` | 短信网关 |
