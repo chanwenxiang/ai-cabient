@@ -10,6 +10,17 @@ import com.aicabinet.trade.service.OpsCsvExportService;
 import com.aicabinet.trade.service.ProcurementService;
 import com.aicabinet.trade.service.PurchaseSuggestionService;
 import com.aicabinet.trade.service.SupplierPayableService;
+import com.aicabinet.trade.service.OpsTwoFactorService;
+import com.aicabinet.trade.service.DeviceTempPlanService;
+import com.aicabinet.trade.service.DeviceEnvService;
+import com.aicabinet.trade.service.MediaAssetService;
+import com.aicabinet.trade.service.AdCampaignService;
+import com.aicabinet.trade.service.FootfallAnalyticsService;
+import com.aicabinet.trade.service.OrgService;
+import com.aicabinet.trade.service.SiteContractService;
+import com.aicabinet.common.dto.TwoFactorCodeRequest;
+import com.aicabinet.common.dto.TwoFactorEnrollDto;
+import com.aicabinet.common.dto.TwoFactorStatusDto;
 import com.aicabinet.trade.service.WarehouseStocktakeService;
 import com.aicabinet.trade.service.WarehouseBinService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -41,6 +52,14 @@ public class OpsCommercialController {
     private final WarehouseBinService warehouseBinService;
     private final OpsCsvExportService csvExportService;
     private final FileAttachmentService fileAttachmentService;
+    private final OpsTwoFactorService opsTwoFactorService;
+    private final DeviceTempPlanService deviceTempPlanService;
+    private final DeviceEnvService deviceEnvService;
+    private final MediaAssetService mediaAssetService;
+    private final AdCampaignService adCampaignService;
+    private final FootfallAnalyticsService footfallAnalyticsService;
+    private final OrgService orgService;
+    private final SiteContractService siteContractService;
 
     public OpsCommercialController(OpsCommercialFacade facade,
                                    CommercialFlowService commercialFlowService,
@@ -50,7 +69,15 @@ public class OpsCommercialController {
                                    WarehouseStocktakeService warehouseStocktakeService,
                                    WarehouseBinService warehouseBinService,
                                    OpsCsvExportService csvExportService,
-                                   FileAttachmentService fileAttachmentService) {
+                                   FileAttachmentService fileAttachmentService,
+                                   OpsTwoFactorService opsTwoFactorService,
+                                   DeviceTempPlanService deviceTempPlanService,
+                                   DeviceEnvService deviceEnvService,
+                                   MediaAssetService mediaAssetService,
+                                   AdCampaignService adCampaignService,
+                                   FootfallAnalyticsService footfallAnalyticsService,
+                                   OrgService orgService,
+                                   SiteContractService siteContractService) {
         this.facade = facade;
         this.commercialFlowService = commercialFlowService;
         this.procurementService = procurementService;
@@ -60,6 +87,215 @@ public class OpsCommercialController {
         this.warehouseBinService = warehouseBinService;
         this.csvExportService = csvExportService;
         this.fileAttachmentService = fileAttachmentService;
+        this.opsTwoFactorService = opsTwoFactorService;
+        this.deviceTempPlanService = deviceTempPlanService;
+        this.deviceEnvService = deviceEnvService;
+        this.mediaAssetService = mediaAssetService;
+        this.adCampaignService = adCampaignService;
+        this.footfallAnalyticsService = footfallAnalyticsService;
+        this.orgService = orgService;
+        this.siteContractService = siteContractService;
+    }
+
+    // --- 组织架构与点位生命周期 ---
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/org/tree")
+    public ApiResponse<List<OrgNodeDto>> orgTree(HttpServletRequest request) {
+        return ApiResponse.ok(orgService.tree(operatorId(request)));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PutMapping("/org/nodes")
+    public ApiResponse<OrgNodeDto> upsertOrgNode(
+            HttpServletRequest request,
+            @Valid @RequestBody UpsertOrgNodeRequest body) {
+        return ApiResponse.ok(orgService.upsertNode(operatorId(request), body));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/org/nodes/{nodeId}/toggle")
+    public ApiResponse<OrgNodeDto> toggleOrgNode(
+            HttpServletRequest request,
+            @PathVariable Long nodeId,
+            @RequestParam boolean enabled) {
+        return ApiResponse.ok(orgService.toggleNode(operatorId(request), nodeId, enabled));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PutMapping("/org/nodes/{nodeId}/devices")
+    public ApiResponse<OrgNodeDto> assignOrgDevices(
+            HttpServletRequest request,
+            @PathVariable Long nodeId,
+            @Valid @RequestBody AssignOrgDevicesRequest body) {
+        return ApiResponse.ok(orgService.assignDevices(operatorId(request), nodeId, body.deviceIds()));
+    }
+
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/site-contracts")
+    public ApiResponse<List<SiteContractDto>> siteContracts(HttpServletRequest request) {
+        return ApiResponse.ok(siteContractService.list(operatorId(request)));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PutMapping("/site-contracts/{deviceId}")
+    public ApiResponse<SiteContractDto> upsertSiteContract(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @Valid @RequestBody UpsertSiteContractRequest body) {
+        return ApiResponse.ok(siteContractService.upsert(operatorId(request), deviceId, body));
+    }
+
+    // --- 客流 / 时段热区 / 坪效分析 ---
+    @RequiresPermissions("ops:analytics:view")
+    @GetMapping("/analytics/footfall")
+    public ApiResponse<FootfallAnalyticsDto> footfallAnalytics(
+            HttpServletRequest request,
+            @RequestParam(name = "days", defaultValue = "7") int days,
+            @RequestParam(name = "deviceLimit", defaultValue = "50") int deviceLimit,
+            @RequestParam(name = "skuLimit", defaultValue = "20") int skuLimit) {
+        return ApiResponse.ok(footfallAnalyticsService.analytics(days, deviceLimit, skuLimit));
+    }
+
+    @RequiresPermissions("ops:analytics:view")
+    @GetMapping("/analytics/footfall/slots")
+    public ApiResponse<List<SlotHeatDto>> footfallSlotHeat(
+            HttpServletRequest request,
+            @RequestParam String deviceId,
+            @RequestParam(name = "days", defaultValue = "7") int days) {
+        return ApiResponse.ok(footfallAnalyticsService.slotHeat(deviceId, days));
+    }
+
+    // --- 广告/多媒体运营：素材库 + 投放计划（读写沿用设备权限码，避免新建角色权限） ---
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/ad/assets")
+    public ApiResponse<List<MediaAssetDto>> adAssets(HttpServletRequest request) {
+        return ApiResponse.ok(mediaAssetService.list());
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping(value = "/ad/assets", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<MediaAssetDto> uploadAdAsset(
+            HttpServletRequest request,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(name = "title", required = false) String title,
+            @RequestParam(name = "durationSeconds", defaultValue = "0") int durationSeconds,
+            @RequestParam(name = "assetType", required = false) String assetType) throws IOException {
+        return ApiResponse.ok(mediaAssetService.upload(
+                operatorId(request), file, title, durationSeconds, assetType));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PutMapping("/ad/assets/{assetId}")
+    public ApiResponse<MediaAssetDto> updateAdAsset(
+            HttpServletRequest request,
+            @PathVariable Long assetId,
+            @Valid @RequestBody UpsertMediaAssetRequest body) {
+        return ApiResponse.ok(mediaAssetService.update(assetId, body));
+    }
+
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/ad/campaigns")
+    public ApiResponse<List<AdCampaignDto>> adCampaigns(HttpServletRequest request) {
+        return ApiResponse.ok(adCampaignService.list());
+    }
+
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/ad/campaigns/{campaignId}")
+    public ApiResponse<AdCampaignDto> adCampaign(
+            HttpServletRequest request, @PathVariable Long campaignId) {
+        return ApiResponse.ok(adCampaignService.get(campaignId));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/ad/campaigns")
+    public ApiResponse<AdCampaignDto> createAdCampaign(
+            HttpServletRequest request,
+            @Valid @RequestBody UpsertAdCampaignRequest body) {
+        return ApiResponse.ok(adCampaignService.upsert(operatorId(request), null, body));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PutMapping("/ad/campaigns/{campaignId}")
+    public ApiResponse<AdCampaignDto> updateAdCampaign(
+            HttpServletRequest request,
+            @PathVariable Long campaignId,
+            @Valid @RequestBody UpsertAdCampaignRequest body) {
+        return ApiResponse.ok(adCampaignService.upsert(operatorId(request), campaignId, body));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/ad/campaigns/{campaignId}/launch")
+    public ApiResponse<AdCampaignDto> launchAdCampaign(
+            HttpServletRequest request, @PathVariable Long campaignId) {
+        return ApiResponse.ok(adCampaignService.launch(operatorId(request), campaignId));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/ad/campaigns/{campaignId}/stop")
+    public ApiResponse<AdCampaignDto> stopAdCampaign(
+            HttpServletRequest request, @PathVariable Long campaignId) {
+        return ApiResponse.ok(adCampaignService.stop(operatorId(request), campaignId));
+    }
+
+    // --- 设备：温控计划 + 环境多指标监控 ---
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/temp-plan")
+    public ApiResponse<DeviceTempPlanDto> tempPlan(
+            HttpServletRequest request, @PathVariable String deviceId) {
+        return ApiResponse.ok(deviceTempPlanService.get(operatorId(request), deviceId));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PutMapping("/devices/{deviceId}/temp-plan")
+    public ApiResponse<DeviceTempPlanDto> upsertTempPlan(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @Valid @RequestBody UpsertDeviceTempPlanRequest body) {
+        return ApiResponse.ok(deviceTempPlanService.upsert(
+                operatorId(request), deviceId, body.enabled(), body.entries()));
+    }
+
+    @RequiresPermissions("ops:device:edit")
+    @PostMapping("/devices/{deviceId}/temp-plan/apply")
+    public ApiResponse<DeviceTempPlanDto> applyTempPlan(
+            HttpServletRequest request, @PathVariable String deviceId) {
+        return ApiResponse.ok(deviceTempPlanService.applyNow(operatorId(request), deviceId));
+    }
+
+    @RequiresPermissions("ops:device:list")
+    @GetMapping("/devices/{deviceId}/env-readings")
+    public ApiResponse<List<DeviceEnvReadingDto>> envReadings(
+            HttpServletRequest request,
+            @PathVariable String deviceId,
+            @RequestParam(name = "type", required = false) String type,
+            @RequestParam(name = "hours", defaultValue = "24") int hours,
+            @RequestParam(name = "limit", defaultValue = "200") int limit) {
+        return ApiResponse.ok(deviceEnvService.list(deviceId, type, hours, limit));
+    }
+
+    // --- 个人中心：双因子认证（TOTP） ---
+    @GetMapping("/rbac/me/two-factor/status")
+    public ApiResponse<TwoFactorStatusDto> twoFactorStatus(HttpServletRequest request) {
+        return ApiResponse.ok(opsTwoFactorService.status(operatorId(request)));
+    }
+
+    @GetMapping("/rbac/me/two-factor/enroll")
+    public ApiResponse<TwoFactorEnrollDto> enrollTwoFactor(HttpServletRequest request) {
+        return ApiResponse.ok(opsTwoFactorService.enroll(operatorId(request)));
+    }
+
+    @PostMapping("/rbac/me/two-factor/confirm")
+    public ApiResponse<Void> confirmTwoFactor(HttpServletRequest request,
+                                              @Valid @RequestBody TwoFactorCodeRequest body) {
+        opsTwoFactorService.confirm(operatorId(request), body.code());
+        return ApiResponse.ok(null);
+    }
+
+    @PostMapping("/rbac/me/two-factor/disable")
+    public ApiResponse<Void> disableTwoFactor(HttpServletRequest request,
+                                              @Valid @RequestBody TwoFactorCodeRequest body) {
+        opsTwoFactorService.disable(operatorId(request), body.code());
+        return ApiResponse.ok(null);
     }
 
     @RequiresPermissions("ops:admin")
