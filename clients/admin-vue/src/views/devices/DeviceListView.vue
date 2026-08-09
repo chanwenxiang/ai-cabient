@@ -230,6 +230,29 @@
               <el-tag size="small" effect="plain">{{ lifecycleLabel(row.lifecycleStatus) }}</el-tag>
             </template>
           </el-table-column>
+          <el-table-column label="柜内温度" width="90" align="center">
+            <template #default="{ row }">
+              <span
+                :class="
+                  row.currentTempC != null &&
+                  row.targetTempC != null &&
+                  Math.abs(row.currentTempC - row.targetTempC) > 2
+                    ? 'temp-warn'
+                    : ''
+                "
+                >{{ row.currentTempC != null ? `${row.currentTempC}°C` : '—' }}</span
+              >
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="地址"
+            min-width="160"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">{{ row.address || '—' }}</template>
+          </el-table-column>
           <el-table-column
             label="IMEI"
             min-width="120"
@@ -973,6 +996,11 @@ onActivated(() => {
 </script>
 
 <style scoped>
+.temp-warn {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+
 .page-card-head {
   display: flex;
   justify-content: space-between;

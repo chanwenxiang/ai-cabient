@@ -216,6 +216,9 @@
               <span class="cell-datetime">{{ formatDateTime(row.updatedAt) }}</span>
             </template>
           </el-table-column>
+          <el-table-column label="时长" width="110" align="center">
+            <template #default="{ row }">{{ formatDuration(row) }}</template>
+          </el-table-column>
           <el-table-column label="操作" width="220" class-name="col-action" align="center">
             <template #default="{ row }">
               <TableActions
@@ -524,6 +527,18 @@ function formatAge(ms: number) {
   if (h > 0) return `${h} 小时 ${m} 分`;
   if (m > 0) return `${m} 分钟`;
   return '不到 1 分钟';
+}
+
+function formatDuration(row: SessionRow) {
+  const start = row.openTime || row.createdAt;
+  const end = row.closeTime || row.updatedAt;
+  if (!start || !end) return '—';
+  const sec = Math.max(
+    0,
+    Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 1000)
+  );
+  if (sec < 60) return `${sec}s`;
+  return `${Math.floor(sec / 60)}m${sec % 60}s`;
 }
 
 function failReasonText(row: SessionRow) {

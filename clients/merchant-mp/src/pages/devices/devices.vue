@@ -56,6 +56,11 @@
           <view>
             <text class="name">{{ d.deviceName || d.deviceId }}</text>
             <text class="meta">{{ d.deviceId }}</text>
+            <text v-if="d.address" class="meta addr">{{ d.address }}</text>
+            <text class="meta"
+              >{{ lifecycleText(d.lifecycleStatus)
+              }}<template v-if="d.currentTempC != null"> · {{ d.currentTempC }}°C</template></text
+            >
           </view>
         </view>
         <view class="device-right">
@@ -260,6 +265,13 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 </script>
 
 <style scoped>
+.meta.addr {
+  max-width: 380rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .devices-page {
   padding: 0;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
@@ -378,6 +390,18 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   align-items: center;
   gap: 16rpx;
   flex: 1;
+}
+
+function lifecycleText(status?: string) {
+  return (
+    {
+      INBOUND: '入库',
+      IDLE: '待投放',
+      DEPLOYED: '运营中',
+      RETURNING: '撤机中',
+      RETIRED: '已撤机'
+    } as Record<string, string>
+  )[String(status || '').toUpperCase()] || '—';
 }
 .device-thumb {
   width: 88rpx;
