@@ -43,6 +43,10 @@ class ReplenishmentServiceOutboundTest {
     private InTransitService inTransitService;
     @Mock
     private SessionService sessionService;
+    @Mock
+    private NotificationService notificationService;
+    @Mock
+    private MerchantPortalService merchantPortalService;
 
     private ReplenishmentService replenishmentService;
 
@@ -51,7 +55,7 @@ class ReplenishmentServiceOutboundTest {
         replenishmentService = new ReplenishmentService(
                 null, routeRepository, taskRepository, taskLineRepository, null, null, null, pullOffTaskRepository,
                 new ObjectMapper(), warehouseService, null, deviceSlotService, inTransitService,
-                sessionService, null, null);
+                sessionService, null, null, notificationService, merchantPortalService);
     }
 
     @Test

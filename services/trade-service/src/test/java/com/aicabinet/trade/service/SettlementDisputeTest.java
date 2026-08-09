@@ -50,6 +50,7 @@ class SettlementDisputeTest {
     @Mock SkuVisionEnrollmentService skuVisionEnrollmentService;
     @Mock CouponService couponService;
     @Mock MemberService memberService;
+    @Mock NotificationService notificationService;
 
     SettlementService settlementService;
 
@@ -60,7 +61,7 @@ class SettlementDisputeTest {
                 visionClient, disputeService, visionRecognitionProducer, revenueSplitService,
                 securityProperties, stagingProperties, inventoryService, orderPaymentService, confidenceService, gravityHelper,
                 deviceValidationService, skuPricingService, userValidationService, videoArchiveService,
-                skuVisionEnrollmentService, couponService, memberService, null);
+                skuVisionEnrollmentService, couponService, memberService, null, notificationService);
     }
 
     @Test
