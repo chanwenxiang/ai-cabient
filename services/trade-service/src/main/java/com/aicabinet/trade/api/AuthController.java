@@ -7,11 +7,15 @@ import com.aicabinet.common.dto.CaptchaResponse;
 import com.aicabinet.common.dto.LoginRequest;
 import com.aicabinet.common.dto.LoginResponse;
 import com.aicabinet.common.dto.PasswordLoginRequest;
+import com.aicabinet.common.dto.RecoveryTwoFactorRequest;
+import com.aicabinet.common.dto.TwoFactorEnrollDto;
+import com.aicabinet.common.dto.VerifyTwoFactorRequest;
 import com.aicabinet.common.dto.WxLoginRequest;
 import com.aicabinet.trade.auth.JwtService;
 import com.aicabinet.trade.auth.SessionCookieService;
 import com.aicabinet.trade.service.AuthService;
 import com.aicabinet.trade.service.CaptchaService;
+import com.aicabinet.trade.service.OpsTwoFactorService;
 import com.aicabinet.trade.support.ApiMessages;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -28,15 +32,18 @@ public class AuthController {
     private final JwtService jwtService;
     private final CaptchaService captchaService;
     private final SessionCookieService sessionCookieService;
+    private final OpsTwoFactorService opsTwoFactorService;
 
     public AuthController(AuthService authService,
                           JwtService jwtService,
                           CaptchaService captchaService,
-                          SessionCookieService sessionCookieService) {
+                          SessionCookieService sessionCookieService,
+                          OpsTwoFactorService opsTwoFactorService) {
         this.authService = authService;
         this.jwtService = jwtService;
         this.captchaService = captchaService;
         this.sessionCookieService = sessionCookieService;
+        this.opsTwoFactorService = opsTwoFactorService;
     }
 
     @GetMapping("/captcha")
@@ -73,6 +80,22 @@ public class AuthController {
                                                          HttpServletResponse response) {
         captchaService.verifyOrThrow(request.captchaId(), request.captchaCode());
         return ApiResponse.ok(withSessionCookie(response, authService.adminLoginByPassword(request)));
+    }
+
+    /** 双因子认证：动态码完成登录（challengeToken 由 admin-password-login 返回）。 */
+    @PostMapping("/admin-2fa/verify")
+    public ApiResponse<LoginResponse> verifyTwoFactor(@Valid @RequestBody VerifyTwoFactorRequest request,
+                                                      HttpServletResponse response) {
+        return ApiResponse.ok(withSessionCookie(response,
+                opsTwoFactorService.verifyChallenge(request.challengeToken(), request.code())));
+    }
+
+    /** 双因子认证：后备码完成登录。 */
+    @PostMapping("/admin-2fa/recovery")
+    public ApiResponse<LoginResponse> recoveryTwoFactor(@Valid @RequestBody RecoveryTwoFactorRequest request,
+                                                        HttpServletResponse response) {
+        return ApiResponse.ok(withSessionCookie(response,
+                opsTwoFactorService.verifyRecovery(request.challengeToken(), request.recoveryCode())));
     }
 
     /** 运营后台忘记密码：短信验证码 + 图形验证码后重置密码。 */

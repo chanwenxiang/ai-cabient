@@ -12,6 +12,7 @@ import { loadRuntimeDict, resetRuntimeDict } from '@/stores/dict-runtime';
 
 const PERM_KEY = 'admin_permissions';
 const NAV_KEY = 'admin_active_nav';
+const TWO_FACTOR_KEY = 'admin_2fa_challenge';
 
 function readCachedPermissions(): string[] {
   try {
@@ -84,9 +85,30 @@ export const useAuthStore = defineStore('auth', () => {
     captcha?: { captchaId: string; captchaCode: string }
   ) {
     const data = await api.loginByPassword(phoneNumber, password, captcha);
+    if (data.twoFactorRequired) {
+      // 密码已通过：保存短时 challenge，待动态码验证后完成登录
+      localStorage.setItem(TWO_FACTOR_KEY, data.token);
+      phone.value = phoneNumber;
+      return { twoFactorRequired: true };
+    }
     applyLoginSession(data);
     userId.value = data.userId;
     phone.value = phoneNumber;
+    await Promise.all([loadPermissions(), loadActiveNav(), loadProfile(), loadRuntimeDict()]);
+    return { twoFactorRequired: false };
+  }
+
+  async function completeTwoFactor(code: string, recovery: boolean) {
+    const challenge = localStorage.getItem(TWO_FACTOR_KEY);
+    if (!challenge) {
+      throw new Error('登录状态已失效，请重新登录');
+    }
+    const data = recovery
+      ? await api.recoveryTwoFactor(challenge, code)
+      : await api.verifyTwoFactor(challenge, code);
+    localStorage.removeItem(TWO_FACTOR_KEY);
+    applyLoginSession(data);
+    userId.value = data.userId;
     await Promise.all([loadPermissions(), loadActiveNav(), loadProfile(), loadRuntimeDict()]);
   }
 
@@ -227,6 +249,7 @@ export const useAuthStore = defineStore('auth', () => {
     roleText,
     dataScopeText,
     login,
+    completeTwoFactor,
     logout,
     loadPermissions,
     loadActiveNav,

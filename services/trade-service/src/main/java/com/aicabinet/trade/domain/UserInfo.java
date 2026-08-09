@@ -34,6 +34,12 @@ public class UserInfo {
 
     private String payPreferredChannel = "BALANCE";
 
+    /** 运营账号 TOTP 密钥（Base32，明文存储于服务端，仅用于校验动态码） */
+    private String totpSecret;
+
+    /** 是否已启用运营双因子认证 */
+    private boolean totpEnabled;
+
     private Instant createdAt;
 
 public Long getUserId() { return userId; }
@@ -60,5 +66,9 @@ public Long getUserId() { return userId; }
     public void setAlipayUserId(String alipayUserId) { this.alipayUserId = alipayUserId; }
     public String getPayPreferredChannel() { return payPreferredChannel; }
     public void setPayPreferredChannel(String payPreferredChannel) { this.payPreferredChannel = payPreferredChannel; }
+    public String getTotpSecret() { return totpSecret; }
+    public void setTotpSecret(String totpSecret) { this.totpSecret = totpSecret; }
+    public boolean isTotpEnabled() { return totpEnabled; }
+    public void setTotpEnabled(boolean totpEnabled) { this.totpEnabled = totpEnabled; }
     public Instant getCreatedAt() { return createdAt; }
 }
