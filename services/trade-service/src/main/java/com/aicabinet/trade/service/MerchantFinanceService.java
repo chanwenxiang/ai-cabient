@@ -106,7 +106,7 @@ public class MerchantFinanceService {
         permissionService.requirePermission(userId, "merchant:reports:export");
         merchantPortalGuard.requireAccess(userId);
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<CabinetOrder> page = queryOrders(userId, deviceId, pageable);
+        Page<CabinetOrder> page = queryOrders(userId, deviceId, null, null, null, null, pageable);
         Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(
                 page.getContent().stream().map(CabinetOrder::getOrderId).toList());
         StringBuilder sb = new StringBuilder("orderId,sessionId,deviceId,totalAmountCents,status,lineCount,createdAt\n");
