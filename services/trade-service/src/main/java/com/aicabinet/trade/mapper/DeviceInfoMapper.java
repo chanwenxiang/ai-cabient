@@ -9,6 +9,11 @@ import org.apache.ibatis.annotations.Mapper;
 @Mapper
 public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
 
+    default List<DeviceInfo> findAllOrderByDeviceIdAsc() {
+        return selectList(Wrappers.<DeviceInfo>lambdaQuery()
+                .orderByAsc(DeviceInfo::getDeviceId));
+    }
+
     default long countByMerchantId(String merchantId) {
     Long c = selectCount(Wrappers.<DeviceInfo>lambdaQuery().eq(DeviceInfo::getMerchantId, merchantId));
     return c == null ? 0 : c;
