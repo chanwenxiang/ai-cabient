@@ -84,6 +84,7 @@ public class OrderService {
                 payChannel,
                 order.getLines().size(),
                 buildLineSummary(order),
+                order.getCouponDiscountCents(),
                 order.getCreatedAt()
         );
     }

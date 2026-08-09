@@ -79,8 +79,12 @@
           <view class="card-copy">
             <text class="card-goods">{{ lineSummaryText(item) }}</text>
             <text class="card-meta">
-              {{ emptyDisplay(item.deviceId, 'device') }} · {{ item.lineCount || 0 }} 件
+              {{ emptyDisplay(item.deviceId, 'device') }} · {{ item.lineCount || 0 }} 件 ·
+              {{ channelText(item.payChannel) }}
             </text>
+            <text v-if="Number(item.couponDiscountCents || 0) > 0" class="card-discount"
+              >券 -¥{{ ((item.couponDiscountCents || 0) / 100).toFixed(2) }}</text
+            >
             <text class="card-time">{{ formatTime(item.createdAt) }}</text>
           </view>
           <text class="card-amount">{{ money(item.totalAmountCents) }}</text>
@@ -332,6 +336,18 @@ function statusText(s?: string) {
   return orderStatusLabel(s);
 }
 
+function channelText(channel?: string) {
+  return (
+    {
+      WECHAT: '微信',
+      ALIPAY: '支付宝',
+      BALANCE: '余额',
+      PAYSCORE: '微信支付分',
+      UNKNOWN: '未知'
+    } as Record<string, string>
+  )[String(channel || '').toUpperCase()] || '—';
+}
+
 function money(cents?: number) {
   return fmtMoney(cents);
 }
@@ -354,6 +370,14 @@ function onDetail(item: MerchantOrderSummary) {
 </script>
 
 <style scoped>
+.card-discount {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .page-root {
   /* globals in App.vue */
 }

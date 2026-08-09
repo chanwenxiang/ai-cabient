@@ -697,6 +697,8 @@ export type MerchantOrderSummary = {
   totalAmountCents?: number;
   lineCount?: number;
   lineSummary?: string;
+  payChannel?: string;
+  couponDiscountCents?: number;
   createdAt?: string;
 };
 

@@ -12,5 +12,6 @@ public record OrderSummaryDto(
         String payChannel,
         int lineCount,
         String lineSummary,
+        int couponDiscountCents,
         Instant createdAt
 ) {}
