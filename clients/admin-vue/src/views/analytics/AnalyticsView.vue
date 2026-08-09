@@ -389,6 +389,14 @@ const CHANNEL_COLORS: Record<string, string> = {
   MOCK: '#94a3b8',
   UNKNOWN: '#64748b'
 };
+/** 渠道代码兜底中文名（字典未加载时避免界面出现英文） */
+const CHANNEL_LABELS: Record<string, string> = {
+  WECHAT: '微信',
+  ALIPAY: '支付宝',
+  BALANCE: '余额',
+  MOCK: '其他',
+  UNKNOWN: '未知'
+};
 
 const route = useRoute();
 const { router, canAccessPath, goPath } = useNavAccess();
@@ -425,7 +433,7 @@ function channelParts(statsList?: ChannelStat[]) {
   return (statsList || []).map((s, i) => {
     const code = String(s.channel || 'UNKNOWN').toUpperCase();
     return {
-      label: dictLabel('pay_channel', code) || code,
+      label: dictLabel('pay_channel', code) || CHANNEL_LABELS[code] || code,
       value: s.amountCents || 0,
       count: s.count || 0,
       color: CHANNEL_COLORS[code] || ['#2dd4bf', '#60a5fa', '#a78bfa', '#fbbf24', '#f472b6'][i % 5]

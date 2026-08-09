@@ -171,6 +171,34 @@
       </view>
 
       <scroll-view scroll-y class="product-scroll" :show-scrollbar="false" enhanced>
+        <view v-if="products.length" class="catalog-tools">
+          <view class="search-box">
+            <input
+              v-model="searchKeyword"
+              class="search-input"
+              placeholder="搜索本柜商品"
+              placeholder-class="search-placeholder"
+              confirm-type="search"
+            />
+            <text v-if="searchKeyword" class="search-clear" @click="searchKeyword = ''">×</text>
+          </view>
+          <scroll-view scroll-x class="category-row" :show-scrollbar="false">
+            <view
+              class="category-chip"
+              :class="{ active: !activeCategory }"
+              @click="activeCategory = ''"
+              >全部</view
+            >
+            <view
+              v-for="cat in productCategories"
+              :key="cat"
+              class="category-chip"
+              :class="{ active: activeCategory === cat }"
+              @click="activeCategory = activeCategory === cat ? '' : cat"
+              >{{ cat }}</view
+            >
+          </scroll-view>
+        </view>
         <view v-if="productsLoading" class="card loading-card"
           ><text class="meta">加载商品中…</text></view
         >
@@ -182,8 +210,15 @@
             <text class="empty-link" @click="resetDevice">换一台</text>
           </view>
         </view>
+        <view v-else-if="!filteredProducts.length" class="card loading-card catalog-empty">
+          <text class="empty-title">未找到匹配商品</text>
+          <text class="empty-hint">换个关键词或分类试试</text>
+          <view class="empty-actions">
+            <text class="empty-link" @click="resetCatalogFilter">查看全部商品</text>
+          </view>
+        </view>
         <view v-else class="product-grid">
-          <view v-for="p in products" :key="p.skuId" class="product-cell">
+          <view v-for="p in filteredProducts" :key="p.skuId" class="product-cell">
             <view class="product-thumb" :class="'cat-' + thumbTone(p)">
               <image
                 v-if="showThumb(p)"
@@ -324,6 +359,8 @@ const enteringFlow = ref(false);
 const showManual = ref(false);
 const products = ref<DeviceProduct[]>([]);
 const productsLoading = ref(false);
+const searchKeyword = ref('');
+const activeCategory = ref('');
 const deviceStatusText = ref('');
 const deviceOffline = ref(false);
 /** 本柜开门预授权门槛（分），来自 DeviceStatus.preauthCents */
@@ -374,6 +411,30 @@ const sessionActive = computed(
       state.value
     )
 );
+
+const productCategories = computed(() => {
+  const cats = new Set<string>();
+  for (const p of products.value) {
+    const cat = String(p.category || '').trim();
+    if (cat) cats.add(cat);
+  }
+  return Array.from(cats).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'));
+});
+
+const filteredProducts = computed(() => {
+  const kw = searchKeyword.value.trim().toLowerCase();
+  const cat = activeCategory.value;
+  return products.value.filter((p) => {
+    if (cat && String(p.category || '').trim() !== cat) return false;
+    if (kw && !String(p.skuName || '').toLowerCase().includes(kw)) return false;
+    return true;
+  });
+});
+
+function resetCatalogFilter() {
+  searchKeyword.value = '';
+  activeCategory.value = '';
+}
 
 const showLanding = computed(() => !scanned.value && !enteringFlow.value);
 
@@ -578,6 +639,7 @@ function resetDevice() {
   deviceName.value = '';
   deviceStatusText.value = '';
   products.value = [];
+  resetCatalogFilter();
 }
 
 async function startShoppingFlow(id: string, scanChannel?: string | null) {
@@ -678,6 +740,7 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
       products.value = productsResult.value;
     } else {
       products.value = [];
+      resetCatalogFilter();
       // 商品失败不阻断开门，仅提示
       uni.showToast({ title: formatError(productsResult.reason), icon: 'none' });
     }
@@ -711,6 +774,7 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
       deviceName.value = '';
       deviceStatusText.value = '';
       products.value = [];
+      resetCatalogFilter();
       lastFailedDeviceId.value = cabinetId;
       lastFailedChannel.value = entryChannel.value;
     }
@@ -1021,6 +1085,7 @@ async function cancelOpening() {
     scanned.value = false;
     deviceId.value = '';
     products.value = [];
+    resetCatalogFilter();
     uni.showToast({ title: '已取消开门', icon: 'none' });
     return;
   }
@@ -1619,6 +1684,59 @@ function stopDevicePoll() {
   font-size: 24rpx;
   color: #8c6d1f;
   line-height: 1.4;
+}
+
+.catalog-tools {
+  padding: 0 16rpx 4rpx;
+}
+.search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 72rpx;
+  padding: 0 28rpx;
+  border-radius: 36rpx;
+  background: #fff;
+  border: 1rpx solid #e2e8f0;
+  box-shadow: 0 4rpx 16rpx rgba(15, 118, 110, 0.06);
+}
+.search-input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  font-size: 26rpx;
+  color: #0f172a;
+}
+.search-placeholder {
+  color: #94a3b8;
+}
+.search-clear {
+  padding: 6rpx 4rpx 6rpx 16rpx;
+  color: #94a3b8;
+  font-size: 34rpx;
+  line-height: 1;
+}
+.category-row {
+  display: flex;
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  margin-top: 16rpx;
+}
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 56rpx;
+  padding: 0 26rpx;
+  margin-right: 12rpx;
+  border-radius: 28rpx;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+.category-chip.active {
+  background: #0f766e;
+  color: #fff;
 }
 
 .product-scroll {

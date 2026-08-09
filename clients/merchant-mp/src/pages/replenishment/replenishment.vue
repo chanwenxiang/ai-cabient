@@ -16,18 +16,20 @@
         </view>
       </view>
       <view class="hero-actions">
-        <button class="scan-pill" :loading="scanning" @click="onScan">扫码找柜</button>
-        <button class="clear-pill" @click="goRequest">要货</button>
-        <button
-          v-if="preferredId && filterDeviceId !== preferredId"
-          class="clear-pill"
-          @click="usePreferredDevice"
-        >
-          常驻柜
-        </button>
-        <button v-if="filterDeviceId" class="clear-pill" @click="clearDeviceFilter">
-          清除筛选
-        </button>
+        <button class="scan-primary" :loading="scanning" @click="onScan">扫码找柜</button>
+        <view class="hero-secondary">
+          <button class="clear-pill" @click="goRequest">要货</button>
+          <button
+            v-if="preferredId && filterDeviceId !== preferredId"
+            class="clear-pill"
+            @click="usePreferredDevice"
+          >
+            常驻柜
+          </button>
+          <button v-if="filterDeviceId" class="clear-pill" @click="clearDeviceFilter">
+            清除筛选
+          </button>
+        </view>
       </view>
       <text v-if="filterDeviceId" class="filter-tip">
         当前筛选：{{ filterDeviceId }}
@@ -245,7 +247,15 @@
           class="line-card"
         >
           <view class="line-main">
-            <view class="product-thumb">{{ productIcon(line.skuId) }}</view>
+            <view class="product-thumb">
+              <image
+                v-if="skuThumb(line.skuId)"
+                class="product-thumb-img"
+                :src="skuThumb(line.skuId)"
+                mode="aspectFill"
+              />
+              <text v-else class="product-mark">{{ productGlyph(line.skuId) }}</text>
+            </view>
             <view class="product-copy">
               <text class="sku-name">{{ skuName(line.skuId) }}</text>
               <text class="device-code">{{ line.skuId }}</text>
@@ -395,6 +405,7 @@ import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
+import { API_BASE_URL } from '@/config/api';
 import type { DeviceSlot } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -655,12 +666,32 @@ function skuName(id: string) {
   return s?.skuName || id;
 }
 
-function productIcon(id: string) {
-  if (id.includes('WATER')) return '💧';
-  if (id.includes('MILK')) return '🥛';
-  if (id.includes('NOODLE')) return '🍜';
-  if (id.includes('SNACK')) return '🥔';
-  return '🥤';
+/** 演示 SKU 本地兜底图；正式商品图由后台在商品管理上传，补货端与消费端、管理端共用同一 imageUrl */
+const LOCAL_SKU_THUMBS: Record<string, string> = {
+  'SKU-DEMO-001': '/static/sku/cola.jpg',
+  'SKU-SODA-001': '/static/sku/sprite.jpg',
+  'SKU-WATER-001': '/static/sku/water.jpg',
+  'SKU-SNACK-001': '/static/sku/chips.jpg',
+  'SKU-MILK-001': '/static/sku/milk.jpg',
+  'SKU-NOODLE-001': '/static/sku/noodle.jpg'
+};
+
+function absoluteImageUrl(url?: string | null): string {
+  const value = String(url || '').trim();
+  if (!value) return '';
+  if (/^https?:\/\//i.test(value) || value.startsWith('//')) return value;
+  const base = (API_BASE_URL || '').replace(/\/$/, '');
+  return `${base}${value.startsWith('/') ? value : '/' + value}`;
+}
+
+function skuThumb(id: string) {
+  const s = skus.value.find((item) => item.skuId === id) as { imageUrl?: string } | undefined;
+  return absoluteImageUrl(s?.imageUrl) || LOCAL_SKU_THUMBS[id] || '';
+}
+
+function productGlyph(id: string) {
+  const name = String(skuName(id) || '').trim();
+  return name ? name.slice(0, 1) : '货';
 }
 
 function formatTime(value?: string) {
@@ -1391,28 +1422,39 @@ onPullDownRefresh(load);
 .hero-actions {
   position: relative;
   display: flex;
-  gap: 16rpx;
+  flex-direction: column;
+  gap: 14rpx;
   margin-top: 24rpx;
 }
-.scan-pill,
+.hero-secondary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+}
+.scan-primary,
 .clear-pill {
   margin: 0;
-  height: 72rpx;
-  line-height: 72rpx;
-  padding: 0 28rpx;
   border-radius: 36rpx;
   font-size: 26rpx;
   font-weight: 600;
 }
-.scan-pill {
+.scan-primary {
+  height: 88rpx;
+  line-height: 88rpx;
   background: #fff;
   color: #0f766e;
+  font-size: 28rpx;
+  font-weight: 700;
+  box-shadow: 0 10rpx 26rpx rgba(6, 78, 59, 0.28);
 }
 .clear-pill {
+  height: 72rpx;
+  line-height: 72rpx;
+  padding: 0 28rpx;
   background: rgba(255, 255, 255, 0.18);
   color: #fff;
 }
-.scan-pill::after,
+.scan-primary::after,
 .clear-pill::after {
   border: none;
 }
@@ -1855,6 +1897,7 @@ onPullDownRefresh(load);
   box-shadow: 0 2rpx 8rpx rgba(15, 118, 110, 0.12);
 }
 .product-thumb {
+  position: relative;
   display: flex;
   width: 72rpx;
   height: 72rpx;
@@ -1864,6 +1907,17 @@ onPullDownRefresh(load);
   background: #ecfdf5;
   font-size: 32rpx;
   margin-right: 16rpx;
+}
+.product-thumb-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 16rpx;
+  background: #ecfdf5;
+}
+.product-mark {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #0f766e;
 }
 .product-copy {
   flex: 1;

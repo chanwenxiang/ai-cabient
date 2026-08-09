@@ -18,6 +18,10 @@ export default defineConfig({
         configure(proxy) {
           proxy.on('proxyReq', (request) => request.removeHeader('origin'));
         }
+      },
+      '/admin': {
+        target: process.env.VITE_DEV_PROXY || 'http://localhost',
+        changeOrigin: true
       }
     }
   },

@@ -272,6 +272,8 @@ export interface MerchantSkuPricing {
     deviceName?: string;
     skuId: string;
     skuName: string;
+    /** 商品主图（后台在商品管理中上传，三端共用） */
+    imageUrl?: string;
     basePriceCents: number;
     overridePriceCents?: number | null;
     effectivePriceCents: number;

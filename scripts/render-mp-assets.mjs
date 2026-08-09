@@ -5,11 +5,13 @@
  * 依赖：系统 Chrome（Playwright channel=chrome）；产物为 PNG，覆盖以下文件：
  *   clients/consumer-mp/src/static/tab/*.png
  *   clients/merchant-mp/src/static/tab/*.png
- *   clients/consumer-mp/src/static/sku/*.png
+ * 商品图（clients/{consumer,merchant}-mp/src/static/sku/*.jpg）直接复制自
+ * 管理端 clients/admin-vue/public/sku-demo/*.jpg，保证三端同图。
  */
 import { chromium } from 'playwright';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import fs from 'node:fs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -45,43 +47,24 @@ const ICONS = {
     '<path d="M12 4a6 6 0 0 1 6 6v4l2 3H4l2-3v-4a6 6 0 0 1 6-6Z"/><path d="M10 20a2 2 0 0 0 4 0"/>'
 };
 
-/** 商品演示图：浅色卡片 + 简洁产品剪影（400x400）。 */
-function skuSvg({ bg, shape, label }) {
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
-  <defs>
-    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="${bg}"/>
-      <stop offset="1" stop-color="${bg}" stop-opacity="0.72"/>
-    </linearGradient>
-  </defs>
-  <rect x="22" y="22" width="356" height="356" rx="42" fill="url(#card)"/>
-  <rect x="22" y="22" width="356" height="356" rx="42" fill="none" stroke="#ffffff" stroke-opacity="0.7" stroke-width="3"/>
-  <g transform="translate(200,178)">${shape}</g>
-  <text x="200" y="312" text-anchor="middle" font-family="sans-serif" font-size="30" font-weight="600" fill="#ffffff" opacity="0.92">${label}</text>
-</svg>`;
+/** 商品演示图：从管理端 public/sku-demo 复制，保证三端同一套真实商品照片 */
+function syncSkuImages() {
+  const srcDir = path.join(root, 'clients/admin-vue/public/sku-demo');
+  const targets = [
+    'clients/consumer-mp/src/static/sku',
+    'clients/merchant-mp/src/static/sku'
+  ];
+  for (const rel of targets) {
+    const outDir = path.join(root, rel);
+    fs.mkdirSync(outDir, { recursive: true });
+  }
+  for (const file of fs.readdirSync(srcDir)) {
+    if (!/\.(jpe?g|png|webp)$/i.test(file)) continue;
+    for (const rel of targets) {
+      fs.copyFileSync(path.join(srcDir, file), path.join(root, rel, file));
+    }
+  }
 }
-
-const SKU_SHAPES = {
-  chips:
-    '<path d="M-62 34 6 -56a30 30 0 0 1 42 -8l70 78a30 30 0 0 1 -12 42L-20 88a30 30 0 0 1 -42 -54Z" fill="#fbbf24" stroke="#f59e0b" stroke-width="6"/>',
-  cola: '<path d="M-28 -64h56l10 40a38 38 0 0 1 -76 0Z" fill="#ef4444" stroke="#dc2626" stroke-width="6"/><rect x="-34" y="-22" width="68" height="86" rx="12" fill="#7f1d1d"/><path d="M-20 -6h40M-20 12h40M-20 30h40" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>',
-  milk: '<path d="M-26 -70h52l8 24 8 74a20 20 0 0 1 -20 20H-22a20 20 0 0 1 -20 -20l8 -74Z" fill="#ffffff" stroke="#cbd5e1" stroke-width="6"/><path d="M-16 -44h32" stroke="#0d9488" stroke-width="8" stroke-linecap="round"/>',
-  noodle:
-    '<rect x="-62" y="-34" width="124" height="92" rx="22" fill="#f97316" stroke="#ea580c" stroke-width="6"/><path d="M-40 -12c12 -14 24 14 36 0M-4 -12c12 -14 24 14 36 0" stroke="#fde68a" stroke-width="7" stroke-linecap="round"/>',
-  sprite:
-    '<path d="M-30 -66h60l8 40a36 36 0 0 1 -76 0Z" fill="#a7f3d0" stroke="#34d399" stroke-width="6"/><rect x="-36" y="-24" width="72" height="92" rx="14" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="4"/><path d="M-20 -6h40M-20 12h40M-20 30h40" stroke="#34d399" stroke-width="6" stroke-linecap="round"/>',
-  water:
-    '<path d="M0 -52c22 22 34 38 34 58a34 34 0 0 1 -68 0c0 -20 12 -36 34 -58Z" fill="#bae6fd" stroke="#38bdf8" stroke-width="6"/><path d="M-14 10a14 14 0 0 0 14 14" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>'
-};
-
-const SKU_LABELS = {
-  chips: '薯片',
-  cola: '可乐',
-  milk: '牛奶',
-  noodle: '泡面',
-  sprite: '雪碧',
-  water: '矿泉水'
-};
 
 async function main() {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -114,17 +97,9 @@ async function main() {
     }
     await iconPage.close();
 
-    const skuPage = await browser.newPage({ viewport: { width: 400, height: 400 } });
-    for (const [name, shape] of Object.entries(SKU_SHAPES)) {
-      const file = path.join(root, `clients/consumer-mp/src/static/sku/${name}.png`);
-      const bg =
-        name === 'water' || name === 'sprite' ? '#0ea5e9' : name === 'milk' ? '#64748b' : '#f59e0b';
-      await skuPage.setContent(skuSvg({ bg, shape, label: SKU_LABELS[name] }));
-      await skuPage.screenshot({ path: file });
-    }
-    await skuPage.close();
+    syncSkuImages();
 
-    console.log('render-mp-assets ok');
+    console.log('render-mp-assets ok（tab 图标已渲染，商品图已同步）');
   } finally {
     await browser.close();
   }

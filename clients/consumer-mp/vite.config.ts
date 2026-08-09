@@ -17,6 +17,10 @@ export default defineConfig({
         configure(proxy) {
           proxy.on('proxyReq', (request) => request.removeHeader('origin'));
         }
+      },
+      '/admin': {
+        target: 'http://localhost',
+        changeOrigin: true
       }
     }
   },
