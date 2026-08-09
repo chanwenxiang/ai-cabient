@@ -40,6 +40,13 @@
         <view class="card-meta">
           <text>{{ item.deviceId || '无柜机' }}</text>
           <text>{{ formatTime(item.createdAt) }}</text>
+          <text :class="item.slaOverdue ? 'sla-overdue' : 'sla-ok'">{{
+            item.slaOverdue
+              ? '已超时'
+              : item.slaHoursRemaining != null
+                ? `剩余 ${item.slaHoursRemaining}h`
+                : '处理中'
+          }}</text>
         </view>
         <view v-if="item.lastMessage" class="card-msg"
           ><text>{{ item.lastMessage }}</text></view
@@ -362,6 +369,14 @@ async function onReply(item: MerchantDisputeTicket) {
 </script>
 
 <style scoped>
+.sla-overdue {
+  color: #b91c1c;
+  font-weight: 700;
+}
+.sla-ok {
+  color: #b45309;
+}
+
 .page-root {
   padding: 20rpx;
   padding-bottom: calc(20rpx + env(safe-area-inset-bottom));

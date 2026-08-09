@@ -708,6 +708,11 @@ export type MerchantDisputeTicket = {
   reason?: string;
   deviceId?: string;
   createdAt?: string;
+  resolvedAt?: string;
+  slaDueAt?: string;
+  slaOverdue?: boolean;
+  slaHoursRemaining?: number;
+  category?: string;
   lastMessage?: string;
   canReply?: boolean;
   orderId?: string;
