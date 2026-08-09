@@ -31,14 +31,14 @@ services:
         done
         mc mb --ignore-existing "local/$$MINIO_BUCKET"
         mc ilm add --prefix 'sim/' --expire-days "$${MINIO_SIM_RETENTION_DAYS:-7}" "local/$$MINIO_BUCKET" || true
-        mc ilm add --prefix 'videos/' --expire-days "$${MINIO_VIDEO_RETENTION_DAYS:-90}" "local/$$MINIO_BUCKET" || true
+        mc ilm add --prefix 'videos/' --expire-days "$${MINIO_VIDEO_RETENTION_DAYS:-30}" "local/$$MINIO_BUCKET" || true
         mc ilm add --prefix 'archive/' --expire-days "$${MINIO_ARCHIVE_RETENTION_DAYS:-180}" "local/$$MINIO_BUCKET" || true
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-cabinet-videos}
       MINIO_SIM_RETENTION_DAYS: ${MINIO_SIM_RETENTION_DAYS:-7}
-      MINIO_VIDEO_RETENTION_DAYS: ${MINIO_VIDEO_RETENTION_DAYS:-90}
+      MINIO_VIDEO_RETENTION_DAYS: ${MINIO_VIDEO_RETENTION_DAYS:-30}
       MINIO_ARCHIVE_RETENTION_DAYS: ${MINIO_ARCHIVE_RETENTION_DAYS:-180}
     profiles: ["apps"]
 

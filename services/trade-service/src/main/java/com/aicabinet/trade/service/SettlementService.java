@@ -449,7 +449,7 @@ public class SettlementService {
         if (unpaid) {
             session.setOrderId(order.getOrderId());
             sessionRepository.save(session);
-            videoArchiveService.archiveAfterSettlement(session, order.getLines());
+            videoArchiveService.archiveAfterSettlement(session);
             log.info("unpaid order created session={} order={} amount={}",
                     session.getSessionId(), order.getOrderId(), order.getTotalAmountCents());
             return toDto(order);
@@ -465,7 +465,7 @@ public class SettlementService {
                 orderRepository.save(order);
                 session.setOrderId(order.getOrderId());
                 sessionRepository.save(session);
-                videoArchiveService.archiveAfterSettlement(session, order.getLines());
+                videoArchiveService.archiveAfterSettlement(session);
                 log.info("unpaid order after charge fail session={} order={} amount={}",
                         session.getSessionId(), order.getOrderId(), order.getTotalAmountCents());
                 return toDto(order);
@@ -490,7 +490,7 @@ public class SettlementService {
         } catch (Exception e) {
             log.warn("member stats update failed order={}", order.getOrderId(), e);
         }
-        videoArchiveService.archiveAfterSettlement(session, order.getLines());
+        videoArchiveService.archiveAfterSettlement(session);
         log.info("settled session={} order={} amount={} couponDiscount={} channel={}",
                 session.getSessionId(), order.getOrderId(), order.getTotalAmountCents(),
                 order.getCouponDiscountCents(), order.getPayChannel());

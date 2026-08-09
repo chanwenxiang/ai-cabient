@@ -51,6 +51,7 @@ class DisputeReviewCodeTest {
     @Mock OpsExceptionService opsExceptionService;
     @Mock FileAttachmentService fileAttachmentService;
     @Mock SystemConfigService systemConfigService;
+    @Mock VideoArchiveService videoArchiveService;
 
     private DisputeService service;
 
@@ -60,7 +61,7 @@ class DisputeReviewCodeTest {
                 settlementService, new ObjectMapper(), minioVideoService, auditService, riskControlService,
                 permissionService, merchantScopeService, null, merchantPortalGuard, skuCatalogRepository,
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
-                fileAttachmentService, null);
+                fileAttachmentService, null, videoArchiveService);
         org.springframework.test.util.ReflectionTestUtils.setField(service, "systemConfigService", systemConfigService);
         lenient().when(systemConfigService.getInt(anyString(), anyInt())).thenAnswer(i -> i.getArgument(1));
     }
