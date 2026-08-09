@@ -14,6 +14,23 @@ export type MerchantReplenishmentSuggest = {
   suggestReason?: string;
 };
 
+export type MerchantReplenishmentEfficiency = {
+  todayAssigned: number;
+  todayCompleted: number;
+  todayInProgress: number;
+  todayPending: number;
+  completionRatePercent: number;
+};
+
+export type DeviceLowStockItem = {
+  deviceId: string;
+  skuId: string;
+  quantity: number;
+  capacity: number;
+  lowThreshold: number;
+  updatedAt?: string;
+};
+
 export type MerchantReplenishmentRequestLine = {
   lineId?: number;
   skuId: string;
@@ -452,6 +469,38 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').MerchantAnalyticsOverview>(
       `/api/v2/merchant/analytics/overview?days=${days}`
     ),
+  skuSales: (days = 30, deviceId?: string) => {
+    const q = new URLSearchParams({ days: String(days) });
+    if (deviceId) q.set('deviceId', deviceId);
+    return request<import('@aicabinet/shared-types').MerchantSkuSales[]>(
+      `/api/v2/merchant/analytics/sku-sales?${q}`
+    );
+  },
+  skuVelocity: (deviceId: string) =>
+    request<import('@aicabinet/shared-types').MerchantSkuVelocity[]>(
+      `/api/v2/merchant/analytics/velocity?deviceId=${encodeURIComponent(deviceId)}`
+    ),
+  aiInsight: (days = 30) =>
+    request<import('@aicabinet/shared-types').MerchantAiInsight>(
+      `/api/v2/merchant/analytics/ai-insight?days=${days}`
+    ),
+  expirySummary: () =>
+    request<import('@aicabinet/shared-types').MerchantExpirySummary>(
+      '/api/v2/merchant/analytics/expiry-summary'
+    ),
+  deviceTemperatureHistory: (deviceId: string, hours = 24) =>
+    request<import('@aicabinet/shared-types').DeviceTemperatureReading[]>(
+      `/api/v2/merchant/devices/${encodeURIComponent(deviceId)}/temperature-history?hours=${hours}`
+    ),
+  pricingHistory: (deviceId?: string, skuId?: string) => {
+    const q = new URLSearchParams();
+    if (deviceId) q.set('deviceId', deviceId);
+    if (skuId) q.set('skuId', skuId);
+    const qs = q.toString();
+    return request<import('@aicabinet/shared-types').MerchantSkuPriceChange[]>(
+      `/api/v2/merchant/pricing/history${qs ? `?${qs}` : ''}`
+    );
+  },
   settlements: () =>
     request<import('@aicabinet/shared-types').MerchantSettlementOverview>(
       '/api/v2/merchant/settlements/overview'
@@ -485,6 +534,13 @@ export const merchantApi = {
   replenishmentSuggestions: (deviceId: string) =>
     request<MerchantReplenishmentSuggest[]>(
       `/api/v2/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`
+    ),
+  myReplenishmentEfficiency: () =>
+    request<MerchantReplenishmentEfficiency>('/api/v2/merchant/replenishment/my-efficiency'),
+  /** 缺货巡柜：全部低库存 SKU 明细（按柜聚合由页面完成） */
+  lowStockDevices: () =>
+    request<DeviceLowStockItem[]>(
+      '/api/v2/merchant/inventory?lowStockOnly=true'
     ),
   replenishmentRequests: (status?: string, deviceId?: string) => {
     const q = new URLSearchParams();

@@ -35,6 +35,13 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
     return selectList(Wrappers.<ReplenishmentTask>lambdaQuery().eq(ReplenishmentTask::getAssigneeUserId, assigneeUserId).in(ReplenishmentTask::getStatus, statuses));
     }
 
+    default List<ReplenishmentTask> findByAssigneeUserIdAndCreatedAtSince(Long assigneeUserId, Instant since) {
+        return selectList(Wrappers.<ReplenishmentTask>lambdaQuery()
+                .eq(ReplenishmentTask::getAssigneeUserId, assigneeUserId)
+                .ge(ReplenishmentTask::getCreatedAt, since)
+                .orderByAsc(ReplenishmentTask::getTaskId));
+    }
+
     default List<ReplenishmentTask> findByStatusIn(List<String> statuses) {
     return selectList(Wrappers.<ReplenishmentTask>lambdaQuery().in(ReplenishmentTask::getStatus, statuses));
     }
