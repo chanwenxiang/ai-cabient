@@ -44,6 +44,13 @@ const BASE_NAV: NavItem[] = [
     keywords: ['图表', '趋势', '营收', 'analytics', '看板']
   },
   {
+    path: '/footfall',
+    title: '客流坪效',
+    group: '概览',
+    perm: 'ops:analytics:view',
+    keywords: ['客流', '坪效', '热区', '转化', 'footfall', '热力']
+  },
+  {
     path: '/reports',
     title: '设备报表',
     group: '概览',
@@ -294,6 +301,20 @@ const BASE_NAV: NavItem[] = [
     keywords: ['优惠券', 'coupon', '发券']
   },
   {
+    path: '/ad-assets',
+    title: '素材库',
+    group: '增长风控',
+    perm: 'ops:device:list',
+    keywords: ['素材', '广告', '媒体', '上传']
+  },
+  {
+    path: '/ad-campaigns',
+    title: '投放计划',
+    group: '增长风控',
+    perm: 'ops:device:list',
+    keywords: ['投放', '广告', 'campaign', '轮播']
+  },
+  {
     path: '/points-redeem',
     title: '积分兑换管理',
     group: '增长风控',
@@ -384,6 +405,13 @@ const BASE_NAV: NavItem[] = [
     group: '系统',
     perm: 'ops:task:list',
     keywords: ['定时', '任务', '调度', 'job', 'task']
+  },
+  {
+    path: '/org-sites',
+    title: '组织与点位',
+    group: '系统',
+    perm: 'ops:device:list',
+    keywords: ['组织', '点位', '场地', '合同', '布机', '撤机', 'org']
   },
   {
     path: '/announcements',
