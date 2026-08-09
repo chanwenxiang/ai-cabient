@@ -3,9 +3,12 @@ package com.aicabinet.trade.api;
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.OtaCheckResponse;
 import com.aicabinet.common.dto.SkuQuantityDto;
+import com.aicabinet.common.dto.ScreenContentDto;
 import com.aicabinet.trade.service.DevicePresenceService;
+import com.aicabinet.trade.service.DeviceEnvService;
 import com.aicabinet.trade.service.DeviceSlotService;
 import com.aicabinet.trade.service.OtaService;
+import com.aicabinet.trade.service.AdCampaignService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,13 +20,25 @@ public class DeviceInternalController {
     private final DevicePresenceService presenceService;
     private final OtaService otaService;
     private final DeviceSlotService deviceSlotService;
+    private final DeviceEnvService envService;
+    private final AdCampaignService adCampaignService;
 
     public DeviceInternalController(DevicePresenceService presenceService,
                                     OtaService otaService,
-                                    DeviceSlotService deviceSlotService) {
+                                    DeviceSlotService deviceSlotService,
+                                    DeviceEnvService envService,
+                                    AdCampaignService adCampaignService) {
         this.presenceService = presenceService;
         this.otaService = otaService;
         this.deviceSlotService = deviceSlotService;
+        this.envService = envService;
+        this.adCampaignService = adCampaignService;
+    }
+
+    /** 设备屏拉取当前投放内容（广告/多媒体轮播）。 */
+    @GetMapping("/{deviceId}/screen-content")
+    public ApiResponse<ScreenContentDto> screenContent(@PathVariable("deviceId") String deviceId) {
+        return ApiResponse.ok(adCampaignService.screenContent(deviceId));
     }
 
     @PostMapping("/{deviceId}/heartbeat")
@@ -34,6 +49,9 @@ public class DeviceInternalController {
         String firmwareVersion = body != null ? body.firmwareVersion() : null;
         Integer currentTempC = body != null ? body.currentTempC() : null;
         presenceService.heartbeat(deviceId, appVersion, firmwareVersion, currentTempC);
+        if (body != null) {
+            envService.record(deviceId, body.humidityPct(), body.voltageV(), body.powerW());
+        }
         return ApiResponse.ok(null);
     }
 
@@ -52,5 +70,6 @@ public class DeviceInternalController {
         return ApiResponse.ok(deviceSlotService.inventorySnapshot(deviceId));
     }
 
-    record HeartbeatRequest(String appVersion, String firmwareVersion, Integer currentTempC) {}
+    record HeartbeatRequest(String appVersion, String firmwareVersion, Integer currentTempC,
+                            Double humidityPct, Double voltageV, Double powerW) {}
 }

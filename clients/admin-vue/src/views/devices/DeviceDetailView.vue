@@ -645,6 +645,88 @@
           </el-descriptions>
         </el-tab-pane>
 
+        <el-tab-pane label="温控与环境" name="temp-env">
+          <div class="temp-plan-box">
+            <div class="pane-head">
+              <h4>温控计划（分时目标温度）</h4>
+              <el-switch
+                v-model="tempPlanEnabled"
+                :disabled="!canEditTempPlan"
+                aria-label="启用温控计划"
+              />
+            </div>
+            <p class="muted">
+              按当日分钟排程，调度器每分钟把当前时段目标温度下发到柜机；00:00 未设置时沿用前一日最后时段。
+            </p>
+            <div v-for="(e, i) in tempPlanEntries" :key="i" class="temp-plan-row">
+              <el-time-select
+                v-model="e.time"
+                start="00:00"
+                step="00:30"
+                end="23:59"
+                :disabled="!canEditTempPlan"
+                placeholder="开始时间"
+                style="width: 130px"
+              />
+              <el-input-number
+                v-model="e.target"
+                :min="-30"
+                :max="30"
+                :step="1"
+                :disabled="!canEditTempPlan"
+                size="small"
+                controls-position="right"
+              />
+              <span class="muted">°C</span>
+              <el-button
+                v-if="canEditTempPlan"
+                size="small"
+                text
+                type="danger"
+                @click="tempPlanEntries.splice(i, 1)"
+                >删除</el-button
+              >
+            </div>
+            <div class="pane-actions">
+              <el-button v-if="canEditTempPlan" size="small" @click="addTempPlanEntry"
+                >+ 添加时间点</el-button
+              >
+              <el-button
+                v-if="canEditTempPlan"
+                type="primary"
+                size="small"
+                :loading="tempPlanSaving"
+                @click="saveTempPlan"
+                >保存并应用</el-button
+              >
+              <el-button size="small" :loading="tempPlanSaving" @click="applyTempPlanNow"
+                >立即应用</el-button
+              >
+            </div>
+          </div>
+
+          <div class="env-box">
+            <div class="pane-head">
+              <h4>环境监控（近 24h）</h4>
+              <el-button size="small" :icon="Refresh" @click="loadEnvReadings">刷新</el-button>
+            </div>
+            <el-table :data="envRows" size="small" border stripe>
+              <el-table-column label="指标" width="110">
+                <template #default="{ row }">{{ envTypeLabel(row.metricType) }}</template>
+              </el-table-column>
+              <el-table-column label="数值">
+                <template #default="{ row }">{{ row.value }}{{ envUnit(row.metricType) }}</template>
+              </el-table-column>
+              <el-table-column label="上报时间" width="190">
+                <template #default="{ row }">{{ formatDateTime(row.reportedAt) }}</template>
+              </el-table-column>
+            </el-table>
+            <p v-if="!envRows.length" class="muted">
+              暂无环境读数（设备心跳需携带湿度/电压/功耗字段）
+            </p>
+          </div>
+        </el-tab-pane>
+
         <el-tab-pane label="货道陈列" name="slots">
           <div class="slot-toolbar">
             <el-button
@@ -879,7 +961,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onActivated, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -889,6 +971,7 @@ import TableActions from '@/components/TableActions.vue';
 import SlotGrid from '@/components/SlotGrid.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { useAuthStore } from '@/stores/auth';
+import type { DeviceEnvReading, DeviceTempPlan } from '@aicabinet/shared-types';
 import type {
   DeviceInfo,
   DeviceSlot,
@@ -947,6 +1030,99 @@ const route = useRoute();
 const auth = useAuthStore();
 const { canAccessPath, goPath } = useNavAccess();
 const deviceId = route.params.id as string;
+
+const canEditTempPlan = computed(() => auth.hasPerm('ops:device:edit'));
+const tempPlanEnabled = ref(false);
+const tempPlanEntries = ref<{ time: string; target: number }[]>([]);
+const tempPlanSaving = ref(false);
+const envRows = ref<DeviceEnvReading[]>([]);
+
+function toHHMM(minute: number) {
+  return `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+}
+
+function fromHHMM(time: string) {
+  const [h, m] = time.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function addTempPlanEntry() {
+  tempPlanEntries.value.push({ time: '09:00', target: 5 });
+}
+
+async function loadTempPlan() {
+  try {
+    const dto = await api.request<DeviceTempPlan>(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/temp-plan`,
+      'GET'
+    );
+    tempPlanEnabled.value = !!dto?.enabled;
+    tempPlanEntries.value = (dto?.entries || []).map((e) => ({
+      time: toHHMM(e.startMinute),
+      target: e.targetTempC
+    }));
+  } catch {
+    // 静默：无排程或未授权时保持空态
+  }
+}
+
+async function saveTempPlan() {
+  tempPlanSaving.value = true;
+  try {
+    await api.request(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/temp-plan`,
+      'PUT',
+      {
+        enabled: tempPlanEnabled.value,
+        entries: tempPlanEntries.value.map((e) => ({
+          startMinute: fromHHMM(e.time),
+          targetTempC: e.target
+        }))
+      }
+    );
+    ElMessage.success('温控计划已保存并应用');
+    await loadTempPlan();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    tempPlanSaving.value = false;
+  }
+}
+
+async function applyTempPlanNow() {
+  tempPlanSaving.value = true;
+  try {
+    await api.request(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/temp-plan/apply`,
+      'POST'
+    );
+    ElMessage.success('已按当前时段下发目标温度');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '下发失败');
+  } finally {
+    tempPlanSaving.value = false;
+  }
+}
+
+async function loadEnvReadings() {
+  try {
+    envRows.value =
+      (await api.request<DeviceEnvReading[]>(
+        `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/env-readings?hours=24&limit=200`,
+        'GET'
+      )) || [];
+  } catch {
+    envRows.value = [];
+  }
+}
+
+function envTypeLabel(type: string) {
+  return ({ HUMIDITY: '湿度', VOLTAGE: '电压', POWER: '功耗' } as Record<string, string>)[type] || type;
+}
+
+function envUnit(type: string) {
+  return ({ HUMIDITY: '%', VOLTAGE: 'V', POWER: 'W' } as Record<string, string>)[type] || '';
+}
 const canEditSlots = computed(() => auth.hasPerm('ops:device:edit'));
 const canEditDevice = computed(() => auth.hasPerm('ops:device:edit'));
 const loading = ref(true);
@@ -965,6 +1141,13 @@ const lifeLoading = ref('');
 const cmdLoading = ref('');
 const tempDraft = ref<number | undefined>(undefined);
 const tab = ref('overview');
+
+watch(tab, (v) => {
+  if (v === 'temp-env') {
+    void loadTempPlan();
+    void loadEnvReadings();
+  }
+});
 const device = ref<DeviceRow | null>(null);
 const metrics = ref<Metrics | null>(null);
 const policy = ref<{
@@ -1640,6 +1823,39 @@ onActivated(() => {
 </script>
 
 <style scoped>
+.temp-plan-box,
+.env-box {
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+}
+.pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.pane-head h4 {
+  margin: 0;
+  font-size: 15px;
+}
+.temp-plan-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+}
+.pane-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+.muted {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
 .device-ops {
   display: flex;
   flex-direction: column;
