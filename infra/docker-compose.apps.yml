@@ -220,6 +220,7 @@ services:
   prometheus:
     volumes:
       - ./monitoring/prometheus.compose.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
     depends_on:
       trade-service:
         condition: service_started
