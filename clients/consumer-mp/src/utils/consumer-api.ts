@@ -597,6 +597,11 @@ export const consumerApi = {
     >(`/api/v2/orders?page=${page}&size=${size}`),
   getOrder: (orderId: string) =>
     request<import('@aicabinet/shared-types').OrderDetailDto>(`/api/v2/orders/${orderId}`),
+  payOrder: (orderId: string) =>
+    request<import('@aicabinet/shared-types').OrderDetailDto>(
+      `/api/v2/orders/${encodeURIComponent(orderId)}/pay`,
+      'POST'
+    ),
   fileDispute: (body: import('@aicabinet/shared-types').FileDisputeRequest) =>
     request<import('@aicabinet/shared-types').DisputeTicketDto>('/api/v2/disputes', 'POST', body),
   listMyDisputes: () =>

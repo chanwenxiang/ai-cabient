@@ -52,6 +52,9 @@
           <el-button v-hasPermi="['ops:coupon:create']" @click="showIssue = true"
             >手动发券</el-button
           >
+          <el-button v-hasPermi="['ops:coupon:create']" @click="openBatchIssue"
+            >批量发券</el-button
+          >
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
@@ -277,6 +280,33 @@
         <el-button type="primary" :loading="saving" @click="onIssueSubmit">发放</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="batchVisible" title="批量发券" width="480px" destroy-on-close>
+      <el-form label-width="80px">
+        <el-form-item label="优惠券">
+          <el-select v-model="batchForm.couponDefId" style="width: 100%">
+            <el-option
+              v-for="d in activeCoupons"
+              :key="d.couponDefId"
+              :label="d.couponName"
+              :value="d.couponDefId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="用户ID">
+          <el-input
+            v-model="batchForm.userIdsText"
+            type="textarea"
+            :rows="6"
+            placeholder="每行一个用户ID"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="batchVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="onBatchIssueSubmit">批量发放</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -330,6 +360,11 @@ watch([keyword, statusFilter], () => {
   page.value = 1;
 });
 const showIssue = ref(false);
+const batchVisible = ref(false);
+const batchForm = ref<{ couponDefId: number | null; userIdsText: string }>({
+  couponDefId: null,
+  userIdsText: ''
+});
 
 const {
   selectedKeys: selectedIds,
@@ -571,6 +606,40 @@ async function onIssueSubmit() {
     await api.request('/api/v2/coupons/issue', 'POST', issueForm.value);
     ElMessage.success('发券成功');
     showIssue.value = false;
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '发券失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
+function openBatchIssue() {
+  batchForm.value = { couponDefId: null, userIdsText: '' };
+  batchVisible.value = true;
+}
+
+async function onBatchIssueSubmit() {
+  if (!batchForm.value.couponDefId) {
+    ElMessage.warning('请选择优惠券');
+    return;
+  }
+  const userIds = batchForm.value.userIdsText
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter((s) => /^\d+$/.test(s))
+    .map(Number);
+  if (!userIds.length) {
+    ElMessage.warning('请至少填写一个有效的用户ID');
+    return;
+  }
+  saving.value = true;
+  try {
+    await api.request('/api/v2/coupons/batch-issue', 'POST', {
+      couponDefId: batchForm.value.couponDefId,
+      userIds
+    });
+    ElMessage.success(`已向 ${userIds.length} 个用户发券`);
+    batchVisible.value = false;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '发券失败');
   } finally {

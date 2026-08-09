@@ -560,6 +560,10 @@ export const merchantApi = {
   },
   exportSettlementsUrl: (from: string, to: string) =>
     `${API_BASE_URL}/api/v2/merchant/settlements/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+  exportOrdersUrl: (deviceId?: string) => {
+    const q = deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : '';
+    return `${API_BASE_URL}/api/v2/merchant/orders/export${q}`;
+  },
   exportDeviceReportsUrl: () => `${API_BASE_URL}/api/v2/merchant/device-reports/export`,
   replenishmentSuggestions: (deviceId: string) =>
     request<MerchantReplenishmentSuggest[]>(

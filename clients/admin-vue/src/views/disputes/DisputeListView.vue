@@ -536,7 +536,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { Link, Refresh, VideoCamera, View, Warning } from '@element-plus/icons-vue';
+import { CircleClose, Link, Refresh, RefreshLeft, VideoCamera, View, Warning } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
@@ -789,6 +789,12 @@ function rowActions(row: DisputeTicketDto): TableAction[] {
   if (row.orderId || row.deviceId) {
     actions.push({ key: 'order', label: '订单', icon: Link, overflow: true });
   }
+  if (row.status === 'RESOLVED' && auth.hasPerm('ops:dispute:resolve')) {
+    actions.push({ key: 'close', label: '关闭', icon: CircleClose, overflow: true });
+  }
+  if (row.status === 'CLOSED' && auth.hasPerm('ops:dispute:resolve')) {
+    actions.push({ key: 'reopen', label: '重开', icon: RefreshLeft, overflow: true });
+  }
   return actions;
 }
 
@@ -798,6 +804,40 @@ function onRowAction(key: string, row: DisputeTicketDto) {
   if (key === 'exception') goExceptions(row.deviceId);
   if (key === 'order') goOrders(row.deviceId, row.orderId);
   if (key === 'mapping') goVisionMapping(row);
+  if (key === 'close') void closeTicket(row);
+  if (key === 'reopen') void reopenTicket(row);
+}
+
+async function closeTicket(row: DisputeTicketDto) {
+  try {
+    await ElMessageBox.confirm(`确认关闭争议 ${row.ticketId}？关闭后仍可重开。`, '关闭争议', {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/disputes/${encodeURIComponent(row.ticketId)}/close`, 'POST', {});
+    ElMessage.success('已关闭');
+    await load(false);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '关闭失败');
+  }
+}
+
+async function reopenTicket(row: DisputeTicketDto) {
+  try {
+    await ElMessageBox.confirm(`确认重开争议 ${row.ticketId}？`, '重开争议', { type: 'warning' });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/disputes/${encodeURIComponent(row.ticketId)}/reopen`, 'POST', {});
+    ElMessage.success('已重开');
+    await load(false);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '重开失败');
+  }
 }
 
 function goVisionMapping(row?: DisputeTicketDto | null) {
