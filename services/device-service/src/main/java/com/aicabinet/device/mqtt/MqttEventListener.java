@@ -138,7 +138,10 @@ public class MqttEventListener implements MqttCallbackExtended {
         if (firmwareVersion == null) {
             firmwareVersion = textOrNull(node, "firmware_version");
         }
-        forwardHeartbeat(deviceId, appVersion, firmwareVersion, parseTemp(node));
+        forwardHeartbeat(deviceId, appVersion, firmwareVersion, parseTemp(node),
+                parseDouble(node, "humidityPct", "humidity_pct"),
+                parseDouble(node, "voltageV", "voltage_v"),
+                parseDouble(node, "powerW", "power_w"));
     }
 
     private static Integer parseTemp(JsonNode node) {
@@ -151,10 +154,22 @@ public class MqttEventListener implements MqttCallbackExtended {
         return null;
     }
 
+    private static Double parseDouble(JsonNode node, String camel, String snake) {
+        if (node.has(camel) && !node.get(camel).isNull()) {
+            return node.path(camel).asDouble();
+        }
+        if (node.has(snake) && !node.get(snake).isNull()) {
+            return node.path(snake).asDouble();
+        }
+        return null;
+    }
+
     /** 心跳仅用于运营后台在线状态，trade 短暂不可达时不影响开门购物流程。 */
-    private void forwardHeartbeat(String deviceId, String appVersion, String firmwareVersion, Integer currentTempC) {
+    private void forwardHeartbeat(String deviceId, String appVersion, String firmwareVersion, Integer currentTempC,
+                                  Double humidityPct, Double voltageV, Double powerW) {
         try {
-            tradeServiceClient.notifyHeartbeat(deviceId, appVersion, firmwareVersion, currentTempC);
+            tradeServiceClient.notifyHeartbeat(deviceId, appVersion, firmwareVersion, currentTempC,
+                    humidityPct, voltageV, powerW);
             metrics.recordHeartbeatForwarded();
         } catch (Exception e) {
             metrics.recordHeartbeatDropped();
