@@ -1,6 +1,12 @@
 <template>
   <view class="empty-state" :class="{ compact }">
-    <text v-if="icon" class="empty-icon">{{ icon }}</text>
+    <image
+      v-if="icon && icon.startsWith('/')"
+      class="empty-icon"
+      :src="icon"
+      mode="aspectFit"
+    />
+    <text v-else-if="icon" class="empty-icon">{{ icon }}</text>
     <text class="empty-title">{{ title }}</text>
     <text v-if="hint" class="empty-hint">{{ hint }}</text>
     <view v-if="$slots.default" class="empty-actions">

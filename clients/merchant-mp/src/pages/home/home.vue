@@ -59,7 +59,7 @@
           aria-label="补货任务"
           @click="goReplenishment()"
         >
-          <text class="quick-icon" aria-hidden="true">补</text>
+          <image class="quick-icon" :src="menuIcon('replenish')" mode="aspectFit" aria-hidden="true" />
           <text class="quick-label">补货任务</text>
           <text v-if="pendingTaskCount" class="quick-badge">{{ pendingTaskCount }}</text>
         </view>
@@ -70,7 +70,7 @@
           aria-label="柜机列表"
           @click="goTab('/pages/devices/devices')"
         >
-          <text class="quick-icon" aria-hidden="true">柜</text>
+          <image class="quick-icon" :src="menuIcon('cabinet')" mode="aspectFit" aria-hidden="true" />
           <text class="quick-label">柜机列表</text>
         </view>
         <view
@@ -80,7 +80,7 @@
           aria-label="待办事项"
           @click="goTab('/pages/alerts/alerts')"
         >
-          <text class="quick-icon" aria-hidden="true">待</text>
+          <image class="quick-icon" :src="menuIcon('pending')" mode="aspectFit" aria-hidden="true" />
           <text class="quick-label">待办事项</text>
           <text v-if="pendingCount" class="quick-badge">{{ pendingCount }}</text>
         </view>
@@ -213,6 +213,7 @@ import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
 import { formatMerchantNames } from '@/utils/merchant-display';
+import { menuIcon } from '@/utils/menu-icon';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
 import { mergeTodoItems } from '@/utils/todo-list';
 import type { AnnouncementDto, MerchantMe } from '@aicabinet/shared-types';

@@ -15,7 +15,7 @@
             <text class="banner-sub">{{ b.subtitle }}</text>
             <text class="banner-cta">立即查看 ›</text>
           </view>
-          <text class="banner-mark">{{ uiGlyph(b.emoji, '惠') }}</text>
+          <image class="banner-mark" :src="menuIcon('gift')" mode="aspectFit" />
         </view>
       </swiper-item>
     </swiper>
@@ -32,7 +32,7 @@
     <view v-if="loading" class="empty">加载中…</view>
     <empty-state
       v-else-if="!campaigns.length"
-      icon="热"
+  icon="/static/menu/hot.png"
       title="暂无进行中活动"
       hint="可先领券，或扫码开门购物"
     >
@@ -65,7 +65,7 @@ import {
   type MarketingBannerDto,
   type MarketingCampaignDto
 } from '@/utils/consumer-api';
-import { uiGlyph } from '@/utils/ui-glyph';
+import { menuIcon } from '@/utils/menu-icon';
 
 const banners = ref<MarketingBannerDto[]>([]);
 const campaigns = ref<MarketingCampaignDto[]>([]);

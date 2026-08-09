@@ -55,7 +55,7 @@
       </view>
       <empty-state
         v-if="!visibleItems.length"
-        icon="✅"
+  icon="/static/menu/check-circle.png"
         title="暂无待办事项"
         hint="争议、离线、低库存与临期告警都会集中显示在这里"
       >

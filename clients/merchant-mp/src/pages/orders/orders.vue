@@ -7,7 +7,7 @@
     </view>
     <empty-state
       v-else-if="!list.length"
-      icon="单"
+  icon="/static/menu/orders.png"
       title="暂无柜机订单"
       hint="有成交后会显示在这里"
     />

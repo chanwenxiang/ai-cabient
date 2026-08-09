@@ -5,7 +5,7 @@
       <text class="err">{{ error }}</text>
       <button class="btn-primary" @click="bootstrap">重试</button>
     </view>
-    <empty-state v-else-if="!ticket" icon="审" title="未找到审核单" hint="可能已归档或尚未生成" />
+  <empty-state v-else-if="!ticket" icon="/static/menu/disputes.png" title="未找到审核单" hint="可能已归档或尚未生成" />
     <view v-else-if="ticket">
       <view class="hero" :class="'tone-' + copy.tone">
         <text class="hero-icon">{{ copy.icon }}</text>

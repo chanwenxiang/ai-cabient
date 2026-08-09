@@ -42,26 +42,26 @@
 
     <view class="quick-grid">
       <view class="quick-item" @click="goOrders">
-        <text class="quick-icon">订</text>
+        <image class="quick-icon" :src="menuIcon('orders')" mode="aspectFit" />
         <text class="quick-label">订单</text>
       </view>
       <view class="quick-item" @click="goCoupons">
-        <text class="quick-icon">券</text>
+        <image class="quick-icon" :src="menuIcon('coupons')" mode="aspectFit" />
         <text class="quick-label">优惠券</text>
       </view>
       <view class="quick-item" @click="goMember">
-        <text class="quick-icon">会</text>
+        <image class="quick-icon" :src="menuIcon('member')" mode="aspectFit" />
         <text class="quick-label">会员</text>
       </view>
       <view class="quick-item" @click="goRecharge">
-        <text class="quick-icon">充</text>
+        <image class="quick-icon" :src="menuIcon('recharge')" mode="aspectFit" />
         <text class="quick-label">充值</text>
       </view>
     </view>
 
     <view class="menu-list">
       <view class="menu-cell" @click="goIndex">
-        <text class="menu-icon">购</text>
+        <image class="menu-icon" :src="menuIcon('shopping')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">开门购物</text>
           <text class="menu-desc">扫码开门，取货即走</text>
@@ -69,7 +69,7 @@
         <text class="menu-arrow">›</text>
       </view>
       <view class="menu-cell" @click="goMarketing">
-        <text class="menu-icon">热</text>
+        <image class="menu-icon" :src="menuIcon('hot')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">热门活动</text>
           <text class="menu-desc">满减 · 新客礼 · 限时活动</text>
@@ -77,7 +77,7 @@
         <text class="menu-arrow">›</text>
       </view>
       <view v-if="authed" class="menu-cell" @click="toggleTransactions">
-        <text class="menu-icon">余</text>
+        <image class="menu-icon" :src="menuIcon('balance')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">余额明细</text>
           <text class="menu-desc">购物扣款、退款与充值记录</text>
@@ -109,7 +109,7 @@
         </view>
       </view>
       <view class="menu-cell" @click="goAnnouncements">
-        <text class="menu-icon">告</text>
+        <image class="menu-icon" :src="menuIcon('notice')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">通知公告</text>
           <text class="menu-desc">平台维护、活动与规则变更</text>
@@ -117,7 +117,7 @@
         <text class="menu-arrow">›</text>
       </view>
       <view class="menu-cell" @click="goHelp">
-        <text class="menu-icon">助</text>
+        <image class="menu-icon" :src="menuIcon('help')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">帮助与客服</text>
           <text class="menu-desc">常见问题、热线与账单申诉说明</text>
@@ -125,7 +125,7 @@
         <text class="menu-arrow">›</text>
       </view>
       <view class="menu-cell" @click="goReport">
-        <text class="menu-icon">修</text>
+        <image class="menu-icon" :src="menuIcon('repair')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">故障报修</text>
           <text class="menu-desc">打不开门、关不上门等</text>
@@ -133,7 +133,7 @@
         <text class="menu-arrow">›</text>
       </view>
       <view class="menu-cell" @click="goFeedback">
-        <text class="menu-icon">馈</text>
+        <image class="menu-icon" :src="menuIcon('feedback')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">意见反馈</text>
           <text class="menu-desc">投诉、建议或表扬</text>
@@ -141,7 +141,7 @@
         <text class="menu-arrow">›</text>
       </view>
       <view class="menu-cell" @click="goPolicy('agreement')">
-        <text class="menu-icon">约</text>
+        <image class="menu-icon" :src="menuIcon('agreement')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">用户协议</text>
           <text class="menu-desc">服务条款与使用规则</text>
@@ -149,7 +149,7 @@
         <text class="menu-arrow">›</text>
       </view>
       <view class="menu-cell" @click="goPolicy('privacy')">
-        <text class="menu-icon">隐</text>
+        <image class="menu-icon" :src="menuIcon('privacy')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">隐私政策</text>
           <text class="menu-desc">信息收集、使用与保护</text>
@@ -157,7 +157,7 @@
         <text class="menu-arrow">›</text>
       </view>
       <view class="menu-cell" @click="goPolicy('refund')">
-        <text class="menu-icon">退</text>
+        <image class="menu-icon" :src="menuIcon('refund')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">退款规则</text>
           <text class="menu-desc">自助退款与人工申诉</text>
@@ -165,7 +165,7 @@
         <text class="menu-arrow">›</text>
       </view>
       <view class="menu-cell" @click="goPolicy('billing')">
-        <text class="menu-icon">账</text>
+        <image class="menu-icon" :src="menuIcon('billing')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">账单说明</text>
           <text class="menu-desc">订单构成与余额明细</text>
@@ -183,7 +183,7 @@
         :class="{ disabled: rechargeLoading }"
         @click="onWeChatRecharge"
       >
-        <text class="menu-icon">微</text>
+        <image class="menu-icon" :src="menuIcon('wechat')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">{{ wechatPayLive ? '微信支付充值' : '微信模拟充值' }}</text>
           <text class="menu-desc">{{
@@ -198,7 +198,7 @@
         :class="{ disabled: rechargeLoading }"
         @click="onAlipayRecharge"
       >
-        <text class="menu-icon">支</text>
+        <image class="menu-icon" :src="menuIcon('alipay')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">{{
             mockRechargeEnabled ? '支付宝模拟充值' : '支付宝沙箱充值'
@@ -215,7 +215,7 @@
         :class="{ disabled: rechargeLoading }"
         @click="onMockRecharge"
       >
-        <text class="menu-icon">模</text>
+        <image class="menu-icon" :src="menuIcon('mock')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">模拟充值</text>
           <text class="menu-desc">本地发放余额，不真实扣款</text>
@@ -223,7 +223,7 @@
         <text class="menu-badge">{{ rechargeLoading ? '处理中' : '充 ¥20' }}</text>
       </view>
       <view class="menu-cell" @click="goLogin">
-        <text class="menu-icon">号</text>
+        <image class="menu-icon" :src="menuIcon('phone')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">手机号验证（兜底）</text>
           <text class="menu-desc">短信 / 密码登录</text>
@@ -234,7 +234,7 @@
 
     <view v-if="authed" class="menu-list logout-wrap">
       <view class="menu-cell danger-cell" @click="onLogout">
-        <text class="menu-icon">出</text>
+        <image class="menu-icon" :src="menuIcon('logout')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title danger">退出登录</text>
         </view>
@@ -255,6 +255,7 @@ import {
   getConsumerToken
 } from '@/utils/consumer-api';
 import { formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
+import { menuIcon } from '@/utils/menu-icon';
 import {
   availableCents,
   isPayReady,

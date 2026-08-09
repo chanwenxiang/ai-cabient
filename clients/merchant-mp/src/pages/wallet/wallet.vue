@@ -7,7 +7,7 @@
 
     <empty-state
       v-if="!loading && overview && !overview.bound"
-      icon="钱"
+  icon="/static/menu/wallet.png"
       title="暂无商户钱包"
       hint="当前账号未绑定开通经营工具的商户，无法查看可提现余额"
     />
@@ -53,7 +53,7 @@
         <empty-state
           v-if="!(overview.recentWithdraws || []).length"
           compact
-          icon="提"
+  icon="/static/menu/wallet.png"
           title="暂无提现记录"
           hint="提交提现后会出现在这里"
         />
@@ -73,7 +73,7 @@
         <empty-state
           v-if="!(overview.recentLedgers || []).length"
           compact
-          icon="流"
+  icon="/static/menu/billing.png"
           title="暂无流水记录"
           hint="分账入账与提现变动会显示在这里"
         />

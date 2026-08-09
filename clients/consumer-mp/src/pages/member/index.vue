@@ -27,22 +27,22 @@
 
     <view class="quick-grid">
       <view class="quick" @click="goCoupons">
-        <text class="quick-mark">券</text>
+        <image class="quick-mark" :src="menuIcon('coupons')" mode="aspectFit" />
         <text class="quick-title">我的券</text>
         <text class="quick-desc">{{ couponCount }} 张可用</text>
       </view>
       <view class="quick" @click="goMarketing">
-        <text class="quick-mark">热</text>
+        <image class="quick-mark" :src="menuIcon('hot')" mode="aspectFit" />
         <text class="quick-title">热门活动</text>
         <text class="quick-desc">本周上新</text>
       </view>
       <view class="quick" @click="goOrders">
-        <text class="quick-mark">单</text>
+        <image class="quick-mark" :src="menuIcon('orders')" mode="aspectFit" />
         <text class="quick-title">我的订单</text>
         <text class="quick-desc">消费记录</text>
       </view>
       <view class="quick" @click="goShop">
-        <text class="quick-mark">购</text>
+        <image class="quick-mark" :src="menuIcon('shopping')" mode="aspectFit" />
         <text class="quick-title">去购物</text>
         <text class="quick-desc">扫码开门</text>
       </view>
@@ -52,7 +52,7 @@
       <text class="section-title">会员权益</text>
       <view class="benefit-list">
         <view v-for="b in benefits" :key="b.title" class="benefit-row">
-          <text class="benefit-mark">{{ b.mark }}</text>
+          <image class="benefit-mark" :src="menuIcon(b.mark)" mode="aspectFit" />
           <view class="benefit-copy">
             <text class="benefit-title">{{ b.title }}</text>
             <text class="benefit-desc">{{ b.desc }}</text>
@@ -86,6 +86,7 @@
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth, type MemberProfileDto } from '@/utils/consumer-api';
+import { menuIcon } from '@/utils/menu-icon';
 
 const profile = ref<MemberProfileDto | null>(null);
 const couponCount = ref(0);
@@ -104,9 +105,9 @@ function formatYuan(n: number) {
 const spentText = computed(() => formatYuan(Number(profile.value?.totalSpent || 0)));
 
 const benefits = [
-  { mark: '券', title: '优惠券立减', desc: '结算时自动选用可用优惠券' },
-  { mark: '级', title: '消费升级', desc: '累计消费提升会员等级' },
-  { mark: '优', title: '活动优先', desc: '会员专享满减与新客礼，活动页直达' }
+  { mark: 'coupons', title: '优惠券立减', desc: '结算时自动选用可用优惠券' },
+  { mark: 'member', title: '消费升级', desc: '累计消费提升会员等级' },
+  { mark: 'hot', title: '活动优先', desc: '会员专享满减与新客礼，活动页直达' }
 ];
 
 onShow(async () => {

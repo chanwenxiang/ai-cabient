@@ -146,6 +146,26 @@ function Invoke-E2eApi {
         [hashtable]$Headers = @{},
         $Body = $null
     )
+    # 运营后台密码登录需要图形验证码：自动从 /captcha 领取并把 Redis 中的答案附到请求体，
+    # 让既有 e2e 脚本在 captcha-enabled 环境下无需改造。
+    if ($Path -eq '/api/v2/auth/admin-password-login') {
+        $needCaptcha = ($null -eq $Body) -or (-not ($Body -is [hashtable])) -or
+            ([string]::IsNullOrWhiteSpace([string]$Body.captchaId))
+        if ($needCaptcha) {
+            $capResp = Invoke-RestMethod -Method GET -Uri "$BaseUrl/api/v2/auth/captcha" -ContentType "application/json"
+            if ($capResp.code -ne 0 -or [string]::IsNullOrWhiteSpace($capResp.data.captchaId)) {
+                throw "captcha fetch failed: $($capResp.message)"
+            }
+            $capId = $capResp.data.captchaId
+            $code = (docker exec ai-cabinet-redis-1 redis-cli GET "aicabinet:captcha:$capId" 2>&1).Trim()
+            if ([string]::IsNullOrWhiteSpace($code)) {
+                throw "captcha code not found in redis for id=$capId"
+            }
+            if ($null -eq $Body -or -not ($Body -is [hashtable])) { $Body = @{} }
+            $Body.captchaId = $capId
+            $Body.captchaCode = $code
+        }
+    }
     $uri = "$BaseUrl$Path"
     $params = @{
         Method      = $Method
