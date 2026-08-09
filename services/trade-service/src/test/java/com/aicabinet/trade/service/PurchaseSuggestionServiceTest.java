@@ -14,6 +14,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.sql.Date;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -119,6 +123,105 @@ class PurchaseSuggestionServiceTest {
 
         verify(warehouseInventoryRepository).sumQtyBySku("WH-001");
         verify(purchaseOrderLineRepository).pendingQtyBySku("WH-001");
+    }
+
+    @Test
+    void suggest_shouldUseTrendForecastWhenSalesRising() {
+        int[] series = new int[28];
+        for (int i = 0; i < 28; i++) {
+            series[i] = i; // 0..27，近 7 日 21..27 共 168
+        }
+        when(orderLineRepository.sumSoldQtyAllSince(any()))
+                .thenReturn(rows(new Object[]{"SKU-A", 168}),
+                        rows(new Object[]{"SKU-A", 287}));
+        when(orderLineRepository.soldQtyDailySince(any()))
+                .thenReturn(dailyRows("SKU-A", series));
+        when(warehouseInventoryRepository.sumQtyBySku(any())).thenReturn(rows());
+        when(purchaseOrderLineRepository.pendingQtyBySku(any())).thenReturn(rows());
+        when(skuCatalogRepository.findAllByOrderBySkuIdAsc())
+                .thenReturn(List.of(sku("SKU-A", "可乐")));
+
+        List<PurchaseSuggestionDto> result = service.suggest(1L, null, 2, 14);
+
+        // 上升趋势：日均 24，斜率 1 件/天，覆盖 16 天 → 预测日均 25，需求 400；
+        // 安全库存 = z(0.95)=1.645 × σ(近14日≈4.1833) × √2 ≈ 10
+        assertEquals(1, result.size());
+        PurchaseSuggestionDto a = result.get(0);
+        assertEquals(410, a.suggestQty());
+        assertEquals(10, a.safetyStockQty());
+        assertEquals("TREND_FORECAST", a.suggestReason());
+        assertEquals(25.0, a.forecastDailySales(), 0.001);
+        assertEquals(1.0, a.trendPerDay(), 0.001);
+        assertEquals(24.0, a.avgDailySales(), 0.001);
+    }
+
+    @Test
+    void suggest_shouldReduceQtyWhenSalesFalling() {
+        int[] series = new int[28];
+        for (int i = 0; i < 28; i++) {
+            series[i] = 27 - i; // 27..0，近 7 日 6..0 共 21，近 14 日共 91
+        }
+        when(orderLineRepository.sumSoldQtyAllSince(any()))
+                .thenReturn(rows(new Object[]{"SKU-A", 21}),
+                        rows(new Object[]{"SKU-A", 91}));
+        when(orderLineRepository.soldQtyDailySince(any()))
+                .thenReturn(dailyRows("SKU-A", series));
+        when(warehouseInventoryRepository.sumQtyBySku(any())).thenReturn(rows());
+        when(purchaseOrderLineRepository.pendingQtyBySku(any())).thenReturn(rows());
+        when(skuCatalogRepository.findAllByOrderBySkuIdAsc())
+                .thenReturn(List.of(sku("SKU-A", "可乐")));
+
+        List<PurchaseSuggestionDto> result = service.suggest(1L, null, 2, 14);
+
+        // 下降趋势：日均 3，斜率 -1 → 预测日均 2，需求 32 + 安全库存 10 = 42（低于销量驱动 48）
+        assertEquals(1, result.size());
+        PurchaseSuggestionDto a = result.get(0);
+        assertEquals(42, a.suggestQty());
+        assertEquals(10, a.safetyStockQty());
+        assertEquals("TREND_FORECAST", a.suggestReason());
+        assertEquals(2.0, a.forecastDailySales(), 0.001);
+        assertEquals(-1.0, a.trendPerDay(), 0.001);
+    }
+
+    @Test
+    void suggest_shouldStaySalesDrivenWhenTrendFlat() {
+        int[] series = new int[28];
+        java.util.Arrays.fill(series, 3);
+        when(orderLineRepository.sumSoldQtyAllSince(any()))
+                .thenReturn(rows(new Object[]{"SKU-A", 21}),
+                        rows(new Object[]{"SKU-A", 42}));
+        when(orderLineRepository.soldQtyDailySince(any()))
+                .thenReturn(dailyRows("SKU-A", series));
+        when(warehouseInventoryRepository.sumQtyBySku(any())).thenReturn(rows());
+        when(purchaseOrderLineRepository.pendingQtyBySku(any())).thenReturn(rows());
+        when(skuCatalogRepository.findAllByOrderBySkuIdAsc())
+                .thenReturn(List.of(sku("SKU-A", "可乐")));
+
+        List<PurchaseSuggestionDto> result = service.suggest(1L, null, 2, 14);
+
+        assertEquals(1, result.size());
+        PurchaseSuggestionDto a = result.get(0);
+        assertEquals(48, a.suggestQty());
+        assertEquals(0, a.safetyStockQty());
+        assertEquals("SALES_DRIVEN", a.suggestReason());
+        assertEquals(0.0, a.trendPerDay(), 0.001);
+        assertEquals(3.0, a.forecastDailySales(), 0.001);
+    }
+
+    private static List<Object[]> dailyRows(String skuId, int... quantities) {
+        List<Object[]> rows = new ArrayList<>();
+        LocalDate today = LocalDate.now(ZoneId.of("Asia/Shanghai"));
+        int window = quantities.length;
+        for (int i = 0; i < window; i++) {
+            if (quantities[i] > 0) {
+                rows.add(new Object[]{
+                        skuId,
+                        Date.valueOf(today.minusDays(window - 1L - i)),
+                        quantities[i]
+                });
+            }
+        }
+        return rows;
     }
 
     private static SkuCatalog sku(String skuId, String skuName) {

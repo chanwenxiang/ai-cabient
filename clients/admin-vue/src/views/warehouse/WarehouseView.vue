@@ -565,12 +565,33 @@
                   {{ Number(row.avgDailySales ?? 0).toFixed(2) }}
                 </template>
               </el-table-column>
+              <el-table-column label="预测日均" min-width="88" align="center">
+                <template #default="{ row }">
+                  {{ Number(row.forecastDailySales ?? row.avgDailySales ?? 0).toFixed(2) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="日均趋势" min-width="88" align="center">
+                <template #default="{ row }">
+                  <span v-if="Number(row.trendPerDay ?? 0) > 0" class="trend-up"
+                    >+{{ Number(row.trendPerDay).toFixed(2) }}</span
+                  >
+                  <span v-else-if="Number(row.trendPerDay ?? 0) < 0" class="trend-down"
+                    >{{ Number(row.trendPerDay).toFixed(2) }}</span
+                  >
+                  <span v-else>—</span>
+                </template>
+              </el-table-column>
               <el-table-column label="仓库库存" prop="onHandQty" min-width="88" align="center" />
               <el-table-column label="待收采购" prop="pendingPoQty" min-width="88" align="center" />
               <el-table-column label="覆盖天数" prop="coverageDays" min-width="88" align="center" />
               <el-table-column label="建议采购量" min-width="104" align="center">
                 <template #default="{ row }">
                   <span class="cell-id">{{ row.suggestQty }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="安全库存" min-width="88" align="center">
+                <template #default="{ row }">
+                  {{ row.safetyStockQty ?? 0 }}
                 </template>
               </el-table-column>
               <el-table-column label="建议理由" min-width="110" align="center">
@@ -2695,6 +2716,7 @@ function skuName(id: string) {
 function suggestionReasonText(code: string) {
   const map: Record<string, string> = {
     SALES_DRIVEN: '销量驱动',
+    TREND_FORECAST: '趋势预测',
     LOW_STOCK: '库存不足'
   };
   return map[code] || code || '—';
@@ -3902,6 +3924,16 @@ watch(
 </script>
 
 <style scoped>
+.trend-up {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+
+.trend-down {
+  color: var(--el-color-success);
+  font-weight: 600;
+}
+
 .page-card-head {
   display: flex;
   justify-content: space-between;

@@ -26,7 +26,7 @@ class SalesVelocityServiceTest {
 
     @BeforeEach
     void setUp() {
-        salesVelocityService = new SalesVelocityService(lineRepository, new RopProperties(2, 1));
+        salesVelocityService = new SalesVelocityService(lineRepository, new RopProperties());
     }
 
     @Test

@@ -70,6 +70,21 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
         return ColumnMapRows.toObjectRows(_sumSoldQtyAllSince(since), 2);
     }
 
+    /** 按 SKU + 自然日（Asia/Shanghai）聚合销量，供采购建议趋势预测使用。 */
+    List<LinkedHashMap<String, Object>> _soldQtyDailySince(@Param("since") Instant since);
+
+    default List<Object[]> soldQtyDailySince(Instant since) {
+        return ColumnMapRows.toObjectRows(_soldQtyDailySince(since), 3);
+    }
+
+    /** 按货道聚合销量/营收（货道热区），仅统计有 slot_id 的订单行。 */
+    List<LinkedHashMap<String, Object>> _slotBreakdownByDeviceSince(
+            @Param("deviceId") String deviceId, @Param("since") Instant since);
+
+    default List<Object[]> slotBreakdownByDeviceSince(String deviceId, Instant since) {
+        return ColumnMapRows.toObjectRows(_slotBreakdownByDeviceSince(deviceId, since), 5);
+    }
+
     long sumCogsBetween(@Param("start") Instant start, @Param("end") Instant end);
 
     List<LinkedHashMap<String, Object>> _skuBreakdownSince(@Param("since") Instant since);
