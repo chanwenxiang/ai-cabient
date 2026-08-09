@@ -135,6 +135,20 @@ export class ApiClient {
     );
   }
 
+  verifyTwoFactor(challengeToken: string, code: string) {
+    return this.request<LoginResponse>('/api/v2/auth/admin-2fa/verify', 'POST', {
+      challengeToken,
+      code
+    });
+  }
+
+  recoveryTwoFactor(challengeToken: string, recoveryCode: string) {
+    return this.request<LoginResponse>('/api/v2/auth/admin-2fa/recovery', 'POST', {
+      challengeToken,
+      recoveryCode
+    });
+  }
+
   fetchCaptcha() {
     return this.request<{ captchaId: string; imageBase64: string }>(
       '/api/v2/auth/captcha',

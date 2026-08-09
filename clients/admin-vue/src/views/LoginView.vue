@@ -17,7 +17,7 @@
         <h1>AI开门柜</h1>
         <p class="sub">运营管理系统</p>
       </div>
-      <el-form label-position="top" @submit.prevent="onSubmit">
+      <el-form v-if="!twoFactorStep" label-position="top" @submit.prevent="onSubmit">
         <el-form-item label="手机号">
           <el-input
             ref="phoneInput"
@@ -90,6 +90,47 @@
             <el-checkbox v-model="rememberPassword" size="small">记住密码</el-checkbox>
           </div>
           <button type="button" class="link-btn" @click="openResetDialog">忘记密码？</button>
+        </div>
+      </el-form>
+      <el-form v-else label-position="top" @submit.prevent="onSubmitTwoFactor">
+        <div class="twofa-head">
+          <p class="twofa-title">双因子验证</p>
+          <p class="twofa-sub">
+            {{
+              usingRecovery
+                ? '请输入 8 个后备码之一（形如 XXXXX-XXXXX-XXXXX）'
+                : '请打开身份验证器 App，输入当前 6 位动态码'
+            }}
+          </p>
+        </div>
+        <el-form-item :label="usingRecovery ? '后备码' : '动态码'">
+          <el-input
+            ref="twoFactorInput"
+            v-model="twoFactorCode"
+            maxlength="20"
+            autocomplete="one-time-code"
+            spellcheck="false"
+            :placeholder="usingRecovery ? 'XXXXX-XXXXX-XXXXX' : '6 位动态码'"
+            size="large"
+            :disabled="loading"
+            @input="err = ''"
+            @keyup.enter="onSubmitTwoFactor"
+          />
+        </el-form-item>
+        <el-button
+          type="primary"
+          native-type="submit"
+          :loading="loading"
+          :disabled="loading"
+          class="submit-btn"
+          >验证并登录</el-button
+        >
+        <p v-if="err" class="err" role="alert">{{ err }}</p>
+        <div class="twofa-extras">
+          <button type="button" class="link-btn" @click="usingRecovery = !usingRecovery">
+            {{ usingRecovery ? '改用动态码' : '使用后备码登录' }}
+          </button>
+          <button type="button" class="link-btn" @click="backToPassword">返回密码登录</button>
         </div>
       </el-form>
       <p v-if="ENABLE_TEST_TOOLS" class="hint">
@@ -250,6 +291,9 @@ const captchaImage = ref('');
 const captchaLoading = ref(false);
 const loading = ref(false);
 const err = ref('');
+const twoFactorStep = ref(false);
+const twoFactorCode = ref('');
+const usingRecovery = ref(false);
 const rememberPhone = ref(localStorage.getItem('admin_remember_phone') !== '0');
 const resetVisible = ref(false);
 const resetSaving = ref(false);
@@ -397,6 +441,24 @@ onMounted(async () => {
   else captchaInput.value?.focus?.();
 });
 
+async function finishLogin(normalizedPhone: string) {
+  if (rememberPhone.value) {
+    localStorage.setItem('admin_remember_phone', '1');
+    localStorage.setItem('admin_phone', normalizedPhone);
+  } else {
+    localStorage.removeItem('admin_phone');
+    localStorage.setItem('admin_remember_phone', '0');
+  }
+  if (rememberPassword.value) {
+    localStorage.setItem(PW_FLAG_KEY, '1');
+    localStorage.setItem(PW_STORE_KEY, encodePassword(password.value));
+  } else {
+    localStorage.setItem(PW_FLAG_KEY, '0');
+    localStorage.removeItem(PW_STORE_KEY);
+  }
+  router.replace(safeRedirectPath(route.query.redirect));
+}
+
 async function onSubmit() {
   const normalizedPhone = phone.value.trim();
   if (!/^1\d{10}$/.test(normalizedPhone)) {
@@ -419,28 +481,45 @@ async function onSubmit() {
   loading.value = true;
   err.value = '';
   try {
-    await auth.login(normalizedPhone, password.value, {
+    const result = await auth.login(normalizedPhone, password.value, {
       captchaId: captchaId.value,
       captchaCode: captchaCode.value.trim()
     });
-    if (rememberPhone.value) {
-      localStorage.setItem('admin_remember_phone', '1');
-      localStorage.setItem('admin_phone', normalizedPhone);
-    } else {
-      localStorage.removeItem('admin_phone');
-      localStorage.setItem('admin_remember_phone', '0');
+    if (result?.twoFactorRequired) {
+      twoFactorStep.value = true;
+      twoFactorCode.value = '';
+      usingRecovery.value = false;
+      return;
     }
-    if (rememberPassword.value) {
-      localStorage.setItem(PW_FLAG_KEY, '1');
-      localStorage.setItem(PW_STORE_KEY, encodePassword(password.value));
-    } else {
-      localStorage.setItem(PW_FLAG_KEY, '0');
-      localStorage.removeItem(PW_STORE_KEY);
-    }
-    router.replace(safeRedirectPath(route.query.redirect));
+    await finishLogin(normalizedPhone);
   } catch (e) {
     err.value = e instanceof Error ? e.message : '登录失败';
     await loadCaptcha();
+  } finally {
+    loading.value = false;
+  }
+}
+
+function backToPassword() {
+  twoFactorStep.value = false;
+  twoFactorCode.value = '';
+  usingRecovery.value = false;
+}
+
+async function onSubmitTwoFactor() {
+  const code = twoFactorCode.value.trim();
+  if (!code) {
+    err.value = usingRecovery.value ? '请输入后备码' : '请输入动态码';
+    return;
+  }
+  loading.value = true;
+  err.value = '';
+  try {
+    await auth.completeTwoFactor(code, usingRecovery.value);
+    await finishLogin(phone.value.trim());
+  } catch (e) {
+    err.value = e instanceof Error ? e.message : '验证失败';
+    twoFactorCode.value = '';
   } finally {
     loading.value = false;
   }
@@ -694,6 +773,27 @@ async function onSubmit() {
   margin: 12px 0 0;
   text-align: center;
   font-size: 0.875rem;
+}
+.twofa-head {
+  margin-bottom: 4px;
+}
+.twofa-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+.twofa-sub {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+.twofa-extras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
 }
 .login-extras {
   display: flex;

@@ -112,10 +112,30 @@ public class AuthService {
 
     @Transactional
     public LoginResponse adminLoginByPassword(PasswordLoginRequest request) {
-        LoginResponse response = loginByPassword(request);
-        requireOperator(response.userId());
-        requireActiveAccount(response.userId());
-        return response;
+        String phone = normalizePhone(request.phoneNumber());
+        if (!phone.matches("1\\d{10}")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
+        }
+        UserInfo user = requireExistingUser(phone);
+        verifyPassword(user, request.password());
+        requireOperator(user.getUserId());
+        requireActiveAccount(user.getUserId());
+        loginThrottleService.clearFailures(phone);
+        if (user.isTotpEnabled()) {
+            String challenge = jwtService.createTwoFactorChallengeToken(user.getUserId());
+            return new LoginResponse(challenge, user.getUserId(), 300L,
+                    serverBootMarker.epochMillis(), authProperties.cookieEnabled(), true);
+        }
+        return tokenFor(user);
+    }
+
+    /** 2FA 校验通过后完成登录：不重新验证密码，仅确认账号可用并签发正式 token。 */
+    @Transactional
+    public LoginResponse finalizeTwoFactorLogin(Long userId) {
+        requireActiveAccount(userId);
+        UserInfo user = userInfoRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        return tokenFor(user);
     }
 
     /** 运营后台忘记密码：短信验证码 + 图形验证码校验后重置。 */
@@ -257,7 +277,7 @@ public class AuthService {
     private LoginResponse tokenFor(UserInfo user) {
         String token = jwtService.createToken(user.getUserId());
         return new LoginResponse(token, user.getUserId(), jwtService.getExpirationSeconds(),
-                serverBootMarker.epochMillis(), authProperties.cookieEnabled());
+                serverBootMarker.epochMillis(), authProperties.cookieEnabled(), false);
     }
 
     public long currentServerBootEpoch() {

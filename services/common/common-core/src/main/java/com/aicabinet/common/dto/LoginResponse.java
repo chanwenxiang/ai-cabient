@@ -5,5 +5,6 @@ public record LoginResponse(
         Long userId,
         long expiresInSeconds,
         long serverBootEpoch,
-        boolean cookieEnabled
+        boolean cookieEnabled,
+        boolean twoFactorRequired
 ) {}
