@@ -18,6 +18,139 @@ export interface LoginResponse {
   serverBootEpoch?: number;
   /** 服务端已写入 HttpOnly 会话 Cookie 时，浏览器端无需持久化 token */
   cookieEnabled?: boolean;
+  /** 密码已通过但需完成双因子认证；token 为短时 challenge，须调用 2FA 完成登录 */
+  twoFactorRequired?: boolean;
+}
+
+export interface TwoFactorEnroll {
+  secret: string;
+  otpauthUri: string;
+  recoveryCodes: string[];
+}
+
+export interface TwoFactorStatus {
+  enabled: boolean;
+}
+
+export interface DeviceTempPlanEntry {
+  entryId?: number;
+  startMinute: number;
+  targetTempC: number;
+}
+
+export interface DeviceTempPlan {
+  deviceId: string;
+  enabled: boolean;
+  entries: DeviceTempPlanEntry[];
+}
+
+export interface DeviceEnvReading {
+  deviceId: string;
+  metricType: string;
+  value: number;
+  reportedAt?: string;
+}
+
+export interface MediaAssetDto {
+  assetId: number;
+  title: string;
+  assetType: string;
+  storageUri?: string;
+  previewUrl?: string;
+  durationSeconds: number;
+  status: string;
+  createdAt?: string;
+}
+
+export interface FootfallOverview {
+  totalOpens: number;
+  totalPaidOrders: number;
+  revenueCents: number;
+  conversionRate: number;
+  avgOrderValueCents: number;
+  repeatBuyers: number;
+  deviceCount: number;
+}
+
+export interface FootfallDevice {
+  deviceId: string;
+  deviceName: string;
+  opens: number;
+  orders: number;
+  revenueCents: number;
+  conversionRate: number;
+  revenuePerDeviceCents: number;
+}
+
+export interface HourlyHeat {
+  hour: number;
+  orders: number;
+  revenueCents: number;
+}
+
+export interface SkuHeat {
+  skuId: string;
+  skuName: string;
+  qtySold: number;
+  revenueCents: number;
+}
+
+export interface FootfallAnalytics {
+  overview: FootfallOverview;
+  devices: FootfallDevice[];
+  hourly: HourlyHeat[];
+  topSkus: SkuHeat[];
+}
+
+export interface SlotHeat {
+  slotId: string;
+  rowNo: number;
+  colNo: number;
+  skuId: string;
+  skuName: string;
+  qtySold: number;
+  revenueCents: number;
+  heatLevel: number;
+}
+
+export interface OrgNodeDto {
+  nodeId: number;
+  parentId?: number;
+  name: string;
+  nodeType: string;
+  sortOrder: number;
+  enabled: boolean;
+  deviceIds: string[];
+  children: OrgNodeDto[];
+}
+
+export interface SiteContractDto {
+  contractId: number;
+  deviceId: string;
+  deviceName: string;
+  siteName: string;
+  address?: string;
+  landlordName?: string;
+  landlordPhone?: string;
+  startDate?: string;
+  endDate?: string;
+  monthlyFeeCents: number;
+  status: string;
+  remark?: string;
+  updatedAt?: string;
+}
+
+export interface AdCampaignDto {
+  campaignId: number;
+  name: string;
+  status: string;
+  deviceScope: string;
+  startAt?: string;
+  endAt?: string;
+  assetIds: number[];
+  deviceIds: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface DeviceInfo {
@@ -346,6 +479,47 @@ export interface MerchantSkuSales {
   revenueCents: number;
   cogsCents: number;
   grossMarginCents: number;
+}
+
+/** 商品动销/补货点（/merchant/analytics/velocity） */
+export interface MerchantSkuVelocity {
+  skuId: string;
+  skuName: string;
+  soldQty7d: number;
+  soldQty14d: number;
+  avgDailySales: number;
+  ropPoint: number;
+}
+
+/** 温度历史读数（/merchant/devices/{id}/temperature-history） */
+export interface DeviceTemperatureReading {
+  deviceId: string;
+  tempC: number;
+  reportedAt?: string;
+}
+
+/** 调价历史（/merchant/pricing/history） */
+export interface MerchantSkuPriceChange {
+  deviceId?: string;
+  skuId: string;
+  detail?: string;
+  changedAt?: string;
+}
+
+/** AI 经营洞察（/merchant/analytics/ai-insight） */
+export interface MerchantAiInsight {
+  source?: string;
+  model?: string;
+  insight?: string;
+  generatedAt?: string;
+  skuPerformance?: MerchantSkuPerformance[];
+}
+
+/** 临期摘要（/merchant/analytics/expiry-summary） */
+export interface MerchantExpirySummary {
+  openPullOffTasks: number;
+  writeOffQty30d: number;
+  writeOffCostCents30d: number;
 }
 
 export interface MerchantAnalyticsOverview {
