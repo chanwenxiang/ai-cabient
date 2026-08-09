@@ -51,6 +51,7 @@ public class SettlementService {
     private final MemberService memberService;
     private final RefundPolicyService refundPolicyService;
     private final NotificationService notificationService;
+    private final DeviceSlotMapper slotRepository;
 
     public SettlementService(ShoppingSessionMapper sessionRepository,
                              SkuCatalogMapper skuCatalogRepository,
@@ -74,7 +75,8 @@ public class SettlementService {
                              CouponService couponService,
                              MemberService memberService,
                              RefundPolicyService refundPolicyService,
-                             NotificationService notificationService) {
+                             NotificationService notificationService,
+                             DeviceSlotMapper slotRepository) {
         this.sessionRepository = sessionRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.orderRepository = orderRepository;
@@ -98,6 +100,7 @@ public class SettlementService {
         this.memberService = memberService;
         this.refundPolicyService = refundPolicyService;
         this.notificationService = notificationService;
+        this.slotRepository = slotRepository;
     }
 
     /** 人工审核后确认清单：无订单则首次扣款；有订单则按差额退/补。 */
@@ -558,6 +561,7 @@ public class SettlementService {
 
     private void applyItemsToOrder(CabinetOrder order, List<VisionServiceClient.RecognizedItem> items) {
         order.getLines().clear();
+        Map<String, String> slotBySku = inferSlotBySku(order.getDeviceId());
         int total = 0;
         for (VisionServiceClient.RecognizedItem item : items) {
             SkuCatalog sku = skuCatalogRepository.findById(item.skuId())
@@ -575,9 +579,29 @@ public class SettlementService {
             line.setLineAmountCents(lineAmount);
             line.setUnitCostCents(sku.getPurchaseCostCents());
             line.setConfidence(item.confidence());
+            line.setSlotId(slotBySku.get(sku.getSkuId()));
             order.addLine(line);
         }
         order.setTotalAmountCents(total);
+    }
+
+    /** SKU 唯一绑定某货道时回填货道；同一 SKU 出现在多个货道则不推断。 */
+    private Map<String, String> inferSlotBySku(String deviceId) {
+        Map<String, String> map = new java.util.HashMap<>();
+        if (deviceId == null) {
+            return map;
+        }
+        for (DeviceSlot slot : slotRepository.findByIdDeviceId(deviceId)) {
+            if (!slot.isEnabled() || slot.getAssignedSkuId() == null || slot.getAssignedSkuId().isBlank()) {
+                continue;
+            }
+            String existing = map.putIfAbsent(slot.getAssignedSkuId(), slot.getSlotCode());
+            if (existing != null) {
+                map.put(slot.getAssignedSkuId(), null);
+            }
+        }
+        map.values().removeIf(v -> v == null);
+        return map;
     }
 
     private static void applyBatchNos(CabinetOrder order, java.util.Map<String, String> batchBySku) {

@@ -33,6 +33,7 @@ class SettlementDisputeTest {
     @Mock SkuCatalogMapper skuCatalogRepository;
     @Mock CabinetOrderMapper orderRepository;
     @Mock com.aicabinet.trade.mapper.CabinetOrderLineMapper orderLineRepository;
+    @Mock com.aicabinet.trade.mapper.DeviceSlotMapper slotRepository;
     @Mock VisionServiceClient visionClient;
     @Mock DisputeService disputeService;
     @Mock ObjectProvider<com.aicabinet.trade.messaging.VisionRecognitionProducer> visionRecognitionProducer;
@@ -61,7 +62,7 @@ class SettlementDisputeTest {
                 visionClient, disputeService, visionRecognitionProducer, revenueSplitService,
                 securityProperties, stagingProperties, inventoryService, orderPaymentService, confidenceService, gravityHelper,
                 deviceValidationService, skuPricingService, userValidationService, videoArchiveService,
-                skuVisionEnrollmentService, couponService, memberService, null, notificationService);
+                skuVisionEnrollmentService, couponService, memberService, null, notificationService, slotRepository);
     }
 
     @Test

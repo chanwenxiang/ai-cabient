@@ -247,4 +247,10 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
                 .orderByDesc(CabinetOrder::getCreatedAt));
     }
 
+    default List<CabinetOrder> findByStatusAndCreatedAtAfter(String status, Instant since) {
+        return selectList(Wrappers.<CabinetOrder>lambdaQuery()
+                .eq(CabinetOrder::getStatus, status)
+                .gt(CabinetOrder::getCreatedAt, since));
+    }
+
 }

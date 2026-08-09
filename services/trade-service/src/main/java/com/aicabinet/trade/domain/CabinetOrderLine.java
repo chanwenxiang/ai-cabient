@@ -27,6 +27,9 @@ public class CabinetOrderLine {
 
     private String batchNo;
 
+    /** 商品取自的货道（结算时按 SKU 唯一绑定推断；多货道同 SKU 时为空） */
+    private String slotId;
+
     private Integer unitCostCents;
 
     public Long getId() { return id; }
@@ -44,6 +47,8 @@ public String getSkuId() { return skuId; }
     public Float getConfidence() { return confidence; }
     public void setConfidence(Float confidence) { this.confidence = confidence; }
     public String getBatchNo() { return batchNo; }
+    public String getSlotId() { return slotId; }
+    public void setSlotId(String slotId) { this.slotId = slotId; }
     public void setBatchNo(String batchNo) { this.batchNo = batchNo; }
     public Integer getUnitCostCents() { return unitCostCents; }
     public void setUnitCostCents(Integer unitCostCents) { this.unitCostCents = unitCostCents; }
