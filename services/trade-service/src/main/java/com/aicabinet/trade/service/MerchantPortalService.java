@@ -494,7 +494,7 @@ public class MerchantPortalService {
 
     @Transactional(readOnly = true)
     public PageResult<MerchantOrderSummaryDto> listOrders(Long userId, int page, int size, String deviceId) {
-        return merchantFinanceService.listOrders(userId, page, size, deviceId);
+        return merchantFinanceService.listOrders(userId, page, size, deviceId, null, null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -1430,4 +1430,3 @@ public class MerchantPortalService {
         return deviceSlotService.upsertSlots(userId, deviceId, body);
     }
 }
-
