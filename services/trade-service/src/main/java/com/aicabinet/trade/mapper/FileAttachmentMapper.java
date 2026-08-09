@@ -25,4 +25,21 @@ public interface FileAttachmentMapper extends BaseTradeMapper<FileAttachment> {
                 .in(FileAttachment::getFileId, ids)
                 .orderByAsc(FileAttachment::getFileId));
     }
+
+    default List<FileAttachment> findByContentSha256(String sha256) {
+        if (sha256 == null || sha256.isBlank()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<FileAttachment>lambdaQuery()
+                .eq(FileAttachment::getContentSha256, sha256)
+                .orderByAsc(FileAttachment::getFileId));
+    }
+
+    default List<FileAttachment> findByStoragePath(String storagePath) {
+        if (storagePath == null || storagePath.isBlank()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<FileAttachment>lambdaQuery()
+                .eq(FileAttachment::getStoragePath, storagePath));
+    }
 }

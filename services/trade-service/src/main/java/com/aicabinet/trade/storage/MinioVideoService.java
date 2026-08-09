@@ -9,6 +9,7 @@ import io.minio.GetObjectArgs;
 import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.RemoveObjectArgs;
 import io.minio.StatObjectArgs;
 import io.minio.http.Method;
 import jakarta.servlet.http.HttpServletRequest;
@@ -111,6 +112,35 @@ public class MinioVideoService {
                     .build());
             return true;
         } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** 删除对象（minio://bucket/key 或 file:// 本地回退）。对象不存在视为成功。 */
+    public boolean removeObject(String storageUri) {
+        if (storageUri == null || storageUri.isBlank()) {
+            return false;
+        }
+        if (storageUri.startsWith("file://")) {
+            try {
+                return Files.deleteIfExists(Paths.get(URI.create(storageUri)));
+            } catch (Exception e) {
+                log.warn("remove local file failed uri={}", storageUri, e);
+                return false;
+            }
+        }
+        ParsedUri parsed = parseUri(storageUri);
+        if (parsed == null) {
+            return false;
+        }
+        try {
+            client().removeObject(RemoveObjectArgs.builder()
+                    .bucket(parsed.bucket())
+                    .object(parsed.objectKey())
+                    .build());
+            return true;
+        } catch (Exception e) {
+            log.warn("remove object failed uri={}", storageUri, e);
             return false;
         }
     }

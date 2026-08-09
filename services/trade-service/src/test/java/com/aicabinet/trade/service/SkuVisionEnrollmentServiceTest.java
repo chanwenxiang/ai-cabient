@@ -35,6 +35,7 @@ class SkuVisionEnrollmentServiceTest {
     @Mock private AdminAuditService auditService;
     @Mock private VisionServiceClient visionServiceClient;
     @Mock private UserInfoMapper userInfoRepository;
+    @Mock private FileAttachmentService fileAttachmentService;
 
     private SkuVisionEnrollmentService service;
 
@@ -49,7 +50,8 @@ class SkuVisionEnrollmentServiceTest {
                 new StagingProperties(false, false),
                 new ObjectMapper(),
                 visionServiceClient,
-                userInfoRepository);
+                userInfoRepository,
+                fileAttachmentService);
     }
 
     @Test

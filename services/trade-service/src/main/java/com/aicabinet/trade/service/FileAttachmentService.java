@@ -21,6 +21,8 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -81,11 +83,11 @@ public class FileAttachmentService {
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
         }
+        String sha = sha256Hex(bytes);
         String ext = extensionFor(contentType, file.getOriginalFilename());
         String token = UUID.randomUUID().toString().replace("-", "");
         String objectKey = ObjectStorageKeys.disputeEvidenceKey(userId, token, ext);
-        String storagePath = minioVideoService.putObject(objectKey, bytes, contentType)
-                .orElseGet(() -> fallbackStore(objectKey, bytes));
+        String storagePath = storeOrReuse(sha, objectKey, bytes, contentType);
         FileAttachment row = new FileAttachment();
         row.setRefType(REF_PENDING);
         row.setRefId(String.valueOf(userId));
@@ -94,6 +96,7 @@ public class FileAttachmentService {
         row.setContentType(contentType);
         row.setStoragePath(storagePath);
         row.setStorageBucket(storagePath.startsWith("minio://") ? minioProperties.bucket() : "local");
+        row.setContentSha256(sha);
         row.setUploadedBy(userId);
         row.setCreatedAt(Instant.now());
         fileAttachmentMapper.insert(row);
@@ -169,11 +172,11 @@ public class FileAttachmentService {
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
         }
+        String sha = sha256Hex(bytes);
         String ext = extensionFor(contentType, file.getOriginalFilename());
         String token = UUID.randomUUID().toString().replace("-", "");
         String objectKey = ObjectStorageKeys.replenishmentEvidenceKey(taskId, userId, token, ext);
-        String storagePath = minioVideoService.putObject(objectKey, bytes, contentType)
-                .orElseGet(() -> fallbackStore(objectKey, bytes));
+        String storagePath = storeOrReuse(sha, objectKey, bytes, contentType);
         FileAttachment row = new FileAttachment();
         row.setRefType(REF_REPLENISHMENT);
         row.setRefId(String.valueOf(taskId));
@@ -182,6 +185,7 @@ public class FileAttachmentService {
         row.setContentType(contentType);
         row.setStoragePath(storagePath);
         row.setStorageBucket(storagePath.startsWith("minio://") ? minioProperties.bucket() : "local");
+        row.setContentSha256(sha);
         row.setUploadedBy(userId);
         row.setCreatedAt(Instant.now());
         fileAttachmentMapper.insert(row);
@@ -216,11 +220,24 @@ public class FileAttachmentService {
         } catch (IOException e) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "读取上传文件失败");
         }
+        String sha = sha256Hex(bytes);
+        // 商品主图去重：同一内容只保留一条记录与一个对象，重复上传直接复用已有地址
+        if (sha != null) {
+            FileAttachment existing = fileAttachmentMapper.findByContentSha256(sha).stream()
+                    .filter(r -> REF_SKU_IMAGE.equals(r.getRefType()))
+                    .filter(r -> r.getStoragePath() != null && !r.getStoragePath().isBlank())
+                    .filter(r -> !r.getStoragePath().startsWith("minio://")
+                            || minioVideoService.objectExists(r.getStoragePath()))
+                    .findFirst()
+                    .orElse(null);
+            if (existing != null) {
+                return toDto(existing);
+            }
+        }
         String ext = extensionFor(contentType, file.getOriginalFilename());
         String token = UUID.randomUUID().toString().replace("-", "");
         String objectKey = ObjectStorageKeys.skuImageKey(operatorId, token, ext);
-        String storagePath = minioVideoService.putObject(objectKey, bytes, contentType)
-                .orElseGet(() -> fallbackStore(objectKey, bytes));
+        String storagePath = storeOrReuse(sha, objectKey, bytes, contentType);
         FileAttachment row = new FileAttachment();
         row.setRefType(REF_SKU_IMAGE);
         row.setRefId(String.valueOf(operatorId));
@@ -229,10 +246,89 @@ public class FileAttachmentService {
         row.setContentType(contentType);
         row.setStoragePath(storagePath);
         row.setStorageBucket(storagePath.startsWith("minio://") ? minioProperties.bucket() : "local");
+        row.setContentSha256(sha);
         row.setUploadedBy(operatorId);
         row.setCreatedAt(Instant.now());
         fileAttachmentMapper.insert(row);
         return toDto(row);
+    }
+
+    /**
+     * 商品主图被替换/移除时释放旧图：同对象仍被其它附件引用则仅删记录，
+     * 无引用时同时删除对象存储里的旧文件（含本地回退文件）。
+     */
+    public void releaseSkuImageIfUnused(String imageUrl, Long operatorId) {
+        if (imageUrl == null || imageUrl.isBlank()) {
+            return;
+        }
+        String mediaPrefix = "/api/v2/media/sku-images/";
+        if (!imageUrl.startsWith(mediaPrefix)) {
+            return;
+        }
+        Long fileId;
+        try {
+            fileId = Long.valueOf(imageUrl.substring(mediaPrefix.length()));
+        } catch (NumberFormatException e) {
+            return;
+        }
+        FileAttachment row = fileAttachmentMapper.selectById(fileId);
+        if (row == null || !REF_SKU_IMAGE.equals(row.getRefType())) {
+            return;
+        }
+        String path = row.getStoragePath();
+        fileAttachmentMapper.deleteById(row.getFileId());
+        if (path == null || path.isBlank()) {
+            return;
+        }
+        boolean stillReferenced = fileAttachmentMapper.findByStoragePath(path).stream()
+                .anyMatch(r -> r.getStoragePath() != null && r.getStoragePath().equals(path));
+        if (stillReferenced) {
+            return;
+        }
+        if (path.startsWith("minio://") || path.startsWith("file://")) {
+            minioVideoService.removeObject(path);
+        }
+    }
+
+    /** 同内容（sha256）已有可用对象时复用其存储路径，避免重复占用容量。 */
+    private String storeOrReuse(String sha256, String objectKey, byte[] bytes, String contentType) {
+        if (sha256 != null) {
+            for (FileAttachment r : fileAttachmentMapper.findByContentSha256(sha256)) {
+                String path = r.getStoragePath();
+                if (path == null || path.isBlank()) {
+                    continue;
+                }
+                if (path.startsWith("minio://") && minioVideoService.objectExists(path)) {
+                    return path;
+                }
+                if (path.startsWith("file://")) {
+                    try {
+                        if (Files.isRegularFile(Paths.get(URI.create(path)))) {
+                            return path;
+                        }
+                    } catch (Exception ignored) {
+                        // 本地文件不可读则继续
+                    }
+                }
+            }
+        }
+        return minioVideoService.putObject(objectKey, bytes, contentType)
+                .orElseGet(() -> fallbackStore(objectKey, bytes));
+    }
+
+    private static String sha256Hex(byte[] data) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(data);
+            StringBuilder sb = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+                sb.append(Character.forDigit(b & 0xF, 16));
+            }
+            return sb.toString();
+        } catch (NoSuchAlgorithmException e) {
+            return null;
+        }
     }
 
     @Transactional(readOnly = true)

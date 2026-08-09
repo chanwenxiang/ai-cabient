@@ -43,16 +43,6 @@ public class VideoArchiveService {
         if (videoUris.isEmpty()) {
             return;
         }
-        Set<String> skuIds = new LinkedHashSet<>();
-        for (CabinetOrderLine line : lines) {
-            if (line.getSkuId() != null && !line.getSkuId().isBlank()) {
-                skuIds.add(line.getSkuId().trim());
-            }
-        }
-        if (skuIds.isEmpty()) {
-            return;
-        }
-
         Instant archivedAt = session.getCloseTime() != null ? session.getCloseTime() : Instant.now();
         long userId = session.getUserId() != null ? session.getUserId() : 0L;
         int copied = 0;
@@ -63,16 +53,14 @@ public class VideoArchiveService {
             }
             String camera = cameraFromObjectKey(parsed.objectKey());
             String extension = extensionFromObjectKey(parsed.objectKey());
-            for (String skuId : skuIds) {
-                String archiveKey = ObjectStorageKeys.archiveVideoKey(
-                        skuId, userId, session.getSessionId(), camera, extension, archivedAt);
-                if (minioVideoService.copyObject(videoUri, archiveKey)) {
-                    copied++;
-                }
+            String archiveKey = ObjectStorageKeys.archiveVideoKey(
+                    userId, session.getSessionId(), camera, extension, archivedAt);
+            if (minioVideoService.copyObject(videoUri, archiveKey)) {
+                copied++;
             }
         }
         if (copied > 0) {
-            log.info("video archive session={} skus={} copies={}", session.getSessionId(), skuIds.size(), copied);
+            log.info("video archive session={} copies={}", session.getSessionId(), copied);
         }
     }
 
