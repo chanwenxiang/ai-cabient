@@ -66,6 +66,45 @@
           {{ savingSlots ? '保存中…' : '保存货道' }}
         </view>
       </view>
+
+      <view v-if="tempHistory.length" class="card">
+        <view class="row">
+          <text class="section">温度历史（近 24h）</text>
+          <text class="meta">{{ tempSummaryText }}</text>
+        </view>
+        <view v-for="(r, i) in tempHistory" :key="i" class="temp-row">
+          <text class="meta">{{ formatTime(r.reportedAt) }}</text>
+          <text
+            class="temp-val"
+            :class="{
+              warn:
+                targetTempNum != null &&
+                Math.abs(r.tempC - targetTempNum) > 2
+            }"
+            >{{ r.tempC }}°C</text
+          >
+          <text class="meta">{{ i > 0 ? (r.tempC >= tempHistory[i - 1].tempC ? '↑' : '↓') : '—' }}</text>
+        </view>
+      </view>
+
+      <view v-if="velocity.length" class="card">
+        <view class="row">
+          <text class="section">商品动销 / 补货点</text>
+          <text class="meta">近 14 日</text>
+        </view>
+        <view v-for="v in velocity" :key="v.skuId" class="velocity-row">
+          <view class="velocity-main">
+            <text class="sku-name">{{ v.skuName }}</text>
+            <text class="meta">{{ v.skuId }}</text>
+          </view>
+          <view class="velocity-data">
+            <text>7日 {{ v.soldQty7d }}</text>
+            <text>14日 {{ v.soldQty14d }}</text>
+            <text>日均 {{ Number(v.avgDailySales).toFixed(1) }}</text>
+            <text class="rop">补货点 {{ v.ropPoint }}</text>
+          </view>
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -80,7 +119,12 @@ import {
   getPreferredDeviceId,
   setPreferredDeviceId
 } from '@/utils/preferred-device';
-import type { DeviceSlot, MerchantMe } from '@aicabinet/shared-types';
+import type {
+  DeviceSlot,
+  DeviceTemperatureReading,
+  MerchantMe,
+  MerchantSkuVelocity
+} from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const loading = ref(true);
@@ -100,7 +144,28 @@ const saving = ref(false);
 const savingSlots = ref(false);
 const slots = ref<DeviceSlot[]>([]);
 const slotPar = ref<Record<string, string>>({});
+const tempHistory = ref<DeviceTemperatureReading[]>([]);
+const velocity = ref<MerchantSkuVelocity[]>([]);
 const isPreferred = ref(false);
+
+const targetTempNum = computed(() => {
+  const n = Number(String(targetTemp.value).replace('°C', ''));
+  return Number.isFinite(n) ? n : null;
+});
+const tempSummaryText = computed(() => {
+  if (!tempHistory.value.length) return '暂无数据';
+  const temps = tempHistory.value.map((r) => r.tempC);
+  const min = Math.min(...temps);
+  const max = Math.max(...temps);
+  const avg = temps.reduce((a, b) => a + b, 0) / temps.length;
+  return `最高 ${max}°C · 最低 ${min}°C · 均值 ${avg.toFixed(1)}°C`;
+});
+
+function formatTime(iso?: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
 
 const canView = computed(() => hasPerm(me.value, 'merchant:devices:detail'));
 const canEditDevice = computed(() => hasPerm(me.value, 'merchant:devices:edit'));
@@ -155,9 +220,17 @@ async function loadDetail() {
     formName.value = (settings.deviceName as string) || '';
     formTargetTemp.value = settings.targetTempC != null ? String(settings.targetTempC) : '';
     formRemark.value = (settings.opsRemark as string) || '';
-    const list = await merchantApi.deviceSlots(deviceId.value);
+    const [list, temps, vel] = await Promise.all([
+      merchantApi.deviceSlots(deviceId.value).catch(() => [] as DeviceSlot[]),
+      merchantApi.deviceTemperatureHistory(deviceId.value, 24).catch(
+        () => [] as DeviceTemperatureReading[]
+      ),
+      merchantApi.skuVelocity(deviceId.value).catch(() => [] as MerchantSkuVelocity[])
+    ]);
     if (seq !== loadSeq) return;
     slots.value = list;
+    tempHistory.value = temps;
+    velocity.value = vel;
     const par: Record<string, string> = {};
     list.forEach((s) => {
       par[s.slotCode] = s.parLevel != null ? String(s.parLevel) : '';
@@ -275,6 +348,65 @@ async function saveSlots() {
 </script>
 
 <style scoped>
+.temp-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 12rpx 0;
+  border-bottom: 1rpx solid #f1f5f9;
+}
+.temp-row:last-child {
+  border-bottom: none;
+}
+.temp-val {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: #0f766e;
+}
+.temp-val.warn {
+  color: #b45309;
+}
+
+.velocity-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #f1f5f9;
+}
+.velocity-row:last-child {
+  border-bottom: none;
+}
+.velocity-main {
+  flex: 1;
+  min-width: 0;
+}
+.velocity-main .sku-name {
+  display: block;
+  font-size: 27rpx;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.velocity-data {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8rpx 16rpx;
+  font-size: 22rpx;
+  color: #64748b;
+}
+.velocity-data .rop {
+  color: #b45309;
+  font-weight: 700;
+  background: #fffbeb;
+  padding: 2rpx 10rpx;
+  border-radius: 999rpx;
+}
+
 .device-hero {
   width: 100%;
   height: 260rpx;

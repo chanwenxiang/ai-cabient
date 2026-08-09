@@ -335,6 +335,13 @@ public class MerchantPortalController {
     }
 
     @RequiresPermissions("merchant:replenishment:view")
+    @GetMapping("/replenishment/my-efficiency")
+    public ApiResponse<MerchantReplenishmentEfficiencyDto> myReplenishmentEfficiency(
+            HttpServletRequest request) {
+        return ApiResponse.ok(merchantReplenishmentService.myEfficiency(userId(request)));
+    }
+
+    @RequiresPermissions("merchant:replenishment:view")
     @GetMapping("/replenishment/tasks/{taskId}/lines")
     public ApiResponse<List<ReplenishmentTaskLineDto>> replenishmentTaskLines(
             HttpServletRequest request, @PathVariable Long taskId) {

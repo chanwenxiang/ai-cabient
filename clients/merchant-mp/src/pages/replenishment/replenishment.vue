@@ -14,6 +14,10 @@
           <text class="stat-value">{{ completedCount }}</text>
           <text class="stat-label">已完成</text>
         </view>
+        <view>
+          <text class="stat-value">{{ efficiencyRateText }}</text>
+          <text class="stat-label">今日完成率</text>
+        </view>
       </view>
       <view class="hero-actions">
         <button class="scan-primary" :loading="scanning" @click="onScan">扫码找柜</button>
@@ -43,6 +47,33 @@
         <text class="idle-desc"
           >可扫码巡柜查看缺货，或切换「已完成」回顾记录；新任务由调度下发</text
         >
+      </view>
+    </view>
+
+    <view v-if="lowStockList.length" class="patrol-card">
+      <view class="patrol-head">
+        <view>
+          <text class="patrol-title">缺货巡柜</text>
+          <text class="patrol-sub">按缺货严重度推荐 · 点击发起要货</text>
+        </view>
+        <text class="patrol-count">{{ lowStockList.length }} 台</text>
+      </view>
+      <view
+        v-for="d in lowStockList"
+        :key="d.deviceId"
+        class="patrol-row"
+        hover-class="patrol-row-hover"
+        role="button"
+        @click="goRequestForDevice(d.deviceId)"
+      >
+        <view class="patrol-name">
+          <text class="device-name">{{ deviceName(d.deviceId) }}</text>
+          <text class="device-code">{{ d.deviceId }}</text>
+        </view>
+        <view class="patrol-meta">
+          <text class="patrol-badge">{{ d.skuCount }} SKU 缺货</text>
+          <text class="patrol-shortage">缺口 {{ d.shortageQty }} 件</text>
+        </view>
       </view>
     </view>
 
@@ -418,7 +449,12 @@ import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { emptyDisplay, formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
-import { hasPerm, merchantApi } from '@/utils/merchant-api';
+import {
+  hasPerm,
+  merchantApi,
+  type DeviceLowStockItem,
+  type MerchantReplenishmentEfficiency
+} from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { promptText } from '@/utils/text-prompt';
@@ -457,6 +493,8 @@ let loadSeq = 0;
 const detailLoading = ref(false);
 const submitting = ref(false);
 const scanning = ref(false);
+const efficiency = ref<MerchantReplenishmentEfficiency | null>(null);
+const lowStockList = ref<{ deviceId: string; skuCount: number; shortageQty: number }[]>([]);
 const status = ref('');
 const filterDeviceId = ref('');
 const focusTaskId = ref<number | null>(null);
@@ -479,6 +517,9 @@ const slotCaps = ref<Record<string, { maxLevel: number; bookQty: number }>>({});
 const deviceSlotsList = ref<DeviceSlot[]>([]);
 
 const heroSubtitle = computed(() => '扫码到柜 → 签到 → 开门 → 核对履约');
+const efficiencyRateText = computed(() =>
+  efficiency.value ? `${efficiency.value.completionRatePercent}%` : '—'
+);
 const detailIsPullOff = computed(() => {
   if (!lines.value.length) {
     const notes = String(selected.value?.notes || '');
@@ -668,6 +709,32 @@ function goRequest() {
   uni.navigateTo({ url: `/pages/request/request${q}` });
 }
 
+function goRequestForDevice(deviceId: string) {
+  uni.navigateTo({
+    url: `/pages/request/request?deviceId=${encodeURIComponent(deviceId)}`
+  });
+}
+
+/** 按柜聚合低库存明细：缺货 SKU 数 + 缺口件数，按严重度排序取前 5。 */
+function aggregateLowStock(items: DeviceLowStockItem[]) {
+  const map = new Map<string, { skuCount: number; shortageQty: number }>();
+  for (const row of items || []) {
+    const key = String(row.deviceId || '').trim().toUpperCase();
+    if (!key) continue;
+    const cur = map.get(key) || { skuCount: 0, shortageQty: 0 };
+    cur.skuCount += 1;
+    cur.shortageQty += Math.max(
+      0,
+      (Number(row.lowThreshold) || 0) - (Number(row.quantity) || 0)
+    );
+    map.set(key, cur);
+  }
+  return [...map.entries()]
+    .map(([deviceId, v]) => ({ deviceId, ...v }))
+    .sort((a, b) => b.skuCount - a.skuCount || b.shortageQty - a.shortageQty)
+    .slice(0, 5);
+}
+
 onLoad((opts) => {
   applyRouteQuery(opts as Record<string, string | undefined>);
   preferredId.value = getPreferredDeviceId();
@@ -745,15 +812,19 @@ async function load() {
   // Deep link is applied in onLoad only — do not re-read hash on every onShow
   loading.value = true;
   try {
-    const [taskRows, deviceRows, skuRows] = await Promise.all([
+    const [taskRows, deviceRows, skuRows, eff, lowStockRows] = await Promise.all([
       merchantApi.replenishmentTasks().catch(() => [] as Record<string, unknown>[]),
       merchantApi.devices().catch(() => [] as Record<string, unknown>[]),
-      merchantApi.pricing().catch(() => [] as Record<string, unknown>[])
+      merchantApi.pricing().catch(() => [] as Record<string, unknown>[]),
+      merchantApi.myReplenishmentEfficiency().catch(() => null),
+      merchantApi.lowStockDevices().catch(() => [] as DeviceLowStockItem[])
     ]);
     if (seq !== loadSeq) return;
     allTasks.value = taskRows as Task[];
     devices.value = deviceRows as Record<string, unknown>[];
     skus.value = (skuRows || []) as Record<string, unknown>[];
+    efficiency.value = eff;
+    lowStockList.value = aggregateLowStock(lowStockRows || []);
 
     // Consume deep link once (扫柜 / 工作台入口)
     let open: Task | undefined;
@@ -1566,6 +1637,77 @@ onPullDownRefresh(load);
   font-size: 22rpx;
   opacity: 0.88;
   line-height: 1.4;
+}
+
+.patrol-card {
+  margin: 22rpx 0 4rpx;
+  padding: 24rpx;
+  border-radius: 24rpx;
+  background: #fff;
+  border: 1rpx solid #fcd34d;
+  box-shadow: 0 8rpx 30rpx rgba(180, 83, 9, 0.08);
+}
+.patrol-head,
+.patrol-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+.patrol-title {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #78350f;
+}
+.patrol-sub {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #b45309;
+}
+.patrol-count {
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  background: #fffbeb;
+  color: #b45309;
+  font-size: 22rpx;
+  font-weight: 700;
+}
+.patrol-row {
+  margin-top: 18rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 18rpx;
+  background: #fffbeb;
+  cursor: pointer;
+}
+.patrol-row-hover {
+  background: #fef3c7;
+}
+.patrol-name {
+  flex: 1;
+  min-width: 0;
+}
+.patrol-name .device-name {
+  font-size: 27rpx;
+}
+.patrol-meta {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+.patrol-badge {
+  padding: 6rpx 12rpx;
+  border-radius: 999rpx;
+  background: #fef3c7;
+  color: #b45309;
+  font-size: 20rpx;
+  font-weight: 700;
+}
+.patrol-shortage {
+  font-size: 22rpx;
+  color: #b45309;
+  font-weight: 700;
 }
 
 .filters {

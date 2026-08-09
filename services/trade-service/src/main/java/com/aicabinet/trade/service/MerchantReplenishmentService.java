@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -78,6 +79,31 @@ public class MerchantReplenishmentService {
         }
         merchantFeaturePackService.requireDevicePack(userId, deviceId.trim(), MerchantFeaturePacks.FIELD);
         return replenishmentService.suggestForDevice(deviceId.trim());
+    }
+
+    /** 补货员今日运营执行情况：分配给本人的任务完成统计（对标友智慧「运营执行情况」）。 */
+    @Transactional(readOnly = true)
+    public MerchantReplenishmentEfficiencyDto myEfficiency(Long userId) {
+        permissionService.requirePermission(userId, "merchant:replenishment:view");
+        merchantPortalGuard.requireAccess(userId);
+        Instant since = LocalDate.now(ZoneId.of("Asia/Shanghai"))
+                .atStartOfDay(ZoneId.of("Asia/Shanghai")).toInstant();
+        List<ReplenishmentTask> tasks = taskRepository.findByAssigneeUserIdAndCreatedAtSince(userId, since);
+        int completed = 0;
+        int inProgress = 0;
+        int pending = 0;
+        for (ReplenishmentTask task : tasks) {
+            if ("COMPLETED".equals(task.getStatus())) {
+                completed++;
+            } else if ("IN_PROGRESS".equals(task.getStatus())) {
+                inProgress++;
+            } else if ("PENDING".equals(task.getStatus())) {
+                pending++;
+            }
+        }
+        int assigned = tasks.size();
+        double rate = assigned == 0 ? 0 : Math.round(completed * 10000.0 / assigned) / 100.0;
+        return new MerchantReplenishmentEfficiencyDto(assigned, completed, inProgress, pending, rate);
     }
 
     @Transactional
