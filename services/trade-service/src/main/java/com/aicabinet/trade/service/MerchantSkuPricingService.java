@@ -121,7 +121,8 @@ public class MerchantSkuPricingService {
                         minAllowedPrice(sku),
                         maxAllowedPrice(sku),
                         qtyBySku.getOrDefault(skuId, 0),
-                        override != null ? override.getUpdatedAt() : null
+                        override != null ? override.getUpdatedAt() : null,
+                        sku.getImageUrl()
                 ));
             }
         }
@@ -183,7 +184,8 @@ public class MerchantSkuPricingService {
                 minAllowedPrice(sku),
                 maxAllowedPrice(sku),
                 qty,
-                saved.map(DeviceSkuPrice::getUpdatedAt).orElse(null)
+                saved.map(DeviceSkuPrice::getUpdatedAt).orElse(null),
+                sku.getImageUrl()
         );
     }
 
