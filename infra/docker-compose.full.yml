@@ -33,6 +33,8 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      # 允许 Prometheus 免认证抓取集群指标（内网监控专用；生产如走公网请改用 bearer token）
+      MINIO_PROMETHEUS_AUTH_TYPE: public
     ports: ["9000:9000", "9001:9001"]
     volumes: ["miniodata:/data"]
 
@@ -221,7 +223,9 @@ services:
   prometheus:
     image: prom/prometheus:v2.51.0
     ports: ["9090:9090"]
-    volumes: ["./monitoring/prometheus-full.yml:/etc/prometheus/prometheus.yml:ro"]
+    volumes:
+      - "./monitoring/prometheus-full.yml:/etc/prometheus/prometheus.yml:ro"
+      - "./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro"
     depends_on: [trade-service, device-service]
 
   grafana:

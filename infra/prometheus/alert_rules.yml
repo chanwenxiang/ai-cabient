@@ -15,7 +15,7 @@ groups:
           description: "服务 instance 已下线超过1分钟"
 
       - alert: HighErrorRate
-        expr: rate(http_server_requests_seconds_count{status=~\"5..\"}[5m]) > 0.05
+        expr: rate(http_server_requests_seconds_count{status=~"5.."}[5m]) > 0.05
         for: 5m
         labels:
           severity: warning
@@ -35,7 +35,7 @@ groups:
       # ==================== JVM 告警 ====================
       
       - alert: HighMemoryUsage
-        expr: (jvm_memory_used_bytes{area=\"heap\"} / jvm_memory_max_bytes{area=\"heap\"}) > 0.85
+        expr: (jvm_memory_used_bytes{area="heap"} / jvm_memory_max_bytes{area="heap"}) > 0.85
         for: 5m
         labels:
           severity: warning
@@ -77,7 +77,7 @@ groups:
       # ==================== 业务告警 ====================
       
       - alert: HighOrderFailureRate
-        expr: rate(aicabinet_orders_total{status=\"failed\"}[5m]) / rate(aicabinet_orders_total[5m]) > 0.1
+        expr: rate(aicabinet_orders_total{status="failed"}[5m]) / rate(aicabinet_orders_total[5m]) > 0.1
         for: 5m
         labels:
           severity: critical
@@ -86,7 +86,7 @@ groups:
           description: "订单失败率超过10%"
 
       - alert: PaymentFailureRate
-        expr: rate(aicabinet_payments_total{status=\"failed\"}[5m]) / rate(aicabinet_payments_total[5m]) > 0.05
+        expr: rate(aicabinet_payments_total{status="failed"}[5m]) / rate(aicabinet_payments_total[5m]) > 0.05
         for: 5m
         labels:
           severity: critical
@@ -95,7 +95,7 @@ groups:
           description: "支付失败率超过5%"
 
       - alert: DeviceOfflineRate
-        expr: (count(aicabinet_device_status{status=\"offline\"}) / count(aicabinet_device_status)) > 0.2
+        expr: (count(aicabinet_device_status{status="offline"}) / count(aicabinet_device_status)) > 0.2
         for: 10m
         labels:
           severity: warning
@@ -115,7 +115,7 @@ groups:
           description: "过去5分钟登录失败次数超过10次/分钟"
 
       - alert: SuspectedBruteForceAttack
-        expr: rate(aicabinet_auth_failures_total[1m]) by (ip) > 5
+        expr: sum(rate(aicabinet_auth_failures_total[1m])) by (ip) > 5
         for: 2m
         labels:
           severity: critical
@@ -153,3 +153,43 @@ groups:
         annotations:
           summary: "权限拒绝频率异常"
           description: "5分钟内权限拒绝速率超过 2 次/秒，可能存在越权尝试或账号异常（可按 realm 标签细分）"
+
+  # ==================== MinIO 对象存储告警 ====================
+
+  - name: ai-cabinet-minio
+    rules:
+      - alert: MinioDown
+        expr: up{job="minio"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MinIO 对象存储不可用"
+          description: "MinIO 指标抓取失败超过1分钟"
+
+      - alert: MinioStorageUsageHigh
+        expr: minio_cluster_usage_total_bytes > 50 * 1024^3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MinIO 总容量超过 50GB"
+          description: "对象存储当前容量 {{ $value | humanize1024 }}B"
+
+      - alert: MinioStorageUsageCritical
+        expr: minio_cluster_usage_total_bytes > 200 * 1024^3
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MinIO 总容量超过 200GB"
+          description: "对象存储当前容量 {{ $value | humanize1024 }}B"
+
+      - alert: MinioObjectCountHigh
+        expr: minio_cluster_usage_object_total > 5000000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MinIO 对象数量超过 500 万"
+          description: "当前对象总数 {{ $value }}，请检查生命周期与孤儿文件"
