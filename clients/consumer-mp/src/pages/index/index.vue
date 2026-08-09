@@ -218,7 +218,15 @@
           </view>
         </view>
         <view v-else class="product-grid">
-          <view v-for="p in filteredProducts" :key="p.skuId" class="product-cell">
+          <view
+            v-for="p in filteredProducts"
+            :key="p.skuId"
+            class="product-cell"
+            :class="{ selected: (selected[p.skuId] || 0) > 0 }"
+            role="button"
+            :aria-label="`选择 ${p.skuName}`"
+            @click="addProduct(p)"
+          >
             <view class="product-thumb" :class="'cat-' + thumbTone(p)">
               <image
                 v-if="showThumb(p)"
@@ -228,6 +236,14 @@
                 @error="onThumbError(p.skuId)"
               />
               <text v-else class="product-mark">{{ productGlyph(p) }}</text>
+              <text
+                v-if="selectedQty(p)"
+                class="product-badge"
+                role="button"
+                :aria-label="`减少 ${p.skuName}`"
+                @click.stop="removeProduct(p)"
+                >{{ selectedQty(p) }}</text
+              >
             </view>
             <text class="product-name">{{ p.skuName }}</text>
             <text class="product-price">{{ fmtMoney(p.priceCents) }}</text>
@@ -243,7 +259,26 @@
             >拿错可放回，关门后按最终取走结算</text
           >
         </view>
-        <view v-if="sessionActive" class="cart-status-chip" :class="stateTone">
+        <view v-if="sessionActive && state === 'SHOPPING' && mockEnabled" class="cart-demo">
+          <view class="cart-demo-info">
+            <text class="cart-demo-label">已选 {{ selectedCount }} 件</text>
+            <text class="cart-demo-amt">{{ selectedAmount }}</text>
+          </view>
+          <button
+            class="cart-close-btn"
+            hover-class="btn-hover"
+            :loading="closingDoor"
+            :disabled="closingDoor"
+            @click="closeDoorDemo"
+          >
+            关门结算
+          </button>
+        </view>
+        <view
+          v-else-if="sessionActive"
+          class="cart-status-chip"
+          :class="stateTone"
+        >
           {{ cartBarAction }}
         </view>
         <button
@@ -389,6 +424,10 @@ const showPrepDrawer = ref(false);
 const prepAccount = ref<AccountDto | null>(null);
 const recognitionDeferred = ref(false);
 const recognitionElapsedSec = ref(0);
+/** 演示点选：skuId -> 件数；实际扣款仍以关门识别为准 */
+const selected = ref<Record<string, number>>({});
+const mockEnabled = ref(false);
+const closingDoor = ref(false);
 let recognitionTimer: ReturnType<typeof setInterval> | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let devicePollTimer: ReturnType<typeof setInterval> | null = null;
@@ -872,6 +911,7 @@ async function loadConsumerConfig() {
     const cfg = await consumerApi.consumerPublicConfig();
     const phone = cfg?.servicePhone || cfg?.['consumer.service_phone'];
     if (phone) servicePhone.value = phone;
+    mockEnabled.value = String(cfg?.mockEnabled) === 'true';
   } catch {
     /* 使用默认客服电话 */
   }
@@ -1130,7 +1170,57 @@ function clearSessionUi() {
   stateHint.value = '';
   stateTone.value = 'idle';
   recognitionDeferred.value = false;
+  selected.value = {};
   stopRecognitionTimer();
+}
+
+function selectedQty(p: DeviceProduct) {
+  return selected.value[p.skuId] || 0;
+}
+
+function addProduct(p: DeviceProduct) {
+  if (!sessionActive.value) return;
+  const next = Math.min(9, (selected.value[p.skuId] || 0) + 1);
+  selected.value = { ...selected.value, [p.skuId]: next };
+}
+
+function removeProduct(p: DeviceProduct) {
+  const next = Math.max(0, (selected.value[p.skuId] || 0) - 1);
+  selected.value = { ...selected.value, [p.skuId]: next };
+}
+
+const selectedCount = computed(() =>
+  Object.values(selected.value).reduce((sum, q) => sum + q, 0)
+);
+
+const selectedAmount = computed(() => {
+  const byId = new Map(products.value.map((p) => [p.skuId, p]));
+  let total = 0;
+  for (const [skuId, qty] of Object.entries(selected.value)) {
+    const p = byId.get(skuId);
+    if (p) total += p.priceCents * qty;
+  }
+  return fmtMoney(total);
+});
+
+/** 演示关门：先把点选同步到会话购物车，再触发关门结算（后端 mockEnabled 才放行）。 */
+async function closeDoorDemo() {
+  if (!sessionId.value || closingDoor.value) return;
+  closingDoor.value = true;
+  try {
+    const items = Object.entries(selected.value)
+      .filter(([, qty]) => (qty || 0) > 0)
+      .map(([skuId, qty]) => ({ skuId, qty }));
+    if (items.length) {
+      await consumerApi.updateSessionCart(sessionId.value, { items });
+    }
+    await consumerApi.demoCloseSession(sessionId.value);
+    uni.showToast({ title: '已关门，结算中…', icon: 'none' });
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '关门失败，请重试', icon: 'none' });
+  } finally {
+    closingDoor.value = false;
+  }
 }
 
 function startRecognitionTimer(since?: string) {
@@ -1793,6 +1883,11 @@ function stopDevicePoll() {
   padding: 16rpx;
   display: flex;
   flex-direction: column;
+  border: 2rpx solid transparent;
+}
+.product-cell.selected {
+  border-color: #07c160;
+  background: #f4fef8;
 }
 .product-thumb {
   width: 100%;
@@ -1803,6 +1898,7 @@ function stopDevicePoll() {
   justify-content: center;
   overflow: hidden;
   margin-bottom: 12rpx;
+  position: relative;
 }
 .product-thumb.cat-drink {
   background: linear-gradient(135deg, #e6f4ff, #bae0ff);
@@ -1833,6 +1929,22 @@ function stopDevicePoll() {
   font-weight: 800;
   line-height: 96rpx;
   text-align: center;
+}
+.product-badge {
+  position: absolute;
+  top: 10rpx;
+  right: 10rpx;
+  min-width: 40rpx;
+  height: 40rpx;
+  padding: 0 10rpx;
+  border-radius: 20rpx;
+  background: #07c160;
+  color: #fff;
+  font-size: 24rpx;
+  font-weight: 700;
+  line-height: 40rpx;
+  text-align: center;
+  box-shadow: 0 4rpx 12rpx rgba(7, 193, 96, 0.35);
 }
 .product-name {
   font-size: 26rpx;
@@ -1894,6 +2006,41 @@ function stopDevicePoll() {
   font-weight: 500;
 }
 .cart-cta::after {
+  border: none;
+}
+.cart-demo {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+}
+.cart-demo-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.cart-demo-label {
+  font-size: 22rpx;
+  color: #888;
+}
+.cart-demo-amt {
+  font-size: 30rpx;
+  font-weight: 800;
+  color: #07c160;
+  margin-top: 4rpx;
+}
+.cart-close-btn {
+  margin: 0;
+  padding: 0 40rpx;
+  height: 80rpx;
+  line-height: 80rpx;
+  background: linear-gradient(135deg, #059669, #0d9488);
+  color: #fff;
+  border-radius: 40rpx;
+  font-size: 30rpx;
+  font-weight: 700;
+  box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.25);
+}
+.cart-close-btn::after {
   border: none;
 }
 .settlement-review-card {

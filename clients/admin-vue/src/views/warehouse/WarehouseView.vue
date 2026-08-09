@@ -18,6 +18,40 @@
           <el-button v-if="canEdit && tab === 'purchase'" type="primary" @click="openPurchase()"
             >新建采购单</el-button
           >
+          <el-button
+            v-if="canEdit && tab === 'suggestions'"
+            type="primary"
+            data-testid="create-purchase-from-suggestions"
+            @click="openPurchaseFromSuggestions"
+            >按建议生成采购单</el-button
+          >
+          <el-button
+            v-if="canWarehouseEdit && tab === 'stocktakes'"
+            type="primary"
+            data-testid="create-stocktake"
+            @click="openStocktakeCreate"
+            >新建盘点</el-button
+          >
+          <el-button
+            v-if="canWarehouseEdit && tab === 'bins'"
+            type="primary"
+            @click="openBinDialog()"
+            >新增货位</el-button
+          >
+          <el-button
+            v-if="canWarehouseEdit && tab === 'bins'"
+            type="primary"
+            plain
+            @click="openBinInbound"
+            >入库到货位</el-button
+          >
+          <el-button
+            v-if="canWarehouseEdit && tab === 'bins'"
+            type="primary"
+            plain
+            @click="openBinMove"
+            >货位移库</el-button
+          >
           <el-button v-if="canEdit && tab === 'returns'" type="primary" @click="openReturn()"
             >新建退货</el-button
           >
@@ -78,6 +112,8 @@
           tab === 'movements' ||
           tab === 'outbounds' ||
           tab === 'purchase' ||
+          tab === 'suggestions' ||
+          tab === 'bins' ||
           tab === 'returns'
         "
         label="仓库"
@@ -102,6 +138,79 @@
         label="关键词"
       >
         <el-input v-model="keyword" clearable placeholder="搜索关键词" style="width: 200px" />
+      </el-form-item>
+      <el-form-item v-if="tab === 'suggestions'" label="采购前置期(天)">
+        <el-input-number
+          v-model="suggestionLeadTimeDays"
+          :min="1"
+          :max="60"
+          size="small"
+          controls-position="right"
+          @change="onSuggestionParamsChange"
+        />
+      </el-form-item>
+      <el-form-item v-if="tab === 'suggestions'" label="覆盖天数">
+        <el-input-number
+          v-model="suggestionCoverageDays"
+          :min="1"
+          :max="365"
+          size="small"
+          controls-position="right"
+          @change="onSuggestionParamsChange"
+        />
+      </el-form-item>
+      <el-form-item v-if="tab === 'payables'" label="状态">
+        <el-select
+          v-model="payableStatusFilter"
+          clearable
+          placeholder="全部"
+          style="width: 140px"
+          @change="onPayableFilter"
+        >
+          <el-option label="未付" value="UNPAID" />
+          <el-option label="部分付款" value="PARTIAL" />
+          <el-option label="已付" value="PAID" />
+          <el-option label="已关闭" value="CLOSED" />
+        </el-select>
+      </el-form-item>
+      <el-form-item v-if="tab === 'payables'" label="逾期">
+        <el-checkbox
+          v-model="payableOverdueOnly"
+          data-testid="payable-overdue-only"
+          @change="onPayableFilter"
+          >仅看逾期</el-checkbox
+        >
+      </el-form-item>
+      <el-form-item v-if="tab === 'stocktakes'" label="状态">
+        <el-select
+          v-model="stocktakeStatusFilter"
+          clearable
+          placeholder="全部"
+          style="width: 140px"
+          @change="onStocktakeFilter"
+        >
+          <el-option label="草稿" value="DRAFT" />
+          <el-option label="盘点中" value="IN_PROGRESS" />
+          <el-option label="已完成" value="COMPLETED" />
+          <el-option label="已调整" value="ADJUSTED" />
+          <el-option label="已取消" value="CANCELLED" />
+        </el-select>
+      </el-form-item>
+      <el-form-item v-if="tab === 'bins'" label="货位">
+        <el-select
+          v-model="filterBinId"
+          clearable
+          placeholder="全部货位"
+          style="width: 160px"
+          @change="onBinFilter"
+        >
+          <el-option
+            v-for="b in bins"
+            :key="b.binId"
+            :label="b.binCode"
+            :value="b.binId"
+          />
+        </el-select>
       </el-form-item>
       <el-form-item v-if="tab === 'outbounds'" label="状态">
         <el-select
@@ -277,6 +386,12 @@
                 min-width="150"
                 align="center"
               />
+              <el-table-column
+                prop="paymentTermsDays"
+                label="账期(天)"
+                min-width="96"
+                align="center"
+              />
               <el-table-column label="状态" min-width="100" align="center">
                 <template #default="{ row }">
                   <el-tag :type="dictTagType(row.status)" size="small">{{
@@ -396,11 +511,18 @@
               <el-table-column
                 v-if="canEdit"
                 label="操作"
-                width="100"
+                width="180"
                 class-name="col-action"
                 align="center"
               >
                 <template #default="{ row }">
+                  <el-button
+                    link
+                    type="primary"
+                    class="print-btn"
+                    @click="openPrint('purchase', { purchaseOrderId: row.purchaseOrderId })"
+                    >打印收货单</el-button
+                  >
                   <TableActions
                     v-if="['CREATED', 'PARTIAL_RECEIVED'].includes(row.status)"
                     :actions="[{ key: 'receive', label: '采购收货', icon: Box, type: 'primary' }]"
@@ -413,6 +535,55 @@
                 ><el-empty
                   v-if="hydratedTabs.has('purchase') && !isTabLoading('purchase')"
                   description="暂无采购单"
+              /></template>
+            </el-table>
+          </div>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane v-if="canProcurementList" label="采购建议" name="suggestions">
+        <div class="table-scroll">
+          <div class="table-scroll-inner">
+            <el-table
+              class="report-table"
+              v-loading="isTabLoading('suggestions')"
+              :data="pagedSuggestions"
+              stripe
+              border
+              row-key="skuId"
+              @selection-change="onSelectionChange"
+              empty-text=" "
+            >
+              <el-table-column type="selection" width="48" align="center" />
+              <el-table-column label="商品" min-width="170" align="center" show-overflow-tooltip>
+                <template #default="{ row }">{{ skuName(row.skuId) }}</template>
+              </el-table-column>
+              <el-table-column label="近7日销量" prop="soldQty7d" min-width="96" align="center" />
+              <el-table-column label="近14日销量" prop="soldQty14d" min-width="104" align="center" />
+              <el-table-column label="日均销量" min-width="88" align="center">
+                <template #default="{ row }">
+                  {{ Number(row.avgDailySales ?? 0).toFixed(2) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="仓库库存" prop="onHandQty" min-width="88" align="center" />
+              <el-table-column label="待收采购" prop="pendingPoQty" min-width="88" align="center" />
+              <el-table-column label="覆盖天数" prop="coverageDays" min-width="88" align="center" />
+              <el-table-column label="建议采购量" min-width="104" align="center">
+                <template #default="{ row }">
+                  <span class="cell-id">{{ row.suggestQty }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="建议理由" min-width="110" align="center">
+                <template #default="{ row }">
+                  <el-tag size="small" type="warning">
+                    {{ suggestionReasonText(row.suggestReason) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <template #empty
+                ><el-empty
+                  v-if="hydratedTabs.has('suggestions') && !isTabLoading('suggestions')"
+                  description="暂无采购建议（近 14 日有动销且库存不足的商品才会出现）"
               /></template>
             </el-table>
           </div>
@@ -488,6 +659,243 @@
         </div>
       </el-tab-pane>
 
+      <el-tab-pane v-if="canProcurementList" label="应付账款" name="payables">
+        <el-alert
+          v-if="hydratedTabs.has('payables') && !isTabLoading('payables')"
+          :closable="false"
+          show-icon
+          type="info"
+          class="payable-summary"
+          :title="payableSummaryText"
+        />
+        <div class="table-scroll">
+          <div class="table-scroll-inner">
+            <el-table
+              class="report-table"
+              v-loading="isTabLoading('payables')"
+              :data="pagedPayables"
+              stripe
+              border
+              row-key="payableId"
+              @selection-change="onSelectionChange"
+              empty-text=" "
+            >
+              <el-table-column type="expand" align="center">
+                <template #default="{ row }">
+                  <div class="expand-panel">
+                    <el-table
+                      v-if="row.payments?.length"
+                      :data="row.payments"
+                      size="small"
+                      border
+                      class="line-table"
+                    >
+                      <el-table-column label="付款时间" min-width="170" align="center">
+                        <template #default="scope">
+                          {{ formatDateTime(scope.row.createdAt) }}
+                        </template>
+                      </el-table-column>
+                      <el-table-column label="付款金额" min-width="110" align="center">
+                        <template #default="scope">¥{{ money(scope.row.amountCents) }}</template>
+                      </el-table-column>
+                      <el-table-column prop="notes" label="备注" min-width="180" align="center" />
+                    </el-table>
+                    <el-empty v-else description="暂无付款记录" :image-size="60" />
+                  </div>
+                </template>
+              </el-table-column>
+              <el-table-column label="供应商" min-width="150" align="center" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.supplierName }}</template>
+              </el-table-column>
+              <el-table-column label="关联采购单" min-width="110" align="center">
+                <template #default="{ row }">
+                  <span class="cell-id">{{ row.purchaseOrderId }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="应付金额" min-width="110" align="center">
+                <template #default="{ row }">¥{{ money(row.amountCents) }}</template>
+              </el-table-column>
+              <el-table-column label="已付" min-width="100" align="center">
+                <template #default="{ row }">¥{{ money(row.paidAmountCents) }}</template>
+              </el-table-column>
+              <el-table-column label="未付余额" min-width="110" align="center">
+                <template #default="{ row }">
+                  <span class="cell-id">{{ money(row.balanceCents) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="到期日" min-width="110" align="center">
+                <template #default="{ row }">{{ row.dueDate || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="状态" min-width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="payableStatusType(row.status)" size="small">
+                    {{ payableStatusText(row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="逾期" min-width="116" align="center">
+                <template #default="{ row }">
+                  <el-tag v-if="row.overdue" type="danger" size="small">
+                    逾期 {{ row.overdueDays }} 天
+                  </el-tag>
+                  <span v-else class="muted">未逾期</span>
+                </template>
+              </el-table-column>
+              <el-table-column v-if="canEdit" label="操作" width="100" align="center">
+                <template #default="{ row }">
+                  <el-button
+                    link
+                    type="primary"
+                    :disabled="
+                      row.balanceCents <= 0 || ['PAID', 'CLOSED'].includes(row.status)
+                    "
+                    data-testid="pay-payable"
+                    @click="openPay(row)"
+                    >登记付款</el-button
+                  >
+                </template>
+              </el-table-column>
+              <template #empty
+                ><el-empty
+                  v-if="hydratedTabs.has('payables') && !isTabLoading('payables')"
+                  description="暂无应付账款"
+              /></template>
+            </el-table>
+          </div>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane v-if="canWarehouseList" label="盘点单" name="stocktakes">
+        <div class="table-scroll">
+          <div class="table-scroll-inner">
+            <el-table
+              class="report-table"
+              v-loading="isTabLoading('stocktakes')"
+              :data="pagedStocktakes"
+              stripe
+              border
+              row-key="stocktakeId"
+              @selection-change="onSelectionChange"
+              empty-text=" "
+            >
+              <el-table-column type="selection" width="48" align="center" />
+              <el-table-column label="盘点单号" min-width="160" align="center">
+                <template #default="{ row }">
+                  <span class="cell-id">{{ row.stocktakeNo }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="仓库" min-width="140" align="center">
+                <template #default="{ row }">{{ row.warehouseName }}</template>
+              </el-table-column>
+              <el-table-column label="模式" min-width="80" align="center">
+                <template #default="{ row }">{{ stocktakeModeText(row.mode) }}</template>
+              </el-table-column>
+              <el-table-column label="状态" min-width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag :type="stocktakeStatusType(row.status)" size="small">
+                    {{ stocktakeStatusText(row.status) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="账面件数" prop="bookQty" min-width="90" align="center" />
+              <el-table-column label="实盘件数" prop="countedQty" min-width="90" align="center" />
+              <el-table-column label="差异件数" min-width="90" align="center">
+                <template #default="{ row }">{{ row.diffQty }}</template>
+              </el-table-column>
+              <el-table-column label="差异行数" prop="diffLineCount" min-width="90" align="center" />
+              <el-table-column label="创建时间" min-width="160" align="center">
+                <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+              </el-table-column>
+              <el-table-column v-if="canWarehouseEdit" label="操作" width="110" align="center">
+                <template #default="{ row }">
+                  <el-button link type="primary" @click="openStocktakeDetail(row)">
+                    {{ ['DRAFT', 'IN_PROGRESS'].includes(row.status) ? '盘点' : '查看/调整' }}
+                  </el-button>
+                </template>
+              </el-table-column>
+              <template #empty
+                ><el-empty
+                  v-if="hydratedTabs.has('stocktakes') && !isTabLoading('stocktakes')"
+                  description="暂无盘点单"
+              /></template>
+            </el-table>
+          </div>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane v-if="canWarehouseList" label="货位" name="bins">
+        <div class="section-title">货位档案</div>
+        <div class="table-scroll compact">
+          <el-table
+            v-loading="isTabLoading('bins')"
+            :data="bins"
+            stripe
+            border
+            size="small"
+            empty-text=" "
+          >
+            <el-table-column label="货位编码" min-width="110" align="center">
+              <template #default="{ row }">
+                <span class="cell-id">{{ row.binCode }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="binName" label="货位名称" min-width="140" align="center">
+              <template #default="{ row }">{{ row.binName || '—' }}</template>
+            </el-table-column>
+            <el-table-column label="仓库" min-width="140" align="center">
+              <template #default="{ row }">{{ row.warehouseName }}</template>
+            </el-table-column>
+            <el-table-column label="状态" min-width="90" align="center">
+              <template #default="{ row }">
+                <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">
+                  {{ row.status === 'ACTIVE' ? '启用' : '停用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column v-if="canWarehouseEdit" label="操作" width="80" align="center">
+              <template #default="{ row }">
+                <el-button link type="primary" @click="openBinDialog(row)">编辑</el-button>
+              </template>
+            </el-table-column>
+            <template #empty
+              ><el-empty
+                v-if="hydratedTabs.has('bins') && !isTabLoading('bins')"
+                description="暂无货位，请先新增货位"
+                :image-size="60"
+            /></template>
+          </el-table>
+        </div>
+        <div class="section-title">货位库存</div>
+        <div class="table-scroll">
+          <el-table
+            v-loading="isTabLoading('bins')"
+            :data="pagedBinStock"
+            stripe
+            border
+            empty-text=" "
+          >
+            <el-table-column label="货位" min-width="100" align="center">
+              <template #default="{ row }">
+                <span class="cell-id">{{ row.binCode }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="商品" min-width="170" align="center" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.skuName }}</template>
+            </el-table-column>
+            <el-table-column prop="batchNo" label="批次" min-width="130" align="center" />
+            <el-table-column prop="productionDate" label="生产日期" min-width="110" align="center" />
+            <el-table-column prop="expiryDate" label="到期日" min-width="110" align="center" />
+            <el-table-column prop="quantity" label="数量" min-width="80" align="center" />
+            <template #empty
+              ><el-empty
+                v-if="hydratedTabs.has('bins') && !isTabLoading('bins')"
+                description="暂无货位库存"
+                :image-size="60"
+            /></template>
+          </el-table>
+        </div>
+      </el-tab-pane>
+
       <el-tab-pane label="出库单" name="outbounds">
         <div class="table-scroll">
           <div class="table-scroll-inner">
@@ -558,12 +966,20 @@
               <el-table-column
                 v-if="canEdit"
                 label="操作"
-                width="110"
+                width="180"
                 class-name="col-action"
                 align="center"
               >
                 <template #default="{ row }">
                   <div :data-testid="`outbound-row-${row.outboundId}`">
+                    <el-button
+                      v-if="row.lines?.length"
+                      link
+                      type="primary"
+                      class="print-btn"
+                      @click="openPrint('picking', { outboundId: row.outboundId })"
+                      >打印拣货单</el-button
+                    >
                     <TableActions
                       v-if="outboundActions(row).length"
                       :actions="outboundActions(row)"
@@ -826,6 +1242,21 @@
         <el-form-item label="联系电话"
           ><el-input v-model="supplierForm.contactPhone"
         /></el-form-item>
+        <el-form-item label="账期(天)"
+          ><el-input-number
+            v-model="supplierForm.paymentTermsDays"
+            :min="0"
+            :max="365"
+            style="width: 100%"
+        /></el-form-item>
+        <el-form-item label="信用额度(元)"
+          ><el-input-number
+            v-model="supplierForm.creditLimitYuan"
+            :min="0"
+            :step="100"
+            :precision="2"
+            style="width: 100%"
+        /></el-form-item>
         <el-form-item label="状态">
           <el-select v-model="supplierForm.status" style="width: 100%">
             <el-option
@@ -840,6 +1271,328 @@
       <template #footer>
         <el-button @click="supplierDialog = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="saveSupplier">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="paymentDialog" title="登记付款" width="480px" destroy-on-close>
+      <el-form label-width="92px">
+        <el-form-item label="供应商">{{ payTarget.supplierName }}</el-form-item>
+        <el-form-item label="关联采购单">
+          <span class="cell-id">{{ payTarget.purchaseOrderId }}</span>
+        </el-form-item>
+        <el-form-item label="未付余额">¥{{ money(payTarget.balanceCents) }}</el-form-item>
+        <el-form-item label="付款金额(元)" required>
+          <el-input-number
+            v-model="paymentForm.amountYuan"
+            :min="0.01"
+            :max="payMaxYuan"
+            :precision="2"
+            :step="100"
+            controls-position="right"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="备注"
+          ><el-input v-model="paymentForm.notes" maxlength="200"
+        /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="paymentDialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="savePayment">确认付款</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="stocktakeDialog" title="新建盘点" width="480px" destroy-on-close>
+      <el-form label-width="92px">
+        <el-form-item label="仓库" required>
+          <el-select v-model="stocktakeForm.warehouseId" filterable style="width: 100%">
+            <el-option
+              v-for="w in activeWarehouses"
+              :key="w.warehouseId"
+              :label="w.warehouseName"
+              :value="w.warehouseId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="盘点模式">
+          <el-radio-group v-model="stocktakeForm.mode">
+            <el-radio value="OPEN">明盘（预填账面数）</el-radio>
+            <el-radio value="BLIND">盲盘（实盘留空）</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item label="备注"
+          ><el-input v-model="stocktakeForm.notes" maxlength="200"
+        /></el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="stocktakeDialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveStocktake">创建</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="stocktakeDetailDialog"
+      :title="`盘点单 ${stocktakeDetail.stocktakeNo || ''}`"
+      width="980px"
+      class="dialog-wide"
+      destroy-on-close
+    >
+      <el-form inline class="filter-bar filter-bar--compact" @submit.prevent>
+        <el-form-item label="仓库">{{ stocktakeDetail.warehouseName }}</el-form-item>
+        <el-form-item label="模式">{{ stocktakeModeText(stocktakeDetail.mode) }}</el-form-item>
+        <el-form-item label="状态">
+          <el-tag :type="stocktakeStatusType(stocktakeDetail.status)" size="small">
+            {{ stocktakeStatusText(stocktakeDetail.status) }}
+          </el-tag>
+        </el-form-item>
+        <el-form-item label="账面件数">{{ stocktakeDetail.bookQty ?? 0 }}</el-form-item>
+        <el-form-item label="实盘件数">{{ stocktakeDetail.countedQty ?? 0 }}</el-form-item>
+        <el-form-item label="差异件数">
+          <b>{{ stocktakeDetail.diffQty ?? 0 }}</b>
+        </el-form-item>
+        <el-form-item label="差异行数">{{ stocktakeDetail.diffLineCount ?? 0 }}</el-form-item>
+      </el-form>
+      <el-table
+        :data="stocktakeDetail.lines || []"
+        size="small"
+        border
+        max-height="420"
+        class="line-table"
+      >
+        <el-table-column label="商品" min-width="170">
+          <template #default="{ row }">{{ row.skuName }}</template>
+        </el-table-column>
+        <el-table-column prop="batchNo" label="批次" min-width="130" />
+        <el-table-column prop="productionDate" label="生产日期" min-width="110" />
+        <el-table-column prop="expiryDate" label="到期日" min-width="110" />
+        <el-table-column prop="bookQty" label="账面" min-width="70" align="center" />
+        <el-table-column label="实盘" min-width="130" align="center">
+          <template #default="{ row }">
+            <el-input-number
+              v-if="['DRAFT', 'IN_PROGRESS'].includes(stocktakeDetail.status)"
+              v-model="row.countedQty"
+              :min="0"
+              size="small"
+              controls-position="right"
+            />
+            <span v-else>{{ row.countedQty ?? '—' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="差异" min-width="80" align="center">
+          <template #default="{ row }">{{ row.diffQty }}</template>
+        </el-table-column>
+        <el-table-column label="状态" min-width="100" align="center">
+          <template #default="{ row }">
+            <el-tag :type="stocktakeLineStatusType(row.status)" size="small">
+              {{ stocktakeLineStatusText(row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+      <template #footer>
+        <el-button @click="stocktakeDetailDialog = false">关闭</el-button>
+        <template v-if="['DRAFT', 'IN_PROGRESS'].includes(stocktakeDetail.status)">
+          <el-button
+            type="primary"
+            plain
+            :loading="scanningPhoto"
+            @click="triggerStocktakePhotoScan"
+            >拍照识别</el-button
+          >
+          <el-button type="primary" :loading="saving" @click="saveStocktakeLines"
+            >保存实盘</el-button
+          >
+          <el-button type="success" :loading="saving" @click="completeStocktakeAction"
+            >完成盘点</el-button
+          >
+          <el-button
+            v-if="stocktakeDetail.status === 'DRAFT'"
+            :loading="saving"
+            @click="cancelStocktakeAction"
+            >取消盘点</el-button
+          >
+        </template>
+        <el-button
+          v-if="
+            stocktakeDetail.status === 'COMPLETED' && (stocktakeDetail.diffLineCount ?? 0) > 0
+          "
+          type="warning"
+          :loading="saving"
+          @click="adjustStocktakeAction"
+          >复盘调整</el-button
+        >
+      </template>
+      <input
+        ref="stocktakePhotoInput"
+        type="file"
+        accept="image/*"
+        class="hidden-input"
+        @change="onStocktakePhoto"
+      />
+    </el-dialog>
+
+    <el-dialog
+      v-model="binDialog"
+      :title="binForm.editing ? '编辑货位' : '新增货位'"
+      width="480px"
+      destroy-on-close
+    >
+      <el-form label-width="92px">
+        <el-form-item label="仓库" required>
+          <el-select
+            v-model="binForm.warehouseId"
+            filterable
+            :disabled="binForm.editing"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="w in activeWarehouses"
+              :key="w.warehouseId"
+              :label="w.warehouseName"
+              :value="w.warehouseId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="货位编码" required
+          ><el-input
+            v-model="binForm.binCode"
+            :disabled="binForm.editing"
+            placeholder="如 A-01"
+            maxlength="32"
+        /></el-form-item>
+        <el-form-item label="货位名称"
+          ><el-input v-model="binForm.binName" maxlength="64"
+        /></el-form-item>
+        <el-form-item label="状态">
+          <el-radio-group v-model="binForm.status">
+            <el-radio value="ACTIVE">启用</el-radio>
+            <el-radio value="INACTIVE">停用</el-radio>
+          </el-radio-group>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="binDialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveBin">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="binInboundDialog" title="入库到货位" width="560px" destroy-on-close>
+      <el-form label-width="92px">
+        <el-form-item label="仓库" required>
+          <el-select
+            v-model="binInboundForm.warehouseId"
+            filterable
+            style="width: 100%"
+            @change="onBinInboundWarehouse"
+          >
+            <el-option
+              v-for="w in activeWarehouses"
+              :key="w.warehouseId"
+              :label="w.warehouseName"
+              :value="w.warehouseId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="货位" required>
+          <el-select v-model="binInboundForm.binCode" filterable style="width: 100%">
+            <el-option
+              v-for="b in activeBinsFor(binInboundForm.warehouseId)"
+              :key="b.binCode"
+              :label="b.binCode"
+              :value="b.binCode"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="商品" required>
+          <el-select v-model="binInboundForm.skuId" filterable style="width: 100%">
+            <el-option
+              v-for="sku in skus"
+              :key="sku.skuId"
+              :label="`${sku.skuName || sku.skuId}`"
+              :value="sku.skuId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="批次" required
+          ><el-input v-model="binInboundForm.batchNo" maxlength="64"
+        /></el-form-item>
+        <el-form-item label="生产日期"
+          ><input
+            v-model="binInboundForm.productionDate"
+            class="native-date"
+            type="date"
+        /></el-form-item>
+        <el-form-item label="到期日" required
+          ><input v-model="binInboundForm.expiryDate" class="native-date" type="date"
+        /></el-form-item>
+        <el-form-item label="数量" required>
+          <el-input-number
+            v-model="binInboundForm.quantity"
+            :min="1"
+            controls-position="right"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="binInboundDialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveBinInbound">确认入库</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="binMoveDialog" title="货位移库" width="560px" destroy-on-close>
+      <el-form label-width="92px">
+        <el-form-item label="源货位" required>
+          <el-select
+            v-model="binMoveForm.fromBinId"
+            filterable
+            style="width: 100%"
+            @change="onBinMoveSource"
+          >
+            <el-option
+              v-for="b in allBins"
+              :key="b.binId"
+              :label="binLabel(b)"
+              :value="b.binId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="目标货位" required>
+          <el-select v-model="binMoveForm.toBinId" filterable style="width: 100%">
+            <el-option
+              v-for="b in allBins"
+              :key="b.binId"
+              :label="binLabel(b)"
+              :value="b.binId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="商品" required>
+          <el-select v-model="binMoveForm.skuId" filterable style="width: 100%">
+            <el-option
+              v-for="s in sourceBinSkus"
+              :key="s.skuId"
+              :label="s.skuName"
+              :value="s.skuId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="批次" required
+          ><el-input v-model="binMoveForm.batchNo" maxlength="64"
+        /></el-form-item>
+        <el-form-item label="数量" required>
+          <el-input-number
+            v-model="binMoveForm.quantity"
+            :min="1"
+            :max="sourceBinMaxQty"
+            controls-position="right"
+            style="width: 100%"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="binMoveDialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveBinMove">确认移库</el-button>
       </template>
     </el-dialog>
 
@@ -1176,10 +1929,12 @@ const route = useRoute();
 const router = useRouter();
 const auth = useAuthStore();
 const canWarehouseEdit = computed(() => auth.hasPerm('ops:warehouse:edit'));
+const canWarehouseList = computed(() => auth.hasPerm('ops:warehouse:list'));
 const canProcurementEdit = computed(() => auth.hasPerm('ops:procurement:edit'));
 const canProcurementList = computed(() => auth.hasPerm('ops:procurement:list'));
 const canEdit = computed(() => {
-  if (['suppliers', 'purchase', 'returns'].includes(tab.value)) return canProcurementEdit.value;
+  if (['suppliers', 'purchase', 'returns', 'suggestions'].includes(tab.value))
+    return canProcurementEdit.value;
   return canWarehouseEdit.value;
 });
 const canImportMaster = computed(() => tab.value === 'warehouses' || tab.value === 'suppliers');
@@ -1195,6 +1950,14 @@ function rowKeyOf(row: Row): string | number {
       return row.purchaseOrderId;
     case 'returns':
       return row.returnId;
+    case 'suggestions':
+      return row.skuId;
+    case 'payables':
+      return row.payableId;
+    case 'stocktakes':
+      return row.stocktakeId;
+    case 'bins':
+      return row.id ?? row.binId;
     case 'outbounds':
       return row.outboundId;
     case 'transit':
@@ -1272,6 +2035,53 @@ const outbounds = ref<Row[]>([]);
 const inTransit = ref<Row[]>([]);
 const inventory = ref<Row[]>([]);
 const movements = ref<Row[]>([]);
+const suggestions = ref<Row[]>([]);
+const suggestionLeadTimeDays = ref(2);
+const suggestionCoverageDays = ref(14);
+const payables = ref<Row[]>([]);
+const payableSummary = ref<Row[]>([]);
+const payableStatusFilter = ref('');
+const payableOverdueOnly = ref(false);
+const paymentDialog = ref(false);
+const paymentForm = reactive<Row>({ payableId: null, amountYuan: 0, notes: '' });
+const payTarget = ref<Row>({});
+const stocktakes = ref<Row[]>([]);
+const stocktakeStatusFilter = ref('');
+const stocktakeDialog = ref(false);
+const stocktakeDetailDialog = ref(false);
+const scanningPhoto = ref(false);
+const stocktakePhotoInput = ref<HTMLInputElement | null>(null);
+const stocktakeForm = reactive<Row>({ warehouseId: '', mode: 'OPEN', notes: '' });
+const stocktakeDetail = ref<Row>({});
+const bins = ref<Row[]>([]);
+const binStock = ref<Row[]>([]);
+const filterBinId = ref<number | null>(null);
+const binDialog = ref(false);
+const binInboundDialog = ref(false);
+const binMoveDialog = ref(false);
+const binForm = reactive<Row>({
+  editing: false,
+  warehouseId: '',
+  binCode: '',
+  binName: '',
+  status: 'ACTIVE'
+});
+const binInboundForm = reactive<Row>({
+  warehouseId: '',
+  binCode: '',
+  skuId: '',
+  batchNo: '',
+  productionDate: localDate(),
+  expiryDate: '',
+  quantity: 1
+});
+const binMoveForm = reactive<Row>({
+  fromBinId: null,
+  toBinId: null,
+  skuId: '',
+  batchNo: '',
+  quantity: 1
+});
 const devices = ref<Row[]>([]);
 const skus = ref<Row[]>([]);
 const loadedTabs = ref(new Set<string>(['warehouses']));
@@ -1297,6 +2107,8 @@ const supplierForm = reactive({
   supplierName: '',
   contactName: '',
   contactPhone: '',
+  paymentTermsDays: 30,
+  creditLimitYuan: 0,
   status: 'ACTIVE'
 });
 const purchaseForm = reactive<Row>({
@@ -1318,9 +2130,19 @@ const pageHint = computed(() => {
 });
 
 const showFilterBar = computed(() =>
-  ['suppliers', 'purchase', 'returns', 'inventory', 'movements', 'outbounds', 'transit'].includes(
-    tab.value
-  )
+  [
+    'suppliers',
+    'purchase',
+    'returns',
+    'suggestions',
+    'payables',
+    'stocktakes',
+    'bins',
+    'inventory',
+    'movements',
+    'outbounds',
+    'transit'
+  ].includes(tab.value)
 );
 const activeSuppliers = computed(() => suppliers.value.filter((s) => s.status === 'ACTIVE'));
 const activeWarehouses = computed(() =>
@@ -1531,6 +2353,14 @@ const tabSource = computed(() => {
       return filteredPurchaseOrders.value;
     case 'returns':
       return filteredPurchaseReturns.value;
+    case 'suggestions':
+      return suggestions.value;
+    case 'payables':
+      return payables.value;
+    case 'stocktakes':
+      return stocktakes.value;
+    case 'bins':
+      return binStock.value;
     case 'outbounds':
       return filteredOutbounds.value;
     case 'transit':
@@ -1548,10 +2378,38 @@ const pagedWarehouses = computed(() => slicePage(sortWarehousesById(warehouses.v
 const pagedSuppliers = computed(() => slicePage(sortSuppliersById(filteredSuppliers.value)));
 const pagedPurchaseOrders = computed(() => slicePage(filteredPurchaseOrders.value));
 const pagedPurchaseReturns = computed(() => slicePage(filteredPurchaseReturns.value));
+const pagedSuggestions = computed(() => slicePage(suggestions.value));
+const pagedPayables = computed(() => slicePage(payables.value));
+const pagedStocktakes = computed(() => slicePage(stocktakes.value));
+const pagedBinStock = computed(() => slicePage(binStock.value));
 const pagedOutbounds = computed(() => slicePage(filteredOutbounds.value));
 const pagedInTransit = computed(() => slicePage(filteredInTransit.value));
 const pagedInventory = computed(() => slicePage(inventory.value));
 const pagedMovements = computed(() => slicePage(movements.value));
+const payableSummaryText = computed(() => {
+  const rows = payableSummary.value;
+  if (!rows.length) return '暂无未结清应付账款';
+  const total = rows.reduce((s, r) => s + (Number(r.totalBalanceCents) || 0), 0);
+  const overdue = rows.reduce((s, r) => s + (Number(r.overdueBalanceCents) || 0), 0);
+  return `共 ${rows.length} 家供应商有欠款，未付合计 ¥${money(total)}，其中逾期 ¥${money(overdue)}`;
+});
+const payMaxYuan = computed(() => Number((payTarget.value.balanceCents || 0) / 100));
+const allBins = computed(() => bins.value);
+const sourceBinSkus = computed(() => {
+  const rows = binStock.value.filter((r) => r.binId === binMoveForm.fromBinId);
+  const map = new Map<string, Row>();
+  for (const r of rows) {
+    if (!map.has(r.skuId)) {
+      map.set(r.skuId, { skuId: r.skuId, skuName: r.skuName });
+    }
+  }
+  return [...map.values()];
+});
+const sourceBinMaxQty = computed(() =>
+  binStock.value
+    .filter((r) => r.binId === binMoveForm.fromBinId && r.skuId === binMoveForm.skuId)
+    .reduce((s, r) => s + (Number(r.quantity) || 0), 0)
+);
 
 watch(tab, () => {
   page.value = 1;
@@ -1834,6 +2692,72 @@ function deviceName(id: string) {
 function skuName(id: string) {
   return skus.value.find((s) => s.skuId === id)?.skuName || id || '无';
 }
+function suggestionReasonText(code: string) {
+  const map: Record<string, string> = {
+    SALES_DRIVEN: '销量驱动',
+    LOW_STOCK: '库存不足'
+  };
+  return map[code] || code || '—';
+}
+function payableStatusText(code: string) {
+  const map: Record<string, string> = {
+    UNPAID: '未付',
+    PARTIAL: '部分付款',
+    PAID: '已付',
+    CLOSED: '已关闭'
+  };
+  return map[code] || code || '—';
+}
+function payableStatusType(code: string) {
+  const map: Record<string, string> = {
+    UNPAID: 'warning',
+    PARTIAL: 'primary',
+    PAID: 'success',
+    CLOSED: 'info'
+  };
+  return map[code] || 'info';
+}
+function stocktakeModeText(mode: string) {
+  return mode === 'BLIND' ? '盲盘' : '明盘';
+}
+function stocktakeStatusText(code: string) {
+  const map: Record<string, string> = {
+    DRAFT: '草稿',
+    IN_PROGRESS: '盘点中',
+    COMPLETED: '已完成',
+    ADJUSTED: '已调整',
+    CANCELLED: '已取消'
+  };
+  return map[code] || code || '—';
+}
+function stocktakeStatusType(code: string) {
+  const map: Record<string, string> = {
+    DRAFT: 'info',
+    IN_PROGRESS: 'warning',
+    COMPLETED: 'success',
+    ADJUSTED: 'primary',
+    CANCELLED: 'info'
+  };
+  return map[code] || 'info';
+}
+function stocktakeLineStatusText(code: string) {
+  const map: Record<string, string> = {
+    PENDING: '未盘',
+    MATCHED: '相符',
+    DIFF: '有差异',
+    ADJUSTED: '已调整'
+  };
+  return map[code] || code || '—';
+}
+function stocktakeLineStatusType(code: string) {
+  const map: Record<string, string> = {
+    PENDING: 'info',
+    MATCHED: 'success',
+    DIFF: 'danger',
+    ADJUSTED: 'primary'
+  };
+  return map[code] || 'info';
+}
 function localDate() {
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
@@ -1860,6 +2784,10 @@ function newInboundLine() {
 }
 function money(cents: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
+}
+function openPrint(type: string, query: Record<string, string | number>) {
+  const url = router.resolve({ name: 'print', query: { type, ...query } }).href;
+  window.open(url, '_blank');
 }
 function expiryDays(value: string) {
   return Math.ceil((new Date(value).getTime() - Date.now()) / 86400000);
@@ -1958,6 +2886,60 @@ async function loadMovements() {
     : '';
   movements.value = await api.request<Row[]>(`/api/v2/ops/admin/warehouse/movements${q}`, 'GET');
 }
+async function loadSuggestions() {
+  const params = new URLSearchParams();
+  if (suggestionLeadTimeDays.value > 0) {
+    params.set('leadTimeDays', String(suggestionLeadTimeDays.value));
+  }
+  if (suggestionCoverageDays.value > 0) {
+    params.set('coverageDays', String(suggestionCoverageDays.value));
+  }
+  if (filterWarehouseId.value) {
+    params.set('warehouseId', filterWarehouseId.value);
+  }
+  const q = params.toString();
+  suggestions.value = await api.request<Row[]>(
+    `/api/v2/ops/admin/procurement/suggestions${q ? `?${q}` : ''}`,
+    'GET'
+  );
+}
+async function loadPayables() {
+  const params = new URLSearchParams();
+  if (payableStatusFilter.value) params.set('status', payableStatusFilter.value);
+  if (payableOverdueOnly.value) params.set('overdueOnly', 'true');
+  const q = params.toString();
+  payables.value = await api.request<Row[]>(
+    `/api/v2/ops/admin/suppliers/payables${q ? `?${q}` : ''}`,
+    'GET'
+  );
+}
+async function loadPayableSummary() {
+  payableSummary.value = await api
+    .request<Row[]>('/api/v2/ops/admin/suppliers/payables/summary', 'GET')
+    .catch(() => []);
+}
+async function loadStocktakes() {
+  const q = stocktakeStatusFilter.value
+    ? `?status=${encodeURIComponent(stocktakeStatusFilter.value)}`
+    : '';
+  stocktakes.value = await api.request<Row[]>(
+    `/api/v2/ops/admin/warehouse/stocktakes${q}`,
+    'GET'
+  );
+}
+async function loadBins() {
+  bins.value = await api.request<Row[]>('/api/v2/ops/admin/warehouse/bins', 'GET');
+}
+async function loadBinStock() {
+  const params = new URLSearchParams();
+  if (filterWarehouseId.value) params.set('warehouseId', filterWarehouseId.value);
+  if (filterBinId.value != null) params.set('binId', String(filterBinId.value));
+  const q = params.toString();
+  binStock.value = await api.request<Row[]>(
+    `/api/v2/ops/admin/warehouse/bins/stock${q ? `?${q}` : ''}`,
+    'GET'
+  );
+}
 
 async function loadTab(name: string, force = false) {
   if (!force && loadedTabs.value.has(name) && name !== 'inventory' && name !== 'movements') return;
@@ -1977,6 +2959,14 @@ async function loadTab(name: string, force = false) {
         loadSuppliersSoft(),
         loadWarehousesSoft()
       ]);
+    } else if (name === 'suggestions') {
+      await Promise.all([loadSuggestions(), loadWarehousesSoft(), loadSuppliersSoft()]);
+    } else if (name === 'payables') {
+      await Promise.all([loadPayables(), loadPayableSummary(), loadSuppliersSoft()]);
+    } else if (name === 'stocktakes') {
+      await Promise.all([loadStocktakes(), loadWarehousesSoft()]);
+    } else if (name === 'bins') {
+      await Promise.all([loadBins(), loadBinStock(), loadWarehousesSoft()]);
     } else if (name === 'outbounds') {
       await Promise.all([loadOutbounds(), loadWarehousesSoft()]);
     } else if (name === 'transit') await loadTransit();
@@ -2014,10 +3004,35 @@ function reloadCurrent() {
 }
 function onWarehouseFilter() {
   page.value = 1;
-  if (tab.value === 'inventory' || tab.value === 'movements') {
+  if (
+    tab.value === 'inventory' ||
+    tab.value === 'movements' ||
+    tab.value === 'suggestions' ||
+    tab.value === 'bins'
+  ) {
     loadedTabs.value.delete(tab.value);
     loadTab(tab.value, true);
   }
+}
+function onSuggestionParamsChange() {
+  page.value = 1;
+  loadedTabs.value.delete('suggestions');
+  loadTab('suggestions', true);
+}
+function onPayableFilter() {
+  page.value = 1;
+  loadedTabs.value.delete('payables');
+  loadTab('payables', true);
+}
+function onStocktakeFilter() {
+  page.value = 1;
+  loadedTabs.value.delete('stocktakes');
+  loadTab('stocktakes', true);
+}
+function onBinFilter() {
+  page.value = 1;
+  loadedTabs.value.delete('bins');
+  loadTab('bins', true);
 }
 
 function openWarehouse(row?: Row) {
@@ -2063,6 +3078,8 @@ function openSupplier(row?: Row) {
     supplierName: row?.supplierName || '',
     contactName: row?.contactName || '',
     contactPhone: row?.contactPhone || '',
+    paymentTermsDays: row?.paymentTermsDays || 30,
+    creditLimitYuan: row?.creditLimitCents != null ? Number(row.creditLimitCents) / 100 : 0,
     status: row?.status || 'ACTIVE'
   });
   supplierDialog.value = true;
@@ -2081,6 +3098,8 @@ async function saveSupplier() {
         supplierName: supplierForm.supplierName.trim(),
         contactName: supplierForm.contactName,
         contactPhone: supplierForm.contactPhone,
+        paymentTermsDays: Number(supplierForm.paymentTermsDays) || 30,
+        creditLimitCents: Math.round((Number(supplierForm.creditLimitYuan) || 0) * 100),
         status: supplierForm.status
       }
     );
@@ -2111,6 +3130,361 @@ async function openPurchase() {
     purchaseForm.warehouseId = activeWarehouses.value[0]?.warehouseId || '';
   } finally {
     dialogBootLoading.value = false;
+  }
+}
+async function openPurchaseFromSuggestions() {
+  const rows = pickSelected(suggestions.value);
+  if (!rows.length) {
+    return ElMessage.warning('当前没有可用的采购建议');
+  }
+  Object.assign(purchaseForm, {
+    supplierId: '',
+    warehouseId: filterWarehouseId.value || '',
+    refNo: '',
+    notes: `由采购建议生成（覆盖 ${suggestionCoverageDays.value} 天）`,
+    lines: rows.map((r: Row) => ({
+      skuId: r.skuId,
+      batchNo: '',
+      productionDate: localDate(),
+      expiryDate: '',
+      orderedQty: r.suggestQty || 1,
+      receivedQty: 0,
+      unitCostYuan: 1
+    }))
+  });
+  purchaseDialog.value = true;
+  dialogBootLoading.value = true;
+  try {
+    await Promise.all([loadSuppliersSoft(), loadWarehousesSoft(), ensureMeta()]);
+    purchaseForm.supplierId = activeSuppliers.value[0]?.supplierId || '';
+    if (!purchaseForm.warehouseId) {
+      purchaseForm.warehouseId = activeWarehouses.value[0]?.warehouseId || '';
+    }
+  } finally {
+    dialogBootLoading.value = false;
+  }
+}
+function openPay(row: Row) {
+  Object.assign(payTarget.value, row);
+  paymentForm.payableId = row.payableId;
+  paymentForm.amountYuan = Number((Number(row.balanceCents) || 0) / 100);
+  paymentForm.notes = '';
+  paymentDialog.value = true;
+}
+async function savePayment() {
+  if (!paymentForm.payableId) return;
+  const amountCents = Math.round((Number(paymentForm.amountYuan) || 0) * 100);
+  if (amountCents <= 0) return ElMessage.warning('请输入付款金额');
+  saving.value = true;
+  try {
+    await api.request(
+      `/api/v2/ops/admin/suppliers/payables/${paymentForm.payableId}/pay`,
+      'POST',
+      {
+        amountCents,
+        notes: paymentForm.notes
+      }
+    );
+    paymentDialog.value = false;
+    ElMessage.success('付款登记成功');
+    loadedTabs.value.delete('payables');
+    await loadTab('payables', true);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '付款登记失败');
+  } finally {
+    saving.value = false;
+  }
+}
+async function openStocktakeCreate() {
+  Object.assign(stocktakeForm, { warehouseId: '', mode: 'OPEN', notes: '' });
+  stocktakeDialog.value = true;
+  try {
+    await loadWarehousesSoft();
+    stocktakeForm.warehouseId = activeWarehouses.value[0]?.warehouseId || '';
+  } catch {
+    /* 保留空值由用户选择 */
+  }
+}
+async function saveStocktake() {
+  if (!stocktakeForm.warehouseId) return ElMessage.warning('请选择仓库');
+  saving.value = true;
+  try {
+    await api.request('/api/v2/ops/admin/warehouse/stocktakes', 'POST', {
+      warehouseId: stocktakeForm.warehouseId,
+      mode: stocktakeForm.mode,
+      notes: stocktakeForm.notes
+    });
+    stocktakeDialog.value = false;
+    ElMessage.success('盘点单已创建');
+    loadedTabs.value.delete('stocktakes');
+    await loadTab('stocktakes', true);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '创建失败');
+  } finally {
+    saving.value = false;
+  }
+}
+async function openStocktakeDetail(row: Row) {
+  try {
+    stocktakeDetail.value = await api.request<Row>(
+      `/api/v2/ops/admin/warehouse/stocktakes/${row.stocktakeId}`,
+      'GET'
+    );
+    stocktakeDetailDialog.value = true;
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载失败');
+  }
+}
+function triggerStocktakePhotoScan() {
+  stocktakePhotoInput.value?.click();
+}
+async function onStocktakePhoto(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+  if (file.size > 8 * 1024 * 1024) {
+    ElMessage.warning('图片不能超过 8MB');
+    return;
+  }
+  scanningPhoto.value = true;
+  try {
+    const token = localStorage.getItem('admin_token');
+    const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
+    const form = new FormData();
+    form.append('file', file);
+    const res = await fetch(
+      `${base}/api/v2/ops/admin/warehouse/stocktakes/${stocktakeDetail.value.stocktakeId}/scan-photo`,
+      {
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: form
+      }
+    );
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok || json.code !== 0) {
+      throw new Error(json.message || `识别失败 (${res.status})`);
+    }
+    stocktakeDetail.value = json.data;
+    ElMessage.success('识别完成，已自动填入实盘数，请核对后保存');
+    loadedTabs.value.delete('stocktakes');
+    await loadTab('stocktakes', true);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '识别失败');
+  } finally {
+    scanningPhoto.value = false;
+  }
+}
+async function reloadStocktakeDetail() {
+  const id = stocktakeDetail.value.stocktakeId;
+  if (!id) return;
+  stocktakeDetail.value = await api.request<Row>(
+    `/api/v2/ops/admin/warehouse/stocktakes/${id}`,
+    'GET'
+  );
+  loadedTabs.value.delete('stocktakes');
+  await loadTab('stocktakes', true);
+}
+async function saveStocktakeLines() {
+  const id = stocktakeDetail.value.stocktakeId;
+  const lines: Row[] = stocktakeDetail.value.lines || [];
+  saving.value = true;
+  try {
+    await Promise.all(
+      lines
+        .filter((l: Row) => l.countedQty != null)
+        .map((l: Row) =>
+          api.request(
+            `/api/v2/ops/admin/warehouse/stocktakes/${id}/lines/${l.lineId}`,
+            'PUT',
+            { countedQty: l.countedQty, notes: l.notes }
+          )
+        )
+    );
+    ElMessage.success('实盘数据已保存');
+    await reloadStocktakeDetail();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    saving.value = false;
+  }
+}
+async function completeStocktakeAction() {
+  const id = stocktakeDetail.value.stocktakeId;
+  saving.value = true;
+  try {
+    await api.request(`/api/v2/ops/admin/warehouse/stocktakes/${id}/complete`, 'POST');
+    ElMessage.success('盘点已完成');
+    await reloadStocktakeDetail();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '完成失败');
+  } finally {
+    saving.value = false;
+  }
+}
+async function adjustStocktakeAction() {
+  const id = stocktakeDetail.value.stocktakeId;
+  saving.value = true;
+  try {
+    await api.request(`/api/v2/ops/admin/warehouse/stocktakes/${id}/adjust`, 'POST', {});
+    ElMessage.success('差异已调整入库');
+    await reloadStocktakeDetail();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '调整失败');
+  } finally {
+    saving.value = false;
+  }
+}
+async function cancelStocktakeAction() {
+  const id = stocktakeDetail.value.stocktakeId;
+  saving.value = true;
+  try {
+    await api.request(`/api/v2/ops/admin/warehouse/stocktakes/${id}/cancel`, 'POST');
+    ElMessage.success('盘点单已取消');
+    await reloadStocktakeDetail();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '取消失败');
+  } finally {
+    saving.value = false;
+  }
+}
+function openBinDialog(row?: Row) {
+  Object.assign(binForm, {
+    editing: !!row,
+    warehouseId: row?.warehouseId || activeWarehouses.value[0]?.warehouseId || '',
+    binCode: row?.binCode || '',
+    binName: row?.binName || '',
+    status: row?.status || 'ACTIVE'
+  });
+  binDialog.value = true;
+}
+async function saveBin() {
+  if (!binForm.warehouseId || !binForm.binCode.trim()) {
+    return ElMessage.warning('请填写仓库和货位编码');
+  }
+  saving.value = true;
+  try {
+    await api.request('/api/v2/ops/admin/warehouse/bins', 'PUT', {
+      warehouseId: binForm.warehouseId,
+      binCode: binForm.binCode.trim(),
+      binName: binForm.binName,
+      status: binForm.status
+    });
+    binDialog.value = false;
+    ElMessage.success('货位已保存');
+    loadedTabs.value.delete('bins');
+    await loadTab('bins', true);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    saving.value = false;
+  }
+}
+function activeBinsFor(warehouseId: string) {
+  return bins.value.filter((b) => b.warehouseId === warehouseId && b.status === 'ACTIVE');
+}
+function binLabel(b: Row) {
+  return b.binName ? `${b.binCode} · ${b.binName}` : b.binCode;
+}
+function onBinInboundWarehouse() {
+  const first = activeBinsFor(binInboundForm.warehouseId)[0];
+  binInboundForm.binCode = first?.binCode || '';
+}
+async function openBinInbound() {
+  Object.assign(binInboundForm, {
+    warehouseId: filterWarehouseId.value || activeWarehouses.value[0]?.warehouseId || '',
+    binCode: '',
+    skuId: skus.value[0]?.skuId || '',
+    batchNo: '',
+    productionDate: localDate(),
+    expiryDate: '',
+    quantity: 1
+  });
+  binInboundDialog.value = true;
+  try {
+    await Promise.all([loadWarehousesSoft(), ensureMeta()]);
+  } catch {
+    /* 保留旧值 */
+  }
+  onBinInboundWarehouse();
+}
+async function saveBinInbound() {
+  if (
+    !binInboundForm.warehouseId ||
+    !binInboundForm.binCode ||
+    !binInboundForm.skuId ||
+    !binInboundForm.batchNo.trim() ||
+    !binInboundForm.expiryDate
+  ) {
+    return ElMessage.warning('请完整填写仓库、货位、商品、批次和到期日');
+  }
+  saving.value = true;
+  try {
+    await api.request('/api/v2/ops/admin/warehouse/bins/stock/inbound', 'POST', {
+      warehouseId: binInboundForm.warehouseId,
+      binCode: binInboundForm.binCode,
+      skuId: binInboundForm.skuId,
+      batchNo: binInboundForm.batchNo.trim(),
+      productionDate: binInboundForm.productionDate,
+      expiryDate: binInboundForm.expiryDate,
+      quantity: Number(binInboundForm.quantity) || 0
+    });
+    binInboundDialog.value = false;
+    ElMessage.success('已入库到货位');
+    loadedTabs.value.delete('bins');
+    await loadTab('bins', true);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '入库失败');
+  } finally {
+    saving.value = false;
+  }
+}
+function onBinMoveSource() {
+  const first = sourceBinSkus.value[0];
+  binMoveForm.skuId = first?.skuId || '';
+  binMoveForm.batchNo = '';
+  binMoveForm.quantity = 1;
+}
+async function openBinMove() {
+  Object.assign(binMoveForm, {
+    fromBinId: allBins.value[0]?.binId ?? null,
+    toBinId: null,
+    skuId: '',
+    batchNo: '',
+    quantity: 1
+  });
+  binMoveDialog.value = true;
+  onBinMoveSource();
+}
+async function saveBinMove() {
+  if (
+    binMoveForm.fromBinId == null ||
+    binMoveForm.toBinId == null ||
+    !binMoveForm.skuId ||
+    !binMoveForm.batchNo.trim()
+  ) {
+    return ElMessage.warning('请完整填写源/目标货位、商品和批次');
+  }
+  saving.value = true;
+  try {
+    await api.request('/api/v2/ops/admin/warehouse/bins/stock/move', 'POST', {
+      fromBinId: binMoveForm.fromBinId,
+      toBinId: binMoveForm.toBinId,
+      skuId: binMoveForm.skuId,
+      batchNo: binMoveForm.batchNo.trim(),
+      quantity: Number(binMoveForm.quantity) || 0
+    });
+    binMoveDialog.value = false;
+    ElMessage.success('移库完成');
+    loadedTabs.value.delete('bins');
+    await loadTab('bins', true);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '移库失败');
+  } finally {
+    saving.value = false;
   }
 }
 function addPurchaseLine() {
@@ -2483,6 +3857,10 @@ function applyTabFromQuery() {
     'suppliers',
     'purchase',
     'returns',
+    'suggestions',
+    'payables',
+    'stocktakes',
+    'bins',
     'outbounds',
     'transit',
     'inventory',

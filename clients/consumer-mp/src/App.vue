@@ -131,6 +131,9 @@ button::after {
   color: #fff;
   border: none;
   border-radius: 44rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-weight: 600;
   box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.2);
   box-sizing: border-box;
@@ -141,7 +144,7 @@ button::after {
 .empty-btn.primary,
 .empty-btn.ghost {
   width: 100%;
-  display: block;
+  display: flex;
 }
 
 .btn-outline,

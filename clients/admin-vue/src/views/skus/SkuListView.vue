@@ -93,6 +93,13 @@
           @click="batchDelist"
           >批量下架</el-button
         >
+        <el-button
+          type="primary"
+          plain
+          :disabled="!selectedKeys.length"
+          @click="printSelectedLabels"
+          >打印标签</el-button
+        >
       </el-form-item>
     </el-form>
 
@@ -335,7 +342,7 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { EditPen, Refresh } from '@element-plus/icons-vue';
+import { EditPen, Printer, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type UploadRequestOptions } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
@@ -718,11 +725,26 @@ function skuActions(_row: SkuCatalog): TableAction[] {
   if (canEdit.value) {
     acts.push({ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' });
   }
+  acts.push({ key: 'print-label', label: '打印标签', icon: Printer, type: 'primary' });
   return acts;
 }
 
 function onSkuAction(key: string, row: SkuCatalog) {
   if (key === 'edit') openEdit(row);
+  if (key === 'print-label') openPrintLabels([row.skuId]);
+}
+
+function openPrintLabels(ids: Array<string | number>) {
+  const list = ids.map(String).filter(Boolean);
+  if (!list.length) {
+    ElMessage.warning('请先选择要打印标签的商品');
+    return;
+  }
+  const url = router.resolve({ name: 'print', query: { type: 'labels', ids: list.join(',') } }).href;
+  window.open(url, '_blank');
+}
+function printSelectedLabels() {
+  openPrintLabels(selectedKeys.value);
 }
 
 function openEdit(row?: SkuCatalog) {

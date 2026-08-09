@@ -67,16 +67,25 @@ public class MerchantFinanceService {
     }
 
     @Transactional(readOnly = true)
-    public PageResult<MerchantOrderSummaryDto> listOrders(Long userId, int page, int size, String deviceId) {
+    public PageResult<MerchantOrderSummaryDto> listOrders(Long userId, int page, int size, String deviceId,
+                                                          String status, String fromDate, String toDate,
+                                                          String keyword) {
         permissionService.requirePermission(userId, "merchant:orders:list");
         merchantPortalGuard.requireAccess(userId);
         Pageable pageable = PageRequest.of(page, Math.min(size, 100));
-        Page<CabinetOrder> result = queryOrders(userId, deviceId, pageable);
+        Page<CabinetOrder> result = queryOrders(userId, deviceId, status, fromDate, toDate, keyword, pageable);
         Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(
                 result.getContent().stream().map(CabinetOrder::getOrderId).toList());
+        Map<String, List<CabinetOrderLine>> linesByOrder = orderLineRepository.findByOrderIds(
+                        result.getContent().stream().map(CabinetOrder::getOrderId).toList())
+                .stream()
+                .collect(Collectors.groupingBy(CabinetOrderLine::getOrderId));
         return new PageResult<>(
                 result.getContent().stream()
-                        .map(o -> toMerchantOrderSummary(o, qtyByOrder.getOrDefault(o.getOrderId(), 0)))
+                        .map(o -> toMerchantOrderSummary(
+                                o,
+                                qtyByOrder.getOrDefault(o.getOrderId(), 0),
+                                buildLineSummary(linesByOrder.getOrDefault(o.getOrderId(), List.of()))))
                         .toList(),
                 result.getNumber(), result.getSize(), result.getTotalElements()
         );
@@ -275,26 +284,47 @@ public class MerchantFinanceService {
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 
-    private Page<CabinetOrder> queryOrders(Long userId, String deviceId, Pageable pageable) {
+    private Page<CabinetOrder> queryOrders(Long userId, String deviceId, String status,
+                                           String fromDate, String toDate, String keyword, Pageable pageable) {
+        String normalizedDeviceId = (deviceId == null || deviceId.isBlank()) ? null : deviceId.trim();
+        if (normalizedDeviceId != null) {
+            merchantFeaturePackService.requireDevicePack(userId, normalizedDeviceId, MerchantFeaturePacks.BIZ);
+        }
         Collection<String> deviceScope = merchantFeaturePackService.intersectDeviceFilterForPack(
-                userId, deviceId, MerchantFeaturePacks.BIZ);
+                userId, normalizedDeviceId, MerchantFeaturePacks.BIZ);
         if (deviceScope != null && deviceScope.isEmpty()) {
             return Page.empty(pageable);
         }
-        if (deviceId != null && !deviceId.isBlank()) {
-            merchantFeaturePackService.requireDevicePack(userId, deviceId.trim(), MerchantFeaturePacks.BIZ);
-            return orderRepository.findByDeviceIdOrderByCreatedAtDesc(deviceId.trim(), pageable);
-        }
-        if (deviceScope != null) {
-            return orderRepository.findByDeviceIdInOrderByCreatedAtDesc(deviceScope, pageable);
-        }
-        return orderRepository.findAllByOrderByCreatedAtDesc(pageable);
+        Instant from = (fromDate == null || fromDate.isBlank())
+                ? null : parseDateStart(fromDate.trim());
+        Instant to = (toDate == null || toDate.isBlank())
+                ? null : parseDateEnd(toDate.trim());
+        String normalizedStatus = (status == null || status.isBlank()) ? null : status.trim().toUpperCase();
+        return orderRepository.findByFiltersOrderByCreatedAtDesc(
+                normalizedDeviceId, deviceScope, normalizedStatus, null, from, to,
+                null, null, null, null, null, keyword, pageable);
     }
 
     /** lineCount 口径与运营侧一致：商品件数（quantity 合计），非行数。 */
-    private MerchantOrderSummaryDto toMerchantOrderSummary(CabinetOrder o, int itemQty) {
+    private MerchantOrderSummaryDto toMerchantOrderSummary(CabinetOrder o, int itemQty, String lineSummary) {
         return new MerchantOrderSummaryDto(o.getOrderId(), o.getSessionId(), o.getDeviceId(),
-                o.getTotalAmountCents(), o.getStatus(), itemQty, o.getCreatedAt());
+                o.getTotalAmountCents(), o.getStatus(), itemQty, o.getCreatedAt(), lineSummary);
+    }
+
+    /** 商品摘要，口径与用户端一致：名称 x数量、等N件。 */
+    private static String buildLineSummary(List<CabinetOrderLine> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return "";
+        }
+        String preview = lines.stream()
+                .limit(2)
+                .map(l -> l.getSkuName() + " x" + l.getQuantity())
+                .reduce((a, b) -> a + "、" + b)
+                .orElse("");
+        if (lines.size() > 2) {
+            return preview + " 等" + lines.size() + "件";
+        }
+        return preview;
     }
 
     private RevenueSplitDto toSplitDto(OrderRevenueSplit s, String merchantName) {

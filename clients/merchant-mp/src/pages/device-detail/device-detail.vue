@@ -7,6 +7,12 @@
     >
     <view v-else>
       <view class="card">
+        <image
+          class="device-hero"
+          src="/static/device-default.png"
+          mode="aspectFill"
+          aria-hidden="true"
+        />
         <text class="title">{{ deviceName }}</text>
         <text class="meta"
           >{{ deviceId }} · {{ online ? '在线' : '离线' }}{{ salesLocked ? ' · 停售中' : '' }}</text
@@ -269,6 +275,14 @@ async function saveSlots() {
 </script>
 
 <style scoped>
+.device-hero {
+  width: 100%;
+  height: 260rpx;
+  border-radius: 18rpx;
+  background: #ecfdf5;
+  margin-bottom: 16rpx;
+  display: block;
+}
 .title {
   font-size: 32rpx;
   font-weight: 600;

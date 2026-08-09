@@ -76,6 +76,22 @@
         </view>
         <text class="menu-arrow">›</text>
       </view>
+      <view class="menu-cell" @click="goPoints">
+        <image class="menu-icon" :src="menuIcon('member')" mode="aspectFit" />
+        <view class="menu-text">
+          <text class="menu-title">积分中心</text>
+          <text class="menu-desc">消费返积分 · 积分兑优惠券</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
+      <view class="menu-cell" @click="goMessages">
+        <image class="menu-icon" :src="menuIcon('notice')" mode="aspectFit" />
+        <view class="menu-text">
+          <text class="menu-title">消息中心</text>
+          <text class="menu-desc">订单支付 · 充值到账 · 售后提醒</text>
+        </view>
+        <text class="menu-arrow">›</text>
+      </view>
       <view v-if="authed" class="menu-cell" @click="toggleTransactions">
         <image class="menu-icon" :src="menuIcon('balance')" mode="aspectFit" />
         <view class="menu-text">
@@ -535,6 +551,14 @@ function goMember() {
 
 function goMarketing() {
   uni.navigateTo({ url: '/pages/marketing/index' });
+}
+
+function goPoints() {
+  uni.navigateTo({ url: '/pages/points/points' });
+}
+
+function goMessages() {
+  uni.navigateTo({ url: '/pages/messages/messages' });
 }
 
 function goRecharge() {

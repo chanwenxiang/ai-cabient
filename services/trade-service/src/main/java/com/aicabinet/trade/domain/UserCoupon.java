@@ -25,6 +25,8 @@ public class UserCoupon {
 
     private Instant expireAt;
 
+    private Instant remindedAt;
+
     private String orderId;
 
     private String deviceId;
@@ -49,6 +51,8 @@ public Long getCouponId() { return couponId; }
     public void setUsedAt(Instant v) { this.usedAt = v; }
     public Instant getExpireAt() { return expireAt; }
     public void setExpireAt(Instant v) { this.expireAt = v; }
+    public Instant getRemindedAt() { return remindedAt; }
+    public void setRemindedAt(Instant v) { this.remindedAt = v; }
     public String getOrderId() { return orderId; }
     public void setOrderId(String v) { this.orderId = v; }
     public String getDeviceId() { return deviceId; }

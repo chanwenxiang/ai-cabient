@@ -101,8 +101,16 @@
             <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
           </view>
           <view class="order-mid">
-            <text class="order-summary">{{ orderSummaryText(o) }}</text>
-            <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
+            <image
+              class="order-thumb"
+              :src="orderThumb(o)"
+              mode="aspectFill"
+              aria-hidden="true"
+            />
+            <view class="order-copy">
+              <text class="order-summary">{{ orderSummaryText(o) }}</text>
+              <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
+            </view>
           </view>
           <view class="order-bottom">
             <view class="order-bottom-left">
@@ -138,6 +146,7 @@ import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
 import { orderStatusLabel, formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
+import { skuImageFor } from '@aicabinet/shared-uni/product-image';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { showDisputeResolvedToast } from '@/utils/notify';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
@@ -249,9 +258,14 @@ function deviceDisplay(deviceId?: string) {
   return deviceId;
 }
 function orderSummaryText(o: OrderSummary) {
+  const summary = String(o.lineSummary || '').trim();
+  if (summary) return summary;
   const n = o.lineCount || 0;
   if (n > 0) return `共 ${n} 件商品`;
   return '购物账单';
+}
+function orderThumb(o: OrderSummary) {
+  return skuImageFor('', '', o.lineSummary);
 }
 function formatTime(value?: string) {
   return formatDateTimeShort(value);
@@ -716,14 +730,33 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .order-mid {
   display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   margin-top: 22rpx;
+  gap: 20rpx;
+}
+.order-thumb {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 18rpx;
+  background: #f0fdf4;
+  flex-shrink: 0;
+}
+.order-copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 16rpx;
 }
 .order-summary {
   font-size: 26rpx;
   color: #53645b;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .amt {
   color: #047857;

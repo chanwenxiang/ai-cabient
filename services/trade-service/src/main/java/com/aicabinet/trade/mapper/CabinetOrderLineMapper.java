@@ -43,6 +43,16 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
         return out;
     }
 
+    /** 批量取订单行（列表摘要用，避免逐单 N+1 查询）。 */
+    default List<CabinetOrderLine> findByOrderIds(Collection<String> orderIds) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<CabinetOrderLine>lambdaQuery()
+                .in(CabinetOrderLine::getOrderId, orderIds)
+                .orderByAsc(CabinetOrderLine::getId));
+    }
+
     long sumCogsSince(@Param("since") Instant since);
 
     long sumCogsTotal();
@@ -52,6 +62,12 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
 
     default List<Object[]> sumSoldQtyBySkuSince(String deviceId, Instant since) {
         return ColumnMapRows.toObjectRows(_sumSoldQtyBySkuSince(deviceId, since), 2);
+    }
+
+    List<LinkedHashMap<String, Object>> _sumSoldQtyAllSince(@Param("since") Instant since);
+
+    default List<Object[]> sumSoldQtyAllSince(Instant since) {
+        return ColumnMapRows.toObjectRows(_sumSoldQtyAllSince(since), 2);
     }
 
     long sumCogsBetween(@Param("start") Instant start, @Param("end") Instant end);

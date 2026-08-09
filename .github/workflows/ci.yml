@@ -57,6 +57,22 @@ jobs:
           REDIS_HOST: localhost
           REDIS_PORT: "6379"
 
+      # 三端 RBAC E2E 与权限漂移测试依赖 Docker（Testcontainers），缺 Docker 时会被静默跳过；
+      # 这里显式校验 surefire 报告存在且全绿，让"跳过"变成构建失败。
+      - name: Verify RBAC E2E ran (no silent skip)
+        run: |
+          set -euo pipefail
+          for cls in \
+            com.aicabinet.trade.auth.PermissionCodeDriftTest \
+            com.aicabinet.trade.e2e.AdminE2ETest \
+            com.aicabinet.trade.e2e.ConsumerE2ETest \
+            com.aicabinet.trade.e2e.MerchantE2ETest; do
+            report="services/trade-service/target/surefire-reports/$cls.txt"
+            test -s "$report" || { echo "missing surefire report: $report"; exit 1; }
+            grep -q "Failures: 0, Errors: 0, Skipped: 0" "$report" \
+              || { echo "RBAC test not fully green: $report"; exit 1; }
+          done
+
       # Maven 构建会重新生成 static/admin；若与提交的产物不一致说明前端改了没同步产物
       - name: Verify admin UI artifacts are up-to-date
         run: git diff --exit-code -- services/trade-service/src/main/resources/static/admin

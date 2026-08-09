@@ -35,6 +35,9 @@ public class ReplenishmentTask {
 
     private Instant createdAt;
 
+    public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
+
 public Long getTaskId() { return taskId; }
     public void setTaskId(Long taskId) { this.taskId = taskId; }
     public Long getRouteId() { return routeId; }
@@ -59,5 +62,4 @@ public Long getTaskId() { return taskId; }
     public void setCheckInLat(Double checkInLat) { this.checkInLat = checkInLat; }
     public Double getCheckInLng() { return checkInLng; }
     public void setCheckInLng(Double checkInLng) { this.checkInLng = checkInLng; }
-    public Instant getCreatedAt() { return createdAt; }
 }

@@ -63,6 +63,8 @@ public class ConsumerMemberFacade {
                 member.getMemberLevel(),
                 current != null ? current.getLevelName() : member.getMemberLevel(),
                 member.getTotalSpent() != null ? member.getTotalSpent() : BigDecimal.ZERO,
+                nz(member.getAvailablePoints()),
+                nz(member.getTotalPoints()),
                 nz(member.getOrderCount()),
                 spentToNext,
                 nextName,
@@ -74,11 +76,16 @@ public class ConsumerMemberFacade {
 
     private MemberLevelRuleDto toLevelDto(MemberLevelRule r) {
         return new MemberLevelRuleDto(
+                r.getId(),
                 r.getLevelCode(),
                 r.getLevelName(),
                 r.getMinSpent(),
                 r.getMaxSpent(),
-                r.getSortorder() != null ? r.getSortorder() : 0
+                r.getMinPoints() != null ? r.getMinPoints() : 0,
+                r.getMaxPoints(),
+                r.getPointsRate() != null ? r.getPointsRate() : BigDecimal.ONE,
+                r.getSortorder() != null ? r.getSortorder() : 0,
+                r.getStatus()
         );
     }
 

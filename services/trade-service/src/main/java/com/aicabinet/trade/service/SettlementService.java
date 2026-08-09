@@ -20,6 +20,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -49,6 +50,7 @@ public class SettlementService {
     private final CouponService couponService;
     private final MemberService memberService;
     private final RefundPolicyService refundPolicyService;
+    private final NotificationService notificationService;
 
     public SettlementService(ShoppingSessionMapper sessionRepository,
                              SkuCatalogMapper skuCatalogRepository,
@@ -71,7 +73,8 @@ public class SettlementService {
                              SkuVisionEnrollmentService skuVisionEnrollmentService,
                              CouponService couponService,
                              MemberService memberService,
-                             RefundPolicyService refundPolicyService) {
+                             RefundPolicyService refundPolicyService,
+                             NotificationService notificationService) {
         this.sessionRepository = sessionRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.orderRepository = orderRepository;
@@ -94,6 +97,7 @@ public class SettlementService {
         this.couponService = couponService;
         this.memberService = memberService;
         this.refundPolicyService = refundPolicyService;
+        this.notificationService = notificationService;
     }
 
     /** 人工审核后确认清单：无订单则首次扣款；有订单则按差额退/补。 */
@@ -490,11 +494,25 @@ public class SettlementService {
         } catch (Exception e) {
             log.warn("member stats update failed order={}", order.getOrderId(), e);
         }
+        try {
+            notificationService.notifyConsumer(
+                    session.getUserId(),
+                    "order_paid",
+                    Map.of("orderId", order.getOrderId(), "amount", yuan(order.getTotalAmountCents())),
+                    "ORDER",
+                    order.getOrderId());
+        } catch (Exception e) {
+            log.warn("order paid notification failed order={}", order.getOrderId(), e);
+        }
         videoArchiveService.archiveAfterSettlement(session);
         log.info("settled session={} order={} amount={} couponDiscount={} channel={}",
                 session.getSessionId(), order.getOrderId(), order.getTotalAmountCents(),
                 order.getCouponDiscountCents(), order.getPayChannel());
         return toDto(order);
+    }
+
+    private static String yuan(int cents) {
+        return java.math.BigDecimal.valueOf(cents, 2).stripTrailingZeros().toPlainString();
     }
 
     private static boolean isInsufficientBalance(ResponseStatusException e) {

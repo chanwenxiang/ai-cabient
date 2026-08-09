@@ -1,0 +1,201 @@
+package com.aicabinet.trade.service;
+
+import com.aicabinet.common.dto.SkuDelistReviewDto;
+import com.aicabinet.trade.domain.DeviceSkuInventory;
+import com.aicabinet.trade.domain.SkuCatalog;
+import com.aicabinet.trade.domain.SkuDelistReview;
+import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
+import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;
+import com.aicabinet.trade.mapper.SkuCatalogMapper;
+import com.aicabinet.trade.mapper.SkuDelistReviewMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * 选品淘汰闭环：SKU 动销诊断（销量/营收/库存天数）→ 运营评审（淘汰/保留/替换）→ 下架动作。
+ */
+@Service
+public class SkuDelistReviewService {
+
+    private static final Logger log = LoggerFactory.getLogger(SkuDelistReviewService.class);
+    private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
+
+    private final CabinetOrderLineMapper lineRepository;
+    private final DeviceSkuInventoryMapper inventoryRepository;
+    private final SkuCatalogMapper skuCatalogRepository;
+    private final SkuDelistReviewMapper reviewRepository;
+
+    public SkuDelistReviewService(CabinetOrderLineMapper lineRepository,
+                                  DeviceSkuInventoryMapper inventoryRepository,
+                                  SkuCatalogMapper skuCatalogRepository,
+                                  SkuDelistReviewMapper reviewRepository) {
+        this.lineRepository = lineRepository;
+        this.inventoryRepository = inventoryRepository;
+        this.skuCatalogRepository = skuCatalogRepository;
+        this.reviewRepository = reviewRepository;
+    }
+
+    /** 基于近 N 天订单生成/刷新全量 SKU 评审行。 */
+    @Transactional
+    public List<SkuDelistReviewDto> runReview(int days) {
+        int window = Math.min(Math.max(days, 7), 90);
+        Instant since = LocalDate.now(ZONE).minusDays(window - 1L).atStartOfDay(ZONE).toInstant();
+        Map<String, long[]> sales = new HashMap<>(); // skuId -> [qty, revenueCents]
+        for (Object[] row : lineRepository.skuBreakdownSince(since)) {
+            if (row == null || row.length < 4 || row[0] == null) {
+                continue;
+            }
+            String skuId = String.valueOf(row[0]);
+            long qty = num(row[2]);
+            long revenue = num(row[3]);
+            sales.merge(skuId, new long[]{qty, revenue}, (a, b) -> new long[]{a[0] + b[0], a[1] + b[1]});
+        }
+
+        Map<String, Long> stock = new HashMap<>();
+        for (DeviceSkuInventory inv : inventoryRepository.findAllLimit(5000)) {
+            stock.merge(inv.getSkuId(), (long) inv.getQuantity(), Long::sum);
+        }
+
+        Map<String, SkuCatalog> skus = skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
+                .collect(LinkedHashMap::new, (m, s) -> m.put(s.getSkuId(), s), LinkedHashMap::putAll);
+
+        for (SkuCatalog sku : skus.values()) {
+            long[] s = sales.getOrDefault(sku.getSkuId(), new long[]{0L, 0L});
+            long qty = s[0];
+            long revenue = s[1];
+            long curStock = stock.getOrDefault(sku.getSkuId(), 0L);
+            double avgDaily = (double) qty / window;
+            Integer stockDays = avgDaily > 0
+                    ? (int) Math.round(curStock / avgDaily)
+                    : (curStock > 0 ? null : 0);
+            String level = performanceLevel(qty, avgDaily);
+
+            SkuDelistReview review = reviewRepository.findBySkuId(sku.getSkuId())
+                    .orElseGet(() -> {
+                        SkuDelistReview r = new SkuDelistReview();
+                        r.setSkuId(sku.getSkuId());
+                        r.setCreatedAt(Instant.now());
+                        return r;
+                    });
+            review.setPerformanceLevel(level);
+            review.setSalesQty((int) qty);
+            review.setRevenueCents(revenue);
+            review.setStockDays(stockDays);
+            review.setUpdatedAt(Instant.now());
+            reviewRepository.save(review);
+        }
+        log.info("sku review refreshed window={}d skus={}", window, skus.size());
+        return list();
+    }
+
+    @Transactional(readOnly = true)
+    public List<SkuDelistReviewDto> list() {
+        Map<String, SkuCatalog> skus = skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
+                .collect(LinkedHashMap::new, (m, s) -> m.put(s.getSkuId(), s), LinkedHashMap::putAll);
+        return reviewRepository.findAll().stream()
+                .map(r -> toDto(r, skus.get(r.getSkuId()), skus))
+                .toList();
+    }
+
+    /**
+     * 评审动作：RECOMMEND_DELIST 建议下架 / DELIST 确认下架（改商品状态）/ KEEP 保留。
+     */
+    @Transactional
+    public SkuDelistReviewDto decide(String skuId, String action, String reason, String replaceSkuId, Long operatorId) {
+        SkuDelistReview review = reviewRepository.findBySkuId(skuId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "该商品暂无诊断记录"));
+        String act = action == null ? "" : action.trim().toUpperCase();
+        if (!List.of("RECOMMEND_DELIST", "DELIST", "KEEP").contains(act)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "不支持的评审动作");
+        }
+        review.setActionType(act);
+        review.setReason(reason);
+        review.setReplaceSkuId(replaceSkuId);
+        review.setReviewedBy(operatorId);
+        review.setReviewedAt(Instant.now());
+        review.setUpdatedAt(Instant.now());
+        if ("DELIST".equals(act)) {
+            review.setReviewStatus("DELISTED");
+            SkuCatalog sku = skuCatalogRepository.findById(skuId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "商品不存在"));
+            sku.setStatus("INACTIVE");
+            skuCatalogRepository.save(sku);
+        } else if ("KEEP".equals(act)) {
+            review.setReviewStatus("KEPT");
+        } else {
+            review.setReviewStatus("RECOMMEND_DELIST");
+        }
+        reviewRepository.save(review);
+
+        Map<String, SkuCatalog> skus = skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()
+                .collect(LinkedHashMap::new, (m, s) -> m.put(s.getSkuId(), s), LinkedHashMap::putAll);
+        return toDto(review, skus.get(skuId), skus);
+    }
+
+    private static String performanceLevel(long qty, double avgDaily) {
+        if (qty <= 0) {
+            return "NO_SALES";
+        }
+        if (avgDaily >= 1.0) {
+            return "BEST_SELLER";
+        }
+        if (avgDaily >= 0.2) {
+            return "NORMAL";
+        }
+        return "SLOW_MOVER";
+    }
+
+    private SkuDelistReviewDto toDto(SkuDelistReview r, SkuCatalog sku, Map<String, SkuCatalog> skus) {
+        String skuName = sku != null ? sku.getSkuName() : r.getSkuId();
+        String category = sku != null ? sku.getCategory() : null;
+        String replaceName = r.getReplaceSkuId() == null ? null
+                : (skus.get(r.getReplaceSkuId()) != null ? skus.get(r.getReplaceSkuId()).getSkuName() : r.getReplaceSkuId());
+        return new SkuDelistReviewDto(
+                r.getId(),
+                r.getSkuId(),
+                skuName,
+                category,
+                r.getReviewStatus(),
+                r.getPerformanceLevel(),
+                r.getSalesQty() == null ? 0 : r.getSalesQty(),
+                r.getRevenueCents() == null ? 0L : r.getRevenueCents(),
+                r.getStockDays(),
+                r.getActionType(),
+                r.getReason(),
+                r.getReplaceSkuId(),
+                replaceName,
+                r.getReviewedBy(),
+                r.getReviewedAt(),
+                r.getCreatedAt(),
+                r.getUpdatedAt()
+        );
+    }
+
+    private static long num(Object v) {
+        if (v == null) {
+            return 0L;
+        }
+        if (v instanceof Number n) {
+            return n.longValue();
+        }
+        try {
+            return new BigDecimal(String.valueOf(v)).longValue();
+        } catch (NumberFormatException e) {
+            return 0L;
+        }
+    }
+}

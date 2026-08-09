@@ -142,3 +142,14 @@ groups:
         annotations:
           summary: "磁盘空间不足"
           description: "磁盘剩余空间不足10%"
+
+      # ==================== 权限安全告警 ====================
+
+      - alert: HighPermissionDeniedRate
+        expr: sum(rate(cabinet_permission_denied_total[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "权限拒绝频率异常"
+          description: "5分钟内权限拒绝速率超过 2 次/秒，可能存在越权尝试或账号异常（可按 realm 标签细分）"

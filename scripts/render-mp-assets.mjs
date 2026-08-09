@@ -18,6 +18,22 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GRAY = '#94a3b8';
 const TEAL = '#0d9488';
 
+// Reset page margins so the capture matches the SVG canvas exactly
+// (the default 8px body margin used to shift every icon toward the top-left).
+const RESET_CSS = 'html,body{margin:0;padding:0;overflow:hidden}';
+
+// Render an SVG to a PNG of the exact requested size via a clipped screenshot.
+async function renderSvgToPng(page, svgHtml, file, size) {
+  await page.setContent(
+    `<!doctype html><html><head><style>${RESET_CSS}</style></head><body>${svgHtml}</body></html>`
+  );
+  await page.screenshot({
+    path: file,
+    omitBackground: true,
+    clip: { x: 0, y: 0, width: size, height: size }
+  });
+}
+
 /** 精致 tab 图标：144x144（2x），圆角渐变底 + 白色线性图标。 */
 const ICON_TEMPLATE = (glyph, active) =>
   active
@@ -116,17 +132,14 @@ function syncSkuImages() {
 async function main() {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
-    const iconPage = await browser.newPage({ viewport: { width: 144, height: 144 } });
+    const tabPage = await browser.newPage({ viewport: { width: 144, height: 144 } });
     for (const [name, glyph] of Object.entries(ICONS)) {
       for (const [suffix, active] of [
         ['', false],
         ['-active', true]
       ]) {
         const file = path.join(root, `clients/consumer-mp/src/static/tab/${name}${suffix}.png`);
-        await iconPage.setContent(
-          `<div style="width:144px;height:144px">${ICON_TEMPLATE(glyph, active)}</div>`
-        );
-        await iconPage.screenshot({ path: file, omitBackground: true });
+        await renderSvgToPng(tabPage, ICON_TEMPLATE(glyph, active), file, 144);
       }
     }
     // 商户端复用 home/mine；devices/alerts 专属
@@ -136,24 +149,20 @@ async function main() {
         ['-active', true]
       ]) {
         const file = path.join(root, `clients/merchant-mp/src/static/tab/${name}${suffix}.png`);
-        await iconPage.setContent(
-          `<div style="width:144px;height:144px">${ICON_TEMPLATE(glyph, active)}</div>`
-        );
-        await iconPage.screenshot({ path: file, omitBackground: true });
+        await renderSvgToPng(tabPage, ICON_TEMPLATE(glyph, active), file, 144);
       }
     }
     // 菜单/快捷项线性图标（两端共用同一套）
+    const menuPage = await browser.newPage({ viewport: { width: 96, height: 96 } });
     for (const [name, d] of Object.entries(MENU_ICONS)) {
       const color = MENU_ICON_COLORS[name] || TEAL;
       for (const rel of ['clients/consumer-mp/src/static/menu', 'clients/merchant-mp/src/static/menu']) {
         const file = path.join(root, `${rel}/${name}.png`);
-        await iconPage.setContent(
-          `<div style="width:96px;height:96px">${MENU_ICON_TEMPLATE(d, color)}</div>`
-        );
-        await iconPage.screenshot({ path: file, omitBackground: true });
+        await renderSvgToPng(menuPage, MENU_ICON_TEMPLATE(d, color), file, 96);
       }
     }
-    await iconPage.close();
+    await tabPage.close();
+    await menuPage.close();
 
     syncSkuImages();
 

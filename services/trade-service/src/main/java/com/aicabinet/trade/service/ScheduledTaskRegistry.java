@@ -41,7 +41,11 @@ public class ScheduledTaskRegistry {
                                  DevicePresenceService devicePresenceService,
                                  OpsExceptionScannerService opsExceptionScannerService,
                                  SessionService sessionService,
-                                 CompensationTaskScheduler compensationTaskScheduler) {
+                                 CompensationTaskScheduler compensationTaskScheduler,
+                                 PointsExpiryScheduler pointsExpiryScheduler,
+                                 CouponExpiryReminderScheduler couponExpiryReminderScheduler,
+                                 GrowthLogArchiveScheduler growthLogArchiveScheduler,
+                                 SkuReviewScheduler skuReviewScheduler) {
         ZoneId zone = ZoneId.of("Asia/Shanghai");
         LocalDate yesterday = LocalDate.now(zone).minusDays(1);
 
@@ -85,6 +89,14 @@ public class ScheduledTaskRegistry {
                 financeMarginLockScheduler::solidifyYesterday);
         register("coupon-expire", "优惠券过期处理", "MARKETING", "每日 02:00", 600, false,
                 couponService::expireOverdueCoupons);
+        register("points-expiry", "积分过期管理", "MARKETING", "每 6 小时", 600, false,
+                pointsExpiryScheduler::scan);
+        register("coupon-expiry-remind", "优惠券临期提醒", "MARKETING", "每 6 小时", 600, false,
+                couponExpiryReminderScheduler::scan);
+        register("growth-log-archive", "增长日志归档", "SYSTEM", "每日 03:00", 600, false,
+                growthLogArchiveScheduler::archive);
+        register("sku-review-daily", "选品诊断每日刷新", "MARKETING", "每日 04:00", 600, false,
+                skuReviewScheduler::scan);
         register("sla-snapshot", "SLA 日快照", "OPS", "每日 00:05", 600, false,
                 slaMetricsService::snapshotDaily);
         register("kpi-snapshot", "设备可用性 KPI 快照", "OPS", "每日 01:10", 600, true,

@@ -96,6 +96,13 @@
       "path": "pages/order-detail/order-detail"
     },
     {
+      "path": "pages/messages/messages",
+      "style": {
+        "navigationBarTitleText": "消息中心",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
       "path": "pages/announcements/announcements",
       "style": {
         "navigationBarTitleText": "通知公告",

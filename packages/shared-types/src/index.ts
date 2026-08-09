@@ -288,6 +288,8 @@ export interface MerchantSkuPricing {
   deviceName?: string;
   skuId: string;
   skuName: string;
+  /** 商品条码，用于补货/出入库扫码匹配 */
+  barcode?: string;
   /** 商品主图（后台在商品管理中上传，三端共用） */
   imageUrl?: string;
   basePriceCents: number;

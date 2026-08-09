@@ -46,6 +46,12 @@
         @click="goDetail(d.deviceId)"
       >
         <view class="device-left">
+          <image
+            class="device-thumb"
+            src="/static/device-default.png"
+            mode="aspectFill"
+            aria-hidden="true"
+          />
           <view class="online-dot" :class="d.online ? 'on' : 'off'" />
           <view>
             <text class="name">{{ d.deviceName || d.deviceId }}</text>
@@ -372,6 +378,13 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   align-items: center;
   gap: 16rpx;
   flex: 1;
+}
+.device-thumb {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 14rpx;
+  background: #ecfdf5;
+  flex-shrink: 0;
 }
 .online-dot {
   width: 16rpx;

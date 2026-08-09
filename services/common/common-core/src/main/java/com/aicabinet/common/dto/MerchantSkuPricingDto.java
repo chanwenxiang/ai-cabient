@@ -14,5 +14,6 @@ public record MerchantSkuPricingDto(
         Integer maxPriceCents,
         int inventoryQty,
         Instant priceUpdatedAt,
-        String imageUrl
+        String imageUrl,
+        String barcode
 ) {}

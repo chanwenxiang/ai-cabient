@@ -14,6 +14,12 @@
       <view class="section">
         <text class="section-title">商品明细</text>
         <view v-for="(line, i) in order.lines || []" :key="i" class="line">
+          <image
+            class="line-thumb"
+            :src="skuImageFor(line.skuId, line.skuName)"
+            mode="aspectFill"
+            aria-hidden="true"
+          />
           <view class="line-info">
             <text class="line-name">{{ line.skuName || line.skuId || '商品' }}</text>
             <text class="line-qty">x{{ line.quantity }}</text>
@@ -66,7 +72,8 @@
 import { computed, ref } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import {
+import { skuImageFor } from '@aicabinet/shared-uni/product-image';
+import {                                                          
   emptyDisplay,
   formatDateTimeShort,
   orderStatusLabel,
@@ -262,6 +269,14 @@ function goDisputes() {
   justify-content: space-between;
   align-items: center;
   padding: 12rpx 0;
+  gap: 16rpx;
+}
+.line-thumb {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 14rpx;
+  background: #ecfdf5;
+  flex-shrink: 0;
 }
 .line-info {
   display: flex;

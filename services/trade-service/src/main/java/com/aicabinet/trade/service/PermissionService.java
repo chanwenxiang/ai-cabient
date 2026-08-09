@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.CabinetConstants;
+import com.aicabinet.trade.auth.AccessDeniedAudit;
 import com.aicabinet.trade.mapper.OpsPermissionMapper;
 import com.aicabinet.trade.mapper.OpsUserRoleMapper;
 import com.aicabinet.trade.support.ApiMessages;
@@ -16,22 +17,29 @@ public class PermissionService {
     private final OpsPermissionMapper permissionRepository;
     private final OpsUserRoleMapper userRoleRepository;
     private final MerchantFeaturePackService merchantFeaturePackService;
+    private final AccessDeniedAudit accessDeniedAudit;
 
     public PermissionService(OpsPermissionMapper permissionRepository,
                            OpsUserRoleMapper userRoleRepository,
-                           MerchantFeaturePackService merchantFeaturePackService) {
+                           MerchantFeaturePackService merchantFeaturePackService,
+                           AccessDeniedAudit accessDeniedAudit) {
         this.permissionRepository = permissionRepository;
         this.userRoleRepository = userRoleRepository;
         this.merchantFeaturePackService = merchantFeaturePackService;
+        this.accessDeniedAudit = accessDeniedAudit;
     }
 
     public void requireOperator(Long userId) {
-        OperatorAuth.requireOperator(userId);
+        if (!OperatorAuth.isOperator(userId)) {
+            accessDeniedAudit.denied(userId, null, ApiMessages.OPERATOR_REQUIRED);
+            OperatorAuth.requireOperator(userId);
+        }
     }
 
     public void requirePermission(Long userId, String permCode) {
         requireOperator(userId);
         if (!hasPermission(userId, permCode)) {
+            accessDeniedAudit.denied(userId, permCode, ApiMessages.PERMISSION_DENIED);
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);
         }
     }
@@ -43,6 +51,7 @@ public class PermissionService {
                 return;
             }
         }
+        accessDeniedAudit.denied(userId, String.join(",", permCodes), ApiMessages.PERMISSION_DENIED);
         throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.PERMISSION_DENIED);
     }
 

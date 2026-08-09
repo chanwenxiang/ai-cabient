@@ -192,7 +192,13 @@
           <el-table-column label="设备" min-width="140" align="center" class-name="col-text">
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="goDetail(row)">
-                {{ row.deviceName || '无' }}
+                <img
+                  class="device-thumb"
+                  :src="'/admin/device-default.png'"
+                  alt=""
+                  aria-hidden="true"
+                />
+                <span>{{ row.deviceName || '无' }}</span>
               </button>
             </template>
           </el-table-column>
@@ -1068,6 +1074,17 @@ onActivated(() => {
   cursor: pointer;
   font: inherit;
   font-weight: 650;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.device-thumb {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #ecfdf5;
+  flex: 0 0 auto;
 }
 .link-cell:hover {
   text-decoration: underline;

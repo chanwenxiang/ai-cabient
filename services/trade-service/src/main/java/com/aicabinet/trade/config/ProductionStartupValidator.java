@@ -30,6 +30,8 @@ public class ProductionStartupValidator {
     private final PayScoreProperties payScoreProperties;
     private final ReconciliationProperties reconciliationProperties;
     private final CheckoutProperties checkoutProperties;
+    private final LineWithdrawProperties lineWithdrawProperties;
+    private final MerchantWithdrawProperties merchantWithdrawProperties;
 
     public ProductionStartupValidator(Environment environment,
                                       SecurityProperties securityProperties,
@@ -44,7 +46,9 @@ public class ProductionStartupValidator {
                                       ProfitSharingProperties profitSharingProperties,
                                       PayScoreProperties payScoreProperties,
                                       ReconciliationProperties reconciliationProperties,
-                                      CheckoutProperties checkoutProperties) {
+                                      CheckoutProperties checkoutProperties,
+                                      LineWithdrawProperties lineWithdrawProperties,
+                                      MerchantWithdrawProperties merchantWithdrawProperties) {
         this.environment = environment;
         this.securityProperties = securityProperties;
         this.stagingProperties = stagingProperties;
@@ -59,6 +63,8 @@ public class ProductionStartupValidator {
         this.payScoreProperties = payScoreProperties;
         this.reconciliationProperties = reconciliationProperties;
         this.checkoutProperties = checkoutProperties;
+        this.lineWithdrawProperties = lineWithdrawProperties;
+        this.merchantWithdrawProperties = merchantWithdrawProperties;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -81,6 +87,14 @@ public class ProductionStartupValidator {
         }
         if (securityProperties.mockEnabled()) {
             throw new IllegalStateException("Production/staging profile cannot run with aicabinet.security.mock-enabled=true");
+        }
+        if (lineWithdrawProperties.mockEnabled()) {
+            throw new IllegalStateException(
+                    "Production/staging profile cannot run with aicabinet.line-withdraw.mock-enabled=true (mock payouts)");
+        }
+        if (merchantWithdrawProperties.mockEnabled()) {
+            throw new IllegalStateException(
+                    "Production/staging profile cannot run with aicabinet.merchant-withdraw.mock-enabled=true (mock payouts)");
         }
         requireSecret(authProperties.jwtSecret(), DEV_JWT_SECRET, "JWT_SECRET / aicabinet.auth.jwt-secret");
         requireSecret(internalApiProperties.key(), DEV_INTERNAL_KEY, "INTERNAL_API_KEY / aicabinet.internal-api.key");

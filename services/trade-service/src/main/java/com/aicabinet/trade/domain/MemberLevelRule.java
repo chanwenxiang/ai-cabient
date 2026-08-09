@@ -18,6 +18,12 @@ public class MemberLevelRule {
 
     private java.math.BigDecimal maxSpent;
 
+    private Integer minPoints = 0;
+
+    private Integer maxPoints;
+
+    private java.math.BigDecimal pointsRate = java.math.BigDecimal.ONE;
+
     private Integer sortorder;
 
     private String status;
@@ -40,6 +46,15 @@ public class MemberLevelRule {
 
     public java.math.BigDecimal getMaxSpent() { return maxSpent; }
     public void setMaxSpent(java.math.BigDecimal maxSpent) { this.maxSpent = maxSpent; }
+
+    public Integer getMinPoints() { return minPoints; }
+    public void setMinPoints(Integer minPoints) { this.minPoints = minPoints; }
+
+    public Integer getMaxPoints() { return maxPoints; }
+    public void setMaxPoints(Integer maxPoints) { this.maxPoints = maxPoints; }
+
+    public java.math.BigDecimal getPointsRate() { return pointsRate; }
+    public void setPointsRate(java.math.BigDecimal pointsRate) { this.pointsRate = pointsRate; }
 
     public Integer getSortorder() { return sortorder; }
     public void setSortorder(Integer sortorder) { this.sortorder = sortorder; }

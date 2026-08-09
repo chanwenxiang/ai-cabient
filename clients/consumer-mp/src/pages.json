@@ -123,6 +123,34 @@
       }
     },
     {
+      "path": "pages/points/points",
+      "style": {
+        "navigationBarTitleText": "积分明细",
+        "navigationBarBackgroundColor": "#ffffff",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#f5f7f8"
+      }
+    },
+    {
+      "path": "pages/points/redeem",
+      "style": {
+        "navigationBarTitleText": "积分兑换",
+        "navigationBarBackgroundColor": "#ffffff",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#f5f7f8"
+      }
+    },
+    {
+      "path": "pages/messages/messages",
+      "style": {
+        "navigationBarTitleText": "消息中心",
+        "navigationBarBackgroundColor": "#ffffff",
+        "navigationBarTextStyle": "black",
+        "backgroundColor": "#f5f7f8",
+        "enablePullDownRefresh": true
+      }
+    },
+    {
       "path": "pages/marketing/index",
       "style": {
         "navigationBarTitleText": "热门活动",

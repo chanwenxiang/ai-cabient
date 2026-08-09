@@ -23,9 +23,26 @@
           <text v-else>已达最高等级</text>
         </text>
       </view>
+      <view class="points-chip" @click="goPoints">
+        <view class="points-left">
+          <text class="points-label">可用积分</text>
+          <text class="points-value">{{ profile?.availablePoints ?? 0 }}</text>
+        </view>
+        <text class="points-action">积分明细 ›</text>
+      </view>
     </view>
 
     <view class="quick-grid">
+      <view class="quick" @click="goRedeem">
+        <image class="quick-mark" :src="menuIcon('coupons')" mode="aspectFit" />
+        <text class="quick-title">积分兑换</text>
+        <text class="quick-desc">积分换券</text>
+      </view>
+      <view class="quick" @click="goMessages">
+        <image class="quick-mark" :src="menuIcon('notice')" mode="aspectFit" />
+        <text class="quick-title">消息中心</text>
+        <text class="quick-desc">订单·售后</text>
+      </view>
       <view class="quick" @click="goCoupons">
         <image class="quick-mark" :src="menuIcon('coupons')" mode="aspectFit" />
         <text class="quick-title">我的券</text>
@@ -142,6 +159,15 @@ function goOrders() {
 function goShop() {
   uni.switchTab({ url: '/pages/index/index' });
 }
+function goPoints() {
+  uni.navigateTo({ url: '/pages/points/points' });
+}
+function goRedeem() {
+  uni.navigateTo({ url: '/pages/points/redeem' });
+}
+function goMessages() {
+  uni.navigateTo({ url: '/pages/messages/messages' });
+}
 </script>
 
 <style scoped>
@@ -225,6 +251,32 @@ function goShop() {
   font-size: 22rpx;
   opacity: 0.88;
   line-height: 1.4;
+}
+.points-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 20rpx;
+  padding: 16rpx 22rpx;
+  border-radius: 18rpx;
+  background: rgba(255, 255, 255, 0.14);
+}
+.points-left {
+  display: flex;
+  align-items: baseline;
+  gap: 12rpx;
+}
+.points-label {
+  font-size: 22rpx;
+  opacity: 0.85;
+}
+.points-value {
+  font-size: 34rpx;
+  font-weight: 800;
+}
+.points-action {
+  font-size: 22rpx;
+  opacity: 0.9;
 }
 
 .quick-grid {
