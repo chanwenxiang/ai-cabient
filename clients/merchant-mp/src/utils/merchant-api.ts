@@ -31,6 +31,36 @@ export type DeviceLowStockItem = {
   updatedAt?: string;
 };
 
+export type MerchantSlotDiscrepancy = {
+  deviceId: string;
+  deviceName?: string;
+  slotCode: string;
+  assignedSkuId?: string;
+  assignedSkuName?: string;
+  bookQty: number;
+  physicalQty: number;
+  qtyDiff: number;
+  lastPhysicalAt?: string;
+};
+
+export type MerchantDeviceReport = {
+  deviceId: string;
+  deviceName: string;
+  onlineStatus: string;
+  orderTotal: number;
+  revenueTotalCents: number;
+  orderToday: number;
+  revenueTodayCents: number;
+  sessionTotal: number;
+  sessionActive: number;
+};
+
+export type MerchantProfileUpdate = {
+  contactPhone?: string;
+  alertContactName?: string;
+  alertContactPhone?: string;
+};
+
 export type MerchantReplenishmentRequestLine = {
   lineId?: number;
   skuId: string;
@@ -596,6 +626,16 @@ export const merchantApi = {
         restockHeadroom?: number;
       }[]
     >('/api/v2/merchant/expiry-alerts'),
+  slotDiscrepancies: (deviceId?: string) => {
+    const q = deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : '';
+    return request<MerchantSlotDiscrepancy[]>(
+      `/api/v2/merchant/slot-discrepancies${q}`
+    );
+  },
+  deviceReports: () =>
+    request<MerchantDeviceReport[]>('/api/v2/merchant/device-reports'),
+  updateMerchantProfile: (body: MerchantProfileUpdate) =>
+    request<unknown[]>('/api/v2/merchant/profile', 'PATCH', body),
   disputes: (status?: string, page = 0, size = 100) => {
     const q = new URLSearchParams({ page: String(page), size: String(size) });
     if (status) q.set('status', status);

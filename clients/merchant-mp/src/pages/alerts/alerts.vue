@@ -61,6 +61,17 @@
       >
         <button class="empty-btn primary" @click="goDevices">查看柜机</button>
       </empty-state>
+
+      <view v-if="slotDiscrepancies.length" class="card section-card">
+        <text class="section-title">货道差异（账实不符）</text>
+        <view v-for="(s, i) in slotDiscrepancies" :key="i" class="slot-row">
+          <view class="slot-main">
+            <text class="slot-name">{{ s.deviceName || s.deviceId }} · {{ s.slotCode }}</text>
+            <text class="slot-sku">{{ s.assignedSkuName || s.assignedSkuId || '未绑定商品' }}</text>
+          </view>
+          <text class="slot-diff">账 {{ s.bookQty }} / 实 {{ s.physicalQty }} · 差 {{ s.qtyDiff }}</text>
+        </view>
+      </view>
     </view>
   </view>
 </template>
@@ -70,6 +81,7 @@ import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
+import type { MerchantSlotDiscrepancy } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { promptText } from '@/utils/text-prompt';
@@ -86,6 +98,7 @@ const error = ref('');
 const preferredId = ref('');
 const onlyPreferred = ref(false);
 const counts = ref({ disputes: 0, offline: 0, lowStock: 0, expiry: 0 });
+const slotDiscrepancies = ref<MerchantSlotDiscrepancy[]>([]);
 const items = ref<
   {
     type: string;
@@ -150,7 +163,7 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const [wb, exceptionPage, expiryRows] = await Promise.all([
+    const [wb, exceptionPage, expiryRows, slotRows] = await Promise.all([
       merchantApi.workbench().catch(() => ({
         offlineDevices: 0,
         openDisputes: 0,
@@ -167,7 +180,8 @@ async function load() {
         }[]
       })),
       merchantApi.openExceptions(100).catch(() => ({ items: [], total: 0 })),
-      merchantApi.expiryAlerts().catch(() => [])
+      merchantApi.expiryAlerts().catch(() => []),
+      merchantApi.slotDiscrepancies().catch(() => [] as MerchantSlotDiscrepancy[])
     ]);
     if (seq !== loadSeq) return;
     const deduped = mergeTodoItems({
@@ -176,6 +190,7 @@ async function load() {
       expiryRows: expiryRows || []
     });
     items.value = deduped;
+    slotDiscrepancies.value = slotRows || [];
     const typeOf = (t: string) => String(t || '').toUpperCase();
     const audit = deduped.filter(
       (a) => typeOf(a.type) === 'DISPUTE' || typeOf(a.type).startsWith('RECOGNITION')
@@ -289,6 +304,48 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 </script>
 
 <style scoped>
+.section-card {
+  margin-top: 18rpx;
+}
+.section-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #134e4a;
+  margin-bottom: 12rpx;
+}
+.slot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid #f1f5f9;
+}
+.slot-row:last-child {
+  border-bottom: none;
+}
+.slot-main {
+  flex: 1;
+  min-width: 0;
+}
+.slot-name {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 650;
+}
+.slot-sku {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #64748b;
+}
+.slot-diff {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #b45309;
+}
+
 .pref-bar {
   margin: 12rpx 12rpx 0;
   padding: 16rpx 20rpx;

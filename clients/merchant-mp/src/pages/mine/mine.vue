@@ -7,6 +7,21 @@
         <text class="sub">{{ merchantNames }}</text>
         <text v-if="phone" class="phone">{{ phone }}</text>
       </view>
+      <text v-if="canEditProfile" class="edit-btn" @click="openProfileEdit">编辑资料</text>
+    </view>
+
+    <view v-if="profileEditVisible" class="mask" @click="profileEditVisible = false">
+      <view class="dialog" @click.stop>
+        <text class="dialog-title">编辑资料</text>
+        <text class="hint">维护联系电话与告警联系人，用于异常通知与现场联系</text>
+        <input class="input" type="number" maxlength="11" placeholder="联系电话" :value="profileForm.contactPhone" @input="profileForm.contactPhone = eventInput($event)" />
+        <input class="input" placeholder="告警联系人" :value="profileForm.alertContactName" @input="profileForm.alertContactName = eventInput($event)" />
+        <input class="input" type="number" maxlength="11" placeholder="告警电话" :value="profileForm.alertContactPhone" @input="profileForm.alertContactPhone = eventInput($event)" />
+        <view class="dialog-actions">
+          <button class="btn ghost" @click="profileEditVisible = false">取消</button>
+          <button class="btn" :loading="profileSaving" @click="saveProfileEdit">保存</button>
+        </view>
+      </view>
     </view>
 
     <view v-if="fieldNav.length" class="section-label">现场作业</view>
@@ -111,7 +126,7 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import { clearSession, merchantApi } from '@/utils/merchant-api';
+import { clearSession, hasPerm, merchantApi, type MerchantProfileUpdate } from '@/utils/merchant-api';
 import {
   hasSubscribeTemplates,
   MERCHANT_ALERT_TYPES,
@@ -133,6 +148,10 @@ const { me, refresh: refreshMe } = useMerchantMe();
 const meName = ref('');
 const merchantNames = ref('');
 const phone = ref('');
+const canEditProfile = computed(() => hasPerm(me.value, 'merchant:profile:edit'));
+const profileEditVisible = ref(false);
+const profileSaving = ref(false);
+const profileForm = ref<MerchantProfileUpdate>({});
 const avatarText = computed(() => (meName.value || '商').slice(0, 1));
 const notifyBusy = ref(false);
 const wxBound = ref(false);
@@ -156,6 +175,32 @@ function goNav(item: MerchantNavItem) {
     return;
   }
   uni.navigateTo({ url: item.url });
+}
+
+function openProfileEdit() {
+  profileForm.value = { contactPhone: '', alertContactName: '', alertContactPhone: '' };
+  profileEditVisible.value = true;
+}
+
+async function saveProfileEdit() {
+  profileSaving.value = true;
+  try {
+    await merchantApi.updateMerchantProfile({
+      contactPhone: profileForm.value.contactPhone || undefined,
+      alertContactName: profileForm.value.alertContactName || undefined,
+      alertContactPhone: profileForm.value.alertContactPhone || undefined
+    });
+    uni.showToast({ title: '已保存', icon: 'success' });
+    profileEditVisible.value = false;
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '保存失败', icon: 'none' });
+  } finally {
+    profileSaving.value = false;
+  }
+}
+
+function eventInput(e: { detail?: { value?: unknown } }) {
+  return String(e?.detail?.value ?? '');
 }
 
 function goAnnouncements() {
@@ -264,6 +309,67 @@ function onLogout() {
 </script>
 
 <style scoped>
+.edit-btn {
+  align-self: flex-start;
+  padding: 10rpx 22rpx;
+  border-radius: 999rpx;
+  background: #ecfdf5;
+  color: #0f766e;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+.mask {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: flex-end;
+}
+.dialog {
+  width: 100%;
+  background: #fff;
+  border-radius: 28rpx 28rpx 0 0;
+  padding: 32rpx 28rpx calc(28rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+.dialog-title {
+  display: block;
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #134e4a;
+}
+.hint {
+  display: block;
+  margin: 8rpx 0 20rpx;
+  font-size: 24rpx;
+  color: #64748b;
+}
+.input {
+  background: #f8fafc;
+  border-radius: 14rpx;
+  padding: 22rpx 20rpx;
+  margin-bottom: 16rpx;
+  font-size: 28rpx;
+}
+.dialog-actions {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 8rpx;
+}
+.btn {
+  flex: 1;
+  background: #0f766e;
+  color: #fff;
+  border: none;
+  border-radius: 999rpx;
+  font-size: 28rpx;
+}
+.btn.ghost {
+  background: #f1f5f9;
+  color: #475569;
+}
+
 .page {
   min-height: 100%;
   padding-bottom: calc(40rpx + env(safe-area-inset-bottom));

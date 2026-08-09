@@ -61,6 +61,58 @@
         </view>
         <view v-if="!analytics.topSkus?.length" class="empty">暂无可分析的销售数据</view>
       </view>
+      <view v-if="aiInsight?.insight" class="card">
+        <view class="section-head"
+          ><text class="section-title">AI 经营洞察</text
+          ><text class="section-sub">{{ formatTime(aiInsight.generatedAt) }}</text></view
+        >
+        <text class="insight-text">{{ aiInsight.insight }}</text>
+        <view v-for="p in aiInsight.skuPerformance || []" :key="p.skuId" class="insight-sku">
+          <text class="sku-name">{{ p.skuName }}</text>
+          <text class="meta"
+            >{{ p.performanceLevel || '—' }} · {{ p.recommendation || '' }}</text
+          >
+        </view>
+      </view>
+      <view v-if="expirySummary && (expirySummary.openPullOffTasks > 0 || expirySummary.writeOffQty30d > 0)" class="card">
+        <view class="section-head"
+          ><text class="section-title">临期摘要</text
+          ><text class="section-sub">近 30 天</text></view
+        >
+        <view class="expiry-grid">
+          <view class="expiry-cell"
+            ><text class="expiry-n">{{ expirySummary.openPullOffTasks }}</text
+            ><text class="expiry-l">待下架任务</text></view
+          >
+          <view class="expiry-cell"
+            ><text class="expiry-n">{{ expirySummary.writeOffQty30d }}</text
+            ><text class="expiry-l">报损件数</text></view
+          >
+          <view class="expiry-cell"
+            ><text class="expiry-n">¥{{ (expirySummary.writeOffCostCents30d / 100).toFixed(0) }}</text
+            ><text class="expiry-l">报损成本</text></view
+          >
+        </view>
+      </view>
+      <view v-if="deviceReports.length" class="card">
+        <view class="section-head"
+          ><text class="section-title">柜机报表</text
+          ><text class="section-sub">在线状态 · 订单 · 营收 · 会话</text></view
+        >
+        <view v-for="r in deviceReports" :key="r.deviceId" class="report-row">
+          <view class="report-main">
+            <text class="sku-name">{{ r.deviceName }}</text>
+            <text class="meta"
+              >{{ r.deviceId }} · {{ r.onlineStatus === 'ONLINE' ? '在线' : '离线' }}</text
+            >
+          </view>
+          <view class="report-data">
+            <text>今日 {{ r.orderToday }} 单 · ¥{{ (r.revenueTodayCents / 100).toFixed(0) }}</text>
+            <text>累计 {{ r.orderTotal }} 单 · ¥{{ (r.revenueTotalCents / 100).toFixed(0) }}</text>
+            <text>会话 {{ r.sessionTotal }}（活跃 {{ r.sessionActive }}）</text>
+          </view>
+        </view>
+      </view>
       <view v-if="settlement.failedSplitCount" class="risk-card" @click="goFailedSplits">
         <text class="risk-title">有 {{ settlement.failedSplitCount }} 笔分账异常</text>
         <text class="risk-desc">点此查看失败原因与订单明细 ›</text>
@@ -80,14 +132,17 @@ import {
   hasPerm,
   merchantApi,
   downloadAuthedFile,
-  openExportedFile
+  openExportedFile,
+  type MerchantDeviceReport
 } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type {
   MerchantAnalyticsOverview,
   MerchantMe,
   MerchantSettlementOverview,
-  MerchantSkuSales
+  MerchantSkuSales,
+  MerchantAiInsight,
+  MerchantExpirySummary
 } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -115,12 +170,21 @@ const settlement = ref<MerchantSettlementOverview>({
   settledMonthCents: 0,
   failedSplitCount: 0
 });
+const aiInsight = ref<MerchantAiInsight | null>(null);
+const expirySummary = ref<MerchantExpirySummary | null>(null);
+const deviceReports = ref<MerchantDeviceReport[]>([]);
 const marginRate = computed(() =>
   analytics.value.revenueCents
     ? `${((analytics.value.grossMarginCents / analytics.value.revenueCents) * 100).toFixed(1)}%`
     : '暂无'
 );
 const money = (cents = 0) => `¥${(cents / 100).toFixed(2)}`;
+function formatTime(iso?: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 function skuMarginRate(sku: MerchantSkuSales) {
   return sku.revenueCents
     ? `${((sku.grossMarginCents / sku.revenueCents) * 100).toFixed(1)}%`
@@ -157,9 +221,12 @@ async function load(soft = false) {
   if (!soft || !analytics.value.topSkus?.length) loading.value = true;
   error.value = '';
   try {
-    const [a, s] = await Promise.all([
+    const [a, s, ai, ex, reports] = await Promise.all([
       merchantApi.analytics(days.value).catch(() => null),
-      merchantApi.settlements().catch(() => null)
+      merchantApi.settlements().catch(() => null),
+      merchantApi.aiInsight(days.value).catch(() => null),
+      merchantApi.expirySummary().catch(() => null),
+      merchantApi.deviceReports().catch(() => [] as MerchantDeviceReport[])
     ]);
     if (seq !== loadSeq) return;
     if (!a && !s) {
@@ -168,6 +235,9 @@ async function load(soft = false) {
     }
     analytics.value = a || analytics.value;
     settlement.value = s || settlement.value;
+    aiInsight.value = ai;
+    expirySummary.value = ex;
+    deviceReports.value = reports || [];
   } catch (e) {
     if (seq !== loadSeq) return;
     error.value = e instanceof Error ? e.message : '加载失败';
@@ -215,6 +285,74 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 </script>
 
 <style scoped>
+.insight-text {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 26rpx;
+  line-height: 1.6;
+  color: #334155;
+}
+.insight-sku {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-top: 12rpx;
+  padding: 12rpx 0;
+  border-bottom: 1rpx solid #f1f5f9;
+}
+.insight-sku:last-child {
+  border-bottom: none;
+}
+.expiry-grid {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 12rpx;
+}
+.expiry-cell {
+  flex: 1;
+  padding: 14rpx;
+  border-radius: 14rpx;
+  background: #fffbeb;
+}
+.expiry-n,
+.expiry-l {
+  display: block;
+}
+.expiry-n {
+  font-size: 30rpx;
+  font-weight: 800;
+  color: #b45309;
+}
+.expiry-l {
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #92400e;
+}
+.report-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 16rpx 0;
+  border-bottom: 1rpx solid #f1f5f9;
+}
+.report-row:last-child {
+  border-bottom: none;
+}
+.report-main {
+  flex: 1;
+  min-width: 0;
+}
+.report-data {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
+  font-size: 22rpx;
+  color: #64748b;
+}
+
 .page {
   padding-bottom: 24rpx;
 }
