@@ -109,6 +109,18 @@
               </el-tag>
             </template>
           </el-table-column>
+          <el-table-column label="会员等级" width="100" align="center">
+            <template #default="{ row }">{{ memberLevelLabel(row.memberLevel) }}</template>
+          </el-table-column>
+          <el-table-column label="积分" width="80" align="center">
+            <template #default="{ row }">{{ row.availablePoints ?? 0 }}</template>
+          </el-table-column>
+          <el-table-column label="黑名单" width="96" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.blacklisted" size="small" type="danger">已拉黑</el-tag>
+              <span v-else class="muted">—</span>
+            </template>
+          </el-table-column>
           <el-table-column label="注册时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
@@ -215,7 +227,22 @@ interface UserRow {
   verified: boolean;
   balanceCents: number;
   role?: string;
+  memberLevel?: string;
+  availablePoints?: number;
+  blacklisted?: boolean;
   createdAt?: string;
+}
+
+function memberLevelLabel(level?: string) {
+  return (
+    {
+      NORMAL: '普通',
+      SILVER: '白银',
+      GOLD: '黄金',
+      PLATINUM: '铂金',
+      DIAMOND: '钻石'
+    } as Record<string, string>
+  )[String(level || 'NORMAL').toUpperCase()] || level || '普通';
 }
 
 const route = useRoute();

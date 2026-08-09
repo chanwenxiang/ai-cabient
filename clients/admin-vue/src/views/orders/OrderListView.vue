@@ -242,6 +242,14 @@
           <el-table-column label="金额" width="100" align="center">
             <template #default="{ row }">¥{{ money(row.totalAmountCents) }}</template>
           </el-table-column>
+          <el-table-column label="优惠" width="96" align="center">
+            <template #default="{ row }">
+              <span v-if="Number(row.couponDiscountCents || 0) > 0" class="discount"
+                >-¥{{ ((row.couponDiscountCents || 0) / 100).toFixed(2) }}</span
+              >
+              <span v-else class="muted">—</span>
+            </template>
+          </el-table-column>
           <el-table-column v-if="statusTab === 'PENDING'" label="账龄" width="110" align="center">
             <template #default="{ row }">
               <span :class="{ 'is-overdue-age': isUnpaidOverdue(row) }">{{
@@ -1090,6 +1098,11 @@ onActivated(() => {
 </script>
 
 <style scoped>
+.discount {
+  color: var(--el-color-danger);
+  font-weight: 600;
+}
+
 .page-card-head {
   display: flex;
   justify-content: space-between;

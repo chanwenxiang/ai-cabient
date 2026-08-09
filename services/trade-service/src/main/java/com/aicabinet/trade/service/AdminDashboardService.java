@@ -7,11 +7,13 @@ import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.CabinetOrderLine;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DisputeTicket;
+import com.aicabinet.trade.domain.Member;
 import com.aicabinet.trade.domain.RechargeOrder;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.domain.UserBlacklist;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
@@ -92,6 +94,8 @@ public class AdminDashboardService {
     private final RefundPolicyService refundPolicyService;
     private final OpsExceptionMapper exceptionRepository;
     private final FileAttachmentService fileAttachmentService;
+    private final MemberMapper memberRepository;
+    private final UserBlacklistMapper blacklistRepository;
 
     public AdminDashboardService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
@@ -122,7 +126,9 @@ public class AdminDashboardService {
                                  BalanceLedgerService balanceLedgerService,
                                  RefundPolicyService refundPolicyService,
                                  OpsExceptionMapper exceptionRepository,
-                                 FileAttachmentService fileAttachmentService) {
+                                 FileAttachmentService fileAttachmentService,
+                                 MemberMapper memberRepository,
+                                 UserBlacklistMapper blacklistRepository) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -153,6 +159,8 @@ public class AdminDashboardService {
         this.refundPolicyService = refundPolicyService;
         this.exceptionRepository = exceptionRepository;
         this.fileAttachmentService = fileAttachmentService;
+        this.memberRepository = memberRepository;
+        this.blacklistRepository = blacklistRepository;
     }
 
     @Transactional(readOnly = true)
@@ -1583,9 +1591,14 @@ public class AdminDashboardService {
         int balance = userAccountRepository.findById(u.getUserId())
                 .map(a -> a.getBalanceCents()).orElse(0);
         String role = u.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START ? "OPERATOR" : "CONSUMER";
+        Member member = memberRepository.findByUserId(u.getUserId()).orElse(null);
+        boolean blacklisted = blacklistRepository.findActiveByUserId(u.getUserId()).isPresent();
         return new AdminUserDto(
                 u.getUserId(), u.getPhoneNumber(), u.getName(), u.isVerified(),
-                balance, role, u.getCreatedAt()
+                balance, role, u.getCreatedAt(),
+                member != null ? member.getMemberLevel() : "NORMAL",
+                member != null && member.getAvailablePoints() != null ? member.getAvailablePoints() : 0,
+                blacklisted
         );
     }
 

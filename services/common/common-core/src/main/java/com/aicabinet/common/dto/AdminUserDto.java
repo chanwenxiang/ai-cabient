@@ -9,5 +9,8 @@ public record AdminUserDto(
         boolean verified,
         int balanceCents,
         String role,
-        Instant createdAt
+        Instant createdAt,
+        String memberLevel,
+        int availablePoints,
+        boolean blacklisted
 ) {}
