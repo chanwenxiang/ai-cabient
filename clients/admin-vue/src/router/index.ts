@@ -25,6 +25,12 @@ const bizChildren: any[] = [
     meta: { title: '数据分析', group: '概览' }
   },
   {
+    path: 'footfall',
+    name: 'footfall',
+    component: () => import('@/views/analytics/FootfallView.vue'),
+    meta: { title: '客流坪效', group: '概览' }
+  },
+  {
     path: 'reports',
     name: 'reports',
     component: () => import('@/views/reports/DeviceReportView.vue'),
@@ -262,6 +268,12 @@ const bizChildren: any[] = [
     meta: { title: '定时任务', group: '系统' }
   },
   {
+    path: 'org-sites',
+    name: 'org-sites',
+    component: () => import('@/views/system/OrgSitesView.vue'),
+    meta: { title: '组织与点位', group: '系统' }
+  },
+  {
     path: 'announcements',
     name: 'announcements',
     component: () => import('@/views/announcements/AnnouncementsView.vue'),
@@ -285,6 +297,18 @@ const bizChildren: any[] = [
     name: 'coupons',
     component: () => import('@/views/promotions/CouponsView.vue'),
     meta: { title: '优惠券', group: '增长风控' }
+  },
+  {
+    path: 'ad-assets',
+    name: 'ad-assets',
+    component: () => import('@/views/growth/AdAssetsView.vue'),
+    meta: { title: '素材库', group: '增长风控' }
+  },
+  {
+    path: 'ad-campaigns',
+    name: 'ad-campaigns',
+    component: () => import('@/views/growth/AdCampaignsView.vue'),
+    meta: { title: '投放计划', group: '增长风控' }
   },
   {
     path: 'points-redeem',
