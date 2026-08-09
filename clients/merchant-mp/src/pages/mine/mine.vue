@@ -18,7 +18,7 @@
         :class="{ highlight: item.key === 'replenishment' }"
         @click="goNav(item)"
       >
-        <text class="menu-icon">{{ item.icon }}</text>
+        <image class="menu-icon" :src="menuIcon(item.icon)" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">{{ item.title }}</text>
           <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
@@ -30,7 +30,7 @@
     <view v-if="teamNav.length" class="section-label">团队与设置</view>
     <view v-if="teamNav.length" class="menu-list">
       <view v-for="item in teamNav" :key="item.key" class="menu-cell" @click="goNav(item)">
-        <text class="menu-icon">{{ item.icon }}</text>
+        <image class="menu-icon" :src="menuIcon(item.icon)" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">{{ item.title }}</text>
           <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
@@ -42,7 +42,7 @@
     <view class="section-label">平台公告</view>
     <view class="menu-list">
       <view class="menu-cell" @click="goAnnouncements">
-        <text class="menu-icon">告</text>
+        <image class="menu-icon" :src="menuIcon('notice')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">通知公告</text>
           <text class="menu-desc">运营发布的维护、活动与规则通知</text>
@@ -87,7 +87,7 @@
     <view v-if="bizNav.length" class="section-label">经营工具</view>
     <view v-if="bizNav.length" class="menu-list">
       <view v-for="item in bizNav" :key="item.key" class="menu-cell" @click="goNav(item)">
-        <text class="menu-icon">{{ item.icon }}</text>
+        <image class="menu-icon" :src="menuIcon(item.icon)" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">{{ item.title }}</text>
           <text v-if="item.desc" class="menu-desc">{{ item.desc }}</text>
@@ -98,7 +98,7 @@
 
     <view class="menu-list">
       <view class="menu-cell danger-cell" @click="onLogout">
-        <text class="menu-icon">退</text>
+        <image class="menu-icon" :src="menuIcon('logout')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title danger">退出登录</text>
         </view>
@@ -127,6 +127,7 @@ import {
 } from '@/config/merchant-nav';
 import type { MerchantMe } from '@aicabinet/shared-types';
 import { formatMerchantNames } from '@/utils/merchant-display';
+import { menuIcon } from '@/utils/menu-icon';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const meName = ref('');

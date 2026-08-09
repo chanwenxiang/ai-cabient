@@ -18,7 +18,7 @@
     </view>
     <empty-state
       v-else-if="!list.length"
-      icon="审"
+  icon="/static/menu/disputes.png"
       :title="`暂无${activeTabLabel}争议`"
       hint="用户申诉与识别复核会显示在这里"
     />

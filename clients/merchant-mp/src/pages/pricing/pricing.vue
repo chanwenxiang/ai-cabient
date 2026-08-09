@@ -50,7 +50,7 @@
         </view>
         <empty-state
           v-if="!rows.length"
-          icon="价"
+  icon="/static/menu/pricing.png"
           title="暂无定价数据"
           hint="选择柜机后可查看 SKU 基准价与覆盖价"
         />

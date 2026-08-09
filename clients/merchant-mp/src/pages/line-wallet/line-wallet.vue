@@ -7,7 +7,7 @@
 
     <empty-state
       v-if="!loading && overview && !overview.bound"
-      icon="线"
+  icon="/static/menu/line-wallet.png"
       title="未绑定线长身份"
       hint="线长钱包仅对已绑定的线长成员开放。商户主体提现请使用「商户钱包」"
     />
@@ -53,7 +53,7 @@
         <empty-state
           v-if="!(overview.recentWithdraws || []).length"
           compact
-          icon="提"
+  icon="/static/menu/wallet.png"
           title="暂无提现记录"
           hint="提交提现后会出现在这里"
         />
@@ -73,7 +73,7 @@
         <empty-state
           v-if="!(overview.recentLedgers || []).length"
           compact
-          icon="流"
+  icon="/static/menu/billing.png"
           title="暂无流水记录"
           hint="佣金入账与提现变动会显示在这里"
         />

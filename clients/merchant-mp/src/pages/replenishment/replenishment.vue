@@ -60,7 +60,7 @@
     <view v-if="loading" class="empty">任务加载中…</view>
     <empty-state
       v-else-if="!tasks.length"
-      icon="补"
+  icon="/static/menu/replenish.png"
       :title="emptyHint"
       hint="扫码到柜可查看缺货；新任务由调度下发"
     >
@@ -264,14 +264,31 @@
               v-if="
                 canRequest && selected?.status !== 'COMPLETED' && !linesConfirmed && !line.applied
               "
-              class="qty-stepper"
+              class="qty-actions"
             >
-              <text class="qty-btn" role="button" aria-label="减少数量" @click="adjustQty(line, -1)"
-                >−</text
-              >
-              <text class="qty">{{ line.quantity }}</text>
-              <text class="qty-btn" role="button" aria-label="增加数量" @click="adjustQty(line, 1)"
-                >+</text
+              <view class="qty-stepper">
+                <text
+                  class="qty-btn"
+                  role="button"
+                  aria-label="减少数量"
+                  @click="adjustQty(line, -1)"
+                  >−</text
+                >
+                <text class="qty">{{ line.quantity }}</text>
+                <text
+                  class="qty-btn"
+                  role="button"
+                  aria-label="增加数量"
+                  @click="adjustQty(line, 1)"
+                  >+</text
+                >
+              </view>
+              <button
+                class="scan-line"
+                :disabled="scanning"
+                data-testid="scan-product-line"
+                @click="scanProduct(line)"
+                >扫码</button
               >
             </view>
             <text v-else class="qty">× {{ line.quantity }}</text>
@@ -404,6 +421,7 @@ import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
+import { promptText } from '@/utils/text-prompt';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { API_BASE_URL } from '@/config/api';
 import type { DeviceSlot } from '@aicabinet/shared-types';
@@ -804,6 +822,68 @@ async function onScan() {
     } else {
       uni.showToast({ title: '该柜暂无任务，已筛选列表', icon: 'none' });
     }
+  } finally {
+    scanning.value = false;
+  }
+}
+
+/** 扫商品条码自动匹配任务明细并 +1；浏览器无法调起扫码时手输条码 */
+async function scanProduct(line: Line) {
+  if (!canRequest.value || linesConfirmed.value || line.applied || scanning.value) return;
+  scanning.value = true;
+  try {
+    let code = '';
+    try {
+      const res = await new Promise<{ result?: string }>((resolve, reject) => {
+        uni.scanCode({
+          onlyFromCamera: false,
+          scanType: ['barCode', 'qrCode'],
+          success: (r) => resolve(r as { result?: string }),
+          fail: reject
+        });
+      });
+      code = String(res.result || '').trim();
+    } catch (err) {
+      const msg = String((err as { errMsg?: string })?.errMsg || '');
+      if (/cancel|取消/i.test(msg)) return;
+      // H5 / 扫码失败：手输条码
+      code =
+        String(
+          (await promptText({
+            title: '输入商品条码',
+            placeholder: '扫描商品包装条码',
+            required: true,
+            requiredMessage: '条码无效',
+            maxLength: 64,
+            singleLine: true,
+            testId: 'product-barcode-prompt'
+          })) || ''
+        ).trim();
+    }
+    if (!code) return;
+    const key = code.trim().toUpperCase();
+    const sku = skus.value.find(
+      (s) =>
+        String((s as { barcode?: string }).barcode || '')
+          .trim()
+          .toUpperCase() === key ||
+        String((s as { skuId?: string }).skuId || '')
+          .trim()
+          .toUpperCase() === key
+    ) as { skuId?: string; skuName?: string } | undefined;
+    if (!sku?.skuId) {
+      uni.showToast({ title: '未匹配到商品条码', icon: 'none' });
+      return;
+    }
+    const target = lines.value.find(
+      (l) => !l.applied && String(l.skuId).toUpperCase() === String(sku.skuId).toUpperCase()
+    );
+    if (!target) {
+      uni.showToast({ title: '本次任务不含该商品', icon: 'none' });
+      return;
+    }
+    adjustQty(target, 1);
+    uni.showToast({ title: `已扫 ${sku.skuName || target.skuId}`, icon: 'none' });
   } finally {
     scanning.value = false;
   }
@@ -1883,6 +1963,25 @@ onPullDownRefresh(load);
   padding: 4rpx 8rpx;
   border-radius: 999rpx;
   background: #ecfdf5;
+}
+.qty-actions {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+.scan-line {
+  margin: 0;
+  padding: 0 20rpx;
+  height: 52rpx;
+  line-height: 52rpx;
+  border-radius: 999rpx;
+  background: #0f766e;
+  color: #fff;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+.scan-line[disabled] {
+  opacity: 0.5;
 }
 .qty-btn {
   width: 48rpx;
