@@ -18,6 +18,7 @@ public class FileAttachment {
     private String contentType;
     private String storagePath;
     private String storageBucket;
+    private String contentSha256;
     private Long uploadedBy;
     private Instant createdAt;
 
@@ -37,6 +38,8 @@ public class FileAttachment {
     public void setStoragePath(String storagePath) { this.storagePath = storagePath; }
     public String getStorageBucket() { return storageBucket; }
     public void setStorageBucket(String storageBucket) { this.storageBucket = storageBucket; }
+    public String getContentSha256() { return contentSha256; }
+    public void setContentSha256(String contentSha256) { this.contentSha256 = contentSha256; }
     public Long getUploadedBy() { return uploadedBy; }
     public void setUploadedBy(Long uploadedBy) { this.uploadedBy = uploadedBy; }
     public Instant getCreatedAt() { return createdAt; }

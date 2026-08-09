@@ -91,6 +91,7 @@ public class AdminDashboardService {
     private final BalanceLedgerService balanceLedgerService;
     private final RefundPolicyService refundPolicyService;
     private final OpsExceptionMapper exceptionRepository;
+    private final FileAttachmentService fileAttachmentService;
 
     public AdminDashboardService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
@@ -120,7 +121,8 @@ public class AdminDashboardService {
                                  WarehouseInTransitMapper inTransitRepository,
                                  BalanceLedgerService balanceLedgerService,
                                  RefundPolicyService refundPolicyService,
-                                 OpsExceptionMapper exceptionRepository) {
+                                 OpsExceptionMapper exceptionRepository,
+                                 FileAttachmentService fileAttachmentService) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -150,6 +152,7 @@ public class AdminDashboardService {
         this.balanceLedgerService = balanceLedgerService;
         this.refundPolicyService = refundPolicyService;
         this.exceptionRepository = exceptionRepository;
+        this.fileAttachmentService = fileAttachmentService;
     }
 
     @Transactional(readOnly = true)
@@ -1015,12 +1018,18 @@ public class AdminDashboardService {
         permissionService.requirePermission(operatorId, "ops:sku:edit");
         SkuCatalog sku = skuCatalogRepository.findById(skuId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SKU_NOT_FOUND));
+        String oldImageUrl = sku.getImageUrl();
         String barcode = trimToNull(request.barcode());
         assertBarcodeUnique(barcode, skuId);
         assertSkuNameUnique(request.skuName(), skuId);
         applySkuRequest(sku, request);
         touchSkuUpdater(sku, operatorId);
         skuCatalogRepository.save(sku);
+        String newImageUrl = trimToNull(request.imageUrl());
+        if (oldImageUrl != null && !oldImageUrl.equals(newImageUrl)) {
+            // 主图被替换/清空时释放旧图（无引用则删除对象），避免孤儿文件堆积
+            fileAttachmentService.releaseSkuImageIfUnused(oldImageUrl, operatorId);
+        }
         auditService.record(operatorId, "SKU_UPDATE", "SKU", sku.getSkuId(),
                 "code=" + sku.getSkuCode() + " " + sku.getSkuName() + " price=" + sku.getPriceCents());
         return sku.toDto();

@@ -54,6 +54,7 @@ public class SkuVisionEnrollmentService {
     private final ObjectMapper objectMapper;
     private final VisionServiceClient visionServiceClient;
     private final UserInfoMapper userInfoRepository;
+    private final FileAttachmentService fileAttachmentService;
 
     public SkuVisionEnrollmentService(SkuCatalogMapper skuCatalogRepository,
                                         SkuVisionMappingMapper yoloRepository,
@@ -63,7 +64,8 @@ public class SkuVisionEnrollmentService {
                                         StagingProperties stagingProperties,
                                         ObjectMapper objectMapper,
                                         VisionServiceClient visionServiceClient,
-                                        UserInfoMapper userInfoRepository) {
+                                        UserInfoMapper userInfoRepository,
+                                        FileAttachmentService fileAttachmentService) {
         this.skuCatalogRepository = skuCatalogRepository;
         this.yoloRepository = yoloRepository;
         this.deviceSlotService = deviceSlotService;
@@ -73,6 +75,7 @@ public class SkuVisionEnrollmentService {
         this.objectMapper = objectMapper;
         this.visionServiceClient = visionServiceClient;
         this.userInfoRepository = userInfoRepository;
+        this.fileAttachmentService = fileAttachmentService;
     }
 
     @Transactional(readOnly = true)
@@ -140,9 +143,14 @@ public class SkuVisionEnrollmentService {
         if (skuCatalogRepository.existsBySkuName(skuReq.skuName(), sku.getSkuId())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SKU_NAME_EXISTS);
         }
+        String oldImageUrl = sku.getImageUrl();
         applySkuFields(sku, skuReq, request);
         touchSkuUpdater(sku, operatorId);
         skuCatalogRepository.save(sku);
+        String newImageUrl = trimToNull(skuReq.imageUrl());
+        if (oldImageUrl != null && !oldImageUrl.equals(newImageUrl)) {
+            fileAttachmentService.releaseSkuImageIfUnused(oldImageUrl, operatorId);
+        }
 
         String skuId = sku.getSkuId();
         String className = resolveClassName(request.yoloClassName(), sku);

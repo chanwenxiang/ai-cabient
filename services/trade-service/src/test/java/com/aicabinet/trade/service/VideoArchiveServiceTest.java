@@ -40,7 +40,7 @@ class VideoArchiveServiceTest {
     }
 
     @Test
-    void archiveAfterSettlement_copiesPerSku() {
+    void archiveAfterSettlement_copiesOncePerVideo() {
         ShoppingSession session = new ShoppingSession();
         session.setSessionId("S-ARCHIVE-001");
         session.setUserId(10086L);
@@ -59,6 +59,6 @@ class VideoArchiveServiceTest {
 
         verify(minioVideoService).copyObject(
                 eq(session.getVideoUri()),
-                eq("archive/2026/07/13/SKU-WATER-001/user-10086/S-ARCHIVE-001-top.mp4"));
+                eq("archive/2026/07/13/session-S-ARCHIVE-001/user-10086/S-ARCHIVE-001-top.mp4"));
     }
 }
