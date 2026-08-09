@@ -72,6 +72,9 @@
         <button v-if="order?.deviceId" class="btn-primary" @click="reopenCabinet">
           再去本柜购物
         </button>
+        <button v-if="order?.status === 'UNPAID'" class="btn-primary" :disabled="paying" @click="payNow">
+          {{ paying ? '支付中…' : '去支付' }}
+        </button>
         <button v-if="videoUrl" class="btn-outline" @click="playVideo">查看购物视频</button>
         <button
           v-if="canRefund"
@@ -213,6 +216,7 @@ const refundMode = ref(false);
 const disputeReason = ref('');
 const disputeLoading = ref(false);
 const refundLoading = ref(false);
+const paying = ref(false);
 const disputeFiled = ref(false);
 const refundDone = ref(false);
 const reasonChips = DISPUTE_REASON_CHIPS;
@@ -423,6 +427,20 @@ function openRefund() {
   selectedCategory.value = 'USER_APPEAL';
   evidence.value = [];
   showDispute.value = true;
+}
+
+async function payNow() {
+  if (!order.value?.orderId || paying.value) return;
+  paying.value = true;
+  try {
+    await consumerApi.payOrder(order.value.orderId);
+    uni.showToast({ title: '支付成功', icon: 'success' });
+    await load();
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '支付失败', icon: 'none' });
+  } finally {
+    paying.value = false;
+  }
 }
 
 function closeDispute() {

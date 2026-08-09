@@ -21,6 +21,9 @@
           aria-label="搜索订单"
           @confirm="applySearch"
         />
+        <button v-if="canExport" class="export-btn" :disabled="exporting" @click="exportOrders">
+          {{ exporting ? '导出中…' : '导出' }}
+        </button>
         <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false">
           <view class="filter-row">
             <text
@@ -107,13 +110,35 @@ import {
   fmtMoney
 } from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
-import { hasPerm, merchantApi, type MerchantOrderSummary } from '@/utils/merchant-api';
+import {
+  hasPerm,
+  merchantApi,
+  downloadAuthedFile,
+  openExportedFile,
+  type MerchantOrderSummary
+} from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { MerchantMe } from '@aicabinet/shared-types';
 import { skuImageFor } from '@aicabinet/shared-uni/product-image';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canList = computed(() => hasPerm(me.value, 'merchant:orders:list'));
+const canExport = computed(() => hasPerm(me.value, 'merchant:reports:export'));
+const exporting = ref(false);
+
+async function exportOrders() {
+  if (exporting.value) return;
+  exporting.value = true;
+  try {
+    const url = `${merchantApi.exportOrdersUrl()}`;
+    const file = await downloadAuthedFile(url);
+    await openExportedFile(file, 'merchant-orders.csv');
+  } catch (e) {
+    uni.showToast({ title: e instanceof Error ? e.message : '导出失败', icon: 'none' });
+  } finally {
+    exporting.value = false;
+  }
+}
 
 const loading = ref(false);
 const loadingMore = ref(false);
