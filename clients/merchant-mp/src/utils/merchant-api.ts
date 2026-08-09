@@ -554,7 +554,7 @@ export const merchantApi = {
     if (status) q.set('status', status);
     if (from) q.set('from', from);
     if (to) q.set('to', to);
-    return request<{ items: import('@aicabinet/shared-types').RevenueSplit[]; total: number }>(
+    return request<import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').RevenueSplit>>(
       `/api/v2/merchant/revenue-splits?${q}`
     );
   },
@@ -643,7 +643,7 @@ export const merchantApi = {
   disputes: (status?: string, page = 0, size = 100) => {
     const q = new URLSearchParams({ page: String(page), size: String(size) });
     if (status) q.set('status', status);
-    return request<{ items?: MerchantDisputeTicket[]; total?: number } | MerchantDisputeTicket[]>(
+    return request<import('@aicabinet/shared-types').PageResult<MerchantDisputeTicket>>(
       `/api/v2/merchant/disputes?${q}`
     );
   },
@@ -665,7 +665,7 @@ export const merchantApi = {
     if (from) q.set('from', from);
     if (to) q.set('to', to);
     if (keyword) q.set('keyword', keyword);
-    return request<{ items?: MerchantOrderSummary[]; total?: number } | MerchantOrderSummary[]>(
+    return request<import('@aicabinet/shared-types').PageResult<MerchantOrderSummary>>(
       `/api/v2/merchant/orders?${q}`
     );
   },
