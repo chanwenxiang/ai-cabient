@@ -90,6 +90,11 @@ const RULE_GROUPS: Record<string, string[]> = {
     'device.offline.auto_unlock_stable_minutes'
   ],
   '争议 SLA': ['dispute.sla.hours', 'dispute.sla.reminder_hours', 'dispute.sla.webhook'],
+  告警渠道: [
+    'ops.alert.dingtalk_webhook',
+    'ops.alert.wecom_webhook',
+    'ops.alert.webhook'
+  ],
   卡点扫描: [
     'ops.scan.door_open_minutes',
     'ops.scan.upload_stuck_minutes',
