@@ -10,5 +10,7 @@ public record MerchantOrderSummaryDto(
         String status,
         int lineCount,
         Instant createdAt,
-        String lineSummary
+        String lineSummary,
+        String payChannel,
+        int couponDiscountCents
 ) {}

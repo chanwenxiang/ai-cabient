@@ -110,6 +110,9 @@
             <view class="order-copy">
               <text class="order-summary">{{ orderSummaryText(o) }}</text>
               <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
+              <text v-if="Number(o.couponDiscountCents || 0) > 0" class="discount"
+                >券 -¥{{ ((o.couponDiscountCents || 0) / 100).toFixed(2) }}</text
+              >
             </view>
           </view>
           <view class="order-bottom">
@@ -414,6 +417,14 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 </script>
 
 <style scoped>
+.discount {
+  display: block;
+  margin-top: 2rpx;
+  font-size: 20rpx;
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .page {
   height: 100%;
   overflow: hidden;
