@@ -43,7 +43,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         com.aicabinet.trade.config.PayScoreProperties.class,
         NotificationProperties.class,
         com.aicabinet.trade.config.DisputeSlaProperties.class,
-        com.aicabinet.trade.config.RopProperties.class})
+        com.aicabinet.trade.config.RopProperties.class,
+        com.aicabinet.trade.config.RoutePlanningProperties.class})
 public class TradeServiceApplication {
 
     public static void main(String[] args) {
