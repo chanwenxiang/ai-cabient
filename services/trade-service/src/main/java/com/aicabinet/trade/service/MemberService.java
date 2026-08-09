@@ -2,8 +2,11 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.Member;
 import com.aicabinet.trade.domain.MemberLevelRule;
+import com.aicabinet.trade.domain.MemberPointsLog;
 import com.aicabinet.trade.mapper.MemberMapper;
 import com.aicabinet.trade.mapper.MemberLevelRuleMapper;
+import com.aicabinet.trade.mapper.MemberPointsLogMapper;
+import com.aicabinet.common.dto.MemberLevelRuleDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -11,7 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 
@@ -29,6 +34,9 @@ public class MemberService {
 
     @Autowired
     private MemberLevelRuleMapper levelRuleRepository;
+
+    @Autowired
+    private MemberPointsLogMapper pointsLogRepository;
 
     @Transactional
     public Member createMember(Long userId) {
@@ -98,5 +106,63 @@ public class MemberService {
         }
         Member member = getMemberByUserId(userId).orElseGet(() -> createMember(userId));
         updateMemberStats(member.getMemberId(), BigDecimal.valueOf(paidAmountCents, 2));
+        earnPoints(member, paidAmountCents, orderId);
+    }
+
+    /** 按当前等级积分倍率返积分（1 元 = points_rate 积分），积分有效期 365 天。 */
+    @Transactional
+    public void earnPoints(Member member, int paidAmountCents, String sourceId) {
+        if (member == null || paidAmountCents <= 0) {
+            return;
+        }
+        // 幂等保障：同一订单只返一次积分（配合 V166 唯一索引）
+        if (pointsLogRepository.existsByMemberAndSource(member.getMemberId(), "ORDER", sourceId)) {
+            log.info("points already earned, skip memberId={} source={}", member.getMemberId(), sourceId);
+            return;
+        }
+        MemberLevelRule rule = levelRuleRepository.findByLevelCode(member.getMemberLevel())
+                .orElse(null);
+        BigDecimal rate = rule != null && rule.getPointsRate() != null
+                ? rule.getPointsRate()
+                : BigDecimal.ONE;
+        int points = rate.multiply(BigDecimal.valueOf(paidAmountCents, 2))
+                .setScale(0, RoundingMode.DOWN).intValue();
+        if (points <= 0) {
+            return;
+        }
+        member.setTotalPoints(nz(member.getTotalPoints()) + points);
+        member.setAvailablePoints(nz(member.getAvailablePoints()) + points);
+        member.setUpdatedAt(Instant.now());
+        memberRepository.save(member);
+
+        MemberPointsLog log = new MemberPointsLog();
+        log.setMemberId(member.getMemberId());
+        log.setPoints(points);
+        log.setPointsType("EARN");
+        log.setSourceType("ORDER");
+        log.setSourceId(sourceId);
+        log.setDescription("购物返积分");
+        log.setExpireAt(Instant.now().plus(365, ChronoUnit.DAYS));
+        pointsLogRepository.save(log);
+    }
+
+    private static int nz(Integer v) {
+        return v == null ? 0 : v;
+    }
+
+    public List<MemberLevelRuleDto> levelRulesActive() {
+        return levelRuleRepository.findByStatusOrderBySortorderAsc("ACTIVE").stream()
+                .map(r -> new MemberLevelRuleDto(
+                        r.getId(),
+                        r.getLevelCode(),
+                        r.getLevelName(),
+                        r.getMinSpent(),
+                        r.getMaxSpent(),
+                        r.getMinPoints() != null ? r.getMinPoints() : 0,
+                        r.getMaxPoints(),
+                        r.getPointsRate() != null ? r.getPointsRate() : java.math.BigDecimal.ONE,
+                        r.getSortorder() != null ? r.getSortorder() : 0,
+                        r.getStatus()))
+                .toList();
     }
 }

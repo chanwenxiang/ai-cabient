@@ -224,6 +224,7 @@
               >
                 <template v-if="disp.lines.length">
                   <div v-for="(g, i) in disp.lines" :key="`${row.orderId}-${i}`" class="goods-line">
+                    <img class="goods-thumb" :src="goodsThumb(g.title)" alt="" />
                     <span class="goods-name">{{ g.title }}</span>
                     <span v-if="g.qty" class="goods-qty">×{{ g.qty }}</span>
                   </div>
@@ -444,6 +445,22 @@ import { useIdColumnSort } from '@/composables/useIdColumnSort';
 const UNPAID_OVERDUE_MS = 30 * 60 * 1000;
 
 type GoodsLine = { title: string; qty: string };
+
+const SKU_DEMO_IMAGES: Array<[RegExp, string]> = [
+  [/可口可乐|可乐|cola/i, '/admin/sku-demo/cola.jpg'],
+  [/雪碧|sprite/i, '/admin/sku-demo/sprite.jpg'],
+  [/矿泉水|纯净水|water/i, '/admin/sku-demo/water.jpg'],
+  [/薯片|chips/i, '/admin/sku-demo/chips.jpg'],
+  [/牛奶|milk/i, '/admin/sku-demo/milk.jpg'],
+  [/牛肉面|方便面|泡面|noodle/i, '/admin/sku-demo/noodle.jpg']
+];
+
+function goodsThumb(title: string) {
+  for (const [rule, image] of SKU_DEMO_IMAGES) {
+    if (rule.test(title)) return image;
+  }
+  return '/admin/sku-demo/default.jpg';
+}
 
 function parseGoodsLines(summary: string | null | undefined): GoodsLine[] {
   if (!summary?.trim()) return [];
@@ -1129,11 +1146,19 @@ onActivated(() => {
 }
 .goods-line {
   display: inline-flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: center;
   gap: 6px;
   min-width: 0;
   max-width: 100%;
+}
+.goods-thumb {
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  background: #f0fdf4;
 }
 .goods-name {
   font-weight: 600;

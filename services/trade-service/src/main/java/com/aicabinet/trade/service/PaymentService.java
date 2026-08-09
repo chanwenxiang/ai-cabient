@@ -54,6 +54,7 @@ public class PaymentService {
     private final AlipayNotifyService alipayNotifyService;
     private final BalanceLedgerService balanceLedgerService;
     private final SystemConfigService systemConfigService;
+    private final NotificationService notificationService;
 
     public PaymentService(RechargeOrderMapper rechargeOrderRepository,
                           UserInfoMapper userInfoRepository,
@@ -66,7 +67,8 @@ public class PaymentService {
                           AlipayPayClient alipayPayClient,
                           AlipayNotifyService alipayNotifyService,
                           BalanceLedgerService balanceLedgerService,
-                          SystemConfigService systemConfigService) {
+                          SystemConfigService systemConfigService,
+                          NotificationService notificationService) {
         this.rechargeOrderRepository = rechargeOrderRepository;
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
@@ -79,6 +81,7 @@ public class PaymentService {
         this.alipayNotifyService = alipayNotifyService;
         this.balanceLedgerService = balanceLedgerService;
         this.systemConfigService = systemConfigService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -530,7 +533,21 @@ public class PaymentService {
         order.setPaidAt(Instant.now());
         order.setPaymentOperationId(operation.getOperationId());
         rechargeOrderRepository.save(order);
+        try {
+            notificationService.notifyConsumer(
+                    order.getUserId(),
+                    "recharge_success",
+                    Map.of("amount", yuan(order.getAmountCents())),
+                    "RECHARGE",
+                    order.getOrderId());
+        } catch (Exception e) {
+            log.warn("recharge notification failed orderId={}", order.getOrderId(), e);
+        }
         log.info("recharge credited user={} amount={} channel={}",
                 order.getUserId(), order.getAmountCents(), order.getChannel());
+    }
+
+    private static String yuan(int cents) {
+        return java.math.BigDecimal.valueOf(cents, 2).stripTrailingZeros().toPlainString();
     }
 }

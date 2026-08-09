@@ -31,6 +31,14 @@ public interface UserCouponMapper extends BaseTradeMapper<UserCoupon> {
     return selectList(Wrappers.<UserCoupon>lambdaQuery().eq(UserCoupon::getStatus, status).lt(UserCoupon::getExpireAt, now));
     }
 
+    default List<UserCoupon> findByStatusAndExpireAtBetween(String status, Instant from, Instant to) {
+        return selectList(Wrappers.<UserCoupon>lambdaQuery()
+                .eq(UserCoupon::getStatus, status)
+                .isNull(UserCoupon::getRemindedAt)
+                .ge(UserCoupon::getExpireAt, from)
+                .lt(UserCoupon::getExpireAt, to));
+    }
+
     default long countByCouponDefId(Long couponDefId) {
     Long c = selectCount(Wrappers.<UserCoupon>lambdaQuery().eq(UserCoupon::getCouponDefId, couponDefId));
     return c == null ? 0 : c;
@@ -40,6 +48,17 @@ public interface UserCouponMapper extends BaseTradeMapper<UserCoupon> {
         Long c = selectCount(Wrappers.<UserCoupon>lambdaQuery()
                 .eq(UserCoupon::getUserId, userId)
                 .eq(UserCoupon::getCouponDefId, couponDefId));
+        return c == null ? 0 : c;
+    }
+
+    default List<UserCoupon> findByCouponDefId(Long couponDefId) {
+        return selectList(Wrappers.<UserCoupon>lambdaQuery().eq(UserCoupon::getCouponDefId, couponDefId));
+    }
+
+    default long countByCouponDefIdAndStatus(Long couponDefId, String status) {
+        Long c = selectCount(Wrappers.<UserCoupon>lambdaQuery()
+                .eq(UserCoupon::getCouponDefId, couponDefId)
+                .eq(UserCoupon::getStatus, status));
         return c == null ? 0 : c;
     }
 

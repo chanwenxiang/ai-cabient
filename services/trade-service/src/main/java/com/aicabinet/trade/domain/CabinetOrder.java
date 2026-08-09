@@ -91,6 +91,7 @@ public String getOrderId() { return orderId; }
     public List<CabinetOrderLine> getLines() { return lines; }
     public void setLines(List<CabinetOrderLine> lines) { this.lines = lines; }
     public Instant getCreatedAt() { return createdAt; }
+    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 
     public void addLine(CabinetOrderLine line) {
         line.setOrderId(this.orderId);

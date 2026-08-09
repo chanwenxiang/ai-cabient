@@ -71,6 +71,13 @@ const BASE_NAV: NavItem[] = [
     perm: 'ops:stock-health:list',
     keywords: ['缺货', '断货', '临期', '库存健康', 'stock']
   },
+  {
+    path: '/user-analysis',
+    title: '用户分析',
+    group: '概览',
+    perm: 'ops:user-analysis:view',
+    keywords: ['用户', '复购', '活跃', '沉睡', 'user-analysis']
+  },
 
   {
     path: '/orders',
@@ -142,6 +149,13 @@ const BASE_NAV: NavItem[] = [
     group: '设备商品',
     perm: 'ops:sku:list',
     keywords: ['sku', '商品', '定价', '条码', '品牌']
+  },
+  {
+    path: '/sku-review',
+    title: '选品诊断',
+    group: '设备商品',
+    perm: 'ops:sku-review:list',
+    keywords: ['选品', '淘汰', '滞销', '动销', 'sku-review']
   },
   {
     path: '/sku-vision',
@@ -278,6 +292,41 @@ const BASE_NAV: NavItem[] = [
     group: '增长风控',
     perm: 'ops:coupon:list',
     keywords: ['优惠券', 'coupon', '发券']
+  },
+  {
+    path: '/points-redeem',
+    title: '积分兑换管理',
+    group: '增长风控',
+    perm: 'ops:points:list',
+    keywords: ['积分', '兑换', 'points', 'redeem']
+  },
+  {
+    path: '/member-levels',
+    title: '会员等级规则',
+    group: '增长风控',
+    perm: 'ops:member-level:list',
+    keywords: ['会员', '等级', '积分倍率', 'member-level']
+  },
+  {
+    path: '/marketing-roi',
+    title: '活动效果分析',
+    group: '增长风控',
+    perm: 'ops:marketing-roi:view',
+    keywords: ['活动', 'ROI', '营销', '核销', 'marketing-roi']
+  },
+  {
+    path: '/replenishment-staff',
+    title: '补货员效率',
+    group: '履约仓储',
+    perm: 'ops:replenishment:list',
+    keywords: ['补货员', '效率', '任务', '准时率', 'replenishment-staff']
+  },
+  {
+    path: '/notifications',
+    title: '消息记录',
+    group: '增长风控',
+    perm: 'ops:notify:list',
+    keywords: ['消息', '通知', 'notification']
   },
   {
     path: '/feedback',

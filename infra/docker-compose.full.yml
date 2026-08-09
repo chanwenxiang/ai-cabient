@@ -212,7 +212,10 @@ services:
   gateway:
     image: nginx:alpine
     ports: ["80:80"]
-    volumes: ["./gateway/nginx-full.conf:/etc/nginx/conf.d/default.conf:ro"]
+    volumes:
+      - "./gateway/nginx-full.conf:/etc/nginx/conf.d/default.conf:ro"
+      # 管理后台前端：直接托管宿主机构建产物，避免后端镜像内嵌旧包
+      - "../services/trade-service/src/main/resources/static/admin:/usr/share/nginx/html/admin:ro"
     depends_on: [trade-service]
 
   prometheus:

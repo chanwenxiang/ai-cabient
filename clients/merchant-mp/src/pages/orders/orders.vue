@@ -12,6 +12,47 @@
       hint="有成交后会显示在这里"
     />
     <view v-else>
+      <view class="filter-panel">
+        <input
+          v-model="keyword"
+          class="search-input"
+          placeholder="订单号 / 柜机 / 会话"
+          confirm-type="search"
+          aria-label="搜索订单"
+          @confirm="applySearch"
+        />
+        <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false">
+          <view class="filter-row">
+            <text
+              v-for="s in statusOptions"
+              :key="s.value"
+              class="filter-chip"
+              :class="{ active: status === s.value }"
+              @click="setStatus(s.value)"
+              >{{ s.label }}</text
+            >
+          </view>
+        </scroll-view>
+        <view class="filter-row">
+          <picker
+            :range="deviceOptions"
+            range-key="label"
+            :value="deviceIndex"
+            @change="onDeviceChange"
+          >
+            <view class="filter-picker">{{ deviceLabel }}</view>
+          </picker>
+          <text
+            v-for="t in timeOptions"
+            :key="t.value"
+            class="filter-chip"
+            :class="{ active: timeRange === t.value }"
+            @click="setTime(t.value)"
+            >{{ t.label }}</text
+          >
+          <text class="filter-reset" @click="resetFilters">重置</text>
+        </view>
+      </view>
       <view
         v-for="item in list"
         :key="item.orderId"
@@ -25,10 +66,21 @@
           <text class="card-id">#{{ shortId(item.orderId) }}</text>
           <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
         </view>
-        <view class="card-amount">{{ money(item.totalAmountCents) }}</view>
-        <view class="card-meta">
-          <text>{{ emptyDisplay(item.deviceId, 'device') }} · {{ item.lineCount || 0 }} 件</text>
-          <text>{{ formatTime(item.createdAt) }}</text>
+        <view class="card-main">
+          <image
+            class="card-thumb"
+            :src="skuImageFor('', '', item.lineSummary)"
+            mode="aspectFill"
+            aria-hidden="true"
+          />
+          <view class="card-copy">
+            <text class="card-goods">{{ lineSummaryText(item) }}</text>
+            <text class="card-meta">
+              {{ emptyDisplay(item.deviceId, 'device') }} · {{ item.lineCount || 0 }} 件
+            </text>
+            <text class="card-time">{{ formatTime(item.createdAt) }}</text>
+          </view>
+          <text class="card-amount">{{ money(item.totalAmountCents) }}</text>
         </view>
       </view>
       <view
@@ -58,6 +110,7 @@ import EmptyState from '@/components/empty-state.vue';
 import { hasPerm, merchantApi, type MerchantOrderSummary } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { MerchantMe } from '@aicabinet/shared-types';
+import { skuImageFor } from '@aicabinet/shared-uni/product-image';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canList = computed(() => hasPerm(me.value, 'merchant:orders:list'));
@@ -76,7 +129,107 @@ const listTruncated = computed(
   () => listTotal.value > 0 && list.value.length > 0 && listTotal.value > list.value.length
 );
 
-onShow(() => load());
+const keyword = ref('');
+const status = ref('');
+const timeRange = ref('all');
+const filterDeviceId = ref('');
+const deviceOptions = ref<{ label: string; value: string }[]>([]);
+const statusOptions = [
+  { value: '', label: '全部' },
+  { value: 'PAID', label: '已支付' },
+  { value: 'REFUNDED', label: '已退款' },
+  { value: 'DISPUTED', label: '争议中' },
+  { value: 'CANCELLED', label: '已取消' }
+];
+const timeOptions = [
+  { value: 'all', label: '全部时间' },
+  { value: 'today', label: '今天' },
+  { value: '7d', label: '近7天' },
+  { value: '30d', label: '近30天' }
+];
+const deviceIndex = computed(() => {
+  const i = deviceOptions.value.findIndex((d) => d.value === filterDeviceId.value);
+  return i < 0 ? 0 : i;
+});
+const deviceLabel = computed(() => {
+  const hit = deviceOptions.value.find((d) => d.value === filterDeviceId.value);
+  return hit ? hit.label : '全部柜机';
+});
+
+function dateStr(offsetDays: number) {
+  const d = new Date();
+  d.setDate(d.getDate() - offsetDays);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function orderParams(page = 0, size = PAGE_SIZE) {
+  const params: Record<string, string | number> = { page, size };
+  if (filterDeviceId.value) params.deviceId = filterDeviceId.value;
+  if (status.value) params.status = status.value;
+  if (timeRange.value === 'today') params.from = dateStr(0);
+  else if (timeRange.value === '7d') params.from = dateStr(6);
+  else if (timeRange.value === '30d') params.from = dateStr(29);
+  const kw = keyword.value.trim();
+  if (kw) params.keyword = kw;
+  return params;
+}
+
+async function loadDevices() {
+  try {
+    const devices = await merchantApi.devices();
+    deviceOptions.value = [
+      { label: '全部柜机', value: '' },
+      ...devices.map((d) => ({
+        label: d.deviceName || d.deviceId,
+        value: d.deviceId
+      }))
+    ];
+  } catch {
+    deviceOptions.value = [{ label: '全部柜机', value: '' }];
+  }
+}
+
+function applySearch() {
+  load();
+}
+
+function setStatus(value: string) {
+  status.value = value;
+  load();
+}
+
+function setTime(value: string) {
+  timeRange.value = value;
+  load();
+}
+
+function onDeviceChange(e: { detail: { value: number } }) {
+  const opt = deviceOptions.value[e.detail.value];
+  filterDeviceId.value = opt ? opt.value : '';
+  load();
+}
+
+function resetFilters() {
+  keyword.value = '';
+  status.value = '';
+  timeRange.value = 'all';
+  filterDeviceId.value = '';
+  load();
+}
+
+function lineSummaryText(item: MerchantOrderSummary) {
+  const summary = String(item.lineSummary || '').trim();
+  if (summary) return summary;
+  return `${item.lineCount || 0} 件商品`;
+}
+
+onShow(() => {
+  void loadDevices();
+  load();
+});
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
 async function load() {
@@ -103,7 +256,7 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const res = await merchantApi.orders(undefined, 0, PAGE_SIZE);
+    const res = await merchantApi.orders(orderParams(0, PAGE_SIZE));
     if (seq !== loadSeq) return;
     if (Array.isArray(res)) {
       list.value = res;
@@ -130,7 +283,7 @@ async function loadMore() {
   loadingMore.value = true;
   try {
     const next = pageIndex.value + 1;
-    const res = await merchantApi.orders(undefined, next, PAGE_SIZE);
+    const res = await merchantApi.orders(orderParams(next, PAGE_SIZE));
     const items = Array.isArray(res) ? res : res?.items || [];
     if (!items.length) {
       hasMore.value = false;
@@ -191,6 +344,64 @@ function onDetail(item: MerchantOrderSummary) {
   display: block;
   margin-bottom: 20rpx;
 }
+.filter-panel {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 20rpx 20rpx 14rpx;
+  margin: 0 0 16rpx;
+  border: 1rpx solid var(--card-border, #e2e8f0);
+}
+.search-input {
+  height: 72rpx;
+  box-sizing: border-box;
+  background: #f8fafc;
+  border: 1rpx solid #e2e8f0;
+  border-radius: 36rpx;
+  padding: 0 26rpx;
+  font-size: 26rpx;
+}
+.filter-scroll {
+  white-space: nowrap;
+  margin-top: 14rpx;
+}
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  flex-wrap: wrap;
+}
+.filter-row + .filter-row {
+  margin-top: 12rpx;
+}
+.filter-chip {
+  padding: 8rpx 20rpx;
+  border-radius: 999rpx;
+  font-size: 23rpx;
+  color: #64748b;
+  background: #f1f5f9;
+  flex-shrink: 0;
+}
+.filter-chip.active {
+  color: #fff;
+  background: #0f766e;
+  font-weight: 600;
+}
+.filter-picker {
+  padding: 8rpx 20rpx;
+  border-radius: 999rpx;
+  font-size: 23rpx;
+  color: #334155;
+  background: #ecfdf5;
+  border: 1rpx solid #99f6e4;
+  flex-shrink: 0;
+}
+.filter-reset {
+  margin-left: auto;
+  padding: 8rpx 12rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
 .card {
   background: #fff;
   border-radius: var(--card-radius, 22rpx);
@@ -236,16 +447,47 @@ function onDetail(item: MerchantOrderSummary) {
   color: #475569;
   background: #e2e8f0;
 }
+.card-main {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin-top: 12rpx;
+}
+.card-thumb {
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 18rpx;
+  background: #ecfdf5;
+  flex-shrink: 0;
+}
+.card-copy {
+  flex: 1;
+  min-width: 0;
+}
+.card-goods {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .card-amount {
   font-size: 36rpx;
   font-weight: 700;
   color: #0f172a;
-  margin: 8rpx 0;
+  flex-shrink: 0;
 }
 .card-meta {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 12rpx;
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
+}
+.card-time {
+  display: block;
+  margin-top: 4rpx;
   font-size: 22rpx;
   color: #94a3b8;
 }

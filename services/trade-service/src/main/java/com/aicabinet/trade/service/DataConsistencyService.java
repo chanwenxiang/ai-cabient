@@ -114,6 +114,8 @@ private ScheduledTaskService taskService;
             checkOrderConsistency();
             checkPaymentConsistency();
             checkInventoryConsistency();
+            checkPointsConsistency();
+            checkCouponIssuedConsistency();
             log.info("数据一致性巡检结束");
         } catch (Exception e) {
             log.error("数据一致性巡检中断: {}", e.getMessage());
@@ -214,6 +216,62 @@ private ScheduledTaskService taskService;
                     "汇总库存 " + expected + " ≠ ON_SALE 批次合计 " + actual);
         }
         resolveStaleFailuresIfComplete("INVENTORY_MISMATCH", failing, rows.size());
+    }
+
+    /**
+     * 会员可用积分 vs 积分日志（EARN 累加 - USE/EXPIRE 扣减）汇总。
+     */
+    void checkPointsConsistency() {
+        String sql = "SELECT m.member_id, m.available_points AS expected, "
+                + "COALESCE((SELECT SUM(CASE "
+                + "  WHEN l.points_type = 'EARN' THEN l.points "
+                + "  WHEN l.points_type IN ('USE', 'EXPIRE') THEN -l.points "
+                + "  ELSE 0 END) "
+                + "  FROM member_points_log l WHERE l.member_id = m.member_id), 0) AS calculated "
+                + "FROM member m "
+                + "WHERE m.available_points <> COALESCE((SELECT SUM(CASE "
+                + "  WHEN l.points_type = 'EARN' THEN l.points "
+                + "  WHEN l.points_type IN ('USE', 'EXPIRE') THEN -l.points "
+                + "  ELSE 0 END) "
+                + "  FROM member_points_log l WHERE l.member_id = m.member_id), 0) "
+                + "LIMIT " + CHECK_BATCH;
+
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String memberId = String.valueOf(row.get("member_id"));
+            failing.add(memberId);
+            String expected = String.valueOf(row.get("expected"));
+            String actual = String.valueOf(row.get("calculated"));
+            recordInconsistency("POINTS_BALANCE", "member",
+                    memberId, expected, actual,
+                    "可用积分 " + expected + " ≠ 积分日志汇总 " + actual);
+        }
+        resolveStaleFailuresIfComplete("POINTS_BALANCE", failing, rows.size());
+    }
+
+    /**
+     * 券定义已发数 vs user_coupon 实际发放数。
+     */
+    void checkCouponIssuedConsistency() {
+        String sql = "SELECT d.coupon_def_id, d.issued_count AS expected, "
+                + "(SELECT COUNT(*) FROM user_coupon uc WHERE uc.coupon_def_id = d.coupon_def_id) AS actual "
+                + "FROM coupon_definition d "
+                + "WHERE d.issued_count <> (SELECT COUNT(*) FROM user_coupon uc WHERE uc.coupon_def_id = d.coupon_def_id) "
+                + "LIMIT " + CHECK_BATCH;
+
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String defId = String.valueOf(row.get("coupon_def_id"));
+            failing.add(defId);
+            String expected = String.valueOf(row.get("expected"));
+            String actual = String.valueOf(row.get("actual"));
+            recordInconsistency("COUPON_ISSUED", "coupon_definition",
+                    defId, expected, actual,
+                    "券定义已发数 " + expected + " ≠ 实际发放 " + actual);
+        }
+        resolveStaleFailuresIfComplete("COUPON_ISSUED", failing, rows.size());
     }
 
     /**

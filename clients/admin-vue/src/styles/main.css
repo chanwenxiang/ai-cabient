@@ -682,8 +682,71 @@ select {
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll {
   flex: 1 1 auto;
   min-height: 240px;
-  max-height: min(70vh, calc(100vh - 220px));
-  overflow: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+/*
+ * 窄窗口下列宽总和超出容器时（由 JS 检测并加 .table-scroll--h）：
+ * 页面保持窗口宽度不再向右拉伸，表格在自身区域内横向滚动；
+ * 列头随表格横向同步，纵向随页面（不吸顶）。
+ */
+.layout-main-scroll
+  > .page-card
+  > .el-card__body
+  > .table-scroll.table-scroll--h,
+.layout-main-scroll
+  > .page-fill
+  > .page-card
+  > .el-card__body
+  > .table-scroll.table-scroll--h {
+  overflow: auto !important;
+}
+.layout-main-scroll
+  > .page-card
+  > .el-card__body
+  > .table-scroll.table-scroll--h
+  .el-table__header-wrapper,
+.layout-main-scroll
+  > .page-card
+  > .el-card__body
+  > .table-scroll.table-scroll--h
+  .el-table__body-header,
+.layout-main-scroll
+  > .page-fill
+  > .page-card
+  > .el-card__body
+  > .table-scroll.table-scroll--h
+  .el-table__header-wrapper,
+.layout-main-scroll
+  > .page-fill
+  > .page-card
+  > .el-card__body
+  > .table-scroll.table-scroll--h
+  .el-table__body-header {
+  top: 0 !important;
+}
+
+/*
+ * 整页列表：卡片不再被 flex 压缩（表格自然高度铺满整页）。
+ * 若保留 flex-shrink，内容超高时卡片会被压回视口高度，
+ * 表格会溢出 .table-scroll 边框和卡片底部；改为不收缩后，
+ * 表格边框完整包裹所有行，页面整体由 .layout-main-scroll 滚动。
+ * 仅作用于“卡片 body 直接挂表格”的列表页，内容包裹型 tabs 不受影响。
+ */
+.layout-main-scroll > .page-card:has(> .el-card__body > .table-scroll),
+.layout-main-scroll > .page-fill > .page-card:has(> .el-card__body > .table-scroll),
+.layout-main-scroll > .page-fill:has(> .page-card > .el-card__body > .table-scroll) {
+  flex-shrink: 0;
+}
+
+/*
+ * 整页列表滚动时吸顶的是表格列头（.el-table__header-wrapper 已 sticky），
+ * 卡片标题栏（如“订单管理”）随内容滚走，避免标题栏盖住列头。
+ */
+.layout-main-scroll > .page-card:has(> .el-card__body > .table-scroll) > .el-card__header,
+.layout-main-scroll > .page-fill > .page-card:has(> .el-card__body > .table-scroll) > .el-card__header {
+  position: static !important;
 }
 
 /*
@@ -859,8 +922,6 @@ select {
   border: 1px solid var(--layout-border);
   border-radius: 8px;
   background: var(--layout-card);
-  container-type: inline-size;
-  container-name: tablescroll;
 }
 
 .table-scroll-inner {
@@ -874,11 +935,19 @@ select {
 
 .table-scroll .el-table {
   width: 100% !important;
-  min-width: 100%;
+  min-width: 100% !important;
   height: auto !important;
   max-height: none !important;
   margin-bottom: 0;
   overflow: visible !important;
+}
+
+/* 内层 table 覆盖 EP 按列宽总和写死的像素宽度：
+ * table-layout:fixed 下实际宽度 = max(容器宽度, 列宽总和)，
+ * 宽屏时列自动拉伸铺满整页（无右侧空白），窄屏时由 .table-scroll--h 内部横向滚动。 */
+.table-scroll .el-table table {
+  width: 100% !important;
+  min-width: 100% !important;
 }
 
 .table-scroll .el-table__inner-wrapper {
@@ -997,6 +1066,8 @@ select {
   position: sticky;
   top: 0;
   z-index: 6;
+  background: var(--el-table-header-bg-color, var(--el-fill-color-light, #f5f7fa));
+  background-clip: padding-box;
 }
 .layout-main-scroll .el-table__header th.el-table__cell,
 .page-card .el-table__header th.el-table__cell,
@@ -1011,6 +1082,25 @@ select {
 [data-theme='dark'] .page-card .el-table__body-header th.el-table__cell {
   background: var(--el-table-header-bg-color, #3a3a3a);
 }
+[data-theme='dark'] .layout-main-scroll .el-table__header-wrapper,
+[data-theme='dark'] .page-card .el-table__header-wrapper,
+[data-theme='dark'] .layout-main-scroll .el-table__body-header,
+[data-theme='dark'] .page-card .el-table__body-header {
+  background: var(--el-table-header-bg-color, #3a3a3a);
+}
+
+/*
+ * 整页列表：吸顶表头贴齐主内容区顶部。
+ * .layout-main-scroll 有 padding-top(12px)，sticky 约束在内容盒内，
+ * 直接 top:0 会让表头与页面顶部留一条缝（滚动时缝隙里能透见内容）；
+ * 用负 top 抵消该 padding，使表头与顶部无缝。
+ */
+.layout-main-scroll > .page-card > .el-card__body > .table-scroll .el-table__header-wrapper,
+.layout-main-scroll > .page-card > .el-card__body > .table-scroll .el-table__body-header,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll .el-table__header-wrapper,
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll .el-table__body-header {
+  top: calc(-1 * var(--admin-space-md, 12px)) !important;
+}
 
 .table-scroll .el-table::before,
 .table-scroll .el-table::after {
@@ -1021,16 +1111,16 @@ select {
 .table-scroll .el-table__empty-block {
   position: sticky;
   left: 0;
-  width: 100cqw !important;
-  min-width: 100cqw !important;
-  max-width: 100cqw !important;
+  width: min(100%, 100vw) !important;
+  min-width: min(100%, 100vw) !important;
+  max-width: min(100%, 100vw) !important;
   box-sizing: border-box;
 }
 .table-scroll .el-table__empty-text {
   white-space: normal;
   line-height: 1.5;
   padding: 0 16px;
-  max-width: min(480px, 90cqw);
+  max-width: min(480px, 90vw);
 }
 
 /* 展开行二级表：铺满可用宽度，避免 margin 裁切与列不对齐 */

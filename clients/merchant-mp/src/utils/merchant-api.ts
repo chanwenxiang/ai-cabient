@@ -547,9 +547,24 @@ export const merchantApi = {
       `/api/v2/merchant/disputes?${q}`
     );
   },
-  orders: (deviceId?: string, page = 0, size = 50) => {
+  orders: (
+    opts: {
+      deviceId?: string;
+      status?: string;
+      from?: string;
+      to?: string;
+      keyword?: string;
+      page?: number;
+      size?: number;
+    } = {}
+  ) => {
+    const { deviceId, status, from, to, keyword, page = 0, size = 50 } = opts;
     const q = new URLSearchParams({ page: String(page), size: String(size) });
     if (deviceId) q.set('deviceId', deviceId);
+    if (status) q.set('status', status);
+    if (from) q.set('from', from);
+    if (to) q.set('to', to);
+    if (keyword) q.set('keyword', keyword);
     return request<{ items?: MerchantOrderSummary[]; total?: number } | MerchantOrderSummary[]>(
       `/api/v2/merchant/orders?${q}`
     );
@@ -563,7 +578,15 @@ export const merchantApi = {
       `/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}/reply`,
       'POST',
       { body }
-    )
+    ),
+  notifications: (limit = 50) =>
+    request<MerchantNotificationDto[]>(
+      `/api/v2/merchant/notifications?limit=${limit}`
+    ),
+  notificationUnreadCount: () =>
+    request<{ count: number }>('/api/v2/merchant/notifications/unread-count'),
+  markNotificationRead: (id: number) =>
+    request<void>(`/api/v2/merchant/notifications/${id}/read`, 'POST')
 };
 
 export type MerchantOrderSummary = {
@@ -573,6 +596,7 @@ export type MerchantOrderSummary = {
   status?: string;
   totalAmountCents?: number;
   lineCount?: number;
+  lineSummary?: string;
   createdAt?: string;
 };
 
@@ -593,6 +617,20 @@ export type MerchantDisputeDetail = {
   ticket?: MerchantDisputeTicket;
   messages?: { body?: string; authorType?: string; createdAt?: string }[];
   canReply?: boolean;
+};
+
+export type MerchantNotificationDto = {
+  id: number;
+  title: string;
+  body: string;
+  templateCode?: string;
+  channel?: string;
+  audience?: string;
+  bizType?: string;
+  bizId?: string;
+  read: boolean;
+  readAt?: string | null;
+  createdAt: string;
 };
 
 export function canEditPlanogram(me: import('@aicabinet/shared-types').MerchantMe | null) {

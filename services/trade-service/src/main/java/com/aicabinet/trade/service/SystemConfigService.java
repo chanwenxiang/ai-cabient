@@ -8,6 +8,7 @@ import com.aicabinet.trade.config.QrProperties;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.config.WeChatWebProperties;
+import com.aicabinet.trade.config.WeChatMiniAppProperties;
 import com.aicabinet.trade.domain.SystemConfig;
 import com.aicabinet.trade.mapper.SystemConfigMapper;
 import org.springframework.http.HttpStatus;
@@ -56,6 +57,7 @@ public class SystemConfigService {
     private final WeChatPayProperties weChatPayProperties;
     private final PayScoreProperties payScoreProperties;
     private final WeChatWebProperties weChatWebProperties;
+    private final WeChatMiniAppProperties weChatMiniAppProperties;
     private final QrProperties qrProperties;
 
     public SystemConfigService(SystemConfigMapper repository,
@@ -64,6 +66,7 @@ public class SystemConfigService {
                                WeChatPayProperties weChatPayProperties,
                                PayScoreProperties payScoreProperties,
                                WeChatWebProperties weChatWebProperties,
+                               WeChatMiniAppProperties weChatMiniAppProperties,
                                QrProperties qrProperties) {
         this.repository = repository;
         this.securityProperties = securityProperties;
@@ -71,6 +74,7 @@ public class SystemConfigService {
         this.weChatPayProperties = weChatPayProperties;
         this.payScoreProperties = payScoreProperties;
         this.weChatWebProperties = weChatWebProperties;
+        this.weChatMiniAppProperties = weChatMiniAppProperties;
         this.qrProperties = qrProperties;
     }
 
@@ -108,6 +112,12 @@ public class SystemConfigService {
     public Map<String, String> consumerPublicConfig() {
         Map<String, String> map = new LinkedHashMap<>();
         map.put("servicePhone", getValue(CONSUMER_SERVICE_PHONE, "400-888-0018"));
+        boolean wechatSubscribeOk = weChatMiniAppProperties.isConfigured()
+                && weChatMiniAppProperties.resolveConsumerTemplateId() != null
+                && !weChatMiniAppProperties.resolveConsumerTemplateId().isBlank();
+        map.put("wechatSubscribeEnabled", String.valueOf(wechatSubscribeOk));
+        map.put("wechatSubscribeTemplateId",
+                wechatSubscribeOk ? weChatMiniAppProperties.resolveConsumerTemplateId() : "");
         map.put("mockEnabled", String.valueOf(securityProperties.mockEnabled()));
         // 沙箱: 已配置支付宝密钥, 或 mock 模式下允许走 mock 支付宝预下单
         boolean alipayOk = alipayProperties.isConfigured()
@@ -211,6 +221,8 @@ public class SystemConfigService {
         upsertIfAbsent(DISPUTE_SLA_HOURS, "48", "争议工单 SLA 处理时限（小时）");
         upsertIfAbsent(DISPUTE_SLA_REMINDER_HOURS, "12", "争议 SLA 到期前提醒提前量（小时）");
         upsertIfAbsent(DISPUTE_SLA_WEBHOOK, "", "争议 SLA 提醒/逾期推送 Webhook URL（留空不推送）");
+        upsertIfAbsent("ops.log_retention.notify_months", "6", "通知日志保留月数，0=不清理");
+        upsertIfAbsent("ops.log_retention.points_months", "12", "积分日志保留月数，0=不清理");
         upsertIfAbsent(OPS_SCAN_DOOR_OPEN_MINUTES, "10", "柜门开启超时告警分钟数");
         upsertIfAbsent(OPS_SCAN_UPLOAD_STUCK_MINUTES, "5", "视频上传卡点告警分钟数");
         upsertIfAbsent(OPS_SCAN_RECOGNITION_STUCK_MINUTES, "3", "识别卡点告警分钟数");

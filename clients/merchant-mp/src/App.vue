@@ -110,8 +110,10 @@ button::after {
   border: none;
   border-radius: 44rpx;
   padding: 0 32rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   min-height: 88rpx;
-  line-height: 88rpx;
   text-align: center;
   font-weight: 600;
   font-size: 30rpx;
@@ -125,7 +127,7 @@ button::after {
 .primary-btn,
 .empty-btn.ghost {
   width: 100%;
-  display: block;
+  display: flex;
 }
 
 .btn-outline,
@@ -135,8 +137,9 @@ button::after {
   border: 2rpx solid var(--brand);
   border-radius: 44rpx;
   padding: 0 32rpx;
+  align-items: center;
+  justify-content: center;
   min-height: 80rpx;
-  line-height: 80rpx;
   text-align: center;
   font-weight: 600;
   font-size: 28rpx;

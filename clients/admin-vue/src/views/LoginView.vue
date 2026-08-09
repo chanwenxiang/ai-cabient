@@ -85,7 +85,10 @@
         >
         <p v-if="err" class="err" role="alert">{{ err }}</p>
         <div class="login-extras">
-          <el-checkbox v-model="rememberPhone" size="small">记住手机号</el-checkbox>
+          <div class="remember-group">
+            <el-checkbox v-model="rememberPhone" size="small">记住手机号</el-checkbox>
+            <el-checkbox v-model="rememberPassword" size="small">记住密码</el-checkbox>
+          </div>
           <button type="button" class="link-btn" @click="openResetDialog">忘记密码？</button>
         </div>
       </el-form>
@@ -215,7 +218,32 @@ const particles = Array.from({ length: 16 }, (_, i) => {
 });
 
 const phone = ref(localStorage.getItem('admin_phone') || (ENABLE_TEST_TOOLS ? '13900000001' : ''));
-const password = ref(ENABLE_TEST_TOOLS ? '123456' : '');
+
+/** 记住密码：base64 轻量混淆存储。localStorage 本身无法加密，仅避免密码明文直读。 */
+const PW_STORE_KEY = 'admin_password';
+const PW_FLAG_KEY = 'admin_remember_password';
+
+function encodePassword(raw: string): string {
+  return `v1:${btoa(encodeURIComponent(raw))}`;
+}
+
+function decodePassword(stored: string | null): string {
+  if (!stored || !stored.startsWith('v1:')) return '';
+  try {
+    return decodeURIComponent(atob(stored.slice(3)));
+  } catch {
+    return '';
+  }
+}
+
+const rememberPassword = ref(localStorage.getItem(PW_FLAG_KEY) !== '0');
+const password = ref(
+  rememberPassword.value
+    ? decodePassword(localStorage.getItem(PW_STORE_KEY))
+    : ENABLE_TEST_TOOLS
+      ? '123456'
+      : ''
+);
 const captchaCode = ref('');
 const captchaId = ref('');
 const captchaImage = ref('');
@@ -401,6 +429,13 @@ async function onSubmit() {
     } else {
       localStorage.removeItem('admin_phone');
       localStorage.setItem('admin_remember_phone', '0');
+    }
+    if (rememberPassword.value) {
+      localStorage.setItem(PW_FLAG_KEY, '1');
+      localStorage.setItem(PW_STORE_KEY, encodePassword(password.value));
+    } else {
+      localStorage.setItem(PW_FLAG_KEY, '0');
+      localStorage.removeItem(PW_STORE_KEY);
     }
     router.replace(safeRedirectPath(route.query.redirect));
   } catch (e) {
@@ -678,6 +713,12 @@ async function onSubmit() {
 .login-extras :deep(.el-checkbox__label) {
   color: rgba(204, 251, 241, 0.82);
   font-size: 13px;
+}
+.remember-group {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
 }
 .link-btn {
   border: none;

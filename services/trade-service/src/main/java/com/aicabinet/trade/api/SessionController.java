@@ -6,19 +6,24 @@ import com.aicabinet.common.dto.OrderDto;
 import com.aicabinet.common.dto.SessionCartRequest;
 import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.trade.auth.AuthInterceptor;
+import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.service.SessionService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/v2/sessions")
 public class SessionController {
 
     private final SessionService sessionService;
+    private final SecurityProperties securityProperties;
 
-    public SessionController(SessionService sessionService) {
+    public SessionController(SessionService sessionService, SecurityProperties securityProperties) {
         this.sessionService = sessionService;
+        this.securityProperties = securityProperties;
     }
 
     @PostMapping
@@ -58,6 +63,18 @@ public class SessionController {
             @Valid @RequestBody SessionCartRequest body) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return ApiResponse.ok(sessionService.updateSessionCart(userId, sessionId, body));
+    }
+
+    /** 演示关门结算（仅 mockEnabled 环境开放，模拟柜机上报关门事件）。 */
+    @PostMapping("/{sessionId}/demo-close")
+    public ApiResponse<SessionDto> demoClose(
+            HttpServletRequest request,
+            @PathVariable("sessionId") String sessionId) {
+        if (!securityProperties.mockEnabled()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "演示关门结算未开启");
+        }
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(sessionService.demoCloseSession(userId, sessionId));
     }
 
     @GetMapping("/{sessionId}/order")

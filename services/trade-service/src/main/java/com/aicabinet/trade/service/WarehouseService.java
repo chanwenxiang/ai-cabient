@@ -167,6 +167,44 @@ public class WarehouseService {
         recordWarehouseMovement(wh, skuId, batchNo, "PURCHASE_RETURN", -qty, refType, refId, operatorId);
     }
 
+    /** 盘点差异调整：把账面库存直接对齐到实盘数量，并记录库存流水。 */
+    @Transactional
+    public void adjustStocktake(String warehouseId, String skuId, String batchNo,
+                                LocalDate productionDate, LocalDate expiryDate,
+                                int bookQty, int countedQty, Long operatorId, Long stocktakeId) {
+        int delta = countedQty - bookQty;
+        if (delta == 0) {
+            return;
+        }
+        String wh = resolveWarehouseId(warehouseId);
+        warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
+        if (delta > 0) {
+            addWarehouseStock(wh, skuId, batchNo, productionDate, expiryDate, delta);
+        } else {
+            deductWarehouseStock(wh, skuId, batchNo, -delta);
+        }
+        recordWarehouseMovement(wh, skuId, batchNo, "STOCKTAKE", delta,
+                "STOCKTAKE", String.valueOf(stocktakeId), operatorId);
+    }
+
+    /** 货位操作同步仓库总库存：入库/出库调整仓库账面并记录流水；移库 delta=0 仅留痕。 */
+    @Transactional
+    public void binStockChange(String warehouseId, String skuId, String batchNo,
+                               LocalDate productionDate, LocalDate expiryDate,
+                               int deltaQty, Long operatorId, String refType, String refId) {
+        if (deltaQty == 0) {
+            return;
+        }
+        String wh = resolveWarehouseId(warehouseId);
+        warehouseRepository.findById(wh).orElseThrow(() -> notFound("warehouse"));
+        if (deltaQty > 0) {
+            addWarehouseStock(wh, skuId, batchNo, productionDate, expiryDate, deltaQty);
+        } else {
+            deductWarehouseStock(wh, skuId, batchNo, -deltaQty);
+        }
+        recordWarehouseMovement(wh, skuId, batchNo, "BIN_STOCK", deltaQty, refType, refId, operatorId);
+    }
+
     @Transactional(readOnly = true)
     public List<ReplenishmentSuggestDto> suggestForDevice(String deviceId) {
         return suggestForDevice(deviceId, false);

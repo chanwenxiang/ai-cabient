@@ -581,6 +581,12 @@ export const consumerApi = {
       'PUT',
       body
     ),
+  /** 演示关门结算：无柜机硬件时模拟关门（后端 mockEnabled 才放行）。 */
+  demoCloseSession: (sessionId: string) =>
+    request<import('@aicabinet/shared-types').SessionDto>(
+      `/api/v2/sessions/${sessionId}/demo-close`,
+      'POST'
+    ),
   getSessionOrder: (sessionId: string) =>
     request<import('@aicabinet/shared-types').OrderDetailDto>(
       `/api/v2/sessions/${sessionId}/order`
@@ -630,6 +636,23 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').UserFeedbackDto[]>('/api/v2/feedback/mine'),
 
   memberProfile: () => request<MemberProfileDto>('/api/v2/member/profile'),
+  memberPoints: () => request<MemberPointsSummaryDto>('/api/v2/member/points'),
+  memberPointsLog: (limit = 50) =>
+    request<MemberPointsLogDto[]>(`/api/v2/member/points/log?limit=${limit}`),
+  redeemItems: () => request<PointsRedeemItemDto[]>('/api/v2/member/redeem/items'),
+  redeemPoints: (itemId: number) =>
+    request<CouponDto>('/api/v2/member/redeem', 'POST', { itemId }),
+  notifications: (limit = 50) =>
+    request<NotificationDto[]>(`/api/v2/member/notifications?limit=${limit}`),
+  notificationUnreadCount: () =>
+    request<{ count: number }>('/api/v2/member/notifications/unread-count'),
+  markNotificationRead: (id: number) =>
+    request<void>(`/api/v2/member/notifications/${id}/read`, 'POST'),
+  markAllNotificationsRead: () =>
+    request<void>('/api/v2/member/notifications/read-all', 'POST'),
+  notifyPrefs: () => request<NotifyPrefDto[]>('/api/v2/member/notifications/prefs'),
+  updateNotifyPref: (category: string, enabled: boolean) =>
+    request<NotifyPrefDto>('/api/v2/member/notifications/prefs', 'PUT', { category, enabled }),
   marketingBanners: () =>
     request<MarketingBannerDto[]>('/api/v2/marketing/banners', 'GET', undefined, false),
   marketingCampaigns: () =>
@@ -663,6 +686,8 @@ export type MemberProfileDto = {
   levelCode: string;
   levelName: string;
   totalSpent: number;
+  availablePoints: number;
+  totalPoints: number;
   orderCount: number;
   spentToNextLevel: number;
   nextLevelName?: string | null;
@@ -672,9 +697,69 @@ export type MemberProfileDto = {
     levelName: string;
     minSpent: number;
     maxSpent?: number | null;
+    minPoints: number;
+    maxPoints?: number | null;
+    pointsRate: number;
     sortOrder: number;
   }>;
   createdAt?: string;
+};
+
+export type MemberPointsSummaryDto = {
+  availablePoints: number;
+  totalPoints: number;
+  usedPoints: number;
+  expiredPoints: number;
+  levelCode: string;
+  levelName: string;
+  pointsRate: number;
+  nextLevelPointsGap: number;
+};
+
+export type MemberPointsLogDto = {
+  id: number;
+  points: number;
+  pointsType: string;
+  sourceType?: string;
+  description?: string;
+  createdAt: string;
+  expireAt?: string | null;
+};
+
+export type PointsRedeemItemDto = {
+  itemId: number;
+  title: string;
+  subtitle?: string;
+  coverEmoji: string;
+  pointsCost: number;
+  couponDefId: number;
+  couponName?: string;
+  stockTotal: number;
+  redeemedCount: number;
+  availableStock: number;
+  sortOrder: number;
+  status: string;
+  createdAt?: string;
+};
+
+export type NotificationDto = {
+  id: number;
+  title: string;
+  body: string;
+  templateCode?: string;
+  channel?: string;
+  audience?: string;
+  bizType?: string;
+  bizId?: string;
+  read: boolean;
+  readAt?: string | null;
+  createdAt: string;
+};
+
+export type NotifyPrefDto = {
+  category: string;
+  label: string;
+  enabled: boolean;
 };
 
 export type MarketingBannerDto = {

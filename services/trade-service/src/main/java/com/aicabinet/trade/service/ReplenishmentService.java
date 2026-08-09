@@ -104,6 +104,8 @@ public class ReplenishmentService {
     private final MerchantReplenishmentRequestMapper merchantRequestRepository;
 
     private final MerchantReplenishmentRequestLineMapper merchantRequestLineRepository;
+    private final NotificationService notificationService;
+    private final MerchantPortalService merchantPortalService;
 
 
 
@@ -131,7 +133,9 @@ public class ReplenishmentService {
                                 InTransitService inTransitService,
                                 @org.springframework.context.annotation.Lazy SessionService sessionService,
                                 MerchantReplenishmentRequestMapper merchantRequestRepository,
-                                MerchantReplenishmentRequestLineMapper merchantRequestLineRepository) {
+                                MerchantReplenishmentRequestLineMapper merchantRequestLineRepository,
+                                NotificationService notificationService,
+                                MerchantPortalService merchantPortalService) {
 
         this.inventoryRepository = inventoryRepository;
 
@@ -158,6 +162,8 @@ public class ReplenishmentService {
         this.sessionService = sessionService;
         this.merchantRequestRepository = merchantRequestRepository;
         this.merchantRequestLineRepository = merchantRequestLineRepository;
+        this.notificationService = notificationService;
+        this.merchantPortalService = merchantPortalService;
 
     }
 
@@ -284,6 +290,7 @@ public class ReplenishmentService {
             task.setNotes("seq=" + wp.sequence() + " dist=" + wp.distanceFromPrevM() + "m");
 
             taskRepository.save(task);
+            notifyTaskAssigned(task);
 
         }
 
@@ -1111,6 +1118,7 @@ public class ReplenishmentService {
         task.setNotes("from-expiry:" + pull.getTaskId()
                 + (pull.getReason() != null ? " " + pull.getReason() : ""));
         task = taskRepository.save(task);
+        notifyTaskAssigned(task);
 
         if ("RESTOCK".equals(lineType)) {
             // 与 seedDraftRestockLines 一致：每个货道分配单独一行，避免把总量写进首槽导致超填
@@ -1141,6 +1149,33 @@ public class ReplenishmentService {
         pullOffTaskRepository.save(pull);
 
         return toRouteDto(route);
+    }
+
+    /** 补货任务指派站内信（商户端消息中心）。 */
+    private void notifyTaskAssigned(ReplenishmentTask task) {
+        if (task == null || task.getAssigneeUserId() == null) {
+            return;
+        }
+        try {
+            var me = merchantPortalService.getMe(task.getAssigneeUserId());
+            if (me == null || me.merchants() == null || me.merchants().isEmpty()) {
+                return;
+            }
+            String merchantId = me.merchants().get(0).merchantId();
+            String deviceName = deviceRepository.findById(task.getDeviceId())
+                    .map(d -> d.getDeviceName() != null ? d.getDeviceName() : task.getDeviceId())
+                    .orElse(task.getDeviceId());
+            notificationService.notifyMerchant(
+                    merchantId,
+                    "replenishment_assigned",
+                    Map.of("taskId", String.valueOf(task.getTaskId()),
+                            "deviceName", deviceName,
+                            "time", java.time.LocalDate.now().toString()),
+                    "REPLENISHMENT",
+                    String.valueOf(task.getTaskId()));
+        } catch (Exception e) {
+            log.warn("replenishment notification failed task={}", task.getTaskId(), e);
+        }
     }
 
 

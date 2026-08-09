@@ -236,4 +236,15 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
                                            @Param("start") Instant start,
                                            @Param("end") Instant end);
 
+    default List<CabinetOrder> findByCouponIdInAndCreatedAtAfter(
+            Collection<Long> couponIds, Instant since) {
+        if (couponIds == null || couponIds.isEmpty()) {
+            return List.of();
+        }
+        return selectList(Wrappers.<CabinetOrder>lambdaQuery()
+                .in(CabinetOrder::getCouponId, couponIds)
+                .ge(CabinetOrder::getCreatedAt, since)
+                .orderByDesc(CabinetOrder::getCreatedAt));
+    }
+
 }

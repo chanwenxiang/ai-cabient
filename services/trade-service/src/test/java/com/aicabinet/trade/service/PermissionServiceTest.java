@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.constants.CabinetConstants;
+import com.aicabinet.trade.auth.AccessDeniedAudit;
 import com.aicabinet.trade.domain.OpsUserRole;
 import com.aicabinet.trade.mapper.OpsPermissionMapper;
 import com.aicabinet.trade.mapper.OpsUserRoleMapper;
@@ -35,12 +36,15 @@ class PermissionServiceTest {
     @Mock
     private MerchantFeaturePackService merchantFeaturePackService;
 
+    @Mock
+    private AccessDeniedAudit accessDeniedAudit;
+
     private PermissionService permissionService;
 
     @BeforeEach
     void setUp() {
         permissionService = new PermissionService(
-                permissionRepository, userRoleRepository, merchantFeaturePackService);
+                permissionRepository, userRoleRepository, merchantFeaturePackService, accessDeniedAudit);
         lenient().when(merchantFeaturePackService.isPermEnabledForUser(anyLong(), anyString()))
                 .thenReturn(true);
     }

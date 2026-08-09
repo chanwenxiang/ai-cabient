@@ -58,6 +58,7 @@ public class UnpaidOrderService {
     private final WeChatMiniAppProperties weChatMiniAppProperties;
     private final SettlementService settlementService;
     private final ConsumerPreauthService consumerPreauthService;
+    private final NotificationService notificationService;
 
     public UnpaidOrderService(CabinetOrderMapper orderRepository,
                               CabinetOrderLineMapper orderLineRepository,
@@ -76,7 +77,8 @@ public class UnpaidOrderService {
                               WeChatMiniAppClient weChatMiniAppClient,
                               WeChatMiniAppProperties weChatMiniAppProperties,
                               @Lazy SettlementService settlementService,
-                              ConsumerPreauthService consumerPreauthService) {
+                              ConsumerPreauthService consumerPreauthService,
+                              NotificationService notificationService) {
         this.orderRepository = orderRepository;
         this.orderLineRepository = orderLineRepository;
         this.userInfoRepository = userInfoRepository;
@@ -95,6 +97,7 @@ public class UnpaidOrderService {
         this.weChatMiniAppProperties = weChatMiniAppProperties;
         this.settlementService = settlementService;
         this.consumerPreauthService = consumerPreauthService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -235,6 +238,20 @@ public class UnpaidOrderService {
         } catch (Exception ex) {
             log.warn("member stats on collect failed order={}", order.getOrderId(), ex);
         }
+        try {
+            notificationService.notifyConsumer(
+                    order.getUserId(),
+                    "order_paid",
+                    Map.of("orderId", order.getOrderId(), "amount", yuan(order.getTotalAmountCents())),
+                    "ORDER",
+                    order.getOrderId());
+        } catch (Exception ex) {
+            log.warn("order paid notification on collect failed order={}", order.getOrderId(), ex);
+        }
+    }
+
+    private static String yuan(int cents) {
+        return java.math.BigDecimal.valueOf(cents, 2).stripTrailingZeros().toPlainString();
     }
 
     private CouponService.BestCoupon applyBestCouponForCollect(CabinetOrder order) {

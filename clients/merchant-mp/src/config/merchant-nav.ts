@@ -47,6 +47,15 @@ export const MERCHANT_FIELD_NAV: MerchantNavItem[] = [
 
 export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
   {
+    key: 'messages',
+    title: '消息中心',
+    desc: '补货任务 · 结算到账 · 系统通知',
+    url: '/pages/messages/messages',
+    perm: 'merchant:portal:access',
+    pack: 'biz',
+    icon: 'notice'
+  },
+  {
     key: 'pricing',
     title: '点位定价',
     desc: '按柜机调整 SKU 售价',
@@ -114,7 +123,8 @@ export const MERCHANT_BIZ_NAV: MerchantNavItem[] = [
     title: '经营分析',
     desc: '营收、毛利与商品表现',
     url: '/pages/business/business',
-    perm: ['merchant:reports:view', 'merchant:analytics:view'],
+    // 页面主体为经营分析（analytics/*），入口权限与页面实际接口对齐，避免"能进但内容全 403"
+    perm: 'merchant:analytics:view',
     pack: 'biz',
     icon: 'business'
   }

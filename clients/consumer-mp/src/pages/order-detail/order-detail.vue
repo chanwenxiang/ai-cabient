@@ -17,6 +17,12 @@
       <view class="section">
         <text class="section-title">商品清单</text>
         <view v-for="item in order?.lines || []" :key="item.skuId" class="item-row">
+          <image
+            class="item-thumb"
+            :src="skuImageFor(item.skuId, item.skuName)"
+            mode="aspectFill"
+            aria-hidden="true"
+          />
           <view class="item-info">
             <text class="item-name">{{ item.skuName || item.skuId || '商品' }}</text>
             <text class="item-qty">x{{ item.quantity }}</text>
@@ -175,7 +181,8 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { onLoad, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
-import {
+import { skuImageFor } from '@aicabinet/shared-uni/product-image';
+import {                                                          
   emptyDisplay,
   formatDateTimeMinute,
   orderStatusLabel,
@@ -632,9 +639,22 @@ function callSupport() {
   align-items: center;
   padding: 14rpx 0;
   border-bottom: 1rpx solid #f5f5f5;
+  gap: 16rpx;
+}
+.item-thumb {
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 14rpx;
+  background: #f0fdf4;
+  flex-shrink: 0;
+}
+.item-info {
+  flex: 1;
+  min-width: 0;
 }
 .item-name {
   font-size: 28rpx;
+  display: block;
 }
 .item-qty {
   font-size: 24rpx;

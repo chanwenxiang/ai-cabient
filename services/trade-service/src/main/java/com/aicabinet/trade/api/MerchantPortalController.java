@@ -143,8 +143,13 @@ public class MerchantPortalController {
             HttpServletRequest request,
             @RequestParam(name = "page", defaultValue = "0") int page,
             @RequestParam(name = "size", defaultValue = "20") int size,
-            @RequestParam(name = "deviceId", required = false) String deviceId) {
-        return ApiResponse.ok(merchantFinanceService.listOrders(userId(request), page, size, deviceId));
+            @RequestParam(name = "deviceId", required = false) String deviceId,
+            @RequestParam(name = "status", required = false) String status,
+            @RequestParam(name = "from", required = false) String from,
+            @RequestParam(name = "to", required = false) String to,
+            @RequestParam(name = "keyword", required = false) String keyword) {
+        return ApiResponse.ok(merchantFinanceService.listOrders(
+                userId(request), page, size, deviceId, status, from, to, keyword));
     }
 
     @RequiresPermissions("merchant:orders:list")
@@ -550,12 +555,13 @@ public class MerchantPortalController {
     }
 
     /** 线长钱包：有绑定身份才返回 bound=true；与商户平台分账结算解耦，线长可自主提现。 */
+    @RequiresPermissions("merchant:line-wallet:view")
     @GetMapping("/line-wallet")
     public ApiResponse<LineWalletOverviewDto> lineWallet(HttpServletRequest request) {
         return ApiResponse.ok(lineWithdrawService.merchantOverview(userId(request)));
     }
 
-    @RequiresPermissions("merchant:line-wallet:view")
+    @RequiresPermissions("merchant:line-wallet:withdraw")
     @PostMapping("/line-wallet/withdraw")
     public ApiResponse<LineWithdrawRequestDto> lineWalletWithdraw(
             HttpServletRequest request, @RequestBody Map<String, Object> body) {

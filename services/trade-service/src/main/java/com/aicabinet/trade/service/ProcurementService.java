@@ -24,6 +24,7 @@ public class ProcurementService {
     private final WarehouseMapper warehouseRepository;
     private final SkuCatalogMapper skuCatalogRepository;
     private final WarehouseService warehouseService;
+    private final SupplierPayableService supplierPayableService;
 
     public ProcurementService(PermissionService permissionService,
                               SupplierMapper supplierRepository,
@@ -33,7 +34,8 @@ public class ProcurementService {
                               PurchaseReturnLineMapper purchaseReturnLineRepository,
                               WarehouseMapper warehouseRepository,
                               SkuCatalogMapper skuCatalogRepository,
-                              WarehouseService warehouseService) {
+                              WarehouseService warehouseService,
+                              SupplierPayableService supplierPayableService) {
         this.permissionService = permissionService;
         this.supplierRepository = supplierRepository;
         this.purchaseOrderRepository = purchaseOrderRepository;
@@ -43,6 +45,7 @@ public class ProcurementService {
         this.warehouseRepository = warehouseRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.warehouseService = warehouseService;
+        this.supplierPayableService = supplierPayableService;
     }
 
     @Transactional(readOnly = true)
@@ -64,6 +67,8 @@ public class ProcurementService {
         supplier.setContactPhone(trimToNull(request.contactPhone()));
         supplier.setStatus(request.status() != null && !request.status().isBlank()
                 ? request.status().trim().toUpperCase() : "ACTIVE");
+        supplier.setPaymentTermsDays(request.paymentTermsDays() != null ? request.paymentTermsDays() : 30);
+        supplier.setCreditLimitCents(request.creditLimitCents());
         return toSupplierDto(supplierRepository.save(supplier));
     }
 
@@ -71,6 +76,14 @@ public class ProcurementService {
     public List<PurchaseOrderDto> listPurchaseOrders(Long operatorId) {
         requireWarehouseRead(operatorId);
         return purchaseOrderRepository.findAllByOrderByCreatedAtDesc().stream().map(this::toPurchaseDto).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public PurchaseOrderDto getPurchaseOrder(Long operatorId, Long purchaseOrderId) {
+        requireWarehouseRead(operatorId);
+        PurchaseOrder order = purchaseOrderRepository.findById(purchaseOrderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "purchase order not found"));
+        return toPurchaseDto(order);
     }
 
     @Transactional
@@ -149,6 +162,7 @@ public class ProcurementService {
         ret.setOperatorId(operatorId);
         ret.setCreatedAt(Instant.now());
         ret = purchaseReturnRepository.save(ret);
+        long returnedValueCents = 0L;
 
         for (CreatePurchaseReturnRequest.PurchaseReturnLineRequest lineReq : request.lines()) {
             if (lineReq.purchaseLineId() == null) {
@@ -176,6 +190,7 @@ public class ProcurementService {
                     "PURCHASE_RETURN",
                     String.valueOf(ret.getReturnId())
             );
+            returnedValueCents += (long) lineReq.quantity() * poLine.getUnitCostCents();
             poLine.setReturnedQty(poLine.getReturnedQty() + lineReq.quantity());
             purchaseOrderLineRepository.save(poLine);
 
@@ -187,6 +202,7 @@ public class ProcurementService {
             retLine.setQuantity(lineReq.quantity());
             purchaseReturnLineRepository.save(retLine);
         }
+        supplierPayableService.recordReturn(operatorId, order, returnedValueCents);
         return toPurchaseReturnDto(ret);
     }
 
@@ -204,6 +220,7 @@ public class ProcurementService {
         List<PurchaseOrderLineDto> received = request.lines() != null && !request.lines().isEmpty()
                 ? request.lines()
                 : existing.stream().map(this::toPurchaseLineDto).toList();
+        long receivedValueCents = 0L;
 
         for (PurchaseOrderLineDto receiveLine : received) {
             PurchaseOrderLine line = matchLine(existing, receiveLine);
@@ -241,6 +258,7 @@ public class ProcurementService {
                     "PURCHASE_ORDER",
                     String.valueOf(order.getPurchaseOrderId())
             );
+            receivedValueCents += (long) deltaQty * line.getUnitCostCents();
         }
         boolean allReceived = purchaseOrderLineRepository.findByPurchaseOrderIdOrderByLineIdAsc(purchaseOrderId)
                 .stream()
@@ -252,6 +270,7 @@ public class ProcurementService {
         if (request.notes() != null && !request.notes().isBlank()) {
             order.setNotes(request.notes().trim());
         }
+        supplierPayableService.recordReceive(operatorId, order, receivedValueCents);
         return toPurchaseDto(purchaseOrderRepository.save(order));
     }
 
@@ -355,7 +374,8 @@ public class ProcurementService {
     private SupplierDto toSupplierDto(Supplier supplier) {
         return new SupplierDto(
                 supplier.getSupplierId(), supplier.getSupplierName(), supplier.getContactName(),
-                supplier.getContactPhone(), supplier.getStatus(), supplier.getCreatedAt()
+                supplier.getContactPhone(), supplier.getStatus(),
+                supplier.getPaymentTermsDays(), supplier.getCreditLimitCents(), supplier.getCreatedAt()
         );
     }
 

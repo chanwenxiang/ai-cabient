@@ -259,6 +259,24 @@ public class SessionService {
         return afterDoor;
     }
 
+    /**
+     * 演示/联调用关门结算：无柜机硬件时由用户端主动触发关门，走同一套结算链路。
+     * 仅允许本人正在 SHOPPING 的会话，且由 Controller 按 mockEnabled 开关放行。
+     */
+    @Transactional
+    public SessionDto demoCloseSession(Long userId, String sessionId) {
+        ShoppingSession session = repository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        if (!session.getUserId().equals(userId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND);
+        }
+        if (session.getState() != SessionState.SHOPPING) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前会话状态不可关门结算");
+        }
+        return self.handleDoorEvent(new DoorEventRequest(
+                session.getSessionId(), session.getDeviceId(), DoorState.CLOSED, System.currentTimeMillis()));
+    }
+
     @Transactional
     public SessionDto applyDoorEvent(DoorEventRequest event) {
         ShoppingSession session = repository.findByIdForUpdate(event.sessionId())

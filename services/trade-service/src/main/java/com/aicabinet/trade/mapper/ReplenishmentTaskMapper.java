@@ -83,4 +83,15 @@ public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTa
         return Optional.ofNullable(_findLastCompletedAtByDeviceId(deviceId));
     }
 
+    default List<ReplenishmentTask> findByCreatedAtAfter(Instant since) {
+        return selectList(Wrappers.<ReplenishmentTask>lambdaQuery()
+                .ge(ReplenishmentTask::getCreatedAt, since));
+    }
+
+    default List<ReplenishmentTask> findByCompletedAtAfter(Instant since) {
+        return selectList(Wrappers.<ReplenishmentTask>lambdaQuery()
+                .isNotNull(ReplenishmentTask::getCompletedAt)
+                .ge(ReplenishmentTask::getCompletedAt, since));
+    }
+
 }

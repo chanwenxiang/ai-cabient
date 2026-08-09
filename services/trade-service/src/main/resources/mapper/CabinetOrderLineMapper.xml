@@ -27,6 +27,15 @@
     ]]>
   </select>
 
+  <select id="_sumSoldQtyAllSince" resultType="java.util.LinkedHashMap">
+    <![CDATA[
+    SELECT l.sku_id AS c0, COALESCE(SUM(l.quantity), 0) AS c1
+    FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
+    WHERE o.created_at >= #{since}
+    GROUP BY l.sku_id
+    ]]>
+  </select>
+
   <select id="sumCogsBetween" resultType="long">
     <![CDATA[
     SELECT COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0)

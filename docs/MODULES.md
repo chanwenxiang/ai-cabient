@@ -115,3 +115,41 @@ demo/
 `VITE_API_BASE_URL` 设置为已加入微信小程序合法域名列表的真实 HTTPS API 地址。构建脚本会拒绝
 localhost、示例域名和占位域名，避免把开发地址打入生产包。
 
+## 增长运营模块（2026-08 新增）
+
+### 会员积分闭环
+- 消费返积分（按会员等级 `points_rate`，有效期 365 天）、积分兑换优惠券、积分明细
+- 定时任务：到期前提醒（`points-expiry`）、到期结转至过期并写 `EXPIRE` 日志；同一订单幂等返积分
+- 运营后台：积分兑换管理（`/points-redeem`）、会员等级规则（`/member-levels`，可配门槛/积分区间/倍率/启停）
+- 消费者端：积分明细 / 积分兑换页（`pages/points/*`），会员中心展示可用积分
+
+### 消息触达
+- 通知模板 + 日志（`notification_template` / `notification_log`），渠道按模板路由：站内信 / 微信订阅消息 / 短信
+- 事件接入：订单支付、充值到账、补货任务指派、优惠券临期提醒、积分到期提醒、沉睡召回、结算到账
+- 消费者消息中心（`pages/messages/messages`）：未读数、已读、按业务跳转、通知偏好开关、微信订阅授权引导
+- 商户消息中心（`pages/messages/messages`）：补货任务跳转
+- 真实渠道开关（默认关闭，未配置自动回退站内信）：
+  - `NOTIFY_WECHAT_ENABLED=true` + `WECHAT_MINIAPP_ENABLED=true` + `WECHAT_CONSUMER_SUBSCRIBE_TEMPLATE=<模板ID>`
+  - `NOTIFY_SMS_ENABLED=true` + `AICABINET_AUTH_SMS_WEBHOOK_URL=<短信 webhook>`（预发可用 `scripts/sms-webhook-mock.py`）
+
+### 选品诊断与采购联动
+- 运营后台选品诊断（`/sku-review`）：近 7/30/90 天动销诊断，支持建议下架 / 保留 / 确认下架（含替换 SKU）
+- 采购建议自动排除「建议下架 / 已下架」商品（`PurchaseSuggestionService`）
+
+### 用户分析与沉睡召回
+- 用户分析（`/user-analysis`）：活跃 / 新增 / 复购 / 沉睡 / 客单价，含复购 TOP10 与沉睡名单导出
+- 沉睡用户一键召回（`/user-recall`）：定向发券 + 召回通知，单次上限 1000 人（需 `ops:coupon:create`）
+
+### 活动效果分析与补货员效率
+- 活动效果分析（`/marketing-roi`）：发券 / 核销 / 核销率 / 核销面额 / 带动订单与营收
+- 补货员效率（`/replenishment-staff`）：任务量 / 完成率 / 平均耗时 / 日均任务
+
+### 数据一致性扩展与日志治理
+- `DataConsistencyService` 新增 `POINTS_BALANCE`、`COUPON_ISSUED` 巡检项
+- 定时归档（`growth-log-archive`，每日 03:00）：通知日志保留 6 个月、积分日志保留 12 个月（后台参数 `ops.log_retention.*`，0=不清理）
+
+### 相关迁移与权限
+- 迁移：`V163`（重建积分表与列/通知表/选品评审表/兑换目录/权限）、`V165`（过期与召回字段/模板）、`V166`（通知偏好/积分幂等索引）、`V167`（活动效果分析权限）、`V168`（通知渠道/等级规则权限；注：既有 `V164` 为文件附件 sha，勿占用该号）
+- 新权限码：`ops:points:list/edit`、`ops:sku-review:list/edit`、`ops:user-analysis:view`、`ops:notify:list`、`ops:member-level:list/edit`、`ops:marketing-roi:view`
+- 新单测：`PointsRedeemServiceTest`、`NotificationServiceTest`、`SkuDelistReviewServiceTest`、`UserBehaviorAnalyticsServiceTest`、`MarketingRoiServiceTest`、`ReplenishmentStaffReportServiceTest`（15 用例）
+

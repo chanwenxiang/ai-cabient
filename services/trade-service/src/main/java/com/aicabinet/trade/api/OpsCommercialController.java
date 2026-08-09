@@ -8,6 +8,10 @@ import com.aicabinet.trade.service.FileAttachmentService;
 import com.aicabinet.trade.service.OpsCommercialFacade;
 import com.aicabinet.trade.service.OpsCsvExportService;
 import com.aicabinet.trade.service.ProcurementService;
+import com.aicabinet.trade.service.PurchaseSuggestionService;
+import com.aicabinet.trade.service.SupplierPayableService;
+import com.aicabinet.trade.service.WarehouseStocktakeService;
+import com.aicabinet.trade.service.WarehouseBinService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -16,6 +20,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -30,17 +35,29 @@ public class OpsCommercialController {
     private final OpsCommercialFacade facade;
     private final CommercialFlowService commercialFlowService;
     private final ProcurementService procurementService;
+    private final PurchaseSuggestionService purchaseSuggestionService;
+    private final SupplierPayableService supplierPayableService;
+    private final WarehouseStocktakeService warehouseStocktakeService;
+    private final WarehouseBinService warehouseBinService;
     private final OpsCsvExportService csvExportService;
     private final FileAttachmentService fileAttachmentService;
 
     public OpsCommercialController(OpsCommercialFacade facade,
                                    CommercialFlowService commercialFlowService,
                                    ProcurementService procurementService,
+                                   PurchaseSuggestionService purchaseSuggestionService,
+                                   SupplierPayableService supplierPayableService,
+                                   WarehouseStocktakeService warehouseStocktakeService,
+                                   WarehouseBinService warehouseBinService,
                                    OpsCsvExportService csvExportService,
                                    FileAttachmentService fileAttachmentService) {
         this.facade = facade;
         this.commercialFlowService = commercialFlowService;
         this.procurementService = procurementService;
+        this.purchaseSuggestionService = purchaseSuggestionService;
+        this.supplierPayableService = supplierPayableService;
+        this.warehouseStocktakeService = warehouseStocktakeService;
+        this.warehouseBinService = warehouseBinService;
         this.csvExportService = csvExportService;
         this.fileAttachmentService = fileAttachmentService;
     }
@@ -71,6 +88,8 @@ public class OpsCommercialController {
                 body.contactName(),
                 body.contactPhone(),
                 body.status(),
+                body.paymentTermsDays(),
+                body.creditLimitCents(),
                 body.createdAt()
         );
         return ApiResponse.ok(procurementService.upsertSupplier(operatorId(request), merged));
@@ -80,6 +99,28 @@ public class OpsCommercialController {
     @GetMapping("/purchase-orders")
     public ApiResponse<List<PurchaseOrderDto>> purchaseOrders(HttpServletRequest request) {
         return ApiResponse.ok(procurementService.listPurchaseOrders(operatorId(request)));
+    }
+
+    @RequiresPermissions("ops:procurement:list")
+    @GetMapping("/purchase-orders/{purchaseOrderId}")
+    public ApiResponse<PurchaseOrderDto> purchaseOrder(
+            HttpServletRequest request,
+            @PathVariable Long purchaseOrderId) {
+        return ApiResponse.ok(procurementService.getPurchaseOrder(operatorId(request), purchaseOrderId));
+    }
+
+    @RequiresPermissions("ops:procurement:list")
+    @GetMapping("/procurement/suggestions")
+    public ApiResponse<List<PurchaseSuggestionDto>> purchaseSuggestions(
+            HttpServletRequest request,
+            @RequestParam(required = false) String warehouseId,
+            @RequestParam(required = false) Integer leadTimeDays,
+            @RequestParam(required = false) Integer coverageDays) {
+        return ApiResponse.ok(purchaseSuggestionService.suggest(
+                operatorId(request),
+                warehouseId,
+                leadTimeDays == null ? 0 : leadTimeDays,
+                coverageDays == null ? 0 : coverageDays));
     }
 
     @RequiresPermissions("ops:procurement:edit")
@@ -111,6 +152,150 @@ public class OpsCommercialController {
             HttpServletRequest request,
             @Valid @RequestBody CreatePurchaseReturnRequest body) {
         return ApiResponse.ok(procurementService.createPurchaseReturn(operatorId(request), body));
+    }
+
+    @RequiresPermissions("ops:procurement:list")
+    @GetMapping("/suppliers/payables")
+    public ApiResponse<List<SupplierPayableDto>> payables(
+            HttpServletRequest request,
+            @RequestParam(required = false) String supplierId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false, defaultValue = "false") boolean overdueOnly) {
+        return ApiResponse.ok(supplierPayableService.listPayables(
+                operatorId(request), supplierId, status, overdueOnly));
+    }
+
+    @RequiresPermissions("ops:procurement:list")
+    @GetMapping("/suppliers/payables/summary")
+    public ApiResponse<List<SupplierPayableSummaryDto>> payableSummary(
+            HttpServletRequest request,
+            @RequestParam(required = false) String supplierId) {
+        return ApiResponse.ok(supplierPayableService.summary(operatorId(request), supplierId));
+    }
+
+    @RequiresPermissions("ops:procurement:edit")
+    @PostMapping("/suppliers/payables/{payableId}/pay")
+    public ApiResponse<SupplierPayableDto> payPayable(
+            HttpServletRequest request,
+            @PathVariable Long payableId,
+            @Valid @RequestBody PaySupplierRequest body) {
+        return ApiResponse.ok(supplierPayableService.pay(operatorId(request), payableId, body));
+    }
+
+    // --- 整仓盘点 ---
+    @RequiresPermissions("ops:warehouse:list")
+    @GetMapping("/warehouse/stocktakes")
+    public ApiResponse<List<StocktakeDto>> stocktakes(
+            HttpServletRequest request,
+            @RequestParam(required = false) String status) {
+        return ApiResponse.ok(warehouseStocktakeService.list(operatorId(request), status));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/stocktakes")
+    public ApiResponse<StocktakeDto> createStocktake(
+            HttpServletRequest request,
+            @Valid @RequestBody CreateStocktakeRequest body) {
+        return ApiResponse.ok(warehouseStocktakeService.create(operatorId(request), body));
+    }
+
+    @RequiresPermissions("ops:warehouse:list")
+    @GetMapping("/warehouse/stocktakes/{stocktakeId}")
+    public ApiResponse<StocktakeDto> stocktakeDetail(
+            HttpServletRequest request,
+            @PathVariable Long stocktakeId) {
+        return ApiResponse.ok(warehouseStocktakeService.get(operatorId(request), stocktakeId));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PutMapping("/warehouse/stocktakes/{stocktakeId}/lines/{lineId}")
+    public ApiResponse<StocktakeLineDto> updateStocktakeLine(
+            HttpServletRequest request,
+            @PathVariable Long stocktakeId,
+            @PathVariable Long lineId,
+            @Valid @RequestBody UpdateStocktakeLineRequest body) {
+        return ApiResponse.ok(warehouseStocktakeService.updateLine(
+                operatorId(request), stocktakeId, lineId, body));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/stocktakes/{stocktakeId}/complete")
+    public ApiResponse<StocktakeDto> completeStocktake(
+            HttpServletRequest request,
+            @PathVariable Long stocktakeId) {
+        return ApiResponse.ok(warehouseStocktakeService.complete(operatorId(request), stocktakeId));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/stocktakes/{stocktakeId}/adjust")
+    public ApiResponse<StocktakeDto> adjustStocktake(
+            HttpServletRequest request,
+            @PathVariable Long stocktakeId,
+            @RequestBody(required = false) AdjustStocktakeRequest body) {
+        return ApiResponse.ok(warehouseStocktakeService.adjust(operatorId(request), stocktakeId, body));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/stocktakes/{stocktakeId}/cancel")
+    public ApiResponse<StocktakeDto> cancelStocktake(
+            HttpServletRequest request,
+            @PathVariable Long stocktakeId) {
+        return ApiResponse.ok(warehouseStocktakeService.cancel(operatorId(request), stocktakeId));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping(value = "/warehouse/stocktakes/{stocktakeId}/scan-photo",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<StocktakeDto> scanStocktakePhoto(
+            HttpServletRequest request,
+            @PathVariable Long stocktakeId,
+            @RequestParam("file") MultipartFile file) throws IOException {
+        return ApiResponse.ok(warehouseStocktakeService.applyVisionCounts(
+                operatorId(request), stocktakeId, file.getBytes(), file.getOriginalFilename()));
+    }
+
+    // --- 货位管理 ---
+    @RequiresPermissions("ops:warehouse:list")
+    @GetMapping("/warehouse/bins")
+    public ApiResponse<List<WarehouseBinDto>> bins(
+            HttpServletRequest request,
+            @RequestParam(required = false) String warehouseId) {
+        return ApiResponse.ok(warehouseBinService.listBins(operatorId(request), warehouseId));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PutMapping("/warehouse/bins")
+    public ApiResponse<WarehouseBinDto> upsertBin(
+            HttpServletRequest request,
+            @Valid @RequestBody UpsertWarehouseBinRequest body) {
+        return ApiResponse.ok(warehouseBinService.upsertBin(operatorId(request), body));
+    }
+
+    @RequiresPermissions("ops:warehouse:list")
+    @GetMapping("/warehouse/bins/stock")
+    public ApiResponse<List<WarehouseBinStockDto>> binStock(
+            HttpServletRequest request,
+            @RequestParam(required = false) String warehouseId,
+            @RequestParam(required = false) Long binId) {
+        return ApiResponse.ok(warehouseBinService.listBinStock(operatorId(request), warehouseId, binId));
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/bins/stock/inbound")
+    public ApiResponse<Void> binInbound(
+            HttpServletRequest request,
+            @Valid @RequestBody BinInboundRequest body) {
+        warehouseBinService.inboundToBin(operatorId(request), body);
+        return ApiResponse.ok(null);
+    }
+
+    @RequiresPermissions("ops:warehouse:edit")
+    @PostMapping("/warehouse/bins/stock/move")
+    public ApiResponse<Void> binMove(
+            HttpServletRequest request,
+            @Valid @RequestBody BinMoveRequest body) {
+        warehouseBinService.moveBetweenBins(operatorId(request), body);
+        return ApiResponse.ok(null);
     }
 
     // --- OTA ---
