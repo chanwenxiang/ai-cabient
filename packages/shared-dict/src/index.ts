@@ -373,7 +373,8 @@ export const DICT = {
     SETTLEMENT_FAILED: '结算失败',
     SETTLEMENT_STUCK: '结算滞留',
     INVENTORY_MISMATCH: '库存差异',
-    SLOT_DISCREPANCY: '货道账实差异'
+    SLOT_DISCREPANCY: '货道账实差异',
+    VISION_ANOMALY: '视觉异常（端侧）'
   },
   ops_exception_action: {
     OPS_EXCEPTION_CLAIM: '领取异常',
