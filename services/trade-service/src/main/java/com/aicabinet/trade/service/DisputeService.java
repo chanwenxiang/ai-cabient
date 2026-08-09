@@ -75,6 +75,7 @@ private final UserInfoMapper userInfoRepository;
     private final OpsExceptionService opsExceptionService;
     private final FileAttachmentService fileAttachmentService;
     private final RefundPolicyService refundPolicyService;
+    private final VideoArchiveService videoArchiveService;
 
     public DisputeService(DisputeTicketMapper disputeRepository,
                           DisputeMessageMapper disputeMessageRepository,
@@ -94,7 +95,8 @@ private final UserInfoMapper userInfoRepository;
                           UserInfoMapper userInfoRepository,
                           @Lazy OpsExceptionService opsExceptionService,
                           FileAttachmentService fileAttachmentService,
-                          RefundPolicyService refundPolicyService) {
+                          RefundPolicyService refundPolicyService,
+                          VideoArchiveService videoArchiveService) {
         this.disputeRepository = disputeRepository;
         this.disputeMessageRepository = disputeMessageRepository;
         this.sessionRepository = sessionRepository;
@@ -114,24 +116,30 @@ private final UserInfoMapper userInfoRepository;
         this.opsExceptionService = opsExceptionService;
         this.fileAttachmentService = fileAttachmentService;
         this.refundPolicyService = refundPolicyService;
+        this.videoArchiveService = videoArchiveService;
     }
 
     @Transactional
     public DisputeTicketDto createTicket(ShoppingSession session,
                                          VisionServiceClient.RecognitionResult recognition,
                                          String reason) {
-        return disputeRepository.findBySessionId(session.getSessionId())
-                .map(this::toDto)
-                .orElseGet(() -> saveOpenTicket(
-                        session.getUserId(),
-                        session.getSessionId(),
-                        reason,
-                        toJson(recognition != null && recognition.items() != null ? recognition.items() : List.of()),
-                        "RECOGNITION",
-                        recognition != null ? priorityForRecognition(recognition) : "HIGH",
-                        recognition != null ? reviewCodeFor(recognition, reason) : "TIMEOUT",
-                        toJson(recognition != null && recognition.detectedClasses() != null
-                                ? recognition.detectedClasses() : List.of())));
+        var existing = disputeRepository.findBySessionId(session.getSessionId());
+        if (existing.isPresent()) {
+            return toDto(existing.get());
+        }
+        DisputeTicketDto dto = saveOpenTicket(
+                session.getUserId(),
+                session.getSessionId(),
+                reason,
+                toJson(recognition != null && recognition.items() != null ? recognition.items() : List.of()),
+                "RECOGNITION",
+                recognition != null ? priorityForRecognition(recognition) : "HIGH",
+                recognition != null ? reviewCodeFor(recognition, reason) : "TIMEOUT",
+                toJson(recognition != null && recognition.detectedClasses() != null
+                        ? recognition.detectedClasses() : List.of()));
+        // 争议/回查会话立即归档录像副本（原始录像会在保留期后过期）
+        videoArchiveService.archiveSession(session);
+        return dto;
     }
 
     /** 会话卡在上传/识别/结算：无视觉结果时开争议单，避免静默扣款。 */
@@ -171,6 +179,8 @@ private final UserInfoMapper userInfoRepository;
         }
         DisputeTicketDto dto = saveOpenTicket(userId, session.getSessionId(), request.reason().trim(), "[]",
                 normalizeCategory(request.category()), normalizePriority(request.priority()), null, null);
+        // 用户事后申诉：在原始录像仍保留期间立即归档，避免过期后无法回放
+        videoArchiveService.archiveSession(session);
         fileAttachmentService.bindEvidenceToDispute(userId, dto.ticketId(), request.evidenceFileIds());
         session.setState(SessionState.DISPUTED);
         sessionRepository.save(session);

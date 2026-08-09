@@ -46,6 +46,7 @@ class DisputeTicketSyncTest {
     @Mock SkuCatalogMapper skuCatalogRepository;
     @Mock UserInfoMapper userInfoRepository;
     @Mock OpsExceptionService opsExceptionService;
+    @Mock VideoArchiveService videoArchiveService;
 
     private DisputeService service;
 
@@ -54,7 +55,8 @@ class DisputeTicketSyncTest {
         service = new DisputeService(disputeRepository, disputeMessageRepository, sessionRepository, orderRepository,
                 settlementService, new ObjectMapper(), minioVideoService, auditService, riskControlService,
                 permissionService, merchantScopeService, null, merchantPortalGuard, skuCatalogRepository,
-                new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService, null, null);
+                new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
+                null, null, videoArchiveService);
     }
 
     @Test

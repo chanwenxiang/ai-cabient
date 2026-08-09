@@ -51,6 +51,7 @@ class DuplicateCallbackTest {
     @Mock PermissionService permissionService;
     @Mock RiskControlService riskControlService;
     @Mock CabinetOrderMapper orderRepository;
+    @Mock VideoArchiveService videoArchiveService;
 
     private SessionService sessionService;
     private DisputeService disputeService;
@@ -63,7 +64,8 @@ class DuplicateCallbackTest {
         disputeService = new DisputeService(
                 disputeRepository, null, repository, null, null, null, null, null,
                 riskControlService, permissionService, null, null, null, null,
-                new DisputeSlaProperties(24, 12, "", false), null, opsExceptionService, null, null);
+                new DisputeSlaProperties(24, 12, "", false), null, opsExceptionService, null, null,
+                videoArchiveService);
     }
 
     @Test
