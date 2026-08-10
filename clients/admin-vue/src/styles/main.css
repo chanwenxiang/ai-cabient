@@ -857,6 +857,12 @@ select {
   position: static !important;
 }
 
+/* 内容包裹型 tabs：页面标题栏（卡片头）不吸顶，随内容一起滚动 */
+.layout-main-scroll > .page-card:has(> .el-card__body > .el-tabs:not(.status-tabs)) > .el-card__header,
+.layout-main-scroll > .page-fill > .page-card:has(> .el-card__body > .el-tabs:not(.status-tabs)) > .el-card__header {
+  position: static !important;
+}
+
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .page-pager,
 .layout-main-scroll
   > .page-fill
