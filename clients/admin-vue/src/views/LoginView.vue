@@ -86,8 +86,7 @@
         <p v-if="err" class="err" role="alert">{{ err }}</p>
         <div class="login-extras">
           <div class="remember-group">
-            <el-checkbox v-model="rememberPhone" size="small">记住手机号</el-checkbox>
-            <el-checkbox v-model="rememberPassword" size="small">记住密码</el-checkbox>
+            <el-checkbox v-model="rememberCredentials" size="small">记住账号和密码</el-checkbox>
           </div>
           <button type="button" class="link-btn" @click="openResetDialog">忘记密码？</button>
         </div>
@@ -278,8 +277,12 @@ function decodePassword(stored: string | null): string {
 }
 
 const rememberPassword = ref(localStorage.getItem(PW_FLAG_KEY) !== '0');
+/** 记住账号和密码（合并开关）：任一旧选项开启过则默认勾选，兼容历史 localStorage */
+const rememberCredentials = ref(
+  rememberPassword.value || localStorage.getItem('admin_remember_phone') !== '0'
+);
 const password = ref(
-  rememberPassword.value
+  rememberCredentials.value
     ? decodePassword(localStorage.getItem(PW_STORE_KEY))
     : ENABLE_TEST_TOOLS
       ? '123456'
@@ -294,7 +297,6 @@ const err = ref('');
 const twoFactorStep = ref(false);
 const twoFactorCode = ref('');
 const usingRecovery = ref(false);
-const rememberPhone = ref(localStorage.getItem('admin_remember_phone') !== '0');
 const resetVisible = ref(false);
 const resetSaving = ref(false);
 const resetCaptchaId = ref('');
@@ -442,17 +444,14 @@ onMounted(async () => {
 });
 
 async function finishLogin(normalizedPhone: string) {
-  if (rememberPhone.value) {
+  if (rememberCredentials.value) {
     localStorage.setItem('admin_remember_phone', '1');
     localStorage.setItem('admin_phone', normalizedPhone);
-  } else {
-    localStorage.removeItem('admin_phone');
-    localStorage.setItem('admin_remember_phone', '0');
-  }
-  if (rememberPassword.value) {
     localStorage.setItem(PW_FLAG_KEY, '1');
     localStorage.setItem(PW_STORE_KEY, encodePassword(password.value));
   } else {
+    localStorage.removeItem('admin_phone');
+    localStorage.setItem('admin_remember_phone', '0');
     localStorage.setItem(PW_FLAG_KEY, '0');
     localStorage.removeItem(PW_STORE_KEY);
   }
