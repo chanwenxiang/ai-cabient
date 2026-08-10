@@ -54,7 +54,7 @@
             <template #default="{ row }">{{ row.taskKey }}</template>
           </el-table-column>
           <el-table-column label="分组" width="110" align="center">
-            <template #default="{ row }">{{ row.taskGroup }}</template>
+            <template #default="{ row }">{{ taskGroupLabel(row.taskGroup) }}</template>
           </el-table-column>
           <el-table-column label="调度说明" width="130" align="center">
             <template #default="{ row }">{{ row.scheduleDesc || '—' }}</template>
@@ -232,6 +232,22 @@ function resultType(result?: string) {
 
 function resultLabel(result?: string) {
   return { SUCCESS: '成功', FAILED: '失败', SKIPPED: '跳过' }[result || ''] || result || '—';
+}
+
+/** 任务分组：后端存储英文枚举，展示时映射为中文 */
+const TASK_GROUP_LABELS: Record<string, string> = {
+  DEVICE: '设备',
+  TRADE: '交易',
+  OPS: '运维',
+  SYSTEM: '系统',
+  WAREHOUSE: '仓储',
+  MERCHANT: '商户',
+  FINANCE: '财务',
+  MARKETING: '营销'
+};
+
+function taskGroupLabel(group?: string) {
+  return (group && TASK_GROUP_LABELS[group]) || group || '—';
 }
 
 function formatDuration(ms: number) {
