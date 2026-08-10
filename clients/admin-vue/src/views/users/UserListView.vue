@@ -218,6 +218,7 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
+import { dictLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface UserRow {
@@ -234,15 +235,7 @@ interface UserRow {
 }
 
 function memberLevelLabel(level?: string) {
-  return (
-    {
-      NORMAL: '普通',
-      SILVER: '白银',
-      GOLD: '黄金',
-      PLATINUM: '铂金',
-      DIAMOND: '钻石'
-    } as Record<string, string>
-  )[String(level || 'NORMAL').toUpperCase()] || level || '普通';
+  return dictLabel('member_level', level) || level || '普通';
 }
 
 const route = useRoute();

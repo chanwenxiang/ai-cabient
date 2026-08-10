@@ -100,6 +100,7 @@ import {
   getPreferredDeviceId,
   setPreferredDeviceId
 } from '@/utils/preferred-device';
+import { dictLabel } from '@aicabinet/shared-dict';
 import type { DeviceInfo, MerchantMe } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -262,6 +263,10 @@ async function onScan() {
 
 onShow(load);
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
+
+function lifecycleText(status?: string) {
+  return dictLabel('device_lifecycle', status) || '—';
+}
 </script>
 
 <style scoped>
@@ -390,18 +395,6 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   align-items: center;
   gap: 16rpx;
   flex: 1;
-}
-
-function lifecycleText(status?: string) {
-  return (
-    {
-      INBOUND: '入库',
-      IDLE: '待投放',
-      DEPLOYED: '运营中',
-      RETURNING: '撤机中',
-      RETIRED: '已撤机'
-    } as Record<string, string>
-  )[String(status || '').toUpperCase()] || '—';
 }
 .device-thumb {
   width: 88rpx;

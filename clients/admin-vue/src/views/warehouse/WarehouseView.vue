@@ -2714,21 +2714,10 @@ function skuName(id: string) {
   return skus.value.find((s) => s.skuId === id)?.skuName || id || '无';
 }
 function suggestionReasonText(code: string) {
-  const map: Record<string, string> = {
-    SALES_DRIVEN: '销量驱动',
-    TREND_FORECAST: '趋势预测',
-    LOW_STOCK: '库存不足'
-  };
-  return map[code] || code || '—';
+  return dictLabel('purchase_suggestion_reason', code) || code || '—';
 }
 function payableStatusText(code: string) {
-  const map: Record<string, string> = {
-    UNPAID: '未付',
-    PARTIAL: '部分付款',
-    PAID: '已付',
-    CLOSED: '已关闭'
-  };
-  return map[code] || code || '—';
+  return dictLabel('supplier_payable_status', code) || code || '—';
 }
 function payableStatusType(code: string) {
   const map: Record<string, string> = {
@@ -2740,17 +2729,10 @@ function payableStatusType(code: string) {
   return map[code] || 'info';
 }
 function stocktakeModeText(mode: string) {
-  return mode === 'BLIND' ? '盲盘' : '明盘';
+  return dictLabel('stocktake_mode', mode) || mode;
 }
 function stocktakeStatusText(code: string) {
-  const map: Record<string, string> = {
-    DRAFT: '草稿',
-    IN_PROGRESS: '盘点中',
-    COMPLETED: '已完成',
-    ADJUSTED: '已调整',
-    CANCELLED: '已取消'
-  };
-  return map[code] || code || '—';
+  return dictLabel('stocktake_status', code) || code || '—';
 }
 function stocktakeStatusType(code: string) {
   const map: Record<string, string> = {
@@ -2763,13 +2745,7 @@ function stocktakeStatusType(code: string) {
   return map[code] || 'info';
 }
 function stocktakeLineStatusText(code: string) {
-  const map: Record<string, string> = {
-    PENDING: '未盘',
-    MATCHED: '相符',
-    DIFF: '有差异',
-    ADJUSTED: '已调整'
-  };
-  return map[code] || code || '—';
+  return dictLabel('stocktake_line_status', code) || code || '—';
 }
 function stocktakeLineStatusType(code: string) {
   const map: Record<string, string> = {

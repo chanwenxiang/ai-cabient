@@ -766,19 +766,8 @@ export function hasPerm(
   return matchPermission(me?.permissions, code);
 }
 
-/** 商户端展示用：运营字典「设备」在商户侧统一为「柜机」 */
-const MERCHANT_ALERT_TYPE_LABELS: Record<string, string> = {
-  DEVICE_OFFLINE: '柜机离线',
-  DEVICE_FAULT: '柜机故障',
-  REPLENISHMENT: '补货任务',
-  REPLENISHMENT_REQUIRED: '需补货',
-  LOW_STOCK: '低库存',
-  EXPIRY: '临期',
-  DISPUTE: '消费争议'
-};
-
 export function alertTypeLabel(type: string) {
-  return MERCHANT_ALERT_TYPE_LABELS[type] || displayLabel('exception_type', type, '告警');
+  return displayLabel('merchant_alert_type', type, '告警');
 }
 
 export function merchantAlertTitle(_type: string, title: string) {

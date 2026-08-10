@@ -635,12 +635,6 @@ function refundTagType(s?: string) {
 }
 
 function paymentStatusLabel(s?: string) {
-  if (s === 'PAID' || s === 'COMPLETED') return '已支付';
-  if (s === 'REFUNDED') return '已退款';
-  if (s === 'PARTIAL_REFUNDED') return '部分退款';
-  if (s === 'CANCELLED') return '已关闭';
-  if (s === 'PENDING') return '待支付';
-  if (s === 'DISPUTED') return '争议中';
   return s ? dictLabel('order_status', s) || s : '无';
 }
 

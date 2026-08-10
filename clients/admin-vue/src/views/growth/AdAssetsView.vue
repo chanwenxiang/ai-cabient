@@ -110,6 +110,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
+import { dictLabel } from '@aicabinet/shared-dict';
 import type { MediaAssetDto } from '@aicabinet/shared-types';
 
 const auth = useAuthStore();
@@ -221,7 +222,7 @@ async function saveEdit() {
 }
 
 function typeLabel(type: string) {
-  return ({ IMAGE: '图片', VIDEO: '视频', H5: 'H5' } as Record<string, string>)[type] || type;
+  return dictLabel('ad_asset_type', type) || type;
 }
 
 function formatDateTime(iso?: string) {

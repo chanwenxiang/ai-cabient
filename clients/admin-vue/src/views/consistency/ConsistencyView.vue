@@ -179,6 +179,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { dictLabel } from '@aicabinet/shared-dict';
 
 type Row = {
   id: number;
@@ -268,16 +269,7 @@ function resetFilters() {
 }
 
 function typeLabel(t: string) {
-  switch (t) {
-    case 'ORDER_AMOUNT':
-      return '订单金额';
-    case 'PAYMENT_AMOUNT':
-      return '支付净额';
-    case 'INVENTORY_MISMATCH':
-      return '库存汇总';
-    default:
-      return t || '未知';
-  }
+  return dictLabel('consistency_check_type', t) || t || '未知';
 }
 
 function typeTag(t: string) {
