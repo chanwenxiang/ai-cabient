@@ -47,7 +47,7 @@ const BASE_NAV: NavItem[] = [
     path: '/footfall',
     title: '客流坪效',
     group: '概览',
-    perm: 'ops:analytics:view',
+    perm: 'ops:analytics:footfall:view',
     keywords: ['客流', '坪效', '热区', '转化', 'footfall', '热力']
   },
   {
@@ -304,14 +304,14 @@ const BASE_NAV: NavItem[] = [
     path: '/ad-assets',
     title: '素材库',
     group: '增长风控',
-    perm: 'ops:device:list',
+    perm: 'ops:ad:list',
     keywords: ['素材', '广告', '媒体', '上传']
   },
   {
     path: '/ad-campaigns',
     title: '投放计划',
     group: '增长风控',
-    perm: 'ops:device:list',
+    perm: 'ops:ad:campaign:list',
     keywords: ['投放', '广告', 'campaign', '轮播']
   },
   {
@@ -410,7 +410,7 @@ const BASE_NAV: NavItem[] = [
     path: '/org-sites',
     title: '组织与点位',
     group: '系统',
-    perm: 'ops:device:list',
+    perm: 'ops:org:list',
     keywords: ['组织', '点位', '场地', '合同', '布机', '撤机', 'org']
   },
   {

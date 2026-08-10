@@ -17,7 +17,7 @@
     <el-tabs v-model="tab">
       <el-tab-pane label="组织树" name="org">
         <div class="org-toolbar">
-          <el-button v-hasPermi="['ops:device:edit']" size="small" type="primary" @click="openNode(null)">
+          <el-button v-hasPermi="['ops:org:edit']" size="small" type="primary" @click="openNode(null)">
             新增顶级组织
           </el-button>
         </div>
@@ -34,13 +34,13 @@
                 {{ data.enabled ? '启用' : '停用' }} · {{ data.deviceIds.length }} 台
               </el-tag>
               <div class="tree-actions">
-                <el-button v-hasPermi="['ops:device:edit']" size="small" link @click.stop="openNode(data)">
+                <el-button v-hasPermi="['ops:org:edit']" size="small" link @click.stop="openNode(data)">
                   新增子级
                 </el-button>
-                <el-button v-hasPermi="['ops:device:edit']" size="small" link @click.stop="openAssign(data)">
+                <el-button v-hasPermi="['ops:org:edit']" size="small" link @click.stop="openAssign(data)">
                   分配设备
                 </el-button>
-                <el-button v-hasPermi="['ops:device:edit']" size="small" link @click.stop="toggleNode(data)">
+                <el-button v-hasPermi="['ops:org:edit']" size="small" link @click.stop="toggleNode(data)">
                   {{ data.enabled ? '停用' : '启用' }}
                 </el-button>
               </div>
@@ -51,7 +51,7 @@
 
       <el-tab-pane label="场地合同" name="contracts">
         <div class="org-toolbar">
-          <el-button v-hasPermi="['ops:device:edit']" size="small" type="primary" @click="openContract(null)">
+          <el-button v-hasPermi="['ops:org:edit']" size="small" type="primary" @click="openContract(null)">
             新增合同
           </el-button>
         </div>
@@ -75,7 +75,7 @@
           </el-table-column>
           <el-table-column label="操作" width="90" align="center">
             <template #default="{ row }">
-              <el-button v-hasPermi="['ops:device:edit']" size="small" @click="openContract(row)">
+              <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openContract(row)">
                 编辑
               </el-button>
             </template>

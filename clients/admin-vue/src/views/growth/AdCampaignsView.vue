@@ -9,8 +9,8 @@
           </div>
         </div>
         <div class="page-card-head__actions">
-          <el-button v-hasPermi="['ops:device:edit']" type="primary" @click="openCreate">
-            新建投放
+          <el-button v-hasPermi="['ops:ad:edit']" type="primary" @click="openCreate">
+           新建投放
           </el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
@@ -40,12 +40,12 @@
       </el-table-column>
       <el-table-column label="操作" width="220" align="center">
         <template #default="{ row }">
-          <el-button v-hasPermi="['ops:device:edit']" size="small" @click="openEdit(row)"
+            <el-button v-hasPermi="['ops:ad:edit']" size="small" @click="openEdit(row)"
             >编辑</el-button
           >
           <el-button
             v-if="row.status === 'DRAFT' || row.status === 'STOPPED'"
-            v-hasPermi="['ops:device:edit']"
+            v-hasPermi="['ops:ad:edit']"
             size="small"
             type="primary"
             @click="launch(row)"
@@ -53,7 +53,7 @@
           >
           <el-button
             v-if="row.status === 'RUNNING'"
-            v-hasPermi="['ops:device:edit']"
+            v-hasPermi="['ops:ad:edit']"
             size="small"
             type="warning"
             @click="stop(row)"
