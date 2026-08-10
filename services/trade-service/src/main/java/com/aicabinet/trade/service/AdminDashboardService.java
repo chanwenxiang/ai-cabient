@@ -12,6 +12,7 @@ import com.aicabinet.trade.domain.RechargeOrder;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.SkuCatalog;
+import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.domain.UserBlacklist;
 import com.aicabinet.trade.mapper.*;
@@ -953,8 +954,19 @@ public class AdminDashboardService {
                 minUserId,
                 maxUserId,
                 pageable);
+        List<Long> userIds = result.getContent().stream().map(UserInfo::getUserId).toList();
+        Map<Long, Member> memberByUser = memberRepository.findByUserIds(userIds).stream()
+                .collect(Collectors.toMap(Member::getUserId, m -> m, (a, b) -> a));
+        Set<Long> blacklistedUsers = blacklistRepository.findActiveUserIds(userIds);
+        Map<Long, Integer> balanceByUser = userAccountRepository.findByUserIds(userIds).stream()
+                .collect(Collectors.toMap(UserAccount::getUserId, UserAccount::getBalanceCents, (a, b) -> a));
         return new PageResult<>(
-                result.getContent().stream().map(this::toUserDto).toList(),
+                result.getContent().stream()
+                        .map(u -> toUserDto(u,
+                                balanceByUser.getOrDefault(u.getUserId(), 0),
+                                memberByUser.get(u.getUserId()),
+                                blacklistedUsers.contains(u.getUserId())))
+                        .toList(),
                 result.getNumber(),
                 result.getSize(),
                 result.getTotalElements()
@@ -1590,9 +1602,13 @@ public class AdminDashboardService {
     private AdminUserDto toUserDto(UserInfo u) {
         int balance = userAccountRepository.findById(u.getUserId())
                 .map(a -> a.getBalanceCents()).orElse(0);
-        String role = u.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START ? "OPERATOR" : "CONSUMER";
         Member member = memberRepository.findByUserId(u.getUserId()).orElse(null);
         boolean blacklisted = blacklistRepository.findActiveByUserId(u.getUserId()).isPresent();
+        return toUserDto(u, balance, member, blacklisted);
+    }
+
+    private AdminUserDto toUserDto(UserInfo u, int balance, Member member, boolean blacklisted) {
+        String role = u.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START ? "OPERATOR" : "CONSUMER";
         return new AdminUserDto(
                 u.getUserId(), u.getPhoneNumber(), u.getName(), u.isVerified(),
                 balance, role, u.getCreatedAt(),
