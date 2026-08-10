@@ -39,12 +39,12 @@ public class CompensationTaskScheduler {
         if (!taskService.isEnabled("compensation-process")) {
             return;
         }
+        long start = System.nanoTime();
         RLock lock = lockService.acquireLock("compensation:scheduler", 60);
         if (lock == null) {
             log.debug("Another instance is processing compensation tasks");
             return;
         }
-        
         try {
             List<CompensationTask> tasks = taskRepository.findExecutableTasks(Instant.now());
             log.info("Found {} compensation tasks to process", tasks.size());
@@ -56,6 +56,10 @@ public class CompensationTaskScheduler {
                     log.error("Failed to process compensation task: {}", task.getTaskId(), e);
                 }
             }
+            taskService.finish("compensation-process", "SUCCESS", null, start);
+        } catch (Exception e) {
+            taskService.finish("compensation-process", "FAILED", e.getMessage(), start);
+            throw e;
         } finally {
             lockService.releaseLock(lock);
         }
@@ -117,11 +121,11 @@ public class CompensationTaskScheduler {
         if (!taskService.isEnabled("compensation-retry")) {
             return;
         }
+        long start = System.nanoTime();
         RLock lock = lockService.acquireLock("tx:retry:scheduler", 60);
         if (lock == null) {
             return;
         }
-        
         try {
             List<DistributedTransaction> retryable = txRepository.findRetryableTransactions();
             log.info("Found {} transactions to retry", retryable.size());
@@ -136,6 +140,10 @@ public class CompensationTaskScheduler {
                     log.error("Failed to retry transaction: {}", tx.getTxId(), e);
                 }
             }
+            taskService.finish("compensation-retry", "SUCCESS", null, start);
+        } catch (Exception e) {
+            taskService.finish("compensation-retry", "FAILED", e.getMessage(), start);
+            throw e;
         } finally {
             lockService.releaseLock(lock);
         }
