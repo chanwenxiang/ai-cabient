@@ -244,7 +244,7 @@
         <div class="bs-panel-title">支付渠道（近 7 天）</div>
         <div class="bs-panel-body">
           <div v-for="ch in channels" :key="ch.channel" class="bs-bar-row">
-            <span class="bs-bar-label">{{ ch.channel }}</span>
+            <span class="bs-bar-label">{{ dictLabel('pay_channel', ch.channel) }}</span>
             <div class="bs-bar">
               <div class="bs-bar-fill" :style="{ width: barWidth(ch) }" />
             </div>
@@ -267,6 +267,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { FullScreen, Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
+import { dictLabel } from '@aicabinet/shared-dict';
 
 interface AdminStats {
   deviceTotal: number;
