@@ -102,6 +102,8 @@ public class ProductionStartupValidator {
         if (!authProperties.sms().hasWebhook()) {
             throw new IllegalStateException("Production/staging requires SMS webhook: aicabinet.auth.sms.webhook-url");
         }
+        validateSmsMockCode();
+        validateCookieSecurity();
         warnIfDefaultMinioCredentials();
         warnIfLocalhostCors();
 
@@ -157,6 +159,30 @@ public class ProductionStartupValidator {
         if (!payScoreProperties.hasChargeGateway()) {
             throw new IllegalStateException(
                     "PAYSCORE_LIVE_CHARGE_ENABLED=true requires PAYSCORE_CHARGE_GATEWAY_URL and PAYSCORE_CHARGE_GATEWAY_API_KEY");
+        }
+    }
+
+    private void validateSmsMockCode() {
+        String mockCode = authProperties.sms().mockCode();
+        if (mockCode != null
+                && ("123456".equals(mockCode) || "000000".equals(mockCode))) {
+            throw new IllegalStateException(
+                    "Production/staging cannot use the built-in mock SMS code (" + mockCode + "); "
+                            + "set aicabinet.auth.sms.mock-code or disable the mock code path");
+        }
+    }
+
+    private void validateCookieSecurity() {
+        if (!authProperties.cookieEnabled()) {
+            return;
+        }
+        if (isProdProfile() && !authProperties.cookieSecure()) {
+            throw new IllegalStateException(
+                    "Production requires AUTH_COOKIE_SECURE=true (admin session cookie must be Secure over HTTPS)");
+        }
+        if (isStagingProfile() && !isProdProfile() && authProperties.cookieSecure()) {
+            log.warn("AUTH_COOKIE_SECURE=true on staging/localhost HTTP will make browsers drop the session cookie; "
+                    + "set false unless the staging entrypoint is HTTPS");
         }
     }
 

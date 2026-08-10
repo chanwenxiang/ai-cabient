@@ -163,6 +163,11 @@ uvicorn app.main:app --host 0.0.0.0 --port 8082
 4. **运营后台**  
    - 建议独立域名 + HTTPS + IP 白名单/VPN  
    - JWT 存 localStorage 有 XSS 风险，后续可改 httpOnly Cookie
+   - `AUTH_COOKIE_SECURE=true`（生产校验器强制，HTTPS 下浏览器才会携带会话 Cookie）
+
+5. **Actuator 收敛（网关已默认拦截）**
+   - 公网网关只放行 `/actuator/health`、`/actuator/info`，其余 `/actuator/**` 返回 403
+   - Prometheus 指标由内网 Prometheus 直连服务端口抓取（`infra/monitoring/prometheus.compose.yml`）
 
 ---
 
@@ -308,12 +313,15 @@ docker compose -p ai-cabinet -f docker-compose.yml -f docker-compose.apps.yml -f
 
 - [ ] `SPRING_PROFILES_ACTIVE=prod`，服务能正常启动
 - [ ] 更换所有默认密钥（JWT、INTERNAL_API_KEY、VISION_API_KEY）
+- [ ] `AUTH_COOKIE_SECURE=true`（admin 会话 Cookie 走 HTTPS）
 - [ ] 微信商户号、小程序、支付回调 URL 已配置并验签通过
 - [ ] SMS Webhook 实测能收到验证码
+- [ ] 验证码不使用内置 mock 码（123456 / 000000）
 - [ ] YOLO 模型已打入 vision 镜像，`MOCK_ENABLED=false`
 - [ ] MinIO bucket 已创建，生命周期策略已设
 - [ ] EMQX TLS + 设备 ACL 已配置
 - [ ] Ingress 不暴露 `/internal/**`
+- [ ] 公网网关不暴露 `/actuator/prometheus` 等内网端点
 - [ ] 数据库备份与 Flyway 迁移已在预发验证
 - [ ] 运营账号已创建（非种子 123456 依赖）
 
