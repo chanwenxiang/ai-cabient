@@ -70,7 +70,7 @@ export class ApiClient {
       if (controller.signal.aborted) {
         throw new Error('请求超时，请稍后重试');
       }
-      throw e;
+      throw new Error('网络错误，请稍后重试');
     } finally {
       clearTimeout(timer);
     }

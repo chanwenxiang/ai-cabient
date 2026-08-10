@@ -281,7 +281,15 @@ export function request<T>(
         reject(new Error(localizeApiMessage(body?.message, `请求失败 (${res.statusCode})`)));
       },
       fail(err) {
-        reject(new Error(localizeApiMessage(err.errMsg, '网络错误')));
+        const msg = String(err?.errMsg || '');
+        reject(
+          new Error(
+            localizeApiMessage(
+              msg,
+              msg.includes('timeout') ? '请求超时，请稍后重试' : '网络错误，请稍后重试'
+            )
+          )
+        );
       }
     });
   });
