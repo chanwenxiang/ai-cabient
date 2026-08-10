@@ -1117,7 +1117,7 @@ async function loadEnvReadings() {
 }
 
 function envTypeLabel(type: string) {
-  return ({ HUMIDITY: '湿度', VOLTAGE: '电压', POWER: '功耗' } as Record<string, string>)[type] || type;
+  return dictLabel('device_env_type', type) || type;
 }
 
 function envUnit(type: string) {
@@ -1190,41 +1190,11 @@ const qrDownloading = ref(false);
 let qrObjectUrl: string | null = null;
 
 function lifecycleLabel(status?: string | null) {
-  switch ((status || '').toUpperCase()) {
-    case 'INBOUND':
-      return '入库';
-    case 'IDLE':
-      return '未投放';
-    case 'DEPLOYED':
-      return '投放';
-    case 'RETURNING':
-      return '返厂中';
-    case 'RETIRED':
-      return '退役';
-    default:
-      return status || '未知状态';
-  }
+  return dictLabel('device_lifecycle', status || 'DEPLOYED') || status || '未知状态';
 }
 
 function lifecycleActionLabel(action?: string | null) {
-  switch ((action || '').toUpperCase()) {
-    case 'BIND':
-      return '绑定商户';
-    case 'UNBIND':
-      return '解绑';
-    case 'DEPLOY':
-      return '投放';
-    case 'UNDEPLOY':
-      return '撤回未投放';
-    case 'RETURN':
-      return '返厂';
-    case 'RETIRE':
-      return '退役';
-    case 'INBOUND':
-      return '入库';
-    default:
-      return action || '未知';
-  }
+  return dictLabel('device_lifecycle_action', action) || action || '未知';
 }
 
 function revokeQrPreview() {

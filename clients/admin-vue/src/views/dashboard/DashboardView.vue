@@ -261,6 +261,7 @@ import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
+import { dictLabel } from '@aicabinet/shared-dict';
 import type { OpsWorkbench, PageResult } from '@aicabinet/shared-types';
 
 interface OpsStats {
@@ -472,22 +473,7 @@ function priority(severity = '') {
 }
 
 function typeLabel(type = '') {
-  return (
-    (
-      {
-        DISPUTE: '账单争议',
-        DEVICE_OFFLINE: '设备离线',
-        UPLOAD_STUCK: '录像滞留',
-        SESSION_STALE: '会话超时',
-        LOW_STOCK: '库存不足',
-        REPLENISHMENT: '补货任务',
-        RECON_MISMATCH: '对账差异',
-        RECONCILIATION_MISMATCH: '对账差异',
-        SPLIT_EXCEPTION: '分账异常',
-        IN_TRANSIT_OVERDUE: '签收超时'
-      } as Record<string, string>
-    )[type] || type
-  );
+  return dictLabel('ops_alert_type', type) || type;
 }
 
 function contextLabel(row: OpsActionItem) {

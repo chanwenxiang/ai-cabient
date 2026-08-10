@@ -421,6 +421,114 @@ export const DICT = {
     'R-DEMO-02': '演示路线 02',
     'R-DEMO-X': '演示路线 X'
   },
+  scheduled_task_group: {
+    DEVICE: '设备',
+    TRADE: '交易',
+    OPS: '运维',
+    SYSTEM: '系统',
+    WAREHOUSE: '仓储',
+    MERCHANT: '商户',
+    FINANCE: '财务',
+    MARKETING: '营销'
+  },
+  wallet_entry_type: {
+    ADJUST: '运营调整',
+    COMMISSION: '佣金入账',
+    COMMISSION_DAILY: '日结佣金',
+    WITHDRAW_FREEZE: '提现冻结',
+    WITHDRAW_RELEASE: '提现解冻',
+    WITHDRAW_PAID: '提现打款',
+    SPLIT_CREDIT: '分账入账',
+    SPLIT_REVERSE: '分账退回',
+    RECHARGE: '充值',
+    RECHARGE_REFUND: '充值退款',
+    REFUND: '退款',
+    SETTLE: '结算入账',
+    PAYOUT: '打款',
+    FEE: '手续费'
+  },
+  session_kind: { RESTOCK: '补货', OPS: '运维', SHOPPING: '消费' },
+  restock_line_type: {
+    RESTOCK: '上架',
+    PULL_OFF: '下架',
+    REMOVE: '下架',
+    PULL: '下架'
+  },
+  ops_alert_type: {
+    DISPUTE: '账单争议',
+    DEVICE_OFFLINE: '设备离线',
+    UPLOAD_STUCK: '录像滞留',
+    SESSION_STALE: '会话超时',
+    LOW_STOCK: '库存不足',
+    REPLENISHMENT: '补货任务',
+    RECON_MISMATCH: '对账差异',
+    RECONCILIATION_MISMATCH: '对账差异',
+    SPLIT_EXCEPTION: '分账异常',
+    IN_TRANSIT_OVERDUE: '签收超时'
+  },
+  ad_asset_type: { IMAGE: '图片', VIDEO: '视频', H5: 'H5' },
+  ad_campaign_status: { DRAFT: '草稿', RUNNING: '投放中', STOPPED: '已停止' },
+  consistency_check_type: {
+    ORDER_AMOUNT: '订单金额',
+    PAYMENT_AMOUNT: '支付净额',
+    INVENTORY_MISMATCH: '库存汇总'
+  },
+  sku_perf_level: {
+    BEST_SELLER: '畅销',
+    NORMAL: '正常',
+    SLOW_MOVER: '慢销',
+    NO_SALES: '无销量'
+  },
+  sku_review_status: {
+    PENDING: '待评审',
+    RECOMMEND_DELIST: '建议下架',
+    DELISTED: '已下架',
+    KEPT: '已保留'
+  },
+  member_level: {
+    NORMAL: '普通',
+    SILVER: '白银',
+    GOLD: '黄金',
+    PLATINUM: '铂金',
+    DIAMOND: '钻石'
+  },
+  site_contract_status: { ACTIVE: '有效', EXPIRING: '临期', EXPIRED: '已到期' },
+  device_env_type: { HUMIDITY: '湿度', VOLTAGE: '电压', POWER: '功耗' },
+  device_lifecycle_action: {
+    BIND: '绑定商户',
+    UNBIND: '解绑',
+    DEPLOY: '投放',
+    UNDEPLOY: '撤回未投放',
+    RETURN: '返厂',
+    RETIRE: '退役',
+    INBOUND: '入库'
+  },
+  stock_health_dim: { STOCKOUT: '断货', LOW: '低库存', NEAR_EXPIRY: '临期' },
+  purchase_suggestion_reason: {
+    SALES_DRIVEN: '销量驱动',
+    TREND_FORECAST: '趋势预测',
+    LOW_STOCK: '库存不足'
+  },
+  supplier_payable_status: { UNPAID: '未付', PARTIAL: '部分付款', PAID: '已付', CLOSED: '已关闭' },
+  stocktake_mode: { BLIND: '盲盘', VISIBLE: '明盘' },
+  stocktake_status: {
+    DRAFT: '草稿',
+    IN_PROGRESS: '盘点中',
+    COMPLETED: '已完成',
+    ADJUSTED: '已调整',
+    CANCELLED: '已取消'
+  },
+  stocktake_line_status: { PENDING: '未盘', MATCHED: '相符', DIFF: '有差异', ADJUSTED: '已调整' },
+  merchant_alert_type: {
+    LOW_STOCK: '低库存',
+    EXPIRY: '临期',
+    REPLENISHMENT_REQUIRED: '需补货',
+    REPLENISHMENT: '补货任务',
+    DEVICE_OFFLINE: '柜机离线',
+    DEVICE_FAULT: '柜机故障',
+    DISPUTE: '消费争议',
+    SETTLEMENT_FAILED: '结算失败'
+  },
   /** 商品类目：运营在字典管理维护；runtime 为准 */
   category_code: {} as Record<string, string>
 } as const;

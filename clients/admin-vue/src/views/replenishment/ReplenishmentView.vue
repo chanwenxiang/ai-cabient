@@ -1812,9 +1812,7 @@ function formatTaskDuration(row: Row) {
 
 function lineTypeLabel(type?: string) {
   const code = String(type || 'RESTOCK').toUpperCase();
-  if (code === 'RESTOCK') return '上架';
-  if (code === 'PULL_OFF' || code === 'REMOVE' || code === 'PULL') return '下架';
-  return code;
+  return dictLabel('restock_line_type', code) || code;
 }
 
 function formatFileSize(size?: number) {

@@ -866,8 +866,6 @@ function onThumbError(e: Event) {
 }
 
 function skuStatusLabel(status?: string) {
-  if (status === 'ACTIVE') return '上架';
-  if (status === 'INACTIVE') return '下架';
   return displayLabel('sku_status', status, '未知状态');
 }
 

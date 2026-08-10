@@ -592,9 +592,7 @@ function canCancel(s?: string) {
 }
 
 function sessionKindLabel(kind?: string) {
-  if (kind === 'RESTOCK') return '补货';
-  if (kind === 'OPS') return '运维';
-  return '消费';
+  return dictLabel('session_kind', kind) || '消费';
 }
 
 function sessionKindType(kind?: string) {

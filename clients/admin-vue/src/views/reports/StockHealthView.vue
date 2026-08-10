@@ -242,7 +242,7 @@ import { computed, onActivated, onMounted, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { Box, Delete, Refresh, Remove, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -401,16 +401,7 @@ function countBy(dim: string) {
 }
 
 function dimLabel(dim?: string) {
-  switch (dim) {
-    case 'STOCKOUT':
-      return '断货';
-    case 'LOW':
-      return '低库存';
-    case 'NEAR_EXPIRY':
-      return '临期';
-    default:
-      return dim || '未知';
-  }
+  return dictLabel('stock_health_dim', dim) || dim || '未知';
 }
 
 function dimTag(dim?: string): 'danger' | 'warning' | 'info' {

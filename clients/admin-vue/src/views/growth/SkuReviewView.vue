@@ -72,6 +72,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { useListCsv } from '@/composables/useListCsv';
+import { dictLabel } from '@aicabinet/shared-dict';
 
 type ReviewRow = {
   id: number;
@@ -179,14 +180,7 @@ async function confirmDelist(row: ReviewRow) {
 }
 
 function perfLabel(level?: string) {
-  return (
-    {
-      BEST_SELLER: '畅销',
-      NORMAL: '正常',
-      SLOW_MOVER: '慢销',
-      NO_SALES: '无销量'
-    }[level || ''] || '—'
-  );
+  return dictLabel('sku_perf_level', level) || '—';
 }
 function perfTag(level?: string) {
   return (
@@ -199,14 +193,7 @@ function perfTag(level?: string) {
   );
 }
 function reviewLabel(status: string) {
-  return (
-    {
-      PENDING: '待评审',
-      RECOMMEND_DELIST: '建议下架',
-      DELISTED: '已下架',
-      KEPT: '已保留'
-    }[status] || status
-  );
+  return dictLabel('sku_review_status', status) || status;
 }
 function reviewTag(status: string) {
   return (

@@ -373,6 +373,7 @@ export declare const DICT: {
         readonly SETTLEMENT_STUCK: "结算滞留";
         readonly INVENTORY_MISMATCH: "库存差异";
         readonly SLOT_DISCREPANCY: "货道账实差异";
+        readonly VISION_ANOMALY: "视觉异常（端侧）";
     };
     readonly ops_exception_action: {
         readonly OPS_EXCEPTION_CLAIM: "领取异常";
@@ -422,6 +423,151 @@ export declare const DICT: {
         readonly 'R-DEMO-01': "演示路线 01";
         readonly 'R-DEMO-02': "演示路线 02";
         readonly 'R-DEMO-X': "演示路线 X";
+    };
+    readonly scheduled_task_group: {
+        readonly DEVICE: "设备";
+        readonly TRADE: "交易";
+        readonly OPS: "运维";
+        readonly SYSTEM: "系统";
+        readonly WAREHOUSE: "仓储";
+        readonly MERCHANT: "商户";
+        readonly FINANCE: "财务";
+        readonly MARKETING: "营销";
+    };
+    readonly wallet_entry_type: {
+        readonly ADJUST: "运营调整";
+        readonly COMMISSION: "佣金入账";
+        readonly COMMISSION_DAILY: "日结佣金";
+        readonly WITHDRAW_FREEZE: "提现冻结";
+        readonly WITHDRAW_RELEASE: "提现解冻";
+        readonly WITHDRAW_PAID: "提现打款";
+        readonly SPLIT_CREDIT: "分账入账";
+        readonly SPLIT_REVERSE: "分账退回";
+        readonly RECHARGE: "充值";
+        readonly RECHARGE_REFUND: "充值退款";
+        readonly REFUND: "退款";
+        readonly SETTLE: "结算入账";
+        readonly PAYOUT: "打款";
+        readonly FEE: "手续费";
+    };
+    readonly session_kind: {
+        readonly RESTOCK: "补货";
+        readonly OPS: "运维";
+        readonly SHOPPING: "消费";
+    };
+    readonly restock_line_type: {
+        readonly RESTOCK: "上架";
+        readonly PULL_OFF: "下架";
+        readonly REMOVE: "下架";
+        readonly PULL: "下架";
+    };
+    readonly ops_alert_type: {
+        readonly DISPUTE: "账单争议";
+        readonly DEVICE_OFFLINE: "设备离线";
+        readonly UPLOAD_STUCK: "录像滞留";
+        readonly SESSION_STALE: "会话超时";
+        readonly LOW_STOCK: "库存不足";
+        readonly REPLENISHMENT: "补货任务";
+        readonly RECON_MISMATCH: "对账差异";
+        readonly RECONCILIATION_MISMATCH: "对账差异";
+        readonly SPLIT_EXCEPTION: "分账异常";
+        readonly IN_TRANSIT_OVERDUE: "签收超时";
+    };
+    readonly ad_asset_type: {
+        readonly IMAGE: "图片";
+        readonly VIDEO: "视频";
+        readonly H5: "H5";
+    };
+    readonly ad_campaign_status: {
+        readonly DRAFT: "草稿";
+        readonly RUNNING: "投放中";
+        readonly STOPPED: "已停止";
+    };
+    readonly consistency_check_type: {
+        readonly ORDER_AMOUNT: "订单金额";
+        readonly PAYMENT_AMOUNT: "支付净额";
+        readonly INVENTORY_MISMATCH: "库存汇总";
+    };
+    readonly sku_perf_level: {
+        readonly BEST_SELLER: "畅销";
+        readonly NORMAL: "正常";
+        readonly SLOW_MOVER: "慢销";
+        readonly NO_SALES: "无销量";
+    };
+    readonly sku_review_status: {
+        readonly PENDING: "待评审";
+        readonly RECOMMEND_DELIST: "建议下架";
+        readonly DELISTED: "已下架";
+        readonly KEPT: "已保留";
+    };
+    readonly member_level: {
+        readonly NORMAL: "普通";
+        readonly SILVER: "白银";
+        readonly GOLD: "黄金";
+        readonly PLATINUM: "铂金";
+        readonly DIAMOND: "钻石";
+    };
+    readonly site_contract_status: {
+        readonly ACTIVE: "有效";
+        readonly EXPIRING: "临期";
+        readonly EXPIRED: "已到期";
+    };
+    readonly device_env_type: {
+        readonly HUMIDITY: "湿度";
+        readonly VOLTAGE: "电压";
+        readonly POWER: "功耗";
+    };
+    readonly device_lifecycle_action: {
+        readonly BIND: "绑定商户";
+        readonly UNBIND: "解绑";
+        readonly DEPLOY: "投放";
+        readonly UNDEPLOY: "撤回未投放";
+        readonly RETURN: "返厂";
+        readonly RETIRE: "退役";
+        readonly INBOUND: "入库";
+    };
+    readonly stock_health_dim: {
+        readonly STOCKOUT: "断货";
+        readonly LOW: "低库存";
+        readonly NEAR_EXPIRY: "临期";
+    };
+    readonly purchase_suggestion_reason: {
+        readonly SALES_DRIVEN: "销量驱动";
+        readonly TREND_FORECAST: "趋势预测";
+        readonly LOW_STOCK: "库存不足";
+    };
+    readonly supplier_payable_status: {
+        readonly UNPAID: "未付";
+        readonly PARTIAL: "部分付款";
+        readonly PAID: "已付";
+        readonly CLOSED: "已关闭";
+    };
+    readonly stocktake_mode: {
+        readonly BLIND: "盲盘";
+        readonly VISIBLE: "明盘";
+    };
+    readonly stocktake_status: {
+        readonly DRAFT: "草稿";
+        readonly IN_PROGRESS: "盘点中";
+        readonly COMPLETED: "已完成";
+        readonly ADJUSTED: "已调整";
+        readonly CANCELLED: "已取消";
+    };
+    readonly stocktake_line_status: {
+        readonly PENDING: "未盘";
+        readonly MATCHED: "相符";
+        readonly DIFF: "有差异";
+        readonly ADJUSTED: "已调整";
+    };
+    readonly merchant_alert_type: {
+        readonly LOW_STOCK: "低库存";
+        readonly EXPIRY: "临期";
+        readonly REPLENISHMENT_REQUIRED: "需补货";
+        readonly REPLENISHMENT: "补货任务";
+        readonly DEVICE_OFFLINE: "柜机离线";
+        readonly DEVICE_FAULT: "柜机故障";
+        readonly DISPUTE: "消费争议";
+        readonly SETTLEMENT_FAILED: "结算失败";
     };
     /** 商品类目：运营在字典管理维护；runtime 为准 */
     readonly category_code: Record<string, string>;

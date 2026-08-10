@@ -179,6 +179,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import type { OrgNodeDto, SiteContractDto } from '@aicabinet/shared-types';
+import { dictLabel } from '@aicabinet/shared-dict';
 
 const loading = ref(false);
 const saving = ref(false);
@@ -367,7 +368,7 @@ async function saveContract() {
 }
 
 function contractStatusLabel(s: string) {
-  return ({ ACTIVE: '有效', EXPIRING: '临期', EXPIRED: '已到期' } as Record<string, string>)[s] || s;
+  return dictLabel('site_contract_status', s) || s;
 }
 
 function contractStatusType(s: string) {

@@ -123,6 +123,7 @@ import { onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
+import { dictLabel } from '@aicabinet/shared-dict';
 import type { AdCampaignDto, MediaAssetDto } from '@aicabinet/shared-types';
 
 const loading = ref(false);
@@ -252,7 +253,7 @@ async function stop(row: AdCampaignDto) {
 }
 
 function statusLabel(s: string) {
-  return ({ DRAFT: '草稿', RUNNING: '投放中', STOPPED: '已停止' } as Record<string, string>)[s] || s;
+  return dictLabel('ad_campaign_status', s) || s;
 }
 
 function statusType(s: string) {
@@ -260,7 +261,7 @@ function statusType(s: string) {
 }
 
 function typeLabel(t: string) {
-  return ({ IMAGE: '图片', VIDEO: '视频', H5: 'H5' } as Record<string, string>)[t] || t;
+  return dictLabel('ad_asset_type', t) || t;
 }
 
 function formatRange(row: AdCampaignDto) {
