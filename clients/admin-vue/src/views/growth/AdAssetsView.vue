@@ -16,8 +16,8 @@
             class="hidden-input"
             @change="onPickFile"
           />
-          <el-button v-hasPermi="['ops:device:edit']" type="primary" :loading="uploading" @click="openUpload">
-            上传素材
+          <el-button v-hasPermi="['ops:ad:edit']" type="primary" :loading="uploading" @click="openUpload">
+           上传素材
           </el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
@@ -77,7 +77,7 @@
       </el-table-column>
       <el-table-column label="操作" width="140" align="center">
         <template #default="{ row }">
-          <el-button v-hasPermi="['ops:device:edit']" size="small" @click="openEdit(row)"
+            <el-button v-hasPermi="['ops:ad:edit']" size="small" @click="openEdit(row)"
             >编辑</el-button
           >
         </template>
@@ -123,7 +123,7 @@ const uploadForm = ref({ title: '', assetType: 'IMAGE', durationSeconds: 10 });
 const editVisible = ref(false);
 const editForm = ref({ assetId: 0, title: '', durationSeconds: 10, active: true });
 
-const canEdit = computed(() => auth.hasPerm('ops:device:edit'));
+const canEdit = computed(() => auth.hasPerm('ops:ad:edit'));
 
 onMounted(load);
 

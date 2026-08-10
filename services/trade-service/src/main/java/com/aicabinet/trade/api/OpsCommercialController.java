@@ -98,13 +98,13 @@ public class OpsCommercialController {
     }
 
     // --- 组织架构与点位生命周期 ---
-    @RequiresPermissions("ops:device:list")
+    @RequiresPermissions("ops:org:list")
     @GetMapping("/org/tree")
     public ApiResponse<List<OrgNodeDto>> orgTree(HttpServletRequest request) {
         return ApiResponse.ok(orgService.tree(operatorId(request)));
     }
 
-    @RequiresPermissions("ops:device:edit")
+    @RequiresPermissions("ops:org:edit")
     @PutMapping("/org/nodes")
     public ApiResponse<OrgNodeDto> upsertOrgNode(
             HttpServletRequest request,
@@ -112,7 +112,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(orgService.upsertNode(operatorId(request), body));
     }
 
-    @RequiresPermissions("ops:device:edit")
+    @RequiresPermissions("ops:org:edit")
     @PostMapping("/org/nodes/{nodeId}/toggle")
     public ApiResponse<OrgNodeDto> toggleOrgNode(
             HttpServletRequest request,
@@ -121,7 +121,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(orgService.toggleNode(operatorId(request), nodeId, enabled));
     }
 
-    @RequiresPermissions("ops:device:edit")
+    @RequiresPermissions("ops:org:edit")
     @PutMapping("/org/nodes/{nodeId}/devices")
     public ApiResponse<OrgNodeDto> assignOrgDevices(
             HttpServletRequest request,
@@ -130,13 +130,13 @@ public class OpsCommercialController {
         return ApiResponse.ok(orgService.assignDevices(operatorId(request), nodeId, body.deviceIds()));
     }
 
-    @RequiresPermissions("ops:device:list")
+    @RequiresPermissions("ops:org:list")
     @GetMapping("/site-contracts")
     public ApiResponse<List<SiteContractDto>> siteContracts(HttpServletRequest request) {
         return ApiResponse.ok(siteContractService.list(operatorId(request)));
     }
 
-    @RequiresPermissions("ops:device:edit")
+    @RequiresPermissions("ops:org:edit")
     @PutMapping("/site-contracts/{deviceId}")
     public ApiResponse<SiteContractDto> upsertSiteContract(
             HttpServletRequest request,
@@ -146,7 +146,7 @@ public class OpsCommercialController {
     }
 
     // --- 客流 / 时段热区 / 坪效分析 ---
-    @RequiresPermissions("ops:analytics:view")
+    @RequiresPermissions("ops:analytics:footfall:view")
     @GetMapping("/analytics/footfall")
     public ApiResponse<FootfallAnalyticsDto> footfallAnalytics(
             HttpServletRequest request,
@@ -156,7 +156,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(footfallAnalyticsService.analytics(days, deviceLimit, skuLimit));
     }
 
-    @RequiresPermissions("ops:analytics:view")
+    @RequiresPermissions("ops:analytics:footfall:view")
     @GetMapping("/analytics/footfall/slots")
     public ApiResponse<List<SlotHeatDto>> footfallSlotHeat(
             HttpServletRequest request,
@@ -166,13 +166,13 @@ public class OpsCommercialController {
     }
 
     // --- 广告/多媒体运营：素材库 + 投放计划（读写沿用设备权限码，避免新建角色权限） ---
-    @RequiresPermissions("ops:device:list")
+    @RequiresPermissions("ops:ad:list")
     @GetMapping("/ad/assets")
     public ApiResponse<List<MediaAssetDto>> adAssets(HttpServletRequest request) {
         return ApiResponse.ok(mediaAssetService.list());
     }
 
-    @RequiresPermissions("ops:device:edit")
+    @RequiresPermissions("ops:ad:edit")
     @PostMapping(value = "/ad/assets", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<MediaAssetDto> uploadAdAsset(
             HttpServletRequest request,
@@ -184,7 +184,7 @@ public class OpsCommercialController {
                 operatorId(request), file, title, durationSeconds, assetType));
     }
 
-    @RequiresPermissions("ops:device:edit")
+    @RequiresPermissions("ops:ad:edit")
     @PutMapping("/ad/assets/{assetId}")
     public ApiResponse<MediaAssetDto> updateAdAsset(
             HttpServletRequest request,
@@ -193,20 +193,20 @@ public class OpsCommercialController {
         return ApiResponse.ok(mediaAssetService.update(assetId, body));
     }
 
-    @RequiresPermissions("ops:device:list")
+    @RequiresPermissions("ops:ad:list")
     @GetMapping("/ad/campaigns")
     public ApiResponse<List<AdCampaignDto>> adCampaigns(HttpServletRequest request) {
         return ApiResponse.ok(adCampaignService.list());
     }
 
-    @RequiresPermissions("ops:device:list")
+    @RequiresPermissions("ops:ad:list")
     @GetMapping("/ad/campaigns/{campaignId}")
     public ApiResponse<AdCampaignDto> adCampaign(
             HttpServletRequest request, @PathVariable Long campaignId) {
         return ApiResponse.ok(adCampaignService.get(campaignId));
     }
 
-    @RequiresPermissions("ops:device:edit")
+    @RequiresPermissions("ops:ad:edit")
     @PostMapping("/ad/campaigns")
     public ApiResponse<AdCampaignDto> createAdCampaign(
             HttpServletRequest request,
@@ -214,7 +214,7 @@ public class OpsCommercialController {
         return ApiResponse.ok(adCampaignService.upsert(operatorId(request), null, body));
     }
 
-    @RequiresPermissions("ops:device:edit")
+    @RequiresPermissions("ops:ad:edit")
     @PutMapping("/ad/campaigns/{campaignId}")
     public ApiResponse<AdCampaignDto> updateAdCampaign(
             HttpServletRequest request,
@@ -223,14 +223,14 @@ public class OpsCommercialController {
         return ApiResponse.ok(adCampaignService.upsert(operatorId(request), campaignId, body));
     }
 
-    @RequiresPermissions("ops:device:edit")
+    @RequiresPermissions("ops:ad:edit")
     @PostMapping("/ad/campaigns/{campaignId}/launch")
     public ApiResponse<AdCampaignDto> launchAdCampaign(
             HttpServletRequest request, @PathVariable Long campaignId) {
         return ApiResponse.ok(adCampaignService.launch(operatorId(request), campaignId));
     }
 
-    @RequiresPermissions("ops:device:edit")
+    @RequiresPermissions("ops:ad:edit")
     @PostMapping("/ad/campaigns/{campaignId}/stop")
     public ApiResponse<AdCampaignDto> stopAdCampaign(
             HttpServletRequest request, @PathVariable Long campaignId) {
