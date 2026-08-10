@@ -58,18 +58,20 @@
 
     <el-tabs v-model="tab">
       <el-tab-pane label="日资金账单" name="bills">
-        <el-table
-          v-loading="loading"
-          :data="pagedBills"
-          :default-sort="billIdDefaultSort"
-          @sort-change="onBillIdSortChange"
-          stripe
-          border
-          class="report-table"
-          row-key="rowKey"
-          @selection-change="onBillSelectionChange"
-          empty-text=" "
-        >
+        <div class="table-scroll">
+          <div class="table-scroll-inner">
+            <el-table
+              v-loading="loading"
+              :data="pagedBills"
+              :default-sort="billIdDefaultSort"
+              @sort-change="onBillIdSortChange"
+              stripe
+              border
+              class="report-table"
+              row-key="rowKey"
+              @selection-change="onBillSelectionChange"
+              empty-text=" "
+            >
           <template #empty
             ><el-empty v-if="listHydrated && !loading" description="暂无账单"
           /></template>
@@ -120,7 +122,9 @@
               </el-tag>
             </template>
           </el-table-column>
-        </el-table>
+            </el-table>
+          </div>
+        </div>
         <PagePager
           :hydrated="listHydrated"
           v-model:current-page="billPage"
@@ -167,18 +171,20 @@
             </el-select>
           </el-form-item>
         </el-form>
-        <el-table
-          v-loading="ledgerLoading"
-          :data="filteredLedger"
-          :default-sort="ledgerIdDefaultSort"
-          @sort-change="onLedgerIdSortChange"
-          stripe
-          border
-          class="report-table"
-          row-key="entryId"
-          @selection-change="onLedgerSelectionChange"
-          empty-text=" "
-        >
+        <div class="table-scroll">
+          <div class="table-scroll-inner">
+            <el-table
+              v-loading="ledgerLoading"
+              :data="filteredLedger"
+              :default-sort="ledgerIdDefaultSort"
+              @sort-change="onLedgerIdSortChange"
+              stripe
+              border
+              class="report-table"
+              row-key="entryId"
+              @selection-change="onLedgerSelectionChange"
+              empty-text=" "
+            >
           <template #empty
             ><el-empty v-if="ledgerHydrated && !ledgerLoading" description="暂无流水"
           /></template>
@@ -228,7 +234,9 @@
           <el-table-column label="时间" width="170" align="center">
             <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
           </el-table-column>
-        </el-table>
+            </el-table>
+          </div>
+        </div>
         <PagePager
           :hydrated="ledgerHydrated"
           v-model:current-page="ledgerPage"

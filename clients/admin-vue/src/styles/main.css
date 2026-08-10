@@ -837,6 +837,26 @@ select {
   overflow: visible;
 }
 
+/* 内容包裹型 tabs：表格自然撑高由页面滚动，表头跟随内容（不吸顶、不盖住 tabs/筛选栏） */
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll .el-table__header-wrapper,
+.layout-main-scroll
+  > .page-fill
+  > .page-card
+  > .el-card__body
+  > .el-tabs:not(.status-tabs)
+  .table-scroll
+  .el-table__header-wrapper,
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll .el-table__body-header,
+.layout-main-scroll
+  > .page-fill
+  > .page-card
+  > .el-card__body
+  > .el-tabs:not(.status-tabs)
+  .table-scroll
+  .el-table__body-header {
+  position: static !important;
+}
+
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .page-pager,
 .layout-main-scroll
   > .page-fill
