@@ -136,7 +136,9 @@ async function exportOrders() {
   try {
     const url = `${merchantApi.exportOrdersUrl()}`;
     const file = await downloadAuthedFile(url);
-    await openExportedFile(file, 'merchant-orders.csv');
+    const d = new Date();
+    const p = (n: number) => String(n).padStart(2, '0');
+    await openExportedFile(file, `merchant-orders-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.csv`);
   } catch (e) {
     uni.showToast({ title: e instanceof Error ? e.message : '导出失败', icon: 'none' });
   } finally {

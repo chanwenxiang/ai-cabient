@@ -508,7 +508,7 @@ const keyword = ref('');
 const payChannel = ref('');
 const createdRange = ref<[string, string] | null>(null);
 const status = ref('');
-const statusTab = ref('ALL');
+const statusTab = ref(localStorage.getItem('ops_order_status_tab') || 'ALL');
 const overdueOnly = ref(false);
 const focusOrderId = ref('');
 const items = ref<OrderSummary[]>([]);
@@ -917,6 +917,7 @@ function syncRouteQuery() {
 function onStatusTab(name: string | number) {
   const tab = String(name);
   statusTab.value = tab;
+  localStorage.setItem('ops_order_status_tab', tab);
   status.value = tab === 'ALL' ? '' : tab;
   if (tab !== 'PENDING') overdueOnly.value = false;
   page.value = 1;
