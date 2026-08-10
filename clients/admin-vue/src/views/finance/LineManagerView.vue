@@ -335,7 +335,9 @@
         <template #empty>
           <el-empty v-if="ledgerHydrated" description="暂无流水" :image-size="64" />
         </template>
-        <el-table-column prop="entryType" label="类型" width="130" align="center" />
+        <el-table-column label="类型" width="130" align="center">
+          <template #default="{ row }">{{ entryTypeLabel(row.entryType) }}</template>
+        </el-table-column>
         <el-table-column label="变动(元)" width="100" align="center">
           <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
         </el-table-column>
@@ -454,6 +456,28 @@ function yuan(cents?: number) {
 }
 function withdrawStatusLabel(s?: string) {
   return dictLabel('line_withdraw_status', s) || s || '未知状态';
+}
+
+/** 钱包流水类型：后端存储英文枚举，展示时映射为中文 */
+const ENTRY_TYPE_LABELS: Record<string, string> = {
+  ADJUST: '运营调整',
+  COMMISSION: '佣金入账',
+  COMMISSION_DAILY: '日结佣金',
+  WITHDRAW_FREEZE: '提现冻结',
+  WITHDRAW_RELEASE: '提现解冻',
+  WITHDRAW_PAID: '提现打款',
+  SPLIT_CREDIT: '分账入账',
+  SPLIT_REVERSE: '分账退回',
+  RECHARGE: '充值',
+  RECHARGE_REFUND: '充值退款',
+  REFUND: '退款',
+  SETTLE: '结算入账',
+  PAYOUT: '打款',
+  FEE: '手续费'
+};
+
+function entryTypeLabel(t?: string) {
+  return (t && ENTRY_TYPE_LABELS[t]) || t || '未知';
 }
 
 async function loadManagers() {
