@@ -2,7 +2,11 @@ package com.aicabinet.trade.domain;
 
 import java.io.Serializable;
 import java.util.Objects;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter
+@Setter
 public class MerchantSubscribePrefId implements Serializable {
     private Long userId;
     private String alertType;
@@ -14,10 +18,6 @@ public class MerchantSubscribePrefId implements Serializable {
         this.alertType = alertType;
     }
 
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
-    public String getAlertType() { return alertType; }
-    public void setAlertType(String alertType) { this.alertType = alertType; }
 
     @Override
     public boolean equals(Object o) {

@@ -2,8 +2,12 @@ package com.aicabinet.trade.domain;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("ops_2fa_recovery_code")
+@Getter
+@Setter
 public class OpsTwoFactorRecoveryCode {
 
     private Long userId;
@@ -11,12 +15,4 @@ public class OpsTwoFactorRecoveryCode {
     private boolean used;
     private Instant createdAt;
 
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
-    public String getCodeHash() { return codeHash; }
-    public void setCodeHash(String codeHash) { this.codeHash = codeHash; }
-    public boolean isUsed() { return used; }
-    public void setUsed(boolean used) { this.used = used; }
-    public Instant getCreatedAt() { return createdAt; }
-    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

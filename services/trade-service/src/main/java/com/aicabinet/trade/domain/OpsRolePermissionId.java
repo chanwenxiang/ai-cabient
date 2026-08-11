@@ -2,7 +2,11 @@ package com.aicabinet.trade.domain;
 
 import java.io.Serializable;
 import java.util.Objects;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter
+@Setter
 public class OpsRolePermissionId implements Serializable {
     private Long roleId;
     private Long permissionId;
@@ -14,10 +18,6 @@ public class OpsRolePermissionId implements Serializable {
         this.permissionId = permissionId;
     }
 
-    public Long getRoleId() { return roleId; }
-    public void setRoleId(Long roleId) { this.roleId = roleId; }
-    public Long getPermissionId() { return permissionId; }
-    public void setPermissionId(Long permissionId) { this.permissionId = permissionId; }
 
     @Override
     public boolean equals(Object o) {

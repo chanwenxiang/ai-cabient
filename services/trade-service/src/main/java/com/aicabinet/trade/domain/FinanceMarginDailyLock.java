@@ -6,8 +6,12 @@ import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("finance_margin_daily_lock")
+@Getter
+@Setter
 public class FinanceMarginDailyLock {
     @TableId(type = IdType.INPUT)
     private LocalDate bizDate;
@@ -19,20 +23,4 @@ public class FinanceMarginDailyLock {
     private Instant lockedAt;
     private Long lockedBy;
 
-    public LocalDate getBizDate() { return bizDate; }
-    public void setBizDate(LocalDate bizDate) { this.bizDate = bizDate; }
-    public long getRevenueCents() { return revenueCents; }
-    public void setRevenueCents(long revenueCents) { this.revenueCents = revenueCents; }
-    public long getCogsCents() { return cogsCents; }
-    public void setCogsCents(long cogsCents) { this.cogsCents = cogsCents; }
-    public long getMarginCents() { return marginCents; }
-    public void setMarginCents(long marginCents) { this.marginCents = marginCents; }
-    public long getWriteOffCents() { return writeOffCents; }
-    public void setWriteOffCents(long writeOffCents) { this.writeOffCents = writeOffCents; }
-    public long getOrderCount() { return orderCount; }
-    public void setOrderCount(long orderCount) { this.orderCount = orderCount; }
-    public Instant getLockedAt() { return lockedAt; }
-    public void setLockedAt(Instant lockedAt) { this.lockedAt = lockedAt; }
-    public Long getLockedBy() { return lockedBy; }
-    public void setLockedBy(Long lockedBy) { this.lockedBy = lockedBy; }
 }

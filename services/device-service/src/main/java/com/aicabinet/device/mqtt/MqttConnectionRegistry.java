@@ -3,8 +3,12 @@ package com.aicabinet.device.mqtt;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.atomic.AtomicBoolean;
+import lombok.Getter;
+import lombok.Setter;
 
 @Component
+@Getter
+@Setter
 public class MqttConnectionRegistry {
 
     private final AtomicBoolean publisherConnected = new AtomicBoolean(false);

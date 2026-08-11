@@ -3,8 +3,12 @@ package com.aicabinet.trade.domain;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableField;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("device_sku_inventory")
+@Getter
+@Setter
 public class DeviceSkuInventory {
 
     @TableField(exist = false)
@@ -22,13 +26,6 @@ public class DeviceSkuInventory {
 
     private Instant updatedAt;
 
-public int getQuantity() { return quantity; }
-    public void setQuantity(int quantity) { this.quantity = quantity; }
-    public int getCapacity() { return capacity; }
-    public void setCapacity(int capacity) { this.capacity = capacity; }
-    public int getLowThreshold() { return lowThreshold; }
-    public void setLowThreshold(int lowThreshold) { this.lowThreshold = lowThreshold; }
-    public Instant getUpdatedAt() { return updatedAt; }
 
     public DeviceSkuInventoryId getId() {
         if (id == null && deviceId != null && skuId != null) {
@@ -44,8 +41,4 @@ public int getQuantity() { return quantity; }
         }
     }
 
-    public String getDeviceId() { return deviceId; }
-    public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
-    public String getSkuId() { return skuId; }
-    public void setSkuId(String skuId) { this.skuId = skuId; }
 }

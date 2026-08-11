@@ -4,8 +4,12 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("ops_org_node")
+@Getter
+@Setter
 public class OpsOrgNode {
 
     @TableId(type = IdType.AUTO)
@@ -18,20 +22,4 @@ public class OpsOrgNode {
     private Instant createdAt;
     private Instant updatedAt;
 
-    public Long getNodeId() { return nodeId; }
-    public void setNodeId(Long nodeId) { this.nodeId = nodeId; }
-    public Long getParentId() { return parentId; }
-    public void setParentId(Long parentId) { this.parentId = parentId; }
-    public String getName() { return name; }
-    public void setName(String name) { this.name = name; }
-    public String getNodeType() { return nodeType; }
-    public void setNodeType(String nodeType) { this.nodeType = nodeType; }
-    public int getSortOrder() { return sortOrder; }
-    public void setSortOrder(int sortOrder) { this.sortOrder = sortOrder; }
-    public boolean isEnabled() { return enabled; }
-    public void setEnabled(boolean enabled) { this.enabled = enabled; }
-    public Instant getCreatedAt() { return createdAt; }
-    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
-    public Instant getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

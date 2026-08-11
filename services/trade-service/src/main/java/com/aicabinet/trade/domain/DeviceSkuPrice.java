@@ -4,8 +4,12 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("device_sku_price")
+@Getter
+@Setter
 public class DeviceSkuPrice {
 
     @TableField(exist = false)
@@ -39,14 +43,4 @@ public class DeviceSkuPrice {
         }
     }
 
-    public String getDeviceId() { return deviceId; }
-    public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
-    public String getSkuId() { return skuId; }
-    public void setSkuId(String skuId) { this.skuId = skuId; }
-    public int getPriceCents() { return priceCents; }
-    public void setPriceCents(int priceCents) { this.priceCents = priceCents; }
-    public Instant getUpdatedAt() { return updatedAt; }
-    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
-    public Long getUpdatedByUserId() { return updatedByUserId; }
-    public void setUpdatedByUserId(Long updatedByUserId) { this.updatedByUserId = updatedByUserId; }
 }

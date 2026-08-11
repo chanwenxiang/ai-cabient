@@ -18,8 +18,12 @@ import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.UUID;
+import lombok.Getter;
+import lombok.Setter;
 
 @Service
+@Getter
+@Setter
 public class CaptchaService {
 
     private static final String KEY_PREFIX = "aicabinet:captcha:";
@@ -40,9 +44,6 @@ public class CaptchaService {
         this.captchaEnabled = captchaEnabled;
     }
 
-    public boolean isEnabled() {
-        return captchaEnabled;
-    }
 
     public CaptchaResponse create() {
         String code = randomCode();

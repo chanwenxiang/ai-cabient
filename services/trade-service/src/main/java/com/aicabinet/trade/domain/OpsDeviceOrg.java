@@ -3,8 +3,12 @@ package com.aicabinet.trade.domain;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("ops_device_org")
+@Getter
+@Setter
 public class OpsDeviceOrg {
 
     @TableId(type = IdType.AUTO)
@@ -12,10 +16,4 @@ public class OpsDeviceOrg {
     private Long nodeId;
     private String deviceId;
 
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-    public Long getNodeId() { return nodeId; }
-    public void setNodeId(Long nodeId) { this.nodeId = nodeId; }
-    public String getDeviceId() { return deviceId; }
-    public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
 }

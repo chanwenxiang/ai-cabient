@@ -7,8 +7,12 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.aicabinet.trade.config.JsonStringTypeHandler;
 import com.aicabinet.common.enums.SessionState;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName(value = "shopping_session", autoResultMap = true)
+@Getter
+@Setter
 public class ShoppingSession {
 
     @TableId(type = IdType.INPUT)
@@ -58,44 +62,4 @@ public class ShoppingSession {
 
     private Instant updatedAt;
 
-public String getSessionId() { return sessionId; }
-    public void setSessionId(String sessionId) { this.sessionId = sessionId; }
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
-    public String getDeviceId() { return deviceId; }
-    public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
-    public SessionState getState() { return state; }
-    public void setState(SessionState state) { this.state = state; }
-    public Instant getOpenTime() { return openTime; }
-    public void setOpenTime(Instant openTime) { this.openTime = openTime; }
-    public Instant getCloseTime() { return closeTime; }
-    public void setCloseTime(Instant closeTime) { this.closeTime = closeTime; }
-    public String getOrderId() { return orderId; }
-    public void setOrderId(String orderId) { this.orderId = orderId; }
-    public String getFailReason() { return failReason; }
-    public void setFailReason(String failReason) { this.failReason = failReason; }
-    public String getRecognitionTaskId() { return recognitionTaskId; }
-    public void setRecognitionTaskId(String recognitionTaskId) { this.recognitionTaskId = recognitionTaskId; }
-    public String getVideoUri() { return videoUri; }
-    public void setVideoUri(String videoUri) { this.videoUri = videoUri; }
-    public String getUploadStatus() { return uploadStatus; }
-    public void setUploadStatus(String uploadStatus) { this.uploadStatus = uploadStatus; }
-    public String getVideoClips() { return videoClips; }
-    public void setVideoClips(String videoClips) { this.videoClips = videoClips; }
-    public String getCameraFusionMode() { return cameraFusionMode; }
-    public void setCameraFusionMode(String cameraFusionMode) { this.cameraFusionMode = cameraFusionMode; }
-    public String getIdempotencyKey() { return idempotencyKey; }
-    public void setIdempotencyKey(String idempotencyKey) { this.idempotencyKey = idempotencyKey; }
-    public Long getReplenishmentTaskId() { return replenishmentTaskId; }
-    public void setReplenishmentTaskId(Long replenishmentTaskId) { this.replenishmentTaskId = replenishmentTaskId; }
-    public String getGravityDeltas() { return gravityDeltas; }
-    public void setGravityDeltas(String gravityDeltas) { this.gravityDeltas = gravityDeltas; }
-    public String getEntryChannel() { return entryChannel; }
-    public void setEntryChannel(String entryChannel) { this.entryChannel = entryChannel; }
-    public int getPreauthCents() { return preauthCents; }
-    public void setPreauthCents(int preauthCents) { this.preauthCents = preauthCents; }
-    public String getPreauthStatus() { return preauthStatus; }
-    public void setPreauthStatus(String preauthStatus) { this.preauthStatus = preauthStatus; }
-    public Instant getCreatedAt() { return createdAt; }
-    public Instant getUpdatedAt() { return updatedAt; }
 }

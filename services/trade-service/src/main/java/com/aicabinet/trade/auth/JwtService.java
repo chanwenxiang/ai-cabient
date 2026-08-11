@@ -11,8 +11,12 @@ import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
+import lombok.Getter;
+import lombok.Setter;
 
 @Component
+@Getter
+@Setter
 public class JwtService {
 
     static final String BOOT_CLAIM = "boot";
@@ -98,9 +102,6 @@ public class JwtService {
                 .getPayload();
     }
 
-    public long getExpirationSeconds() {
-        return expirationSeconds;
-    }
 
     public static class InvalidSessionTokenException extends RuntimeException {
         public InvalidSessionTokenException(String message) {

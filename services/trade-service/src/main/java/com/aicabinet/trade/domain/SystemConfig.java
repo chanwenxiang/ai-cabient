@@ -4,8 +4,12 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("system_config")
+@Getter
+@Setter
 public class SystemConfig {
 
     @TableId(type = IdType.INPUT)
@@ -17,35 +21,11 @@ public class SystemConfig {
 
     private Instant updatedAt = Instant.now();
 
-    public String getConfigKey() {
-        return configKey;
-    }
 
-    public void setConfigKey(String configKey) {
-        this.configKey = configKey;
-    }
 
-    public String getConfigValue() {
-        return configValue;
-    }
 
-    public void setConfigValue(String configValue) {
-        this.configValue = configValue;
-    }
 
-    public String getDescription() {
-        return description;
-    }
 
-    public void setDescription(String description) {
-        this.description = description;
-    }
 
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
 
-    public void setUpdatedAt(Instant updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

@@ -5,8 +5,12 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
 import java.time.LocalDate;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("warehouse_inventory")
+@Getter
+@Setter
 public class WarehouseInventory {
 
     @TableId(type = IdType.AUTO)
@@ -26,18 +30,4 @@ public class WarehouseInventory {
 
     private Instant updatedAt;
 
-public Long getInventoryId() { return inventoryId; }
-    public String getWarehouseId() { return warehouseId; }
-    public void setWarehouseId(String warehouseId) { this.warehouseId = warehouseId; }
-    public String getSkuId() { return skuId; }
-    public void setSkuId(String skuId) { this.skuId = skuId; }
-    public String getBatchNo() { return batchNo; }
-    public void setBatchNo(String batchNo) { this.batchNo = batchNo; }
-    public LocalDate getProductionDate() { return productionDate; }
-    public void setProductionDate(LocalDate productionDate) { this.productionDate = productionDate; }
-    public LocalDate getExpiryDate() { return expiryDate; }
-    public void setExpiryDate(LocalDate expiryDate) { this.expiryDate = expiryDate; }
-    public int getQuantity() { return quantity; }
-    public void setQuantity(int quantity) { this.quantity = quantity; }
-    public Instant getUpdatedAt() { return updatedAt; }
 }
