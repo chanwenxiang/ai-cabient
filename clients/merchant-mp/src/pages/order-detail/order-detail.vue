@@ -73,7 +73,7 @@ import { computed, ref } from 'vue';
 import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { skuImageFor } from '@aicabinet/shared-uni/product-image';
-import {                                                          
+import {
   emptyDisplay,
   formatDateTimeShort,
   orderStatusLabel,

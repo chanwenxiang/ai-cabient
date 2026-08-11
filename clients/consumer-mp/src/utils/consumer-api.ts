@@ -649,16 +649,14 @@ export const consumerApi = {
   memberPointsLog: (limit = 50) =>
     request<MemberPointsLogDto[]>(`/api/v2/member/points/log?limit=${limit}`),
   redeemItems: () => request<PointsRedeemItemDto[]>('/api/v2/member/redeem/items'),
-  redeemPoints: (itemId: number) =>
-    request<CouponDto>('/api/v2/member/redeem', 'POST', { itemId }),
+  redeemPoints: (itemId: number) => request<CouponDto>('/api/v2/member/redeem', 'POST', { itemId }),
   notifications: (limit = 50) =>
     request<NotificationDto[]>(`/api/v2/member/notifications?limit=${limit}`),
   notificationUnreadCount: () =>
     request<{ count: number }>('/api/v2/member/notifications/unread-count'),
   markNotificationRead: (id: number) =>
     request<void>(`/api/v2/member/notifications/${id}/read`, 'POST'),
-  markAllNotificationsRead: () =>
-    request<void>('/api/v2/member/notifications/read-all', 'POST'),
+  markAllNotificationsRead: () => request<void>('/api/v2/member/notifications/read-all', 'POST'),
   notifyPrefs: () => request<NotifyPrefDto[]>('/api/v2/member/notifications/prefs'),
   updateNotifyPref: (category: string, enabled: boolean) =>
     request<NotifyPrefDto>('/api/v2/member/notifications/prefs', 'PUT', { category, enabled }),

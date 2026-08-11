@@ -562,9 +562,9 @@ export const merchantApi = {
     if (status) q.set('status', status);
     if (from) q.set('from', from);
     if (to) q.set('to', to);
-    return request<import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').RevenueSplit>>(
-      `/api/v2/merchant/revenue-splits?${q}`
-    );
+    return request<
+      import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').RevenueSplit>
+    >(`/api/v2/merchant/revenue-splits?${q}`);
   },
   exportSettlementsUrl: (from: string, to: string) =>
     `${API_BASE_URL}/api/v2/merchant/settlements/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
@@ -581,9 +581,7 @@ export const merchantApi = {
     request<MerchantReplenishmentEfficiency>('/api/v2/merchant/replenishment/my-efficiency'),
   /** 缺货巡柜：全部低库存 SKU 明细（按柜聚合由页面完成） */
   lowStockDevices: () =>
-    request<DeviceLowStockItem[]>(
-      '/api/v2/merchant/inventory?lowStockOnly=true'
-    ),
+    request<DeviceLowStockItem[]>('/api/v2/merchant/inventory?lowStockOnly=true'),
   replenishmentRequests: (status?: string, deviceId?: string) => {
     const q = new URLSearchParams();
     if (status) q.set('status', status);
@@ -640,12 +638,9 @@ export const merchantApi = {
     >('/api/v2/merchant/expiry-alerts'),
   slotDiscrepancies: (deviceId?: string) => {
     const q = deviceId ? `?deviceId=${encodeURIComponent(deviceId)}` : '';
-    return request<MerchantSlotDiscrepancy[]>(
-      `/api/v2/merchant/slot-discrepancies${q}`
-    );
+    return request<MerchantSlotDiscrepancy[]>(`/api/v2/merchant/slot-discrepancies${q}`);
   },
-  deviceReports: () =>
-    request<MerchantDeviceReport[]>('/api/v2/merchant/device-reports'),
+  deviceReports: () => request<MerchantDeviceReport[]>('/api/v2/merchant/device-reports'),
   updateMerchantProfile: (body: MerchantProfileUpdate) =>
     request<unknown[]>('/api/v2/merchant/profile', 'PATCH', body),
   disputes: (status?: string, page = 0, size = 100) => {
@@ -688,9 +683,7 @@ export const merchantApi = {
       { body }
     ),
   notifications: (limit = 50) =>
-    request<MerchantNotificationDto[]>(
-      `/api/v2/merchant/notifications?limit=${limit}`
-    ),
+    request<MerchantNotificationDto[]>(`/api/v2/merchant/notifications?limit=${limit}`),
   notificationUnreadCount: () =>
     request<{ count: number }>('/api/v2/merchant/notifications/unread-count'),
   markNotificationRead: (id: number) =>

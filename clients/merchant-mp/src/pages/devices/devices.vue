@@ -80,7 +80,7 @@
       </view>
       <empty-state
         v-if="!visibleDevices.length"
-  icon="/static/menu/cabinet.png"
+        icon="/static/menu/cabinet.png"
         :title="emptyHint"
         hint="可切换筛选或扫码绑定常驻柜"
       />

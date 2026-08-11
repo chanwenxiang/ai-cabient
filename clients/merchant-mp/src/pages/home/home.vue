@@ -59,7 +59,12 @@
           aria-label="补货任务"
           @click="goReplenishment()"
         >
-          <image class="quick-icon" :src="menuIcon('replenish')" mode="aspectFit" aria-hidden="true" />
+          <image
+            class="quick-icon"
+            :src="menuIcon('replenish')"
+            mode="aspectFit"
+            aria-hidden="true"
+          />
           <text class="quick-label">补货任务</text>
           <text v-if="pendingTaskCount" class="quick-badge">{{ pendingTaskCount }}</text>
         </view>
@@ -70,7 +75,12 @@
           aria-label="柜机列表"
           @click="goTab('/pages/devices/devices')"
         >
-          <image class="quick-icon" :src="menuIcon('cabinet')" mode="aspectFit" aria-hidden="true" />
+          <image
+            class="quick-icon"
+            :src="menuIcon('cabinet')"
+            mode="aspectFit"
+            aria-hidden="true"
+          />
           <text class="quick-label">柜机列表</text>
         </view>
         <view
@@ -80,7 +90,12 @@
           aria-label="待办事项"
           @click="goTab('/pages/alerts/alerts')"
         >
-          <image class="quick-icon" :src="menuIcon('pending')" mode="aspectFit" aria-hidden="true" />
+          <image
+            class="quick-icon"
+            :src="menuIcon('pending')"
+            mode="aspectFit"
+            aria-hidden="true"
+          />
           <text class="quick-label">待办事项</text>
           <text v-if="pendingCount" class="quick-badge">{{ pendingCount }}</text>
         </view>

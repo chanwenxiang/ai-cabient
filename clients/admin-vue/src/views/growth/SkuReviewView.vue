@@ -38,7 +38,9 @@
       <el-table-column prop="category" label="分类" width="100" align="center" />
       <el-table-column label="动销表现" width="110" align="center">
         <template #default="{ row }">
-          <el-tag :type="perfTag(row.performanceLevel)">{{ perfLabel(row.performanceLevel) }}</el-tag>
+          <el-tag :type="perfTag(row.performanceLevel)">{{
+            perfLabel(row.performanceLevel)
+          }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="salesQty" label="销量" width="80" align="center" />
@@ -96,7 +98,19 @@ const list = ref<ReviewRow[]>([]);
 
 const { onExport } = useListCsv({
   filePrefix: '选品诊断',
-  headers: ['SKU', '商品', '分类', '动销表现', '销量', '营收(元)', '库存天数', '评审状态', '建议', '原因', '替换SKU'],
+  headers: [
+    'SKU',
+    '商品',
+    '分类',
+    '动销表现',
+    '销量',
+    '营收(元)',
+    '库存天数',
+    '评审状态',
+    '建议',
+    '原因',
+    '替换SKU'
+  ],
   toRows: () =>
     list.value.map((r) => [
       r.skuId,

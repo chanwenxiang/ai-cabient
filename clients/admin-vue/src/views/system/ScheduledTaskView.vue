@@ -54,7 +54,9 @@
             <template #default="{ row }">{{ row.taskKey }}</template>
           </el-table-column>
           <el-table-column label="分组" width="110" align="center">
-            <template #default="{ row }">{{ dictLabel('scheduled_task_group', row.taskGroup) }}</template>
+            <template #default="{ row }">{{
+              dictLabel('scheduled_task_group', row.taskGroup)
+            }}</template>
           </el-table-column>
           <el-table-column label="调度说明" width="130" align="center">
             <template #default="{ row }">{{ row.scheduleDesc || '—' }}</template>

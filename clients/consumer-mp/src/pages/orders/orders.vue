@@ -101,12 +101,7 @@
             <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
           </view>
           <view class="order-mid">
-            <image
-              class="order-thumb"
-              :src="orderThumb(o)"
-              mode="aspectFill"
-              aria-hidden="true"
-            />
+            <image class="order-thumb" :src="orderThumb(o)" mode="aspectFill" aria-hidden="true" />
             <view class="order-copy">
               <text class="order-summary">{{ orderSummaryText(o) }}</text>
               <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>

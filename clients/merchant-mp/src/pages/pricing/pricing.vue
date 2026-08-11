@@ -51,7 +51,7 @@
         </view>
         <empty-state
           v-if="!rows.length"
-  icon="/static/menu/pricing.png"
+          icon="/static/menu/pricing.png"
           title="暂无定价数据"
           hint="选择柜机后可查看 SKU 基准价与覆盖价"
         />
@@ -141,8 +141,7 @@ async function openHistory() {
   historyVisible.value = true;
   historyLoading.value = true;
   try {
-    history.value =
-      (await merchantApi.pricingHistory(selectedDeviceId.value || undefined)) || [];
+    history.value = (await merchantApi.pricingHistory(selectedDeviceId.value || undefined)) || [];
   } catch (e) {
     history.value = [];
     uni.showToast({ title: e instanceof Error ? e.message : '加载历史失败', icon: 'none' });

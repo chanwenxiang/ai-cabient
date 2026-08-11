@@ -7,7 +7,7 @@
     </view>
     <empty-state
       v-else-if="!list.length"
-  icon="/static/menu/orders.png"
+      icon="/static/menu/orders.png"
       title="暂无柜机订单"
       hint="有成交后会显示在这里"
     />
@@ -138,7 +138,10 @@ async function exportOrders() {
     const file = await downloadAuthedFile(url);
     const d = new Date();
     const p = (n: number) => String(n).padStart(2, '0');
-    await openExportedFile(file, `merchant-orders-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.csv`);
+    await openExportedFile(
+      file,
+      `merchant-orders-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}.csv`
+    );
   } catch (e) {
     uni.showToast({ title: e instanceof Error ? e.message : '导出失败', icon: 'none' });
   } finally {
@@ -340,14 +343,16 @@ function statusText(s?: string) {
 
 function channelText(channel?: string) {
   return (
-    {
-      WECHAT: '微信',
-      ALIPAY: '支付宝',
-      BALANCE: '余额',
-      PAYSCORE: '微信支付分',
-      UNKNOWN: '未知'
-    } as Record<string, string>
-  )[String(channel || '').toUpperCase()] || '—';
+    (
+      {
+        WECHAT: '微信',
+        ALIPAY: '支付宝',
+        BALANCE: '余额',
+        PAYSCORE: '微信支付分',
+        UNKNOWN: '未知'
+      } as Record<string, string>
+    )[String(channel || '').toUpperCase()] || '—'
+  );
 }
 
 function money(cents?: number) {

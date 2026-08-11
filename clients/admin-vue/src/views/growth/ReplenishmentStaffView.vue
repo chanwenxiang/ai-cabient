@@ -30,7 +30,13 @@
       class="report-table"
     >
       <template #empty><el-empty v-if="!loading" description="暂无补货任务数据" /></template>
-      <el-table-column prop="userId" label="工号" width="110" align="center" class-name="col-text" />
+      <el-table-column
+        prop="userId"
+        label="工号"
+        width="110"
+        align="center"
+        class-name="col-text"
+      />
       <el-table-column label="姓名" min-width="110" align="center">
         <template #default="{ row }">{{ row.name || '—' }}</template>
       </el-table-column>
@@ -43,7 +49,9 @@
         <template #default="{ row }">{{ pct(row.completionRate) }}</template>
       </el-table-column>
       <el-table-column label="平均耗时(分)" width="120" align="center">
-        <template #default="{ row }">{{ row.avgDurationMinutes != null ? row.avgDurationMinutes.toFixed(0) : '—' }}</template>
+        <template #default="{ row }">{{
+          row.avgDurationMinutes != null ? row.avgDurationMinutes.toFixed(0) : '—'
+        }}</template>
       </el-table-column>
       <el-table-column prop="openTasks" label="待办" width="80" align="center">
         <template #default="{ row }">
@@ -80,7 +88,17 @@ const list = ref<StaffRow[]>([]);
 
 const { onExport } = useListCsv({
   filePrefix: '补货员效率',
-  headers: ['工号', '姓名', '手机', '任务数', '已完成', '完成率', '平均耗时(分)', '待办', '日均任务'],
+  headers: [
+    '工号',
+    '姓名',
+    '手机',
+    '任务数',
+    '已完成',
+    '完成率',
+    '平均耗时(分)',
+    '待办',
+    '日均任务'
+  ],
   toRows: () =>
     list.value.map((r) => [
       r.userId,

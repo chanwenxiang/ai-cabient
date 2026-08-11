@@ -18,16 +18,19 @@
           <view class="item-copy">
             <text class="item-title">{{ item.title }}</text>
             <text class="item-subtitle">{{ item.subtitle || '兑换优惠券，结算自动使用' }}</text>
-            <text class="item-stock"
-              >{{ item.availableStock > 0 ? `剩余 ${item.availableStock} 份` : '已兑完' }}</text
-            >
+            <text class="item-stock">{{
+              item.availableStock > 0 ? `剩余 ${item.availableStock} 份` : '已兑完'
+            }}</text>
           </view>
         </view>
         <view class="item-side">
           <text class="item-cost">{{ item.pointsCost }} 积分</text>
           <button
             class="redeem-btn"
-            :class="{ disabled: item.availableStock <= 0 || (summary?.availablePoints ?? 0) < item.pointsCost }"
+            :class="{
+              disabled:
+                item.availableStock <= 0 || (summary?.availablePoints ?? 0) < item.pointsCost
+            }"
             :disabled="redeeming === item.itemId"
             @click="redeem(item)"
           >

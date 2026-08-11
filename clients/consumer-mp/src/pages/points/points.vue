@@ -79,7 +79,10 @@ onShow(async () => {
 async function load() {
   loading.value = true;
   try {
-    const [s, list] = await Promise.all([consumerApi.memberPoints(), consumerApi.memberPointsLog(100)]);
+    const [s, list] = await Promise.all([
+      consumerApi.memberPoints(),
+      consumerApi.memberPointsLog(100)
+    ]);
     summary.value = s;
     logs.value = list;
   } catch (e) {

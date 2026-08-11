@@ -12,10 +12,20 @@
     </view>
 
     <view v-if="loading" class="loading"><text>加载中…</text></view>
-  <empty-state v-else-if="loadError" icon="/static/menu/warning.png" title="优惠券加载失败" :hint="loadError">
+    <empty-state
+      v-else-if="loadError"
+      icon="/static/menu/warning.png"
+      title="优惠券加载失败"
+      :hint="loadError"
+    >
       <button class="empty-btn primary" @click="load">重试</button>
     </empty-state>
-  <empty-state v-else-if="!list.length" icon="/static/menu/coupons.png" :title="emptyTitle" :hint="emptyHint">
+    <empty-state
+      v-else-if="!list.length"
+      icon="/static/menu/coupons.png"
+      :title="emptyTitle"
+      :hint="emptyHint"
+    >
       <button class="empty-btn primary" @click="goShop">去扫码购物</button>
       <button class="empty-btn ghost" @click="goMarketing">看热门活动</button>
     </empty-state>

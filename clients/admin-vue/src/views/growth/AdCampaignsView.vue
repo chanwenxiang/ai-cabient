@@ -10,7 +10,7 @@
         </div>
         <div class="page-card-head__actions">
           <el-button v-hasPermi="['ops:ad:edit']" type="primary" @click="openCreate">
-           新建投放
+            新建投放
           </el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
@@ -40,7 +40,7 @@
       </el-table-column>
       <el-table-column label="操作" width="220" align="center">
         <template #default="{ row }">
-            <el-button v-hasPermi="['ops:ad:edit']" size="small" @click="openEdit(row)"
+          <el-button v-hasPermi="['ops:ad:edit']" size="small" @click="openEdit(row)"
             >编辑</el-button
           >
           <el-button
@@ -148,7 +148,8 @@ onMounted(async () => {
 async function load() {
   loading.value = true;
   try {
-    rows.value = (await api.request<AdCampaignDto[]>('/api/v2/ops/admin/ad/campaigns', 'GET')) || [];
+    rows.value =
+      (await api.request<AdCampaignDto[]>('/api/v2/ops/admin/ad/campaigns', 'GET')) || [];
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
   } finally {
@@ -257,7 +258,10 @@ function statusLabel(s: string) {
 }
 
 function statusType(s: string) {
-  return ({ DRAFT: 'info', RUNNING: 'success', STOPPED: 'warning' } as Record<string, string>)[s] || 'info';
+  return (
+    ({ DRAFT: 'info', RUNNING: 'success', STOPPED: 'warning' } as Record<string, string>)[s] ||
+    'info'
+  );
 }
 
 function typeLabel(t: string) {
@@ -266,7 +270,8 @@ function typeLabel(t: string) {
 
 function formatRange(row: AdCampaignDto) {
   if (!row.startAt && !row.endAt) return '不限';
-  const f = (iso?: string) => (iso ? new Date(iso).toLocaleString('zh-CN', { hour12: false }) : '—');
+  const f = (iso?: string) =>
+    iso ? new Date(iso).toLocaleString('zh-CN', { hour12: false }) : '—';
   return `${f(row.startAt)} ~ ${f(row.endAt)}`;
 }
 </script>

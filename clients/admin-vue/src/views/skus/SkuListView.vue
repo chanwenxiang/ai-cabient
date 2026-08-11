@@ -738,7 +738,10 @@ function openPrintLabels(ids: Array<string | number>) {
     ElMessage.warning('请先选择要打印标签的商品');
     return;
   }
-  const url = router.resolve({ name: 'print', query: { type: 'labels', ids: list.join(',') } }).href;
+  const url = router.resolve({
+    name: 'print',
+    query: { type: 'labels', ids: list.join(',') }
+  }).href;
   window.open(url, '_blank');
 }
 function printSelectedLabels() {

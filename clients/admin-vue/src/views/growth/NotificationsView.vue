@@ -38,7 +38,13 @@
       <el-table-column prop="title" label="标题" min-width="150" align="center" />
       <el-table-column prop="body" label="内容" min-width="240" show-overflow-tooltip />
       <el-table-column prop="bizType" label="业务" width="110" align="center" />
-      <el-table-column prop="bizId" label="关联单号" width="150" align="center" class-name="col-text" />
+      <el-table-column
+        prop="bizId"
+        label="关联单号"
+        width="150"
+        align="center"
+        class-name="col-text"
+      />
     </el-table>
   </el-card>
 </template>

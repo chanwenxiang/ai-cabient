@@ -27,11 +27,18 @@
       class="report-table"
     >
       <template #empty><el-empty v-if="!loading" description="暂无等级规则" /></template>
-      <el-table-column prop="levelCode" label="等级编码" width="120" align="center" class-name="col-text" />
+      <el-table-column
+        prop="levelCode"
+        label="等级编码"
+        width="120"
+        align="center"
+        class-name="col-text"
+      />
       <el-table-column prop="levelName" label="等级名称" min-width="120" align="center" />
       <el-table-column label="累计消费区间(元)" width="180" align="center">
         <template #default="{ row }"
-          >{{ yuan(row.minSpent) }} ~ {{ row.maxSpent != null ? yuan(row.maxSpent) : '+' }}</template
+          >{{ yuan(row.minSpent) }} ~
+          {{ row.maxSpent != null ? yuan(row.maxSpent) : '+' }}</template
         >
       </el-table-column>
       <el-table-column label="累计积分区间" width="150" align="center">
@@ -64,10 +71,20 @@
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="dialogVisible" :title="editing ? '编辑等级' : '新建等级'" width="520px" destroy-on-close>
+    <el-dialog
+      v-model="dialogVisible"
+      :title="editing ? '编辑等级' : '新建等级'"
+      width="520px"
+      destroy-on-close
+    >
       <el-form :model="form" label-width="130px">
         <el-form-item label="等级编码" required>
-          <el-input v-model="form.levelCode" :disabled="editing" placeholder="如 GOLD" style="text-transform: uppercase" />
+          <el-input
+            v-model="form.levelCode"
+            :disabled="editing"
+            placeholder="如 GOLD"
+            style="text-transform: uppercase"
+          />
         </el-form-item>
         <el-form-item label="等级名称" required>
           <el-input v-model="form.levelName" placeholder="如 金卡会员" />
@@ -76,13 +93,24 @@
           <el-input-number v-model="form.minSpent" :min="0" :precision="2" />
         </el-form-item>
         <el-form-item label="最高累计消费(元)">
-          <el-input-number v-model="form.maxSpent" :min="0" :precision="2" :controls="false" placeholder="留空表示不设上限" />
+          <el-input-number
+            v-model="form.maxSpent"
+            :min="0"
+            :precision="2"
+            :controls="false"
+            placeholder="留空表示不设上限"
+          />
         </el-form-item>
         <el-form-item label="最低累计积分">
           <el-input-number v-model="form.minPoints" :min="0" />
         </el-form-item>
         <el-form-item label="最高累计积分">
-          <el-input-number v-model="form.maxPoints" :min="0" :controls="false" placeholder="留空表示不设上限" />
+          <el-input-number
+            v-model="form.maxPoints"
+            :min="0"
+            :controls="false"
+            placeholder="留空表示不设上限"
+          />
         </el-form-item>
         <el-form-item label="积分倍率">
           <el-input-number v-model="form.pointsRate" :min="0" :precision="2" :step="0.1" />

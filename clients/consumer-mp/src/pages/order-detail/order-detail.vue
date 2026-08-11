@@ -72,7 +72,12 @@
         <button v-if="order?.deviceId" class="btn-primary" @click="reopenCabinet">
           再去本柜购物
         </button>
-        <button v-if="order?.status === 'UNPAID'" class="btn-primary" :disabled="paying" @click="payNow">
+        <button
+          v-if="order?.status === 'UNPAID'"
+          class="btn-primary"
+          :disabled="paying"
+          @click="payNow"
+        >
           {{ paying ? '支付中…' : '去支付' }}
         </button>
         <button v-if="videoUrl" class="btn-outline" @click="playVideo">查看购物视频</button>
@@ -185,7 +190,7 @@ import { onLoad, onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
 import { skuImageFor } from '@aicabinet/shared-uni/product-image';
-import {                                                          
+import {
   emptyDisplay,
   formatDateTimeMinute,
   orderStatusLabel,

@@ -12,7 +12,7 @@
           <el-radio-group v-model="days" @change="load">
             <el-radio-button :value="7">近 7 天</el-radio-button>
             <el-radio-button :value="30">近 30 天</el-radio-button>
-          <el-radio-button :value="90">近 90 天</el-radio-button>
+            <el-radio-button :value="90">近 90 天</el-radio-button>
           </el-radio-group>
           <el-button @click="onExportDormant">导出沉睡名单</el-button>
           <el-button @click="onExportRepeat">导出复购榜</el-button>
@@ -104,7 +104,12 @@
     <el-dialog v-model="recallVisible" title="沉睡用户召回" width="460px" destroy-on-close>
       <el-form label-width="100px">
         <el-form-item label="召回优惠券" required>
-          <el-select v-model="recallCouponDefId" filterable placeholder="选择要发放的优惠券" style="width: 100%">
+          <el-select
+            v-model="recallCouponDefId"
+            filterable
+            placeholder="选择要发放的优惠券"
+            style="width: 100%"
+          >
             <el-option
               v-for="c in couponDefs"
               :key="c.couponDefId"
@@ -114,12 +119,18 @@
           </el-select>
         </el-form-item>
         <el-form-item label="目标人数">
-          <span>{{ s?.dormantUsers?.length ?? 0 }} 人（近 {{ days }} 天沉睡名单，最多 1000 人）</span>
+          <span
+            >{{ s?.dormantUsers?.length ?? 0 }} 人（近 {{ days }} 天沉睡名单，最多 1000 人）</span
+          >
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="recallVisible = false">取消</el-button>
-        <el-button type="primary" :loading="recalling" :disabled="!recallCouponDefId" @click="doRecall"
+        <el-button
+          type="primary"
+          :loading="recalling"
+          :disabled="!recallCouponDefId"
+          @click="doRecall"
           >确认发放并通知</el-button
         >
       </template>
@@ -244,9 +255,7 @@ async function doRecall() {
       'POST',
       { couponDefId: recallCouponDefId.value, days: days.value }
     );
-    ElMessage.success(
-      `已向 ${result.issuedCount} 位用户发券并通知 ${result.notifiedCount} 人`
-    );
+    ElMessage.success(`已向 ${result.issuedCount} 位用户发券并通知 ${result.notifiedCount} 人`);
     recallVisible.value = false;
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '召回失败');

@@ -17,7 +17,12 @@
     <el-tabs v-model="tab">
       <el-tab-pane label="组织树" name="org">
         <div class="org-toolbar">
-          <el-button v-hasPermi="['ops:org:edit']" size="small" type="primary" @click="openNode(null)">
+          <el-button
+            v-hasPermi="['ops:org:edit']"
+            size="small"
+            type="primary"
+            @click="openNode(null)"
+          >
             新增顶级组织
           </el-button>
         </div>
@@ -34,13 +39,28 @@
                 {{ data.enabled ? '启用' : '停用' }} · {{ data.deviceIds.length }} 台
               </el-tag>
               <div class="tree-actions">
-                <el-button v-hasPermi="['ops:org:edit']" size="small" link @click.stop="openNode(data)">
+                <el-button
+                  v-hasPermi="['ops:org:edit']"
+                  size="small"
+                  link
+                  @click.stop="openNode(data)"
+                >
                   新增子级
                 </el-button>
-                <el-button v-hasPermi="['ops:org:edit']" size="small" link @click.stop="openAssign(data)">
+                <el-button
+                  v-hasPermi="['ops:org:edit']"
+                  size="small"
+                  link
+                  @click.stop="openAssign(data)"
+                >
                   分配设备
                 </el-button>
-                <el-button v-hasPermi="['ops:org:edit']" size="small" link @click.stop="toggleNode(data)">
+                <el-button
+                  v-hasPermi="['ops:org:edit']"
+                  size="small"
+                  link
+                  @click.stop="toggleNode(data)"
+                >
                   {{ data.enabled ? '停用' : '启用' }}
                 </el-button>
               </div>
@@ -51,7 +71,12 @@
 
       <el-tab-pane label="场地合同" name="contracts">
         <div class="org-toolbar">
-          <el-button v-hasPermi="['ops:org:edit']" size="small" type="primary" @click="openContract(null)">
+          <el-button
+            v-hasPermi="['ops:org:edit']"
+            size="small"
+            type="primary"
+            @click="openContract(null)"
+          >
             新增合同
           </el-button>
         </div>
@@ -84,7 +109,11 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="nodeVisible" :title="nodeForm.nodeId ? '编辑组织' : '新增组织'" width="420px">
+    <el-dialog
+      v-model="nodeVisible"
+      :title="nodeForm.nodeId ? '编辑组织' : '新增组织'"
+      width="420px"
+    >
       <el-form label-position="top">
         <el-form-item label="组织名称">
           <el-input v-model="nodeForm.name" placeholder="如：华南区 / 深圳分公司" />
@@ -103,8 +132,18 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="assignVisible" :title="`分配设备到 ${assignNode?.name || ''}`" width="480px">
-      <el-select v-model="assignDeviceIds" multiple filterable placeholder="选择柜机" style="width: 100%">
+    <el-dialog
+      v-model="assignVisible"
+      :title="`分配设备到 ${assignNode?.name || ''}`"
+      width="480px"
+    >
+      <el-select
+        v-model="assignDeviceIds"
+        multiple
+        filterable
+        placeholder="选择柜机"
+        style="width: 100%"
+      >
         <el-option
           v-for="d in deviceOptions"
           :key="d.deviceId"
@@ -118,7 +157,11 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="contractVisible" :title="contractForm.contractId ? '编辑合同' : '新增合同'" width="520px">
+    <el-dialog
+      v-model="contractVisible"
+      :title="contractForm.contractId ? '编辑合同' : '新增合同'"
+      width="520px"
+    >
       <el-form label-position="top">
         <el-form-item label="柜机">
           <el-select
@@ -152,14 +195,29 @@
         </div>
         <div class="form-grid">
           <el-form-item label="合同开始">
-            <el-date-picker v-model="contractForm.startDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+            <el-date-picker
+              v-model="contractForm.startDate"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
           </el-form-item>
           <el-form-item label="合同到期">
-            <el-date-picker v-model="contractForm.endDate" type="date" value-format="YYYY-MM-DD" style="width: 100%" />
+            <el-date-picker
+              v-model="contractForm.endDate"
+              type="date"
+              value-format="YYYY-MM-DD"
+              style="width: 100%"
+            />
           </el-form-item>
         </div>
         <el-form-item label="月费(元)">
-          <el-input-number v-model="contractForm.monthlyFeeYuan" :min="0" :step="10" style="width: 100%" />
+          <el-input-number
+            v-model="contractForm.monthlyFeeYuan"
+            :min="0"
+            :step="10"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="contractForm.remark" type="textarea" :rows="2" />
@@ -188,7 +246,12 @@ const orgTree = ref<OrgNodeDto[]>([]);
 const contracts = ref<SiteContractDto[]>([]);
 const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
 const nodeVisible = ref(false);
-const nodeForm = ref<{ nodeId: number | null; name: string; nodeType: string; parentId: number | null }>({
+const nodeForm = ref<{
+  nodeId: number | null;
+  name: string;
+  nodeType: string;
+  parentId: number | null;
+}>({
   nodeId: null,
   name: '',
   nodeType: 'BRANCH',
@@ -290,7 +353,10 @@ async function saveNode() {
 
 async function toggleNode(node: OrgNodeDto) {
   try {
-    await api.request(`/api/v2/ops/admin/org/nodes/${node.nodeId}/toggle?enabled=${!node.enabled}`, 'POST');
+    await api.request(
+      `/api/v2/ops/admin/org/nodes/${node.nodeId}/toggle?enabled=${!node.enabled}`,
+      'POST'
+    );
     await loadAll();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败');
@@ -372,7 +438,10 @@ function contractStatusLabel(s: string) {
 }
 
 function contractStatusType(s: string) {
-  return ({ ACTIVE: 'success', EXPIRING: 'warning', EXPIRED: 'danger' } as Record<string, string>)[s] || 'info';
+  return (
+    ({ ACTIVE: 'success', EXPIRING: 'warning', EXPIRED: 'danger' } as Record<string, string>)[s] ||
+    'info'
+  );
 }
 </script>
 

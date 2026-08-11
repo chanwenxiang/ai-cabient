@@ -63,7 +63,8 @@
         >
         <div v-else class="enroll-box">
           <p class="meta">
-            1. 打开身份验证器 App（Google Authenticator / Microsoft Authenticator 等），扫码或手动输入密钥：
+            1. 打开身份验证器 App（Google Authenticator / Microsoft Authenticator
+            等），扫码或手动输入密钥：
           </p>
           <el-input :model-value="enrollData.secret" readonly class="secret-input">
             <template #append>
@@ -84,7 +85,9 @@
               >确认绑定</el-button
             >
           </div>
-          <p class="meta warn">请立即保存以下 8 个后备码（仅显示一次），丢失后只能联系管理员重置：</p>
+          <p class="meta warn">
+            请立即保存以下 8 个后备码（仅显示一次），丢失后只能联系管理员重置：
+          </p>
           <div class="recovery-codes">
             <el-tag v-for="c in enrollData.recoveryCodes" :key="c" size="small">{{ c }}</el-tag>
           </div>

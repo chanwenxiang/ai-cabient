@@ -336,7 +336,9 @@
           <el-empty v-if="ledgerHydrated" description="暂无流水" :image-size="64" />
         </template>
         <el-table-column label="类型" width="130" align="center">
-          <template #default="{ row }">{{ dictLabel('wallet_entry_type', row.entryType) || row.entryType || '未知' }}</template>
+          <template #default="{ row }">{{
+            dictLabel('wallet_entry_type', row.entryType) || row.entryType || '未知'
+          }}</template>
         </el-table-column>
         <el-table-column label="变动(元)" width="100" align="center">
           <template #default="{ row }">{{ yuan(row.amountCents) }}</template>
@@ -457,7 +459,6 @@ function yuan(cents?: number) {
 function withdrawStatusLabel(s?: string) {
   return dictLabel('line_withdraw_status', s) || s || '未知状态';
 }
-
 
 async function loadManagers() {
   managersLoading.value = true;
