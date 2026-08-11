@@ -19,61 +19,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
+import { useAnnouncementDetail } from '@aicabinet/shared-uni/announcements';
 import { merchantApi } from '@/utils/merchant-api';
-import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
-import { markAnnouncementRead } from '@aicabinet/shared-uni/announcement-read';
-import type { AnnouncementDto } from '@aicabinet/shared-types';
 
-const loading = ref(true);
-const error = ref('');
-const item = ref<AnnouncementDto | null>(null);
-let announceId = 0;
+const { loading, error, item, load, formatTime, priorityLabel, priorityClass } =
+  useAnnouncementDetail((id) => merchantApi.getAnnouncement(id));
 
 onLoad((query) => {
-  announceId = Number(query?.id || 0);
+  const announceId = Number(query?.id || 0);
   if (!uni.getStorageSync('merchant_token')) {
     uni.reLaunch({ url: '/pages/login/login' });
     return;
   }
-  void load();
+  load(announceId);
 });
-
-async function load() {
-  if (!announceId) {
-    loading.value = false;
-    error.value = '公告不存在';
-    return;
-  }
-  loading.value = true;
-  error.value = '';
-  try {
-    item.value = await merchantApi.getAnnouncement(announceId);
-    markAnnouncementRead(item.value?.announceId);
-  } catch (e) {
-    item.value = null;
-    error.value = e instanceof Error ? e.message : '加载失败';
-  } finally {
-    loading.value = false;
-  }
-}
-
-function formatTime(t?: string) {
-  return formatDateTimeMinute(t, '暂无');
-}
-
-function priorityLabel(p?: string) {
-  if (p === 'URGENT') return '紧急';
-  if (p === 'HIGH') return '重要';
-  return '';
-}
-
-function priorityClass(p?: string) {
-  if (p === 'URGENT') return 'urgent';
-  if (p === 'HIGH') return 'high';
-  return '';
-}
 </script>
 
 <style scoped>
