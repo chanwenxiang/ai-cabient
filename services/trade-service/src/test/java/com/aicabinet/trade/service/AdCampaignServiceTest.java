@@ -107,7 +107,6 @@ class AdCampaignServiceTest {
 
     @Test
     void screenContent_shouldIgnoreStoppedOrInactiveAssets() {
-        AdCampaign stopped = campaign(3L, "STOPPED", "ALL");
         when(campaignRepository.findRunningInWindow(any())).thenReturn(List.of());
         ScreenContentDto out = service.screenContent("CAB-001");
         assertTrue(out.items().isEmpty());

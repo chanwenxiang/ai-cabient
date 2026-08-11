@@ -111,7 +111,7 @@ public class OpsTwoFactorService {
     @Transactional
     public LoginResponse verifyRecovery(String challengeToken, String recoveryCode) {
         Long userId = jwtService.validateChallengeToken(challengeToken);
-        UserInfo user = requireOperatorUser(userId);
+        requireOperatorUser(userId);
         String hash = hashRecoveryCode(userId, normalizeRecoveryCode(recoveryCode));
         OpsTwoFactorRecoveryCode row = recoveryRepository.findByUserId(userId).stream()
                 .filter(r -> !r.isUsed() && constantTimeEquals(r.getCodeHash(), hash))

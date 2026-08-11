@@ -8,7 +8,6 @@ import com.aicabinet.common.dto.LoginRequest;
 import com.aicabinet.common.dto.LoginResponse;
 import com.aicabinet.common.dto.PasswordLoginRequest;
 import com.aicabinet.common.dto.RecoveryTwoFactorRequest;
-import com.aicabinet.common.dto.TwoFactorEnrollDto;
 import com.aicabinet.common.dto.VerifyTwoFactorRequest;
 import com.aicabinet.common.dto.WxLoginRequest;
 import com.aicabinet.trade.auth.JwtService;
