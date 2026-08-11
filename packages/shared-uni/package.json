@@ -6,6 +6,7 @@
   "exports": {
     "./qrcode": "./src/qrcode.ts",
     "./format": "./src/format.ts",
+    "./request": "./src/request.ts",
     "./product-image": "./src/product-image.ts",
     "./session-labels": "./src/session-labels.ts",
     "./theme.css": "./src/theme.css"

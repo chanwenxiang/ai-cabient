@@ -2,6 +2,7 @@ import { API_BASE_URL } from '@/config/api';
 import { clearDictOverrides, displayLabel } from '@aicabinet/shared-dict';
 import { matchPermission } from '@aicabinet/shared-rbac';
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
+import { mpRequest, type MpApiSession } from '@aicabinet/shared-uni/request';
 
 export type MerchantReplenishmentSuggest = {
   deviceId?: string;
@@ -128,38 +129,17 @@ export function getToken() {
   return uni.getStorageSync('merchant_token') || '';
 }
 
-let refreshInFlight: Promise<boolean> | null = null;
-
-/** 401 时静默刷新 token（单飞）；刷新失败才走 handleUnauthorized */
-async function refreshTokenSilently(): Promise<boolean> {
-  if (!getToken()) return false;
-  if (refreshInFlight) return refreshInFlight;
-  const pending = new Promise<boolean>((resolve, reject) => {
-    uni.request({
-      url: API_BASE_URL + '/api/v2/auth/refresh',
-      method: 'POST',
-      header: { Authorization: 'Bearer ' + getToken(), 'Content-Type': 'application/json' },
-      timeout: 20_000,
-      success(res) {
-        const body = res.data as { code?: number; data?: { token: string; userId?: string } };
-        if (res.statusCode === 200 && body?.code === 0 && body.data?.token) {
-          uni.setStorageSync('merchant_token', body.data.token);
-          if (body.data.userId) uni.setStorageSync('merchant_user_id', body.data.userId);
-          resolve(true);
-          return;
-        }
-        reject(new Error('登录已失效'));
-      },
-      fail() {
-        reject(new Error('网络错误'));
-      }
-    });
-  }).finally(() => {
-    refreshInFlight = null;
-  });
-  refreshInFlight = pending;
-  return pending;
-}
+const mpApiSession: MpApiSession = {
+  baseUrl: API_BASE_URL,
+  timeoutMs: 20_000,
+  getToken,
+  clearSession,
+  applyRefreshedToken: (data) => {
+    uni.setStorageSync('merchant_token', data.token);
+    if (data.userId) uni.setStorageSync('merchant_user_id', data.userId);
+  },
+  handleUnauthorized
+};
 
 export function clearSession() {
   uni.removeStorageSync('merchant_token');
@@ -249,50 +229,14 @@ export function request<T>(
   auth = true,
   retried = false
 ): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const header: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (auth && getToken()) header.Authorization = 'Bearer ' + getToken();
-    uni.request({
-      url: API_BASE_URL + path,
-      method: method as UniApp.RequestOptions['method'],
-      data: data as UniApp.RequestOptions['data'],
-      header,
-      timeout: 20_000,
-      success(res) {
-        const body = res.data as { code?: number; message?: string; data?: T };
-        if (res.statusCode === 401) {
-          if (auth && !retried) {
-            refreshTokenSilently()
-              .then(() => request<T>(path, method, data, auth, true).then(resolve, reject))
-              .catch(() => reject(handleUnauthorized(body?.message)));
-            return;
-          }
-          reject(handleUnauthorized(body?.message));
-          return;
-        }
-        if (res.statusCode === 403) {
-          reject(new Error(localizeApiMessage(body?.message, '权限不足')));
-          return;
-        }
-        if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0) {
-          resolve(body.data as T);
-          return;
-        }
-        reject(new Error(localizeApiMessage(body?.message, `请求失败 (${res.statusCode})`)));
-      },
-      fail(err) {
-        const msg = String(err?.errMsg || '');
-        reject(
-          new Error(
-            localizeApiMessage(
-              msg,
-              msg.includes('timeout') ? '请求超时，请稍后重试' : '网络错误，请稍后重试'
-            )
-          )
-        );
-      }
-    });
-  });
+  return mpRequest<T>(
+    mpApiSession,
+    path,
+    method as UniApp.RequestOptions['method'],
+    data,
+    auth,
+    retried
+  );
 }
 
 export function merchantLogin(phone: string, password: string) {
