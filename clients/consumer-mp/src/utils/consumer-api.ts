@@ -1,26 +1,19 @@
 import type { LoginResponse } from '@aicabinet/shared-types';
 import { clearDictOverrides } from '@aicabinet/shared-dict';
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
+import {
+  formatMpRequestError,
+  mpRequest,
+  refreshTokenSilently as sharedRefreshToken,
+  type MpApiSession
+} from '@aicabinet/shared-uni/request';
 import { API_BASE_URL } from '@/config/api';
 import { isDevBuild } from '@/utils/runtime-flags';
 
 const BASE_URL = API_BASE_URL;
 
 function formatRequestError(errMsg: string | undefined, path: string) {
-  const raw = errMsg || '网络错误';
-  if (raw === 'request:fail' || raw.includes('request:fail')) {
-    // #ifdef H5
-    return isDevBuild
-      ? `网络不太稳定（${path}），请确认本机服务已启动后重试`
-      : '网络不太稳定，请稍后再试';
-    // #endif
-    // #ifndef H5
-    return isDevBuild
-      ? '网络不太稳定，请稍后再试。开发调试时可在微信开发者工具勾选「不校验合法域名」'
-      : '网络不太稳定，请稍后再试';
-    // #endif
-  }
-  return localizeApiMessage(raw);
+  return formatMpRequestError(errMsg, path, isDevBuild);
 }
 const TOKEN_KEY = 'consumer_token';
 const USER_KEY = 'consumer_user_id';
@@ -28,7 +21,18 @@ const EXPIRES_KEY = 'consumer_token_expires';
 const OPEN_ATTEMPT_KEY = 'consumer_open_attempt';
 const REQUEST_TIMEOUT_MS = 12_000;
 
-let refreshInFlight: Promise<boolean> | null = null;
+const mpApiSession: MpApiSession = {
+  baseUrl: BASE_URL,
+  isDevBuild,
+  timeoutMs: REQUEST_TIMEOUT_MS,
+  getToken: getConsumerToken,
+  clearSession: clearConsumerSession,
+  applyRefreshedToken: (data) => applyTokenSession(data as LoginResponse),
+  handleUnauthorized: (message) => {
+    clearConsumerSession();
+    return new Error(localizeApiMessage(message, '登录已失效'));
+  }
+};
 
 export function getConsumerToken() {
   return uni.getStorageSync(TOKEN_KEY) || '';
@@ -79,31 +83,7 @@ function applyTokenSession(data: LoginResponse) {
 }
 
 async function refreshTokenSilently(): Promise<boolean> {
-  if (!getConsumerToken()) return false;
-  if (refreshInFlight) return refreshInFlight;
-  const pending = new Promise<boolean>((resolve, reject) => {
-    uni.request({
-      url: BASE_URL + '/api/v2/auth/refresh',
-      method: 'POST',
-      header: { Authorization: 'Bearer ' + getConsumerToken(), 'Content-Type': 'application/json' },
-      success(res) {
-        const body = res.data as { code?: number; data?: LoginResponse };
-        if (res.statusCode === 200 && body?.code === 0 && body.data) {
-          applyTokenSession(body.data);
-          resolve(true);
-          return;
-        }
-        reject(new Error('登录已失效'));
-      },
-      fail(err) {
-        reject(new Error(formatRequestError(err.errMsg, '/api/v2/auth/refresh')));
-      }
-    });
-  }).finally(() => {
-    refreshInFlight = null;
-  });
-  refreshInFlight = pending;
-  return pending;
+  return sharedRefreshToken(mpApiSession);
 }
 
 /** Thin wrappers for pages that expect `{ data }` like axios-style clients. */
@@ -122,53 +102,7 @@ export function request<T>(
   auth = true,
   retried = false
 ): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const header: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (auth && getConsumerToken()) header.Authorization = 'Bearer ' + getConsumerToken();
-    uni.request({
-      url: BASE_URL + path,
-      method,
-      data: data as UniApp.RequestOptions['data'],
-      header,
-      timeout: REQUEST_TIMEOUT_MS,
-      async success(res) {
-        const body = res.data as { code?: number; message?: string; data?: T };
-        if (res.statusCode === 401 && auth && !retried) {
-          try {
-            await refreshTokenSilently();
-            resolve(await request(path, method, data, auth, true));
-          } catch (e) {
-            clearConsumerSession();
-            reject(e);
-          }
-          return;
-        }
-        if (res.statusCode === 401) {
-          clearConsumerSession();
-          reject(new Error(localizeApiMessage(body?.message, '登录已失效')));
-          return;
-        }
-        if (res.statusCode === 403) {
-          reject(new Error(localizeApiMessage(body?.message, '权限不足')));
-          return;
-        }
-        if (res.statusCode >= 200 && res.statusCode < 300 && body?.code === 0) {
-          resolve(body.data as T);
-          return;
-        }
-        const err = new Error(
-          localizeApiMessage(body?.message, `请求失败 (${res.statusCode})`)
-        ) as Error & {
-          status?: number;
-        };
-        err.status = res.statusCode;
-        reject(err);
-      },
-      fail(err) {
-        reject(new Error(formatRequestError(err.errMsg, path)));
-      }
-    });
-  });
+  return mpRequest<T>(mpApiSession, path, method, data, auth, retried);
 }
 
 export function uploadDisputeEvidenceFile(
