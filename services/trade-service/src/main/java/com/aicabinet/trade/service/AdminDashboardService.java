@@ -14,7 +14,6 @@ import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.SkuCatalog;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
-import com.aicabinet.trade.domain.UserBlacklist;
 import com.aicabinet.trade.mapper.*;
 import com.aicabinet.trade.storage.MinioVideoService;
 import com.aicabinet.trade.support.ApiMessages;
@@ -1628,10 +1627,6 @@ public class AdminDashboardService {
         return value;
     }
 
-    private Page<ShoppingSession> querySessions(Long operatorId, String deviceId, SessionState state, Pageable pageable) {
-        return querySessions(operatorId, deviceId, state, null, null, null, null, null, pageable);
-    }
-
     private Page<ShoppingSession> querySessions(
             Long operatorId,
             String deviceId,
@@ -1658,12 +1653,6 @@ public class AdminDashboardService {
                 to,
                 blankToNull(keyword),
                 pageable);
-    }
-
-    private Page<CabinetOrder> queryOrders(
-            Long operatorId, String deviceId, String status, Pageable pageable) {
-        return queryOrders(operatorId, deviceId, status, null, null, null,
-                null, null, null, null, null, null, pageable);
     }
 
     private Page<CabinetOrder> queryOrders(

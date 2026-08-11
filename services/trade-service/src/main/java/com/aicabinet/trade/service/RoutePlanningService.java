@@ -14,7 +14,6 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,8 +32,6 @@ public class RoutePlanningService {
 
     private static final double DEFAULT_START_LAT = 31.2304;
     private static final double DEFAULT_START_LNG = 121.4737;
-    private static final String GAODE_DISTANCE_URL =
-            "https://restapi.amap.com/v3/distance";
 
     private final DeviceInfoMapper deviceRepository;
     private final RoutePlanningProperties routeProperties;

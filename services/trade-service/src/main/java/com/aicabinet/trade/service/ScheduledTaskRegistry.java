@@ -2,7 +2,6 @@ package com.aicabinet.trade.service;
 
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.LinkedHashMap;
@@ -46,9 +45,6 @@ public class ScheduledTaskRegistry {
                                  CouponExpiryReminderScheduler couponExpiryReminderScheduler,
                                  GrowthLogArchiveScheduler growthLogArchiveScheduler,
                                  SkuReviewScheduler skuReviewScheduler) {
-        ZoneId zone = ZoneId.of("Asia/Shanghai");
-        LocalDate yesterday = LocalDate.now(zone).minusDays(1);
-
         register("device-presence", "设备离线巡检", "DEVICE", "每 60 秒", 600, false,
                 devicePresenceService::markStaleDevicesOffline);
         register("session-opening-expire", "开门超时会话清理", "TRADE", "每 30 秒", 600, false,

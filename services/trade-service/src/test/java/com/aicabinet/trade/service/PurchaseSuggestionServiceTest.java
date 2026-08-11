@@ -49,8 +49,8 @@ class PurchaseSuggestionServiceTest {
     @Test
     void suggest_shouldComputeQtyFromVelocityMinusOnHandAndPending() {
         when(orderLineRepository.sumSoldQtyAllSince(any()))
-                .thenReturn(rows(new Object[]{"SKU-A", 14}, new Object[]{"SKU-B", 0}),
-                        rows(new Object[]{"SKU-A", 20}, new Object[]{"SKU-B", 2}));
+                .thenReturn(rows(new Object[]{"SKU-A", 14}, new Object[]{"SKU-B", 0}))
+                .thenReturn(rows(new Object[]{"SKU-A", 20}, new Object[]{"SKU-B", 2}));
         when(warehouseInventoryRepository.sumQtyBySku(any()))
                 .thenReturn(rows(new Object[]{"SKU-A", 5}));
         when(purchaseOrderLineRepository.pendingQtyBySku(any()))
@@ -80,8 +80,8 @@ class PurchaseSuggestionServiceTest {
     @Test
     void suggest_shouldSkipSkuWithoutRecentSales() {
         when(orderLineRepository.sumSoldQtyAllSince(any()))
-                .thenReturn(rows(new Object[]{"SKU-A", 7}),
-                        rows());
+                .thenReturn(rows(new Object[]{"SKU-A", 7}))
+                .thenReturn(rows());
         when(warehouseInventoryRepository.sumQtyBySku(any())).thenReturn(rows());
         when(purchaseOrderLineRepository.pendingQtyBySku(any())).thenReturn(rows());
         when(skuCatalogRepository.findAllByOrderBySkuIdAsc())
@@ -96,8 +96,8 @@ class PurchaseSuggestionServiceTest {
     @Test
     void suggest_shouldSkipWhenStockCoversDemand() {
         when(orderLineRepository.sumSoldQtyAllSince(any()))
-                .thenReturn(rows(new Object[]{"SKU-A", 7}),
-                        rows(new Object[]{"SKU-A", 14}));
+                .thenReturn(rows(new Object[]{"SKU-A", 7}))
+                .thenReturn(rows(new Object[]{"SKU-A", 14}));
         when(warehouseInventoryRepository.sumQtyBySku(any()))
                 .thenReturn(rows(new Object[]{"SKU-A", 100}));
         when(purchaseOrderLineRepository.pendingQtyBySku(any())).thenReturn(rows());
@@ -112,8 +112,8 @@ class PurchaseSuggestionServiceTest {
     @Test
     void suggest_shouldFilterByWarehouseWhenProvided() {
         when(orderLineRepository.sumSoldQtyAllSince(any()))
-                .thenReturn(rows(new Object[]{"SKU-A", 7}),
-                        rows(new Object[]{"SKU-A", 14}));
+                .thenReturn(rows(new Object[]{"SKU-A", 7}))
+                .thenReturn(rows(new Object[]{"SKU-A", 14}));
         when(warehouseInventoryRepository.sumQtyBySku(eq("WH-001"))).thenReturn(rows());
         when(purchaseOrderLineRepository.pendingQtyBySku(eq("WH-001"))).thenReturn(rows());
         when(skuCatalogRepository.findAllByOrderBySkuIdAsc())
@@ -132,8 +132,8 @@ class PurchaseSuggestionServiceTest {
             series[i] = i; // 0..27，近 7 日 21..27 共 168
         }
         when(orderLineRepository.sumSoldQtyAllSince(any()))
-                .thenReturn(rows(new Object[]{"SKU-A", 168}),
-                        rows(new Object[]{"SKU-A", 287}));
+                .thenReturn(rows(new Object[]{"SKU-A", 168}))
+                .thenReturn(rows(new Object[]{"SKU-A", 287}));
         when(orderLineRepository.soldQtyDailySince(any()))
                 .thenReturn(dailyRows("SKU-A", series));
         when(warehouseInventoryRepository.sumQtyBySku(any())).thenReturn(rows());
@@ -162,8 +162,8 @@ class PurchaseSuggestionServiceTest {
             series[i] = 27 - i; // 27..0，近 7 日 6..0 共 21，近 14 日共 91
         }
         when(orderLineRepository.sumSoldQtyAllSince(any()))
-                .thenReturn(rows(new Object[]{"SKU-A", 21}),
-                        rows(new Object[]{"SKU-A", 91}));
+                .thenReturn(rows(new Object[]{"SKU-A", 21}))
+                .thenReturn(rows(new Object[]{"SKU-A", 91}));
         when(orderLineRepository.soldQtyDailySince(any()))
                 .thenReturn(dailyRows("SKU-A", series));
         when(warehouseInventoryRepository.sumQtyBySku(any())).thenReturn(rows());
@@ -188,8 +188,8 @@ class PurchaseSuggestionServiceTest {
         int[] series = new int[28];
         java.util.Arrays.fill(series, 3);
         when(orderLineRepository.sumSoldQtyAllSince(any()))
-                .thenReturn(rows(new Object[]{"SKU-A", 21}),
-                        rows(new Object[]{"SKU-A", 42}));
+                .thenReturn(rows(new Object[]{"SKU-A", 21}))
+                .thenReturn(rows(new Object[]{"SKU-A", 42}));
         when(orderLineRepository.soldQtyDailySince(any()))
                 .thenReturn(dailyRows("SKU-A", series));
         when(warehouseInventoryRepository.sumQtyBySku(any())).thenReturn(rows());
