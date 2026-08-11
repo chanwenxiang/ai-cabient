@@ -38,67 +38,26 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
+import { useAnnouncementsList } from '@aicabinet/shared-uni/announcements';
 import { consumerApi } from '@/utils/consumer-api';
-import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
-import { announcementReadMap } from '@aicabinet/shared-uni/announcement-read';
-import type { AnnouncementDto } from '@aicabinet/shared-types';
 
-const loading = ref(true);
-const error = ref('');
-const list = ref<AnnouncementDto[]>([]);
-const readMap = ref<Record<string, number>>({});
-
-function unread(id?: number) {
-  return id != null && readMap.value[String(id)] == null;
-}
+const {
+  loading,
+  error,
+  list,
+  unread,
+  load,
+  goDetail,
+  formatTime,
+  previewText,
+  priorityLabel,
+  priorityClass
+} = useAnnouncementsList(() => consumerApi.listAnnouncements(), { previewMax: 72 });
 
 onShow(() => {
   void load();
 });
-
-async function load() {
-  loading.value = true;
-  error.value = '';
-  try {
-    list.value = (await consumerApi.listAnnouncements()) || [];
-    readMap.value = announcementReadMap();
-  } catch (e) {
-    list.value = [];
-    error.value = e instanceof Error ? e.message : '加载失败';
-  } finally {
-    loading.value = false;
-  }
-}
-
-function goDetail(id?: number) {
-  if (!id) return;
-  uni.navigateTo({ url: `/pages/announcements/detail?id=${id}` });
-}
-
-function formatTime(t?: string) {
-  return formatDateTimeMinute(t, '');
-}
-
-function previewText(content?: string) {
-  const text = String(content || '')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return text.length > 72 ? `${text.slice(0, 72)}…` : text;
-}
-
-function priorityLabel(p?: string) {
-  if (p === 'URGENT') return '紧急';
-  if (p === 'HIGH') return '重要';
-  return '';
-}
-
-function priorityClass(p?: string) {
-  if (p === 'URGENT') return 'urgent';
-  if (p === 'HIGH') return 'high';
-  return '';
-}
 </script>
 
 <style scoped>
