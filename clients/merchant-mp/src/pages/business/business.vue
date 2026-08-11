@@ -69,12 +69,15 @@
         <text class="insight-text">{{ aiInsight.insight }}</text>
         <view v-for="p in aiInsight.skuPerformance || []" :key="p.skuId" class="insight-sku">
           <text class="sku-name">{{ p.skuName }}</text>
-          <text class="meta"
-            >{{ p.performanceLevel || '—' }} · {{ p.recommendation || '' }}</text
-          >
+          <text class="meta">{{ p.performanceLevel || '—' }} · {{ p.recommendation || '' }}</text>
         </view>
       </view>
-      <view v-if="expirySummary && (expirySummary.openPullOffTasks > 0 || expirySummary.writeOffQty30d > 0)" class="card">
+      <view
+        v-if="
+          expirySummary && (expirySummary.openPullOffTasks > 0 || expirySummary.writeOffQty30d > 0)
+        "
+        class="card"
+      >
         <view class="section-head"
           ><text class="section-title">临期摘要</text
           ><text class="section-sub">近 30 天</text></view
@@ -89,7 +92,8 @@
             ><text class="expiry-l">报损件数</text></view
           >
           <view class="expiry-cell"
-            ><text class="expiry-n">¥{{ (expirySummary.writeOffCostCents30d / 100).toFixed(0) }}</text
+            ><text class="expiry-n"
+              >¥{{ (expirySummary.writeOffCostCents30d / 100).toFixed(0) }}</text
             ><text class="expiry-l">报损成本</text></view
           >
         </view>

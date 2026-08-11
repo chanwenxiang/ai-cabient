@@ -19,7 +19,9 @@
             <p>出库单 #{{ outbound.outboundId }} · {{ printTime }}</p>
           </div>
           <div class="sheet-meta">
-            <p>仓库：{{ nameOf(warehouses, 'warehouseId', 'warehouseName', outbound.warehouseId) }}</p>
+            <p>
+              仓库：{{ nameOf(warehouses, 'warehouseId', 'warehouseName', outbound.warehouseId) }}
+            </p>
             <p>路线：{{ outbound.routeId || '—' }}</p>
             <p>状态：{{ outbound.status }}</p>
           </div>
@@ -57,8 +59,14 @@
             <p>采购单 #{{ purchase.purchaseOrderId }} · {{ printTime }}</p>
           </div>
           <div class="sheet-meta">
-            <p>供应商：{{ nameOf(suppliers, 'supplierId', 'supplierName', purchase.supplierId) }}</p>
-            <p>入库仓库：{{ nameOf(warehouses, 'warehouseId', 'warehouseName', purchase.warehouseId) }}</p>
+            <p>
+              供应商：{{ nameOf(suppliers, 'supplierId', 'supplierName', purchase.supplierId) }}
+            </p>
+            <p>
+              入库仓库：{{
+                nameOf(warehouses, 'warehouseId', 'warehouseName', purchase.warehouseId)
+              }}
+            </p>
             <p v-if="purchase.refNo">外部单号：{{ purchase.refNo }}</p>
             <p>状态：{{ purchase.status }}</p>
           </div>

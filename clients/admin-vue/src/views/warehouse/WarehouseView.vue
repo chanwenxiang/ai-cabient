@@ -204,12 +204,7 @@
           style="width: 160px"
           @change="onBinFilter"
         >
-          <el-option
-            v-for="b in bins"
-            :key="b.binId"
-            :label="b.binCode"
-            :value="b.binId"
-          />
+          <el-option v-for="b in bins" :key="b.binId" :label="b.binCode" :value="b.binId" />
         </el-select>
       </el-form-item>
       <el-form-item v-if="tab === 'outbounds'" label="状态">
@@ -559,7 +554,12 @@
                 <template #default="{ row }">{{ skuName(row.skuId) }}</template>
               </el-table-column>
               <el-table-column label="近7日销量" prop="soldQty7d" min-width="96" align="center" />
-              <el-table-column label="近14日销量" prop="soldQty14d" min-width="104" align="center" />
+              <el-table-column
+                label="近14日销量"
+                prop="soldQty14d"
+                min-width="104"
+                align="center"
+              />
               <el-table-column label="日均销量" min-width="88" align="center">
                 <template #default="{ row }">
                   {{ Number(row.avgDailySales ?? 0).toFixed(2) }}
@@ -575,9 +575,9 @@
                   <span v-if="Number(row.trendPerDay ?? 0) > 0" class="trend-up"
                     >+{{ Number(row.trendPerDay).toFixed(2) }}</span
                   >
-                  <span v-else-if="Number(row.trendPerDay ?? 0) < 0" class="trend-down"
-                    >{{ Number(row.trendPerDay).toFixed(2) }}</span
-                  >
+                  <span v-else-if="Number(row.trendPerDay ?? 0) < 0" class="trend-down">{{
+                    Number(row.trendPerDay).toFixed(2)
+                  }}</span>
                   <span v-else>—</span>
                 </template>
               </el-table-column>
@@ -767,9 +767,7 @@
                   <el-button
                     link
                     type="primary"
-                    :disabled="
-                      row.balanceCents <= 0 || ['PAID', 'CLOSED'].includes(row.status)
-                    "
+                    :disabled="row.balanceCents <= 0 || ['PAID', 'CLOSED'].includes(row.status)"
                     data-testid="pay-payable"
                     @click="openPay(row)"
                     >登记付款</el-button
@@ -823,7 +821,12 @@
               <el-table-column label="差异件数" min-width="90" align="center">
                 <template #default="{ row }">{{ row.diffQty }}</template>
               </el-table-column>
-              <el-table-column label="差异行数" prop="diffLineCount" min-width="90" align="center" />
+              <el-table-column
+                label="差异行数"
+                prop="diffLineCount"
+                min-width="90"
+                align="center"
+              />
               <el-table-column label="创建时间" min-width="160" align="center">
                 <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
               </el-table-column>
@@ -904,7 +907,12 @@
               <template #default="{ row }">{{ row.skuName }}</template>
             </el-table-column>
             <el-table-column prop="batchNo" label="批次" min-width="130" align="center" />
-            <el-table-column prop="productionDate" label="生产日期" min-width="110" align="center" />
+            <el-table-column
+              prop="productionDate"
+              label="生产日期"
+              min-width="110"
+              align="center"
+            />
             <el-table-column prop="expiryDate" label="到期日" min-width="110" align="center" />
             <el-table-column prop="quantity" label="数量" min-width="80" align="center" />
             <template #empty
@@ -1434,9 +1442,7 @@
           >
         </template>
         <el-button
-          v-if="
-            stocktakeDetail.status === 'COMPLETED' && (stocktakeDetail.diffLineCount ?? 0) > 0
-          "
+          v-if="stocktakeDetail.status === 'COMPLETED' && (stocktakeDetail.diffLineCount ?? 0) > 0"
           type="warning"
           :loading="saving"
           @click="adjustStocktakeAction"
@@ -1538,10 +1544,7 @@
           ><el-input v-model="binInboundForm.batchNo" maxlength="64"
         /></el-form-item>
         <el-form-item label="生产日期"
-          ><input
-            v-model="binInboundForm.productionDate"
-            class="native-date"
-            type="date"
+          ><input v-model="binInboundForm.productionDate" class="native-date" type="date"
         /></el-form-item>
         <el-form-item label="到期日" required
           ><input v-model="binInboundForm.expiryDate" class="native-date" type="date"
@@ -1570,22 +1573,12 @@
             style="width: 100%"
             @change="onBinMoveSource"
           >
-            <el-option
-              v-for="b in allBins"
-              :key="b.binId"
-              :label="binLabel(b)"
-              :value="b.binId"
-            />
+            <el-option v-for="b in allBins" :key="b.binId" :label="binLabel(b)" :value="b.binId" />
           </el-select>
         </el-form-item>
         <el-form-item label="目标货位" required>
           <el-select v-model="binMoveForm.toBinId" filterable style="width: 100%">
-            <el-option
-              v-for="b in allBins"
-              :key="b.binId"
-              :label="binLabel(b)"
-              :value="b.binId"
-            />
+            <el-option v-for="b in allBins" :key="b.binId" :label="binLabel(b)" :value="b.binId" />
           </el-select>
         </el-form-item>
         <el-form-item label="商品" required>
@@ -2920,10 +2913,7 @@ async function loadStocktakes() {
   const q = stocktakeStatusFilter.value
     ? `?status=${encodeURIComponent(stocktakeStatusFilter.value)}`
     : '';
-  stocktakes.value = await api.request<Row[]>(
-    `/api/v2/ops/admin/warehouse/stocktakes${q}`,
-    'GET'
-  );
+  stocktakes.value = await api.request<Row[]>(`/api/v2/ops/admin/warehouse/stocktakes${q}`, 'GET');
 }
 async function loadBins() {
   bins.value = await api.request<Row[]>('/api/v2/ops/admin/warehouse/bins', 'GET');
@@ -3175,14 +3165,10 @@ async function savePayment() {
   if (amountCents <= 0) return ElMessage.warning('请输入付款金额');
   saving.value = true;
   try {
-    await api.request(
-      `/api/v2/ops/admin/suppliers/payables/${paymentForm.payableId}/pay`,
-      'POST',
-      {
-        amountCents,
-        notes: paymentForm.notes
-      }
-    );
+    await api.request(`/api/v2/ops/admin/suppliers/payables/${paymentForm.payableId}/pay`, 'POST', {
+      amountCents,
+      notes: paymentForm.notes
+    });
     paymentDialog.value = false;
     ElMessage.success('付款登记成功');
     loadedTabs.value.delete('payables');
@@ -3295,11 +3281,10 @@ async function saveStocktakeLines() {
       lines
         .filter((l: Row) => l.countedQty != null)
         .map((l: Row) =>
-          api.request(
-            `/api/v2/ops/admin/warehouse/stocktakes/${id}/lines/${l.lineId}`,
-            'PUT',
-            { countedQty: l.countedQty, notes: l.notes }
-          )
+          api.request(`/api/v2/ops/admin/warehouse/stocktakes/${id}/lines/${l.lineId}`, 'PUT', {
+            countedQty: l.countedQty,
+            notes: l.notes
+          })
         )
     );
     ElMessage.success('实盘数据已保存');

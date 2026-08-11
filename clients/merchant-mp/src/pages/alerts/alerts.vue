@@ -55,7 +55,7 @@
       </view>
       <empty-state
         v-if="!visibleItems.length"
-  icon="/static/menu/check-circle.png"
+        icon="/static/menu/check-circle.png"
         title="暂无待办事项"
         hint="争议、离线、低库存与临期告警都会集中显示在这里"
       >
@@ -69,7 +69,9 @@
             <text class="slot-name">{{ s.deviceName || s.deviceId }} · {{ s.slotCode }}</text>
             <text class="slot-sku">{{ s.assignedSkuName || s.assignedSkuId || '未绑定商品' }}</text>
           </view>
-          <text class="slot-diff">账 {{ s.bookQty }} / 实 {{ s.physicalQty }} · 差 {{ s.qtyDiff }}</text>
+          <text class="slot-diff"
+            >账 {{ s.bookQty }} / 实 {{ s.physicalQty }} · 差 {{ s.qtyDiff }}</text
+          >
         </view>
       </view>
     </view>

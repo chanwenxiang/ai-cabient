@@ -7,7 +7,7 @@
     </view>
     <empty-state
       v-else-if="!list.length"
-  icon="/static/menu/notice.png"
+      icon="/static/menu/notice.png"
       title="暂无平台公告"
       hint="运营发布的维护、活动与规则通知会出现在这里"
     />

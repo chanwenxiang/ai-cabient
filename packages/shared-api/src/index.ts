@@ -66,7 +66,7 @@ export class ApiClient {
         body: body != null ? JSON.stringify(body) : undefined,
         signal: controller.signal
       });
-    } catch (e) {
+    } catch {
       if (controller.signal.aborted) {
         throw new Error('请求超时，请稍后重试');
       }

@@ -77,13 +77,13 @@
           <text
             class="temp-val"
             :class="{
-              warn:
-                targetTempNum != null &&
-                Math.abs(r.tempC - targetTempNum) > 2
+              warn: targetTempNum != null && Math.abs(r.tempC - targetTempNum) > 2
             }"
             >{{ r.tempC }}°C</text
           >
-          <text class="meta">{{ i > 0 ? (r.tempC >= tempHistory[i - 1].tempC ? '↑' : '↓') : '—' }}</text>
+          <text class="meta">{{
+            i > 0 ? (r.tempC >= tempHistory[i - 1].tempC ? '↑' : '↓') : '—'
+          }}</text>
         </view>
       </view>
 
@@ -222,9 +222,9 @@ async function loadDetail() {
     formRemark.value = (settings.opsRemark as string) || '';
     const [list, temps, vel] = await Promise.all([
       merchantApi.deviceSlots(deviceId.value).catch(() => [] as DeviceSlot[]),
-      merchantApi.deviceTemperatureHistory(deviceId.value, 24).catch(
-        () => [] as DeviceTemperatureReading[]
-      ),
+      merchantApi
+        .deviceTemperatureHistory(deviceId.value, 24)
+        .catch(() => [] as DeviceTemperatureReading[]),
       merchantApi.skuVelocity(deviceId.value).catch(() => [] as MerchantSkuVelocity[])
     ]);
     if (seq !== loadSeq) return;

@@ -101,7 +101,7 @@
         <empty-state
           v-if="!daily.length"
           compact
-  icon="/static/menu/settlements.png"
+          icon="/static/menu/settlements.png"
           title="所选日期暂无结算数据"
           hint="可调整上方日期范围，或等待订单完成分账"
         />
@@ -125,7 +125,7 @@
         <empty-state
           v-if="!batches.length"
           compact
-  icon="/static/menu/orders.png"
+          icon="/static/menu/orders.png"
           title="暂无结算批次"
           hint="平台定期提交分账后，批次会显示在这里"
         />

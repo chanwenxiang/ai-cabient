@@ -91,7 +91,7 @@
     <view v-if="loading" class="empty">任务加载中…</view>
     <empty-state
       v-else-if="!tasks.length"
-  icon="/static/menu/replenish.png"
+      icon="/static/menu/replenish.png"
       :title="emptyHint"
       hint="扫码到柜可查看缺货；新任务由调度下发"
     >
@@ -319,8 +319,9 @@
                 :disabled="scanning"
                 data-testid="scan-product-line"
                 @click="scanProduct(line)"
-                >扫码</button
               >
+                扫码
+              </button>
             </view>
             <text v-else class="qty">× {{ line.quantity }}</text>
           </view>
@@ -719,14 +720,13 @@ function goRequestForDevice(deviceId: string) {
 function aggregateLowStock(items: DeviceLowStockItem[]) {
   const map = new Map<string, { skuCount: number; shortageQty: number }>();
   for (const row of items || []) {
-    const key = String(row.deviceId || '').trim().toUpperCase();
+    const key = String(row.deviceId || '')
+      .trim()
+      .toUpperCase();
     if (!key) continue;
     const cur = map.get(key) || { skuCount: 0, shortageQty: 0 };
     cur.skuCount += 1;
-    cur.shortageQty += Math.max(
-      0,
-      (Number(row.lowThreshold) || 0) - (Number(row.quantity) || 0)
-    );
+    cur.shortageQty += Math.max(0, (Number(row.lowThreshold) || 0) - (Number(row.quantity) || 0));
     map.set(key, cur);
   }
   return [...map.entries()]
@@ -918,18 +918,17 @@ async function scanProduct(line: Line) {
       const msg = String((err as { errMsg?: string })?.errMsg || '');
       if (/cancel|取消/i.test(msg)) return;
       // H5 / 扫码失败：手输条码
-      code =
-        String(
-          (await promptText({
-            title: '输入商品条码',
-            placeholder: '扫描商品包装条码',
-            required: true,
-            requiredMessage: '条码无效',
-            maxLength: 64,
-            singleLine: true,
-            testId: 'product-barcode-prompt'
-          })) || ''
-        ).trim();
+      code = String(
+        (await promptText({
+          title: '输入商品条码',
+          placeholder: '扫描商品包装条码',
+          required: true,
+          requiredMessage: '条码无效',
+          maxLength: 64,
+          singleLine: true,
+          testId: 'product-barcode-prompt'
+        })) || ''
+      ).trim();
     }
     if (!code) return;
     const key = code.trim().toUpperCase();

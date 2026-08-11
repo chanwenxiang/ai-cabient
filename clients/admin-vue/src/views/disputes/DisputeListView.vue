@@ -536,7 +536,15 @@
 <script setup lang="ts">
 import { computed, onActivated, onDeactivated, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { CircleClose, Link, Refresh, RefreshLeft, VideoCamera, View, Warning } from '@element-plus/icons-vue';
+import {
+  CircleClose,
+  Link,
+  Refresh,
+  RefreshLeft,
+  VideoCamera,
+  View,
+  Warning
+} from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
@@ -832,7 +840,11 @@ async function reopenTicket(row: DisputeTicketDto) {
     return;
   }
   try {
-    await api.request(`/api/v2/ops/disputes/${encodeURIComponent(row.ticketId)}/reopen`, 'POST', {});
+    await api.request(
+      `/api/v2/ops/disputes/${encodeURIComponent(row.ticketId)}/reopen`,
+      'POST',
+      {}
+    );
     ElMessage.success('已重开');
     await load(false);
   } catch (e) {

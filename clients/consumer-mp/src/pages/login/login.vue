@@ -1,7 +1,11 @@
 <template>
   <view class="login-wrap" :class="{ 'phone-open': showPhoneForm }">
     <view class="login-bg-scene" aria-hidden="true">
-      <image class="login-illustration login-illustration-anim" :src="loginBgUrl" mode="aspectFill" />
+      <image
+        class="login-illustration login-illustration-anim"
+        :src="loginBgUrl"
+        mode="aspectFill"
+      />
       <view class="anim-orb anim-orb-a" />
       <view class="anim-orb anim-orb-b" />
       <view class="anim-shimmer" />

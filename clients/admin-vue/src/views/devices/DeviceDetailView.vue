@@ -656,7 +656,8 @@
               />
             </div>
             <p class="muted">
-              按当日分钟排程，调度器每分钟把当前时段目标温度下发到柜机；00:00 未设置时沿用前一日最后时段。
+              按当日分钟排程，调度器每分钟把当前时段目标温度下发到柜机；00:00
+              未设置时沿用前一日最后时段。
             </p>
             <div v-for="(e, i) in tempPlanEntries" :key="i" class="temp-plan-row">
               <el-time-select

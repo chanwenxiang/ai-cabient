@@ -74,7 +74,7 @@
       </view>
       <empty-state
         v-else-if="!history.length"
-  icon="/static/menu/feedback.png"
+        icon="/static/menu/feedback.png"
         title="暂无反馈记录"
         hint="提交后可在这里查看处理进度与回复"
       />

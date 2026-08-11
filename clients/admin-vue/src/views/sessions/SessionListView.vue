@@ -533,10 +533,7 @@ function formatDuration(row: SessionRow) {
   const start = row.openTime || row.createdAt;
   const end = row.closeTime || row.updatedAt;
   if (!start || !end) return '—';
-  const sec = Math.max(
-    0,
-    Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 1000)
-  );
+  const sec = Math.max(0, Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 1000));
   if (sec < 60) return `${sec}s`;
   return `${Math.floor(sec / 60)}m${sec % 60}s`;
 }

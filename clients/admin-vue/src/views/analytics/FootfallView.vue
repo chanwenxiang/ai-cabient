@@ -21,30 +21,31 @@
 
     <div v-loading="loading">
       <div v-if="data" class="kpi-grid">
-        <div class="kpi-card"
-          ><text class="kpi-n">{{ data.overview.totalOpens }}</text
-          ><text class="kpi-l">开门次数（客流）</text></div
-        >
-        <div class="kpi-card"
-          ><text class="kpi-n">{{ data.overview.totalPaidOrders }}</text
-          ><text class="kpi-l">支付订单</text></div
-        >
-        <div class="kpi-card"
-          ><text class="kpi-n">{{ (data.overview.conversionRate ?? 0).toFixed(1) }}%</text
-          ><text class="kpi-l">开门转化率</text></div
-        >
-        <div class="kpi-card"
-          ><text class="kpi-n">¥{{ ((data.overview.avgOrderValueCents ?? 0) / 100).toFixed(2) }}</text
-          ><text class="kpi-l">客单价</text></div
-        >
-        <div class="kpi-card"
-          ><text class="kpi-n">{{ data.overview.repeatBuyers }}</text
-          ><text class="kpi-l">复购用户</text></div
-        >
-        <div class="kpi-card"
-          ><text class="kpi-n">{{ data.overview.deviceCount }}</text
-          ><text class="kpi-l">柜机数</text></div
-        >
+        <div class="kpi-card">
+          <text class="kpi-n">{{ data.overview.totalOpens }}</text
+          ><text class="kpi-l">开门次数（客流）</text>
+        </div>
+        <div class="kpi-card">
+          <text class="kpi-n">{{ data.overview.totalPaidOrders }}</text
+          ><text class="kpi-l">支付订单</text>
+        </div>
+        <div class="kpi-card">
+          <text class="kpi-n">{{ (data.overview.conversionRate ?? 0).toFixed(1) }}%</text
+          ><text class="kpi-l">开门转化率</text>
+        </div>
+        <div class="kpi-card">
+          <text class="kpi-n"
+            >¥{{ ((data.overview.avgOrderValueCents ?? 0) / 100).toFixed(2) }}</text
+          ><text class="kpi-l">客单价</text>
+        </div>
+        <div class="kpi-card">
+          <text class="kpi-n">{{ data.overview.repeatBuyers }}</text
+          ><text class="kpi-l">复购用户</text>
+        </div>
+        <div class="kpi-card">
+          <text class="kpi-n">{{ data.overview.deviceCount }}</text
+          ><text class="kpi-l">柜机数</text>
+        </div>
       </div>
 
       <div class="panel">
@@ -101,14 +102,16 @@
               @change="loadSlotHeat"
             >
               <el-option
-                v-for="d in (data?.devices || [])"
+                v-for="d in data?.devices || []"
                 :key="d.deviceId"
                 :label="`${d.deviceName}（${d.deviceId}）`"
                 :value="d.deviceId"
               />
             </el-select>
             <span class="legend"
-              ><i class="dot h3" />热 <i class="dot h2" /><i class="dot h1" /><i class="dot h0" />冷</span
+              ><i class="dot h3" />热 <i class="dot h2" /><i class="dot h1" /><i
+                class="dot h0"
+              />冷</span
             >
           </div>
         </div>
@@ -277,10 +280,18 @@ function barHeight(orders: number) {
   border-radius: 2px;
   margin: 0 2px 0 6px;
 }
-.dot.h3 { background: #dc2626; }
-.dot.h2 { background: #f97316; }
-.dot.h1 { background: #fbbf24; }
-.dot.h0 { background: #e5e7eb; }
+.dot.h3 {
+  background: #dc2626;
+}
+.dot.h2 {
+  background: #f97316;
+}
+.dot.h1 {
+  background: #fbbf24;
+}
+.dot.h0 {
+  background: #e5e7eb;
+}
 .slot-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
@@ -294,10 +305,18 @@ function barHeight(orders: number) {
   border-radius: 8px;
   border: 1px solid var(--el-border-color-lighter);
 }
-.slot-cell.heat-3 { background: #fee2e2; }
-.slot-cell.heat-2 { background: #ffedd5; }
-.slot-cell.heat-1 { background: #fef3c7; }
-.slot-cell.heat-0 { background: #f9fafb; }
+.slot-cell.heat-3 {
+  background: #fee2e2;
+}
+.slot-cell.heat-2 {
+  background: #ffedd5;
+}
+.slot-cell.heat-1 {
+  background: #fef3c7;
+}
+.slot-cell.heat-0 {
+  background: #f9fafb;
+}
 .slot-code {
   font-size: 12px;
   font-weight: 700;

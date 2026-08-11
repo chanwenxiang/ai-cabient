@@ -13,7 +13,7 @@
     </view>
     <empty-state
       v-else-if="!list.length"
-  icon="/static/menu/team.png"
+      icon="/static/menu/team.png"
       title="暂无团队成员"
       hint="可邀请同事登录商户端协同补货与经营"
     >

@@ -65,35 +65,52 @@ const ICONS = {
 
 /** 菜单/快捷项线性图标（Feather 风格，24 视图框；页面以 <image> 展示） */
 const MENU_ICONS = {
-  orders: '<path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1Z"/><path d="M9 8h6M9 12h6"/>',
-  coupons: '<path d="M20 8a3 3 0 0 1-3-3H7a3 3 0 0 1-3 3 3 3 0 0 1 0 8 3 3 0 0 1 3 3h10a3 3 0 0 1 3-3 3 3 0 0 1 0-8Z"/><path d="M12 5v14"/>',
+  orders:
+    '<path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-3 2-3-2-3 2V4a1 1 0 0 1 1-1Z"/><path d="M9 8h6M9 12h6"/>',
+  coupons:
+    '<path d="M20 8a3 3 0 0 1-3-3H7a3 3 0 0 1-3 3 3 3 0 0 1 0 8 3 3 0 0 1 3 3h10a3 3 0 0 1 3-3 3 3 0 0 1 0-8Z"/><path d="M12 5v14"/>',
   member: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',
-  recharge: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M16 12h5v4h-5a2 2 0 0 1 0-4Z"/>',
-  shopping: '<circle cx="9" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/><path d="M3 4h2l2.3 11h10.2L20 8H6"/>',
+  recharge:
+    '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M16 12h5v4h-5a2 2 0 0 1 0-4Z"/>',
+  shopping:
+    '<circle cx="9" cy="20" r="1.3"/><circle cx="17" cy="20" r="1.3"/><path d="M3 4h2l2.3 11h10.2L20 8H6"/>',
   hot: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
-  balance: '<line x1="12" y1="2" x2="12" y2="22"/><path d="M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
-  notice: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
+  balance:
+    '<line x1="12" y1="2" x2="12" y2="22"/><path d="M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  notice:
+    '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.4 9a2.6 2.6 0 0 1 5.2 0c0 1.7-2.6 2.1-2.6 3.6"/><path d="M12 17h.01"/>',
-  repair: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.8-2.8Z"/>',
+  repair:
+    '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17l3 3 5.3-5.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.8-2.8Z"/>',
   feedback: '<path d="M21 11.5a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5Z"/>',
-  agreement: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/>',
+  agreement:
+    '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/>',
   privacy: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6Z"/>',
   refund: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>',
   billing: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
-  wechat: '<path d="M21 15a6 6 0 0 1-6 6H5l-2 2V10a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6Z"/><path d="M8 12h.01M13 12h.01"/>',
+  wechat:
+    '<path d="M21 15a6 6 0 0 1-6 6H5l-2 2V10a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6Z"/><path d="M8 12h.01M13 12h.01"/>',
   alipay: '<path d="M13 2 4 14h6l-1 8 9-12h-6Z"/>',
   mock: '<circle cx="12" cy="12" r="9"/><path d="M10 8.5l6 3.5-6 3.5Z"/>',
   phone: '<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/>',
-  logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
+  logout:
+    '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>',
   replenish: '<path d="M21 8l-9-5-9 5v8l9 5 9-5Z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/>',
-  cabinet: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  cabinet:
+    '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
   pending: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-  pricing: '<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.1"/>',
-  settlements: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M16 12h5v4h-5a2 2 0 0 1 0-4Z"/>',
-  wallet: '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.3"/><path d="M6 12h.01M18 12h.01"/>',
-  splits: '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="12" cy="18" r="3"/><path d="M8.5 7.5 11 16M15.5 7.5 13 16"/>',
-  'line-wallet': '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
-  disputes: '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6Z"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
+  pricing:
+    '<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.1"/>',
+  settlements:
+    '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M16 12h5v4h-5a2 2 0 0 1 0-4Z"/>',
+  wallet:
+    '<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.3"/><path d="M6 12h.01M18 12h.01"/>',
+  splits:
+    '<circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="12" cy="18" r="3"/><path d="M8.5 7.5 11 16M15.5 7.5 13 16"/>',
+  'line-wallet':
+    '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
+  disputes:
+    '<path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6Z"/><path d="M12 8v4"/><path d="M12 16h.01"/>',
   business: '<path d="M18 20V10M12 20V4M6 20v-6"/>',
   team: '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M12 8H7a2.5 2.5 0 0 1 0-5c2 0 4 2.5 5 5Zm0 0h5a2.5 2.5 0 0 0 0-5c-2 0-4 2.5-5 5Z"/>',
@@ -106,17 +123,17 @@ const MENU_ICON_COLORS = {
   logout: '#ef4444'
 };
 
-const MENU_ICON_TEMPLATE = (path, color) => `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 24 24">
+const MENU_ICON_TEMPLATE = (
+  path,
+  color
+) => `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 24 24">
   <g transform="translate(2.4,2.4) scale(0.8)" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${path}</g>
 </svg>`;
 
 /** 商品演示图：从管理端 public/sku-demo 复制，保证三端同一套真实商品照片 */
 function syncSkuImages() {
   const srcDir = path.join(root, 'clients/admin-vue/public/sku-demo');
-  const targets = [
-    'clients/consumer-mp/src/static/sku',
-    'clients/merchant-mp/src/static/sku'
-  ];
+  const targets = ['clients/consumer-mp/src/static/sku', 'clients/merchant-mp/src/static/sku'];
   for (const rel of targets) {
     const outDir = path.join(root, rel);
     fs.mkdirSync(outDir, { recursive: true });
@@ -156,7 +173,10 @@ async function main() {
     const menuPage = await browser.newPage({ viewport: { width: 96, height: 96 } });
     for (const [name, d] of Object.entries(MENU_ICONS)) {
       const color = MENU_ICON_COLORS[name] || TEAL;
-      for (const rel of ['clients/consumer-mp/src/static/menu', 'clients/merchant-mp/src/static/menu']) {
+      for (const rel of [
+        'clients/consumer-mp/src/static/menu',
+        'clients/merchant-mp/src/static/menu'
+      ]) {
         const file = path.join(root, `${rel}/${name}.png`);
         await renderSvgToPng(menuPage, MENU_ICON_TEMPLATE(d, color), file, 96);
       }

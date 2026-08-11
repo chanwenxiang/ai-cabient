@@ -32,7 +32,7 @@
     <view v-if="loading" class="empty">加载中…</view>
     <empty-state
       v-else-if="!campaigns.length"
-  icon="/static/menu/hot.png"
+      icon="/static/menu/hot.png"
       title="暂无进行中活动"
       hint="可先领券，或扫码开门购物"
     >

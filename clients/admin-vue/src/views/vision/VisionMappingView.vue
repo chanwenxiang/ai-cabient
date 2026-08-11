@@ -412,10 +412,7 @@ async function load() {
   try {
     const data = await api.request<
       { yolo?: YoloMappingRow[]; aliyun?: AliyunMappingRow[] } | YoloMappingRow[]
-    >(
-      '/api/v2/ops/admin/vision-mappings',
-      'GET'
-    );
+    >('/api/v2/ops/admin/vision-mappings', 'GET');
     if (Array.isArray(data)) {
       yoloMappings.value = data;
       aliyunMappings.value = [];

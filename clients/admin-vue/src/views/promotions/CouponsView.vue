@@ -52,9 +52,7 @@
           <el-button v-hasPermi="['ops:coupon:create']" @click="showIssue = true"
             >手动发券</el-button
           >
-          <el-button v-hasPermi="['ops:coupon:create']" @click="openBatchIssue"
-            >批量发券</el-button
-          >
+          <el-button v-hasPermi="['ops:coupon:create']" @click="openBatchIssue">批量发券</el-button>
           <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>

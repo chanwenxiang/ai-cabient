@@ -274,11 +274,7 @@
             关门结算
           </button>
         </view>
-        <view
-          v-else-if="sessionActive"
-          class="cart-status-chip"
-          :class="stateTone"
-        >
+        <view v-else-if="sessionActive" class="cart-status-chip" :class="stateTone">
           {{ cartBarAction }}
         </view>
         <button
@@ -465,7 +461,13 @@ const filteredProducts = computed(() => {
   const cat = activeCategory.value;
   return products.value.filter((p) => {
     if (cat && String(p.category || '').trim() !== cat) return false;
-    if (kw && !String(p.skuName || '').toLowerCase().includes(kw)) return false;
+    if (
+      kw &&
+      !String(p.skuName || '')
+        .toLowerCase()
+        .includes(kw)
+    )
+      return false;
     return true;
   });
 });
@@ -1189,9 +1191,7 @@ function removeProduct(p: DeviceProduct) {
   selected.value = { ...selected.value, [p.skuId]: next };
 }
 
-const selectedCount = computed(() =>
-  Object.values(selected.value).reduce((sum, q) => sum + q, 0)
-);
+const selectedCount = computed(() => Object.values(selected.value).reduce((sum, q) => sum + q, 0));
 
 const selectedAmount = computed(() => {
   const byId = new Map(products.value.map((p) => [p.skuId, p]));
