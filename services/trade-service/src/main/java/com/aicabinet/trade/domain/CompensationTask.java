@@ -4,8 +4,12 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("compensation_task")
+@Getter
+@Setter
 public class CompensationTask {
     @TableId(type = IdType.AUTO)
     private Long taskId;
@@ -27,30 +31,12 @@ public class CompensationTask {
     
     private Instant createdAt = Instant.now();
     
-    public Long getTaskId() { return taskId; }
-    public void setTaskId(Long taskId) { this.taskId = taskId; }
     
-    public String getTxId() { return txId; }
-    public void setTxId(String txId) { this.txId = txId; }
     
-    public String getTaskType() { return taskType; }
-    public void setTaskType(String taskType) { this.taskType = taskType; }
     
-    public Integer getPriority() { return priority; }
-    public void setPriority(Integer priority) { this.priority = priority; }
     
-    public Instant getScheduledAt() { return scheduledAt; }
-    public void setScheduledAt(Instant scheduledAt) { this.scheduledAt = scheduledAt; }
     
-    public Instant getExecutedAt() { return executedAt; }
-    public void setExecutedAt(Instant executedAt) { this.executedAt = executedAt; }
     
-    public String getStatus() { return status; }
-    public void setStatus(String status) { this.status = status; }
     
-    public String getResult() { return result; }
-    public void setResult(String result) { this.result = result; }
     
-    public Instant getCreatedAt() { return createdAt; }
-    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

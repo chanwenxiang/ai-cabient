@@ -3,8 +3,12 @@ package com.aicabinet.trade.domain;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableField;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("merchant_subscribe_pref")
+@Getter
+@Setter
 public class MerchantSubscribePref {
 
     @TableField(exist = false)
@@ -25,9 +29,6 @@ public MerchantSubscribePref() {}
         this.enabled = true;
     }
 
-public boolean isEnabled() { return enabled; }
-    public void setEnabled(boolean enabled) { this.enabled = enabled; }
-    public Instant getUpdatedAt() { return updatedAt; }
 
     public MerchantSubscribePrefId getId() {
         if (id == null && userId != null && alertType != null) {
@@ -43,8 +44,4 @@ public boolean isEnabled() { return enabled; }
         }
     }
 
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
-    public String getAlertType() { return alertType; }
-    public void setAlertType(String alertType) { this.alertType = alertType; }
 }

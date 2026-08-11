@@ -2,7 +2,11 @@ package com.aicabinet.trade.domain;
 
 import java.io.Serializable;
 import java.util.Objects;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter
+@Setter
 public class DeviceSkuPriceId implements Serializable {
 
     private String deviceId;
@@ -16,10 +20,6 @@ public class DeviceSkuPriceId implements Serializable {
         this.skuId = skuId;
     }
 
-    public String getDeviceId() { return deviceId; }
-    public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
-    public String getSkuId() { return skuId; }
-    public void setSkuId(String skuId) { this.skuId = skuId; }
 
     @Override
     public boolean equals(Object o) {

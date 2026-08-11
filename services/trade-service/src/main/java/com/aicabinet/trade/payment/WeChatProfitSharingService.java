@@ -16,12 +16,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * 微信分账 API v3 骨架。购物订单当前走余额扣款，默认仅记账本（LEDGER_ONLY）；
  * 运营可在绑定微信支付交易号后手动/自动提交分账。
  */
 @Service
+@Getter
+@Setter
 public class WeChatProfitSharingService {
 
     private static final Logger log = LoggerFactory.getLogger(WeChatProfitSharingService.class);

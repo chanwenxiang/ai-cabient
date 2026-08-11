@@ -5,8 +5,12 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.time.Instant;
 import java.math.BigDecimal;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("device_env_reading")
+@Getter
+@Setter
 public class DeviceEnvReading {
 
     @TableId(type = IdType.AUTO)
@@ -16,14 +20,4 @@ public class DeviceEnvReading {
     private BigDecimal value;
     private Instant reportedAt;
 
-    public Long getReadingId() { return readingId; }
-    public void setReadingId(Long readingId) { this.readingId = readingId; }
-    public String getDeviceId() { return deviceId; }
-    public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
-    public String getMetricType() { return metricType; }
-    public void setMetricType(String metricType) { this.metricType = metricType; }
-    public BigDecimal getValue() { return value; }
-    public void setValue(BigDecimal value) { this.value = value; }
-    public Instant getReportedAt() { return reportedAt; }
-    public void setReportedAt(Instant reportedAt) { this.reportedAt = reportedAt; }
 }

@@ -2,8 +2,12 @@ package com.aicabinet.trade.domain;
 
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableField;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("ops_user_merchant")
+@Getter
+@Setter
 public class OpsUserMerchant {
 
     @TableField(exist = false)
@@ -33,8 +37,4 @@ public class OpsUserMerchant {
         }
     }
 
-    public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
-    public String getMerchantId() { return merchantId; }
-    public void setMerchantId(String merchantId) { this.merchantId = merchantId; }
 }

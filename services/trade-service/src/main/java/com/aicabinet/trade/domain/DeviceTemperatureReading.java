@@ -4,8 +4,12 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("device_temperature_reading")
+@Getter
+@Setter
 public class DeviceTemperatureReading {
 
     @TableId(type = IdType.AUTO)
@@ -17,11 +21,4 @@ public class DeviceTemperatureReading {
 
     private Instant reportedAt;
 
-public Long getReadingId() { return readingId; }
-    public String getDeviceId() { return deviceId; }
-    public void setDeviceId(String deviceId) { this.deviceId = deviceId; }
-    public int getTempC() { return tempC; }
-    public void setTempC(int tempC) { this.tempC = tempC; }
-    public Instant getReportedAt() { return reportedAt; }
-    public void setReportedAt(Instant reportedAt) { this.reportedAt = reportedAt; }
 }

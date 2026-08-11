@@ -4,8 +4,12 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.IdType;
 import java.time.Instant;
+import lombok.Getter;
+import lombok.Setter;
 
 @TableName("user_blacklist")
+@Getter
+@Setter
 public class UserBlacklist {
 
     @TableId(type = IdType.INPUT)
@@ -19,13 +23,4 @@ public class UserBlacklist {
 
     private Instant createdAt;
 
-public Long getUserId() { return userId; }
-    public void setUserId(Long userId) { this.userId = userId; }
-    public String getReason() { return reason; }
-    public void setReason(String reason) { this.reason = reason; }
-    public String getSource() { return source; }
-    public void setSource(String source) { this.source = source; }
-    public Instant getExpiresAt() { return expiresAt; }
-    public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
-    public Instant getCreatedAt() { return createdAt; }
 }
