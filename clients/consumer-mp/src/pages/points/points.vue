@@ -1,5 +1,7 @@
-<template>
+﻿<template>
   <view class="page-root">
+    <app-nav-bar title="积分明细" />
+    <view class="page-body">
     <view v-if="loading" class="loading"><text>加载中…</text></view>
     <template v-else>
       <view class="summary">
@@ -48,6 +50,7 @@
         </view>
       </view>
     </template>
+    </view>
   </view>
 </template>
 
@@ -110,9 +113,13 @@ function goRedeem() {
 
 <style scoped>
 .page-root {
-  min-height: 100vh;
-  padding: 24rpx 24rpx 48rpx;
-  background: #f5f7f8;
+  min-height: 100%;
+  padding: 0;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .loading {
@@ -127,7 +134,7 @@ function goRedeem() {
   padding: 32rpx;
   border-radius: 28rpx;
   color: #fff;
-  background: linear-gradient(135deg, #064e3b 0%, #059669 55%, #0d9488 100%);
+  background: linear-gradient(135deg, #064e3b 0%, #059669 55%, #059669 100%);
   box-shadow: 0 16rpx 40rpx rgba(5, 150, 105, 0.24);
 }
 .summary-label {

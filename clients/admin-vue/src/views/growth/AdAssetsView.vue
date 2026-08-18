@@ -49,8 +49,15 @@
       <p class="muted">图片建议时长 10s；视频留 0 使用原始时长。文件不超过 50MB。</p>
     </div>
 
-    <el-table v-loading="loading" :data="rows" stripe border>
-      <el-table-column prop="assetId" label="ID" width="80" align="center" />
+    <el-table
+      v-loading="loading"
+      :data="displayRows"
+      stripe
+      border
+      :default-sort="idDefaultSort"
+      @sort-change="onIdSortChange"
+    >
+      <el-table-column prop="assetId" label="ID" width="80" align="center" sortable="custom" />
       <el-table-column prop="title" label="标题" min-width="160" show-overflow-tooltip />
       <el-table-column label="类型" width="90" align="center">
         <template #default="{ row }">{{ typeLabel(row.assetType) }}</template>
@@ -80,10 +87,17 @@
       <el-table-column label="上传时间" width="170" align="center">
         <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="140" align="center">
+      <el-table-column label="操作" width="200" align="center" fixed="right">
         <template #default="{ row }">
           <el-button v-hasPermi="['ops:ad:edit']" size="small" @click="openEdit(row)"
             >编辑</el-button
+          >
+          <el-button
+            v-hasPermi="['ops:ad:edit']"
+            size="small"
+            type="danger"
+            @click="removeAsset(row)"
+            >删除</el-button
           >
         </template>
       </el-table-column>
@@ -110,17 +124,20 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { dictLabel } from '@aicabinet/shared-dict';
 import type { MediaAssetDto } from '@aicabinet/shared-types';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const loading = ref(false);
 const uploading = ref(false);
 const saving = ref(false);
 const rows = ref<MediaAssetDto[]>([]);
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort<MediaAssetDto>('assetId');
+const displayRows = computed(() => sortById(rows.value));
 const fileInput = ref<HTMLInputElement | null>(null);
 const uploadOpen = ref(false);
 const uploadForm = ref({ title: '', assetType: 'IMAGE', durationSeconds: 10 });
@@ -219,6 +236,25 @@ async function saveEdit() {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
     saving.value = false;
+  }
+}
+
+async function removeAsset(row: MediaAssetDto) {
+  try {
+    await ElMessageBox.confirm(`确认删除素材「${row.title}」？删除后不可恢复。`, '删除素材', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消'
+    });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/ad/assets/${row.assetId}`, 'DELETE');
+    ElMessage.success('已删除');
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '删除失败');
   }
 }
 

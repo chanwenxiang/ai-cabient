@@ -189,7 +189,7 @@ private ScheduledTaskService taskService;
     }
 
     /**
-     * 柜机 SKU 汇总库存 vs ON_SALE 批次合计。
+     * 柜机 SKU 汇总库存 vs 在架批次合计（ON_SALE + NEAR_EXPIRY；临期仍占位可售）。
      * 只记录，不自动改库存（避免误伤 FEFO 批次）。
      */
     void checkInventoryConsistency() {
@@ -197,7 +197,7 @@ private ScheduledTaskService taskService;
                 + "COALESCE(SUM(l.quantity), 0) AS lot_qty "
                 + "FROM device_sku_inventory i "
                 + "LEFT JOIN device_sku_lot l ON l.device_id = i.device_id AND l.sku_id = i.sku_id "
-                + "AND UPPER(COALESCE(l.status, '')) = 'ON_SALE' "
+                + "AND UPPER(COALESCE(l.status, '')) IN ('ON_SALE', 'NEAR_EXPIRY') "
                 + "GROUP BY i.device_id, i.sku_id, i.quantity "
                 + "HAVING i.quantity <> COALESCE(SUM(l.quantity), 0) "
                 + "LIMIT " + CHECK_BATCH;
@@ -213,7 +213,7 @@ private ScheduledTaskService taskService;
                     key,
                     expected,
                     actual,
-                    "汇总库存 " + expected + " ≠ ON_SALE 批次合计 " + actual);
+                    "汇总库存 " + expected + " ≠ 在架批次合计 " + actual);
         }
         resolveStaleFailuresIfComplete("INVENTORY_MISMATCH", failing, rows.size());
     }
@@ -456,7 +456,7 @@ private ScheduledTaskService taskService;
         if (updated <= 0) {
             return FixOutcome.fail("未更新到库存行");
         }
-        return FixOutcome.ok("已将汇总库存改为 ON_SALE 批次合计 " + record.getActualValue());
+        return FixOutcome.ok("已将汇总库存改为在架批次合计 " + record.getActualValue());
     }
 
     public List<DataConsistencyRecord> getFailedChecks() {

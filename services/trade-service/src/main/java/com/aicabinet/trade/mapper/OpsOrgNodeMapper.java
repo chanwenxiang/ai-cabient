@@ -14,4 +14,10 @@ public interface OpsOrgNodeMapper extends BaseTradeMapper<OpsOrgNode> {
                 .orderByAsc(OpsOrgNode::getSortOrder)
                 .orderByAsc(OpsOrgNode::getNodeId));
     }
+
+    default long countByParentId(Long parentId) {
+        Long n = selectCount(Wrappers.<OpsOrgNode>lambdaQuery()
+                .eq(OpsOrgNode::getParentId, parentId));
+        return n == null ? 0L : n;
+    }
 }

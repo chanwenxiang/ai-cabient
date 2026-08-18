@@ -97,102 +97,104 @@
     </el-form>
 
     <div class="table-scroll">
-      <el-table
-        :data="displayRows"
-        :default-sort="idDefaultSort"
-        @selection-change="onSelectionChange"
-        @sort-change="onIdSortChange"
-        v-loading="loading"
-        stripe
-        border
-        class="report-table"
-        empty-text=" "
-      >
-        <template #empty
-          ><el-empty v-if="listHydrated && !loading" description="暂无维修工单"
-        /></template>
-        <el-table-column type="selection" width="46" align="center" />
-        <el-table-column
-          prop="ticketId"
-          label="工单号"
-          width="70"
-          align="center"
-          sortable="custom"
-        />
-        <el-table-column prop="deviceId" label="设备" min-width="96" align="center">
-          <template #default="{ row }">
-            <el-button
-              v-if="canAccessPath('/devices')"
-              link
-              type="primary"
-              @click="goPath(`/devices/${encodeURIComponent(row.deviceId)}`)"
-            >
-              {{ row.deviceId }}
-            </el-button>
-            <span v-else>{{ row.deviceId }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column
-          prop="title"
-          label="标题"
-          min-width="110"
-          show-overflow-tooltip
-          align="center"
-        />
-        <el-table-column prop="faultType" label="故障类型" width="80" align="center">
-          <template #default="{ row }">{{ faultLabel(row.faultType) }}</template>
-        </el-table-column>
-        <el-table-column prop="priority" label="优先级" width="64" align="center">
-          <template #default="{ row }">{{ priorityLabel(row.priority) }}</template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="72" align="center">
-          <template #default="{ row }">
-            <el-tag :type="statusType(row.status)" size="small">{{
-              statusLabel(row.status)
-            }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="负责人" width="84" show-overflow-tooltip align="center">
-          <template #default="{ row }">{{ row.assignee || '无' }}</template>
-        </el-table-column>
-        <el-table-column label="备注" min-width="96" show-overflow-tooltip align="center">
-          <template #default="{ row }">{{ row.remark || '无' }}</template>
-        </el-table-column>
-        <el-table-column label="创建时间" width="124" align="center">
-          <template #default="{ row }">{{ formatDateTime(row.createdAt) || '无' }}</template>
-        </el-table-column>
-        <el-table-column label="关闭时间" width="104" align="center">
-          <template #default="{ row }">{{ formatDateTime(row.closedAt) || '无' }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="170" align="center" class-name="col-action">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openDetail(row)">详情</el-button>
-            <template v-if="auth.hasPerm('ops:repair:edit')">
+      <div class="table-scroll-inner">
+        <el-table
+          :data="displayRows"
+          :default-sort="idDefaultSort"
+          @selection-change="onSelectionChange"
+          @sort-change="onIdSortChange"
+          v-loading="loading"
+          stripe
+          border
+          class="report-table"
+          empty-text=" "
+        >
+          <template #empty
+            ><el-empty v-if="listHydrated && !loading" description="暂无维修工单"
+          /></template>
+          <el-table-column type="selection" width="48" align="center" />
+          <el-table-column
+            prop="ticketId"
+            label="工单号"
+            width="88"
+            align="center"
+            sortable="custom"
+          />
+          <el-table-column prop="deviceId" label="设备" min-width="96" align="center">
+            <template #default="{ row }">
               <el-button
-                v-if="row.status === 'OPEN'"
+                v-if="canAccessPath('/devices')"
                 link
-                type="warning"
-                @click="transition(row, 'IN_PROGRESS')"
-                >开始处理</el-button
+                type="primary"
+                @click="goPath(`/devices/${encodeURIComponent(row.deviceId)}`)"
               >
-              <el-button
-                v-if="row.status === 'IN_PROGRESS'"
-                link
-                type="success"
-                @click="transition(row, 'DONE')"
-                >完成</el-button
-              >
-              <el-button
-                v-if="row.status === 'OPEN' || row.status === 'IN_PROGRESS'"
-                link
-                type="danger"
-                @click="transition(row, 'CANCELLED')"
-                >取消</el-button
-              >
+                {{ row.deviceId }}
+              </el-button>
+              <span v-else>{{ row.deviceId }}</span>
             </template>
-          </template>
-        </el-table-column>
-      </el-table>
+          </el-table-column>
+          <el-table-column
+            prop="title"
+            label="标题"
+            min-width="110"
+            show-overflow-tooltip
+            align="center"
+          />
+          <el-table-column prop="faultType" label="故障类型" width="80" align="center">
+            <template #default="{ row }">{{ faultLabel(row.faultType) }}</template>
+          </el-table-column>
+          <el-table-column prop="priority" label="优先级" width="64" align="center">
+            <template #default="{ row }">{{ priorityLabel(row.priority) }}</template>
+          </el-table-column>
+          <el-table-column prop="status" label="状态" width="72" align="center">
+            <template #default="{ row }">
+              <el-tag :type="statusType(row.status)" size="small">{{
+                statusLabel(row.status)
+              }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="负责人" width="84" show-overflow-tooltip align="center">
+            <template #default="{ row }">{{ row.assignee || '无' }}</template>
+          </el-table-column>
+          <el-table-column label="备注" min-width="96" show-overflow-tooltip align="center">
+            <template #default="{ row }">{{ row.remark || '无' }}</template>
+          </el-table-column>
+          <el-table-column label="创建时间" width="124" align="center">
+            <template #default="{ row }">{{ formatDateTime(row.createdAt) || '无' }}</template>
+          </el-table-column>
+          <el-table-column label="关闭时间" width="104" align="center">
+            <template #default="{ row }">{{ formatDateTime(row.closedAt) || '无' }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="170" align="center" class-name="col-action">
+            <template #default="{ row }">
+              <el-button link type="primary" @click="openDetail(row)">详情</el-button>
+              <template v-if="auth.hasPerm('ops:repair:edit')">
+                <el-button
+                  v-if="row.status === 'OPEN'"
+                  link
+                  type="warning"
+                  @click="transition(row, 'IN_PROGRESS')"
+                  >开始处理</el-button
+                >
+                <el-button
+                  v-if="row.status === 'IN_PROGRESS'"
+                  link
+                  type="success"
+                  @click="transition(row, 'DONE')"
+                  >完成</el-button
+                >
+                <el-button
+                  v-if="row.status === 'OPEN' || row.status === 'IN_PROGRESS'"
+                  link
+                  type="danger"
+                  @click="transition(row, 'CANCELLED')"
+                  >取消</el-button
+                >
+              </template>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
     </div>
 
     <PagePager

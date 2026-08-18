@@ -464,6 +464,11 @@ public class WarehouseService {
         if (lines.isEmpty()) {
             throw badRequest("出库单无明细，无法拣货（可能库存不足未生成行项）");
         }
+        // OBS-017：拣货时即按货道余量截断；全部无余量则拒绝，避免落入 PICKED 后发运 400
+        lines = clampLinesToSlotHeadroom(lines);
+        if (lines.isEmpty()) {
+            throw badRequest("货道已满，无可拣货数量；请先腾出货道或作废出库单");
+        }
         lines.forEach(line -> {
                     line.setPicked(true);
                     line.setHandoverStatus("READY");

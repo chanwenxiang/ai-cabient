@@ -1,6 +1,7 @@
 import type { LoginResponse } from '@aicabinet/shared-types';
 import { clearDictOverrides } from '@aicabinet/shared-dict';
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
+import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';
 import {
   formatMpRequestError,
   mpRequest,
@@ -79,7 +80,10 @@ function applyTokenSession(data: LoginResponse) {
   if (data.serverBootEpoch != null) {
     uni.setStorageSync('consumer_server_boot', data.serverBootEpoch);
   }
-  void import('@/utils/dict-runtime').then((m) => m.loadRuntimeDict());
+  void sharedLoadRuntimeDict({
+    getToken: getConsumerToken,
+    fetchRuntime: () => request('/api/v2/dicts/runtime', 'GET')
+  });
 }
 
 async function refreshTokenSilently(): Promise<boolean> {

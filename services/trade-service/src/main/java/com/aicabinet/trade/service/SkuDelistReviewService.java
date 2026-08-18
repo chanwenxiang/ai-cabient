@@ -66,6 +66,9 @@ public class SkuDelistReviewService {
 
         Map<String, Long> stock = new HashMap<>();
         for (DeviceSkuInventory inv : inventoryRepository.findAllLimit(5000)) {
+            if (inv == null || inv.getSkuId() == null) {
+                continue;
+            }
             stock.merge(inv.getSkuId(), (long) inv.getQuantity(), Long::sum);
         }
 
@@ -73,29 +76,47 @@ public class SkuDelistReviewService {
                 .collect(LinkedHashMap::new, (m, s) -> m.put(s.getSkuId(), s), LinkedHashMap::putAll);
 
         for (SkuCatalog sku : skus.values()) {
+            if (sku == null || sku.getSkuId() == null || sku.getSkuId().isBlank()) {
+                continue;
+            }
             long[] s = sales.getOrDefault(sku.getSkuId(), new long[]{0L, 0L});
             long qty = s[0];
             long revenue = s[1];
             long curStock = stock.getOrDefault(sku.getSkuId(), 0L);
-            double avgDaily = (double) qty / window;
-            Integer stockDays = avgDaily > 0
-                    ? (int) Math.round(curStock / avgDaily)
-                    : (curStock > 0 ? null : 0);
+            double avgDaily = window <= 0 ? 0d : (double) qty / window;
+            // 勿写 ?: 混用 int / Integer：无销量有库存时第二支为 null，外层会按 int 拆箱 NPE（BUG-011）
+            Integer stockDays;
+            if (avgDaily > 0) {
+                stockDays = (int) Math.round(curStock / avgDaily);
+            } else if (curStock > 0) {
+                stockDays = null;
+            } else {
+                stockDays = 0;
+            }
             String level = performanceLevel(qty, avgDaily);
 
             SkuDelistReview review = reviewRepository.findBySkuId(sku.getSkuId())
                     .orElseGet(() -> {
                         SkuDelistReview r = new SkuDelistReview();
                         r.setSkuId(sku.getSkuId());
+                        r.setReviewStatus("PENDING");
                         r.setCreatedAt(Instant.now());
                         return r;
                     });
             review.setPerformanceLevel(level);
-            review.setSalesQty((int) qty);
+            review.setSalesQty((int) Math.min(qty, Integer.MAX_VALUE));
             review.setRevenueCents(revenue);
             review.setStockDays(stockDays);
             review.setUpdatedAt(Instant.now());
-            reviewRepository.save(review);
+            if (review.getReviewStatus() == null || review.getReviewStatus().isBlank()) {
+                review.setReviewStatus("PENDING");
+            }
+            // 勿用 BaseTradeMapper.save：新建时 id=null 会回落到 skuId 当 PK，引发异常（BUG-011）
+            if (review.getId() == null) {
+                reviewRepository.insert(review);
+            } else {
+                reviewRepository.updateById(review);
+            }
         }
         log.info("sku review refreshed window={}d skus={}", window, skus.size());
         return list();

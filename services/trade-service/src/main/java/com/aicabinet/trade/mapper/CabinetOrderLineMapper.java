@@ -90,14 +90,14 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
     List<LinkedHashMap<String, Object>> _skuBreakdownSince(@Param("since") Instant since);
 
     default List<Object[]> skuBreakdownSince(Instant since) {
-        return ColumnMapRows.toObjectRows(_skuBreakdownSince(since), 5);
+        return ColumnMapRows.toObjectRows(_skuBreakdownSince(since), 6);
     }
 
     List<LinkedHashMap<String, Object>> _skuBreakdownByDevicesSince(
             @Param("deviceIds") Collection<String> deviceIds, @Param("since") Instant since);
 
     default List<Object[]> skuBreakdownByDevicesSince(Collection<String> deviceIds, Instant since) {
-        return ColumnMapRows.toObjectRows(_skuBreakdownByDevicesSince(deviceIds, since), 5);
+        return ColumnMapRows.toObjectRows(_skuBreakdownByDevicesSince(deviceIds, since), 6);
     }
 
     long sumCogsByDeviceIdsSince(

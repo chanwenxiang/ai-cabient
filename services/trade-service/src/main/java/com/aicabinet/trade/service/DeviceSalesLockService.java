@@ -52,9 +52,12 @@ public class DeviceSalesLockService {
         device.setSalesLocked(locked);
         if (locked) {
             // 锁机即消费者不可开门；禁售场景也走同一营业锁
+            device.setSalesUnlockedAt(null);
+            deviceRepository.clearSalesUnlockedAt(device.getDeviceId());
         } else {
             // 解锁营业时同步清掉禁售，避免策略里仍显示「禁售但已解锁」的矛盾态
             device.setSaleForbidden(false);
+            device.setSalesUnlockedAt(java.time.Instant.now());
         }
         deviceRepository.save(device);
         String action = locked ? "DEVICE_LOCK" : "DEVICE_UNLOCK";

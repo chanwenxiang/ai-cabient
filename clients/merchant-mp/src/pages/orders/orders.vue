@@ -1,5 +1,7 @@
 <template>
   <view class="page-root">
+    <app-nav-bar title="柜机订单" />
+    <view class="page-body">
     <view v-if="loading" class="loading"><text>加载中…</text></view>
     <view v-else-if="error" class="empty">
       <text class="err">{{ error }}</text>
@@ -24,18 +26,16 @@
         <button v-if="canExport" class="export-btn" :disabled="exporting" @click="exportOrders">
           {{ exporting ? '导出中…' : '导出' }}
         </button>
-        <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false">
-          <view class="filter-row">
-            <text
-              v-for="s in statusOptions"
-              :key="s.value"
-              class="filter-chip"
-              :class="{ active: status === s.value }"
-              @click="setStatus(s.value)"
-              >{{ s.label }}</text
-            >
-          </view>
-        </scroll-view>
+        <view class="filter-row">
+          <text
+            v-for="s in statusOptions"
+            :key="s.value"
+            class="filter-chip"
+            :class="{ active: status === s.value }"
+            @click="setStatus(s.value)"
+            >{{ s.label }}</text
+          >
+        </view>
         <view class="filter-row">
           <picker
             :range="deviceOptions"
@@ -66,7 +66,7 @@
         @click="onDetail(item)"
       >
         <view class="card-header">
-          <text class="card-id">#{{ shortId(item.orderId) }}</text>
+          <text class="card-id">{{ shortId(item.orderId) }}</text>
           <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
         </view>
         <view class="card-main">
@@ -101,7 +101,8 @@
       </view>
       <text v-else-if="listTruncated" class="trunc-hint">共 {{ listTotal }} 条，已全部加载</text>
     </view>
-  </view>
+  
+    </view></view>
 </template>
 
 <script setup lang="ts">
@@ -111,7 +112,8 @@ import {
   emptyDisplay,
   formatDateTimeShort,
   orderStatusLabel,
-  fmtMoney
+  fmtMoney,
+  shortBizNo
 } from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
 import {
@@ -123,7 +125,7 @@ import {
 } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import type { MerchantMe } from '@aicabinet/shared-types';
-import { skuImageFor } from '@aicabinet/shared-uni/product-image';
+import { cleanLineSummary, skuImageFor } from '@aicabinet/shared-uni/product-image';
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canList = computed(() => hasPerm(me.value, 'merchant:orders:list'));
@@ -255,7 +257,7 @@ function resetFilters() {
 }
 
 function lineSummaryText(item: MerchantOrderSummary) {
-  const summary = String(item.lineSummary || '').trim();
+  const summary = cleanLineSummary(item.lineSummary);
   if (summary) return summary;
   return `${item.lineCount || 0} 件商品`;
 }
@@ -360,8 +362,7 @@ function money(cents?: number) {
 }
 
 function shortId(id?: string) {
-  if (!id) return emptyDisplay(id, 'order');
-  return id.length > 14 ? id.substring(0, 14) : id;
+  return shortBizNo(id, 14, emptyDisplay(id, 'order'));
 }
 
 function formatTime(t?: string) {
@@ -416,15 +417,12 @@ function onDetail(item: MerchantOrderSummary) {
   padding: 0 26rpx;
   font-size: 26rpx;
 }
-.filter-scroll {
-  white-space: nowrap;
-  margin-top: 14rpx;
-}
 .filter-row {
   display: flex;
   align-items: center;
   gap: 10rpx;
   flex-wrap: wrap;
+  margin-top: 14rpx;
 }
 .filter-row + .filter-row {
   margin-top: 12rpx;
@@ -561,5 +559,9 @@ function onDetail(item: MerchantOrderSummary) {
   font-size: 24rpx;
   font-weight: 600;
   padding: 20rpx 0 8rpx;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

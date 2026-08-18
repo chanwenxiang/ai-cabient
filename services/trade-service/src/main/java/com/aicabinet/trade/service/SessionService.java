@@ -10,6 +10,7 @@ import com.aicabinet.common.dto.SessionDto;
 import com.aicabinet.common.dto.VideoAttachRequest;
 import com.aicabinet.common.enums.DoorState;
 import com.aicabinet.common.enums.SessionState;
+import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.config.VisionAsyncProperties;
@@ -47,6 +48,9 @@ public class SessionService {
     private static final long OPENING_EXPIRE_SECONDS = 90;
     /** 补货开门后未关门/未完成任务时的占柜超时（避免挡消费者）。 */
     private static final long RESTOCK_SHOPPING_EXPIRE_MINUTES = 30;
+    /** 演示关门：无重力证据时注入 1 件演示取货，配合 mock 结算走 PAID。 */
+    private static final String DEMO_CLOSE_GRAVITY_JSON =
+            "[{\"skuId\":\"SKU-DEMO-001\",\"delta\":-1}]";
     private static final EnumSet<SessionState> ACTIVE_STATES = EnumSet.of(
             SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
             SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING);
@@ -262,6 +266,7 @@ public class SessionService {
     /**
      * 演示/联调用关门结算：无柜机硬件时由用户端主动触发关门，走同一套结算链路。
      * 仅允许本人正在 SHOPPING 的会话，且由 Controller 按 mockEnabled 开关放行。
+     * 若会话尚无重力扣减证据，注入演示取货（SKU-DEMO-001 ×1），以便本地 mock 可直达 PAID。
      */
     @Transactional
     public SessionDto demoCloseSession(Long userId, String sessionId) {
@@ -273,8 +278,21 @@ public class SessionService {
         if (session.getState() != SessionState.SHOPPING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前会话状态不可关门结算");
         }
+        String gravityJson = null;
+        if (gravityHelper.toRecognizedItems(session.getGravityDeltas()).isEmpty()) {
+            gravityJson = DEMO_CLOSE_GRAVITY_JSON;
+            log.info("demo-close injects sample gravity session={} sku=SKU-DEMO-001", sessionId);
+        }
         return self.handleDoorEvent(new DoorEventRequest(
-                session.getSessionId(), session.getDeviceId(), DoorState.CLOSED, System.currentTimeMillis()));
+                session.getSessionId(),
+                session.getDeviceId(),
+                DoorState.CLOSED,
+                System.currentTimeMillis(),
+                null,
+                null,
+                null,
+                null,
+                gravityJson));
     }
 
     @Transactional
@@ -947,7 +965,7 @@ public class SessionService {
     }
 
     private String generateSessionId() {
-        return "S" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
+        return BizIds.nextNumeric();
     }
 
     private SessionDto toDto(ShoppingSession s) {

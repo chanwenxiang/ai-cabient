@@ -66,7 +66,11 @@
             <el-table-column label="可用(元)" width="110" align="center">
               <template #default="{ row }">{{ yuan(row.availableCents) }}</template>
             </el-table-column>
-            <el-table-column prop="status" label="状态" width="90" align="center" />
+            <el-table-column prop="status" label="状态" width="90" align="center">
+              <template #default="{ row }">{{
+                displayLabel('merchant_status', row.status, row.status || '—')
+              }}</template>
+            </el-table-column>
             <el-table-column label="操作" width="260" align="center" class-name="col-action">
               <template #default="{ row }">
                 <el-button

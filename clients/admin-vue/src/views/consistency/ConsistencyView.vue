@@ -51,9 +51,12 @@
           style="width: 140px"
           @change="onSearch"
         >
-          <el-option label="订单金额" value="ORDER_AMOUNT" />
-          <el-option label="支付净额" value="PAYMENT_AMOUNT" />
-          <el-option label="库存汇总" value="INVENTORY_MISMATCH" />
+          <el-option
+            v-for="item in consistencyTypeOptions"
+            :key="item.value"
+            :label="item.label"
+            :value="item.value"
+          />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -152,6 +155,9 @@
               >
                 修复
               </el-button>
+              <span v-else-if="canFix" class="muted" title="该类仅巡检记录，需人工核对处理"
+                >需人工</span
+              >
               <span v-else class="muted">—</span>
             </template>
           </el-table-column>
@@ -179,7 +185,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 
 type Row = {
   id: number;
@@ -227,6 +233,7 @@ const keyword = ref('');
 const typeFilter = ref('');
 const page = ref(1);
 const size = ref(20);
+const consistencyTypeOptions = dictOptions('consistency_check_type');
 
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();
@@ -375,7 +382,7 @@ onActivated(load);
 
 <style scoped>
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--app-font-mono);
   font-size: 12px;
 }
 .key-link {

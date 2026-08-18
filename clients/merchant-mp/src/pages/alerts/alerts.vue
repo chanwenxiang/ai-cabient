@@ -1,5 +1,5 @@
 <template>
-  <view>
+  <view class="alerts-page">
     <view v-if="loading" class="card">加载中…</view>
     <view v-else-if="error" class="card">
       <text class="err">{{ error }}</text>
@@ -306,6 +306,12 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 </script>
 
 <style scoped>
+.alerts-page {
+  min-height: 100%;
+  padding: 0 0 calc(24rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  background: #f0fdfa;
+}
 .section-card {
   margin-top: 18rpx;
 }
@@ -349,10 +355,11 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 
 .pref-bar {
-  margin: 12rpx 12rpx 0;
+  margin: 12rpx 20rpx 0;
   padding: 16rpx 20rpx;
-  border-radius: 12rpx;
-  background: #ecfdf5;
+  border-radius: 16rpx;
+  background: #fff;
+  border: 1rpx solid #e2e8f0;
   color: #0f766e;
   font-size: 24rpx;
   display: flex;
@@ -367,24 +374,30 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12rpx;
-  margin: 12rpx;
+  margin: 12rpx 20rpx 0;
 }
 .kpi-card {
   border-radius: 16rpx;
-  padding: 24rpx;
+  padding: 22rpx 16rpx;
   text-align: center;
+  background: #fff;
+  border: 1rpx solid #e2e8f0;
+  box-shadow: 0 4rpx 14rpx rgba(15, 118, 110, 0.04);
 }
-.kpi-card.dispute {
-  background: #fef2f2;
+.kpi-card .n {
+  color: #134e4a;
 }
-.kpi-card.offline {
-  background: #f1f5f9;
+.kpi-card.dispute .n {
+  color: #dc2626;
 }
-.kpi-card.stock {
-  background: #fffbeb;
+.kpi-card.offline .n {
+  color: #475569;
 }
-.kpi-card.expiry {
-  background: #ecfdf5;
+.kpi-card.stock .n {
+  color: #d97706;
+}
+.kpi-card.expiry .n {
+  color: #0f766e;
 }
 .n {
   font-size: 40rpx;
@@ -394,6 +407,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .l {
   font-size: 22rpx;
   color: #64748b;
+  margin-top: 4rpx;
+  display: block;
 }
 .alert-card {
   margin-top: 0;

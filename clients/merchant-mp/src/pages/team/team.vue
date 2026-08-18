@@ -1,5 +1,7 @@
 <template>
   <view class="page">
+    <app-nav-bar title="团队成员" />
+    <view class="page-body">
     <view class="toolbar">
       <button v-if="canInvite" class="invite-btn" size="mini" :loading="saving" @click="openInvite">
         邀请成员
@@ -125,7 +127,8 @@
         <button class="btn ghost block" @click="manageVisible = false">关闭</button>
       </view>
     </view>
-  </view>
+  
+    </view></view>
 </template>
 
 <script setup lang="ts">
@@ -334,7 +337,7 @@ async function onEnable() {
 
 <style scoped>
 .page {
-  padding: 24rpx;
+  padding: 0;
   min-height: 100vh;
   box-sizing: border-box;
 }
@@ -519,5 +522,9 @@ async function onEnable() {
 }
 .btn.danger {
   background: #b91c1c;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

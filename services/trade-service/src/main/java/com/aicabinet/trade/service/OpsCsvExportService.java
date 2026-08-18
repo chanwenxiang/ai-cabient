@@ -108,6 +108,7 @@ public class OpsCsvExportService {
             case "returns" -> exportPurchaseReturnsCsv(operatorId);
             case "inventory" -> exportWarehouseInventoryCsv(operatorId);
             case "outbounds" -> exportWarehouseOutboundsCsv(operatorId);
+            case "movements" -> exportWarehouseMovementsCsv(operatorId);
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "unsupported warehouse export tab");
         };
     }
@@ -189,6 +190,25 @@ public class OpsCsvExportService {
                     .append(o.assigneeUserId() == null ? "" : o.assigneeUserId()).append(',')
                     .append(csv(String.valueOf(o.createdAt()))).append(',')
                     .append(csv(String.valueOf(o.shippedAt()))).append('\n');
+        }
+        return bytes(sb);
+    }
+
+    private byte[] exportWarehouseMovementsCsv(Long operatorId) {
+        requireWarehouseRead(operatorId);
+        StringBuilder sb = new StringBuilder(
+                "\uFEFFmovementId,warehouseId,skuId,batchNo,movementType,deltaQty,refType,refId,operatorId,createdAt\n");
+        for (WarehouseMovementDto m : warehouseService.listMovements(null)) {
+            sb.append(m.movementId()).append(',')
+                    .append(csv(m.warehouseId())).append(',')
+                    .append(csv(m.skuId())).append(',')
+                    .append(csv(m.batchNo())).append(',')
+                    .append(csv(m.movementType())).append(',')
+                    .append(m.deltaQty()).append(',')
+                    .append(csv(m.refType())).append(',')
+                    .append(csv(m.refId())).append(',')
+                    .append(m.operatorId() == null ? "" : m.operatorId()).append(',')
+                    .append(csv(String.valueOf(m.createdAt()))).append('\n');
         }
         return bytes(sb);
     }

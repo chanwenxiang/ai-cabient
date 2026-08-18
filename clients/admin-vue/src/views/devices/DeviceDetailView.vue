@@ -535,7 +535,7 @@
         size="small"
         class="repair-mini-table"
       >
-        <el-table-column prop="ticketId" label="#" width="70" align="center" />
+        <el-table-column prop="ticketId" label="单号" width="70" align="center" />
         <el-table-column
           prop="title"
           label="标题"
@@ -794,7 +794,7 @@
               show-overflow-tooltip
             >
               <template #default="{ row }">
-                <span class="cell-id">{{ row.sessionId }}</span>
+                <span class="cell-id">{{ displayBizNo(row.sessionId) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="状态" width="100" align="center">
@@ -812,7 +812,7 @@
               show-overflow-tooltip
             >
               <template #default="{ row }">
-                <span class="cell-id">{{ row.orderId || '无' }}</span>
+                <span class="cell-id">{{ displayBizNo(row.orderId, '无') }}</span>
               </template>
             </el-table-column>
             <el-table-column label="时间" width="168" align="center" class-name="col-text">
@@ -859,7 +859,7 @@
               show-overflow-tooltip
             >
               <template #default="{ row }">
-                <span class="cell-id">{{ row.orderId }}</span>
+                <span class="cell-id">{{ displayBizNo(row.orderId) }}</span>
               </template>
             </el-table-column>
             <el-table-column label="状态" width="100" align="center">
@@ -980,7 +980,10 @@ import type {
   SkuCatalog,
   UpsertDeviceSlotRequest
 } from '@aicabinet/shared-types';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import {
+  displayBizNo,
+  formatDateTime
+} from '@aicabinet/shared-uni/format';
 
 interface DeviceRow {
   deviceId: string;

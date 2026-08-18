@@ -112,8 +112,11 @@ public class DeviceStableOnlineAutoUnlockService {
         Optional<OpsException> fault = exceptionRepository
                 .findFirstByExceptionTypeAndDeviceIdAndStatusIn(
                         "DEVICE_FAULT", device.getDeviceId(), OPEN_FAULT_STATES);
-        if (fault.isEmpty()) {
-            log.info("skip auto unlock device={} reason=no-open-device-fault", device.getDeviceId());
+        Optional<OpsException> offline = exceptionRepository
+                .findFirstByExceptionTypeAndDeviceIdAndStatusIn(
+                        "DEVICE_OFFLINE", device.getDeviceId(), OPEN_FAULT_STATES);
+        if (fault.isEmpty() && offline.isEmpty()) {
+            log.info("skip auto unlock device={} reason=no-open-offline-or-fault", device.getDeviceId());
             return false;
         }
         Long openTickets = ticketRepository.selectCount(Wrappers.<RepairTicket>lambdaQuery()

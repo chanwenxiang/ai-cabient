@@ -146,14 +146,16 @@ public class SysDictBootstrap implements ApplicationRunner {
         map.put("device_coop_mode", t("设备合作方式", m(
                 "SELF", "自营", "FRANCHISE", "加盟", "CONSIGN", "联营")));
         map.put("repair_ticket_status", t("维修工单状态", m(
-                "OPEN", "待处理", "IN_PROGRESS", "处理中", "DONE", "已完成", "CANCELLED", "已取消")));
+                "OPEN", "待处理", "IN_PROGRESS", "处理中", "DONE", "已完成",
+                "CANCELLED", "已取消", "CLOSED", "已关闭")));
         map.put("line_manager_status", t("线长状态", m("ACTIVE", "启用", "DISABLED", "停用")));
         map.put("announcement_status", t("公告状态", m(
-                "DRAFT", "草稿", "PUBLISHED", "已发布", "ARCHIVED", "存档")));
+                "DRAFT", "草稿", "PUBLISHED", "已发布", "ARCHIVED", "已归档")));
         map.put("announcement_audience", t("公告受众", m(
                 "ALL", "全部用户", "MERCHANT", "商户", "CONSUMER", "消费者")));
         map.put("promotion_type", t("营销活动类型", m(
-                "FULL_REDUCE", "满减", "DISCOUNT", "折扣", "BUY_GIFT", "买赠", "SECOND_HALF", "第二件半价")));
+                "FULL_REDUCE", "满减", "DISCOUNT", "折扣", "BUY_GIFT", "买赠", "SECOND_HALF", "第二件半价",
+                "NEW_USER", "新客", "POINTS", "积分")));
         map.put("coupon_type", t("优惠券类型", m(
                 "AMOUNT_OFF", "满减券", "PERCENT_OFF", "折扣券",
                 "FREE_SHIPPING", "免运费", "EXCHANGE", "兑换券")));
@@ -190,7 +192,8 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "DRAFT", "草稿", "RUNNING", "投放中", "STOPPED", "已停止")));
         map.put("consistency_check_type", t("一致性检查类型", m(
                 "ORDER_AMOUNT", "订单金额", "PAYMENT_AMOUNT", "支付净额",
-                "INVENTORY_MISMATCH", "库存汇总")));
+                "INVENTORY_MISMATCH", "库存汇总",
+                "POINTS_BALANCE", "积分余额", "COUPON_ISSUED", "发券数量")));
         map.put("sku_perf_level", t("选品表现等级", m(
                 "BEST_SELLER", "畅销", "NORMAL", "正常", "SLOW_MOVER", "慢销", "NO_SALES", "无销量")));
         map.put("sku_review_status", t("选品评审状态", m(

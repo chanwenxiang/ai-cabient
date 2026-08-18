@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.AdminManualNotificationRequest;
 import com.aicabinet.common.dto.NotificationDto;
 import com.aicabinet.common.dto.NotificationDispatchMessage;
 import com.aicabinet.trade.domain.NotificationLog;
@@ -187,6 +188,51 @@ public class NotificationService {
     @Transactional(readOnly = true)
     public List<NotificationDto> adminRecent(int limit) {
         return logRepository.findRecent(limit).stream().map(this::toDto).toList();
+    }
+
+    /** 运营手动发站内信（不依赖模板）。 */
+    @Transactional
+    public NotificationDto sendManual(Long operatorId, AdminManualNotificationRequest body) {
+        if (body == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请求体不能为空");
+        }
+        String audience = body.audience().trim().toUpperCase();
+        if (!"CONSUMER".equals(audience) && !"MERCHANT".equals(audience)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "受众仅支持 CONSUMER / MERCHANT");
+        }
+        String title = body.title().trim();
+        String content = body.body().trim();
+        if (title.isEmpty() || content.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "标题与内容不能为空");
+        }
+        Long userId = body.userId();
+        String merchantId = body.merchantId() == null || body.merchantId().isBlank()
+                ? null : body.merchantId().trim();
+        if ("CONSUMER".equals(audience) && userId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "发给消费者需填写用户ID");
+        }
+        if ("MERCHANT".equals(audience) && merchantId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "发给商户需填写商户ID");
+        }
+        String bizType = body.bizType() == null || body.bizType().isBlank() ? "OPS_MANUAL" : body.bizType().trim();
+        String bizId = body.bizId() == null || body.bizId().isBlank()
+                ? "OPS-" + (operatorId == null ? 0 : operatorId) : body.bizId().trim();
+        NotificationLog record = new NotificationLog();
+        record.setTemplateCode("OPS_MANUAL");
+        record.setChannel("IN_APP");
+        record.setAudience(audience);
+        record.setUserId(userId);
+        record.setMerchantId(merchantId);
+        record.setTitle(title);
+        record.setBody(content);
+        record.setBizType(bizType);
+        record.setBizId(bizId);
+        record.setStatus("SENT");
+        record.setCreatedAt(Instant.now());
+        logRepository.save(record);
+        log.info("manual notification sent by={} audience={} userId={} merchantId={} id={}",
+                operatorId, audience, userId, merchantId, record.getId());
+        return toDto(record);
     }
 
     private NotificationDto toDto(NotificationLog n) {

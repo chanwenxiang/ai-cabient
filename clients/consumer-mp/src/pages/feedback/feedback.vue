@@ -1,5 +1,7 @@
-<template>
+﻿<template>
   <view class="page">
+    <app-nav-bar title="意见反馈" />
+    <view class="page-body">
     <view class="tabs">
       <text class="tab" :class="{ active: tab === 'submit' }" @click="tab = 'submit'"
         >提交反馈</text
@@ -95,6 +97,7 @@
           </view>
         </view>
       </view>
+    </view>
     </view>
   </view>
 </template>
@@ -217,9 +220,13 @@ async function onSubmit() {
 
 <style scoped>
 .page {
-  min-height: 100vh;
-  background: #f7f7f7;
-  padding: 24rpx;
+  min-height: 100%;
+  background: #ffffff;
+  padding: 0;
+  box-sizing: border-box;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .tabs {
@@ -267,7 +274,7 @@ async function onSubmit() {
   margin-top: 8rpx;
 }
 .input {
-  background: #f7f7f7;
+  background: #f5f7f8;
   border-radius: 12rpx;
   padding: 22rpx 24rpx;
   font-size: 30rpx;
@@ -282,7 +289,7 @@ async function onSubmit() {
 .issue-chip {
   padding: 14rpx 24rpx;
   border-radius: 32rpx;
-  background: #f7f7f7;
+  background: #f5f7f8;
   font-size: 26rpx;
   color: #666;
 }
@@ -294,7 +301,7 @@ async function onSubmit() {
 .textarea {
   width: 100%;
   min-height: 180rpx;
-  background: #f7f7f7;
+  background: #f5f7f8;
   border-radius: 12rpx;
   padding: 20rpx 24rpx;
   font-size: 28rpx;
@@ -310,7 +317,7 @@ async function onSubmit() {
 }
 .btn-primary {
   margin: 16rpx 0 0;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;

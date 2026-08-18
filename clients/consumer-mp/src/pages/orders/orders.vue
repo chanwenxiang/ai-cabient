@@ -1,6 +1,6 @@
 <template>
-  <view class="page">
-    <view class="page-nav">
+  <view class="page page-fill">
+    <view class="page-nav" :style="navWrapStyle">
       <view
         class="nav-back"
         hover-class="nav-back-hover"
@@ -62,79 +62,92 @@
       </view>
 
       <view class="filter-block">
-        <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false">
-          <view class="order-filters">
-            <text
-              v-for="f in filters"
-              :key="f.value"
-              class="filter-chip"
-              :class="{ active: filter === f.value }"
-              @click="filter = f.value"
-              >{{ f.label }}{{ filterCountSuffix(f.value) }}</text
+        <view class="order-filters">
+          <text
+            v-for="f in filters"
+            :key="f.value"
+            class="filter-chip"
+            :class="{ active: filter === f.value }"
+            @click="filter = f.value"
+            >{{ f.label }}{{ filterCountSuffix(f.value) }}</text
+          >
+        </view>
+        <view class="order-filters time-row">
+          <text
+            v-for="t in timeFilters"
+            :key="t.value"
+            class="filter-chip time"
+            :class="{ active: timeRange === t.value }"
+            @click="timeRange = t.value"
+            >{{ t.label }}</text
+          >
+        </view>
+      </view>
+
+      <view class="list-wrap">
+        <scroll-view
+          scroll-y
+          class="list"
+          :show-scrollbar="false"
+          lower-threshold="120"
+          @scrolltolower="loadMore"
+        >
+          <view class="list-inner">
+            <view
+              v-for="o in visibleOrders"
+              :key="o.orderId"
+              class="order-card"
+              @click="goDetail(o)"
             >
-            <view class="filter-sep" aria-hidden="true" />
-            <text
-              v-for="t in timeFilters"
-              :key="t.value"
-              class="filter-chip time"
-              :class="{ active: timeRange === t.value }"
-              @click="timeRange = t.value"
-              >{{ t.label }}</text
+              <view class="order-top">
+                <view class="order-meta">
+                  <text class="order-device-name">{{ deviceDisplay(o.deviceId) }}</text>
+                  <text class="order-id">{{ shortId(o.orderId) }}</text>
+                </view>
+                <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
+              </view>
+              <view class="order-mid">
+                <image
+                  class="order-thumb"
+                  :src="orderThumb(o)"
+                  mode="aspectFill"
+                  aria-hidden="true"
+                />
+                <view class="order-copy">
+                  <text class="order-summary">{{ orderSummaryText(o) }}</text>
+                  <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
+                  <text v-if="Number(o.couponDiscountCents || 0) > 0" class="discount"
+                    >券 -¥{{ ((o.couponDiscountCents || 0) / 100).toFixed(2) }}</text
+                  >
+                </view>
+              </view>
+              <view class="order-bottom">
+                <view class="order-bottom-left">
+                  <text class="order-channel">{{ payChannelText(o.payChannel) }}</text>
+                  <text class="order-time">{{ formatTime(o.createdAt) }}</text>
+                </view>
+                <text v-if="o.status === 'DISPUTED'" class="order-hint">审核中 ›</text>
+                <text v-else class="order-hint">查看详情 ›</text>
+              </view>
+            </view>
+            <view v-if="!visibleOrders.length" class="state-wrap compact">
+              <text class="empty-title">当前筛选暂无订单</text>
+              <text class="empty-desc">可切换时间或状态再试</text>
+            </view>
+            <view v-if="loadingMore" class="load-more">加载中…</view>
+            <view v-else-if="hasMore && orders.length" class="load-more hint" @click="loadMore"
+              >上拉加载更多</view
             >
+            <view v-else-if="orders.length && !hasMore" class="load-more hint">没有更多了</view>
+            <view class="list-foot">
+              <view class="foot-actions">
+                <text class="foot-btn" @click="goReport">故障报修</text>
+                <text class="foot-btn primary" @click="goHelp">帮助与客服</text>
+              </view>
+            </view>
           </view>
         </scroll-view>
       </view>
-
-      <scroll-view
-        scroll-y
-        class="list"
-        :show-scrollbar="false"
-        lower-threshold="120"
-        @scrolltolower="loadMore"
-      >
-        <view v-for="o in visibleOrders" :key="o.orderId" class="order-card" @click="goDetail(o)">
-          <view class="order-top">
-            <view class="order-meta">
-              <text class="order-device-name">{{ deviceDisplay(o.deviceId) }}</text>
-              <text class="order-id">{{ shortId(o.orderId) }}</text>
-            </view>
-            <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
-          </view>
-          <view class="order-mid">
-            <image class="order-thumb" :src="orderThumb(o)" mode="aspectFill" aria-hidden="true" />
-            <view class="order-copy">
-              <text class="order-summary">{{ orderSummaryText(o) }}</text>
-              <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
-              <text v-if="Number(o.couponDiscountCents || 0) > 0" class="discount"
-                >券 -¥{{ ((o.couponDiscountCents || 0) / 100).toFixed(2) }}</text
-              >
-            </view>
-          </view>
-          <view class="order-bottom">
-            <view class="order-bottom-left">
-              <text class="order-channel">{{ payChannelText(o.payChannel) }}</text>
-              <text class="order-time">{{ formatTime(o.createdAt) }}</text>
-            </view>
-            <text v-if="o.status === 'DISPUTED'" class="order-hint">审核中 ›</text>
-            <text v-else class="order-hint">查看详情 ›</text>
-          </view>
-        </view>
-        <view v-if="!visibleOrders.length" class="state-wrap compact">
-          <text class="empty-title">当前筛选暂无订单</text>
-          <text class="empty-desc">可切换时间或状态再试</text>
-        </view>
-        <view v-if="loadingMore" class="load-more">加载中…</view>
-        <view v-else-if="hasMore && orders.length" class="load-more hint" @click="loadMore"
-          >上拉加载更多</view
-        >
-        <view v-else-if="orders.length && !hasMore" class="load-more hint">没有更多了</view>
-        <view class="list-foot">
-          <view class="foot-actions">
-            <text class="foot-btn" @click="goReport">故障报修</text>
-            <text class="foot-btn primary" @click="goHelp">帮助与客服</text>
-          </view>
-        </view>
-      </scroll-view>
     </view>
   </view>
 </template>
@@ -142,9 +155,16 @@
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
+import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
 import { consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
-import { orderStatusLabel, formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
-import { skuImageFor } from '@aicabinet/shared-uni/product-image';
+import { navigateBackOrHome } from '@/utils/navigate-back';
+import {
+  shortBizNo,
+  formatDateTimeShort,
+  orderStatusLabel,
+  fmtMoney
+} from '@aicabinet/shared-uni/format';
+import { cleanLineSummary, skuImageFor } from '@aicabinet/shared-uni/product-image';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { showDisputeResolvedToast } from '@/utils/notify';
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
@@ -153,6 +173,12 @@ import type { DisputeTicketDto, OrderSummary } from '@aicabinet/shared-types';
 const loading = ref(true);
 const loadingMore = ref(false);
 const error = ref('');
+const statusPad = getStatusBarPadPx();
+const navWrapStyle = {
+  borderTop: statusPad + 'px solid #064e3b',
+  background: '#064e3b',
+  color: '#ffffff'
+};
 const authed = ref(false);
 const orders = ref<OrderSummary[]>([]);
 const disputes = ref<DisputeTicketDto[]>([]);
@@ -244,8 +270,7 @@ function filterCountSuffix(value: 'all' | 'paid' | 'pending' | 'issue' | 'refund
   return ` ${countBy(value)}`;
 }
 function shortId(id?: string) {
-  if (!id) return '暂无单号';
-  return id.length > 12 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
+  return shortBizNo(id, 12, '暂无单号');
 }
 function deviceDisplay(deviceId?: string) {
   if (!deviceId) return '无柜机';
@@ -256,7 +281,7 @@ function deviceDisplay(deviceId?: string) {
   return deviceId;
 }
 function orderSummaryText(o: OrderSummary) {
-  const summary = String(o.lineSummary || '').trim();
+  const summary = cleanLineSummary(o.lineSummary);
   if (summary) return summary;
   const n = o.lineCount || 0;
   if (n > 0) return `共 ${n} 件商品`;
@@ -287,20 +312,7 @@ function chipClass(status?: string) {
 }
 
 function goBack() {
-  const pages = getCurrentPages();
-  if (pages.length > 1) {
-    uni.navigateBack({ delta: 1 });
-    return;
-  }
-  // #ifdef H5
-  if (typeof window !== 'undefined' && window.history.length > 1) {
-    window.history.back();
-    return;
-  }
-  // #endif
-  uni.navigateBack({
-    fail: () => uni.switchTab({ url: '/pages/mine/mine' })
-  });
+  navigateBackOrHome('/pages/mine/mine');
 }
 
 function goShop() {
@@ -383,6 +395,7 @@ async function loadMore() {
   }
 }
 
+
 function goDisputeDetail(d: DisputeTicketDto) {
   const q = [
     d.ticketId ? `ticketId=${encodeURIComponent(d.ticketId)}` : '',
@@ -422,10 +435,12 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
 .page {
   height: 100%;
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, #e9fbf3 0, #f5f7f8 280rpx, #f5f7f8 100%);
+  background: #ffffff;
   box-sizing: border-box;
 }
 .page-nav {
@@ -434,29 +449,30 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 44px;
-  padding: 0;
-  padding-top: env(safe-area-inset-top);
-  background: #fff;
-  color: #000;
+  height: 48px;
+  padding: 0 8px;
+  background: #064e3b;
+  color: #ffffff;
   box-sizing: content-box;
 }
 .nav-back,
 .nav-side {
-  width: 48px;
-  height: 44px;
+  width: 44px;
+  height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 }
-.nav-back {
-  padding-left: 2px;
-}
 .nav-back-svg {
-  display: block;
-  width: 26px;
-  height: 26px;
+  display: none;
+}
+.nav-back::before {
+  content: '‹';
+  font-size: 36px;
+  line-height: 48px;
+  font-weight: 300;
+  color: #ffffff;
 }
 .nav-back-hover {
   opacity: 0.6;
@@ -466,22 +482,23 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   text-align: center;
   font-size: 16px;
   font-weight: 500;
-  color: #000;
-  line-height: 44px;
+  color: #ffffff;
+  line-height: 48px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .state-wrap {
   flex: 1;
-  padding: 140rpx 48rpx 80rpx;
+  padding: 48rpx 40rpx 32rpx;
   text-align: center;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-start;
 }
 .state-wrap.compact {
-  padding: 80rpx 24rpx;
+  padding: 32rpx 24rpx;
 }
 .meta {
   color: #849087;
@@ -502,7 +519,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   width: 360rpx;
   height: 88rpx;
   line-height: 88rpx;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
   font-size: 30rpx;
@@ -530,9 +547,13 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .orders-main {
   flex: 1;
   min-height: 0;
+  width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
-  padding-top: 12rpx;
+  padding-top: 8rpx;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 .section-label {
   display: block;
@@ -557,16 +578,16 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   box-shadow: 0 10rpx 28rpx rgba(15, 23, 42, 0.05);
 }
 .review-card.tone-wait {
-  background: linear-gradient(135deg, #fff, #f0fdf7);
-  border-color: rgba(5, 150, 105, 0.22);
+  background: #fff;
+  border-color: #edf1ef;
 }
 .review-card.tone-warn {
-  background: linear-gradient(135deg, #fff, #fff7ed);
-  border-color: rgba(217, 119, 6, 0.25);
+  background: #fff;
+  border-color: #edf1ef;
 }
 .review-card.tone-success {
-  background: linear-gradient(135deg, #fff, #ecfdf5);
-  border-color: rgba(16, 185, 129, 0.28);
+  background: #fff;
+  border-color: #edf1ef;
 }
 .review-icon {
   width: 64rpx;
@@ -625,43 +646,48 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
 .filter-block {
   flex-shrink: 0;
-}
-.filter-scroll {
-  white-space: nowrap;
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--page-bg, #f5f7f8);
+  padding: 4rpx 0 8rpx;
 }
 .order-filters {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   gap: 12rpx;
-  padding: 14rpx 24rpx 16rpx;
+  padding: 8rpx 24rpx;
   align-items: center;
+  box-sizing: border-box;
 }
-.filter-sep {
-  flex-shrink: 0;
-  width: 2rpx;
-  height: 28rpx;
-  margin: 0 6rpx;
-  background: rgba(100, 116, 139, 0.24);
+.order-filters.time-row {
+  padding-top: 0;
+  padding-bottom: 4rpx;
 }
 .filter-chip {
+  flex-shrink: 0;
   white-space: nowrap;
-  padding: 12rpx 22rpx;
+  padding: 10rpx 20rpx;
   border-radius: 999rpx;
   border: 1rpx solid #e7eeea;
-  background: rgba(255, 255, 255, 0.92);
+  background: #fff;
   color: #68766e;
   font-size: 23rpx;
   box-shadow: 0 5rpx 16rpx rgba(15, 23, 42, 0.04);
 }
 .filter-chip.time {
-  padding: 10rpx 20rpx;
+  padding: 8rpx 18rpx;
   font-size: 22rpx;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.86);
   border-color: #dceee6;
 }
 .filter-chip.active {
   border-color: #059669;
   color: #fff;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.2);
 }
 .filter-chip.time.active {
@@ -670,9 +696,23 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   box-shadow: 0 6rpx 16rpx rgba(4, 120, 87, 0.18);
 }
 
-.list {
+/* list-wrap 约束区域，避免 H5 scroll-view 铺满盖住筛选；show-scrollbar=false 不露条 */
+.list-wrap {
   flex: 1;
   min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+.list {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+.list-inner {
+  padding: 8rpx 0 12rpx;
+  box-sizing: border-box;
 }
 .order-card {
   margin: 0 24rpx 16rpx;
@@ -810,7 +850,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #64748b;
 }
 .list-foot {
-  padding: 28rpx 24rpx 60rpx;
+  padding: 28rpx 24rpx calc(160rpx + env(safe-area-inset-bottom));
   text-align: center;
 }
 .foot-link {
@@ -834,5 +874,20 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #047857;
   background: #ecfdf5;
   font-weight: 600;
+}
+</style>
+
+<style>
+/* 非 scoped：确保列表滚动条不露出来 */
+.page .list,
+.page .list-wrap {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.page .list::-webkit-scrollbar,
+.page .list-wrap::-webkit-scrollbar {
+  width: 0 !important;
+  height: 0 !important;
+  display: none !important;
 }
 </style>

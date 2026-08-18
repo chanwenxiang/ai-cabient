@@ -73,7 +73,8 @@
     SELECT l.sku_id AS c0, l.sku_name AS c1,
            COALESCE(SUM(l.quantity), 0) AS c2,
            COALESCE(SUM(l.line_amount_cents), 0) AS c3,
-           COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c4
+           COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c4,
+           COUNT(DISTINCT o.order_id) AS c5
     FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
     WHERE o.created_at >= #{since}
     GROUP BY l.sku_id, l.sku_name
@@ -85,7 +86,8 @@
     SELECT l.sku_id AS c0, l.sku_name AS c1,
            COALESCE(SUM(l.quantity), 0) AS c2,
            COALESCE(SUM(l.line_amount_cents), 0) AS c3,
-           COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c4
+           COALESCE(SUM(l.quantity * COALESCE(l.unit_cost_cents, 0)), 0) AS c4,
+           COUNT(DISTINCT o.order_id) AS c5
     FROM cabinet_order_line l JOIN cabinet_order o ON l.order_id = o.order_id
     WHERE o.device_id IN
     <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>

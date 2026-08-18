@@ -1,5 +1,11 @@
 <template>
   <view class="page-root">
+    <app-nav-bar title="消息中心">
+      <template #right>
+        <text v-if="unread > 0" class="nav-read-all" @click.stop="markAllRead">全部已读</text>
+      </template>
+    </app-nav-bar>
+    <view class="page-body">
     <view v-if="subscribeEnabled" class="subscribe-banner">
       <view class="subscribe-copy">
         <text class="subscribe-title">开启微信消息提醒</text>
@@ -9,8 +15,6 @@
         {{ subscribing ? '请求中…' : '去开启' }}
       </button>
     </view>
-
-    <view v-if="unread > 0" class="read-all" @click="markAllRead">全部已读</view>
 
     <view v-if="loading" class="loading"><text>加载中…</text></view>
     <view v-else-if="!list.length" class="empty">
@@ -26,11 +30,11 @@
         @click="onOpen(m)"
       >
         <view class="msg-head">
-          <text class="msg-title">{{ m.title }}</text>
+          <text class="msg-title">{{ sanitizeNotifyTitle(m.title) }}</text>
           <text class="msg-time">{{ formatTime(m.createdAt) }}</text>
         </view>
-        <text class="msg-body">{{ m.body }}</text>
-        <view v-if="m.bizId" class="msg-biz">关联单号：{{ m.bizId }}</view>
+        <text class="msg-body">{{ rewriteBizNosInText(m.body) }}</text>
+        <view v-if="m.bizId" class="msg-biz">关联单号：{{ displayBizNo(m.bizId) }}</view>
       </view>
     </view>
 
@@ -41,6 +45,7 @@
         <text class="pref-label">{{ p.label }}</text>
         <switch :checked="p.enabled" color="#059669" @change="onPrefChange(p, $event)" />
       </view>
+    </view>
     </view>
   </view>
 </template>
@@ -54,7 +59,12 @@ import {
   type NotificationDto,
   type NotifyPrefDto
 } from '@/utils/consumer-api';
-import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import {
+  displayBizNo,
+  formatDateTimeMinute,
+  rewriteBizNosInText,
+  sanitizeNotifyTitle
+} from '@aicabinet/shared-uni/format';
 
 const loading = ref(false);
 const list = ref<NotificationDto[]>([]);
@@ -183,16 +193,20 @@ function formatTime(t: string) {
 
 <style scoped>
 .page-root {
-  min-height: 100vh;
-  padding: 24rpx 24rpx 48rpx;
-  background: #f5f7f8;
+  min-height: 100%;
+  padding: 0;
+  background: #ffffff;
   box-sizing: border-box;
 }
-.read-all {
-  margin-bottom: 16rpx;
-  text-align: right;
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+}
+.nav-read-all {
   font-size: 24rpx;
-  color: #059669;
+  color: #ffffff;
+  opacity: 0.92;
+  white-space: nowrap;
 }
 .loading {
   padding: 120rpx 0;
@@ -292,7 +306,7 @@ function formatTime(t: string) {
   margin-bottom: 16rpx;
   padding: 24rpx;
   border-radius: 22rpx;
-  background: linear-gradient(135deg, #064e3b 0%, #059669 60%, #0d9488 100%);
+  background: linear-gradient(135deg, #064e3b 0%, #059669 60%, #059669 100%);
 }
 .subscribe-copy {
   flex: 1;

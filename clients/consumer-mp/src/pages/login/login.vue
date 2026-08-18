@@ -348,7 +348,8 @@ async function onLogin() {
 <style scoped>
 .login-wrap {
   position: relative;
-  min-height: 100vh;
+  height: 100%;
+  min-height: 100%;
   overflow-x: hidden;
   overflow-y: hidden;
   background: #0b1220;
@@ -357,16 +358,22 @@ async function onLogin() {
   overflow-y: auto;
 }
 .login-wrap.phone-open .hero {
-  padding-top: 28rpx;
+  padding-top: 12rpx;
 }
 .login-wrap.phone-open .brand {
-  font-size: 48rpx;
+  font-size: 40rpx;
 }
 .login-wrap.phone-open .tagline {
-  font-size: 26rpx;
+  font-size: 24rpx;
+  margin-top: 4rpx;
+}
+.login-wrap.phone-open .badge {
+  display: none;
 }
 .login-wrap.phone-open .login-content {
   min-height: auto;
+  justify-content: flex-start;
+  padding-top: calc(16rpx + env(safe-area-inset-top));
 }
 .login-bg-scene {
   position: absolute;
@@ -489,15 +496,22 @@ async function onLogin() {
 .login-content {
   position: relative;
   z-index: 2;
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: calc(48rpx + env(safe-area-inset-top)) 32rpx calc(32rpx + env(safe-area-inset-bottom));
+  justify-content: center;
+  align-items: center;
+  padding: calc(32rpx + env(safe-area-inset-top)) 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  overflow: hidden;
+  box-sizing: border-box;
 }
 .hero {
   flex-shrink: 0;
   padding-top: 0;
   text-align: center;
+  width: 100%;
+  max-width: 320px;
 }
 .brand {
   font-size: 56rpx;
@@ -541,26 +555,50 @@ async function onLogin() {
 }
 .form-card {
   flex-shrink: 0;
-  padding: 36rpx 32rpx 40rpx;
-  border-radius: 32rpx 32rpx 24rpx 24rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+  padding: 32rpx 28rpx 36rpx;
+  border-radius: 28rpx;
   background: rgba(8, 24, 30, 0.58);
   border: 2rpx solid rgba(148, 210, 198, 0.22);
   backdrop-filter: blur(52rpx);
   box-shadow:
     0 -8rpx 40rpx rgba(2, 12, 16, 0.18),
     0 16rpx 48rpx rgba(2, 10, 14, 0.42);
+  box-sizing: border-box;
 }
 .phone-open .form-card {
-  padding-top: 28rpx;
+  padding: 20rpx 24rpx 24rpx;
 }
 .phone-open .field {
-  margin-bottom: 16rpx;
+  margin-bottom: 12rpx;
 }
 .phone-open .subtitle {
-  margin-bottom: 20rpx;
+  margin-bottom: 12rpx;
+  font-size: 22rpx;
+}
+.phone-open .title {
+  font-size: 32rpx;
+  margin-bottom: 4rpx;
 }
 .phone-open .divider {
-  margin: 20rpx 0 16rpx;
+  margin: 12rpx 0 12rpx;
+}
+.phone-open .btn-wx {
+  height: 84rpx;
+  line-height: 84rpx;
+  font-size: 30rpx;
+}
+.phone-open .tabs {
+  margin-bottom: 16rpx;
+}
+.phone-open .divider-toggle {
+  min-height: 56rpx;
+  padding: 10rpx 22rpx;
 }
 .title {
   font-size: 36rpx;
@@ -649,8 +687,8 @@ async function onLogin() {
 .tab-item.on {
   color: #ffffff;
   font-weight: 600;
-  background: linear-gradient(135deg, #0f766e, #14b8a6);
-  box-shadow: 0 4rpx 12rpx rgba(13, 148, 136, 0.28);
+  background: linear-gradient(135deg, var(--brand, #047857), var(--brand-2, #059669));
+  box-shadow: 0 4rpx 12rpx rgba(5, 150, 105, 0.28);
 }
 .field {
   margin-bottom: 20rpx;
@@ -711,15 +749,21 @@ async function onLogin() {
 }
 .btn-primary {
   margin-top: 12rpx;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  align-self: center;
+  width: 200px !important;
+  max-width: 200px !important;
+  min-width: 168px !important;
+  padding: 0 !important;
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
-  height: 96rpx;
-  line-height: 96rpx;
+  height: 88rpx;
+  line-height: 88rpx;
   text-align: center;
   font-size: 30rpx;
   font-weight: 600;
   box-shadow: 0 10rpx 28rpx rgba(5, 150, 105, 0.28);
+  box-sizing: border-box;
 }
 .btn-primary.disabled,
 .btn-code.disabled {

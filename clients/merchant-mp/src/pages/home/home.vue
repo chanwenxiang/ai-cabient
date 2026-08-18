@@ -10,6 +10,7 @@
         ><text class="banner-retry" @click="load">重试</text></view
       >
       <view class="dash-header">
+        <text class="nav-title">工作台</text>
         <text class="hello">你好，{{ meName }}</text>
         <text class="sub">{{ merchantNames }}</text>
         <view class="header-stats">
@@ -28,8 +29,8 @@
         </view>
       </view>
 
-      <!-- 竞品式主路径：扫码到柜 → 补货/查看 -->
-      <view class="scan-card">
+      <!-- 竞品式主路径：扫码到柜 → 补货/查看（无补货权限时不展示，避免财务误操作） -->
+      <view v-if="canReplenishment" class="scan-card">
         <view class="scan-copy">
           <text class="scan-title">扫码到柜</text>
           <text class="scan-desc">扫描柜门二维码，查看库存或开始补货</text>
@@ -513,29 +514,40 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .page {
   min-height: 100%;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, #ecfdf5 0, #f0fdfa 280rpx, #f0fdfa 100%);
+  background: #ffffff;
 }
 .dash-header {
-  background: linear-gradient(145deg, #134e4a, #0f766e 60%, #14b8a6);
-  padding: 36rpx 32rpx 40rpx;
+  background: linear-gradient(165deg, #134e4a 0%, #0f766e 55%, #0d9488 100%);
+  padding: calc(8px + env(safe-area-inset-top)) 24rpx 28rpx;
   color: #fff;
-  border-radius: 0 0 32rpx 32rpx;
+  border-radius: 0;
+  margin: 0;
+}
+.nav-title {
+  display: block;
+  text-align: center;
+  font-size: 32rpx;
+  font-weight: 700;
+  line-height: 44px;
+  height: 44px;
+  margin: 0 0 4rpx;
+  letter-spacing: 1rpx;
 }
 .hello {
-  font-size: 36rpx;
+  font-size: 32rpx;
   font-weight: 700;
   display: block;
 }
 .sub {
-  font-size: 24rpx;
+  font-size: 22rpx;
   opacity: 0.85;
   display: block;
-  margin-top: 6rpx;
+  margin-top: 4rpx;
 }
 .header-stats {
   display: flex;
-  margin-top: 28rpx;
-  padding-top: 24rpx;
+  margin-top: 12rpx;
+  padding-top: 12rpx;
   border-top: 1rpx solid rgba(255, 255, 255, 0.18);
 }
 .h-stat {
@@ -544,30 +556,31 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .h-val {
   display: block;
-  font-size: 40rpx;
+  font-size: 36rpx;
   font-weight: 800;
 }
 .h-val.urgent {
-  color: #fecaca;
+  color: #fff;
+  text-shadow: 0 0 0 transparent;
 }
 .h-label {
   display: block;
-  margin-top: 4rpx;
-  font-size: 22rpx;
+  margin-top: 2rpx;
+  font-size: 20rpx;
   opacity: 0.8;
 }
 
 .scan-card {
-  margin: -20rpx 24rpx 0;
+  margin: 12rpx 24rpx 0;
   position: relative;
   z-index: 2;
   background: #fff;
-  border-radius: 24rpx;
-  padding: 28rpx 24rpx;
+  border-radius: 14rpx;
+  padding: 16rpx 18rpx;
   display: flex;
   align-items: center;
-  gap: 20rpx;
-  box-shadow: 0 12rpx 36rpx rgba(15, 118, 110, 0.12);
+  gap: 12rpx;
+  box-shadow: 0 6rpx 16rpx rgba(15, 118, 110, 0.08);
   border: 1rpx solid #ccfbf1;
 }
 .scan-copy {
@@ -576,29 +589,29 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .scan-title {
   display: block;
-  font-size: 32rpx;
+  font-size: 28rpx;
   font-weight: 700;
   color: #134e4a;
 }
 .scan-desc {
   display: block;
-  margin-top: 6rpx;
-  font-size: 24rpx;
+  margin-top: 4rpx;
+  font-size: 22rpx;
   color: #64748b;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 .scan-btn {
   margin: 0;
   flex-shrink: 0;
-  height: 80rpx;
-  line-height: 80rpx;
-  padding: 0 36rpx;
-  border-radius: 40rpx;
+  height: 68rpx;
+  line-height: 68rpx;
+  padding: 0 28rpx;
+  border-radius: 34rpx;
   background: linear-gradient(135deg, #0f766e, #14b8a6);
   color: #fff;
-  font-size: 30rpx;
+  font-size: 28rpx;
   font-weight: 700;
-  box-shadow: 0 8rpx 20rpx rgba(15, 118, 110, 0.25);
+  box-shadow: 0 6rpx 16rpx rgba(15, 118, 110, 0.22);
 }
 .scan-btn::after {
   border: none;
@@ -608,14 +621,14 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 
 .notice-strip {
-  margin: 16rpx 24rpx 0;
-  padding: 18rpx 20rpx;
+  margin: 12rpx 20rpx 0;
+  padding: 14rpx 16rpx;
   display: flex;
   align-items: center;
   gap: 12rpx;
   background: #ecfdf5;
   border: 1rpx solid #99f6e4;
-  border-radius: 16rpx;
+  border-radius: 14rpx;
 }
 .notice-tag {
   flex-shrink: 0;
@@ -644,18 +657,18 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
 .quick-row {
   display: flex;
-  gap: 12rpx;
-  margin: 20rpx 24rpx 0;
+  gap: 10rpx;
+  margin: 14rpx 20rpx 0;
 }
 .quick-item {
   position: relative;
   flex: 1;
   background: #fff;
-  border-radius: 20rpx;
-  padding: 24rpx 12rpx;
+  border-radius: 16rpx;
+  padding: 18rpx 10rpx;
   text-align: center;
   border: 1rpx solid #e2e8f0;
-  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.04);
+  box-shadow: 0 4rpx 14rpx rgba(15, 23, 42, 0.04);
 }
 .quick-item.primary {
   border-color: #99f6e4;
@@ -696,8 +709,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 
 .card {
-  margin: 20rpx 24rpx 0;
-  padding: 28rpx 24rpx;
+  margin: 14rpx 20rpx 0;
+  padding: 20rpx 20rpx;
   background: #fff;
   border-radius: 22rpx;
   border: 1rpx solid #e2e8f0;
@@ -725,7 +738,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #0f766e;
 }
 .empty-inline {
-  padding: 28rpx 0 8rpx;
+  padding: 16rpx 0 4rpx;
   text-align: center;
   color: #94a3b8;
   font-size: 26rpx;
@@ -861,11 +874,11 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 
 .ops-block {
-  margin: 28rpx 24rpx 0;
+  margin: 16rpx 20rpx 0;
 }
 .ops-title {
   display: block;
-  margin: 0 8rpx 14rpx;
+  margin: 0 8rpx 10rpx;
   font-size: 24rpx;
   color: #94a3b8;
   letter-spacing: 1rpx;
@@ -873,12 +886,12 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .ops-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12rpx;
+  gap: 10rpx;
 }
 .ops-card {
   background: #fff;
-  border-radius: 18rpx;
-  padding: 28rpx 20rpx;
+  border-radius: 16rpx;
+  padding: 20rpx 16rpx;
   text-align: center;
   border: 1rpx solid #e2e8f0;
 }

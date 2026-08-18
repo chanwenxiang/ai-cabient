@@ -138,6 +138,21 @@ public class OrgService {
         return toDto(node, deviceOrgRepository.findByNodeId(nodeId));
     }
 
+    @Transactional
+    public void deleteNode(Long operatorId, Long nodeId) {
+        permissionService.requireAnyPermission(operatorId, "ops:org:edit", "ops:device:edit");
+        OpsOrgNode node = requireNode(nodeId);
+        if (nodeRepository.countByParentId(nodeId) > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "请先删除子组织");
+        }
+        if (!deviceOrgRepository.findByNodeId(nodeId).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "请先解除该组织下的设备归属");
+        }
+        nodeRepository.deleteById(nodeId);
+        auditService.record(operatorId, "ORG_NODE_DELETE", "ORG_NODE",
+                String.valueOf(nodeId), "name=" + node.getName());
+    }
+
     private OpsOrgNode requireNode(Long nodeId) {
         return nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "组织不存在"));

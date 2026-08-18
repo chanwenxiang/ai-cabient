@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.OpsExceptionDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.OpsExceptionActionDto;
 import com.aicabinet.common.dto.OpsExceptionDetailDto;
+import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.domain.OpsException;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.mapper.AdminAuditLogMapper;
@@ -62,7 +63,7 @@ public class OpsExceptionService {
         String dedup = type + ":" + first(sessionId, orderId, deviceId, String.valueOf(userId));
         return repository.findFirstByDedupKeyAndStatusIn(dedup, OPEN).map(this::toDto).orElseGet(() -> {
             OpsException item = new OpsException();
-            item.setExceptionId("EX" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase());
+            item.setExceptionId(BizIds.nextNumeric());
             item.setExceptionType(type); item.setSeverity(severity); item.setStatus("OPEN");
             item.setDeviceId(deviceId); item.setSessionId(sessionId); item.setOrderId(orderId); item.setUserId(userId);
             item.setTitle(title); item.setDetail(trim(detail)); item.setDedupKey(dedup);

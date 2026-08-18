@@ -97,6 +97,8 @@ public interface BaseTradeMapper<T> extends BaseMapper<T> {
         TableInfo tableInfo = TableInfoHelper.getTableInfo(entity.getClass());
         if (tableInfo != null && tableInfo.getKeyProperty() != null) {
             try {
+                // 有明确 @TableId 时：无论是否为空都以其为准，避免回落到 skuId 等业务字段
+                // （SkuDelistReview 新建时 id=null 却被当成 skuId 去 selectById，触发异常路径）
                 return tableInfo.getPropertyValue(entity, tableInfo.getKeyProperty());
             } catch (Exception ignored) {
                 // fall through

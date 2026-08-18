@@ -63,9 +63,20 @@
             .slice(0, 19)
         }}</template>
       </el-table-column>
+      <el-table-column label="操作" width="140" align="center">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+          <el-button link type="danger" @click="removeRow(row)">删除</el-button>
+        </template>
+      </el-table-column>
     </el-table>
 
-    <el-dialog v-model="dlg" title="登记手机验证" width="420px" destroy-on-close>
+    <el-dialog
+      v-model="dlg"
+      :title="editingId ? '编辑手机验证' : '登记手机验证'"
+      width="420px"
+      destroy-on-close
+    >
       <el-form label-width="88px">
         <el-form-item label="手机号" required>
           <el-input v-model="form.phone" />
@@ -100,7 +111,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -118,6 +129,7 @@ const {
 } = useIdColumnSort('logId');
 const displayItems = computed(() => sortById(items.value));
 const dlg = ref(false);
+const editingId = ref<number | null>(null);
 const form = reactive({ phone: '', userId: '', channel: 'WECHAT', merchantId: '' });
 
 async function load() {
@@ -140,6 +152,7 @@ async function load() {
 }
 
 function openCreate() {
+  editingId.value = null;
   form.phone = '';
   form.userId = '';
   form.channel = 'WECHAT';
@@ -147,22 +160,54 @@ function openCreate() {
   dlg.value = true;
 }
 
+function openEdit(row: any) {
+  editingId.value = row.logId;
+  form.phone = row.phone || '';
+  form.userId = row.userId != null ? String(row.userId) : '';
+  form.channel = row.channel || 'WECHAT';
+  form.merchantId = row.merchantId || '';
+  dlg.value = true;
+}
+
 async function save() {
   saving.value = true;
   try {
-    await api.request('/api/v2/ops/admin/phone-verify/logs', 'POST', {
+    const body = {
       phone: form.phone,
       userId: form.userId ? Number(form.userId) : null,
       channel: form.channel,
       merchantId: form.merchantId || null
-    });
-    ElMessage.success('已登记');
+    };
+    if (editingId.value) {
+      await api.request(`/api/v2/ops/admin/phone-verify/logs/${editingId.value}`, 'PUT', body);
+      ElMessage.success('已更新');
+    } else {
+      await api.request('/api/v2/ops/admin/phone-verify/logs', 'POST', body);
+      ElMessage.success('已登记');
+    }
     dlg.value = false;
     await load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
     saving.value = false;
+  }
+}
+
+async function removeRow(row: any) {
+  try {
+    await ElMessageBox.confirm(`确认删除验证记录 #${row.logId}？`, '删除记录', {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/phone-verify/logs/${row.logId}`, 'DELETE');
+    ElMessage.success('已删除');
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '删除失败');
   }
 }
 

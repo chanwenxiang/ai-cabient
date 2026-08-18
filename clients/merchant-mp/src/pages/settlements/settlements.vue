@@ -1,5 +1,7 @@
 <template>
   <view class="page-root">
+    <app-nav-bar title="结算对账" />
+    <view class="page-body">
     <view class="date-bar">
       <!-- H5：原生 date 用浏览器浮层日历，避免 uni-picker 窄屏把年列表撑进页面 -->
       <input
@@ -135,6 +137,7 @@
     <view v-if="canExport" class="actions">
       <button class="btn-outline" @click="onExport">导出对账单</button>
     </view>
+      </view>
   </view>
 </template>
 
@@ -335,8 +338,8 @@ function onExport() {
 
 <style scoped>
 .page-root {
-  padding: 20rpx;
-  background: #f0fdfa;
+  padding: 0;
+  background: #ffffff;
   min-height: 100vh;
 }
 .date-bar {
@@ -514,5 +517,9 @@ function onExport() {
 }
 .btn-outline::after {
   border: none;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

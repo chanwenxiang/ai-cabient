@@ -4,6 +4,7 @@ import com.aicabinet.common.dto.CreateCouponRequest;
 import com.aicabinet.common.dto.UpdateCouponRequest;
 import com.aicabinet.trade.domain.CouponDefinition;
 import com.aicabinet.trade.domain.UserCoupon;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.CouponDefinitionMapper;
 import com.aicabinet.trade.mapper.UserCouponMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
@@ -29,6 +30,7 @@ class CouponServiceTest {
     @Mock private CouponDefinitionMapper definitionRepository;
     @Mock private UserCouponMapper userCouponRepository;
     @Mock private UserInfoMapper userInfoRepository;
+    @Mock private CabinetOrderMapper orderRepository;
     @Mock private ScheduledTaskService taskService;
 
     private CouponService couponService;
@@ -36,7 +38,7 @@ class CouponServiceTest {
     @BeforeEach
     void setUp() {
         couponService = new CouponService(
-                definitionRepository, userCouponRepository, userInfoRepository);
+                definitionRepository, userCouponRepository, userInfoRepository, orderRepository);
         org.springframework.test.util.ReflectionTestUtils.setField(couponService, "taskService", taskService);
         lenient().when(taskService.tryBegin(anyString(), anyLong())).thenReturn(true);
     }

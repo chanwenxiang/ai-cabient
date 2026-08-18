@@ -48,5 +48,6 @@
     "**/.gradle/**": true,
     "**/node_modules/**": true,
     "**/target/**": true
-  }
+  },
+  "java.compile.nullAnalysis.mode": "disabled"
 }

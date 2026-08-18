@@ -1,5 +1,7 @@
 <template>
   <view class="page">
+    <app-nav-bar title="经营分析" />
+    <view class="page-body">
     <view class="periods">
       <text
         v-for="d in periods"
@@ -125,6 +127,7 @@
         <button class="btn-outline" @click="onExport">导出柜机报表</button>
       </view>
     </template>
+      </view>
   </view>
 </template>
 
@@ -358,6 +361,7 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 }
 
 .page {
+  padding: 0;
   padding-bottom: 24rpx;
 }
 .periods {
@@ -551,5 +555,9 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   padding: 24rpx;
   background: #fff;
   border-radius: 18rpx;
+}
+.page-body {
+  padding: 0 0 calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

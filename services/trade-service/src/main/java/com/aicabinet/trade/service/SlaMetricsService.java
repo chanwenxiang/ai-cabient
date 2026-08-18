@@ -54,22 +54,31 @@ public class SlaMetricsService {
     @Transactional(readOnly = true)
     public SlaMetricsDto current(Long operatorId) {
         SlaRealtimeDto realtime = realtimeMetrics(operatorId);
+        int currentOnline = (int) deviceRepository.countByOnlineStatus("ONLINE");
+        int deviceTotal = (int) deviceRepository.count();
         return snapshotRepository.findFirstByOrderBySnapshotDateDesc()
-                .map(s -> new SlaMetricsDto(
-                        s.getSnapshotDate(),
-                        s.getDoorOpenAttempts(),
-                        s.getDoorOpenSuccess(),
-                        s.getDoorSuccessRate() != null ? s.getDoorSuccessRate() : 0,
-                        s.getAvgRecognizeMs() != null ? s.getAvgRecognizeMs() : 0,
-                        s.getP95RecognizeMs() != null ? s.getP95RecognizeMs() : 0,
-                        s.getDeviceTotal(),
-                        s.getDeviceOnlinePeak(),
-                        s.getDeviceOnlineRate() != null ? s.getDeviceOnlineRate() : 0,
-                        realtime
-                ))
+                .map(s -> {
+                    int snapPeak = s.getDeviceOnlinePeak();
+                    // OBS-011：峰值至少不低于当前在线，避免快照 0 与在线率矛盾
+                    int peak = Math.max(snapPeak, currentOnline);
+                    int total = s.getDeviceTotal() > 0 ? s.getDeviceTotal() : deviceTotal;
+                    return new SlaMetricsDto(
+                            s.getSnapshotDate(),
+                            s.getDoorOpenAttempts(),
+                            s.getDoorOpenSuccess(),
+                            s.getDoorSuccessRate() != null ? s.getDoorSuccessRate() : 0,
+                            s.getAvgRecognizeMs() != null ? s.getAvgRecognizeMs() : 0,
+                            s.getP95RecognizeMs() != null ? s.getP95RecognizeMs() : 0,
+                            total,
+                            peak,
+                            s.getDeviceOnlineRate() != null ? s.getDeviceOnlineRate() : 0,
+                            realtime
+                    );
+                })
                 .orElseGet(() -> new SlaMetricsDto(
-                        LocalDate.now(), 0, 0, realtime.doorSuccessRate24h(), 0, 0,
-                        (int) deviceRepository.count(), 0, realtime.deviceOnlineRateNow(), realtime
+                        // 无快照时 KPI 卡用 0/0 + 成功率 0，峰值用当前在线
+                        LocalDate.now(), 0, 0, 0f, 0, 0,
+                        deviceTotal, currentOnline, realtime.deviceOnlineRateNow(), realtime
                 ));
     }
 
@@ -132,7 +141,7 @@ public class SlaMetricsService {
     public SlaRealtimeDto realtimeMetrics(Long operatorId) {
         Set<String> scopedDevices = merchantScopeService.allowedDeviceIds(operatorId);
         if (scopedDevices != null && scopedDevices.isEmpty()) {
-            return new SlaRealtimeDto(1.0, 0, 0, 0, 0, 0, 1.0);
+            return new SlaRealtimeDto(0.0, 0, 0, 0, 0, 0, 0.0);
         }
         List<DeviceInfo> devices = scopedDevices == null
                 ? null
@@ -157,7 +166,8 @@ public class SlaMetricsService {
             avg = nz(sessionRepository.avgDoorOpenMsCreatedAfterForDevices(since24h, scopedDevices));
         }
 
-        double doorRate = attempts > 0 ? (double) success / attempts : 1.0;
+        // OBS-011：无开门尝试时返回 0，避免 0/0 被展示成 100%
+        double doorRate = attempts > 0 ? (double) success / attempts : 0.0;
 
         long online;
         long totalDevices;

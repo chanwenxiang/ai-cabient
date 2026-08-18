@@ -1,78 +1,69 @@
 <template>
-  <view class="page-root">
+  <view class="page-root page-fill" :class="{ 'is-landing': showLanding }">
     <!-- 落地页：仅 Tab 进入时展示，柜码直达不经过此页 -->
     <view v-if="showLanding" class="landing">
       <image class="landing-bg" :src="landingBgUrl" mode="aspectFill" aria-hidden="true" />
       <view class="landing-overlay" />
 
       <view class="landing-content">
-        <view class="landing-head">
-          <text class="brand">AI开门柜</text>
-          <text class="tagline">扫码开门 · 拿了就走</text>
-          <view class="pay-badge">
-            <text class="pay-badge-icon">✓</text>
-            <text class="pay-badge-text">关门自动结算</text>
-          </view>
-          <view class="flow-steps">
-            <text class="flow-step">扫码</text>
-            <text class="flow-sep">→</text>
-            <text class="flow-step">开门</text>
-            <text class="flow-sep">→</text>
-            <text class="flow-step">取货</text>
-            <text class="flow-sep">→</text>
-            <text class="flow-step">关门扣款</text>
-          </view>
-        </view>
-
-        <view v-if="lastDeviceId" class="resume-card" @click="startShoppingFlow(lastDeviceId)">
-          <text class="resume-title">继续在本柜购物</text>
-          <text class="resume-sub">{{ lastDeviceName || lastDeviceId }}</text>
-        </view>
-
-        <view v-if="landingError" class="landing-error" :class="'kind-' + landingErrorKind">
-          <view class="error-icon">!</view>
-          <view class="error-copy">
-            <text class="error-title">{{ landingErrorTitle }}</text>
-            <text class="error-detail">{{ landingError }}</text>
-            <view class="error-actions">
-              <text
-                v-if="landingErrorKind === 'balance'"
-                class="error-action primary"
-                @click="goRechargeFromError"
-                >去充值</text
-              >
-              <text
-                v-else-if="lastFailedDeviceId"
-                class="error-action primary"
-                @click="retryLastOpen"
-                >重试开门</text
-              >
-              <text
-                v-if="landingErrorKind === 'device_not_found'"
-                class="error-action"
-                @click="onScan"
-                >重新扫码</text
-              >
-              <text
-                class="error-action"
-                @click="
-                  landingError = '';
-                  showManual = true;
-                "
-                >换一台</text
-              >
+        <view class="landing-top">
+          <view class="landing-head">
+            <text class="brand">AI开门柜</text>
+            <text class="tagline">扫码开门 · 拿了就走</text>
+            <view class="pay-badge">
+              <text class="pay-badge-icon">✓</text>
+              <text class="pay-badge-text">关门自动结算</text>
             </view>
           </view>
-          <text
-            class="error-close"
-            role="button"
-            aria-label="关闭错误提示"
-            @click="landingError = ''"
-            >×</text
-          >
-        </view>
 
-        <view class="landing-spacer" />
+          <view v-if="lastDeviceId" class="resume-card" @click="startShoppingFlow(lastDeviceId)">
+            <text class="resume-title">继续在本柜购物</text>
+            <text class="resume-sub">{{ lastDeviceName || lastDeviceId }}</text>
+          </view>
+
+          <view v-if="landingError" class="landing-error" :class="'kind-' + landingErrorKind">
+            <view class="error-icon">!</view>
+            <view class="error-copy">
+              <text class="error-title">{{ landingErrorTitle }}</text>
+              <text class="error-detail">{{ landingError }}</text>
+              <view class="error-actions">
+                <text
+                  v-if="landingErrorKind === 'balance'"
+                  class="error-action primary"
+                  @click="goRechargeFromError"
+                  >去充值</text
+                >
+                <text
+                  v-else-if="lastFailedDeviceId"
+                  class="error-action primary"
+                  @click="retryLastOpen"
+                  >重试开门</text
+                >
+                <text
+                  v-if="landingErrorKind === 'device_not_found'"
+                  class="error-action"
+                  @click="onScan"
+                  >重新扫码</text
+                >
+                <text
+                  class="error-action"
+                  @click="
+                    landingError = '';
+                    showManual = true;
+                  "
+                  >换一台</text
+                >
+              </view>
+            </view>
+            <text
+              class="error-close"
+              role="button"
+              aria-label="关闭错误提示"
+              @click="landingError = ''"
+              >×</text
+            >
+          </view>
+        </view>
 
         <view class="landing-action">
           <button
@@ -1423,16 +1414,22 @@ function stopDevicePoll() {
   flex-direction: column;
   box-sizing: border-box;
   overflow: hidden;
-  background: #f7f7f7;
+  background: #ffffff;
   position: relative;
+}
+.page-root.is-landing {
+  background: #064e3b;
 }
 
 .landing {
   position: relative;
   flex: 1;
   min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
-  background: #0b3d38;
+  background: var(--brand-deep, #064e3b);
 }
 .landing-bg {
   position: absolute;
@@ -1449,12 +1446,12 @@ function stopDevicePoll() {
   right: 0;
   bottom: 0;
   z-index: 1;
+  /* 同一绿色仅调透明度，杜绝灰绿/青绿断层 */
   background: linear-gradient(
     180deg,
-    rgba(6, 66, 60, 0.52) 0%,
-    rgba(10, 94, 84, 0.22) 34%,
-    rgba(9, 78, 70, 0.3) 66%,
-    rgba(4, 42, 38, 0.78) 100%
+    rgba(6, 78, 59, 0.72) 0%,
+    rgba(6, 78, 59, 0.45) 45%,
+    rgba(6, 78, 59, 0.82) 100%
   );
 }
 .landing-content {
@@ -1464,99 +1461,90 @@ function stopDevicePoll() {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 0 32rpx calc(24rpx + env(safe-area-inset-bottom));
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 0 32rpx 12rpx;
+  box-sizing: border-box;
+}
+.landing-top {
+  flex-shrink: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .landing-head {
   flex-shrink: 0;
-  padding-top: 48rpx;
+  padding-top: calc(24rpx + env(safe-area-inset-top));
   text-align: center;
+  width: 100%;
 }
 .brand {
-  font-size: 56rpx;
+  font-size: 44rpx;
   font-weight: 800;
   color: #ffffff;
   display: block;
   letter-spacing: 2rpx;
-  text-shadow: 0 4rpx 20rpx rgba(6, 78, 59, 0.35);
 }
 .tagline {
-  font-size: 30rpx;
-  color: rgba(255, 255, 255, 0.86);
-  margin-top: 10rpx;
+  font-size: 26rpx;
+  color: rgba(255, 255, 255, 0.9);
+  margin-top: 8rpx;
   display: block;
 }
 .pay-badge {
   display: inline-flex;
   align-items: center;
-  gap: 8rpx;
-  margin-top: 18rpx;
-  padding: 10rpx 22rpx;
+  gap: 6rpx;
+  margin-top: 12rpx;
+  padding: 6rpx 16rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.16);
-  border: 1rpx solid rgba(255, 255, 255, 0.28);
-  backdrop-filter: blur(12rpx);
+  background: rgba(255, 255, 255, 0.18);
+  border: 1rpx solid rgba(255, 255, 255, 0.32);
 }
 .pay-badge-icon {
-  color: #a7f3d0;
-  font-size: 24rpx;
+  color: #ffffff;
+  font-size: 22rpx;
   font-weight: 700;
 }
 .pay-badge-text {
   color: #ffffff;
-  font-size: 22rpx;
-}
-.flow-steps {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 8rpx;
-  margin-top: 20rpx;
-  padding: 0 12rpx;
-}
-.flow-step {
-  font-size: 22rpx;
-  color: rgba(255, 255, 255, 0.92);
-  font-weight: 600;
-}
-.flow-sep {
   font-size: 20rpx;
-  color: rgba(255, 255, 255, 0.45);
 }
 
 .resume-card {
-  margin-top: 24rpx;
-  background: rgba(8, 24, 30, 0.5);
-  border-radius: 20rpx;
-  padding: 24rpx 28rpx;
-  border: 2rpx solid rgba(148, 210, 198, 0.28);
-  backdrop-filter: blur(16rpx);
-  box-shadow: 0 10rpx 28rpx rgba(2, 12, 16, 0.28);
+  margin-top: 16rpx;
+  width: 100%;
+  max-width: 620rpx;
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 16rpx;
+  padding: 16rpx 20rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.28);
+  box-sizing: border-box;
+  text-align: left;
 }
 .resume-title {
-  font-size: 30rpx;
+  font-size: 26rpx;
   font-weight: 600;
-  color: #ecfeff;
+  color: #ffffff;
   display: block;
 }
 .resume-sub {
-  font-size: 24rpx;
-  color: rgba(207, 250, 254, 0.72);
-  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.78);
+  margin-top: 2rpx;
   display: block;
 }
 
-.landing-spacer {
-  flex: 1;
-  min-height: 80rpx;
-}
-
 .landing-action {
-  flex-shrink: 0;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-bottom: 16rpx;
+  justify-content: center;
+  width: 100%;
 }
 .scan-circle {
   margin: 0;
@@ -1576,45 +1564,57 @@ function stopDevicePoll() {
   transform: scale(0.98);
 }
 .scan-circle-inner {
-  width: 220rpx;
-  height: 220rpx;
+  width: 168rpx;
+  height: 168rpx;
   border-radius: 50%;
-  background: linear-gradient(145deg, #0d9488, #14b8a6);
+  /* 与页面深绿统一，不再用白底 */
+  background: linear-gradient(145deg, #047857, #064e3b);
+  border: 2rpx solid rgba(255, 255, 255, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 16rpx 48rpx rgba(13, 148, 136, 0.38);
+  box-shadow:
+    0 10rpx 28rpx rgba(6, 78, 59, 0.45),
+    0 0 0 10rpx rgba(255, 255, 255, 0.1);
 }
 .scan-icon-box {
-  width: 96rpx;
-  height: 96rpx;
+  width: 72rpx;
+  height: 72rpx;
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .scan-circle-text {
-  margin-top: 20rpx;
-  font-size: 34rpx;
+  margin-top: 16rpx;
+  font-size: 30rpx;
   font-weight: 700;
   color: #ffffff;
 }
 .scan-tip {
-  margin-top: 16rpx;
-  font-size: 24rpx;
-  color: rgba(255, 255, 255, 0.82);
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.88);
 }
 
 .landing-foot {
   flex-shrink: 0;
-  padding: 8rpx 0 0;
+  padding: 4rpx 0 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .manual-link {
-  display: block;
+  display: inline-block;
+  margin: 0 auto;
   text-align: center;
-  font-size: 24rpx;
-  color: rgba(255, 255, 255, 0.76);
-  padding: 12rpx 0;
+  font-size: 22rpx;
+  color: #ffffff;
+  padding: 8rpx 20rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1rpx solid rgba(255, 255, 255, 0.32);
 }
 .manual-form {
   margin-top: 8rpx;
@@ -1636,7 +1636,7 @@ function stopDevicePoll() {
 }
 .btn-primary {
   margin: 0;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;
@@ -1686,7 +1686,7 @@ function stopDevicePoll() {
 .scan-line {
   width: 8rpx;
   height: 40rpx;
-  background: #fff;
+  background: #ffffff;
   border-radius: 4rpx;
 }
 
@@ -1811,6 +1811,9 @@ function stopDevicePoll() {
   flex-wrap: nowrap;
   white-space: nowrap;
   margin-top: 16rpx;
+  width: 100%;
+  height: 64rpx;
+  box-sizing: border-box;
 }
 .category-chip {
   display: inline-flex;
@@ -1823,6 +1826,7 @@ function stopDevicePoll() {
   color: #475569;
   font-size: 24rpx;
   font-weight: 600;
+  flex-shrink: 0;
 }
 .category-chip.active {
   background: #0f766e;
@@ -1958,10 +1962,12 @@ function stopDevicePoll() {
 }
 
 /* #ifdef H5 */
-/* H5 的原生导航栏和 TabBar 都是 fixed，uni-page-body 的 100% 会把底部操作区
-   继续撑到 TabBar 下方。显式扣除两者高度，保证“再次开门”等关键按钮可点击。 */
+/* 铺满手机框；底栏叠在上方，勿再扣 50px 留白条 */
 .page-root {
-  height: calc(100vh - 94px);
+  height: 100%;
+  max-height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
 }
 /* #endif */
 .product-price {
@@ -1973,6 +1979,9 @@ function stopDevicePoll() {
 
 .cart-bar {
   flex-shrink: 0;
+  position: relative;
+  z-index: 5;
+  isolation: isolate;
   background: #fff;
   padding: 16rpx 24rpx;
   padding-bottom: calc(16rpx + constant(safe-area-inset-bottom));
@@ -2033,7 +2042,7 @@ function stopDevicePoll() {
   padding: 0 40rpx;
   height: 80rpx;
   line-height: 80rpx;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 40rpx;
   font-size: 30rpx;
@@ -2237,39 +2246,22 @@ function stopDevicePoll() {
 }
 
 /* visual overrides (merged) */
-.landing {
-  padding: 0;
-}
-.landing-head {
-  padding-top: 52rpx;
-  text-align: center;
-}
-.brand {
-  font-size: 58rpx;
-}
-.tagline {
-  font-size: 31rpx;
-}
-.resume-card {
-  margin-top: 22rpx;
-  padding: 24rpx 28rpx;
-  border-radius: 22rpx;
-}
 .landing-error {
   display: flex;
   align-items: flex-start;
-  gap: 18rpx;
-  margin-top: 20rpx;
-  padding: 22rpx;
+  gap: 14rpx;
+  margin-top: 14rpx;
+  width: 100%;
+  max-width: 620rpx;
+  padding: 16rpx;
   border: 1rpx solid #fecaca;
-  border-radius: 20rpx;
+  border-radius: 16rpx;
   background: rgba(255, 247, 247, 0.94);
-  box-shadow: 0 9rpx 24rpx rgba(220, 38, 38, 0.07);
+  box-sizing: border-box;
 }
 .landing-error.kind-balance {
   border-color: #fcd34d;
   background: rgba(255, 251, 235, 0.96);
-  box-shadow: 0 9rpx 24rpx rgba(217, 119, 6, 0.08);
 }
 .landing-error.kind-balance .error-icon {
   background: #f59e0b;
@@ -2295,14 +2287,15 @@ function stopDevicePoll() {
 }
 .error-icon {
   display: flex;
-  flex: 0 0 42rpx;
-  height: 42rpx;
+  flex: 0 0 36rpx;
+  height: 36rpx;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
   color: #fff;
   background: #ef4444;
   font-weight: 800;
+  font-size: 22rpx;
 }
 .error-copy {
   min-width: 0;
@@ -2314,23 +2307,23 @@ function stopDevicePoll() {
 }
 .error-title {
   color: #991b1b;
-  font-size: 25rpx;
+  font-size: 24rpx;
   font-weight: 700;
 }
 .error-detail {
-  margin-top: 6rpx;
+  margin-top: 4rpx;
   color: #b45353;
   font-size: 22rpx;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 .error-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 16rpx;
-  margin-top: 14rpx;
+  gap: 12rpx;
+  margin-top: 10rpx;
 }
 .error-action {
-  padding: 8rpx 18rpx;
+  padding: 6rpx 14rpx;
   border-radius: 999rpx;
   border: 1rpx solid #f0b4b4;
   color: #9f1239;
@@ -2343,21 +2336,10 @@ function stopDevicePoll() {
   background: #ecfdf5;
 }
 .error-close {
-  padding: 0 5rpx;
+  padding: 0 4rpx;
   color: #b98b8b;
-  font-size: 34rpx;
+  font-size: 30rpx;
   line-height: 1;
-}
-.scan-circle-inner {
-  width: 228rpx;
-  height: 228rpx;
-  box-shadow: 0 18rpx 52rpx rgba(234, 88, 12, 0.4);
-}
-.scan-circle-text {
-  font-size: 36rpx;
-}
-.landing-foot {
-  padding-bottom: 22rpx;
 }
 .device-bar {
   margin: 18rpx 20rpx 0;
@@ -2407,7 +2389,7 @@ function stopDevicePoll() {
   padding: 18rpx 24rpx;
 }
 .cart-cta {
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.22);
 }
 .flow-overlay {

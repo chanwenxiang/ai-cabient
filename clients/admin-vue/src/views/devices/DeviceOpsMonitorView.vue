@@ -131,7 +131,9 @@
           min-width="220"
           show-overflow-tooltip
           align="center"
-        />
+        >
+          <template #default="{ row }">{{ formatEventDetail(row.detail) }}</template>
+        </el-table-column>
         <el-table-column label="时间" width="170" align="center">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
@@ -203,6 +205,37 @@ function eventTypeLabel(t?: string) {
 }
 function severityLabel(s?: string) {
   return displayLabel('risk_severity', s, '未知');
+}
+
+/** OBS-023：详情里的 onlineStatus=OFFLINE / lifecycle=DEPLOYED 等键值中文化 */
+function formatEventDetail(detail?: string) {
+  if (!detail) return '—';
+  if (!detail.includes('=')) return detail;
+  const keyLabels: Record<string, string> = {
+    onlineStatus: '在线状态',
+    lifecycle: '生命周期',
+    lifecycleStatus: '生命周期',
+    salesLocked: '锁机'
+  };
+  return detail
+    .split(/[,;]+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .map((part) => {
+      const i = part.indexOf('=');
+      if (i <= 0) return part;
+      const key = part.slice(0, i).trim();
+      const val = part.slice(i + 1).trim();
+      const keyLabel = keyLabels[key] || key;
+      let valLabel = val;
+      if (key === 'onlineStatus') valLabel = dictLabel('online_status', val) || val;
+      else if (key === 'lifecycle' || key === 'lifecycleStatus')
+        valLabel = dictLabel('device_lifecycle', val) || val;
+      else if (key === 'salesLocked')
+        valLabel = val === 'true' || val === 't' || val === '1' ? '是' : val === 'false' || val === 'f' || val === '0' ? '否' : val;
+      return `${keyLabel}：${valLabel}`;
+    })
+    .join('；');
 }
 
 function onSortChange(payload: Sort) {

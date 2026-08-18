@@ -19,4 +19,10 @@ public interface AdCampaignItemMapper extends BaseTradeMapper<AdCampaignItem> {
         delete(Wrappers.<AdCampaignItem>lambdaQuery()
                 .eq(AdCampaignItem::getCampaignId, campaignId));
     }
+
+    default long countByAssetId(Long assetId) {
+        Long n = selectCount(Wrappers.<AdCampaignItem>lambdaQuery()
+                .eq(AdCampaignItem::getAssetId, assetId));
+        return n == null ? 0L : n;
+    }
 }

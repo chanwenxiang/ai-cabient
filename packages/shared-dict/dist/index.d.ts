@@ -180,7 +180,7 @@ export declare const DICT: {
     readonly announcement_status: {
         readonly DRAFT: "草稿";
         readonly PUBLISHED: "已发布";
-        readonly ARCHIVED: "存档";
+        readonly ARCHIVED: "已归档";
     };
     readonly announcement_audience: {
         readonly ALL: "全部用户";
@@ -192,6 +192,8 @@ export declare const DICT: {
         readonly DISCOUNT: "折扣";
         readonly BUY_GIFT: "买赠";
         readonly SECOND_HALF: "第二件半价";
+        readonly NEW_USER: "新客";
+        readonly POINTS: "积分";
     };
     readonly coupon_type: {
         readonly AMOUNT_OFF: "满减券";
@@ -487,6 +489,8 @@ export declare const DICT: {
         readonly ORDER_AMOUNT: "订单金额";
         readonly PAYMENT_AMOUNT: "支付净额";
         readonly INVENTORY_MISMATCH: "库存汇总";
+        readonly POINTS_BALANCE: "积分余额";
+        readonly COUPON_ISSUED: "发券数量";
     };
     readonly sku_perf_level: {
         readonly BEST_SELLER: "畅销";

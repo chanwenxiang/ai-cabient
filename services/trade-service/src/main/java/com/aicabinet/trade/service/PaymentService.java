@@ -6,6 +6,7 @@ import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.common.dto.RechargeOrderDto;
 import com.aicabinet.common.dto.RechargePrepayResponse;
 import com.aicabinet.common.dto.WxPayParams;
+import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.WeChatPayProperties;
 import com.aicabinet.trade.domain.RechargeOrder;
@@ -100,7 +101,7 @@ public class PaymentService {
             return toPrepayResponse(existing);
         }
         RechargeOrder order = new RechargeOrder();
-        order.setOrderId("R" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
+        order.setOrderId(BizIds.nextNumeric());
         order.setUserId(userId);
         order.setAmountCents(amountCents);
         order.setChannel(channel);

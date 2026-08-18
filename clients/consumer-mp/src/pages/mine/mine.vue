@@ -1,26 +1,32 @@
 <template>
   <view class="mine-page">
-    <view class="profile-header">
-      <view class="profile-orb orb-a" /><view class="profile-orb orb-b" />
-      <view class="avatar">{{ avatarText }}</view>
-      <view class="profile-info">
-        <text class="hello">{{ authed ? displayName : '未登录' }}</text>
-        <view v-if="authed" class="balance-row" @click="goRecharge">
-          <text class="balance-label">可用</text>
-          <text class="balance-number">{{ balanceYuan }}</text>
-          <text class="balance-action">充值 ›</text>
-        </view>
-        <text v-if="authed && frozenYuan !== '¥0.00'" class="guest-hint"
-          >冻结 {{ frozenYuan }} · 总余额 {{ totalBalanceYuan }}</text
-        >
-        <text v-else class="guest-hint">登录后可查看订单与余额</text>
-        <view v-if="authed" class="tags">
-          <text class="tag" :class="verified ? 'ok' : 'warn'">{{
-            verified ? '已实名' : '待实名'
-          }}</text>
-          <text class="tag" :class="payReady ? 'ok' : 'warn'">{{
-            payReady ? '可开门' : '待开通支付'
-          }}</text>
+    <view class="profile-header" :style="headerPadStyle">
+      <text class="mine-title">我的</text>
+      <view class="profile-main">
+        <view class="profile-orb orb-a" /><view class="profile-orb orb-b" />
+        <view class="avatar">{{ avatarText }}</view>
+        <view class="profile-info">
+          <view class="profile-line">
+            <text class="hello">{{ authed ? displayName : '未登录' }}</text>
+            <template v-if="authed">
+              <text class="line-dot">·</text>
+              <text class="balance-label">可用</text>
+              <text class="balance-number">{{ balanceYuan }}</text>
+              <view class="tags">
+                <text class="tag" :class="verified ? 'ok' : 'warn'">{{
+                  verified ? '已实名' : '待实名'
+                }}</text>
+                <text class="tag" :class="payReady ? 'ok' : 'warn'">{{
+                  payReady ? '可开门' : '待开通支付'
+                }}</text>
+              </view>
+              <text class="balance-action" @click="goRecharge">充值 ›</text>
+            </template>
+          </view>
+          <text v-if="authed && frozenYuan !== '¥0.00'" class="guest-hint"
+            >冻结 {{ frozenYuan }} · 总余额 {{ totalBalanceYuan }}</text
+          >
+          <text v-else-if="!authed" class="guest-hint">登录后可查看订单与余额</text>
         </view>
       </view>
     </view>
@@ -125,7 +131,7 @@
         </view>
       </view>
       <view class="menu-cell" @click="goAnnouncements">
-        <image class="menu-icon" :src="menuIcon('notice')" mode="aspectFit" />
+        <image class="menu-icon" :src="menuIcon('billing')" mode="aspectFit" />
         <view class="menu-text">
           <text class="menu-title">通知公告</text>
           <text class="menu-desc">平台维护、活动与规则变更</text>
@@ -264,6 +270,7 @@
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
+import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
 import {
   clearConsumerSession,
   consumerApi,
@@ -285,6 +292,11 @@ import {
   resolveWechatRechargeVisible,
   showDevTools
 } from '@/utils/runtime-flags';
+
+/** 自定义顶栏：状态栏占位 + 标题与资料区合成一块，避免系统头与绿头叠层 */
+const headerPadStyle = {
+  paddingTop: getStatusBarPadPx() + 8 + 'px'
+};
 
 const devTools = showDevTools();
 const balanceYuan = ref('--');
@@ -616,99 +628,138 @@ function onLogout() {
 .mine-page {
   min-height: 100%;
   box-sizing: border-box;
-  padding-bottom: calc(160rpx + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, #e9fbf3 0, #f5f7f8 390rpx, #f5f7f8 100%);
+  /* 原生 tabBar 已在页面外占位，只需少量底距 */
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  background: #ffffff;
 }
 .profile-header {
   position: relative;
   overflow: hidden;
-  margin: 20rpx 24rpx 0;
-  padding: 40rpx 32rpx;
-  border-radius: 30rpx;
+  margin: 0;
+  padding: 8rpx 24rpx 28rpx;
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12rpx;
+  width: 100%;
+  box-sizing: border-box;
+  background: linear-gradient(145deg, var(--brand-deep, #064e3b) 0%, var(--brand, #047857) 100%);
+  box-shadow: none;
+  color: #fff;
+}
+.mine-title {
+  display: block;
+  text-align: center;
+  font-size: 34rpx;
+  font-weight: 600;
+  line-height: 48px;
+  letter-spacing: 0.02em;
+}
+.profile-main {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 24rpx;
-  background: linear-gradient(140deg, #064e3b 0%, #059669 56%, #14b8a6 100%);
-  box-shadow: 0 20rpx 46rpx rgba(5, 150, 105, 0.23);
-  color: #fff;
+  gap: 16rpx;
+  z-index: 1;
 }
 .profile-orb {
   position: absolute;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.09);
+  pointer-events: none;
+  z-index: 0;
 }
 .orb-a {
-  width: 230rpx;
-  height: 230rpx;
-  right: -80rpx;
-  top: -110rpx;
+  width: 180rpx;
+  height: 180rpx;
+  right: -60rpx;
+  top: -90rpx;
 }
 .orb-b {
-  width: 120rpx;
-  height: 120rpx;
-  right: 120rpx;
-  bottom: -80rpx;
+  width: 100rpx;
+  height: 100rpx;
+  right: 100rpx;
+  bottom: -60rpx;
 }
 .avatar {
   position: relative;
-  width: 112rpx;
-  height: 112rpx;
+  width: 72rpx;
+  height: 72rpx;
   border-radius: 50%;
   border: 2rpx solid rgba(255, 255, 255, 0.35);
   background: rgba(255, 255, 255, 0.18);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 48rpx;
-  box-shadow: 0 10rpx 25rpx rgba(0, 0, 0, 0.1);
+  font-size: 30rpx;
+  flex-shrink: 0;
 }
 .profile-info {
   position: relative;
   flex: 1;
   min-width: 0;
 }
+.profile-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8rpx;
+  min-width: 0;
+}
 .hello {
-  font-size: 36rpx;
+  flex-shrink: 0;
+  font-size: 28rpx;
   font-weight: 700;
-  display: block;
+  max-width: 28%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.line-dot {
+  flex-shrink: 0;
+  font-size: 22rpx;
+  opacity: 0.55;
 }
 .guest-hint {
   display: block;
-  margin-top: 8rpx;
-  font-size: 26rpx;
+  margin-top: 6rpx;
+  font-size: 22rpx;
   opacity: 0.88;
 }
-.balance-row {
-  display: flex;
-  align-items: baseline;
-  gap: 13rpx;
-  margin-top: 9rpx;
-}
 .balance-label {
+  flex-shrink: 0;
   font-size: 22rpx;
   opacity: 0.72;
 }
 .balance-number {
-  font-size: 38rpx;
+  flex-shrink: 0;
+  font-size: 30rpx;
   font-weight: 800;
   letter-spacing: -1rpx;
 }
 .balance-action {
+  flex-shrink: 0;
   margin-left: auto;
+  padding-left: 8rpx;
   font-size: 22rpx;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 .tags {
   display: flex;
-  gap: 12rpx;
-  margin-top: 15rpx;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 6rpx;
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
 }
 .tag {
-  font-size: 22rpx;
-  padding: 6rpx 15rpx;
+  flex-shrink: 0;
+  font-size: 18rpx;
+  padding: 2rpx 10rpx;
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
 }
 .tag.ok {
   background: rgba(255, 255, 255, 0.35);
@@ -718,42 +769,42 @@ function onLogout() {
   color: #0f766e;
 }
 .setup-banner {
-  margin: 20rpx 24rpx 0;
-  padding: 24rpx 26rpx;
-  border-radius: 21rpx;
-  background: linear-gradient(135deg, #0f766e, #14b8a6);
-  box-shadow: 0 8rpx 22rpx rgba(15, 118, 110, 0.22);
+  margin: 12rpx 24rpx 0;
+  padding: 14rpx 18rpx;
+  border-radius: 14rpx;
+  background: var(--brand-deep, #064e3b);
+  border: 1rpx solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 6rpx 16rpx rgba(6, 78, 59, 0.16);
   display: flex;
   align-items: center;
   justify-content: space-between;
+  color: #fff;
 }
 .setup-title {
-  font-size: 30rpx;
+  font-size: 28rpx;
   font-weight: 600;
   color: #ffffff;
   display: block;
 }
 .setup-desc {
-  font-size: 24rpx;
+  font-size: 22rpx;
   color: rgba(255, 255, 255, 0.82);
   display: block;
-  margin-top: 4rpx;
+  margin-top: 2rpx;
 }
 .setup-arrow {
   color: #ffffff;
-  font-size: 28rpx;
+  font-size: 26rpx;
   font-weight: 500;
   white-space: nowrap;
-  margin-left: 16rpx;
+  margin-left: 12rpx;
 }
 
 .quick-grid {
-  margin: 22rpx 24rpx 0;
-  padding: 28rpx 12rpx;
+  margin: 12rpx 24rpx 0;
+  padding: 18rpx 4rpx;
   background: #fff;
-  border-radius: 22rpx;
-  border: 1rpx solid #edf1ef;
-  box-shadow: 0 8rpx 25rpx rgba(15, 23, 42, 0.05);
+  border-radius: 14rpx;
   display: flex;
 }
 .quick-item {
@@ -761,47 +812,49 @@ function onLogout() {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10rpx;
+  gap: 6rpx;
 }
 .quick-icon {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 20rpx;
-  background: #f0fdf4;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 28rpx;
-  font-weight: 700;
-  color: #059669;
+  width: 48rpx;
+  height: 48rpx;
 }
 .quick-label {
-  font-size: 24rpx;
-  color: #223029;
+  font-size: 22rpx;
+  color: #334155;
   font-weight: 500;
 }
 
 .menu-list {
-  margin: 22rpx 24rpx 0;
+  margin: 12rpx 24rpx 0;
+  background: #fff;
+  border-radius: 14rpx;
+  overflow: hidden;
 }
 .logout-wrap {
   margin-top: 12rpx;
-  padding-bottom: 24rpx;
+  padding-bottom: 8rpx;
 }
 .menu-cell {
-  background: #fff;
-  margin-bottom: 14rpx;
-  padding: 25rpx 22rpx;
-  border: 1rpx solid #edf1ef;
-  border-radius: 22rpx;
-  box-shadow: 0 8rpx 25rpx rgba(15, 23, 42, 0.05);
+  background: transparent;
+  margin-bottom: 0;
+  padding: 22rpx 24rpx;
+  border: none;
+  border-bottom: 1rpx solid #f1f5f9;
+  border-radius: 0;
+  box-shadow: none;
   display: flex;
   align-items: center;
-  gap: 20rpx;
+  gap: 16rpx;
+  min-height: 88rpx;
+  box-sizing: border-box;
+}
+.menu-cell:last-child {
+  border-bottom: none;
 }
 .menu-cell.highlight {
-  border: 1rpx solid rgba(5, 150, 105, 0.32);
-  background: linear-gradient(90deg, #fff, #f0fdf7);
+  border: none;
+  border-bottom: 1rpx solid #f1f5f9;
+  background: #f8fffb;
 }
 .menu-cell.disabled {
   opacity: 0.6;
@@ -809,15 +862,11 @@ function onLogout() {
 }
 .menu-icon {
   display: flex;
-  width: 72rpx;
-  height: 72rpx;
+  width: 40rpx;
+  height: 40rpx;
   align-items: center;
   justify-content: center;
-  border-radius: 19rpx;
-  background: #f0fdf4;
-  font-size: 28rpx;
-  font-weight: 700;
-  color: #059669;
+  flex-shrink: 0;
 }
 .menu-text {
   flex: 1;
@@ -825,15 +874,23 @@ function onLogout() {
 }
 .menu-title {
   font-size: 28rpx;
-  font-weight: 650;
-  color: #223029;
+  font-weight: 500;
+  color: #0f172a;
   display: block;
+  line-height: 1.3;
 }
 .menu-desc {
-  margin-top: 5rpx;
-  color: #849087;
+  margin-top: 2rpx;
+  color: #94a3b8;
   font-size: 22rpx;
   display: block;
+  line-height: 1.3;
+}
+.menu-arrow {
+  color: #cbd5e1;
+  font-size: 28rpx;
+  line-height: 1;
+  flex-shrink: 0;
 }
 .menu-badge {
   font-size: 22rpx;
@@ -842,10 +899,6 @@ function onLogout() {
   padding: 4rpx 12rpx;
   border-radius: 999rpx;
 }
-.menu-arrow {
-  color: #ccc;
-  font-size: 36rpx;
-}
 .danger {
   color: #fa5151;
 }
@@ -853,16 +906,17 @@ function onLogout() {
   background: #fffafa;
 }
 .danger-cell .menu-icon {
-  background: #fff1f0;
+  background: transparent;
   color: #ef4444;
 }
 .transaction-list {
-  background: #fff;
-  border-radius: 22rpx;
-  margin-bottom: 14rpx;
+  background: #f8faf9;
+  border-radius: 0;
+  margin-bottom: 0;
   padding: 0 24rpx;
-  border: 1rpx solid #edf1ef;
-  box-shadow: 0 8rpx 25rpx rgba(15, 23, 42, 0.045);
+  border: none;
+  border-bottom: 1rpx solid #f1f5f3;
+  box-shadow: none;
 }
 .transaction-row {
   display: flex;
@@ -897,7 +951,7 @@ function onLogout() {
   text-align: center;
   padding: 20rpx 0 6rpx;
   font-size: 24rpx;
-  color: var(--brand, #059669);
+  color: var(--brand, #047857);
   font-weight: 600;
 }
 .transaction-empty {

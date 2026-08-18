@@ -1,13 +1,16 @@
 <template>
   <view class="page">
-    <view class="profile-header">
-      <view class="avatar">{{ avatarText }}</view>
-      <view class="profile-info">
-        <text class="hello">{{ meName }}</text>
-        <text class="sub">{{ merchantNames }}</text>
-        <text v-if="phone" class="phone">{{ phone }}</text>
+    <view class="profile-header" :style="headerPadStyle">
+      <text class="mine-title">我的</text>
+      <view class="profile-main">
+        <view class="avatar">{{ avatarText }}</view>
+        <view class="profile-info">
+          <text class="hello">{{ meName }}</text>
+          <text class="sub">{{ merchantNames }}</text>
+          <text v-if="phone" class="phone">{{ phone }}</text>
+        </view>
+        <text v-if="canEditProfile" class="edit-btn" @click="openProfileEdit">编辑资料</text>
       </view>
-      <text v-if="canEditProfile" class="edit-btn" @click="openProfileEdit">编辑资料</text>
     </view>
 
     <view v-if="profileEditVisible" class="mask" @click="profileEditVisible = false">
@@ -145,6 +148,7 @@
 <script setup lang="ts">
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
+import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
 import {
   clearSession,
   hasPerm,
@@ -167,6 +171,10 @@ import {
 import type { MerchantMe } from '@aicabinet/shared-types';
 import { formatMerchantNames } from '@/utils/merchant-display';
 import { menuIcon } from '@/utils/menu-icon';
+
+const headerPadStyle = {
+  paddingTop: getStatusBarPadPx() + 8 + 'px'
+};
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const meName = ref('');
@@ -396,30 +404,45 @@ function onLogout() {
 
 .page {
   min-height: 100%;
-  padding-bottom: calc(40rpx + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, #ecfdf5 0, #f0fdfa 280rpx, #f0fdfa 100%);
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  background: #ffffff;
 }
 .profile-header {
-  margin: 20rpx 24rpx 0;
-  padding: 40rpx 32rpx;
-  border-radius: 28rpx;
+  margin: 0;
+  padding: 8rpx 24rpx 28rpx;
+  border-radius: 0;
   display: flex;
-  align-items: center;
-  gap: 24rpx;
-  background: linear-gradient(145deg, #134e4a, #0f766e 60%, #14b8a6);
-  box-shadow: 0 16rpx 40rpx rgba(15, 118, 110, 0.2);
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12rpx;
+  width: 100%;
+  box-sizing: border-box;
+  background: linear-gradient(145deg, #134e4a, #0f766e 60%, #0d9488);
+  box-shadow: none;
   color: #fff;
 }
+.mine-title {
+  display: block;
+  text-align: center;
+  font-size: 34rpx;
+  font-weight: 600;
+  line-height: 48px;
+}
+.profile-main {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+}
 .avatar {
-  width: 100rpx;
-  height: 100rpx;
+  width: 80rpx;
+  height: 80rpx;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.22);
   border: 2rpx solid rgba(255, 255, 255, 0.35);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 44rpx;
+  font-size: 34rpx;
   font-weight: 700;
 }
 .profile-info {
@@ -427,77 +450,82 @@ function onLogout() {
   min-width: 0;
 }
 .hello {
-  font-size: 36rpx;
+  font-size: 30rpx;
   font-weight: 700;
   display: block;
 }
 .sub {
-  font-size: 26rpx;
+  font-size: 22rpx;
   opacity: 0.9;
   display: block;
-  margin-top: 4rpx;
+  margin-top: 2rpx;
 }
 .phone {
-  font-size: 24rpx;
+  font-size: 22rpx;
   opacity: 0.75;
   display: block;
-  margin-top: 4rpx;
+  margin-top: 2rpx;
 }
 .section-label {
-  margin: 28rpx 32rpx 10rpx;
+  margin: 14rpx 28rpx 6rpx;
   font-size: 22rpx;
   color: #94a3b8;
   letter-spacing: 1rpx;
 }
 .menu-list {
   margin: 0 24rpx;
+  background: #fff;
+  border-radius: 14rpx;
+  overflow: hidden;
 }
 .menu-cell {
-  background: #fff;
-  border-radius: 20rpx;
-  padding: 28rpx 24rpx;
-  margin-bottom: 12rpx;
+  background: transparent;
+  border-radius: 0;
+  padding: 20rpx 22rpx;
+  margin-bottom: 0;
   display: flex;
   align-items: center;
-  gap: 20rpx;
-  border: 1rpx solid #e2e8f0;
-  box-shadow: 0 6rpx 18rpx rgba(15, 118, 110, 0.05);
+  gap: 14rpx;
+  border: none;
+  border-bottom: 1rpx solid #f1f5f9;
+  box-shadow: none;
+  min-height: 84rpx;
+  box-sizing: border-box;
+}
+.menu-cell:last-child {
+  border-bottom: none;
 }
 .menu-cell.highlight {
-  border-color: #99f6e4;
-  background: linear-gradient(90deg, #fff, #f0fdfa);
+  border-color: transparent;
+  border-bottom: 1rpx solid #f1f5f9;
+  background: #f8fffc;
 }
 .menu-icon {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 18rpx;
-  background: #f0fdfa;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 34rpx;
-  color: #0f766e;
-  font-weight: 700;
+  width: 40rpx;
+  height: 40rpx;
+  flex-shrink: 0;
 }
 .menu-text {
   flex: 1;
   min-width: 0;
 }
 .menu-title {
-  font-size: 30rpx;
-  font-weight: 600;
+  font-size: 28rpx;
+  font-weight: 500;
   display: block;
-  color: #1e293b;
+  color: #0f172a;
+  line-height: 1.3;
 }
 .menu-desc {
-  font-size: 24rpx;
+  font-size: 22rpx;
   color: #94a3b8;
   display: block;
-  margin-top: 4rpx;
+  margin-top: 2rpx;
+  line-height: 1.3;
 }
 .menu-arrow {
   color: #cbd5e1;
-  font-size: 36rpx;
+  font-size: 28rpx;
 }
 .notify-card {
   background: #fff;

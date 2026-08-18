@@ -126,6 +126,19 @@ public class AdCampaignService {
         return toDto(campaign);
     }
 
+    @Transactional
+    public void delete(Long operatorId, Long campaignId) {
+        AdCampaign campaign = requireCampaign(campaignId);
+        if ("RUNNING".equalsIgnoreCase(campaign.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "投放中的计划请先停止再删除");
+        }
+        itemRepository.deleteByCampaignId(campaignId);
+        deviceRepository.deleteByCampaignId(campaignId);
+        campaignRepository.deleteById(campaignId);
+        auditService.record(operatorId, "AD_CAMPAIGN_DELETE", "AD_CAMPAIGN",
+                String.valueOf(campaignId), "name=" + campaign.getName());
+    }
+
     /** 设备屏内容（内部接口）：取当前时间窗口内 RUNNING 的投放计划（全部设备或包含该设备），返回轮播素材。 */
     @Transactional(readOnly = true)
     public ScreenContentDto screenContent(String deviceId) {

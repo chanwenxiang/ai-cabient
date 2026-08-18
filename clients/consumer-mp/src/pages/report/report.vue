@@ -1,5 +1,7 @@
 <template>
   <view class="page">
+    <app-nav-bar title="故障报修" />
+    <view class="page-body">
     <view class="hero">
       <text class="hero-title">故障报修</text>
       <text class="hero-sub">柜机异常？提交后运营会尽快处理</text>
@@ -30,16 +32,24 @@
         placeholder="描述具体情况，便于快速处理"
       />
 
-      <button
+    </view>
+
+    <!-- 提交区独立：用 view+role=button，保证 H5 a11y 树可点（OBS-005） -->
+    <view class="submit-bar">
+      <view
         class="btn-primary"
+        role="button"
+        tabindex="0"
+        aria-label="提交报修"
+        :aria-disabled="submitting ? 'true' : 'false'"
         hover-class="btn-hover"
-        :loading="submitting"
-        :disabled="submitting"
-        @click="onSubmit"
+        @tap.stop="onSubmit"
+        @click.stop="onSubmit"
       >
-        {{ submitting ? '提交中…' : '提交报修' }}
-      </button>
+        <text class="btn-primary-text">{{ submitting ? '提交中…' : '提交报修' }}</text>
+      </view>
       <text v-if="err" class="err">{{ err }}</text>
+    </view>
     </view>
   </view>
 </template>
@@ -115,9 +125,13 @@ function onSubmit() {
 
 <style scoped>
 .page {
-  min-height: 100vh;
-  background: #f7f7f7;
-  padding: 24rpx;
+  min-height: 100%;
+  background: #ffffff;
+  padding: 0;
+  box-sizing: border-box;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .hero {
@@ -148,7 +162,7 @@ function onSubmit() {
   margin-top: 8rpx;
 }
 .input {
-  background: #f7f7f7;
+  background: #f5f7f8;
   border-radius: 12rpx;
   padding: 22rpx 24rpx;
   font-size: 30rpx;
@@ -163,7 +177,7 @@ function onSubmit() {
 .issue-chip {
   padding: 14rpx 24rpx;
   border-radius: 32rpx;
-  background: #f7f7f7;
+  background: #f5f7f8;
   font-size: 26rpx;
   color: #666;
 }
@@ -175,16 +189,26 @@ function onSubmit() {
 .textarea {
   width: 100%;
   min-height: 160rpx;
-  background: #f7f7f7;
+  background: #f5f7f8;
   border-radius: 12rpx;
   padding: 20rpx 24rpx;
   font-size: 28rpx;
   box-sizing: border-box;
   margin-bottom: 24rpx;
 }
+.submit-bar {
+  margin-top: 24rpx;
+  padding: 0 4rpx;
+  position: relative;
+  z-index: 2;
+}
 .btn-primary {
   margin: 0;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;
@@ -193,6 +217,16 @@ function onSubmit() {
   height: 88rpx;
   border: none;
   box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
+  box-sizing: border-box;
+}
+.btn-primary-text {
+  color: #fff;
+  font-size: 32rpx;
+  font-weight: 600;
+  pointer-events: none;
 }
 .btn-primary::after {
   border: none;

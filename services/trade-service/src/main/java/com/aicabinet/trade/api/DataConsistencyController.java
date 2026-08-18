@@ -27,17 +27,13 @@ public class DataConsistencyController {
         this.consistencyService = consistencyService;
     }
 
-    @RequiresPermissions(value = {
-            "ops:consistency:list", "ops:order:list", "ops:finance:view"
-    }, logical = RequiresPermissions.Logical.OR)
+    @RequiresPermissions("ops:consistency:list")
     @GetMapping("/failures")
     public ApiResponse<List<DataConsistencyRecord>> failures() {
         return ApiResponse.ok(consistencyService.getFailedChecks());
     }
 
-    @RequiresPermissions(value = {
-            "ops:consistency:run", "ops:consistency:list", "ops:order:list", "ops:finance:view"
-    }, logical = RequiresPermissions.Logical.OR)
+    @RequiresPermissions("ops:consistency:run")
     @PostMapping("/run")
     public ApiResponse<RunResponse> run() {
         int failCount = consistencyService.runConsistencyCheck();
@@ -45,9 +41,7 @@ public class DataConsistencyController {
         return ApiResponse.ok(new RunResponse(failCount, failures));
     }
 
-    @RequiresPermissions(value = {
-            "ops:consistency:fix", "ops:order:refund"
-    }, logical = RequiresPermissions.Logical.OR)
+    @RequiresPermissions("ops:consistency:fix")
     @PostMapping("/{recordId}/fix")
     public ApiResponse<FixResponse> fix(@PathVariable Long recordId) {
         DataConsistencyService.FixOutcome outcome = consistencyService.fixInconsistencyDetailed(recordId);

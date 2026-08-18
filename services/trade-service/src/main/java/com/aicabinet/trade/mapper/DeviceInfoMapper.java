@@ -71,6 +71,13 @@ public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
                 .set(DeviceInfo::getOnlineSince, null));
     }
 
+    /** 锁机时清空解锁宽限时间戳。 */
+    default void clearSalesUnlockedAt(String deviceId) {
+        update(null, Wrappers.<DeviceInfo>lambdaUpdate()
+                .eq(DeviceInfo::getDeviceId, deviceId)
+                .set(DeviceInfo::getSalesUnlockedAt, null));
+    }
+
     /** 锁机中且已稳定在线超过 cutff 的设备（用于稳定在线自动解锁）。 */
     default List<DeviceInfo> findByOnlineStatusAndSalesLockedTrueAndOnlineSinceBefore(
             String onlineStatus, java.time.Instant cutoff, int limit) {

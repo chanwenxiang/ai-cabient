@@ -198,7 +198,7 @@
                 sortable="custom"
               >
                 <template #default="{ row }">
-                  <span class="cell-id">{{ row.entryId }}</span>
+                  <span class="cell-id">{{ displayBizNo(row.entryId) }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="财务类型" width="140" align="center">
@@ -259,6 +259,7 @@ import PagePager from '@/components/PagePager.vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { displayBizNo } from '@aicabinet/shared-uni/format';
 import { api, downloadAuthFile } from '@/api/client';
 import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';

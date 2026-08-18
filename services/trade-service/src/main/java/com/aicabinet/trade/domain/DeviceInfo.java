@@ -58,6 +58,9 @@ public class DeviceInfo {
     /** 营业锁机：禁止消费者开门 */
     private Boolean salesLocked;
 
+    /** 最近一次解锁时间（离线自动锁机宽限用） */
+    private Instant salesUnlockedAt;
+
     /** 价格锁：禁止改价 */
     private Boolean priceLocked;
 

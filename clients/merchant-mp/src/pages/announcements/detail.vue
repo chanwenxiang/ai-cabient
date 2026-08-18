@@ -1,5 +1,7 @@
 <template>
   <view class="page">
+    <app-nav-bar title="公告详情" />
+    <view class="page-body">
     <view v-if="loading" class="card state">加载中…</view>
     <view v-else-if="error" class="card state">
       <text class="err">{{ error }}</text>
@@ -15,7 +17,8 @@
       <text class="title">{{ item.title }}</text>
       <text class="content">{{ item.content }}</text>
     </view>
-  </view>
+  
+    </view></view>
 </template>
 
 <script setup lang="ts">
@@ -38,7 +41,7 @@ onLoad((query) => {
 
 <style scoped>
 .page {
-  padding: 24rpx;
+  padding: 0;
   min-height: 100vh;
   box-sizing: border-box;
 }
@@ -104,5 +107,9 @@ onLoad((query) => {
   font-size: 30rpx;
   color: #334155;
   line-height: 1.75;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

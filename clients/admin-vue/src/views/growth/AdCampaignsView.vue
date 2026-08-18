@@ -17,8 +17,15 @@
       </div>
     </template>
 
-    <el-table v-loading="loading" :data="rows" stripe border>
-      <el-table-column prop="campaignId" label="ID" width="80" align="center" />
+    <el-table
+      v-loading="loading"
+      :data="displayRows"
+      stripe
+      border
+      :default-sort="idDefaultSort"
+      @sort-change="onIdSortChange"
+    >
+      <el-table-column prop="campaignId" label="ID" width="80" align="center" sortable="custom" />
       <el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
       <el-table-column label="状态" width="100" align="center">
         <template #default="{ row }">
@@ -38,7 +45,7 @@
           {{ formatRange(row) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="220" align="center">
+      <el-table-column label="操作" width="280" align="center" fixed="right">
         <template #default="{ row }">
           <el-button v-hasPermi="['ops:ad:edit']" size="small" @click="openEdit(row)"
             >编辑</el-button
@@ -58,6 +65,14 @@
             type="warning"
             @click="stop(row)"
             >停止</el-button
+          >
+          <el-button
+            v-if="row.status !== 'RUNNING'"
+            v-hasPermi="['ops:ad:edit']"
+            size="small"
+            type="danger"
+            @click="removeCampaign(row)"
+            >删除</el-button
           >
         </template>
       </el-table-column>
@@ -119,16 +134,19 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { dictLabel } from '@aicabinet/shared-dict';
 import type { AdCampaignDto, MediaAssetDto } from '@aicabinet/shared-types';
+import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 const loading = ref(false);
 const saving = ref(false);
 const rows = ref<AdCampaignDto[]>([]);
+const { idDefaultSort, onIdSortChange, sortById } = useIdColumnSort<AdCampaignDto>('campaignId');
+const displayRows = computed(() => sortById(rows.value));
 const assets = ref<MediaAssetDto[]>([]);
 const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
 const dialogVisible = ref(false);
@@ -250,6 +268,24 @@ async function stop(row: AdCampaignDto) {
     await load();
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '停止失败');
+  }
+}
+
+async function removeCampaign(row: AdCampaignDto) {
+  try {
+    await ElMessageBox.confirm(`确认删除投放计划「${row.name}」？`, '删除投放', {
+      type: 'warning',
+      confirmButtonText: '删除'
+    });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/ad/campaigns/${row.campaignId}`, 'DELETE');
+    ElMessage.success('已删除');
+    await load();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '删除失败');
   }
 }
 

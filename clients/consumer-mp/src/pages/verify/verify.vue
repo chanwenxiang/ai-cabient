@@ -1,5 +1,7 @@
-<template>
+﻿<template>
   <view class="page">
+    <app-nav-bar title="开通支付" />
+    <view class="page-body">
     <view class="hero">
       <text class="hero-title">开通免密支付</text>
       <text class="hero-sub">完成后即可扫码开门，关门自动扣款</text>
@@ -93,6 +95,7 @@
       <text class="done-title">可以开门购物了</text>
       <text class="done-desc">扫柜门二维码即可开门取货</text>
       <button class="btn-primary" hover-class="btn-hover" @click="goShop">去扫码开门</button>
+    </view>
     </view>
   </view>
 </template>
@@ -229,9 +232,13 @@ function goShop() {
 
 <style scoped>
 .page {
-  padding: 24rpx 24rpx 48rpx;
-  min-height: 100vh;
+  padding: 0;
+  min-height: 100%;
   background: linear-gradient(180deg, #ecfdf5, #f5f7f8 340rpx);
+  box-sizing: border-box;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .hero {
@@ -284,7 +291,7 @@ function goShop() {
   box-shadow: 0 0 0 7rpx #f4f7f5;
 }
 .step.done .step-dot {
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   box-shadow: 0 0 0 7rpx #d1fae5;
 }
@@ -340,7 +347,7 @@ function goShop() {
   font-size: 30rpx;
 }
 .btn-primary {
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;

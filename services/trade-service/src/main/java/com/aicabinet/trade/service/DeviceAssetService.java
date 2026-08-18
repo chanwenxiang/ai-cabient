@@ -27,6 +27,7 @@ import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -179,6 +180,10 @@ public class DeviceAssetService {
         permissionService.requireAnyPermission(operatorId, "ops:stock-health:list", "ops:device:list", "ops:replenishment:list");
         Set<String> allowed = merchantScopeService.allowedDeviceIds(operatorId);
         String dim = dimension == null || dimension.isBlank() ? "ALL" : dimension.trim().toUpperCase(Locale.ROOT);
+        if (!Set.of("ALL", "STOCKOUT", "LOW", "NEAR_EXPIRY").contains(dim)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "dimension 仅支持 ALL/STOCKOUT/LOW/NEAR_EXPIRY");
+        }
         String deviceFilter = deviceId == null ? "" : deviceId.trim();
 
         Map<String, DeviceInfo> devices = deviceInfoMapper.findAll().stream()
@@ -238,6 +243,14 @@ public class DeviceAssetService {
                 ));
             }
         }
+        Map<String, Integer> capacityByDeviceSku = new HashMap<>();
+        if ("NEAR_EXPIRY".equals(dim) || "ALL".equals(dim)) {
+            List<DeviceSkuInventory> caps = inventoryMapper.selectList(Wrappers.<DeviceSkuInventory>lambdaQuery()
+                    .in(DeviceSkuInventory::getDeviceId, devices.keySet()));
+            for (DeviceSkuInventory inv : caps) {
+                capacityByDeviceSku.put(inv.getDeviceId() + "\0" + inv.getSkuId(), Math.max(inv.getCapacity(), 0));
+            }
+        }
         if ("NEAR_EXPIRY".equals(dim) || "ALL".equals(dim)) {
             LocalDate today = LocalDate.now(ZONE);
             List<DeviceSkuLot> lots = lotMapper.selectList(Wrappers.<DeviceSkuLot>lambdaQuery()
@@ -251,6 +264,7 @@ public class DeviceAssetService {
                 int nearDays = sku != null ? Math.max(sku.getNearExpiryDays(), 0) : 7;
                 long daysLeft = ChronoUnit.DAYS.between(today, lot.getExpiryDate());
                 if (daysLeft > nearDays) continue;
+                int capacity = capacityByDeviceSku.getOrDefault(lot.getDeviceId() + "\0" + lot.getSkuId(), 0);
                 rows.add(new StockHealthRowDto(
                         "NEAR_EXPIRY",
                         d.getDeviceId(),
@@ -261,7 +275,7 @@ public class DeviceAssetService {
                         lot.getSkuId(),
                         sku == null ? lot.getSkuId() : sku.getSkuName(),
                         lot.getQuantity(),
-                        0,
+                        capacity,
                         null,
                         0d,
                         null,

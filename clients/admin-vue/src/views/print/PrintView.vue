@@ -16,7 +16,7 @@
         <div class="sheet-head">
           <div>
             <h1>拣货单</h1>
-            <p>出库单 #{{ outbound.outboundId }} · {{ printTime }}</p>
+            <p>出库单 {{ outbound.outboundId }} · {{ printTime }}</p>
           </div>
           <div class="sheet-meta">
             <p>
@@ -56,7 +56,7 @@
         <div class="sheet-head">
           <div>
             <h1>采购收货单</h1>
-            <p>采购单 #{{ purchase.purchaseOrderId }} · {{ printTime }}</p>
+            <p>采购单 {{ purchase.purchaseOrderId }} · {{ printTime }}</p>
           </div>
           <div class="sheet-meta">
             <p>
@@ -328,7 +328,7 @@ onMounted(load);
   padding: 6px 8px;
   border: 1px solid #dcdfe6;
   border-radius: 4px;
-  font-family: monospace;
+  font-family: var(--app-font-mono);
   font-size: 16px;
   letter-spacing: 2px;
   text-align: center;

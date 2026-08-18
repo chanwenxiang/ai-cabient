@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OpsOpenDoorRequest;
 import com.aicabinet.common.dto.SessionDto;
+import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.client.DeviceServiceClient;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
@@ -73,6 +74,6 @@ public class OpsService {
     }
 
     private String generateSessionId() {
-        return "S" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
+        return BizIds.nextNumeric();
     }
 }

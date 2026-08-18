@@ -165,7 +165,7 @@
                 class="link-cell mono"
                 @click="goSessions(row.deviceId, row.sessionId)"
               >
-                {{ row.sessionId }}
+                {{ displayBizNo(row.sessionId, '无') }}
               </button>
               <span v-else class="muted">无</span>
             </template>
@@ -184,7 +184,7 @@
                 class="link-cell mono"
                 @click="goOrders(row.deviceId, row.orderId)"
               >
-                {{ row.orderId }}
+                {{ displayBizNo(row.orderId) }}
               </button>
               <span v-else class="muted">无</span>
             </template>
@@ -357,7 +357,7 @@
                 class="link-cell mono"
                 @click="goSessions(selected.deviceId, selected.sessionId)"
               >
-                {{ selected.sessionId }}
+                {{ displayBizNo(selected.sessionId, '无') }}
               </button>
               <span v-else>-</span>
             </el-descriptions-item>
@@ -422,7 +422,7 @@
                 class="link-cell mono"
                 @click="goOrders(selected.deviceId, selected.orderId)"
               >
-                {{ selected.orderId }}
+                {{ displayBizNo(selected.orderId) }}
               </button>
             </el-descriptions-item>
           </el-descriptions>
@@ -560,7 +560,10 @@ import type {
   OrderLineDto,
   PageResult
 } from '@aicabinet/shared-types';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import {
+  displayBizNo,
+  formatDateTime
+} from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 interface ResolveDisputeResultDto {

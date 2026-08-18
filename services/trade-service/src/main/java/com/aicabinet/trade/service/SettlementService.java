@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OrderDto;
 import com.aicabinet.common.dto.OrderLineDto;
+import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.config.StagingProperties;
@@ -52,6 +53,7 @@ public class SettlementService {
     private final RefundPolicyService refundPolicyService;
     private final NotificationService notificationService;
     private final DeviceSlotMapper slotRepository;
+    private final ConsumerPreauthService consumerPreauthService;
 
     public SettlementService(ShoppingSessionMapper sessionRepository,
                              SkuCatalogMapper skuCatalogRepository,
@@ -76,7 +78,8 @@ public class SettlementService {
                              MemberService memberService,
                              RefundPolicyService refundPolicyService,
                              NotificationService notificationService,
-                             DeviceSlotMapper slotRepository) {
+                             DeviceSlotMapper slotRepository,
+                             ConsumerPreauthService consumerPreauthService) {
         this.sessionRepository = sessionRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.orderRepository = orderRepository;
@@ -101,6 +104,7 @@ public class SettlementService {
         this.refundPolicyService = refundPolicyService;
         this.notificationService = notificationService;
         this.slotRepository = slotRepository;
+        this.consumerPreauthService = consumerPreauthService;
     }
 
     /** 人工审核后确认清单：无订单则首次扣款；有订单则按差额退/补。 */
@@ -160,34 +164,35 @@ public class SettlementService {
         // Honor explicit vision need_review even in local mock mode (dispute E2E toggle).
         // Previously mock cart settle short-circuited before this check, so force-review never fired.
         if (recognition.needReview()) {
-            // 沙箱：gravity-fill（视觉空+重力有货）允许按重力结算；错配 / 纯 mock 仍禁止静默扣款
+            // 沙箱：gravity-fill（视觉空+重力有货）允许按重力结算；错配仍禁止静默扣款
             if (!blocksSilentSettle(recognition) || allowsSandboxGravityFillSettle(recognition)) {
                 OrderDto stagingOrder = tryStagingGravitySettle(session);
                 if (stagingOrder != null) {
                     return stagingOrder;
                 }
             }
-            // 本地 mock：仅「非错配/非 mock 标称」且有重力扣减时按演示结算；错配与 mock-v1 一律进审单
-            if (allowDevFallback && securityProperties.mockEnabled() && !blocksSilentSettle(recognition)) {
-                List<VisionServiceClient.RecognizedItem> cartItems =
-                        gravityHelper.toRecognizedItems(session.getGravityDeltas());
-                if (!cartItems.isEmpty()) {
-                    log.info("dev mock settle on needReview session={} cartItems={}",
-                            session.getSessionId(), cartItems.size());
-                    return finalizeOrder(session, cartItems);
+            // 本地 mock：有重力扣减证据时按购物车结算（OBS-012）；纯 mock 无证据仍进审单
+            if (allowDevFallback) {
+                OrderDto cartOrder = tryDevMockEvidenceSettle(session, recognition);
+                if (cartOrder != null) {
+                    return cartOrder;
                 }
             }
             escalateToDispute(session, recognition, reviewReasonFor(recognition));
         }
 
         if (allowDevFallback && securityProperties.mockEnabled()) {
-            // mock 标称结果不可当作生产精度自动扣款；沙箱 gravity-fill 除外
+            // mock 标称结果不可当作生产精度自动扣款；有重力证据或沙箱 gravity-fill 除外
             if (blocksSilentSettle(recognition)) {
                 if (allowsSandboxGravityFillSettle(recognition)) {
                     OrderDto stagingOrder = tryStagingGravitySettle(session);
                     if (stagingOrder != null) {
                         return stagingOrder;
                     }
+                }
+                OrderDto cartOrder = tryDevMockEvidenceSettle(session, recognition);
+                if (cartOrder != null) {
+                    return cartOrder;
                 }
                 escalateToDispute(session, recognition, reviewReasonFor(recognition));
             }
@@ -258,6 +263,26 @@ public class SettlementService {
         return version.contains("gravity-fill") && !version.contains("gravity-mismatch");
     }
 
+    /**
+     * 本地演示：{@code AICABINET_MOCK_ENABLED} 下，只要会话有重力扣减证据，即按重力 finalize → PAID。
+     * 覆盖 mock-v1 / gravity-fill / gravity-mismatch（演示柜模拟器常带重力，视觉 mock 易错配）。
+     * 生产（mock 关闭）不走此分支；无重力证据返回 null，由调用方进审单。
+     */
+    private OrderDto tryDevMockEvidenceSettle(ShoppingSession session,
+                                             VisionServiceClient.RecognitionResult recognition) {
+        if (!securityProperties.mockEnabled()) {
+            return null;
+        }
+        List<VisionServiceClient.RecognizedItem> cartItems =
+                gravityHelper.toRecognizedItems(session.getGravityDeltas());
+        if (cartItems == null || cartItems.isEmpty()) {
+            return null;
+        }
+        log.info("dev mock settle with gravity evidence session={} cartItems={} version={}",
+                session.getSessionId(), cartItems.size(), recognition.modelVersion());
+        return finalizeOrder(session, cartItems);
+    }
+
     private VisionServiceClient.RecognitionResult withGravityFallback(ShoppingSession session,
                                                                       VisionServiceClient.RecognitionResult recognition) {
         return gravityHelper.reconcileWithGravity(session.getGravityDeltas(), recognition);
@@ -304,6 +329,8 @@ public class SettlementService {
     private void escalateToDispute(ShoppingSession session,
                                  VisionServiceClient.RecognitionResult recognition,
                                  String reason) {
+        // 转人工暂不扣款：释放开门预授权，避免多笔争议会话叠冻结导致可用余额为 0（BUG-001）
+        consumerPreauthService.releaseIfFrozen(session);
         disputeService.createTicket(session, recognition, reason);
         throw new DisputeRequiredException(reason);
     }
@@ -329,7 +356,7 @@ public class SettlementService {
         return finalizeOrder(session, items);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = {BalanceInsufficientException.class})
     public ConfirmDisputeResult confirmDisputedItems(ShoppingSession session,
                                                    List<VisionServiceClient.RecognizedItem> items) {
         if (items == null || items.isEmpty()) {
@@ -364,6 +391,12 @@ public class SettlementService {
         applyItemsToOrder(order, items);
         int finalTotal = order.getTotalAmountCents();
         int delta = finalTotal - original;
+
+        // 先校验余额再动库存/账本，避免 412 触发 UnexpectedRollbackException（BUG-007）
+        if (delta > 0 && !userValidationService.canChargeViaPasswordFree(
+                session.getUserId(), session.getEntryChannel())) {
+            userValidationService.validateSufficientBalanceForCharge(session.getUserId(), delta);
+        }
 
         if (order.isInventoryDeducted()) {
             var adjustedBatches = inventoryService.adjustForOrder(
@@ -619,7 +652,7 @@ public class SettlementService {
     private CabinetOrder buildOrder(ShoppingSession session,
                                     List<VisionServiceClient.RecognizedItem> items) {
         CabinetOrder order = new CabinetOrder();
-        order.setOrderId("O" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
+        order.setOrderId(BizIds.nextNumeric());
         order.setSessionId(session.getSessionId());
         order.setUserId(session.getUserId());
         order.setDeviceId(session.getDeviceId());

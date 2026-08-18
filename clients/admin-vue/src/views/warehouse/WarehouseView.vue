@@ -1198,7 +1198,9 @@
                   dictLabel('business_reference_type', row.refType)
                 }}</template>
               </el-table-column>
-              <el-table-column prop="refId" label="关联单号" min-width="120" align="center" />
+              <el-table-column label="关联单号" min-width="120" align="center">
+                <template #default="{ row }">{{ displayBizNo(row.refId, '无') }}</template>
+              </el-table-column>
               <el-table-column label="时间" min-width="170" align="center">
                 <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
               </el-table-column>
@@ -1766,7 +1768,7 @@
               <el-option
                 v-for="po in returnablePurchaseOrders"
                 :key="po.purchaseOrderId"
-                :label="`#${po.purchaseOrderId} · ${supplierName(po.supplierId)} · ${warehouseName(po.warehouseId)}`"
+                :label="`${po.purchaseOrderId} · ${supplierName(po.supplierId)} · ${warehouseName(po.warehouseId)}`"
                 :value="po.purchaseOrderId"
               />
             </el-select>
@@ -1936,7 +1938,7 @@ import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 type Row = Record<string, any>;
 const route = useRoute();
@@ -2634,7 +2636,8 @@ async function onExport() {
     'purchase',
     'returns',
     'inventory',
-    'outbounds'
+    'outbounds',
+    'movements'
   ]);
   const currentRows = (() => {
     switch (tab.value) {
@@ -2675,7 +2678,8 @@ async function onExport() {
     purchase: '采购单',
     returns: '采购退货',
     inventory: '仓库库存',
-    outbounds: '出库单'
+    outbounds: '出库单',
+    movements: '库存流水'
   };
   try {
     await downloadAuthFile(
@@ -3663,16 +3667,16 @@ function changeOutbound(row: Row, action: 'pick' | 'ship' | 'cancel-unreceived')
   outboundConfirm.outboundId = row.outboundId;
   if (action === 'pick') {
     outboundConfirm.title = '确认拣货';
-    outboundConfirm.message = `确认出库单 #${row.outboundId} 已完成拣货？`;
+    outboundConfirm.message = `确认出库单 ${row.outboundId} 已完成拣货？`;
   } else if (action === 'ship') {
     outboundConfirm.title = '确认发运';
-    outboundConfirm.message = `确认发运出库单 #${row.outboundId}？发运后库存将转为在途。`;
+    outboundConfirm.message = `确认发运出库单 ${row.outboundId}？发运后库存将转为在途。`;
   } else {
     outboundConfirm.title = row.status === 'SHIPPED' ? '作废回仓' : '作废出库';
     outboundConfirm.message =
       row.status === 'SHIPPED'
-        ? `确认作废出库单 #${row.outboundId}？将回仓并取消在途（仅未签收）。`
-        : `确认作废出库单 #${row.outboundId}？未发运单据将直接取消。`;
+        ? `确认作废出库单 ${row.outboundId}？将回仓并取消在途（仅未签收）。`
+        : `确认作废出库单 ${row.outboundId}？未发运单据将直接取消。`;
   }
   outboundConfirm.saving = false;
   outboundConfirm.visible = true;

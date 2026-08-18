@@ -52,6 +52,7 @@ class SettlementDisputeTest {
     @Mock CouponService couponService;
     @Mock MemberService memberService;
     @Mock NotificationService notificationService;
+    @Mock ConsumerPreauthService consumerPreauthService;
 
     SettlementService settlementService;
 
@@ -62,7 +63,8 @@ class SettlementDisputeTest {
                 visionClient, disputeService, visionRecognitionProducer, revenueSplitService,
                 securityProperties, stagingProperties, inventoryService, orderPaymentService, confidenceService, gravityHelper,
                 deviceValidationService, skuPricingService, userValidationService, videoArchiveService,
-                skuVisionEnrollmentService, couponService, memberService, null, notificationService, slotRepository);
+                skuVisionEnrollmentService, couponService, memberService, null, notificationService, slotRepository,
+                consumerPreauthService);
     }
 
     @Test
@@ -172,6 +174,7 @@ class SettlementDisputeTest {
         when(orderRepository.findBySessionId("S-MOCK-GATE")).thenReturn(java.util.Optional.empty());
         when(securityProperties.mockEnabled()).thenReturn(true);
         when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(gravityHelper.toRecognizedItems(any())).thenReturn(List.of());
 
         var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.92f));
         var recognition = new VisionServiceClient.RecognitionResult(
@@ -183,6 +186,41 @@ class SettlementDisputeTest {
         verify(disputeService).createTicket(eq(session), any(VisionServiceClient.RecognitionResult.class),
                 eq("模拟/兜底识别结果，非生产精度，需人工审核"));
         verifyNoInteractions(orderPaymentService, inventoryService);
+    }
+
+    @Test
+    void mockModelVersion_withGravityEvidence_settlesInMockMode() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-MOCK-CART");
+        session.setUserId(10001L);
+        session.setDeviceId("CAB-001");
+        session.setGravityDeltas("[{\"skuId\":\"SKU-DEMO-001\",\"delta\":-1}]");
+
+        SkuCatalog sku = new SkuCatalog();
+        sku.setSkuId("SKU-DEMO-001");
+        sku.setSkuName("可乐");
+        sku.setPriceCents(350);
+
+        when(orderRepository.findBySessionId("S-MOCK-CART")).thenReturn(java.util.Optional.empty());
+        when(securityProperties.mockEnabled()).thenReturn(true);
+        when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(gravityHelper.toRecognizedItems(any())).thenReturn(
+                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.98f)));
+        when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
+        when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
+        when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(true);
+        when(inventoryService.deductForOrder(any(), any(), any(), any())).thenReturn(java.util.Map.of());
+        when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.92f));
+        var recognition = new VisionServiceClient.RecognitionResult(
+                "T-mock-cart", items, 0.92f, true, "mock-v1", List.of());
+
+        var order = settlementService.processRecognitionResult(session, recognition, true);
+
+        org.junit.jupiter.api.Assertions.assertEquals("PAID", order.status());
+        verifyNoInteractions(disputeService);
     }
 
     @Test
@@ -215,6 +253,46 @@ class SettlementDisputeTest {
     }
 
     @Test
+    void gravityMismatch_withGravityCart_settlesInMockMode() {
+        ShoppingSession session = new ShoppingSession();
+        session.setSessionId("S-MISMATCH-MOCK");
+        session.setUserId(10001L);
+        session.setDeviceId("CAB-001");
+        session.setGravityDeltas("[{\"skuId\":\"SKU-DEMO-001\",\"delta\":-1}]");
+
+        SkuCatalog sku = new SkuCatalog();
+        sku.setSkuId("SKU-DEMO-001");
+        sku.setSkuName("可乐");
+        sku.setPriceCents(350);
+
+        when(orderRepository.findBySessionId("S-MISMATCH-MOCK")).thenReturn(java.util.Optional.empty());
+        when(securityProperties.mockEnabled()).thenReturn(true);
+        when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> {
+            VisionServiceClient.RecognitionResult vision = inv.getArgument(1);
+            return new VisionServiceClient.RecognitionResult(
+                    vision.taskId(), vision.items(), vision.overallConfidence(), true,
+                    vision.modelVersion() + "+gravity-mismatch", vision.detectedClasses());
+        });
+        when(gravityHelper.toRecognizedItems(any())).thenReturn(
+                List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.98f)));
+        when(skuCatalogRepository.findById("SKU-DEMO-001")).thenReturn(java.util.Optional.of(sku));
+        when(skuPricingService.resolveUnitPriceCents("CAB-001", sku)).thenReturn(350);
+        when(userValidationService.canChargeViaPasswordFree(any(), any())).thenReturn(true);
+        when(inventoryService.deductForOrder(any(), any(), any(), any())).thenReturn(java.util.Map.of());
+        when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(sessionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var items = List.of(new VisionServiceClient.RecognizedItem("SKU-SPRITE", 1, 0.95f));
+        var recognition = new VisionServiceClient.RecognitionResult(
+                "T-mm", items, 0.95f, false, "mock-v1", List.of("bottle"));
+
+        var order = settlementService.processRecognitionResult(session, recognition, true);
+
+        org.junit.jupiter.api.Assertions.assertEquals("PAID", order.status());
+        verifyNoInteractions(disputeService);
+    }
+
+    @Test
     void gravityFill_escalatesToDispute_noSilentCharge() {
         ShoppingSession session = new ShoppingSession();
         session.setSessionId("S-GRAVITY-FILL");
@@ -224,6 +302,7 @@ class SettlementDisputeTest {
         when(orderRepository.findBySessionId("S-GRAVITY-FILL")).thenReturn(java.util.Optional.empty());
         when(securityProperties.mockEnabled()).thenReturn(true);
         when(gravityHelper.reconcileWithGravity(any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(gravityHelper.toRecognizedItems(any())).thenReturn(List.of());
 
         var items = List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 0.9f));
         var recognition = new VisionServiceClient.RecognitionResult(

@@ -205,6 +205,23 @@ public class OpsGapFeaturesController {
         return ApiResponse.ok(gapService.recordPhoneVerify(operatorId(request), body));
     }
 
+    @RequiresPermissions("ops:phone-verify:list")
+    @PutMapping("/phone-verify/logs/{logId}")
+    public ApiResponse<PhoneVerifyLogDto> updatePhoneVerify(
+            HttpServletRequest request,
+            @PathVariable Long logId,
+            @RequestBody PhoneVerifyLogDto body) {
+        return ApiResponse.ok(gapService.updatePhoneVerify(operatorId(request), logId, body));
+    }
+
+    @RequiresPermissions("ops:phone-verify:list")
+    @DeleteMapping("/phone-verify/logs/{logId}")
+    public ApiResponse<Void> deletePhoneVerify(
+            HttpServletRequest request, @PathVariable Long logId) {
+        gapService.deletePhoneVerify(operatorId(request), logId);
+        return ApiResponse.ok(null);
+    }
+
     // ---- M6 stock health ----
 
     @RequiresPermissions("ops:stock-health:list")

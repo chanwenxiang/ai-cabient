@@ -1,5 +1,7 @@
 <template>
   <view class="video-page">
+    <app-nav-bar title="购物视频" bg="#000000" color="#ffffff" />
+    <view class="page-body">
     <view v-if="error" class="state">
       <text class="state-title">视频加载失败</text>
       <text class="state-desc">{{ error }}</text>
@@ -22,6 +24,7 @@
     <view v-if="src" class="tips">
       <text class="tip">若无法播放，可复制链接到浏览器打开</text>
       <button class="copy-btn" size="mini" @click="copyUrl">复制链接</button>
+    </view>
     </view>
   </view>
 </template>
@@ -65,13 +68,21 @@ function copyUrl() {
 
 <style scoped>
 .video-page {
-  min-height: 100vh;
+  min-height: 100%;
   background: #000;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
+  padding: 0;
+  box-sizing: border-box;
+}
+.page-body {
   padding: 20rpx;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
 }
 .video-player {
   width: 100%;
