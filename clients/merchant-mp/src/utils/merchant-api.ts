@@ -1,6 +1,7 @@
 import { API_BASE_URL } from '@/config/api';
 import { clearDictOverrides, displayLabel } from '@aicabinet/shared-dict';
 import { matchPermission } from '@aicabinet/shared-rbac';
+import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
 import { mpRequest, type MpApiSession } from '@aicabinet/shared-uni/request';
 
@@ -248,8 +249,10 @@ export function merchantLogin(phone: string, password: string) {
   ).then(async (data) => {
     uni.setStorageSync('merchant_token', data.token);
     uni.setStorageSync('merchant_user_id', data.userId);
-    const { loadRuntimeDict } = await import('@/utils/dict-runtime');
-    await loadRuntimeDict();
+    await sharedLoadRuntimeDict({
+      getToken: getToken,
+      fetchRuntime: () => request('/api/v2/dicts/runtime', 'GET')
+    });
     return data;
   });
 }

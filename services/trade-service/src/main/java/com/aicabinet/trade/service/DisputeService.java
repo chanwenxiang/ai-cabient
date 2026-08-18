@@ -14,6 +14,7 @@ import com.aicabinet.common.dto.ReopenDisputeRequest;
 import com.aicabinet.common.dto.ResolveDisputeRequest;
 import com.aicabinet.common.dto.ResolveDisputeResultDto;
 import com.aicabinet.common.enums.SessionState;
+import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.config.DisputeSlaProperties;
 import com.aicabinet.trade.domain.CabinetOrder;
@@ -319,7 +320,7 @@ private final UserInfoMapper userInfoRepository;
     }
 
     private static String newTicketId() {
-        return "D" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase();
+        return BizIds.nextNumeric();
     }
 
     @Transactional(readOnly = true)
@@ -403,7 +404,7 @@ private final UserInfoMapper userInfoRepository;
         return toDto(ticket);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = {com.aicabinet.trade.service.BalanceInsufficientException.class})
     public ResolveDisputeResultDto resolveTicket(Long operatorId, String ticketId, ResolveDisputeRequest request) {
         permissionService.requirePermission(operatorId, "ops:dispute:resolve");
         DisputeTicket ticket = disputeRepository.findById(ticketId)

@@ -454,6 +454,22 @@ function collectPermIds(nodes: PermRow[]): number[] {
   return out;
 }
 
+/** cascade 模式下勿把目录(M)写入 checkedKeys，否则会整棵子树显示「全勾」（OBS-008） */
+function nonDirectoryCheckedIds(ids: number[]): number[] {
+  const byId = new Map<number, PermRow>();
+  const index = (nodes: PermRow[]) => {
+    for (const n of nodes) {
+      byId.set(n.permissionId, n);
+      if (n.children?.length) index(n.children);
+    }
+  };
+  index(permTree.value);
+  return ids.filter((id) => {
+    const n = byId.get(id);
+    return !n || n.permType !== 'M';
+  });
+}
+
 function selectAllPerms() {
   treeApi()?.setCheckedKeys(collectPermIds(permTree.value), false);
 }
@@ -476,7 +492,7 @@ async function openPerms(row: RoleRow) {
       'GET'
     );
     await nextTick();
-    treeApi()?.setCheckedKeys(data.permissionIds || [], false);
+    treeApi()?.setCheckedKeys(nonDirectoryCheckedIds(data.permissionIds || []), false);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载权限失败');
     treeApi()?.setCheckedKeys([], false);

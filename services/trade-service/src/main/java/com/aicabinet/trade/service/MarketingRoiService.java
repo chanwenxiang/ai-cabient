@@ -51,9 +51,7 @@ public class MarketingRoiService {
         List<MarketingRoiRowDto> out = new ArrayList<>();
         for (PromotionActivity activity : activityRepository.findAll()) {
             List<CouponDefinition> defs = couponDefinitionRepository.findByActivityId(activity.getActivityId());
-            if (defs.isEmpty()) {
-                continue;
-            }
+            // OBS-006：无券活动也入表，发券/核销为 0，避免「有活动却不在 ROI」误解
             Set<Long> couponInstanceIds = new LinkedHashSet<>();
             long claimed = 0;
             long used = 0;

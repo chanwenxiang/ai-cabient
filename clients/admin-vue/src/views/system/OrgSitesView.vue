@@ -43,6 +43,14 @@
                   v-hasPermi="['ops:org:edit']"
                   size="small"
                   link
+                  @click.stop="openEditNode(data)"
+                >
+                  编辑
+                </el-button>
+                <el-button
+                  v-hasPermi="['ops:org:edit']"
+                  size="small"
+                  link
                   @click.stop="openNode(data)"
                 >
                   新增子级
@@ -62,6 +70,15 @@
                   @click.stop="toggleNode(data)"
                 >
                   {{ data.enabled ? '停用' : '启用' }}
+                </el-button>
+                <el-button
+                  v-hasPermi="['ops:org:edit']"
+                  size="small"
+                  link
+                  type="danger"
+                  @click.stop="removeNode(data)"
+                >
+                  删除
                 </el-button>
               </div>
             </div>
@@ -98,10 +115,18 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="90" align="center">
+          <el-table-column label="操作" width="150" align="center">
             <template #default="{ row }">
               <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openContract(row)">
                 编辑
+              </el-button>
+              <el-button
+                v-hasPermi="['ops:org:edit']"
+                size="small"
+                type="danger"
+                @click="removeContract(row)"
+              >
+                删除
               </el-button>
             </template>
           </el-table-column>
@@ -234,7 +259,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import type { OrgNodeDto, SiteContractDto } from '@aicabinet/shared-types';
 import { dictLabel } from '@aicabinet/shared-dict';
@@ -325,6 +350,33 @@ function openNode(parent: OrgNodeDto | null) {
     parentId: parent?.nodeId ?? null
   };
   nodeVisible.value = true;
+}
+
+function openEditNode(node: OrgNodeDto) {
+  nodeForm.value = {
+    nodeId: node.nodeId,
+    name: node.name,
+    nodeType: node.nodeType || 'BRANCH',
+    parentId: node.parentId ?? null
+  };
+  nodeVisible.value = true;
+}
+
+async function removeNode(node: OrgNodeDto) {
+  try {
+    await ElMessageBox.confirm(`确认删除组织「${node.name}」？需无子节点且无绑定设备。`, '删除组织', {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/org/nodes/${node.nodeId}`, 'DELETE');
+    ElMessage.success('已删除');
+    await loadAll();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '删除失败');
+  }
 }
 
 async function saveNode() {
@@ -430,6 +482,23 @@ async function saveContract() {
     ElMessage.error(e instanceof Error ? e.message : '保存失败');
   } finally {
     saving.value = false;
+  }
+}
+
+async function removeContract(row: SiteContractDto) {
+  try {
+    await ElMessageBox.confirm(`确认删除「${row.siteName}」场地合同？`, '删除合同', {
+      type: 'warning'
+    });
+  } catch {
+    return;
+  }
+  try {
+    await api.request(`/api/v2/ops/admin/site-contracts/${row.contractId}`, 'DELETE');
+    ElMessage.success('已删除');
+    await loadAll();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '删除失败');
   }
 }
 

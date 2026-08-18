@@ -166,13 +166,17 @@
       :title="editingId ? '编辑活动' : '新建活动'"
       width="560px"
       destroy-on-close
+      append-to-body
+      align-center
+      :close-on-click-modal="false"
+      class="promo-dialog"
     >
       <el-form :model="form" label-width="96px">
         <el-form-item label="活动名称" required
           ><el-input v-model="form.activityName" maxlength="80"
         /></el-form-item>
         <el-form-item label="活动类型">
-          <el-select v-model="form.activityType" style="width: 100%">
+          <el-select v-model="form.activityType" style="width: 100%" teleported>
             <el-option
               v-for="item in dictOptions('promotion_type')"
               :key="item.value"
@@ -182,10 +186,24 @@
           </el-select>
         </el-form-item>
         <el-form-item label="开始时间"
-          ><el-date-picker v-model="form.startTime" type="datetime" style="width: 100%"
+          ><el-date-picker
+            v-model="form.startTime"
+            type="datetime"
+            teleported
+            placement="bottom-start"
+            :z-index="5000"
+            :popper-options="{ strategy: 'fixed' }"
+            style="width: 100%"
         /></el-form-item>
         <el-form-item label="结束时间"
-          ><el-date-picker v-model="form.endTime" type="datetime" style="width: 100%"
+          ><el-date-picker
+            v-model="form.endTime"
+            type="datetime"
+            teleported
+            placement="bottom-start"
+            :z-index="5000"
+            :popper-options="{ strategy: 'fixed' }"
+            style="width: 100%"
         /></el-form-item>
         <el-form-item label="预算(元)">
           <el-input-number
@@ -647,5 +665,8 @@ onActivated(() => {
 }
 .hidden-input {
   display: none;
+}
+:global(.promo-dialog .el-dialog__body) {
+  overflow: visible;
 }
 </style>

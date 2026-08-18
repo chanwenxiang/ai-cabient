@@ -126,7 +126,7 @@
           >
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="openDetail(row)">
-                <span class="cell-id">{{ row.orderId }}</span>
+                <span class="cell-id">{{ displayBizNo(row.orderId) }}</span>
               </button>
             </template>
           </el-table-column>
@@ -138,7 +138,7 @@
                 class="link-cell mono"
                 @click="goSessions(row.deviceId, row.sessionId)"
               >
-                {{ row.sessionId }}
+                {{ displayBizNo(row.sessionId, '无') }}
               </button>
               <span v-else class="muted">无</span>
             </template>
@@ -167,7 +167,7 @@
             show-overflow-tooltip
           >
             <template #default="{ row }">
-              <span class="mono">{{ row.payTradeNo || row.paymentOperationId || '无' }}</span>
+              <span class="mono">{{ displayBizNo(row.payTradeNo || row.paymentOperationId, '无') }}</span>
             </template>
           </el-table-column>
           <el-table-column label="订单状态" width="90" align="center">
@@ -288,7 +288,7 @@
         <template v-if="detail">
           <el-descriptions :column="1" border size="small">
             <el-descriptions-item label="订单号">
-              <span class="cell-id">{{ detail.orderId }}</span>
+              <span class="cell-id">{{ displayBizNo(detail.orderId) }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="会话">
               <button
@@ -297,7 +297,7 @@
                 class="link-cell mono"
                 @click="goSessions(detail.deviceId, detail.sessionId)"
               >
-                {{ detail.sessionId }}
+                {{ displayBizNo(detail.sessionId, '无') }}
               </button>
               <span v-else>-</span>
             </el-descriptions-item>
@@ -412,7 +412,7 @@
               v-if="detail.sessionId"
               :timestamp="formatDateTime(detail.createdAt)"
               type="info"
-              >关联会话 {{ detail.sessionId }}</el-timeline-item
+              >关联会话 {{ displayBizNo(detail.sessionId, '无') }}</el-timeline-item
             >
           </el-timeline>
         </template>
@@ -446,7 +446,10 @@ import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { OrderSummary, PageResult } from '@aicabinet/shared-types';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import {
+  displayBizNo,
+  formatDateTime
+} from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 

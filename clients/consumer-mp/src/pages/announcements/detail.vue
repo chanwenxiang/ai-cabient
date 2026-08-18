@@ -1,5 +1,6 @@
-<template>
+﻿<template>
   <view class="page">
+    <app-nav-bar title="公告详情" />
     <view v-if="loading" class="state">加载中…</view>
     <view v-else-if="error" class="state">
       <text class="err">{{ error }}</text>
@@ -33,9 +34,9 @@ onLoad((query) => {
 
 <style scoped>
 .page {
-  min-height: 100vh;
-  padding: 28rpx 28rpx 64rpx;
-  background: #f7f7f7;
+  min-height: 100%;
+  padding: 0 0 64rpx;
+  background: #ffffff;
   box-sizing: border-box;
 }
 .state {
@@ -52,15 +53,15 @@ onLoad((query) => {
   text-align: center;
 }
 .retry {
-  background: #059669;
+  background: var(--brand, #047857);
   color: #fff;
   border: none;
 }
 .article {
+  margin: 20rpx 24rpx 0;
   background: #fff;
-  border-radius: 20rpx;
-  padding: 32rpx 28rpx;
-  box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
+  border-radius: 16rpx;
+  padding: 28rpx 24rpx;
 }
 .meta {
   display: flex;

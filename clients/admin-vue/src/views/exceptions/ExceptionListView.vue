@@ -100,7 +100,7 @@
               sortable="custom"
             >
               <template #default="{ row }">
-                <span class="cell-id">{{ row.exceptionId }}</span>
+                <span class="cell-id">{{ displayBizNo(row.exceptionId) }}</span>
               </template>
             </el-table-column>
             <el-table-column
@@ -167,7 +167,7 @@
                   class="link-cell mono"
                   @click="goSessions(row.deviceId, row.sessionId)"
                 >
-                  {{ row.sessionId }}
+                  {{ displayBizNo(row.sessionId) }}
                 </button>
                 <span v-else class="muted" :title="emptyRefHint(row)">{{
                   emptyRefLabel(row)
@@ -188,7 +188,7 @@
                   class="link-cell mono"
                   @click="goOrders(row.deviceId)"
                 >
-                  {{ row.orderId }}
+                  {{ displayBizNo(row.orderId) }}
                 </button>
                 <span v-else class="muted" :title="emptyRefHint(row)">{{
                   emptyRefLabel(row)
@@ -348,7 +348,7 @@
             <section class="workbench-meta">
               <el-descriptions :column="1" border size="small">
                 <el-descriptions-item label="异常编号">
-                  <span class="cell-id">{{ detail.exception.exceptionId }}</span>
+                  <span class="cell-id">{{ displayBizNo(detail.exception.exceptionId) }}</span>
                 </el-descriptions-item>
                 <el-descriptions-item label="异常类型">
                   <el-tag type="info" size="small">{{
@@ -555,7 +555,10 @@ import {
   formatOpsActionDetail
 } from '@aicabinet/shared-dict';
 import type { PageResult } from '@aicabinet/shared-types';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import {
+  displayBizNo,
+  formatDateTime
+} from '@aicabinet/shared-uni/format';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 

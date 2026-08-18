@@ -130,7 +130,7 @@
             show-overflow-tooltip
           >
             <template #default="{ row }">
-              <span v-if="row.targetId" class="cell-id">{{ row.targetId }}</span>
+              <span v-if="row.targetId" class="cell-id">{{ displayBizNo(row.targetId) }}</span>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
@@ -175,7 +175,10 @@ import {
   auditTargetLabel,
   formatOpsActionDetail
 } from '@aicabinet/shared-dict';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import {
+  displayBizNo,
+  formatDateTime
+} from '@aicabinet/shared-uni/format';
 import type { PageResult } from '@aicabinet/shared-types';
 import { api } from '@/api/client';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';

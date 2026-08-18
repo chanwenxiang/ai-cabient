@@ -1,5 +1,6 @@
-<template>
+﻿<template>
   <view class="page-root">
+    <app-nav-bar title="账单审核" />
     <view v-if="loading" class="state"><text class="meta">加载中…</text></view>
     <view v-else-if="error" class="state">
       <text class="err">{{ error }}</text>
@@ -101,7 +102,13 @@ import { consumerApi, getConsumerToken, requireConsumerAuth } from '@/utils/cons
 import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import { fetchEvidenceLocalPath } from '@/utils/dispute-evidence';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay, fmtMoney, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import {
+  emptyDisplay,
+  displayBizNo,
+  shortBizNo,
+  formatDateTimeMinute,
+  fmtMoney
+} from '@aicabinet/shared-uni/format';
 import type { DisputeTicketDto, FileAttachmentDto, OrderLineDto } from '@aicabinet/shared-types';
 
 const loading = ref(true);
@@ -277,8 +284,7 @@ function fmtLine(line: OrderLineDto) {
 }
 
 function shortId(id?: string) {
-  if (!id) return '暂无购物单号';
-  return id.length > 14 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
+  return shortBizNo(id, 12, '暂无');
 }
 
 function formatTime(v?: string) {
@@ -312,7 +318,7 @@ function previewEvidence(img: FileAttachmentDto) {
 <style scoped>
 .page-root {
   min-height: 100vh;
-  background: #f7f7f7;
+  background: #ffffff;
   padding-bottom: 48rpx;
 }
 .state {
@@ -418,7 +424,7 @@ function previewEvidence(img: FileAttachmentDto) {
   text-align: right;
 }
 .info-value.mono {
-  font-family: ui-monospace, monospace;
+  font-family: var(--app-font-mono);
   font-size: 22rpx;
 }
 .line {
@@ -472,7 +478,7 @@ function previewEvidence(img: FileAttachmentDto) {
   font-size: 30rpx;
 }
 .btn-primary {
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   font-weight: 700;
 }

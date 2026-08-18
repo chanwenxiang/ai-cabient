@@ -136,7 +136,7 @@
           <div class="page-card-head__meta">
             <div class="page-card-head__title">
               <span class="title">异常优先队列</span>
-              <span class="hint">有待办的入口优先展示；下方列表按严重程度排序，点「处理」直达</span>
+              <span class="hint">有待办的入口优先展示；下方列表按严重程度排序，点「查看」直达</span>
             </div>
           </div>
           <div class="page-card-head__actions">
@@ -231,7 +231,7 @@
               <template #default="{ row }">
                 <TableActions
                   v-if="canHandleAction(row)"
-                  :actions="[{ key: 'handle', label: '处理', icon: Right, type: 'primary' }]"
+                  :actions="[{ key: 'handle', label: '查看', icon: Right, type: 'primary' }]"
                   @action="() => goAction(row)"
                 />
                 <span v-else class="no-perm">—</span>
@@ -262,6 +262,7 @@ import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
 import { dictLabel } from '@aicabinet/shared-dict';
+import { shortBizNo } from '@aicabinet/shared-uni/format';
 import type { OpsWorkbench, PageResult } from '@aicabinet/shared-types';
 
 interface OpsStats {
@@ -486,7 +487,7 @@ function contextLabel(row: OpsActionItem) {
 }
 
 function shortId(id: string) {
-  return id.length > 14 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
+  return shortBizNo(id, 10, id);
 }
 
 function goQuick(item: QuickLink) {

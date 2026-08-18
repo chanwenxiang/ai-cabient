@@ -16,6 +16,9 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Set;
 
 @Service
 public class CouponService {
@@ -29,13 +32,16 @@ public class CouponService {
     private final CouponDefinitionMapper definitionRepository;
     private final UserCouponMapper userCouponRepository;
     private final UserInfoMapper userInfoRepository;
+    private final CabinetOrderMapper orderRepository;
 
     public CouponService(CouponDefinitionMapper definitionRepository,
                          UserCouponMapper userCouponRepository,
-                         UserInfoMapper userInfoRepository) {
+                         UserInfoMapper userInfoRepository,
+                         CabinetOrderMapper orderRepository) {
         this.definitionRepository = definitionRepository;
         this.userCouponRepository = userCouponRepository;
         this.userInfoRepository = userInfoRepository;
+        this.orderRepository = orderRepository;
     }
 
     // ── 优惠券定义管理 ─────────────────────────────────
@@ -164,17 +170,47 @@ public class CouponService {
             userCouponRepository.save(uc);
             throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已过期");
         }
+        if (orderId == null || orderId.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少订单号");
+        }
+
+        CabinetOrder order = orderRepository.findById(orderId.trim())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在"));
+        if (!Objects.equals(order.getUserId(), userId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "订单不属于当前用户");
+        }
+        // 仅允许未支付/争议中订单手动词核销；已支付不可再核销改额（BUG-018）
+        String status = order.getStatus() == null ? "" : order.getStatus().toUpperCase(Locale.ROOT);
+        if (!Set.of("PENDING", "UNPAID", "DISPUTED", "CREATED").contains(status)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单当前状态不可用券");
+        }
+        if (order.getCouponId() != null) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单已使用优惠券");
+        }
 
         CouponDefinition def = definitionRepository.findById(uc.getCouponDefId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券定义不存在"));
-        int discount = resolveDiscount(def, Integer.MAX_VALUE);
+        int subtotal = Math.max(0, order.getTotalAmountCents());
+        int minSpend = Math.max(0, def.getMinSpendCents());
+        if (subtotal < minSpend) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "未满足满减门槛");
+        }
+        int discount = resolveDiscount(def, subtotal);
+        if (discount <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "优惠券不可用于该订单");
+        }
 
         uc.setStatus("USED");
         uc.setUsedAt(Instant.now());
-        uc.setOrderId(orderId);
-        uc.setDeviceId(deviceId);
+        uc.setOrderId(order.getOrderId());
+        uc.setDeviceId(deviceId != null && !deviceId.isBlank() ? deviceId : order.getDeviceId());
         uc.setDiscountCents(discount);
         userCouponRepository.save(uc);
+
+        order.setCouponId(uc.getCouponId());
+        order.setCouponDiscountCents(discount);
+        order.setTotalAmountCents(Math.max(0, subtotal - discount));
+        orderRepository.save(order);
 
         log.info("coupon used userId={} couponId={} order={} discount={}", userId, couponId, orderId, discount);
         return toDto(uc, def);

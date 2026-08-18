@@ -1,5 +1,7 @@
 <template>
   <view class="page">
+    <app-nav-bar title="要货申请" />
+    <view class="page-body">
     <view class="tabs">
       <view class="tab" :class="{ active: mode === 'create' }" @click="mode = 'create'"
         >发起要货</view
@@ -110,6 +112,7 @@
         >已加载 {{ requests.length }} 条申请</text
       >
     </view>
+      </view>
   </view>
 </template>
 
@@ -413,8 +416,8 @@ function goReplenish(req: MerchantReplenishmentRequest) {
 <style scoped>
 .page {
   min-height: 100vh;
-  padding: 16rpx 20rpx 48rpx;
-  background: #f0fdfa;
+  padding: 0;
+  background: #ffffff;
 }
 .tabs {
   display: flex;
@@ -679,5 +682,9 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   color: #fff;
   font-size: 24rpx;
   font-weight: 600;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

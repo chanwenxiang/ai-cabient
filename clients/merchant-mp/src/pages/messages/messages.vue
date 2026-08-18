@@ -1,5 +1,7 @@
 <template>
   <view class="page-root">
+    <app-nav-bar title="消息中心" />
+    <view class="page-body">
     <view v-if="loading" class="loading"><text>加载中…</text></view>
     <view v-else-if="!list.length" class="empty">
       <text class="empty-title">暂无消息</text>
@@ -14,21 +16,27 @@
         @click="onOpen(m)"
       >
         <view class="msg-head">
-          <text class="msg-title">{{ m.title }}</text>
+          <text class="msg-title">{{ sanitizeNotifyTitle(m.title) }}</text>
           <text class="msg-time">{{ formatTime(m.createdAt) }}</text>
         </view>
-        <text class="msg-body">{{ m.body }}</text>
-        <view v-if="m.bizId" class="msg-biz">关联单号：{{ m.bizId }}</view>
+        <text class="msg-body">{{ rewriteBizNosInText(m.body) }}</text>
+        <view v-if="m.bizId" class="msg-biz">关联单号：{{ displayBizNo(m.bizId) }}</view>
       </view>
     </view>
-  </view>
+  
+    </view></view>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { merchantApi, type MerchantNotificationDto } from '@/utils/merchant-api';
-import { formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import {
+  displayBizNo,
+  formatDateTimeMinute,
+  rewriteBizNosInText,
+  sanitizeNotifyTitle
+} from '@aicabinet/shared-uni/format';
 
 const loading = ref(false);
 const list = ref<MerchantNotificationDto[]>([]);
@@ -67,9 +75,9 @@ function formatTime(t: string) {
 
 <style scoped>
 .page-root {
-  min-height: 100vh;
-  padding: 24rpx 24rpx 48rpx;
-  background: #f5f7f8;
+  min-height: 100%;
+  padding: 0;
+  background: #ffffff;
   box-sizing: border-box;
 }
 .loading {
@@ -129,5 +137,9 @@ function formatTime(t: string) {
   margin-top: 10rpx;
   font-size: 20rpx;
   color: #8a968e;
+}
+.page-body {
+  padding: 24rpx 24rpx 48rpx;
+  box-sizing: border-box;
 }
 </style>

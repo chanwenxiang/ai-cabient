@@ -76,7 +76,7 @@
             sortable="custom"
           >
             <template #default="{ row }">
-              <span class="cell-id">{{ row.orderId }}</span>
+              <span class="cell-id">{{ displayBizNo(row.orderId) }}</span>
             </template>
           </el-table-column>
           <el-table-column label="用户" width="100" align="center" class-name="col-text">
@@ -153,7 +153,10 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import {
+  displayBizNo,
+  formatDateTime
+} from '@aicabinet/shared-uni/format';
 
 const route = useRoute();
 const router = useRouter();

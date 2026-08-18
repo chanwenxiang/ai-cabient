@@ -157,7 +157,7 @@ public class UserBehaviorAnalyticsService {
                 phone,
                 name,
                 (int) u.totalOrders,
-                BigDecimal.valueOf(u.totalRevenue, 2),
+                BigDecimal.valueOf(u.totalRevenue).movePointLeft(2),
                 last
         );
     }

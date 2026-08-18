@@ -39,6 +39,15 @@ public class UserFeedbackController {
         return ApiResponse.ok(feedbackService.reply(operatorId(request), feedbackId, body));
     }
 
+    @RequiresPermissions(value = {"ops:feedback", "ops:feedback:reply"}, logical = RequiresPermissions.Logical.OR)
+    @DeleteMapping("/{feedbackId}")
+    public ApiResponse<Void> delete(
+            HttpServletRequest request,
+            @PathVariable Long feedbackId) {
+        feedbackService.delete(operatorId(request), feedbackId);
+        return ApiResponse.ok(null);
+    }
+
     private static Long operatorId(HttpServletRequest request) {
         return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }

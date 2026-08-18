@@ -1153,15 +1153,18 @@ public class ReplenishmentService {
 
     /** 补货任务指派站内信（商户端消息中心）。 */
     private void notifyTaskAssigned(ReplenishmentTask task) {
-        if (task == null || task.getAssigneeUserId() == null) {
+        if (task == null || task.getDeviceId() == null || task.getDeviceId().isBlank()) {
             return;
         }
         try {
-            var me = merchantPortalService.getMe(task.getAssigneeUserId());
-            if (me == null || me.merchants() == null || me.merchants().isEmpty()) {
+            // 用柜机所属商户发信，避免运营超管 assignee 走 merchant:portal:access 导致整单回滚（BUG-014）
+            String merchantId = deviceRepository.findById(task.getDeviceId())
+                    .map(DeviceInfo::getMerchantId)
+                    .filter(id -> id != null && !id.isBlank())
+                    .orElse(null);
+            if (merchantId == null) {
                 return;
             }
-            String merchantId = me.merchants().get(0).merchantId();
             String deviceName = deviceRepository.findById(task.getDeviceId())
                     .map(d -> d.getDeviceName() != null ? d.getDeviceName() : task.getDeviceId())
                     .orElse(task.getDeviceId());

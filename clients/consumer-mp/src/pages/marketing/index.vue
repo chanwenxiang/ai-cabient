@@ -1,54 +1,59 @@
-﻿<template>
-  <view class="page">
-    <swiper
-      class="banner"
-      circular
-      autoplay
-      :interval="4200"
-      indicator-dots
-      indicator-active-color="#059669"
-    >
-      <swiper-item v-for="b in banners" :key="b.id">
-        <view class="banner-card" :class="'tone-' + b.tone" @click="openPath(b.ctaPath)">
-          <view class="banner-copy">
-            <text class="banner-title">{{ b.title }}</text>
-            <text class="banner-sub">{{ b.subtitle }}</text>
-            <text class="banner-cta">立即查看 ›</text>
+<template>
+  <view class="page page-root page-fill">
+    <app-nav-bar title="热门活动" />
+    <view class="page-scroll">
+      <view class="page-body">
+        <swiper
+          class="banner"
+          circular
+          autoplay
+          :interval="4200"
+          indicator-dots
+          indicator-active-color="#059669"
+        >
+          <swiper-item v-for="b in banners" :key="b.id">
+            <view class="banner-card" :class="'tone-' + b.tone" @click="openPath(b.ctaPath)">
+              <view class="banner-copy">
+                <text class="banner-title">{{ b.title }}</text>
+                <text class="banner-sub">{{ b.subtitle }}</text>
+                <text class="banner-cta">立即查看 ›</text>
+              </view>
+              <image class="banner-mark" :src="menuIcon('gift')" mode="aspectFit" />
+            </view>
+          </swiper-item>
+        </swiper>
+
+        <view class="entry" @click="goCoupons">
+          <view>
+            <text class="entry-title">我的优惠券</text>
+            <text class="entry-sub">{{ couponEntrySub }}</text>
           </view>
-          <image class="banner-mark" :src="menuIcon('gift')" mode="aspectFit" />
+          <text class="entry-arrow">›</text>
         </view>
-      </swiper-item>
-    </swiper>
 
-    <view class="entry" @click="goCoupons">
-      <view>
-        <text class="entry-title">我的优惠券</text>
-        <text class="entry-sub">{{ couponEntrySub }}</text>
-      </view>
-      <text class="entry-arrow">›</text>
-    </view>
-
-    <view class="section-title">进行中</view>
-    <view v-if="loading" class="empty">加载中…</view>
-    <empty-state
-      v-else-if="!campaigns.length"
-      icon="/static/menu/hot.png"
-      title="暂无进行中活动"
-      hint="可先领券，或扫码开门购物"
-    >
-      <button class="empty-btn" @click="goShop">去扫码购物</button>
-      <button class="empty-btn ghost" @click="goCoupons">去领券</button>
-    </empty-state>
-    <view v-else>
-      <view v-for="c in campaigns" :key="c.id" class="campaign" @click="onCampaignClick(c)">
-        <view class="campaign-badge" :class="'tone-' + c.coverColor">{{ c.typeLabel }}</view>
-        <text class="campaign-title">{{ c.title }}</text>
-        <text class="campaign-desc">{{ c.description }}</text>
-        <view class="campaign-foot">
-          <text class="campaign-time">{{ formatRange(c.startTime, c.endTime) }}</text>
-          <text class="campaign-cta" :class="{ muted: c.claimed || claimingId === c.id }">
-            {{ claimingId === c.id ? '领取中…' : c.ctaLabel }} ›
-          </text>
+        <view class="section-title">进行中</view>
+        <view v-if="loading" class="empty">加载中…</view>
+        <empty-state
+          v-else-if="!campaigns.length"
+          icon="/static/menu/hot.png"
+          title="暂无进行中活动"
+          hint="可先领券，或扫码开门购物"
+        >
+          <button class="empty-btn" @click="goShop">去扫码购物</button>
+          <button class="empty-btn ghost" @click="goCoupons">去领券</button>
+        </empty-state>
+        <view v-else>
+          <view v-for="c in campaigns" :key="c.id" class="campaign" @click="onCampaignClick(c)">
+            <view class="campaign-badge" :class="'tone-' + c.coverColor">{{ c.typeLabel }}</view>
+            <text class="campaign-title">{{ c.title }}</text>
+            <text class="campaign-desc">{{ c.description }}</text>
+            <view class="campaign-foot">
+              <text class="campaign-time">{{ formatRange(c.startTime, c.endTime) }}</text>
+              <text class="campaign-cta" :class="{ muted: c.claimed || claimingId === c.id }">
+                {{ claimingId === c.id ? '领取中…' : c.ctaLabel }} ›
+              </text>
+            </view>
+          </view>
         </view>
       </view>
     </view>
@@ -189,9 +194,34 @@ function formatRange(start?: string, end?: string) {
 
 <style scoped>
 .page {
-  min-height: 100vh;
-  padding: 24rpx;
-  background: #f5f7f8;
+  height: 100%;
+  min-height: 100%;
+  padding: 0;
+  background: #ffffff;
+  box-sizing: border-box;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.page-scroll {
+  flex: 1 1 0;
+  height: 0;
+  min-height: 0;
+  width: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.page-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 .banner {
   height: 280rpx;
@@ -206,7 +236,7 @@ function formatRange(start?: string, end?: string) {
   justify-content: space-between;
   align-items: center;
   color: #fff;
-  background: linear-gradient(135deg, #064e3b, #0d9488);
+  background: linear-gradient(135deg, #064e3b, #059669);
 }
 .banner-card.tone-amber {
   background: linear-gradient(135deg, #92400e, #f59e0b);

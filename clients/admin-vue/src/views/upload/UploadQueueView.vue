@@ -114,7 +114,7 @@
           >
             <template #default="{ row }">
               <button type="button" class="link-cell" @click="goSession(row.sessionId)">
-                <span class="cell-id">{{ row.sessionId }}</span>
+                <span class="cell-id">{{ displayBizNo(row.sessionId) }}</span>
               </button>
             </template>
           </el-table-column>
@@ -237,7 +237,10 @@ import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import type { PageResult } from '@aicabinet/shared-types';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import {
+  displayBizNo,
+  formatDateTime
+} from '@aicabinet/shared-uni/format';
 
 interface SessionRow {
   sessionId: string;

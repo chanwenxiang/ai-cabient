@@ -32,10 +32,10 @@ withDefaults(
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 64rpx 32rpx;
+  padding: 48rpx 32rpx;
 }
 .empty-state.compact {
-  padding: 36rpx 16rpx;
+  padding: 28rpx 16rpx;
 }
 .empty-icon {
   width: 104rpx;

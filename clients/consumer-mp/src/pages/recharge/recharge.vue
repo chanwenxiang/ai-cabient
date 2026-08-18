@@ -1,5 +1,7 @@
-<template>
+﻿<template>
   <view class="page-root">
+    <app-nav-bar title="余额充值" />
+    <view class="page-body">
     <view class="balance-card">
       <text class="bal-label">当前余额</text>
       <text class="bal-amount">{{ balanceYuan }}</text>
@@ -113,6 +115,7 @@
           <text class="record-amount">{{ fmtMoney(r.amountCents || 0) }}</text>
           <view class="record-meta">
             <text class="record-channel">{{ channelText(r.channel) }}</text>
+            <text class="record-id">{{ shortBizNo(r.orderId) }}</text>
             <text class="record-time">{{ formatTime(r.createdAt) }}</text>
           </view>
         </view>
@@ -126,6 +129,7 @@
     </view>
 
     <view v-if="devTools" class="note">开发提示：模拟到账 / 沙箱不会产生生产扣款。</view>
+    </view>
   </view>
 </template>
 
@@ -134,7 +138,12 @@ import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
-import { formatDateTimeMinute, fmtMoney } from '@aicabinet/shared-uni/format';
+import {
+  displayBizNo,
+  shortBizNo,
+  formatDateTimeMinute,
+  fmtMoney
+} from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import type { PageResult, RechargeOrderDto } from '@aicabinet/shared-types';
 import {
@@ -402,13 +411,17 @@ async function onAlipayRecharge() {
 
 <style scoped>
 .page-root {
-  padding: 20rpx;
-  background: #f7f7f7;
-  min-height: 100vh;
+  padding: 0;
+  background: #ffffff;
+  min-height: 100%;
+  box-sizing: border-box;
+}
+.page-body {
+  padding: 20rpx 20rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .balance-card {
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   border-radius: 20rpx;
   padding: 40rpx;
   text-align: center;
@@ -486,7 +499,7 @@ async function onAlipayRecharge() {
   width: 100%;
   height: 88rpx;
   line-height: 88rpx;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
   font-size: 30rpx;
@@ -502,7 +515,7 @@ async function onAlipayRecharge() {
   width: 100%;
   height: 88rpx;
   line-height: 88rpx;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
   font-size: 30rpx;

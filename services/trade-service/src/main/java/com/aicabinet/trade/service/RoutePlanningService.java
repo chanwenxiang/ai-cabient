@@ -30,9 +30,6 @@ public class RoutePlanningService {
 
     private static final Logger log = LoggerFactory.getLogger(RoutePlanningService.class);
 
-    private static final double DEFAULT_START_LAT = 31.2304;
-    private static final double DEFAULT_START_LNG = 121.4737;
-
     private final DeviceInfoMapper deviceRepository;
     private final RoutePlanningProperties routeProperties;
     private final RestClient restClient;
@@ -53,17 +50,32 @@ public class RoutePlanningService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DEVICE_IDS_REQUIRED);
         }
         List<DeviceInfo> devices = resolveDevices(request.deviceIds());
-        double startLat = request.startLatitude() != null ? request.startLatitude() : DEFAULT_START_LAT;
-        double startLng = request.startLongitude() != null ? request.startLongitude() : DEFAULT_START_LNG;
+        double[] start = resolveStart(request, devices);
 
         if (routeProperties.gaodeEnabled()) {
             try {
-                return planWithGaode(devices, startLat, startLng);
+                return planWithGaode(devices, start[0], start[1]);
             } catch (Exception e) {
                 log.warn("gaode route planning failed, fallback to nearest-neighbor: {}", e.getMessage());
             }
         }
-        return planNearest(devices, startLat, startLng);
+        return planNearest(devices, start[0], start[1]);
+    }
+
+    /**
+     * 起点：请求坐标优先；缺省时用首台有坐标的柜机（首段距离为 0），
+     * 避免静默落回固定城市导致跨城巨距（OBS-021）。
+     */
+    private static double[] resolveStart(PlanRouteRequest request, List<DeviceInfo> devices) {
+        if (request.startLatitude() != null && request.startLongitude() != null) {
+            return new double[]{request.startLatitude(), request.startLongitude()};
+        }
+        for (DeviceInfo device : devices) {
+            if (device.getLatitude() != null && device.getLongitude() != null) {
+                return new double[]{device.getLatitude(), device.getLongitude()};
+            }
+        }
+        return new double[]{0d, 0d};
     }
 
     /** 最近邻 + Haversine 直线距离（兜底方案）。 */

@@ -178,7 +178,7 @@ export const DICT = {
     announcement_status: {
         DRAFT: '草稿',
         PUBLISHED: '已发布',
-        ARCHIVED: '存档'
+        ARCHIVED: '已归档'
     },
     announcement_audience: {
         ALL: '全部用户',
@@ -189,7 +189,9 @@ export const DICT = {
         FULL_REDUCE: '满减',
         DISCOUNT: '折扣',
         BUY_GIFT: '买赠',
-        SECOND_HALF: '第二件半价'
+        SECOND_HALF: '第二件半价',
+        NEW_USER: '新客',
+        POINTS: '积分'
     },
     coupon_type: {
         AMOUNT_OFF: '满减券',
@@ -447,7 +449,9 @@ export const DICT = {
     consistency_check_type: {
         ORDER_AMOUNT: '订单金额',
         PAYMENT_AMOUNT: '支付净额',
-        INVENTORY_MISMATCH: '库存汇总'
+        INVENTORY_MISMATCH: '库存汇总',
+        POINTS_BALANCE: '积分余额',
+        COUPON_ISSUED: '发券数量'
     },
     sku_perf_level: {
         BEST_SELLER: '畅销',

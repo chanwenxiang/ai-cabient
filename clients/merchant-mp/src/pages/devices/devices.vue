@@ -57,10 +57,18 @@
             <text class="name">{{ d.deviceName || d.deviceId }}</text>
             <text class="meta">{{ d.deviceId }}</text>
             <text v-if="d.address" class="meta addr">{{ d.address }}</text>
-            <text class="meta"
-              >{{ lifecycleText(d.lifecycleStatus)
-              }}<template v-if="d.currentTempC != null"> · {{ d.currentTempC }}°C</template></text
+            <text
+              v-if="lifecycleText(d.lifecycleStatus) || d.currentTempC != null"
+              class="meta"
             >
+              <template v-if="lifecycleText(d.lifecycleStatus)">{{
+                lifecycleText(d.lifecycleStatus)
+              }}</template>
+              <template v-if="lifecycleText(d.lifecycleStatus) && d.currentTempC != null">
+                ·
+              </template>
+              <template v-if="d.currentTempC != null">{{ d.currentTempC }}°C</template>
+            </text>
           </view>
         </view>
         <view class="device-right">
@@ -265,7 +273,8 @@ onShow(load);
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
 function lifecycleText(status?: string) {
-  return dictLabel('device_lifecycle', status) || '—';
+  if (!status) return '';
+  return dictLabel('device_lifecycle', status) || '';
 }
 </script>
 
@@ -280,6 +289,9 @@ function lifecycleText(status?: string) {
 .devices-page {
   padding: 0;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  min-height: 100%;
+  background: #f0fdfa;
+  box-sizing: border-box;
 }
 .toolbar {
   display: flex;
@@ -346,7 +358,8 @@ function lifecycleText(status?: string) {
 .filters {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 5;
+  isolation: isolate;
   background: #f0fdfa;
   padding: 16rpx 24rpx 12rpx;
 }

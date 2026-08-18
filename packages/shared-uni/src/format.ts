@@ -211,3 +211,74 @@ export function localizeDisputeReason(reason?: string | null): string {
 export function orderStatusLabel(status?: string) {
   return displayLabel('order_status', status, '未知状态');
 }
+
+/**
+ * 订单号 / 会话号 / 充值单 / 支付流水 / 异常单 / 分账单等「字母+十六进制」业务编号 → 纯数字展示。
+ * 不转换柜机编号、SKU、配置键等业务编码。导航/接口仍用原始 id。
+ */
+export function displayBizNo(
+  id?: string | number | null,
+  empty: string = EMPTY.order
+): string {
+  if (id == null) return empty;
+  const raw = String(id).trim();
+  if (!raw) return empty;
+  if (/^\d+$/.test(raw)) return raw;
+  // 柜机 / SKU / 仓库等可读编码原样展示
+  if (/^(CAB|SKU|ORG|WH|BIN|LOT|ROUTE)[-_]/i.test(raw)) return raw;
+  if (/^[A-Z]{2,}[-_][A-Z]*\d/i.test(raw) && /[G-Z]/i.test(raw)) return raw;
+
+  const body = raw
+    .replace(/^MOCK-[A-Z]+-/i, '')
+    .replace(/^(PSC|ALI-AG|PREVIEW)-?/i, '')
+    .replace(/^(BL|MW|LW|RF|ADJ|EX|ADM)-?/i, '')
+    .replace(/^[A-Z]+-?/i, '')
+    .replace(/-/g, '');
+
+  const hex = body.replace(/[^0-9A-Fa-f]/g, '');
+  if (hex.length >= 8 && /^[0-9A-Fa-f]+$/i.test(hex)) {
+    const slice = hex.length > 15 ? hex.slice(-15) : hex;
+    try {
+      const digits = BigInt(`0x${slice}`).toString();
+      if (digits) return digits;
+    } catch {
+      /* fallthrough */
+    }
+  }
+
+  const digitsOnly = raw.replace(/\D/g, '');
+  return digitsOnly.length >= 4 ? digitsOnly : raw;
+}
+
+/** 列表短号：纯数字，超长取末尾 */
+export function shortBizNo(
+  id?: string | number | null,
+  maxLen = 14,
+  empty: string = EMPTY.order
+): string {
+  const full = displayBizNo(id, empty);
+  if (full === empty) return full;
+  return full.length <= maxLen ? full : full.slice(-maxLen);
+}
+
+/** 把正文里嵌套的字母+十六进制业务号替换为纯数字（消息模板等） */
+export function rewriteBizNosInText(text?: string | null): string {
+  if (text == null || text === '') return '';
+  return String(text).replace(
+    /\b(?:MOCK-[A-Z]+-)?(?:BL|MW|LW|RF|ADJ|EX|ADM)-?[0-9A-Fa-f]{8,}\b|\b[OSDR][0-9A-Fa-f]{10,}\b/g,
+    (m) => displayBizNo(m, m)
+  );
+}
+
+/**
+ * 通知标题去掉末尾「 #单号 / #{var}」——编号改在「关联单号」行展示。
+ * 例：「新补货任务 #16」→「新补货任务」
+ */
+export function sanitizeNotifyTitle(text?: string | null): string {
+  if (text == null || text === '') return '';
+  return String(text)
+    .replace(/\s*#\{\w+\}\s*$/u, '')
+    .replace(/\s*#[\w.-]+\s*$/u, '')
+    .trim();
+}
+

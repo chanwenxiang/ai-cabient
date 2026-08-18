@@ -69,7 +69,13 @@
           </el-table-column>
           <el-table-column prop="orderCount" label="订单数" width="80" align="center" />
           <el-table-column label="累计消费" width="110" align="center">
-            <template #default="{ row }">{{ yuan(row.totalSpentCents ?? 0) }}</template>
+            <template #default="{ row }">{{
+              yuan(
+                row.totalSpentCents != null
+                  ? row.totalSpentCents
+                  : Math.round(Number(row.totalSpent ?? 0) * 100)
+              )
+            }}</template>
           </el-table-column>
         </el-table>
       </el-card>

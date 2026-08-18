@@ -1,5 +1,6 @@
-﻿<template>
+<template>
   <view class="page">
+    <app-nav-bar title="会员中心" />
     <view class="hero" :class="'lv-' + (profile?.levelCode || 'NORMAL').toLowerCase()">
       <view class="hero-top">
         <view>
@@ -172,17 +173,18 @@ function goMessages() {
 
 <style scoped>
 .page {
-  min-height: 100vh;
-  padding: 24rpx 24rpx 48rpx;
+  min-height: 100%;
+  padding: 0 0 48rpx;
   background: linear-gradient(180deg, #e8f8f1 0%, #f5f7f8 220rpx, #f5f7f8 100%);
 }
 .hero {
   position: relative;
   overflow: hidden;
+  margin: 24rpx 24rpx 0;
   padding: 36rpx 32rpx 28rpx;
   border-radius: 28rpx;
   color: #fff;
-  background: linear-gradient(135deg, #064e3b 0%, #059669 55%, #0d9488 100%);
+  background: linear-gradient(135deg, #064e3b 0%, #059669 55%, #059669 100%);
   box-shadow: 0 16rpx 40rpx rgba(5, 150, 105, 0.28);
 }
 .hero.lv-silver {

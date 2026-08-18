@@ -1,6 +1,7 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.AdminManualNotificationRequest;
 import com.aicabinet.common.dto.MemberLevelRuleDto;
 import com.aicabinet.common.dto.MarketingRoiRowDto;
 import com.aicabinet.common.dto.NotificationDto;
@@ -18,6 +19,7 @@ import com.aicabinet.trade.service.PointsRedeemService;
 import com.aicabinet.trade.service.SkuDelistReviewService;
 import com.aicabinet.trade.service.UserBehaviorAnalyticsService;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -152,6 +154,14 @@ public class AdminGrowthController {
         return ApiResponse.ok(notificationService.adminRecent(limit));
     }
 
+    @RequiresPermissions("ops:notify:list")
+    @PostMapping("/notifications/send")
+    public ApiResponse<NotificationDto> sendNotification(
+            HttpServletRequest request,
+            @Valid @RequestBody AdminManualNotificationRequest body) {
+        return ApiResponse.ok(notificationService.sendManual(operatorId(request), body));
+    }
+
     // ---------- 会员等级规则 ----------
 
     @RequiresPermissions("ops:member-level:list")
@@ -172,5 +182,9 @@ public class AdminGrowthController {
             @PathVariable Long id,
             @RequestBody Map<String, String> body) {
         return ApiResponse.ok(memberLevelAdminService.setStatus(id, body.getOrDefault("status", "INACTIVE")));
+    }
+
+    private static Long operatorId(HttpServletRequest request) {
+        return (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
     }
 }

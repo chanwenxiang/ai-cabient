@@ -259,8 +259,8 @@ public class CompetitiveGapService {
         return switch (dimension) {
             case "CABINET", "DEVICE" -> aggregateByDevice(deviceIds, start, end);
             case "MERCHANT" -> aggregateByMerchant(deviceIds, start, end);
-            case "MARGIN", "PRODUCT" -> aggregateByProduct(deviceIds, start);
-            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dim 支持 PRODUCT/CABINET/MERCHANT/MARGIN");
+            case "MARGIN", "PRODUCT", "SKU" -> aggregateByProduct(deviceIds, start);
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dim 支持 PRODUCT/SKU/CABINET/MERCHANT/MARGIN");
         };
     }
 
@@ -291,6 +291,32 @@ public class CompetitiveGapService {
         phoneVerifyLogMapper.insert(log);
         return new PhoneVerifyLogDto(log.getLogId(), log.getUserId(), log.getPhone(),
                 log.getChannel(), log.getMerchantId(), log.getVerifiedAt());
+    }
+
+    @Transactional
+    public PhoneVerifyLogDto updatePhoneVerify(Long operatorId, Long logId, PhoneVerifyLogDto body) {
+        permissionService.requireAnyPermission(operatorId, "ops:phone-verify:list", "ops:user:list");
+        PhoneVerifyLog log = phoneVerifyLogMapper.findById(logId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "验证记录不存在"));
+        if (body.phone() == null || body.phone().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "手机号不能为空");
+        }
+        log.setUserId(body.userId());
+        log.setPhone(body.phone().trim());
+        log.setChannel(body.channel() == null || body.channel().isBlank() ? log.getChannel() : body.channel().trim());
+        log.setMerchantId(body.merchantId());
+        phoneVerifyLogMapper.updateById(log);
+        return new PhoneVerifyLogDto(log.getLogId(), log.getUserId(), log.getPhone(),
+                log.getChannel(), log.getMerchantId(), log.getVerifiedAt());
+    }
+
+    @Transactional
+    public void deletePhoneVerify(Long operatorId, Long logId) {
+        permissionService.requireAnyPermission(operatorId, "ops:phone-verify:list", "ops:user:list");
+        if (phoneVerifyLogMapper.findById(logId).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "验证记录不存在");
+        }
+        phoneVerifyLogMapper.deleteById(logId);
     }
 
     // ---- helpers ----
@@ -379,10 +405,11 @@ public class CompetitiveGapService {
             long qty = ((Number) row[2]).longValue();
             long revenue = ((Number) row[3]).longValue();
             long cogs = ((Number) row[4]).longValue();
+            long orderCount = row.length > 5 && row[5] instanceof Number n ? n.longValue() : 0L;
             out.add(new SalesReportRowDto(
                     String.valueOf(row[0]),
                     String.valueOf(row[1]),
-                    0,
+                    orderCount,
                     qty,
                     revenue,
                     cogs,

@@ -117,7 +117,8 @@ async function onLogin() {
 <style scoped>
 .login-wrap {
   position: relative;
-  min-height: 100vh;
+  height: 100%;
+  min-height: 100%;
   overflow: hidden;
   background: linear-gradient(180deg, #0b1220 0%, #0e3a46 100%);
 }
@@ -242,37 +243,44 @@ async function onLogin() {
 .login-content {
   position: relative;
   z-index: 2;
-  min-height: 100vh;
+  height: 100%;
+  min-height: 0;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: calc(48rpx + env(safe-area-inset-top)) 32rpx calc(32rpx + env(safe-area-inset-bottom));
+  align-items: center;
+  padding: calc(24rpx + env(safe-area-inset-top)) 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  overflow-x: hidden;
+  overflow-y: auto;
+  gap: 0;
 }
 .hero {
   flex-shrink: 0;
   padding-top: 0;
   text-align: center;
+  width: 100%;
+  max-width: 320px;
 }
 .brand {
-  font-size: 56rpx;
+  font-size: 44rpx;
   font-weight: 800;
   display: block;
   color: #f0fdfa;
   letter-spacing: 2rpx;
 }
 .tagline {
-  font-size: 30rpx;
+  font-size: 26rpx;
   color: #a5b4c8;
   display: block;
-  margin-top: 10rpx;
+  margin-top: 6rpx;
 }
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 8rpx;
-  margin-top: 18rpx;
-  padding: 10rpx 22rpx;
+  margin-top: 12rpx;
+  padding: 8rpx 18rpx;
   border-radius: 999rpx;
   background: rgba(13, 148, 136, 0.18);
 }
@@ -286,55 +294,63 @@ async function onLogin() {
 }
 .login-spacer {
   flex: 0 0 auto;
-  min-height: 40rpx;
+  height: 16rpx;
+  min-height: 0;
 }
 .form-card {
   flex-shrink: 0;
-  padding: 36rpx 32rpx 40rpx;
-  border-radius: 32rpx 32rpx 24rpx 24rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+  padding: 24rpx 22rpx 24rpx;
+  border-radius: 22rpx;
   background: rgba(8, 24, 30, 0.58);
   border: 2rpx solid rgba(148, 210, 198, 0.22);
   backdrop-filter: blur(52rpx);
   box-shadow:
     0 -8rpx 40rpx rgba(2, 12, 16, 0.18),
     0 16rpx 48rpx rgba(2, 10, 14, 0.42);
+  box-sizing: border-box;
 }
 .title {
-  font-size: 36rpx;
+  font-size: 34rpx;
   font-weight: 700;
   display: block;
-  margin-bottom: 8rpx;
+  margin-bottom: 6rpx;
   color: #f0fdfa;
 }
 .subtitle {
   font-size: 24rpx;
   color: rgba(204, 251, 241, 0.74);
   display: block;
-  margin-bottom: 32rpx;
-  line-height: 1.5;
+  margin-bottom: 20rpx;
+  line-height: 1.45;
 }
 .field {
-  margin-bottom: 20rpx;
+  margin-bottom: 14rpx;
 }
 .field-label {
   display: block;
-  font-size: 26rpx;
+  font-size: 24rpx;
   color: #ccfbf1;
   font-weight: 500;
-  margin-bottom: 10rpx;
+  margin-bottom: 8rpx;
 }
 .input {
   display: block;
   width: 100%;
-  height: 88rpx;
+  height: 76rpx;
   box-sizing: border-box;
   background: rgba(8, 24, 30, 0.42);
   border: 2rpx solid rgba(148, 210, 198, 0.3);
-  border-radius: 16rpx;
-  padding: 0 28rpx;
+  border-radius: 14rpx;
+  padding: 0 24rpx;
   font-size: 28rpx;
   color: #f0fdfa;
-  line-height: 88rpx;
+  line-height: 76rpx;
   backdrop-filter: blur(16rpx);
 }
 .input:focus {
@@ -346,15 +362,21 @@ async function onLogin() {
 }
 .btn-primary {
   margin-top: 12rpx;
+  align-self: stretch;
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  padding: 0 !important;
   background: linear-gradient(135deg, #0f766e, #059669);
   color: #fff;
   border-radius: 44rpx;
-  height: 96rpx;
-  line-height: 96rpx;
+  height: 80rpx;
+  line-height: 80rpx;
   text-align: center;
   font-size: 30rpx;
   font-weight: 600;
   box-shadow: 0 10rpx 28rpx rgba(15, 118, 110, 0.28);
+  box-sizing: border-box;
 }
 .btn-primary.disabled {
   opacity: 0.55;

@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">服务时限监控</span>
-            <span class="hint">开门成功率、识别耗时与设备在线率</span>
+            <span class="hint">开门成功率、开门时长与设备在线率</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -44,7 +44,7 @@
         <el-descriptions-item label="当前在线率">
           {{ pct(data.realtime.deviceOnlineRateNow) }}
         </el-descriptions-item>
-        <el-descriptions-item label="24h 识别均耗时">
+        <el-descriptions-item label="24h 开门均时长">
           {{ data.realtime.avgRecognizeMs24h ?? 0 }} ms
         </el-descriptions-item>
         <el-descriptions-item label="争议时限达标率">
@@ -103,14 +103,17 @@ const statTiles = computed(() => {
   const d = data.value;
   return [
     { label: '快照日期', value: d?.snapshotDate || '无' },
-    { label: '开门成功率', value: pct(d?.doorSuccessRate) },
+    { label: '开门成功率', value: (d?.doorOpenAttempts ?? 0) === 0 ? '—' : pct(d?.doorSuccessRate) },
     {
       label: '开门成功/尝试',
       value: `${d?.doorOpenSuccess ?? 0}/${d?.doorOpenAttempts ?? 0}`
     },
-    { label: '设备在线率', value: pct(d?.deviceOnlineRate) },
-    { label: '识别均耗时', value: `${d?.avgRecognizeMs ?? 0} ms` },
-    { label: '识别 P95', value: `${d?.p95RecognizeMs ?? 0} ms` },
+    {
+      label: '设备在线率',
+      value: (d?.deviceTotal ?? 0) === 0 ? '—' : pct(d?.deviceOnlineRate)
+    },
+    { label: '开门均时长', value: `${d?.avgRecognizeMs ?? 0} ms` },
+    { label: '开门时长 P95', value: `${d?.p95RecognizeMs ?? 0} ms` },
     { label: '设备总数', value: String(d?.deviceTotal ?? 0) },
     { label: '在线峰值', value: String(d?.deviceOnlinePeak ?? 0) }
   ];

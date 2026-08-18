@@ -5,7 +5,9 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">活动效果分析</span>
-            <span class="hint">发券 → 核销 → 带动营收，评估每场活动的投入产出</span>
+            <span class="hint"
+              >发券 → 核销 → 带动营收；「预算已用」为活动占用预算，「订单优惠」为订单实扣优惠</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -44,7 +46,7 @@
       <el-table-column label="预算(元)" width="100" align="center">
         <template #default="{ row }">{{ yuan(row.budgetCents) }}</template>
       </el-table-column>
-      <el-table-column label="已用(元)" width="100" align="center">
+      <el-table-column label="预算已用(元)" width="110" align="center">
         <template #default="{ row }">{{ yuan(row.usedCents) }}</template>
       </el-table-column>
       <el-table-column prop="claimedCount" label="发券数" width="90" align="center" />
@@ -52,7 +54,7 @@
       <el-table-column label="核销率" width="90" align="center">
         <template #default="{ row }">{{ pct(row.redeemRate) }}</template>
       </el-table-column>
-      <el-table-column label="核销面额(元)" width="110" align="center">
+      <el-table-column label="订单优惠(元)" width="110" align="center">
         <template #default="{ row }">{{ yuan(row.discountCents) }}</template>
       </el-table-column>
       <el-table-column prop="orderCount" label="带动订单" width="90" align="center" />
@@ -99,11 +101,11 @@ const { onExport } = useListCsv({
     '类型',
     '状态',
     '预算(元)',
-    '已用(元)',
+    '预算已用(元)',
     '发券数',
     '核销数',
     '核销率',
-    '核销面额(元)',
+    '订单优惠(元)',
     '带动订单',
     '带动营收(元)'
   ],

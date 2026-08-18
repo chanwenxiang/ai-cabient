@@ -1,5 +1,7 @@
-<template>
+﻿<template>
   <view class="page-root">
+    <app-nav-bar title="我的优惠券" />
+    <view class="page-body">
     <view class="tabs-pill">
       <text
         v-for="tab in tabs"
@@ -41,15 +43,21 @@
           <text class="coupon-type">{{ typeText(c.couponType) }}</text>
         </view>
         <view class="coupon-right">
+          <view
+            v-if="c.status === 'USED' || c.status === 'EXPIRED'"
+            class="coupon-status-row"
+          >
+            <text v-if="c.status === 'USED'" class="coupon-status-badge used">已使用</text>
+            <text v-else class="coupon-status-badge expired">已过期</text>
+          </view>
           <text class="coupon-name">{{ c.couponName }}</text>
           <text v-if="c.minSpendCents > 0" class="coupon-limit"
             >满{{ fmtMoney(c.minSpendCents) }}可用</text
           >
           <text class="coupon-expire">有效期至 {{ formatTime(c.expireAt) }}</text>
-          <text v-if="c.status === 'USED'" class="coupon-status-badge used">已使用</text>
-          <text v-else-if="c.status === 'EXPIRED'" class="coupon-status-badge expired">已过期</text>
         </view>
       </view>
+    </view>
     </view>
   </view>
 </template>
@@ -129,9 +137,13 @@ function goMarketing() {
 
 <style scoped>
 .page-root {
-  padding: 20rpx;
-  background: var(--page-bg, #f5f7f8);
+  padding: 0;
+  background: #ffffff;
   min-height: 100%;
+}
+.page-body {
+  padding: 20rpx 20rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 .tabs-pill {
   margin-bottom: 20rpx;
@@ -177,13 +189,23 @@ function goMarketing() {
 }
 .coupon-right {
   flex: 1;
+  min-width: 0;
   padding: 20rpx;
-  position: relative;
+  overflow: hidden;
+}
+.coupon-status-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4rpx 0 8rpx;
 }
 .coupon-name {
+  display: block;
   font-size: 28rpx;
   font-weight: 600;
-  display: block;
+  line-height: 1.35;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 .coupon-limit {
   font-size: 24rpx;
@@ -198,12 +220,11 @@ function goMarketing() {
   display: block;
 }
 .coupon-status-badge {
-  position: absolute;
-  top: 16rpx;
-  right: 16rpx;
   font-size: 20rpx;
   padding: 4rpx 12rpx;
   border-radius: 8rpx;
+  white-space: nowrap;
+  line-height: 1.4;
 }
 .coupon-status-badge.used {
   background: #e8f5e9;

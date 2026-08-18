@@ -1,5 +1,6 @@
 <template>
   <view>
+    <app-nav-bar title="账单结果" />
     <view v-if="loading" class="card"><text class="meta">加载中…</text></view>
     <view v-else-if="error" class="card error-card">
       <text class="err">{{ error }}</text>
@@ -703,7 +704,7 @@ function goHelp() {
   margin: 0;
   height: 88rpx;
   line-height: 88rpx;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;

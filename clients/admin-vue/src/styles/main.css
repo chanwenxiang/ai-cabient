@@ -19,6 +19,8 @@
 
 :root,
 [data-theme='light'] {
+  /* 覆盖 Element Plus 默认 Helvetica Neue 栈，与三端 --app-font 一致 */
+  --el-font-family: var(--app-font);
   --app-primary: #0f766e;
   --layout-bg: #f5f7fa;
   --layout-topbar: #ffffff;
@@ -94,7 +96,7 @@ body,
   height: 100%;
   overflow: hidden;
   font-family: var(--app-font);
-  font-size: 14px;
+  font-size: var(--app-font-size-root, 14px);
   color: var(--layout-text);
   background: var(--layout-bg);
 }
@@ -417,12 +419,20 @@ select {
   max-width: 100%;
   /* 分页可换行；禁止再出一条横滚条（与 .table-scroll 叠成「双滚动栏」） */
   overflow-x: hidden;
+  /* 防止上方表格 overflow:visible 时盖住分页（含浏览器缩放） */
+  position: relative;
+  z-index: 2;
+  flex-shrink: 0;
+  isolation: isolate;
+  background: var(--layout-card, var(--el-bg-color, #fff));
+  padding-top: 4px;
 }
 
 .page-pager .el-pagination {
   flex-wrap: wrap;
   justify-content: flex-end;
   row-gap: 8px;
+  max-width: 100%;
 }
 
 .muted {
@@ -682,10 +692,19 @@ select {
  * 窄窗口下列宽总和超出容器时（由 JS 检测并加 .table-scroll--h）：
  * 页面保持窗口宽度不再向右拉伸，表格在自身区域内横向滚动；
  * 列头随表格横向同步，纵向随页面（不吸顶）。
+ * 含卡片直挂表格，以及内容包裹型 Tabs 内表格。
  */
 .layout-main-scroll > .page-card > .el-card__body > .table-scroll.table-scroll--h,
-.layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll.table-scroll--h {
-  overflow: auto !important;
+.layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll.table-scroll--h,
+.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll.table-scroll--h,
+.layout-main-scroll
+  > .page-fill
+  > .page-card
+  > .el-card__body
+  > .el-tabs:not(.status-tabs)
+  .table-scroll.table-scroll--h {
+  overflow-x: auto !important;
+  overflow-y: visible !important;
 }
 .layout-main-scroll
   > .page-card
@@ -708,8 +727,35 @@ select {
   > .page-card
   > .el-card__body
   > .table-scroll.table-scroll--h
+  .el-table__body-header,
+.layout-main-scroll
+  > .page-card
+  > .el-card__body
+  > .el-tabs:not(.status-tabs)
+  .table-scroll.table-scroll--h
+  .el-table__header-wrapper,
+.layout-main-scroll
+  > .page-card
+  > .el-card__body
+  > .el-tabs:not(.status-tabs)
+  .table-scroll.table-scroll--h
+  .el-table__body-header,
+.layout-main-scroll
+  > .page-fill
+  > .page-card
+  > .el-card__body
+  > .el-tabs:not(.status-tabs)
+  .table-scroll.table-scroll--h
+  .el-table__header-wrapper,
+.layout-main-scroll
+  > .page-fill
+  > .page-card
+  > .el-card__body
+  > .el-tabs:not(.status-tabs)
+  .table-scroll.table-scroll--h
   .el-table__body-header {
   top: 0 !important;
+  position: static !important;
 }
 
 /*
@@ -759,11 +805,24 @@ select {
   display: none;
 }
 
-/* 内容包裹型 tabs（商户/仓库等）：占满剩余高度，纵滚交给内部 .table-scroll */
+/*
+ * 内容包裹型 tabs（仓库/补货/商户等）：表格自然撑高，由 .layout-main-scroll 纵滚。
+ * 不可再 flex:1 + min-height:0 把 tabs 压进视口剩余高度，否则表体 overflow:visible
+ * 会画到下方 PagePager 上（浏览器放大时「条/页」错位更明显，见 BUG-026）。
+ */
+.layout-main-scroll > .page-card:has(> .el-card__body > .el-tabs:not(.status-tabs)),
+.layout-main-scroll > .page-fill > .page-card:has(> .el-card__body > .el-tabs:not(.status-tabs)),
+.layout-main-scroll > .page-fill:has(> .page-card > .el-card__body > .el-tabs:not(.status-tabs)) {
+  flex-shrink: 0;
+  height: auto;
+  min-height: 100%;
+  max-height: none;
+}
+
 .layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs),
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .el-tabs:not(.status-tabs) {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: auto;
   display: flex;
   flex-direction: column;
   overflow: visible;
@@ -786,8 +845,8 @@ select {
   > .el-card__body
   > .el-tabs:not(.status-tabs)
   > .el-tabs__content {
-  flex: 1 1 auto;
-  min-height: 0;
+  flex: 0 0 auto;
+  min-height: auto;
   overflow: visible;
   display: flex;
   flex-direction: column;
@@ -806,10 +865,10 @@ select {
   > .el-tabs:not(.status-tabs)
   > .el-tabs__content
   > .el-tab-pane {
-  height: 100%;
+  height: auto;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  min-height: auto;
   overflow: visible;
 }
 
@@ -821,8 +880,10 @@ select {
   > .el-tabs:not(.status-tabs)
   .table-scroll {
   flex: 0 0 auto;
-  min-height: 240px;
-  overflow: visible;
+  min-height: 0;
+  /* 横滚必须落在 .table-scroll，不能 overflow:visible 交给 EP 表头/表体分立滚动（会错位） */
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 /* 内容包裹型 tabs：表格自然撑高由页面滚动，表头跟随内容（不吸顶、不盖住 tabs/筛选栏） */
@@ -971,12 +1032,25 @@ select {
   overflow: visible !important;
 }
 
-/* 内层 table 覆盖 EP 按列宽总和写死的像素宽度：
- * table-layout:fixed 下实际宽度 = max(容器宽度, 列宽总和)，
- * 宽屏时列自动拉伸铺满整页（无右侧空白），窄屏时由 .table-scroll--h 内部横向滚动。 */
+/* 内层 table：表头/表体是两张独立 table，必须共用同一套列宽。
+ * 切勿 width:auto !important —— CSS 规定 width:auto 时 table-layout:fixed 不生效，
+ * 两张表会各自按「表头文案 / 单元格内容」自动排宽，表头与数据必然错位。
+ * 保留 EP 写入的 inline 像素宽（= colgroup 之和或容器宽）+ fixed 即可对齐。 */
 .table-scroll .el-table table {
-  width: 100% !important;
+  table-layout: fixed !important;
   min-width: 100% !important;
+}
+
+/* 超宽横滚：外壳按内容撑开；内层 table 继续用 EP 的列宽总和，勿改成 auto */
+.table-scroll.table-scroll--h .el-table,
+.table-scroll.table-scroll--h .el-table__inner-wrapper {
+  width: fit-content !important;
+  min-width: 100% !important;
+  max-width: none !important;
+}
+.table-scroll.table-scroll--h .el-table table {
+  min-width: 100% !important;
+  table-layout: fixed !important;
 }
 
 .table-scroll .el-table__inner-wrapper {
@@ -1020,6 +1094,30 @@ select {
   height: auto !important;
   max-height: none !important;
   overflow: visible !important;
+}
+
+/*
+ * EP 默认为表体纵滚在表头预留 gutter 列；本布局纵滚在 .table-scroll，
+ * 表体 overflow:visible 后不再需要 gutter。只压宽度，勿 display:none
+ * （display:none 时表头 inline width 仍含 gutter，内容列会二次拉伸）。
+ */
+.table-scroll .el-table colgroup col[name='gutter'],
+.table-scroll .el-table__header colgroup col[name='gutter'],
+.table-scroll .el-table__body colgroup col[name='gutter'],
+.table-scroll .el-table__footer colgroup col[name='gutter'] {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+}
+.table-scroll .el-table th.gutter,
+.table-scroll .el-table td.gutter,
+.table-scroll .el-table col.gutter {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
 }
 
 .table-scroll .el-table .el-scrollbar {

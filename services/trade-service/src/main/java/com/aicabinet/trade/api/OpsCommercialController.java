@@ -130,6 +130,14 @@ public class OpsCommercialController {
         return ApiResponse.ok(orgService.assignDevices(operatorId(request), nodeId, body.deviceIds()));
     }
 
+    @RequiresPermissions("ops:org:edit")
+    @DeleteMapping("/org/nodes/{nodeId}")
+    public ApiResponse<Void> deleteOrgNode(
+            HttpServletRequest request, @PathVariable Long nodeId) {
+        orgService.deleteNode(operatorId(request), nodeId);
+        return ApiResponse.ok(null);
+    }
+
     @RequiresPermissions("ops:org:list")
     @GetMapping("/site-contracts")
     public ApiResponse<List<SiteContractDto>> siteContracts(HttpServletRequest request) {
@@ -143,6 +151,14 @@ public class OpsCommercialController {
             @PathVariable String deviceId,
             @Valid @RequestBody UpsertSiteContractRequest body) {
         return ApiResponse.ok(siteContractService.upsert(operatorId(request), deviceId, body));
+    }
+
+    @RequiresPermissions("ops:org:edit")
+    @DeleteMapping("/site-contracts/{contractId}")
+    public ApiResponse<Void> deleteSiteContract(
+            HttpServletRequest request, @PathVariable Long contractId) {
+        siteContractService.delete(operatorId(request), contractId);
+        return ApiResponse.ok(null);
     }
 
     // --- 客流 / 时段热区 / 坪效分析 ---
@@ -193,6 +209,14 @@ public class OpsCommercialController {
         return ApiResponse.ok(mediaAssetService.update(assetId, body));
     }
 
+    @RequiresPermissions("ops:ad:edit")
+    @DeleteMapping("/ad/assets/{assetId}")
+    public ApiResponse<Void> deleteAdAsset(
+            HttpServletRequest request, @PathVariable Long assetId) {
+        mediaAssetService.delete(assetId);
+        return ApiResponse.ok(null);
+    }
+
     @RequiresPermissions("ops:ad:list")
     @GetMapping("/ad/campaigns")
     public ApiResponse<List<AdCampaignDto>> adCampaigns(HttpServletRequest request) {
@@ -235,6 +259,14 @@ public class OpsCommercialController {
     public ApiResponse<AdCampaignDto> stopAdCampaign(
             HttpServletRequest request, @PathVariable Long campaignId) {
         return ApiResponse.ok(adCampaignService.stop(operatorId(request), campaignId));
+    }
+
+    @RequiresPermissions("ops:ad:edit")
+    @DeleteMapping("/ad/campaigns/{campaignId}")
+    public ApiResponse<Void> deleteAdCampaign(
+            HttpServletRequest request, @PathVariable Long campaignId) {
+        adCampaignService.delete(operatorId(request), campaignId);
+        return ApiResponse.ok(null);
     }
 
     // --- 设备：温控计划 + 环境多指标监控 ---

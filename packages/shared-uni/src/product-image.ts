@@ -26,10 +26,19 @@ const DEFAULT_SKU_IMAGE = '/static/sku/default.jpg';
 
 /** 从订单摘要文本里提取第一个商品名（lineSummary 形如「可口可乐 x1、矿泉水 x1」） */
 export function firstProductName(lineSummary?: string | null): string {
-  const text = String(lineSummary || '').trim();
+  const text = cleanLineSummary(lineSummary);
   if (!text) return '';
   const first = text.split(/[、,，;；]/)[0] || text;
   return first.replace(/\s*x\s*\d+.*$/i, '').trim();
+}
+
+/** 去掉摘要里的批次/货道内部码（如 @B-WH-SPRITE-01、@L07-…） */
+export function cleanLineSummary(summary?: string | null): string {
+  if (summary == null) return '';
+  return String(summary)
+    .replace(/\s*@[^\s、,，;；]+/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 /**

@@ -1,5 +1,6 @@
-<template>
+﻿<template>
   <view class="page">
+    <app-nav-bar title="帮助中心" />
     <view class="hero">
       <text class="hero-sub">常见问题与客服入口，快速解决购物疑问</text>
     </view>
@@ -137,13 +138,13 @@ function goOrders() {
 
 <style scoped>
 .page {
-  min-height: 100vh;
-  padding: 24rpx 24rpx 48rpx;
+  min-height: 100%;
+  padding: 0 0 48rpx;
   box-sizing: border-box;
-  background: linear-gradient(180deg, #ecfdf5 0%, #f7f7f7 28%);
+  background: #ffffff;
 }
 .hero {
-  padding: 8rpx 8rpx 20rpx;
+  padding: 24rpx 32rpx 20rpx;
 }
 .hero-sub {
   display: block;
@@ -155,7 +156,7 @@ function goOrders() {
   background: #fff;
   border-radius: 20rpx;
   padding: 24rpx;
-  margin-bottom: 20rpx;
+  margin: 0 24rpx 20rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
 }
 .card-title {
@@ -250,7 +251,7 @@ function goOrders() {
   height: 80rpx;
   line-height: 80rpx;
   border-radius: 44rpx;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   font-size: 28rpx;
   font-weight: 600;

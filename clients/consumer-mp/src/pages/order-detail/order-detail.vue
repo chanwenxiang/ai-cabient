@@ -1,5 +1,7 @@
 <template>
   <view class="page-root">
+    <app-nav-bar title="订单详情" />
+    <view class="page-body">
     <view v-if="loading" class="loading"><text>加载中…</text></view>
     <view v-else-if="error" class="error">
       <text>{{ error }}</text>
@@ -60,7 +62,7 @@
         >
         <view class="info-row"
           ><text class="info-label">订单编号</text
-          ><text class="info-value mono">{{ emptyDisplay(order?.orderId, 'order') }}</text></view
+          ><text class="info-value mono">{{ displayBizNo(order?.orderId) }}</text></view
         >
         <view class="info-row"
           ><text class="info-label">柜机编号</text
@@ -181,6 +183,7 @@
         <text class="dispute-cancel" @click="closeDispute">取消</text>
       </view>
     </view>
+    </view>
   </view>
 </template>
 
@@ -192,6 +195,7 @@ import { consumerApi } from '@/utils/consumer-api';
 import { skuImageFor } from '@aicabinet/shared-uni/product-image';
 import {
   emptyDisplay,
+  displayBizNo,
   formatDateTimeMinute,
   orderStatusLabel,
   fmtMoney
@@ -583,9 +587,14 @@ function callSupport() {
 
 <style scoped>
 .page-root {
-  padding: 20rpx;
-  background: #f7f7f7;
-  min-height: 100vh;
+  padding: 0;
+  background: #ffffff;
+  /* 用 100% 贴齐 page 高度；100vh 在桌面手机框内会撑出多余内滚动条 */
+  min-height: 100%;
+  box-sizing: border-box;
+}
+.page-body {
+  padding: 20rpx 20rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .loading,
@@ -625,7 +634,7 @@ function callSupport() {
   font-size: 32rpx;
   font-weight: 700;
   margin-right: 20rpx;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   flex-shrink: 0;
 }
@@ -738,33 +747,34 @@ function callSupport() {
   color: #333;
 }
 .mono {
-  font-family: monospace;
+  font-family: var(--app-font-mono);
   font-size: 22rpx;
 }
 .actions {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 20rpx;
   padding: 10rpx 0;
 }
 .btn-primary {
-  width: 100%;
-  display: block;
+  width: fit-content;
+  display: flex;
   box-sizing: border-box;
   height: 88rpx;
   line-height: 88rpx;
   border: none;
   color: #fff;
   border-radius: 44rpx;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   font-size: 28rpx;
   font-weight: 600;
   text-align: center;
   box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
 }
 .btn-outline {
-  width: 100%;
-  display: block;
+  width: fit-content;
+  display: flex;
   box-sizing: border-box;
   height: 80rpx;
   line-height: 80rpx;
@@ -781,8 +791,8 @@ function callSupport() {
   color: #b91c1c;
 }
 .btn-refund {
-  width: 100%;
-  display: block;
+  width: fit-content;
+  display: flex;
   box-sizing: border-box;
   height: 88rpx;
   line-height: 88rpx;
@@ -859,7 +869,7 @@ function callSupport() {
 .dispute-input {
   width: 100%;
   min-height: 140rpx;
-  background: #f7f7f7;
+  background: #f5f7f8;
   border-radius: 12rpx;
   padding: 20rpx;
   box-sizing: border-box;

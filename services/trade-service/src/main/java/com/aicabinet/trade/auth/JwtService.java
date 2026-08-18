@@ -21,6 +21,7 @@ public class JwtService {
 
     static final String BOOT_CLAIM = "boot";
     static final String SCOPE_CLAIM = "scope";
+    static final String SCOPE_SESSION = "session";
     static final String SCOPE_TWO_FACTOR_CHALLENGE = "2FA_CHALLENGE";
     private static final long TWO_FACTOR_CHALLENGE_SECONDS = 300;
 
@@ -43,7 +44,7 @@ public class JwtService {
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .claim(BOOT_CLAIM, serverBootMarker.epochMillis())
-                .claim(SCOPE_CLAIM, "session")
+                .claim(SCOPE_CLAIM, SCOPE_SESSION)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plusSeconds(expirationSeconds)))
                 .signWith(key)
@@ -80,9 +81,15 @@ public class JwtService {
         return Long.parseLong(claims.getSubject());
     }
 
-    /** 校验签名、过期与服务启动 epoch，返回 userId */
+    /** 校验签名、过期与服务启动 epoch，返回 userId；拒绝 2FA challenge 等非会话 scope。 */
     public Long validateAndGetUserId(String token) {
         Claims claims = parseClaims(token);
+        String scope = claims.get(SCOPE_CLAIM, String.class);
+        // challenge 仅供 /auth/admin-2fa/* 使用（该路径不走 AuthInterceptor）
+        if (SCOPE_TWO_FACTOR_CHALLENGE.equals(scope)
+                || (scope != null && !SCOPE_SESSION.equals(scope))) {
+            throw new InvalidSessionTokenException("token scope not allowed for session APIs");
+        }
         Object bootObj = claims.get(BOOT_CLAIM);
         if (bootObj == null) {
             throw new InvalidSessionTokenException("missing boot claim");

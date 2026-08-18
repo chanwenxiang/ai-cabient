@@ -87,6 +87,16 @@ public class SiteContractService {
         return toDto(contract, deviceName);
     }
 
+    @Transactional
+    public void delete(Long operatorId, Long contractId) {
+        permissionService.requireAnyPermission(operatorId, "ops:org:edit", "ops:device:edit");
+        SiteContract contract = contractRepository.findById(contractId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "合同不存在"));
+        contractRepository.deleteById(contractId);
+        auditService.record(operatorId, "SITE_CONTRACT_DELETE", "SITE_CONTRACT",
+                String.valueOf(contractId), "device=" + contract.getDeviceId());
+    }
+
     static String statusFor(LocalDate endDate) {
         if (endDate == null) {
             return "ACTIVE";

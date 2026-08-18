@@ -1,5 +1,7 @@
 <template>
   <view class="page-root">
+    <app-nav-bar title="线长钱包" />
+    <view class="page-body">
     <view v-if="loadError" class="banner-err">
       <text>{{ loadError }}</text>
       <text class="banner-retry" @click="load">重试</text>
@@ -81,6 +83,7 @@
     </template>
 
     <view v-if="loading" class="loading-inline">加载中…</view>
+      </view>
   </view>
 </template>
 
@@ -285,5 +288,9 @@ onShow(load);
   text-align: center;
   color: var(--text-subtle, #94a3b8);
   padding: 40rpx;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

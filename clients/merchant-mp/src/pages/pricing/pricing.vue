@@ -1,5 +1,7 @@
 <template>
   <view>
+    <app-nav-bar title="点位定价" />
+    <view class="page-body">
     <view v-if="!canView" class="card">
       <text class="err">当前账号无定价查看权限</text>
     </view>
@@ -75,6 +77,7 @@
         </view>
       </view>
     </template>
+      </view>
   </view>
 </template>
 
@@ -422,5 +425,9 @@ async function savePrice(p: MerchantSkuPricing) {
 }
 .err {
   color: #ef4444;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

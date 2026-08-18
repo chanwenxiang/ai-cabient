@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <view class="drawer-mask" @click="onCancel">
     <view class="drawer-panel" @click.stop>
       <view class="drawer-handle" />
@@ -461,7 +461,7 @@ function onCancel() {
   box-shadow: 0 0 0 6rpx #f4f7f5;
 }
 .prep-step.done .prep-dot {
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   box-shadow: 0 0 0 6rpx #d1fae5;
 }
@@ -511,7 +511,7 @@ function onCancel() {
 }
 .btn-primary {
   margin: 0;
-  background: linear-gradient(135deg, #059669, #0d9488);
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;

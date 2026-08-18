@@ -395,7 +395,7 @@
                 class-name="col-text"
               >
                 <template #default="{ row }"
-                  ><span class="cell-id">{{ row.splitId }}</span></template
+                  ><span class="cell-id">{{ displayBizNo(row.splitId) }}</span></template
                 >
               </el-table-column>
               <el-table-column
@@ -412,7 +412,7 @@
                     class="link-cell mono"
                     @click="goOrder(row.orderId)"
                   >
-                    {{ row.orderId }}
+                    {{ displayBizNo(row.orderId) }}
                   </button>
                   <span v-else class="muted">无</span>
                 </template>
@@ -611,6 +611,7 @@ import type {
   RevenueSplit
 } from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
+import { displayBizNo } from '@aicabinet/shared-uni/format';
 
 const route = useRoute();
 const { router, goPath } = useNavAccess();

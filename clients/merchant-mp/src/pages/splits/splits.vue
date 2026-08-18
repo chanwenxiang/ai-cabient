@@ -1,5 +1,7 @@
 <template>
   <view class="page">
+    <app-nav-bar title="分账明细" />
+    <view class="page-body">
     <view class="tabs">
       <text class="tab" :class="{ active: tab === 'FAILED' }" @click="switchTab('FAILED')"
         >失败</text
@@ -24,7 +26,7 @@
           <text class="tag" :class="statusClass(s.status)">{{ statusLabel(s.status) }}</text>
           <text class="time">{{ formatTime(s.createdAt) }}</text>
         </view>
-        <text class="title">订单 {{ s.orderId }}</text>
+        <text class="title">订单 {{ displayBizNo(s.orderId) }}</text>
         <text class="meta"
           >柜机 {{ emptyDisplay(s.deviceId, 'device') }} · 商户所得 ¥{{
             money(s.merchantCents)
@@ -33,7 +35,8 @@
         <text v-if="s.failureReason" class="fail">失败原因：{{ s.failureReason }}</text>
       </view>
     </view>
-  </view>
+  
+    </view></view>
 </template>
 
 <script setup lang="ts">
@@ -42,7 +45,11 @@ import { onLoad, onPullDownRefresh, onShow } from '@dcloudio/uni-app';
 import { hasPerm, merchantApi } from '@/utils/merchant-api';
 import { useMerchantMe } from '@/composables/useMerchantMe';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay, formatDateTimeMinute } from '@aicabinet/shared-uni/format';
+import {
+  emptyDisplay,
+  displayBizNo,
+  formatDateTimeMinute
+} from '@aicabinet/shared-uni/format';
 import type { MerchantMe, RevenueSplit } from '@aicabinet/shared-types';
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -140,7 +147,7 @@ async function load() {
 
 <style scoped>
 .page {
-  padding: 24rpx;
+  padding: 0;
   min-height: 100vh;
   box-sizing: border-box;
 }
@@ -233,5 +240,9 @@ async function load() {
   font-size: 24rpx;
   color: #b91c1c;
   line-height: 1.5;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

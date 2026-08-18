@@ -3,8 +3,11 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.MediaAssetDto;
 import com.aicabinet.common.dto.UpsertMediaAssetRequest;
 import com.aicabinet.trade.domain.MediaAsset;
+import com.aicabinet.trade.mapper.AdCampaignItemMapper;
 import com.aicabinet.trade.mapper.MediaAssetMapper;
 import com.aicabinet.trade.storage.MinioVideoService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,10 +28,14 @@ public class MediaAssetService {
     private static final long MAX_BYTES = 50L * 1024 * 1024;
 
     private final MediaAssetMapper assetRepository;
+    private final AdCampaignItemMapper campaignItemMapper;
     private final MinioVideoService minioVideoService;
 
-    public MediaAssetService(MediaAssetMapper assetRepository, MinioVideoService minioVideoService) {
+    public MediaAssetService(MediaAssetMapper assetRepository,
+                             AdCampaignItemMapper campaignItemMapper,
+                             MinioVideoService minioVideoService) {
         this.assetRepository = assetRepository;
+        this.campaignItemMapper = campaignItemMapper;
         this.minioVideoService = minioVideoService;
     }
 
@@ -85,13 +92,38 @@ public class MediaAssetService {
         return toDto(asset);
     }
 
+    @Transactional
+    public void delete(Long assetId) {
+        MediaAsset asset = requireAsset(assetId);
+        long used = campaignItemMapper.countByAssetId(assetId);
+        if (used > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "素材仍被 " + used + " 个投放计划引用，请先从计划中移除");
+        }
+        assetRepository.deleteById(assetId);
+        // MinIO 对象尽力清理，失败不影响元数据删除结果
+        try {
+            minioVideoService.removeObject(asset.getStorageUri());
+        } catch (Exception ignored) {
+            // best-effort
+        }
+    }
+
     private MediaAsset requireAsset(Long assetId) {
         return assetRepository.findById(assetId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "素材不存在"));
     }
 
+    /** 同源流式预览（浏览器不直连 MinIO public endpoint）。 */
+    @Transactional(readOnly = true)
+    public void streamPreview(Long assetId, HttpServletRequest request, HttpServletResponse response) {
+        MediaAsset asset = requireAsset(assetId);
+        minioVideoService.streamTo(asset.getStorageUri(), request, response);
+    }
+
     private MediaAssetDto toDto(MediaAsset asset) {
-        String preview = minioVideoService.presignDownloadUrl(asset.getStorageUri(), 600).orElse(null);
+        // 同源代理，避免预签名 localhost:19000 在浏览器侧不可达（OBS-025）
+        String preview = "/api/v2/media/ad-assets/" + asset.getAssetId();
         return new MediaAssetDto(
                 asset.getAssetId(), asset.getTitle(), asset.getAssetType(),
                 asset.getStorageUri(), preview, asset.getDurationSeconds(),

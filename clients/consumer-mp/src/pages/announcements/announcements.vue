@@ -1,5 +1,7 @@
-<template>
-  <view class="page">
+﻿<template>
+  <view class="page page-root">
+    <app-nav-bar title="通知公告" />
+    <view class="page-body">
     <view v-if="loading" class="state">加载中…</view>
     <view v-else-if="error" class="state">
       <text class="err">{{ error }}</text>
@@ -34,6 +36,7 @@
         <text class="preview">{{ previewText(item.content) }}</text>
       </view>
     </view>
+    </view>
   </view>
 </template>
 
@@ -62,9 +65,13 @@ onShow(() => {
 
 <style scoped>
 .page {
-  min-height: 100vh;
-  padding: 24rpx 24rpx 48rpx;
-  background: #f7f7f7;
+  min-height: 100%;
+  padding: 0;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .state {

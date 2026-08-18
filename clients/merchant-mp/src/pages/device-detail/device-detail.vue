@@ -1,5 +1,7 @@
 <template>
   <view>
+    <app-nav-bar title="柜机详情" />
+    <view class="page-body">
     <view v-if="!canView" class="card"><text class="err">当前账号无柜机详情权限</text></view>
     <view v-else-if="loading" class="card">加载中…</view>
     <view v-else-if="error" class="card"
@@ -106,6 +108,7 @@
         </view>
       </view>
     </view>
+      </view>
   </view>
 </template>
 
@@ -484,5 +487,9 @@ async function saveSlots() {
 }
 .err {
   color: #ef4444;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

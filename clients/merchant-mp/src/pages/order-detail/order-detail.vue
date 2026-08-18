@@ -1,5 +1,7 @@
 <template>
   <view class="page-root">
+    <app-nav-bar title="订单详情" />
+    <view class="page-body">
     <view v-if="loading" class="loading"><text>加载中…</text></view>
     <view v-else-if="error" class="empty">
       <text class="err">{{ error }}</text>
@@ -65,6 +67,7 @@
         <button class="btn-outline" @click="goDisputes">相关争议</button>
       </view>
     </view>
+      </view>
   </view>
 </template>
 
@@ -188,9 +191,9 @@ function goDisputes() {
 <style scoped>
 .page-root {
   min-height: 100vh;
-  background: #f0fdfa;
-  padding: 24rpx;
-  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+  background: #ffffff;
+  padding: 0;
+  
   box-sizing: border-box;
 }
 .loading,
@@ -374,5 +377,9 @@ function goDisputes() {
 .btn-primary::after,
 .btn-outline::after {
   border: none;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

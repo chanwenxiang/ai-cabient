@@ -115,7 +115,7 @@
           >
             <template #default="{ row }">
               <button type="button" class="link-cell mono" @click="openTimeline(row)">
-                <span class="cell-id">{{ row.sessionId }}</span>
+                <span class="cell-id">{{ displayBizNo(row.sessionId) }}</span>
               </button>
             </template>
           </el-table-column>
@@ -156,7 +156,7 @@
                 class="link-cell mono"
                 @click="goOrders(row.deviceId)"
               >
-                {{ row.orderId }}
+                {{ displayBizNo(row.orderId) }}
               </button>
               <span v-else class="muted">无</span>
             </template>
@@ -247,7 +247,7 @@
       <template v-if="timelineRow">
         <el-descriptions :column="1" border size="small" class="mb12">
           <el-descriptions-item label="会话">
-            <span class="cell-id">{{ timelineRow.sessionId }}</span>
+            <span class="cell-id">{{ displayBizNo(timelineRow.sessionId) }}</span>
           </el-descriptions-item>
           <el-descriptions-item label="设备">
             <button
@@ -337,7 +337,10 @@ import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
-import { formatDateTime } from '@aicabinet/shared-uni/format';
+import {
+  displayBizNo,
+  formatDateTime
+} from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
 import { comparePrimaryKey } from '@/utils/sort-by-pk';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';

@@ -1,5 +1,7 @@
-<template>
+﻿<template>
   <view class="page-root">
+    <app-nav-bar title="积分兑换" />
+    <view class="page-body">
     <view class="balance-bar" @click="goPoints">
       <text class="balance-label">我的积分</text>
       <text class="balance-value">{{ summary?.availablePoints ?? 0 }}</text>
@@ -38,6 +40,7 @@
           </button>
         </view>
       </view>
+    </view>
     </view>
   </view>
 </template>
@@ -120,9 +123,13 @@ function goPoints() {
 
 <style scoped>
 .page-root {
-  min-height: 100vh;
-  padding: 24rpx 24rpx 48rpx;
-  background: #f5f7f8;
+  min-height: 100%;
+  padding: 0;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
 }
 .balance-bar {
@@ -132,7 +139,7 @@ function goPoints() {
   padding: 26rpx 28rpx;
   border-radius: 24rpx;
   color: #fff;
-  background: linear-gradient(135deg, #064e3b 0%, #059669 60%, #0d9488 100%);
+  background: linear-gradient(135deg, #064e3b 0%, #059669 60%, #059669 100%);
 }
 .balance-label {
   font-size: 24rpx;

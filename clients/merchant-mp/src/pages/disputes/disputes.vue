@@ -1,5 +1,7 @@
 <template>
   <view class="page-root">
+    <app-nav-bar title="争议处理" />
+    <view class="page-body">
     <view class="tabs-pill">
       <text
         v-for="t in tabs"
@@ -123,6 +125,7 @@
         </view>
       </view>
     </view>
+      </view>
   </view>
 </template>
 
@@ -378,9 +381,9 @@ async function onReply(item: MerchantDisputeTicket) {
 }
 
 .page-root {
-  padding: 20rpx;
-  padding-bottom: calc(20rpx + env(safe-area-inset-bottom));
-  background: #f0fdfa;
+  padding: 0;
+  
+  background: #ffffff;
   min-height: 100vh;
   box-sizing: border-box;
 }
@@ -605,5 +608,9 @@ async function onReply(item: MerchantDisputeTicket) {
   font-size: 28rpx;
   font-weight: 600;
   text-align: center;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

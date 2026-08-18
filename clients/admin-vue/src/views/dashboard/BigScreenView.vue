@@ -49,10 +49,7 @@
       <div class="bs-kpi">
         <div class="bs-kpi-label">识别自动结算</div>
         <div class="bs-kpi-value">{{ pct(stats?.recognitionAutoRate24h) }}</div>
-        <div class="bs-kpi-hint">
-          平均 {{ stats?.doorSuccessRate24h != null ? '—' : ''
-          }}{{ ms(sla?.realtime?.avgRecognizeMs24h) }}
-        </div>
+        <div class="bs-kpi-hint">开门时长 {{ ms(sla?.realtime?.avgRecognizeMs24h) }}</div>
       </div>
       <div class="bs-kpi">
         <div class="bs-kpi-label">待处理争议</div>
@@ -112,7 +109,7 @@
             <div class="bs-action-main">
               <div class="bs-action-title">{{ item.title }}</div>
               <div class="bs-action-sub">
-                {{ item.deviceId || item.sessionId || item.detail || '—' }}
+                {{ item.deviceId || displayBizNo(item.sessionId, '') || item.detail || '—' }}
               </div>
             </div>
           </div>
@@ -208,10 +205,10 @@
         <div class="bs-panel-title">识别与 SLA</div>
         <div class="bs-panel-body">
           <div class="bs-row">
-            <span>平均识别耗时</span><b>{{ ms(sla?.avgRecognizeMs) }}</b>
+            <span>平均开门时长</span><b>{{ ms(sla?.avgRecognizeMs) }}</b>
           </div>
           <div class="bs-row">
-            <span>95 分位耗时</span><b>{{ ms(sla?.p95RecognizeMs) }}</b>
+            <span>开门时长 P95</span><b>{{ ms(sla?.p95RecognizeMs) }}</b>
           </div>
           <div class="bs-row">
             <span>争议 SLA 合规率</span><b>{{ pct(sla?.realtime?.disputeSlaCompliance24h) }}</b>
@@ -268,6 +265,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { FullScreen, Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { dictLabel } from '@aicabinet/shared-dict';
+import { displayBizNo } from '@aicabinet/shared-uni/format';
 
 interface AdminStats {
   deviceTotal: number;

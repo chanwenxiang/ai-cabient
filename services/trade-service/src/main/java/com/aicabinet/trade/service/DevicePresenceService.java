@@ -127,11 +127,25 @@ public class DevicePresenceService {
         if (lockAfterMinutes <= 0) {
             return;
         }
-        Instant lockCutoff = Instant.now().minus(lockAfterMinutes, ChronoUnit.MINUTES);
+        int graceMinutes = systemConfigService.getInt(
+                SystemConfigService.DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES, 45);
+        Instant now = Instant.now();
+        Instant lockCutoff = now.minus(lockAfterMinutes, ChronoUnit.MINUTES);
+        Instant graceCutoff = graceMinutes > 0 ? now.minus(graceMinutes, ChronoUnit.MINUTES) : null;
         deviceRepository.findByOnlineStatusAndUpdatedAtBeforeAndSalesLockedFalse("OFFLINE", lockCutoff)
                 .forEach(d -> {
+                    // OBS-019：人工解锁后宽限期内不因仍离线而立刻再锁
+                    if (graceCutoff != null
+                            && d.getSalesUnlockedAt() != null
+                            && d.getSalesUnlockedAt().isAfter(graceCutoff)) {
+                        log.debug("skip auto-lock within unlock grace device={} unlockedAt={}",
+                                d.getDeviceId(), d.getSalesUnlockedAt());
+                        return;
+                    }
                     d.setSalesLocked(true);
+                    d.setSalesUnlockedAt(null);
                     deviceRepository.save(d);
+                    deviceRepository.clearSalesUnlockedAt(d.getDeviceId());
                     opsExceptionService.report("DEVICE_FAULT", "HIGH", d.getDeviceId(), null,
                             null, null, "离线超时自动停售",
                             "设备离线超过 " + lockAfterMinutes + " 分钟，已自动锁机（故障码 OFFLINE_TIMEOUT）");

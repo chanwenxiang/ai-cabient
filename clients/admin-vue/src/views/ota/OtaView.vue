@@ -44,8 +44,12 @@
             width="100"
             align="center"
             class-name="col-text"
-          />
-          <el-table-column prop="status" label="状态" width="100" align="center" />
+          >
+            <template #default="{ row }">{{ channelLabel(row.channel) }}</template>
+          </el-table-column>
+          <el-table-column prop="status" label="状态" width="100" align="center">
+            <template #default="{ row }">{{ statusLabel(row.status) }}</template>
+          </el-table-column>
           <el-table-column label="强制" width="80" align="center">
             <template #default="{ row }">{{ row.mandatory ? '是' : '否' }}</template>
           </el-table-column>
@@ -155,6 +159,26 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+
+function statusLabel(s?: string) {
+  const m: Record<string, string> = {
+    DRAFT: '草稿',
+    PUBLISHED: '已发布',
+    UNPUBLISHED: '已下架',
+    ARCHIVED: '已归档'
+  };
+  return (s && m[s]) || s || '—';
+}
+
+function channelLabel(c?: string) {
+  const m: Record<string, string> = {
+    stable: '稳定版',
+    beta: '测试版',
+    canary: '灰度',
+    internal: '内部'
+  };
+  return (c && m[c]) || c || '—';
+}
 
 interface OtaRelease {
   releaseId?: number;

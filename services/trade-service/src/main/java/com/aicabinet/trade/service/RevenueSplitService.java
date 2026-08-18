@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.Merchant;
@@ -61,7 +62,7 @@ public class RevenueSplitService {
         long merchantShare = gross - platform;
 
         OrderRevenueSplit split = new OrderRevenueSplit();
-        split.setSplitId("S" + UUID.randomUUID().toString().replace("-", "").substring(0, 16).toUpperCase());
+        split.setSplitId(BizIds.nextNumeric());
         split.setOrderId(order.getOrderId());
         split.setMerchantId(merchant.getMerchantId());
         split.setDeviceId(order.getDeviceId());

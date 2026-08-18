@@ -1,5 +1,7 @@
 <template>
   <view class="page">
+    <app-nav-bar title="通知公告" />
+    <view class="page-body">
     <view v-if="loading" class="card state">加载中…</view>
     <view v-else-if="error" class="card state">
       <text class="err">{{ error }}</text>
@@ -35,7 +37,8 @@
         <text class="action">查看详情 ›</text>
       </view>
     </view>
-  </view>
+  
+    </view></view>
 </template>
 
 <script setup lang="ts">
@@ -75,7 +78,7 @@ onPullDownRefresh(async () => {
 
 <style scoped>
 .page {
-  padding: 24rpx;
+  padding: 0;
   min-height: 100vh;
   box-sizing: border-box;
 }
@@ -160,5 +163,9 @@ onPullDownRefresh(async () => {
   font-size: 24rpx;
   color: #0f766e;
   font-weight: 600;
+}
+.page-body {
+  padding: 24rpx 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>

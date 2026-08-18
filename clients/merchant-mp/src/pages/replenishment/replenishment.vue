@@ -1,5 +1,7 @@
 <template>
   <view class="page">
+    <app-nav-bar title="补货任务" />
+    <view class="page-body">
     <view class="hero">
       <view class="hero-orb orb-one" /><view class="hero-orb orb-two" />
       <text class="eyebrow">现场补货</text>
@@ -441,6 +443,7 @@
         </view>
       </view>
     </view>
+      </view>
   </view>
 </template>
 
@@ -1491,7 +1494,7 @@ onPullDownRefresh(load);
 <style scoped>
 .page {
   min-height: 100%;
-  padding: 24rpx;
+  padding: 0;
   background: linear-gradient(180deg, #ecfdf5 0, #f8fafc 320rpx, #f8fafc 100%);
   box-sizing: border-box;
   overflow-x: hidden;
@@ -2267,5 +2270,9 @@ onPullDownRefresh(load);
 }
 button[disabled] {
   opacity: 0.45;
+}
+.page-body {
+  padding: 0 0 calc(48rpx + env(safe-area-inset-bottom));
+  box-sizing: border-box;
 }
 </style>
