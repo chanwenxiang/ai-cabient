@@ -28,19 +28,17 @@ public class MerchantWorkbenchNotifyScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "本次无商户待办推送";
         try {
-            try {
-                merchantNotifyService.dispatchWorkbenchAlerts();
-            } catch (Exception ex) {
-                log.warn("merchant workbench notify scheduler failed", ex);
-            }
+            int sent = merchantNotifyService.dispatchWorkbenchAlerts();
+            summary = sent <= 0 ? "本次无商户待办推送" : "推送商户待办 " + sent + " 条";
         } catch (Exception e) {
             failed = true;
             taskService.finish("merchant-notify", "FAILED", e.getMessage(), start);
-            throw e;
+            log.warn("merchant workbench notify scheduler failed", e);
         } finally {
             if (!failed) {
-                taskService.finish("merchant-notify", "SUCCESS", null, start);
+                taskService.finish("merchant-notify", "SUCCESS", summary, start);
             }
         }
     }

@@ -57,6 +57,7 @@ public class LineCommissionJob {
             return;
         }
         boolean failed = false;
+        String summary = "本次无线长佣金入账";
         try {
             LocalDate bizDate = LocalDate.now(ZONE).minusDays(1);
         Instant start = bizDate.atStartOfDay(ZONE).toInstant();
@@ -101,6 +102,9 @@ public class LineCommissionJob {
                     "COMMISSION_DAILY", refId, "线长日佣金 " + bizDate + " " + binding.getDeviceId());
             posted++;
         }
+        summary = posted <= 0
+                ? "本次无线长佣金入账（" + bizDate + "）"
+                : "入账线长佣金 " + posted + " 条（" + bizDate + "）";
         if (posted > 0) {
             log.info("Line commission posted for {} device-day rows on {}", posted, bizDate);
         }
@@ -110,7 +114,7 @@ public class LineCommissionJob {
         throw e;
     } finally {
         if (!failed) {
-            taskService.finish("line-commission", "SUCCESS", null, taskStart);
+            taskService.finish("line-commission", "SUCCESS", summary, taskStart);
         }
     }
 }

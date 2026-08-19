@@ -48,17 +48,21 @@ public class ProfitSharingRetryScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "本次无失败分账单";
         try {
             if (!profitSharingProperties.enabled() || !profitSharingProperties.retryEnabled()) {
+                summary = "分账未启用";
                 return;
             }
             if (!profitSharingService.isApiReady()) {
+                summary = "分账接口未就绪";
                 return;
             }
             int batch = Math.min(profitSharingProperties.retryBatchSize(), 20);
             List<OrderRevenueSplit> failedSplits =
                     splitRepository.findTop20ByStatusOrderByCreatedAtAsc("WECHAT_FAILED");
             if (failedSplits.isEmpty()) {
+                summary = "本次无失败分账单";
                 return;
             }
             if (failedSplits.size() > batch) {
@@ -73,6 +77,7 @@ public class ProfitSharingRetryScheduler {
                     : merchantRepository.findAllById(merchantIds).stream()
                     .collect(Collectors.toMap(Merchant::getMerchantId, m -> m, (a, b) -> a));
             int retried = profitSharingService.retryFailedSplits(failedSplits, merchants);
+            summary = retried <= 0 ? "本次无失败分账单可重试" : "重试分账 " + retried + " 条";
             if (retried > 0) {
                 log.info("profit sharing retry attempted count={}", retried);
             }
@@ -82,7 +87,7 @@ public class ProfitSharingRetryScheduler {
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("profit-sharing-retry", "SUCCESS", null, start);
+                taskService.finish("profit-sharing-retry", "SUCCESS", summary, start);
             }
         }
     }

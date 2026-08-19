@@ -90,17 +90,20 @@ public class SlaMetricsService {
             return;
         }
         boolean failed = false;
+        String summary = "本次无 SLA 快照";
         try {
             LocalDate yesterday = LocalDate.now().minusDays(1);
             SlaDailySnapshot snap = buildSnapshot(yesterday);
             snapshotRepository.save(snap);
+            summary = "已写入 " + yesterday + " SLA 快照，开门成功 "
+                    + snap.getDoorOpenSuccess() + "/" + snap.getDoorOpenAttempts();
         } catch (Exception e) {
             failed = true;
             taskService.finish("sla-snapshot", "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("sla-snapshot", "SUCCESS", null, start);
+                taskService.finish("sla-snapshot", "SUCCESS", summary, start);
             }
         }
     }

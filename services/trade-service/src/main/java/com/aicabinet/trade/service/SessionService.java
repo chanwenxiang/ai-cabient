@@ -48,9 +48,6 @@ public class SessionService {
     private static final long OPENING_EXPIRE_SECONDS = 90;
     /** 补货开门后未关门/未完成任务时的占柜超时（避免挡消费者）。 */
     private static final long RESTOCK_SHOPPING_EXPIRE_MINUTES = 30;
-    /** 演示关门：无重力证据时注入 1 件演示取货，配合 mock 结算走 PAID。 */
-    private static final String DEMO_CLOSE_GRAVITY_JSON =
-            "[{\"skuId\":\"SKU-DEMO-001\",\"delta\":-1}]";
     private static final EnumSet<SessionState> ACTIVE_STATES = EnumSet.of(
             SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING,
             SessionState.WAITING_UPLOAD, SessionState.RECOGNIZING, SessionState.SETTLING);
@@ -266,7 +263,7 @@ public class SessionService {
     /**
      * 演示/联调用关门结算：无柜机硬件时由用户端主动触发关门，走同一套结算链路。
      * 仅允许本人正在 SHOPPING 的会话，且由 Controller 按 mockEnabled 开关放行。
-     * 若会话尚无重力扣减证据，注入演示取货（SKU-DEMO-001 ×1），以便本地 mock 可直达 PAID。
+     * 扣款以会话购物车（点选同步的重力证据）为准；未选商品则零元结算，不再注入演示可乐。
      */
     @Transactional
     public SessionDto demoCloseSession(Long userId, String sessionId) {
@@ -278,11 +275,6 @@ public class SessionService {
         if (session.getState() != SessionState.SHOPPING) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前会话状态不可关门结算");
         }
-        String gravityJson = null;
-        if (gravityHelper.toRecognizedItems(session.getGravityDeltas()).isEmpty()) {
-            gravityJson = DEMO_CLOSE_GRAVITY_JSON;
-            log.info("demo-close injects sample gravity session={} sku=SKU-DEMO-001", sessionId);
-        }
         return self.handleDoorEvent(new DoorEventRequest(
                 session.getSessionId(),
                 session.getDeviceId(),
@@ -292,7 +284,7 @@ public class SessionService {
                 null,
                 null,
                 null,
-                gravityJson));
+                null));
     }
 
     @Transactional
@@ -781,11 +773,12 @@ public class SessionService {
             return;
         }
         boolean failed = false;
+        String summary = "本次无超时开门会话";
         try {
         Instant cutoff = Instant.now().minus(OPENING_EXPIRE_SECONDS, ChronoUnit.SECONDS);
-        repository.findByStateInAndCreatedAtBefore(
-                        List.of(SessionState.OPENING, SessionState.CREATED), cutoff, 500)
-                .forEach(s -> {
+        var stale = repository.findByStateInAndCreatedAtBefore(
+                        List.of(SessionState.OPENING, SessionState.CREATED), cutoff, 500);
+        stale.forEach(s -> {
                     consumerPreauthService.releaseIfFrozen(s);
                     s.setState(SessionState.CANCELLED);
                     repository.save(s);
@@ -794,13 +787,16 @@ public class SessionService {
                             s.getOrderId(), s.getUserId(), "开门超时", "开门命令在90秒内未得到设备响应");
                     log.warn("opening session expired session={} device={}", s.getSessionId(), s.getDeviceId());
                 });
+        if (!stale.isEmpty()) {
+            summary = "取消超时开门会话 " + stale.size() + " 个";
+        }
         } catch (Exception e) {
             failed = true;
             taskService.finish("session-opening-expire", "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("session-opening-expire", "SUCCESS", null, start);
+                taskService.finish("session-opening-expire", "SUCCESS", summary, start);
             }
         }
     }
@@ -814,13 +810,15 @@ public class SessionService {
             return;
         }
         boolean failed = false;
+        String summary = "本次无超时补货会话";
         try {
         Instant cutoff = Instant.now().minus(RESTOCK_SHOPPING_EXPIRE_MINUTES, ChronoUnit.MINUTES);
-        repository.findByStateInAndUpdatedAtBefore(
+        var stale = repository.findByStateInAndUpdatedAtBefore(
                         List.of(SessionState.SHOPPING, SessionState.WAITING_UPLOAD), cutoff, 500)
                 .stream()
                 .filter(DeviceValidationService::isRestockSession)
-                .forEach(s -> {
+                .toList();
+        stale.forEach(s -> {
                     s.setFailReason("补货会话超时自动关闭");
                     if (s.getCloseTime() == null) {
                         s.setCloseTime(Instant.now());
@@ -834,13 +832,16 @@ public class SessionService {
                     log.warn("restock shopping session expired session={} device={}",
                             s.getSessionId(), s.getDeviceId());
                 });
+        if (!stale.isEmpty()) {
+            summary = "关闭超时补货会话 " + stale.size() + " 个";
+        }
         } catch (Exception e) {
             failed = true;
             taskService.finish("session-restock-expire", "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("session-restock-expire", "SUCCESS", null, start);
+                taskService.finish("session-restock-expire", "SUCCESS", summary, start);
             }
         }
     }
@@ -854,22 +855,24 @@ public class SessionService {
             return;
         }
         boolean failed = false;
+        String summary = "本次无识别超时会话";
         try {
         Instant cutoff = Instant.now().minus(10, ChronoUnit.MINUTES);
-        repository.findByStateInAndUpdatedAtBefore(
+        int upgraded = 0;
+        for (ShoppingSession s : repository.findByStateInAndUpdatedAtBefore(
                         List.of(SessionState.RECOGNIZING, SessionState.WAITING_UPLOAD, SessionState.SETTLING),
-                        cutoff, 500)
-                .forEach(s -> {
+                        cutoff, 500)) {
                     Instant anchor = s.getCloseTime() != null ? s.getCloseTime()
                             : (s.getUpdatedAt() != null ? s.getUpdatedAt() : s.getCreatedAt());
                     if (anchor == null || !anchor.isBefore(cutoff)) {
-                        return;
+                        continue;
                     }
                     try {
                         // 补货会话不走消费者争议：超时尽力快照后关闭，避免误建争议单
                         if (DeviceValidationService.isRestockSession(s)) {
                             closeStaleRestockRecognizing(s);
-                            return;
+                            upgraded++;
+                            continue;
                         }
                         SessionState from = s.getState();
                         String failReason = "识别超时，已转人工审核，本次暂未扣款";
@@ -895,17 +898,21 @@ public class SessionService {
                                 "识别超时", "关门后超过10分钟未完成识别结算");
                         log.warn("识别超时会话已升级 session={} from={} to={}",
                                 s.getSessionId(), from, s.getState());
+                        upgraded++;
                     } catch (Exception e) {
                         log.warn("识别超时升级失败 session={}", s.getSessionId(), e);
                     }
-                });
+                }
+        if (upgraded > 0) {
+            summary = "识别超时升级 " + upgraded + " 个会话";
+        }
         } catch (Exception e) {
             failed = true;
             taskService.finish("session-recognizing-expire", "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("session-recognizing-expire", "SUCCESS", null, start);
+                taskService.finish("session-recognizing-expire", "SUCCESS", summary, start);
             }
         }
     }

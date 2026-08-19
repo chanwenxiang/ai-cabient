@@ -56,7 +56,10 @@ public class CompensationTaskScheduler {
                     log.error("Failed to process compensation task: {}", task.getTaskId(), e);
                 }
             }
-            taskService.finish("compensation-process", "SUCCESS", null, start);
+            String summary = tasks.isEmpty()
+                    ? "本次无补偿任务"
+                    : "处理补偿任务 " + tasks.size() + " 条";
+            taskService.finish("compensation-process", "SUCCESS", summary, start);
         } catch (Exception e) {
             taskService.finish("compensation-process", "FAILED", e.getMessage(), start);
             throw e;
@@ -140,7 +143,10 @@ public class CompensationTaskScheduler {
                     log.error("Failed to retry transaction: {}", tx.getTxId(), e);
                 }
             }
-            taskService.finish("compensation-retry", "SUCCESS", null, start);
+            String summary = retryable.isEmpty()
+                    ? "本次无待重试事务"
+                    : "重试分布式事务 " + retryable.size() + " 条";
+            taskService.finish("compensation-retry", "SUCCESS", summary, start);
         } catch (Exception e) {
             taskService.finish("compensation-retry", "FAILED", e.getMessage(), start);
             throw e;

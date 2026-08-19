@@ -1,5 +1,5 @@
 <template>
-  <view class="alerts-page">
+  <view class="alerts-page" :style="pagePadStyle">
     <view v-if="loading" class="card">加载中…</view>
     <view v-else-if="error" class="card">
       <text class="err">{{ error }}</text>
@@ -89,7 +89,13 @@ import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { promptText } from '@/utils/text-prompt';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
 import { mergeTodoItems } from '@/utils/todo-list';
+import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
 import type { MerchantMe } from '@aicabinet/shared-types';
+
+/** Tab 页底栏已有「待办」：只留状态栏占位 */
+const pagePadStyle = {
+  borderTop: getStatusBarPadPx() + 'px solid #f0fdfa'
+};
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canViewAlerts = computed(() => hasPerm(me.value, 'merchant:alerts:view'));

@@ -36,58 +36,54 @@ function parseDate(value: DateInput): Date | null {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function dateParts(date: Date, options: Intl.DateTimeFormatOptions) {
-  return new Intl.DateTimeFormat('zh-CN', {
-    timeZone: 'Asia/Shanghai',
-    hour12: false,
-    ...options
-  }).formatToParts(date);
+function pad2(n: number): string {
+  return n < 10 ? '0' + n : String(n);
 }
 
-function part(parts: Intl.DateTimeFormatPart[], type: Intl.DateTimeFormatPartTypes) {
-  return parts.find((item) => item.type === type)?.value ?? '';
+/**
+ * 东八区墙钟。微信小程序（尤其真机/低版本基础库）没有 Intl，不能用 DateTimeFormat。
+ * 中国无夏令时，UTC+8 固定。
+ */
+function shanghaiClock(date: Date) {
+  const sh = new Date(date.getTime() + 8 * 60 * 60 * 1000);
+  return {
+    year: String(sh.getUTCFullYear()),
+    month: pad2(sh.getUTCMonth() + 1),
+    day: pad2(sh.getUTCDate()),
+    hour: pad2(sh.getUTCHours()),
+    minute: pad2(sh.getUTCMinutes()),
+    second: pad2(sh.getUTCSeconds())
+  };
 }
 
 /** 完整时间：YYYY-MM-DD HH:mm:ss（东八区） */
 export function formatDateTime(value?: DateInput, fallback: string = EMPTY.none): string {
   const date = parseDate(value ?? null);
   if (!date) return value != null && value !== '' ? String(value) : fallback;
-  const parts = dateParts(date, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  });
-  return `${part(parts, 'year')}-${part(parts, 'month')}-${part(parts, 'day')} ${part(parts, 'hour')}:${part(parts, 'minute')}:${part(parts, 'second')}`;
+  const p = shanghaiClock(date);
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}:${p.second}`;
 }
 
 /** 列表常用：YYYY-MM-DD HH:mm（东八区） */
 export function formatDateTimeMinute(value?: DateInput, fallback: string = EMPTY.date): string {
   const date = parseDate(value ?? null);
   if (!date) return value != null && value !== '' ? String(value) : fallback;
-  const parts = dateParts(date, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-  return `${part(parts, 'year')}-${part(parts, 'month')}-${part(parts, 'day')} ${part(parts, 'hour')}:${part(parts, 'minute')}`;
+  const p = shanghaiClock(date);
+  return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
 }
 
 /** 紧凑时间：MM/DD HH:mm（东八区），适合移动端列表 */
 export function formatDateTimeShort(value?: DateInput, fallback: string = EMPTY.date): string {
   const date = parseDate(value ?? null);
   if (!date) return value != null && value !== '' ? String(value) : fallback;
-  const parts = dateParts(date, {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-  return `${part(parts, 'month')}/${part(parts, 'day')} ${part(parts, 'hour')}:${part(parts, 'minute')}`;
+  const p = shanghaiClock(date);
+  return `${p.month}/${p.day} ${p.hour}:${p.minute}`;
+}
+
+/** 东八区当天 00:00 的时间戳，用于「今天」筛选 */
+export function startOfTodayShanghaiMs(now: Date = new Date()): number {
+  const p = shanghaiClock(now);
+  return new Date(`${p.year}-${p.month}-${p.day}T00:00:00+08:00`).getTime();
 }
 
 export function fmtMoney(cents?: number | null, empty: string = EMPTY.money) {

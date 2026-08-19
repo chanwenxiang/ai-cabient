@@ -38,6 +38,7 @@ public class GrowthLogArchiveScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "本次无归档删除";
         try {
             int notifyMonths = systemConfigService.getInt("ops.log_retention.notify_months", 6);
             int pointsMonths = systemConfigService.getInt("ops.log_retention.points_months", 12);
@@ -50,6 +51,7 @@ public class GrowthLogArchiveScheduler {
                 deleted += deleteInBatches("member_points_log",
                         Instant.now().minus(pointsMonths, ChronoUnit.MONTHS), "expired_at IS NOT NULL");
             }
+            summary = deleted <= 0 ? "本次无归档删除" : "归档删除 " + deleted + " 条";
             if (deleted > 0) {
                 log.info("growth log archive deleted={} notifyMonths={} pointsMonths={}",
                         deleted, notifyMonths, pointsMonths);
@@ -60,7 +62,7 @@ public class GrowthLogArchiveScheduler {
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("growth-log-archive", "SUCCESS", null, start);
+                taskService.finish("growth-log-archive", "SUCCESS", summary, start);
             }
         }
     }

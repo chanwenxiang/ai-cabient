@@ -27,22 +27,20 @@ public class RechargeOrderScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "本次无超时充值单";
         try {
-            try {
-                int n = paymentService.autoCancelExpiredPending();
-                if (n > 0) {
-                    log.info("recharge auto-cancel finished count={}", n);
-                }
-            } catch (Exception ex) {
-                log.warn("recharge auto-cancel failed", ex);
+            int n = paymentService.autoCancelExpiredPending();
+            summary = n <= 0 ? "本次无超时充值单" : "取消超时充值单 " + n + " 笔";
+            if (n > 0) {
+                log.info("recharge auto-cancel finished count={}", n);
             }
         } catch (Exception e) {
             failed = true;
             taskService.finish("recharge-cancel", "FAILED", e.getMessage(), start);
-            throw e;
+            log.warn("recharge auto-cancel failed", e);
         } finally {
             if (!failed) {
-                taskService.finish("recharge-cancel", "SUCCESS", null, start);
+                taskService.finish("recharge-cancel", "SUCCESS", summary, start);
             }
         }
     }

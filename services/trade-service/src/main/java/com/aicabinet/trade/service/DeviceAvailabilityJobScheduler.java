@@ -38,15 +38,17 @@ public class DeviceAvailabilityJobScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "本次无自动解锁";
         try {
-            autoUnlockService.autoUnlockStableOnlineDevices();
+            int n = autoUnlockService.autoUnlockStableOnlineDevices();
+            summary = n <= 0 ? "本次无自动解锁" : "自动解锁 " + n + " 台";
         } catch (Exception e) {
             failed = true;
             taskService.finish("device-auto-unlock", "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("device-auto-unlock", "SUCCESS", null, start);
+                taskService.finish("device-auto-unlock", "SUCCESS", summary, start);
             }
         }
     }
@@ -62,15 +64,18 @@ public class DeviceAvailabilityJobScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "本次未写入可用性 KPI";
         try {
-            kpiService.snapshotYesterday();
+            var dto = kpiService.snapshotYesterday();
+            summary = "已写入 " + dto.kpiDate() + " 可用性快照，设备 " + dto.deviceTotal()
+                    + " 台，离线事件 " + dto.offlineEvents() + "，自动锁机 " + dto.autoLockCount();
         } catch (Exception e) {
             failed = true;
             taskService.finish("kpi-snapshot", "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("kpi-snapshot", "SUCCESS", null, start);
+                taskService.finish("kpi-snapshot", "SUCCESS", summary, start);
             }
         }
     }

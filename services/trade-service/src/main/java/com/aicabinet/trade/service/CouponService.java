@@ -307,6 +307,7 @@ public class CouponService {
             return;
         }
         boolean failed = false;
+        String summary = "本次无过期优惠券";
         try {
             List<UserCoupon> expired = userCouponRepository.findByStatusAndExpireAtBefore("UNUSED", Instant.now());
             for (UserCoupon uc : expired) {
@@ -314,6 +315,7 @@ public class CouponService {
             }
             userCouponRepository.saveAll(expired);
             if (!expired.isEmpty()) {
+                summary = "过期优惠券 " + expired.size() + " 张";
                 log.info("expired {} overdue coupons", expired.size());
             }
         } catch (Exception e) {
@@ -322,7 +324,7 @@ public class CouponService {
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("coupon-expire", "SUCCESS", null, start);
+                taskService.finish("coupon-expire", "SUCCESS", summary, start);
             }
         }
     }

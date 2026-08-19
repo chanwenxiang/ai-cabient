@@ -9,8 +9,7 @@
         ><text>{{ error }}</text
         ><text class="banner-retry" @click="load">重试</text></view
       >
-      <view class="dash-header">
-        <text class="nav-title">工作台</text>
+      <view class="dash-header" :style="headerPadStyle">
         <text class="hello">你好，{{ meName }}</text>
         <text class="sub">{{ merchantNames }}</text>
         <view class="header-stats">
@@ -228,6 +227,7 @@ import { scanCabinetDeviceId } from '@/utils/scan-cabinet';
 import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { fmtMoney } from '@aicabinet/shared-uni/format';
+import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
 import { formatMerchantNames } from '@/utils/merchant-display';
 import { menuIcon } from '@/utils/menu-icon';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
@@ -235,6 +235,11 @@ import { mergeTodoItems } from '@/utils/todo-list';
 import type { AnnouncementDto, MerchantMe } from '@aicabinet/shared-types';
 
 type TaskRow = { taskId: number; deviceId: string; status: string };
+
+/** Tab 页底栏已有「工作台」：去掉重复标题，只留状态栏占位 */
+const headerPadStyle = {
+  borderTop: getStatusBarPadPx() + 'px solid #134e4a'
+};
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const preferredId = ref(getPreferredDeviceId());
@@ -518,20 +523,11 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .dash-header {
   background: linear-gradient(165deg, #134e4a 0%, #0f766e 55%, #0d9488 100%);
-  padding: calc(8px + env(safe-area-inset-top)) 24rpx 28rpx;
+  padding: 12rpx 24rpx 28rpx;
   color: #fff;
   border-radius: 0;
   margin: 0;
-}
-.nav-title {
-  display: block;
-  text-align: center;
-  font-size: 32rpx;
-  font-weight: 700;
-  line-height: 44px;
-  height: 44px;
-  margin: 0 0 4rpx;
-  letter-spacing: 1rpx;
+  box-sizing: border-box;
 }
 .hello {
   font-size: 32rpx;

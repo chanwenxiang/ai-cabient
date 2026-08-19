@@ -22,6 +22,7 @@
       "path": "pages/devices/devices",
       "style": {
         "navigationBarTitleText": "柜机",
+        "navigationStyle": "custom",
         "navigationBarBackgroundColor": "#134e4a",
         "navigationBarTextStyle": "white",
         "backgroundColor": "#ffffff",
@@ -70,6 +71,7 @@
       "path": "pages/alerts/alerts",
       "style": {
         "navigationBarTitleText": "待办",
+        "navigationStyle": "custom",
         "navigationBarBackgroundColor": "#134e4a",
         "navigationBarTextStyle": "white",
         "backgroundColor": "#ffffff",

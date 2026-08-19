@@ -112,13 +112,11 @@ const couponCount = ref(0);
 const progressWidth = computed(
   () => `${Math.min(100, Math.max(0, profile.value?.progressPercent || 0))}%`
 );
-const yuanFmt = new Intl.NumberFormat('zh-CN', {
-  style: 'currency',
-  currency: 'CNY',
-  maximumFractionDigits: 0
-});
 function formatYuan(n: number) {
-  return yuanFmt.format(Number.isFinite(n) ? n : 0);
+  const v = Math.round(Number.isFinite(n) ? n : 0);
+  const sign = v < 0 ? '-' : '';
+  const digits = String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return sign + '¥' + digits;
 }
 const spentText = computed(() => formatYuan(Number(profile.value?.totalSpent || 0)));
 

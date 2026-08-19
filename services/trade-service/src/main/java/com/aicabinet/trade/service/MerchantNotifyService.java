@@ -112,46 +112,50 @@ public class MerchantNotifyService {
     }
 
     @Transactional
-    public void dispatchWorkbenchAlerts() {
+    public int dispatchWorkbenchAlerts() {
         List<Long> userIds = subscribePrefRepository.findAll().stream()
                 .filter(MerchantSubscribePref::isEnabled)
                 .map(p -> p.getId().getUserId())
                 .distinct()
                 .toList();
+        int sent = 0;
         for (Long userId : userIds) {
             try {
-                maybeNotifyUser(userId);
+                if (maybeNotifyUser(userId)) {
+                    sent++;
+                }
             } catch (Exception ex) {
                 log.warn("merchant notify failed user={}", userId, ex);
             }
         }
+        return sent;
     }
 
     @Transactional
-    public void maybeNotifyUser(Long userId) {
+    public boolean maybeNotifyUser(Long userId) {
         UserInfo user = userInfoRepository.findById(userId).orElse(null);
         if (user == null || user.getWxOpenId() == null || user.getWxOpenId().isBlank()) {
-            return;
+            return false;
         }
         if (!permissionService.hasPermission(userId, "merchant:alerts:view")) {
-            return;
+            return false;
         }
         Set<String> enabledTypes = new HashSet<>(subscribePrefRepository.findByIdUserIdAndEnabledTrue(userId).stream()
                 .map(p -> p.getId().getAlertType())
                 .toList());
         if (enabledTypes.isEmpty()) {
-            return;
+            return false;
         }
         MerchantWorkbenchDto wb = merchantPortalService.getWorkbench(userId);
         long openExceptions = countOpenExceptions(userId);
         if (!shouldNotify(wb, enabledTypes, openExceptions)) {
-            return;
+            return false;
         }
         String summary = buildSummary(wb, enabledTypes, openExceptions);
         String digest = sha256(summary);
         Instant since = Instant.now().minusSeconds(4 * 3600L);
         if (notifyLogRepository.findFirstByUserIdAndDigestAndSentAtAfter(userId, digest, since).isPresent()) {
-            return;
+            return false;
         }
         String templateId = weChatMiniAppProperties.subscribeTemplateId();
         boolean sent = weChatMiniAppClient.sendSubscribeMessage(
@@ -169,7 +173,9 @@ public class MerchantNotifyService {
             row.setDigest(digest);
             row.setPayload(summary);
             notifyLogRepository.save(row);
+            return true;
         }
+        return false;
     }
 
     private long countOpenExceptions(Long userId) {
