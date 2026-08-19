@@ -2,187 +2,193 @@
   <view class="page-root">
     <app-nav-bar title="订单详情" />
     <view class="page-body">
-    <view v-if="loading" class="loading"><text>加载中…</text></view>
-    <view v-else-if="error" class="error">
-      <text>{{ error }}</text>
-      <button class="btn-outline" style="margin-top: 24rpx" @click="reload">重试</button>
-    </view>
-    <view v-else>
-      <view class="status-bar" :class="'status-' + (order?.status || '').toLowerCase()">
-        <text class="status-icon">{{ statusIcon }}</text>
-        <view class="status-copy">
-          <text class="status-title">{{ statusTitle }}</text>
-          <text class="status-detail">{{ statusDetail }}</text>
-        </view>
+      <view v-if="loading" class="loading"><text>加载中…</text></view>
+      <view v-else-if="error" class="error">
+        <text>{{ error }}</text>
+        <button class="btn-outline" style="margin-top: 24rpx" @click="reload">重试</button>
       </view>
-
-      <view class="section">
-        <text class="section-title">商品清单</text>
-        <view v-for="item in order?.lines || []" :key="item.skuId" class="item-row">
-          <image
-            class="item-thumb"
-            :src="skuImageFor(item.skuId, item.skuName)"
-            mode="aspectFill"
-            aria-hidden="true"
-          />
-          <view class="item-info">
-            <text class="item-name">{{ item.skuName || item.skuId || '商品' }}</text>
-            <text class="item-qty">x{{ item.quantity }}</text>
+      <view v-else>
+        <view class="status-bar" :class="'status-' + (order?.status || '').toLowerCase()">
+          <text class="status-icon">{{ statusIcon }}</text>
+          <view class="status-copy">
+            <text class="status-title">{{ statusTitle }}</text>
+            <text class="status-detail">{{ statusDetail }}</text>
           </view>
-          <text class="item-price">{{ fmtMoney(item.lineAmountCents) }}</text>
         </view>
-        <view v-if="!(order?.lines || []).length" class="empty-lines">本次未识别到取走商品</view>
-        <view class="total-row">
-          <text class="total-label">商品合计</text>
-          <text class="total-amount">{{
-            fmtMoney(order?.originalAmountCents || order?.totalAmountCents || 0)
-          }}</text>
+
+        <view class="section">
+          <text class="section-title">商品清单</text>
+          <view v-for="item in order?.lines || []" :key="item.skuId" class="item-row">
+            <image
+              class="item-thumb"
+              :src="skuImageFor(item.skuId, item.skuName)"
+              mode="aspectFill"
+              aria-hidden="true"
+            />
+            <view class="item-info">
+              <text class="item-name">{{ item.skuName || item.skuId || '商品' }}</text>
+              <text class="item-qty">x{{ item.quantity }}</text>
+            </view>
+            <text class="item-price">{{ fmtMoney(item.lineAmountCents) }}</text>
+          </view>
+          <view v-if="!(order?.lines || []).length" class="empty-lines">本次未识别到取走商品</view>
+          <view class="total-row">
+            <text class="total-label">商品合计</text>
+            <text class="total-amount">{{
+              fmtMoney(order?.originalAmountCents || order?.totalAmountCents || 0)
+            }}</text>
+          </view>
+          <view v-if="order?.couponDiscountCents" class="discount-row">
+            <text class="discount-label">优惠券抵扣</text>
+            <text class="discount-amount">-{{ fmtMoney(order.couponDiscountCents) }}</text>
+          </view>
+          <view v-if="order?.couponDiscountCents" class="total-row pay">
+            <text class="total-label">实付</text>
+            <text class="total-amount">{{ fmtMoney(order?.totalAmountCents || 0) }}</text>
+          </view>
         </view>
-        <view v-if="order?.couponDiscountCents" class="discount-row">
-          <text class="discount-label">优惠券抵扣</text>
-          <text class="discount-amount">-{{ fmtMoney(order.couponDiscountCents) }}</text>
-        </view>
-        <view v-if="order?.couponDiscountCents" class="total-row pay">
-          <text class="total-label">实付</text>
-          <text class="total-amount">{{ fmtMoney(order?.totalAmountCents || 0) }}</text>
-        </view>
-      </view>
 
-      <view class="section">
-        <text class="section-title">支付信息</text>
-        <view class="info-row"
-          ><text class="info-label">支付方式</text
-          ><text class="info-value">{{ payChannelText }}</text></view
-        >
-        <view class="info-row"
-          ><text class="info-label">扣款时间</text
-          ><text class="info-value">{{
-            formatTime(order?.payTime || order?.createdAt)
-          }}</text></view
-        >
-        <view class="info-row"
-          ><text class="info-label">订单编号</text
-          ><text class="info-value mono">{{ displayBizNo(order?.orderId) }}</text></view
-        >
-        <view class="info-row"
-          ><text class="info-label">柜机编号</text
-          ><text class="info-value mono">{{ emptyDisplay(order?.deviceId, 'device') }}</text></view
-        >
-      </view>
-
-      <view class="actions">
-        <button v-if="order?.deviceId" class="btn-primary" @click="reopenCabinet">
-          再去本柜购物
-        </button>
-        <button
-          v-if="order?.status === 'UNPAID'"
-          class="btn-primary"
-          :disabled="paying"
-          @click="payNow"
-        >
-          {{ paying ? '支付中…' : '去支付' }}
-        </button>
-        <button v-if="videoUrl" class="btn-outline" @click="playVideo">查看购物视频</button>
-        <button
-          v-if="canRefund"
-          class="btn-refund"
-          :disabled="refundLoading || disputeLoading"
-          @click="openRefund"
-        >
-          {{ refundDone ? '已退款' : '立即退款' }}
-        </button>
-        <button
-          v-if="canDispute"
-          class="btn-outline danger"
-          :disabled="disputeLoading || refundLoading"
-          @click="openDispute"
-        >
-          {{
-            disputeFiled ? '申诉已提交' : autoRefundEnabled ? '提交账单申诉' : '申请退款 / 账单申诉'
-          }}
-        </button>
-        <button class="btn-outline" @click="goHelp">帮助与客服</button>
-      </view>
-
-      <view class="support" @click="callSupport">客服电话: {{ supportPhoneDisplay }} ›</view>
-    </view>
-
-    <view v-if="showDispute" class="dispute-mask" @click="closeDispute">
-      <view class="dispute-panel" @click.stop>
-        <text class="dispute-title">{{ refundMode ? '立即退款' : '申请退款 / 账单申诉' }}</text>
-        <text class="dispute-sub">
-          {{
-            refundMode
-              ? '将原路退回本单已扣款项（余额/微信/支付宝）。可上传凭证图片辅助核对。'
-              : '仅提交申诉工单，运营审核后再退款。可上传凭证图片。'
-          }}
-        </text>
-        <view class="chip-row">
-          <text
-            v-for="chip in reasonChips"
-            :key="chip.label"
-            class="reason-chip"
-            :class="{ on: selectedCategory === chip.category }"
-            @click="pickChip(chip)"
-            >{{ chip.label }}</text
+        <view class="section">
+          <text class="section-title">支付信息</text>
+          <view class="info-row"
+            ><text class="info-label">支付方式</text
+            ><text class="info-value">{{ payChannelText }}</text></view
+          >
+          <view class="info-row"
+            ><text class="info-label">扣款时间</text
+            ><text class="info-value">{{
+              formatTime(order?.payTime || order?.createdAt)
+            }}</text></view
+          >
+          <view class="info-row"
+            ><text class="info-label">订单编号</text
+            ><text class="info-value mono">{{ displayBizNo(order?.orderId) }}</text></view
+          >
+          <view class="info-row"
+            ><text class="info-label">柜机编号</text
+            ><text class="info-value mono">{{
+              emptyDisplay(order?.deviceId, 'device')
+            }}</text></view
           >
         </view>
-        <text class="field-label">申诉说明</text>
-        <textarea
-          v-model="disputeReason"
-          class="dispute-input"
-          maxlength="200"
-          aria-label="申诉说明"
-          placeholder="例如：我没有拿这个商品 / 数量不对…"
-        />
-        <view class="evidence-block">
-          <text class="evidence-label">申诉附图（选填，最多 5 张）</text>
-          <view class="evidence-row">
-            <view v-for="(img, idx) in evidence" :key="img.localPath + idx" class="evidence-item">
-              <image
-                class="evidence-img"
-                :src="previewEvidenceSrc(img)"
-                mode="aspectFill"
-                :alt="`证据图 ${idx + 1}`"
-              />
-              <text
-                class="evidence-del"
-                role="button"
-                aria-label="删除证据图"
-                @click="removeEvidence(idx)"
-                >×</text
-              >
-              <text v-if="img.uploading" class="evidence-uploading">上传中…</text>
-            </view>
-            <view
-              v-if="evidence.length < 5"
-              class="evidence-add"
-              role="button"
-              aria-label="添加证据图"
-              @click="onAddEvidence"
-              >+</view
+
+        <view class="actions">
+          <button v-if="order?.deviceId" class="btn-primary" @click="reopenCabinet">
+            再去本柜购物
+          </button>
+          <button
+            v-if="order?.status === 'UNPAID'"
+            class="btn-primary"
+            :disabled="paying"
+            @click="payNow"
+          >
+            {{ paying ? '支付中…' : '去支付' }}
+          </button>
+          <button v-if="videoUrl" class="btn-outline" @click="playVideo">查看购物视频</button>
+          <button
+            v-if="canRefund"
+            class="btn-refund"
+            :disabled="refundLoading || disputeLoading"
+            @click="openRefund"
+          >
+            {{ refundDone ? '已退款' : '立即退款' }}
+          </button>
+          <button
+            v-if="canDispute"
+            class="btn-outline danger"
+            :disabled="disputeLoading || refundLoading"
+            @click="openDispute"
+          >
+            {{
+              disputeFiled
+                ? '申诉已提交'
+                : autoRefundEnabled
+                  ? '提交账单申诉'
+                  : '申请退款 / 账单申诉'
+            }}
+          </button>
+          <button class="btn-outline" @click="goHelp">帮助与客服</button>
+        </view>
+
+        <view class="support" @click="callSupport">客服电话: {{ supportPhoneDisplay }} ›</view>
+      </view>
+
+      <view v-if="showDispute" class="dispute-mask" @click="closeDispute">
+        <view class="dispute-panel" @click.stop>
+          <text class="dispute-title">{{ refundMode ? '立即退款' : '申请退款 / 账单申诉' }}</text>
+          <text class="dispute-sub">
+            {{
+              refundMode
+                ? '将原路退回本单已扣款项（余额/微信/支付宝）。可上传凭证图片辅助核对。'
+                : '仅提交申诉工单，运营审核后再退款。可上传凭证图片。'
+            }}
+          </text>
+          <view class="chip-row">
+            <text
+              v-for="chip in reasonChips"
+              :key="chip.label"
+              class="reason-chip"
+              :class="{ on: selectedCategory === chip.category }"
+              @click="pickChip(chip)"
+              >{{ chip.label }}</text
             >
           </view>
+          <text class="field-label">申诉说明</text>
+          <textarea
+            v-model="disputeReason"
+            class="dispute-input"
+            maxlength="200"
+            aria-label="申诉说明"
+            placeholder="例如：我没有拿这个商品 / 数量不对…"
+          />
+          <view class="evidence-block">
+            <text class="evidence-label">申诉附图（选填，最多 5 张）</text>
+            <view class="evidence-row">
+              <view v-for="(img, idx) in evidence" :key="img.localPath + idx" class="evidence-item">
+                <image
+                  class="evidence-img"
+                  :src="previewEvidenceSrc(img)"
+                  mode="aspectFill"
+                  :alt="`证据图 ${idx + 1}`"
+                />
+                <text
+                  class="evidence-del"
+                  role="button"
+                  aria-label="删除证据图"
+                  @click="removeEvidence(idx)"
+                  >×</text
+                >
+                <text v-if="img.uploading" class="evidence-uploading">上传中…</text>
+              </view>
+              <view
+                v-if="evidence.length < 5"
+                class="evidence-add"
+                role="button"
+                aria-label="添加证据图"
+                @click="onAddEvidence"
+                >+</view
+              >
+            </view>
+          </view>
+          <button
+            class="btn-submit"
+            :loading="disputeLoading || refundLoading"
+            :disabled="disputeLoading || refundLoading"
+            @click="submitAction"
+          >
+            {{
+              refundMode
+                ? refundLoading
+                  ? '退款中…'
+                  : '确认退款'
+                : disputeLoading
+                  ? '提交中…'
+                  : '提交申诉'
+            }}
+          </button>
+          <text class="dispute-cancel" @click="closeDispute">取消</text>
         </view>
-        <button
-          class="btn-submit"
-          :loading="disputeLoading || refundLoading"
-          :disabled="disputeLoading || refundLoading"
-          @click="submitAction"
-        >
-          {{
-            refundMode
-              ? refundLoading
-                ? '退款中…'
-                : '确认退款'
-              : disputeLoading
-                ? '提交中…'
-                : '提交申诉'
-          }}
-        </button>
-        <text class="dispute-cancel" @click="closeDispute">取消</text>
       </view>
-    </view>
     </view>
   </view>
 </template>

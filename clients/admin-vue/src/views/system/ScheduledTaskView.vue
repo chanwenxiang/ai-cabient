@@ -6,7 +6,8 @@
           <div class="page-card-head__title">
             <span class="title">定时任务</span>
             <span class="hint"
-              >启停即时生效；点「立即执行」后看本表「最近执行 / 最近结果说明」两列（不是另开页面）</span
+              >启停即时生效；点「立即执行」后看本表「最近执行 /
+              最近结果说明」两列（不是另开页面）</span
             >
           </div>
         </div>

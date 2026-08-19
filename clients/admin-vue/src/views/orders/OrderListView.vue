@@ -167,7 +167,9 @@
             show-overflow-tooltip
           >
             <template #default="{ row }">
-              <span class="mono">{{ displayBizNo(row.payTradeNo || row.paymentOperationId, '无') }}</span>
+              <span class="mono">{{
+                displayBizNo(row.payTradeNo || row.paymentOperationId, '无')
+              }}</span>
             </template>
           </el-table-column>
           <el-table-column label="订单状态" width="90" align="center">
@@ -446,10 +448,7 @@ import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { OrderSummary, PageResult } from '@aicabinet/shared-types';
-import {
-  displayBizNo,
-  formatDateTime
-} from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 

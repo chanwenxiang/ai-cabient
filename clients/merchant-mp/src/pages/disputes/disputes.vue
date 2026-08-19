@@ -2,130 +2,132 @@
   <view class="page-root">
     <app-nav-bar title="争议处理" />
     <view class="page-body">
-    <view class="tabs-pill">
-      <text
-        v-for="t in tabs"
-        :key="t.key"
-        class="filter-chip"
-        :class="{ active: activeTab === t.key }"
-        @click="switchTab(t.key)"
-        >{{ t.label }}</text
-      >
-    </view>
-
-    <view v-if="loading" class="loading"><text>加载中…</text></view>
-    <view v-else-if="error" class="empty">
-      <text class="err">{{ error }}</text>
-      <button class="retry" @click="load">重试</button>
-    </view>
-    <empty-state
-      v-else-if="!list.length"
-      icon="/static/menu/disputes.png"
-      :title="`暂无${activeTabLabel}争议`"
-      hint="用户申诉与识别复核会显示在这里"
-    />
-    <view v-else>
-      <view
-        v-for="item in list"
-        :key="item.ticketId"
-        class="card"
-        hover-class="card-hover"
-        role="button"
-        :aria-label="`争议 ${shortId(item.ticketId)} ${statusText(item.status)}`"
-        @click="onDetail(item)"
-      >
-        <view class="card-header">
-          <text class="card-id">#{{ shortId(item.ticketId) }}</text>
-          <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
-        </view>
-        <text class="card-title">{{ localizeDisputeReason(item.reason) || '争议' }}</text>
-        <view class="card-meta">
-          <text>{{ item.deviceId || '无柜机' }}</text>
-          <text>{{ formatTime(item.createdAt) }}</text>
-          <text :class="item.slaOverdue ? 'sla-overdue' : 'sla-ok'">{{
-            item.slaOverdue
-              ? '已超时'
-              : item.slaHoursRemaining != null
-                ? `剩余 ${item.slaHoursRemaining}h`
-                : '处理中'
-          }}</text>
-        </view>
-        <view v-if="item.lastMessage" class="card-msg"
-          ><text>{{ item.lastMessage }}</text></view
+      <view class="tabs-pill">
+        <text
+          v-for="t in tabs"
+          :key="t.key"
+          class="filter-chip"
+          :class="{ active: activeTab === t.key }"
+          @click="switchTab(t.key)"
+          >{{ t.label }}</text
         >
-        <view class="card-action">
-          <text v-if="canReplyTicket(item)" class="reply-hint" @click.stop="onReply(item)"
-            >回复 ›</text
-          >
-          <text v-else class="reply-hint">查看详情 ›</text>
-        </view>
       </view>
-      <view
-        v-if="hasMore"
-        class="load-more"
-        role="button"
-        aria-label="加载更多争议"
-        @click="loadMore"
-      >
-        {{ loadingMore ? '加载中…' : `加载更多（已显示 ${list.length}/${listTotal}）` }}
-      </view>
-      <text v-else-if="listTruncated" class="trunc-hint">共 {{ listTotal }} 条，已全部加载</text>
-    </view>
 
-    <!-- 争议详情底部抽屉：替代 uni.showModal 长文本，小屏可滚动 -->
-    <view
-      v-if="detailVisible"
-      class="detail-mask"
-      @click.self="detailVisible = false"
-      @touchmove.stop.prevent
-    >
-      <view class="detail-panel" @click.stop>
-        <view class="detail-handle" />
-        <text class="detail-title">{{ statusText(detail?.status) }}</text>
-        <text class="detail-reason">{{
-          localizeDisputeReason(detail?.reason) || emptyDisplay(detail?.reason, 'reason')
-        }}</text>
-        <scroll-view scroll-y class="detail-scroll">
-          <view class="detail-rows">
-            <view class="detail-row"
-              ><text class="detail-lbl">单号</text
-              ><text class="detail-val">{{ emptyDisplay(detail?.ticketId, 'order') }}</text></view
-            >
-            <view class="detail-row"
-              ><text class="detail-lbl">状态</text
-              ><text class="detail-val">{{ statusText(detail?.status) }}</text></view
-            >
-            <view class="detail-row"
-              ><text class="detail-lbl">柜机</text
-              ><text class="detail-val">{{ emptyDisplay(detail?.deviceId, 'device') }}</text></view
-            >
-            <view v-if="detail?.orderId" class="detail-row"
-              ><text class="detail-lbl">订单</text
-              ><text class="detail-val">{{ detail.orderId }}</text></view
-            >
-            <view v-if="detail?.billedAmountCents != null" class="detail-row">
-              <text class="detail-lbl">金额</text
-              ><text class="detail-val">{{ fmtMoney(detail.billedAmountCents) }}</text>
-            </view>
-            <view v-if="detail?.lastMessage" class="detail-row"
-              ><text class="detail-lbl">最新</text
-              ><text class="detail-val">{{ detail.lastMessage }}</text></view
-            >
+      <view v-if="loading" class="loading"><text>加载中…</text></view>
+      <view v-else-if="error" class="empty">
+        <text class="err">{{ error }}</text>
+        <button class="retry" @click="load">重试</button>
+      </view>
+      <empty-state
+        v-else-if="!list.length"
+        icon="/static/menu/disputes.png"
+        :title="`暂无${activeTabLabel}争议`"
+        hint="用户申诉与识别复核会显示在这里"
+      />
+      <view v-else>
+        <view
+          v-for="item in list"
+          :key="item.ticketId"
+          class="card"
+          hover-class="card-hover"
+          role="button"
+          :aria-label="`争议 ${shortId(item.ticketId)} ${statusText(item.status)}`"
+          @click="onDetail(item)"
+        >
+          <view class="card-header">
+            <text class="card-id">#{{ shortId(item.ticketId) }}</text>
+            <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
           </view>
-        </scroll-view>
-        <view class="detail-actions">
-          <button v-if="canReplyDetail" class="primary-btn" @click="replyFromDetail">回复</button>
-          <button v-if="detail?.orderId" class="btn-outline" @click="goOrderFromDetail">
-            查看订单
-          </button>
-          <button v-else-if="detail?.deviceId" class="btn-outline" @click="goDeviceFromDetail">
-            查看柜机
-          </button>
-          <button class="btn-outline" @click="detailVisible = false">关闭</button>
+          <text class="card-title">{{ localizeDisputeReason(item.reason) || '争议' }}</text>
+          <view class="card-meta">
+            <text>{{ item.deviceId || '无柜机' }}</text>
+            <text>{{ formatTime(item.createdAt) }}</text>
+            <text :class="item.slaOverdue ? 'sla-overdue' : 'sla-ok'">{{
+              item.slaOverdue
+                ? '已超时'
+                : item.slaHoursRemaining != null
+                  ? `剩余 ${item.slaHoursRemaining}h`
+                  : '处理中'
+            }}</text>
+          </view>
+          <view v-if="item.lastMessage" class="card-msg"
+            ><text>{{ item.lastMessage }}</text></view
+          >
+          <view class="card-action">
+            <text v-if="canReplyTicket(item)" class="reply-hint" @click.stop="onReply(item)"
+              >回复 ›</text
+            >
+            <text v-else class="reply-hint">查看详情 ›</text>
+          </view>
+        </view>
+        <view
+          v-if="hasMore"
+          class="load-more"
+          role="button"
+          aria-label="加载更多争议"
+          @click="loadMore"
+        >
+          {{ loadingMore ? '加载中…' : `加载更多（已显示 ${list.length}/${listTotal}）` }}
+        </view>
+        <text v-else-if="listTruncated" class="trunc-hint">共 {{ listTotal }} 条，已全部加载</text>
+      </view>
+
+      <!-- 争议详情底部抽屉：替代 uni.showModal 长文本，小屏可滚动 -->
+      <view
+        v-if="detailVisible"
+        class="detail-mask"
+        @click.self="detailVisible = false"
+        @touchmove.stop.prevent
+      >
+        <view class="detail-panel" @click.stop>
+          <view class="detail-handle" />
+          <text class="detail-title">{{ statusText(detail?.status) }}</text>
+          <text class="detail-reason">{{
+            localizeDisputeReason(detail?.reason) || emptyDisplay(detail?.reason, 'reason')
+          }}</text>
+          <scroll-view scroll-y class="detail-scroll">
+            <view class="detail-rows">
+              <view class="detail-row"
+                ><text class="detail-lbl">单号</text
+                ><text class="detail-val">{{ emptyDisplay(detail?.ticketId, 'order') }}</text></view
+              >
+              <view class="detail-row"
+                ><text class="detail-lbl">状态</text
+                ><text class="detail-val">{{ statusText(detail?.status) }}</text></view
+              >
+              <view class="detail-row"
+                ><text class="detail-lbl">柜机</text
+                ><text class="detail-val">{{
+                  emptyDisplay(detail?.deviceId, 'device')
+                }}</text></view
+              >
+              <view v-if="detail?.orderId" class="detail-row"
+                ><text class="detail-lbl">订单</text
+                ><text class="detail-val">{{ detail.orderId }}</text></view
+              >
+              <view v-if="detail?.billedAmountCents != null" class="detail-row">
+                <text class="detail-lbl">金额</text
+                ><text class="detail-val">{{ fmtMoney(detail.billedAmountCents) }}</text>
+              </view>
+              <view v-if="detail?.lastMessage" class="detail-row"
+                ><text class="detail-lbl">最新</text
+                ><text class="detail-val">{{ detail.lastMessage }}</text></view
+              >
+            </view>
+          </scroll-view>
+          <view class="detail-actions">
+            <button v-if="canReplyDetail" class="primary-btn" @click="replyFromDetail">回复</button>
+            <button v-if="detail?.orderId" class="btn-outline" @click="goOrderFromDetail">
+              查看订单
+            </button>
+            <button v-else-if="detail?.deviceId" class="btn-outline" @click="goDeviceFromDetail">
+              查看柜机
+            </button>
+            <button class="btn-outline" @click="detailVisible = false">关闭</button>
+          </view>
         </view>
       </view>
     </view>
-      </view>
   </view>
 </template>
 
@@ -383,7 +385,7 @@ async function onReply(item: MerchantDisputeTicket) {
 
 .page-root {
   padding: 0;
-  
+
   background: #ffffff;
   min-height: 100vh;
   box-sizing: border-box;

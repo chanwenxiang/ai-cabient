@@ -2,23 +2,27 @@
   <view class="page">
     <app-nav-bar title="公告详情" />
     <view class="page-body">
-    <view v-if="loading" class="card state">加载中…</view>
-    <view v-else-if="error" class="card state">
-      <text class="err">{{ error }}</text>
-      <button class="retry" size="mini" @click="() => load()">重试</button>
-    </view>
-    <view v-else-if="item" class="card article">
-      <view class="meta">
-        <text v-if="priorityLabel(item.priority)" class="tag" :class="priorityClass(item.priority)">
-          {{ priorityLabel(item.priority) }}
-        </text>
-        <text class="time">{{ formatTime(item.publishAt) }}</text>
+      <view v-if="loading" class="card state">加载中…</view>
+      <view v-else-if="error" class="card state">
+        <text class="err">{{ error }}</text>
+        <button class="retry" size="mini" @click="() => load()">重试</button>
       </view>
-      <text class="title">{{ item.title }}</text>
-      <text class="content">{{ item.content }}</text>
-    </view>
-  
-    </view></view>
+      <view v-else-if="item" class="card article">
+        <view class="meta">
+          <text
+            v-if="priorityLabel(item.priority)"
+            class="tag"
+            :class="priorityClass(item.priority)"
+          >
+            {{ priorityLabel(item.priority) }}
+          </text>
+          <text class="time">{{ formatTime(item.publishAt) }}</text>
+        </view>
+        <text class="title">{{ item.title }}</text>
+        <text class="content">{{ item.content }}</text>
+      </view>
+    </view></view
+  >
 </template>
 
 <script setup lang="ts">

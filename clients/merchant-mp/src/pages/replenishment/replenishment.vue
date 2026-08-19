@@ -2,450 +2,452 @@
   <view class="page">
     <app-nav-bar title="补货任务" />
     <view class="page-body">
-    <view class="hero">
-      <view class="hero-orb orb-one" /><view class="hero-orb orb-two" />
-      <text class="eyebrow">现场补货</text>
-      <text class="title">补货任务</text>
-      <text class="subtitle">{{ heroSubtitle }}</text>
-      <view class="stats">
-        <view>
-          <text class="stat-value">{{ pendingCount }}</text>
-          <text class="stat-label">待处理</text>
-        </view>
-        <view>
-          <text class="stat-value">{{ completedCount }}</text>
-          <text class="stat-label">已完成</text>
-        </view>
-        <view>
-          <text class="stat-value">{{ efficiencyRateText }}</text>
-          <text class="stat-label">今日完成率</text>
-        </view>
-      </view>
-      <view class="hero-actions">
-        <button class="scan-primary" :loading="scanning" @click="onScan">扫码找柜</button>
-        <view class="hero-secondary">
-          <button class="clear-pill" @click="goRequest">要货</button>
-          <button
-            v-if="preferredId && filterDeviceId !== preferredId"
-            class="clear-pill"
-            @click="usePreferredDevice"
-          >
-            常驻柜
-          </button>
-          <button v-if="filterDeviceId" class="clear-pill" @click="clearDeviceFilter">
-            清除筛选
-          </button>
-        </view>
-      </view>
-      <text v-if="filterDeviceId" class="filter-tip">
-        当前筛选：{{ filterDeviceId }}
-        <text v-if="filterDeviceId === preferredId">（常驻柜）</text>
-      </text>
-      <text v-else-if="preferredId" class="filter-tip muted"
-        >常驻柜 {{ preferredId }} · 点「常驻柜」快速筛选</text
-      >
-      <view v-if="!loading && pendingCount === 0" class="idle-tip">
-        <text class="idle-title">今日暂无待补货</text>
-        <text class="idle-desc"
-          >可扫码巡柜查看缺货，或切换「已完成」回顾记录；新任务由调度下发</text
-        >
-      </view>
-    </view>
-
-    <view v-if="lowStockList.length" class="patrol-card">
-      <view class="patrol-head">
-        <view>
-          <text class="patrol-title">缺货巡柜</text>
-          <text class="patrol-sub">按缺货严重度推荐 · 点击发起要货</text>
-        </view>
-        <text class="patrol-count">{{ lowStockList.length }} 台</text>
-      </view>
-      <view
-        v-for="d in lowStockList"
-        :key="d.deviceId"
-        class="patrol-row"
-        hover-class="patrol-row-hover"
-        role="button"
-        @click="goRequestForDevice(d.deviceId)"
-      >
-        <view class="patrol-name">
-          <text class="device-name">{{ deviceName(d.deviceId) }}</text>
-          <text class="device-code">{{ d.deviceId }}</text>
-        </view>
-        <view class="patrol-meta">
-          <text class="patrol-badge">{{ d.skuCount }} SKU 缺货</text>
-          <text class="patrol-shortage">缺口 {{ d.shortageQty }} 件</text>
-        </view>
-      </view>
-    </view>
-
-    <view class="filters tabs-pill">
-      <text
-        v-for="item in statusOptions"
-        :key="item.value"
-        class="filter-chip"
-        :class="{ active: status === item.value }"
-        @click="changeStatus(item.value)"
-        >{{ item.label }}</text
-      >
-    </view>
-
-    <view v-if="loading" class="empty">任务加载中…</view>
-    <empty-state
-      v-else-if="!tasks.length"
-      icon="/static/menu/replenish.png"
-      :title="emptyHint"
-      hint="扫码到柜可查看缺货；新任务由调度下发"
-    >
-      <view class="empty-actions-row">
-        <button
-          v-if="pendingCount === 0 && completedCount > 0 && status !== 'COMPLETED'"
-          class="empty-scan"
-          @click="changeStatus('COMPLETED')"
-        >
-          查看已完成
-        </button>
-        <button
-          v-if="status && pendingCount === 0 && completedCount > 0"
-          class="empty-scan ghost"
-          @click="changeStatus('')"
-        >
-          查看全部
-        </button>
-        <button class="empty-scan" @click="onScan">扫码到柜</button>
-      </view>
-    </empty-state>
-    <view
-      v-for="task in tasks"
-      :key="task.taskId"
-      class="task-card"
-      hover-class="task-card-hover"
-      role="button"
-      @click="openTask(task)"
-    >
-      <view class="task-accent" />
-      <view class="task-head">
-        <view>
-          <text class="device-name">{{ deviceName(task.deviceId) }}</text>
-          <text class="device-code">{{ task.deviceId }}</text>
-        </view>
-        <text class="status" :class="task.status.toLowerCase()">
-          {{ displayLabel('replenishment_task_status', task.status, '未知状态') }}
-        </text>
-      </view>
-      <view class="task-meta">
-        <text>任务 #{{ task.taskId }}</text>
-        <text>{{ formatTime(task.createdAt) }}</text>
-      </view>
-      <view v-if="displayTaskNotes(task.notes)" class="task-note">{{
-        displayTaskNotes(task.notes)
-      }}</view>
-      <view class="detail-btn">
-        {{ taskActionLabel(task) }}
-      </view>
-    </view>
-
-    <view v-if="detailVisible" class="mask" @click.self="closeDetail" @touchmove.stop.prevent>
-      <view class="sheet" @click.stop>
-        <view class="sheet-handle" />
-        <view class="sheet-head">
+      <view class="hero">
+        <view class="hero-orb orb-one" /><view class="hero-orb orb-two" />
+        <text class="eyebrow">现场补货</text>
+        <text class="title">补货任务</text>
+        <text class="subtitle">{{ heroSubtitle }}</text>
+        <view class="stats">
           <view>
-            <text class="sheet-title">{{ deviceName(selected?.deviceId) }}</text>
-            <text class="device-code">任务 #{{ selected?.taskId }} · {{ selected?.deviceId }}</text>
+            <text class="stat-value">{{ pendingCount }}</text>
+            <text class="stat-label">待处理</text>
           </view>
-          <text class="close" role="button" aria-label="关闭" @click="closeDetail">×</text>
-        </view>
-        <view class="step-row four">
-          <view class="step" :class="stepClass(1)">
-            <text class="step-num">{{
-              selected?.status === 'COMPLETED' || selected?.checkInAt ? '✓' : '1'
-            }}</text>
-            <text class="step-label">签到</text>
-          </view>
-          <view class="step" :class="stepClass(2)">
-            <text class="step-num">{{
-              selected?.status === 'COMPLETED' || doorOpened || currentStep() > 2 ? '✓' : '2'
-            }}</text>
-            <text class="step-label">开门</text>
-          </view>
-          <view class="step" :class="stepClass(3)">
-            <text class="step-num">{{
-              selected?.status === 'COMPLETED' || linesConfirmed || currentStep() > 3 ? '✓' : '3'
-            }}</text>
-            <text class="step-label">核对</text>
-          </view>
-          <view class="step" :class="stepClass(4)">
-            <text class="step-num">{{ selected?.status === 'COMPLETED' ? '✓' : '4' }}</text>
-            <text class="step-label">{{ detailIsPullOff ? '下架' : '上架' }}</text>
-          </view>
-        </view>
-
-        <button
-          v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
-          class="primary-btn"
-          role="button"
-          data-testid="replenish-checkin"
-          :disabled="submitting"
-          @click="checkIn"
-        >
-          现场签到
-        </button>
-        <button
-          v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
-          class="primary-btn"
-          role="button"
-          data-testid="replenish-open-door"
-          :disabled="submitting"
-          @click="openDoor"
-        >
-          {{ doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门' }}
-        </button>
-        <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">
-          只读查看 — 需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
-        </text>
-        <text v-if="doorOpened && openSessionId" class="door-tip">
-          已开门 · 会话 {{ emptyDisplay(openSessionId, 'session') }} · 关门后继续核对{{
-            detailIsPullOff ? '下架' : '上架'
-          }}
-        </text>
-
-        <view class="section-heading">
           <view>
-            <text class="section-title">现场照片</text>
-            <text class="section-subtitle">{{
-              selected?.checkInAt ? '最多 5 张，便于后台核对履约' : '签到后可拍照留存，最多 5 张'
-            }}</text>
+            <text class="stat-value">{{ completedCount }}</text>
+            <text class="stat-label">已完成</text>
           </view>
-          <text class="line-count">{{ evidenceItems.length }} 张</text>
+          <view>
+            <text class="stat-value">{{ efficiencyRateText }}</text>
+            <text class="stat-label">今日完成率</text>
+          </view>
         </view>
-        <view class="evidence-row">
-          <image
-            v-for="(item, idx) in evidenceItems"
-            :key="item.fileId || item.localPath || idx"
-            class="evidence-thumb"
-            :src="item.localPath"
-            mode="aspectFill"
-            :aria-label="`现场照片 ${idx + 1}`"
-            @click="previewEvidence(idx)"
-          />
-          <view
-            v-if="
-              canRequest &&
-              selected?.status !== 'COMPLETED' &&
-              selected?.checkInAt &&
-              evidenceItems.length < 5
-            "
-            class="evidence-add"
-            role="button"
-            aria-label="添加现场照片"
-            @click="addEvidence"
-            >+</view
-          >
-          <text
-            v-else-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
-            class="evidence-hint"
-            >签到后可拍照</text
+        <view class="hero-actions">
+          <button class="scan-primary" :loading="scanning" @click="onScan">扫码找柜</button>
+          <view class="hero-secondary">
+            <button class="clear-pill" @click="goRequest">要货</button>
+            <button
+              v-if="preferredId && filterDeviceId !== preferredId"
+              class="clear-pill"
+              @click="usePreferredDevice"
+            >
+              常驻柜
+            </button>
+            <button v-if="filterDeviceId" class="clear-pill" @click="clearDeviceFilter">
+              清除筛选
+            </button>
+          </view>
+        </view>
+        <text v-if="filterDeviceId" class="filter-tip">
+          当前筛选：{{ filterDeviceId }}
+          <text v-if="filterDeviceId === preferredId">（常驻柜）</text>
+        </text>
+        <text v-else-if="preferredId" class="filter-tip muted"
+          >常驻柜 {{ preferredId }} · 点「常驻柜」快速筛选</text
+        >
+        <view v-if="!loading && pendingCount === 0" class="idle-tip">
+          <text class="idle-title">今日暂无待补货</text>
+          <text class="idle-desc"
+            >可扫码巡柜查看缺货，或切换「已完成」回顾记录；新任务由调度下发</text
           >
         </view>
+      </view>
 
-        <view class="section-heading">
+      <view v-if="lowStockList.length" class="patrol-card">
+        <view class="patrol-head">
           <view>
-            <text class="section-title">{{
-              detailIsPullOff ? '本次下架商品' : '本次补货商品'
-            }}</text>
-            <text class="section-subtitle">{{
-              detailIsPullOff
-                ? '请逐项核对下架数量与批次'
-                : selected?.outboundId
-                  ? `仓配出库 #${selected.outboundId} · 核对后完成将签收在途`
-                  : '请逐项核对商品、批次和货道'
-            }}</text>
+            <text class="patrol-title">缺货巡柜</text>
+            <text class="patrol-sub">按缺货严重度推荐 · 点击发起要货</text>
           </view>
-          <text class="line-count">{{ lines.length }} 项</text>
-        </view>
-        <view v-if="detailLoading" class="empty small">明细加载中…</view>
-        <view v-else-if="!lines.length" class="empty small lines-empty">
-          <view class="lines-empty-title">{{
-            detailIsPullOff ? '暂无下架明细' : '暂无补货明细'
-          }}</view>
-          <view class="lines-empty-tip">
-            {{
-              detailIsPullOff
-                ? '可先开门执行下架；有任务明细时会显示在此核对'
-                : '可先开门上架；有出库明细时会显示在此核对'
-            }}
-          </view>
+          <text class="patrol-count">{{ lowStockList.length }} 台</text>
         </view>
         <view
-          v-for="line in lines"
-          :key="line.lineId || `${line.skuId}-${line.batchNo}-${line.slotId}`"
-          class="line-card"
+          v-for="d in lowStockList"
+          :key="d.deviceId"
+          class="patrol-row"
+          hover-class="patrol-row-hover"
+          role="button"
+          @click="goRequestForDevice(d.deviceId)"
         >
-          <view class="line-main">
-            <view class="product-thumb">
-              <image
-                v-if="skuThumb(line.skuId)"
-                class="product-thumb-img"
-                :src="skuThumb(line.skuId)"
-                mode="aspectFill"
-              />
-              <text v-else class="product-mark">{{ productGlyph(line.skuId) }}</text>
+          <view class="patrol-name">
+            <text class="device-name">{{ deviceName(d.deviceId) }}</text>
+            <text class="device-code">{{ d.deviceId }}</text>
+          </view>
+          <view class="patrol-meta">
+            <text class="patrol-badge">{{ d.skuCount }} SKU 缺货</text>
+            <text class="patrol-shortage">缺口 {{ d.shortageQty }} 件</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="filters tabs-pill">
+        <text
+          v-for="item in statusOptions"
+          :key="item.value"
+          class="filter-chip"
+          :class="{ active: status === item.value }"
+          @click="changeStatus(item.value)"
+          >{{ item.label }}</text
+        >
+      </view>
+
+      <view v-if="loading" class="empty">任务加载中…</view>
+      <empty-state
+        v-else-if="!tasks.length"
+        icon="/static/menu/replenish.png"
+        :title="emptyHint"
+        hint="扫码到柜可查看缺货；新任务由调度下发"
+      >
+        <view class="empty-actions-row">
+          <button
+            v-if="pendingCount === 0 && completedCount > 0 && status !== 'COMPLETED'"
+            class="empty-scan"
+            @click="changeStatus('COMPLETED')"
+          >
+            查看已完成
+          </button>
+          <button
+            v-if="status && pendingCount === 0 && completedCount > 0"
+            class="empty-scan ghost"
+            @click="changeStatus('')"
+          >
+            查看全部
+          </button>
+          <button class="empty-scan" @click="onScan">扫码到柜</button>
+        </view>
+      </empty-state>
+      <view
+        v-for="task in tasks"
+        :key="task.taskId"
+        class="task-card"
+        hover-class="task-card-hover"
+        role="button"
+        @click="openTask(task)"
+      >
+        <view class="task-accent" />
+        <view class="task-head">
+          <view>
+            <text class="device-name">{{ deviceName(task.deviceId) }}</text>
+            <text class="device-code">{{ task.deviceId }}</text>
+          </view>
+          <text class="status" :class="task.status.toLowerCase()">
+            {{ displayLabel('replenishment_task_status', task.status, '未知状态') }}
+          </text>
+        </view>
+        <view class="task-meta">
+          <text>任务 #{{ task.taskId }}</text>
+          <text>{{ formatTime(task.createdAt) }}</text>
+        </view>
+        <view v-if="displayTaskNotes(task.notes)" class="task-note">{{
+          displayTaskNotes(task.notes)
+        }}</view>
+        <view class="detail-btn">
+          {{ taskActionLabel(task) }}
+        </view>
+      </view>
+
+      <view v-if="detailVisible" class="mask" @click.self="closeDetail" @touchmove.stop.prevent>
+        <view class="sheet" @click.stop>
+          <view class="sheet-handle" />
+          <view class="sheet-head">
+            <view>
+              <text class="sheet-title">{{ deviceName(selected?.deviceId) }}</text>
+              <text class="device-code"
+                >任务 #{{ selected?.taskId }} · {{ selected?.deviceId }}</text
+              >
             </view>
-            <view class="product-copy">
-              <text class="sku-name">{{ skuName(line.skuId) }}</text>
-              <text class="device-code">{{ line.skuId }}</text>
+            <text class="close" role="button" aria-label="关闭" @click="closeDetail">×</text>
+          </view>
+          <view class="step-row four">
+            <view class="step" :class="stepClass(1)">
+              <text class="step-num">{{
+                selected?.status === 'COMPLETED' || selected?.checkInAt ? '✓' : '1'
+              }}</text>
+              <text class="step-label">签到</text>
+            </view>
+            <view class="step" :class="stepClass(2)">
+              <text class="step-num">{{
+                selected?.status === 'COMPLETED' || doorOpened || currentStep() > 2 ? '✓' : '2'
+              }}</text>
+              <text class="step-label">开门</text>
+            </view>
+            <view class="step" :class="stepClass(3)">
+              <text class="step-num">{{
+                selected?.status === 'COMPLETED' || linesConfirmed || currentStep() > 3 ? '✓' : '3'
+              }}</text>
+              <text class="step-label">核对</text>
+            </view>
+            <view class="step" :class="stepClass(4)">
+              <text class="step-num">{{ selected?.status === 'COMPLETED' ? '✓' : '4' }}</text>
+              <text class="step-label">{{ detailIsPullOff ? '下架' : '上架' }}</text>
+            </view>
+          </view>
+
+          <button
+            v-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
+            class="primary-btn"
+            role="button"
+            data-testid="replenish-checkin"
+            :disabled="submitting"
+            @click="checkIn"
+          >
+            现场签到
+          </button>
+          <button
+            v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
+            class="primary-btn"
+            role="button"
+            data-testid="replenish-open-door"
+            :disabled="submitting"
+            @click="openDoor"
+          >
+            {{ doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门' }}
+          </button>
+          <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">
+            只读查看 — 需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
+          </text>
+          <text v-if="doorOpened && openSessionId" class="door-tip">
+            已开门 · 会话 {{ emptyDisplay(openSessionId, 'session') }} · 关门后继续核对{{
+              detailIsPullOff ? '下架' : '上架'
+            }}
+          </text>
+
+          <view class="section-heading">
+            <view>
+              <text class="section-title">现场照片</text>
+              <text class="section-subtitle">{{
+                selected?.checkInAt ? '最多 5 张，便于后台核对履约' : '签到后可拍照留存，最多 5 张'
+              }}</text>
+            </view>
+            <text class="line-count">{{ evidenceItems.length }} 张</text>
+          </view>
+          <view class="evidence-row">
+            <image
+              v-for="(item, idx) in evidenceItems"
+              :key="item.fileId || item.localPath || idx"
+              class="evidence-thumb"
+              :src="item.localPath"
+              mode="aspectFill"
+              :aria-label="`现场照片 ${idx + 1}`"
+              @click="previewEvidence(idx)"
+            />
+            <view
+              v-if="
+                canRequest &&
+                selected?.status !== 'COMPLETED' &&
+                selected?.checkInAt &&
+                evidenceItems.length < 5
+              "
+              class="evidence-add"
+              role="button"
+              aria-label="添加现场照片"
+              @click="addEvidence"
+              >+</view
+            >
+            <text
+              v-else-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
+              class="evidence-hint"
+              >签到后可拍照</text
+            >
+          </view>
+
+          <view class="section-heading">
+            <view>
+              <text class="section-title">{{
+                detailIsPullOff ? '本次下架商品' : '本次补货商品'
+              }}</text>
+              <text class="section-subtitle">{{
+                detailIsPullOff
+                  ? '请逐项核对下架数量与批次'
+                  : selected?.outboundId
+                    ? `仓配出库 #${selected.outboundId} · 核对后完成将签收在途`
+                    : '请逐项核对商品、批次和货道'
+              }}</text>
+            </view>
+            <text class="line-count">{{ lines.length }} 项</text>
+          </view>
+          <view v-if="detailLoading" class="empty small">明细加载中…</view>
+          <view v-else-if="!lines.length" class="empty small lines-empty">
+            <view class="lines-empty-title">{{
+              detailIsPullOff ? '暂无下架明细' : '暂无补货明细'
+            }}</view>
+            <view class="lines-empty-tip">
+              {{
+                detailIsPullOff
+                  ? '可先开门执行下架；有任务明细时会显示在此核对'
+                  : '可先开门上架；有出库明细时会显示在此核对'
+              }}
+            </view>
+          </view>
+          <view
+            v-for="line in lines"
+            :key="line.lineId || `${line.skuId}-${line.batchNo}-${line.slotId}`"
+            class="line-card"
+          >
+            <view class="line-main">
+              <view class="product-thumb">
+                <image
+                  v-if="skuThumb(line.skuId)"
+                  class="product-thumb-img"
+                  :src="skuThumb(line.skuId)"
+                  mode="aspectFill"
+                />
+                <text v-else class="product-mark">{{ productGlyph(line.skuId) }}</text>
+              </view>
+              <view class="product-copy">
+                <text class="sku-name">{{ skuName(line.skuId) }}</text>
+                <text class="device-code">{{ line.skuId }}</text>
+              </view>
+              <view
+                v-if="
+                  canRequest && selected?.status !== 'COMPLETED' && !linesConfirmed && !line.applied
+                "
+                class="qty-actions"
+              >
+                <view class="qty-stepper">
+                  <text
+                    class="qty-btn"
+                    role="button"
+                    aria-label="减少数量"
+                    @click="adjustQty(line, -1)"
+                    >−</text
+                  >
+                  <text class="qty">{{ line.quantity }}</text>
+                  <text
+                    class="qty-btn"
+                    role="button"
+                    aria-label="增加数量"
+                    @click="adjustQty(line, 1)"
+                    >+</text
+                  >
+                </view>
+                <button
+                  class="scan-line"
+                  :disabled="scanning"
+                  data-testid="scan-product-line"
+                  @click="scanProduct(line)"
+                >
+                  扫码
+                </button>
+              </view>
+              <text v-else class="qty">× {{ line.quantity }}</text>
+            </view>
+            <view class="line-meta">
+              <text>批次 {{ line.batchNo || '无批次' }}</text>
+              <text>货道 {{ line.slotId || '待分配' }}</text>
+              <text class="line-type">{{ lineTypeLabel(line.lineType) }}</text>
             </view>
             <view
               v-if="
-                canRequest && selected?.status !== 'COMPLETED' && !linesConfirmed && !line.applied
+                canRequest &&
+                selected?.status !== 'COMPLETED' &&
+                !linesConfirmed &&
+                !line.applied &&
+                !isPullOffType(line.lineType) &&
+                !line.slotId
               "
-              class="qty-actions"
+              class="slot-pick"
             >
-              <view class="qty-stepper">
+              <text class="slot-pick-label">选择货道</text>
+              <view v-if="slotOptionsFor(line).length" class="slot-chips">
                 <text
-                  class="qty-btn"
-                  role="button"
-                  aria-label="减少数量"
-                  @click="adjustQty(line, -1)"
-                  >−</text
-                >
-                <text class="qty">{{ line.quantity }}</text>
-                <text
-                  class="qty-btn"
-                  role="button"
-                  aria-label="增加数量"
-                  @click="adjustQty(line, 1)"
-                  >+</text
+                  v-for="opt in slotOptionsFor(line)"
+                  :key="opt.slotCode"
+                  class="slot-chip"
+                  :class="{ disabled: opt.room <= 0, active: line.slotId === opt.slotCode }"
+                  @click="assignSlot(line, opt)"
+                  >{{ opt.slotCode }} · 余{{ opt.room }}</text
                 >
               </view>
-              <button
-                class="scan-line"
-                :disabled="scanning"
-                data-testid="scan-product-line"
-                @click="scanProduct(line)"
-              >
-                扫码
-              </button>
+              <text v-else class="slot-empty">暂无可用货道，请先腾出容量或将数量调为 0</text>
             </view>
-            <text v-else class="qty">× {{ line.quantity }}</text>
-          </view>
-          <view class="line-meta">
-            <text>批次 {{ line.batchNo || '无批次' }}</text>
-            <text>货道 {{ line.slotId || '待分配' }}</text>
-            <text class="line-type">{{ lineTypeLabel(line.lineType) }}</text>
-          </view>
-          <view
-            v-if="
-              canRequest &&
-              selected?.status !== 'COMPLETED' &&
-              !linesConfirmed &&
-              !line.applied &&
-              !isPullOffType(line.lineType) &&
-              !line.slotId
-            "
-            class="slot-pick"
-          >
-            <text class="slot-pick-label">选择货道</text>
-            <view v-if="slotOptionsFor(line).length" class="slot-chips">
-              <text
-                v-for="opt in slotOptionsFor(line)"
-                :key="opt.slotCode"
-                class="slot-chip"
-                :class="{ disabled: opt.room <= 0, active: line.slotId === opt.slotCode }"
-                @click="assignSlot(line, opt)"
-                >{{ opt.slotCode }} · 余{{ opt.room }}</text
-              >
+            <view class="line-meta">
+              <text>到期 {{ line.expiryDate || '未填' }}</text>
+              <text>{{ lineStatusLabel(line) }}</text>
             </view>
-            <text v-else class="slot-empty">暂无可用货道，请先腾出容量或将数量调为 0</text>
+            <view
+              v-if="selected?.status !== 'COMPLETED' && line.slotId && slotHint(line)"
+              class="line-cap"
+              :class="{
+                full: slotHeadroom(line) <= 0,
+                warn: slotHeadroom(line) > 0 && line.quantity > slotHeadroom(line)
+              }"
+              >{{ slotHint(line) }}</view
+            >
           </view>
-          <view class="line-meta">
-            <text>到期 {{ line.expiryDate || '未填' }}</text>
-            <text>{{ lineStatusLabel(line) }}</text>
-          </view>
-          <view
-            v-if="selected?.status !== 'COMPLETED' && line.slotId && slotHint(line)"
-            class="line-cap"
-            :class="{
-              full: slotHeadroom(line) <= 0,
-              warn: slotHeadroom(line) > 0 && line.quantity > slotHeadroom(line)
-            }"
-            >{{ slotHint(line) }}</view
-          >
-        </view>
 
-        <view
-          v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
-          class="action-dock"
-        >
-          <button
-            v-if="!linesConfirmed"
-            class="secondary-btn"
-            role="button"
-            data-testid="replenish-confirm-lines"
-            :disabled="submitting || !lines.length"
-            @click="confirmLines"
+          <view
+            v-if="canRequest && selected?.status !== 'COMPLETED' && selected?.checkInAt"
+            class="action-dock"
           >
-            确认商品与数量
-          </button>
-          <button
-            class="primary-btn"
-            role="button"
-            data-testid="replenish-complete"
-            :disabled="submitting || !lines.length || !linesConfirmed"
-            @click="completeTask"
-          >
-            {{ detailIsPullOff ? '确认全部下架' : '确认全部上架' }}
-          </button>
+            <button
+              v-if="!linesConfirmed"
+              class="secondary-btn"
+              role="button"
+              data-testid="replenish-confirm-lines"
+              :disabled="submitting || !lines.length"
+              @click="confirmLines"
+            >
+              确认商品与数量
+            </button>
+            <button
+              class="primary-btn"
+              role="button"
+              data-testid="replenish-complete"
+              :disabled="submitting || !lines.length || !linesConfirmed"
+              @click="completeTask"
+            >
+              {{ detailIsPullOff ? '确认全部下架' : '确认全部上架' }}
+            </button>
+          </view>
+          <view v-if="selected?.status === 'COMPLETED'" class="complete-banner">
+            {{
+              detailIsPullOff
+                ? '任务已完成，下架库存已同步更新'
+                : '任务已完成，商品库存和在途状态已同步更新'
+            }}
+          </view>
         </view>
-        <view v-if="selected?.status === 'COMPLETED'" class="complete-banner">
-          {{
-            detailIsPullOff
-              ? '任务已完成，下架库存已同步更新'
-              : '任务已完成，商品库存和在途状态已同步更新'
-          }}
+      </view>
+
+      <!-- H5 可访问确认框：替代 uni.showModal，便于自动化与读屏点击 -->
+      <view
+        v-if="confirmDialog.visible"
+        class="confirm-mask"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="confirmDialog.title"
+        data-testid="confirm-dialog"
+        @click.self="resolveConfirm(false)"
+        @touchmove.stop.prevent
+      >
+        <view class="confirm-card" @click.stop>
+          <text class="confirm-title">{{ confirmDialog.title }}</text>
+          <text class="confirm-body">{{ confirmDialog.content }}</text>
+          <view class="confirm-actions">
+            <button
+              type="button"
+              class="confirm-btn cancel"
+              role="button"
+              :aria-label="confirmDialog.cancelText"
+              data-testid="confirm-cancel"
+              @click.stop="resolveConfirm(false)"
+            >
+              {{ confirmDialog.cancelText }}
+            </button>
+            <button
+              type="button"
+              class="confirm-btn ok"
+              role="button"
+              :aria-label="confirmDialog.confirmText"
+              data-testid="confirm-ok"
+              @click.stop="resolveConfirm(true)"
+            >
+              {{ confirmDialog.confirmText }}
+            </button>
+          </view>
         </view>
       </view>
     </view>
-
-    <!-- H5 可访问确认框：替代 uni.showModal，便于自动化与读屏点击 -->
-    <view
-      v-if="confirmDialog.visible"
-      class="confirm-mask"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="confirmDialog.title"
-      data-testid="confirm-dialog"
-      @click.self="resolveConfirm(false)"
-      @touchmove.stop.prevent
-    >
-      <view class="confirm-card" @click.stop>
-        <text class="confirm-title">{{ confirmDialog.title }}</text>
-        <text class="confirm-body">{{ confirmDialog.content }}</text>
-        <view class="confirm-actions">
-          <button
-            type="button"
-            class="confirm-btn cancel"
-            role="button"
-            :aria-label="confirmDialog.cancelText"
-            data-testid="confirm-cancel"
-            @click.stop="resolveConfirm(false)"
-          >
-            {{ confirmDialog.cancelText }}
-          </button>
-          <button
-            type="button"
-            class="confirm-btn ok"
-            role="button"
-            :aria-label="confirmDialog.confirmText"
-            data-testid="confirm-ok"
-            @click.stop="resolveConfirm(true)"
-          >
-            {{ confirmDialog.confirmText }}
-          </button>
-        </view>
-      </view>
-    </view>
-      </view>
   </view>
 </template>
 

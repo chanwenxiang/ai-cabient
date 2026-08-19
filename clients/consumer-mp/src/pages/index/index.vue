@@ -79,11 +79,7 @@
             <text class="scan-circle-text">{{ opening ? '连接中…' : '扫码购物' }}</text>
           </button>
           <text class="scan-tip">对准柜门二维码，即可开门取货</text>
-          <view
-            v-if="lastDeviceId"
-            class="resume-card"
-            @click="startShoppingFlow(lastDeviceId)"
-          >
+          <view v-if="lastDeviceId" class="resume-card" @click="startShoppingFlow(lastDeviceId)">
             <text class="resume-title">继续在本柜购物</text>
             <text class="resume-sub">{{ lastDeviceName || lastDeviceId }}</text>
           </view>
@@ -101,11 +97,7 @@
         </view>
       </view>
 
-      <view
-        v-if="authPromptVisible"
-        class="landing-mask"
-        @click="dismissAuthPrompt"
-      >
+      <view v-if="authPromptVisible" class="landing-mask" @click="dismissAuthPrompt">
         <view class="landing-sheet" @click.stop>
           <text class="landing-sheet-title">需要授权</text>
           <text class="landing-sheet-body">扫码开门需先完成微信授权</text>
@@ -601,7 +593,9 @@ const shoppingBannerTitle = computed(() => {
 
 const shoppingBannerSub = computed(() => {
   if (state.value === 'SHOPPING') {
-    return mockEnabled.value ? '点选件数后点关门结算，未选则不扣款' : '无需在手机上点选商品，拿了就走';
+    return mockEnabled.value
+      ? '点选件数后点关门结算，未选则不扣款'
+      : '无需在手机上点选商品，拿了就走';
   }
   if (['RECOGNIZING', 'WAITING_UPLOAD', 'SETTLING'].includes(state.value)) {
     return '可先离开，账单会在「订单」中展示';

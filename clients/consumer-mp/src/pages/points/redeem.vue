@@ -2,45 +2,45 @@
   <view class="page-root">
     <app-nav-bar title="积分兑换" />
     <view class="page-body">
-    <view class="balance-bar" @click="goPoints">
-      <text class="balance-label">我的积分</text>
-      <text class="balance-value">{{ summary?.availablePoints ?? 0 }}</text>
-      <text class="balance-action">明细 ›</text>
-    </view>
+      <view class="balance-bar" @click="goPoints">
+        <text class="balance-label">我的积分</text>
+        <text class="balance-value">{{ summary?.availablePoints ?? 0 }}</text>
+        <text class="balance-action">明细 ›</text>
+      </view>
 
-    <view v-if="loading" class="loading"><text>加载中…</text></view>
-    <view v-else-if="!items.length" class="empty">
-      <text class="empty-title">暂无兑换商品</text>
-      <text class="empty-hint">运营上架积分兑换后即可兑换优惠券</text>
-    </view>
-    <view v-else class="item-list">
-      <view v-for="item in items" :key="item.itemId" class="item-card">
-        <view class="item-main">
-          <view class="item-emoji">{{ item.coverEmoji }}</view>
-          <view class="item-copy">
-            <text class="item-title">{{ item.title }}</text>
-            <text class="item-subtitle">{{ item.subtitle || '兑换优惠券，结算自动使用' }}</text>
-            <text class="item-stock">{{
-              item.availableStock > 0 ? `剩余 ${item.availableStock} 份` : '已兑完'
-            }}</text>
+      <view v-if="loading" class="loading"><text>加载中…</text></view>
+      <view v-else-if="!items.length" class="empty">
+        <text class="empty-title">暂无兑换商品</text>
+        <text class="empty-hint">运营上架积分兑换后即可兑换优惠券</text>
+      </view>
+      <view v-else class="item-list">
+        <view v-for="item in items" :key="item.itemId" class="item-card">
+          <view class="item-main">
+            <view class="item-emoji">{{ item.coverEmoji }}</view>
+            <view class="item-copy">
+              <text class="item-title">{{ item.title }}</text>
+              <text class="item-subtitle">{{ item.subtitle || '兑换优惠券，结算自动使用' }}</text>
+              <text class="item-stock">{{
+                item.availableStock > 0 ? `剩余 ${item.availableStock} 份` : '已兑完'
+              }}</text>
+            </view>
+          </view>
+          <view class="item-side">
+            <text class="item-cost">{{ item.pointsCost }} 积分</text>
+            <button
+              class="redeem-btn"
+              :class="{
+                disabled:
+                  item.availableStock <= 0 || (summary?.availablePoints ?? 0) < item.pointsCost
+              }"
+              :disabled="redeeming === item.itemId"
+              @click="redeem(item)"
+            >
+              {{ redeeming === item.itemId ? '兑换中…' : '立即兑换' }}
+            </button>
           </view>
         </view>
-        <view class="item-side">
-          <text class="item-cost">{{ item.pointsCost }} 积分</text>
-          <button
-            class="redeem-btn"
-            :class="{
-              disabled:
-                item.availableStock <= 0 || (summary?.availablePoints ?? 0) < item.pointsCost
-            }"
-            :disabled="redeeming === item.itemId"
-            @click="redeem(item)"
-          >
-            {{ redeeming === item.itemId ? '兑换中…' : '立即兑换' }}
-          </button>
-        </view>
       </view>
-    </view>
     </view>
   </view>
 </template>

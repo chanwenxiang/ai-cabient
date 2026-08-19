@@ -361,7 +361,6 @@ async function loadMore() {
   }
 }
 
-
 function goDisputeDetail(d: DisputeTicketDto) {
   const q = [
     d.ticketId ? `ticketId=${encodeURIComponent(d.ticketId)}` : '',

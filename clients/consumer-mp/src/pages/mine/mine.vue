@@ -19,9 +19,7 @@
         <view v-if="authed" class="balance-side">
           <text class="balance-label">可用余额</text>
           <text class="balance-number">{{ balanceYuan }}</text>
-          <text v-if="frozenYuan !== '¥0.00'" class="balance-meta"
-            >冻结 {{ frozenYuan }}</text
-          >
+          <text v-if="frozenYuan !== '¥0.00'" class="balance-meta">冻结 {{ frozenYuan }}</text>
           <text class="balance-action" @click="goRecharge">充值</text>
         </view>
       </view>

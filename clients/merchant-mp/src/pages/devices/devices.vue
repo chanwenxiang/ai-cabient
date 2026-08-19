@@ -57,10 +57,7 @@
             <text class="name">{{ d.deviceName || d.deviceId }}</text>
             <text class="meta">{{ d.deviceId }}</text>
             <text v-if="d.address" class="meta addr">{{ d.address }}</text>
-            <text
-              v-if="lifecycleText(d.lifecycleStatus) || d.currentTempC != null"
-              class="meta"
-            >
+            <text v-if="lifecycleText(d.lifecycleStatus) || d.currentTempC != null" class="meta">
               <template v-if="lifecycleText(d.lifecycleStatus)">{{
                 lifecycleText(d.lifecycleStatus)
               }}</template>

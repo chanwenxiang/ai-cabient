@@ -6,46 +6,46 @@
       </template>
     </app-nav-bar>
     <view class="page-body">
-    <view v-if="subscribeEnabled" class="subscribe-banner">
-      <view class="subscribe-copy">
-        <text class="subscribe-title">开启微信消息提醒</text>
-        <text class="subscribe-sub">订单支付、充值到账、优惠券与积分提醒及时送达</text>
-      </view>
-      <button class="subscribe-btn" :disabled="subscribing" @click="onSubscribe">
-        {{ subscribing ? '请求中…' : '去开启' }}
-      </button>
-    </view>
-
-    <view v-if="loading" class="loading"><text>加载中…</text></view>
-    <view v-else-if="!list.length" class="empty">
-      <text class="empty-title">暂无消息</text>
-      <text class="empty-hint">订单支付、充值到账、优惠券提醒等会出现在这里</text>
-    </view>
-    <view v-else class="msg-list">
-      <view
-        v-for="m in list"
-        :key="m.id"
-        class="msg-card"
-        :class="{ unread: !m.read }"
-        @click="onOpen(m)"
-      >
-        <view class="msg-head">
-          <text class="msg-title">{{ sanitizeNotifyTitle(m.title) }}</text>
-          <text class="msg-time">{{ formatTime(m.createdAt) }}</text>
+      <view v-if="subscribeEnabled" class="subscribe-banner">
+        <view class="subscribe-copy">
+          <text class="subscribe-title">开启微信消息提醒</text>
+          <text class="subscribe-sub">订单支付、充值到账、优惠券与积分提醒及时送达</text>
         </view>
-        <text class="msg-body">{{ rewriteBizNosInText(m.body) }}</text>
-        <view v-if="m.bizId" class="msg-biz">关联单号：{{ displayBizNo(m.bizId) }}</view>
+        <button class="subscribe-btn" :disabled="subscribing" @click="onSubscribe">
+          {{ subscribing ? '请求中…' : '去开启' }}
+        </button>
       </view>
-    </view>
 
-    <view class="card prefs-card">
-      <text class="card-title">通知偏好</text>
-      <text class="card-hint">关闭后对应类别的消息不再推送与提醒</text>
-      <view v-for="p in prefs" :key="p.category" class="pref-row">
-        <text class="pref-label">{{ p.label }}</text>
-        <switch :checked="p.enabled" color="#059669" @change="onPrefChange(p, $event)" />
+      <view v-if="loading" class="loading"><text>加载中…</text></view>
+      <view v-else-if="!list.length" class="empty">
+        <text class="empty-title">暂无消息</text>
+        <text class="empty-hint">订单支付、充值到账、优惠券提醒等会出现在这里</text>
       </view>
-    </view>
+      <view v-else class="msg-list">
+        <view
+          v-for="m in list"
+          :key="m.id"
+          class="msg-card"
+          :class="{ unread: !m.read }"
+          @click="onOpen(m)"
+        >
+          <view class="msg-head">
+            <text class="msg-title">{{ sanitizeNotifyTitle(m.title) }}</text>
+            <text class="msg-time">{{ formatTime(m.createdAt) }}</text>
+          </view>
+          <text class="msg-body">{{ rewriteBizNosInText(m.body) }}</text>
+          <view v-if="m.bizId" class="msg-biz">关联单号：{{ displayBizNo(m.bizId) }}</view>
+        </view>
+      </view>
+
+      <view class="card prefs-card">
+        <text class="card-title">通知偏好</text>
+        <text class="card-hint">关闭后对应类别的消息不再推送与提醒</text>
+        <view v-for="p in prefs" :key="p.category" class="pref-row">
+          <text class="pref-label">{{ p.label }}</text>
+          <switch :checked="p.enabled" color="#059669" @change="onPrefChange(p, $event)" />
+        </view>
+      </view>
     </view>
   </view>
 </template>

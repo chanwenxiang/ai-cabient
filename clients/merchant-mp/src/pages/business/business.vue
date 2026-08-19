@@ -2,132 +2,137 @@
   <view class="page">
     <app-nav-bar title="经营分析" />
     <view class="page-body">
-    <view class="periods">
-      <text
-        v-for="d in periods"
-        :key="d"
-        class="period"
-        :class="{ active: days === d }"
-        @click="changeDays(d)"
-        >近{{ d }}天</text
+      <view class="periods">
+        <text
+          v-for="d in periods"
+          :key="d"
+          class="period"
+          :class="{ active: days === d }"
+          @click="changeDays(d)"
+          >近{{ d }}天</text
+        >
+      </view>
+      <view v-if="loading" class="state">正在汇总经营数据…</view>
+      <view v-else-if="error" class="state"
+        ><text class="error">{{ error }}</text
+        ><button class="retry" @click="() => load()">重试</button></view
       >
-    </view>
-    <view v-if="loading" class="state">正在汇总经营数据…</view>
-    <view v-else-if="error" class="state"
-      ><text class="error">{{ error }}</text
-      ><button class="retry" @click="() => load()">重试</button></view
-    >
-    <template v-else>
-      <view class="hero">
-        <text class="hero-label">经营毛利</text
-        ><text class="hero-value">{{ money(analytics.grossMarginCents) }}</text>
-        <view class="hero-row"
-          ><text>营收 {{ money(analytics.revenueCents) }}</text
-          ><text>毛利率 {{ marginRate }}</text></view
-        >
-      </view>
-      <view class="metric-grid">
-        <view class="metric"
-          ><text class="metric-value">{{ money(settlement.settledMonthCents) }}</text
-          ><text class="metric-label">本月已结算</text></view
-        >
-        <view class="metric"
-          ><text class="metric-value warn">{{ money(settlement.pendingAmountCents) }}</text
-          ><text class="metric-label">待结算</text></view
-        >
-        <view class="metric"
-          ><text class="metric-value">{{ analytics.topSkus?.length || 0 }}</text
-          ><text class="metric-label">重点商品</text></view
-        >
-        <view class="metric"
-          ><text class="metric-value danger">{{ settlement.failedSplitCount || 0 }}</text
-          ><text class="metric-label">分账异常</text></view
-        >
-      </view>
-      <view class="card">
-        <view class="section-head"
-          ><text class="section-title">商品经营表现</text
-          ><text class="section-sub">按销售额排序</text></view
-        >
-        <view v-for="sku in analytics.topSkus || []" :key="sku.skuId" class="sku-row">
-          <view class="sku-main"
-            ><text class="sku-name">{{ sku.skuName }}</text
-            ><text class="sku-rec"
-              >毛利 {{ money(sku.grossMarginCents) }} · 毛利率 {{ skuMarginRate(sku) }}</text
-            ></view
-          >
-          <view class="sku-data"
-            ><text>{{ sku.qtySold }} 件</text
-            ><text class="sku-money">{{ money(sku.revenueCents) }}</text></view
+      <template v-else>
+        <view class="hero">
+          <text class="hero-label">经营毛利</text
+          ><text class="hero-value">{{ money(analytics.grossMarginCents) }}</text>
+          <view class="hero-row"
+            ><text>营收 {{ money(analytics.revenueCents) }}</text
+            ><text>毛利率 {{ marginRate }}</text></view
           >
         </view>
-        <view v-if="!analytics.topSkus?.length" class="empty">暂无可分析的销售数据</view>
-      </view>
-      <view v-if="aiInsight?.insight" class="card">
-        <view class="section-head"
-          ><text class="section-title">AI 经营洞察</text
-          ><text class="section-sub">{{ formatTime(aiInsight.generatedAt) }}</text></view
-        >
-        <text class="insight-text">{{ aiInsight.insight }}</text>
-        <view v-for="p in aiInsight.skuPerformance || []" :key="p.skuId" class="insight-sku">
-          <text class="sku-name">{{ p.skuName }}</text>
-          <text class="meta">{{ p.performanceLevel || '—' }} · {{ p.recommendation || '' }}</text>
-        </view>
-      </view>
-      <view
-        v-if="
-          expirySummary && (expirySummary.openPullOffTasks > 0 || expirySummary.writeOffQty30d > 0)
-        "
-        class="card"
-      >
-        <view class="section-head"
-          ><text class="section-title">临期摘要</text
-          ><text class="section-sub">近 30 天</text></view
-        >
-        <view class="expiry-grid">
-          <view class="expiry-cell"
-            ><text class="expiry-n">{{ expirySummary.openPullOffTasks }}</text
-            ><text class="expiry-l">待下架任务</text></view
+        <view class="metric-grid">
+          <view class="metric"
+            ><text class="metric-value">{{ money(settlement.settledMonthCents) }}</text
+            ><text class="metric-label">本月已结算</text></view
           >
-          <view class="expiry-cell"
-            ><text class="expiry-n">{{ expirySummary.writeOffQty30d }}</text
-            ><text class="expiry-l">报损件数</text></view
+          <view class="metric"
+            ><text class="metric-value warn">{{ money(settlement.pendingAmountCents) }}</text
+            ><text class="metric-label">待结算</text></view
           >
-          <view class="expiry-cell"
-            ><text class="expiry-n"
-              >¥{{ (expirySummary.writeOffCostCents30d / 100).toFixed(0) }}</text
-            ><text class="expiry-l">报损成本</text></view
+          <view class="metric"
+            ><text class="metric-value">{{ analytics.topSkus?.length || 0 }}</text
+            ><text class="metric-label">重点商品</text></view
+          >
+          <view class="metric"
+            ><text class="metric-value danger">{{ settlement.failedSplitCount || 0 }}</text
+            ><text class="metric-label">分账异常</text></view
           >
         </view>
-      </view>
-      <view v-if="deviceReports.length" class="card">
-        <view class="section-head"
-          ><text class="section-title">柜机报表</text
-          ><text class="section-sub">在线状态 · 订单 · 营收 · 会话</text></view
-        >
-        <view v-for="r in deviceReports" :key="r.deviceId" class="report-row">
-          <view class="report-main">
-            <text class="sku-name">{{ r.deviceName }}</text>
-            <text class="meta"
-              >{{ r.deviceId }} · {{ r.onlineStatus === 'ONLINE' ? '在线' : '离线' }}</text
+        <view class="card">
+          <view class="section-head"
+            ><text class="section-title">商品经营表现</text
+            ><text class="section-sub">按销售额排序</text></view
+          >
+          <view v-for="sku in analytics.topSkus || []" :key="sku.skuId" class="sku-row">
+            <view class="sku-main"
+              ><text class="sku-name">{{ sku.skuName }}</text
+              ><text class="sku-rec"
+                >毛利 {{ money(sku.grossMarginCents) }} · 毛利率 {{ skuMarginRate(sku) }}</text
+              ></view
+            >
+            <view class="sku-data"
+              ><text>{{ sku.qtySold }} 件</text
+              ><text class="sku-money">{{ money(sku.revenueCents) }}</text></view
             >
           </view>
-          <view class="report-data">
-            <text>今日 {{ r.orderToday }} 单 · ¥{{ (r.revenueTodayCents / 100).toFixed(0) }}</text>
-            <text>累计 {{ r.orderTotal }} 单 · ¥{{ (r.revenueTotalCents / 100).toFixed(0) }}</text>
-            <text>会话 {{ r.sessionTotal }}（活跃 {{ r.sessionActive }}）</text>
+          <view v-if="!analytics.topSkus?.length" class="empty">暂无可分析的销售数据</view>
+        </view>
+        <view v-if="aiInsight?.insight" class="card">
+          <view class="section-head"
+            ><text class="section-title">AI 经营洞察</text
+            ><text class="section-sub">{{ formatTime(aiInsight.generatedAt) }}</text></view
+          >
+          <text class="insight-text">{{ aiInsight.insight }}</text>
+          <view v-for="p in aiInsight.skuPerformance || []" :key="p.skuId" class="insight-sku">
+            <text class="sku-name">{{ p.skuName }}</text>
+            <text class="meta">{{ p.performanceLevel || '—' }} · {{ p.recommendation || '' }}</text>
           </view>
         </view>
-      </view>
-      <view v-if="settlement.failedSplitCount" class="risk-card" @click="goFailedSplits">
-        <text class="risk-title">有 {{ settlement.failedSplitCount }} 笔分账异常</text>
-        <text class="risk-desc">点此查看失败原因与订单明细 ›</text>
-      </view>
-      <view v-if="canExport" class="actions">
-        <button class="btn-outline" @click="onExport">导出柜机报表</button>
-      </view>
-    </template>
-      </view>
+        <view
+          v-if="
+            expirySummary &&
+            (expirySummary.openPullOffTasks > 0 || expirySummary.writeOffQty30d > 0)
+          "
+          class="card"
+        >
+          <view class="section-head"
+            ><text class="section-title">临期摘要</text
+            ><text class="section-sub">近 30 天</text></view
+          >
+          <view class="expiry-grid">
+            <view class="expiry-cell"
+              ><text class="expiry-n">{{ expirySummary.openPullOffTasks }}</text
+              ><text class="expiry-l">待下架任务</text></view
+            >
+            <view class="expiry-cell"
+              ><text class="expiry-n">{{ expirySummary.writeOffQty30d }}</text
+              ><text class="expiry-l">报损件数</text></view
+            >
+            <view class="expiry-cell"
+              ><text class="expiry-n"
+                >¥{{ (expirySummary.writeOffCostCents30d / 100).toFixed(0) }}</text
+              ><text class="expiry-l">报损成本</text></view
+            >
+          </view>
+        </view>
+        <view v-if="deviceReports.length" class="card">
+          <view class="section-head"
+            ><text class="section-title">柜机报表</text
+            ><text class="section-sub">在线状态 · 订单 · 营收 · 会话</text></view
+          >
+          <view v-for="r in deviceReports" :key="r.deviceId" class="report-row">
+            <view class="report-main">
+              <text class="sku-name">{{ r.deviceName }}</text>
+              <text class="meta"
+                >{{ r.deviceId }} · {{ r.onlineStatus === 'ONLINE' ? '在线' : '离线' }}</text
+              >
+            </view>
+            <view class="report-data">
+              <text
+                >今日 {{ r.orderToday }} 单 · ¥{{ (r.revenueTodayCents / 100).toFixed(0) }}</text
+              >
+              <text
+                >累计 {{ r.orderTotal }} 单 · ¥{{ (r.revenueTotalCents / 100).toFixed(0) }}</text
+              >
+              <text>会话 {{ r.sessionTotal }}（活跃 {{ r.sessionActive }}）</text>
+            </view>
+          </view>
+        </view>
+        <view v-if="settlement.failedSplitCount" class="risk-card" @click="goFailedSplits">
+          <text class="risk-title">有 {{ settlement.failedSplitCount }} 笔分账异常</text>
+          <text class="risk-desc">点此查看失败原因与订单明细 ›</text>
+        </view>
+        <view v-if="canExport" class="actions">
+          <button class="btn-outline" @click="onExport">导出柜机报表</button>
+        </view>
+      </template>
+    </view>
   </view>
 </template>
 

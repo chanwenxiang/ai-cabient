@@ -2,13 +2,13 @@
   <view class="page">
     <app-nav-bar :title="navTitle" />
     <view class="page-body">
-    <view class="policy-card">
-      <text class="policy-updated">更新日期：2026-08-08</text>
-      <view v-for="section in sections" :key="section.title" class="section">
-        <text class="section-title">{{ section.title }}</text>
-        <text v-for="(p, i) in section.paragraphs" :key="i" class="section-p">{{ p }}</text>
+      <view class="policy-card">
+        <text class="policy-updated">更新日期：2026-08-08</text>
+        <view v-for="section in sections" :key="section.title" class="section">
+          <text class="section-title">{{ section.title }}</text>
+          <text v-for="(p, i) in section.paragraphs" :key="i" class="section-p">{{ p }}</text>
+        </view>
       </view>
-    </view>
     </view>
   </view>
 </template>

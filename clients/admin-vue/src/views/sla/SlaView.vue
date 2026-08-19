@@ -103,7 +103,10 @@ const statTiles = computed(() => {
   const d = data.value;
   return [
     { label: '快照日期', value: d?.snapshotDate || '无' },
-    { label: '开门成功率', value: (d?.doorOpenAttempts ?? 0) === 0 ? '—' : pct(d?.doorSuccessRate) },
+    {
+      label: '开门成功率',
+      value: (d?.doorOpenAttempts ?? 0) === 0 ? '—' : pct(d?.doorSuccessRate)
+    },
     {
       label: '开门成功/尝试',
       value: `${d?.doorOpenSuccess ?? 0}/${d?.doorOpenAttempts ?? 0}`

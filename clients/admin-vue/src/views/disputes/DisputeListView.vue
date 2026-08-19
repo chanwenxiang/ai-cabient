@@ -560,10 +560,7 @@ import type {
   OrderLineDto,
   PageResult
 } from '@aicabinet/shared-types';
-import {
-  displayBizNo,
-  formatDateTime
-} from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 interface ResolveDisputeResultDto {
@@ -1236,9 +1233,7 @@ function applyRouteQuery() {
 
 async function openFocusedTicket() {
   if (!focusDisputeId.value || detailVisible.value) return;
-  let row = items.value.find(
-    (it) => String(it.ticketId ?? '') === String(focusDisputeId.value)
-  );
+  let row = items.value.find((it) => String(it.ticketId ?? '') === String(focusDisputeId.value));
   if (!row) {
     try {
       row = await api.request<DisputeTicketDto>(

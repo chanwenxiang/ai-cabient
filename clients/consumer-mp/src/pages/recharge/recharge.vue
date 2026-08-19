@@ -2,133 +2,139 @@
   <view class="page-root">
     <app-nav-bar title="余额充值" />
     <view class="page-body">
-    <view class="balance-card">
-      <text class="bal-label">当前余额</text>
-      <text class="bal-amount">{{ balanceYuan }}</text>
-    </view>
-
-    <view class="amount-grid">
-      <view
-        v-for="item in amounts"
-        :key="item.value"
-        class="amount-card"
-        :class="{ selected: selectedAmount === item.value }"
-        @click="selectAmount(item.value)"
-      >
-        <text class="amount-value">{{ fmtMoney(item.value) }}</text>
+      <view class="balance-card">
+        <text class="bal-label">当前余额</text>
+        <text class="bal-amount">{{ balanceYuan }}</text>
       </view>
-    </view>
 
-    <view class="custom-row">
-      <text class="custom-label">自定义金额（元）</text>
-      <input
-        class="custom-input"
-        type="digit"
-        :value="customAmountYuan"
-        placeholder="如 33.5"
-        maxlength="8"
-        @input="onCustomAmount"
-      />
-      <text v-if="customAmountError" class="custom-error">{{ customAmountError }}</text>
-    </view>
+      <view class="amount-grid">
+        <view
+          v-for="item in amounts"
+          :key="item.value"
+          class="amount-card"
+          :class="{ selected: selectedAmount === item.value }"
+          @click="selectAmount(item.value)"
+        >
+          <text class="amount-value">{{ fmtMoney(item.value) }}</text>
+        </view>
+      </view>
 
-    <button
-      v-if="wechatPayLive || wechatRechargeEnabled"
-      class="btn-wechat"
-      :disabled="!selectedAmount || loading"
-      :loading="loading"
-      @click="onWeChatRecharge"
-    >
-      {{
-        loading
-          ? '处理中…'
-          : selectedAmount
-            ? `${wechatPayLive ? '微信支付' : '微信充值'} ${fmtMoney(selectedAmount)}`
-            : '微信充值'
-      }}
-    </button>
-    <button
-      v-if="devTools && mockEnabled"
-      class="btn-primary"
-      :disabled="!selectedAmount || loading"
-      :loading="loading"
-      @click="onRecharge"
-    >
-      {{
-        loading ? '充值中…' : selectedAmount ? `模拟到账 ${fmtMoney(selectedAmount)}` : '请选择金额'
-      }}
-    </button>
-    <button
-      v-if="devTools && alipayRechargeEnabled"
-      class="btn-alipay"
-      :disabled="!selectedAmount || loading"
-      :loading="loading"
-      @click="onAlipayRecharge"
-    >
-      {{
-        loading
-          ? '处理中…'
-          : selectedAmount
-            ? `${alipayPayLive ? '支付宝沙箱' : '支付宝模拟充值'} ${fmtMoney(selectedAmount)}`
-            : alipayPayLive
-              ? '支付宝沙箱'
-              : '支付宝模拟充值'
-      }}
-    </button>
+      <view class="custom-row">
+        <text class="custom-label">自定义金额（元）</text>
+        <input
+          class="custom-input"
+          type="digit"
+          :value="customAmountYuan"
+          placeholder="如 33.5"
+          maxlength="8"
+          @input="onCustomAmount"
+        />
+        <text v-if="customAmountError" class="custom-error">{{ customAmountError }}</text>
+      </view>
 
-    <view
-      v-if="!wechatPayLive && !wechatRechargeEnabled && !(devTools && mockEnabled)"
-      class="channel-hint"
-    >
-      <text>暂未开通在线充值，请联系现场运营或开通微信支付分后免密开门。</text>
-    </view>
-    <view v-else-if="devTools" class="channel-hint">
-      <text v-if="paymentModeHint">{{ paymentModeHint }}</text>
-      <text v-else-if="wechatPayLive">已配置真实微信商户。</text>
-      <text v-else-if="wechatRechargeEnabled">开发：微信通道为 mock 即时到账。</text>
-      <text v-if="mockEnabled"> 模拟到账仅本地联调。</text>
-      <text v-if="alipayRechargeEnabled && alipayPayLive"> 支付宝沙箱可跳转收银台。</text>
-      <text v-else-if="alipayRechargeEnabled"> 支付宝 mock 与微信一致，一键到账（无需进件）。</text>
-    </view>
-    <view v-else class="channel-hint">
-      <text>余额可用于未开通免密时的开门兜底；推荐优先开通微信支付分。</text>
-    </view>
+      <button
+        v-if="wechatPayLive || wechatRechargeEnabled"
+        class="btn-wechat"
+        :disabled="!selectedAmount || loading"
+        :loading="loading"
+        @click="onWeChatRecharge"
+      >
+        {{
+          loading
+            ? '处理中…'
+            : selectedAmount
+              ? `${wechatPayLive ? '微信支付' : '微信充值'} ${fmtMoney(selectedAmount)}`
+              : '微信充值'
+        }}
+      </button>
+      <button
+        v-if="devTools && mockEnabled"
+        class="btn-primary"
+        :disabled="!selectedAmount || loading"
+        :loading="loading"
+        @click="onRecharge"
+      >
+        {{
+          loading
+            ? '充值中…'
+            : selectedAmount
+              ? `模拟到账 ${fmtMoney(selectedAmount)}`
+              : '请选择金额'
+        }}
+      </button>
+      <button
+        v-if="devTools && alipayRechargeEnabled"
+        class="btn-alipay"
+        :disabled="!selectedAmount || loading"
+        :loading="loading"
+        @click="onAlipayRecharge"
+      >
+        {{
+          loading
+            ? '处理中…'
+            : selectedAmount
+              ? `${alipayPayLive ? '支付宝沙箱' : '支付宝模拟充值'} ${fmtMoney(selectedAmount)}`
+              : alipayPayLive
+                ? '支付宝沙箱'
+                : '支付宝模拟充值'
+        }}
+      </button>
 
-    <button class="btn-back" hover-class="btn-hover" @click="goBack">返回我的</button>
-
-    <view class="recharge-list">
-      <view class="section-head">
-        <text class="section-title">充值记录</text>
-        <text v-if="pendingCount" class="cleanup" @click="cancelPendings"
-          >清理 {{ pendingCount }} 笔待支付</text
+      <view
+        v-if="!wechatPayLive && !wechatRechargeEnabled && !(devTools && mockEnabled)"
+        class="channel-hint"
+      >
+        <text>暂未开通在线充值，请联系现场运营或开通微信支付分后免密开门。</text>
+      </view>
+      <view v-else-if="devTools" class="channel-hint">
+        <text v-if="paymentModeHint">{{ paymentModeHint }}</text>
+        <text v-else-if="wechatPayLive">已配置真实微信商户。</text>
+        <text v-else-if="wechatRechargeEnabled">开发：微信通道为 mock 即时到账。</text>
+        <text v-if="mockEnabled"> 模拟到账仅本地联调。</text>
+        <text v-if="alipayRechargeEnabled && alipayPayLive"> 支付宝沙箱可跳转收银台。</text>
+        <text v-else-if="alipayRechargeEnabled">
+          支付宝 mock 与微信一致，一键到账（无需进件）。</text
         >
       </view>
-      <view v-if="recordsLoading" class="empty">加载中…</view>
-      <empty-state
-        v-else-if="!visibleRecords.length"
-        compact
-        title="暂无充值记录"
-        hint="充值成功后，到账明细会出现在这里"
-      />
-      <view v-for="r in visibleRecords" :key="r.orderId" class="record-row">
-        <view>
-          <text class="record-amount">{{ fmtMoney(r.amountCents || 0) }}</text>
-          <view class="record-meta">
-            <text class="record-channel">{{ channelText(r.channel) }}</text>
-            <text class="record-id">{{ shortBizNo(r.orderId) }}</text>
-            <text class="record-time">{{ formatTime(r.createdAt) }}</text>
-          </view>
-        </view>
-        <view class="record-right">
-          <text class="record-status" :class="r.status">{{ statusText(r.status) }}</text>
-          <text v-if="r.status === 'PENDING'" class="cancel-link" @click="cancelOne(r.orderId)"
-            >取消</text
+      <view v-else class="channel-hint">
+        <text>余额可用于未开通免密时的开门兜底；推荐优先开通微信支付分。</text>
+      </view>
+
+      <button class="btn-back" hover-class="btn-hover" @click="goBack">返回我的</button>
+
+      <view class="recharge-list">
+        <view class="section-head">
+          <text class="section-title">充值记录</text>
+          <text v-if="pendingCount" class="cleanup" @click="cancelPendings"
+            >清理 {{ pendingCount }} 笔待支付</text
           >
         </view>
+        <view v-if="recordsLoading" class="empty">加载中…</view>
+        <empty-state
+          v-else-if="!visibleRecords.length"
+          compact
+          title="暂无充值记录"
+          hint="充值成功后，到账明细会出现在这里"
+        />
+        <view v-for="r in visibleRecords" :key="r.orderId" class="record-row">
+          <view>
+            <text class="record-amount">{{ fmtMoney(r.amountCents || 0) }}</text>
+            <view class="record-meta">
+              <text class="record-channel">{{ channelText(r.channel) }}</text>
+              <text class="record-id">{{ shortBizNo(r.orderId) }}</text>
+              <text class="record-time">{{ formatTime(r.createdAt) }}</text>
+            </view>
+          </view>
+          <view class="record-right">
+            <text class="record-status" :class="r.status">{{ statusText(r.status) }}</text>
+            <text v-if="r.status === 'PENDING'" class="cancel-link" @click="cancelOne(r.orderId)"
+              >取消</text
+            >
+          </view>
+        </view>
       </view>
-    </view>
 
-    <view v-if="devTools" class="note">开发提示：模拟到账 / 沙箱不会产生生产扣款。</view>
+      <view v-if="devTools" class="note">开发提示：模拟到账 / 沙箱不会产生生产扣款。</view>
     </view>
   </view>
 </template>
@@ -138,11 +144,7 @@ import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
-import {
-  shortBizNo,
-  formatDateTimeMinute,
-  fmtMoney
-} from '@aicabinet/shared-uni/format';
+import { shortBizNo, formatDateTimeMinute, fmtMoney } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import type { PageResult, RechargeOrderDto } from '@aicabinet/shared-types';
 import {

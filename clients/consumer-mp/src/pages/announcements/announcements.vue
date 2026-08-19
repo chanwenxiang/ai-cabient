@@ -2,40 +2,40 @@
   <view class="page page-root">
     <app-nav-bar title="通知公告" />
     <view class="page-body">
-    <view v-if="loading" class="state">加载中…</view>
-    <view v-else-if="error" class="state">
-      <text class="err">{{ error }}</text>
-      <button class="retry" size="mini" @click="load">重试</button>
-    </view>
-    <empty-state
-      v-else-if="!list.length"
-      icon="/static/menu/notice.png"
-      title="暂无通知公告"
-      hint="平台维护、活动与规则变更会在这里发布"
-    />
-    <view v-else class="list">
-      <view
-        v-for="item in list"
-        :key="item.announceId"
-        class="card"
-        hover-class="card-hover"
-        @click="goDetail(item.announceId)"
-      >
-        <view class="card-head">
-          <text
-            v-if="priorityLabel(item.priority)"
-            class="tag"
-            :class="priorityClass(item.priority)"
-          >
-            {{ priorityLabel(item.priority) }}
-          </text>
-          <text v-if="unread(item.announceId)" class="unread-dot" aria-label="未读">新</text>
-          <text class="time">{{ formatTime(item.publishAt) }}</text>
-        </view>
-        <text class="title">{{ item.title }}</text>
-        <text class="preview">{{ previewText(item.content) }}</text>
+      <view v-if="loading" class="state">加载中…</view>
+      <view v-else-if="error" class="state">
+        <text class="err">{{ error }}</text>
+        <button class="retry" size="mini" @click="load">重试</button>
       </view>
-    </view>
+      <empty-state
+        v-else-if="!list.length"
+        icon="/static/menu/notice.png"
+        title="暂无通知公告"
+        hint="平台维护、活动与规则变更会在这里发布"
+      />
+      <view v-else class="list">
+        <view
+          v-for="item in list"
+          :key="item.announceId"
+          class="card"
+          hover-class="card-hover"
+          @click="goDetail(item.announceId)"
+        >
+          <view class="card-head">
+            <text
+              v-if="priorityLabel(item.priority)"
+              class="tag"
+              :class="priorityClass(item.priority)"
+            >
+              {{ priorityLabel(item.priority) }}
+            </text>
+            <text v-if="unread(item.announceId)" class="unread-dot" aria-label="未读">新</text>
+            <text class="time">{{ formatTime(item.publishAt) }}</text>
+          </view>
+          <text class="title">{{ item.title }}</text>
+          <text class="preview">{{ previewText(item.content) }}</text>
+        </view>
+      </view>
     </view>
   </view>
 </template>

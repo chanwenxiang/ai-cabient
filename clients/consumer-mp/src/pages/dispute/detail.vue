@@ -138,7 +138,7 @@ onLoad((opts) => {
 
 onShow(() => {
   // 同页不同 query 跳转时 onLoad 不一定重跑；空 query 不得冲掉已有单号
-  applyQuery({ ...readHashQuery(), ...(currentPageOptions()) });
+  applyQuery({ ...readHashQuery(), ...currentPageOptions() });
   if (!ticketId.value && !sessionId.value) return;
   void bootstrap();
   loadServicePhone();

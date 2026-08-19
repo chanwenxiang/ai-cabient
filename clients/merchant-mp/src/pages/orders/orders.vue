@@ -2,107 +2,107 @@
   <view class="page-root">
     <app-nav-bar title="柜机订单" />
     <view class="page-body">
-    <view v-if="loading" class="loading"><text>加载中…</text></view>
-    <view v-else-if="error" class="empty">
-      <text class="err">{{ error }}</text>
-      <button class="retry" @click="load">重试</button>
-    </view>
-    <empty-state
-      v-else-if="!list.length"
-      icon="/static/menu/orders.png"
-      title="暂无柜机订单"
-      hint="有成交后会显示在这里"
-    />
-    <view v-else>
-      <view class="filter-panel">
-        <input
-          v-model="keyword"
-          class="search-input"
-          placeholder="订单号 / 柜机 / 会话"
-          confirm-type="search"
-          aria-label="搜索订单"
-          @confirm="applySearch"
-        />
-        <button v-if="canExport" class="export-btn" :disabled="exporting" @click="exportOrders">
-          {{ exporting ? '导出中…' : '导出' }}
-        </button>
-        <view class="filter-row">
-          <text
-            v-for="s in statusOptions"
-            :key="s.value"
-            class="filter-chip"
-            :class="{ active: status === s.value }"
-            @click="setStatus(s.value)"
-            >{{ s.label }}</text
-          >
-        </view>
-        <view class="filter-row">
-          <picker
-            :range="deviceOptions"
-            range-key="label"
-            :value="deviceIndex"
-            @change="onDeviceChange"
-          >
-            <view class="filter-picker">{{ deviceLabel }}</view>
-          </picker>
-          <text
-            v-for="t in timeOptions"
-            :key="t.value"
-            class="filter-chip"
-            :class="{ active: timeRange === t.value }"
-            @click="setTime(t.value)"
-            >{{ t.label }}</text
-          >
-          <text class="filter-reset" @click="resetFilters">重置</text>
-        </view>
+      <view v-if="loading" class="loading"><text>加载中…</text></view>
+      <view v-else-if="error" class="empty">
+        <text class="err">{{ error }}</text>
+        <button class="retry" @click="load">重试</button>
       </view>
-      <view
-        v-for="item in list"
-        :key="item.orderId"
-        class="card"
-        hover-class="card-hover"
-        role="button"
-        :aria-label="`订单 ${shortId(item.orderId)} ${statusText(item.status)} ${money(item.totalAmountCents)}`"
-        @click="onDetail(item)"
-      >
-        <view class="card-header">
-          <text class="card-id">{{ shortId(item.orderId) }}</text>
-          <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
-        </view>
-        <view class="card-main">
-          <image
-            class="card-thumb"
-            :src="skuImageFor('', '', item.lineSummary)"
-            mode="aspectFill"
-            aria-hidden="true"
+      <empty-state
+        v-else-if="!list.length"
+        icon="/static/menu/orders.png"
+        title="暂无柜机订单"
+        hint="有成交后会显示在这里"
+      />
+      <view v-else>
+        <view class="filter-panel">
+          <input
+            v-model="keyword"
+            class="search-input"
+            placeholder="订单号 / 柜机 / 会话"
+            confirm-type="search"
+            aria-label="搜索订单"
+            @confirm="applySearch"
           />
-          <view class="card-copy">
-            <text class="card-goods">{{ lineSummaryText(item) }}</text>
-            <text class="card-meta">
-              {{ emptyDisplay(item.deviceId, 'device') }} · {{ item.lineCount || 0 }} 件 ·
-              {{ channelText(item.payChannel) }}
-            </text>
-            <text v-if="Number(item.couponDiscountCents || 0) > 0" class="card-discount"
-              >券 -¥{{ ((item.couponDiscountCents || 0) / 100).toFixed(2) }}</text
+          <button v-if="canExport" class="export-btn" :disabled="exporting" @click="exportOrders">
+            {{ exporting ? '导出中…' : '导出' }}
+          </button>
+          <view class="filter-row">
+            <text
+              v-for="s in statusOptions"
+              :key="s.value"
+              class="filter-chip"
+              :class="{ active: status === s.value }"
+              @click="setStatus(s.value)"
+              >{{ s.label }}</text
             >
-            <text class="card-time">{{ formatTime(item.createdAt) }}</text>
           </view>
-          <text class="card-amount">{{ money(item.totalAmountCents) }}</text>
+          <view class="filter-row">
+            <picker
+              :range="deviceOptions"
+              range-key="label"
+              :value="deviceIndex"
+              @change="onDeviceChange"
+            >
+              <view class="filter-picker">{{ deviceLabel }}</view>
+            </picker>
+            <text
+              v-for="t in timeOptions"
+              :key="t.value"
+              class="filter-chip"
+              :class="{ active: timeRange === t.value }"
+              @click="setTime(t.value)"
+              >{{ t.label }}</text
+            >
+            <text class="filter-reset" @click="resetFilters">重置</text>
+          </view>
         </view>
+        <view
+          v-for="item in list"
+          :key="item.orderId"
+          class="card"
+          hover-class="card-hover"
+          role="button"
+          :aria-label="`订单 ${shortId(item.orderId)} ${statusText(item.status)} ${money(item.totalAmountCents)}`"
+          @click="onDetail(item)"
+        >
+          <view class="card-header">
+            <text class="card-id">{{ shortId(item.orderId) }}</text>
+            <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
+          </view>
+          <view class="card-main">
+            <image
+              class="card-thumb"
+              :src="skuImageFor('', '', item.lineSummary)"
+              mode="aspectFill"
+              aria-hidden="true"
+            />
+            <view class="card-copy">
+              <text class="card-goods">{{ lineSummaryText(item) }}</text>
+              <text class="card-meta">
+                {{ emptyDisplay(item.deviceId, 'device') }} · {{ item.lineCount || 0 }} 件 ·
+                {{ channelText(item.payChannel) }}
+              </text>
+              <text v-if="Number(item.couponDiscountCents || 0) > 0" class="card-discount"
+                >券 -¥{{ ((item.couponDiscountCents || 0) / 100).toFixed(2) }}</text
+              >
+              <text class="card-time">{{ formatTime(item.createdAt) }}</text>
+            </view>
+            <text class="card-amount">{{ money(item.totalAmountCents) }}</text>
+          </view>
+        </view>
+        <view
+          v-if="hasMore"
+          class="load-more"
+          role="button"
+          aria-label="加载更多订单"
+          @click="loadMore"
+        >
+          {{ loadingMore ? '加载中…' : `加载更多（已显示 ${list.length}/${listTotal}）` }}
+        </view>
+        <text v-else-if="listTruncated" class="trunc-hint">共 {{ listTotal }} 条，已全部加载</text>
       </view>
-      <view
-        v-if="hasMore"
-        class="load-more"
-        role="button"
-        aria-label="加载更多订单"
-        @click="loadMore"
-      >
-        {{ loadingMore ? '加载中…' : `加载更多（已显示 ${list.length}/${listTotal}）` }}
-      </view>
-      <text v-else-if="listTruncated" class="trunc-hint">共 {{ listTotal }} 条，已全部加载</text>
-    </view>
-  
-    </view></view>
+    </view></view
+  >
 </template>
 
 <script setup lang="ts">

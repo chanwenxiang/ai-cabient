@@ -323,7 +323,9 @@
             show-overflow-tooltip
           >
             <template #default="{ row }">
-              <span v-if="row.activeSessionId" class="mono">{{ displayBizNo(row.activeSessionId) }}</span>
+              <span v-if="row.activeSessionId" class="mono">{{
+                displayBizNo(row.activeSessionId)
+              }}</span>
               <span v-else class="muted">无</span>
             </template>
           </el-table-column>
@@ -475,10 +477,7 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { DeviceInfo, PageResult } from '@aicabinet/shared-types';
-import {
-  displayBizNo,
-  formatDateTime
-} from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
 type BoardTab = 'ALL' | 'ONLINE' | 'OFFLINE' | 'ON_SALE' | 'LOCKED';

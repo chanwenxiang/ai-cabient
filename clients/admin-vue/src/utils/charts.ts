@@ -183,12 +183,7 @@ export function buildSeriesChart(opts: {
   height?: number;
   formatY?: (v: number) => string;
 }): string {
-  const {
-    labels,
-    kind = 'line',
-    height = 240,
-    formatY = (v) => String(Math.round(v))
-  } = opts;
+  const { labels, kind = 'line', height = 240, formatY = (v) => String(Math.round(v)) } = opts;
   const series = opts.series.map((s) => ({ ...s, color: safeCssColor(s.color) }));
   if (!labels.length || !series.length) return '';
 
@@ -388,13 +383,15 @@ function escapeXml(v: string | number): string {
 export function sanitizeChartSvg(raw: string): string {
   const s = String(raw || '').trim();
   if (!s.startsWith('<svg')) return '';
-  return s
-    .replace(/<script\b[\s\S]*?<\/script>/gi, '')
-    .replace(/<\/?(?:foreignObject|iframe|object|embed|link|meta|base)\b[^>]*>/gi, '')
-    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    // 仅保留页内锚点 href；外链 / javascript / data URI 一并去掉
-    .replace(/\s(?:href|xlink:href)\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*')/gi, '')
-    .replace(/javascript:/gi, '');
+  return (
+    s
+      .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+      .replace(/<\/?(?:foreignObject|iframe|object|embed|link|meta|base)\b[^>]*>/gi, '')
+      .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+      // 仅保留页内锚点 href；外链 / javascript / data URI 一并去掉
+      .replace(/\s(?:href|xlink:href)\s*=\s*("(?!#)[^"]*"|'(?!#)[^']*')/gi, '')
+      .replace(/javascript:/gi, '')
+  );
 }
 
 /** 仅允许 CSS 颜色字面量进入 SVG 属性，防止色值里夹带引号/表达式。 */
