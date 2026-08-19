@@ -1054,7 +1054,9 @@ function classifyKeyword(raw: string): { orderId?: string; sessionId?: string; d
   const v = raw.trim();
   if (!v) return {};
   if (/^O/i.test(v)) return { orderId: v };
-  if (/^S/i.test(v)) return { sessionId: v };
+  // 会话号：历史 S 前缀，或雪花数字（看板关联里常见）
+  if (/^S/i.test(v) || /^\d{10,}$/.test(v)) return { sessionId: v };
+  // 设备号多含字母/短横线（如 CAB-001）
   return { deviceId: v };
 }
 
@@ -1066,6 +1068,8 @@ function syncRouteQuery() {
     query.reviewCode = reviewCodeTab.value;
   }
   if (keyword.value.trim()) query.keyword = keyword.value.trim();
+  // 看板深链工单号：tab 变更触发的 replace 不得冲掉，否则详情无法自动打开
+  if (focusDisputeId.value) query.ticketId = focusDisputeId.value;
   router.replace({ query });
 }
 
@@ -1111,13 +1115,23 @@ async function load(showToast = false) {
     );
     items.value = sortById(data.items || [], 'ticketId');
     total.value = data.total || 0;
-    clearSelection();
-    if (focusDisputeId.value && !detailVisible.value) {
-      const hit = items.value.find(
-        (it) => String(it.ticketId ?? '') === String(focusDisputeId.value)
-      );
-      if (hit) openDetail(hit);
+    // 关键词若是工单号（雪花）被当成 sessionId 会空；回退按 ticketId 拉详情
+    if (!items.value.length && /^\d{10,}$/.test(keyword.value.trim())) {
+      try {
+        const byTicket = await api.request<DisputeTicketDto>(
+          `/api/v2/ops/disputes/${encodeURIComponent(keyword.value.trim())}`,
+          'GET'
+        );
+        if (byTicket?.ticketId) {
+          items.value = [byTicket];
+          total.value = 1;
+        }
+      } catch {
+        /* 非工单号则保持空列表 */
+      }
     }
+    clearSelection();
+    await openFocusedTicket();
     if (showToast) ElMessage.success('已刷新');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
@@ -1148,8 +1162,24 @@ function reset() {
   load(false);
 }
 
+/** 看板/深链带入筛选时，清掉本地粘住的分拣 tab，避免 MOCK 把 EMPTY 工单滤没 */
+function hasInboundDeepLink() {
+  return (
+    typeof route.query.status === 'string' ||
+    typeof route.query.sessionId === 'string' ||
+    typeof route.query.ticketId === 'string' ||
+    typeof route.query.disputeId === 'string' ||
+    typeof route.query.keyword === 'string' ||
+    typeof route.query.orderId === 'string' ||
+    typeof route.query.deviceId === 'string' ||
+    typeof route.query.category === 'string' ||
+    typeof route.query.reviewCode === 'string'
+  );
+}
+
 function applyRouteQuery() {
   let changed = false;
+  const inbound = hasInboundDeepLink();
   const allowedStatus = new Set(['OPEN', 'RESOLVED', 'CLOSED']);
   if (typeof route.query.status === 'string' && route.query.status) {
     const next = route.query.status.trim().toUpperCase();
@@ -1164,6 +1194,9 @@ function applyRouteQuery() {
       categoryTab.value = next === 'RECOGNITION' ? 'RECOGNITION' : next === 'ALL' ? 'ALL' : next;
       changed = true;
     }
+  } else if (inbound && categoryTab.value !== 'ALL') {
+    categoryTab.value = 'ALL';
+    changed = true;
   }
   if (typeof route.query.reviewCode === 'string') {
     const next = route.query.reviewCode || 'ALL';
@@ -1172,8 +1205,9 @@ function applyRouteQuery() {
       if (next !== 'ALL') categoryTab.value = 'RECOGNITION';
       changed = true;
     }
-  } else if (reviewCodeTab.value !== 'ALL' && !route.query.reviewCode) {
-    // keep
+  } else if (inbound && reviewCodeTab.value !== 'ALL') {
+    reviewCodeTab.value = 'ALL';
+    changed = true;
   }
   const routeKeyword =
     typeof route.query.keyword === 'string'
@@ -1189,16 +1223,35 @@ function applyRouteQuery() {
     keyword.value = routeKeyword;
     changed = true;
   }
-  if (typeof route.query.disputeId === 'string') {
-    if (route.query.disputeId !== focusDisputeId.value) {
-      focusDisputeId.value = route.query.disputeId;
-      changed = true;
-    }
-  } else if (focusDisputeId.value) {
-    focusDisputeId.value = '';
+  const focusId =
+    typeof route.query.ticketId === 'string'
+      ? route.query.ticketId
+      : typeof route.query.disputeId === 'string'
+        ? route.query.disputeId
+        : '';
+  if (focusId !== focusDisputeId.value) {
+    focusDisputeId.value = focusId;
     changed = true;
   }
   return changed;
+}
+
+async function openFocusedTicket() {
+  if (!focusDisputeId.value || detailVisible.value) return;
+  let row = items.value.find(
+    (it) => String(it.ticketId ?? '') === String(focusDisputeId.value)
+  );
+  if (!row) {
+    try {
+      row = await api.request<DisputeTicketDto>(
+        `/api/v2/ops/disputes/${encodeURIComponent(focusDisputeId.value)}`,
+        'GET'
+      );
+    } catch {
+      row = undefined;
+    }
+  }
+  if (row) openDetail(row);
 }
 
 async function reloadFromRouteQuery() {
@@ -1217,7 +1270,8 @@ watch(
       route.query.sessionId,
       route.query.deviceId,
       route.query.orderId,
-      route.query.ticketId
+      route.query.ticketId,
+      route.query.disputeId
     ] as const,
   () => {
     void reloadFromRouteQuery();
@@ -1229,7 +1283,11 @@ onActivated(async () => {
   selected.value = null;
   resolveFeedback.value = null;
   clearEmbedVideo();
-  await reloadFromRouteQuery();
+  // keep-alive 复用时必须按本次 query 重置分拣 tab，再拉列表
+  applyRouteQuery();
+  page.value = 1;
+  await load(false);
+  await openFocusedTicket();
 });
 onDeactivated(() => {
   detailVisible.value = false;
@@ -1240,21 +1298,7 @@ onMounted(async () => {
   applyRouteQuery();
   syncRouteQuery();
   await load(false);
-  const ticketId = route.query.ticketId;
-  if (typeof ticketId === 'string' && ticketId) {
-    let row = items.value.find((t) => t.ticketId === ticketId);
-    if (!row) {
-      try {
-        row = await api.request<DisputeTicketDto>(
-          `/api/v2/ops/disputes/${encodeURIComponent(ticketId)}`,
-          'GET'
-        );
-      } catch {
-        row = undefined;
-      }
-    }
-    if (row) openDetail(row);
-  }
+  await openFocusedTicket();
 });
 </script>
 
