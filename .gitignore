@@ -127,3 +127,9 @@ vision-service/cache/videos/
 *.lck
 data/mqtt-paho/
 edge/device-simulator/sim-*/
+
+# Local scratch / leaked tokens / unpack leftovers
+.tmp/
+.tmp-*.png
+BOOT-INF/
+clients/admin-vue/eyJhbGciOiJIUzI1NiJ9.*
