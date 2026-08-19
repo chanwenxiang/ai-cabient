@@ -137,7 +137,9 @@
         <text>任务 #{{ task.taskId }}</text>
         <text>{{ formatTime(task.createdAt) }}</text>
       </view>
-      <view v-if="task.notes" class="task-note">{{ task.notes }}</view>
+      <view v-if="displayTaskNotes(task.notes)" class="task-note">{{
+        displayTaskNotes(task.notes)
+      }}</view>
       <view class="detail-btn">
         {{ taskActionLabel(task) }}
       </view>
@@ -547,7 +549,27 @@ function lineStatusLabel(line: Line) {
 }
 
 function taskLooksPullOff(task: Task) {
-  return /from-expiry|PULL_OFF|下架/i.test(String(task.notes || ''));
+  return /from-expiry|PULL_OFF|下架|临期/i.test(String(task.notes || ''));
+}
+
+/** 机器备注转可读文案；seq=/dist= 等内部字段不展示 */
+function displayTaskNotes(notes?: string): string {
+  const raw = String(notes || '').trim();
+  if (!raw) return '';
+  if (/from-expiry|NEAR_EXPIRY/i.test(raw)) return '临期商品下架';
+  if (/PULL_OFF/i.test(raw) && !/[\u4e00-\u9fff]/.test(raw)) return '下架任务';
+  const cleaned = raw
+    .replace(/from-expiry:\d+/gi, '')
+    .replace(/\bNEAR_EXPIRY\b/gi, '')
+    .replace(/\bPULL_OFF\b/gi, '')
+    .replace(/\bseq=\d+\b/gi, '')
+    .replace(/\bdist=\d+m?\b/gi, '')
+    .replace(/[|;,]+/g, ' ')
+    .trim();
+  if (!cleaned) return '';
+  // 仍是纯机器键值则隐藏
+  if (!/[\u4e00-\u9fff]/.test(cleaned) && /^[\w:=\-.\s]+$/.test(cleaned)) return '';
+  return cleaned;
 }
 
 function taskActionLabel(task: Task) {

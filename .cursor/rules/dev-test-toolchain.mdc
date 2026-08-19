@@ -1,0 +1,32 @@
+---
+description: 开发/测试/审查工具链 — Skill 与 MCP 路由（与 ai-cabinet-dev-test 对齐）
+alwaysApply: true
+---
+
+# 开发与测试工具链
+
+写代码、改 UI、联调、审查、提交前：**先读** `.cursor/skills/ai-cabinet-dev-test/SKILL.md`。
+
+## 四类免费工具（每类一个）
+
+| 类别 | Skill | 何时用 |
+|------|-------|--------|
+| 安全扫描 | `security-scan` | 改鉴权/API/登录/支付；提交前 |
+| 代码质量 | `code-review` | 大 diff、PR、提交前 |
+| UI 测试 | `browser-real-testing` | 后台/H5 可见改动、验收 |
+| UI 规范 | `web-design-guidelines`（仅项目级，勿 `-g`） | 页面/a11y/表单/动效审查 |
+
+## MCP（与 Skill 配合）
+
+- **cursor-ide-browser**：唯一允许的 UI 自动化（禁止 Playwright MCP）
+- **Context7**：库/框架 API 文档
+- **fetch**：拉外部规范页
+- **Sentry / GitHub**：线上问题、PR
+
+## 执行顺序
+
+```
+ai-cabinet-dev-test → 命中 skill → MCP 取事实 → 改代码 → browser/测试验证 → verification-before-completion
+```
+
+项目其它规则（project-core、builtin-browser-only）优先于通用 skill 中的 Playwright 类建议。

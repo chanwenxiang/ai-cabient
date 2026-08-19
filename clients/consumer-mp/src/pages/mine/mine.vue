@@ -1,32 +1,28 @@
 <template>
   <view class="mine-page">
     <view class="profile-header" :style="headerPadStyle">
-      <text class="mine-title">我的</text>
       <view class="profile-main">
         <view class="profile-orb orb-a" /><view class="profile-orb orb-b" />
         <view class="avatar">{{ avatarText }}</view>
-        <view class="profile-info">
-          <view class="profile-line">
-            <text class="hello">{{ authed ? displayName : '未登录' }}</text>
-            <template v-if="authed">
-              <text class="line-dot">·</text>
-              <text class="balance-label">可用</text>
-              <text class="balance-number">{{ balanceYuan }}</text>
-              <view class="tags">
-                <text class="tag" :class="verified ? 'ok' : 'warn'">{{
-                  verified ? '已实名' : '待实名'
-                }}</text>
-                <text class="tag" :class="payReady ? 'ok' : 'warn'">{{
-                  payReady ? '可开门' : '待开通支付'
-                }}</text>
-              </view>
-              <text class="balance-action" @click="goRecharge">充值 ›</text>
-            </template>
+        <view class="profile-mid">
+          <text class="hello">{{ authed ? displayName : '未登录' }}</text>
+          <view v-if="authed" class="tags">
+            <text class="tag" :class="verified ? 'ok' : 'warn'">{{
+              verified ? '已实名' : '待实名'
+            }}</text>
+            <text class="tag" :class="payReady ? 'ok' : 'warn'">{{
+              payReady ? '可开门' : '待开通支付'
+            }}</text>
           </view>
-          <text v-if="authed && frozenYuan !== '¥0.00'" class="guest-hint"
-            >冻结 {{ frozenYuan }} · 总余额 {{ totalBalanceYuan }}</text
+          <text v-else class="guest-hint">登录后可查看订单与余额</text>
+        </view>
+        <view v-if="authed" class="balance-side">
+          <text class="balance-label">可用余额</text>
+          <text class="balance-number">{{ balanceYuan }}</text>
+          <text v-if="frozenYuan !== '¥0.00'" class="balance-meta"
+            >冻结 {{ frozenYuan }}</text
           >
-          <text v-else-if="!authed" class="guest-hint">登录后可查看订单与余额</text>
+          <text class="balance-action" @click="goRecharge">充值</text>
         </view>
       </view>
     </view>
@@ -270,12 +266,13 @@
 import { onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import type { AccountDto, BalanceTransactionDto } from '@aicabinet/shared-types';
-import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
+import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import {
   clearConsumerSession,
   consumerApi,
   ensureConsumerAuth,
-  getConsumerToken
+  getConsumerToken,
+  markConsumerExplicitLogout
 } from '@/utils/consumer-api';
 import { formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
 import { menuIcon } from '@/utils/menu-icon';
@@ -293,9 +290,9 @@ import {
   showDevTools
 } from '@/utils/runtime-flags';
 
-/** 自定义顶栏：状态栏占位 + 标题与资料区合成一块，避免系统头与绿头叠层 */
+/** 内容从胶囊下方开始，右侧余额/充值才不会顶到胶囊 */
 const headerPadStyle = {
-  paddingTop: getStatusBarPadPx() + 8 + 'px'
+  paddingTop: getBelowCapsulePadPx(8) + 'px'
 };
 
 const devTools = showDevTools();
@@ -319,7 +316,6 @@ const preauthCents = computed(() =>
   resolveClientPreauthCents({ configPreauthCents: configPreauthCents.value })
 );
 const frozenYuan = computed(() => fmtMoney(Math.max(0, account.value?.frozenCents || 0)));
-const totalBalanceYuan = computed(() => fmtMoney(account.value?.balanceCents || 0));
 const verified = computed(() => !!account.value?.verified);
 const payReady = computed(() => isPayReady(account.value, null, preauthCents.value));
 const needsSetup = computed(() => !verified.value || !payReady.value);
@@ -613,6 +609,7 @@ function onLogout() {
     success(res) {
       if (!res.confirm) return;
       clearConsumerSession();
+      markConsumerExplicitLogout();
       authed.value = false;
       account.value = null;
       balanceYuan.value = '--';
@@ -636,32 +633,28 @@ function onLogout() {
   position: relative;
   overflow: hidden;
   margin: 0;
-  padding: 8rpx 24rpx 28rpx;
+  padding: 0;
   border-radius: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 12rpx;
   width: 100%;
   box-sizing: border-box;
   background: linear-gradient(145deg, var(--brand-deep, #064e3b) 0%, var(--brand, #047857) 100%);
   box-shadow: none;
   color: #fff;
 }
-.mine-title {
-  display: block;
-  text-align: center;
-  font-size: 34rpx;
-  font-weight: 600;
-  line-height: 48px;
-  letter-spacing: 0.02em;
-}
 .profile-main {
   position: relative;
   display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
   align-items: center;
-  gap: 16rpx;
+  gap: 20rpx;
   z-index: 1;
+  padding: 12rpx 28rpx 36rpx;
+  box-sizing: border-box;
+  width: 100%;
 }
 .profile-orb {
   position: absolute;
@@ -684,85 +677,102 @@ function onLogout() {
 }
 .avatar {
   position: relative;
-  width: 72rpx;
-  height: 72rpx;
+  width: 128rpx;
+  height: 128rpx;
   border-radius: 50%;
-  border: 2rpx solid rgba(255, 255, 255, 0.35);
+  border: 3rpx solid rgba(255, 255, 255, 0.4);
   background: rgba(255, 255, 255, 0.18);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 30rpx;
+  font-size: 48rpx;
+  font-weight: 700;
   flex-shrink: 0;
+  z-index: 1;
 }
-.profile-info {
+.profile-mid {
   position: relative;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
-}
-.profile-line {
-  display: flex;
-  align-items: center;
-  flex-wrap: nowrap;
-  gap: 8rpx;
-  min-width: 0;
+  z-index: 1;
+  overflow: hidden;
 }
 .hello {
-  flex-shrink: 0;
-  font-size: 28rpx;
+  display: block;
+  font-size: 32rpx;
   font-weight: 700;
-  max-width: 28%;
+  line-height: 1.25;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.line-dot {
-  flex-shrink: 0;
-  font-size: 22rpx;
-  opacity: 0.55;
-}
 .guest-hint {
   display: block;
-  margin-top: 6rpx;
+  margin-top: 10rpx;
   font-size: 22rpx;
-  opacity: 0.88;
+  opacity: 0.82;
+  line-height: 1.35;
+}
+.balance-side {
+  position: relative;
+  flex: 0 0 auto;
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1;
+  min-width: 180rpx;
 }
 .balance-label {
-  flex-shrink: 0;
   font-size: 22rpx;
   opacity: 0.72;
+  letter-spacing: 0.5rpx;
+  text-align: right;
 }
 .balance-number {
-  flex-shrink: 0;
-  font-size: 30rpx;
+  margin-top: 4rpx;
+  font-size: 40rpx;
   font-weight: 800;
   letter-spacing: -1rpx;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+.balance-meta {
+  margin-top: 4rpx;
+  font-size: 20rpx;
+  opacity: 0.72;
+  text-align: right;
 }
 .balance-action {
-  flex-shrink: 0;
-  margin-left: auto;
-  padding-left: 8rpx;
+  margin-top: 12rpx;
+  padding: 8rpx 22rpx;
+  border-radius: 999rpx;
   font-size: 22rpx;
-  opacity: 0.9;
+  font-weight: 600;
+  color: #064e3b;
+  background: rgba(255, 255, 255, 0.92);
+  text-align: center;
 }
 .tags {
   display: flex;
   align-items: center;
-  gap: 6rpx;
-  min-width: 0;
-  flex-shrink: 1;
-  overflow: hidden;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-top: 12rpx;
 }
 .tag {
   flex-shrink: 0;
-  font-size: 18rpx;
-  padding: 2rpx 10rpx;
+  font-size: 20rpx;
+  padding: 4rpx 12rpx;
   border-radius: 999rpx;
   background: rgba(255, 255, 255, 0.2);
   white-space: nowrap;
 }
 .tag.ok {
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.32);
 }
 .tag.warn {
   background: #ecfdf5;

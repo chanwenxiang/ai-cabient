@@ -196,13 +196,17 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
       MINIO_BUCKET: ${MINIO_BUCKET:-cabinet-videos}
-      # 本地全流程演示保留足够的取货观察时间；真实硬件以用户实际关门事件为准。
-      AICABINET_SIM_SHOPPING_MS: "${AICABINET_SIM_SHOPPING_MS:-20000}"
+      # 0 = 开门后不自动关门，由小程序点选后「关门结算」；E2E 脚本会显式覆盖秒数。
+      AICABINET_SIM_SHOPPING_MS: "${AICABINET_SIM_SHOPPING_MS:-0}"
       AICABINET_SIM_GRAVITY_JSON: "${AICABINET_SIM_GRAVITY_JSON:-[]}"
       AICABINET_SIM_GRAVITY_SKU: "${AICABINET_SIM_GRAVITY_SKU:-}"
       AICABINET_SIM_GRAVITY_SLOT: A1
+      # 测试关门页：http://localhost:${AICABINET_SIM_HTTP_PORT:-18089}/ （SHOPPING_MS=0 时点按钮关门）
+      AICABINET_SIM_HTTP_PORT: "18089"
       # 顶摄测试图/视频上传 MinIO，供 vision-service 真实 YOLO 识别
       AICABINET_SIM_VIDEO_FILE: "${AICABINET_SIM_VIDEO_FILE:-/testdata/bottle.jpg}"
+    ports:
+      - "${AICABINET_SIM_HTTP_PORT:-18089}:18089"
     volumes:
       - ../testdata:/testdata:ro
     depends_on:

@@ -1,6 +1,6 @@
 ﻿<template>
   <view class="page">
-    <app-nav-bar title="条款说明" />
+    <app-nav-bar :title="navTitle" />
     <view class="page-body">
     <view class="policy-card">
       <text class="policy-updated">更新日期：2026-08-08</text>
@@ -172,11 +172,10 @@ const CONTENTS: Record<PolicyType, PolicySection[]> = {
 };
 
 const sections = computed(() => CONTENTS[type.value] || CONTENTS.agreement);
+const navTitle = computed(() => TITLES[type.value] || TITLES.agreement);
 
 onLoad((query) => {
   routeType.value = String(query?.type || 'agreement');
-  const title = TITLES[type.value] || TITLES.agreement;
-  uni.setNavigationBarTitle({ title });
 });
 </script>
 

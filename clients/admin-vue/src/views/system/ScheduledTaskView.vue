@@ -5,7 +5,9 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">定时任务</span>
-            <span class="hint">任务启停即时生效；手动触发走分布式锁，集群下单实例执行</span>
+            <span class="hint"
+              >启停即时生效；点「立即执行」后看本表「最近执行 / 最近结果说明」两列（不是另开页面）</span
+            >
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -290,14 +292,16 @@ async function onRun(row: ScheduledTaskRow) {
   }
   runningKey.value = row.taskKey;
   try {
-    const res = await api.request<{ result: string; message: string }>(
-      `/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/run`,
-      'POST'
-    );
+    const res = await api.request<{
+      result: string;
+      message: string;
+      lastMessage?: string;
+      lastDurationMs?: number;
+    }>(`/api/v2/ops/admin/scheduled-tasks/${encodeURIComponent(row.taskKey)}/run`, 'POST');
     if (res?.result === 'SKIPPED') {
       ElMessage.warning(res.message || '任务已跳过');
     } else {
-      ElMessage.success(res?.message || '已触发执行');
+      ElMessage.success(res?.message || '已执行，请看「最近执行 / 最近结果说明」列');
     }
     await load();
   } catch (e: any) {

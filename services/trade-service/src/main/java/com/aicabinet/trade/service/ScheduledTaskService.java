@@ -40,6 +40,11 @@ public class ScheduledTaskService {
     }
 
     @Transactional(readOnly = true)
+    public ScheduledTaskDto get(String taskKey) {
+        return toDto(requireTask(taskKey));
+    }
+
+    @Transactional(readOnly = true)
     public boolean isEnabled(String taskKey) {
         ScheduledTask row = taskRepository.selectById(taskKey);
         return row == null || Boolean.TRUE.equals(row.getEnabled());
@@ -84,12 +89,26 @@ public class ScheduledTaskService {
             Instant now = Instant.now();
             row.setLastRunAt(now);
             row.setLastResult(result);
-            row.setLastMessage(truncate(message, 500));
+            row.setLastMessage(truncate(defaultMessage(result, message), 500));
             row.setLastDurationMs(Math.max(0L, (System.nanoTime() - startNanos) / 1_000_000L));
             row.setUpdatedAt(now);
             taskRepository.save(row);
         }
         lockService.unlock("job:" + taskKey);
+    }
+
+    /** 未传说明时的兜底；正常任务应写入本次处理条数/快照等结果。 */
+    private static String defaultMessage(String result, String message) {
+        if (message != null && !message.isBlank()) {
+            return message.trim();
+        }
+        if ("FAILED".equals(result)) {
+            return "执行失败";
+        }
+        if ("SKIPPED".equals(result)) {
+            return "已跳过";
+        }
+        return "本次无处理";
     }
 
     private ScheduledTask requireTask(String taskKey) {

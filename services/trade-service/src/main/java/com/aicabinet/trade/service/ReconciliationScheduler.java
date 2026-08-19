@@ -33,24 +33,24 @@ public class ReconciliationScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "对账调度未启用";
         try {
             if (!properties.scheduledEnabled()) {
+                summary = "对账调度未启用";
                 return;
             }
             LocalDate yesterday = LocalDate.now().minusDays(1);
-            try {
-                reconciliationService.runDaily(null, yesterday, "WECHAT");
-                log.info("scheduled reconciliation completed for date={}", yesterday);
-            } catch (Exception e) {
-                log.error("scheduled reconciliation failed for date={}", yesterday, e);
-            }
+            var dto = reconciliationService.runDaily(null, yesterday, "WECHAT");
+            summary = "对账 " + yesterday + " 完成，匹配 " + dto.matchedCount()
+                    + " 笔，未匹配 " + dto.unmatchedCount() + " 笔，状态 " + dto.status();
+            log.info("scheduled reconciliation completed for date={}", yesterday);
         } catch (Exception e) {
             failed = true;
             taskService.finish("reconciliation", "FAILED", e.getMessage(), start);
-            throw e;
+            log.error("scheduled reconciliation failed", e);
         } finally {
             if (!failed) {
-                taskService.finish("reconciliation", "SUCCESS", null, start);
+                taskService.finish("reconciliation", "SUCCESS", summary, start);
             }
         }
     }

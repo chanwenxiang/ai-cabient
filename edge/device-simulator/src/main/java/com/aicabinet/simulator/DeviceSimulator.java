@@ -8,10 +8,17 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.eclipse.paho.client.mqttv3.*;
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence;
 
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -21,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Executors;
 
 /**
  * 桌面设备模拟器：订阅 OPEN_DOOR，模拟开门→购物→关门；支持断网续传、多摄、OTA 心跳。
@@ -32,6 +40,8 @@ import java.util.UUID;
  *   <li>{@code AICABINET_SIM_OFFLINE_UPLOAD=true} — 关门先 LOCAL_QUEUED，延迟后再上传</li>
  *   <li>{@code AICABINET_SIM_MULTI_CAMERA=true} — 顶摄+侧摄融合</li>
  *   <li>{@code AICABINET_SIM_APP_VERSION=0.9.0} — OTA 检查用版本号</li>
+ *   <li>{@code AICABINET_SIM_SHOPPING_MS} — 开门后自动关门等待；{@code 0} 表示保持开门，需点 HTTP「关门」或走小程序结算</li>
+ *   <li>{@code AICABINET_SIM_HTTP_PORT} — 测试用关门页端口，默认 {@code 18089}；{@code 0} 关闭</li>
  * </ul>
  */
 public class DeviceSimulator implements MqttCallbackExtended {
@@ -56,9 +66,12 @@ public class DeviceSimulator implements MqttCallbackExtended {
     private final String deviceId;
     private final ObjectMapper mapper = new ObjectMapper();
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private final Object doorLock = new Object();
     private MqttClient client;
     private boolean lastOperatorMode;
     private long lastUserId;
+    /** {@code SHOPPING_MS=0} 时记录当前开门会话，供 HTTP /close 手动关门。 */
+    private volatile String openSessionId;
 
     public DeviceSimulator(String deviceId) {
         this.deviceId = deviceId;
@@ -77,6 +90,7 @@ public class DeviceSimulator implements MqttCallbackExtended {
         checkOta();
         publishHeartbeat();
         startHeartbeatLoop();
+        startHttpControl();
     }
 
     private void subscribeCommands() throws MqttException {
@@ -205,6 +219,12 @@ public class DeviceSimulator implements MqttCallbackExtended {
                 Thread.sleep(500);
                 publishDoorEvent(sessionId, DoorState.OPEN, null, null, null, null, null);
                 long shoppingMs = shoppingDelayMs();
+                if (shoppingMs <= 0) {
+                    openSessionId = sessionId;
+                    System.out.println("[simulator] door OPEN session=" + sessionId
+                            + " — waiting for HTTP /close (no auto-close)");
+                    return;
+                }
                 System.out.println("[simulator] door OPEN, shopping " + (shoppingMs / 1000) + "s...");
                 Thread.sleep(shoppingMs);
                 completeDoorClose(sessionId);
@@ -217,24 +237,175 @@ public class DeviceSimulator implements MqttCallbackExtended {
     }
 
     private void completeDoorClose(String sessionId) throws Exception {
-        if (offlineUploadEnabled()) {
-            publishDoorEvent(sessionId, DoorState.CLOSED, null, "LOCAL_QUEUED", null, null, resolveGravityJson());
-            System.out.println("[simulator] door CLOSED offline, queued local upload");
-            scheduleDeferredUpload(sessionId);
+        try {
+            if (offlineUploadEnabled()) {
+                publishDoorEvent(sessionId, DoorState.CLOSED, null, "LOCAL_QUEUED", null, null, resolveGravityJson());
+                System.out.println("[simulator] door CLOSED offline, queued local upload");
+                scheduleDeferredUpload(sessionId);
+                return;
+            }
+
+            if (multiCameraEnabled()) {
+                VideoPayload payload = resolveMultiCameraPayload(sessionId);
+                publishDoorEvent(sessionId, DoorState.CLOSED, payload.primaryUri(), "UPLOADED",
+                        payload.clipsJson(), "MULTI", resolveGravityJson());
+                System.out.println("[simulator] door CLOSED multi-camera primary=" + payload.primaryUri());
+                return;
+            }
+
+            String videoUri = resolveVideoUri(sessionId, "top");
+            publishDoorEvent(sessionId, DoorState.CLOSED, videoUri, "UPLOADED", null, "SINGLE", resolveGravityJson());
+            System.out.println("[simulator] door CLOSED video=" + videoUri);
+        } finally {
+            if (sessionId != null && sessionId.equals(openSessionId)) {
+                openSessionId = null;
+            }
+        }
+    }
+
+    /** 测试页：手动触发关门（SHOPPING_MS=0 时用）。端口 {@code AICABINET_SIM_HTTP_PORT}，0 关闭。 */
+    private void startHttpControl() {
+        int port;
+        try {
+            port = Integer.parseInt(env("AICABINET_SIM_HTTP_PORT", "18089"));
+        } catch (NumberFormatException e) {
+            System.err.println("[simulator] invalid AICABINET_SIM_HTTP_PORT, HTTP control disabled");
             return;
         }
-
-        if (multiCameraEnabled()) {
-            VideoPayload payload = resolveMultiCameraPayload(sessionId);
-            publishDoorEvent(sessionId, DoorState.CLOSED, payload.primaryUri(), "UPLOADED",
-                    payload.clipsJson(), "MULTI", resolveGravityJson());
-            System.out.println("[simulator] door CLOSED multi-camera primary=" + payload.primaryUri());
+        if (port <= 0) {
+            System.out.println("[simulator] HTTP control disabled (port<=0)");
             return;
         }
+        try {
+            HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
+            server.createContext("/", this::handleHttpRoot);
+            server.createContext("/status", this::handleHttpStatus);
+            server.createContext("/close", this::handleHttpClose);
+            server.setExecutor(Executors.newCachedThreadPool(r -> {
+                Thread t = new Thread(r, "sim-http-" + deviceId);
+                t.setDaemon(true);
+                return t;
+            }));
+            server.start();
+            System.out.println("[simulator] HTTP control http://127.0.0.1:" + port
+                    + "/  (GET/POST /close, GET /status)");
+        } catch (Exception e) {
+            System.err.println("[simulator] HTTP control failed: " + e.getMessage());
+        }
+    }
 
-        String videoUri = resolveVideoUri(sessionId, "top");
-        publishDoorEvent(sessionId, DoorState.CLOSED, videoUri, "UPLOADED", null, "SINGLE", resolveGravityJson());
-        System.out.println("[simulator] door CLOSED video=" + videoUri);
+    private void handleHttpRoot(HttpExchange ex) throws IOException {
+        if (!"GET".equalsIgnoreCase(ex.getRequestMethod())) {
+            writeText(ex, 405, "text/plain; charset=utf-8", "Method Not Allowed");
+            return;
+        }
+        String sid = openSessionId;
+        String html = """
+                <!DOCTYPE html>
+                <html lang="zh-CN">
+                <head>
+                  <meta charset="utf-8"/>
+                  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+                  <title>模拟器关门 · %s</title>
+                  <style>
+                    body{font-family:system-ui,sans-serif;background:#0f172a;color:#e2e8f0;
+                         display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}
+                    .card{background:#1e293b;padding:28px 32px;border-radius:16px;width:min(420px,92vw);
+                          box-shadow:0 12px 40px rgba(0,0,0,.35)}
+                    h1{font-size:1.25rem;margin:0 0 8px}
+                    p{margin:0 0 20px;color:#94a3b8;font-size:.95rem;word-break:break-all}
+                    button{width:100%%;border:0;border-radius:12px;padding:16px;font-size:1.1rem;
+                           font-weight:600;cursor:pointer;background:#10b981;color:#042f2e}
+                    button:disabled{opacity:.45;cursor:not-allowed}
+                    .ok{color:#6ee7b7}.warn{color:#fbbf24}.err{color:#fca5a5}
+                  </style>
+                </head>
+                <body>
+                  <div class="card">
+                    <h1>设备 %s</h1>
+                    <p id="state">%s</p>
+                    <button id="btn" %s onclick="closeDoor()">关门结算</button>
+                    <p id="msg" style="margin-top:16px;margin-bottom:0"></p>
+                  </div>
+                  <script>
+                    async function closeDoor(){
+                      const btn=document.getElementById('btn');
+                      const msg=document.getElementById('msg');
+                      btn.disabled=true; msg.textContent='关门中…'; msg.className='';
+                      try{
+                        const r=await fetch('/close',{method:'POST'});
+                        const t=await r.text();
+                        msg.textContent=t;
+                        msg.className=r.ok?'ok':'err';
+                        if(r.ok){ document.getElementById('state').textContent='门已关，无进行中会话'; }
+                        else { btn.disabled=false; }
+                      }catch(e){ msg.textContent=String(e); msg.className='err'; btn.disabled=false; }
+                    }
+                    setInterval(async()=>{
+                      try{
+                        const r=await fetch('/status'); const j=await r.json();
+                        const el=document.getElementById('state');
+                        const btn=document.getElementById('btn');
+                        if(j.open){ el.textContent='开门中 · session='+j.sessionId; el.className='warn'; btn.disabled=false; }
+                        else { el.textContent='门已关 / 无进行中会话'; el.className=''; }
+                      }catch(_){}
+                    }, 2000);
+                  </script>
+                </body>
+                </html>
+                """.formatted(
+                deviceId,
+                deviceId,
+                sid == null || sid.isBlank()
+                        ? "门已关 / 无进行中会话"
+                        : "开门中 · session=" + sid,
+                sid == null || sid.isBlank() ? "disabled" : "");
+        writeText(ex, 200, "text/html; charset=utf-8", html);
+    }
+
+    private void handleHttpStatus(HttpExchange ex) throws IOException {
+        if (!"GET".equalsIgnoreCase(ex.getRequestMethod())) {
+            writeText(ex, 405, "text/plain; charset=utf-8", "Method Not Allowed");
+            return;
+        }
+        String sid = openSessionId;
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("deviceId", deviceId);
+        body.put("open", sid != null && !sid.isBlank());
+        body.put("sessionId", sid);
+        writeText(ex, 200, "application/json; charset=utf-8", mapper.writeValueAsString(body));
+    }
+
+    private void handleHttpClose(HttpExchange ex) throws IOException {
+        String method = ex.getRequestMethod();
+        if (!"POST".equalsIgnoreCase(method) && !"GET".equalsIgnoreCase(method)) {
+            writeText(ex, 405, "text/plain; charset=utf-8", "Method Not Allowed");
+            return;
+        }
+        synchronized (doorLock) {
+            String sid = openSessionId;
+            if (sid == null || sid.isBlank()) {
+                writeText(ex, 409, "text/plain; charset=utf-8", "无开门会话，无需关门");
+                return;
+            }
+            try {
+                completeDoorClose(sid);
+                writeText(ex, 200, "text/plain; charset=utf-8", "已关门 session=" + sid);
+            } catch (Exception e) {
+                writeText(ex, 500, "text/plain; charset=utf-8",
+                        "关门失败: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));
+            }
+        }
+    }
+
+    private static void writeText(HttpExchange ex, int status, String contentType, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        ex.getResponseHeaders().set("Content-Type", contentType);
+        ex.getResponseHeaders().set("Cache-Control", "no-store");
+        ex.sendResponseHeaders(status, bytes.length);
+        try (OutputStream os = ex.getResponseBody()) {
+            os.write(bytes);
+        }
     }
 
     private void scheduleDeferredUpload(String sessionId) {
@@ -488,7 +659,7 @@ public class DeviceSimulator implements MqttCallbackExtended {
     }
 
     private static long shoppingDelayMs() {
-        return Long.parseLong(env("AICABINET_SIM_SHOPPING_MS", "20000"));
+        return Long.parseLong(env("AICABINET_SIM_SHOPPING_MS", "0"));
     }
 
     private static boolean offlineUploadEnabled() {

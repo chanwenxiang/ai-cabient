@@ -1,5 +1,5 @@
 <template>
-  <view class="page-root devices-page">
+  <view class="page-root devices-page" :style="pagePadStyle">
     <view class="toolbar">
       <button class="scan-btn" :loading="scanning" @click="onScan">扫码到柜</button>
       <button v-if="canReplenishment" class="replenish-btn" @click="goReplenishment">
@@ -109,7 +109,13 @@ import {
   setPreferredDeviceId
 } from '@/utils/preferred-device';
 import { dictLabel } from '@aicabinet/shared-dict';
+import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
 import type { DeviceInfo, MerchantMe } from '@aicabinet/shared-types';
+
+/** Tab 页底栏已有「柜机」：自定义顶栏只占状态栏，避免系统头在 H5 留白 */
+const pagePadStyle = {
+  borderTop: getStatusBarPadPx() + 'px solid #f0fdfa'
+};
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canListDevices = computed(() => hasPerm(me.value, 'merchant:devices:list'));

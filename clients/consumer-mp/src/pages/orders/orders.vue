@@ -1,23 +1,5 @@
 <template>
-  <view class="page page-fill">
-    <view class="page-nav" :style="navWrapStyle">
-      <view
-        class="nav-back"
-        hover-class="nav-back-hover"
-        role="button"
-        aria-label="返回"
-        @click="goBack"
-      >
-        <image
-          class="nav-back-svg"
-          src="/static/nav-back.svg"
-          mode="aspectFit"
-          aria-hidden="true"
-        />
-      </view>
-      <text class="nav-title">我的订单</text>
-      <view class="nav-side" />
-    </view>
+  <view class="page page-fill" :style="pagePadStyle">
     <view v-if="loading" class="state-wrap"><text class="meta">加载中…</text></view>
     <view v-else-if="error" class="state-wrap">
       <text class="empty-title">加载失败</text>
@@ -157,10 +139,10 @@ import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
 import { consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
-import { navigateBackOrHome } from '@/utils/navigate-back';
 import {
   shortBizNo,
   formatDateTimeShort,
+  startOfTodayShanghaiMs,
   orderStatusLabel,
   fmtMoney
 } from '@aicabinet/shared-uni/format';
@@ -173,11 +155,9 @@ import type { DisputeTicketDto, OrderSummary } from '@aicabinet/shared-types';
 const loading = ref(true);
 const loadingMore = ref(false);
 const error = ref('');
-const statusPad = getStatusBarPadPx();
-const navWrapStyle = {
-  borderTop: statusPad + 'px solid #064e3b',
-  background: '#064e3b',
-  color: '#ffffff'
+/** Tab 页底栏已有「订单」：只留状态栏占位避开胶囊，不叠标题/返回 */
+const pagePadStyle = {
+  borderTop: getStatusBarPadPx() + 'px solid #ffffff'
 };
 const authed = ref(false);
 const orders = ref<OrderSummary[]>([]);
@@ -215,17 +195,7 @@ const visibleOrders = computed(() =>
 );
 
 function startOfTodayShanghai(): number {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Shanghai',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).formatToParts(new Date());
-  const y = parts.find((p) => p.type === 'year')?.value;
-  const m = parts.find((p) => p.type === 'month')?.value;
-  const d = parts.find((p) => p.type === 'day')?.value;
-  // Asia/Shanghai 当天 00:00 对应的瞬时时间
-  return new Date(`${y}-${m}-${d}T00:00:00+08:00`).getTime();
+  return startOfTodayShanghaiMs();
 }
 
 function matchesTimeRange(createdAt: string | undefined, range: TimeRange) {
@@ -309,10 +279,6 @@ function chipClass(status?: string) {
   if (status === 'REFUNDED' || status === 'PARTIAL_REFUNDED') return 'refunded';
   if (status === 'CANCELLED') return 'cancelled';
   return 'default';
-}
-
-function goBack() {
-  navigateBackOrHome('/pages/mine/mine');
 }
 
 function goShop() {
@@ -442,51 +408,6 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   flex-direction: column;
   background: #ffffff;
   box-sizing: border-box;
-}
-.page-nav {
-  flex-shrink: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 48px;
-  padding: 0 8px;
-  background: #064e3b;
-  color: #ffffff;
-  box-sizing: content-box;
-}
-.nav-back,
-.nav-side {
-  width: 44px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.nav-back-svg {
-  display: none;
-}
-.nav-back::before {
-  content: '‹';
-  font-size: 36px;
-  line-height: 48px;
-  font-weight: 300;
-  color: #ffffff;
-}
-.nav-back-hover {
-  opacity: 0.6;
-}
-.nav-title {
-  flex: 1;
-  text-align: center;
-  font-size: 16px;
-  font-weight: 500;
-  color: #ffffff;
-  line-height: 48px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .state-wrap {
   flex: 1;

@@ -53,9 +53,11 @@ public class PointsExpiryScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "本次无积分提醒或过期";
         try {
             int reminded = remind(7);
             int expired = expire();
+            summary = "提醒 " + reminded + " 人，过期结转 " + expired + " 人";
             if (reminded > 0 || expired > 0) {
                 log.info("points expiry scan reminded={} expired={}", reminded, expired);
             }
@@ -65,7 +67,7 @@ public class PointsExpiryScheduler {
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("points-expiry", "SUCCESS", null, start);
+                taskService.finish("points-expiry", "SUCCESS", summary, start);
             }
         }
     }

@@ -51,8 +51,10 @@ public class CouponExpiryReminderScheduler {
             return;
         }
         boolean failed = false;
+        String summary = "本次无临期优惠券";
         try {
             int reminded = remind(3);
+            summary = reminded <= 0 ? "本次无临期优惠券" : "临期提醒 " + reminded + " 人";
             if (reminded > 0) {
                 log.info("coupon expiry remind users={}", reminded);
             }
@@ -62,7 +64,7 @@ public class CouponExpiryReminderScheduler {
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("coupon-expiry-remind", "SUCCESS", null, start);
+                taskService.finish("coupon-expiry-remind", "SUCCESS", summary, start);
             }
         }
     }

@@ -60,8 +60,9 @@ public class ScheduledTaskRegistry {
                 compensationTaskScheduler::retryFailedTransactions);
         register("replenishment-timeout", "补货超时收口", "WAREHOUSE", "每 60 秒", 600, false,
                 replenishmentTimeoutScheduler::expireStaleCheckedInTasks);
+        // 必须走 performConsistencyCheck（含 tryBegin/finish），不能直接 runConsistencyCheck，否则手动触发不写耗时/结果说明
         register("data-consistency", "数据一致性巡检", "OPS", "每 5 分钟", 900, false,
-                dataConsistencyService::runConsistencyCheck);
+                dataConsistencyService::performConsistencyCheck);
         register("unpaid-cancel", "未付订单自动取消", "TRADE", "每 15 分钟", 600, false,
                 unpaidOrderScheduler::autoCancelExpired);
         register("recharge-cancel", "充值单自动取消", "TRADE", "每 5 分钟", 600, false,

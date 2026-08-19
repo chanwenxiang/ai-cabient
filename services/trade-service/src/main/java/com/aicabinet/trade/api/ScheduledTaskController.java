@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.List;
 
 /**
@@ -91,11 +92,26 @@ public class ScheduledTaskController {
                     taskKey, "SKIPPED", "任务正在执行中，请稍后再试"));
         }
         try {
+            Instant beforeRun = taskService.get(taskKey).lastRunAt();
             descriptor.action().run();
             auditService.record(operatorId(request), "SCHEDULED_TASK_RUN",
                     "SCHEDULED_TASK", taskKey, descriptor.name());
+            ScheduledTaskDto after = taskService.get(taskKey);
+            if (after.lastRunAt() == null
+                    || (beforeRun != null && !after.lastRunAt().isAfter(beforeRun))) {
+                return ApiResponse.ok(new ScheduledTaskRunResultDto(
+                        taskKey, "SKIPPED", "任务未写入执行记录（可能未抢到锁或提前返回）"));
+            }
+            String detail = after.lastMessage() == null || after.lastMessage().isBlank()
+                    ? "已执行"
+                    : after.lastMessage();
+            String duration = after.lastDurationMs() == null ? "—" : after.lastDurationMs() + " ms";
             return ApiResponse.ok(new ScheduledTaskRunResultDto(
-                    taskKey, "TRIGGERED", "已触发执行，结果见列表最近执行列"));
+                    taskKey,
+                    "TRIGGERED",
+                    detail + "（耗时 " + duration + "）",
+                    after.lastMessage(),
+                    after.lastDurationMs()));
         } catch (Exception e) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "任务执行失败: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()));

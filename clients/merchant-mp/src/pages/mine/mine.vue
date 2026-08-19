@@ -1,7 +1,6 @@
 <template>
   <view class="page">
     <view class="profile-header" :style="headerPadStyle">
-      <text class="mine-title">我的</text>
       <view class="profile-main">
         <view class="avatar">{{ avatarText }}</view>
         <view class="profile-info">
@@ -173,7 +172,7 @@ import { formatMerchantNames } from '@/utils/merchant-display';
 import { menuIcon } from '@/utils/menu-icon';
 
 const headerPadStyle = {
-  paddingTop: getStatusBarPadPx() + 8 + 'px'
+  borderTop: getStatusBarPadPx() + 'px solid #134e4a'
 };
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -409,29 +408,22 @@ function onLogout() {
 }
 .profile-header {
   margin: 0;
-  padding: 8rpx 24rpx 28rpx;
+  padding: 0;
   border-radius: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 12rpx;
   width: 100%;
   box-sizing: border-box;
   background: linear-gradient(145deg, #134e4a, #0f766e 60%, #0d9488);
   box-shadow: none;
   color: #fff;
 }
-.mine-title {
-  display: block;
-  text-align: center;
-  font-size: 34rpx;
-  font-weight: 600;
-  line-height: 48px;
-}
 .profile-main {
   display: flex;
   align-items: center;
   gap: 14rpx;
+  padding: 12rpx 24rpx 24rpx;
 }
 .avatar {
   width: 80rpx;

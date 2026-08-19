@@ -94,15 +94,19 @@ private ScheduledTaskService taskService;
             return;
         }
         boolean failed = false;
+        String summary = "巡检完成，无不一致";
         try {
-            runConsistencyCheck();
+            int failCount = runConsistencyCheck();
+            summary = failCount <= 0
+                    ? "巡检通过，无不一致"
+                    : "巡检完成，仍有不一致 " + failCount + " 条";
         } catch (Exception e) {
             failed = true;
             taskService.finish("data-consistency", "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("data-consistency", "SUCCESS", null, start);
+                taskService.finish("data-consistency", "SUCCESS", summary, start);
             }
         }
     }

@@ -63,7 +63,7 @@
       </view>
 
       <view class="footer-actions">
-        <button class="action-btn" hover-class="btn-hover" @click="continueShop">继续购物</button>
+        <button class="action-btn" hover-class="btn-hover" @click="continueShop">返回本柜</button>
         <button class="ghost-btn" hover-class="btn-hover" @click="goOrders">查看订单</button>
 
         <view v-if="sessionId && !disputeFiled && !refundDone" class="secondary-actions">
@@ -249,15 +249,28 @@ const payChannelText = computed(() => {
   return displayLabel('pay_channel', ch, '');
 });
 
+function currentPageOptions(): Record<string, string> {
+  const pages = getCurrentPages();
+  const cur = pages[pages.length - 1] as { options?: Record<string, string> } | undefined;
+  return cur?.options || {};
+}
+
 onLoad((opts) => {
   void bootstrap(opts as Record<string, string>);
 });
 
 onShow(() => {
-  // H5 同页换 query 时 onLoad 不重跑，需从 hash / page options 再读
-  const pages = getCurrentPages();
-  const cur = pages[pages.length - 1] as { options?: Record<string, string> } | undefined;
-  void bootstrap({ ...readHashQuery(), ...(cur?.options || {}) });
+  // H5 同页换 query 时 onLoad 不重跑；微信 onShow 无入参，空 query 不得冲掉已有单号
+  const merged = { ...readHashQuery(), ...currentPageOptions() };
+  if (!String(merged.sessionId || merged.orderId || '').trim()) {
+    if (sessionId || order.value?.orderId) {
+      merged.sessionId = sessionId;
+      merged.orderId = String(order.value?.orderId || '');
+    } else {
+      return;
+    }
+  }
+  void bootstrap(merged);
 });
 
 function readHashQuery(): Record<string, string> {
@@ -280,9 +293,14 @@ function readHashQuery(): Record<string, string> {
 }
 
 async function bootstrap(opts?: Record<string, string>) {
-  const nextSession = String(opts?.sessionId || '').trim();
-  const nextOrder = String(opts?.orderId || '').trim();
+  const nextSession = String(opts?.sessionId || sessionId || '').trim();
+  const nextOrder = String(opts?.orderId || order.value?.orderId || '').trim();
   const key = `${nextOrder}|${nextSession}`;
+  if (!nextOrder && !nextSession) {
+    error.value = '缺少订单信息';
+    loading.value = false;
+    return;
+  }
   if (key === loadedKey && (order.value || error.value)) return;
   loadedKey = key;
   sessionId = nextSession;
@@ -296,12 +314,7 @@ async function bootstrap(opts?: Record<string, string>) {
     await loadByOrderId(nextOrder);
     return;
   }
-  if (nextSession) {
-    await loadBySession(nextSession);
-    return;
-  }
-  error.value = '缺少订单信息';
-  loading.value = false;
+  await loadBySession(nextSession);
 }
 
 async function loadBySession(sid: string) {
@@ -475,7 +488,8 @@ async function submitRefund() {
 function continueShop() {
   const id = deviceId.value || order.value?.deviceId;
   if (id) {
-    uni.setStorageSync('reopen_device_id', id);
+    uni.setStorageSync('browse_device_id', id);
+    uni.setStorageSync('last_device_id', id);
   }
   uni.switchTab({ url: '/pages/index/index' });
 }

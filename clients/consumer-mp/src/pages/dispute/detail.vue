@@ -134,16 +134,22 @@ const statusText = computed(() => {
 
 onLoad((opts) => {
   applyQuery(opts as Record<string, string>);
+  void bootstrap();
 });
 
 onShow(() => {
-  // 同页不同 query 跳转时 onLoad 不一定重跑，从当前页 options / H5 hash 再读一遍
-  const pages = getCurrentPages();
-  const cur = pages[pages.length - 1] as { options?: Record<string, string> } | undefined;
-  applyQuery({ ...readHashQuery(), ...(cur?.options || {}) });
+  // 同页不同 query 跳转时 onLoad 不一定重跑；空 query 不得冲掉已有单号
+  applyQuery({ ...readHashQuery(), ...(currentPageOptions()) });
+  if (!ticketId.value && !sessionId.value) return;
   void bootstrap();
   loadServicePhone();
 });
+
+function currentPageOptions(): Record<string, string> {
+  const pages = getCurrentPages();
+  const cur = pages[pages.length - 1] as { options?: Record<string, string> } | undefined;
+  return cur?.options || {};
+}
 
 function readHashQuery(): Record<string, string> {
   // #ifdef H5

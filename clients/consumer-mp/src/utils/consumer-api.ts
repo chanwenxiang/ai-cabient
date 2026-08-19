@@ -20,6 +20,8 @@ const TOKEN_KEY = 'consumer_token';
 const USER_KEY = 'consumer_user_id';
 const EXPIRES_KEY = 'consumer_token_expires';
 const OPEN_ATTEMPT_KEY = 'consumer_open_attempt';
+/** 用户主动退出后禁止静默微信建档，直到再次点登录 */
+const SKIP_SILENT_AUTH_KEY = 'consumer_skip_silent_auth';
 const REQUEST_TIMEOUT_MS = 12_000;
 
 const mpApiSession: MpApiSession = {
@@ -73,6 +75,7 @@ export function clearOpenAttempt() {
 }
 
 function applyTokenSession(data: LoginResponse) {
+  uni.removeStorageSync(SKIP_SILENT_AUTH_KEY);
   uni.setStorageSync(TOKEN_KEY, data.token);
   uni.setStorageSync(USER_KEY, data.userId);
   const ms = (data.expiresInSeconds ?? 1800) * 1000;
@@ -299,8 +302,16 @@ function wxLoginCode(): Promise<string> {
   });
 }
 
-/** 竞品式静默登录：扫码进小程序即完成微信建档，无需先填手机号 */
-export async function ensureConsumerAuth(): Promise<boolean> {
+export function markConsumerExplicitLogout() {
+  uni.setStorageSync(SKIP_SILENT_AUTH_KEY, '1');
+}
+
+function shouldSkipSilentAuth() {
+  return uni.getStorageSync(SKIP_SILENT_AUTH_KEY) === '1';
+}
+
+/** 竞品式静默登录：扫码进小程序即完成微信建档，无需先填手机号。主动退出后不再静默重建。 */
+export async function ensureConsumerAuth(opts?: { force?: boolean }): Promise<boolean> {
   if (getConsumerToken()) {
     const ok = await bootstrapConsumerSession();
     if (ok) return true;
@@ -342,6 +353,7 @@ export async function ensureConsumerAuth(): Promise<boolean> {
   return false;
   // #endif
   // #ifdef MP-WEIXIN
+  if (!opts?.force && shouldSkipSilentAuth()) return false;
   try {
     const code = await wxLoginCode();
     await consumerWxLogin(code);

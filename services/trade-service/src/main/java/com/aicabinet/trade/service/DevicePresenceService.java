@@ -96,9 +96,11 @@ public class DevicePresenceService {
             return;
         }
         boolean failed = false;
+        String summary = "本次无设备状态变更";
         try {
         Instant cutoff = Instant.now().minus(OFFLINE_AFTER_MINUTES, ChronoUnit.MINUTES);
-        deviceRepository.findByOnlineStatusAndUpdatedAtBefore("ONLINE", cutoff).forEach(d -> {
+        var stale = deviceRepository.findByOnlineStatusAndUpdatedAtBefore("ONLINE", cutoff);
+        stale.forEach(d -> {
             d.setOnlineStatus("OFFLINE");
             d.setOnlineSince(null);
             deviceRepository.save(d);
@@ -107,53 +109,57 @@ public class DevicePresenceService {
                     null, null, "设备离线", "连续 " + OFFLINE_AFTER_MINUTES + " 分钟未收到心跳");
             log.info("device marked offline device={}", d.getDeviceId());
         });
-        autoLockLongOfflineDevices();
+        int locked = autoLockLongOfflineDevices();
         cabinetMetrics.refreshDeviceGauges(deviceRepository);
+        summary = "标记离线 " + stale.size() + " 台，自动锁机 " + locked + " 台";
         } catch (Exception e) {
             failed = true;
             taskService.finish("device-presence", "FAILED", e.getMessage(), start);
             throw e;
         } finally {
             if (!failed) {
-                taskService.finish("device-presence", "SUCCESS", null, start);
+                taskService.finish("device-presence", "SUCCESS", summary, start);
             }
         }
     }
 
-    /** 离线超过配置分钟数后自动锁机停售（需运营手动解锁）。 */
-    private void autoLockLongOfflineDevices() {
+    /** 离线超过配置分钟数后自动锁机停售（需运营手动解锁）。返回本次锁机台数。 */
+    private int autoLockLongOfflineDevices() {
         int lockAfterMinutes = systemConfigService.getInt(
                 SystemConfigService.DEVICE_OFFLINE_AUTO_LOCK_MINUTES, 10);
         if (lockAfterMinutes <= 0) {
-            return;
+            return 0;
         }
         int graceMinutes = systemConfigService.getInt(
                 SystemConfigService.DEVICE_OFFLINE_MANUAL_UNLOCK_GRACE_MINUTES, 45);
         Instant now = Instant.now();
         Instant lockCutoff = now.minus(lockAfterMinutes, ChronoUnit.MINUTES);
         Instant graceCutoff = graceMinutes > 0 ? now.minus(graceMinutes, ChronoUnit.MINUTES) : null;
-        deviceRepository.findByOnlineStatusAndUpdatedAtBeforeAndSalesLockedFalse("OFFLINE", lockCutoff)
-                .forEach(d -> {
-                    // OBS-019：人工解锁后宽限期内不因仍离线而立刻再锁
-                    if (graceCutoff != null
-                            && d.getSalesUnlockedAt() != null
-                            && d.getSalesUnlockedAt().isAfter(graceCutoff)) {
-                        log.debug("skip auto-lock within unlock grace device={} unlockedAt={}",
-                                d.getDeviceId(), d.getSalesUnlockedAt());
-                        return;
-                    }
-                    d.setSalesLocked(true);
-                    d.setSalesUnlockedAt(null);
-                    deviceRepository.save(d);
-                    deviceRepository.clearSalesUnlockedAt(d.getDeviceId());
-                    opsExceptionService.report("DEVICE_FAULT", "HIGH", d.getDeviceId(), null,
-                            null, null, "离线超时自动停售",
-                            "设备离线超过 " + lockAfterMinutes + " 分钟，已自动锁机（故障码 OFFLINE_TIMEOUT）");
-                    auditService.record(0L, "DEVICE_AUTO_LOCK_OFFLINE", "DEVICE", d.getDeviceId(),
-                            "离线超过 " + lockAfterMinutes + " 分钟，已自动锁机停售");
-                    log.info("device auto sales-locked after offline device={} minutes={}",
-                            d.getDeviceId(), lockAfterMinutes);
-                });
+        int locked = 0;
+        for (DeviceInfo d : deviceRepository.findByOnlineStatusAndUpdatedAtBeforeAndSalesLockedFalse(
+                "OFFLINE", lockCutoff)) {
+            // OBS-019：人工解锁后宽限期内不因仍离线而立刻再锁
+            if (graceCutoff != null
+                    && d.getSalesUnlockedAt() != null
+                    && d.getSalesUnlockedAt().isAfter(graceCutoff)) {
+                log.debug("skip auto-lock within unlock grace device={} unlockedAt={}",
+                        d.getDeviceId(), d.getSalesUnlockedAt());
+                continue;
+            }
+            d.setSalesLocked(true);
+            d.setSalesUnlockedAt(null);
+            deviceRepository.save(d);
+            deviceRepository.clearSalesUnlockedAt(d.getDeviceId());
+            opsExceptionService.report("DEVICE_FAULT", "HIGH", d.getDeviceId(), null,
+                    null, null, "离线超时自动停售",
+                    "设备离线超过 " + lockAfterMinutes + " 分钟，已自动锁机（故障码 OFFLINE_TIMEOUT）");
+            auditService.record(0L, "DEVICE_AUTO_LOCK_OFFLINE", "DEVICE", d.getDeviceId(),
+                    "离线超过 " + lockAfterMinutes + " 分钟，已自动锁机停售");
+            log.info("device auto sales-locked after offline device={} minutes={}",
+                    d.getDeviceId(), lockAfterMinutes);
+            locked++;
+        }
+        return locked;
     }
 
     private DeviceInfo registerUnknown(String deviceId) {

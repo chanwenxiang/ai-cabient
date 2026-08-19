@@ -11,7 +11,7 @@
       <view class="anim-shimmer" />
     </view>
     <view class="login-overlay" />
-    <view class="login-content">
+    <view class="login-content" :style="loginPadStyle">
       <view class="hero">
         <text class="brand">AI开门柜</text>
         <text class="tagline">扫码开门 · 拿了就走</text>
@@ -20,8 +20,6 @@
           <text class="badge-text">关门自动结算</text>
         </view>
       </view>
-
-      <view class="login-spacer" :class="{ compact: showPhoneForm }" />
 
       <view class="form-card">
         <text class="title">登录后继续</text>
@@ -77,7 +75,7 @@
             />
           </view>
 
-          <view v-if="mode === 'password'" class="field">
+          <view v-if="mode === 'password'" class="field field-auth">
             <text class="field-label">密码</text>
             <input
               class="input"
@@ -88,7 +86,7 @@
               @input="password = eventInputValue($event)"
             />
           </view>
-          <view v-else class="field">
+          <view v-else class="field field-auth">
             <text class="field-label">验证码</text>
             <view class="row">
               <input
@@ -130,8 +128,9 @@
 </template>
 
 <script setup lang="ts">
-import { onLoad, onUnload } from '@dcloudio/uni-app';
+import { onLoad, onReady, onUnload } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
+import { getBelowCapsulePadPx } from '@aicabinet/shared-uni/status-bar';
 import {
   consumerApi,
   consumerPasswordLogin,
@@ -159,6 +158,10 @@ const wxMode = ref(false);
 const err = ref('');
 const codeCooldown = ref(0);
 const isDev = showDevTools();
+const loginPadStyle = ref({ paddingTop: getBelowCapsulePadPx(10) + 'px' });
+function refreshLoginPad() {
+  loginPadStyle.value = { paddingTop: getBelowCapsulePadPx(10) + 'px' };
+}
 let codeTimer: ReturnType<typeof setInterval> | null = null;
 
 function clearCodeTimer() {
@@ -169,8 +172,11 @@ function clearCodeTimer() {
 }
 
 onLoad((opts) => {
+  refreshLoginPad();
   if (opts?.redirect) redirect.value = decodeRedirectParam(String(opts.redirect));
 });
+
+onReady(() => refreshLoginPad());
 
 onUnload(() => clearCodeTimer());
 
@@ -242,7 +248,7 @@ async function onWxLogin() {
   wxMode.value = true;
   err.value = '';
   try {
-    const ok = await ensureConsumerAuth();
+    const ok = await ensureConsumerAuth({ force: true });
     if (!ok) {
       // H5 / 非微信：引导展开手机号
       showPhoneForm.value = true;
@@ -353,12 +359,13 @@ async function onLogin() {
   overflow-x: hidden;
   overflow-y: hidden;
   background: #0b1220;
+  box-sizing: border-box;
 }
 .login-wrap.phone-open {
-  overflow-y: auto;
+  overflow-y: hidden;
 }
 .login-wrap.phone-open .hero {
-  padding-top: 12rpx;
+  padding-top: 0;
 }
 .login-wrap.phone-open .brand {
   font-size: 40rpx;
@@ -371,9 +378,9 @@ async function onLogin() {
   display: none;
 }
 .login-wrap.phone-open .login-content {
-  min-height: auto;
-  justify-content: flex-start;
-  padding-top: calc(16rpx + env(safe-area-inset-top));
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
 }
 .login-bg-scene {
   position: absolute;
@@ -497,15 +504,22 @@ async function onLogin() {
   position: relative;
   z-index: 2;
   height: 100%;
-  min-height: 0;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   align-items: center;
-  padding: calc(32rpx + env(safe-area-inset-top)) 24rpx calc(24rpx + env(safe-area-inset-bottom));
+  padding: 0 24rpx;
   overflow: hidden;
   box-sizing: border-box;
 }
+/* #ifdef MP-WEIXIN */
+.login-wrap,
+.login-content {
+  height: 100vh;
+  min-height: 100vh;
+}
+/* #endif */
 .hero {
   flex-shrink: 0;
   padding-top: 0;
@@ -544,23 +558,18 @@ async function onLogin() {
   color: #cbd5e1;
   font-size: 22rpx;
 }
-.login-spacer {
-  flex: 1;
-  min-height: 48rpx;
-}
-.login-spacer.compact {
-  flex: 0 0 auto;
-  min-height: 12rpx;
-  max-height: 24rpx;
-}
 .form-card {
+  /* 收起态：绝对贴底，避免垂直居中悬空 */
+  position: absolute;
+  left: 50%;
+  bottom: calc(12rpx + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: calc(100% - 48rpx);
+  max-width: 320px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  width: 100%;
-  max-width: 320px;
-  margin: 0 auto;
   padding: 32rpx 28rpx 36rpx;
   border-radius: 28rpx;
   background: rgba(8, 24, 30, 0.58);
@@ -572,10 +581,26 @@ async function onLogin() {
   box-sizing: border-box;
 }
 .phone-open .form-card {
-  padding: 20rpx 24rpx 24rpx;
+  /* 展开仍贴底，内部滚动，避免整页高度随验证码/密码切换跳动 */
+  position: absolute;
+  left: 50%;
+  bottom: calc(12rpx + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: calc(100% - 48rpx);
+  max-width: 320px;
+  max-height: calc(100% - 140rpx);
+  margin: 0;
+  padding: 28rpx 24rpx 32rpx;
+  overflow-y: auto;
+}
+.field-auth {
+  min-height: 148rpx;
 }
 .phone-open .field {
-  margin-bottom: 12rpx;
+  margin-bottom: 28rpx;
+}
+.phone-open .field-label {
+  margin-bottom: 14rpx;
 }
 .phone-open .subtitle {
   margin-bottom: 12rpx;
@@ -586,7 +611,7 @@ async function onLogin() {
   margin-bottom: 4rpx;
 }
 .phone-open .divider {
-  margin: 12rpx 0 12rpx;
+  margin: 20rpx 0 24rpx;
 }
 .phone-open .btn-wx {
   height: 84rpx;
@@ -594,7 +619,7 @@ async function onLogin() {
   font-size: 30rpx;
 }
 .phone-open .tabs {
-  margin-bottom: 16rpx;
+  margin-bottom: 28rpx;
 }
 .phone-open .divider-toggle {
   min-height: 56rpx;

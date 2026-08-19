@@ -60,4 +60,18 @@ class ScheduledTaskServiceTest {
 
         assertTrue(service().tryBegin("x", 600));
     }
+
+    @Test
+    void finish_writesProvidedResultMessage() {
+        ScheduledTask row = new ScheduledTask();
+        row.setTaskKey("coupon-expire");
+        when(mapper.selectById("coupon-expire")).thenReturn(row);
+
+        service().finish("coupon-expire", "SUCCESS", "过期优惠券 3 张", System.nanoTime());
+
+        assertEquals("SUCCESS", row.getLastResult());
+        assertEquals("过期优惠券 3 张", row.getLastMessage());
+        verify(mapper).save(row);
+        verify(locks).unlock("job:coupon-expire");
+    }
 }

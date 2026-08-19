@@ -238,19 +238,29 @@ const supportPhoneDial = ref('4008880018');
 let bootstrapPromise: Promise<void> | null = null;
 let bootstrapTarget = '';
 
+function currentPageOptions(): Record<string, string | undefined> {
+  const pages = getCurrentPages();
+  const cur = pages[pages.length - 1] as { options?: Record<string, string> } | undefined;
+  return cur?.options || {};
+}
+
 function resolveOrderId(opt?: Record<string, string | undefined>): string {
-  const fromOpt = String(opt?.orderId || opt?.id || '').trim();
+  const merged = { ...currentPageOptions(), ...opt };
+  const fromOpt = String(merged.orderId || merged.id || '').trim();
   if (fromOpt) return fromOpt;
-  if (typeof window === 'undefined' || typeof window.location === 'undefined') return '';
-  try {
-    const hash = String(window.location.hash || '');
-    const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
-    const search = String(window.location.search || '').replace(/^\?/, '');
-    const q = new URLSearchParams(hashQuery || search);
-    return String(q.get('orderId') || q.get('id') || '').trim();
-  } catch {
-    return '';
+  if (typeof window !== 'undefined' && typeof window.location !== 'undefined') {
+    try {
+      const hash = String(window.location.hash || '');
+      const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
+      const search = String(window.location.search || '').replace(/^\?/, '');
+      const q = new URLSearchParams(hashQuery || search);
+      const fromUrl = String(q.get('orderId') || q.get('id') || '').trim();
+      if (fromUrl) return fromUrl;
+    } catch {
+      /* keep fallback */
+    }
   }
+  return String(orderId.value || '').trim();
 }
 
 async function bootstrap(opt?: Record<string, string | undefined>) {
@@ -291,7 +301,7 @@ onLoad((opt) => {
 });
 
 onShow(() => {
-  void bootstrap();
+  void bootstrap(currentPageOptions());
 });
 
 function onHashChange() {
