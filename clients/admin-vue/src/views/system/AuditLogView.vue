@@ -175,10 +175,7 @@ import {
   auditTargetLabel,
   formatOpsActionDetail
 } from '@aicabinet/shared-dict';
-import {
-  displayBizNo,
-  formatDateTime
-} from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import type { PageResult } from '@aicabinet/shared-types';
 import { api } from '@/api/client';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';

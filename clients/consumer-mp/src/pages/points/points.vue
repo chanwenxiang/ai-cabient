@@ -2,54 +2,54 @@
   <view class="page-root">
     <app-nav-bar title="积分明细" />
     <view class="page-body">
-    <view v-if="loading" class="loading"><text>加载中…</text></view>
-    <template v-else>
-      <view class="summary">
-        <view class="summary-main">
-          <text class="summary-label">可用积分</text>
-          <text class="summary-value">{{ summary?.availablePoints ?? 0 }}</text>
-          <text class="summary-sub"
-            >累计 {{ summary?.totalPoints ?? 0 }} · 已用 {{ summary?.usedPoints ?? 0 }}</text
-          >
-        </view>
-        <view class="summary-meta">
-          <view class="meta-row">
-            <text class="meta-label">当前等级</text>
-            <text class="meta-value">{{ summary?.levelName || summary?.levelCode || '—' }}</text>
+      <view v-if="loading" class="loading"><text>加载中…</text></view>
+      <template v-else>
+        <view class="summary">
+          <view class="summary-main">
+            <text class="summary-label">可用积分</text>
+            <text class="summary-value">{{ summary?.availablePoints ?? 0 }}</text>
+            <text class="summary-sub"
+              >累计 {{ summary?.totalPoints ?? 0 }} · 已用 {{ summary?.usedPoints ?? 0 }}</text
+            >
           </view>
-          <view class="meta-row">
-            <text class="meta-label">积分倍率</text>
-            <text class="meta-value">¥1 = {{ summary?.pointsRate ?? 1 }} 积分</text>
-          </view>
-          <view v-if="summary && summary.nextLevelPointsGap > 0" class="meta-row">
-            <text class="meta-label">升级还差</text>
-            <text class="meta-value warn">{{ summary.nextLevelPointsGap }} 积分</text>
-          </view>
-        </view>
-      </view>
-
-      <view class="card">
-        <view class="card-head">
-          <text class="card-title">积分明细</text>
-          <text class="card-link" @click="goRedeem">去兑换 ›</text>
-        </view>
-        <view v-if="!logs.length" class="empty">
-          <text class="empty-title">暂无积分记录</text>
-          <text class="empty-hint">购物支付后自动返积分，可在结算后查看</text>
-        </view>
-        <view v-else class="log-list">
-          <view v-for="l in logs" :key="l.id" class="log-row">
-            <view class="log-main">
-              <text class="log-title">{{ l.description || logTypeText(l.pointsType) }}</text>
-              <text class="log-time">{{ formatTime(l.createdAt) }}</text>
+          <view class="summary-meta">
+            <view class="meta-row">
+              <text class="meta-label">当前等级</text>
+              <text class="meta-value">{{ summary?.levelName || summary?.levelCode || '—' }}</text>
             </view>
-            <text class="log-points" :class="l.points >= 0 ? 'income' : 'outcome'">{{
-              l.points >= 0 ? `+${l.points}` : l.points
-            }}</text>
+            <view class="meta-row">
+              <text class="meta-label">积分倍率</text>
+              <text class="meta-value">¥1 = {{ summary?.pointsRate ?? 1 }} 积分</text>
+            </view>
+            <view v-if="summary && summary.nextLevelPointsGap > 0" class="meta-row">
+              <text class="meta-label">升级还差</text>
+              <text class="meta-value warn">{{ summary.nextLevelPointsGap }} 积分</text>
+            </view>
           </view>
         </view>
-      </view>
-    </template>
+
+        <view class="card">
+          <view class="card-head">
+            <text class="card-title">积分明细</text>
+            <text class="card-link" @click="goRedeem">去兑换 ›</text>
+          </view>
+          <view v-if="!logs.length" class="empty">
+            <text class="empty-title">暂无积分记录</text>
+            <text class="empty-hint">购物支付后自动返积分，可在结算后查看</text>
+          </view>
+          <view v-else class="log-list">
+            <view v-for="l in logs" :key="l.id" class="log-row">
+              <view class="log-main">
+                <text class="log-title">{{ l.description || logTypeText(l.pointsType) }}</text>
+                <text class="log-time">{{ formatTime(l.createdAt) }}</text>
+              </view>
+              <text class="log-points" :class="l.points >= 0 ? 'income' : 'outcome'">{{
+                l.points >= 0 ? `+${l.points}` : l.points
+              }}</text>
+            </view>
+          </view>
+        </view>
+      </template>
     </view>
   </view>
 </template>

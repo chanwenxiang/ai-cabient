@@ -106,9 +106,7 @@ async function main() {
   }
 
   const text =
-    json.choices?.[0]?.message?.content ||
-    json.choices?.[0]?.message?.reasoning_content ||
-    '';
+    json.choices?.[0]?.message?.content || json.choices?.[0]?.message?.reasoning_content || '';
   if (!text) {
     console.error('Empty model response:', JSON.stringify(json).slice(0, 800));
     process.exit(6);

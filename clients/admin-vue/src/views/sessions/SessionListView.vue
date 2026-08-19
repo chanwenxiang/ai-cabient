@@ -337,10 +337,7 @@ import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
-import {
-  displayBizNo,
-  formatDateTime
-} from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 import { csvFileName } from '@/utils/csv';
 import { comparePrimaryKey } from '@/utils/sort-by-pk';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';

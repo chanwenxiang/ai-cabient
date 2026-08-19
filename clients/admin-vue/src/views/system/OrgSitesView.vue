@@ -364,9 +364,13 @@ function openEditNode(node: OrgNodeDto) {
 
 async function removeNode(node: OrgNodeDto) {
   try {
-    await ElMessageBox.confirm(`确认删除组织「${node.name}」？需无子节点且无绑定设备。`, '删除组织', {
-      type: 'warning'
-    });
+    await ElMessageBox.confirm(
+      `确认删除组织「${node.name}」？需无子节点且无绑定设备。`,
+      '删除组织',
+      {
+        type: 'warning'
+      }
+    );
   } catch {
     return;
   }

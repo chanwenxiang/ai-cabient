@@ -2,88 +2,94 @@
   <view class="page-root">
     <app-nav-bar title="商户钱包" />
     <view class="page-body">
-    <view v-if="loadError" class="banner-err">
-      <text>{{ loadError }}</text>
-      <text class="banner-retry" @click="load">重试</text>
+      <view v-if="loadError" class="banner-err">
+        <text>{{ loadError }}</text>
+        <text class="banner-retry" @click="load">重试</text>
+      </view>
+
+      <empty-state
+        v-if="!loading && overview && !overview.bound"
+        icon="/static/menu/wallet.png"
+        title="暂无商户钱包"
+        hint="当前账号未绑定开通经营工具的商户，无法查看可提现余额"
+      />
+
+      <template v-else-if="overview && overview.bound">
+        <view class="summary-card">
+          <text class="role-tag">商户 · 可自主提现</text>
+          <text class="name"
+            >{{ emptyDisplay(overview.merchantName, 'text') }} ·
+            {{ emptyDisplay(overview.merchantId, 'text') }}</text
+          >
+          <view class="bal-row">
+            <text class="bal-label">可用余额</text>
+            <text class="bal-value">¥{{ yuan(overview.availableCents) }}</text>
+          </view>
+          <view class="bal-sub">
+            <text>账面 ¥{{ yuan(overview.balanceCents) }}</text>
+            <text>冻结 ¥{{ yuan(overview.frozenCents) }}</text>
+          </view>
+        </view>
+
+        <view class="action-card">
+          <input
+            class="amount-input"
+            type="digit"
+            v-model="amountYuan"
+            placeholder="提现金额（元）"
+          />
+          <text v-if="maxWithdrawYuan" class="withdraw-hint"
+            >最多可提现 ¥{{ maxWithdrawYuan }}</text
+          >
+          <button class="btn-primary" :disabled="submitting" @click="submitWithdraw">
+            申请提现
+          </button>
+          <text class="tip">分账入账后可提现；演示环境默认 Mock 打款。大额需运营审核。</text>
+        </view>
+
+        <view class="section">
+          <text class="section-title">最近提现</text>
+          <view v-for="w in overview.recentWithdraws || []" :key="w.requestId" class="row-item">
+            <view class="row-main">
+              <text>¥{{ yuan(w.amountCents) }}</text>
+              <text class="status">{{ withdrawStatus(w.status) }}</text>
+            </view>
+            <text class="row-sub">{{ emptyDisplay(w.requestNo, 'order') }}</text>
+          </view>
+          <empty-state
+            v-if="!(overview.recentWithdraws || []).length"
+            compact
+            icon="/static/menu/wallet.png"
+            title="暂无提现记录"
+            hint="提交提现后会出现在这里"
+          />
+        </view>
+
+        <view class="section">
+          <text class="section-title">最近流水</text>
+          <view v-for="l in overview.recentLedgers || []" :key="l.ledgerId" class="row-item">
+            <view class="row-main">
+              <text>{{ ledgerLabel(l.entryType) }}</text>
+              <text
+                :class="{ credit: Number(l.amountCents) > 0, debit: Number(l.amountCents) < 0 }"
+              >
+                {{ formatSigned(l.amountCents) }}
+              </text>
+            </view>
+            <text class="row-sub">{{ emptyDisplay(l.remark, 'text') }}</text>
+          </view>
+          <empty-state
+            v-if="!(overview.recentLedgers || []).length"
+            compact
+            icon="/static/menu/billing.png"
+            title="暂无流水记录"
+            hint="分账入账与提现变动会显示在这里"
+          />
+        </view>
+      </template>
+
+      <view v-if="loading" class="loading-inline">加载中…</view>
     </view>
-
-    <empty-state
-      v-if="!loading && overview && !overview.bound"
-      icon="/static/menu/wallet.png"
-      title="暂无商户钱包"
-      hint="当前账号未绑定开通经营工具的商户，无法查看可提现余额"
-    />
-
-    <template v-else-if="overview && overview.bound">
-      <view class="summary-card">
-        <text class="role-tag">商户 · 可自主提现</text>
-        <text class="name"
-          >{{ emptyDisplay(overview.merchantName, 'text') }} ·
-          {{ emptyDisplay(overview.merchantId, 'text') }}</text
-        >
-        <view class="bal-row">
-          <text class="bal-label">可用余额</text>
-          <text class="bal-value">¥{{ yuan(overview.availableCents) }}</text>
-        </view>
-        <view class="bal-sub">
-          <text>账面 ¥{{ yuan(overview.balanceCents) }}</text>
-          <text>冻结 ¥{{ yuan(overview.frozenCents) }}</text>
-        </view>
-      </view>
-
-      <view class="action-card">
-        <input
-          class="amount-input"
-          type="digit"
-          v-model="amountYuan"
-          placeholder="提现金额（元）"
-        />
-        <text v-if="maxWithdrawYuan" class="withdraw-hint">最多可提现 ¥{{ maxWithdrawYuan }}</text>
-        <button class="btn-primary" :disabled="submitting" @click="submitWithdraw">申请提现</button>
-        <text class="tip">分账入账后可提现；演示环境默认 Mock 打款。大额需运营审核。</text>
-      </view>
-
-      <view class="section">
-        <text class="section-title">最近提现</text>
-        <view v-for="w in overview.recentWithdraws || []" :key="w.requestId" class="row-item">
-          <view class="row-main">
-            <text>¥{{ yuan(w.amountCents) }}</text>
-            <text class="status">{{ withdrawStatus(w.status) }}</text>
-          </view>
-          <text class="row-sub">{{ emptyDisplay(w.requestNo, 'order') }}</text>
-        </view>
-        <empty-state
-          v-if="!(overview.recentWithdraws || []).length"
-          compact
-          icon="/static/menu/wallet.png"
-          title="暂无提现记录"
-          hint="提交提现后会出现在这里"
-        />
-      </view>
-
-      <view class="section">
-        <text class="section-title">最近流水</text>
-        <view v-for="l in overview.recentLedgers || []" :key="l.ledgerId" class="row-item">
-          <view class="row-main">
-            <text>{{ ledgerLabel(l.entryType) }}</text>
-            <text :class="{ credit: Number(l.amountCents) > 0, debit: Number(l.amountCents) < 0 }">
-              {{ formatSigned(l.amountCents) }}
-            </text>
-          </view>
-          <text class="row-sub">{{ emptyDisplay(l.remark, 'text') }}</text>
-        </view>
-        <empty-state
-          v-if="!(overview.recentLedgers || []).length"
-          compact
-          icon="/static/menu/billing.png"
-          title="暂无流水记录"
-          hint="分账入账与提现变动会显示在这里"
-        />
-      </view>
-    </template>
-
-    <view v-if="loading" class="loading-inline">加载中…</view>
-      </view>
   </view>
 </template>
 

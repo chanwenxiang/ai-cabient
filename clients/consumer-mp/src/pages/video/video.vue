@@ -2,29 +2,29 @@
   <view class="video-page">
     <app-nav-bar title="购物视频" bg="#000000" color="#ffffff" />
     <view class="page-body">
-    <view v-if="error" class="state">
-      <text class="state-title">视频加载失败</text>
-      <text class="state-desc">{{ error }}</text>
-      <button class="btn-primary" @click="copyUrl">复制链接</button>
-    </view>
-    <view v-else-if="!src" class="state">
-      <text class="state-title">缺少视频地址</text>
-      <text class="state-desc">本单暂无购物视频，可返回订单详情</text>
-    </view>
-    <video
-      v-else
-      class="video-player"
-      :src="src"
-      controls
-      autoplay
-      object-fit="contain"
-      show-center-play-btn
-      @error="onError"
-    />
-    <view v-if="src" class="tips">
-      <text class="tip">若无法播放，可复制链接到浏览器打开</text>
-      <button class="copy-btn" size="mini" @click="copyUrl">复制链接</button>
-    </view>
+      <view v-if="error" class="state">
+        <text class="state-title">视频加载失败</text>
+        <text class="state-desc">{{ error }}</text>
+        <button class="btn-primary" @click="copyUrl">复制链接</button>
+      </view>
+      <view v-else-if="!src" class="state">
+        <text class="state-title">缺少视频地址</text>
+        <text class="state-desc">本单暂无购物视频，可返回订单详情</text>
+      </view>
+      <video
+        v-else
+        class="video-player"
+        :src="src"
+        controls
+        autoplay
+        object-fit="contain"
+        show-center-play-btn
+        @error="onError"
+      />
+      <view v-if="src" class="tips">
+        <text class="tip">若无法播放，可复制链接到浏览器打开</text>
+        <button class="copy-btn" size="mini" @click="copyUrl">复制链接</button>
+      </view>
     </view>
   </view>
 </template>

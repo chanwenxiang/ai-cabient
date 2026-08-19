@@ -2,102 +2,102 @@
   <view class="page">
     <app-nav-bar title="意见反馈" />
     <view class="page-body">
-    <view class="tabs">
-      <text class="tab" :class="{ active: tab === 'submit' }" @click="tab = 'submit'"
-        >提交反馈</text
-      >
-      <text class="tab" :class="{ active: tab === 'mine' }" @click="onMineTab">我的反馈</text>
-    </view>
-
-    <view v-if="tab === 'submit'">
-      <view class="hero">
-        <text class="hero-title">意见反馈</text>
-        <text class="hero-sub">投诉、建议或表扬，我们都会认真查看</text>
-      </view>
-
-      <view class="card">
-        <text class="field-label">反馈类型</text>
-        <view class="issue-grid">
-          <view
-            v-for="item in typeOptions"
-            :key="item.value"
-            class="issue-chip"
-            :class="{ active: feedbackType === item.value }"
-            @click="feedbackType = item.value"
-          >
-            {{ item.label }}
-          </view>
-        </view>
-
-        <text class="field-label">内容</text>
-        <textarea
-          class="textarea"
-          :value="content"
-          maxlength="500"
-          placeholder="请描述你的问题或建议"
-          @input="content = eventInputValue($event)"
-        />
-        <text class="counter">{{ content.length }}/500</text>
-
-        <text class="field-label">联系方式（选填）</text>
-        <input
-          class="input"
-          :value="contactInfo"
-          placeholder="手机号或微信，方便回访"
-          @input="contactInfo = eventInputValue($event)"
-        />
-
-        <text class="field-label">柜机编号（选填）</text>
-        <input
-          class="input"
-          :value="deviceId"
-          placeholder="例如 CAB-001"
-          @input="deviceId = eventInputValue($event)"
-        />
-
-        <button
-          class="btn-primary"
-          hover-class="btn-hover"
-          :loading="submitting"
-          :disabled="submitting"
-          @click="onSubmit"
+      <view class="tabs">
+        <text class="tab" :class="{ active: tab === 'submit' }" @click="tab = 'submit'"
+          >提交反馈</text
         >
-          {{ submitting ? '提交中…' : '提交反馈' }}
-        </button>
-        <text v-if="err" class="err">{{ err }}</text>
+        <text class="tab" :class="{ active: tab === 'mine' }" @click="onMineTab">我的反馈</text>
       </view>
-    </view>
 
-    <view v-else>
-      <view v-if="historyLoading" class="state">加载中…</view>
-      <view v-else-if="historyError" class="state">
-        <text class="err">{{ historyError }}</text>
-        <button class="retry" size="mini" @click="loadHistory">重试</button>
-      </view>
-      <empty-state
-        v-else-if="!history.length"
-        icon="/static/menu/feedback.png"
-        title="暂无反馈记录"
-        hint="提交后可在这里查看处理进度与回复"
-      />
-      <view v-else class="history-list">
-        <view v-for="item in history" :key="item.feedbackId" class="card history-card">
-          <view class="history-head">
-            <text class="history-type">{{ typeLabel(item.feedbackType) }}</text>
-            <text class="history-status" :class="statusClass(item.status)">{{
-              statusLabel(item.status)
-            }}</text>
+      <view v-if="tab === 'submit'">
+        <view class="hero">
+          <text class="hero-title">意见反馈</text>
+          <text class="hero-sub">投诉、建议或表扬，我们都会认真查看</text>
+        </view>
+
+        <view class="card">
+          <text class="field-label">反馈类型</text>
+          <view class="issue-grid">
+            <view
+              v-for="item in typeOptions"
+              :key="item.value"
+              class="issue-chip"
+              :class="{ active: feedbackType === item.value }"
+              @click="feedbackType = item.value"
+            >
+              {{ item.label }}
+            </view>
           </view>
-          <text class="history-content">{{ item.content }}</text>
-          <text class="history-time">{{ formatTime(item.createdAt) }}</text>
-          <view v-if="item.reply" class="reply-box">
-            <text class="reply-label">运营回复</text>
-            <text class="reply-body">{{ item.reply }}</text>
-            <text v-if="item.handledAt" class="reply-time">{{ formatTime(item.handledAt) }}</text>
+
+          <text class="field-label">内容</text>
+          <textarea
+            class="textarea"
+            :value="content"
+            maxlength="500"
+            placeholder="请描述你的问题或建议"
+            @input="content = eventInputValue($event)"
+          />
+          <text class="counter">{{ content.length }}/500</text>
+
+          <text class="field-label">联系方式（选填）</text>
+          <input
+            class="input"
+            :value="contactInfo"
+            placeholder="手机号或微信，方便回访"
+            @input="contactInfo = eventInputValue($event)"
+          />
+
+          <text class="field-label">柜机编号（选填）</text>
+          <input
+            class="input"
+            :value="deviceId"
+            placeholder="例如 CAB-001"
+            @input="deviceId = eventInputValue($event)"
+          />
+
+          <button
+            class="btn-primary"
+            hover-class="btn-hover"
+            :loading="submitting"
+            :disabled="submitting"
+            @click="onSubmit"
+          >
+            {{ submitting ? '提交中…' : '提交反馈' }}
+          </button>
+          <text v-if="err" class="err">{{ err }}</text>
+        </view>
+      </view>
+
+      <view v-else>
+        <view v-if="historyLoading" class="state">加载中…</view>
+        <view v-else-if="historyError" class="state">
+          <text class="err">{{ historyError }}</text>
+          <button class="retry" size="mini" @click="loadHistory">重试</button>
+        </view>
+        <empty-state
+          v-else-if="!history.length"
+          icon="/static/menu/feedback.png"
+          title="暂无反馈记录"
+          hint="提交后可在这里查看处理进度与回复"
+        />
+        <view v-else class="history-list">
+          <view v-for="item in history" :key="item.feedbackId" class="card history-card">
+            <view class="history-head">
+              <text class="history-type">{{ typeLabel(item.feedbackType) }}</text>
+              <text class="history-status" :class="statusClass(item.status)">{{
+                statusLabel(item.status)
+              }}</text>
+            </view>
+            <text class="history-content">{{ item.content }}</text>
+            <text class="history-time">{{ formatTime(item.createdAt) }}</text>
+            <view v-if="item.reply" class="reply-box">
+              <text class="reply-label">运营回复</text>
+              <text class="reply-body">{{ item.reply }}</text>
+              <text v-if="item.handledAt" class="reply-time">{{ formatTime(item.handledAt) }}</text>
+            </view>
           </view>
         </view>
       </view>
-    </view>
     </view>
   </view>
 </template>

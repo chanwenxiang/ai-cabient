@@ -237,10 +237,7 @@ import { useSessionVideo } from '@/composables/useSessionVideo';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import type { PageResult } from '@aicabinet/shared-types';
-import {
-  displayBizNo,
-  formatDateTime
-} from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface SessionRow {
   sessionId: string;

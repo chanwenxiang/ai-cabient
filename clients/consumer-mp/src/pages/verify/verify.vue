@@ -2,100 +2,100 @@
   <view class="page">
     <app-nav-bar title="开通支付" />
     <view class="page-body">
-    <view class="hero">
-      <text class="hero-title">开通免密支付</text>
-      <text class="hero-sub">完成后即可扫码开门，关门自动扣款</text>
-    </view>
+      <view class="hero">
+        <text class="hero-title">开通免密支付</text>
+        <text class="hero-sub">完成后即可扫码开门，关门自动扣款</text>
+      </view>
 
-    <view class="steps">
-      <view class="step" :class="{ done: account?.verified }">
-        <view class="step-dot">{{ account?.verified ? '✓' : '1' }}</view>
-        <text class="step-label">实名</text>
+      <view class="steps">
+        <view class="step" :class="{ done: account?.verified }">
+          <view class="step-dot">{{ account?.verified ? '✓' : '1' }}</view>
+          <text class="step-label">实名</text>
+        </view>
+        <view class="step-line" :class="{ done: account?.verified }" />
+        <view class="step" :class="{ done: payReady }">
+          <view class="step-dot">{{ payReady ? '✓' : '2' }}</view>
+          <text class="step-label">免密支付</text>
+        </view>
       </view>
-      <view class="step-line" :class="{ done: account?.verified }" />
-      <view class="step" :class="{ done: payReady }">
-        <view class="step-dot">{{ payReady ? '✓' : '2' }}</view>
-        <text class="step-label">免密支付</text>
-      </view>
-    </view>
 
-    <view v-if="!account?.verified" class="card">
-      <text class="card-title">实名认证</text>
-      <text class="card-desc">用于保障交易安全，信息仅用于本柜购物核验</text>
-      <text class="field-label">真实姓名</text>
-      <input
-        v-model="realName"
-        class="input"
-        aria-label="真实姓名"
-        placeholder="真实姓名…"
-        maxlength="32"
-      />
-      <text class="field-label">身份证后四位</text>
-      <input
-        v-model="idCardLast4"
-        class="input"
-        type="number"
-        maxlength="4"
-        aria-label="身份证后四位"
-        placeholder="后四位…"
-      />
-      <button class="btn-primary" hover-class="btn-hover" :loading="verifying" @click="onVerify">
-        {{ verifying ? '提交中…' : '下一步' }}
-      </button>
-      <text v-if="devTools" class="hint">开发环境仅做格式校验，上线需对接实名核验。</text>
-      <text v-if="err" class="err">{{ err }}</text>
-    </view>
+      <view v-if="!account?.verified" class="card">
+        <text class="card-title">实名认证</text>
+        <text class="card-desc">用于保障交易安全，信息仅用于本柜购物核验</text>
+        <text class="field-label">真实姓名</text>
+        <input
+          v-model="realName"
+          class="input"
+          aria-label="真实姓名"
+          placeholder="真实姓名…"
+          maxlength="32"
+        />
+        <text class="field-label">身份证后四位</text>
+        <input
+          v-model="idCardLast4"
+          class="input"
+          type="number"
+          maxlength="4"
+          aria-label="身份证后四位"
+          placeholder="后四位…"
+        />
+        <button class="btn-primary" hover-class="btn-hover" :loading="verifying" @click="onVerify">
+          {{ verifying ? '提交中…' : '下一步' }}
+        </button>
+        <text v-if="devTools" class="hint">开发环境仅做格式校验，上线需对接实名核验。</text>
+        <text v-if="err" class="err">{{ err }}</text>
+      </view>
 
-    <view v-else-if="!payReady" class="card">
-      <text class="card-title">开通免密支付</text>
-      <text class="card-desc"
-        >推荐开通支付分 / 免密代扣；可用余额 ≥ ¥{{ needYuan }} 也可临时开门。</text
-      >
-      <view class="status-row">
-        <text class="status-label">可用余额</text>
-        <text class="status-val">{{ balanceYuan }}</text>
+      <view v-else-if="!payReady" class="card">
+        <text class="card-title">开通免密支付</text>
+        <text class="card-desc"
+          >推荐开通支付分 / 免密代扣；可用余额 ≥ ¥{{ needYuan }} 也可临时开门。</text
+        >
+        <view class="status-row">
+          <text class="status-label">可用余额</text>
+          <text class="status-val">{{ balanceYuan }}</text>
+        </view>
+        <view v-if="frozenYuan !== '¥0.00'" class="status-row">
+          <text class="status-label">冻结中</text>
+          <text class="status-val">{{ frozenYuan }}</text>
+        </view>
+        <view class="status-row">
+          <text class="status-label">微信支付分</text>
+          <text class="status-val">{{ wechatReady ? '已开通' : '未开通' }}</text>
+        </view>
+        <view class="status-row">
+          <text class="status-label">支付宝免密</text>
+          <text class="status-val">{{ alipayReady ? '已开通' : '未开通' }}</text>
+        </view>
+        <button
+          class="btn-primary"
+          hover-class="btn-hover"
+          :loading="signing"
+          @click="onSignPayScore"
+        >
+          {{ signing ? '开通中…' : '开通微信支付分' }}
+        </button>
+        <button
+          class="btn-alipay"
+          hover-class="btn-hover"
+          :loading="signingAlipay"
+          @click="onSignAlipay"
+        >
+          {{ signingAlipay ? '开通中…' : '开通支付宝免密' }}
+        </button>
+        <view class="link" @click="goRecharge">余额不足？去充值 ›</view>
+        <text v-if="devTools" class="hint"
+          >开发环境为模拟开通；正式环境将跳转微信/支付宝签约页。</text
+        >
+        <text v-if="err" class="err">{{ err }}</text>
       </view>
-      <view v-if="frozenYuan !== '¥0.00'" class="status-row">
-        <text class="status-label">冻结中</text>
-        <text class="status-val">{{ frozenYuan }}</text>
-      </view>
-      <view class="status-row">
-        <text class="status-label">微信支付分</text>
-        <text class="status-val">{{ wechatReady ? '已开通' : '未开通' }}</text>
-      </view>
-      <view class="status-row">
-        <text class="status-label">支付宝免密</text>
-        <text class="status-val">{{ alipayReady ? '已开通' : '未开通' }}</text>
-      </view>
-      <button
-        class="btn-primary"
-        hover-class="btn-hover"
-        :loading="signing"
-        @click="onSignPayScore"
-      >
-        {{ signing ? '开通中…' : '开通微信支付分' }}
-      </button>
-      <button
-        class="btn-alipay"
-        hover-class="btn-hover"
-        :loading="signingAlipay"
-        @click="onSignAlipay"
-      >
-        {{ signingAlipay ? '开通中…' : '开通支付宝免密' }}
-      </button>
-      <view class="link" @click="goRecharge">余额不足？去充值 ›</view>
-      <text v-if="devTools" class="hint"
-        >开发环境为模拟开通；正式环境将跳转微信/支付宝签约页。</text
-      >
-      <text v-if="err" class="err">{{ err }}</text>
-    </view>
 
-    <view v-else class="card done-card">
-      <text class="done-icon">✓</text>
-      <text class="done-title">可以开门购物了</text>
-      <text class="done-desc">扫柜门二维码即可开门取货</text>
-      <button class="btn-primary" hover-class="btn-hover" @click="goShop">去扫码开门</button>
-    </view>
+      <view v-else class="card done-card">
+        <text class="done-icon">✓</text>
+        <text class="done-title">可以开门购物了</text>
+        <text class="done-desc">扫柜门二维码即可开门取货</text>
+        <button class="btn-primary" hover-class="btn-hover" @click="goShop">去扫码开门</button>
+      </view>
     </view>
   </view>
 </template>

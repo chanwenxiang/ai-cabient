@@ -232,7 +232,12 @@ function formatEventDetail(detail?: string) {
       else if (key === 'lifecycle' || key === 'lifecycleStatus')
         valLabel = dictLabel('device_lifecycle', val) || val;
       else if (key === 'salesLocked')
-        valLabel = val === 'true' || val === 't' || val === '1' ? '是' : val === 'false' || val === 'f' || val === '0' ? '否' : val;
+        valLabel =
+          val === 'true' || val === 't' || val === '1'
+            ? '是'
+            : val === 'false' || val === 'f' || val === '0'
+              ? '否'
+              : val;
       return `${keyLabel}：${valLabel}`;
     })
     .join('；');

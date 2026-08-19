@@ -2,117 +2,117 @@
   <view class="page">
     <app-nav-bar title="要货申请" />
     <view class="page-body">
-    <view class="tabs">
-      <view class="tab" :class="{ active: mode === 'create' }" @click="mode = 'create'"
-        >发起要货</view
-      >
-      <view class="tab" :class="{ active: mode === 'list' }" @click="switchToList">我的申请</view>
-    </view>
-
-    <view v-if="mode === 'create'" class="panel">
-      <view class="card">
-        <text class="label">目标柜机</text>
-        <picker :range="deviceLabels" :value="deviceIndex" @change="onDevicePick">
-          <view class="picker">{{ deviceLabels[deviceIndex] || '请选择柜机' }}</view>
-        </picker>
-        <text v-if="preferredId && selectedDeviceId === preferredId" class="hint"
-          >当前为常驻柜</text
+      <view class="tabs">
+        <view class="tab" :class="{ active: mode === 'create' }" @click="mode = 'create'"
+          >发起要货</view
         >
+        <view class="tab" :class="{ active: mode === 'list' }" @click="switchToList">我的申请</view>
       </view>
 
-      <view class="card">
-        <view class="row-between">
-          <text class="label">要货明细</text>
-          <text class="hint" @click="loadDraft">刷新建议</text>
+      <view v-if="mode === 'create'" class="panel">
+        <view class="card">
+          <text class="label">目标柜机</text>
+          <picker :range="deviceLabels" :value="deviceIndex" @change="onDevicePick">
+            <view class="picker">{{ deviceLabels[deviceIndex] || '请选择柜机' }}</view>
+          </picker>
+          <text v-if="preferredId && selectedDeviceId === preferredId" class="hint"
+            >当前为常驻柜</text
+          >
         </view>
-        <view v-if="draftLoading" class="empty-inline">加载建议中…</view>
-        <view v-else-if="!draftLines.length" class="empty-inline">
-          该柜机暂无可要货商品（无绑定货道 SKU）
+
+        <view class="card">
+          <view class="row-between">
+            <text class="label">要货明细</text>
+            <text class="hint" @click="loadDraft">刷新建议</text>
+          </view>
+          <view v-if="draftLoading" class="empty-inline">加载建议中…</view>
+          <view v-else-if="!draftLines.length" class="empty-inline">
+            该柜机暂无可要货商品（无绑定货道 SKU）
+          </view>
+          <view
+            v-for="line in draftLines"
+            :key="line.skuId"
+            class="line-row"
+            @click="toggleLine(line)"
+          >
+            <view class="check" :class="{ on: line.selected }">{{ line.selected ? '✓' : '' }}</view>
+            <view class="line-copy">
+              <text class="sku-name">{{ line.skuName }}</text>
+              <text class="sku-meta">
+                {{ line.skuId }} · 库存 {{ line.currentQty }}/{{ line.capacity }}
+                <text v-if="line.suggestQty > 0"> · 建议 {{ line.suggestQty }}</text>
+              </text>
+            </view>
+            <view class="qty-box" @click.stop>
+              <text class="qty-btn" @click="adjustQty(line, -1)">−</text>
+              <text class="qty-val">{{ line.qty }}</text>
+              <text class="qty-btn" @click="adjustQty(line, 1)">+</text>
+            </view>
+          </view>
         </view>
+
+        <view class="card">
+          <text class="label">备注（可选）</text>
+          <input
+            v-model="notes"
+            class="input"
+            placeholder="如：周末客流大，优先补可乐"
+            maxlength="80"
+          />
+        </view>
+
+        <view class="btn-primary" :class="{ disabled: submitting || !canSubmit }" @click="submit">{{
+          submitting ? '提交中…' : `提交要货（${selectedCount} 种）`
+        }}</view>
+        <text v-if="!canRequest" class="err">当前账号无要货权限</text>
+      </view>
+
+      <view v-else class="panel">
+        <view class="filters">
+          <view
+            v-for="t in statusTabs"
+            :key="t.value"
+            class="filter"
+            :class="{ active: listStatus === t.value }"
+            @click="changeListStatus(t.value)"
+            >{{ t.label }}</view
+          >
+        </view>
+        <view v-if="listLoading" class="empty-inline">加载中…</view>
+        <view v-else-if="listError" class="empty-inline err">{{ listError }}</view>
+        <view v-else-if="!requests.length" class="empty-inline">暂无要货申请</view>
         <view
-          v-for="line in draftLines"
-          :key="line.skuId"
-          class="line-row"
-          @click="toggleLine(line)"
+          v-for="req in requests"
+          :key="req.requestId"
+          class="card req-card"
+          :class="{ clickable: canGoReplenish(req) }"
+          :hover-class="canGoReplenish(req) ? 'req-card-hover' : ''"
+          @click="onRequestCard(req)"
         >
-          <view class="check" :class="{ on: line.selected }">{{ line.selected ? '✓' : '' }}</view>
-          <view class="line-copy">
-            <text class="sku-name">{{ line.skuName }}</text>
-            <text class="sku-meta">
-              {{ line.skuId }} · 库存 {{ line.currentQty }}/{{ line.capacity }}
-              <text v-if="line.suggestQty > 0"> · 建议 {{ line.suggestQty }}</text>
+          <view class="row-between">
+            <text class="req-id">#{{ req.requestId }}</text>
+            <text class="status" :class="(req.status || '').toLowerCase()">
+              {{ displayLabel('replenishment_request_status', req.status) }}
             </text>
           </view>
-          <view class="qty-box" @click.stop>
-            <text class="qty-btn" @click="adjustQty(line, -1)">−</text>
-            <text class="qty-val">{{ line.qty }}</text>
-            <text class="qty-btn" @click="adjustQty(line, 1)">+</text>
+          <text class="sku-name">{{ req.deviceName || req.deviceId }}</text>
+          <text class="sku-meta">{{ req.deviceId }} · {{ formatTime(req.submittedAt) }}</text>
+          <view v-if="req.lines?.length" class="lines">
+            <text v-for="l in req.lines" :key="l.lineId || l.skuId" class="line-chip">
+              {{ l.skuName || l.skuId }} ×{{ l.requestedQty }}
+            </text>
           </view>
+          <text v-if="req.rejectReason" class="reject">驳回：{{ req.rejectReason }}</text>
+          <text v-if="req.notes" class="notes">备注：{{ req.notes }}</text>
+          <view v-if="req.status === 'ACCEPTED' && req.replenishmentTaskId" class="detail-btn"
+            >去补货 ›</view
+          >
         </view>
-      </view>
-
-      <view class="card">
-        <text class="label">备注（可选）</text>
-        <input
-          v-model="notes"
-          class="input"
-          placeholder="如：周末客流大，优先补可乐"
-          maxlength="80"
-        />
-      </view>
-
-      <view class="btn-primary" :class="{ disabled: submitting || !canSubmit }" @click="submit">{{
-        submitting ? '提交中…' : `提交要货（${selectedCount} 种）`
-      }}</view>
-      <text v-if="!canRequest" class="err">当前账号无要货权限</text>
-    </view>
-
-    <view v-else class="panel">
-      <view class="filters">
-        <view
-          v-for="t in statusTabs"
-          :key="t.value"
-          class="filter"
-          :class="{ active: listStatus === t.value }"
-          @click="changeListStatus(t.value)"
-          >{{ t.label }}</view
+        <text v-if="requests.length >= 100" class="trunc-hint"
+          >已加载 {{ requests.length }} 条申请</text
         >
       </view>
-      <view v-if="listLoading" class="empty-inline">加载中…</view>
-      <view v-else-if="listError" class="empty-inline err">{{ listError }}</view>
-      <view v-else-if="!requests.length" class="empty-inline">暂无要货申请</view>
-      <view
-        v-for="req in requests"
-        :key="req.requestId"
-        class="card req-card"
-        :class="{ clickable: canGoReplenish(req) }"
-        :hover-class="canGoReplenish(req) ? 'req-card-hover' : ''"
-        @click="onRequestCard(req)"
-      >
-        <view class="row-between">
-          <text class="req-id">#{{ req.requestId }}</text>
-          <text class="status" :class="(req.status || '').toLowerCase()">
-            {{ displayLabel('replenishment_request_status', req.status) }}
-          </text>
-        </view>
-        <text class="sku-name">{{ req.deviceName || req.deviceId }}</text>
-        <text class="sku-meta">{{ req.deviceId }} · {{ formatTime(req.submittedAt) }}</text>
-        <view v-if="req.lines?.length" class="lines">
-          <text v-for="l in req.lines" :key="l.lineId || l.skuId" class="line-chip">
-            {{ l.skuName || l.skuId }} ×{{ l.requestedQty }}
-          </text>
-        </view>
-        <text v-if="req.rejectReason" class="reject">驳回：{{ req.rejectReason }}</text>
-        <text v-if="req.notes" class="notes">备注：{{ req.notes }}</text>
-        <view v-if="req.status === 'ACCEPTED' && req.replenishmentTaskId" class="detail-btn"
-          >去补货 ›</view
-        >
-      </view>
-      <text v-if="requests.length >= 100" class="trunc-hint"
-        >已加载 {{ requests.length }} 条申请</text
-      >
     </view>
-      </view>
   </view>
 </template>
 

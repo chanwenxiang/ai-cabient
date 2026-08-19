@@ -2,142 +2,142 @@
   <view class="page-root">
     <app-nav-bar title="结算对账" />
     <view class="page-body">
-    <view class="date-bar">
-      <!-- H5：原生 date 用浏览器浮层日历，避免 uni-picker 窄屏把年列表撑进页面 -->
-      <input
-        v-if="isH5"
-        class="date-input"
-        type="date"
-        :value="startDate"
-        :max="endDate"
-        @change="onStartDate"
-      />
-      <picker
-        v-else
-        mode="date"
-        :value="startDate"
-        start="2020-01-01"
-        :end="endDate"
-        @change="onStartDate"
-      >
-        <text class="date-text">{{ startDate }}</text>
-      </picker>
-      <text class="date-sep">至</text>
-      <input
-        v-if="isH5"
-        class="date-input"
-        type="date"
-        :value="endDate"
-        :min="startDate"
-        @change="onEndDate"
-      />
-      <picker
-        v-else
-        mode="date"
-        :value="endDate"
-        :start="startDate"
-        end="2035-12-31"
-        @change="onEndDate"
-      >
-        <text class="date-text">{{ endDate }}</text>
-      </picker>
-    </view>
-
-    <view v-if="loadError" class="banner-err">
-      <text>{{ loadError }}</text>
-      <text class="banner-retry" @click="load">重试</text>
-    </view>
-
-    <view class="summary-card">
-      <view class="summary-row">
-        <text class="summary-label">区间营收</text>
-        <text class="summary-value">¥{{ summary.gross }}</text>
-      </view>
-      <view class="summary-row">
-        <text class="summary-label">平台抽成</text>
-        <text class="summary-value minus">-¥{{ summary.platformFee }}</text>
-      </view>
-      <view class="summary-row total">
-        <text class="summary-label">商户所得</text>
-        <text class="summary-value">¥{{ summary.merchantIncome }}</text>
-      </view>
-      <view class="summary-row">
-        <text class="summary-label">待分账</text>
-        <text class="summary-value">¥{{ summary.pending }}</text>
-      </view>
-      <view class="summary-row">
-        <text class="summary-label">本月已结算</text>
-        <text class="summary-value">¥{{ summary.settledMonth }}</text>
-      </view>
-    </view>
-
-    <view class="tip-card">
-      <text class="tip-text"
-        >T+1
-        结算：当日支付流水通常次日完成入账。可提现余额请到「商户钱包」申请提现；线长佣金请走「线长钱包」。</text
-      >
-      <text v-if="profitNote" class="tip-meta">{{ profitNote }}</text>
-      <text v-if="canViewSplits" class="tip-link" @click="goSplits">查看分账明细 ›</text>
-    </view>
-
-    <view class="section">
-      <text class="section-title">按日汇总</text>
-      <view v-if="loading" class="loading-inline">结算数据加载中…</view>
-      <template v-else>
-        <view v-for="d in daily" :key="d.date" class="device-row">
-          <view class="device-info">
-            <text class="device-name">{{ d.date }}</text>
-            <text class="device-orders">
-              {{ d.orderCount }} 笔 · 实付 ¥{{ (d.grossCents / 100).toFixed(2) }} · 抽成 ¥{{
-                (d.platformCents / 100).toFixed(2)
-              }}
-            </text>
-            <text class="device-orders"
-              >待分 ¥{{ (d.pendingCents / 100).toFixed(2) }} · 已结 ¥{{
-                (d.settledCents / 100).toFixed(2)
-              }}</text
-            >
-          </view>
-          <text class="device-amount">¥{{ (d.merchantCents / 100).toFixed(2) }}</text>
-        </view>
-        <empty-state
-          v-if="!daily.length"
-          compact
-          icon="/static/menu/settlements.png"
-          title="所选日期暂无结算数据"
-          hint="可调整上方日期范围，或等待订单完成分账"
+      <view class="date-bar">
+        <!-- H5：原生 date 用浏览器浮层日历，避免 uni-picker 窄屏把年列表撑进页面 -->
+        <input
+          v-if="isH5"
+          class="date-input"
+          type="date"
+          :value="startDate"
+          :max="endDate"
+          @change="onStartDate"
         />
-      </template>
-    </view>
-
-    <view class="section">
-      <text class="section-title">结算批次</text>
-      <view v-if="batchWarn" class="section-warn">{{ batchWarn }}</view>
-      <view v-if="loading" class="loading-inline">批次加载中…</view>
-      <template v-else>
-        <view v-for="b in batches" :key="b.batchNo" class="device-row">
-          <view class="device-info">
-            <text class="device-name">{{ b.batchNo }}</text>
-            <text class="device-orders"
-              >{{ batchStatusLabel(b.batchStatus) }} · {{ b.orderCount }} 笔</text
-            >
-          </view>
-          <text class="device-amount">¥{{ (b.merchantCents / 100).toFixed(2) }}</text>
-        </view>
-        <empty-state
-          v-if="!batches.length"
-          compact
-          icon="/static/menu/orders.png"
-          title="暂无结算批次"
-          hint="平台定期提交分账后，批次会显示在这里"
+        <picker
+          v-else
+          mode="date"
+          :value="startDate"
+          start="2020-01-01"
+          :end="endDate"
+          @change="onStartDate"
+        >
+          <text class="date-text">{{ startDate }}</text>
+        </picker>
+        <text class="date-sep">至</text>
+        <input
+          v-if="isH5"
+          class="date-input"
+          type="date"
+          :value="endDate"
+          :min="startDate"
+          @change="onEndDate"
         />
-      </template>
-    </view>
-
-    <view v-if="canExport" class="actions">
-      <button class="btn-outline" @click="onExport">导出对账单</button>
-    </view>
+        <picker
+          v-else
+          mode="date"
+          :value="endDate"
+          :start="startDate"
+          end="2035-12-31"
+          @change="onEndDate"
+        >
+          <text class="date-text">{{ endDate }}</text>
+        </picker>
       </view>
+
+      <view v-if="loadError" class="banner-err">
+        <text>{{ loadError }}</text>
+        <text class="banner-retry" @click="load">重试</text>
+      </view>
+
+      <view class="summary-card">
+        <view class="summary-row">
+          <text class="summary-label">区间营收</text>
+          <text class="summary-value">¥{{ summary.gross }}</text>
+        </view>
+        <view class="summary-row">
+          <text class="summary-label">平台抽成</text>
+          <text class="summary-value minus">-¥{{ summary.platformFee }}</text>
+        </view>
+        <view class="summary-row total">
+          <text class="summary-label">商户所得</text>
+          <text class="summary-value">¥{{ summary.merchantIncome }}</text>
+        </view>
+        <view class="summary-row">
+          <text class="summary-label">待分账</text>
+          <text class="summary-value">¥{{ summary.pending }}</text>
+        </view>
+        <view class="summary-row">
+          <text class="summary-label">本月已结算</text>
+          <text class="summary-value">¥{{ summary.settledMonth }}</text>
+        </view>
+      </view>
+
+      <view class="tip-card">
+        <text class="tip-text"
+          >T+1
+          结算：当日支付流水通常次日完成入账。可提现余额请到「商户钱包」申请提现；线长佣金请走「线长钱包」。</text
+        >
+        <text v-if="profitNote" class="tip-meta">{{ profitNote }}</text>
+        <text v-if="canViewSplits" class="tip-link" @click="goSplits">查看分账明细 ›</text>
+      </view>
+
+      <view class="section">
+        <text class="section-title">按日汇总</text>
+        <view v-if="loading" class="loading-inline">结算数据加载中…</view>
+        <template v-else>
+          <view v-for="d in daily" :key="d.date" class="device-row">
+            <view class="device-info">
+              <text class="device-name">{{ d.date }}</text>
+              <text class="device-orders">
+                {{ d.orderCount }} 笔 · 实付 ¥{{ (d.grossCents / 100).toFixed(2) }} · 抽成 ¥{{
+                  (d.platformCents / 100).toFixed(2)
+                }}
+              </text>
+              <text class="device-orders"
+                >待分 ¥{{ (d.pendingCents / 100).toFixed(2) }} · 已结 ¥{{
+                  (d.settledCents / 100).toFixed(2)
+                }}</text
+              >
+            </view>
+            <text class="device-amount">¥{{ (d.merchantCents / 100).toFixed(2) }}</text>
+          </view>
+          <empty-state
+            v-if="!daily.length"
+            compact
+            icon="/static/menu/settlements.png"
+            title="所选日期暂无结算数据"
+            hint="可调整上方日期范围，或等待订单完成分账"
+          />
+        </template>
+      </view>
+
+      <view class="section">
+        <text class="section-title">结算批次</text>
+        <view v-if="batchWarn" class="section-warn">{{ batchWarn }}</view>
+        <view v-if="loading" class="loading-inline">批次加载中…</view>
+        <template v-else>
+          <view v-for="b in batches" :key="b.batchNo" class="device-row">
+            <view class="device-info">
+              <text class="device-name">{{ b.batchNo }}</text>
+              <text class="device-orders"
+                >{{ batchStatusLabel(b.batchStatus) }} · {{ b.orderCount }} 笔</text
+              >
+            </view>
+            <text class="device-amount">¥{{ (b.merchantCents / 100).toFixed(2) }}</text>
+          </view>
+          <empty-state
+            v-if="!batches.length"
+            compact
+            icon="/static/menu/orders.png"
+            title="暂无结算批次"
+            hint="平台定期提交分账后，批次会显示在这里"
+          />
+        </template>
+      </view>
+
+      <view v-if="canExport" class="actions">
+        <button class="btn-outline" @click="onExport">导出对账单</button>
+      </view>
+    </view>
   </view>
 </template>
 

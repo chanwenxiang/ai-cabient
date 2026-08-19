@@ -2,54 +2,53 @@
   <view class="page">
     <app-nav-bar title="故障报修" />
     <view class="page-body">
-    <view class="hero">
-      <text class="hero-title">故障报修</text>
-      <text class="hero-sub">柜机异常？提交后运营会尽快处理</text>
-    </view>
+      <view class="hero">
+        <text class="hero-title">故障报修</text>
+        <text class="hero-sub">柜机异常？提交后运营会尽快处理</text>
+      </view>
 
-    <view class="card">
-      <text class="field-label">柜机编号</text>
-      <input class="input" :value="deviceId" placeholder="例如 CAB-001" @input="onDeviceInput" />
+      <view class="card">
+        <text class="field-label">柜机编号</text>
+        <input class="input" :value="deviceId" placeholder="例如 CAB-001" @input="onDeviceInput" />
 
-      <text class="field-label">问题类型</text>
-      <view class="issue-grid">
-        <view
-          v-for="item in issueOptions"
-          :key="item.value"
-          class="issue-chip"
-          :class="{ active: issueType === item.value }"
-          @click="issueType = item.value"
-        >
-          {{ item.label }}
+        <text class="field-label">问题类型</text>
+        <view class="issue-grid">
+          <view
+            v-for="item in issueOptions"
+            :key="item.value"
+            class="issue-chip"
+            :class="{ active: issueType === item.value }"
+            @click="issueType = item.value"
+          >
+            {{ item.label }}
+          </view>
         </view>
+
+        <text class="field-label">补充说明（选填）</text>
+        <textarea
+          v-model="description"
+          class="textarea"
+          maxlength="200"
+          placeholder="描述具体情况，便于快速处理"
+        />
       </view>
 
-      <text class="field-label">补充说明（选填）</text>
-      <textarea
-        v-model="description"
-        class="textarea"
-        maxlength="200"
-        placeholder="描述具体情况，便于快速处理"
-      />
-
-    </view>
-
-    <!-- 提交区独立：用 view+role=button，保证 H5 a11y 树可点（OBS-005） -->
-    <view class="submit-bar">
-      <view
-        class="btn-primary"
-        role="button"
-        tabindex="0"
-        aria-label="提交报修"
-        :aria-disabled="submitting ? 'true' : 'false'"
-        hover-class="btn-hover"
-        @tap.stop="onSubmit"
-        @click.stop="onSubmit"
-      >
-        <text class="btn-primary-text">{{ submitting ? '提交中…' : '提交报修' }}</text>
+      <!-- 提交区独立：用 view+role=button，保证 H5 a11y 树可点（OBS-005） -->
+      <view class="submit-bar">
+        <view
+          class="btn-primary"
+          role="button"
+          tabindex="0"
+          aria-label="提交报修"
+          :aria-disabled="submitting ? 'true' : 'false'"
+          hover-class="btn-hover"
+          @tap.stop="onSubmit"
+          @click.stop="onSubmit"
+        >
+          <text class="btn-primary-text">{{ submitting ? '提交中…' : '提交报修' }}</text>
+        </view>
+        <text v-if="err" class="err">{{ err }}</text>
       </view>
-      <text v-if="err" class="err">{{ err }}</text>
-    </view>
     </view>
   </view>
 </template>

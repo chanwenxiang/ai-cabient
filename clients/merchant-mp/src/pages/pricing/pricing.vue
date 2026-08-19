@@ -2,82 +2,82 @@
   <view>
     <app-nav-bar title="点位定价" />
     <view class="page-body">
-    <view v-if="!canView" class="card">
-      <text class="err">当前账号无定价查看权限</text>
-    </view>
-    <template v-else>
-      <view class="card">
-        <picker :range="deviceOptions" range-key="label" @change="onDevicePick">
-          <view class="picker">柜机：{{ selectedLabel }}</view>
-        </picker>
-        <view class="history-btn" @click="openHistory">调价历史</view>
-        <text v-if="!canEdit" class="meta warn"
-          >定价只读 — 需平台开启「允许商户改价」且具备 pricing:edit 权限</text
+      <view v-if="!canView" class="card">
+        <text class="err">当前账号无定价查看权限</text>
+      </view>
+      <template v-else>
+        <view class="card">
+          <picker :range="deviceOptions" range-key="label" @change="onDevicePick">
+            <view class="picker">柜机：{{ selectedLabel }}</view>
+          </picker>
+          <view class="history-btn" @click="openHistory">调价历史</view>
+          <text v-if="!canEdit" class="meta warn"
+            >定价只读 — 需平台开启「允许商户改价」且具备 pricing:edit 权限</text
+          >
+        </view>
+
+        <view v-if="loading && !rows.length" class="card">加载中…</view>
+        <view v-else-if="error && !rows.length" class="card"
+          ><text class="err">{{ error }}</text></view
         >
-      </view>
-
-      <view v-if="loading && !rows.length" class="card">加载中…</view>
-      <view v-else-if="error && !rows.length" class="card"
-        ><text class="err">{{ error }}</text></view
-      >
-      <view v-else>
-        <view v-if="error" class="banner-err">
-          <text>{{ error }}</text>
-          <text class="banner-retry" @click="load(false)">重试</text>
-        </view>
-        <view v-for="p in rows" :key="draftKey(p)" class="card row">
-          <view class="row-main">
-            <text class="name">{{ p.skuName }}</text>
-            <text class="meta"
-              >{{ p.deviceName || p.deviceId }} · 基准 {{ money(p.basePriceCents) }}</text
-            >
-            <text v-if="p.minPriceCents != null || p.maxPriceCents != null" class="meta range">
-              可改 {{ p.minPriceCents != null ? money(p.minPriceCents) : '未设' }}–{{
-                p.maxPriceCents != null ? money(p.maxPriceCents) : '未设'
-              }}
-            </text>
+        <view v-else>
+          <view v-if="error" class="banner-err">
+            <text>{{ error }}</text>
+            <text class="banner-retry" @click="load(false)">重试</text>
           </view>
-          <view class="price-col">
-            <text class="effective">{{ money(p.effectivePriceCents) }}</text>
-            <input
-              v-if="canEdit"
-              v-model="draft[draftKey(p)]"
-              class="input"
-              type="digit"
-              placeholder="覆盖价(元)"
-              :disabled="savingKey === draftKey(p)"
-              @blur="savePrice(p)"
-            />
-            <text v-if="canEdit && savingKey === draftKey(p)" class="saving">保存中…</text>
-          </view>
-        </view>
-        <empty-state
-          v-if="!rows.length"
-          icon="/static/menu/pricing.png"
-          title="暂无定价数据"
-          hint="选择柜机后可查看 SKU 基准价与覆盖价"
-        />
-      </view>
-
-      <view v-if="historyVisible" class="mask" @click="historyVisible = false">
-        <view class="dialog" @click.stop>
-          <view class="dialog-head">
-            <text class="dialog-title">调价历史</text>
-            <text class="dialog-close" role="button" @click="historyVisible = false">×</text>
-          </view>
-          <view v-if="historyLoading" class="meta center">加载中…</view>
-          <view v-else-if="!history.length" class="meta center">暂无调价记录</view>
-          <view v-for="(h, i) in history" :key="i" class="history-row">
-            <view class="history-main">
-              <text class="history-sku">{{ h.skuId }}</text>
-              <text class="history-detail">{{ h.detail || '—' }}</text>
+          <view v-for="p in rows" :key="draftKey(p)" class="card row">
+            <view class="row-main">
+              <text class="name">{{ p.skuName }}</text>
+              <text class="meta"
+                >{{ p.deviceName || p.deviceId }} · 基准 {{ money(p.basePriceCents) }}</text
+              >
+              <text v-if="p.minPriceCents != null || p.maxPriceCents != null" class="meta range">
+                可改 {{ p.minPriceCents != null ? money(p.minPriceCents) : '未设' }}–{{
+                  p.maxPriceCents != null ? money(p.maxPriceCents) : '未设'
+                }}
+              </text>
             </view>
-            <text class="meta">{{ formatTime(h.changedAt) }}</text>
+            <view class="price-col">
+              <text class="effective">{{ money(p.effectivePriceCents) }}</text>
+              <input
+                v-if="canEdit"
+                v-model="draft[draftKey(p)]"
+                class="input"
+                type="digit"
+                placeholder="覆盖价(元)"
+                :disabled="savingKey === draftKey(p)"
+                @blur="savePrice(p)"
+              />
+              <text v-if="canEdit && savingKey === draftKey(p)" class="saving">保存中…</text>
+            </view>
+          </view>
+          <empty-state
+            v-if="!rows.length"
+            icon="/static/menu/pricing.png"
+            title="暂无定价数据"
+            hint="选择柜机后可查看 SKU 基准价与覆盖价"
+          />
+        </view>
+
+        <view v-if="historyVisible" class="mask" @click="historyVisible = false">
+          <view class="dialog" @click.stop>
+            <view class="dialog-head">
+              <text class="dialog-title">调价历史</text>
+              <text class="dialog-close" role="button" @click="historyVisible = false">×</text>
+            </view>
+            <view v-if="historyLoading" class="meta center">加载中…</view>
+            <view v-else-if="!history.length" class="meta center">暂无调价记录</view>
+            <view v-for="(h, i) in history" :key="i" class="history-row">
+              <view class="history-main">
+                <text class="history-sku">{{ h.skuId }}</text>
+                <text class="history-detail">{{ h.detail || '—' }}</text>
+              </view>
+              <text class="meta">{{ formatTime(h.changedAt) }}</text>
+            </view>
           </view>
         </view>
-      </view>
-    </template>
-      </view>
+      </template>
+    </view>
   </view>
 </template>
 

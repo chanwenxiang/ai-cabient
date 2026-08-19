@@ -2,113 +2,118 @@
   <view>
     <app-nav-bar title="柜机详情" />
     <view class="page-body">
-    <view v-if="!canView" class="card"><text class="err">当前账号无柜机详情权限</text></view>
-    <view v-else-if="loading" class="card">加载中…</view>
-    <view v-else-if="error" class="card"
-      ><text class="err">{{ error }}</text></view
-    >
-    <view v-else>
-      <view class="card">
-        <image
-          class="device-hero"
-          src="/static/device-default.png"
-          mode="aspectFill"
-          aria-hidden="true"
-        />
-        <text class="title">{{ deviceName }}</text>
-        <text class="meta"
-          >{{ deviceId }} · {{ online ? '在线' : '离线' }}{{ salesLocked ? ' · 停售中' : '' }}</text
-        >
-        <text v-if="salesLocked" class="locked-banner"
-          >柜机已锁机停售，消费者无法开门；补货仍可按任务操作</text
-        >
-        <text class="meta">当前 {{ currentTemp }} / 目标 {{ targetTemp }}</text>
-        <view class="pref-row" @click="togglePreferred">
-          <text class="pref-star" :class="{ on: isPreferred }">★</text>
-          <text>{{ isPreferred ? '常驻柜（点击取消）' : '设为常驻柜' }}</text>
-        </view>
-        <view class="action-row">
-          <view v-if="canReplenishView" class="btn-primary action-btn" @click="goReplenishment"
-            >补货任务</view
+      <view v-if="!canView" class="card"><text class="err">当前账号无柜机详情权限</text></view>
+      <view v-else-if="loading" class="card">加载中…</view>
+      <view v-else-if="error" class="card"
+        ><text class="err">{{ error }}</text></view
+      >
+      <view v-else>
+        <view class="card">
+          <image
+            class="device-hero"
+            src="/static/device-default.png"
+            mode="aspectFill"
+            aria-hidden="true"
+          />
+          <text class="title">{{ deviceName }}</text>
+          <text class="meta"
+            >{{ deviceId }} · {{ online ? '在线' : '离线'
+            }}{{ salesLocked ? ' · 停售中' : '' }}</text
           >
-          <view v-if="canRequest" class="btn-primary action-btn" @click="goRequest">发起要货</view>
-        </view>
-      </view>
-
-      <view v-if="canEditDevice" class="card">
-        <text class="section">柜机设置</text>
-        <input v-model="formName" class="input" placeholder="显示名称" />
-        <input v-model="formTargetTemp" class="input" type="number" placeholder="目标温度(°C)" />
-        <input v-model="formRemark" class="input" placeholder="备注" />
-        <view class="btn-primary" @click="saveSettings">{{ saving ? '保存中…' : '保存设置' }}</view>
-      </view>
-
-      <view class="card">
-        <view class="row">
-          <text class="section">货道</text>
-          <text v-if="!canEditSlots" class="meta">只读（平台未开启或未授权）</text>
-        </view>
-        <view class="slot-grid">
-          <view v-for="s in slots" :key="s.slotCode" class="slot-cell">
-            <text class="slot-code">{{ s.slotCode }}</text>
-            <text>{{ s.assignedSkuName || '空' }}</text>
-            <text class="meta"
-              >库存 {{ s.bookQty }}/{{ s.maxLevel || s.parLevel || '未设上限' }}</text
+          <text v-if="salesLocked" class="locked-banner"
+            >柜机已锁机停售，消费者无法开门；补货仍可按任务操作</text
+          >
+          <text class="meta">当前 {{ currentTemp }} / 目标 {{ targetTemp }}</text>
+          <view class="pref-row" @click="togglePreferred">
+            <text class="pref-star" :class="{ on: isPreferred }">★</text>
+            <text>{{ isPreferred ? '常驻柜（点击取消）' : '设为常驻柜' }}</text>
+          </view>
+          <view class="action-row">
+            <view v-if="canReplenishView" class="btn-primary action-btn" @click="goReplenishment"
+              >补货任务</view
             >
-            <input
-              v-if="canEditSlots"
-              v-model="slotPar[s.slotCode]"
-              class="input-sm"
-              type="number"
-              placeholder="目标库存"
-            />
+            <view v-if="canRequest" class="btn-primary action-btn" @click="goRequest"
+              >发起要货</view
+            >
           </view>
         </view>
-        <view v-if="canEditSlots" class="btn-primary" style="margin-top: 12px" @click="saveSlots">
-          {{ savingSlots ? '保存中…' : '保存货道' }}
-        </view>
-      </view>
 
-      <view v-if="tempHistory.length" class="card">
-        <view class="row">
-          <text class="section">温度历史（近 24h）</text>
-          <text class="meta">{{ tempSummaryText }}</text>
+        <view v-if="canEditDevice" class="card">
+          <text class="section">柜机设置</text>
+          <input v-model="formName" class="input" placeholder="显示名称" />
+          <input v-model="formTargetTemp" class="input" type="number" placeholder="目标温度(°C)" />
+          <input v-model="formRemark" class="input" placeholder="备注" />
+          <view class="btn-primary" @click="saveSettings">{{
+            saving ? '保存中…' : '保存设置'
+          }}</view>
         </view>
-        <view v-for="(r, i) in tempHistory" :key="i" class="temp-row">
-          <text class="meta">{{ formatTime(r.reportedAt) }}</text>
-          <text
-            class="temp-val"
-            :class="{
-              warn: targetTempNum != null && Math.abs(r.tempC - targetTempNum) > 2
-            }"
-            >{{ r.tempC }}°C</text
-          >
-          <text class="meta">{{
-            i > 0 ? (r.tempC >= tempHistory[i - 1].tempC ? '↑' : '↓') : '—'
-          }}</text>
-        </view>
-      </view>
 
-      <view v-if="velocity.length" class="card">
-        <view class="row">
-          <text class="section">商品动销 / 补货点</text>
-          <text class="meta">近 14 日</text>
-        </view>
-        <view v-for="v in velocity" :key="v.skuId" class="velocity-row">
-          <view class="velocity-main">
-            <text class="sku-name">{{ v.skuName }}</text>
-            <text class="meta">{{ v.skuId }}</text>
+        <view class="card">
+          <view class="row">
+            <text class="section">货道</text>
+            <text v-if="!canEditSlots" class="meta">只读（平台未开启或未授权）</text>
           </view>
-          <view class="velocity-data">
-            <text>7日 {{ v.soldQty7d }}</text>
-            <text>14日 {{ v.soldQty14d }}</text>
-            <text>日均 {{ Number(v.avgDailySales).toFixed(1) }}</text>
-            <text class="rop">补货点 {{ v.ropPoint }}</text>
+          <view class="slot-grid">
+            <view v-for="s in slots" :key="s.slotCode" class="slot-cell">
+              <text class="slot-code">{{ s.slotCode }}</text>
+              <text>{{ s.assignedSkuName || '空' }}</text>
+              <text class="meta"
+                >库存 {{ s.bookQty }}/{{ s.maxLevel || s.parLevel || '未设上限' }}</text
+              >
+              <input
+                v-if="canEditSlots"
+                v-model="slotPar[s.slotCode]"
+                class="input-sm"
+                type="number"
+                placeholder="目标库存"
+              />
+            </view>
+          </view>
+          <view v-if="canEditSlots" class="btn-primary" style="margin-top: 12px" @click="saveSlots">
+            {{ savingSlots ? '保存中…' : '保存货道' }}
+          </view>
+        </view>
+
+        <view v-if="tempHistory.length" class="card">
+          <view class="row">
+            <text class="section">温度历史（近 24h）</text>
+            <text class="meta">{{ tempSummaryText }}</text>
+          </view>
+          <view v-for="(r, i) in tempHistory" :key="i" class="temp-row">
+            <text class="meta">{{ formatTime(r.reportedAt) }}</text>
+            <text
+              class="temp-val"
+              :class="{
+                warn: targetTempNum != null && Math.abs(r.tempC - targetTempNum) > 2
+              }"
+              >{{ r.tempC }}°C</text
+            >
+            <text class="meta">{{
+              i > 0 ? (r.tempC >= tempHistory[i - 1].tempC ? '↑' : '↓') : '—'
+            }}</text>
+          </view>
+        </view>
+
+        <view v-if="velocity.length" class="card">
+          <view class="row">
+            <text class="section">商品动销 / 补货点</text>
+            <text class="meta">近 14 日</text>
+          </view>
+          <view v-for="v in velocity" :key="v.skuId" class="velocity-row">
+            <view class="velocity-main">
+              <text class="sku-name">{{ v.skuName }}</text>
+              <text class="meta">{{ v.skuId }}</text>
+            </view>
+            <view class="velocity-data">
+              <text>7日 {{ v.soldQty7d }}</text>
+              <text>14日 {{ v.soldQty14d }}</text>
+              <text>日均 {{ Number(v.avgDailySales).toFixed(1) }}</text>
+              <text class="rop">补货点 {{ v.ropPoint }}</text>
+            </view>
           </view>
         </view>
       </view>
     </view>
-      </view>
   </view>
 </template>
 

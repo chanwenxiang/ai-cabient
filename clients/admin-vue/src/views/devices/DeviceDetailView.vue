@@ -980,10 +980,7 @@ import type {
   SkuCatalog,
   UpsertDeviceSlotRequest
 } from '@aicabinet/shared-types';
-import {
-  displayBizNo,
-  formatDateTime
-} from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface DeviceRow {
   deviceId: string;

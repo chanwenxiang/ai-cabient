@@ -37,7 +37,10 @@ export function takeAlipayReturnPage(): string {
 /** 仅允许跳转到支付宝网关（正式 / 沙箱）。 */
 function isAllowedAlipayAction(action: string): boolean {
   try {
-    const url = new URL(action, typeof window !== 'undefined' ? window.location.origin : 'https://local.invalid');
+    const url = new URL(
+      action,
+      typeof window !== 'undefined' ? window.location.origin : 'https://local.invalid'
+    );
     if (url.protocol !== 'https:' && url.protocol !== 'http:') return false;
     const host = url.hostname.toLowerCase();
     return (
@@ -99,7 +102,9 @@ export function openAlipayPayForm(payFormHtml: string) {
     const input = document.createElement('input');
     input.type = 'hidden';
     input.name = name;
-    input.value = String((node as HTMLInputElement).value || node.getAttribute('value') || '').slice(0, 8192);
+    input.value = String(
+      (node as HTMLInputElement).value || node.getAttribute('value') || ''
+    ).slice(0, 8192);
     form.appendChild(input);
   }
   if (!form.querySelector('input')) {

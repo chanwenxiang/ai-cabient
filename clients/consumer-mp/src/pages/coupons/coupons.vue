@@ -2,62 +2,59 @@
   <view class="page-root">
     <app-nav-bar title="我的优惠券" />
     <view class="page-body">
-    <view class="tabs-pill">
-      <text
-        v-for="tab in tabs"
-        :key="tab.key"
-        class="filter-chip"
-        :class="{ active: activeTab === tab.key }"
-        @click="activeTab = tab.key"
-        >{{ tab.label }}</text
-      >
-    </view>
+      <view class="tabs-pill">
+        <text
+          v-for="tab in tabs"
+          :key="tab.key"
+          class="filter-chip"
+          :class="{ active: activeTab === tab.key }"
+          @click="activeTab = tab.key"
+          >{{ tab.label }}</text
+        >
+      </view>
 
-    <view v-if="loading" class="loading"><text>加载中…</text></view>
-    <empty-state
-      v-else-if="loadError"
-      icon="/static/menu/warning.png"
-      title="优惠券加载失败"
-      :hint="loadError"
-    >
-      <button class="empty-btn primary" @click="load">重试</button>
-    </empty-state>
-    <empty-state
-      v-else-if="!list.length"
-      icon="/static/menu/coupons.png"
-      :title="emptyTitle"
-      :hint="emptyHint"
-    >
-      <button class="empty-btn primary" @click="goShop">去扫码购物</button>
-      <button class="empty-btn ghost" @click="goMarketing">看热门活动</button>
-    </empty-state>
-    <view v-else>
-      <view
-        v-for="c in list"
-        :key="c.couponId"
-        class="coupon-card"
-        :class="{ expired: c.status === 'EXPIRED', used: c.status === 'USED' }"
+      <view v-if="loading" class="loading"><text>加载中…</text></view>
+      <empty-state
+        v-else-if="loadError"
+        icon="/static/menu/warning.png"
+        title="优惠券加载失败"
+        :hint="loadError"
       >
-        <view class="coupon-left">
-          <text class="coupon-amount">{{ fmtMoney(c.denominationCents) }}</text>
-          <text class="coupon-type">{{ typeText(c.couponType) }}</text>
-        </view>
-        <view class="coupon-right">
-          <view
-            v-if="c.status === 'USED' || c.status === 'EXPIRED'"
-            class="coupon-status-row"
-          >
-            <text v-if="c.status === 'USED'" class="coupon-status-badge used">已使用</text>
-            <text v-else class="coupon-status-badge expired">已过期</text>
+        <button class="empty-btn primary" @click="load">重试</button>
+      </empty-state>
+      <empty-state
+        v-else-if="!list.length"
+        icon="/static/menu/coupons.png"
+        :title="emptyTitle"
+        :hint="emptyHint"
+      >
+        <button class="empty-btn primary" @click="goShop">去扫码购物</button>
+        <button class="empty-btn ghost" @click="goMarketing">看热门活动</button>
+      </empty-state>
+      <view v-else>
+        <view
+          v-for="c in list"
+          :key="c.couponId"
+          class="coupon-card"
+          :class="{ expired: c.status === 'EXPIRED', used: c.status === 'USED' }"
+        >
+          <view class="coupon-left">
+            <text class="coupon-amount">{{ fmtMoney(c.denominationCents) }}</text>
+            <text class="coupon-type">{{ typeText(c.couponType) }}</text>
           </view>
-          <text class="coupon-name">{{ c.couponName }}</text>
-          <text v-if="c.minSpendCents > 0" class="coupon-limit"
-            >满{{ fmtMoney(c.minSpendCents) }}可用</text
-          >
-          <text class="coupon-expire">有效期至 {{ formatTime(c.expireAt) }}</text>
+          <view class="coupon-right">
+            <view v-if="c.status === 'USED' || c.status === 'EXPIRED'" class="coupon-status-row">
+              <text v-if="c.status === 'USED'" class="coupon-status-badge used">已使用</text>
+              <text v-else class="coupon-status-badge expired">已过期</text>
+            </view>
+            <text class="coupon-name">{{ c.couponName }}</text>
+            <text v-if="c.minSpendCents > 0" class="coupon-limit"
+              >满{{ fmtMoney(c.minSpendCents) }}可用</text
+            >
+            <text class="coupon-expire">有效期至 {{ formatTime(c.expireAt) }}</text>
+          </view>
         </view>
       </view>
-    </view>
     </view>
   </view>
 </template>

@@ -2,29 +2,29 @@
   <view class="page-root">
     <app-nav-bar title="消息中心" />
     <view class="page-body">
-    <view v-if="loading" class="loading"><text>加载中…</text></view>
-    <view v-else-if="!list.length" class="empty">
-      <text class="empty-title">暂无消息</text>
-      <text class="empty-hint">补货任务指派、结算到账等消息会出现在这里</text>
-    </view>
-    <view v-else class="msg-list">
-      <view
-        v-for="m in list"
-        :key="m.id"
-        class="msg-card"
-        :class="{ unread: !m.read }"
-        @click="onOpen(m)"
-      >
-        <view class="msg-head">
-          <text class="msg-title">{{ sanitizeNotifyTitle(m.title) }}</text>
-          <text class="msg-time">{{ formatTime(m.createdAt) }}</text>
-        </view>
-        <text class="msg-body">{{ rewriteBizNosInText(m.body) }}</text>
-        <view v-if="m.bizId" class="msg-biz">关联单号：{{ displayBizNo(m.bizId) }}</view>
+      <view v-if="loading" class="loading"><text>加载中…</text></view>
+      <view v-else-if="!list.length" class="empty">
+        <text class="empty-title">暂无消息</text>
+        <text class="empty-hint">补货任务指派、结算到账等消息会出现在这里</text>
       </view>
-    </view>
-  
-    </view></view>
+      <view v-else class="msg-list">
+        <view
+          v-for="m in list"
+          :key="m.id"
+          class="msg-card"
+          :class="{ unread: !m.read }"
+          @click="onOpen(m)"
+        >
+          <view class="msg-head">
+            <text class="msg-title">{{ sanitizeNotifyTitle(m.title) }}</text>
+            <text class="msg-time">{{ formatTime(m.createdAt) }}</text>
+          </view>
+          <text class="msg-body">{{ rewriteBizNosInText(m.body) }}</text>
+          <view v-if="m.bizId" class="msg-biz">关联单号：{{ displayBizNo(m.bizId) }}</view>
+        </view>
+      </view>
+    </view></view
+  >
 </template>
 
 <script setup lang="ts">

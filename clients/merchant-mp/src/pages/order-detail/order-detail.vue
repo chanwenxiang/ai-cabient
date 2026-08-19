@@ -2,72 +2,72 @@
   <view class="page-root">
     <app-nav-bar title="订单详情" />
     <view class="page-body">
-    <view v-if="loading" class="loading"><text>加载中…</text></view>
-    <view v-else-if="error" class="empty">
-      <text class="err">{{ error }}</text>
-      <button class="retry" @click="load">重试</button>
-    </view>
-    <view v-else-if="order">
-      <view class="status-bar" :class="'s-' + (order.status || '').toLowerCase()">
-        <text class="status-title">{{ statusText(order.status) }}</text>
-        <text class="status-amt">{{ money(order.totalAmountCents) }}</text>
+      <view v-if="loading" class="loading"><text>加载中…</text></view>
+      <view v-else-if="error" class="empty">
+        <text class="err">{{ error }}</text>
+        <button class="retry" @click="load">重试</button>
       </view>
+      <view v-else-if="order">
+        <view class="status-bar" :class="'s-' + (order.status || '').toLowerCase()">
+          <text class="status-title">{{ statusText(order.status) }}</text>
+          <text class="status-amt">{{ money(order.totalAmountCents) }}</text>
+        </view>
 
-      <view class="section">
-        <text class="section-title">商品明细</text>
-        <view v-for="(line, i) in order.lines || []" :key="i" class="line">
-          <image
-            class="line-thumb"
-            :src="skuImageFor(line.skuId, line.skuName)"
-            mode="aspectFill"
-            aria-hidden="true"
-          />
-          <view class="line-info">
-            <text class="line-name">{{ line.skuName || line.skuId || '商品' }}</text>
-            <text class="line-qty">x{{ line.quantity }}</text>
+        <view class="section">
+          <text class="section-title">商品明细</text>
+          <view v-for="(line, i) in order.lines || []" :key="i" class="line">
+            <image
+              class="line-thumb"
+              :src="skuImageFor(line.skuId, line.skuName)"
+              mode="aspectFill"
+              aria-hidden="true"
+            />
+            <view class="line-info">
+              <text class="line-name">{{ line.skuName || line.skuId || '商品' }}</text>
+              <text class="line-qty">x{{ line.quantity }}</text>
+            </view>
+            <text class="line-amt">{{ money(line.lineAmountCents) }}</text>
           </view>
-          <text class="line-amt">{{ money(line.lineAmountCents) }}</text>
+          <view v-if="!(order.lines || []).length" class="muted">无商品明细</view>
+          <view v-if="order.couponDiscountCents" class="sum-row">
+            <text>优惠</text>
+            <text>-{{ money(order.couponDiscountCents) }}</text>
+          </view>
+          <view class="sum-row strong">
+            <text>实付</text>
+            <text>{{ money(order.totalAmountCents) }}</text>
+          </view>
         </view>
-        <view v-if="!(order.lines || []).length" class="muted">无商品明细</view>
-        <view v-if="order.couponDiscountCents" class="sum-row">
-          <text>优惠</text>
-          <text>-{{ money(order.couponDiscountCents) }}</text>
-        </view>
-        <view class="sum-row strong">
-          <text>实付</text>
-          <text>{{ money(order.totalAmountCents) }}</text>
-        </view>
-      </view>
 
-      <view class="section">
-        <text class="section-title">订单信息</text>
-        <view class="info-row"
-          ><text class="lbl">订单号</text
-          ><text class="val mono">{{ emptyDisplay(order.orderId, 'order') }}</text></view
-        >
-        <view class="info-row"
-          ><text class="lbl">会话</text
-          ><text class="val mono">{{ emptyDisplay(order.sessionId, 'session') }}</text></view
-        >
-        <view class="info-row"
-          ><text class="lbl">柜机</text
-          ><text class="val mono">{{ emptyDisplay(order.deviceId, 'device') }}</text></view
-        >
-        <view class="info-row"
-          ><text class="lbl">支付方式</text><text class="val">{{ payChannelText }}</text></view
-        >
-        <view class="info-row"
-          ><text class="lbl">创建时间</text
-          ><text class="val">{{ formatTime(order.createdAt) }}</text></view
-        >
-      </view>
+        <view class="section">
+          <text class="section-title">订单信息</text>
+          <view class="info-row"
+            ><text class="lbl">订单号</text
+            ><text class="val mono">{{ emptyDisplay(order.orderId, 'order') }}</text></view
+          >
+          <view class="info-row"
+            ><text class="lbl">会话</text
+            ><text class="val mono">{{ emptyDisplay(order.sessionId, 'session') }}</text></view
+          >
+          <view class="info-row"
+            ><text class="lbl">柜机</text
+            ><text class="val mono">{{ emptyDisplay(order.deviceId, 'device') }}</text></view
+          >
+          <view class="info-row"
+            ><text class="lbl">支付方式</text><text class="val">{{ payChannelText }}</text></view
+          >
+          <view class="info-row"
+            ><text class="lbl">创建时间</text
+            ><text class="val">{{ formatTime(order.createdAt) }}</text></view
+          >
+        </view>
 
-      <view class="actions">
-        <button v-if="order.deviceId" class="btn-primary" @click="goDevice">查看柜机</button>
-        <button class="btn-outline" @click="goDisputes">相关争议</button>
+        <view class="actions">
+          <button v-if="order.deviceId" class="btn-primary" @click="goDevice">查看柜机</button>
+          <button class="btn-outline" @click="goDisputes">相关争议</button>
+        </view>
       </view>
     </view>
-      </view>
   </view>
 </template>
 
@@ -194,7 +194,7 @@ function goDisputes() {
   min-height: 100vh;
   background: #ffffff;
   padding: 0;
-  
+
   box-sizing: border-box;
 }
 .loading,

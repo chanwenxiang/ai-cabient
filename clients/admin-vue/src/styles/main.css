@@ -696,7 +696,11 @@ select {
  */
 .layout-main-scroll > .page-card > .el-card__body > .table-scroll.table-scroll--h,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll.table-scroll--h,
-.layout-main-scroll > .page-card > .el-card__body > .el-tabs:not(.status-tabs) .table-scroll.table-scroll--h,
+.layout-main-scroll
+  > .page-card
+  > .el-card__body
+  > .el-tabs:not(.status-tabs)
+  .table-scroll.table-scroll--h,
 .layout-main-scroll
   > .page-fill
   > .page-card
