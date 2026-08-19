@@ -64,6 +64,7 @@ export class ApiClient {
         method,
         headers,
         body: body != null ? JSON.stringify(body) : undefined,
+        credentials: 'same-origin',
         signal: controller.signal
       });
     } catch {

@@ -7,9 +7,6 @@ aicabinet:
   checkout:
     balance-only: ${CHECKOUT_BALANCE_ONLY:true}
     preauth-cents: ${CHECKOUT_PREAUTH_CENTS:2000}
-  auth:
-    sms:
-      mock-code: "000000"
   wechat-pay:
     enabled: false
   wechat-miniapp:

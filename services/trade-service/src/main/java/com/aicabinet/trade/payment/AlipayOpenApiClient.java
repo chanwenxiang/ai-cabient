@@ -154,6 +154,7 @@ public class AlipayOpenApiClient {
     }
 
     /** @deprecated 保留兼容；新流程请用 {@link #buildPagePayFormHtml} */
+    @Deprecated
     public String buildPagePayUrl(String method, Map<String, Object> bizContent) {
         if (!properties.isConfigured()) {
             throw new IllegalStateException("alipay not configured");

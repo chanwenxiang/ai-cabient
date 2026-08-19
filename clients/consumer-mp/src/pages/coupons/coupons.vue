@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="page-root">
     <app-nav-bar title="我的优惠券" />
     <view class="page-body">
@@ -122,7 +122,7 @@ function typeText(t: string) {
   return displayLabel('coupon_type', t, '优惠券');
 }
 
-function formatTime(t: string) {
+function formatTime(t?: string) {
   return formatDateTimeMinute(t, '暂无').slice(0, 10);
 }
 

@@ -420,7 +420,7 @@ const payChannelText = computed(() => {
   return displayLabel('pay_channel', ch, '未知渠道');
 });
 
-function formatTime(t: string) {
+function formatTime(t?: string) {
   return formatDateTimeMinute(t, '暂无');
 }
 
@@ -454,7 +454,7 @@ async function payNow() {
   try {
     await consumerApi.payOrder(order.value.orderId);
     uni.showToast({ title: '支付成功', icon: 'success' });
-    await load();
+    await reload();
   } catch (e) {
     uni.showToast({ title: e instanceof Error ? e.message : '支付失败', icon: 'none' });
   } finally {

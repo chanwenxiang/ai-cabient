@@ -231,6 +231,10 @@ importers:
       '@aicabinet/shared-dict':
         specifier: workspace:*
         version: link:../shared-dict
+    devDependencies:
+      vue:
+        specifier: ^3.4.21
+        version: 3.5.40(typescript@5.9.3)
 
 packages:
 

@@ -1930,7 +1930,7 @@ import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Box, EditPen, Refresh, RefreshLeft, Van } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { api, downloadAuthFile } from '@/api/client';
+import { api, authFetch, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -3237,18 +3237,13 @@ async function onStocktakePhoto(event: Event) {
   }
   scanningPhoto.value = true;
   try {
-    const token = localStorage.getItem('admin_token');
     const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
     const form = new FormData();
     form.append('file', file);
-    const res = await fetch(
+    const res = await authFetch(
       `${base}/api/v2/ops/admin/warehouse/stocktakes/${stocktakeDetail.value.stocktakeId}/scan-photo`,
       {
         method: 'POST',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          'X-Requested-With': 'XMLHttpRequest'
-        },
         body: form
       }
     );

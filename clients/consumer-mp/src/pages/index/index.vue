@@ -646,16 +646,22 @@ onLoad(async (opts) => {
   // H5：兼容 ?deviceId= / hash 查询（柜门二维码 deep link）
   if (!launch.deviceId && typeof window !== 'undefined') {
     try {
-      const fromSearch = parseLaunchOptions(
-        Object.fromEntries(new URLSearchParams(window.location.search).entries())
-      );
+      const searchParams = new URLSearchParams(window.location.search);
+      const fromSearchMap: Record<string, string> = {};
+      searchParams.forEach((v, k) => {
+        fromSearchMap[k] = v;
+      });
+      const fromSearch = parseLaunchOptions(fromSearchMap);
       if (fromSearch.deviceId) {
         launch = fromSearch;
       } else if (window.location.hash.includes('deviceId=')) {
         const hashQuery = window.location.hash.split('?')[1] || '';
-        const fromHash = parseLaunchOptions(
-          Object.fromEntries(new URLSearchParams(hashQuery).entries())
-        );
+        const hashParams = new URLSearchParams(hashQuery);
+        const fromHashMap: Record<string, string> = {};
+        hashParams.forEach((v, k) => {
+          fromHashMap[k] = v;
+        });
+        const fromHash = parseLaunchOptions(fromHashMap);
         if (fromHash.deviceId) launch = fromHash;
       }
     } catch {

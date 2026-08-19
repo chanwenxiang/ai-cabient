@@ -15,7 +15,7 @@
     <view v-if="loading" class="state">正在汇总经营数据…</view>
     <view v-else-if="error" class="state"
       ><text class="error">{{ error }}</text
-      ><button class="retry" @click="load">重试</button></view
+      ><button class="retry" @click="() => load()">重试</button></view
     >
     <template v-else>
       <view class="hero">

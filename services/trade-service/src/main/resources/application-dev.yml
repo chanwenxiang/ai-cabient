@@ -3,6 +3,10 @@
 aicabinet:
   security:
     mock-enabled: ${AICABINET_MOCK_ENABLED:true}
+  auth:
+    sms:
+      # 仅 dev/mock 联调：固定码便于脚本；prod/staging 禁止 123456/000000（见 ProductionStartupValidator）
+      mock-code: ${SMS_MOCK_CODE:123456}
   risk:
     max-opens-per-hour: 200
     max-disputes-per-7-days: 50

@@ -185,6 +185,8 @@ export interface DeviceInfo {
   address?: string;
   deployedAt?: string;
   lifecycleRemark?: string;
+  /** 柜机最近上报温度（℃） */
+  currentTempC?: number | null;
 }
 
 export interface DeviceSlot {
@@ -429,6 +431,10 @@ export interface MerchantSkuPricing {
   overridePriceCents?: number | null;
   effectivePriceCents: number;
   quantity?: number;
+  /** 商户可改价下限（分），空表示不限制 */
+  minPriceCents?: number | null;
+  /** 商户可改价上限（分），空表示不限制 */
+  maxPriceCents?: number | null;
 }
 
 export interface MerchantMe {
@@ -796,6 +802,8 @@ export interface SessionDto {
   failureReason?: string;
   createdAt?: string;
   updatedAt?: string;
+  /** 关门时间（识别计时起点） */
+  closeTime?: string;
 }
 
 export interface OrderLineDto {

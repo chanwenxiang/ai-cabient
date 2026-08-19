@@ -112,7 +112,7 @@
           <switch
             :checked="enabledTypes.includes(t.value)"
             color="#0f766e"
-            @change="(e) => onToggleType(t.value, !!e.detail.value)"
+            @change="(e) => onToggleType(t.value, switchEnabled(e))"
           />
           <text>{{ t.label }}</text>
         </label>
@@ -230,8 +230,9 @@ async function saveProfileEdit() {
   }
 }
 
-function eventInput(e: { detail?: { value?: unknown } }) {
-  return String(e?.detail?.value ?? '');
+function eventInput(e: unknown) {
+  const ev = e as { detail?: { value?: unknown }; target?: { value?: unknown } };
+  return String(ev?.detail?.value ?? ev?.target?.value ?? '');
 }
 
 function goAnnouncements() {
@@ -272,6 +273,11 @@ function onToggleType(type: string, on: boolean) {
   if (on) set.add(type);
   else set.delete(type);
   enabledTypes.value = [...set];
+}
+
+function switchEnabled(e: unknown) {
+  const ev = e as { detail?: { value?: boolean } };
+  return !!ev?.detail?.value;
 }
 
 async function onBindWx() {

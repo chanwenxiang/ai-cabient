@@ -256,13 +256,18 @@ async function onWxLogin() {
       return;
     }
     finishLogin();
-  } catch (e) {
-    err.value = e instanceof Error ? e.message : '微信授权失败';
+  } catch (caught) {
+    err.value = caughtErrorMessage(caught, '微信授权失败');
     showPhoneForm.value = true;
   } finally {
     loading.value = false;
     wxMode.value = false;
   }
+}
+
+function caughtErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error) return error.message;
+  return fallback;
 }
 
 async function onSendCode() {

@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="page-root">
     <app-nav-bar title="账单审核" />
     <view v-if="loading" class="state"><text class="meta">加载中…</text></view>
@@ -104,7 +104,6 @@ import { fetchEvidenceLocalPath } from '@/utils/dispute-evidence';
 import { displayLabel } from '@aicabinet/shared-dict';
 import {
   emptyDisplay,
-  displayBizNo,
   shortBizNo,
   formatDateTimeMinute,
   fmtMoney

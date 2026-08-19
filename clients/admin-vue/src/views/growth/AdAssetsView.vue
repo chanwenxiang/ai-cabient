@@ -127,7 +127,7 @@
 import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { api } from '@/api/client';
+import { api, authFetch } from '@/api/client';
 import { dictLabel } from '@aicabinet/shared-dict';
 import type { MediaAssetDto } from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -184,16 +184,14 @@ async function doUploadFile(file: File) {
   }
   uploading.value = true;
   try {
-    const token = localStorage.getItem('admin_token');
     const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
     const fd = new FormData();
     fd.append('file', file);
     fd.append('title', uploadForm.value.title.trim());
     fd.append('assetType', uploadForm.value.assetType);
     fd.append('durationSeconds', String(uploadForm.value.durationSeconds || 0));
-    const res = await fetch(`${base}/api/v2/ops/admin/ad/assets`, {
+    const res = await authFetch(`${base}/api/v2/ops/admin/ad/assets`, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: fd
     });
     const json = await res.json().catch(() => ({}));

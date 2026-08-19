@@ -106,6 +106,7 @@ public class OpsExceptionService {
     }
 
     /** @deprecated Prefer {@link #list(Long, String, String, boolean, int, int)} with severity/overdue. */
+    @Deprecated
     @Transactional(readOnly = true)
     public PageResult<OpsExceptionDto> list(Long operatorId, String status, int page, int size) {
         return list(operatorId, status, null, false, page, size);

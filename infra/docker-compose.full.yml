@@ -1,5 +1,9 @@
 name: ai-cabinet
 
+# 演示 / 本地全栈 Compose（默认 dev profile + 可猜密钥）。
+# 安全：勿将此栈直接暴露公网；网关已 403 /internal/，但 INTERNAL_API_KEY 等仍为演示默认值。
+# 上线请用 docker-compose.production.yml + infra/.env.production（scripts/check-env.ps1 -Prod）。
+
 services:
   postgres:
     image: postgres:16-alpine
