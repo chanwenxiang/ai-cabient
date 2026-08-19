@@ -348,7 +348,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import PagePager from '@/components/PagePager.vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
@@ -406,10 +406,23 @@ const total = ref(0);
 const page1 = ref(1);
 const size = ref(20);
 const status = ref('');
-const deviceId = ref(typeof route.query.deviceId === 'string' ? route.query.deviceId : '');
+const deviceId = ref('');
 const priority = ref('');
 const faultType = ref('');
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
+
+/** 设备详情等入口带 deviceId 时覆盖筛选；keep-alive 复用须再同步 */
+function applyRouteQuery() {
+  let changed = false;
+  if ('deviceId' in route.query) {
+    const next = typeof route.query.deviceId === 'string' ? route.query.deviceId : '';
+    if (next !== deviceId.value) {
+      deviceId.value = next;
+      changed = true;
+    }
+  }
+  return changed;
+}
 const createVisible = ref(false);
 const detailVisible = ref(false);
 const detailHydrated = ref(false);
@@ -625,9 +638,25 @@ async function transition(row: Ticket, next: string) {
 }
 
 onMounted(async () => {
+  applyRouteQuery();
   await loadDeviceOptions();
   await load();
 });
+
+onActivated(() => {
+  applyRouteQuery();
+  void load();
+});
+
+watch(
+  () => route.query.deviceId,
+  () => {
+    if (applyRouteQuery()) {
+      page1.value = 1;
+      void load();
+    }
+  }
+);
 </script>
 
 <style scoped>

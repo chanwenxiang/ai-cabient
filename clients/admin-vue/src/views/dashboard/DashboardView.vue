@@ -345,9 +345,10 @@ const quickLinks = computed<QuickLink[]>(() => [
   },
   {
     label: '缺货柜/SKU',
+    // 与 countLowStock（quantity <= low_threshold，含断货）对齐；勿用 LOW（会排除 qty=0）
     count: stats.value.lowStockSkuCount || workbench.value?.lowStockItems || 0,
     path: '/stock-health',
-    query: { dimension: 'LOW' }
+    query: { dimension: 'ALL' }
   },
   {
     label: '临期批次',
