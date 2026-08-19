@@ -184,8 +184,9 @@ onPullDownRefresh(async () => {
   }
 });
 
-function eventInput(e: { detail?: { value?: unknown }; target?: { value?: unknown } }) {
-  return String(e?.detail?.value ?? '');
+function eventInput(e: unknown) {
+  const ev = e as { detail?: { value?: unknown }; target?: { value?: unknown } };
+  return String(ev?.detail?.value ?? ev?.target?.value ?? '');
 }
 
 function roleLabel(roleKey?: string) {

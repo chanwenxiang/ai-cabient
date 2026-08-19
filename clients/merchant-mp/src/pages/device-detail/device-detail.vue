@@ -329,7 +329,7 @@ async function saveSlots() {
       slotCode: s.slotCode,
       rowNo: s.rowNo,
       colNo: s.colNo,
-      slotType: s.slotType,
+      slotType: s.slotType || '',
       assignedSkuId: s.assignedSkuId,
       parLevel: par,
       minLevel: s.minLevel,

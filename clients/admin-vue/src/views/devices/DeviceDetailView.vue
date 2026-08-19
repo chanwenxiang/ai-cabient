@@ -967,7 +967,7 @@ import { useRoute } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
-import { api, downloadAuthFile } from '@/api/client';
+import { api, authFetch, downloadAuthFile } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import SlotGrid from '@/components/SlotGrid.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
@@ -1218,10 +1218,8 @@ async function loadQr() {
     );
     qrUrl.value = link.url || '';
     revokeQrPreview();
-    const token = localStorage.getItem('admin_token');
-    const res = await fetch(
-      `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin}/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/qr.png`,
-      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    const res = await authFetch(
+      `${(import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin}/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/qr.png`
     );
     if (!res.ok) throw new Error('二维码图片加载失败');
     const blob = await res.blob();

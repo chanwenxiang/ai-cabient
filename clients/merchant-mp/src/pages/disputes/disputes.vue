@@ -176,9 +176,10 @@ const listTruncated = computed(
   () => listTotal.value > 0 && list.value.length > 0 && listTotal.value > list.value.length
 );
 
-onLoad((opt: Record<string, string | undefined>) => {
-  pendingTicketId.value = String(opt?.ticketId || '').trim();
-  pendingSessionId.value = String(opt?.sessionId || '').trim();
+onLoad((opt) => {
+  const q = (opt || {}) as Record<string, string | undefined>;
+  pendingTicketId.value = String(q.ticketId || '').trim();
+  pendingSessionId.value = String(q.sessionId || '').trim();
 });
 onShow(() => load());
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));

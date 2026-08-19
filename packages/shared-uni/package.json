@@ -20,5 +20,11 @@
   },
   "dependencies": {
     "@aicabinet/shared-dict": "workspace:*"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.21"
+  },
+  "devDependencies": {
+    "vue": "^3.4.21"
   }
 }

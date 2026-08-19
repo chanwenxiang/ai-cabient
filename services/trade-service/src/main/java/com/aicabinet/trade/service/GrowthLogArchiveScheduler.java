@@ -8,8 +8,10 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.Set;
 
 /** 增长模块日志归档：按保留月数分批清理通知/积分日志，避免表无限增长。 */
 @Service
@@ -17,6 +19,8 @@ public class GrowthLogArchiveScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(GrowthLogArchiveScheduler.class);
     private static final int BATCH = 500;
+    /** 仅允许归档已知日志表，禁止把表名交给 JDBC 拼接用户输入。 */
+    private static final Set<String> ALLOWED_TABLES = Set.of("notification_log", "member_points_log");
 
     private final JdbcTemplate jdbcTemplate;
     private final SystemConfigService systemConfigService;
@@ -45,11 +49,11 @@ public class GrowthLogArchiveScheduler {
             int deleted = 0;
             if (notifyMonths > 0) {
                 deleted += deleteInBatches("notification_log",
-                        Instant.now().minus(notifyMonths, ChronoUnit.MONTHS), null);
+                        Instant.now().minus(notifyMonths, ChronoUnit.MONTHS), false);
             }
             if (pointsMonths > 0) {
                 deleted += deleteInBatches("member_points_log",
-                        Instant.now().minus(pointsMonths, ChronoUnit.MONTHS), "expired_at IS NOT NULL");
+                        Instant.now().minus(pointsMonths, ChronoUnit.MONTHS), true);
             }
             summary = deleted <= 0 ? "本次无归档删除" : "归档删除 " + deleted + " 条";
             if (deleted > 0) {
@@ -67,14 +71,19 @@ public class GrowthLogArchiveScheduler {
         }
     }
 
-    private int deleteInBatches(String table, Instant cutoff, String extraWhere) {
-        String where = "created_at < '" + cutoff + "'"
-                + (extraWhere != null ? " AND " + extraWhere : "");
+    private int deleteInBatches(String table, Instant cutoff, boolean requireExpiredAt) {
+        if (!ALLOWED_TABLES.contains(table)) {
+            throw new IllegalArgumentException("unsupported archive table: " + table);
+        }
+        String extra = requireExpiredAt ? " AND expired_at IS NOT NULL" : "";
+        String sql = "DELETE FROM " + table
+                + " WHERE id IN (SELECT id FROM " + table
+                + " WHERE created_at < ?" + extra + " LIMIT " + BATCH + ")";
+        Timestamp cutoffTs = Timestamp.from(cutoff);
         int total = 0;
         int n;
         do {
-            n = jdbcTemplate.update("DELETE FROM " + table
-                    + " WHERE id IN (SELECT id FROM " + table + " WHERE " + where + " LIMIT " + BATCH + ")");
+            n = jdbcTemplate.update(sql, cutoffTs);
             total += n;
         } while (n >= BATCH);
         return total;

@@ -118,8 +118,9 @@ const payChannelText = computed(() =>
   displayLabel('pay_channel', order.value?.payChannel, '未知渠道')
 );
 
-onLoad((opt: Record<string, string | undefined>) => {
-  orderId.value = String(opt?.orderId || opt?.id || '').trim();
+onLoad((opt) => {
+  const q = (opt || {}) as Record<string, string | undefined>;
+  orderId.value = String(q.orderId || q.id || '').trim();
   void load();
 });
 onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));

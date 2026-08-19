@@ -547,7 +547,7 @@ import {
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
-import { api } from '@/api/client';
+import { api, authFetch } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useListCsv } from '@/composables/useListCsv';
@@ -931,14 +931,12 @@ async function onDisputeImagePick(ev: Event) {
   suggestingDispute.value = true;
   disputeSuggestHint.value = '';
   try {
-    const token = localStorage.getItem('admin_token');
     const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
     const form = new FormData();
     form.append('deviceId', selected.value.deviceId);
     form.append('image', file);
-    const res = await fetch(`${base}/api/v2/ops/dispute-suggest`, {
+    const res = await authFetch(`${base}/api/v2/ops/dispute-suggest`, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: form
     });
     const json = await res.json().catch(() => ({}));

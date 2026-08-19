@@ -108,11 +108,11 @@ async function load() {
 function onSubscribe() {
   if (!subscribeTemplateId.value) return;
   subscribing.value = true;
-  // @ts-expect-error 微信小程序 API，H5 无此类型
   uni.requestSubscribeMessage({
     tmplIds: [subscribeTemplateId.value],
-    success: (res: Record<string, unknown>) => {
-      const accept = res[subscribeTemplateId.value] === 'accept';
+    success: (res) => {
+      const status = Reflect.get(res as object, subscribeTemplateId.value);
+      const accept = status === 'accept';
       uni.showToast({
         title: accept ? '已开启，消息将及时送达' : '未开启，可在设置中打开',
         icon: accept ? 'success' : 'none'
@@ -127,8 +127,9 @@ function onSubscribe() {
   });
 }
 
-async function onPrefChange(p: NotifyPrefDto, ev: { detail: { value: boolean } }) {
-  const enabled = !!ev?.detail?.value;
+async function onPrefChange(p: NotifyPrefDto, ev: { detail?: { value?: boolean } } | Event) {
+  const detail = (ev as { detail?: { value?: boolean } })?.detail;
+  const enabled = !!detail?.value;
   const prev = p.enabled;
   p.enabled = enabled;
   try {

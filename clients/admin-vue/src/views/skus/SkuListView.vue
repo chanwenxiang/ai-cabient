@@ -346,7 +346,7 @@ import { EditPen, Printer, Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type UploadRequestOptions } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { api } from '@/api/client';
+import { api, authFetch } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useDictOptions } from '@/composables/useDictOptions';
@@ -514,13 +514,11 @@ async function onImageUpload(options: UploadRequestOptions) {
   }
   imageUploading.value = true;
   try {
-    const token = localStorage.getItem('admin_token');
     const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch(`${base}/api/v2/ops/admin/skus/image`, {
+    const res = await authFetch(`${base}/api/v2/ops/admin/skus/image`, {
       method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
       body: formData
     });
     const json = await res.json().catch(() => ({}));

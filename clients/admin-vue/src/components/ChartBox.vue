@@ -1,6 +1,6 @@
 <template>
   <div ref="hostRef" class="chart-host" @pointermove="onMove" @pointerleave="hide">
-    <div class="chart-box" :class="{ donut: donut }" v-html="svg" />
+    <div class="chart-box" :class="{ donut: donut }" v-html="safeSvg" />
     <Teleport to="body">
       <div
         v-if="tip.show"
@@ -20,12 +20,15 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue';
+import { sanitizeChartSvg } from '@/utils/charts';
 
-defineProps<{
+const props = defineProps<{
   svg: string;
   donut?: boolean;
 }>();
+
+const safeSvg = computed(() => sanitizeChartSvg(props.svg));
 
 const hostRef = ref<HTMLElement | null>(null);
 const tip = reactive({

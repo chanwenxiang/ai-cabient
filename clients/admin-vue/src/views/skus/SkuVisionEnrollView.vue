@@ -490,7 +490,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { EditPen, Refresh, Upload, CircleCheck, ArrowRight } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox, type UploadRequestOptions } from 'element-plus';
 import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
-import { api } from '@/api/client';
+import { api, authFetch } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useDictOptions } from '@/composables/useDictOptions';
@@ -1285,15 +1285,13 @@ async function onImageUpload(options: UploadRequestOptions) {
 }
 
 async function uploadMultipart<T>(path: string, fields: Record<string, string | File>): Promise<T> {
-  const token = localStorage.getItem('admin_token');
   const base = (import.meta.env.VITE_API_BASE || '').replace(/\/$/, '') || window.location.origin;
   const form = new FormData();
   for (const [key, val] of Object.entries(fields)) {
     form.append(key === 'image' ? 'image' : key, val);
   }
-  const res = await fetch(`${base}${path}`, {
+  const res = await authFetch(`${base}${path}`, {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
     body: form
   });
   const json = await res.json().catch(() => ({}));

@@ -18,12 +18,43 @@ export function clearSession() {
   localStorage.removeItem('admin_active_nav');
 }
 
+/** Cookie 会话或 Bearer：统一鉴权头（写操作必须带 X-Requested-With）。 */
+export function authHeaders(extra?: Record<string, string>): Record<string, string> {
+  const headers: Record<string, string> = {
+    'X-Requested-With': 'XMLHttpRequest',
+    ...(extra || {})
+  };
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+/** 同源带 Cookie 的 fetch，供上传/下载等非 JSON ApiClient 路径使用。 */
+export function authFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const mergedHeaders = {
+    ...authHeaders(),
+    ...(init.headers as Record<string, string> | undefined)
+  };
+  return fetch(input, {
+    ...init,
+    credentials: 'same-origin',
+    headers: mergedHeaders
+  });
+}
+
 export const api = new ApiClient({
   baseUrl: getBaseUrl(),
   getToken: () => localStorage.getItem(TOKEN_KEY),
   hasSession: isLoggedIn,
   setToken: (token: string, userId: string, expiresInSeconds?: number) => {
-    localStorage.setItem(TOKEN_KEY, token);
+    // HttpOnly Cookie 模式下 refresh 也不要把 JWT 写回 localStorage。
+    if (localStorage.getItem(COOKIE_AUTH_KEY) === '1') {
+      localStorage.removeItem(TOKEN_KEY);
+    } else {
+      localStorage.setItem(TOKEN_KEY, token);
+    }
     localStorage.setItem(USER_KEY, userId);
     const ms = (expiresInSeconds ?? 1800) * 1000;
     localStorage.setItem(EXPIRES_KEY, String(Date.now() + ms));
@@ -105,10 +136,7 @@ export async function del(path: string): Promise<{ data: any }> {
 
 /** Download authenticated CSV/binary endpoints (not JSON ApiResponse). */
 export async function downloadAuthFile(path: string, fallbackName: string) {
-  const token = localStorage.getItem(TOKEN_KEY);
-  const res = await fetch(`${getBaseUrl()}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {}
-  });
+  const res = await authFetch(`${getBaseUrl()}${path}`);
   if (res.status === 401) {
     clearSession();
     if (!window.location.pathname.includes('/login')) {

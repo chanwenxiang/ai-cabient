@@ -51,9 +51,11 @@ public class SmsCodeService {
     @Transactional
     public boolean verifyCode(String phoneNumber, String code) {
         String normalized = normalizePhone(phoneNumber);
-        // dev：允许配置的万能码，便于旧脚本联调
+        // dev：允许配置的万能码，便于旧脚本联调（mock-code 为空则只认 DB 中真实下发码）
+        String mockCode = authProperties.sms().mockCode();
         if (securityProperties.mockEnabled()
-                && authProperties.sms().mockCode().equals(code)) {
+                && mockCode != null && !mockCode.isBlank()
+                && mockCode.equals(code)) {
             markLatestUsed(normalized);
             return true;
         }
@@ -103,7 +105,10 @@ public class SmsCodeService {
 
     private String generateCode() {
         if (securityProperties.mockEnabled()) {
-            return authProperties.sms().mockCode();
+            String mockCode = authProperties.sms().mockCode();
+            if (mockCode != null && !mockCode.isBlank()) {
+                return mockCode;
+            }
         }
         return String.format("%06d", RANDOM.nextInt(1_000_000));
     }

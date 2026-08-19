@@ -1094,7 +1094,7 @@ import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { Check, Close, Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { api, downloadAuthFile } from '@/api/client';
+import { api, authFetch, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -1965,7 +1965,6 @@ async function loadEvidencePreviews(
     previewUrl?: string;
   }[]
 ) {
-  const token = localStorage.getItem('admin_token');
   const base = window.location.origin;
   const next: typeof files = [];
   const urls: string[] = [];
@@ -1976,9 +1975,8 @@ async function loadEvidencePreviews(
       /\.(png|jpe?g|gif|webp|bmp)$/i.test(String(f.fileName || ''));
     if (looksImage) {
       try {
-        const res = await fetch(
-          `${base}/api/v2/ops/admin/replenishment/tasks/${taskId}/evidence/${f.fileId}`,
-          { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+        const res = await authFetch(
+          `${base}/api/v2/ops/admin/replenishment/tasks/${taskId}/evidence/${f.fileId}`
         );
         if (res.ok) {
           const blob = await res.blob();

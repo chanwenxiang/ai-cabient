@@ -5,7 +5,7 @@
     <view v-if="loading" class="card state">加载中…</view>
     <view v-else-if="error" class="card state">
       <text class="err">{{ error }}</text>
-      <button class="retry" size="mini" @click="load">重试</button>
+      <button class="retry" size="mini" @click="() => load()">重试</button>
     </view>
     <view v-else-if="item" class="card article">
       <view class="meta">

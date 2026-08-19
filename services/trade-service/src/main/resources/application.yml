@@ -66,7 +66,7 @@ aicabinet:
     login-max-failures: ${LOGIN_MAX_FAILURES:5}
     login-lock-minutes: ${LOGIN_LOCK_MINUTES:10}
     sms:
-      mock-code: "123456"
+      mock-code: ${SMS_MOCK_CODE:}
       ttl-seconds: 300
       webhook-url: ${SMS_WEBHOOK_URL:}
   cors:

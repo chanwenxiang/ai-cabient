@@ -197,21 +197,17 @@ const loadError = ref('');
 const batchWarn = ref('');
 let loadSeq = 0;
 
-function readDateEvent(e: { detail?: { value?: string }; target?: { value?: string } }) {
-  return String(e?.detail?.value ?? e?.target?.value ?? '').trim();
-}
-
-function onStartDate(e: { detail?: { value?: string }; target?: { value?: string } }) {
-  const v = readDateEvent(e);
-  if (!v) return;
-  startDate.value = v;
+function onStartDate(e: unknown) {
+  const ev = e as { detail?: { value?: string }; target?: { value?: string } };
+  const v = String(ev?.detail?.value ?? ev?.target?.value ?? '').trim();
+  if (v) startDate.value = v;
   void load();
 }
 
-function onEndDate(e: { detail?: { value?: string }; target?: { value?: string } }) {
-  const v = readDateEvent(e);
-  if (!v) return;
-  endDate.value = v;
+function onEndDate(e: unknown) {
+  const ev = e as { detail?: { value?: string }; target?: { value?: string } };
+  const v = String(ev?.detail?.value ?? ev?.target?.value ?? '').trim();
+  if (v) endDate.value = v;
   void load();
 }
 

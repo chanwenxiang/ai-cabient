@@ -179,8 +179,8 @@ async function load() {
         expiryAlerts: 0,
         slotDiscrepancies: 0,
         actionItems: [] as {
-          type?: string;
-          title?: string;
+          type: string;
+          title: string;
           detail?: string;
           deviceId?: string;
           ticketId?: string;
@@ -194,7 +194,14 @@ async function load() {
     if (seq !== loadSeq) return;
     const deduped = mergeTodoItems({
       exceptions: exceptionPage.items || [],
-      actionItems: wb.actionItems || [],
+      actionItems: (wb.actionItems || []).map((a) => ({
+        type: String(a.type || ''),
+        title: String(a.title || ''),
+        detail: a.detail,
+        deviceId: a.deviceId,
+        ticketId: a.ticketId,
+        exceptionId: (a as { exceptionId?: string }).exceptionId
+      })),
       expiryRows: expiryRows || []
     });
     items.value = deduped;

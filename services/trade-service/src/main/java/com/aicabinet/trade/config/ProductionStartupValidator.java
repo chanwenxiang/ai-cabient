@@ -83,6 +83,7 @@ public class ProductionStartupValidator {
             if (checkoutProperties.balanceOnly()) {
                 log.info("CHECKOUT_BALANCE_ONLY=true — settlement uses wallet balance only (no live WeChat charge required).");
             }
+            warnDevDemoSecrets();
             return;
         }
         if (securityProperties.mockEnabled()) {
@@ -243,6 +244,29 @@ public class ProductionStartupValidator {
                 .allMatch(o -> o != null && (o.contains("localhost") || o.contains("127.0.0.1")));
         if (localhostOnly && isProdProfile()) {
             log.warn("CORS_ORIGIN still points to localhost — set real ops domain before go-live");
+        }
+    }
+
+    /** Dev/demo：不阻断启动，但对默认可猜密钥打醒目 WARN，避免误当生产部署。 */
+    private void warnDevDemoSecrets() {
+        String internalKey = internalApiProperties.key();
+        if (internalKey == null || internalKey.isBlank() || DEV_INTERNAL_KEY.equals(internalKey)) {
+            log.warn("INTERNAL_API_KEY is unset or still the demo default ({}). "
+                    + "Do not expose this stack to the public internet; use docker-compose.production.yml + strong key for go-live.",
+                    DEV_INTERNAL_KEY);
+        }
+        String jwtSecret = authProperties.jwtSecret();
+        if (jwtSecret == null || jwtSecret.isBlank() || DEV_JWT_SECRET.equals(jwtSecret)) {
+            log.warn("JWT secret is unset or still the dev default. Replace JWT_SECRET before any production/staging deploy.");
+        }
+        String visionKey = visionApiProperties.key();
+        if (visionKey == null || visionKey.isBlank() || DEV_VISION_KEY.equals(visionKey)) {
+            log.warn("VISION_API_KEY is unset or still the dev default. Replace before production vision traffic.");
+        }
+        String mockCode = authProperties.sms().mockCode();
+        if (mockCode != null && ("123456".equals(mockCode) || "000000".equals(mockCode))) {
+            log.warn("SMS mock code is {} (dev-only). Strict prod/staging profiles reject this; disable mock SMS before go-live.",
+                    mockCode);
         }
     }
 

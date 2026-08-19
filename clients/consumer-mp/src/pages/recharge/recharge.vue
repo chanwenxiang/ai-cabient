@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <view class="page-root">
     <app-nav-bar title="余额充值" />
     <view class="page-body">
@@ -139,7 +139,6 @@ import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
 import {
-  displayBizNo,
   shortBizNo,
   formatDateTimeMinute,
   fmtMoney
@@ -283,7 +282,7 @@ async function loadRecords() {
   }
 }
 
-function formatTime(t: string) {
+function formatTime(t?: string) {
   return formatDateTimeMinute(t, '');
 }
 
