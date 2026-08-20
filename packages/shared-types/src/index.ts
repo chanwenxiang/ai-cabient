@@ -627,6 +627,27 @@ export interface RechargeOrderDto {
   paidAt?: string;
 }
 
+export interface BalanceRefundRequestDto {
+  requestId: number;
+  requestNo: string;
+  userId: number;
+  amountCents: number;
+  status: string;
+  reason?: string;
+  reviewRemark?: string;
+  reviewerId?: number;
+  reviewedAt?: string;
+  failReason?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  refundedAt?: string;
+}
+
+export interface ApplyBalanceRefundRequest {
+  amountCents: number;
+  reason?: string;
+}
+
 export interface VerifyIdentityRequest {
   realName: string;
   idCardLast4: string;

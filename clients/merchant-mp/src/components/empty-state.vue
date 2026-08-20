@@ -69,4 +69,7 @@ withDefaults(
   margin-top: 20rpx;
   width: 100%;
 }
+.empty-actions > *:not(:first-child) {
+  margin-top: 12rpx;
+}
 </style>

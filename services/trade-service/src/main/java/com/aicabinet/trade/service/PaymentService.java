@@ -386,6 +386,7 @@ public class PaymentService {
                 "RECHARGE_REFUND", order.getOrderId(), "recharge-refund:" + order.getOrderId(),
                 reason == null || reason.isBlank() ? "充值退款" : reason);
 
+        order.setRefundedCents(order.getAmountCents());
         order.setStatus("REFUNDED");
         order.setRefundedAt(Instant.now());
         rechargeOrderRepository.save(order);
@@ -424,19 +425,70 @@ public class PaymentService {
     }
 
     private void refundWeChat(RechargeOrder order, String reason) {
+        refundWeChatPartial(order, order.getAmountCents(), reason, null);
+    }
+
+    private void refundAlipay(RechargeOrder order, String reason) {
+        refundAlipayPartial(order, order.getAmountCents(), reason, null);
+    }
+
+    /**
+     * 充值单部分/全额原路退款（仅渠道侧 + 更新 refunded_cents；余额扣减由调用方负责）。
+     * @return 微信/支付宝退款商户退款单号
+     */
+    @Transactional
+    public String refundRechargeChannelPartial(String orderId, int refundCents, String reason, String outRefundNo) {
+        if (refundCents <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
+        }
+        RechargeOrder order = rechargeOrderRepository.findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+        if (!"PAID".equals(order.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.ORDER_NOT_PAID);
+        }
+        int already = Math.max(0, order.getRefundedCents());
+        int refundable = order.getAmountCents() - already;
+        if (refundCents > refundable) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "充值单可退金额不足（剩余 ¥" + String.format("%.2f", refundable / 100.0) + "）");
+        }
+        String refundNo = outRefundNo == null || outRefundNo.isBlank()
+                ? "RF" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase()
+                : outRefundNo.trim();
+        if (PayChannels.ALIPAY.equalsIgnoreCase(order.getChannel())) {
+            refundAlipayPartial(order, refundCents, reason, refundNo);
+        } else {
+            refundWeChatPartial(order, refundCents, reason, refundNo);
+        }
+        order.setRefundedCents(already + refundCents);
+        if (order.getRefundedCents() >= order.getAmountCents()) {
+            order.setStatus("REFUNDED");
+            order.setRefundedAt(Instant.now());
+        }
+        rechargeOrderRepository.save(order);
+        log.info("recharge channel partial refund orderId={} amount={} totalRefunded={}",
+                orderId, refundCents, order.getRefundedCents());
+        return refundNo;
+    }
+
+    private void refundWeChatPartial(RechargeOrder order, int refundCents, String reason, String outRefundNo) {
         if (weChatPayProperties.isConfigured()) {
-            String outRefundNo = "RF" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase();
+            String no = outRefundNo == null || outRefundNo.isBlank()
+                    ? "RF" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase()
+                    : outRefundNo;
             weChatPayClient.createRefund(
-                    order.getOrderId(), outRefundNo, order.getAmountCents(), order.getAmountCents(), reason);
+                    order.getOrderId(), no, refundCents, order.getAmountCents(), reason);
         } else if (!securityProperties.mockEnabled()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.WECHAT_PAY_NOT_CONFIGURED);
         }
     }
 
-    private void refundAlipay(RechargeOrder order, String reason) {
+    private void refundAlipayPartial(RechargeOrder order, int refundCents, String reason, String outRefundNo) {
         if (alipayPayClient.isConfigured()) {
-            String outRefundNo = "RF" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase();
-            alipayPayClient.refund(order.getOrderId(), outRefundNo, order.getAmountCents(), reason);
+            String no = outRefundNo == null || outRefundNo.isBlank()
+                    ? "RF" + UUID.randomUUID().toString().replace("-", "").substring(0, 14).toUpperCase()
+                    : outRefundNo;
+            alipayPayClient.refund(order.getOrderId(), no, refundCents, reason);
         } else if (!securityProperties.mockEnabled()) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ApiMessages.ALIPAY_PAY_NOT_CONFIGURED);
         }
@@ -489,7 +541,8 @@ public class PaymentService {
             return;
         }
         try {
-            JsonNode remote = alipayPayClient.queryByOutTradeNo(order.getOrderId());
+            // Alipay query shape varies by SDK wrapper; reuse existing client
+            var remote = alipayPayClient.queryByOutTradeNo(order.getOrderId());
             String tradeStatus = remote.path("trade_status").asText("");
             if ("TRADE_SUCCESS".equals(tradeStatus) || "TRADE_FINISHED".equals(tradeStatus)) {
                 String tradeNo = remote.path("trade_no").asText(null);

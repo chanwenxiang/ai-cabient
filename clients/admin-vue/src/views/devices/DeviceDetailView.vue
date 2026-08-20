@@ -54,8 +54,9 @@
         <div v-else class="qr-empty">
           {{ qrHydrated ? (qrLoading ? '加载中…' : '暂无二维码') : '加载中…' }}
         </div>
-        <div class="qr-meta">
-          <div class="qr-url mono">{{ qrUrl || '—' }}</div>
+        <div class="qr-tips">
+          <p>消费者微信扫码即可开门购物；打印后贴于柜门显眼位置。</p>
+          <p>链接变更或柜机换码后，请重新下载打印；也可用右上角「复制链接」发给现场同事。</p>
         </div>
       </div>
     </el-card>
@@ -1860,13 +1861,15 @@ onActivated(() => {
 }
 .qr-body {
   display: flex;
-  gap: 20px;
-  align-items: flex-start;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  text-align: center;
+  padding: 8px 0 4px;
 }
 .qr-preview {
-  width: 180px;
-  height: 180px;
+  width: 200px;
+  height: 200px;
   border: 1px solid var(--el-border-color);
   border-radius: 8px;
   overflow: hidden;
@@ -1879,8 +1882,8 @@ onActivated(() => {
   display: block;
 }
 .qr-empty {
-  width: 180px;
-  height: 180px;
+  width: 200px;
+  height: 200px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1888,14 +1891,18 @@ onActivated(() => {
   border: 1px dashed var(--el-border-color);
   border-radius: 8px;
 }
-.qr-meta {
-  flex: 1;
-  min-width: 220px;
-}
-.qr-url {
+.qr-tips {
+  max-width: 420px;
+  margin: 0;
+  color: var(--el-text-color-secondary);
   font-size: 13px;
-  word-break: break-all;
-  margin-bottom: 8px;
+  line-height: 1.6;
+}
+.qr-tips p {
+  margin: 0 0 6px;
+}
+.qr-tips p:last-child {
+  margin-bottom: 0;
 }
 .stat-tile {
   display: block;

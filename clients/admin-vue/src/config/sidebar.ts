@@ -72,6 +72,7 @@ const PATH_ICONS: Record<string, Component> = {
   '/consistency': Document,
   '/warehouse': House,
   '/recharges': Wallet,
+  '/balance-refunds': Wallet,
   '/users': User,
   '/phone-verify': UserFilled,
   '/risk': Lock,

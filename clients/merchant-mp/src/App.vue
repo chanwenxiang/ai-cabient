@@ -248,13 +248,20 @@ uni-button.btn-block {
 .empty-btns > .empty-btn {
   min-width: 0;
   max-width: none;
-  margin: 0;
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 0;
   flex: 0 1 auto;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
   line-height: 1.2;
+}
+.empty-actions > .empty-btn + .empty-btn,
+.empty-actions > uni-button + uni-button,
+.empty-actions > button + button {
+  margin-top: 16rpx;
 }
 
 .btn-outline,

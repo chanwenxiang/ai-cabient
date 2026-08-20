@@ -56,4 +56,13 @@ public interface RechargeOrderMapper extends BaseTradeMapper<RechargeOrder> {
                 .last("LIMIT " + lim));
     }
 
+    /** 可原路退的已支付充值单（FIFO）。 */
+    default List<RechargeOrder> findRefundablePaidByUser(Long userId) {
+        return selectList(Wrappers.<RechargeOrder>lambdaQuery()
+                .eq(RechargeOrder::getUserId, userId)
+                .eq(RechargeOrder::getStatus, "PAID")
+                .orderByAsc(RechargeOrder::getPaidAt)
+                .orderByAsc(RechargeOrder::getCreatedAt));
+    }
+
 }
