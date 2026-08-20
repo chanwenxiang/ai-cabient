@@ -41,8 +41,8 @@ withDefaults(
   width: 104rpx;
   height: 104rpx;
   border-radius: 28rpx;
-  background: #ecfdf5;
-  color: #0f766e;
+  background: var(--brand-tint, #ccfbf1);
+  color: var(--brand, #0f766e);
   font-size: 52rpx;
   font-weight: 700;
   line-height: 104rpx;
@@ -52,12 +52,14 @@ withDefaults(
   font-size: 28rpx;
   font-weight: 600;
   color: #64748b;
+  text-align: center;
 }
 .empty-hint {
   margin-top: 8rpx;
   font-size: 22rpx;
   color: #94a3b8;
   line-height: 1.5;
+  text-align: center;
 }
 .empty-actions {
   display: flex;

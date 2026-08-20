@@ -2,8 +2,8 @@
   <view class="page page-root">
     <app-nav-bar title="通知公告" />
     <view class="page-body">
-      <view v-if="loading" class="state">加载中…</view>
-      <view v-else-if="error" class="state">
+      <view v-if="loading && !list.length" class="state">加载中…</view>
+      <view v-else-if="error && !list.length" class="state">
         <text class="err">{{ error }}</text>
         <button class="retry" size="mini" @click="load">重试</button>
       </view>

@@ -376,6 +376,7 @@ import {
   fmtMoney,
   type OpenErrorKind
 } from '@aicabinet/shared-uni/format';
+import { parseQuery } from '@aicabinet/shared-uni/query';
 import { resumePendingRechargeIfAny } from '@/utils/recharge';
 import { isPayReady, resolveEntryChannel, type EntryChannel } from '@/utils/account';
 import { productGlyph, productThumb } from '@/utils/product-thumb';
@@ -640,22 +641,13 @@ onLoad(async (opts) => {
   // H5：兼容 ?deviceId= / hash 查询（柜门二维码 deep link）
   if (!launch.deviceId && typeof window !== 'undefined') {
     try {
-      const searchParams = new URLSearchParams(window.location.search);
-      const fromSearchMap: Record<string, string> = {};
-      searchParams.forEach((v, k) => {
-        fromSearchMap[k] = v;
-      });
+      const fromSearchMap = parseQuery(window.location.search);
       const fromSearch = parseLaunchOptions(fromSearchMap);
       if (fromSearch.deviceId) {
         launch = fromSearch;
       } else if (window.location.hash.includes('deviceId=')) {
         const hashQuery = window.location.hash.split('?')[1] || '';
-        const hashParams = new URLSearchParams(hashQuery);
-        const fromHashMap: Record<string, string> = {};
-        hashParams.forEach((v, k) => {
-          fromHashMap[k] = v;
-        });
-        const fromHash = parseLaunchOptions(fromHashMap);
+        const fromHash = parseLaunchOptions(parseQuery(hashQuery));
         if (fromHash.deviceId) launch = fromHash;
       }
     } catch {
@@ -1549,7 +1541,7 @@ function stopDevicePoll() {
   position: relative;
 }
 .page-root.is-landing {
-  background: #064e3b;
+  background: var(--brand-deep, #064e3b);
 }
 
 .landing {
@@ -1701,7 +1693,7 @@ function stopDevicePoll() {
   height: 168rpx;
   border-radius: 50%;
   /* 与页面深绿统一，不再用白底 */
-  background: linear-gradient(145deg, #047857, #064e3b);
+  background: linear-gradient(145deg, var(--brand, #047857), var(--brand-deep, #064e3b));
   border: 2rpx solid rgba(255, 255, 255, 0.22);
   display: flex;
   align-items: center;
@@ -1751,14 +1743,20 @@ function stopDevicePoll() {
 }
 .btn-primary {
   margin: 0;
-  background: linear-gradient(135deg, #047857, #059669);
+  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;
   font-weight: 600;
-  line-height: 88rpx;
+  line-height: 1.2;
+  min-height: 88rpx;
   height: 88rpx;
   box-shadow: 0 10rpx 28rpx rgba(5, 150, 105, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-primary::after {
   border: none;
@@ -1829,7 +1827,7 @@ function stopDevicePoll() {
 }
 .device-status {
   font-size: 24rpx;
-  color: #07c160;
+  color: var(--brand-wx, #07c160);
   display: block;
   margin-top: 4rpx;
 }
@@ -1855,7 +1853,7 @@ function stopDevicePoll() {
   margin: 12rpx 24rpx 0;
   padding: 22rpx 24rpx;
   border-radius: 16rpx;
-  background: linear-gradient(135deg, #ecfdf5, #f0fdf4);
+  background: linear-gradient(135deg, var(--brand-soft, #ecfdf5), var(--brand-soft, #ecfdf5));
   border: 1rpx solid #bbf7d0;
 }
 .shopping-banner.wait {
@@ -1866,7 +1864,7 @@ function stopDevicePoll() {
   display: block;
   font-size: 30rpx;
   font-weight: 700;
-  color: #065f46;
+  color: var(--brand-deep, #064e3b);
 }
 .shopping-banner.wait .shopping-banner-title {
   color: #92400e;
@@ -1875,7 +1873,7 @@ function stopDevicePoll() {
   display: block;
   margin-top: 6rpx;
   font-size: 24rpx;
-  color: #047857;
+  color: var(--brand, #047857);
   line-height: 1.4;
 }
 .shopping-banner.wait .shopping-banner-sub {
@@ -1984,7 +1982,7 @@ function stopDevicePoll() {
 }
 .catalog-empty .empty-link {
   font-size: 26rpx;
-  color: #059669;
+  color: var(--brand, #047857);
   font-weight: 650;
 }
 
@@ -2008,7 +2006,7 @@ function stopDevicePoll() {
   border: 2rpx solid transparent;
 }
 .product-cell.selected {
-  border-color: #07c160;
+  border-color: var(--brand-wx, #07c160);
   background: #f4fef8;
 }
 .product-thumb {
@@ -2053,7 +2051,7 @@ function stopDevicePoll() {
   height: 96rpx;
   border-radius: 24rpx;
   background: rgba(255, 255, 255, 0.72);
-  color: #047857;
+  color: var(--brand, #047857);
   font-size: 40rpx;
   font-weight: 800;
   line-height: 96rpx;
@@ -2067,7 +2065,7 @@ function stopDevicePoll() {
   height: 40rpx;
   padding: 0 10rpx;
   border-radius: 20rpx;
-  background: #07c160;
+  background: var(--brand-wx, #07c160);
   color: #fff;
   font-size: 24rpx;
   font-weight: 700;
@@ -2098,7 +2096,7 @@ function stopDevicePoll() {
 /* #endif */
 .product-price {
   font-size: 32rpx;
-  color: #07c160;
+  color: var(--brand-wx, #07c160);
   font-weight: 700;
 }
 .product-stepper {
@@ -2113,14 +2111,14 @@ function stopDevicePoll() {
   height: 52rpx;
   border-radius: 50%;
   background: #eef6f2;
-  color: #047857;
+  color: var(--brand, #047857);
   font-size: 32rpx;
   font-weight: 700;
   line-height: 52rpx;
   text-align: center;
 }
 .stepper-btn.plus {
-  background: #047857;
+  background: var(--brand, #047857);
   color: #fff;
 }
 .stepper-qty {
@@ -2160,13 +2158,19 @@ function stopDevicePoll() {
 .cart-cta {
   margin: 0;
   padding: 0 48rpx;
+  min-height: 80rpx;
   height: 80rpx;
-  line-height: 80rpx;
-  background: #07c160;
+  line-height: 1.2;
+  background: var(--brand-wx, #07c160);
   color: #fff;
   border-radius: 40rpx;
   font-size: 30rpx;
   font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .cart-cta::after {
   border: none;
@@ -2188,20 +2192,26 @@ function stopDevicePoll() {
 .cart-demo-amt {
   font-size: 30rpx;
   font-weight: 800;
-  color: #07c160;
+  color: var(--brand-wx, #07c160);
   margin-top: 4rpx;
 }
 .cart-close-btn {
   margin: 0;
   padding: 0 40rpx;
+  min-height: 80rpx;
   height: 80rpx;
-  line-height: 80rpx;
-  background: linear-gradient(135deg, #047857, #059669);
+  line-height: 1.2;
+  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
   color: #fff;
   border-radius: 40rpx;
   font-size: 30rpx;
   font-weight: 700;
   box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .cart-close-btn::after {
   border: none;
@@ -2218,7 +2228,7 @@ function stopDevicePoll() {
 }
 .settlement-review-card.tone-success {
   border-color: #bbf7d0;
-  background: linear-gradient(135deg, #f0fdf4, #ecfdf5);
+  background: linear-gradient(135deg, var(--brand-soft, #ecfdf5), var(--brand-soft, #ecfdf5));
 }
 .settlement-review-card.tone-wait {
   border-color: #fed7aa;
@@ -2241,10 +2251,10 @@ function stopDevicePoll() {
   font-size: 24rpx;
 }
 .review-icon.tone-wait {
-  background: #059669;
+  background: var(--brand, #047857);
 }
 .review-icon.tone-success {
-  background: #059669;
+  background: var(--brand, #047857);
 }
 .review-icon.tone-warn {
   background: #ef4444;
@@ -2280,7 +2290,7 @@ function stopDevicePoll() {
   font-weight: 600;
 }
 .review-link.primary {
-  color: #047857;
+  color: var(--brand, #047857);
 }
 .review-link.subtle {
   color: #9ca3af;
@@ -2292,7 +2302,7 @@ function stopDevicePoll() {
   border-radius: 40rpx;
   font-size: 28rpx;
   font-weight: 600;
-  color: #07c160;
+  color: var(--brand-wx, #07c160);
   background: #e8f8ef;
 }
 .cart-status-chip.wait {
@@ -2300,7 +2310,7 @@ function stopDevicePoll() {
   background: #fff7e6;
 }
 .cart-status-chip.active {
-  color: #07c160;
+  color: var(--brand-wx, #07c160);
   background: #e8f8ef;
 }
 .cart-status-chip.error {
@@ -2324,7 +2334,7 @@ function stopDevicePoll() {
   background: #fffdf5;
 }
 .flow-overlay.active {
-  background: #f0fdf4;
+  background: var(--brand-soft, #ecfdf5);
 }
 .flow-overlay.error {
   background: #fff5f5;
@@ -2334,7 +2344,7 @@ function stopDevicePoll() {
   height: 120rpx;
   border-radius: 50%;
   border: 8rpx solid #e8f8ef;
-  border-top-color: #07c160;
+  border-top-color: var(--brand-wx, #07c160);
   margin-bottom: 40rpx;
 }
 .flow-spinner.pulse {
@@ -2348,7 +2358,7 @@ function stopDevicePoll() {
 @media (prefers-reduced-motion: reduce) {
   .flow-spinner.pulse {
     animation: none;
-    border-top-color: #07c160;
+    border-top-color: var(--brand-wx, #07c160);
     opacity: 0.85;
   }
 }
@@ -2368,7 +2378,7 @@ function stopDevicePoll() {
 }
 .flow-device {
   font-size: 26rpx;
-  color: #07c160;
+  color: var(--brand-wx, #07c160);
   margin-top: 24rpx;
 }
 .flow-err {
@@ -2380,12 +2390,18 @@ function stopDevicePoll() {
 .flow-cancel {
   margin-top: 40rpx;
   padding: 0 36rpx;
+  min-height: 72rpx;
   height: 72rpx;
-  line-height: 72rpx;
+  line-height: 1.2;
   border-radius: 36rpx;
   background: #f2f3f5;
   color: #576b95;
   font-size: 26rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .flow-cancel::after {
   border: none;
@@ -2416,13 +2432,13 @@ function stopDevicePoll() {
   margin-right: auto;
   padding: 16rpx 20rpx;
   border-radius: 16rpx;
-  background: #064e3b;
+  background: var(--brand-deep, #064e3b);
   border: 1rpx solid rgba(255, 255, 255, 0.16);
   box-sizing: border-box;
 }
 .landing-error.kind-balance,
 .landing-error.kind-device_not_found {
-  background: #064e3b;
+  background: var(--brand-deep, #064e3b);
   border-color: rgba(255, 255, 255, 0.16);
 }
 .landing-error.kind-balance .error-icon {
@@ -2509,7 +2525,7 @@ function stopDevicePoll() {
   max-width: 520rpx;
   padding: 28rpx 24rpx 24rpx;
   border-radius: 20rpx;
-  background: #064e3b;
+  background: var(--brand-deep, #064e3b);
   border: 1rpx solid rgba(255, 255, 255, 0.16);
   box-sizing: border-box;
 }
@@ -2541,7 +2557,7 @@ function stopDevicePoll() {
   padding: 0 24rpx;
   box-sizing: border-box;
   border-radius: 12rpx;
-  background: #043f32;
+  background: var(--brand-ink, #043f32);
   border: 1rpx solid rgba(255, 255, 255, 0.18);
   font-size: 28rpx;
   color: #ffffff;
@@ -2561,11 +2577,11 @@ function stopDevicePoll() {
   border: 1rpx solid rgba(255, 255, 255, 0.28);
   color: #ffffff;
   font-size: 26rpx;
-  background: #043f32;
+  background: var(--brand-ink, #043f32);
 }
 .landing-sheet-btn.primary {
   border-color: transparent;
-  background: #047857;
+  background: var(--brand, #047857);
   font-weight: 600;
 }
 .landing-sheet-cancel {
@@ -2615,7 +2631,7 @@ function stopDevicePoll() {
   min-height: 68rpx;
 }
 .product-price {
-  color: #047857;
+  color: var(--brand, #047857);
   font-size: 32rpx;
 }
 .cart-bar {
@@ -2624,11 +2640,11 @@ function stopDevicePoll() {
   padding: 18rpx 24rpx;
 }
 .cart-cta {
-  background: linear-gradient(135deg, #047857, #059669);
+  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
   box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.22);
 }
 .flow-overlay {
-  background: radial-gradient(circle at 50% 35%, #ecfdf5, #fff 55%);
+  background: radial-gradient(circle at 50% 35%, var(--brand-soft, #ecfdf5), #fff 55%);
 }
 .flow-spinner {
   width: 132rpx;
@@ -2643,7 +2659,7 @@ function stopDevicePoll() {
 .flow-device {
   padding: 10rpx 18rpx;
   border-radius: 999rpx;
-  background: #ecfdf5;
+  background: var(--brand-soft, #ecfdf5);
   font-weight: 600;
 }
 </style>

@@ -1,5 +1,5 @@
 ﻿<template>
-  <view class="page">
+  <view class="page-root">
     <app-nav-bar title="开通支付" />
     <view class="page-body">
       <view class="hero">
@@ -8,12 +8,15 @@
       </view>
 
       <view class="steps">
-        <view class="step" :class="{ done: account?.verified }">
+        <view class="step" :class="{ done: account?.verified, active: !account?.verified }">
           <view class="step-dot">{{ account?.verified ? '✓' : '1' }}</view>
           <text class="step-label">实名</text>
         </view>
         <view class="step-line" :class="{ done: account?.verified }" />
-        <view class="step" :class="{ done: payReady }">
+        <view
+          class="step"
+          :class="{ done: payReady, active: !!account?.verified && !payReady }"
+        >
           <view class="step-dot">{{ payReady ? '✓' : '2' }}</view>
           <text class="step-label">免密支付</text>
         </view>
@@ -39,14 +42,19 @@
           aria-label="身份证后四位"
           placeholder="后四位…"
         />
-        <button class="btn-primary" hover-class="btn-hover" :loading="verifying" @click="onVerify">
+        <button
+          class="btn-primary btn-block"
+          hover-class="btn-hover"
+          :loading="verifying"
+          @click="onVerify"
+        >
           {{ verifying ? '提交中…' : '下一步' }}
         </button>
         <text v-if="devTools" class="hint">开发环境仅做格式校验，上线需对接实名核验。</text>
         <text v-if="err" class="err">{{ err }}</text>
       </view>
 
-      <view v-else-if="!payReady" class="card">
+      <view v-else-if="!payReady" class="card btn-stack">
         <text class="card-title">开通免密支付</text>
         <text class="card-desc"
           >推荐开通支付分 / 免密代扣；可用余额 ≥ ¥{{ needYuan }} 也可临时开门。</text
@@ -68,7 +76,7 @@
           <text class="status-val">{{ alipayReady ? '已开通' : '未开通' }}</text>
         </view>
         <button
-          class="btn-primary"
+          class="btn-primary btn-block"
           hover-class="btn-hover"
           :loading="signing"
           @click="onSignPayScore"
@@ -76,7 +84,7 @@
           {{ signing ? '开通中…' : '开通微信支付分' }}
         </button>
         <button
-          class="btn-alipay"
+          class="btn-alipay btn-block"
           hover-class="btn-hover"
           :loading="signingAlipay"
           @click="onSignAlipay"
@@ -94,7 +102,9 @@
         <text class="done-icon">✓</text>
         <text class="done-title">可以开门购物了</text>
         <text class="done-desc">扫柜门二维码即可开门取货</text>
-        <button class="btn-primary" hover-class="btn-hover" @click="goShop">去扫码开门</button>
+        <button class="btn-primary btn-block" hover-class="btn-hover" @click="goShop">
+          去扫码开门
+        </button>
       </view>
     </view>
   </view>
@@ -231,10 +241,10 @@ function goShop() {
 </script>
 
 <style scoped>
-.page {
-  padding: 0;
+.page-root {
   min-height: 100%;
-  background: linear-gradient(180deg, #ecfdf5, #f5f7f8 340rpx);
+  background: #ffffff;
+  padding: 0;
   box-sizing: border-box;
 }
 .page-body {
@@ -242,21 +252,17 @@ function goShop() {
   box-sizing: border-box;
 }
 .hero {
-  margin: 0 -24rpx;
-  padding: 42rpx 34rpx 78rpx;
-  border-radius: 0 0 38rpx 38rpx;
-  color: #fff;
-  background: linear-gradient(145deg, #064e3b, #059669 58%, #14b8a6);
+  padding: 16rpx 8rpx 24rpx;
 }
 .hero-title {
-  font-size: 44rpx;
+  font-size: 40rpx;
   font-weight: 700;
-  color: #fff;
+  color: #191919;
   display: block;
 }
 .hero-sub {
   font-size: 26rpx;
-  color: rgba(255, 255, 255, 0.78);
+  color: #888;
   margin-top: 8rpx;
   display: block;
 }
@@ -264,12 +270,11 @@ function goShop() {
   display: flex;
   align-items: center;
   justify-content: center;
-  position: relative;
-  margin: -45rpx 0 22rpx;
+  margin: 0 0 20rpx;
   padding: 24rpx 22rpx;
   border-radius: 24rpx;
-  background: #fff;
-  box-shadow: 0 14rpx 34rpx rgba(15, 23, 42, 0.09);
+  background: #f8faf9;
+  border: 1rpx solid #edf1ef;
 }
 .step {
   display: flex;
@@ -288,19 +293,20 @@ function goShop() {
   align-items: center;
   justify-content: center;
   font-weight: 600;
-  box-shadow: 0 0 0 7rpx #f4f7f5;
 }
+.step.active .step-dot,
 .step.done .step-dot {
   background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
-  box-shadow: 0 0 0 7rpx #d1fae5;
 }
 .step-label {
   font-size: 24rpx;
   color: #888;
 }
+.step.active .step-label,
 .step.done .step-label {
-  color: #07c160;
+  color: #047857;
+  font-weight: 600;
 }
 .step-line {
   width: 120rpx;
@@ -309,15 +315,15 @@ function goShop() {
   margin: 0 16rpx 28rpx;
 }
 .step-line.done {
-  background: #07c160;
+  background: #059669;
 }
 .card {
   background: #fff;
-  border-radius: 26rpx;
-  padding: 34rpx;
-  margin-bottom: 24rpx;
-  border: 1rpx solid #edf1ef;
-  box-shadow: 0 12rpx 34rpx rgba(15, 23, 42, 0.06);
+  border-radius: 24rpx;
+  padding: 32rpx;
+  margin: 0;
+  border: none;
+  box-shadow: none;
 }
 .card-title {
   font-size: 32rpx;
@@ -334,37 +340,61 @@ function goShop() {
 }
 .field-label {
   display: block;
-  font-size: 24rpx;
-  color: #64748b;
-  margin-bottom: 8rpx;
+  font-size: 26rpx;
+  color: #666;
+  margin-bottom: 12rpx;
+  margin-top: 8rpx;
 }
 .input {
-  background: #f8faf9;
-  border: 1rpx solid #e3eae6;
-  border-radius: 17rpx;
-  padding: 24rpx;
-  margin-bottom: 20rpx;
+  width: 100%;
+  min-height: 88rpx;
+  height: 88rpx;
+  line-height: 1.4;
+  background: #f5f7f8;
+  border: 1rpx solid #e8eeeb;
+  border-radius: 16rpx;
+  padding: 0 24rpx;
+  margin-bottom: 16rpx;
   font-size: 30rpx;
+  color: #191919;
+  box-sizing: border-box;
 }
 .btn-primary {
+  margin: 16rpx 0 0;
   background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;
   font-weight: 600;
   border: none;
-  margin-top: 8rpx;
-  box-shadow: 0 9rpx 24rpx rgba(5, 150, 105, 0.2);
+  min-height: 88rpx;
+  height: 88rpx;
+  line-height: 1.2;
+  box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-alipay {
+  margin: 16rpx 0 0;
   background: #1677ff;
   color: #fff;
-  border-radius: 12rpx;
-  font-size: 32rpx;
+  border-radius: 44rpx;
+  font-size: 30rpx;
   font-weight: 600;
   border: none;
-  margin-top: 16rpx;
+  min-height: 88rpx;
+  height: 88rpx;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
+.btn-primary::after,
 .btn-alipay::after {
   border: none;
 }
@@ -411,6 +441,7 @@ function goShop() {
   font-size: 88rpx;
   display: block;
   margin-bottom: 16rpx;
+  color: #059669;
 }
 .done-title {
   font-size: 34rpx;

@@ -1,42 +1,43 @@
 <template>
-  <view class="page-root devices-page" :style="pagePadStyle">
+  <view class="page-root devices-page">
+    <app-nav-bar title="柜机" />
     <view class="toolbar">
       <button class="scan-btn" :loading="scanning" @click="onScan">扫码到柜</button>
       <button v-if="canReplenishment" class="replenish-btn" @click="goReplenishment">
         补货任务
       </button>
     </view>
-    <view v-if="loading" class="card">加载中…</view>
-    <view v-else-if="error" class="card">
+    <view class="filters">
+      <input
+        v-model="keyword"
+        class="search"
+        aria-label="搜索柜机名称或编号"
+        placeholder="搜索柜机名称或编号…"
+      />
+      <view class="chips">
+        <text
+          v-for="f in filters"
+          :key="f.value"
+          class="chip"
+          :class="{ active: filter === f.value }"
+          @click="filter = f.value"
+          >{{ f.label }} {{ countFor(f.value) }}</text
+        >
+        <text class="chip" :class="{ active: onlyPreferred }" @click="toggleOnlyPreferred"
+          >常驻柜 {{ preferredId ? '1' : '0' }}</text
+        >
+      </view>
+      <view v-if="preferredId" class="pref-hint">
+        <text>常驻：{{ preferredLabel }}</text>
+        <text class="pref-clear" @click="clearPreferred">清除</text>
+      </view>
+    </view>
+    <view v-if="loading && !devices.length" class="card">加载中…</view>
+    <view v-else-if="error && !devices.length" class="card">
       <text class="err">{{ error }}</text>
       <button class="retry" size="mini" @click="load">重试</button>
     </view>
     <view v-else>
-      <view class="filters">
-        <input
-          v-model="keyword"
-          class="search"
-          aria-label="搜索柜机名称或编号"
-          placeholder="搜索柜机名称或编号…"
-        />
-        <view class="chips">
-          <text
-            v-for="f in filters"
-            :key="f.value"
-            class="chip"
-            :class="{ active: filter === f.value }"
-            @click="filter = f.value"
-            >{{ f.label }} {{ countFor(f.value) }}</text
-          >
-          <text class="chip" :class="{ active: onlyPreferred }" @click="toggleOnlyPreferred"
-            >常驻柜 {{ preferredId ? '1' : '0' }}</text
-          >
-        </view>
-        <view v-if="preferredId" class="pref-hint">
-          <text>常驻：{{ preferredLabel }}</text>
-          <text class="pref-clear" @click="clearPreferred">清除</text>
-        </view>
-      </view>
       <view
         v-for="d in visibleDevices"
         :key="d.deviceId"
@@ -106,13 +107,7 @@ import {
   setPreferredDeviceId
 } from '@/utils/preferred-device';
 import { dictLabel } from '@aicabinet/shared-dict';
-import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
 import type { DeviceInfo, MerchantMe } from '@aicabinet/shared-types';
-
-/** Tab 页底栏已有「柜机」：自定义顶栏只占状态栏，避免系统头在 H5 留白 */
-const pagePadStyle = {
-  borderTop: getStatusBarPadPx() + 'px solid #f0fdfa'
-};
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canListDevices = computed(() => hasPerm(me.value, 'merchant:devices:list'));
@@ -218,7 +213,8 @@ async function load() {
     uni.switchTab({ url: '/pages/home/home' });
     return;
   }
-  loading.value = true;
+  // 已有柜机列表时静默刷新，避免 Tab 切换时列表先消失再撑开
+  if (!devices.value.length) loading.value = true;
   error.value = '';
   try {
     const list = await merchantApi.devices();
@@ -293,18 +289,21 @@ function lifecycleText(status?: string) {
   padding: 0;
   padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
   min-height: 100%;
-  background: #f0fdfa;
+  background: var(--page-tint, #f0fdfa);
   box-sizing: border-box;
 }
 .toolbar {
   display: flex;
   gap: 12rpx;
   padding: 16rpx 24rpx 0;
-  background: #f0fdfa;
+  background: var(--page-tint, #f0fdfa);
 }
 .scan-btn,
 .replenish-btn {
-  flex: 1;
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  max-width: none;
   margin: 0;
   height: 72rpx;
   line-height: 72rpx;
@@ -313,13 +312,13 @@ function lifecycleText(status?: string) {
   font-weight: 600;
 }
 .scan-btn {
-  background: #0f766e;
+  background: var(--brand, #0f766e);
   color: #fff;
 }
 .replenish-btn {
   background: #fff;
-  color: #0f766e;
-  border: 1rpx solid #99f6e4;
+  color: var(--brand, #0f766e);
+  border: 1rpx solid var(--brand-soft, #99f6e4);
 }
 .scan-btn::after,
 .replenish-btn::after {
@@ -363,14 +362,14 @@ function lifecycleText(status?: string) {
   top: 0;
   z-index: 5;
   isolation: isolate;
-  background: #f0fdfa;
+  background: var(--page-tint, #f0fdfa);
   padding: 16rpx 24rpx 12rpx;
 }
 .search {
   height: 72rpx;
   box-sizing: border-box;
   background: #fff;
-  border: 1rpx solid #ccfbf1;
+  border: 1rpx solid var(--brand-tint, #ccfbf1);
   border-radius: 36rpx;
   padding: 0 28rpx;
   font-size: 26rpx;
@@ -390,14 +389,14 @@ function lifecycleText(status?: string) {
 }
 .chip.active {
   color: #fff;
-  background: #0f766e;
+  background: var(--brand, #0f766e);
 }
 .pref-hint {
   margin-top: 12rpx;
   display: flex;
   justify-content: space-between;
   font-size: 22rpx;
-  color: #0f766e;
+  color: var(--brand, #0f766e);
 }
 .pref-clear {
   color: #64748b;
@@ -463,7 +462,7 @@ function lifecycleText(status?: string) {
 }
 .retry {
   margin-top: 16rpx;
-  background: linear-gradient(135deg, #134e4a, #0f766e);
+  background: linear-gradient(135deg, var(--brand-deep, #134e4a), var(--brand, #0f766e));
   color: #fff;
   border-radius: 44rpx;
   font-weight: 600;

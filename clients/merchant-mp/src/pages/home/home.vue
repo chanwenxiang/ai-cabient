@@ -107,38 +107,46 @@
           <text class="section-more" @click="goReplenishment()">全部 ›</text>
         </view>
         <text v-if="preferredId" class="pref-tip">常驻柜 {{ preferredId }} 优先置顶</text>
-        <view v-if="taskPreviewLoading" class="empty-inline">任务加载中…</view>
-        <view v-else-if="!taskPreview.length" class="empty-inline empty-actions">
-          <text class="empty-title">暂无待处理补货任务</text>
-          <text class="empty-hint">可扫码巡柜看缺货，或从柜机列表进详情</text>
-          <view class="empty-btns">
-            <button class="empty-btn primary" :loading="scanning" @click="onScan">扫码到柜</button>
-            <button v-if="canDevices" class="empty-btn" @click="goTab('/pages/devices/devices')">
-              柜机列表
-            </button>
-            <button class="empty-btn" @click="goReplenishment()">查看记录</button>
-          </view>
-        </view>
-        <view
-          v-for="task in taskPreview"
-          :key="task.taskId"
-          class="task-row"
-          hover-class="task-row-hover"
-          role="button"
-          :aria-label="`补货任务 ${deviceLabel(task.deviceId)} ${statusLabel(task.status)}`"
-          @click="goReplenishment(task.deviceId, task.taskId)"
+        <!-- 仅首次进入显示加载；之后切回工作台保留上次列表/空态，避免「任务加载中」闪一下 -->
+        <view v-if="taskPreviewLoading && !taskPreviewBooted" class="empty-inline">任务加载中…</view>
+        <empty-state
+          v-else-if="!taskPreview.length"
+          compact
+          title="暂无待处理补货任务"
+          hint="可扫码巡柜看缺货，或从柜机列表进详情"
         >
-          <view class="task-copy">
-            <text class="task-name">
-              {{ deviceLabel(task.deviceId) }}
-              <text v-if="preferredId && task.deviceId === preferredId" class="pref-mark"
-                >常驻</text
-              >
-            </text>
-            <text class="task-meta">{{ task.deviceId }} · {{ statusLabel(task.status) }}</text>
+          <button class="empty-btn primary" :loading="scanning" @click="onScan">扫码到柜</button>
+          <button
+            v-if="canDevices"
+            class="empty-btn ghost"
+            @click="goTab('/pages/devices/devices')"
+          >
+            柜机列表
+          </button>
+          <button class="empty-btn ghost" @click="goReplenishment()">查看记录</button>
+        </empty-state>
+        <block v-else>
+          <view
+            v-for="task in taskPreview"
+            :key="task.taskId"
+            class="task-row"
+            hover-class="task-row-hover"
+            role="button"
+            :aria-label="`补货任务 ${deviceLabel(task.deviceId)} ${statusLabel(task.status)}`"
+            @click="goReplenishment(task.deviceId, task.taskId)"
+          >
+            <view class="task-copy">
+              <text class="task-name">
+                {{ deviceLabel(task.deviceId) }}
+                <text v-if="preferredId && task.deviceId === preferredId" class="pref-mark"
+                  >常驻</text
+                >
+              </text>
+              <text class="task-meta">{{ task.deviceId }} · {{ statusLabel(task.status) }}</text>
+            </view>
+            <text class="task-go">去补货 ›</text>
           </view>
-          <text class="task-go">去补货 ›</text>
-        </view>
+        </block>
       </view>
 
       <view
@@ -238,7 +246,7 @@ type TaskRow = { taskId: number; deviceId: string; status: string };
 
 /** Tab 页底栏已有「工作台」：去掉重复标题，只留状态栏占位 */
 const headerPadStyle = {
-  borderTop: getStatusBarPadPx() + 'px solid #134e4a'
+  borderTop: getStatusBarPadPx() + 'px solid var(--brand-deep, #134e4a)'
 };
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -267,6 +275,8 @@ const canFinanceKpi = computed(() => canBusiness.value || canSettlements.value |
 
 const loading = ref(true);
 const taskPreviewLoading = ref(false);
+/** 今日补货是否已完成过至少一次拉取（之后切 Tab 不再显示「任务加载中」） */
+const taskPreviewBooted = ref(false);
 const scanning = ref(false);
 const error = ref('');
 const meName = ref('');
@@ -378,7 +388,8 @@ async function load() {
   const seq = ++loadSeq;
   hydrateFromCache();
   loading.value = !meName.value;
-  taskPreviewLoading.value = canReplenishment.value;
+  // 仅首次拉取显示加载文案；有数据或已 boot 后静默刷新
+  taskPreviewLoading.value = !taskPreviewBooted.value && canReplenishment.value;
   error.value = '';
   try {
     let profile: MerchantMe;
@@ -507,6 +518,7 @@ async function load() {
     if (seq === loadSeq) {
       loading.value = false;
       taskPreviewLoading.value = false;
+      taskPreviewBooted.value = true;
     }
   }
 }
@@ -522,7 +534,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   background: #ffffff;
 }
 .dash-header {
-  background: linear-gradient(165deg, #134e4a 0%, #0f766e 55%, #0d9488 100%);
+  background: linear-gradient(165deg, var(--brand-deep, #134e4a) 0%, var(--brand, #0f766e) 55%, var(--brand, #0f766e) 100%);
   padding: 12rpx 24rpx 28rpx;
   color: #fff;
   border-radius: 0;
@@ -577,7 +589,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   align-items: center;
   gap: 12rpx;
   box-shadow: 0 6rpx 16rpx rgba(15, 118, 110, 0.08);
-  border: 1rpx solid #ccfbf1;
+  border: 1rpx solid var(--brand-tint, #ccfbf1);
 }
 .scan-copy {
   flex: 1;
@@ -587,7 +599,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   display: block;
   font-size: 28rpx;
   font-weight: 700;
-  color: #134e4a;
+  color: var(--brand-deep, #134e4a);
 }
 .scan-desc {
   display: block;
@@ -603,7 +615,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   line-height: 68rpx;
   padding: 0 28rpx;
   border-radius: 34rpx;
-  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
   color: #fff;
   font-size: 28rpx;
   font-weight: 700;
@@ -623,15 +635,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   align-items: center;
   gap: 12rpx;
   background: #ecfdf5;
-  border: 1rpx solid #99f6e4;
+  border: 1rpx solid var(--brand-soft, #99f6e4);
   border-radius: 14rpx;
 }
 .notice-tag {
   flex-shrink: 0;
   font-size: 20rpx;
   font-weight: 700;
-  color: #0f766e;
-  background: #ccfbf1;
+  color: var(--brand, #0f766e);
+  background: var(--brand-tint, #ccfbf1);
   padding: 6rpx 10rpx;
   border-radius: 8rpx;
 }
@@ -667,8 +679,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   box-shadow: 0 4rpx 14rpx rgba(15, 23, 42, 0.04);
 }
 .quick-item.primary {
-  border-color: #99f6e4;
-  background: linear-gradient(180deg, #f0fdfa, #fff);
+  border-color: var(--brand-soft, #99f6e4);
+  background: linear-gradient(180deg, var(--page-tint, #f0fdfa), #fff);
 }
 .quick-icon {
   display: block;
@@ -677,7 +689,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin: 0 auto;
   border-radius: 20rpx;
   background: #ecfdf5;
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   font-size: 34rpx;
   font-weight: 700;
   line-height: 76rpx;
@@ -724,14 +736,14 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #0f172a;
 }
 .section-more {
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   font-size: 24rpx;
 }
 .pref-tip {
   display: block;
   margin: 0 0 12rpx;
   font-size: 22rpx;
-  color: #0f766e;
+  color: var(--brand, #0f766e);
 }
 .empty-inline {
   padding: 16rpx 0 4rpx;
@@ -764,17 +776,29 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .empty-btn {
   margin: 0;
   padding: 0 22rpx;
+  min-height: 64rpx;
   height: 64rpx;
-  line-height: 64rpx;
+  line-height: 1.2;
   border-radius: 999rpx;
   font-size: 24rpx;
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   background: #ecfdf5;
   border: none;
+  min-width: 0;
+  max-width: none;
+  width: auto;
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .empty-btn.primary {
   color: #fff;
-  background: #0f766e;
+  background: var(--brand, #0f766e);
+  min-width: 0;
+  max-width: none;
 }
 .empty-btn::after {
   border: none;
@@ -817,8 +841,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin-left: 10rpx;
   padding: 2rpx 10rpx;
   border-radius: 8rpx;
-  background: #ccfbf1;
-  color: #0f766e;
+  background: var(--brand-tint, #ccfbf1);
+  color: var(--brand, #0f766e);
   font-size: 20rpx;
   font-weight: 700;
 }
@@ -829,7 +853,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #94a3b8;
 }
 .task-go {
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   font-size: 26rpx;
   font-weight: 600;
 }
@@ -915,7 +939,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   margin-top: 6rpx;
   font-size: 28rpx;
   font-weight: 700;
-  color: #0f766e;
+  color: var(--brand, #0f766e);
 }
 .bars {
   display: flex;
@@ -931,7 +955,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .bar {
   width: 100%;
-  background: linear-gradient(180deg, #14b8a6, #0f766e);
+  background: linear-gradient(180deg, var(--brand, #0f766e), var(--brand, #0f766e));
   border-radius: 6rpx 6rpx 0 0;
   min-height: 8rpx;
 }
@@ -956,7 +980,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   gap: 16rpx;
 }
 .banner-retry {
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   font-weight: 600;
   flex-shrink: 0;
 }

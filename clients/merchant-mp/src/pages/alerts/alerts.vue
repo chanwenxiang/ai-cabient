@@ -1,36 +1,37 @@
 <template>
-  <view class="alerts-page" :style="pagePadStyle">
-    <view v-if="loading" class="card">加载中…</view>
-    <view v-else-if="error" class="card">
+  <view class="alerts-page">
+    <app-nav-bar title="待办" />
+    <view v-if="preferredId" class="pref-bar">
+      <text>常驻柜优先：{{ preferredId }}</text>
+      <text class="pref-toggle" @click="onlyPreferred = !onlyPreferred">
+        {{ onlyPreferred ? '显示全部' : '仅看常驻' }}
+      </text>
+    </view>
+    <view class="kpi-grid">
+      <view class="kpi-card dispute"
+        ><text class="n">{{ counts.disputes }}</text
+        ><text class="l">审核</text></view
+      >
+      <view class="kpi-card offline"
+        ><text class="n">{{ counts.offline }}</text
+        ><text class="l">故障</text></view
+      >
+      <view class="kpi-card stock"
+        ><text class="n">{{ counts.lowStock }}</text
+        ><text class="l">库存</text></view
+      >
+      <view class="kpi-card expiry"
+        ><text class="n">{{ counts.expiry }}</text
+        ><text class="l">临期</text></view
+      >
+    </view>
+
+    <view v-if="loading && !items.length" class="card">加载中…</view>
+    <view v-else-if="error && !items.length" class="card">
       <text class="err">{{ error }}</text>
       <button class="retry" size="mini" @click="load">重试</button>
     </view>
     <view v-else>
-      <view v-if="preferredId" class="pref-bar">
-        <text>常驻柜优先：{{ preferredId }}</text>
-        <text class="pref-toggle" @click="onlyPreferred = !onlyPreferred">
-          {{ onlyPreferred ? '显示全部' : '仅看常驻' }}
-        </text>
-      </view>
-      <view class="kpi-grid">
-        <view class="kpi-card dispute"
-          ><text class="n">{{ counts.disputes }}</text
-          ><text class="l">审核</text></view
-        >
-        <view class="kpi-card offline"
-          ><text class="n">{{ counts.offline }}</text
-          ><text class="l">故障</text></view
-        >
-        <view class="kpi-card stock"
-          ><text class="n">{{ counts.lowStock }}</text
-          ><text class="l">库存</text></view
-        >
-        <view class="kpi-card expiry"
-          ><text class="n">{{ counts.expiry }}</text
-          ><text class="l">临期</text></view
-        >
-      </view>
-
       <view
         v-for="(a, i) in visibleItems"
         :key="a.exceptionId || a.ticketId || `${a.type}-${a.deviceId}-${i}`"
@@ -89,13 +90,7 @@ import { getPreferredDeviceId } from '@/utils/preferred-device';
 import { promptText } from '@/utils/text-prompt';
 import { setAlertsTabBadge } from '@/utils/todo-badge';
 import { mergeTodoItems } from '@/utils/todo-list';
-import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
 import type { MerchantMe } from '@aicabinet/shared-types';
-
-/** Tab 页底栏已有「待办」：只留状态栏占位 */
-const pagePadStyle = {
-  borderTop: getStatusBarPadPx() + 'px solid #f0fdfa'
-};
 
 const { me, refresh: refreshMe } = useMerchantMe();
 const canViewAlerts = computed(() => hasPerm(me.value, 'merchant:alerts:view'));
@@ -168,7 +163,8 @@ async function load() {
     return;
   }
   preferredId.value = getPreferredDeviceId();
-  loading.value = true;
+  // 已有列表时静默刷新，避免 Tab 切换时整页先缩成「加载中」再撑开（先小后大）
+  if (!items.value.length) loading.value = true;
   error.value = '';
   try {
     const [wb, exceptionPage, expiryRows, slotRows] = await Promise.all([
@@ -323,7 +319,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   min-height: 100%;
   padding: 0 0 calc(24rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
-  background: #f0fdfa;
+  background: var(--page-tint, #f0fdfa);
 }
 .section-card {
   margin-top: 18rpx;
@@ -332,7 +328,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   display: block;
   font-size: 28rpx;
   font-weight: 700;
-  color: #134e4a;
+  color: var(--brand-deep, #134e4a);
   margin-bottom: 12rpx;
 }
 .slot-row {
@@ -373,7 +369,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   border-radius: 16rpx;
   background: #fff;
   border: 1rpx solid #e2e8f0;
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   font-size: 24rpx;
   display: flex;
   justify-content: space-between;
@@ -398,7 +394,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   box-shadow: 0 4rpx 14rpx rgba(15, 118, 110, 0.04);
 }
 .kpi-card .n {
-  color: #134e4a;
+  color: var(--brand-deep, #134e4a);
 }
 .kpi-card.dispute .n {
   color: #dc2626;
@@ -410,7 +406,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #d97706;
 }
 .kpi-card.expiry .n {
-  color: #0f766e;
+  color: var(--brand, #0f766e);
 }
 .n {
   font-size: 40rpx;
@@ -453,7 +449,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .tag.expiry {
   background: #a7f3d0;
-  color: #059669;
+  color: var(--brand, #0f766e);
 }
 .tag.default {
   background: #e2e8f0;
@@ -473,7 +469,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   pointer-events: none;
 }
 .action {
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   font-size: 24rpx;
   display: block;
   margin-top: 12rpx;
@@ -485,7 +481,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .retry {
   margin-top: 16rpx;
-  background: linear-gradient(135deg, #134e4a, #0f766e);
+  background: linear-gradient(135deg, var(--brand-deep, #134e4a), var(--brand, #0f766e));
   color: #fff;
   border-radius: 44rpx;
   font-weight: 600;
@@ -497,24 +493,30 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .resolve-btn {
   margin-top: 14rpx;
-  background: #0f766e;
+  background: var(--brand, #0f766e);
   color: #fff;
   border: 0;
 }
 .empty-btn {
   margin: 0;
   padding: 0 28rpx;
+  min-height: 64rpx;
   height: 64rpx;
-  line-height: 64rpx;
+  line-height: 1.2;
   border-radius: 999rpx;
   font-size: 24rpx;
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   background: #ecfdf5;
   border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .empty-btn.primary {
   color: #fff;
-  background: #0f766e;
+  background: var(--brand, #0f766e);
 }
 .empty-btn::after {
   border: none;

@@ -1,23 +1,20 @@
 <template>
-  <view class="page page-fill" :style="pagePadStyle">
-    <view v-if="loading" class="state-wrap"><text class="meta">加载中…</text></view>
-    <view v-else-if="error" class="state-wrap">
-      <text class="empty-title">加载失败</text>
-      <text class="empty-desc">{{ error }}</text>
-      <button class="action-btn" hover-class="btn-hover" @click="load">重试</button>
-      <button class="ghost-btn" hover-class="btn-hover" @click="goShop">去扫码购物</button>
-    </view>
-    <view v-else-if="!authed" class="state-wrap">
-      <text class="empty-title">登录后查看订单</text>
-      <text class="empty-desc">登录后可查看购物账单与审核进度</text>
-      <button class="action-btn" hover-class="btn-hover" @click="onAuth">去登录</button>
-      <button class="ghost-btn" hover-class="btn-hover" @click="goShop">先去扫码购物</button>
-    </view>
-    <view v-else-if="!orders.length && !reviewingDisputes.length" class="state-wrap">
-      <text class="empty-title">暂无订单</text>
-      <text class="empty-desc">扫码开门购物后，账单会显示在这里</text>
-      <button class="action-btn" hover-class="btn-hover" @click="goShop">去扫码购物</button>
-    </view>
+  <view class="page page-fill">
+    <app-nav-bar title="我的订单" home-url="/pages/index/index" />
+    <view v-if="booting" class="state-wrap"><text class="meta">加载中…</text></view>
+    <empty-state v-else-if="error && !orders.length" class="state-wrap" title="加载失败" :hint="error">
+      <button class="empty-btn primary" hover-class="btn-hover" @click="load">重试</button>
+      <button class="empty-btn ghost" hover-class="btn-hover" @click="goShop">去扫码购物</button>
+    </empty-state>
+    <empty-state
+      v-else-if="!authed"
+      class="state-wrap"
+      title="登录后查看订单"
+      hint="登录后可查看购物账单与审核进度"
+    >
+      <button class="empty-btn primary" hover-class="btn-hover" @click="onAuth">去登录</button>
+      <button class="empty-btn ghost" hover-class="btn-hover" @click="goShop">先去扫码购物</button>
+    </empty-state>
     <view v-else class="orders-main">
       <view v-if="reviewingDisputes.length" class="review-section">
         <text class="section-label">需要关注</text>
@@ -66,7 +63,18 @@
         </view>
       </view>
 
-      <view class="list-wrap">
+      <view v-if="loading && !orders.length && !reviewingDisputes.length" class="state-wrap inline"
+        ><text class="meta">刷新中…</text></view
+      >
+      <empty-state
+        v-else-if="!orders.length && !reviewingDisputes.length"
+        class="state-wrap"
+        title="暂无订单"
+        hint="扫码开门购物后，账单会显示在这里"
+      >
+        <button class="empty-btn primary" hover-class="btn-hover" @click="goShop">去扫码购物</button>
+      </empty-state>
+      <view v-else class="list-wrap">
         <scroll-view
           scroll-y
           class="list"
@@ -112,10 +120,12 @@
                 <text v-else class="order-hint">查看详情 ›</text>
               </view>
             </view>
-            <view v-if="!visibleOrders.length" class="state-wrap compact">
-              <text class="empty-title">当前筛选暂无订单</text>
-              <text class="empty-desc">可切换时间或状态再试</text>
-            </view>
+            <empty-state
+              v-if="!visibleOrders.length"
+              compact
+              title="当前筛选暂无订单"
+              hint="可切换时间或状态再试"
+            />
             <view v-if="loadingMore" class="load-more">加载中…</view>
             <view v-else-if="hasMore && orders.length" class="load-more hint" @click="loadMore"
               >上拉加载更多</view
@@ -137,7 +147,6 @@
 <script setup lang="ts">
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
-import { getStatusBarPadPx } from '@aicabinet/shared-uni/status-bar';
 import { consumerApi, ensureConsumerAuth, getConsumerToken } from '@/utils/consumer-api';
 import {
   shortBizNo,
@@ -153,12 +162,9 @@ import { consumerDisputeReviewCopy } from '@/utils/dispute-copy';
 import type { DisputeTicketDto, OrderSummary } from '@aicabinet/shared-types';
 
 const loading = ref(true);
+const booting = ref(true);
 const loadingMore = ref(false);
 const error = ref('');
-/** Tab 页底栏已有「订单」：只留状态栏占位避开胶囊，不叠标题/返回 */
-const pagePadStyle = {
-  borderTop: getStatusBarPadPx() + 'px solid #ffffff'
-};
 const authed = ref(false);
 const orders = ref<OrderSummary[]>([]);
 const disputes = ref<DisputeTicketDto[]>([]);
@@ -298,7 +304,7 @@ async function onAuth() {
 }
 
 async function load() {
-  loading.value = true;
+  if (!orders.value.length && !disputes.value.length) loading.value = true;
   error.value = '';
   pageIndex.value = 0;
   hasMore.value = false;
@@ -307,6 +313,7 @@ async function load() {
   authed.value = !!getConsumerToken();
   if (!authed.value) {
     loading.value = false;
+    booting.value = false;
     return;
   }
   try {
@@ -334,6 +341,7 @@ async function load() {
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
+    booting.value = false;
   }
 }
 
@@ -417,6 +425,10 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   align-items: center;
   justify-content: flex-start;
 }
+.state-wrap.inline {
+  flex: 0;
+  padding: 24rpx 40rpx;
+}
 .state-wrap.compact {
   padding: 32rpx 24rpx;
 }
@@ -437,13 +449,19 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .action-btn {
   margin: 40rpx 0 0;
   width: 360rpx;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
-  background: linear-gradient(135deg, #047857, #059669);
+  line-height: 1.2;
+  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
   color: #fff;
   border-radius: 44rpx;
   font-size: 30rpx;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .action-btn::after,
 .ghost-btn::after {
@@ -452,13 +470,19 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .ghost-btn {
   margin: 20rpx 0 0;
   width: 360rpx;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   background: #fff;
   color: #53645b;
   border-radius: 44rpx;
   font-size: 28rpx;
   border: 1rpx solid #e4ebe7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-hover {
   opacity: 0.88;
@@ -513,8 +537,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   width: 64rpx;
   height: 64rpx;
   border-radius: 18rpx;
-  background: #ecfdf5;
-  color: #047857;
+  background: var(--brand-soft, #ecfdf5);
+  color: var(--brand, #047857);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -560,7 +584,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .review-link {
   font-size: 24rpx;
-  color: #059669;
+  color: var(--brand, #047857);
   font-weight: 600;
 }
 
@@ -605,14 +629,14 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   border-color: #dceee6;
 }
 .filter-chip.active {
-  border-color: #059669;
+  border-color: var(--brand, #047857);
   color: #fff;
-  background: linear-gradient(135deg, #047857, #059669);
+  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
   box-shadow: 0 8rpx 22rpx rgba(5, 150, 105, 0.2);
 }
 .filter-chip.time.active {
-  background: #047857;
-  border-color: #047857;
+  background: var(--brand, #047857);
+  border-color: var(--brand, #047857);
   box-shadow: 0 6rpx 16rpx rgba(4, 120, 87, 0.18);
 }
 
@@ -672,7 +696,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .chip.paid {
   background: #e8f8ef;
-  color: #059669;
+  color: var(--brand, #047857);
 }
 .chip.pending {
   background: #fff8e6;
@@ -704,7 +728,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   width: 96rpx;
   height: 96rpx;
   border-radius: 18rpx;
-  background: #f0fdf4;
+  background: var(--brand-soft, #ecfdf5);
   flex-shrink: 0;
 }
 .order-copy {
@@ -725,7 +749,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   white-space: nowrap;
 }
 .amt {
-  color: #047857;
+  color: var(--brand, #047857);
   font-weight: 800;
   font-size: 40rpx;
   letter-spacing: -1rpx;
@@ -757,7 +781,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 .order-hint {
   font-size: 24rpx;
-  color: #059669;
+  color: var(--brand, #047857);
   font-weight: 600;
 }
 .load-more {
@@ -791,8 +815,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   background: #f3f4f6;
 }
 .foot-btn.primary {
-  color: #047857;
-  background: #ecfdf5;
+  color: var(--brand, #047857);
+  background: var(--brand-soft, #ecfdf5);
   font-weight: 600;
 }
 </style>

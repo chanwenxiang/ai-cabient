@@ -1,8 +1,8 @@
 <template>
   <view class="page-root">
     <app-nav-bar title="账单审核" />
-    <view v-if="loading" class="state"><text class="meta">加载中…</text></view>
-    <view v-else-if="error" class="state">
+    <view v-if="loading && !ticket" class="state"><text class="meta">加载中…</text></view>
+    <view v-else-if="error && !ticket" class="state">
       <text class="err">{{ error }}</text>
       <button class="btn-primary" @click="bootstrap">重试</button>
     </view>
@@ -13,10 +13,12 @@
       hint="可能已归档或尚未生成"
     />
     <view v-else-if="ticket">
-      <view class="hero" :class="'tone-' + copy.tone">
-        <text class="hero-icon">{{ copy.icon }}</text>
-        <text class="hero-title">{{ copy.title }}</text>
-        <text class="hero-status">{{ statusText }}</text>
+      <view class="status-header" :class="'tone-' + copy.tone">
+        <text class="status-icon">{{ copy.icon }}</text>
+        <view class="status-copy">
+          <text class="status-title">{{ copy.title }}</text>
+          <text class="status-detail">{{ statusText }}</text>
+        </view>
       </view>
 
       <view class="card">
@@ -108,6 +110,7 @@ import {
   formatDateTimeMinute,
   fmtMoney
 } from '@aicabinet/shared-uni/format';
+import { parseQuery } from '@aicabinet/shared-uni/query';
 import type { DisputeTicketDto, FileAttachmentDto, OrderLineDto } from '@aicabinet/shared-types';
 
 const loading = ref(true);
@@ -155,10 +158,10 @@ function readHashQuery(): Record<string, string> {
   try {
     const hash = window.location.hash || '';
     const q = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
-    const params = new URLSearchParams(q);
+    const params = parseQuery(q);
     return {
-      ticketId: params.get('ticketId') || '',
-      sessionId: params.get('sessionId') || ''
+      ticketId: params.ticketId || '',
+      sessionId: params.sessionId || ''
     };
   } catch {
     return {};
@@ -217,7 +220,7 @@ async function reload() {
     loading.value = false;
     return;
   }
-  loading.value = true;
+  if (!ticket.value) loading.value = true;
   error.value = '';
   try {
     const found = await consumerApi.getMyDispute({
@@ -338,42 +341,56 @@ function previewEvidence(img: FileAttachmentDto) {
   color: #fa5151;
   margin-bottom: 24rpx;
 }
-.hero {
-  padding: 48rpx 40rpx 56rpx;
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin: 24rpx 24rpx 0;
+  padding: 30rpx;
+  border-radius: 20rpx;
+  background: linear-gradient(135deg, #e8f5e9, #fff);
+  box-sizing: border-box;
+}
+.status-header.tone-wait {
+  background: linear-gradient(135deg, #ecfdf5, #fff);
+}
+.status-header.tone-warn {
+  background: linear-gradient(135deg, #fff7ed, #fff);
+}
+.status-header.tone-success {
+  background: linear-gradient(135deg, #e8f5e9, #fff);
+}
+.status-icon {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 32rpx;
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
-  border-radius: 0 0 32rpx 32rpx;
-}
-.hero.tone-wait {
-  background: linear-gradient(145deg, #0f766e, #14b8a6);
-}
-.hero.tone-warn {
-  background: linear-gradient(145deg, #b45309, #f59e0b);
-}
-.hero.tone-success {
-  background: linear-gradient(145deg, #047857, #10b981);
-}
-.hero-icon {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.22);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 36rpx;
+  font-size: 32rpx;
   font-weight: 700;
-  margin-bottom: 16rpx;
+  flex-shrink: 0;
 }
-.hero-title {
+.status-header.tone-warn .status-icon {
+  background: linear-gradient(135deg, #b45309, #f59e0b);
+}
+.status-copy {
+  flex: 1;
+  min-width: 0;
+}
+.status-title {
   display: block;
-  font-size: 36rpx;
+  font-size: 32rpx;
   font-weight: 700;
+  color: #191919;
 }
-.hero-status {
+.status-detail {
   display: block;
-  margin-top: 8rpx;
-  font-size: 26rpx;
-  opacity: 0.92;
+  margin-top: 4rpx;
+  font-size: 24rpx;
+  color: #666;
 }
 .card {
   margin: 20rpx 24rpx 0;
@@ -472,20 +489,29 @@ function previewEvidence(img: FileAttachmentDto) {
   padding: 28rpx 24rpx 8rpx;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 16rpx;
 }
 .btn-primary,
 .btn-ghost {
   margin: 0;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   border-radius: 44rpx;
   font-size: 30rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
 }
 .btn-primary {
   background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   font-weight: 700;
+  border: none;
 }
 .btn-primary::after,
 .btn-ghost::after {

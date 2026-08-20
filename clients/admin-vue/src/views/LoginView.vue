@@ -678,7 +678,7 @@ async function onSubmitTwoFactor() {
   font-size: 22px;
   font-weight: 700;
   color: #ecfeff;
-  background: linear-gradient(145deg, #14b8a6, #0f766e);
+  background: linear-gradient(145deg, #14b8a6, var(--app-primary, #0f766e));
   box-shadow: 0 10px 24px rgba(15, 118, 110, 0.35);
 }
 .card-header h1 {
@@ -801,7 +801,7 @@ async function onSubmitTwoFactor() {
   margin-top: 12px;
   color: rgba(207, 250, 254, 0.72);
   text-shadow: 0 1px 8px rgba(2, 10, 14, 0.6);
-  --el-color-primary: #0f766e;
+  --el-color-primary: var(--app-primary, #0f766e);
   --el-color-primary-light-3: #5aa89e;
   --el-color-primary-light-5: #9dcfc7;
   --el-color-primary-light-7: #d3ece6;

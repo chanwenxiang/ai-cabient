@@ -35,17 +35,24 @@ function isH5Runtime() {
 export function formatMpRequestError(
   errMsg: string | undefined,
   path: string,
-  isDevBuild = false
+  isDevBuild = false,
+  baseUrl = ''
 ): string {
   const raw = errMsg || '网络错误';
   if (raw === 'request:fail' || raw.includes('request:fail')) {
+    const pointsToLoopback = /localhost|127\.0\.0\.1/i.test(baseUrl);
+    if (!isH5Runtime() && pointsToLoopback) {
+      return isDevBuild
+        ? '真机访问不了电脑的 localhost。请把 VITE_API_BASE_URL 改成电脑局域网 IP（如 http://192.168.1.8），手机与电脑同一 WiFi，并重启小程序编译'
+        : '网络不太稳定，请稍后再试';
+    }
     if (isH5Runtime()) {
       return isDevBuild
         ? `网络不太稳定（${path}），请确认本机服务已启动后重试`
         : '网络不太稳定，请稍后再试';
     }
     return isDevBuild
-      ? '网络不太稳定，请稍后再试。开发调试时可在微信开发者工具勾选「不校验合法域名」'
+      ? '网络不太稳定，请稍后再试。开发调试时可在微信开发者工具勾选「不校验合法域名」，真机请用局域网 IP 作为 VITE_API_BASE_URL'
       : '网络不太稳定，请稍后再试';
   }
   if (raw.includes('timeout')) {
@@ -78,7 +85,7 @@ export async function refreshTokenSilently(opts: MpApiSession): Promise<boolean>
         reject(new Error('登录已失效'));
       },
       fail(err) {
-        reject(new Error(formatMpRequestError(err.errMsg, refreshPath, opts.isDevBuild)));
+        reject(new Error(formatMpRequestError(err.errMsg, refreshPath, opts.isDevBuild, opts.baseUrl)));
       }
     });
   }).finally(() => {
@@ -136,7 +143,7 @@ export function mpRequest<T>(
         reject(err);
       },
       fail(err) {
-        reject(new Error(formatMpRequestError(err.errMsg, path, opts.isDevBuild)));
+        reject(new Error(formatMpRequestError(err.errMsg, path, opts.isDevBuild, opts.baseUrl)));
       }
     });
   });

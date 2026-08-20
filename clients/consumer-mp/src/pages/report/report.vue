@@ -207,12 +207,14 @@ function onSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
+  text-align: center;
   background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;
   font-weight: 600;
-  line-height: 88rpx;
+  line-height: 1.2;
+  min-height: 88rpx;
   height: 88rpx;
   border: none;
   box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);

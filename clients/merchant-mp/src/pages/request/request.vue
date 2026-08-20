@@ -555,13 +555,18 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   font-weight: 600;
 }
 .input {
+  display: block;
   width: 100%;
-  padding: 16rpx 18rpx;
+  height: 80rpx;
+  min-height: 80rpx;
+  line-height: 80rpx;
+  padding: 0 18rpx;
   border-radius: 12rpx;
   background: #f8fafc;
   border: 1rpx solid #e2e8f0;
   font-size: 26rpx;
   box-sizing: border-box;
+  color: #0f172a;
 }
 .btn-primary {
   margin-top: 8rpx;
@@ -570,11 +575,15 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   border-radius: 44rpx;
   padding: 0;
   min-height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   text-align: center;
   font-weight: 600;
   font-size: 30rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 .btn-primary::after {
   border: none;

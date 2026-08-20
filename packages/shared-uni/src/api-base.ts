@@ -11,7 +11,7 @@ const isH5DevBrowser =
   typeof navigator !== 'undefined' &&
   !/miniProgram|miniprogram/i.test(navigator.userAgent);
 
-export const API_BASE_URL = (isH5DevBrowser ? '' : envBase || 'http://localhost:8080').replace(
-  /\/$/,
-  ''
-);
+/** 开发缺省基址；勿把字面量写进生产包（微信「敏感信息」扫描） */
+const devFallback = import.meta.env.DEV ? 'http://127.0.0.1:8080' : '';
+
+export const API_BASE_URL = (isH5DevBrowser ? '' : envBase || devFallback).replace(/\/$/, '');

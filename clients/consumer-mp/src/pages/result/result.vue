@@ -1,5 +1,5 @@
 <template>
-  <view>
+  <view class="page-root">
     <app-nav-bar title="账单结果" />
     <view v-if="loading" class="card"><text class="meta">加载中…</text></view>
     <view v-else-if="error" class="card error-card">
@@ -8,10 +8,12 @@
       <button class="ghost-btn" hover-class="btn-hover" @click="goOrders">查看订单</button>
     </view>
     <view v-else-if="order">
-      <view class="success-header" :class="'tone-' + statusTone">
-        <text class="success-icon">{{ statusIcon }}</text>
-        <text class="success-title">{{ headerTitle }}</text>
-        <text class="success-status">{{ statusLabel }}</text>
+      <view class="status-header" :class="'tone-' + statusTone">
+        <text class="status-icon">{{ statusIcon }}</text>
+        <view class="status-copy">
+          <text class="status-title">{{ headerTitle }}</text>
+          <text class="status-detail">{{ statusLabel }}</text>
+        </view>
       </view>
 
       <view class="card amount-card">
@@ -81,7 +83,7 @@
         <text v-else-if="refundDone" class="dispute-done">退款已完成</text>
       </view>
     </view>
-    <view v-else class="card">
+    <view v-else class="card btn-stack">
       <text class="empty-title">暂无结算结果</text>
       <text class="empty-desc">订单尚未生成或已失效，可回首页继续购物，或到订单列表查看</text>
       <button class="action-btn" hover-class="btn-hover" @click="goHome">回首页</button>
@@ -174,6 +176,7 @@ import { computed, ref } from 'vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
 import { fmtMoney, orderStatusLabel } from '@aicabinet/shared-uni/format';
+import { parseQuery } from '@aicabinet/shared-uni/query';
 import type { OrderDetailDto } from '@aicabinet/shared-types';
 import {
   DISPUTE_REASON_CHIPS,
@@ -278,10 +281,10 @@ function readHashQuery(): Record<string, string> {
   try {
     const hash = window.location.hash || '';
     const q = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
-    const params = new URLSearchParams(q);
+    const params = parseQuery(q);
     return {
-      sessionId: params.get('sessionId') || '',
-      orderId: params.get('orderId') || ''
+      sessionId: params.sessionId || '',
+      orderId: params.orderId || ''
     };
   } catch {
     return {};
@@ -508,70 +511,81 @@ function goHelp() {
 </script>
 
 <style scoped>
-.success-header {
-  position: relative;
-  overflow: hidden;
-  padding: 54rpx 40rpx 64rpx;
-  text-align: center;
+.page-root {
+  min-height: 100%;
+  background: #ffffff;
+  box-sizing: border-box;
+}
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin: 24rpx 24rpx 0;
+  padding: 30rpx;
+  border-radius: 20rpx;
+  background: linear-gradient(135deg, #e8f5e9, #fff);
+  box-sizing: border-box;
+}
+.status-header.tone-warn {
+  background: linear-gradient(135deg, #fff7ed, #fff);
+}
+.status-header.tone-refund {
+  background: linear-gradient(135deg, #eff6ff, #fff);
+}
+.status-header.tone-pending {
+  background: linear-gradient(135deg, #fefce8, #fff);
+}
+.status-header.tone-muted {
+  background: linear-gradient(135deg, #f1f5f9, #fff);
+}
+.status-icon {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 32rpx;
+  background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
-  background:
-    radial-gradient(circle at 82% 10%, rgba(255, 255, 255, 0.18), transparent 28%),
-    linear-gradient(145deg, #064e3b, #059669 58%, #14b8a6);
-  border-radius: 0 0 38rpx 38rpx;
-}
-.success-header.tone-warn {
-  background:
-    radial-gradient(circle at 82% 10%, rgba(255, 255, 255, 0.18), transparent 28%),
-    linear-gradient(145deg, #9a3412, #ea580c 58%, #f59e0b);
-}
-.success-header.tone-refund {
-  background:
-    radial-gradient(circle at 82% 10%, rgba(255, 255, 255, 0.18), transparent 28%),
-    linear-gradient(145deg, #1e3a8a, #2563eb 58%, #38bdf8);
-}
-.success-header.tone-pending {
-  background:
-    radial-gradient(circle at 82% 10%, rgba(255, 255, 255, 0.18), transparent 28%),
-    linear-gradient(145deg, #854d0e, #ca8a04 58%, #eab308);
-}
-.success-header.tone-muted {
-  background:
-    radial-gradient(circle at 82% 10%, rgba(255, 255, 255, 0.18), transparent 28%),
-    linear-gradient(145deg, #334155, #64748b 58%, #94a3b8);
-}
-.success-icon {
-  width: 92rpx;
-  height: 92rpx;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.25);
-  border: 2rpx solid rgba(255, 255, 255, 0.3);
-  box-shadow: 0 12rpx 28rpx rgba(0, 0, 0, 0.12);
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 40rpx;
+  font-size: 32rpx;
   font-weight: 700;
+  flex-shrink: 0;
 }
-.success-title {
-  font-size: 40rpx;
+.status-header.tone-warn .status-icon {
+  background: linear-gradient(135deg, #ea580c, #f59e0b);
+}
+.status-header.tone-refund .status-icon {
+  background: linear-gradient(135deg, #2563eb, #38bdf8);
+}
+.status-header.tone-pending .status-icon {
+  background: linear-gradient(135deg, #ca8a04, #eab308);
+}
+.status-header.tone-muted .status-icon {
+  background: linear-gradient(135deg, #64748b, #94a3b8);
+}
+.status-copy {
+  flex: 1;
+  min-width: 0;
+}
+.status-title {
+  font-size: 32rpx;
   font-weight: 700;
+  color: #191919;
   display: block;
-  margin-top: 16rpx;
 }
-.success-status {
-  font-size: 26rpx;
-  opacity: 0.9;
+.status-detail {
+  font-size: 24rpx;
+  color: #666;
   display: block;
   margin-top: 4rpx;
 }
 .amount-card {
   text-align: center;
-  margin: -32rpx 24rpx 18rpx;
+  margin: 20rpx 24rpx 18rpx;
   padding: 34rpx;
-  position: relative;
-  z-index: 1;
-  border-radius: 28rpx;
-  box-shadow: 0 16rpx 42rpx rgba(15, 23, 42, 0.1);
+  border-radius: 24rpx;
+  box-shadow: none;
+  border: 1rpx solid #edf1ef;
 }
 .amount-label {
   font-size: 24rpx;
@@ -689,6 +703,7 @@ function goHelp() {
   padding: 20rpx 24rpx 38rpx;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 16rpx;
 }
 .secondary-actions {
@@ -716,27 +731,41 @@ function goHelp() {
 }
 .action-btn {
   margin: 0;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
   font-size: 32rpx;
   font-weight: 700;
   box-shadow: 0 10rpx 26rpx rgba(5, 150, 105, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
 }
 .action-btn::after {
   border: none;
 }
 .ghost-btn {
   margin: 0;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   background: #fff;
   color: #53645b;
   border: 1rpx solid #e4ebe7;
   border-radius: 44rpx;
   font-size: 30rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
 }
 .ghost-btn::after {
   border: none;
@@ -752,14 +781,21 @@ function goHelp() {
 }
 .refund-btn {
   margin: 0;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   background: #ef4444;
   color: #fff;
   border-radius: 12rpx;
   font-size: 30rpx;
   font-weight: 600;
   border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  width: 100%;
+  box-sizing: border-box;
 }
 .refund-btn::after {
   border: none;

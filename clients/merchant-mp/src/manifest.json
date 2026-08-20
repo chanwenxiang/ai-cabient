@@ -14,7 +14,14 @@
   "mp-weixin": {
     "appid": "",
     "libVersion": "3.3.5",
-    "setting": { "urlCheck": false, "es6": true, "enhance": false },
-    "usingComponents": true
+    "setting": {
+      "urlCheck": false,
+      "es6": true,
+      "enhance": false,
+      "minified": true,
+      "postcss": true
+    },
+    "usingComponents": true,
+    "lazyCodeLoading": "requiredComponents"
   }
 }

@@ -42,8 +42,8 @@ withDefaults(
   height: 88rpx;
   margin-bottom: 16rpx;
   border-radius: 24rpx;
-  background: #f0fdf4;
-  color: #059669;
+  background: var(--brand-soft, #ecfdf5);
+  color: var(--brand, #047857);
   font-size: 36rpx;
   font-weight: 700;
   line-height: 88rpx;
@@ -53,19 +53,22 @@ withDefaults(
   font-size: 30rpx;
   font-weight: 700;
   color: #223029;
+  text-align: center;
 }
 .empty-hint {
   margin-top: 10rpx;
   font-size: 24rpx;
   color: #849087;
   line-height: 1.5;
+  text-align: center;
 }
 .empty-actions {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 16rpx;
   margin-top: 28rpx;
   width: 100%;
+  max-width: 420rpx;
 }
 </style>

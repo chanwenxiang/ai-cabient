@@ -2,7 +2,7 @@
   <view class="page-root">
     <app-nav-bar title="积分明细" />
     <view class="page-body">
-      <view v-if="loading" class="loading"><text>加载中…</text></view>
+      <view v-if="loading && !summary" class="loading"><text>加载中…</text></view>
       <template v-else>
         <view class="summary">
           <view class="summary-main">
@@ -80,7 +80,7 @@ onShow(async () => {
 });
 
 async function load() {
-  loading.value = true;
+  if (!summary.value) loading.value = true;
   try {
     const [s, list] = await Promise.all([
       consumerApi.memberPoints(),
@@ -132,15 +132,16 @@ function goRedeem() {
   justify-content: space-between;
   gap: 20rpx;
   padding: 32rpx;
-  border-radius: 28rpx;
-  color: #fff;
-  background: linear-gradient(135deg, #064e3b 0%, #059669 55%, #059669 100%);
-  box-shadow: 0 16rpx 40rpx rgba(5, 150, 105, 0.24);
+  border-radius: 24rpx;
+  color: #14201b;
+  background: linear-gradient(135deg, #ecfdf5, #fff);
+  border: 1rpx solid #d1fae5;
+  box-shadow: none;
 }
 .summary-label {
   display: block;
   font-size: 24rpx;
-  opacity: 0.85;
+  color: #64748b;
 }
 .summary-value {
   display: block;
@@ -148,18 +149,19 @@ function goRedeem() {
   font-size: 64rpx;
   font-weight: 800;
   line-height: 1;
+  color: #047857;
 }
 .summary-sub {
   display: block;
   margin-top: 12rpx;
   font-size: 22rpx;
-  opacity: 0.8;
+  color: #849087;
 }
 .summary-meta {
   min-width: 210rpx;
   padding: 18rpx 20rpx;
   border-radius: 18rpx;
-  background: rgba(255, 255, 255, 0.14);
+  background: #f0fdf4;
 }
 .meta-row {
   display: flex;
@@ -167,12 +169,13 @@ function goRedeem() {
   gap: 12rpx;
   padding: 6rpx 0;
   font-size: 22rpx;
+  color: #334155;
 }
 .meta-label {
-  opacity: 0.8;
+  color: #849087;
 }
 .meta-value.warn {
-  color: #fde68a;
+  color: #b45309;
 }
 .card {
   margin-top: 24rpx;

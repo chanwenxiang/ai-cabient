@@ -32,7 +32,7 @@
         </view>
 
         <view class="section-title">进行中</view>
-        <view v-if="loading" class="empty">加载中…</view>
+        <view v-if="loading && !campaigns.length" class="empty">加载中…</view>
         <empty-state
           v-else-if="!campaigns.length"
           icon="/static/menu/hot.png"
@@ -88,7 +88,7 @@ const couponEntrySub = computed(() =>
 onShow(() => load());
 
 async function load() {
-  loading.value = true;
+  if (!campaigns.value.length && !banners.value.length) loading.value = true;
   authed.value = !!getConsumerToken();
   try {
     const [b, c] = await Promise.all([
@@ -118,8 +118,10 @@ async function load() {
       couponCount.value = 0;
     }
   } catch (e) {
-    banners.value = [];
-    campaigns.value = [];
+    if (!campaigns.value.length) {
+      banners.value = [];
+      campaigns.value = [];
+    }
     uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
   } finally {
     loading.value = false;
@@ -389,13 +391,19 @@ function formatRange(start?: string, end?: string) {
 }
 .empty-btn {
   margin: 0;
-  width: 320rpx;
+  width: 100%;
+  min-height: 72rpx;
   height: 72rpx;
-  line-height: 72rpx;
+  line-height: 1.2;
   background: #059669;
   color: #fff;
   border-radius: 36rpx;
   font-size: 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .empty-btn.ghost {
   background: #fff;

@@ -2,8 +2,8 @@
   <view class="page-root">
     <app-nav-bar title="订单详情" />
     <view class="page-body">
-      <view v-if="loading" class="loading"><text>加载中…</text></view>
-      <view v-else-if="error" class="empty">
+      <view v-if="loading && !order" class="loading"><text>加载中…</text></view>
+      <view v-else-if="error && !order" class="empty">
         <text class="err">{{ error }}</text>
         <button class="retry" @click="load">重试</button>
       </view>
@@ -145,13 +145,15 @@ async function load() {
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return;
   }
-  loading.value = true;
+  if (!order.value) loading.value = true;
   error.value = '';
   try {
     order.value = (await merchantApi.orderDetail(orderId.value)) as OrderDetail;
   } catch (e) {
-    order.value = null;
-    error.value = e instanceof Error ? e.message : '加载失败';
+    if (!order.value) {
+      order.value = null;
+      error.value = e instanceof Error ? e.message : '加载失败';
+    }
   } finally {
     loading.value = false;
   }
@@ -226,33 +228,39 @@ function goDisputes() {
   border: none;
 }
 .status-bar {
-  background: linear-gradient(145deg, #0f766e, #14b8a6);
-  color: #fff;
+  background: linear-gradient(135deg, #ecfdf5, #fff);
+  color: #14201b;
   border-radius: 16rpx;
   padding: 28rpx 24rpx;
   margin-bottom: 20rpx;
+  border: 1rpx solid #d1fae5;
 }
 .status-bar.s-disputed {
-  background: linear-gradient(145deg, #9a3412, #ea580c);
+  background: linear-gradient(135deg, #fff7ed, #fff);
+  border-color: #fed7aa;
 }
 .status-bar.s-refunded,
 .status-bar.s-partial_refunded {
-  background: linear-gradient(145deg, #1e3a8a, #3b82f6);
+  background: linear-gradient(135deg, #eff6ff, #fff);
+  border-color: #bfdbfe;
 }
 .status-bar.s-pending,
 .status-bar.s-processing {
-  background: linear-gradient(145deg, #854d0e, #ca8a04);
+  background: linear-gradient(135deg, #fefce8, #fff);
+  border-color: #fde68a;
 }
 .status-title {
   display: block;
   font-size: 30rpx;
-  font-weight: 600;
+  font-weight: 700;
+  color: #0f172a;
 }
 .status-amt {
   display: block;
   margin-top: 8rpx;
   font-size: 44rpx;
   font-weight: 700;
+  color: #0f766e;
 }
 .section {
   background: #fff;
@@ -347,20 +355,25 @@ function goDisputes() {
 .actions {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 16rpx;
   margin-top: 8rpx;
 }
 .btn-primary,
 .btn-outline {
   width: 100%;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   box-sizing: border-box;
   border-radius: 44rpx;
   font-size: 28rpx;
   font-weight: 600;
   min-height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   padding: 0 32rpx;
+  margin: 0;
 }
 .btn-primary {
   background: linear-gradient(135deg, #134e4a, #0f766e);
@@ -373,7 +386,6 @@ function goDisputes() {
   color: #0f766e;
   border: 2rpx solid #0f766e;
   min-height: 80rpx;
-  line-height: 80rpx;
 }
 .btn-primary::after,
 .btn-outline::after {

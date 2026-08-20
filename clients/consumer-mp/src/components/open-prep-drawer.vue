@@ -516,9 +516,15 @@ function onCancel() {
   border-radius: 44rpx;
   font-size: 32rpx;
   font-weight: 600;
-  line-height: 88rpx;
+  line-height: 1.2;
+  min-height: 88rpx;
   height: 88rpx;
   box-shadow: 0 9rpx 24rpx rgba(5, 150, 105, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-primary::after {
   border: none;
@@ -530,8 +536,14 @@ function onCancel() {
   border-radius: 12rpx;
   font-size: 30rpx;
   font-weight: 600;
-  line-height: 88rpx;
+  line-height: 1.2;
+  min-height: 88rpx;
   height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-alipay::after {
   border: none;
@@ -543,8 +555,14 @@ function onCancel() {
   border-radius: 12rpx;
   font-size: 30rpx;
   font-weight: 600;
-  line-height: 88rpx;
+  line-height: 1.2;
+  min-height: 88rpx;
   height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-wechat::after {
   border: none;
@@ -556,9 +574,15 @@ function onCancel() {
   border-radius: 12rpx;
   font-size: 28rpx;
   font-weight: 600;
-  line-height: 88rpx;
+  line-height: 1.2;
+  min-height: 88rpx;
   height: 88rpx;
   border: 1rpx solid #bbf7d0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-ghost-fill::after {
   border: none;

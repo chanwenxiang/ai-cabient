@@ -750,7 +750,7 @@ function onLogout() {
   border-radius: 999rpx;
   font-size: 22rpx;
   font-weight: 600;
-  color: #064e3b;
+  color: var(--brand-deep, #064e3b);
   background: rgba(255, 255, 255, 0.92);
   text-align: center;
 }
@@ -773,7 +773,7 @@ function onLogout() {
   background: rgba(255, 255, 255, 0.32);
 }
 .tag.warn {
-  background: #ecfdf5;
+  background: var(--brand-soft, #ecfdf5);
   color: #0f766e;
 }
 .setup-banner {
@@ -953,7 +953,7 @@ function onLogout() {
   color: #191919;
 }
 .transaction-amount.income {
-  color: #07c160;
+  color: var(--brand-wx, #07c160);
 }
 .transaction-more {
   text-align: center;

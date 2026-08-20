@@ -395,12 +395,19 @@ async function savePrice(p: MerchantSkuPricing) {
   min-width: 160rpx;
 }
 .input {
-  width: 140rpx;
+  display: block;
+  width: 180rpx;
+  height: 64rpx;
+  min-height: 64rpx;
+  line-height: 64rpx;
+  box-sizing: border-box;
   text-align: right;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
-  padding: 6px;
+  padding: 0 10px;
   margin-top: 6rpx;
+  font-size: 24rpx;
+  color: #0f172a;
 }
 .saving {
   display: block;

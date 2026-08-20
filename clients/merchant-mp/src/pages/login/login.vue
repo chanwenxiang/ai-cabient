@@ -57,6 +57,19 @@
         </view>
 
         <view
+          class="remember-row"
+          role="checkbox"
+          :aria-checked="rememberCredentials"
+          data-testid="login-remember"
+          @click="rememberCredentials = !rememberCredentials"
+        >
+          <view class="remember-box" :class="{ on: rememberCredentials }">
+            <text v-if="rememberCredentials" class="remember-check">✓</text>
+          </view>
+          <text class="remember-label">记住账号和密码</text>
+        </view>
+
+        <view
           class="btn-primary"
           :class="{ disabled: loading }"
           role="button"
@@ -65,7 +78,7 @@
           >{{ loading ? '登录中…' : '登录' }}</view
         >
         <text v-if="err" class="err" data-testid="login-error">{{ err }}</text>
-        <text v-if="isDev" class="hint">开发演示：13800138001 / 123456</text>
+        <text v-if="isDev && demoHint" class="hint">{{ demoHint }}</text>
       </view>
     </view>
   </view>
@@ -77,11 +90,71 @@ import { merchantLogin, merchantApi } from '@/utils/merchant-api';
 import { showDevTools } from '@/utils/runtime-flags';
 import loginBgUrl from '@/static/bg-vending-night.jpg';
 
+const PHONE_KEY = 'merchant_login_phone';
+const PW_STORE_KEY = 'merchant_login_password';
+const REMEMBER_KEY = 'merchant_remember_credentials';
+
+/** 本地轻量混淆：Storage 无法真正加密，仅避免明文直读。不用 btoa，兼容微信小程序。 */
+function encodePassword(raw: string): string {
+  const hex = Array.from(encodeURIComponent(raw))
+    .map((c) => c.charCodeAt(0).toString(16).padStart(2, '0'))
+    .join('');
+  return `v1:${hex}`;
+}
+
+function decodePassword(stored: unknown): string {
+  if (typeof stored !== 'string' || !stored.startsWith('v1:')) return '';
+  try {
+    const hex = stored.slice(3);
+    if (!hex || hex.length % 2 !== 0) return '';
+    let encoded = '';
+    for (let i = 0; i < hex.length; i += 2) {
+      encoded += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
+    }
+    return decodeURIComponent(encoded);
+  } catch {
+    return '';
+  }
+}
+
+function readStorage(key: string): string {
+  try {
+    const v = uni.getStorageSync(key);
+    return typeof v === 'string' ? v : '';
+  } catch {
+    return '';
+  }
+}
+
 const isDev = showDevTools();
-const phone = ref(isDev ? '13800138001' : '');
-const password = ref(isDev ? '123456' : '');
+const demoPhone = String(import.meta.env.VITE_DEMO_PHONE || '').trim();
+const demoPassword = String(import.meta.env.VITE_DEMO_PASSWORD || '').trim();
+const demoHint =
+  isDev && demoPhone && demoPassword ? `开发演示：${demoPhone} / ${demoPassword}` : '';
+
+const rememberCredentials = ref(readStorage(REMEMBER_KEY) !== '0');
+const savedPhone = rememberCredentials.value ? readStorage(PHONE_KEY) : '';
+const savedPassword = rememberCredentials.value ? decodePassword(readStorage(PW_STORE_KEY)) : '';
+const phone = ref(savedPhone || (isDev && demoPhone ? demoPhone : ''));
+const password = ref(savedPassword || (isDev && demoPassword ? demoPassword : ''));
 const loading = ref(false);
 const err = ref('');
+
+function persistCredentials(phoneNumber: string, pwd: string) {
+  if (rememberCredentials.value) {
+    uni.setStorageSync(REMEMBER_KEY, '1');
+    uni.setStorageSync(PHONE_KEY, phoneNumber);
+    uni.setStorageSync(PW_STORE_KEY, encodePassword(pwd));
+    return;
+  }
+  uni.setStorageSync(REMEMBER_KEY, '0');
+  try {
+    uni.removeStorageSync(PHONE_KEY);
+    uni.removeStorageSync(PW_STORE_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 async function onLogin() {
   if (loading.value) return;
@@ -99,6 +172,7 @@ async function onLogin() {
   err.value = '';
   try {
     await merchantLogin(phoneNumber, pwd);
+    persistCredentials(phoneNumber, pwd);
     try {
       const me = await merchantApi.me();
       uni.setStorageSync('merchant_me', me);
@@ -266,7 +340,7 @@ async function onLogin() {
   font-size: 44rpx;
   font-weight: 800;
   display: block;
-  color: #f0fdfa;
+  color: var(--page-tint, #f0fdfa);
   letter-spacing: 2rpx;
 }
 .tagline {
@@ -285,7 +359,7 @@ async function onLogin() {
   background: rgba(13, 148, 136, 0.18);
 }
 .badge-icon {
-  color: #2dd4bf;
+  color: var(--brand-soft, #99f6e4);
   font-size: 22rpx;
 }
 .badge-text {
@@ -320,7 +394,8 @@ async function onLogin() {
   font-weight: 700;
   display: block;
   margin-bottom: 6rpx;
-  color: #f0fdfa;
+  color: var(--page-tint, #f0fdfa);
+  text-align: center;
 }
 .subtitle {
   font-size: 24rpx;
@@ -328,6 +403,7 @@ async function onLogin() {
   display: block;
   margin-bottom: 20rpx;
   line-height: 1.45;
+  text-align: center;
 }
 .field {
   margin-bottom: 14rpx;
@@ -335,7 +411,7 @@ async function onLogin() {
 .field-label {
   display: block;
   font-size: 24rpx;
-  color: #ccfbf1;
+  color: var(--brand-tint, #ccfbf1);
   font-weight: 500;
   margin-bottom: 8rpx;
 }
@@ -349,7 +425,7 @@ async function onLogin() {
   border-radius: 14rpx;
   padding: 0 24rpx;
   font-size: 28rpx;
-  color: #f0fdfa;
+  color: var(--page-tint, #f0fdfa);
   line-height: 76rpx;
   backdrop-filter: blur(16rpx);
 }
@@ -360,6 +436,40 @@ async function onLogin() {
 .ph {
   color: rgba(204, 251, 241, 0.4);
 }
+.remember-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin: 4rpx 0 4rpx;
+  padding: 4rpx 0;
+  align-self: flex-start;
+}
+.remember-box {
+  width: 32rpx;
+  height: 32rpx;
+  border-radius: 8rpx;
+  border: 2rpx solid rgba(148, 210, 198, 0.45);
+  background: rgba(8, 24, 30, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+.remember-box.on {
+  border-color: rgba(94, 234, 212, 0.85);
+  background: rgba(15, 118, 110, 0.75);
+}
+.remember-check {
+  color: #fff;
+  font-size: 22rpx;
+  line-height: 1;
+  font-weight: 700;
+}
+.remember-label {
+  color: rgba(204, 251, 241, 0.82);
+  font-size: 24rpx;
+}
 .btn-primary {
   margin-top: 12rpx;
   align-self: stretch;
@@ -367,16 +477,20 @@ async function onLogin() {
   max-width: none !important;
   min-width: 0 !important;
   padding: 0 !important;
-  background: linear-gradient(135deg, #0f766e, #059669);
+  background: linear-gradient(135deg, var(--brand, #0f766e), var(--brand, #0f766e));
   color: #fff;
   border-radius: 44rpx;
+  min-height: 80rpx;
   height: 80rpx;
-  line-height: 80rpx;
+  line-height: 1.2;
   text-align: center;
   font-size: 30rpx;
   font-weight: 600;
   box-shadow: 0 10rpx 28rpx rgba(15, 118, 110, 0.28);
   box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .btn-primary.disabled {
   opacity: 0.55;

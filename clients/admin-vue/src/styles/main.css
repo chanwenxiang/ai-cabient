@@ -35,10 +35,10 @@
   --el-fill-color-light: #f5f5f5;
   /* 运营后台壳层间距（对齐 Element Admin / Ant Design Pro 密度） */
   --admin-space-xs: 4px;
-  --admin-space-sm: 8px;
-  --admin-space-md: 12px;
-  --admin-space-lg: 16px;
-  --admin-space-xl: 20px;
+  --admin-space-sm: 6px;
+  --admin-space-md: 10px;
+  --admin-space-lg: 14px;
+  --admin-space-xl: 16px;
   --admin-radius: 8px;
   --admin-radius-lg: 10px;
   /* 细轨、半透明：占布局高度，不盖住末行 */
@@ -217,6 +217,7 @@ select {
   font-size: 13px;
   color: var(--layout-text);
   --el-table-font-size: 13px;
+  --el-table-row-hover-bg-color: color-mix(in srgb, var(--app-primary, #0f766e) 6%, transparent);
 }
 
 .layout-main-scroll .el-table th.el-table__cell,
@@ -226,6 +227,7 @@ select {
   text-align: center !important;
   font-family: inherit;
   font-size: 13px;
+  padding: 8px 0;
 }
 
 .layout-main-scroll .el-table th.el-table__cell,
@@ -244,8 +246,8 @@ select {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding: 0 10px;
-  line-height: 1.4;
+  padding: 0 8px;
+  line-height: 1.35;
   font-family: inherit;
   font-size: inherit;
 }
@@ -478,12 +480,12 @@ select {
 }
 
 .page-card > .el-card__header {
-  padding: 14px var(--admin-space-xl, 20px);
+  padding: 10px var(--admin-space-xl, 16px);
   border-bottom: 1px solid var(--layout-border);
 }
 
 .page-card > .el-card__body {
-  padding: var(--admin-space-xl, 20px);
+  padding: var(--admin-space-lg, 14px) var(--admin-space-xl, 16px);
 }
 
 /* 筛选条 / 分页 / 空态 / 抽屉：全后台统一 */

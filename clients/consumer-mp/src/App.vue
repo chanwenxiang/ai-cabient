@@ -138,6 +138,16 @@ button::after {
   border: none !important;
 }
 
+/* 微信/H5 input：真机仅靠 padding 易被压扁，需显式高度 */
+input {
+  box-sizing: border-box;
+  min-height: 88rpx;
+  height: 88rpx;
+  font-size: 28rpx;
+  line-height: 1.4;
+  padding: 0 24rpx;
+}
+
 .card {
   background: #fff;
   border-radius: 24rpx;
@@ -168,23 +178,34 @@ button::after {
   box-sizing: border-box;
 }
 
-/* 主按钮：默认收窄居中；需要通栏时加 .btn-block */
+/* 主按钮：单独出现时收窄居中；通栏用 .btn-block；横向行内均分 */
 .btn-primary,
 .btn-outline,
+.btn-refund,
+.btn-ghost,
+.action-btn,
+.ghost-btn,
 .empty-btn.primary,
 .empty-btn.ghost,
 uni-button.btn-primary,
-uni-button.btn-outline {
-  width: fit-content !important;
-  min-width: 160px !important;
-  max-width: 240px !important;
-  padding-left: 36px !important;
-  padding-right: 36px !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-  align-self: center !important;
-  display: flex !important;
-  box-sizing: border-box !important;
+uni-button.btn-outline,
+uni-button.btn-refund,
+uni-button.btn-ghost,
+uni-button.action-btn,
+uni-button.ghost-btn {
+  width: fit-content;
+  min-width: 240rpx;
+  max-width: 100%;
+  padding-left: 36rpx;
+  padding-right: 36rpx;
+  margin-left: auto;
+  margin-right: auto;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 
 .btn-block,
@@ -193,6 +214,98 @@ uni-button.btn-block {
   max-width: none !important;
   min-width: 0 !important;
   align-self: stretch !important;
+}
+
+/* 纵向操作区：通栏等宽 + 文字居中（订单详情 / 账单结果 / 争议等） */
+.actions,
+.btn-stack,
+.detail-actions,
+.footer-actions,
+.error-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.actions > .btn-primary,
+.actions > .btn-outline,
+.actions > .btn-refund,
+.actions > .btn-ghost,
+.actions > .action-btn,
+.actions > .ghost-btn,
+.actions > .primary-btn,
+.btn-stack > .btn-primary,
+.btn-stack > .btn-outline,
+.btn-stack > .btn-refund,
+.btn-stack > .btn-ghost,
+.btn-stack > .action-btn,
+.btn-stack > .ghost-btn,
+.detail-actions > .btn-primary,
+.detail-actions > .btn-outline,
+.detail-actions > .primary-btn,
+.footer-actions > .action-btn,
+.footer-actions > .ghost-btn,
+.footer-actions > .btn-primary,
+.footer-actions > .btn-outline,
+.error-card > .action-btn,
+.error-card > .ghost-btn,
+.error-card > .btn-primary,
+.error-card > .btn-outline,
+.actions > uni-button,
+.btn-stack > uni-button,
+.detail-actions > uni-button,
+.footer-actions > uni-button,
+.error-card > uni-button {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  align-self: stretch !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+
+.action-row > .btn-primary,
+.action-row > .btn-outline,
+.btn-inline {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  align-self: stretch;
+  padding-left: 16rpx;
+  padding-right: 16rpx;
+}
+
+.empty-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16rpx;
+  width: 100%;
+}
+.empty-actions > .empty-btn,
+.empty-actions > .btn-primary,
+.empty-actions > .btn-outline,
+.empty-actions > .action-btn,
+.empty-actions > .ghost-btn,
+.empty-actions > uni-button {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  align-self: stretch !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
 }
 
 .btn-outline,

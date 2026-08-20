@@ -2,7 +2,7 @@
   <view class="page-root">
     <app-nav-bar title="消息中心" />
     <view class="page-body">
-      <view v-if="loading" class="loading"><text>加载中…</text></view>
+      <view v-if="loading && !list.length" class="loading"><text>加载中…</text></view>
       <view v-else-if="!list.length" class="empty">
         <text class="empty-title">暂无消息</text>
         <text class="empty-hint">补货任务指派、结算到账等消息会出现在这里</text>
@@ -44,7 +44,7 @@ const list = ref<MerchantNotificationDto[]>([]);
 onShow(load);
 
 async function load() {
-  loading.value = true;
+  if (!list.value.length) loading.value = true;
   try {
     list.value = await merchantApi.notifications(100);
   } catch (e) {

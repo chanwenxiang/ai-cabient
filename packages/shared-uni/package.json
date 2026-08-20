@@ -13,6 +13,7 @@
     "./runtime-flags": "./src/runtime-flags.ts",
     "./notify": "./src/notify.ts",
     "./api-base": "./src/api-base.ts",
+    "./query": "./src/query.ts",
     "./dict-runtime": "./src/dict-runtime.ts",
     "./status-bar": "./src/status-bar.ts",
     "./announcements": "./src/announcements.ts",

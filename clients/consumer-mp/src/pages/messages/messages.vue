@@ -16,7 +16,7 @@
         </button>
       </view>
 
-      <view v-if="loading" class="loading"><text>加载中…</text></view>
+      <view v-if="loading && !list.length" class="loading"><text>加载中…</text></view>
       <view v-else-if="!list.length" class="empty">
         <text class="empty-title">暂无消息</text>
         <text class="empty-hint">订单支付、充值到账、优惠券提醒等会出现在这里</text>
@@ -85,7 +85,7 @@ onShow(async () => {
 });
 
 async function load() {
-  loading.value = true;
+  if (!list.value.length) loading.value = true;
   try {
     const [rows, count, prefList, cfg] = await Promise.all([
       consumerApi.notifications(100),
@@ -307,7 +307,8 @@ function formatTime(t: string) {
   margin-bottom: 16rpx;
   padding: 24rpx;
   border-radius: 22rpx;
-  background: linear-gradient(135deg, #064e3b 0%, #059669 60%, #059669 100%);
+  background: linear-gradient(135deg, #ecfdf5, #fff);
+  border: 1rpx solid #d1fae5;
 }
 .subscribe-copy {
   flex: 1;
@@ -317,22 +318,27 @@ function formatTime(t: string) {
   display: block;
   font-size: 28rpx;
   font-weight: 700;
-  color: #fff;
+  color: #14201b;
 }
 .subscribe-sub {
   display: block;
   margin-top: 4rpx;
   font-size: 22rpx;
-  color: rgba(255, 255, 255, 0.85);
+  color: #64748b;
 }
 .subscribe-btn {
   margin: 0;
   padding: 0 26rpx;
+  min-height: 60rpx;
   height: 60rpx;
-  line-height: 60rpx;
+  line-height: 1.2;
   border-radius: 999rpx;
   font-size: 24rpx;
-  color: #064e3b;
-  background: #fff;
+  color: #fff;
+  background: linear-gradient(135deg, #047857, #059669);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 </style>
