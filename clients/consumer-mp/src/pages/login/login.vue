@@ -54,10 +54,20 @@
 
         <view v-if="showPhoneForm">
           <view class="tabs">
-            <view :class="['tab-item', mode === 'sms' ? 'on' : '']" @click="mode = 'sms'"
+            <view
+              :class="['tab-item', mode === 'sms' ? 'on' : '']"
+              role="tab"
+              :aria-selected="mode === 'sms' ? 'true' : 'false'"
+              data-testid="login-tab-sms"
+              @click="mode = 'sms'"
               >验证码</view
             >
-            <view :class="['tab-item', mode === 'password' ? 'on' : '']" @click="mode = 'password'"
+            <view
+              :class="['tab-item', mode === 'password' ? 'on' : '']"
+              role="tab"
+              :aria-selected="mode === 'password' ? 'true' : 'false'"
+              data-testid="login-tab-password"
+              @click="mode = 'password'"
               >密码</view
             >
           </view>
@@ -117,7 +127,11 @@
           >
             {{ loading && !wxMode ? '验证中…' : '验证并继续' }}
           </view>
-          <text v-if="isDev" class="dev-hint">开发联调：13800138000 / 验证码 123456</text>
+          <text v-if="isDev" class="dev-hint">{{
+            mode === 'password'
+              ? '开发联调：13800138000 / 密码 123456'
+              : '开发联调：先点「获取验证码」；mock 开时可用 123456'
+          }}</text>
         </view>
 
         <view class="btn-ghost" @click="goBack">返回</view>
@@ -148,10 +162,11 @@ const redirect = ref('/pages/index/index');
 // H5 无法微信静默授权，默认展开手机号，减少多点一次
 const showPhoneForm = ref(typeof window !== 'undefined');
 const wxBtnLabel = computed(() => '微信授权登录');
-const mode = ref<'password' | 'sms'>('sms');
+// H5/本地联调：演示账号已设密码；短信万能码依赖后端 mock，默认走密码更稳
+const mode = ref<'password' | 'sms'>(import.meta.env.DEV ? 'password' : 'sms');
 const phone = ref(import.meta.env.DEV ? '13800138000' : '');
-const password = ref('');
-const code = ref(import.meta.env.DEV ? '123456' : '');
+const password = ref(import.meta.env.DEV ? '123456' : '');
+const code = ref('');
 const loading = ref(false);
 const sendingCode = ref(false);
 const wxMode = ref(false);

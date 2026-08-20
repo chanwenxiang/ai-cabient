@@ -173,7 +173,7 @@ function Invoke-E2eApi {
         ContentType = "application/json"
     }
     if ($Headers.Count -gt 0) { $params.Headers = $Headers }
-    if ($null -ne $Body) { $params.Body = ($Body | ConvertTo-Json -Compress) }
+    if ($null -ne $Body) { $params.Body = ($Body | ConvertTo-Json -Depth 8 -Compress) }
     try {
         $resp = Invoke-RestMethod @params
     } catch {

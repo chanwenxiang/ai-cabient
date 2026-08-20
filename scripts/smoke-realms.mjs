@@ -72,10 +72,10 @@ assert(mMer.length > 0, 'merchant missing merchant:*');
 assert(mOpsLeak.length === 0, `merchant leaked ops:*: ${mOpsLeak.join(',')}`);
 assert(mDict?.itemsByType?.order_status, 'merchant dict missing order_status');
 
-// --- consumer (dev mock SMS) ---
-const cLogin = await json('/api/v2/auth/login', {
+// --- consumer (password login; aligns with e2e-three-end / dev demo account) ---
+const cLogin = await json('/api/v2/auth/password-login', {
   method: 'POST',
-  body: JSON.stringify({ phoneNumber: '13800138000', code: '123456' })
+  body: JSON.stringify({ phoneNumber: '13800138000', password: '123456' })
 });
 const cDict = await json('/api/v2/dicts/runtime', {
   headers: { Authorization: `Bearer ${cLogin.token}` }
