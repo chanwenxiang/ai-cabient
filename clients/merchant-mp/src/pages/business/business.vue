@@ -12,8 +12,8 @@
           >近{{ d }}天</text
         >
       </view>
-      <view v-if="loading" class="state">正在汇总经营数据…</view>
-      <view v-else-if="error" class="state"
+      <view v-if="loading && !analytics.topSkus?.length" class="state">正在汇总经营数据…</view>
+      <view v-else-if="error && !analytics.topSkus?.length" class="state"
         ><text class="error">{{ error }}</text
         ><button class="retry" @click="() => load()">重试</button></view
       >
@@ -416,26 +416,28 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   margin: 12rpx 24rpx;
   padding: 32rpx;
   border-radius: 24rpx;
-  color: #fff;
-  background: linear-gradient(135deg, #134e4a, #0f766e 65%, #14b8a6);
+  color: #0f172a;
+  background: linear-gradient(135deg, #ecfdf5, #fff);
+  border: 1rpx solid #d1fae5;
 }
 .hero-label {
   display: block;
   font-size: 24rpx;
-  opacity: 0.8;
+  color: #64748b;
 }
 .hero-value {
   display: block;
   font-size: 56rpx;
   font-weight: 800;
   margin-top: 8rpx;
+  color: #0f766e;
 }
 .hero-row {
   display: flex;
   justify-content: space-between;
   margin-top: 22rpx;
   font-size: 23rpx;
-  opacity: 0.9;
+  color: #475569;
 }
 .metric-grid {
   display: grid;
@@ -539,11 +541,15 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
 }
 .actions {
   padding: 12rpx 24rpx 24rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 .btn-outline {
   width: 100%;
+  min-height: 80rpx;
   height: 80rpx;
-  line-height: 80rpx;
+  line-height: 1.2;
   border: 2rpx solid #0f766e;
   color: #0f766e;
   border-radius: 44rpx;
@@ -551,6 +557,11 @@ onPullDownRefresh(() => load(false).finally(() => uni.stopPullDownRefresh()));
   font-size: 28rpx;
   font-weight: 600;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
 }
 .btn-outline::after {
   border: none;

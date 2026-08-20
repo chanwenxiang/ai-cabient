@@ -13,9 +13,9 @@
         >
       </view>
 
-      <view v-if="loading" class="loading"><text>加载中…</text></view>
+      <view v-if="loading && !list.length" class="loading"><text>加载中…</text></view>
       <empty-state
-        v-else-if="loadError"
+        v-else-if="loadError && !list.length"
         icon="/static/menu/warning.png"
         title="优惠券加载失败"
         :hint="loadError"
@@ -102,14 +102,16 @@ onShow(async () => {
 watch(activeTab, () => load());
 
 async function load() {
-  loading.value = true;
+  if (!list.value.length) loading.value = true;
   loadError.value = '';
   try {
     list.value = await consumerApi.myCoupons(activeTab.value || undefined);
   } catch (e) {
-    list.value = [];
-    loadError.value = e instanceof Error ? e.message : '加载失败';
-    uni.showToast({ title: loadError.value, icon: 'none' });
+    if (!list.value.length) {
+      list.value = [];
+      loadError.value = e instanceof Error ? e.message : '加载失败';
+      uni.showToast({ title: loadError.value, icon: 'none' });
+    }
   } finally {
     loading.value = false;
   }

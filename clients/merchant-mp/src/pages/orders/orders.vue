@@ -2,17 +2,11 @@
   <view class="page-root">
     <app-nav-bar title="柜机订单" />
     <view class="page-body">
-      <view v-if="loading" class="loading"><text>加载中…</text></view>
-      <view v-else-if="error" class="empty">
+      <view v-if="booting" class="loading"><text>加载中…</text></view>
+      <view v-else-if="error && !list.length && !filtersActive" class="empty">
         <text class="err">{{ error }}</text>
         <button class="retry" @click="load">重试</button>
       </view>
-      <empty-state
-        v-else-if="!list.length"
-        icon="/static/menu/orders.png"
-        title="暂无柜机订单"
-        hint="有成交后会显示在这里"
-      />
       <view v-else>
         <view class="filter-panel">
           <input
@@ -56,53 +50,69 @@
             <text class="filter-reset" @click="resetFilters">重置</text>
           </view>
         </view>
-        <view
-          v-for="item in list"
-          :key="item.orderId"
-          class="card"
-          hover-class="card-hover"
-          role="button"
-          :aria-label="`订单 ${shortId(item.orderId)} ${statusText(item.status)} ${money(item.totalAmountCents)}`"
-          @click="onDetail(item)"
-        >
-          <view class="card-header">
-            <text class="card-id">{{ shortId(item.orderId) }}</text>
-            <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
-          </view>
-          <view class="card-main">
-            <image
-              class="card-thumb"
-              :src="skuImageFor('', '', item.lineSummary)"
-              mode="aspectFill"
-              aria-hidden="true"
-            />
-            <view class="card-copy">
-              <text class="card-goods">{{ lineSummaryText(item) }}</text>
-              <text class="card-meta">
-                {{ emptyDisplay(item.deviceId, 'device') }} · {{ item.lineCount || 0 }} 件 ·
-                {{ channelText(item.payChannel) }}
-              </text>
-              <text v-if="Number(item.couponDiscountCents || 0) > 0" class="card-discount"
-                >券 -¥{{ ((item.couponDiscountCents || 0) / 100).toFixed(2) }}</text
-              >
-              <text class="card-time">{{ formatTime(item.createdAt) }}</text>
+
+        <view v-if="loading" class="loading inline"><text>筛选中…</text></view>
+        <view v-else-if="error" class="empty compact-empty">
+          <text class="err">{{ error }}</text>
+          <button class="retry" @click="load">重试</button>
+        </view>
+        <empty-state
+          v-else-if="!list.length"
+          icon="/static/menu/orders.png"
+          :title="filtersActive ? '当前筛选暂无订单' : '暂无柜机订单'"
+          :hint="filtersActive ? '试试切换状态或点「重置」' : '有成交后会显示在这里'"
+        />
+        <view v-else>
+          <view
+            v-for="item in list"
+            :key="item.orderId"
+            class="card"
+            hover-class="card-hover"
+            role="button"
+            :aria-label="`订单 ${shortId(item.orderId)} ${statusText(item.status)} ${money(item.totalAmountCents)}`"
+            @click="onDetail(item)"
+          >
+            <view class="card-header">
+              <text class="card-id">{{ shortId(item.orderId) }}</text>
+              <text class="card-status" :class="item.status">{{ statusText(item.status) }}</text>
             </view>
-            <text class="card-amount">{{ money(item.totalAmountCents) }}</text>
+            <view class="card-main">
+              <image
+                class="card-thumb"
+                :src="skuImageFor('', '', item.lineSummary)"
+                mode="aspectFill"
+                aria-hidden="true"
+              />
+              <view class="card-copy">
+                <text class="card-goods">{{ lineSummaryText(item) }}</text>
+                <text class="card-meta">
+                  {{ emptyDisplay(item.deviceId, 'device') }} · {{ item.lineCount || 0 }} 件 ·
+                  {{ channelText(item.payChannel) }}
+                </text>
+                <text v-if="Number(item.couponDiscountCents || 0) > 0" class="card-discount"
+                  >券 -¥{{ ((item.couponDiscountCents || 0) / 100).toFixed(2) }}</text
+                >
+                <text class="card-time">{{ formatTime(item.createdAt) }}</text>
+              </view>
+              <text class="card-amount">{{ money(item.totalAmountCents) }}</text>
+            </view>
           </view>
+          <view
+            v-if="hasMore"
+            class="load-more"
+            role="button"
+            aria-label="加载更多订单"
+            @click="loadMore"
+          >
+            {{ loadingMore ? '加载中…' : `加载更多（已显示 ${list.length}/${listTotal}）` }}
+          </view>
+          <text v-else-if="listTruncated" class="trunc-hint"
+            >共 {{ listTotal }} 条，已全部加载</text
+          >
         </view>
-        <view
-          v-if="hasMore"
-          class="load-more"
-          role="button"
-          aria-label="加载更多订单"
-          @click="loadMore"
-        >
-          {{ loadingMore ? '加载中…' : `加载更多（已显示 ${list.length}/${listTotal}）` }}
-        </view>
-        <text v-else-if="listTruncated" class="trunc-hint">共 {{ listTotal }} 条，已全部加载</text>
       </view>
-    </view></view
-  >
+    </view>
+  </view>
 </template>
 
 <script setup lang="ts">
@@ -152,6 +162,7 @@ async function exportOrders() {
 }
 
 const loading = ref(false);
+const booting = ref(true);
 const loadingMore = ref(false);
 const error = ref('');
 const list = ref<MerchantOrderSummary[]>([]);
@@ -169,6 +180,13 @@ const keyword = ref('');
 const status = ref('');
 const timeRange = ref('all');
 const filterDeviceId = ref('');
+const filtersActive = computed(
+  () =>
+    !!status.value ||
+    timeRange.value !== 'all' ||
+    !!filterDeviceId.value ||
+    !!keyword.value.trim()
+);
 const deviceOptions = ref<{ label: string; value: string }[]>([]);
 const statusOptions = [
   { value: '', label: '全部' },
@@ -285,11 +303,13 @@ async function load() {
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
   }
   if (!canList.value) {
+    booting.value = false;
+    loading.value = false;
     uni.showToast({ title: '无订单权限', icon: 'none' });
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return;
   }
-  loading.value = true;
+  if (!list.value.length) loading.value = true;
   error.value = '';
   try {
     const res = await merchantApi.orders(orderParams(0, PAGE_SIZE));
@@ -310,7 +330,10 @@ async function load() {
     hasMore.value = false;
     error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
-    if (seq === loadSeq) loading.value = false;
+    if (seq === loadSeq) {
+      loading.value = false;
+      booting.value = false;
+    }
   }
 }
 
@@ -395,6 +418,12 @@ function onDetail(item: MerchantOrderSummary) {
   padding: 80rpx 24rpx;
   color: var(--text-muted, #64748b);
   font-size: 28rpx;
+}
+.loading.inline {
+  padding: 40rpx 24rpx;
+}
+.compact-empty {
+  padding: 40rpx 24rpx;
 }
 .err {
   color: var(--danger, #b91c1c);

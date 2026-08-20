@@ -32,12 +32,15 @@
         </view>
 
         <view class="action-card">
-          <input
-            class="amount-input"
-            type="digit"
-            v-model="amountYuan"
-            placeholder="提现金额（元）"
-          />
+          <view class="amount-field">
+            <input
+              class="amount-input"
+              type="digit"
+              v-model="amountYuan"
+              placeholder="提现金额（元）"
+              placeholder-class="amount-ph"
+            />
+          </view>
           <text v-if="maxWithdrawYuan" class="withdraw-hint"
             >最多可提现 ¥{{ maxWithdrawYuan }}</text
           >
@@ -139,7 +142,7 @@ async function load() {
     handleUnauthorized();
     return;
   }
-  loading.value = true;
+  loading.value = !overview.value;
   loadError.value = '';
   try {
     overview.value = await merchantApi.wallet();
@@ -223,14 +226,47 @@ onShow(load);
   color: var(--text-subtle, #94a3b8);
   font-size: 22rpx;
 }
-.amount-input {
+.amount-field {
+  display: flex;
+  align-items: center;
   width: 100%;
+  height: 108rpx;
+  min-height: 108rpx;
+  margin-bottom: 16rpx;
+  padding: 0 28rpx;
+  box-sizing: border-box;
   background: #f8fafc;
   border: 1rpx solid #e2e8f0;
   border-radius: 16rpx;
-  padding: 20rpx;
-  margin-bottom: 16rpx;
-  box-sizing: border-box;
+}
+.amount-input {
+  flex: 1;
+  width: 100%;
+  height: 108rpx;
+  min-height: 108rpx;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 32rpx;
+  color: #0f172a;
+  line-height: normal;
+}
+.amount-field :deep(uni-input),
+.amount-field :deep(.uni-input-wrapper),
+.amount-field :deep(.uni-input-input),
+.amount-field :deep(input) {
+  width: 100% !important;
+  height: 108rpx !important;
+  min-height: 108rpx !important;
+  line-height: normal !important;
+  font-size: 32rpx !important;
+  color: #0f172a !important;
+}
+.amount-ph {
+  color: #94a3b8;
+  font-size: 28rpx;
+  line-height: normal;
 }
 .withdraw-hint {
   display: block;

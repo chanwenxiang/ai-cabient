@@ -8,7 +8,7 @@
         <text class="balance-action">明细 ›</text>
       </view>
 
-      <view v-if="loading" class="loading"><text>加载中…</text></view>
+      <view v-if="loading && !items.length" class="loading"><text>加载中…</text></view>
       <view v-else-if="!items.length" class="empty">
         <text class="empty-title">暂无兑换商品</text>
         <text class="empty-hint">运营上架积分兑换后即可兑换优惠券</text>
@@ -71,7 +71,7 @@ onShow(async () => {
 });
 
 async function load() {
-  loading.value = true;
+  if (!items.value.length) loading.value = true;
   try {
     const [s, list] = await Promise.all([consumerApi.memberPoints(), consumerApi.redeemItems()]);
     summary.value = s;
@@ -138,21 +138,23 @@ function goPoints() {
   gap: 14rpx;
   padding: 26rpx 28rpx;
   border-radius: 24rpx;
-  color: #fff;
-  background: linear-gradient(135deg, #064e3b 0%, #059669 60%, #059669 100%);
+  color: #14201b;
+  background: linear-gradient(135deg, #ecfdf5, #fff);
+  border: 1rpx solid #d1fae5;
 }
 .balance-label {
   font-size: 24rpx;
-  opacity: 0.85;
+  color: #64748b;
 }
 .balance-value {
   font-size: 40rpx;
   font-weight: 800;
+  color: #047857;
 }
 .balance-action {
   margin-left: auto;
   font-size: 22rpx;
-  opacity: 0.85;
+  color: #059669;
 }
 .loading {
   padding: 120rpx 0;

@@ -422,18 +422,19 @@ async function onAlipayRecharge() {
   box-sizing: border-box;
 }
 .balance-card {
-  background: linear-gradient(135deg, #047857, #059669);
+  background: linear-gradient(135deg, #ecfdf5, #fff);
+  border: 1rpx solid #d1fae5;
   border-radius: 20rpx;
   padding: 40rpx;
   text-align: center;
   margin-bottom: 30rpx;
 }
 .bal-label {
-  color: rgba(255, 255, 255, 0.8);
+  color: #64748b;
   font-size: 28rpx;
 }
 .bal-amount {
-  color: #fff;
+  color: #047857;
   font-size: 72rpx;
   font-weight: 700;
   margin-top: 10rpx;
@@ -498,8 +499,9 @@ async function onAlipayRecharge() {
 }
 .btn-primary {
   width: 100%;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
@@ -508,14 +510,20 @@ async function onAlipayRecharge() {
   border: none;
   margin-bottom: 16rpx;
   box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-primary[disabled] {
   opacity: 0.5;
 }
 .btn-wechat {
   width: 100%;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
   border-radius: 44rpx;
@@ -524,20 +532,31 @@ async function onAlipayRecharge() {
   border: none;
   margin-bottom: 16rpx;
   box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-wechat[disabled] {
   opacity: 0.5;
 }
 .btn-alipay {
   width: 100%;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   background: #1677ff;
   color: #fff;
   border-radius: 44rpx;
   font-size: 30rpx;
   border: none;
   margin-bottom: 16rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-alipay[disabled] {
   opacity: 0.5;
@@ -550,14 +569,20 @@ async function onAlipayRecharge() {
 }
 .btn-back {
   width: 100%;
+  min-height: 80rpx;
   height: 80rpx;
-  line-height: 80rpx;
+  line-height: 1.2;
   background: #fff;
   color: #576b95;
   border-radius: 40rpx;
   font-size: 28rpx;
   border: 1rpx solid #e5e5e5;
   margin-bottom: 24rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn-hover {
   opacity: 0.85;

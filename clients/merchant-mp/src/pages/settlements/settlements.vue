@@ -82,7 +82,7 @@
 
       <view class="section">
         <text class="section-title">按日汇总</text>
-        <view v-if="loading" class="loading-inline">结算数据加载中…</view>
+        <view v-if="loading && !daily.length" class="loading-inline">结算数据加载中…</view>
         <template v-else>
           <view v-for="d in daily" :key="d.date" class="device-row">
             <view class="device-info">
@@ -113,7 +113,9 @@
       <view class="section">
         <text class="section-title">结算批次</text>
         <view v-if="batchWarn" class="section-warn">{{ batchWarn }}</view>
-        <view v-if="loading" class="loading-inline">批次加载中…</view>
+        <view v-if="loading && !batches.length && !daily.length" class="loading-inline"
+          >批次加载中…</view
+        >
         <template v-else>
           <view v-for="b in batches" :key="b.batchNo" class="device-row">
             <view class="device-info">
@@ -248,7 +250,8 @@ async function load() {
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return;
   }
-  loading.value = true;
+  // 已有日汇总时静默刷新，避免日期区/摘要先空再撑开
+  if (!daily.value.length) loading.value = true;
   loadError.value = '';
   batchWarn.value = '';
   try {
@@ -498,11 +501,15 @@ function onExport() {
 }
 .actions {
   padding: 20rpx 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 .btn-outline {
   width: 100%;
+  min-height: 80rpx;
   height: 80rpx;
-  line-height: 80rpx;
+  line-height: 1.2;
   border: 2rpx solid #0f766e;
   color: #0f766e;
   border-radius: 44rpx;
@@ -510,6 +517,11 @@ function onExport() {
   font-size: 28rpx;
   font-weight: 600;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  margin: 0;
 }
 .btn-outline::after {
   border: none;

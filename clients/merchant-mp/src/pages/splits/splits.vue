@@ -9,8 +9,8 @@
         <text class="tab" :class="{ active: tab === 'ALL' }" @click="switchTab('ALL')">全部</text>
       </view>
 
-      <view v-if="loading" class="card state">加载中…</view>
-      <view v-else-if="error" class="card state">
+      <view v-if="loading && !list.length" class="card state">加载中…</view>
+      <view v-else-if="error && !list.length" class="card state">
         <text class="err">{{ error }}</text>
         <button class="retry" size="mini" @click="load">重试</button>
       </view>
@@ -103,7 +103,7 @@ function statusClass(status?: string) {
 }
 
 async function load() {
-  loading.value = true;
+  if (!list.value.length) loading.value = true;
   error.value = '';
   try {
     await refreshMe();

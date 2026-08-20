@@ -25,6 +25,7 @@ uni-page-body {
   --brand-deep: #134e4a;
   --brand-soft: #99f6e4;
   --brand-tint: #ccfbf1;
+  --page-tint: #f0fdfa;
   --page-bg: #ffffff;
   --text-muted: #64748b;
   --text-subtle: #94a3b8;
@@ -117,6 +118,14 @@ button::after {
   border: none !important;
 }
 
+/* 微信/H5 input：避免仅靠 padding 导致占位符被裁切 */
+input {
+  box-sizing: border-box;
+  min-height: 72rpx;
+  font-size: 28rpx;
+  line-height: 1.4;
+}
+
 .card {
   background: #fff;
   border-radius: 24rpx;
@@ -146,25 +155,32 @@ button::after {
   box-sizing: border-box;
 }
 
-/* 主按钮：默认收窄居中；通栏用 .btn-block */
+/* 主按钮：单独出现时收窄居中；通栏用 .btn-block；横向行内用 .btn-inline */
 .btn-primary,
 .btn-outline,
 .empty-btn.primary,
 .empty-btn.ghost,
+.empty-btn,
 .primary-btn,
+.action-btn,
 uni-button.btn-primary,
 uni-button.btn-outline,
-uni-button.primary-btn {
-  width: fit-content !important;
-  min-width: 160px !important;
-  max-width: 240px !important;
-  padding-left: 36px !important;
-  padding-right: 36px !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-  align-self: center !important;
-  display: flex !important;
-  box-sizing: border-box !important;
+uni-button.primary-btn,
+uni-button.empty-btn {
+  width: fit-content;
+  min-width: 240rpx;
+  max-width: 100%;
+  padding-left: 36rpx;
+  padding-right: 36rpx;
+  margin-left: auto;
+  margin-right: auto;
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
+  line-height: 1.2;
 }
 
 .btn-block,
@@ -173,6 +189,72 @@ uni-button.btn-block {
   max-width: none !important;
   min-width: 0 !important;
   align-self: stretch !important;
+}
+
+/* 纵向操作区：通栏等宽 + 文字居中 */
+.actions,
+.btn-stack,
+.detail-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.actions > .btn-primary,
+.actions > .btn-outline,
+.actions > .primary-btn,
+.actions > .retry,
+.btn-stack > .btn-primary,
+.btn-stack > .btn-outline,
+.btn-stack > .primary-btn,
+.detail-actions > .btn-primary,
+.detail-actions > .btn-outline,
+.detail-actions > .primary-btn,
+.actions > uni-button,
+.btn-stack > uni-button,
+.detail-actions > uni-button {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  align-self: stretch !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  box-sizing: border-box !important;
+}
+
+.action-row > .btn-primary,
+.action-row > .btn-outline,
+.action-row > .primary-btn,
+.btn-inline {
+  flex: 1 1 0;
+  width: 0;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  align-self: stretch;
+  padding-left: 16rpx;
+  padding-right: 16rpx;
+}
+
+.empty-actions > .empty-btn,
+.empty-actions > .btn-primary,
+.empty-actions > .btn-outline,
+.empty-actions-row > .empty-btn,
+.empty-actions-row > .btn-primary,
+.empty-btns > .empty-btn {
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.2;
 }
 
 .btn-outline,
@@ -204,17 +286,18 @@ uni-button.btn-block {
   font-size: 24rpx;
 }
 .slot-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12rpx;
 }
 .slot-cell {
-  width: 30%;
+  min-width: 0;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  padding: 8px;
-  font-size: 22rpx;
+  padding: 10rpx;
+  font-size: 20rpx;
   background: #fff;
+  box-sizing: border-box;
 }
 
 /* H5：系统弹窗/遮罩用不透明底，避免背后列表文字透视 */

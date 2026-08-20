@@ -101,15 +101,17 @@ export default { name: 'AppNavBar' };
 }
 .app-nav-title {
   position: absolute;
-  left: 88px;
-  right: 88px;
+  left: 0;
+  right: 0;
   text-align: center;
-  font-size: 16px;
-  font-weight: 500;
+  font-size: 17px;
+  font-weight: 600;
   line-height: 48px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   pointer-events: none;
+  padding: 0 52px;
+  box-sizing: border-box;
 }
 </style>

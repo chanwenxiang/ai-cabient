@@ -2,12 +2,12 @@
   <view class="page-root">
     <app-nav-bar title="订单详情" />
     <view class="page-body">
-      <view v-if="loading" class="loading"><text>加载中…</text></view>
-      <view v-else-if="error" class="error">
+      <view v-if="loading && !order" class="loading"><text>加载中…</text></view>
+      <view v-else-if="error && !order" class="error">
         <text>{{ error }}</text>
         <button class="btn-outline" style="margin-top: 24rpx" @click="reload">重试</button>
       </view>
-      <view v-else>
+      <view v-else-if="order">
         <view class="status-bar" :class="'status-' + (order?.status || '').toLowerCase()">
           <text class="status-icon">{{ statusIcon }}</text>
           <view class="status-copy">
@@ -206,6 +206,7 @@ import {
   orderStatusLabel,
   fmtMoney
 } from '@aicabinet/shared-uni/format';
+import { parseQuery, queryGet } from '@aicabinet/shared-uni/query';
 import type { OrderDetailDto } from '@aicabinet/shared-types';
 import {
   DISPUTE_REASON_CHIPS,
@@ -259,9 +260,8 @@ function resolveOrderId(opt?: Record<string, string | undefined>): string {
       const hash = String(window.location.hash || '');
       const hashQuery = hash.includes('?') ? hash.slice(hash.indexOf('?') + 1) : '';
       const search = String(window.location.search || '').replace(/^\?/, '');
-      const q = new URLSearchParams(hashQuery || search);
-      const fromUrl = String(q.get('orderId') || q.get('id') || '').trim();
-      if (fromUrl) return fromUrl;
+      const fromUrl = queryGet(hashQuery || search, 'orderId') || queryGet(hashQuery || search, 'id');
+      if (fromUrl.trim()) return fromUrl.trim();
     } catch {
       /* keep fallback */
     }
@@ -345,7 +345,7 @@ async function reload() {
     loading.value = false;
     return;
   }
-  loading.value = true;
+  if (!order.value) loading.value = true;
   error.value = '';
   try {
     order.value = await consumerApi.getOrder(orderId.value);
@@ -356,7 +356,7 @@ async function reload() {
       disputeFiled.value = true;
     }
   } catch (e) {
-    error.value = e instanceof Error ? e.message : '加载失败';
+    if (!order.value) error.value = e instanceof Error ? e.message : '加载失败';
   } finally {
     loading.value = false;
   }
@@ -769,38 +769,56 @@ function callSupport() {
 .actions {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: stretch;
   gap: 20rpx;
   padding: 10rpx 0;
+}
+/* 纵向操作区：通栏等宽，避免「立即退款」等比「再去本柜购物」短一截 */
+.actions .btn-primary,
+.actions .btn-outline,
+.actions .btn-refund {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  align-self: stretch !important;
+  justify-content: center;
+  padding-left: 36rpx;
+  padding-right: 36rpx;
 }
 .btn-primary {
   width: fit-content;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   box-sizing: border-box;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   border: none;
   color: #fff;
   border-radius: 44rpx;
   background: linear-gradient(135deg, #047857, #059669);
   font-size: 28rpx;
   font-weight: 600;
-  text-align: center;
   box-shadow: 0 8rpx 24rpx rgba(5, 150, 105, 0.22);
 }
 .btn-outline {
   width: fit-content;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   box-sizing: border-box;
   height: 80rpx;
-  line-height: 80rpx;
+  line-height: 1.2;
   border: 2rpx solid #059669;
   color: #059669;
   border-radius: 44rpx;
   background: #fff;
   font-size: 28rpx;
   font-weight: 600;
-  text-align: center;
 }
 .btn-outline.danger {
   border-color: #ef4444;
@@ -809,16 +827,18 @@ function callSupport() {
 .btn-refund {
   width: fit-content;
   display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   box-sizing: border-box;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   border: none;
   color: #fff;
   border-radius: 44rpx;
   background: linear-gradient(135deg, #dc2626, #ef4444);
   font-size: 28rpx;
   font-weight: 600;
-  text-align: center;
   box-shadow: 0 8rpx 24rpx rgba(239, 68, 68, 0.22);
 }
 .btn-primary::after,
@@ -954,13 +974,19 @@ function callSupport() {
 }
 .btn-submit {
   width: 100%;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   background: #ef4444;
   color: #fff;
   border-radius: 44rpx;
   font-size: 30rpx;
   border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .dispute-cancel {
   display: block;

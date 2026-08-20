@@ -1,6 +1,7 @@
 import type { LoginResponse } from '@aicabinet/shared-types';
 import { clearDictOverrides } from '@aicabinet/shared-dict';
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
+import { parseQuery, queryGet } from '@aicabinet/shared-uni/query';
 import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';
 import {
   formatMpRequestError,
@@ -14,7 +15,7 @@ import { isDevBuild } from '@/utils/runtime-flags';
 const BASE_URL = API_BASE_URL;
 
 function formatRequestError(errMsg: string | undefined, path: string) {
-  return formatMpRequestError(errMsg, path, isDevBuild);
+  return formatMpRequestError(errMsg, path, isDevBuild, BASE_URL);
 }
 const TOKEN_KEY = 'consumer_token';
 const USER_KEY = 'consumer_user_id';
@@ -248,11 +249,11 @@ export function consumerWxH5Login(code: string) {
 function readQueryParam(name: string): string {
   try {
     if (typeof window === 'undefined') return '';
-    const fromSearch = new URLSearchParams(window.location.search).get(name);
+    const fromSearch = queryGet(window.location.search, name);
     if (fromSearch) return fromSearch;
     const hash = window.location.hash || '';
     const q = hash.includes('?') ? hash.split('?')[1] : '';
-    if (q) return new URLSearchParams(q).get(name) || '';
+    if (q) return queryGet(q, name);
   } catch {
     /* ignore */
   }
@@ -271,14 +272,16 @@ function stripAuthCodeFromUrl() {
     url.searchParams.delete('state');
     if (url.hash.includes('?')) {
       const [path, qs] = url.hash.split('?');
-      const sp = new URLSearchParams(qs);
-      sp.delete('auth_code');
-      sp.delete('authCode');
-      sp.delete('app_id');
-      sp.delete('source');
-      sp.delete('code');
-      sp.delete('state');
-      const next = sp.toString();
+      const sp = parseQuery(qs);
+      delete sp.auth_code;
+      delete sp.authCode;
+      delete sp.app_id;
+      delete sp.source;
+      delete sp.code;
+      delete sp.state;
+      const next = Object.entries(sp)
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join('&');
       url.hash = next ? `${path}?${next}` : path;
     }
     window.history.replaceState({}, '', url.toString());

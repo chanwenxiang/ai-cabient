@@ -3,11 +3,11 @@
     <app-nav-bar title="柜机详情" />
     <view class="page-body">
       <view v-if="!canView" class="card"><text class="err">当前账号无柜机详情权限</text></view>
-      <view v-else-if="loading" class="card">加载中…</view>
-      <view v-else-if="error" class="card"
+      <view v-else-if="loading && !deviceName" class="card">加载中…</view>
+      <view v-else-if="error && !deviceName" class="card"
         ><text class="err">{{ error }}</text></view
       >
-      <view v-else>
+      <view v-else-if="deviceName || !loading">
         <view class="card">
           <image
             class="device-hero"
@@ -40,9 +40,23 @@
 
         <view v-if="canEditDevice" class="card">
           <text class="section">柜机设置</text>
-          <input v-model="formName" class="input" placeholder="显示名称" />
-          <input v-model="formTargetTemp" class="input" type="number" placeholder="目标温度(°C)" />
-          <input v-model="formRemark" class="input" placeholder="备注" />
+          <view class="field">
+            <text class="field-label">显示名称</text>
+            <input v-model="formName" class="input" placeholder="请输入柜机显示名称" />
+          </view>
+          <view class="field">
+            <text class="field-label">目标温度(°C)</text>
+            <input
+              v-model="formTargetTemp"
+              class="input"
+              type="number"
+              placeholder="例如 5"
+            />
+          </view>
+          <view class="field">
+            <text class="field-label">备注</text>
+            <input v-model="formRemark" class="input" placeholder="选填运维备注" />
+          </view>
           <view class="btn-primary" @click="saveSettings">{{
             saving ? '保存中…' : '保存设置'
           }}</view>
@@ -56,8 +70,8 @@
           <view class="slot-grid">
             <view v-for="s in slots" :key="s.slotCode" class="slot-cell">
               <text class="slot-code">{{ s.slotCode }}</text>
-              <text>{{ s.assignedSkuName || '空' }}</text>
-              <text class="meta"
+              <text class="slot-sku">{{ s.assignedSkuName || '空' }}</text>
+              <text class="meta slot-stock"
                 >库存 {{ s.bookQty }}/{{ s.maxLevel || s.parLevel || '未设上限' }}</text
               >
               <input
@@ -214,7 +228,7 @@ async function loadDetail() {
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return;
   }
-  loading.value = true;
+  if (!deviceName.value) loading.value = true;
   error.value = '';
   try {
     const settings = await merchantApi.deviceSettings(deviceId.value);
@@ -440,6 +454,18 @@ async function saveSlots() {
 }
 .section {
   font-weight: 600;
+  display: block;
+  margin-bottom: 8rpx;
+}
+.field {
+  margin: 12rpx 0;
+}
+.field-label {
+  display: block;
+  font-size: 24rpx;
+  color: #475569;
+  margin-bottom: 6rpx;
+  font-weight: 550;
 }
 .row {
   display: flex;
@@ -463,32 +489,70 @@ async function saveSlots() {
   color: #f59e0b;
 }
 .input {
+  display: block;
+  width: 100%;
+  height: 80rpx;
+  min-height: 80rpx;
+  line-height: 80rpx;
+  box-sizing: border-box;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
   border-radius: 8px;
-  padding: 10px;
-  margin: 8px 0;
+  padding: 0 12px;
+  margin: 0;
+  font-size: 28rpx;
+  color: #0f172a;
 }
 .input-sm {
+  display: block;
   width: 100%;
+  height: 64rpx;
+  min-height: 64rpx;
+  line-height: 64rpx;
+  box-sizing: border-box;
   font-size: 22rpx;
-  margin-top: 4rpx;
+  margin-top: 6rpx;
   border: 1px solid #e2e8f0;
   border-radius: 4px;
-  padding: 4px;
+  padding: 0 6px;
+  color: #0f172a;
 }
 .slot-code {
   font-weight: 600;
   display: block;
+  font-size: 24rpx;
+}
+.slot-sku {
+  display: block;
+  font-size: 20rpx;
+  color: #0f172a;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.slot-stock {
+  display: block;
+  margin-top: 2rpx;
 }
 .action-row {
   display: flex;
-  gap: 12px;
+  gap: 16rpx;
   margin-top: 16px;
+  width: 100%;
+  box-sizing: border-box;
 }
 .action-btn {
-  flex: 1;
-  margin-top: 0;
+  flex: 1 1 0;
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  margin: 0 !important;
+  align-self: stretch !important;
+  padding-left: 16rpx !important;
+  padding-right: 16rpx !important;
+  font-size: 28rpx !important;
+  box-sizing: border-box !important;
 }
 .err {
   color: #ef4444;

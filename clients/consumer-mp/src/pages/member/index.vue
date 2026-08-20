@@ -173,26 +173,30 @@ function goMessages() {
 .page {
   min-height: 100%;
   padding: 0 0 48rpx;
-  background: linear-gradient(180deg, #e8f8f1 0%, #f5f7f8 220rpx, #f5f7f8 100%);
+  background: #ffffff;
 }
 .hero {
   position: relative;
   overflow: hidden;
   margin: 24rpx 24rpx 0;
   padding: 36rpx 32rpx 28rpx;
-  border-radius: 28rpx;
-  color: #fff;
-  background: linear-gradient(135deg, #064e3b 0%, #059669 55%, #059669 100%);
-  box-shadow: 0 16rpx 40rpx rgba(5, 150, 105, 0.28);
+  border-radius: 24rpx;
+  color: #14201b;
+  background: linear-gradient(135deg, #ecfdf5, #fff);
+  border: 1rpx solid #d1fae5;
+  box-shadow: none;
 }
 .hero.lv-silver {
-  background: linear-gradient(135deg, #334155, #64748b 60%, #94a3b8);
+  background: linear-gradient(135deg, #f1f5f9, #fff);
+  border-color: #e2e8f0;
 }
 .hero.lv-gold {
-  background: linear-gradient(135deg, #92400e, #d97706 55%, #f59e0b);
+  background: linear-gradient(135deg, #fffbeb, #fff);
+  border-color: #fde68a;
 }
 .hero.lv-platinum {
-  background: linear-gradient(135deg, #1e1b4b, #4338ca 55%, #6366f1);
+  background: linear-gradient(135deg, #eef2ff, #fff);
+  border-color: #c7d2fe;
 }
 .hero-top {
   display: flex;
@@ -204,32 +208,52 @@ function goMessages() {
   display: block;
   font-size: 20rpx;
   letter-spacing: 2rpx;
-  opacity: 0.7;
+  color: #849087;
 }
 .hero-level {
   display: block;
   margin-top: 8rpx;
   font-size: 40rpx;
   font-weight: 800;
+  color: #047857;
+}
+.hero.lv-silver .hero-level {
+  color: #475569;
+}
+.hero.lv-gold .hero-level {
+  color: #b45309;
+}
+.hero.lv-platinum .hero-level {
+  color: #4338ca;
 }
 .spent-chip {
   min-width: 140rpx;
   padding: 16rpx 22rpx;
   border-radius: 20rpx;
-  background: rgba(255, 255, 255, 0.16);
+  background: #f0fdf4;
   text-align: right;
+}
+.hero.lv-silver .spent-chip {
+  background: #f1f5f9;
+}
+.hero.lv-gold .spent-chip {
+  background: #fef3c7;
+}
+.hero.lv-platinum .spent-chip {
+  background: #e0e7ff;
 }
 .spent-num {
   display: block;
   font-size: 36rpx;
   font-weight: 800;
   line-height: 1;
+  color: #14201b;
 }
 .spent-unit {
   display: block;
   margin-top: 6rpx;
   font-size: 22rpx;
-  opacity: 0.85;
+  color: #849087;
 }
 .progress-block {
   margin-top: 28rpx;
@@ -237,19 +261,37 @@ function goMessages() {
 .progress-track {
   height: 10rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.22);
+  background: #d1fae5;
   overflow: hidden;
+}
+.hero.lv-silver .progress-track {
+  background: #e2e8f0;
+}
+.hero.lv-gold .progress-track {
+  background: #fde68a;
+}
+.hero.lv-platinum .progress-track {
+  background: #c7d2fe;
 }
 .progress-fill {
   height: 100%;
   border-radius: 999rpx;
-  background: #fff;
+  background: #059669;
+}
+.hero.lv-silver .progress-fill {
+  background: #64748b;
+}
+.hero.lv-gold .progress-fill {
+  background: #d97706;
+}
+.hero.lv-platinum .progress-fill {
+  background: #4f46e5;
 }
 .progress-text {
   display: block;
   margin-top: 14rpx;
   font-size: 22rpx;
-  opacity: 0.88;
+  color: #64748b;
   line-height: 1.4;
 }
 .points-chip {
@@ -259,7 +301,16 @@ function goMessages() {
   margin-top: 20rpx;
   padding: 16rpx 22rpx;
   border-radius: 18rpx;
-  background: rgba(255, 255, 255, 0.14);
+  background: #f0fdf4;
+}
+.hero.lv-silver .points-chip {
+  background: #f1f5f9;
+}
+.hero.lv-gold .points-chip {
+  background: #fef3c7;
+}
+.hero.lv-platinum .points-chip {
+  background: #e0e7ff;
 }
 .points-left {
   display: flex;
@@ -268,15 +319,16 @@ function goMessages() {
 }
 .points-label {
   font-size: 22rpx;
-  opacity: 0.85;
+  color: #849087;
 }
 .points-value {
-  font-size: 34rpx;
+  font-size: 36rpx;
   font-weight: 800;
+  color: #047857;
 }
 .points-action {
   font-size: 22rpx;
-  opacity: 0.9;
+  color: #059669;
 }
 
 .quick-grid {

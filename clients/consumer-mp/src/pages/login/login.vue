@@ -127,11 +127,7 @@
           >
             {{ loading && !wxMode ? '验证中…' : '验证并继续' }}
           </view>
-          <text v-if="isDev" class="dev-hint">{{
-            mode === 'password'
-              ? '开发联调：13800138000 / 密码 123456'
-              : '开发联调：先点「获取验证码」；mock 开时可用 123456'
-          }}</text>
+          <text v-if="isDev && demoHint" class="dev-hint">{{ demoHint }}</text>
         </view>
 
         <view class="btn-ghost" @click="goBack">返回</view>
@@ -162,17 +158,29 @@ const redirect = ref('/pages/index/index');
 // H5 无法微信静默授权，默认展开手机号，减少多点一次
 const showPhoneForm = ref(typeof window !== 'undefined');
 const wxBtnLabel = computed(() => '微信授权登录');
+const isDev = showDevTools();
+const demoPhone = String(import.meta.env.VITE_DEMO_PHONE || '').trim();
+const demoPassword = String(import.meta.env.VITE_DEMO_PASSWORD || '').trim();
 // H5/本地联调：演示账号已设密码；短信万能码依赖后端 mock，默认走密码更稳
-const mode = ref<'password' | 'sms'>(import.meta.env.DEV ? 'password' : 'sms');
-const phone = ref(import.meta.env.DEV ? '13800138000' : '');
-const password = ref(import.meta.env.DEV ? '123456' : '');
+const mode = ref<'password' | 'sms'>(isDev ? 'password' : 'sms');
+const demoHint = computed(() => {
+  if (!isDev) return '';
+  if (mode.value === 'password' && demoPhone && demoPassword) {
+    return `开发联调：${demoPhone} / 密码 ${demoPassword}`;
+  }
+  if (mode.value === 'sms' && demoPassword) {
+    return `开发联调：先点「获取验证码」；mock 开时可用 ${demoPassword}`;
+  }
+  return '';
+});
+const phone = ref(isDev && demoPhone ? demoPhone : '');
+const password = ref(isDev && demoPassword ? demoPassword : '');
 const code = ref('');
 const loading = ref(false);
 const sendingCode = ref(false);
 const wxMode = ref(false);
 const err = ref('');
 const codeCooldown = ref(0);
-const isDev = showDevTools();
 const loginPadStyle = ref({ paddingTop: getBelowCapsulePadPx(10) + 'px' });
 function refreshLoginPad() {
   loginPadStyle.value = { paddingTop: getBelowCapsulePadPx(10) + 'px' };
@@ -651,16 +659,18 @@ async function onLogin() {
   display: block;
   margin-bottom: 8rpx;
   color: #f0fdfa;
+  text-align: center;
 }
 .subtitle {
   font-size: 24rpx;
   color: rgba(204, 251, 241, 0.74);
   display: block;
   margin-bottom: 28rpx;
+  text-align: center;
   line-height: 1.5;
 }
 .btn-wx {
-  background: linear-gradient(135deg, #07c160, #059669);
+  background: linear-gradient(135deg, var(--brand-wx, #07c160), var(--brand, #047857));
   color: #fff;
   border-radius: 44rpx;
   height: 96rpx;
@@ -732,7 +742,7 @@ async function onLogin() {
 .tab-item.on {
   color: #ffffff;
   font-weight: 600;
-  background: linear-gradient(135deg, var(--brand, #047857), var(--brand-2, #059669));
+  background: linear-gradient(135deg, var(--brand, #047857), var(--brand-2, #047857));
   box-shadow: 0 4rpx 12rpx rgba(5, 150, 105, 0.28);
 }
 .field {
@@ -799,16 +809,20 @@ async function onLogin() {
   max-width: 200px !important;
   min-width: 168px !important;
   padding: 0 !important;
-  background: linear-gradient(135deg, #047857, #059669);
+  background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
   color: #fff;
   border-radius: 44rpx;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
+  line-height: 1.2;
   text-align: center;
   font-size: 30rpx;
   font-weight: 600;
   box-shadow: 0 10rpx 28rpx rgba(5, 150, 105, 0.28);
   box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .btn-primary.disabled,
 .btn-code.disabled {

@@ -24,14 +24,19 @@ export function useAnnouncementsList(
   }
 
   async function load() {
-    loading.value = true;
+    // 已有列表时静默刷新，避免返回/切页时整页先缩成「加载中」再撑开
+    if (!list.value.length) loading.value = true;
     error.value = '';
     try {
       list.value = (await fetchList()) || [];
       readMap.value = announcementReadMap();
     } catch (e) {
-      list.value = [];
-      error.value = e instanceof Error ? e.message : '加载失败';
+      if (!list.value.length) {
+        list.value = [];
+        error.value = e instanceof Error ? e.message : '加载失败';
+      } else {
+        error.value = '';
+      }
     } finally {
       loading.value = false;
     }
@@ -95,14 +100,16 @@ export function useAnnouncementDetail(
       error.value = '公告不存在';
       return;
     }
-    loading.value = true;
+    loading.value = !item.value;
     error.value = '';
     try {
       item.value = (await fetchDetail(announceId)) ?? null;
       markAnnouncementRead(item.value?.announceId);
     } catch (e) {
-      item.value = null;
-      error.value = e instanceof Error ? e.message : '加载失败';
+      if (!item.value) {
+        item.value = null;
+        error.value = e instanceof Error ? e.message : '加载失败';
+      }
     } finally {
       loading.value = false;
     }

@@ -172,7 +172,7 @@ import { formatMerchantNames } from '@/utils/merchant-display';
 import { menuIcon } from '@/utils/menu-icon';
 
 const headerPadStyle = {
-  borderTop: getStatusBarPadPx() + 'px solid #134e4a'
+  borderTop: getStatusBarPadPx() + 'px solid var(--brand-deep, #134e4a)'
 };
 
 const { me, refresh: refreshMe } = useMerchantMe();
@@ -351,7 +351,7 @@ function onLogout() {
   padding: 10rpx 22rpx;
   border-radius: 999rpx;
   background: #ecfdf5;
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   font-size: 24rpx;
   font-weight: 600;
 }
@@ -374,7 +374,7 @@ function onLogout() {
   display: block;
   font-size: 32rpx;
   font-weight: 700;
-  color: #134e4a;
+  color: var(--brand-deep, #134e4a);
 }
 .hint {
   display: block;
@@ -383,11 +383,19 @@ function onLogout() {
   color: #64748b;
 }
 .input {
+  display: block;
+  width: 100%;
+  height: 80rpx;
+  min-height: 80rpx;
+  line-height: 80rpx;
+  box-sizing: border-box;
   background: #f8fafc;
+  border: 1rpx solid #e2e8f0;
   border-radius: 14rpx;
-  padding: 22rpx 20rpx;
+  padding: 0 20rpx;
   margin-bottom: 16rpx;
   font-size: 28rpx;
+  color: #0f172a;
 }
 .dialog-actions {
   display: flex;
@@ -396,11 +404,18 @@ function onLogout() {
 }
 .btn {
   flex: 1;
-  background: #0f766e;
+  background: var(--brand, #0f766e);
   color: #fff;
   border: none;
   border-radius: 999rpx;
   font-size: 28rpx;
+  min-height: 80rpx;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn.ghost {
   background: #f1f5f9;
@@ -421,7 +436,7 @@ function onLogout() {
   align-items: stretch;
   width: 100%;
   box-sizing: border-box;
-  background: linear-gradient(145deg, #134e4a, #0f766e 60%, #0d9488);
+  background: linear-gradient(145deg, var(--brand-deep, #134e4a), var(--brand, #0f766e) 60%, var(--brand, #0f766e));
   box-shadow: none;
   color: #fff;
 }
@@ -540,7 +555,7 @@ function onLogout() {
 .bind-btn {
   flex-shrink: 0;
   background: #ecfdf5;
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   border: none;
   font-size: 22rpx;
 }
@@ -549,7 +564,7 @@ function onLogout() {
   padding: 12rpx 16rpx;
   border-radius: 12rpx;
   background: #ecfdf5;
-  color: #0f766e;
+  color: var(--brand, #0f766e);
   font-size: 22rpx;
   line-height: 1.4;
 }
@@ -566,7 +581,7 @@ function onLogout() {
 }
 .save-btn {
   margin-top: 20rpx;
-  background: #0f766e;
+  background: var(--brand, #0f766e);
   color: #fff;
   border: none;
   border-radius: 12rpx;

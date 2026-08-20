@@ -1,4 +1,4 @@
----
+﻿---
 name: ai-cabinet-dev-test
 description: >-
   AI Cabinet 本仓库写代码 / 改 UI / 联调 / 验收 / 调试时的 Skill+MCP 路由。
@@ -36,6 +36,7 @@ description: >-
 | 提交/PR 前审查 | `code-review` | GitHub（PR） |
 | 管理后台 / H5 UI 验收 | `browser-real-testing` | **cursor-ide-browser** |
 | 小程序 UI | `ui-implementation`；二审 `zhipu-ui-acceptance` | Browser（H5）；dist 核对 |
+| 用户录屏 / mp4 / 页面切换动效 | `read-video`（抽帧）+ MCP `media-context`（若已启用） | — |
 | UI 规范/a11y | `web-design-guidelines` | fetch |
 | 视觉方向 | `frontend-design` | — |
 | 全栈联调 | `fullstack-web-development` | Context7；Browser |

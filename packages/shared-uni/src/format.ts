@@ -231,16 +231,45 @@ export function displayBizNo(id?: string | number | null, empty: string = EMPTY.
   const hex = body.replace(/[^0-9A-Fa-f]/g, '');
   if (hex.length >= 8 && /^[0-9A-Fa-f]+$/i.test(hex)) {
     const slice = hex.length > 15 ? hex.slice(-15) : hex;
-    try {
-      const digits = BigInt(`0x${slice}`).toString();
-      if (digits) return digits;
-    } catch {
-      /* fallthrough */
-    }
+    const digits = hexToDecimalString(slice);
+    if (digits) return digits;
   }
 
   const digitsOnly = raw.replace(/\D/g, '');
   return digitsOnly.length >= 4 ? digitsOnly : raw;
+}
+
+/** 十六进制 → 十进制字符串；不依赖 BigInt（兼容旧微信基础库）。 */
+function hexToDecimalString(hex: string): string | null {
+  try {
+    if (typeof BigInt === 'function') {
+      return BigInt(`0x${hex}`).toString();
+    }
+  } catch {
+    /* fall through to digit loop */
+  }
+  let dec = '0';
+  for (const ch of hex) {
+    const nibble = parseInt(ch, 16);
+    if (Number.isNaN(nibble)) return null;
+    dec = decimalMulAdd(dec, 16, nibble);
+  }
+  return dec.replace(/^0+(?=\d)/, '') || '0';
+}
+
+function decimalMulAdd(dec: string, mul: number, add: number): string {
+  let carry = add;
+  let out = '';
+  for (let i = dec.length - 1; i >= 0; i--) {
+    const n = Number(dec[i]) * mul + carry;
+    out = String(n % 10) + out;
+    carry = Math.floor(n / 10);
+  }
+  while (carry > 0) {
+    out = String(carry % 10) + out;
+    carry = Math.floor(carry / 10);
+  }
+  return out || '0';
 }
 
 /** 列表短号：纯数字，超长取末尾 */

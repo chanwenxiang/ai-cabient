@@ -4,19 +4,21 @@
     <view class="page-body">
       <view class="hero">
         <view class="hero-orb orb-one" /><view class="hero-orb orb-two" />
-        <text class="eyebrow">现场补货</text>
-        <text class="title">补货任务</text>
-        <text class="subtitle">{{ heroSubtitle }}</text>
+        <view class="hero-head">
+          <text class="eyebrow">现场补货</text>
+          <text class="title">补货任务</text>
+          <text class="subtitle">{{ heroSubtitle }}</text>
+        </view>
         <view class="stats">
-          <view>
+          <view class="stat">
             <text class="stat-value">{{ pendingCount }}</text>
             <text class="stat-label">待处理</text>
           </view>
-          <view>
+          <view class="stat">
             <text class="stat-value">{{ completedCount }}</text>
             <text class="stat-label">已完成</text>
           </view>
-          <view>
+          <view class="stat">
             <text class="stat-value">{{ efficiencyRateText }}</text>
             <text class="stat-label">今日完成率</text>
           </view>
@@ -24,17 +26,25 @@
         <view class="hero-actions">
           <button class="scan-primary" :loading="scanning" @click="onScan">扫码找柜</button>
           <view class="hero-secondary">
-            <button class="clear-pill" @click="goRequest">要货</button>
-            <button
+            <view class="clear-pill" role="button" hover-class="clear-pill-hover" @click="goRequest"
+              >要货</view
+            >
+            <view
               v-if="preferredId && filterDeviceId !== preferredId"
               class="clear-pill"
+              role="button"
+              hover-class="clear-pill-hover"
               @click="usePreferredDevice"
+              >常驻柜</view
             >
-              常驻柜
-            </button>
-            <button v-if="filterDeviceId" class="clear-pill" @click="clearDeviceFilter">
-              清除筛选
-            </button>
+            <view
+              v-if="filterDeviceId"
+              class="clear-pill"
+              role="button"
+              hover-class="clear-pill-hover"
+              @click="clearDeviceFilter"
+              >清除筛选</view
+            >
           </view>
         </view>
         <text v-if="filterDeviceId" class="filter-tip">
@@ -44,12 +54,13 @@
         <text v-else-if="preferredId" class="filter-tip muted"
           >常驻柜 {{ preferredId }} · 点「常驻柜」快速筛选</text
         >
-        <view v-if="!loading && pendingCount === 0" class="idle-tip">
-          <text class="idle-title">今日暂无待补货</text>
-          <text class="idle-desc"
-            >可扫码巡柜查看缺货，或切换「已完成」回顾记录；新任务由调度下发</text
-          >
-        </view>
+      </view>
+
+      <view v-if="!loading && pendingCount === 0" class="idle-tip">
+        <text class="idle-title">今日暂无待补货</text>
+        <text class="idle-desc"
+          >可扫码巡柜查看缺货，或切换「已完成」回顾记录；新任务由调度下发</text
+        >
       </view>
 
       <view v-if="lowStockList.length" class="patrol-card">
@@ -90,7 +101,7 @@
         >
       </view>
 
-      <view v-if="loading" class="empty">任务加载中…</view>
+      <view v-if="loading && !allTasks.length" class="empty">任务加载中…</view>
       <empty-state
         v-else-if="!tasks.length"
         icon="/static/menu/replenish.png"
@@ -837,7 +848,8 @@ async function load() {
     return;
   }
   // Deep link is applied in onLoad only — do not re-read hash on every onShow
-  loading.value = true;
+  // 已有任务时静默刷新，避免返回/切页时整块列表先缩后胀
+  if (!allTasks.value.length) loading.value = true;
   try {
     const [taskRows, deviceRows, skuRows, eff, lowStockRows] = await Promise.all([
       merchantApi.replenishmentTasks().catch(() => [] as Record<string, unknown>[]),
@@ -1519,121 +1531,142 @@ onPullDownRefresh(load);
 .page {
   min-height: 100%;
   padding: 0;
-  background: linear-gradient(180deg, #ecfdf5 0, #f8fafc 320rpx, #f8fafc 100%);
+  background: #ffffff;
   box-sizing: border-box;
   overflow-x: hidden;
 }
 .hero {
   position: relative;
   overflow: hidden;
-  padding: 34rpx;
-  border-radius: 28rpx;
-  color: #fff;
-  background: linear-gradient(145deg, #064e3b, #0f766e 58%, #14b8a6);
-  box-shadow: 0 18rpx 40rpx rgba(15, 118, 110, 0.2);
+  margin: 20rpx 24rpx 0;
+  padding: 36rpx 28rpx 32rpx;
+  border-radius: 24rpx;
+  color: #0f172a;
+  background: linear-gradient(135deg, #ecfdf5, #fff);
+  border: 1rpx solid #d1fae5;
+  box-shadow: none;
+  text-align: center;
 }
 .hero-orb {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.09);
-  pointer-events: none;
+  display: none;
 }
-.orb-one {
-  width: 160rpx;
-  height: 160rpx;
-  right: -54rpx;
-  top: -68rpx;
-}
+.orb-one,
 .orb-two {
-  width: 88rpx;
-  height: 88rpx;
-  right: 80rpx;
-  bottom: -55rpx;
+  display: none;
+}
+.hero-head {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 .eyebrow,
 .title,
 .subtitle {
   display: block;
   position: relative;
+  text-align: center;
 }
 .eyebrow {
   font-size: 22rpx;
-  opacity: 0.75;
   letter-spacing: 4rpx;
-  width: max-content;
-  padding: 6rpx 12rpx;
+  padding: 6rpx 16rpx;
   border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.12);
+  background: #f0fdf4;
+  color: #0f766e;
 }
 .title {
-  margin-top: 12rpx;
+  margin-top: 14rpx;
   font-size: 42rpx;
   font-weight: 800;
+  color: #0f172a;
 }
 .subtitle {
   margin-top: 10rpx;
   font-size: 24rpx;
-  opacity: 0.82;
+  color: #64748b;
   line-height: 1.55;
 }
 .stats {
   position: relative;
   display: flex;
-  gap: 60rpx;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 12rpx;
   margin-top: 28rpx;
   padding-top: 22rpx;
-  border-top: 1rpx solid rgba(255, 255, 255, 0.16);
+  border-top: 1rpx solid #d1fae5;
+}
+.stat {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
 }
 .stat-value,
 .stat-label {
   display: block;
+  text-align: center;
 }
 .stat-value {
   font-size: 40rpx;
   font-weight: 800;
+  color: #0f766e;
 }
 .stat-label {
+  margin-top: 4rpx;
   font-size: 22rpx;
-  opacity: 0.75;
+  color: #64748b;
 }
 .hero-actions {
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: 14rpx;
-  margin-top: 24rpx;
+  align-items: stretch;
+  gap: 16rpx;
+  margin-top: 26rpx;
 }
 .hero-secondary {
   display: flex;
   flex-wrap: wrap;
+  justify-content: center;
   gap: 14rpx;
 }
-.scan-primary,
-.clear-pill {
-  margin: 0;
-  border-radius: 36rpx;
-  font-size: 26rpx;
-  font-weight: 600;
-}
 .scan-primary {
+  margin: 0;
+  min-height: 88rpx;
   height: 88rpx;
-  line-height: 88rpx;
-  background: #fff;
-  color: #0f766e;
+  line-height: 1.2;
+  border-radius: 44rpx;
+  background: linear-gradient(135deg, #134e4a, #0f766e);
+  color: #fff;
   font-size: 28rpx;
   font-weight: 700;
-  box-shadow: 0 10rpx 26rpx rgba(6, 78, 59, 0.28);
+  box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.22);
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.scan-primary::after {
+  border: none;
 }
 .clear-pill {
-  height: 72rpx;
-  line-height: 72rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64rpx;
   padding: 0 28rpx;
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  border-radius: 999rpx;
+  background: #f0fdf4;
+  color: #0f766e;
+  font-size: 26rpx;
+  font-weight: 600;
+  box-sizing: border-box;
+  border: 1rpx solid #bbf7d0;
 }
-.scan-primary::after,
-.clear-pill::after {
-  border: none;
+.clear-pill-hover {
+  opacity: 0.82;
 }
 .filter-tip {
   position: relative;
@@ -1641,32 +1674,38 @@ onPullDownRefresh(load);
   margin-top: 16rpx;
   font-size: 22rpx;
   opacity: 0.85;
+  text-align: center;
 }
 .filter-tip.muted {
   opacity: 0.7;
 }
 .idle-tip {
-  position: relative;
-  margin-top: 18rpx;
-  padding: 16rpx 18rpx;
-  border-radius: 16rpx;
-  background: rgba(255, 255, 255, 0.14);
+  margin: 18rpx 24rpx 0;
+  padding: 28rpx 24rpx;
+  border-radius: 20rpx;
+  background: #fff;
+  border: 1rpx solid rgba(15, 118, 110, 0.1);
+  box-shadow: 0 8rpx 24rpx rgba(15, 118, 110, 0.06);
+  text-align: center;
 }
 .idle-title {
   display: block;
-  font-size: 24rpx;
+  font-size: 28rpx;
   font-weight: 700;
+  color: #134e4a;
+  text-align: center;
 }
 .idle-desc {
   display: block;
-  margin-top: 6rpx;
-  font-size: 22rpx;
-  opacity: 0.88;
-  line-height: 1.4;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #64748b;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .patrol-card {
-  margin: 22rpx 0 4rpx;
+  margin: 22rpx 24rpx 4rpx;
   padding: 24rpx;
   border-radius: 24rpx;
   background: #fff;
@@ -1740,7 +1779,7 @@ onPullDownRefresh(load);
   display: flex;
   flex-wrap: nowrap;
   gap: 12rpx;
-  margin: 24rpx 0;
+  margin: 24rpx 24rpx;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   padding-bottom: 4rpx;
@@ -1752,7 +1791,7 @@ onPullDownRefresh(load);
 .task-card {
   position: relative;
   overflow: hidden;
-  margin-bottom: 18rpx;
+  margin: 0 24rpx 18rpx;
   padding: 26rpx;
   border-radius: 24rpx;
   background: #fff;
@@ -1900,10 +1939,17 @@ onPullDownRefresh(load);
   border-radius: 18rpx;
   font-size: 27rpx;
   font-weight: 700;
+  min-height: 88rpx;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .detail-btn {
-  display: block;
-  padding: 22rpx 0;
+  display: flex;
+  padding: 0 22rpx;
   text-align: center;
   pointer-events: none;
 }
@@ -2298,5 +2344,13 @@ button[disabled] {
 .page-body {
   padding: 0 0 calc(48rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
+}
+.empty {
+  margin-left: 24rpx;
+  margin-right: 24rpx;
+}
+:deep(.empty-state) {
+  margin-left: 24rpx;
+  margin-right: 24rpx;
 }
 </style>

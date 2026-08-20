@@ -2,6 +2,7 @@
   <view class="page">
     <app-nav-bar title="帮助中心" />
     <view class="hero">
+      <text class="hero-title">帮助中心</text>
       <text class="hero-sub">常见问题与客服入口，快速解决购物疑问</text>
     </view>
 
@@ -144,10 +145,17 @@ function goOrders() {
   background: #ffffff;
 }
 .hero {
-  padding: 24rpx 32rpx 20rpx;
+  padding: 16rpx 32rpx 20rpx;
+}
+.hero-title {
+  display: block;
+  font-size: 40rpx;
+  font-weight: 700;
+  color: #191919;
 }
 .hero-sub {
   display: block;
+  margin-top: 8rpx;
   font-size: 26rpx;
   color: #6b7280;
   line-height: 1.5;
@@ -248,8 +256,9 @@ function goOrders() {
 }
 .tip-btn {
   margin-top: 20rpx;
+  min-height: 80rpx;
   height: 80rpx;
-  line-height: 80rpx;
+  line-height: 1.2;
   border-radius: 44rpx;
   background: linear-gradient(135deg, #047857, #059669);
   color: #fff;
@@ -257,6 +266,11 @@ function goOrders() {
   font-weight: 600;
   border: none;
   box-shadow: 0 8rpx 20rpx rgba(5, 150, 105, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .tip-btn::after {
   border: none;

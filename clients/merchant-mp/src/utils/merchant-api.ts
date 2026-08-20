@@ -3,6 +3,7 @@ import { clearDictOverrides, displayLabel } from '@aicabinet/shared-dict';
 import { matchPermission } from '@aicabinet/shared-rbac';
 import { loadRuntimeDict as sharedLoadRuntimeDict } from '@aicabinet/shared-uni/dict-runtime';
 import { localizeApiMessage } from '@aicabinet/shared-uni/format';
+import { withQuery } from '@aicabinet/shared-uni/query';
 import { mpRequest, type MpApiSession } from '@aicabinet/shared-uni/request';
 
 export type MerchantReplenishmentSuggest = {
@@ -454,13 +455,10 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').MerchantAnalyticsOverview>(
       `/api/v2/merchant/analytics/overview?days=${days}`
     ),
-  skuSales: (days = 30, deviceId?: string) => {
-    const q = new URLSearchParams({ days: String(days) });
-    if (deviceId) q.set('deviceId', deviceId);
-    return request<import('@aicabinet/shared-types').MerchantSkuSales[]>(
-      `/api/v2/merchant/analytics/sku-sales?${q}`
-    );
-  },
+  skuSales: (days = 30, deviceId?: string) =>
+    request<import('@aicabinet/shared-types').MerchantSkuSales[]>(
+      withQuery('/api/v2/merchant/analytics/sku-sales', { days, deviceId })
+    ),
   skuVelocity: (deviceId: string) =>
     request<import('@aicabinet/shared-types').MerchantSkuVelocity[]>(
       `/api/v2/merchant/analytics/velocity?deviceId=${encodeURIComponent(deviceId)}`
@@ -477,15 +475,10 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').DeviceTemperatureReading[]>(
       `/api/v2/merchant/devices/${encodeURIComponent(deviceId)}/temperature-history?hours=${hours}`
     ),
-  pricingHistory: (deviceId?: string, skuId?: string) => {
-    const q = new URLSearchParams();
-    if (deviceId) q.set('deviceId', deviceId);
-    if (skuId) q.set('skuId', skuId);
-    const qs = q.toString();
-    return request<import('@aicabinet/shared-types').MerchantSkuPriceChange[]>(
-      `/api/v2/merchant/pricing/history${qs ? `?${qs}` : ''}`
-    );
-  },
+  pricingHistory: (deviceId?: string, skuId?: string) =>
+    request<import('@aicabinet/shared-types').MerchantSkuPriceChange[]>(
+      withQuery('/api/v2/merchant/pricing/history', { deviceId, skuId })
+    ),
   settlements: () =>
     request<import('@aicabinet/shared-types').MerchantSettlementOverview>(
       '/api/v2/merchant/settlements/overview'
@@ -504,15 +497,10 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').MerchantSettlementBatch[]>(
       `/api/v2/merchant/settlements/batches?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
     ),
-  revenueSplits: (page = 0, size = 50, status?: string, from?: string, to?: string) => {
-    const q = new URLSearchParams({ page: String(page), size: String(size) });
-    if (status) q.set('status', status);
-    if (from) q.set('from', from);
-    if (to) q.set('to', to);
-    return request<
+  revenueSplits: (page = 0, size = 50, status?: string, from?: string, to?: string) =>
+    request<
       import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').RevenueSplit>
-    >(`/api/v2/merchant/revenue-splits?${q}`);
-  },
+    >(withQuery('/api/v2/merchant/revenue-splits', { page, size, status, from, to })),
   exportSettlementsUrl: (from: string, to: string) =>
     `${API_BASE_URL}/api/v2/merchant/settlements/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
   exportOrdersUrl: (deviceId?: string) => {
@@ -529,15 +517,10 @@ export const merchantApi = {
   /** 缺货巡柜：全部低库存 SKU 明细（按柜聚合由页面完成） */
   lowStockDevices: () =>
     request<DeviceLowStockItem[]>('/api/v2/merchant/inventory?lowStockOnly=true'),
-  replenishmentRequests: (status?: string, deviceId?: string) => {
-    const q = new URLSearchParams();
-    if (status) q.set('status', status);
-    if (deviceId) q.set('deviceId', deviceId);
-    const qs = q.toString();
-    return request<MerchantReplenishmentRequest[]>(
-      `/api/v2/merchant/replenishment/requests${qs ? `?${qs}` : ''}`
-    );
-  },
+  replenishmentRequests: (status?: string, deviceId?: string) =>
+    request<MerchantReplenishmentRequest[]>(
+      withQuery('/api/v2/merchant/replenishment/requests', { status, deviceId })
+    ),
   submitReplenishmentRequest: (body: {
     deviceId: string;
     notes?: string;
@@ -590,13 +573,10 @@ export const merchantApi = {
   deviceReports: () => request<MerchantDeviceReport[]>('/api/v2/merchant/device-reports'),
   updateMerchantProfile: (body: MerchantProfileUpdate) =>
     request<unknown[]>('/api/v2/merchant/profile', 'PATCH', body),
-  disputes: (status?: string, page = 0, size = 100) => {
-    const q = new URLSearchParams({ page: String(page), size: String(size) });
-    if (status) q.set('status', status);
-    return request<import('@aicabinet/shared-types').PageResult<MerchantDisputeTicket>>(
-      `/api/v2/merchant/disputes?${q}`
-    );
-  },
+  disputes: (status?: string, page = 0, size = 100) =>
+    request<import('@aicabinet/shared-types').PageResult<MerchantDisputeTicket>>(
+      withQuery('/api/v2/merchant/disputes', { page, size, status })
+    ),
   orders: (
     opts: {
       deviceId?: string;
@@ -609,14 +589,16 @@ export const merchantApi = {
     } = {}
   ) => {
     const { deviceId, status, from, to, keyword, page = 0, size = 50 } = opts;
-    const q = new URLSearchParams({ page: String(page), size: String(size) });
-    if (deviceId) q.set('deviceId', deviceId);
-    if (status) q.set('status', status);
-    if (from) q.set('from', from);
-    if (to) q.set('to', to);
-    if (keyword) q.set('keyword', keyword);
     return request<import('@aicabinet/shared-types').PageResult<MerchantOrderSummary>>(
-      `/api/v2/merchant/orders?${q}`
+      withQuery('/api/v2/merchant/orders', {
+        page,
+        size,
+        deviceId,
+        status,
+        from,
+        to,
+        keyword
+      })
     );
   },
   orderDetail: (orderId: string) =>

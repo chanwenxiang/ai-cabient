@@ -14,8 +14,8 @@
         </button>
       </view>
 
-      <view v-if="loading" class="card state">加载中…</view>
-      <view v-else-if="error" class="card state">
+      <view v-if="loading && !list.length" class="card state">加载中…</view>
+      <view v-else-if="error && !list.length" class="card state">
         <text class="err">{{ error }}</text>
         <button class="retry" size="mini" @click="load">重试</button>
       </view>
@@ -220,7 +220,7 @@ function openManage(u: MerchantUserDto) {
 }
 
 async function load() {
-  loading.value = true;
+  if (!list.value.length) loading.value = true;
   error.value = '';
   try {
     await refreshMe();
@@ -241,8 +241,10 @@ async function load() {
   } catch (e) {
     if (!uni.getStorageSync('merchant_token')) return;
     me.value = (uni.getStorageSync('merchant_me') as MerchantMe) || null;
-    list.value = [];
-    error.value = e instanceof Error ? e.message : '加载失败';
+    if (!list.value.length) {
+      list.value = [];
+      error.value = e instanceof Error ? e.message : '加载失败';
+    }
   } finally {
     loading.value = false;
   }
@@ -470,11 +472,19 @@ async function onEnable() {
   margin-bottom: 20rpx;
 }
 .input {
+  display: block;
+  width: 100%;
+  height: 80rpx;
+  min-height: 80rpx;
+  line-height: 80rpx;
+  box-sizing: border-box;
   background: #f8fafc;
+  border: 1rpx solid #e2e8f0;
   border-radius: 14rpx;
-  padding: 22rpx 20rpx;
+  padding: 0 20rpx;
   margin-bottom: 16rpx;
   font-size: 28rpx;
+  color: #0f172a;
 }
 .role-row {
   display: flex;
@@ -517,6 +527,13 @@ async function onEnable() {
   border: none;
   border-radius: 999rpx;
   font-size: 28rpx;
+  min-height: 80rpx;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  box-sizing: border-box;
 }
 .btn.block {
   width: 100%;

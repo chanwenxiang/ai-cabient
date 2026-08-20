@@ -13,8 +13,8 @@
         >
       </view>
 
-      <view v-if="loading" class="loading"><text>加载中…</text></view>
-      <view v-else-if="error" class="empty">
+      <view v-if="loading && !list.length" class="loading"><text>加载中…</text></view>
+      <view v-else-if="error && !list.length" class="empty">
         <text class="err">{{ error }}</text>
         <button class="retry" @click="load">重试</button>
       </view>
@@ -216,7 +216,7 @@ async function load() {
     uni.navigateBack({ fail: () => uni.switchTab({ url: '/pages/home/home' }) });
     return;
   }
-  loading.value = true;
+  if (!list.value.length) loading.value = true;
   error.value = '';
   try {
     const res = await merchantApi.disputes(activeTab.value, 0, 100);
@@ -598,6 +598,7 @@ async function onReply(item: MerchantDisputeTicket) {
 .detail-actions {
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 14rpx;
   margin-top: 20rpx;
   flex-shrink: 0;
@@ -605,12 +606,17 @@ async function onReply(item: MerchantDisputeTicket) {
 .detail-actions .primary-btn,
 .detail-actions .btn-outline {
   margin: 0;
+  width: 100%;
   min-height: 80rpx;
-  line-height: 80rpx;
+  line-height: 1.2;
   border-radius: 40rpx;
   font-size: 28rpx;
   font-weight: 600;
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
 }
 .page-body {
   padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));

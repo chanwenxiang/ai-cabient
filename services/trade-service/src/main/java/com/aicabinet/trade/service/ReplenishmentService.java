@@ -105,7 +105,6 @@ public class ReplenishmentService {
 
     private final MerchantReplenishmentRequestLineMapper merchantRequestLineRepository;
     private final NotificationService notificationService;
-    private final MerchantPortalService merchantPortalService;
 
 
 
@@ -134,8 +133,7 @@ public class ReplenishmentService {
                                 @org.springframework.context.annotation.Lazy SessionService sessionService,
                                 MerchantReplenishmentRequestMapper merchantRequestRepository,
                                 MerchantReplenishmentRequestLineMapper merchantRequestLineRepository,
-                                NotificationService notificationService,
-                                MerchantPortalService merchantPortalService) {
+                                NotificationService notificationService) {
 
         this.inventoryRepository = inventoryRepository;
 
@@ -163,7 +161,6 @@ public class ReplenishmentService {
         this.merchantRequestRepository = merchantRequestRepository;
         this.merchantRequestLineRepository = merchantRequestLineRepository;
         this.notificationService = notificationService;
-        this.merchantPortalService = merchantPortalService;
 
     }
 
