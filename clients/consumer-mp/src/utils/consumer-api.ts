@@ -481,6 +481,22 @@ export const consumerApi = {
       '/api/v2/account/alipay-agreement/sign',
       'POST'
     ),
+  setPayPreferred: (channel: 'BALANCE' | 'WECHAT' | 'ALIPAY') =>
+    request<import('@aicabinet/shared-types').AccountDto>(
+      '/api/v2/account/pay-preferred',
+      'PUT',
+      { channel }
+    ),
+  listBalanceRefunds: () =>
+    request<import('@aicabinet/shared-types').BalanceRefundRequestDto[]>(
+      '/api/v2/account/balance-refunds'
+    ),
+  applyBalanceRefund: (amountCents: number, reason?: string) =>
+    request<import('@aicabinet/shared-types').BalanceRefundRequestDto>(
+      '/api/v2/account/balance-refunds',
+      'POST',
+      { amountCents, reason }
+    ),
   deviceStatus: (deviceId: string) =>
     request<import('@aicabinet/shared-types').DeviceStatusDto>(
       `/api/v2/devices/${encodeURIComponent(deviceId)}/status`
@@ -615,8 +631,9 @@ export const consumerApi = {
     request<NotifyPrefDto>('/api/v2/member/notifications/prefs', 'PUT', { category, enabled }),
   marketingBanners: () =>
     request<MarketingBannerDto[]>('/api/v2/marketing/banners', 'GET', undefined, false),
+  // auth=true：有 token 时带上，后端可返回「已领取/查看券包」；无 token 仍可游客浏览
   marketingCampaigns: () =>
-    request<MarketingCampaignDto[]>('/api/v2/marketing/campaigns/active', 'GET', undefined, false),
+    request<MarketingCampaignDto[]>('/api/v2/marketing/campaigns/active', 'GET', undefined, true),
   claimCampaign: (activityId: number) =>
     request<CouponDto>(`/api/v2/marketing/campaigns/${activityId}/claim`, 'POST'),
   myCoupons: (status?: string) =>

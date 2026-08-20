@@ -31,6 +31,11 @@ function isH5Runtime() {
   );
 }
 
+/** 本机/局域网调试地址：即使正式包也给出可操作提示。 */
+function isLocalDebugApi(baseUrl: string): boolean {
+  return /localhost|127\.0\.0\.1|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\./i.test(baseUrl);
+}
+
 /** 请求失败文案：区分 request:fail（网络层）、timeout、以及服务端消息。 */
 export function formatMpRequestError(
   errMsg: string | undefined,
@@ -39,24 +44,35 @@ export function formatMpRequestError(
   baseUrl = ''
 ): string {
   const raw = errMsg || '网络错误';
+  const verbose = isDevBuild || isLocalDebugApi(baseUrl);
+  const apiHint = baseUrl ? `（当前 API：${baseUrl}）` : '';
   if (raw === 'request:fail' || raw.includes('request:fail')) {
     const pointsToLoopback = /localhost|127\.0\.0\.1/i.test(baseUrl);
     if (!isH5Runtime() && pointsToLoopback) {
-      return isDevBuild
-        ? '真机访问不了电脑的 localhost。请把 VITE_API_BASE_URL 改成电脑局域网 IP（如 http://192.168.1.8），手机与电脑同一 WiFi，并重启小程序编译'
-        : '网络不太稳定，请稍后再试';
+      return (
+        (verbose
+          ? '真机访问不了电脑的 localhost。请把 VITE_API_BASE_URL 改成电脑局域网 IP（如 http://192.168.1.8），手机与电脑同一 WiFi，并重新编译'
+          : '网络不太稳定，请稍后再试') + apiHint
+      );
     }
     if (isH5Runtime()) {
-      return isDevBuild
-        ? `网络不太稳定（${path}），请确认本机服务已启动后重试`
-        : '网络不太稳定，请稍后再试';
+      return (
+        (verbose
+          ? `网络不太稳定（${path}），请确认本机服务已启动后重试`
+          : '网络不太稳定，请稍后再试') + apiHint
+      );
     }
-    return isDevBuild
-      ? '网络不太稳定，请稍后再试。开发调试时可在微信开发者工具勾选「不校验合法域名」，真机请用局域网 IP 作为 VITE_API_BASE_URL'
-      : '网络不太稳定，请稍后再试';
+    // 真机 / 开发者工具常见：未勾选「不校验合法域名」，或防火墙/访客 WiFi 隔离
+    if (verbose) {
+      return (
+        '请求失败：请确认 ① 开发者工具勾选「不校验合法域名、web-view、TLS」② 手机与电脑同一 WiFi（勿用访客网络）③ 管理员运行 scripts/open-lan-api-firewall.ps1 放行 80/18080 ④ 本机网关已启动' +
+        apiHint
+      );
+    }
+    return '网络不太稳定，请稍后再试' + apiHint;
   }
   if (raw.includes('timeout')) {
-    return '请求超时，请稍后重试';
+    return '请求超时，请稍后重试' + apiHint;
   }
   return localizeApiMessage(raw, '网络错误，请稍后重试');
 }

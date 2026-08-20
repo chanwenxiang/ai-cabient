@@ -16,130 +16,131 @@
       <button class="empty-btn ghost" hover-class="btn-hover" @click="goShop">先去扫码购物</button>
     </empty-state>
     <view v-else class="orders-main">
-      <view v-if="reviewingDisputes.length" class="review-section">
-        <text class="section-label">需要关注</text>
-        <view
-          v-for="d in reviewingDisputes"
-          :key="d.ticketId"
-          class="review-card"
-          :class="'tone-' + reviewCopy(d).tone"
-          @click="goDisputeDetail(d)"
-        >
-          <view class="review-icon">{{ reviewCopy(d).icon }}</view>
-          <view class="review-body">
-            <view class="review-top">
-              <text class="review-title">{{ reviewCopy(d).title }}</text>
-              <text class="chip pending">审核中</text>
-            </view>
-            <text class="review-detail">{{ reviewCopy(d).detail }}</text>
-            <view class="review-foot">
-              <text class="review-time">{{ formatTime(d.createdAt) }}</text>
-              <text class="review-link">查看详情 ›</text>
+      <!-- 关注区 + 筛选 + 列表同一滚动，避免上半区固定挤占购买记录 -->
+      <scroll-view
+        scroll-y
+        class="main-scroll"
+        :show-scrollbar="false"
+        lower-threshold="120"
+        @scrolltolower="loadMore"
+      >
+        <view v-if="reviewingDisputes.length" class="review-section">
+          <text class="section-label">需要关注</text>
+          <view
+            v-for="d in reviewingDisputes"
+            :key="d.ticketId"
+            class="review-card"
+            :class="'tone-' + reviewCopy(d).tone"
+            @click="goDisputeDetail(d)"
+          >
+            <view class="review-icon">{{ reviewCopy(d).icon }}</view>
+            <view class="review-body">
+              <view class="review-top">
+                <text class="review-title">{{ reviewCopy(d).title }}</text>
+                <text class="chip pending">审核中</text>
+              </view>
+              <text class="review-detail">{{ reviewCopy(d).detail }}</text>
+              <view class="review-foot">
+                <text class="review-time">{{ formatTime(d.createdAt) }}</text>
+                <text class="review-link">查看详情 ›</text>
+              </view>
             </view>
           </view>
         </view>
-      </view>
 
-      <view class="filter-block">
-        <view class="order-filters">
-          <text
-            v-for="f in filters"
-            :key="f.value"
-            class="filter-chip"
-            :class="{ active: filter === f.value }"
-            @click="filter = f.value"
-            >{{ f.label }}{{ filterCountSuffix(f.value) }}</text
-          >
-        </view>
-        <view class="order-filters time-row">
-          <text
-            v-for="t in timeFilters"
-            :key="t.value"
-            class="filter-chip time"
-            :class="{ active: timeRange === t.value }"
-            @click="timeRange = t.value"
-            >{{ t.label }}</text
-          >
-        </view>
-      </view>
-
-      <view v-if="loading && !orders.length && !reviewingDisputes.length" class="state-wrap inline"
-        ><text class="meta">刷新中…</text></view
-      >
-      <empty-state
-        v-else-if="!orders.length && !reviewingDisputes.length"
-        class="state-wrap"
-        title="暂无订单"
-        hint="扫码开门购物后，账单会显示在这里"
-      >
-        <button class="empty-btn primary" hover-class="btn-hover" @click="goShop">去扫码购物</button>
-      </empty-state>
-      <view v-else class="list-wrap">
-        <scroll-view
-          scroll-y
-          class="list"
-          :show-scrollbar="false"
-          lower-threshold="120"
-          @scrolltolower="loadMore"
-        >
-          <view class="list-inner">
-            <view
-              v-for="o in visibleOrders"
-              :key="o.orderId"
-              class="order-card"
-              @click="goDetail(o)"
+        <view class="filter-block">
+          <scroll-view scroll-x class="filter-scroll" :show-scrollbar="false" enable-flex>
+            <view class="order-filters">
+              <text
+                v-for="f in filters"
+                :key="f.value"
+                class="filter-chip"
+                :class="{ active: filter === f.value }"
+                @click="filter = f.value"
+                >{{ f.label }}{{ filterCountSuffix(f.value) }}</text
+              >
+            </view>
+          </scroll-view>
+          <view class="order-filters time-row">
+            <text
+              v-for="t in timeFilters"
+              :key="t.value"
+              class="filter-chip time"
+              :class="{ active: timeRange === t.value }"
+              @click="timeRange = t.value"
+              >{{ t.label }}</text
             >
-              <view class="order-top">
-                <view class="order-meta">
-                  <text class="order-device-name">{{ deviceDisplay(o.deviceId) }}</text>
-                  <text class="order-id">{{ shortId(o.orderId) }}</text>
-                </view>
-                <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
+          </view>
+        </view>
+
+        <view v-if="loading && !orders.length && !reviewingDisputes.length" class="state-wrap inline"
+          ><text class="meta">刷新中…</text></view
+        >
+        <empty-state
+          v-else-if="!orders.length && !reviewingDisputes.length"
+          class="state-wrap"
+          title="暂无订单"
+          hint="扫码开门购物后，账单会显示在这里"
+        >
+          <button class="empty-btn primary" hover-class="btn-hover" @click="goShop">去扫码购物</button>
+        </empty-state>
+        <view v-else class="list-inner">
+          <view
+            v-for="o in visibleOrders"
+            :key="o.orderId"
+            class="order-card"
+            @click="goDetail(o)"
+          >
+            <view class="order-top">
+              <view class="order-meta">
+                <text class="order-device-name">{{ deviceDisplay(o.deviceId) }}</text>
+                <text class="order-id">{{ shortId(o.orderId) }}</text>
               </view>
-              <view class="order-mid">
-                <image
-                  class="order-thumb"
-                  :src="orderThumb(o)"
-                  mode="aspectFill"
-                  aria-hidden="true"
-                />
-                <view class="order-copy">
-                  <text class="order-summary">{{ orderSummaryText(o) }}</text>
-                  <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
-                  <text v-if="Number(o.couponDiscountCents || 0) > 0" class="discount"
-                    >券 -¥{{ ((o.couponDiscountCents || 0) / 100).toFixed(2) }}</text
-                  >
-                </view>
-              </view>
-              <view class="order-bottom">
-                <view class="order-bottom-left">
-                  <text class="order-channel">{{ payChannelText(o.payChannel) }}</text>
-                  <text class="order-time">{{ formatTime(o.createdAt) }}</text>
-                </view>
-                <text v-if="o.status === 'DISPUTED'" class="order-hint">审核中 ›</text>
-                <text v-else class="order-hint">查看详情 ›</text>
+              <text class="chip" :class="chipClass(o.status)">{{ statusLabel(o.status) }}</text>
+            </view>
+            <view class="order-mid">
+              <image
+                class="order-thumb"
+                :src="orderThumb(o)"
+                mode="aspectFill"
+                aria-hidden="true"
+              />
+              <view class="order-copy">
+                <text class="order-summary">{{ orderSummaryText(o) }}</text>
+                <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
+                <text v-if="Number(o.couponDiscountCents || 0) > 0" class="discount"
+                  >券 -¥{{ ((o.couponDiscountCents || 0) / 100).toFixed(2) }}</text
+                >
               </view>
             </view>
-            <empty-state
-              v-if="!visibleOrders.length"
-              compact
-              title="当前筛选暂无订单"
-              hint="可切换时间或状态再试"
-            />
-            <view v-if="loadingMore" class="load-more">加载中…</view>
-            <view v-else-if="hasMore && orders.length" class="load-more hint" @click="loadMore"
-              >上拉加载更多</view
-            >
-            <view v-else-if="orders.length && !hasMore" class="load-more hint">没有更多了</view>
-            <view class="list-foot">
-              <view class="foot-actions">
-                <text class="foot-btn" @click="goReport">故障报修</text>
-                <text class="foot-btn primary" @click="goHelp">帮助与客服</text>
+            <view class="order-bottom">
+              <view class="order-bottom-left">
+                <text class="order-channel">{{ payChannelText(o.payChannel) }}</text>
+                <text class="order-time">{{ formatTime(o.createdAt) }}</text>
               </view>
+              <text v-if="o.status === 'DISPUTED'" class="order-hint">审核中 ›</text>
+              <text v-else class="order-hint">查看详情 ›</text>
             </view>
           </view>
-        </scroll-view>
-      </view>
+          <empty-state
+            v-if="!visibleOrders.length"
+            compact
+            title="当前筛选暂无订单"
+            hint="可切换时间或状态再试"
+          />
+          <view v-if="loadingMore" class="load-more">加载中…</view>
+          <view v-else-if="hasMore && orders.length" class="load-more hint" @click="loadMore"
+            >上拉加载更多</view
+          >
+          <view v-else-if="orders.length && !hasMore" class="load-more hint">没有更多了</view>
+          <view class="list-foot">
+            <view class="foot-actions">
+              <text class="foot-btn" @click="goReport">故障报修</text>
+              <text class="foot-btn primary" @click="goHelp">帮助与客服</text>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
     </view>
   </view>
 </template>
@@ -424,6 +425,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
+  min-height: 40vh;
 }
 .state-wrap.inline {
   flex: 0;
@@ -495,31 +497,35 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   max-width: 100%;
   display: flex;
   flex-direction: column;
-  padding-top: 8rpx;
   box-sizing: border-box;
   overflow: hidden;
 }
+.main-scroll {
+  flex: 1;
+  height: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
 .section-label {
   display: block;
-  margin: 8rpx 28rpx 14rpx;
+  margin: 4rpx 4rpx 10rpx;
   font-size: 24rpx;
   font-weight: 650;
   color: #68766e;
   letter-spacing: 1rpx;
 }
 .review-section {
-  flex-shrink: 0;
-  padding: 0 24rpx;
+  padding: 8rpx 24rpx 0;
 }
 .review-card {
   display: flex;
-  gap: 18rpx;
-  padding: 24rpx;
-  margin-bottom: 16rpx;
-  border-radius: 22rpx;
+  gap: 14rpx;
+  padding: 18rpx 20rpx;
+  margin-bottom: 12rpx;
+  border-radius: 20rpx;
   background: #fff;
   border: 1rpx solid #edf1ef;
-  box-shadow: 0 10rpx 28rpx rgba(15, 23, 42, 0.05);
+  box-shadow: 0 8rpx 20rpx rgba(15, 23, 42, 0.04);
 }
 .review-card.tone-wait {
   background: #fff;
@@ -534,15 +540,15 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   border-color: #edf1ef;
 }
 .review-icon {
-  width: 64rpx;
-  height: 64rpx;
-  border-radius: 18rpx;
+  width: 56rpx;
+  height: 56rpx;
+  border-radius: 16rpx;
   background: var(--brand-soft, #ecfdf5);
   color: var(--brand, #047857);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 30rpx;
+  font-size: 28rpx;
   font-weight: 700;
   flex-shrink: 0;
 }
@@ -561,22 +567,22 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   gap: 12rpx;
 }
 .review-title {
-  font-size: 28rpx;
+  font-size: 26rpx;
   font-weight: 700;
   color: #223029;
 }
 .review-detail {
   display: block;
-  margin-top: 10rpx;
-  font-size: 24rpx;
+  margin-top: 6rpx;
+  font-size: 22rpx;
   color: #68766e;
-  line-height: 1.55;
+  line-height: 1.45;
 }
 .review-foot {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 14rpx;
+  margin-top: 10rpx;
 }
 .review-time {
   font-size: 22rpx;
@@ -589,27 +595,42 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 }
 
 .filter-block {
-  flex-shrink: 0;
-  position: relative;
-  z-index: 2;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
-  overflow: hidden;
-  background: var(--page-bg, #f5f7f8);
-  padding: 4rpx 0 8rpx;
+  background: #fff;
+  padding: 8rpx 0 4rpx;
+}
+.filter-scroll {
+  width: 100%;
+  white-space: nowrap;
 }
 .order-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12rpx;
-  padding: 8rpx 24rpx;
+  display: inline-flex;
+  flex-wrap: nowrap;
+  padding: 8rpx 24rpx 4rpx;
   align-items: center;
   box-sizing: border-box;
 }
+.order-filters .filter-chip {
+  margin-right: 12rpx;
+}
+.order-filters .filter-chip:last-child {
+  margin-right: 24rpx;
+}
 .order-filters.time-row {
-  padding-top: 0;
-  padding-bottom: 4rpx;
+  display: flex;
+  flex-wrap: wrap;
+  white-space: normal;
+  padding: 12rpx 24rpx 8rpx;
+  margin-top: 0;
+}
+.order-filters.time-row .filter-chip {
+  margin-right: 12rpx;
+  margin-bottom: 4rpx;
+}
+.order-filters.time-row .filter-chip:last-child {
+  margin-right: 0;
 }
 .filter-chip {
   flex-shrink: 0;
@@ -625,7 +646,7 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .filter-chip.time {
   padding: 8rpx 18rpx;
   font-size: 22rpx;
-  background: rgba(255, 255, 255, 0.86);
+  background: #f7faf8;
   border-color: #dceee6;
 }
 .filter-chip.active {
@@ -640,22 +661,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   box-shadow: 0 6rpx 16rpx rgba(4, 120, 87, 0.18);
 }
 
-/* list-wrap 约束区域，避免 H5 scroll-view 铺满盖住筛选；show-scrollbar=false 不露条 */
-.list-wrap {
-  flex: 1;
-  min-height: 0;
-  position: relative;
-  overflow: hidden;
-}
-.list {
-  position: absolute;
-  inset: 0;
-  height: 100%;
-  width: 100%;
-  box-sizing: border-box;
-}
 .list-inner {
-  padding: 8rpx 0 12rpx;
+  padding: 4rpx 0 12rpx;
   box-sizing: border-box;
 }
 .order-card {
@@ -823,13 +830,13 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
 <style>
 /* 非 scoped：确保列表滚动条不露出来 */
-.page .list,
-.page .list-wrap {
+.page .main-scroll,
+.page .filter-scroll {
   scrollbar-width: none !important;
   -ms-overflow-style: none !important;
 }
-.page .list::-webkit-scrollbar,
-.page .list-wrap::-webkit-scrollbar {
+.page .main-scroll::-webkit-scrollbar,
+.page .filter-scroll::-webkit-scrollbar {
   width: 0 !important;
   height: 0 !important;
   display: none !important;

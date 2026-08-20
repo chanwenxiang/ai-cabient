@@ -66,9 +66,13 @@ withDefaults(
   display: flex;
   flex-direction: column;
   align-items: stretch;
+  /* 微信小程序对 flex gap 支持不稳，用相邻 margin 保证间距 */
   gap: 16rpx;
   margin-top: 28rpx;
   width: 100%;
   max-width: 420rpx;
+}
+.empty-actions > *:not(:first-child) {
+  margin-top: 16rpx;
 }
 </style>

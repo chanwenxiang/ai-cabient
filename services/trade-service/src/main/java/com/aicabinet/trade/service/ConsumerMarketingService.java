@@ -65,7 +65,11 @@ public class ConsumerMarketingService {
         if (running.isEmpty()) {
             running = promotionService.listActive();
         }
-        return running.stream().map(p -> toCampaign(p, userId)).toList();
+        // POINTS 活动已下线（无领券能力），不进消费者「进行中」列表，避免展示「已下线」CTA。
+        return running.stream()
+                .filter(p -> p.activityType() == null || !"POINTS".equalsIgnoreCase(p.activityType()))
+                .map(p -> toCampaign(p, userId))
+                .toList();
     }
 
     public List<MarketingBannerDto> banners() {
@@ -143,10 +147,11 @@ public class ConsumerMarketingService {
     private MarketingCampaignDto toCampaign(PromotionActivityDto p, Long userId) {
         String type = p.activityType() != null ? p.activityType() : "DISCOUNT";
         String ctaPath = "/pages/coupons/coupons";
-        String ctaLabel = "去领券";
+        // 「去领券」易被理解成仅跳转券包；实际点击会发券，文案用「立即领取」。
+        String ctaLabel = "立即领取";
         Boolean claimed = null;
-        Boolean claimable = null;
-        if (!"POINTS".equalsIgnoreCase(type) && userId != null) {
+        Boolean claimable = true;
+        if (userId != null) {
             var defs = couponDefinitionRepository.findByActivityId(p.activityId());
             if (!defs.isEmpty()) {
                 Long defId = defs.get(0).getCouponDefId();
@@ -155,15 +160,12 @@ public class ConsumerMarketingService {
                 claimed = count >= limit;
                 claimable = !claimed;
                 if (Boolean.TRUE.equals(claimed)) {
-                    ctaLabel = "已领取";
+                    ctaLabel = "查看券包";
                 }
             } else {
                 claimable = false;
+                ctaLabel = "暂无可领";
             }
-        }
-        if ("POINTS".equalsIgnoreCase(type)) {
-            ctaLabel = "已下线";
-            claimable = false;
         }
         return new MarketingCampaignDto(
                 p.activityId(),

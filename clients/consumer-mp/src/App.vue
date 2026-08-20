@@ -226,6 +226,18 @@ uni-button.btn-block {
   flex-direction: column;
   align-items: stretch;
 }
+.actions > uni-button + uni-button,
+.actions > button + button,
+.btn-stack > uni-button + uni-button,
+.btn-stack > button + button,
+.detail-actions > uni-button + uni-button,
+.detail-actions > button + button,
+.footer-actions > uni-button + uni-button,
+.footer-actions > button + button,
+.error-card > uni-button + uni-button,
+.error-card > button + button {
+  margin-top: 16rpx !important;
+}
 
 .actions > .btn-primary,
 .actions > .btn-outline,
@@ -289,6 +301,16 @@ uni-button.btn-block {
   gap: 16rpx;
   width: 100%;
 }
+/* 微信小程序对 flex gap 支持不稳：竖排空态按钮用相邻 margin */
+.empty-actions > .empty-btn + .empty-btn,
+.empty-actions > .btn-primary + .empty-btn,
+.empty-actions > .empty-btn + .btn-primary,
+.empty-actions > .btn-primary + .btn-outline,
+.empty-actions > .btn-outline + .btn-primary,
+.empty-actions > uni-button + uni-button,
+.empty-actions > button + button {
+  margin-top: 16rpx !important;
+}
 .empty-actions > .empty-btn,
 .empty-actions > .btn-primary,
 .empty-actions > .btn-outline,
@@ -300,6 +322,7 @@ uni-button.btn-block {
   min-width: 0 !important;
   margin-left: 0 !important;
   margin-right: 0 !important;
+  margin-bottom: 0 !important;
   align-self: stretch !important;
   display: flex !important;
   align-items: center !important;

@@ -7,6 +7,41 @@
         <text class="bal-amount">{{ balanceYuan }}</text>
       </view>
 
+      <view class="refund-entry">
+        <text class="refund-title">申请退余额</text>
+        <text class="refund-hint"
+          >仅可退回仍对应微信/支付宝充值的可用余额；审核通过后原路退回，一般 1–7 个工作日到账。</text
+        >
+        <view class="refund-row">
+          <input
+            class="refund-input"
+            type="digit"
+            :value="refundYuan"
+            placeholder="退款金额（元）"
+            maxlength="8"
+            @input="onRefundYuan"
+          />
+          <button
+            class="btn-refund"
+            :disabled="refundBusy || !refundAmountCents"
+            :loading="refundBusy"
+            @click="onApplyRefund"
+          >
+            {{ refundBusy ? '提交中…' : '提交申请' }}
+          </button>
+        </view>
+        <text v-if="refundError" class="custom-error">{{ refundError }}</text>
+        <view v-if="refundRequests.length" class="refund-list">
+          <view v-for="r in refundRequests" :key="r.requestId" class="refund-item">
+            <view>
+              <text class="refund-amt">{{ fmtMoney(r.amountCents) }}</text>
+              <text class="refund-meta">{{ refundStatusLabel(r.status) }}</text>
+            </view>
+            <text class="refund-time">{{ formatRefundTime(r.createdAt) }}</text>
+          </view>
+        </view>
+      </view>
+
       <view class="amount-grid">
         <view
           v-for="item in amounts"
@@ -146,7 +181,7 @@ import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
 import { shortBizNo, formatDateTimeMinute, fmtMoney } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
-import type { PageResult, RechargeOrderDto } from '@aicabinet/shared-types';
+import type { PageResult, RechargeOrderDto, BalanceRefundRequestDto } from '@aicabinet/shared-types';
 import {
   resolveMockEnabled,
   resolveSandboxRecharge,
@@ -178,6 +213,11 @@ const wechatPayLive = ref(false);
 const alipayPayLive = ref(false);
 const paymentModeHint = ref('');
 const mockEnabled = ref(false);
+const refundYuan = ref('');
+const refundAmountCents = ref(0);
+const refundError = ref('');
+const refundBusy = ref(false);
+const refundRequests = ref<BalanceRefundRequestDto[]>([]);
 
 const pendingCount = computed(() => records.value.filter((r) => r.status === 'PENDING').length);
 const visibleRecords = computed(() =>
@@ -187,13 +227,93 @@ const visibleRecords = computed(() =>
 onShow(async () => {
   await ensureConsumerAuth();
   await loadConfig();
-  // 先展示余额/记录，避免 pending 轮询期间长时间停在 ¥0.00
-  await Promise.all([loadBalance(), loadRecords()]);
+  await Promise.all([loadBalance(), loadRecords(), loadRefundRequests()]);
   const paid = await resumePendingRechargeIfAny();
   if (paid) {
     await Promise.all([loadBalance(), loadRecords()]);
   }
 });
+
+function refundStatusLabel(status?: string) {
+  switch (String(status || '').toUpperCase()) {
+    case 'PENDING_REVIEW':
+      return '待审核';
+    case 'REFUNDED':
+      return '已退款';
+    case 'REJECTED':
+      return '已驳回';
+    case 'FAILED':
+      return '失败';
+    default:
+      return status || '—';
+  }
+}
+
+function formatRefundTime(v?: string) {
+  return formatDateTimeMinute(v, '');
+}
+
+function onRefundYuan(e: unknown) {
+  const raw = String(
+    (e as { detail?: { value?: unknown }; target?: { value?: unknown } })?.detail?.value ??
+      (e as { target?: { value?: unknown } })?.target?.value ??
+      ''
+  ).trim();
+  refundYuan.value = raw;
+  refundError.value = '';
+  if (!raw) {
+    refundAmountCents.value = 0;
+    return;
+  }
+  const yuan = Number(raw);
+  if (!Number.isFinite(yuan) || yuan <= 0) {
+    refundAmountCents.value = 0;
+    refundError.value = '请输入大于 0 的金额';
+    return;
+  }
+  if (yuan > 5000) {
+    refundAmountCents.value = 0;
+    refundError.value = '单次申请不超过 ¥5000';
+    return;
+  }
+  refundAmountCents.value = Math.round(yuan * 100);
+}
+
+async function loadRefundRequests() {
+  try {
+    refundRequests.value = (await consumerApi.listBalanceRefunds()) || [];
+  } catch {
+    refundRequests.value = [];
+  }
+}
+
+async function onApplyRefund() {
+  if (!refundAmountCents.value || refundBusy.value) return;
+  const confirmed = await new Promise<boolean>((resolve) =>
+    uni.showModal({
+      title: '提交退余额申请',
+      content: `申请退回 ${fmtMoney(refundAmountCents.value)}。审核通过后原路退回微信/支付宝充值，申请中金额将冻结。`,
+      confirmText: '提交',
+      success: (r) => resolve(!!r.confirm),
+      fail: () => resolve(false)
+    })
+  );
+  if (!confirmed) return;
+  refundBusy.value = true;
+  refundError.value = '';
+  try {
+    await consumerApi.applyBalanceRefund(refundAmountCents.value, '用户申请退可用余额');
+    uni.showToast({ title: '已提交审核', icon: 'success' });
+    refundYuan.value = '';
+    refundAmountCents.value = 0;
+    await Promise.all([loadBalance(), loadRefundRequests()]);
+  } catch (e) {
+    refundError.value = e instanceof Error ? e.message : '提交失败';
+    uni.showToast({ title: refundError.value, icon: 'none' });
+  } finally {
+    refundBusy.value = false;
+  }
+}
 
 function goBack() {
   const pages = getCurrentPages();
@@ -439,6 +559,92 @@ async function onAlipayRecharge() {
   font-weight: 700;
   margin-top: 10rpx;
   display: block;
+}
+.refund-entry {
+  background: #fff;
+  border: 1rpx solid #edf1ef;
+  border-radius: 16rpx;
+  padding: 24rpx;
+  margin-bottom: 28rpx;
+}
+.refund-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #223029;
+}
+.refund-hint {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #849087;
+  line-height: 1.5;
+}
+.refund-row {
+  display: flex;
+  align-items: center;
+  margin-top: 18rpx;
+  gap: 12rpx;
+}
+.refund-input {
+  flex: 1;
+  min-height: 72rpx;
+  height: 72rpx;
+  padding: 0 20rpx;
+  background: #f8faf9;
+  border: 1rpx solid #e3eae6;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+.btn-refund {
+  margin: 0;
+  min-width: 180rpx;
+  min-height: 72rpx;
+  height: 72rpx;
+  padding: 0 24rpx;
+  background: #fff;
+  color: #047857;
+  border: 2rpx solid #059669;
+  border-radius: 36rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+  box-sizing: border-box;
+}
+.btn-refund::after {
+  border: none;
+}
+.btn-refund[disabled] {
+  opacity: 0.45;
+}
+.refund-list {
+  margin-top: 18rpx;
+  border-top: 1rpx solid #eef2f0;
+  padding-top: 12rpx;
+}
+.refund-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12rpx 0;
+}
+.refund-amt {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #223029;
+  margin-right: 12rpx;
+}
+.refund-meta {
+  font-size: 22rpx;
+  color: #059669;
+}
+.refund-time {
+  font-size: 22rpx;
+  color: #94a3b8;
 }
 .amount-grid {
   display: grid;

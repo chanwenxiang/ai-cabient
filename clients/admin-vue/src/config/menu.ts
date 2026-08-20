@@ -265,6 +265,13 @@ const BASE_NAV: NavItem[] = [
     keywords: ['充值', '余额']
   },
   {
+    path: '/balance-refunds',
+    title: '余额退款',
+    group: '财务商户',
+    perm: 'ops:balance-refund:list',
+    keywords: ['余额退款', '退余额', '原路退']
+  },
+  {
     path: '/users',
     title: '用户余额',
     group: '财务商户',

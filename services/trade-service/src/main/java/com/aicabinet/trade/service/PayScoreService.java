@@ -75,7 +75,10 @@ public class PayScoreService {
         String contractId = "PSC-" + userId + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
         user.setPayscoreEnabled(true);
         user.setPayscoreContractId(contractId);
-        user.setPayPreferredChannel(PayChannels.WECHAT);
+        if (!PayChannels.BALANCE.equalsIgnoreCase(
+                user.getPayPreferredChannel() == null ? "" : user.getPayPreferredChannel().trim())) {
+            user.setPayPreferredChannel(PayChannels.WECHAT);
+        }
         userInfoRepository.save(user);
         log.info("payscore contract signed user={} contract={}", userId, contractId);
         return contractId;
@@ -88,7 +91,10 @@ public class PayScoreService {
         }
         String agreementId = "ALI-AG-" + userId + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
         user.setAlipayAgreementId(agreementId);
-        user.setPayPreferredChannel(PayChannels.ALIPAY);
+        if (!PayChannels.BALANCE.equalsIgnoreCase(
+                user.getPayPreferredChannel() == null ? "" : user.getPayPreferredChannel().trim())) {
+            user.setPayPreferredChannel(PayChannels.ALIPAY);
+        }
         userInfoRepository.save(user);
         log.info("alipay agreement signed user={} agreement={}", userId, agreementId);
         return agreementId;
@@ -99,18 +105,19 @@ public class PayScoreService {
     }
 
     /**
-     * @param preferredChannel 会话扫码渠道优先；为空则用用户偏好，再回落到已签约渠道，最后余额
+     * @param preferredChannel 会话扫码渠道优先；为空则用用户偏好，再回落到已签约渠道，最后余额。
+     *                         若用户偏好为 BALANCE，则始终优先扣余额（不被扫码入口 WECHAT/ALIPAY 覆盖）。
      */
     public ChargeResult charge(UserInfo user, String orderId, int amountCents, String description,
                                String preferredChannel) {
         if (amountCents <= 0) {
             return new ChargeResult(PayChannels.BALANCE, null);
         }
-        // Explicit BALANCE preference forces wallet debit (used by channel-scoped E2E).
-        String preferredRaw = preferredChannel != null && !preferredChannel.isBlank()
-                ? preferredChannel
-                : user.getPayPreferredChannel();
-        if (preferredRaw != null && PayChannels.BALANCE.equalsIgnoreCase(preferredRaw.trim())) {
+        String userPrefRaw = user.getPayPreferredChannel();
+        if (userPrefRaw != null && PayChannels.BALANCE.equalsIgnoreCase(userPrefRaw.trim())) {
+            return new ChargeResult(PayChannels.BALANCE, null);
+        }
+        if (preferredChannel != null && PayChannels.BALANCE.equalsIgnoreCase(preferredChannel.trim())) {
             return new ChargeResult(PayChannels.BALANCE, null);
         }
         String preferred = PayChannels.normalizeEntryChannel(preferredChannel);

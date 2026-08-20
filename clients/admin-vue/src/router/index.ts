@@ -189,6 +189,12 @@ const bizChildren: any[] = [
     meta: { title: '充值管理', group: '财务商户' }
   },
   {
+    path: 'balance-refunds',
+    name: 'balance-refunds',
+    component: () => import('@/views/finance/BalanceRefundView.vue'),
+    meta: { title: '余额退款', group: '财务商户' }
+  },
+  {
     path: 'users',
     name: 'users',
     component: () => import('@/views/users/UserListView.vue'),

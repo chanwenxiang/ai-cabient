@@ -40,6 +40,39 @@
       <text class="setup-arrow">去设置 ›</text>
     </view>
 
+    <view v-if="authed" class="pay-pref-card">
+      <text class="pay-pref-title">优先支付方式</text>
+      <text class="pay-pref-hint">关门结算时优先使用；选余额可先花掉账户余额</text>
+      <view class="pay-pref-chips">
+        <text
+          class="pay-pref-chip"
+          :class="{ on: payPreferred === 'BALANCE', busy: payPrefBusy }"
+          @click="onSetPayPreferred('BALANCE')"
+          >余额</text
+        >
+        <text
+          class="pay-pref-chip"
+          :class="{
+            on: payPreferred === 'WECHAT',
+            disabled: !account?.payscoreEnabled,
+            busy: payPrefBusy
+          }"
+          @click="onSetPayPreferred('WECHAT')"
+          >微信免密</text
+        >
+        <text
+          class="pay-pref-chip"
+          :class="{
+            on: payPreferred === 'ALIPAY',
+            disabled: !account?.alipayAgreementEnabled,
+            busy: payPrefBusy
+          }"
+          @click="onSetPayPreferred('ALIPAY')"
+          >支付宝免密</text
+        >
+      </view>
+    </view>
+
     <view class="quick-grid">
       <view class="quick-item" @click="goOrders">
         <image class="quick-icon" :src="menuIcon('orders')" mode="aspectFit" />
@@ -304,6 +337,7 @@ const transactionsPage = ref(0);
 const transactionsHasMore = ref(false);
 const TRANSACTION_PAGE_SIZE = 10;
 const rechargeLoading = ref(false);
+const payPrefBusy = ref(false);
 const mockRechargeEnabled = ref(false);
 const alipayRechargeEnabled = ref(false);
 const wechatRechargeEnabled = ref(false);
@@ -319,10 +353,43 @@ const payReady = computed(() => isPayReady(account.value, null, preauthCents.val
 const needsSetup = computed(() => !verified.value || !payReady.value);
 const displayName = computed(() => account.value?.realName || '我的账户');
 const avatarText = computed(() => account.value?.realName?.slice(0, 1) || '我');
+const payPreferred = computed(() => {
+  const c = String(account.value?.payPreferredChannel || 'BALANCE').toUpperCase();
+  if (c === 'WECHAT' || c === 'ALIPAY' || c === 'BALANCE') return c;
+  return 'BALANCE';
+});
 const setupHint = computed(() => {
   if (!verified.value) return '完成实名并开通免密支付后即可开门';
   return payReadyHint(account.value, null, preauthCents.value);
 });
+
+async function onSetPayPreferred(channel: 'BALANCE' | 'WECHAT' | 'ALIPAY') {
+  if (!authed.value || payPrefBusy.value) return;
+  if (channel === payPreferred.value) return;
+  if (channel === 'WECHAT' && !account.value?.payscoreEnabled) {
+    uni.showToast({ title: '请先开通微信支付分', icon: 'none' });
+    return;
+  }
+  if (channel === 'ALIPAY' && !account.value?.alipayAgreementEnabled) {
+    uni.showToast({ title: '请先开通支付宝免密', icon: 'none' });
+    return;
+  }
+  payPrefBusy.value = true;
+  try {
+    account.value = await consumerApi.setPayPreferred(channel);
+    syncBalanceDisplay(account.value);
+    const label =
+      channel === 'BALANCE' ? '余额' : channel === 'WECHAT' ? '微信免密' : '支付宝免密';
+    uni.showToast({ title: `已优先${label}`, icon: 'success' });
+  } catch (e) {
+    uni.showToast({
+      title: e instanceof Error ? e.message : '设置失败',
+      icon: 'none'
+    });
+  } finally {
+    payPrefBusy.value = false;
+  }
+}
 
 function syncBalanceDisplay(acc: AccountDto | null) {
   if (!acc) {
@@ -806,6 +873,58 @@ function onLogout() {
   font-weight: 500;
   white-space: nowrap;
   margin-left: 12rpx;
+}
+
+.pay-pref-card {
+  margin: 12rpx 24rpx 0;
+  padding: 22rpx 24rpx 20rpx;
+  background: #fff;
+  border-radius: 14rpx;
+  border: 1rpx solid #edf1ef;
+}
+.pay-pref-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: 700;
+  color: #223029;
+}
+.pay-pref-hint {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #849087;
+  line-height: 1.45;
+}
+.pay-pref-chips {
+  display: flex;
+  margin-top: 16rpx;
+}
+.pay-pref-chip {
+  flex: 1;
+  text-align: center;
+  padding: 16rpx 8rpx;
+  margin-right: 12rpx;
+  border-radius: 12rpx;
+  background: #f4f7f5;
+  color: #53645b;
+  font-size: 24rpx;
+  border: 2rpx solid transparent;
+  box-sizing: border-box;
+}
+.pay-pref-chip:last-child {
+  margin-right: 0;
+}
+.pay-pref-chip.on {
+  background: #ecfdf5;
+  color: #047857;
+  border-color: #34d399;
+  font-weight: 700;
+}
+.pay-pref-chip.disabled {
+  opacity: 0.45;
+}
+.pay-pref-chip.busy {
+  opacity: 0.7;
 }
 
 .quick-grid {

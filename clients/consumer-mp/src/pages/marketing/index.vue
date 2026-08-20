@@ -49,8 +49,11 @@
             <text class="campaign-desc">{{ c.description }}</text>
             <view class="campaign-foot">
               <text class="campaign-time">{{ formatRange(c.startTime, c.endTime) }}</text>
-              <text class="campaign-cta" :class="{ muted: c.claimed || claimingId === c.id }">
-                {{ claimingId === c.id ? '领取中…' : c.ctaLabel }} ›
+              <text
+                class="campaign-cta"
+                :class="{ muted: c.claimed || !c.claimable || claimingId === c.id }"
+              >
+                {{ claimingId === c.id ? '领取中…' : displayCta(c) }} ›
               </text>
             </view>
           </view>
@@ -107,7 +110,8 @@ async function load() {
             ctaPath: '/pages/coupons/coupons'
           }
         ];
-    campaigns.value = c || [];
+    // POINTS 已下线，兜底过滤（后端也会过滤）
+    campaigns.value = (c || []).filter((x) => String(x.type || '').toUpperCase() !== 'POINTS');
     if (authed.value) {
       try {
         couponCount.value = Number(await consumerApi.couponCount()) || 0;
@@ -141,16 +145,23 @@ function openPath(path?: string) {
   uni.navigateTo({ url: path });
 }
 
+function displayCta(c: MarketingCampaignDto) {
+  if (c.claimed) return c.ctaLabel || '查看券包';
+  if (c.claimable === false) return c.ctaLabel || '暂不可领';
+  return c.ctaLabel || '立即领取';
+}
+
 async function onCampaignClick(c: MarketingCampaignDto) {
   if (!c?.id) return;
-  if (c.type === 'POINTS') {
+  if (String(c.type || '').toUpperCase() === 'POINTS') {
     uni.showToast({ title: '该活动类型已下线', icon: 'none' });
     return;
   }
-  if (c.claimed || claimingId.value === c.id) {
-    openPath('/pages/coupons/coupons');
+  if (c.claimed || c.claimable === false) {
+    openPath(c.ctaPath || '/pages/coupons/coupons');
     return;
   }
+  if (claimingId.value === c.id) return;
   if (!(await requireConsumerAuth('领取活动需先完成登录', '/pages/marketing/index'))) return;
   claimingId.value = c.id;
   try {
@@ -159,20 +170,21 @@ async function onCampaignClick(c: MarketingCampaignDto) {
     uni.showToast({ title: `已领取 ${name}`, icon: 'success' });
     c.claimed = true;
     c.claimable = false;
-    c.ctaLabel = '已领取';
+    c.ctaLabel = '查看券包';
     try {
       couponCount.value = await consumerApi.couponCount();
     } catch {
       /* keep previous count */
     }
-    setTimeout(() => openPath('/pages/coupons/coupons'), 400);
+    setTimeout(() => openPath(c.ctaPath || '/pages/coupons/coupons'), 400);
   } catch (e) {
     const msg = e instanceof Error ? e.message : '领取失败';
     uni.showToast({ title: msg, icon: 'none' });
     if (String(msg).includes('已领取')) {
       c.claimed = true;
-      c.ctaLabel = '已领取';
-      openPath('/pages/coupons/coupons');
+      c.claimable = false;
+      c.ctaLabel = '查看券包';
+      openPath(c.ctaPath || '/pages/coupons/coupons');
     }
   } finally {
     claimingId.value = null;
@@ -390,7 +402,9 @@ function formatRange(start?: string, end?: string) {
   color: #999;
 }
 .empty-btn {
-  margin: 0;
+  margin-left: 0;
+  margin-right: 0;
+  margin-bottom: 0;
   width: 100%;
   min-height: 72rpx;
   height: 72rpx;

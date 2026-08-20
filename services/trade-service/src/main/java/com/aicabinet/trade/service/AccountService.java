@@ -98,4 +98,29 @@ public class AccountService {
         userInfoRepository.save(user);
         return getAccount(userId);
     }
+
+    @Transactional
+    public AccountDto setPayPreferredChannel(Long userId, String channel) {
+        UserInfo user = userInfoRepository.findById(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+        String normalized = channel == null ? "" : channel.trim().toUpperCase();
+        if (!PayChannels.BALANCE.equals(normalized)
+                && !PayChannels.WECHAT.equals(normalized)
+                && !PayChannels.ALIPAY.equals(normalized)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
+        }
+        if (PayChannels.WECHAT.equals(normalized)
+                && !(user.isPayscoreEnabled()
+                && user.getPayscoreContractId() != null
+                && !user.getPayscoreContractId().isBlank())) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "请先开通微信支付分后再设为优先");
+        }
+        if (PayChannels.ALIPAY.equals(normalized)
+                && (user.getAlipayAgreementId() == null || user.getAlipayAgreementId().isBlank())) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED, "请先开通支付宝免密后再设为优先");
+        }
+        user.setPayPreferredChannel(normalized);
+        userInfoRepository.save(user);
+        return getAccount(userId);
+    }
 }

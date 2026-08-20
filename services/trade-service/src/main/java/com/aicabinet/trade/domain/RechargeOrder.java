@@ -38,4 +38,7 @@ public class RechargeOrder {
     private Instant paidAt;
     private Instant refundedAt;
 
+    /** 已原路退回金额（分）；可多次部分退，直至达到 amountCents。 */
+    private int refundedCents;
+
 }
