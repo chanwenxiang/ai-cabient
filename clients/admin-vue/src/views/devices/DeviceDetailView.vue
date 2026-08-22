@@ -595,7 +595,7 @@
           <template #default="{ row }">{{ repairStatusLabel(row.status) }}</template>
         </el-table-column>
         <el-table-column label="优先级" width="88" align="center">
-          <template #default="{ row }">{{ row.priority || '暂无' }}</template>
+          <template #default="{ row }">{{ priorityLabel(row.priority) }}</template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建" width="150" align="center">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
@@ -680,7 +680,7 @@
                 <el-tag v-if="device?.activeSessionState" size="small" effect="plain">
                   {{ dictLabel('session_state', device.activeSessionState) }}
                 </el-tag>
-                <span v-else>-</span>
+                <span v-else class="muted">暂无</span>
               </template>
               <span v-else>暂无</span>
             </el-descriptions-item>
@@ -884,8 +884,7 @@
             <el-table-column label="入口" width="88" align="center">
               <template #default="{ row }">
                 {{
-                  dictLabel('pay_channel', row.entryChannel || row.payChannel) ||
-                  row.entryChannel || '暂无'
+                  displayLabel('pay_channel', row.entryChannel || row.payChannel, '暂无')
                 }}
               </template>
             </el-table-column>
@@ -966,7 +965,7 @@
             </el-table-column>
             <el-table-column label="渠道" width="88" align="center">
               <template #default="{ row }">
-                {{ dictLabel('pay_channel', row.payChannel) || row.payChannel || '暂无' }}
+                {{ displayLabel('pay_channel', row.payChannel, '暂无') }}
               </template>
             </el-table-column>
             <el-table-column label="金额" width="100" align="center" class-name="col-money">
@@ -1084,7 +1083,7 @@ import { computed, onActivated, onMounted, reactive, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh, View } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, authFetch, downloadAuthFile } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import SlotGrid from '@/components/SlotGrid.vue';
@@ -1240,7 +1239,7 @@ async function loadEnvReadings() {
 }
 
 function envTypeLabel(type: string) {
-  return dictLabel('device_env_type', type) || type;
+  return displayLabel('device_env_type', type, '未知');
 }
 
 function envUnit(type: string) {
@@ -1348,11 +1347,11 @@ const qrDownloading = ref(false);
 let qrObjectUrl: string | null = null;
 
 function lifecycleLabel(status?: string | null) {
-  return dictLabel('device_lifecycle', status || 'DEPLOYED') || status || '未知状态';
+  return displayLabel('device_lifecycle', status || 'DEPLOYED', '未知状态');
 }
 
 function lifecycleActionLabel(action?: string | null) {
-  return dictLabel('device_lifecycle_action', action) || action || '未知';
+  return displayLabel('device_lifecycle_action', action, '未知');
 }
 
 function revokeQrPreview() {
@@ -1487,7 +1486,11 @@ async function loadRepairTickets() {
 }
 
 function repairStatusLabel(s?: string) {
-  return dictLabel('repair_ticket_status', s) || s || '未知状态';
+  return displayLabel('repair_ticket_status', s, '未知状态');
+}
+
+function priorityLabel(p?: string) {
+  return displayLabel('dispute_priority', p, '暂无');
 }
 
 async function createRepair() {

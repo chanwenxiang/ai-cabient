@@ -204,7 +204,7 @@ const displayItems = computed(() => {
 });
 
 function eventTypeLabel(t?: string) {
-  return dictLabel('device_ops_event', t) || t || '未知';
+  return displayLabel('device_ops_event', t, '未知');
 }
 function severityLabel(s?: string) {
   return displayLabel('risk_severity', s, '未知');
@@ -231,9 +231,9 @@ function formatEventDetail(detail?: string) {
       const val = part.slice(i + 1).trim();
       const keyLabel = keyLabels[key] || key;
       let valLabel = val;
-      if (key === 'onlineStatus') valLabel = dictLabel('online_status', val) || val;
+      if (key === 'onlineStatus') valLabel = displayLabel('online_status', val, '未知');
       else if (key === 'lifecycle' || key === 'lifecycleStatus')
-        valLabel = dictLabel('device_lifecycle', val) || val;
+        valLabel = displayLabel('device_lifecycle', val, '未知');
       else if (key === 'salesLocked')
         valLabel =
           val === 'true' || val === 't' || val === '1'

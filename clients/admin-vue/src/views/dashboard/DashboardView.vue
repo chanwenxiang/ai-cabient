@@ -284,7 +284,7 @@ import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import TableActions from '@/components/TableActions.vue';
 import { useNavAccess } from '@/composables/useNavAccess';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import { shortBizNo } from '@aicabinet/shared-uni/format';
 import type { OpsWorkbench, PageResult } from '@aicabinet/shared-types';
 
@@ -556,7 +556,7 @@ function priority(severity = '') {
 }
 
 function typeLabel(type = '') {
-  return dictLabel('ops_alert_type', type) || type;
+  return displayLabel('ops_alert_type', type, '其他告警');
 }
 
 function contextLabel(row: OpsActionItem) {

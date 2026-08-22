@@ -128,7 +128,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api, authFetch } from '@/api/client';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import type { MediaAssetDto } from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
@@ -257,7 +257,7 @@ async function removeAsset(row: MediaAssetDto) {
 }
 
 function typeLabel(type: string) {
-  return dictLabel('ad_asset_type', type) || type;
+  return displayLabel('ad_asset_type', type, '未知');
 }
 
 function formatDateTime(iso?: string) {

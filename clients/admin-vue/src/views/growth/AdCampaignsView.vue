@@ -158,7 +158,7 @@ import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import type { AdCampaignDto, MediaAssetDto } from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
@@ -310,7 +310,7 @@ async function removeCampaign(row: AdCampaignDto) {
 }
 
 function statusLabel(s: string) {
-  return dictLabel('ad_campaign_status', s) || s;
+  return displayLabel('ad_campaign_status', s, '未知');
 }
 
 function statusType(s: string) {
@@ -321,7 +321,7 @@ function statusType(s: string) {
 }
 
 function typeLabel(t: string) {
-  return dictLabel('ad_asset_type', t) || t;
+  return displayLabel('ad_asset_type', t, '未知');
 }
 
 function formatRange(row: AdCampaignDto) {

@@ -346,7 +346,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import type { OrgNodeDto, SiteContractDto } from '@aicabinet/shared-types';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 
 const loading = ref(false);
 const saving = ref(false);
@@ -690,7 +690,7 @@ async function saveRentSplit() {
 }
 
 function contractStatusLabel(s: string) {
-  return dictLabel('site_contract_status', s) || s;
+  return displayLabel('site_contract_status', s, '未知');
 }
 
 function contractStatusType(s: string) {

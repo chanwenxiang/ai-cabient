@@ -212,7 +212,7 @@
               <el-table-column label="商户状态" width="100" align="center">
                 <template #default="{ row }">
                   <el-tag size="small" effect="plain">{{
-                    dictLabel('merchant_status', row.status) || row.status || '正常'
+                    displayLabel('merchant_status', row.status, '未知')
                   }}</el-tag>
                 </template>
               </el-table-column>
@@ -669,7 +669,7 @@ import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { CircleCheck, Refresh, RefreshRight, Upload } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';

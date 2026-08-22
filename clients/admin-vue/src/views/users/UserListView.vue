@@ -65,6 +65,32 @@
             </template>
           </el-table-column>
           <el-table-column
+            label="姓名"
+            min-width="120"
+            class-name="col-text"
+            label-class-name="col-text"
+            align="center"
+            header-align="center"
+          >
+            <template #default="{ row }">{{ userNameText(row) }}</template>
+          </el-table-column>
+          <el-table-column
+            label="手机号"
+            width="140"
+            class-name="col-text"
+            label-class-name="col-text"
+            align="center"
+            header-align="center"
+          >
+            <template #default="{ row }">{{ textOrNone(row.phoneNumber) }}</template>
+          </el-table-column>
+          <el-table-column label="角色" width="110" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.role" size="small" effect="plain">{{ roleLabel(row.role) }}</el-tag>
+              <span v-else class="muted">暂无</span>
+            </template>
+          </el-table-column>
+          <el-table-column
             label="余额"
             width="120"
             align="right"
@@ -75,32 +101,6 @@
             <template #default="{ row }"
               >¥{{ ((row.balanceCents || 0) / 100).toFixed(2) }}</template
             >
-          </el-table-column>
-          <el-table-column
-            label="用户"
-            min-width="120"
-            class-name="col-text"
-            label-class-name="col-text"
-            align="center"
-            header-align="center"
-          >
-            <template #default="{ row }">{{ row.name || '未命名' }}</template>
-          </el-table-column>
-          <el-table-column
-            label="手机号"
-            width="140"
-            class-name="col-text"
-            label-class-name="col-text"
-            align="center"
-            header-align="center"
-          >
-            <template #default="{ row }">{{ row.phoneNumber || '无' }}</template>
-          </el-table-column>
-          <el-table-column label="角色" width="110" align="center">
-            <template #default="{ row }">
-              <el-tag v-if="row.role" size="small" effect="plain">{{ row.role }}</el-tag>
-              <span v-else class="muted">无</span>
-            </template>
           </el-table-column>
           <el-table-column label="实名" width="96" align="center">
             <template #default="{ row }">
@@ -218,7 +218,8 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import type { PageResult } from '@aicabinet/shared-types';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
+import { textOrNone } from '@/utils/display';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface UserRow {
@@ -235,7 +236,17 @@ interface UserRow {
 }
 
 function memberLevelLabel(level?: string) {
-  return dictLabel('member_level', level) || level || '普通';
+  return displayLabel('member_level', level, '普通');
+}
+
+function userNameText(row: UserRow) {
+  const name = row.name != null ? String(row.name).trim() : '';
+  if (name) return name;
+  return '暂无';
+}
+
+function roleLabel(role?: string) {
+  return displayLabel('user_role', role, '暂无');
 }
 
 const route = useRoute();
@@ -318,8 +329,8 @@ const { onExport } = useListCsv({
     pickSelected(items.value).map((row) => [
       row.userId,
       row.phoneNumber,
-      row.name,
-      row.role || '无',
+      userNameText(row),
+      roleLabel(row.role),
       row.verified ? '已实名' : '未实名',
       ((row.balanceCents || 0) / 100).toFixed(2),
       formatDateTime(row.createdAt)

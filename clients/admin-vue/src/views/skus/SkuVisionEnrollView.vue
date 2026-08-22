@@ -840,9 +840,9 @@ function enrollmentLabel(status?: string) {
 }
 
 function categoryLabel(code?: string | null) {
-  if (!code) return '无';
+  if (!code) return '暂无';
   void dictRuntimeEpoch.value;
-  return dictLabel('category_code', code) || code;
+  return displayLabel('category_code', code, '未分类');
 }
 
 /** 字典键值入库；兼容历史中文标签 */

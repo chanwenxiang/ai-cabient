@@ -1125,7 +1125,7 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import { sortByPrimaryKey } from '@/utils/sort-by-pk';
-import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 type Row = Record<string, any>;
@@ -1833,7 +1833,7 @@ function formatTaskDuration(row: Row) {
 
 function lineTypeLabel(type?: string) {
   const code = String(type || 'RESTOCK').toUpperCase();
-  return dictLabel('restock_line_type', code) || code;
+  return displayLabel('restock_line_type', code, '未知');
 }
 
 function formatFileSize(size?: number) {

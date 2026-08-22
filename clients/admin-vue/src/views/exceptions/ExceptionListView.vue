@@ -112,7 +112,7 @@
             >
               <template #default="{ row }">
                 <button type="button" class="link-cell" @click="openDetail(row)">
-                  {{ row.title || dictLabel('exception_type', row.exceptionType) || '无' }}
+                  {{ row.title || displayLabel('exception_type', row.exceptionType, '暂无') }}
                 </button>
               </template>
             </el-table-column>
@@ -380,7 +380,7 @@
                   >
                     {{ detail.exception.deviceId }}
                   </button>
-                  <span v-else>-</span>
+                  <span v-else class="muted">暂无</span>
                 </el-descriptions-item>
                 <el-descriptions-item label="关联会话">
                   <button
@@ -391,7 +391,7 @@
                   >
                     {{ detail.exception.sessionId }}
                   </button>
-                  <span v-else>-</span>
+                  <span v-else class="muted">暂无</span>
                 </el-descriptions-item>
                 <el-descriptions-item label="关联订单">
                   <button
@@ -402,7 +402,7 @@
                   >
                     {{ detail.exception.orderId }}
                   </button>
-                  <span v-else>-</span>
+                  <span v-else class="muted">暂无</span>
                 </el-descriptions-item>
                 <el-descriptions-item label="时限截止">
                   <div class="sla-cell">
@@ -424,7 +424,7 @@
                         >剩 {{ formatDurationUntil(detail.exception.slaDueAt) }}</small
                       >
                     </template>
-                    <span v-else>-</span>
+                    <span v-else class="muted">暂无</span>
                   </div>
                 </el-descriptions-item>
               </el-descriptions>
@@ -552,6 +552,7 @@ import {
   dictLabel,
   dictOptions,
   dictTagType,
+  displayLabel,
   formatOpsActionDetail
 } from '@aicabinet/shared-dict';
 import type { PageResult } from '@aicabinet/shared-types';
@@ -742,7 +743,7 @@ function isDeviceScopedException(row: OpsException) {
 }
 
 function emptyRefLabel(row: OpsException) {
-  return isDeviceScopedException(row) ? '无' : '无';
+  return '暂无';
 }
 
 function emptyRefHint(row: OpsException) {

@@ -47,7 +47,7 @@
                 <template #default="{ row }">
                   <div class="id-cell">
                     <strong>{{
-                      dictLabel('risk_event_type', row.eventType) || row.eventType || '未知'
+                      displayLabel('risk_event_type', row.eventType, '未知')
                     }}</strong>
                     <small>{{ row.eventId }}</small>
                   </div>
@@ -249,7 +249,7 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import type { PageResult } from '@aicabinet/shared-types';
-import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
+import { dictLabel, dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 function dispositionLabel(s?: string) {

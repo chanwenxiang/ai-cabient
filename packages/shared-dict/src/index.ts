@@ -209,6 +209,12 @@ export const DICT = {
     MERCHANT: '商户',
     CONSUMER: '消费者'
   },
+  user_role: {
+    CONSUMER: '消费者',
+    OPERATOR: '运营账号',
+    MERCHANT: '商户',
+    OPS: '运营'
+  },
   promotion_type: {
     FULL_REDUCE: '满减',
     DISCOUNT: '折扣',

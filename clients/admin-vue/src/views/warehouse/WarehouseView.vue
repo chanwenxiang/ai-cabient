@@ -2106,7 +2106,7 @@ import { useListCsv } from '@/composables/useListCsv';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
-import { dictLabel, dictOptions, dictTagType } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, dictTagType, displayLabel } from '@aicabinet/shared-dict';
 import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 type Row = Record<string, any>;
@@ -2906,10 +2906,10 @@ function skuName(id: string) {
   return skus.value.find((s) => s.skuId === id)?.skuName || id || '无';
 }
 function suggestionReasonText(code: string) {
-  return dictLabel('purchase_suggestion_reason', code) || code || '暂无';
+  return displayLabel('purchase_suggestion_reason', code, '暂无');
 }
 function payableStatusText(code: string) {
-  return dictLabel('supplier_payable_status', code) || code || '暂无';
+  return displayLabel('supplier_payable_status', code, '暂无');
 }
 function payableStatusType(code: string) {
   const map: Record<string, string> = {
@@ -2921,10 +2921,10 @@ function payableStatusType(code: string) {
   return map[code] || 'info';
 }
 function stocktakeModeText(mode: string) {
-  return dictLabel('stocktake_mode', mode) || mode;
+  return displayLabel('stocktake_mode', mode, '未知');
 }
 function stocktakeStatusText(code: string) {
-  return dictLabel('stocktake_status', code) || code || '暂无';
+  return displayLabel('stocktake_status', code, '暂无');
 }
 function stocktakeStatusType(code: string) {
   const map: Record<string, string> = {
@@ -2937,7 +2937,7 @@ function stocktakeStatusType(code: string) {
   return map[code] || 'info';
 }
 function stocktakeLineStatusText(code: string) {
-  return dictLabel('stocktake_line_status', code) || code || '暂无';
+  return displayLabel('stocktake_line_status', code, '暂无');
 }
 function stocktakeLineStatusType(code: string) {
   const map: Record<string, string> = {

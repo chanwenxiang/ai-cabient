@@ -130,9 +130,7 @@
             <template #default="{ row }">
               <el-tag v-if="row.entryChannel || row.payChannel" size="small" effect="plain">
                 {{
-                  dictLabel('pay_channel', row.entryChannel || row.payChannel) ||
-                  row.entryChannel ||
-                  row.payChannel
+                  displayLabel('pay_channel', row.entryChannel || row.payChannel, '未知渠道')
                 }}
               </el-tag>
               <span v-else class="muted">无</span>
@@ -206,7 +204,7 @@
           <el-table-column label="状态" width="110" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="sessionStateType(row.state)">
-                {{ dictLabel('session_state', row.state) || row.state || '未知状态' }}
+                {{ displayLabel('session_state', row.state, '未知状态') }}
               </el-tag>
             </template>
           </el-table-column>
@@ -300,7 +298,7 @@
             >
               {{ timelineRow.deviceId }}
             </button>
-            <span v-else>-</span>
+            <span v-else class="muted">暂无</span>
           </el-descriptions-item>
           <el-descriptions-item label="订单">
             <button
@@ -311,18 +309,13 @@
             >
               {{ timelineRow.orderId }}
             </button>
-            <span v-else>-</span>
+            <span v-else class="muted">暂无</span>
           </el-descriptions-item>
           <el-descriptions-item label="状态">
-            {{ dictLabel('session_state', timelineRow.state) }}
+            {{ displayLabel('session_state', timelineRow.state, '未知状态') }}
           </el-descriptions-item>
           <el-descriptions-item label="入口渠道">
-            {{
-              dictLabel('pay_channel', timelineRow.entryChannel || timelineRow.payChannel) ||
-              timelineRow.entryChannel ||
-              timelineRow.payChannel ||
-              '无'
-            }}
+            {{ displayLabel('pay_channel', timelineRow.entryChannel || timelineRow.payChannel, '暂无') }}
           </el-descriptions-item>
           <el-descriptions-item label="录像">
             {{ uploadStatusShort(timelineRow) }}
@@ -335,7 +328,7 @@
             {{ formatDateTime(timelineRow.openTime || timelineRow.createdAt) }}
           </el-descriptions-item>
           <el-descriptions-item label="关门">
-            {{ timelineRow.closeTime ? formatDateTime(timelineRow.closeTime) : '' }}
+            {{ timelineRow.closeTime ? formatDateTime(timelineRow.closeTime) : '暂无' }}
           </el-descriptions-item>
         </el-descriptions>
         <el-timeline>
@@ -389,7 +382,7 @@ import {
   VideoCamera
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -645,7 +638,7 @@ function uploadStatusShort(row: SessionRow) {
   if (row.videoUri || row.videoPreviewUrl || st === 'UPLOADED') return '有录像';
   if (st === 'UPLOADING' || st === 'LOCAL_QUEUED') return '上传中';
   if (st.includes('FAIL')) return '失败';
-  if (st && st !== 'NONE') return dictLabel('upload_status', row.uploadStatus) || st;
+  if (st && st !== 'NONE') return displayLabel('upload_status', row.uploadStatus, '未知');
   return '无';
 }
 
@@ -695,7 +688,7 @@ function canCancel(s?: string) {
 }
 
 function sessionKindLabel(kind?: string) {
-  return dictLabel('session_kind', kind) || '消费';
+  return displayLabel('session_kind', kind, '消费');
 }
 
 function sessionKindType(kind?: string) {
@@ -760,7 +753,7 @@ function sessionTimeline(row: SessionRow) {
       label: '录像上传',
       time: formatDateTime(row.updatedAt),
       type: String(row.uploadStatus).includes('FAIL') ? 'danger' : 'warning',
-      detail: dictLabel('upload_status', row.uploadStatus) || row.uploadStatus
+      detail: displayLabel('upload_status', row.uploadStatus, '未知')
     });
   }
   if (row.orderId) {

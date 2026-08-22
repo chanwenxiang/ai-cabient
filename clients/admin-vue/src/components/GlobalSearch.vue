@@ -3,7 +3,7 @@
     <el-input
       v-model="keyword"
       aria-label="全局搜索"
-      placeholder="搜索页面名称或关键词 (Ctrl+K)…"
+      placeholder="搜索页面名称或关键词…"
       title="全局搜索（Ctrl+K）"
       :prefix-icon="Search"
       clearable
