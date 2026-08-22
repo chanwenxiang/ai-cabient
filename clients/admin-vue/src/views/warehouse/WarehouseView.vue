@@ -12,6 +12,12 @@
           <el-button v-if="canEdit && tab === 'warehouses'" type="primary" @click="openWarehouse()"
             >新增仓库</el-button
           >
+          <el-button
+            v-if="canWarehouseEdit && tab === 'transfers'"
+            type="primary"
+            @click="openTransferCreate"
+            >新建调拨</el-button
+          >
           <el-button v-if="canEdit && tab === 'suppliers'" type="primary" @click="openSupplier()"
             >新增供应商</el-button
           >
@@ -329,6 +335,100 @@
                     :actions="[{ key: 'edit', label: '编辑', icon: EditPen, type: 'primary' }]"
                     @action="() => openWarehouse(row)"
                   />
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane v-if="canWarehouseList" label="仓间调拨" name="transfers">
+        <div class="table-scroll">
+          <div class="table-scroll-inner">
+            <el-table
+              v-loading="isTabLoading('transfers')"
+              :data="transfers"
+              stripe
+              border
+              class="report-table"
+              empty-text=" "
+            >
+              <template #empty>
+                <el-empty
+                  v-if="hydratedTabs.has('transfers') && !isTabLoading('transfers')"
+                  description="暂无调拨单"
+                />
+              </template>
+              <el-table-column prop="transferNo" label="调拨单号" min-width="160" show-overflow-tooltip />
+              <el-table-column label="调出仓" min-width="120" show-overflow-tooltip>
+                <template #default="{ row }">{{
+                  warehouseName(row.fromWarehouseId) || row.fromWarehouseId
+                }}</template>
+              </el-table-column>
+              <el-table-column label="调入仓" min-width="120" show-overflow-tooltip>
+                <template #default="{ row }">{{
+                  warehouseName(row.toWarehouseId) || row.toWarehouseId
+                }}</template>
+              </el-table-column>
+              <el-table-column label="状态" width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag size="small" effect="plain">{{
+                    transferStatusLabel(row.status)
+                  }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="明细" min-width="180" show-overflow-tooltip>
+                <template #default="{ row }">
+                  {{
+                    (row.lines || [])
+                      .map(
+                        (l: any) =>
+                          `${skuName(l.skuId) || l.skuId}×${l.quantity}${l.batchNo ? '(' + l.batchNo + ')' : ''}`
+                      )
+                      .join(' · ') || '—'
+                  }}
+                </template>
+              </el-table-column>
+              <el-table-column label="发运" width="150" align="center">
+                <template #default="{ row }">
+                  <span class="cell-datetime">{{
+                    row.shippedAt ? formatDateTime(row.shippedAt) : '—'
+                  }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="收货" width="150" align="center">
+                <template #default="{ row }">
+                  <span class="cell-datetime">{{
+                    row.receivedAt ? formatDateTime(row.receivedAt) : '—'
+                  }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="备注" min-width="100" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.notes || '—' }}</template>
+              </el-table-column>
+              <el-table-column v-if="canWarehouseEdit" label="操作" width="200" align="center">
+                <template #default="{ row }">
+                  <el-button
+                    v-if="row.status === 'DRAFT'"
+                    link
+                    type="primary"
+                    @click="shipTransfer(row)"
+                    >发运</el-button
+                  >
+                  <el-button
+                    v-if="row.status === 'SHIPPED'"
+                    link
+                    type="success"
+                    @click="receiveTransfer(row)"
+                    >收货</el-button
+                  >
+                  <el-button
+                    v-if="row.status === 'DRAFT'"
+                    link
+                    type="danger"
+                    @click="cancelTransfer(row)"
+                    >取消</el-button
+                  >
                 </template>
               </el-table-column>
             </el-table>
@@ -1715,15 +1815,36 @@
       class="dialog-wide"
       destroy-on-close
     >
+      <el-form label-width="100px" style="margin-bottom: 8px">
+        <el-form-item label="收货仓库">
+          <el-select v-model="receiveForm.receiveWarehouseId" filterable style="width: 100%">
+            <el-option
+              v-for="w in warehouses"
+              :key="w.warehouseId"
+              :label="`${w.warehouseName || w.warehouseId}（${w.warehouseId}）`"
+              :value="w.warehouseId"
+            />
+          </el-select>
+        </el-form-item>
+      </el-form>
       <div class="table-scroll">
         <el-table :data="receiveForm.lines" class="receive-table">
-          <el-table-column label="商品" min-width="180" align="center">
+          <el-table-column label="商品" min-width="160" align="center">
             <template #default="{ row }">
-              {{ skuName(row.skuId) }}
+              <div>{{ skuName(row.skuId) }}</div>
+              <small class="muted">{{ row.skuId }}</small>
             </template>
           </el-table-column>
-          <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
+          <el-table-column prop="batchNo" label="批次" min-width="120" align="center" />
+          <el-table-column prop="expiryDate" label="到期日" width="110" align="center">
+            <template #default="{ row }">{{ row.expiryDate || '—' }}</template>
+          </el-table-column>
           <el-table-column prop="orderedQty" label="采购数" width="90" align="center" />
+          <el-table-column label="待收" width="80" align="center">
+            <template #default="{ row }">
+              {{ Math.max(0, Number(row.orderedQty || 0) - Number(row.receivedQty || 0)) }}
+            </template>
+          </el-table-column>
           <el-table-column label="累计收货" width="150" align="center">
             <template #default="{ row }">
               <el-input-number
@@ -1745,6 +1866,47 @@
       <template #footer>
         <el-button @click="receiveDialog = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="saveReceive">确认收货</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="transferDialog" title="新建仓间调拨" width="520px" destroy-on-close>
+      <el-form label-width="100px">
+        <el-form-item label="调出仓" required>
+          <el-select v-model="transferForm.fromWarehouseId" filterable style="width: 100%">
+            <el-option
+              v-for="w in warehouses"
+              :key="w.warehouseId"
+              :label="w.warehouseName || w.warehouseId"
+              :value="w.warehouseId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="调入仓" required>
+          <el-select v-model="transferForm.toWarehouseId" filterable style="width: 100%">
+            <el-option
+              v-for="w in warehouses"
+              :key="'to-' + w.warehouseId"
+              :label="w.warehouseName || w.warehouseId"
+              :value="w.warehouseId"
+            />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="SKU" required>
+          <el-input v-model="transferForm.skuId" placeholder="skuId" />
+        </el-form-item>
+        <el-form-item label="批次">
+          <el-input v-model="transferForm.batchNo" placeholder="可空" />
+        </el-form-item>
+        <el-form-item label="数量" required>
+          <el-input-number v-model="transferForm.quantity" :min="1" />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="transferForm.notes" type="textarea" :rows="2" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="transferDialog = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveTransfer">创建</el-button>
       </template>
     </el-dialog>
 
@@ -1779,14 +1941,21 @@
         </el-form>
         <div class="table-scroll">
           <el-table :data="returnForm.lines" class="receive-table">
-            <el-table-column label="商品" min-width="180" align="center">
+            <el-table-column label="商品" min-width="160" align="center">
               <template #default="{ row }">
-                {{ skuName(row.skuId) }}
+                <div>{{ skuName(row.skuId) }}</div>
+                <small class="muted">{{ row.skuId }}</small>
               </template>
             </el-table-column>
-            <el-table-column prop="batchNo" label="批次" min-width="140" align="center" />
+            <el-table-column prop="batchNo" label="批次" min-width="120" align="center" />
+            <el-table-column prop="expiryDate" label="到期日" width="110" align="center">
+              <template #default="{ row }">{{ row.expiryDate || '—' }}</template>
+            </el-table-column>
             <el-table-column prop="receivedQty" label="已收" width="80" align="center" />
             <el-table-column prop="returnedQty" label="已退" width="80" align="center" />
+            <el-table-column label="可退" width="72" align="center">
+              <template #default="{ row }">{{ row.maxQty ?? '—' }}</template>
+            </el-table-column>
             <el-table-column label="本次退货" width="150" align="center">
               <template #default="{ row }">
                 <el-input-number
@@ -2047,6 +2216,16 @@ const {
 
 const purchaseOrders = ref<Row[]>([]);
 const purchaseReturns = ref<Row[]>([]);
+const transfers = ref<Row[]>([]);
+const transferDialog = ref(false);
+const transferForm = reactive({
+  fromWarehouseId: '',
+  toWarehouseId: '',
+  notes: '',
+  skuId: '',
+  batchNo: '',
+  quantity: 1
+});
 const outbounds = ref<Row[]>([]);
 const inTransit = ref<Row[]>([]);
 const inventory = ref<Row[]>([]);
@@ -2134,7 +2313,12 @@ const purchaseForm = reactive<Row>({
   notes: '',
   lines: []
 });
-const receiveForm = reactive<Row>({ purchaseOrderId: null, notes: '', lines: [] });
+const receiveForm = reactive<Row>({
+  purchaseOrderId: null,
+  notes: '',
+  receiveWarehouseId: '',
+  lines: []
+});
 const returnForm = reactive<Row>({ purchaseOrderId: null, notes: '', lines: [] });
 const inboundForm = reactive<Row>({ warehouseId: '', refNo: '', notes: '', lines: [] });
 
@@ -2704,6 +2888,17 @@ function supplierName(id: string) {
 function warehouseName(id: string) {
   return warehouses.value.find((w) => w.warehouseId === id)?.warehouseName || id || '无';
 }
+function transferStatusLabel(status?: string) {
+  if (!status) return '—';
+  return (
+    {
+      DRAFT: '草稿',
+      SHIPPED: '已发运',
+      RECEIVED: '已收货',
+      CANCELLED: '已取消'
+    } as Record<string, string>
+  )[String(status).toUpperCase()] || status;
+}
 function deviceName(id: string) {
   return devices.value.find((d) => d.deviceId === id)?.deviceName || id || '无';
 }
@@ -2932,6 +3127,68 @@ async function loadBinStock() {
     'GET'
   );
 }
+async function loadTransfers() {
+  transfers.value = await api.request<Row[]>('/api/v2/ops/admin/warehouse/transfers', 'GET');
+}
+async function openTransferCreate() {
+  Object.assign(transferForm, {
+    fromWarehouseId: warehouses.value[0]?.warehouseId || '',
+    toWarehouseId: warehouses.value[1]?.warehouseId || '',
+    notes: '',
+    skuId: '',
+    batchNo: '',
+    quantity: 1
+  });
+  await loadWarehousesSoft();
+  transferDialog.value = true;
+}
+async function saveTransfer() {
+  if (!transferForm.fromWarehouseId || !transferForm.toWarehouseId || !transferForm.skuId.trim()) {
+    ElMessage.warning('请填写调出/调入仓与 SKU');
+    return;
+  }
+  saving.value = true;
+  try {
+    await api.request('/api/v2/ops/admin/warehouse/transfers', 'POST', {
+      fromWarehouseId: transferForm.fromWarehouseId,
+      toWarehouseId: transferForm.toWarehouseId,
+      notes: transferForm.notes,
+      lines: [
+        {
+          skuId: transferForm.skuId.trim(),
+          batchNo: transferForm.batchNo || '',
+          quantity: transferForm.quantity
+        }
+      ]
+    });
+    transferDialog.value = false;
+    ElMessage.success('调拨单已创建');
+    loadedTabs.value.delete('transfers');
+    await loadTab('transfers', true);
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '创建失败');
+  } finally {
+    saving.value = false;
+  }
+}
+async function shipTransfer(row: Row) {
+  await api.request(`/api/v2/ops/admin/warehouse/transfers/${row.transferId}/ship`, 'POST');
+  ElMessage.success('已发运');
+  loadedTabs.value.delete('transfers');
+  await loadTab('transfers', true);
+}
+async function receiveTransfer(row: Row) {
+  await api.request(`/api/v2/ops/admin/warehouse/transfers/${row.transferId}/receive`, 'POST');
+  ElMessage.success('已收货入库');
+  loadedTabs.value.delete('transfers');
+  await loadTab('transfers', true);
+}
+async function cancelTransfer(row: Row) {
+  await api.request(`/api/v2/ops/admin/warehouse/transfers/${row.transferId}/cancel`, 'POST');
+  ElMessage.success('已取消');
+  loadedTabs.value.delete('transfers');
+  await loadTab('transfers', true);
+}
 
 async function loadTab(name: string, force = false) {
   if (!force && loadedTabs.value.has(name) && name !== 'inventory' && name !== 'movements') return;
@@ -2961,8 +3218,10 @@ async function loadTab(name: string, force = false) {
       await Promise.all([loadBins(), loadBinStock(), loadWarehousesSoft()]);
     } else if (name === 'outbounds') {
       await Promise.all([loadOutbounds(), loadWarehousesSoft()]);
-    } else if (name === 'transit') await loadTransit();
-    else if (name === 'inventory') {
+    }     else if (name === 'transit') await loadTransit();
+    else if (name === 'transfers') {
+      await Promise.all([loadTransfers(), loadWarehousesSoft()]);
+    } else if (name === 'inventory') {
       await Promise.all([loadInventory(), loadWarehousesSoft()]);
     } else if (name === 'movements') {
       await Promise.all([loadMovements(), loadWarehousesSoft()]);
@@ -3539,6 +3798,7 @@ function openReceive(row: Row) {
   Object.assign(receiveForm, {
     purchaseOrderId: row.purchaseOrderId,
     notes: '',
+    receiveWarehouseId: row.warehouseId || '',
     lines: (row.lines || []).map((line: Row) => ({
       ...line,
       minReceived: line.receivedQty || 0,
@@ -3546,6 +3806,7 @@ function openReceive(row: Row) {
     }))
   });
   receiveDialog.value = true;
+  loadWarehousesSoft();
 }
 async function saveReceive() {
   saving.value = true;
@@ -3556,7 +3817,8 @@ async function saveReceive() {
       'POST',
       {
         lines: receiveForm.lines,
-        notes: receiveForm.notes
+        notes: receiveForm.notes,
+        receiveWarehouseId: receiveForm.receiveWarehouseId || undefined
       }
     );
     receiveDialog.value = false;

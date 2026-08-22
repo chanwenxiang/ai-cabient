@@ -230,7 +230,7 @@
         <template #empty>
           <el-empty v-if="ledgerHydrated" description="暂无流水" :image-size="64" />
         </template>
-        <el-table-column label="类型" width="130" align="center">
+        <el-table-column label="类型" width="120" align="center">
           <template #default="{ row }">{{
             displayLabel('wallet_entry_type', row.entryType, '未知')
           }}</template>
@@ -244,10 +244,19 @@
         <el-table-column label="冻结后" width="100" align="center">
           <template #default="{ row }">{{ yuan(row.frozenAfter) }}</template>
         </el-table-column>
+        <el-table-column label="关联单号" min-width="140" show-overflow-tooltip align="center">
+          <template #default="{ row }">
+            <span v-if="row.refId">
+              <small class="muted">{{ row.refType || 'REF' }}</small>
+              {{ row.refId }}
+            </span>
+            <span v-else class="muted">—</span>
+          </template>
+        </el-table-column>
         <el-table-column
           prop="remark"
           label="备注"
-          min-width="140"
+          min-width="120"
           show-overflow-tooltip
           align="center"
         />

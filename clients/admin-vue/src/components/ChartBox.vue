@@ -210,6 +210,7 @@ onBeforeUnmount(hide);
 
 <style>
 /* Teleported tooltip — unscoped */
+/* Tip 始终深色底：勿用主题 --layout-text（浅色主题为深字，会看不见） */
 .chart-float-tip {
   position: fixed;
   z-index: 4000;
@@ -218,9 +219,9 @@ onBeforeUnmount(hide);
   padding: 10px 12px;
   border-radius: 10px;
   pointer-events: none;
-  color: var(--layout-text, #e2e8f0);
-  background: color-mix(in srgb, var(--layout-card-bg, #0f172a) 92%, #000);
-  border: 1px solid var(--layout-border, #334155);
+  color: #e2e8f0;
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid #475569;
   box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(8px);
   font-size: 12px;
@@ -229,7 +230,7 @@ onBeforeUnmount(hide);
 .chart-float-tip .tip-title {
   margin-bottom: 6px;
   font-weight: 600;
-  color: var(--layout-muted, #94a3b8);
+  color: #94a3b8;
   font-size: 11px;
   letter-spacing: 0.02em;
 }
@@ -247,10 +248,11 @@ onBeforeUnmount(hide);
 }
 .chart-float-tip .tip-name {
   flex: 1;
-  color: var(--layout-muted, #94a3b8);
+  color: #cbd5e1;
 }
 .chart-float-tip .tip-val {
   font-variant-numeric: tabular-nums;
-  font-weight: 600;
+  font-weight: 700;
+  color: #f8fafc;
 }
 </style>

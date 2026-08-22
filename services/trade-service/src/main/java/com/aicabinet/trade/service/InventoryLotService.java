@@ -58,6 +58,30 @@ public class InventoryLotService {
         return lotRepository.sumSellableQuantity(deviceId, skuId) > 0;
     }
 
+    /** 柜机已启用批次账本（存在任意 lot 行）时，可售以批次为准，禁止只改汇总表。 */
+    public boolean deviceUsesLotLedger(String deviceId) {
+        if (deviceId == null || deviceId.isBlank()) {
+            return false;
+        }
+        return !lotRepository.findByDeviceId(deviceId.trim()).isEmpty();
+    }
+
+    public int sellableQuantity(String deviceId, String skuId) {
+        return lotRepository.sumSellableQuantity(deviceId, skuId);
+    }
+
+    /** deviceId → skuId → 可售数量（ON_SALE/NEAR_EXPIRY）。 */
+    public Map<String, Integer> sellableQtyBySku(String deviceId) {
+        Map<String, Integer> map = new LinkedHashMap<>();
+        for (Object[] row : lotRepository.sumSellableBySku(deviceId)) {
+            if (row == null || row.length < 2 || row[0] == null || row[1] == null) {
+                continue;
+            }
+            map.merge(String.valueOf(row[0]), ((Number) row[1]).intValue(), Integer::sum);
+        }
+        return map;
+    }
+
     /** FEFO 扣减，返回主批次号与按货道扣减数量。 */
     @Transactional
     public FefoDeductResult deductFefo(String deviceId, String skuId, int quantity, String refType, String refId) {
@@ -267,13 +291,33 @@ public class InventoryLotService {
         syncAggregateInventory(deviceId, skuId);
     }
 
+    /**
+     * 售后仅退款不回库：不改批次数量，只记审计流水（销售扣减已发生，成本留在售出侧）。
+     */
+    @Transactional
+    public void recordRefundKeptNote(String deviceId, String skuId, String batchNo,
+                                     int quantity, String orderId) {
+        if (quantity <= 0 || orderId == null || orderId.isBlank()) {
+            return;
+        }
+        String batch = (batchNo == null || batchNo.isBlank()) ? "-" : batchNo;
+        // delta=0：数量不变；quantity 语义写在 refId 旁供运营检索
+        recordMovement(deviceId, skuId, batch, "REFUND_KEPT", 0, "ORDER_REFUND",
+                orderId + ":qty=" + quantity, null);
+        log.info("REFUND_KEPT noted device={} sku={} batch={} qty={} order={}",
+                deviceId, skuId, batch, quantity, orderId);
+    }
+
     @Transactional
     public void stocktakeAdjust(String deviceId, String skuId, int countedQuantity,
                                 Long operatorId, String refId) {
         DeviceSkuInventoryId id = new DeviceSkuInventoryId(deviceId, skuId);
-        int current = inventoryRepository.findById(id).map(DeviceSkuInventory::getQuantity).orElse(0);
+        int current = deviceUsesLotLedger(deviceId)
+                ? lotRepository.sumSellableQuantity(deviceId, skuId)
+                : inventoryRepository.findById(id).map(DeviceSkuInventory::getQuantity).orElse(0);
         int delta = countedQuantity - current;
         if (delta == 0) {
+            syncAggregateInventory(deviceId, skuId);
             return;
         }
         if (delta > 0) {
@@ -427,6 +471,19 @@ public class InventoryLotService {
                 if ("ON_SALE".equals(lot.getStatus())) {
                     lot.setStatus("NEAR_EXPIRY");
                     lotRepository.save(lot);
+                    alerts++;
+                }
+                // 临期批次同步生成下架任务，避免只改状态无人处理
+                if (("NEAR_EXPIRY".equals(lot.getStatus()) || "ON_SALE".equals(lot.getStatus()))
+                        && pullOffTaskRepository.findByLotIdAndStatus(lot.getLotId(), "OPEN").isEmpty()) {
+                    PullOffTask task = new PullOffTask();
+                    task.setDeviceId(lot.getDeviceId());
+                    task.setSkuId(lot.getSkuId());
+                    task.setLotId(lot.getLotId());
+                    task.setBatchNo(lot.getBatchNo());
+                    task.setQuantity(lot.getQuantity());
+                    task.setReason("NEAR_EXPIRY");
+                    pullOffTaskRepository.save(task);
                     alerts++;
                 }
             }

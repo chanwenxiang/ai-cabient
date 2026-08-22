@@ -12,8 +12,10 @@ import com.aicabinet.trade.auth.LoginThrottleService;
 import com.aicabinet.trade.config.AuthProperties;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
+import com.aicabinet.trade.domain.PhoneVerifyLog;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
+import com.aicabinet.trade.mapper.PhoneVerifyLogMapper;
 import com.aicabinet.trade.payment.AlipayOauthClient;
 import com.aicabinet.trade.sms.SmsCodeService;
 import com.aicabinet.trade.support.ApiMessages;
@@ -40,6 +42,7 @@ public class AuthService {
     private final ServerBootMarker serverBootMarker;
     private final AuthProperties authProperties;
     private final LoginThrottleService loginThrottleService;
+    private final PhoneVerifyLogMapper phoneVerifyLogMapper;
 
     public AuthService(UserInfoMapper userInfoRepository,
                        UserAccountMapper userAccountRepository,
@@ -51,7 +54,8 @@ public class AuthService {
                        PasswordEncoder passwordEncoder,
                        ServerBootMarker serverBootMarker,
                        AuthProperties authProperties,
-                       LoginThrottleService loginThrottleService) {
+                       LoginThrottleService loginThrottleService,
+                       PhoneVerifyLogMapper phoneVerifyLogMapper) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.jwtService = jwtService;
@@ -63,6 +67,7 @@ public class AuthService {
         this.serverBootMarker = serverBootMarker;
         this.authProperties = authProperties;
         this.loginThrottleService = loginThrottleService;
+        this.phoneVerifyLogMapper = phoneVerifyLogMapper;
     }
 
     public void sendSmsCode(String phoneNumber) {
@@ -86,6 +91,7 @@ public class AuthService {
             throwLockedOr(phone, ApiMessages.INVALID_CODE);
         }
         loginThrottleService.clearFailures(phone);
+        auditPhoneVerify(user.getUserId(), phone, "SMS");
         return tokenFor(user);
     }
 
@@ -157,6 +163,7 @@ public class AuthService {
         }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userInfoRepository.save(user);
+        auditPhoneVerify(user.getUserId(), phone, "SMS_RESET");
     }
 
     /** 微信小程序 wx.login：已绑定 openId 直接登录；否则自动建档（竞品扫码免注册） */
@@ -278,6 +285,19 @@ public class AuthService {
         String token = jwtService.createToken(user.getUserId());
         return new LoginResponse(token, user.getUserId(), jwtService.getExpirationSeconds(),
                 serverBootMarker.epochMillis(), authProperties.cookieEnabled(), false);
+    }
+
+    private void auditPhoneVerify(Long userId, String phone, String channel) {
+        try {
+            PhoneVerifyLog log = new PhoneVerifyLog();
+            log.setUserId(userId);
+            log.setPhone(phone);
+            log.setChannel(channel);
+            log.setVerifiedAt(java.time.Instant.now());
+            phoneVerifyLogMapper.insert(log);
+        } catch (Exception ignored) {
+            // 审计失败不阻断登录
+        }
     }
 
     public long currentServerBootEpoch() {

@@ -83,6 +83,7 @@
             <text class="resume-title">继续在本柜购物</text>
             <text class="resume-sub">{{ lastDeviceName || lastDeviceId }}</text>
           </view>
+          <text class="nearby-link" role="button" @click="goNearby">附近找柜</text>
         </view>
 
         <view v-if="showManualEntry" class="landing-foot">
@@ -98,7 +99,7 @@
       </view>
 
       <view v-if="authPromptVisible" class="landing-mask" @click="dismissAuthPrompt">
-        <view class="landing-sheet" @click.stop>
+        <view class="landing-sheet" @click.stop="noop">
           <text class="landing-sheet-title">需要授权</text>
           <text class="landing-sheet-body">扫码开门需先完成微信授权</text>
           <view class="landing-sheet-actions">
@@ -109,7 +110,7 @@
       </view>
 
       <view v-if="showManual" class="landing-mask" @click="showManual = false">
-        <view class="landing-sheet" @click.stop>
+        <view class="landing-sheet" @click.stop="noop">
           <text class="landing-sheet-title">{{ manualEntryLabel }}</text>
           <text class="landing-sheet-label">柜机编号</text>
           <input
@@ -187,13 +188,13 @@
               placeholder-class="search-placeholder"
               confirm-type="search"
             />
-            <text v-if="searchKeyword" class="search-clear" @click="searchKeyword = ''">×</text>
+            <text v-if="searchKeyword" class="search-clear" @click="clearSearchKeyword">×</text>
           </view>
           <scroll-view scroll-x class="category-row" :show-scrollbar="false">
             <view
               class="category-chip"
               :class="{ active: !activeCategory }"
-              @click="activeCategory = ''"
+              @click="clearCategory"
               >全部</view
             >
             <view
@@ -201,7 +202,8 @@
               :key="cat"
               class="category-chip"
               :class="{ active: activeCategory === cat }"
-              @click="activeCategory = activeCategory === cat ? '' : cat"
+              :data-cat="cat"
+              @click="onCategoryChipTap"
               >{{ cat }}</view
             >
           </scroll-view>
@@ -225,15 +227,17 @@
           </view>
         </view>
         <view v-else class="product-grid">
-          <view
-            v-for="p in filteredProducts"
-            :key="p.skuId"
-            class="product-cell"
-            :class="{ selected: (selected[p.skuId] || 0) > 0 }"
-            role="button"
-            :aria-label="`选择 ${p.skuName}`"
-            @click="addProduct(p)"
-          >
+            <view
+              v-for="p in filteredProducts"
+              :key="p.skuId"
+              class="product-cell"
+              :class="{ selected: (selected[p.skuId] || 0) > 0 }"
+              role="button"
+              :aria-label="`选择 ${p.skuName}`"
+              :data-sku-id="p.skuId"
+              @click="onProductCellTap"
+            >
+            <view class="product-cell-inner">
             <view class="product-thumb" :class="'cat-' + thumbTone(p)">
               <image
                 v-if="showThumb(p)"
@@ -251,26 +255,37 @@
             </view>
             <text class="product-name">{{ p.skuName }}</text>
             <text class="product-price">{{ fmtMoney(p.priceCents) }}</text>
+            <text v-if="p.category" class="product-cat">{{ p.category }}</text>
+            <text
+              v-if="sessionActive && state === 'SHOPPING' && (mockEnabled || stockOf(p) > 0)"
+              class="product-stock"
+              >{{ stockLabel(p) }}</text
+            >
             <view
               v-if="sessionActive && state === 'SHOPPING' && mockEnabled"
               class="product-stepper"
-              @click.stop
+              @click.stop="noop"
             >
               <text
                 class="stepper-btn"
                 role="button"
                 :aria-label="`减少 ${p.skuName}`"
-                @click="removeProduct(p)"
+                :data-sku-id="p.skuId"
+                @click.stop="onRemoveProductTap"
                 >−</text
               >
-              <text class="stepper-qty">{{ selectedQty(p) }}</text>
+              <text class="stepper-qty">{{ selectedQty(p) }}/{{ stockOf(p) }}</text>
               <text
                 class="stepper-btn plus"
+                :class="{ disabled: !canAddProduct(p) }"
                 role="button"
+                :aria-disabled="(!canAddProduct(p)).toString()"
                 :aria-label="`增加 ${p.skuName}`"
-                @click="addProduct(p)"
+                :data-sku-id="p.skuId"
+                @click.stop="onAddProductTap"
                 >+</text
               >
+            </view>
             </view>
           </view>
         </view>
@@ -281,7 +296,11 @@
         <view class="cart-info">
           <text class="cart-hint">{{ cartBarHint }}</text>
           <text v-if="sessionActive && state === 'SHOPPING'" class="cart-sub">{{
-            mockEnabled ? '点选后关门结算；未选则不扣款' : '拿错可放回，关门后按最终取走结算'
+            mockEnabled
+              ? '点选后关门结算；未选则不扣款'
+              : liveCartQty > 0
+                ? '识别中实时更新，关门后按最终取走结算'
+                : '拿错可放回，关门后按最终取走结算'
           }}</text>
         </view>
         <view v-if="sessionActive && state === 'SHOPPING' && mockEnabled" class="cart-demo">
@@ -298,6 +317,15 @@
           >
             关门结算
           </button>
+        </view>
+        <view
+          v-else-if="sessionActive && state === 'SHOPPING' && liveCartQty > 0"
+          class="cart-demo live"
+        >
+          <view class="cart-demo-info">
+            <text class="cart-demo-label">识别中 {{ liveCartQty }} 件</text>
+            <text class="cart-demo-amt">{{ liveCartAmount }}</text>
+          </view>
         </view>
         <view v-else-if="sessionActive" class="cart-status-chip" :class="stateTone">
           {{ cartBarAction }}
@@ -607,7 +635,7 @@ const shoppingBannerSub = computed(() => {
 
 const catalogNotice = computed(() => {
   if (mockEnabled.value && state.value === 'SHOPPING') {
-    return '演示模式：点选本柜商品后点关门结算；未选商品则不扣款';
+    return '演示·按库存点选：点选后关门结算；未选不扣款';
   }
   if (canReopen.value) {
     return '本柜价目可先浏览；再买需要重新开门，因为上一单关门后柜门已锁';
@@ -839,7 +867,8 @@ async function startShoppingFlow(id: string, scanChannel?: string | null) {
       )
     ]);
     if (productsResult.status === 'fulfilled') {
-      products.value = productsResult.value;
+      products.value = normalizeProducts(productsResult.value);
+      clampSelectionToStock();
     } else {
       products.value = [];
       resetCatalogFilter();
@@ -931,6 +960,10 @@ function setLandingError(message: string, kind: OpenErrorKind = 'other') {
 function goRechargeFromError() {
   landingError.value = '';
   uni.navigateTo({ url: '/pages/recharge/recharge' });
+}
+
+function goNearby() {
+  uni.navigateTo({ url: '/pages/nearby/nearby' });
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> {
@@ -1133,12 +1166,37 @@ async function loadDeviceAndProducts() {
   productsLoading.value = true;
   try {
     await refreshDeviceStatus();
-    products.value = await consumerApi.deviceProducts(deviceId.value);
+    products.value = normalizeProducts(await consumerApi.deviceProducts(deviceId.value));
+    clampSelectionToStock();
   } catch (e) {
     uni.showToast({ title: formatError(e), icon: 'none' });
   } finally {
     productsLoading.value = false;
   }
+}
+
+function normalizeProducts(list: DeviceProduct[] | null | undefined): DeviceProduct[] {
+  return (list || []).map((p) => ({
+    ...p,
+    quantity: Math.max(0, Math.floor(Number(p.quantity) || 0))
+  }));
+}
+
+function clampSelectionToStock() {
+  let changed = false;
+  const next: Record<string, number> = { ...selected.value };
+  for (const [skuId, qty] of Object.entries(next)) {
+    const p = products.value.find((x) => x.skuId === skuId);
+    const max = p ? stockOf(p) : 0;
+    const want = Math.max(0, qty || 0);
+    const capped = Math.min(want, max);
+    if (capped !== want) {
+      changed = true;
+      if (capped > 0) next[skuId] = capped;
+      else delete next[skuId];
+    }
+  }
+  if (changed) selected.value = next;
 }
 
 async function refreshDeviceStatus() {
@@ -1213,7 +1271,8 @@ async function showDeviceCatalog(id: string) {
     const status = await consumerApi.deviceStatus(cabinetId);
     deviceName.value = status.deviceName || cabinetId;
     await refreshDeviceStatus();
-    products.value = await consumerApi.deviceProducts(cabinetId);
+    products.value = normalizeProducts(await consumerApi.deviceProducts(cabinetId));
+    clampSelectionToStock();
     uni.setStorageSync('last_device_id', cabinetId);
     uni.setStorageSync('last_device_name', deviceName.value);
     lastDeviceId.value = cabinetId;
@@ -1280,17 +1339,84 @@ function clearSessionUi() {
   stateTone.value = 'idle';
   recognitionDeferred.value = false;
   selected.value = {};
+  liveCartQty.value = 0;
+  liveCartAmountCents.value = 0;
   stopRecognitionTimer();
+}
+
+function clearSearchKeyword() {
+  searchKeyword.value = '';
+}
+
+function clearCategory() {
+  activeCategory.value = '';
+}
+
+function onCategoryChipTap(e: { currentTarget?: { dataset?: Record<string, string> } }) {
+  const cat = String(e?.currentTarget?.dataset?.cat ?? '');
+  if (!cat) return;
+  activeCategory.value = activeCategory.value === cat ? '' : cat;
+}
+
+function productBySkuId(skuId: string): DeviceProduct | undefined {
+  return products.value.find((p) => p.skuId === skuId);
+}
+
+function onProductCellTap(e: { currentTarget?: { dataset?: Record<string, string> } }) {
+  const skuId = String(e?.currentTarget?.dataset?.skuId ?? '');
+  const p = productBySkuId(skuId);
+  if (p) addProduct(p);
+}
+
+function onAddProductTap(e: { currentTarget?: { dataset?: Record<string, string> } }) {
+  const skuId = String(e?.currentTarget?.dataset?.skuId ?? '');
+  const p = productBySkuId(skuId);
+  if (p) addProduct(p);
+}
+
+function onRemoveProductTap(e: { currentTarget?: { dataset?: Record<string, string> } }) {
+  const skuId = String(e?.currentTarget?.dataset?.skuId ?? '');
+  const p = productBySkuId(skuId);
+  if (p) removeProduct(p);
+}
+
+function noop() {
+  /* 阻止步进器点击冒泡到商品卡片 */
 }
 
 function selectedQty(p: DeviceProduct) {
   return selected.value[p.skuId] || 0;
 }
 
+/** 柜内可售库存；缺字段按 0，禁止演示默认放宽到 9。 */
+function stockOf(p: DeviceProduct) {
+  const raw = Number(p.quantity);
+  if (Number.isFinite(raw) && raw >= 0) return Math.floor(raw);
+  return 0;
+}
+
+function stockLabel(p: DeviceProduct) {
+  const n = stockOf(p);
+  return n > 0 ? `库存仅 ${n} 件` : '暂无库存';
+}
+
+function canAddProduct(p: DeviceProduct) {
+  return selectedQty(p) < stockOf(p);
+}
+
 function addProduct(p: DeviceProduct) {
   if (!sessionActive.value) return;
-  const next = Math.min(9, (selected.value[p.skuId] || 0) + 1);
-  selected.value = { ...selected.value, [p.skuId]: next };
+  const max = stockOf(p);
+  const cur = selected.value[p.skuId] || 0;
+  if (max <= 0) {
+    uni.showToast({ title: '暂无库存', icon: 'none' });
+    return;
+  }
+  if (cur >= max) {
+    uni.showToast({ title: `库存仅 ${max} 件，无法再加`, icon: 'none' });
+    return;
+  }
+  selected.value = { ...selected.value, [p.skuId]: cur + 1 };
 }
 
 function removeProduct(p: DeviceProduct) {
@@ -1299,6 +1425,23 @@ function removeProduct(p: DeviceProduct) {
 }
 
 const selectedCount = computed(() => Object.values(selected.value).reduce((sum, q) => sum + q, 0));
+
+const liveCartQty = ref(0);
+const liveCartAmountCents = ref(0);
+const liveCartAmount = computed(() => fmtMoney(liveCartAmountCents.value));
+
+async function refreshLiveCart() {
+  if (!sessionId.value || state.value !== 'SHOPPING' || mockEnabled.value) {
+    return;
+  }
+  try {
+    const cart = await consumerApi.getLiveCart(sessionId.value);
+    liveCartQty.value = Number(cart?.totalQty || 0);
+    liveCartAmountCents.value = Number(cart?.totalAmountCents || 0);
+  } catch {
+    // 识别推送未就绪时忽略
+  }
+}
 
 const selectedAmount = computed(() => {
   const byId = new Map(products.value.map((p) => [p.skuId, p]));
@@ -1314,14 +1457,49 @@ const selectedAmount = computed(() => {
 async function closeDoorDemo() {
   if (!sessionId.value || closingDoor.value) return;
   closingDoor.value = true;
+  const sid = sessionId.value;
   try {
+    const byId = new Map(products.value.map((p) => [p.skuId, p]));
+    let clamped = false;
     const items = Object.entries(selected.value)
-      .filter(([, qty]) => (qty || 0) > 0)
-      .map(([skuId, qty]) => ({ skuId, qty }));
-    if (items.length) {
-      await consumerApi.updateSessionCart(sessionId.value, { items });
+      .map(([skuId, qty]) => {
+        const p = byId.get(skuId);
+        const max = p ? stockOf(p) : 0;
+        const want = Math.max(0, qty || 0);
+        const next = Math.min(want, max);
+        if (next !== want) clamped = true;
+        return { skuId, qty: next };
+      })
+      .filter((it) => it.qty > 0);
+    if (clamped) {
+      const nextSel: Record<string, number> = {};
+      for (const it of items) nextSel[it.skuId] = it.qty;
+      selected.value = nextSel;
+      uni.showToast({ title: '已按库存调整数量', icon: 'none' });
     }
-    await consumerApi.demoCloseSession(sessionId.value);
+    if (items.length) {
+      await consumerApi.updateSessionCart(sid, { items });
+    }
+    const s = await consumerApi.demoCloseSession(sid);
+    applySessionView(s);
+    if (s.state === 'COMPLETED' || s.state === 'DISPUTED') {
+      stopPoll();
+      await finishSession(s.state, sid);
+      return;
+    }
+    if (['FAILED', 'CANCELLED'].includes(s.state)) {
+      stopPoll();
+      uni.removeStorageSync('active_session_id');
+      clearOpenAttempt();
+      clearSessionUi();
+      uni.showToast({
+        title: sessionStateHint(s.state) || '购物未完成',
+        icon: 'none',
+        duration: 2800
+      });
+      return;
+    }
+    startPoll();
     uni.showToast({ title: '已关门，结算中…', icon: 'none' });
   } catch (e) {
     uni.showToast({ title: e instanceof Error ? e.message : '关门失败，请重试', icon: 'none' });
@@ -1488,6 +1666,12 @@ function startPoll() {
       const s = await consumerApi.getSession(sessionId.value);
       applySessionView(s);
       pollError.value = '';
+      if (s.state === 'SHOPPING') {
+        await refreshLiveCart();
+      } else {
+        liveCartQty.value = 0;
+        liveCartAmountCents.value = 0;
+      }
       if (s.state === 'COMPLETED' || s.state === 'DISPUTED') {
         stopPoll();
         const sid = sessionId.value;
@@ -1741,6 +1925,15 @@ function stopDevicePoll() {
   background: rgba(255, 255, 255, 0.18);
   border: 1rpx solid rgba(255, 255, 255, 0.32);
 }
+.nearby-link {
+  display: block;
+  margin: 20rpx auto 0;
+  text-align: center;
+  font-size: 26rpx;
+  color: rgba(255, 255, 255, 0.92);
+  text-decoration: underline;
+  text-underline-offset: 4rpx;
+}
 .btn-primary {
   margin: 0;
   background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
@@ -1990,30 +2183,45 @@ function stopDevicePoll() {
   display: flex;
   flex-direction: row;
   flex-wrap: wrap;
-  padding: 0 16rpx;
-  gap: 16rpx;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 12rpx 12rpx;
 }
 .product-cell {
-  width: calc(50% - 8rpx);
+  flex: 0 0 33.333%;
+  max-width: 33.333%;
+  width: 33.333%;
   box-sizing: border-box;
-  background: #fff;
-  border-radius: 16rpx;
-  padding: 16rpx;
+  padding: 6rpx;
+  background: transparent;
+  border: none;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 10rpx;
-  border: 2rpx solid transparent;
 }
-.product-cell.selected {
+.product-cell-inner {
+  flex: 1;
+  min-width: 0;
+  background: #fff;
+  border-radius: 14rpx;
+  padding: 12rpx;
+  box-sizing: border-box;
+  border: 2rpx solid #eef2f0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.05);
+}
+.product-cell.selected .product-cell-inner {
   border-color: var(--brand-wx, #07c160);
   background: #f4fef8;
 }
 .product-thumb {
   width: 100%;
-  height: 210rpx;
+  height: 148rpx;
   flex-shrink: 0;
-  border-radius: 16rpx;
+  border-radius: 12rpx;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2047,42 +2255,43 @@ function stopDevicePoll() {
   height: 100%;
 }
 .product-mark {
-  width: 96rpx;
-  height: 96rpx;
-  border-radius: 24rpx;
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 16rpx;
   background: rgba(255, 255, 255, 0.72);
   color: var(--brand, #047857);
-  font-size: 40rpx;
+  font-size: 28rpx;
   font-weight: 800;
-  line-height: 96rpx;
+  line-height: 64rpx;
   text-align: center;
 }
 .product-badge {
   position: absolute;
-  top: 10rpx;
-  right: 10rpx;
-  min-width: 40rpx;
-  height: 40rpx;
-  padding: 0 10rpx;
-  border-radius: 20rpx;
+  top: 6rpx;
+  right: 6rpx;
+  min-width: 32rpx;
+  height: 32rpx;
+  padding: 0 8rpx;
+  border-radius: 16rpx;
   background: var(--brand-wx, #07c160);
   color: #fff;
-  font-size: 24rpx;
+  font-size: 20rpx;
   font-weight: 700;
-  line-height: 40rpx;
+  line-height: 32rpx;
   text-align: center;
   box-shadow: 0 4rpx 12rpx rgba(7, 193, 96, 0.35);
 }
 .product-name {
-  font-size: 26rpx;
+  font-size: 22rpx;
   color: #191919;
-  line-height: 1.35;
+  line-height: 1.3;
   font-weight: 600;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  min-height: 70rpx;
+  min-height: 58rpx;
+  margin-top: 8rpx;
 }
 
 /* #ifdef H5 */
@@ -2095,36 +2304,53 @@ function stopDevicePoll() {
 }
 /* #endif */
 .product-price {
-  font-size: 32rpx;
+  font-size: 26rpx;
   color: var(--brand-wx, #07c160);
   font-weight: 700;
+  margin-top: 4rpx;
+}
+.product-cat {
+  font-size: 18rpx;
+  color: #94a3b8;
+  margin-top: 2rpx;
+  line-height: 1.2;
+}
+.product-stock {
+  font-size: 18rpx;
+  color: #b45309;
+  font-weight: 600;
+  line-height: 1.2;
 }
 .product-stepper {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8rpx;
-  margin-top: 4rpx;
+  margin-top: 6rpx;
 }
 .stepper-btn {
-  width: 52rpx;
-  height: 52rpx;
+  width: 44rpx;
+  height: 44rpx;
   border-radius: 50%;
   background: #eef6f2;
   color: var(--brand, #047857);
-  font-size: 32rpx;
+  font-size: 28rpx;
   font-weight: 700;
-  line-height: 52rpx;
+  line-height: 44rpx;
   text-align: center;
 }
 .stepper-btn.plus {
   background: var(--brand, #047857);
   color: #fff;
 }
+.stepper-btn.plus.disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
 .stepper-qty {
-  min-width: 36rpx;
+  flex: 1;
+  min-width: 0;
   text-align: center;
-  font-size: 28rpx;
+  font-size: 20rpx;
   font-weight: 700;
   color: #26342d;
 }
@@ -2611,28 +2837,25 @@ function stopDevicePoll() {
   background: #fffbeb;
 }
 .product-grid {
-  padding: 0 20rpx;
-  gap: 18rpx;
+  padding: 0 12rpx 12rpx;
 }
-.product-cell {
-  padding: 14rpx;
-  border: 1rpx solid #eef2f0;
-  border-radius: 22rpx;
-  box-shadow: 0 9rpx 26rpx rgba(15, 23, 42, 0.055);
+.product-cell-inner {
+  border-radius: 14rpx;
+  box-shadow: 0 6rpx 18rpx rgba(15, 23, 42, 0.05);
 }
 .product-thumb {
-  height: 200rpx;
-  border-radius: 17rpx;
+  height: 148rpx;
+  border-radius: 12rpx;
 }
 .product-name {
-  font-size: 26rpx;
+  font-size: 22rpx;
   font-weight: 600;
   color: #26342d;
-  min-height: 68rpx;
+  min-height: 58rpx;
 }
 .product-price {
   color: var(--brand, #047857);
-  font-size: 32rpx;
+  font-size: 26rpx;
 }
 .cart-bar {
   border-top: 0;

@@ -21,16 +21,16 @@ public class SmsCodeService {
 
     private final AuthProperties authProperties;
     private final SecurityProperties securityProperties;
-    private final WebhookSmsSender webhookSmsSender;
+    private final SmsSender smsSender;
     private final SmsVerificationCodeMapper codeRepository;
 
     public SmsCodeService(AuthProperties authProperties,
                           SecurityProperties securityProperties,
-                          WebhookSmsSender webhookSmsSender,
+                          SmsSender smsSender,
                           SmsVerificationCodeMapper codeRepository) {
         this.authProperties = authProperties;
         this.securityProperties = securityProperties;
-        this.webhookSmsSender = webhookSmsSender;
+        this.smsSender = smsSender;
         this.codeRepository = codeRepository;
     }
 
@@ -45,7 +45,7 @@ public class SmsCodeService {
             log.info("DEV SMS code for {}: {} (stored in DB)", maskPhone(normalized), code);
             return;
         }
-        webhookSmsSender.send(normalized, code);
+        smsSender.send(normalized, code);
     }
 
     @Transactional

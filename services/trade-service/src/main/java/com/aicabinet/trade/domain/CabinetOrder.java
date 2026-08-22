@@ -38,6 +38,9 @@ public class CabinetOrder {
 
     private Instant refundedAt;
 
+    /** 累计已退款金额（分）；部分退可累加 */
+    private int refundedCents;
+
     private Long couponId;
 
     private int couponDiscountCents;

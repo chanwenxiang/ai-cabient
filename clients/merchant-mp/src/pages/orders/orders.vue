@@ -89,12 +89,49 @@
                   {{ emptyDisplay(item.deviceId, 'device') }} · {{ item.lineCount || 0 }} 件 ·
                   {{ channelText(item.payChannel) }}
                 </text>
-                <text v-if="Number(item.couponDiscountCents || 0) > 0" class="card-discount"
-                  >券 -¥{{ ((item.couponDiscountCents || 0) / 100).toFixed(2) }}</text
+                <text
+                  v-if="
+                    Number(item.couponDiscountCents || 0) + Number(item.memberDiscountCents || 0) >
+                    0
+                  "
+                  class="card-discount"
                 >
+                  优惠 -¥{{
+                    (
+                      (Number(item.couponDiscountCents || 0) +
+                        Number(item.memberDiscountCents || 0)) /
+                      100
+                    ).toFixed(2)
+                  }}
+                </text>
+                <text
+                  v-if="
+                    item.status === 'REFUNDED' ||
+                    item.status === 'PARTIAL_REFUNDED' ||
+                    item.refundedAt ||
+                    Number(item.refundedCents || 0) > 0
+                  "
+                  class="card-refund"
+                >
+                  {{ item.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+                  }}{{
+                    Number(item.refundedCents || 0) > 0
+                      ? ` ${money(item.refundedCents)}`
+                      : ''
+                  }}{{ item.refundedAt ? ` · ${formatTime(item.refundedAt)}` : '' }}
+                </text>
                 <text class="card-time">{{ formatTime(item.createdAt) }}</text>
               </view>
-              <text class="card-amount">{{ money(item.totalAmountCents) }}</text>
+              <view class="card-amount-col">
+                <text class="card-amount">{{ money(item.totalAmountCents) }}</text>
+                <text
+                  v-if="
+                    Number(item.originalAmountCents || 0) > Number(item.totalAmountCents || 0)
+                  "
+                  class="card-origin"
+                  >原价 {{ money(item.originalAmountCents) }}</text
+                >
+              </view>
             </view>
           </view>
           <view
@@ -407,6 +444,24 @@ function onDetail(item: MerchantOrderSummary) {
   font-size: 22rpx;
   color: #b91c1c;
   font-weight: 600;
+}
+.card-refund {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #b45309;
+}
+.card-amount-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
+  flex-shrink: 0;
+}
+.card-origin {
+  font-size: 20rpx;
+  color: #94a3b8;
+  text-decoration: line-through;
 }
 
 .page-root {

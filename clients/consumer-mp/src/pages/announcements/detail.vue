@@ -11,9 +11,14 @@
         <text v-if="priorityLabel(item.priority)" class="tag" :class="priorityClass(item.priority)">
           {{ priorityLabel(item.priority) }}
         </text>
+        <text v-if="typeLabel(item.announceType)" class="tag type">{{
+          typeLabel(item.announceType)
+        }}</text>
         <text class="time">{{ formatTime(item.publishAt) }}</text>
       </view>
       <text class="title">{{ item.title }}</text>
+      <text v-if="item.expireAt" class="expire">展示至 {{ formatTime(item.expireAt) }}</text>
+      <text v-if="scopeText(item.targetScope)" class="scope">{{ scopeText(item.targetScope) }}</text>
       <text class="content">{{ item.content }}</text>
     </view>
   </view>
@@ -26,6 +31,22 @@ import { consumerApi } from '@/utils/consumer-api';
 
 const { loading, error, item, load, formatTime, priorityLabel, priorityClass } =
   useAnnouncementDetail((id) => consumerApi.getAnnouncement(id));
+
+function typeLabel(t?: string) {
+  const v = String(t || '').toUpperCase();
+  if (v === 'MAINTENANCE') return '维护';
+  if (v === 'ACTIVITY' || v === 'CAMPAIGN') return '活动';
+  if (v === 'RULE' || v === 'POLICY') return '规则';
+  if (v === 'SYSTEM') return '系统';
+  return t ? String(t) : '';
+}
+
+function scopeText(scope?: string) {
+  const s = String(scope || '').toUpperCase();
+  if (!s || s === 'ALL' || s === 'CONSUMER') return '';
+  if (s === 'MERCHANT') return '面向商户（本页仅作同步查阅）';
+  return `适用范围：${scope}`;
+}
 
 onLoad((query) => {
   load(Number(query?.id || 0));
@@ -76,6 +97,10 @@ onLoad((query) => {
   border-radius: 999rpx;
   font-weight: 600;
 }
+.tag.type {
+  color: #047857;
+  background: #ecfdf5;
+}
 .tag.high {
   color: #b45309;
   background: #fef3c7;
@@ -94,7 +119,17 @@ onLoad((query) => {
   font-weight: 700;
   color: #0f172a;
   line-height: 1.35;
-  margin-bottom: 24rpx;
+  margin-bottom: 16rpx;
+}
+.expire,
+.scope {
+  display: block;
+  margin-bottom: 12rpx;
+  font-size: 24rpx;
+  color: #b45309;
+}
+.scope {
+  color: #64748b;
 }
 .content {
   display: block;

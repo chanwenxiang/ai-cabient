@@ -453,7 +453,9 @@ public class OpsCommercialFacade {
     private RiskEventDto toRiskDto(RiskEvent e) {
         return new RiskEventDto(
                 e.getEventId(), e.getUserId(), e.getDeviceId(),
-                e.getEventType(), e.getSeverity(), e.getDetail(), e.getCreatedAt()
+                e.getEventType(), e.getSeverity(), e.getDetail(), e.getCreatedAt(),
+                e.getDispositionStatus() == null ? "OPEN" : e.getDispositionStatus(),
+                e.getDispositionAt(), e.getDispositionNote()
         );
     }
 

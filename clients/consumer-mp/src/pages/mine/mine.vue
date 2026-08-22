@@ -140,9 +140,17 @@
           <text class="transaction-empty-hint">购物扣款、退款与充值会出现在这里</text>
         </view>
         <view v-for="item in transactions" :key="item.transactionId" class="transaction-row">
-          <view>
+          <view class="transaction-main">
             <text class="transaction-title">{{ transactionLabel(item.businessType) }}</text>
             <text class="transaction-time">{{ formatTransactionTime(item.createdAt) }}</text>
+            <text v-if="item.businessId" class="transaction-biz"
+              >单号 {{ shortBizNo(item.businessId) }}</text
+            >
+            <text
+              v-if="item.balanceAfterCents != null"
+              class="transaction-balance"
+              >余额 {{ fmtMoney(item.balanceAfterCents) }}</text
+            >
           </view>
           <view class="transaction-amount" :class="{ income: item.amountCents > 0 }">
             {{ formatTransactionAmount(item.amountCents) }}
@@ -305,7 +313,7 @@ import {
   getConsumerToken,
   markConsumerExplicitLogout
 } from '@/utils/consumer-api';
-import { formatDateTimeShort, fmtMoney } from '@aicabinet/shared-uni/format';
+import { formatDateTimeShort, fmtMoney, shortBizNo } from '@aicabinet/shared-uni/format';
 import { menuIcon } from '@/utils/menu-icon';
 import {
   availableCents,
@@ -1048,12 +1056,17 @@ function onLogout() {
 .transaction-row {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   padding: 24rpx 0;
   border-bottom: 1rpx solid #eee;
 }
 .transaction-row:last-child {
   border-bottom: 0;
+}
+.transaction-main {
+  flex: 1;
+  min-width: 0;
+  padding-right: 16rpx;
 }
 .transaction-title {
   display: block;
@@ -1065,6 +1078,13 @@ function onLogout() {
   margin-top: 6rpx;
   font-size: 22rpx;
   color: #999;
+}
+.transaction-biz,
+.transaction-balance {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 20rpx;
+  color: #849087;
 }
 .transaction-amount {
   font-size: 30rpx;

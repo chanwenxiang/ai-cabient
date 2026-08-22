@@ -66,11 +66,56 @@
                   <span v-else class="muted">无</span>
                 </template>
               </el-table-column>
+              <el-table-column label="设备" min-width="110" align="center" show-overflow-tooltip>
+                <template #default="{ row }">
+                  <button
+                    v-if="row.deviceId"
+                    type="button"
+                    class="link-cell"
+                    @click="goPath(`/devices/${encodeURIComponent(row.deviceId)}`)"
+                  >
+                    {{ row.deviceId }}
+                  </button>
+                  <span v-else class="muted">无</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                label="详情"
+                min-width="160"
+                align="center"
+                class-name="col-text"
+                show-overflow-tooltip
+              >
+                <template #default="{ row }">{{ row.detail || '—' }}</template>
+              </el-table-column>
               <el-table-column label="级别" width="100" align="center">
                 <template #default="{ row }">
                   <el-tag :type="dictTagType(row.severity)" size="small">
                     {{ dictLabel('risk_severity', row.severity) }}
                   </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="处置" width="120" align="center">
+                <template #default="{ row }">
+                  <el-tag size="small" :type="dispositionTag(row.dispositionStatus)">
+                    {{ dispositionLabel(row.dispositionStatus) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column
+                label="处置备注"
+                min-width="120"
+                align="center"
+                show-overflow-tooltip
+              >
+                <template #default="{ row }">{{ row.dispositionNote || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="处置时间" width="150" align="center" class-name="col-text">
+                <template #default="{ row }">
+                  <span v-if="row.dispositionAt" class="cell-datetime">{{
+                    formatDateTime(row.dispositionAt)
+                  }}</span>
+                  <span v-else class="muted">—</span>
                 </template>
               </el-table-column>
               <el-table-column label="时间" width="168" align="center" class-name="col-text">
@@ -124,12 +169,23 @@
               </el-table-column>
               <el-table-column
                 label="原因"
-                min-width="220"
+                min-width="180"
                 align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.reason || '无' }}</template>
+              </el-table-column>
+              <el-table-column label="来源" width="100" align="center">
+                <template #default="{ row }">{{ row.source || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="到期" width="150" align="center" class-name="col-text">
+                <template #default="{ row }">
+                  <span v-if="row.expiresAt" class="cell-datetime">{{
+                    formatDateTime(row.expiresAt)
+                  }}</span>
+                  <span v-else class="muted">永久</span>
+                </template>
               </el-table-column>
               <el-table-column label="加入时间" width="168" align="center" class-name="col-text">
                 <template #default="{ row }">
@@ -195,6 +251,20 @@ import { csvFileName } from '@/utils/csv';
 import type { PageResult } from '@aicabinet/shared-types';
 import { dictLabel, dictTagType } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
+
+function dispositionLabel(s?: string) {
+  const m: Record<string, string> = {
+    OPEN: '待处置',
+    AUTO_CLEARED: '自动结清',
+    ACKED: '已确认'
+  };
+  return (s && m[s]) || s || '待处置';
+}
+function dispositionTag(s?: string) {
+  if (s === 'AUTO_CLEARED') return 'success';
+  if (s === 'ACKED') return 'info';
+  return 'warning';
+}
 
 type Row = Record<string, any>;
 const route = useRoute();

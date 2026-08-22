@@ -128,11 +128,14 @@
         <el-table-column
           prop="detail"
           label="详情"
-          min-width="220"
+          min-width="200"
           show-overflow-tooltip
           align="center"
         >
           <template #default="{ row }">{{ formatEventDetail(row.detail) }}</template>
+        </el-table-column>
+        <el-table-column label="账龄" width="100" align="center">
+          <template #default="{ row }">{{ eventAge(row.createdAt) }}</template>
         </el-table-column>
         <el-table-column label="时间" width="170" align="center">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
@@ -241,6 +244,17 @@ function formatEventDetail(detail?: string) {
       return `${keyLabel}：${valLabel}`;
     })
     .join('；');
+}
+
+function eventAge(createdAt?: string) {
+  if (!createdAt) return '—';
+  const ms = Date.now() - new Date(createdAt).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return '—';
+  const m = Math.floor(ms / 60000);
+  if (m < 60) return `${Math.max(0, m)} 分前`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h} 小时前`;
+  return `${Math.floor(h / 24)} 天前`;
 }
 
 function onSortChange(payload: Sort) {

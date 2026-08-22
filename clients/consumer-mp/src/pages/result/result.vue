@@ -41,8 +41,20 @@
       <view class="card">
         <text class="section-title">商品明细</text>
         <view v-if="order.lines?.length">
-          <view v-for="(line, i) in order.lines" :key="i" class="line">
-            <text class="line-name">{{ line.skuName || line.skuId }} × {{ line.quantity }}</text>
+          <view
+            v-for="(line, i) in order.lines"
+            :key="i"
+            class="line"
+          >
+            <view class="line-main">
+              <text class="line-name"
+                >{{ line.skuName || line.skuId }} × {{ line.quantity }}</text
+              >
+              <text v-if="lineMeta(line)" class="line-meta">{{ lineMeta(line) }}</text>
+              <text v-if="line.unitPriceCents != null" class="line-unit"
+                >单价 {{ fmtMoney(line.unitPriceCents) }}</text
+              >
+            </view>
             <text class="line-amt">{{ fmtMoney(line.lineAmountCents) }}</text>
           </view>
         </view>
@@ -57,11 +69,49 @@
           <text class="sum-label">商品合计</text>
           <text class="sum-value">{{ fmtMoney(order.originalAmountCents) }}</text>
         </view>
+        <view v-if="Number(order.memberDiscountCents || 0) > 0" class="sum-row discount">
+          <text class="sum-label">会员优惠</text>
+          <text class="sum-value">-{{ fmtMoney(order.memberDiscountCents) }}</text>
+        </view>
         <view v-if="order.couponDiscountCents" class="sum-row discount">
           <text class="sum-label">优惠券抵扣</text>
           <text class="sum-value">-{{ fmtMoney(order.couponDiscountCents) }}</text>
         </view>
-        <text v-if="order.couponDiscountCents" class="coupon-hint">已自动选用最优优惠券</text>
+        <text
+          v-if="order.couponDiscountCents || Number(order.memberDiscountCents || 0) > 0"
+          class="coupon-hint"
+          >{{ discountHint }}</text
+        >
+      </view>
+
+      <view class="card info-card">
+        <view class="info-row">
+          <text class="info-label">订单编号</text>
+          <text class="info-value">{{ order.orderId }}</text>
+        </view>
+        <view v-if="order.deviceId" class="info-row">
+          <text class="info-label">柜机编号</text>
+          <text class="info-value">{{ order.deviceId }}</text>
+        </view>
+        <view v-if="order.payTime" class="info-row">
+          <text class="info-label">扣款时间</text>
+          <text class="info-value">{{ formatPayTime(order.payTime) }}</text>
+        </view>
+        <view
+          v-if="
+            order.refundedAt ||
+            order.status === 'REFUNDED' ||
+            order.status === 'PARTIAL_REFUNDED'
+          "
+          class="info-row"
+        >
+          <text class="info-label">退款</text>
+          <text class="info-value warn"
+            >{{
+              order.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+            }}{{ order.refundedAt ? ` · ${formatPayTime(order.refundedAt)}` : '' }}</text
+          >
+        </view>
       </view>
 
       <view class="footer-actions">
@@ -175,12 +225,13 @@ import { onLoad, onShow } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { consumerApi } from '@/utils/consumer-api';
-import { fmtMoney, orderStatusLabel } from '@aicabinet/shared-uni/format';
+import { fmtMoney, formatDateTimeMinute, orderStatusLabel } from '@aicabinet/shared-uni/format';
 import { parseQuery } from '@aicabinet/shared-uni/query';
-import type { OrderDetailDto } from '@aicabinet/shared-types';
+import type { OrderDetailDto, OrderLineDto } from '@aicabinet/shared-types';
 import {
   DISPUTE_REASON_CHIPS,
   appendChipToReason,
+  inferRestoreInventory,
   type DisputeReasonChip
 } from '@/utils/dispute-form';
 import { consumerAppealErrorMessage } from '@/utils/dispute-copy';
@@ -234,6 +285,7 @@ const disputeFiled = ref(false);
 const refundDone = ref(false);
 const reasonChips = DISPUTE_REASON_CHIPS;
 const selectedCategory = ref('USER_APPEAL');
+const selectedChip = ref<DisputeReasonChip | null>(null);
 const evidence = ref<LocalEvidence[]>([]);
 
 const canRefundNow = computed(
@@ -251,6 +303,26 @@ const payChannelText = computed(() => {
   if (!ch) return '';
   return displayLabel('pay_channel', ch, '');
 });
+
+const discountHint = computed(() => {
+  const hasCoupon = !!order.value?.couponDiscountCents;
+  const hasMember = Number(order.value?.memberDiscountCents || 0) > 0;
+  if (hasCoupon && hasMember) return '已自动抵扣会员价与优惠券';
+  if (hasMember) return '已享受会员优惠';
+  if (hasCoupon) return '已自动选用最优优惠券';
+  return '';
+});
+
+function lineMeta(line: OrderLineDto) {
+  const parts: string[] = [];
+  if (line.slotId) parts.push(`货道 ${line.slotId}`);
+  if (line.batchNo) parts.push(`批次 ${line.batchNo}`);
+  return parts.join(' · ');
+}
+
+function formatPayTime(t?: string) {
+  return formatDateTimeMinute(t, '—');
+}
 
 function currentPageOptions(): Record<string, string> {
   const pages = getCurrentPages();
@@ -360,6 +432,7 @@ function openDispute() {
   refundMode.value = false;
   disputeReason.value = '';
   selectedCategory.value = 'USER_APPEAL';
+  selectedChip.value = null;
   evidence.value = [];
   showDispute.value = true;
 }
@@ -368,6 +441,7 @@ function openRefund() {
   refundMode.value = true;
   disputeReason.value = '申请退回本单已扣款项';
   selectedCategory.value = 'USER_APPEAL';
+  selectedChip.value = DISPUTE_REASON_CHIPS.find((c) => c.label === '申请退款') || null;
   evidence.value = [];
   showDispute.value = true;
 }
@@ -378,6 +452,7 @@ function closeDispute() {
 
 function pickChip(chip: DisputeReasonChip) {
   selectedCategory.value = chip.category;
+  selectedChip.value = chip;
   disputeReason.value = appendChipToReason(disputeReason.value, chip);
 }
 
@@ -460,10 +535,13 @@ async function submitRefund() {
     uni.showToast({ title: '图片仍在上传', icon: 'none' });
     return;
   }
+  const restoreInventory = inferRestoreInventory(reason, selectedChip.value);
   const confirmed = await new Promise<boolean>((resolve) =>
     uni.showModal({
       title: '确认退款',
-      content: '将立即原路退回本单金额，是否继续？',
+      content: restoreInventory
+        ? '将立即退款，并把本单商品回库（适用于没拿/误识别）。是否继续？'
+        : '将立即退款，但库存不回库（货已拿走/仅退款）。是否继续？',
       confirmText: '确认退款',
       success: (r) => resolve(!!r.confirm),
       fail: () => resolve(false)
@@ -474,7 +552,8 @@ async function submitRefund() {
   try {
     const result = await consumerApi.refundOrder(oid, {
       reason,
-      evidenceFileIds: evidenceFileIds(evidence.value)
+      evidenceFileIds: evidenceFileIds(evidence.value),
+      restoreInventory
     });
     refundDone.value = true;
     disputeFiled.value = true;
@@ -655,16 +734,58 @@ function goHelp() {
 .line {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
+  gap: 16rpx;
   padding: 18rpx 0;
   border-bottom: 1px solid #f1f5f9;
 }
+.line-main {
+  flex: 1;
+  min-width: 0;
+}
 .line-name {
+  display: block;
   color: #1e293b;
   font-weight: 600;
+}
+.line-meta,
+.line-unit {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #849087;
 }
 .line-amt {
   color: #07c160;
   font-weight: 600;
+  flex-shrink: 0;
+}
+.info-card {
+  margin-top: 20rpx;
+}
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16rpx;
+  padding: 12rpx 0;
+  border-bottom: 1px solid #f8fafc;
+}
+.info-row:last-child {
+  border-bottom: none;
+}
+.info-label {
+  font-size: 24rpx;
+  color: #849087;
+  flex-shrink: 0;
+}
+.info-value {
+  font-size: 24rpx;
+  color: #334155;
+  text-align: right;
+  word-break: break-all;
+}
+.info-value.warn {
+  color: #b45309;
 }
 .empty-lines {
   font-size: 26rpx;

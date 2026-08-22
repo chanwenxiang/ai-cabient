@@ -1,12 +1,15 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.CreateInvoiceRequest;
+import com.aicabinet.common.dto.InvoiceRequestDto;
 import com.aicabinet.common.dto.OrderDto;
 import com.aicabinet.common.dto.OrderRefundRequest;
 import com.aicabinet.common.dto.OrderRefundResultDto;
 import com.aicabinet.common.dto.OrderSummaryDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.auth.AuthInterceptor;
+import com.aicabinet.trade.service.InvoiceService;
 import com.aicabinet.trade.service.OrderService;
 import com.aicabinet.trade.service.UnpaidOrderService;
 import jakarta.servlet.http.HttpServletRequest;
@@ -25,10 +28,14 @@ public class OrderController {
 
     private final OrderService orderService;
     private final UnpaidOrderService unpaidOrderService;
+    private final InvoiceService invoiceService;
 
-    public OrderController(OrderService orderService, UnpaidOrderService unpaidOrderService) {
+    public OrderController(OrderService orderService,
+                           UnpaidOrderService unpaidOrderService,
+                           InvoiceService invoiceService) {
         this.orderService = orderService;
         this.unpaidOrderService = unpaidOrderService;
+        this.invoiceService = invoiceService;
     }
 
     @GetMapping
@@ -63,5 +70,14 @@ public class OrderController {
             @Valid @RequestBody OrderRefundRequest body) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return ApiResponse.ok(orderService.refundMyOrder(userId, orderId, body));
+    }
+
+    @PostMapping("/{orderId}/invoice")
+    public ApiResponse<InvoiceRequestDto> applyInvoice(
+            HttpServletRequest request,
+            @PathVariable("orderId") String orderId,
+            @Valid @RequestBody CreateInvoiceRequest body) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(invoiceService.applyByConsumer(userId, orderId, body));
     }
 }

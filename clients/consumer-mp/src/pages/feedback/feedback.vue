@@ -89,6 +89,7 @@
               }}</text>
             </view>
             <text class="history-content">{{ item.content }}</text>
+            <text v-if="item.deviceId" class="history-device">柜机 {{ item.deviceId }}</text>
             <text class="history-time">{{ formatTime(item.createdAt) }}</text>
             <view v-if="item.reply" class="reply-box">
               <text class="reply-label">运营回复</text>
@@ -406,6 +407,12 @@ async function onSubmit() {
   font-size: 28rpx;
   color: #334155;
   line-height: 1.55;
+}
+.history-device {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #64748b;
 }
 .history-time {
   display: block;

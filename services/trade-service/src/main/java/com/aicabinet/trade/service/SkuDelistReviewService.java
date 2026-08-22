@@ -37,15 +37,18 @@ public class SkuDelistReviewService {
     private final DeviceSkuInventoryMapper inventoryRepository;
     private final SkuCatalogMapper skuCatalogRepository;
     private final SkuDelistReviewMapper reviewRepository;
+    private final InventoryLotService inventoryLotService;
 
     public SkuDelistReviewService(CabinetOrderLineMapper lineRepository,
                                   DeviceSkuInventoryMapper inventoryRepository,
                                   SkuCatalogMapper skuCatalogRepository,
-                                  SkuDelistReviewMapper reviewRepository) {
+                                  SkuDelistReviewMapper reviewRepository,
+                                  InventoryLotService inventoryLotService) {
         this.lineRepository = lineRepository;
         this.inventoryRepository = inventoryRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.reviewRepository = reviewRepository;
+        this.inventoryLotService = inventoryLotService;
     }
 
     /** 基于近 N 天订单生成/刷新全量 SKU 评审行。 */
@@ -65,11 +68,19 @@ public class SkuDelistReviewService {
         }
 
         Map<String, Long> stock = new HashMap<>();
+        Map<String, Boolean> ledgerByDevice = new HashMap<>();
+        Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
         for (DeviceSkuInventory inv : inventoryRepository.findAllLimit(5000)) {
             if (inv == null || inv.getSkuId() == null) {
                 continue;
             }
-            stock.merge(inv.getSkuId(), (long) inv.getQuantity(), Long::sum);
+            String deviceId = inv.getDeviceId();
+            boolean ledger = ledgerByDevice.computeIfAbsent(deviceId, inventoryLotService::deviceUsesLotLedger);
+            int qty = ledger
+                    ? sellableByDevice.computeIfAbsent(deviceId, inventoryLotService::sellableQtyBySku)
+                            .getOrDefault(inv.getSkuId(), 0)
+                    : inv.getQuantity();
+            stock.merge(inv.getSkuId(), (long) qty, Long::sum);
         }
 
         Map<String, SkuCatalog> skus = skuCatalogRepository.findAllByOrderBySkuIdAsc().stream()

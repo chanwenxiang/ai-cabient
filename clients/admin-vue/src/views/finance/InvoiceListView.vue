@@ -1,0 +1,182 @@
+<script setup lang="ts">
+import { computed, onMounted, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { CircleCheck, CircleClose, Refresh } from '@element-plus/icons-vue'
+import { api } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
+import TableActions, { type TableAction } from '@/components/TableActions.vue'
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format'
+
+interface InvoiceRow {
+  invoiceId: number
+  orderId: string
+  userId: number
+  title: string
+  taxNo?: string
+  email?: string
+  amountCents: number
+  status: string
+  rejectReason?: string
+  createdAt?: string
+  issuedAt?: string
+}
+
+const auth = useAuthStore()
+const loading = ref(false)
+const hydrated = ref(false)
+const rows = ref<InvoiceRow[]>([])
+const statusTab = ref(localStorage.getItem('ops_invoice_status_tab') || 'PENDING')
+const canEdit = computed(() => auth.hasPerm('ops:invoice:edit'))
+
+const statusOptions = [
+  { value: 'PENDING', label: '待开具' },
+  { value: 'ISSUED', label: '已开具' },
+  { value: 'REJECTED', label: '已驳回' },
+  { value: '', label: '全部' }
+]
+
+function yuan(cents?: number) {
+  return ((cents || 0) / 100).toFixed(2)
+}
+
+function statusLabel(s?: string) {
+  switch (String(s || '').toUpperCase()) {
+    case 'PENDING':
+      return '待开具'
+    case 'ISSUED':
+      return '已开具'
+    case 'REJECTED':
+      return '已驳回'
+    default:
+      return s || '—'
+  }
+}
+
+function statusTag(s?: string): 'success' | 'warning' | 'info' {
+  switch (String(s || '').toUpperCase()) {
+    case 'PENDING':
+      return 'warning'
+    case 'ISSUED':
+      return 'success'
+    default:
+      return 'info'
+  }
+}
+
+function rowActions(row: InvoiceRow): TableAction[] {
+  if (row.status !== 'PENDING' || !canEdit.value) return []
+  return [
+    { key: 'issue', label: '开具', icon: CircleCheck, type: 'success' },
+    { key: 'reject', label: '驳回', icon: CircleClose, type: 'danger' }
+  ]
+}
+
+async function onRowAction(key: string, row: InvoiceRow) {
+  if (key === 'issue') {
+    await ElMessageBox.confirm(`确认开具发票？订单 ${displayBizNo(row.orderId)}`, '开具发票')
+    await api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/issue`, 'POST')
+    ElMessage.success('已开具')
+    await load()
+    return
+  }
+  if (key === 'reject') {
+    const { value } = await ElMessageBox.prompt('驳回原因', '驳回开票', {
+      inputPlaceholder: '不符合开票条件',
+      confirmButtonText: '驳回'
+    })
+    await api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/reject`, 'POST', {
+      reason: value || '不符合开票条件'
+    })
+    ElMessage.success('已驳回')
+    await load()
+  }
+}
+
+async function load() {
+  loading.value = true
+  try {
+    const q = statusTab.value ? `?status=${encodeURIComponent(statusTab.value)}` : ''
+    rows.value = await api.request<InvoiceRow[]>(`/api/v2/ops/admin/invoices${q}`)
+  } finally {
+    loading.value = false
+    hydrated.value = true
+  }
+}
+
+function onStatusChange() {
+  localStorage.setItem('ops_invoice_status_tab', statusTab.value)
+  load()
+}
+
+onMounted(load)
+</script>
+
+<template>
+  <el-card class="page-card" shadow="never">
+    <template #header>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">开票申请</span>
+            <span class="hint">消费者订单开票 · 运营开具或驳回 · 商户税号在商户端维护</span>
+          </div>
+        </div>
+        <div class="page-card-head__actions">
+          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+        </div>
+      </div>
+    </template>
+
+    <el-form inline class="filter-bar filter-bar--compact">
+      <el-form-item label="状态">
+        <el-select v-model="statusTab" style="width: 140px" @change="onStatusChange">
+          <el-option v-for="o in statusOptions" :key="o.value || 'all'" :label="o.label" :value="o.value" />
+        </el-select>
+      </el-form-item>
+    </el-form>
+
+    <el-table :data="rows" v-loading="loading" stripe border empty-text=" ">
+      <template #empty>
+        <el-empty v-if="hydrated && !loading" description="暂无开票申请" />
+      </template>
+      <el-table-column label="申请号" width="100" align="center">
+        <template #default="{ row }">{{ row.invoiceId }}</template>
+      </el-table-column>
+      <el-table-column label="订单" min-width="140">
+        <template #default="{ row }">{{ displayBizNo(row.orderId) }}</template>
+      </el-table-column>
+      <el-table-column label="用户" width="90" align="center">
+        <template #default="{ row }">{{ row.userId ?? '—' }}</template>
+      </el-table-column>
+      <el-table-column prop="title" label="抬头" min-width="140" />
+      <el-table-column prop="taxNo" label="税号" width="140" />
+      <el-table-column label="邮箱" min-width="140" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.email || '—' }}</template>
+      </el-table-column>
+      <el-table-column label="金额" width="100" align="right">
+        <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
+      </el-table-column>
+      <el-table-column label="状态" width="100" align="center">
+        <template #default="{ row }">
+          <el-tag :type="statusTag(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="驳回原因" min-width="120" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.rejectReason || '—' }}</template>
+      </el-table-column>
+      <el-table-column label="申请时间" width="150">
+        <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+      </el-table-column>
+      <el-table-column label="开票时间" width="150">
+        <template #default="{ row }">{{
+          row.issuedAt ? formatDateTime(row.issuedAt) : '—'
+        }}</template>
+      </el-table-column>
+      <el-table-column label="操作" width="140" fixed="right" align="center">
+        <template #default="{ row }">
+          <TableActions :actions="rowActions(row)" @action="(k) => onRowAction(k, row)" />
+        </template>
+      </el-table-column>
+    </el-table>
+  </el-card>
+</template>

@@ -30,4 +30,10 @@ public class RiskEvent {
 
     private Instant createdAt;
 
+    /** OPEN / AUTO_CLEARED / ACKED */
+    private String dispositionStatus = "OPEN";
+
+    private Instant dispositionAt;
+
+    private String dispositionNote;
 }

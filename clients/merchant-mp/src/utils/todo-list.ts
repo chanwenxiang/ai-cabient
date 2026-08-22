@@ -14,6 +14,8 @@ export type TodoSourceAction = {
   detail?: string;
   deviceId?: string;
   ticketId?: string;
+  dueAt?: string;
+  severity?: string;
 };
 
 export type TodoSourceExpiry = {
@@ -33,6 +35,8 @@ export type TodoListItem = {
   deviceId?: string;
   ticketId?: string;
   exceptionId?: string;
+  dueAt?: string;
+  severity?: string;
 };
 
 function typeKey(type?: string) {
@@ -65,7 +69,9 @@ export function mergeTodoItems(input: {
     title: merchantAlertTitle(a.type, a.title),
     detail: merchantAlertTitle(a.type, a.detail || ''),
     deviceId: a.deviceId,
-    ticketId: a.ticketId
+    ticketId: a.ticketId,
+    dueAt: a.dueAt,
+    severity: a.severity
   }));
   const expiryItems = (input.expiryRows || [])
     .filter((e) => String(e.status || 'OPEN').toUpperCase() === 'OPEN')

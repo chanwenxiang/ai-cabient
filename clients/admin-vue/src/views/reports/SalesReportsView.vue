@@ -66,6 +66,33 @@
       <el-table-column label="毛利" width="110" align="center">
         <template #default="{ row }">¥{{ ((row.marginCents || 0) / 100).toFixed(2) }}</template>
       </el-table-column>
+      <el-table-column label="毛利率" width="90" align="center">
+        <template #default="{ row }">
+          {{
+            Number(row.revenueCents) > 0
+              ? `${((Number(row.marginCents || 0) / Number(row.revenueCents)) * 100).toFixed(1)}%`
+              : '—'
+          }}
+        </template>
+      </el-table-column>
+      <el-table-column label="客单价" width="100" align="center">
+        <template #default="{ row }">
+          {{
+            Number(row.orderCount) > 0
+              ? `¥${(Number(row.revenueCents || 0) / Number(row.orderCount) / 100).toFixed(2)}`
+              : '—'
+          }}
+        </template>
+      </el-table-column>
+      <el-table-column label="件均价" width="100" align="center">
+        <template #default="{ row }">
+          {{
+            Number(row.qty) > 0
+              ? `¥${(Number(row.revenueCents || 0) / Number(row.qty) / 100).toFixed(2)}`
+              : '—'
+          }}
+        </template>
+      </el-table-column>
     </el-table>
   </el-card>
 </template>
@@ -74,8 +101,9 @@
 import { onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { api } from '@/api/client';
+import { api, downloadAuthFile } from '@/api/client';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
+import { csvFileName } from '@/utils/csv';
 
 const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 
@@ -93,14 +121,18 @@ function todayStr() {
 const range = ref<[string, string] | null>([todayStr(), todayStr()]);
 const rows = ref<any[]>([]);
 
+function queryParams() {
+  const q = new URLSearchParams({ dim: dim.value });
+  if (range.value?.[0]) q.set('fromDate', range.value[0]);
+  if (range.value?.[1]) q.set('toDate', range.value[1]);
+  if (deviceId.value) q.set('deviceId', deviceId.value);
+  return q;
+}
+
 async function load() {
   loading.value = true;
   try {
-    const q = new URLSearchParams({ dim: dim.value });
-    if (range.value?.[0]) q.set('fromDate', range.value[0]);
-    if (range.value?.[1]) q.set('toDate', range.value[1]);
-    if (deviceId.value) q.set('deviceId', deviceId.value);
-    rows.value = await api.request(`/api/v2/ops/admin/sales-reports?${q}`, 'GET');
+    rows.value = await api.request(`/api/v2/ops/admin/sales-reports?${queryParams()}`, 'GET');
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '加载失败');
     if (!listHydrated.value) rows.value = [];
@@ -110,22 +142,15 @@ async function load() {
   }
 }
 
-function exportCsv() {
-  const header = 'dimKey,dimLabel,orderCount,qty,revenueCents,cogsCents,marginCents\n';
-  const body = rows.value
-    .map((r) =>
-      [r.dimKey, r.dimLabel, r.orderCount, r.qty, r.revenueCents, r.cogsCents, r.marginCents]
-        .map((v) => `"${String(v ?? '').replace(/"/g, '""')}"`)
-        .join(',')
-    )
-    .join('\n');
-  const blob = new Blob(['\ufeff' + header + body], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `sales-report-${dim.value}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+async function exportCsv() {
+  try {
+    await downloadAuthFile(
+      `/api/v2/ops/admin/sales-reports/export?${queryParams()}`,
+      csvFileName(`销售报表-${dim.value}`)
+    );
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '导出失败');
+  }
 }
 
 onMounted(async () => {

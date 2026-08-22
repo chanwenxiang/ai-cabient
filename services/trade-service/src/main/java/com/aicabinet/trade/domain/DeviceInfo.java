@@ -58,6 +58,9 @@ public class DeviceInfo {
     /** 营业锁机：禁止消费者开门 */
     private Boolean salesLocked;
 
+    /** 停售原因（人工锁机 / 离线超时等） */
+    private String salesLockReason;
+
     /** 最近一次解锁时间（离线自动锁机宽限用） */
     private Instant salesUnlockedAt;
 

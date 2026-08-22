@@ -50,6 +50,14 @@
                   : '处理中'
             }}</text>
           </view>
+          <view v-if="item.billedAmountCents != null || item.refundedAmountCents != null" class="card-amount-line">
+            <text v-if="item.billedAmountCents != null">已扣 {{ fmtMoney(item.billedAmountCents) }}</text>
+            <text v-if="item.refundedAmountCents != null"
+              >已退 {{ fmtMoney(item.refundedAmountCents) }}</text
+            >
+            <text v-if="item.orderId" class="card-order">订单 {{ shortId(item.orderId) }}</text>
+          </view>
+          <view v-if="item.videoUri || item.videoPreviewUrl" class="card-video-hint">有录像</view>
           <view v-if="item.lastMessage" class="card-msg"
             ><text>{{ item.lastMessage }}</text></view
           >
@@ -106,17 +114,78 @@
                 ><text class="detail-val">{{ detail.orderId }}</text></view
               >
               <view v-if="detail?.billedAmountCents != null" class="detail-row">
-                <text class="detail-lbl">金额</text
+                <text class="detail-lbl">已扣金额</text
                 ><text class="detail-val">{{ fmtMoney(detail.billedAmountCents) }}</text>
+              </view>
+              <view v-if="detail?.refundedAmountCents != null" class="detail-row">
+                <text class="detail-lbl">已退金额</text
+                ><text class="detail-val">{{ fmtMoney(detail.refundedAmountCents) }}</text>
+              </view>
+              <view
+                v-if="detail?.slaOverdue != null || detail?.slaHoursRemaining != null"
+                class="detail-row"
+              >
+                <text class="detail-lbl">处理时限</text
+                ><text class="detail-val" :class="detail?.slaOverdue ? 'sla-overdue' : 'sla-ok'">{{
+                  detail?.slaOverdue
+                    ? '已超时'
+                    : detail?.slaHoursRemaining != null
+                      ? `剩余 ${detail.slaHoursRemaining}h`
+                      : '—'
+                }}</text>
               </view>
               <view v-if="detail?.lastMessage" class="detail-row"
                 ><text class="detail-lbl">最新</text
                 ><text class="detail-val">{{ detail.lastMessage }}</text></view
               >
             </view>
+            <view
+              v-if="(detail?.suggestedItems || []).length"
+              class="suggest-block"
+            >
+              <text class="detail-lbl">建议明细</text>
+              <view
+                v-for="(it, i) in detail?.suggestedItems || []"
+                :key="i"
+                class="suggest-row"
+              >
+                <text>{{ it.skuName || it.skuId || '商品' }} ×{{ it.quantity || 0 }}</text>
+              </view>
+            </view>
+            <view v-if="detail?.videoPreviewUrl || detail?.videoUri" class="video-block">
+              <text class="detail-lbl">购物录像</text>
+              <video
+                class="dispute-video"
+                :src="detail.videoPreviewUrl || detail.videoUri"
+                controls
+                object-fit="contain"
+                :show-center-play-btn="true"
+              />
+            </view>
           </scroll-view>
           <view class="detail-actions">
             <button v-if="canReplyDetail" class="primary-btn" @click="replyFromDetail">回复</button>
+            <button
+              v-if="canResolveDetail"
+              class="primary-btn waive"
+              :loading="resolving"
+              @click="resolveFromDetail('WAIVE')"
+              >同意免单</button
+            >
+            <button
+              v-if="canResolveDetail"
+              class="btn-outline"
+              :loading="resolving"
+              @click="resolveFromDetail('KEEP')"
+              >维持原单</button
+            >
+            <button
+              v-if="canResolveDetail"
+              class="btn-outline"
+              :loading="resolving"
+              @click="resolveFromDetail('CONFIRM')"
+              >按识别结案</button
+            >
             <button v-if="detail?.orderId" class="btn-outline" @click="goOrderFromDetail">
               查看订单
             </button>
@@ -150,6 +219,7 @@ import type { MerchantMe } from '@aicabinet/shared-types';
 const { me, refresh: refreshMe } = useMerchantMe();
 const canListDisputes = computed(() => hasPerm(me.value, 'merchant:disputes:list'));
 const canReply = computed(() => hasPerm(me.value, 'merchant:disputes:reply'));
+const canResolve = computed(() => hasPerm(me.value, 'merchant:disputes:resolve'));
 
 const tabs = [
   { key: 'OPEN', label: '待处理' },
@@ -172,6 +242,8 @@ const pendingSessionId = ref('');
 const detailVisible = ref(false);
 const detail = ref<MerchantDisputeTicket | null>(null);
 const canReplyDetail = ref(false);
+const canResolveDetail = ref(false);
+const resolving = ref(false);
 
 const activeTabLabel = computed(() => tabs.find((t) => t.key === activeTab.value)?.label || '');
 const listTruncated = computed(
@@ -281,10 +353,12 @@ function formatTime(t?: string) {
 async function onDetail(item: MerchantDisputeTicket) {
   let row: MerchantDisputeTicket = { ...item };
   let canReplyFromApi: boolean | undefined;
+  let canResolveFromApi: boolean | undefined;
   try {
     const res = await merchantApi.disputeDetail(item.ticketId);
     if (res?.ticket) row = { ...item, ...res.ticket };
     canReplyFromApi = res?.canReply;
+    canResolveFromApi = res?.canResolve;
     const lastMsg = res?.messages?.length
       ? res.messages[res.messages.length - 1]?.body
       : row.lastMessage;
@@ -295,7 +369,47 @@ async function onDetail(item: MerchantDisputeTicket) {
   detail.value = row;
   canReplyDetail.value =
     canReplyFromApi != null ? canReplyFromApi && canReply.value : canReplyTicket(row);
+  canResolveDetail.value =
+    canResolveFromApi != null
+      ? !!canResolveFromApi && canResolve.value
+      : canResolve.value && (row.status || '').toUpperCase() === 'OPEN';
   detailVisible.value = true;
+}
+
+async function resolveFromDetail(type: 'KEEP' | 'WAIVE' | 'CONFIRM') {
+  if (!detail.value?.ticketId || resolving.value) return;
+  const labels = { KEEP: '维持原单', WAIVE: '同意免单退款', CONFIRM: '按识别清单结案' };
+  const ok = await new Promise<boolean>((resolve) => {
+    uni.showModal({
+      title: labels[type],
+      content:
+        type === 'WAIVE'
+          ? '确认免单并原路退款？货已离柜请选「仅退款」逻辑由系统按默认处理。'
+          : `确认${labels[type]}？`,
+      success: (r) => resolve(!!r.confirm),
+      fail: () => resolve(false)
+    });
+  });
+  if (!ok) return;
+  resolving.value = true;
+  try {
+    const body: {
+      resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM';
+      restoreInventory?: boolean;
+    } = { resolutionType: type };
+    if (type === 'WAIVE') body.restoreInventory = false;
+    const res = await merchantApi.disputeResolve(detail.value.ticketId, body);
+    uni.showToast({ title: res.message || '已结案', icon: 'success' });
+    detailVisible.value = false;
+    await load();
+  } catch (e) {
+    uni.showToast({
+      title: e instanceof Error ? e.message : '结案失败',
+      icon: 'none'
+    });
+  } finally {
+    resolving.value = false;
+  }
 }
 
 function replyFromDetail() {
@@ -449,6 +563,24 @@ async function onReply(item: MerchantDisputeTicket) {
 .card-meta,
 .card-msg {
   pointer-events: none;
+}
+.card-amount-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #0f766e;
+  font-weight: 600;
+}
+.card-order {
+  color: #64748b;
+  font-weight: 400;
+}
+.card-video-hint {
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #0369a1;
 }
 .card-id {
   font-size: 22rpx;
@@ -617,6 +749,28 @@ async function onReply(item: MerchantDisputeTicket) {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+}
+.detail-actions .primary-btn.waive {
+  background: #dc2626;
+  color: #fff;
+}
+.video-block {
+  margin-top: 20rpx;
+}
+.suggest-block {
+  margin-top: 16rpx;
+}
+.suggest-row {
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #334155;
+}
+.dispute-video {
+  width: 100%;
+  height: 360rpx;
+  margin-top: 12rpx;
+  background: #0f172a;
+  border-radius: 12rpx;
 }
 .page-body {
   padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));

@@ -11,7 +11,7 @@ export function niceMax(val: number): number {
 }
 
 export function formatYuan(cents: number): string {
-  return '¥' + (cents / 100).toFixed(cents >= 10000 ? 0 : 2);
+  return '¥' + (cents / 100).toFixed(2);
 }
 
 export function formatPct(rate: number): string {

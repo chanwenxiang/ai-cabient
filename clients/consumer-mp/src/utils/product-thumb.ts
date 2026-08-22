@@ -28,7 +28,10 @@ function absoluteImageUrl(url?: string | null): string {
 }
 
 export function productThumb(p: DeviceProduct): string {
-  return absoluteImageUrl(p.imageUrl) || LOCAL_SKU_IMAGES[p.skuId] || '';
+  // 真机调试优先用包内 static（不依赖局域网拉 /admin/sku-demo）
+  const local = LOCAL_SKU_IMAGES[p.skuId];
+  if (local) return local;
+  return absoluteImageUrl(p.imageUrl) || '';
 }
 
 /** 无本地图时的中文占位（仅作兜底，不替代真实商品图） */

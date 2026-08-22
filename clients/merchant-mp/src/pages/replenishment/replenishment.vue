@@ -148,6 +148,21 @@
           <text>任务 #{{ task.taskId }}</text>
           <text>{{ formatTime(task.createdAt) }}</text>
         </view>
+        <view class="task-meta soft">
+          <text v-if="task.routeId">线路 #{{ task.routeId }}</text>
+          <text v-if="task.checkInAt">已签到</text>
+          <text v-if="task.outboundId">出库 #{{ task.outboundId }}</text>
+          <text
+            v-if="evidenceCountOf(task.taskId) > 0"
+            class="evidence-badge"
+            >凭证 {{ evidenceCountOf(task.taskId) }} 张</text
+          >
+          <text
+            v-else-if="task.status === 'COMPLETED'"
+            class="evidence-badge muted"
+            >无现场照片</text
+          >
+        </view>
         <view v-if="displayTaskNotes(task.notes)" class="task-note">{{
           displayTaskNotes(task.notes)
         }}</view>
@@ -226,21 +241,32 @@
             <view>
               <text class="section-title">现场照片</text>
               <text class="section-subtitle">{{
-                selected?.checkInAt ? '最多 5 张，便于后台核对履约' : '签到后可拍照留存，最多 5 张'
+                selected?.checkInAt
+                  ? evidenceItems.length
+                    ? `已上传 ${evidenceItems.length}/5 · 点图可放大核对`
+                    : '建议拍柜内/货道全景，最多 5 张'
+                  : '签到后可拍照留存，最多 5 张'
               }}</text>
             </view>
-            <text class="line-count">{{ evidenceItems.length }} 张</text>
+            <text class="line-count" :class="{ warn: evidenceItems.length === 0 && !!selected?.checkInAt }">
+              {{ evidenceItems.length }} 张
+            </text>
           </view>
           <view class="evidence-row">
-            <image
+            <view
               v-for="(item, idx) in evidenceItems"
               :key="item.fileId || item.localPath || idx"
-              class="evidence-thumb"
-              :src="item.localPath"
-              mode="aspectFill"
-              :aria-label="`现场照片 ${idx + 1}`"
-              @click="previewEvidence(idx)"
-            />
+              class="evidence-thumb-wrap"
+            >
+              <image
+                class="evidence-thumb"
+                :src="item.localPath"
+                mode="aspectFill"
+                :aria-label="`现场照片 ${idx + 1}`"
+                @click="previewEvidence(idx)"
+              />
+              <text class="evidence-caption">凭证 {{ idx + 1 }}</text>
+            </view>
             <view
               v-if="
                 canRequest &&
@@ -252,13 +278,34 @@
               role="button"
               aria-label="添加现场照片"
               @click="addEvidence"
-              >+</view
             >
-            <text
-              v-else-if="canRequest && selected?.status !== 'COMPLETED' && !selected?.checkInAt"
-              class="evidence-hint"
-              >签到后可拍照</text
+              <text class="evidence-add-plus">+</text>
+              <text class="evidence-add-label">拍照</text>
+            </view>
+            <view
+              v-else-if="!evidenceItems.length"
+              class="evidence-empty"
+              role="button"
+              :aria-label="selected?.checkInAt ? '添加现场照片' : '请先签到'"
+              @click="
+                selected?.checkInAt &&
+                canRequest &&
+                selected?.status !== 'COMPLETED'
+                  ? addEvidence()
+                  : undefined
+              "
             >
+              <text class="evidence-empty-title">{{
+                selected?.status === 'COMPLETED' ? '本次未留存照片' : '暂无现场照片'
+              }}</text>
+              <text class="evidence-empty-tip">{{
+                selected?.checkInAt
+                  ? selected?.status === 'COMPLETED'
+                    ? '完成后不可再补传'
+                    : '点击拍照或从相册上传'
+                  : '签到后可拍照'
+              }}</text>
+            </view>
           </view>
 
           <view class="section-heading">
@@ -347,6 +394,7 @@
               <text>货道 {{ line.slotId || '待分配' }}</text>
               <text class="line-type">{{ lineTypeLabel(line.lineType) }}</text>
             </view>
+            <view v-if="stockDeltaText(line)" class="line-stock">{{ stockDeltaText(line) }}</view>
             <view
               v-if="
                 canRequest &&
@@ -491,6 +539,7 @@ type Task = {
   deviceId: string;
   status: string;
   notes?: string;
+  routeId?: number;
   outboundId?: number;
   checkInAt?: string;
   createdAt?: string;
@@ -520,6 +569,8 @@ const focusTaskId = ref<number | null>(null);
 /** Deep-link query applied once; cleared so onShow/load won't reopen the same task. */
 let pendingDeepLink = false;
 const allTasks = ref<Task[]>([]);
+/** taskId → 现场照片张数（列表徽标） */
+const evidenceCountMap = ref<Record<number, number>>({});
 const devices = ref<Record<string, unknown>[]>([]);
 const skus = ref<Record<string, unknown>[]>([]);
 const detailVisible = ref(false);
@@ -864,6 +915,7 @@ async function load() {
     skus.value = (skuRows || []) as Record<string, unknown>[];
     efficiency.value = eff;
     lowStockList.value = aggregateLowStock(lowStockRows || []);
+    void refreshEvidenceCounts(allTasks.value);
 
     // Consume deep link once (扫柜 / 工作台入口)
     let open: Task | undefined;
@@ -1074,6 +1126,12 @@ async function addEvidence() {
     try {
       const uploaded = await merchantApi.uploadReplenishmentEvidence(selected.value.taskId, path);
       evidenceItems.value.push({ localPath: path, fileId: uploaded.fileId });
+      if (selected.value?.taskId) {
+        evidenceCountMap.value = {
+          ...evidenceCountMap.value,
+          [selected.value.taskId]: evidenceItems.value.length
+        };
+      }
     } catch (e) {
       uni.showToast({
         title: e instanceof Error ? e.message : '上传失败',
@@ -1136,6 +1194,10 @@ async function openTask(task: Task) {
       })
     );
     evidenceItems.value = mapped;
+    evidenceCountMap.value = {
+      ...evidenceCountMap.value,
+      [task.taskId]: mapped.length
+    };
     const map: Record<string, { maxLevel: number; bookQty: number }> = {};
     for (const s of deviceSlotsList.value) {
       const code = String(s.slotCode || '').toUpperCase();
@@ -1204,6 +1266,53 @@ function slotHint(line: Line): string {
   if (line.quantity > room)
     return `超出容量：最多再补 ${room}（已有 ${cap.bookQty}/${cap.maxLevel}）`;
   return `还可补 ${room}（已有 ${cap.bookQty}/${cap.maxLevel}）`;
+}
+
+function evidenceCountOf(taskId?: number) {
+  if (!taskId) return 0;
+  return Number(evidenceCountMap.value[taskId] || 0);
+}
+
+function stockDeltaText(line: Line): string {
+  const code = String(line.slotId || '').toUpperCase();
+  if (!code) return '';
+  const cap = slotCaps.value[code];
+  if (!cap) return '';
+  const qty = Math.max(0, Number(line.quantity) || 0);
+  if (isPullOffType(line.lineType)) {
+    const after = Math.max(0, cap.bookQty - qty);
+    return `账面 ${cap.bookQty} → 下架后约 ${after}${
+      cap.maxLevel > 0 ? ` / 容量 ${cap.maxLevel}` : ''
+    }`;
+  }
+  const after = cap.bookQty + qty;
+  return `账面 ${cap.bookQty} → 补后约 ${after}${
+    cap.maxLevel > 0 ? ` / 容量 ${cap.maxLevel}` : ''
+  }`;
+}
+
+async function refreshEvidenceCounts(taskRows: Task[]) {
+  const ids = (taskRows || [])
+    .map((t) => t.taskId)
+    .filter((id) => Number.isFinite(id) && id > 0)
+    .slice(0, 40);
+  if (!ids.length) {
+    evidenceCountMap.value = {};
+    return;
+  }
+  const entries = await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const list = await merchantApi.listReplenishmentEvidence(id);
+        return [id, (list || []).length] as const;
+      } catch {
+        return [id, evidenceCountMap.value[id] || 0] as const;
+      }
+    })
+  );
+  const next: Record<number, number> = { ...evidenceCountMap.value };
+  for (const [id, n] of entries) next[id] = n;
+  evidenceCountMap.value = next;
 }
 
 function closeDetail() {
@@ -1479,14 +1588,19 @@ async function completeTask() {
   }
   if (evidenceItems.value.length === 0) {
     const photoOk = await askConfirm({
-      title: '未上传照片',
+      title: '缺少现场凭证',
       content: detailIsPullOff.value
-        ? '建议先拍照留存下架证据，确认仍要完成任务？'
-        : '建议先拍照留存补货证据，确认仍要完成任务？',
-      confirmText: '仍完成',
-      cancelText: '去拍照'
+        ? '建议先拍照留存下架证据，再完成任务，便于后台抽检。'
+        : '建议先拍照留存补货证据，再完成任务，便于后台抽检。',
+      confirmText: '去拍照',
+      cancelText: '仍完成'
     });
-    if (!photoOk) return;
+    // 主按钮去拍照；取消才强制完成（与旧流程相反，提高凭证留存率）
+    if (photoOk) {
+      if (selected.value?.checkInAt) void addEvidence();
+      else uni.showToast({ title: '请先签到再拍照', icon: 'none' });
+      return;
+    }
   }
   const ok = await askConfirm({
     title: detailIsPullOff.value ? '确认全部下架' : '确认全部上架',
@@ -1822,6 +1936,13 @@ onPullDownRefresh(load);
   align-items: center;
   justify-content: space-between;
   gap: 18rpx;
+}
+.task-meta.soft {
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #64748b;
+  justify-content: flex-start;
+  flex-wrap: wrap;
 }
 .device-name,
 .device-code,
@@ -2242,6 +2363,9 @@ onPullDownRefresh(load);
   gap: 16rpx;
   margin-bottom: 20rpx;
 }
+.evidence-thumb-wrap {
+  width: 140rpx;
+}
 .evidence-thumb,
 .evidence-add {
   width: 140rpx;
@@ -2249,19 +2373,79 @@ onPullDownRefresh(load);
   border-radius: 16rpx;
   background: #ecfdf5;
 }
+.evidence-thumb {
+  display: block;
+}
+.evidence-caption {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 20rpx;
+  color: #64748b;
+  text-align: center;
+}
 .evidence-add {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   border: 2rpx dashed #99f6e4;
   color: #0f766e;
-  font-size: 48rpx;
+  gap: 4rpx;
+}
+.evidence-add-plus {
+  font-size: 40rpx;
   font-weight: 600;
+  line-height: 1;
+}
+.evidence-add-label {
+  font-size: 20rpx;
+}
+.evidence-empty {
+  width: 100%;
+  min-height: 140rpx;
+  height: auto;
+  padding: 24rpx 20rpx;
+  box-sizing: border-box;
+  border: 2rpx dashed #cbd5e1;
+  background: #f8fafc;
+  border-radius: 16rpx;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8rpx;
+}
+.evidence-empty-title {
+  font-size: 26rpx;
+  font-weight: 650;
+  color: #334155;
+}
+.evidence-empty-tip {
+  font-size: 22rpx;
+  color: #94a3b8;
 }
 .evidence-hint {
   align-self: center;
   font-size: 22rpx;
   color: #94a3b8;
+}
+.evidence-badge {
+  color: #0f766e;
+  font-weight: 650;
+}
+.evidence-badge.muted {
+  color: #94a3b8;
+  font-weight: 500;
+}
+.line-count.warn {
+  color: #b45309;
+}
+.line-stock {
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #0f766e;
+  background: #ecfdf5;
+  border-radius: 10rpx;
+  padding: 8rpx 12rpx;
 }
 .action-dock {
   position: sticky;

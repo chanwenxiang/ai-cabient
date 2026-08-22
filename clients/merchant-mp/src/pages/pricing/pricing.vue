@@ -29,7 +29,16 @@
             <view class="row-main">
               <text class="name">{{ p.skuName }}</text>
               <text class="meta"
-                >{{ p.deviceName || p.deviceId }} · 基准 {{ money(p.basePriceCents) }}</text
+                >{{ p.deviceName || p.deviceId }} · {{ p.skuId
+                }}{{ p.quantity != null ? ` · 库存 ${p.quantity}` : '' }}</text
+              >
+              <text class="meta"
+                >基准 {{ money(p.basePriceCents)
+                }}{{
+                  p.overridePriceCents != null
+                    ? ` · 覆盖 ${money(p.overridePriceCents)}`
+                    : ' · 无覆盖'
+                }}</text
               >
               <text v-if="p.minPriceCents != null || p.maxPriceCents != null" class="meta range">
                 可改 {{ p.minPriceCents != null ? money(p.minPriceCents) : '未设' }}–{{
@@ -39,6 +48,11 @@
             </view>
             <view class="price-col">
               <text class="effective">{{ money(p.effectivePriceCents) }}</text>
+              <text
+                v-if="p.overridePriceCents != null"
+                class="override-tag"
+                >已覆盖</text
+              >
               <input
                 v-if="canEdit"
                 v-model="draft[draftKey(p)]"
@@ -389,6 +403,15 @@ async function savePrice(p: MerchantSkuPricing) {
   font-weight: 700;
   color: #0f766e;
   display: block;
+}
+.override-tag {
+  display: inline-block;
+  margin-top: 6rpx;
+  font-size: 20rpx;
+  color: #b45309;
+  background: #fef3c7;
+  padding: 2rpx 10rpx;
+  border-radius: 8rpx;
 }
 .price-col {
   text-align: right;

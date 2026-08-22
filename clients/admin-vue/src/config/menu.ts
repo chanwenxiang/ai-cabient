@@ -230,6 +230,13 @@ const BASE_NAV: NavItem[] = [
     keywords: ['商户', '分账', '开关', '货道']
   },
   {
+    path: '/merchant-onboarding',
+    title: '进件工作台',
+    group: '财务商户',
+    perm: 'ops:merchant:onboard:list',
+    keywords: ['进件', '微信', '支付宝', '支付分', 'onboarding']
+  },
+  {
     path: '/line-managers',
     title: '线长钱包',
     group: '财务商户',
@@ -270,6 +277,13 @@ const BASE_NAV: NavItem[] = [
     group: '财务商户',
     perm: 'ops:balance-refund:list',
     keywords: ['余额退款', '退余额', '原路退']
+  },
+  {
+    path: '/invoices',
+    title: '开票申请',
+    group: '财务商户',
+    perm: 'ops:invoice:list',
+    keywords: ['开票', '发票', '税号', 'invoice']
   },
   {
     path: '/users',

@@ -73,6 +73,7 @@ public class MerchantPortalService {
     private final DeviceSkuInventoryMapper inventoryRepository;
     private final PullOffTaskMapper pullOffTaskRepository;
     private final DeviceSlotService deviceSlotService;
+    private final InventoryLotService inventoryLotService;
     private final AdminAuditService auditService;
     private final PasswordEncoder passwordEncoder;
     private final DeviceTemperatureReadingMapper temperatureReadingRepository;
@@ -105,6 +106,7 @@ public class MerchantPortalService {
                                  DeviceSkuInventoryMapper inventoryRepository,
                                  PullOffTaskMapper pullOffTaskRepository,
                                  DeviceSlotService deviceSlotService,
+                                 InventoryLotService inventoryLotService,
                                  AdminAuditService auditService,
                                  PasswordEncoder passwordEncoder,
                                  DeviceTemperatureReadingMapper temperatureReadingRepository,
@@ -136,6 +138,7 @@ public class MerchantPortalService {
         this.inventoryRepository = inventoryRepository;
         this.pullOffTaskRepository = pullOffTaskRepository;
         this.deviceSlotService = deviceSlotService;
+        this.inventoryLotService = inventoryLotService;
         this.auditService = auditService;
         this.passwordEncoder = passwordEncoder;
         this.temperatureReadingRepository = temperatureReadingRepository;
@@ -334,7 +337,6 @@ public class MerchantPortalService {
                                 + " / 阈值 " + inv.getLowThreshold(),
                         inv.getId().getDeviceId(), null, null, inv.getId().getSkuId(),
                         null, inv.getUpdatedAt(), null)));
-
         long expiry = deviceIds == null
                 ? pullOffTaskRepository.countByStatus("OPEN")
                 : (deviceIds.isEmpty() ? 0
@@ -479,14 +481,24 @@ public class MerchantPortalService {
         return merchantFeaturePackService.allowedDevicesForPack(userId, MerchantFeaturePacks.BIZ).stream()
                 .map(d -> {
                     String id = d.getDeviceId();
+                    long orderTotal = orderRepository.countByDeviceId(id);
+                    long revenueTotal = orderRepository.sumAmountByDeviceId(id);
+                    long orderToday = orderRepository.countByDeviceIdAndCreatedAtAfter(id, todayStart);
+                    long revenueToday = orderRepository.sumAmountByDeviceIdSince(id, todayStart);
                     return new MerchantDeviceReportDto(
-                            id, d.getDeviceName(), d.getOnlineStatus(),
-                            orderRepository.countByDeviceId(id),
-                            orderRepository.sumAmountByDeviceId(id),
-                            orderRepository.countByDeviceIdAndCreatedAtAfter(id, todayStart),
-                            orderRepository.sumAmountByDeviceIdSince(id, todayStart),
+                            id,
+                            DeviceNameSupport.resolve(id, d.getDeviceName()),
+                            d.getOnlineStatus(),
+                            orderTotal,
+                            revenueTotal,
+                            orderToday,
+                            revenueToday,
                             sessionRepository.countByDeviceId(id),
-                            activeByDevice.containsKey(id) ? 1 : 0
+                            activeByDevice.containsKey(id) ? 1 : 0,
+                            orderToday > 0 ? revenueToday / orderToday : 0,
+                            orderTotal > 0 ? revenueTotal / orderTotal : 0,
+                            d.getRouteCode(),
+                            d.getAddress()
                     );
                 })
                 .toList();
@@ -542,11 +554,6 @@ public class MerchantPortalService {
                 return List.of();
             }
             rows = inventoryRepository.findByIdDeviceId(dev);
-            if (lowStockOnly) {
-                rows = rows.stream()
-                        .filter(i -> i.getQuantity() <= i.getLowThreshold())
-                        .toList();
-            }
         } else if (lowStockOnly) {
             rows = inventoryRepository.findLowStockLimit(500);
         } else if (allowed != null) {
@@ -555,11 +562,23 @@ public class MerchantPortalService {
             rows = inventoryRepository.findAllLimit(2000);
         }
 
+        Map<String, Boolean> ledgerByDevice = new HashMap<>();
+        Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
         return rows.stream()
                 .filter(i -> inDeviceScope(allowed, i.getId().getDeviceId()))
-                .map(i -> new DeviceInventoryDto(
-                        i.getId().getDeviceId(), i.getId().getSkuId(),
-                        i.getQuantity(), i.getCapacity(), i.getLowThreshold(), i.getUpdatedAt()))
+                .map(i -> {
+                    String dev = i.getId().getDeviceId();
+                    String skuId = i.getId().getSkuId();
+                    boolean ledger = ledgerByDevice.computeIfAbsent(dev, inventoryLotService::deviceUsesLotLedger);
+                    int qty = i.getQuantity();
+                    if (ledger) {
+                        qty = sellableByDevice.computeIfAbsent(dev, inventoryLotService::sellableQtyBySku)
+                                .getOrDefault(skuId, 0);
+                    }
+                    return new DeviceInventoryDto(
+                            dev, skuId, qty, i.getCapacity(), i.getLowThreshold(), i.getUpdatedAt());
+                })
+                .filter(d -> !lowStockOnly || d.quantity() <= d.lowThreshold())
                 .toList();
     }
 
@@ -813,15 +832,19 @@ public class MerchantPortalService {
         permissionService.requirePermission(userId, "merchant:reports:export");
         merchantPortalGuard.requireAccess(userId);
         StringBuilder sb = new StringBuilder(
-                "deviceId,deviceName,onlineStatus,orderTotal,revenueTotalCents,orderToday,revenueTodayCents,sessionTotal,sessionActive\n");
+                "deviceId,deviceName,onlineStatus,routeCode,address,orderTotal,revenueTotalCents,avgOrderValueTotalCents,orderToday,revenueTodayCents,avgOrderValueTodayCents,sessionTotal,sessionActive\n");
         for (MerchantDeviceReportDto r : deviceReports(userId)) {
             sb.append(csv(r.deviceId())).append(',')
                     .append(csv(r.deviceName())).append(',')
                     .append(csv(r.onlineStatus())).append(',')
+                    .append(csv(r.routeCode())).append(',')
+                    .append(csv(r.address())).append(',')
                     .append(r.orderTotal()).append(',')
                     .append(r.revenueTotalCents()).append(',')
+                    .append(r.avgOrderValueTotalCents()).append(',')
                     .append(r.orderToday()).append(',')
                     .append(r.revenueTodayCents()).append(',')
+                    .append(r.avgOrderValueTodayCents()).append(',')
                     .append(r.sessionTotal()).append(',')
                     .append(r.sessionActive()).append('\n');
         }
@@ -1093,7 +1116,15 @@ public class MerchantPortalService {
                 active != null ? active.getSessionId() : null,
                 active != null ? active.getState().name() : null,
                 d.getUpdatedAt(), replenishmentInProgress,
-                d.salesLockedEnabled()
+                d.salesLockedEnabled(),
+                d.getAddress(),
+                d.getRouteCode(),
+                d.getCurrentTempC(),
+                d.getTargetTempC(),
+                d.getLifecycleStatus(),
+                null,
+                null,
+                d.getSalesLockReason()
         );
     }
 
@@ -1107,7 +1138,10 @@ public class MerchantPortalService {
                 d.getAddress(), d.getAlertContactName(), d.getAlertContactPhone(),
                 d.getTargetTempC(), d.getCurrentTempC(), d.getTempReportedAt(),
                 isTempOutOfRange(d), d.getOpsRemark(), tempCommandSent, tempCommandMessage,
-                d.salesLockedEnabled()
+                d.salesLockedEnabled(),
+                d.getRouteCode(),
+                d.getLifecycleStatus(),
+                d.getSalesLockReason()
         );
     }
 
@@ -1187,6 +1221,15 @@ public class MerchantPortalService {
                 .filter(o -> !"REFUNDED".equals(o.getStatus()))
                 .map(CabinetOrder::getTotalAmountCents)
                 .orElse(null);
+        Integer refundedAmountCents = orderRepository.findBySessionId(ticket.getSessionId())
+                .map(o -> {
+                    int r = Math.max(0, o.getRefundedCents());
+                    if (r <= 0 && "REFUNDED".equals(o.getStatus())) {
+                        return o.getTotalAmountCents();
+                    }
+                    return r > 0 ? r : null;
+                })
+                .orElse(null);
         Instant now = Instant.now();
         boolean slaOverdue = "OPEN".equals(ticket.getStatus())
                 && ticket.getSlaDueAt() != null
@@ -1200,7 +1243,8 @@ public class MerchantPortalService {
                 ticket.getStatus(), ticket.getCreatedAt(), ticket.getResolvedAt(),
                 orderId, billedAmountCents,
                 ticket.getSlaDueAt(), slaOverdue, slaHoursRemaining,
-                ticket.getCategory()
+                ticket.getCategory(),
+                refundedAmountCents
         );
     }
 

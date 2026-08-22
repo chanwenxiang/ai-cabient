@@ -120,7 +120,7 @@ class PointsRedeemServiceTest {
         Member member = member(320, 680, 160);
         MemberLevelRuleDto rule = new MemberLevelRuleDto(
                 1L, "NORMAL", "普通会员", BigDecimal.ZERO, new BigDecimal("1000"),
-                0, 100, BigDecimal.ONE, 1, "ACTIVE");
+                0, 100, BigDecimal.ONE, BigDecimal.ZERO, 1, "ACTIVE");
         when(memberService.getMemberByUserId(100L)).thenReturn(Optional.of(member));
         when(memberService.levelRulesActive()).thenReturn(List.of(rule));
 

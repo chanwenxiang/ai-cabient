@@ -55,39 +55,70 @@
             <div
               class="hour-bar"
               :style="{ height: barHeight(h.orders) }"
-              :title="`${h.hour} 时：${h.orders} 单 · ¥${(h.revenueCents / 100).toFixed(0)}`"
+              :title="`${h.hour} 时：${h.orders} 单 · ¥${(h.revenueCents / 100).toFixed(2)}`"
             />
             <span class="hour-label">{{ h.hour }}</span>
           </div>
         </div>
       </div>
 
-      <div class="two-col">
-        <div class="panel">
-          <div class="panel-head"><h4>柜机坪效排行（营收/开门/转化）</h4></div>
-          <el-table :data="data?.devices || []" size="small" border stripe max-height="360">
-            <el-table-column prop="deviceName" label="柜机" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="opens" label="开门" width="70" align="center" />
-            <el-table-column prop="orders" label="订单" width="70" align="center" />
-            <el-table-column label="转化率" width="90" align="center">
-              <template #default="{ row }">{{ row.conversionRate.toFixed(1) }}%</template>
-            </el-table-column>
-            <el-table-column label="营收" width="100" align="center">
-              <template #default="{ row }">¥{{ (row.revenueCents / 100).toFixed(0) }}</template>
-            </el-table-column>
-          </el-table>
-        </div>
+      <div class="panel">
+        <div class="panel-head"><h4>柜机坪效排行（营收/开门/转化）</h4></div>
+        <el-table
+          :data="data?.devices || []"
+          size="small"
+          border
+          stripe
+          style="width: 100%"
+          max-height="360"
+        >
+          <el-table-column prop="deviceName" label="柜机" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="opens" label="开门" width="88" align="center" />
+          <el-table-column prop="orders" label="订单" width="88" align="center" />
+          <el-table-column label="转化率" width="100" align="center">
+            <template #default="{ row }">{{ row.conversionRate.toFixed(1) }}%</template>
+          </el-table-column>
+          <el-table-column label="营收" min-width="120" align="center">
+            <template #default="{ row }">¥{{ (row.revenueCents / 100).toFixed(2) }}</template>
+          </el-table-column>
+        </el-table>
+      </div>
 
-        <div class="panel">
-          <div class="panel-head"><h4>商品热区（TOP 20）</h4></div>
-          <el-table :data="data?.topSkus || []" size="small" border stripe max-height="360">
-            <el-table-column prop="skuName" label="商品" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="qtySold" label="销量" width="80" align="center" />
-            <el-table-column label="营收" width="110" align="center">
-              <template #default="{ row }">¥{{ (row.revenueCents / 100).toFixed(2) }}</template>
-            </el-table-column>
-          </el-table>
-        </div>
+      <div class="panel">
+        <div class="panel-head"><h4>商品热区（TOP 20）</h4></div>
+        <el-table
+          :data="data?.topSkus || []"
+          size="small"
+          border
+          stripe
+          style="width: 100%"
+          max-height="360"
+        >
+          <el-table-column prop="skuName" label="商品" min-width="180" show-overflow-tooltip />
+          <el-table-column prop="skuId" label="SKU" width="110" show-overflow-tooltip />
+          <el-table-column prop="qtySold" label="销量" width="88" align="center" />
+          <el-table-column label="营收" min-width="110" align="center">
+            <template #default="{ row }">¥{{ (row.revenueCents / 100).toFixed(2) }}</template>
+          </el-table-column>
+          <el-table-column label="件均价" width="100" align="center">
+            <template #default="{ row }">
+              {{
+                row.qtySold > 0
+                  ? `¥${(row.revenueCents / row.qtySold / 100).toFixed(2)}`
+                  : '—'
+              }}
+            </template>
+          </el-table-column>
+          <el-table-column label="营收占比" width="100" align="center">
+            <template #default="{ row }">
+              {{
+                topSkuRevenueTotal > 0
+                  ? `${((row.revenueCents / topSkuRevenueTotal) * 100).toFixed(1)}%`
+                  : '—'
+              }}
+            </template>
+          </el-table-column>
+        </el-table>
       </div>
 
       <div class="panel">
@@ -121,7 +152,7 @@
             :key="s.slotId"
             class="slot-cell"
             :class="`heat-${s.heatLevel}`"
-            :title="`${s.slotId} · ${s.skuName} · ${s.qtySold} 件 · ¥${(s.revenueCents / 100).toFixed(0)}`"
+            :title="`${s.slotId} · ${s.skuName} · ${s.qtySold} 件 · ¥${(s.revenueCents / 100).toFixed(2)}`"
           >
             <span class="slot-code">{{ s.slotId }}</span>
             <span class="slot-sku">{{ s.skuName }}</span>
@@ -135,7 +166,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
@@ -146,6 +177,10 @@ const days = ref(7);
 const data = ref<FootfallAnalytics | null>(null);
 const slotDeviceId = ref('');
 const slotHeat = ref<SlotHeat[]>([]);
+
+const topSkuRevenueTotal = computed(() =>
+  (data.value?.topSkus || []).reduce((sum, row) => sum + Number(row.revenueCents || 0), 0)
+);
 
 onMounted(load);
 
@@ -214,30 +249,35 @@ function barHeight(orders: number) {
   color: var(--el-text-color-secondary);
 }
 .panel {
+  width: 100%;
+  box-sizing: border-box;
   margin-bottom: 14px;
   padding: 14px;
-  border: 1px solid var(--el-border-color-lighter);
+  border: 1px solid var(--layout-border, var(--el-border-color-lighter));
   border-radius: 10px;
+  background: var(--layout-card, var(--el-bg-color, #fff));
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.panel :deep(.el-table) {
+  width: 100% !important;
+  --el-table-border-color: var(--layout-border, var(--el-border-color-lighter));
+}
+.panel :deep(.el-table__inner-wrapper),
+.panel :deep(.el-table__header),
+.panel :deep(.el-table__body) {
+  width: 100% !important;
 }
 .panel-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
   margin-bottom: 10px;
 }
 .panel-head h4 {
   margin: 0;
   font-size: 15px;
-}
-.two-col {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-@media (max-width: 900px) {
-  .two-col {
-    grid-template-columns: 1fr;
-  }
 }
 .hour-bars {
   display: flex;
@@ -294,8 +334,9 @@ function barHeight(orders: number) {
 }
 .slot-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 10px;
+  width: 100%;
 }
 .slot-cell {
   display: flex;
@@ -323,14 +364,16 @@ function barHeight(orders: number) {
 }
 .slot-sku {
   font-size: 12px;
-  color: var(--el-text-color-regular);
+  color: #334155;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .slot-qty {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  font-variant-numeric: tabular-nums;
 }
 .muted {
   color: var(--el-text-color-secondary);

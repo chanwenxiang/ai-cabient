@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.CreateCouponRequest;
 import com.aicabinet.common.dto.UpdateCouponRequest;
+import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.CouponDefinition;
 import com.aicabinet.trade.domain.UserCoupon;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
@@ -175,6 +176,13 @@ class CouponServiceTest {
         when(userCouponRepository.findById(1L)).thenReturn(Optional.of(uc));
         when(definitionRepository.findById(1L)).thenReturn(Optional.of(def));
         when(userCouponRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        var order = new CabinetOrder();
+        order.setOrderId("O-TEST-001");
+        order.setUserId(10001L);
+        order.setStatus("PENDING");
+        order.setTotalAmountCents(2000);
+        when(orderRepository.findById("O-TEST-001")).thenReturn(Optional.of(order));
+        when(orderRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         var result = couponService.useCoupon(10001L, 1L, "O-TEST-001", "CAB-001");
 

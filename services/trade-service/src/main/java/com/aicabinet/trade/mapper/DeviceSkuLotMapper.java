@@ -54,6 +54,12 @@ public interface DeviceSkuLotMapper extends BaseTradeMapper<DeviceSkuLot> {
 
     int sumSellableQuantity(@Param("deviceId") String deviceId, @Param("skuId") String skuId);
 
+    List<LinkedHashMap<String, Object>> _sumSellableBySku(@Param("deviceId") String deviceId);
+
+    default List<Object[]> sumSellableBySku(String deviceId) {
+        return ColumnMapRows.toObjectRows(_sumSellableBySku(deviceId), 2);
+    }
+
     long countNearExpiry(@Param("today") LocalDate today, @Param("nearDate") LocalDate nearDate);
 
     long countExpiredWithStock(@Param("today") LocalDate today);

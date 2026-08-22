@@ -3,6 +3,8 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.ScheduledTaskDto;
 import com.aicabinet.trade.domain.ScheduledTask;
 import com.aicabinet.trade.mapper.ScheduledTaskMapper;
+import com.xxl.job.core.context.XxlJobContext;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
@@ -16,20 +18,27 @@ import java.util.List;
  * 定时任务管理：启停开关、分布式锁执行守卫、最近执行记录。
  * <p>所有写型定时任务通过 {@link #tryBegin}/{@link #finish} 包裹，保证集群下单实例执行，
  * 并在页面上可查看/启停/手动触发。</p>
+ * <p>资金类等 {@link XxlJobManagedTasks}：开启 XXL-JOB 后内置 {@code @Scheduled} 自动让位，
+ * 仅调度中心线程或 {@link #runAllowingBuiltin(Runnable)}（运营「立即执行」）可进入。</p>
  */
 @Service
 public class ScheduledTaskService {
 
+    private static final ThreadLocal<Boolean> ALLOW_BUILTIN = new ThreadLocal<>();
+
     private final ScheduledTaskMapper taskRepository;
     private final DistributedLockService lockService;
     private final AdminAuditService auditService;
+    private final boolean xxlJobEnabled;
 
     public ScheduledTaskService(ScheduledTaskMapper taskRepository,
                                 DistributedLockService lockService,
-                                AdminAuditService auditService) {
+                                AdminAuditService auditService,
+                                @Value("${aicabinet.xxljob.enabled:false}") boolean xxlJobEnabled) {
         this.taskRepository = taskRepository;
         this.lockService = lockService;
         this.auditService = auditService;
+        this.xxlJobEnabled = xxlJobEnabled;
     }
 
     @Transactional(readOnly = true)
@@ -72,8 +81,23 @@ public class ScheduledTaskService {
         return toDto(row);
     }
 
+    /**
+     * 运营后台「立即执行」：即使任务已由 XXL 接管，也允许本进程跑一遍（仍走锁与执行记录）。
+     */
+    public void runAllowingBuiltin(Runnable action) {
+        ALLOW_BUILTIN.set(Boolean.TRUE);
+        try {
+            action.run();
+        } finally {
+            ALLOW_BUILTIN.remove();
+        }
+    }
+
     /** 执行守卫：任务启用检查 + 分布式锁；返回是否允许本次执行。 */
     public boolean tryBegin(String taskKey, long leaseSeconds) {
+        if (shouldYieldToXxlJob(taskKey)) {
+            return false;
+        }
         ScheduledTask row = taskRepository.selectById(taskKey);
         if (row != null && !Boolean.TRUE.equals(row.getEnabled())) {
             return false;
@@ -95,6 +119,25 @@ public class ScheduledTaskService {
             taskRepository.save(row);
         }
         lockService.unlock("job:" + taskKey);
+    }
+
+    /** XXL 已接管且当前不是 XXL 线程 / 运营强制执行时，内置调度让位。 */
+    boolean shouldYieldToXxlJob(String taskKey) {
+        if (!xxlJobEnabled || !XxlJobManagedTasks.isManaged(taskKey)) {
+            return false;
+        }
+        if (Boolean.TRUE.equals(ALLOW_BUILTIN.get())) {
+            return false;
+        }
+        return !invokedByXxlJob();
+    }
+
+    private static boolean invokedByXxlJob() {
+        try {
+            return XxlJobContext.getXxlJobContext() != null;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     /** 未传说明时的兜底；正常任务应写入本次处理条数/快照等结果。 */

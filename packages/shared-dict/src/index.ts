@@ -452,7 +452,13 @@ export const DICT = {
     PAYOUT: '打款',
     FEE: '手续费'
   },
-  session_kind: { RESTOCK: '补货', OPS: '运维', SHOPPING: '消费' },
+  session_kind: {
+    CONSUMER: '消费',
+    RESTOCK: '补货',
+    OPS: '运维',
+    /** 历史值，与 CONSUMER 同义 */
+    SHOPPING: '消费'
+  },
   restock_line_type: {
     RESTOCK: '上架',
     PULL_OFF: '下架',

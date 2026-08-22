@@ -111,6 +111,85 @@ select {
   font: inherit;
 }
 
+/*
+ * 全局统一细滚动条（第二种）：圆角滑块 + 浅轨。
+ * 真正滚动的是 .table-scroll / .layout-main-scroll / el-scrollbar__wrap，
+ * 不能只写在已 overflow:visible 的表内 wrap 上。
+ */
+.table-scroll,
+.layout-main-scroll,
+.el-scrollbar__wrap,
+.tags-scroll,
+.el-drawer__body,
+.el-dialog__body,
+.el-aside {
+  scrollbar-width: thin;
+  scrollbar-color: var(--admin-scrollbar) var(--admin-scrollbar-track);
+}
+
+.table-scroll::-webkit-scrollbar,
+.layout-main-scroll::-webkit-scrollbar,
+.el-scrollbar__wrap::-webkit-scrollbar,
+.tags-scroll::-webkit-scrollbar,
+.el-drawer__body::-webkit-scrollbar,
+.el-dialog__body::-webkit-scrollbar,
+.el-aside::-webkit-scrollbar {
+  width: var(--admin-scrollbar-size);
+  height: var(--admin-scrollbar-size);
+}
+
+.table-scroll::-webkit-scrollbar-track,
+.layout-main-scroll::-webkit-scrollbar-track,
+.el-scrollbar__wrap::-webkit-scrollbar-track,
+.tags-scroll::-webkit-scrollbar-track,
+.el-drawer__body::-webkit-scrollbar-track,
+.el-dialog__body::-webkit-scrollbar-track,
+.el-aside::-webkit-scrollbar-track {
+  background: var(--admin-scrollbar-track);
+  border-radius: 999px;
+}
+
+.table-scroll::-webkit-scrollbar-thumb,
+.layout-main-scroll::-webkit-scrollbar-thumb,
+.el-scrollbar__wrap::-webkit-scrollbar-thumb,
+.tags-scroll::-webkit-scrollbar-thumb,
+.el-drawer__body::-webkit-scrollbar-thumb,
+.el-dialog__body::-webkit-scrollbar-thumb,
+.el-aside::-webkit-scrollbar-thumb {
+  background: var(--admin-scrollbar);
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+.table-scroll::-webkit-scrollbar-thumb:hover,
+.layout-main-scroll::-webkit-scrollbar-thumb:hover,
+.el-scrollbar__wrap::-webkit-scrollbar-thumb:hover,
+.tags-scroll::-webkit-scrollbar-thumb:hover,
+.el-drawer__body::-webkit-scrollbar-thumb:hover,
+.el-dialog__body::-webkit-scrollbar-thumb:hover,
+.el-aside::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--layout-muted) 70%, transparent);
+}
+
+.table-scroll::-webkit-scrollbar-button,
+.layout-main-scroll::-webkit-scrollbar-button,
+.el-scrollbar__wrap::-webkit-scrollbar-button,
+.tags-scroll::-webkit-scrollbar-button,
+.el-drawer__body::-webkit-scrollbar-button,
+.el-dialog__body::-webkit-scrollbar-button,
+.el-aside::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.table-scroll::-webkit-scrollbar-corner,
+.layout-main-scroll::-webkit-scrollbar-corner,
+.el-scrollbar__wrap::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* Element Plus 按钮：圆角与主色权重与后台卡片一致 */
 .el-button {
   --el-border-radius-base: 8px;
@@ -1729,29 +1808,12 @@ select {
 }
 
 [data-theme='dark'] {
-  scrollbar-color: #334155 #111827;
-}
-
-[data-theme='dark'] ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-[data-theme='dark'] ::-webkit-scrollbar-track {
-  background: #111827;
-}
-
-[data-theme='dark'] ::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 4px;
-}
-
-[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  --admin-scrollbar: color-mix(in srgb, #94a3b8 45%, transparent);
+  --admin-scrollbar-track: color-mix(in srgb, #1e293b 70%, transparent);
 }
 
 [data-theme='dark'] .tags-view {
-  scrollbar-color: #334155 transparent;
+  scrollbar-color: var(--admin-scrollbar) transparent;
 }
 
 /* ========== 全后台壳层 / 非表格统一（不只表格） ========== */
@@ -1853,21 +1915,6 @@ select {
 /* 面包屑 / 顶栏可读性 */
 .topbar .el-breadcrumb__inner.is-link:hover {
   color: var(--app-primary);
-}
-
-/* Tags 滚动条细轨，避免挡内容 */
-.tags-scroll {
-  scrollbar-width: thin;
-  scrollbar-color: var(--admin-scrollbar) transparent;
-}
-
-.tags-scroll::-webkit-scrollbar {
-  height: 6px;
-}
-
-.tags-scroll::-webkit-scrollbar-thumb {
-  background: var(--admin-scrollbar);
-  border-radius: 3px;
 }
 
 .tags-view .tag-item.el-tag {

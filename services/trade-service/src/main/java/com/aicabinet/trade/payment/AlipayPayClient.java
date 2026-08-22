@@ -39,6 +39,45 @@ public class AlipayPayClient {
         return new AlipayPrepayResult(null, null, payFormHtml);
     }
 
+    /**
+     * 协议签约页面表单（支付宝内 H5 自动提交）。
+     * externalAgreementNo 为我方单号，回调里用其绑定用户。
+     */
+    public String createAgreementSignForm(String externalAgreementNo) {
+        Map<String, Object> biz = new LinkedHashMap<>();
+        biz.put("personal_product_code", properties.resolvedAgreementProductCode());
+        biz.put("sign_scene", properties.resolvedAgreementSignScene());
+        biz.put("external_agreement_no", externalAgreementNo);
+        Map<String, Object> accessParams = new LinkedHashMap<>();
+        accessParams.put("channel", "ALIPAYAPP");
+        biz.put("access_params", accessParams);
+        String returnUrl = properties.returnUrl();
+        String notifyUrl = properties.resolvedAgreementNotifyUrl();
+        return openApiClient.buildPagePayFormHtml(
+                "alipay.user.agreement.page.sign", biz, returnUrl, notifyUrl);
+    }
+
+    /**
+     * 协议代扣：alipay.trade.pay + agreement_params.agreement_no。
+     * @return 支付宝 trade_no
+     */
+    public String payWithAgreement(String outTradeNo, String agreementNo, int amountCents, String subject) {
+        Map<String, Object> biz = new LinkedHashMap<>();
+        biz.put("out_trade_no", outTradeNo);
+        biz.put("total_amount", formatAmount(amountCents));
+        biz.put("subject", subject == null || subject.isBlank() ? "AI开门柜购物" : subject);
+        biz.put("product_code", "GENERAL_WITHHOLDING");
+        Map<String, Object> agreementParams = new LinkedHashMap<>();
+        agreementParams.put("agreement_no", agreementNo);
+        biz.put("agreement_params", agreementParams);
+        JsonNode resp = openApiClient.execute("alipay.trade.pay", biz);
+        String tradeNo = resp.path("trade_no").asText(null);
+        if (tradeNo == null || tradeNo.isBlank()) {
+            throw new IllegalStateException("alipay agreement pay missing trade_no: " + resp);
+        }
+        return tradeNo;
+    }
+
     public JsonNode queryByOutTradeNo(String outTradeNo) {
         return openApiClient.execute("alipay.trade.query", Map.of("out_trade_no", outTradeNo));
     }

@@ -49,6 +49,14 @@
       <el-table-column label="积分倍率" width="100" align="center">
         <template #default="{ row }">{{ row.pointsRate ?? 1 }}</template>
       </el-table-column>
+      <el-table-column label="会员折扣" width="100" align="center">
+        <template #default="{ row }">
+          <span v-if="row.priceDiscountPct != null && Number(row.priceDiscountPct) > 0">
+            {{ row.priceDiscountPct }}%
+          </span>
+          <span v-else class="muted">无</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="sortOrder" label="排序" width="70" align="center" />
       <el-table-column label="状态" width="90" align="center">
         <template #default="{ row }">
@@ -255,6 +263,6 @@ async function toggleStatus(row: LevelRule) {
 }
 
 function yuan(v?: number) {
-  return v == null ? '—' : `¥${v}`;
+  return v == null ? '—' : `¥${Number(v).toFixed(2)}`;
 }
 </script>

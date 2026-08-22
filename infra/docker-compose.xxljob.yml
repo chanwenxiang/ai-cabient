@@ -1,7 +1,8 @@
-# XXL-JOB 调度中心（可选覆盖层）：需要与主栈叠加使用
+# XXL-JOB 调度中心（多实例 / 资金任务推荐开启）：与主栈叠加
 #   docker compose -f docker-compose.yml -f docker-compose.apps.yml -f docker-compose.xxljob.yml \
-#     --profile apps --profile xxljob up -d --build
-# 同时设置 XXL_JOB_ENABLED=true 让 trade-service 执行器注册到调度中心。
+#     --profile apps up -d --build
+# 默认端口 18090，避免与 trade-service 宿主机 18080 冲突。
+# trade-service 需 XXL_JOB_ENABLED=true（compose apps 默认已开）。
 services:
   xxl-job-mysql:
     image: mysql:8.0
@@ -16,8 +17,9 @@ services:
       retries: 20
     volumes:
       - xxljob-mysql-data:/var/lib/mysql
-      - ./xxl-job/tables_xxl_job.sql:/docker-entrypoint-initdb.d/tables_xxl_job.sql:ro
-    profiles: ["xxljob"]
+      - ./xxl-job/tables_xxl_job.sql:/docker-entrypoint-initdb.d/01_tables_xxl_job.sql:ro
+      - ./xxl-job/seed_aicabinet_jobs.sql:/docker-entrypoint-initdb.d/02_seed_aicabinet_jobs.sql:ro
+    profiles: ["apps", "xxljob"]
 
   xxl-job-admin:
     image: xuxueli/xxl-job-admin:3.4.2
@@ -27,8 +29,8 @@ services:
       xxl-job-mysql:
         condition: service_healthy
     ports:
-      - "${XXL_JOB_ADMIN_PORT:-18080}:8080"
-    profiles: ["xxljob"]
+      - "${XXL_JOB_ADMIN_PORT:-18090}:8080"
+    profiles: ["apps", "xxljob"]
 
 volumes:
   xxljob-mysql-data:

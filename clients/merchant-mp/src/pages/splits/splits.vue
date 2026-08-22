@@ -32,6 +32,10 @@
               money(s.merchantCents)
             }}</text
           >
+          <text class="meta"
+            >毛额 ¥{{ money(s.grossCents) }} · 平台 ¥{{ money(s.platformCents) }}</text
+          >
+          <text v-if="s.wechatOutOrderNo" class="meta">外部单 {{ s.wechatOutOrderNo }}</text>
           <text v-if="s.failureReason" class="fail">失败原因：{{ s.failureReason }}</text>
         </view>
       </view>

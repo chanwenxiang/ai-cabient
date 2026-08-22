@@ -161,8 +161,33 @@ public class MemberService {
                         r.getMinPoints() != null ? r.getMinPoints() : 0,
                         r.getMaxPoints(),
                         r.getPointsRate() != null ? r.getPointsRate() : java.math.BigDecimal.ONE,
+                        r.getPriceDiscountPct() != null ? r.getPriceDiscountPct() : java.math.BigDecimal.ZERO,
                         r.getSortorder() != null ? r.getSortorder() : 0,
                         r.getStatus()))
                 .toList();
+    }
+
+    /**
+     * 会员价：按等级 {@code priceDiscountPct} 打折（如 5 → 95 折）。无会员/0 折返回原价。
+     */
+    @Transactional(readOnly = true)
+    public int applyMemberPriceDiscount(Long userId, int unitPriceCents) {
+        if (userId == null || unitPriceCents <= 0) {
+            return Math.max(0, unitPriceCents);
+        }
+        Member member = memberRepository.findByUserId(userId).orElse(null);
+        if (member == null || member.getMemberLevel() == null) {
+            return unitPriceCents;
+        }
+        MemberLevelRule rule = levelRuleRepository.findByLevelCode(member.getMemberLevel()).orElse(null);
+        if (rule == null || rule.getPriceDiscountPct() == null
+                || rule.getPriceDiscountPct().compareTo(BigDecimal.ZERO) <= 0) {
+            return unitPriceCents;
+        }
+        BigDecimal pct = rule.getPriceDiscountPct().min(new BigDecimal("90"));
+        BigDecimal factor = BigDecimal.ONE.subtract(pct.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP));
+        int discounted = BigDecimal.valueOf(unitPriceCents).multiply(factor)
+                .setScale(0, RoundingMode.HALF_UP).intValue();
+        return Math.max(0, Math.min(unitPriceCents, discounted));
     }
 }

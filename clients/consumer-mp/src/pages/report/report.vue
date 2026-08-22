@@ -31,6 +31,25 @@
           maxlength="200"
           placeholder="描述具体情况，便于快速处理"
         />
+        <text class="counter">{{ description.length }}/200</text>
+
+        <text class="field-label">联系电话（选填）</text>
+        <input
+          class="input"
+          type="number"
+          maxlength="11"
+          :value="contactPhone"
+          placeholder="方便运营回访，默认用登录手机号"
+          @input="contactPhone = eventInputValue($event)"
+        />
+      </view>
+
+      <view class="tip-card">
+        <text class="tip-title">处理说明</text>
+        <text class="tip-body"
+          >提交后运营通常在营业时间内跟进；紧急情况可拨打帮助中心客服热线。报修编号将随反馈一并留存。</text
+        >
+        <text class="tip-link" @click="goHelp">查看帮助中心 ›</text>
       </view>
 
       <!-- 提交区独立：用 view+role=button，保证 H5 a11y 树可点（OBS-005） -->
@@ -62,6 +81,7 @@ import { eventInputValue, readDomFieldValue } from '@/utils/form-bind';
 const deviceId = ref('');
 const issueType = ref('DOOR_OPEN');
 const description = ref('');
+const contactPhone = ref('');
 const submitting = ref(false);
 const err = ref('');
 
@@ -83,6 +103,10 @@ function onDeviceInput(e: unknown) {
   deviceId.value = eventInputValue(e);
 }
 
+function goHelp() {
+  uni.navigateTo({ url: '/pages/help/help' });
+}
+
 function onSubmit() {
   let id = deviceId.value.trim().toUpperCase();
   if (!id) id = readDomFieldValue('input').toUpperCase();
@@ -93,6 +117,11 @@ function onSubmit() {
   }
   if (!/^[A-Z0-9][A-Z0-9\-]{2,31}$/.test(id)) {
     err.value = '柜机编号格式不正确，例如 CAB-001';
+    return;
+  }
+  const phone = contactPhone.value.trim();
+  if (phone && !/^1\d{10}$/.test(phone)) {
+    err.value = '联系电话需为11位手机号';
     return;
   }
   if (submitting.value) return;
@@ -107,9 +136,11 @@ function onSubmit() {
       return;
     }
     try {
+      const descParts = [description.value.trim()];
+      if (phone) descParts.push(`联系电话：${phone}`);
       const res = await consumerApi.reportDeviceFault(id, {
         issueType: issueType.value,
-        description: description.value.trim() || undefined
+        description: descParts.filter(Boolean).join('\n') || undefined
       });
       uni.showToast({ title: res.message || '已提交', icon: 'success' });
       setTimeout(() => uni.navigateBack(), 800);
@@ -193,7 +224,40 @@ function onSubmit() {
   padding: 20rpx 24rpx;
   font-size: 28rpx;
   box-sizing: border-box;
-  margin-bottom: 24rpx;
+  margin-bottom: 8rpx;
+}
+.counter {
+  display: block;
+  text-align: right;
+  font-size: 22rpx;
+  color: #94a3b8;
+  margin-bottom: 20rpx;
+}
+.tip-card {
+  margin-top: 8rpx;
+  padding: 24rpx;
+  border-radius: 20rpx;
+  background: #f8fafc;
+}
+.tip-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 650;
+  color: #1e293b;
+}
+.tip-body {
+  display: block;
+  margin-top: 8rpx;
+  font-size: 24rpx;
+  color: #64748b;
+  line-height: 1.5;
+}
+.tip-link {
+  display: block;
+  margin-top: 12rpx;
+  font-size: 24rpx;
+  color: #059669;
+  font-weight: 600;
 }
 .submit-bar {
   margin-top: 24rpx;

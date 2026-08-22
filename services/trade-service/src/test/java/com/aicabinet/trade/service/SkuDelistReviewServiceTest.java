@@ -29,10 +29,11 @@ class SkuDelistReviewServiceTest {
     @Mock private DeviceSkuInventoryMapper inventoryRepository;
     @Mock private SkuCatalogMapper skuCatalogRepository;
     @Mock private SkuDelistReviewMapper reviewRepository;
+    @Mock private InventoryLotService inventoryLotService;
 
     private SkuDelistReviewService service() {
         return new SkuDelistReviewService(lineRepository, inventoryRepository,
-                skuCatalogRepository, reviewRepository);
+                skuCatalogRepository, reviewRepository, inventoryLotService);
     }
 
     private static SkuCatalog sku(String id, String name, String status) {
@@ -57,6 +58,7 @@ class SkuDelistReviewServiceTest {
         inv.setQuantity(12);
         inv.setCapacity(20);
         when(inventoryRepository.findAllLimit(5000)).thenReturn(List.of(inv));
+        when(inventoryLotService.deviceUsesLotLedger(anyString())).thenReturn(false);
         when(skuCatalogRepository.findAllByOrderBySkuIdAsc())
                 .thenReturn(List.of(sku("SKU-A", "可乐", "ACTIVE"), sku("SKU-B", "果汁", "ACTIVE")));
         when(reviewRepository.findBySkuId(anyString())).thenReturn(Optional.empty());
@@ -64,8 +66,8 @@ class SkuDelistReviewServiceTest {
 
         List<SkuDelistReviewDto> result = service.runReview(30);
 
-        assertEquals(0, result.size()); // list() 返回空（mock 未持久化）；重点验证 save 被调用
-        verify(reviewRepository, org.mockito.Mockito.times(2)).save(any(SkuDelistReview.class));
+        assertEquals(0, result.size()); // list() 返回空（mock 未持久化）；重点验证 insert 被调用
+        verify(reviewRepository, org.mockito.Mockito.times(2)).insert(any(SkuDelistReview.class));
     }
 
     @Test

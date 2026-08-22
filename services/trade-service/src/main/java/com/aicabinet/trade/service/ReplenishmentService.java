@@ -175,18 +175,23 @@ public class ReplenishmentService {
         if (deviceId != null && !deviceId.isBlank()) {
             String dev = deviceId.trim();
             rows = inventoryRepository.findByIdDeviceId(dev);
-            if (lowStockOnly) {
-                rows = rows.stream()
-                        .filter(i -> i.getQuantity() <= i.getLowThreshold())
-                        .toList();
-            }
         } else if (lowStockOnly) {
             rows = inventoryRepository.findLowStockLimit(500);
         } else {
             rows = inventoryRepository.findAllLimit(2000);
         }
 
-        return rows.stream().map(this::toInventoryDto).toList();
+        Map<String, Map<String, Integer>> sellableByDevice = new java.util.HashMap<>();
+        Map<String, Boolean> ledgerByDevice = new java.util.HashMap<>();
+        List<DeviceInventoryDto> dtos = rows.stream()
+                .map(inv -> toInventoryDto(inv, sellableByDevice, ledgerByDevice))
+                .toList();
+        if (lowStockOnly) {
+            return dtos.stream()
+                    .filter(d -> d.quantity() <= d.lowThreshold())
+                    .toList();
+        }
+        return dtos;
 
     }
 
@@ -208,7 +213,13 @@ public class ReplenishmentService {
 
         });
 
-        inv.setQuantity(body.quantity());
+        // 有批次账本时 quantity 只能由 lot 汇总同步，禁止手改汇总表造成虚库存
+        if (inventoryLotService.deviceUsesLotLedger(body.deviceId())) {
+            inventoryLotService.syncAggregateInventory(body.deviceId(), body.skuId());
+            inv = inventoryRepository.findById(id).orElse(inv);
+        } else {
+            inv.setQuantity(body.quantity());
+        }
 
         inv.setCapacity(body.capacity());
 
@@ -1181,15 +1192,25 @@ public class ReplenishmentService {
 
 
     private DeviceInventoryDto toInventoryDto(DeviceSkuInventory inv) {
+        return toInventoryDto(inv, new java.util.HashMap<>(), new java.util.HashMap<>());
+    }
 
+    private DeviceInventoryDto toInventoryDto(DeviceSkuInventory inv,
+                                              Map<String, Map<String, Integer>> sellableByDevice,
+                                              Map<String, Boolean> ledgerByDevice) {
+        String deviceId = inv.getId().getDeviceId();
+        String skuId = inv.getId().getSkuId();
+        boolean ledger = ledgerByDevice.computeIfAbsent(deviceId, inventoryLotService::deviceUsesLotLedger);
+        int qty = inv.getQuantity();
+        if (ledger) {
+            Map<String, Integer> bySku = sellableByDevice.computeIfAbsent(
+                    deviceId, inventoryLotService::sellableQtyBySku);
+            qty = bySku.getOrDefault(skuId, 0);
+        }
         return new DeviceInventoryDto(
-
-                inv.getId().getDeviceId(), inv.getId().getSkuId(),
-
-                inv.getQuantity(), inv.getCapacity(), inv.getLowThreshold(), inv.getUpdatedAt()
-
+                deviceId, skuId,
+                qty, inv.getCapacity(), inv.getLowThreshold(), inv.getUpdatedAt()
         );
-
     }
 
 

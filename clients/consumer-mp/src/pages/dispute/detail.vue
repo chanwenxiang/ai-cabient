@@ -40,6 +40,22 @@
           <text class="info-label">处理时间</text>
           <text class="info-value">{{ formatTime(ticket.resolvedAt) }}</text>
         </view>
+        <view v-if="refundChannelText" class="info-row">
+          <text class="info-label">退款渠道</text>
+          <text class="info-value">{{ refundChannelText }}</text>
+        </view>
+      </view>
+
+      <view class="card">
+        <text class="section-title">处理进度</text>
+        <view v-for="(step, i) in timeline" :key="i" class="tl-row">
+          <view class="tl-dot" :class="{ done: step.done, current: step.current }" />
+          <view class="tl-copy">
+            <text class="tl-title">{{ step.title }}</text>
+            <text v-if="step.time" class="tl-time">{{ step.time }}</text>
+            <text v-if="step.detail" class="tl-detail">{{ step.detail }}</text>
+          </view>
+        </view>
       </view>
 
       <view v-if="ticket.evidence?.length" class="card">
@@ -126,12 +142,50 @@ const copy = computed(() => consumerDisputeReviewCopy(ticket.value));
 const isResolved = computed(() => ticket.value?.status === 'RESOLVED');
 const suggestedLines = computed<OrderLineDto[]>(() => ticket.value?.suggestedItems || []);
 const resolutionLines = computed<OrderLineDto[]>(() => ticket.value?.resolutionItems || []);
+const refundChannelText = ref('');
 const statusText = computed(() => {
   const s = ticket.value?.status || '';
   if (s === 'OPEN') return '审核中 · 暂未扣款';
   if (s === 'RESOLVED') return '已处理完成';
   if (s === 'CLOSED') return '已关闭';
   return displayLabel('dispute_status', s, '处理中');
+});
+
+const timeline = computed(() => {
+  const t = ticket.value;
+  if (!t) return [];
+  const status = String(t.status || '').toUpperCase();
+  const resolved = status === 'RESOLVED' || status === 'CLOSED';
+  const steps = [
+    {
+      title: '已提交申诉',
+      time: t.createdAt ? formatTime(t.createdAt) : '',
+      detail: t.reason || '',
+      done: true,
+      current: status === 'OPEN' || status === 'PENDING'
+    },
+    {
+      title: status === 'OPEN' || status === 'PENDING' ? '运营审核中' : '运营已审核',
+      time: t.resolvedAt ? formatTime(t.resolvedAt) : '',
+      detail:
+        (t as { operatorNote?: string }).operatorNote ||
+        (resolved ? '审核结论已生成' : (t as { slaOverdue?: boolean }).slaOverdue ? '已超时，加急处理中' : '请耐心等待'),
+      done: resolved,
+      current: !resolved
+    },
+    {
+      title: status === 'RESOLVED' ? '已结案' : status === 'CLOSED' ? '已关闭' : '待结案',
+      time: t.resolvedAt || (t as { closedAt?: string }).closedAt
+        ? formatTime(t.resolvedAt || (t as { closedAt?: string }).closedAt)
+        : '',
+      detail: resolved
+        ? `最终扣款 ${fmtMoney(t.billedAmountCents ?? 0)}`
+        : '结案后可在订单详情查看退款到账',
+      done: resolved,
+      current: false
+    }
+  ];
+  return steps;
 });
 
 onLoad((opts) => {
@@ -231,6 +285,7 @@ async function reload() {
     sessionId.value = found.sessionId || sessionId.value;
     ticketId.value = found.ticketId || ticketId.value;
     void hydrateEvidencePreviews();
+    void loadRefundChannel(found.orderId);
   } catch (e) {
     // 旧后端无 detail 接口时回退列表查找
     try {
@@ -251,6 +306,7 @@ async function reload() {
       sessionId.value = found.sessionId || sessionId.value;
       ticketId.value = found.ticketId || ticketId.value;
       void hydrateEvidencePreviews();
+      void loadRefundChannel(found.orderId);
     } catch (e2) {
       error.value = e2 instanceof Error ? e2.message : '加载失败';
     }
@@ -293,6 +349,18 @@ function fmtLine(line: OrderLineDto) {
 
 function shortId(id?: string) {
   return shortBizNo(id, 12, '暂无');
+}
+
+async function loadRefundChannel(orderId?: string) {
+  refundChannelText.value = '';
+  if (!orderId) return;
+  try {
+    const order = await consumerApi.getOrder(orderId);
+    const ch = displayLabel('pay_channel', order?.payChannel, '');
+    refundChannelText.value = ch ? `原路退回 · ${ch}` : '原支付渠道 / 账户余额';
+  } catch {
+    refundChannelText.value = '原支付渠道 / 账户余额';
+  }
 }
 
 function formatTime(v?: string) {
@@ -398,6 +466,44 @@ function previewEvidence(img: FileAttachmentDto) {
   background: #fff;
   border-radius: 20rpx;
   box-shadow: 0 8rpx 24rpx rgba(15, 23, 42, 0.04);
+}
+.tl-row {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 18rpx;
+}
+.tl-dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  margin-top: 10rpx;
+  background: #cbd5e1;
+  flex-shrink: 0;
+}
+.tl-dot.done {
+  background: #059669;
+}
+.tl-dot.current {
+  background: #0f766e;
+  box-shadow: 0 0 0 6rpx rgba(15, 118, 110, 0.15);
+}
+.tl-copy {
+  flex: 1;
+  min-width: 0;
+}
+.tl-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #0f172a;
+}
+.tl-time,
+.tl-detail {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #64748b;
+  line-height: 1.4;
 }
 .section-title {
   display: block;

@@ -18,6 +18,8 @@ public class LineWithdrawRequest {
     private String requestNo;
     private Long managerId;
     private Long amountCents;
+    /** 提现手续费（分）；演示默认 0 */
+    private Long feeCents;
     private String status;
     private String payChannel;
     private Long reviewerId;

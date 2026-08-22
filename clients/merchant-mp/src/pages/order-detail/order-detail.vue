@@ -24,14 +24,29 @@
             />
             <view class="line-info">
               <text class="line-name">{{ line.skuName || line.skuId || '商品' }}</text>
-              <text class="line-qty">x{{ line.quantity }}</text>
+              <text class="line-qty"
+                >x{{ line.quantity
+                }}{{ line.slotId ? ` · 货道 ${line.slotId}` : ''
+                }}{{ line.batchNo ? ` · 批次 ${line.batchNo}` : '' }}</text
+              >
+              <text v-if="line.unitPriceCents != null" class="line-unit"
+                >单价 {{ money(line.unitPriceCents) }}</text
+              >
             </view>
             <text class="line-amt">{{ money(line.lineAmountCents) }}</text>
           </view>
           <view v-if="!(order.lines || []).length" class="muted">无商品明细</view>
+          <view v-if="Number(order.originalAmountCents || 0) > 0" class="sum-row">
+            <text>原价</text>
+            <text>{{ money(order.originalAmountCents) }}</text>
+          </view>
           <view v-if="order.couponDiscountCents" class="sum-row">
-            <text>优惠</text>
+            <text>券优惠</text>
             <text>-{{ money(order.couponDiscountCents) }}</text>
+          </view>
+          <view v-if="Number(order.memberDiscountCents || 0) > 0" class="sum-row">
+            <text>会员优惠</text>
+            <text>-{{ money(order.memberDiscountCents) }}</text>
           </view>
           <view class="sum-row strong">
             <text>实付</text>
@@ -56,9 +71,29 @@
           <view class="info-row"
             ><text class="lbl">支付方式</text><text class="val">{{ payChannelText }}</text></view
           >
+          <view v-if="order.payTradeNo || order.paymentOperationId" class="info-row"
+            ><text class="lbl">流水号</text
+            ><text class="val mono">{{
+              emptyDisplay(order.payTradeNo || order.paymentOperationId, 'order')
+            }}</text></view
+          >
+          <view v-if="order.refundPolicy" class="info-row"
+            ><text class="lbl">退款策略</text
+            ><text class="val">{{ refundPolicyText(order.refundPolicy) }}</text></view
+          >
           <view class="info-row"
             ><text class="lbl">创建时间</text
             ><text class="val">{{ formatTime(order.createdAt) }}</text></view
+          >
+          <view v-if="order.refundedAt || Number(order.refundedCents || 0) > 0" class="info-row"
+            ><text class="lbl">退款</text
+            ><text class="val"
+              >{{
+                Number(order.refundedCents || 0) > 0
+                  ? fmtMoney(order.refundedCents)
+                  : '已退款'
+              }}{{ order.refundedAt ? ` · ${formatTime(order.refundedAt)}` : '' }}</text
+            ></view
           >
         </view>
 
@@ -90,7 +125,10 @@ type OrderLine = {
   skuId?: string;
   skuName?: string;
   quantity?: number;
+  unitPriceCents?: number;
   lineAmountCents?: number;
+  batchNo?: string;
+  slotId?: string;
 };
 
 type OrderDetail = {
@@ -99,9 +137,15 @@ type OrderDetail = {
   deviceId?: string;
   status?: string;
   payChannel?: string;
+  payTradeNo?: string;
+  paymentOperationId?: string;
   totalAmountCents?: number;
   couponDiscountCents?: number;
+  memberDiscountCents?: number;
   originalAmountCents?: number;
+  refundPolicy?: string;
+  refundedAt?: string;
+  refundedCents?: number;
   lines?: OrderLine[];
   createdAt?: string;
 };
@@ -161,6 +205,12 @@ async function load() {
 
 function statusText(s?: string) {
   return orderStatusLabel(s);
+}
+
+function refundPolicyText(policy?: string) {
+  if (policy === 'AUTO_REFUND') return '自助退';
+  if (policy === 'DISPUTE_ONLY') return '仅争议';
+  return policy || '—';
 }
 
 function money(cents?: number) {
@@ -307,6 +357,12 @@ function goDisputes() {
 .line-qty {
   font-size: 24rpx;
   color: #94a3b8;
+}
+.line-unit {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #64748b;
 }
 .line-amt {
   font-size: 28rpx;

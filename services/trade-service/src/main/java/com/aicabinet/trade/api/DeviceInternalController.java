@@ -1,6 +1,7 @@
 package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
+import com.aicabinet.common.dto.AdPlayEventRequest;
 import com.aicabinet.common.dto.OtaCheckResponse;
 import com.aicabinet.common.dto.SkuQuantityDto;
 import com.aicabinet.common.dto.ScreenContentDto;
@@ -39,6 +40,15 @@ public class DeviceInternalController {
     @GetMapping("/{deviceId}/screen-content")
     public ApiResponse<ScreenContentDto> screenContent(@PathVariable("deviceId") String deviceId) {
         return ApiResponse.ok(adCampaignService.screenContent(deviceId));
+    }
+
+    /** 柜屏曝光/完播回写（ROI 留痕）。 */
+    @PostMapping("/{deviceId}/ad-play")
+    public ApiResponse<Void> adPlay(
+            @PathVariable("deviceId") String deviceId,
+            @RequestBody AdPlayEventRequest body) {
+        adCampaignService.recordPlayEvent(deviceId, body.campaignId(), body.assetId(), body.eventType());
+        return ApiResponse.ok(null);
     }
 
     @PostMapping("/{deviceId}/heartbeat")

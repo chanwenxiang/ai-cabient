@@ -4,6 +4,7 @@
       <div class="bs-title">
         <span class="bs-logo">AI 开门柜</span>
         <span class="bs-sub">运营大屏 · 自动刷新 30s</span>
+        <span v-if="demoBanner" class="bs-demo-tag">{{ demoBanner }}</span>
       </div>
       <div class="bs-actions">
         <span class="bs-clock">{{ clock }}</span>
@@ -348,6 +349,7 @@ interface ChannelStat {
 const loading = ref(false);
 const clock = ref('');
 const isFullscreen = ref(false);
+const demoBanner = ref('');
 const stats = ref<AdminStats | null>(null);
 const workbench = ref<Workbench | null>(null);
 const sla = ref<SlaMetrics | null>(null);
@@ -447,7 +449,7 @@ const risks = computed(() => [
 
 function yuan(cents?: number | null) {
   if (cents == null) return '—';
-  return `¥${(cents / 100).toFixed(0)}`;
+  return `¥${(cents / 100).toFixed(2)}`;
 }
 function pct(v?: number | null) {
   if (v == null) return '—';
@@ -469,7 +471,7 @@ function barWidth(ch: ChannelStat) {
 async function load() {
   loading.value = true;
   const today = todayStr();
-  const [s, w, sl, f, k, ch, t, dr, pr] = await Promise.all([
+  const [s, w, sl, f, k, ch, t, dr, pr, scope] = await Promise.all([
     api.request<AdminStats>('/api/v2/ops/admin/stats', 'GET').catch(() => null),
     api.request<Workbench>('/api/v2/ops/admin/workbench', 'GET').catch(() => null),
     api.request<SlaMetrics>('/api/v2/ops/admin/sla', 'GET').catch(() => null),
@@ -490,6 +492,9 @@ async function load() {
         `/api/v2/ops/admin/sales-reports?dim=PRODUCT&fromDate=${today}&toDate=${today}`,
         'GET'
       )
+      .catch(() => null),
+    api
+      .request<{ demoData?: boolean; label?: string }>('/api/v2/ops/admin/data-scope', 'GET')
       .catch(() => null)
   ]);
   stats.value = s;
@@ -501,6 +506,7 @@ async function load() {
   trend.value = t?.last7Days ?? [];
   deviceRanks.value = dr ?? [];
   productRanks.value = pr ?? [];
+  demoBanner.value = scope?.demoData ? scope.label || '演示数据' : '';
   loading.value = false;
 }
 
@@ -576,6 +582,15 @@ onBeforeUnmount(() => {
 .bs-sub {
   font-size: 13px;
   color: var(--layout-muted);
+}
+.bs-demo-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #f59e0b;
+  border-radius: 4px;
+  padding: 2px 8px;
 }
 .bs-actions {
   display: flex;

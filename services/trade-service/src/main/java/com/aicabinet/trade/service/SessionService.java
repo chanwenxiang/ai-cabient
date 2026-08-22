@@ -4,6 +4,8 @@ import com.aicabinet.common.constants.PayChannels;
 import com.aicabinet.common.dto.CreateSessionRequest;
 import com.aicabinet.common.dto.DoorEventRequest;
 import com.aicabinet.common.dto.GravityDeltaRequest;
+import com.aicabinet.common.dto.LiveCartDto;
+import com.aicabinet.common.dto.LiveCartUpdateRequest;
 import com.aicabinet.common.dto.OrderDto;
 import com.aicabinet.common.dto.SessionCartRequest;
 import com.aicabinet.common.dto.SessionDto;
@@ -19,9 +21,12 @@ import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.DeviceSkuLotMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,7 +40,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 @Service
@@ -67,11 +74,16 @@ public class SessionService {
     private final OpsExceptionService opsExceptionService;
     private final UserInfoMapper userInfoRepository;
     private final CabinetOrderMapper orderRepository;
+    private final DeviceSkuLotMapper lotRepository;
     private final DisputeService disputeService;
     private final ConsumerPreauthService consumerPreauthService;
+    private final MerchantOpsPolicyService opsPolicyService;
 
     @Autowired
     private ScheduledTaskService taskService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     public SessionService(ShoppingSessionMapper repository,
                           DeviceServiceClient deviceClient,
@@ -87,8 +99,10 @@ public class SessionService {
                           OpsExceptionService opsExceptionService,
                           UserInfoMapper userInfoRepository,
                           CabinetOrderMapper orderRepository,
+                          DeviceSkuLotMapper lotRepository,
                           @Lazy DisputeService disputeService,
-                          ConsumerPreauthService consumerPreauthService) {
+                          ConsumerPreauthService consumerPreauthService,
+                          MerchantOpsPolicyService opsPolicyService) {
         this.repository = repository;
         this.deviceClient = deviceClient;
         this.userValidationService = userValidationService;
@@ -103,8 +117,10 @@ public class SessionService {
         this.opsExceptionService = opsExceptionService;
         this.userInfoRepository = userInfoRepository;
         this.orderRepository = orderRepository;
+        this.lotRepository = lotRepository;
         this.disputeService = disputeService;
         this.consumerPreauthService = consumerPreauthService;
+        this.opsPolicyService = opsPolicyService;
     }
 
     @Transactional
@@ -123,6 +139,7 @@ public class SessionService {
         userValidationService.validateCanOpenDoor(userId, request.deviceId(), entryChannel);
         deviceValidationService.requireDevice(request.deviceId());
         deviceValidationService.ensureDeviceAvailable(request.deviceId());
+        opsPolicyService.requireInflightCapacity(request.deviceId());
 
         ShoppingSession session = new ShoppingSession();
         session.setSessionId(generateSessionId());
@@ -130,6 +147,7 @@ public class SessionService {
         session.setDeviceId(request.deviceId());
         session.setState(SessionState.CREATED);
         session.setEntryChannel(entryChannel);
+        session.setPreferredCouponId(request.preferredCouponId());
         session.setIdempotencyKey(normalizeIdempotencyKey(request.idempotencyKey()));
         // 先强制写入唯一幂等键，再改变状态和下发开门命令。并发重复请求会在这里失败，
         // 不会出现两个事务都先向同一台柜机发送开门命令、最后才在提交时发现冲突。
@@ -160,6 +178,7 @@ public class SessionService {
         session.setDeviceId(request.deviceId());
         session.setState(SessionState.CREATED);
         session.setEntryChannel(entryChannel);
+        session.setPreferredCouponId(request.preferredCouponId());
         repository.save(session);
 
         boolean passwordFree = userValidationService.isPasswordFreeReady(userId, entryChannel);
@@ -392,12 +411,120 @@ public class SessionService {
         List<GravityDeltaRequest.GravityDeltaItem> deltas = (request.items() == null ? List.<SessionCartRequest.CartItem>of() : request.items())
                 .stream()
                 .filter(item -> item.qty() > 0)
-                .map(item -> new GravityDeltaRequest.GravityDeltaItem(item.skuId(), -item.qty(), null))
+                .map(item -> {
+                    // 与货道账面同源：可售批次（ON_SALE / NEAR_EXPIRY）
+                    int available = lotRepository.sumSellableQuantity(session.getDeviceId(), item.skuId());
+                    if (item.qty() > available) {
+                        throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                "库存不足 sku=" + item.skuId() + " 当前=" + available + " 选购=" + item.qty());
+                    }
+                    return new GravityDeltaRequest.GravityDeltaItem(item.skuId(), -item.qty(), null);
+                })
                 .toList();
         session.setGravityDeltas(deltas.isEmpty() ? null : gravityHelper.fromRequestItems(deltas));
         repository.save(session);
         log.info("session cart updated session={} items={}", sessionId, deltas.size());
         return toDto(session);
+    }
+
+    /**
+     * 第三方识别推送实时购物车（internal）。仅更新展示字段，不触发扣款。
+     */
+    @Transactional
+    public LiveCartDto updateLiveCartFromVision(String sessionId, LiveCartUpdateRequest request) {
+        ShoppingSession session = repository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        if (!EnumSet.of(SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING).contains(session.getState())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_STATE_INVALID);
+        }
+        Map<String, LiveCartDto.LiveCartLine> bySku = new LinkedHashMap<>();
+        String mode = request == null ? "REPLACE" : request.resolvedMode();
+        if ("DELTA".equals(mode)) {
+            for (LiveCartDto.LiveCartLine existing : parseLiveCartLines(session.getLiveCart())) {
+                bySku.put(existing.skuId(), existing);
+            }
+        }
+        List<LiveCartUpdateRequest.LiveCartItem> incoming =
+                request == null || request.items() == null ? List.of() : request.items();
+        for (LiveCartUpdateRequest.LiveCartItem item : incoming) {
+            if (item == null || item.skuId() == null || item.skuId().isBlank()) {
+                continue;
+            }
+            String sku = item.skuId().trim();
+            if ("DELTA".equals(mode)) {
+                LiveCartDto.LiveCartLine prev = bySku.get(sku);
+                int prevQty = prev == null ? 0 : prev.quantity();
+                int nextQty = Math.max(0, prevQty + item.quantity());
+                if (nextQty <= 0) {
+                    bySku.remove(sku);
+                    continue;
+                }
+                int unit = item.unitPriceCents() != null && item.unitPriceCents() > 0
+                        ? item.unitPriceCents()
+                        : (prev != null ? prev.unitPriceCents() : 0);
+                String name = item.skuName() != null && !item.skuName().isBlank()
+                        ? item.skuName()
+                        : (prev != null ? prev.skuName() : sku);
+                bySku.put(sku, new LiveCartDto.LiveCartLine(sku, name, nextQty, unit, unit * nextQty));
+            } else {
+                if (item.quantity() <= 0) {
+                    continue;
+                }
+                int unit = item.unitPriceCents() == null ? 0 : Math.max(0, item.unitPriceCents());
+                String name = item.skuName() == null || item.skuName().isBlank() ? sku : item.skuName();
+                bySku.put(sku, new LiveCartDto.LiveCartLine(sku, name, item.quantity(), unit, unit * item.quantity()));
+            }
+        }
+        if ("REPLACE".equals(mode) && incoming.isEmpty()) {
+            bySku.clear();
+        }
+        List<LiveCartDto.LiveCartLine> lines = new ArrayList<>(bySku.values());
+        session.setLiveCart(writeLiveCartJson(lines));
+        repository.save(session);
+        log.info("live cart updated session={} mode={} lines={}", sessionId, mode, lines.size());
+        return toLiveCartDto(sessionId, lines);
+    }
+
+    @Transactional(readOnly = true)
+    public LiveCartDto getLiveCart(Long userId, String sessionId) {
+        ShoppingSession session = repository.findById(sessionId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+        requireSessionOwner(userId, session);
+        return toLiveCartDto(sessionId, parseLiveCartLines(session.getLiveCart()));
+    }
+
+    private List<LiveCartDto.LiveCartLine> parseLiveCartLines(String json) {
+        if (json == null || json.isBlank() || objectMapper == null) {
+            return List.of();
+        }
+        try {
+            List<LiveCartDto.LiveCartLine> lines = objectMapper.readValue(json, new TypeReference<>() {});
+            return lines == null ? List.of() : lines;
+        } catch (Exception e) {
+            log.warn("parse live_cart failed: {}", e.getMessage());
+            return List.of();
+        }
+    }
+
+    private String writeLiveCartJson(List<LiveCartDto.LiveCartLine> lines) {
+        if (lines == null || lines.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(lines);
+        } catch (Exception e) {
+            throw new IllegalStateException("serialize live_cart failed", e);
+        }
+    }
+
+    private static LiveCartDto toLiveCartDto(String sessionId, List<LiveCartDto.LiveCartLine> lines) {
+        int qty = 0;
+        int amount = 0;
+        for (LiveCartDto.LiveCartLine line : lines) {
+            qty += line.quantity();
+            amount += line.lineAmountCents();
+        }
+        return new LiveCartDto(sessionId, lines, qty, amount);
     }
 
     private SessionDto onDoorOpened(ShoppingSession session) {

@@ -61,7 +61,8 @@ class MerchantScopeServiceTest {
     void setUp() {
         merchantScopeService = new MerchantScopeService(
                 userMerchantRepository, userRoleRepository, roleRepository,
-                deviceRepository, merchantRepository, deviceScopeMapper, deviceScopePrefMapper, cabinetMetrics);
+                deviceRepository, merchantRepository, deviceScopeMapper, deviceScopePrefMapper,
+                null, cabinetMetrics);
         lenient().when(merchantRepository.findAll()).thenReturn(List.of());
         lenient().when(deviceScopePrefMapper.findById(org.mockito.ArgumentMatchers.anyLong())).thenReturn(Optional.empty());
     }

@@ -4,12 +4,15 @@ import com.aicabinet.common.dto.LineWalletOverviewDto;
 import com.aicabinet.common.dto.LineWithdrawRequestDto;
 import com.aicabinet.common.dto.PageResult;
 import com.aicabinet.trade.config.LineWithdrawProperties;
+import com.aicabinet.trade.domain.LineDevice;
 import com.aicabinet.trade.domain.LineManager;
 import com.aicabinet.trade.domain.LineWalletAccount;
 import com.aicabinet.trade.domain.LineWithdrawRequest;
+import com.aicabinet.trade.mapper.LineDeviceMapper;
 import com.aicabinet.trade.mapper.LineManagerMapper;
 import com.aicabinet.trade.mapper.LineWithdrawRequestMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -31,6 +34,7 @@ public class LineWithdrawService {
 
     private final LineWithdrawRequestMapper withdrawMapper;
     private final LineManagerMapper managerMapper;
+    private final LineDeviceMapper deviceMapper;
     private final LineManagerService lineManagerService;
     private final LineWalletService lineWalletService;
     private final LineWithdrawPayoutService payoutService;
@@ -40,6 +44,7 @@ public class LineWithdrawService {
 
     public LineWithdrawService(LineWithdrawRequestMapper withdrawMapper,
                                LineManagerMapper managerMapper,
+                               LineDeviceMapper deviceMapper,
                                LineManagerService lineManagerService,
                                LineWalletService lineWalletService,
                                LineWithdrawPayoutService payoutService,
@@ -48,6 +53,7 @@ public class LineWithdrawService {
                                AdminAuditService auditService) {
         this.withdrawMapper = withdrawMapper;
         this.managerMapper = managerMapper;
+        this.deviceMapper = deviceMapper;
         this.lineManagerService = lineManagerService;
         this.lineWalletService = lineWalletService;
         this.payoutService = payoutService;
@@ -170,6 +176,7 @@ public class LineWithdrawService {
         request.setRequestNo(no);
         request.setManagerId(manager.getManagerId());
         request.setAmountCents(amountCents);
+        request.setFeeCents(0L);
         request.setPayChannel(properties.mockEnabled() ? "MOCK" : "WECHAT");
         request.setCreatedAt(now);
         request.setUpdatedAt(now);
@@ -219,6 +226,17 @@ public class LineWithdrawService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "最低提现 " + (properties.minAmountCents() / 100.0) + " 元");
         }
+        long activeDevices = deviceMapper.selectCount(Wrappers.<LineDevice>lambdaQuery()
+                .eq(LineDevice::getManagerId, managerId)
+                .and(w -> w.isNull(LineDevice::getStatus)
+                        .or()
+                        .eq(LineDevice::getStatus, "ACTIVE")
+                        .or()
+                        .eq(LineDevice::getStatus, "BOUND")));
+        if (activeDevices <= 0) {
+            throw new ResponseStatusException(HttpStatus.PRECONDITION_FAILED,
+                    "未绑定柜机，禁止提现（请先完成地推柜机绑定）");
+        }
         LineWalletAccount account = lineWalletService.ensureAccount(managerId);
         long available = value(account.getBalanceCents()) - value(account.getFrozenCents());
         if (available < amountCents) {
@@ -254,7 +272,8 @@ public class LineWithdrawService {
                 request.getPayoutMessage(),
                 request.getPaidAt(),
                 request.getCreatedAt(),
-                request.getUpdatedAt()
+                request.getUpdatedAt(),
+                request.getFeeCents() == null ? 0L : request.getFeeCents()
         );
     }
 

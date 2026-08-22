@@ -79,10 +79,6 @@ public class ScheduledTaskController {
                                                       @PathVariable String taskKey) {
         ScheduledTaskRegistry.TaskDescriptor descriptor = registry.get(taskKey)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存在: " + taskKey));
-        if (descriptor.xxlManaged() && xxlJobEnabled) {
-            return ApiResponse.ok(new ScheduledTaskRunResultDto(
-                    taskKey, "SKIPPED", "该任务已由 XXL-JOB 调度接管，请在调度中心执行"));
-        }
         if (!taskService.isEnabled(taskKey)) {
             return ApiResponse.ok(new ScheduledTaskRunResultDto(
                     taskKey, "SKIPPED", "任务已停用，请先在列表中启用"));
@@ -93,14 +89,17 @@ public class ScheduledTaskController {
         }
         try {
             Instant beforeRun = taskService.get(taskKey).lastRunAt();
-            descriptor.action().run();
+            // XXL 托管任务：运营「立即执行」仍走本进程，经 runAllowingBuiltin 绕过内置让位
+            taskService.runAllowingBuiltin(descriptor.action());
             auditService.record(operatorId(request), "SCHEDULED_TASK_RUN",
                     "SCHEDULED_TASK", taskKey, descriptor.name());
             ScheduledTaskDto after = taskService.get(taskKey);
             if (after.lastRunAt() == null
                     || (beforeRun != null && !after.lastRunAt().isAfter(beforeRun))) {
-                return ApiResponse.ok(new ScheduledTaskRunResultDto(
-                        taskKey, "SKIPPED", "任务未写入执行记录（可能未抢到锁或提前返回）"));
+                String hint = descriptor.xxlManaged() && xxlJobEnabled
+                        ? "任务未写入执行记录（可能未抢到锁；也可在 XXL-JOB 控制台触发）"
+                        : "任务未写入执行记录（可能未抢到锁或提前返回）";
+                return ApiResponse.ok(new ScheduledTaskRunResultDto(taskKey, "SKIPPED", hint));
             }
             String detail = after.lastMessage() == null || after.lastMessage().isBlank()
                     ? "已执行"

@@ -206,6 +206,24 @@
                   >
                 </template>
               </el-table-column>
+              <el-table-column label="件均价" min-width="100" align="center">
+                <template #default="{ row }">
+                  {{
+                    Number(row.qtySold) > 0
+                      ? `¥${(Number(row.revenueCents || 0) / Number(row.qtySold) / 100).toFixed(2)}`
+                      : '—'
+                  }}
+                </template>
+              </el-table-column>
+              <el-table-column label="件均成本" min-width="100" align="center">
+                <template #default="{ row }">
+                  {{
+                    Number(row.qtySold) > 0
+                      ? `¥${(Number(row.cogsCents || 0) / Number(row.qtySold) / 100).toFixed(2)}`
+                      : '—'
+                  }}
+                </template>
+              </el-table-column>
             </el-table>
           </div>
         </div>

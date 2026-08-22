@@ -126,6 +126,19 @@
           <el-table-column label="已使用" width="110" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ yuan(row.usedCents) }}</template>
           </el-table-column>
+          <el-table-column label="剩余预算" width="110" align="center" class-name="col-money">
+            <template #default="{ row }">
+              ¥{{ yuan(Math.max(0, Number(row.budgetCents || 0) - Number(row.usedCents || 0))) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="每人限次" width="90" align="center">
+            <template #default="{ row }">{{ row.userLimit || '不限' }}</template>
+          </el-table-column>
+          <el-table-column label="适用柜" min-width="120" align="center" show-overflow-tooltip>
+            <template #default="{ row }">{{
+              row.deviceScope === 'ALL' || !row.deviceScope ? '全部' : row.deviceScope
+            }}</template>
+          </el-table-column>
           <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">
               <el-tag :type="isEnabled(row.status) ? 'success' : 'info'" size="small">

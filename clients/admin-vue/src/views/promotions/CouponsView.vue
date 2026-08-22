@@ -128,7 +128,12 @@
             </template>
           </el-table-column>
           <el-table-column label="面值" width="96" align="center" class-name="col-money">
-            <template #default="{ row }">¥{{ yuan(row.denominationCents) }}</template>
+            <template #default="{ row }">
+              <template v-if="row.couponType === 'PERCENT' || Number(row.discountPercent) > 0">
+                {{ row.discountPercent || 0 }}%
+              </template>
+              <template v-else>¥{{ yuan(row.denominationCents) }}</template>
+            </template>
           </el-table-column>
           <el-table-column label="最低消费" width="100" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ yuan(row.minSpendCents) }}</template>
@@ -140,6 +145,20 @@
             <template #default="{ row }"
               >{{ row.issuedCount }}/{{ row.maxIssueCount || '不限' }}</template
             >
+          </el-table-column>
+          <el-table-column label="剩余" width="88" align="center">
+            <template #default="{ row }">
+              <span v-if="!row.maxIssueCount">不限</span>
+              <span v-else>{{ Math.max(0, Number(row.maxIssueCount) - Number(row.issuedCount || 0)) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column
+            label="说明"
+            min-width="140"
+            align="center"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">{{ row.description || '—' }}</template>
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">

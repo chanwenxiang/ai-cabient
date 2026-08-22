@@ -20,10 +20,19 @@
             >{{ deviceId }} · {{ online ? '在线' : '离线'
             }}{{ salesLocked ? ' · 停售中' : '' }}</text
           >
+          <text v-if="address" class="meta">{{ address }}</text>
+          <text v-if="routeCode || lifecycleLabel" class="meta">
+            <template v-if="routeCode">线路 {{ routeCode }}</template>
+            <template v-if="routeCode && lifecycleLabel"> · </template>
+            <template v-if="lifecycleLabel">{{ lifecycleLabel }}</template>
+          </text>
           <text v-if="salesLocked" class="locked-banner"
-            >柜机已锁机停售，消费者无法开门；补货仍可按任务操作</text
+            >柜机已锁机停售，消费者无法开门；补货仍可按任务操作{{
+              salesLockReason ? `（${salesLockReason}）` : ''
+            }}</text
           >
           <text class="meta">当前 {{ currentTemp }} / 目标 {{ targetTemp }}</text>
+          <text v-if="slotStockHint" class="meta stock-warn">{{ slotStockHint }}</text>
           <view class="pref-row" @click="togglePreferred">
             <text class="pref-star" :class="{ on: isPreferred }">★</text>
             <text>{{ isPreferred ? '常驻柜（点击取消）' : '设为常驻柜' }}</text>
@@ -134,6 +143,7 @@
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
 import { computed, ref } from 'vue';
+import { dictLabel } from '@aicabinet/shared-dict';
 import { merchantApi, hasPerm } from '@/utils/merchant-api';
 import { useMerchantMe, canEditPlanogramForMerchant } from '@/composables/useMerchantMe';
 import {
@@ -157,6 +167,10 @@ const merchantId = ref('');
 const deviceName = ref('');
 const online = ref(false);
 const salesLocked = ref(false);
+const salesLockReason = ref('');
+const address = ref('');
+const routeCode = ref('');
+const lifecycleStatus = ref('');
 const currentTemp = ref('暂无');
 const targetTemp = ref('未设置');
 const formName = ref('');
@@ -169,6 +183,22 @@ const slotPar = ref<Record<string, string>>({});
 const tempHistory = ref<DeviceTemperatureReading[]>([]);
 const velocity = ref<MerchantSkuVelocity[]>([]);
 const isPreferred = ref(false);
+
+const lifecycleLabel = computed(() =>
+  lifecycleStatus.value ? dictLabel('device_lifecycle', lifecycleStatus.value) || lifecycleStatus.value : ''
+);
+const slotStockHint = computed(() => {
+  const oos = slots.value.filter((s) => Number(s.bookQty || 0) <= 0 && !!s.assignedSkuId).length;
+  const low = slots.value.filter((s) => {
+    const qty = Number(s.bookQty || 0);
+    const min = Number(s.minLevel || 0);
+    return !!s.assignedSkuId && qty > 0 && min > 0 && qty <= min;
+  }).length;
+  if (oos > 0 && low > 0) return `缺货 ${oos} 道 · 低库存 ${low} 道`;
+  if (oos > 0) return `缺货货道 ${oos}`;
+  if (low > 0) return `低库存货道 ${low}`;
+  return '';
+});
 
 const targetTempNum = computed(() => {
   const n = Number(String(targetTemp.value).replace('°C', ''));
@@ -237,6 +267,12 @@ async function loadDetail() {
     deviceName.value = (settings.deviceName as string) || deviceId.value;
     online.value = ((settings.onlineStatus as string) || '').toUpperCase() === 'ONLINE';
     salesLocked.value = !!(settings as { salesLocked?: boolean }).salesLocked;
+    salesLockReason.value = String(
+      (settings as { salesLockReason?: string }).salesLockReason || ''
+    );
+    address.value = String((settings as { address?: string }).address || '');
+    routeCode.value = String((settings as { routeCode?: string }).routeCode || '');
+    lifecycleStatus.value = String((settings as { lifecycleStatus?: string }).lifecycleStatus || '');
     currentTemp.value = settings.currentTempC != null ? settings.currentTempC + '°C' : '暂无';
     targetTemp.value = settings.targetTempC != null ? settings.targetTempC + '°C' : '未设置';
     formName.value = (settings.deviceName as string) || '';
@@ -451,6 +487,10 @@ async function saveSlots() {
   color: #92400e;
   font-size: 24rpx;
   line-height: 1.4;
+}
+.meta.stock-warn {
+  color: #b45309;
+  font-weight: 600;
 }
 .section {
   font-weight: 600;

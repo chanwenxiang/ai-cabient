@@ -21,4 +21,12 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
     return new org.springframework.data.domain.PageImpl<>(result.getRecords(), pageable, result.getTotal());
     }
 
+    default long countRefundsSince(Long userId, java.time.Instant since) {
+        Long n = selectCount(Wrappers.<PaymentOperation>lambdaQuery()
+                .eq(PaymentOperation::getUserId, userId)
+                .eq(PaymentOperation::getOperationType, "REFUND")
+                .ge(PaymentOperation::getCreatedAt, since));
+        return n == null ? 0L : n;
+    }
+
 }

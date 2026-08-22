@@ -35,9 +35,20 @@
           <view v-for="r in refundRequests" :key="r.requestId" class="refund-item">
             <view>
               <text class="refund-amt">{{ fmtMoney(r.amountCents) }}</text>
-              <text class="refund-meta">{{ refundStatusLabel(r.status) }}</text>
+              <text class="refund-meta"
+                >{{ refundStatusLabel(r.status)
+                }}{{ r.requestNo ? ` · ${shortBizNo(r.requestNo)}` : '' }}</text
+              >
+              <text v-if="r.reviewRemark || r.failReason" class="refund-remark">{{
+                r.reviewRemark || r.failReason
+              }}</text>
             </view>
-            <text class="refund-time">{{ formatRefundTime(r.createdAt) }}</text>
+            <view class="refund-right">
+              <text class="refund-time">{{ formatRefundTime(r.createdAt) }}</text>
+              <text v-if="r.refundedAt" class="refund-time done"
+                >到账 {{ formatRefundTime(r.refundedAt) }}</text
+              >
+            </view>
           </view>
         </view>
       </view>
@@ -158,6 +169,9 @@
               <text class="record-channel">{{ channelText(r.channel) }}</text>
               <text class="record-id">{{ shortBizNo(r.orderId) }}</text>
               <text class="record-time">{{ formatTime(r.createdAt) }}</text>
+              <text v-if="r.paidAt && r.status === 'PAID'" class="record-time"
+                >到账 {{ formatTime(r.paidAt) }}</text
+              >
             </view>
           </view>
           <view class="record-right">
@@ -629,8 +643,9 @@ async function onAlipayRecharge() {
 .refund-item {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   padding: 12rpx 0;
+  gap: 12rpx;
 }
 .refund-amt {
   font-size: 28rpx;
@@ -639,12 +654,30 @@ async function onAlipayRecharge() {
   margin-right: 12rpx;
 }
 .refund-meta {
+  display: block;
   font-size: 22rpx;
   color: #059669;
 }
+.refund-remark {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 20rpx;
+  color: #b45309;
+  max-width: 420rpx;
+}
+.refund-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
+  flex-shrink: 0;
+}
 .refund-time {
-  font-size: 22rpx;
+  font-size: 20rpx;
   color: #94a3b8;
+}
+.refund-time.done {
+  color: #059669;
 }
 .amount-grid {
   display: grid;

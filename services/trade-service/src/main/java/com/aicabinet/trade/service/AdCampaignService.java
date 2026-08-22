@@ -7,10 +7,12 @@ import com.aicabinet.common.dto.UpsertAdCampaignRequest;
 import com.aicabinet.trade.domain.AdCampaign;
 import com.aicabinet.trade.domain.AdCampaignDevice;
 import com.aicabinet.trade.domain.AdCampaignItem;
+import com.aicabinet.trade.domain.AdPlayEvent;
 import com.aicabinet.trade.domain.MediaAsset;
 import com.aicabinet.trade.mapper.AdCampaignDeviceMapper;
 import com.aicabinet.trade.mapper.AdCampaignItemMapper;
 import com.aicabinet.trade.mapper.AdCampaignMapper;
+import com.aicabinet.trade.mapper.AdPlayEventMapper;
 import com.aicabinet.trade.mapper.MediaAssetMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -32,17 +34,20 @@ public class AdCampaignService {
     private final AdCampaignDeviceMapper deviceRepository;
     private final MediaAssetMapper assetRepository;
     private final AdminAuditService auditService;
+    private final AdPlayEventMapper playEventRepository;
 
     public AdCampaignService(AdCampaignMapper campaignRepository,
                              AdCampaignItemMapper itemRepository,
                              AdCampaignDeviceMapper deviceRepository,
                              MediaAssetMapper assetRepository,
-                             AdminAuditService auditService) {
+                             AdminAuditService auditService,
+                             AdPlayEventMapper playEventRepository) {
         this.campaignRepository = campaignRepository;
         this.itemRepository = itemRepository;
         this.deviceRepository = deviceRepository;
         this.assetRepository = assetRepository;
         this.auditService = auditService;
+        this.playEventRepository = playEventRepository;
     }
 
     @Transactional(readOnly = true)
@@ -165,6 +170,26 @@ public class AdCampaignService {
         return new ScreenContentDto(null, null, List.of());
     }
 
+    /** 设备屏回写曝光/完播，供投放 ROI 留痕。 */
+    @Transactional
+    public void recordPlayEvent(String deviceId, Long campaignId, Long assetId, String eventType) {
+        if (deviceId == null || deviceId.isBlank() || campaignId == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "campaignId/deviceId 必填");
+        }
+        String type = eventType == null ? "" : eventType.trim().toUpperCase();
+        if (!type.equals("IMPRESSION") && !type.equals("COMPLETE") && !type.equals("CLICK")) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "eventType 仅支持 IMPRESSION/COMPLETE/CLICK");
+        }
+        requireCampaign(campaignId);
+        AdPlayEvent ev = new AdPlayEvent();
+        ev.setCampaignId(campaignId);
+        ev.setDeviceId(deviceId.trim().toUpperCase());
+        ev.setAssetId(assetId);
+        ev.setEventType(type);
+        ev.setCreatedAt(Instant.now());
+        playEventRepository.insert(ev);
+    }
+
     private void replaceItems(Long campaignId, List<Long> assetIds) {
         itemRepository.deleteByCampaignId(campaignId);
         int order = 0;
@@ -201,7 +226,9 @@ public class AdCampaignService {
         return new AdCampaignDto(
                 campaign.getCampaignId(), campaign.getName(), campaign.getStatus(),
                 campaign.getDeviceScope(), campaign.getStartAt(), campaign.getEndAt(),
-                assetIds, deviceIds, campaign.getCreatedAt(), campaign.getUpdatedAt());
+                assetIds, deviceIds, campaign.getCreatedAt(), campaign.getUpdatedAt(),
+                playEventRepository.countByCampaignAndType(campaign.getCampaignId(), "IMPRESSION"),
+                playEventRepository.countByCampaignAndType(campaign.getCampaignId(), "COMPLETE"));
     }
 
     private AdCampaign requireCampaign(Long campaignId) {

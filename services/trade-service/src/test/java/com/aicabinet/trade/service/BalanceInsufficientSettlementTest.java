@@ -47,7 +47,8 @@ class BalanceInsufficientSettlementTest {
     void setUp() {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
-                gravityHelper, restockSnapshotService, null, opsExceptionService, null, orderRepository, null, null);
+                gravityHelper, restockSnapshotService, null, opsExceptionService, null, orderRepository,
+                null, null, null, null);
     }
 
     @Test
