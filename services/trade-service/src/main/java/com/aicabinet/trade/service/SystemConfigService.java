@@ -63,6 +63,10 @@ public class SystemConfigService {
     /** 纯视觉柜（会话无重力字段）空车是否自动零结；默认 false 进争议。 */
     public static final String SETTLEMENT_EMPTY_AUTO_NO_GRAVITY =
             "settlement.empty_auto_complete_no_gravity";
+    /** 结算识别方式: VISION=纯视觉；VISION_GRAVITY=视觉+重力融合。 */
+    public static final String SETTLEMENT_RECOGNITION_MODE = "settlement.recognition_mode";
+    public static final String RECOGNITION_MODE_VISION = "VISION";
+    public static final String RECOGNITION_MODE_VISION_GRAVITY = "VISION_GRAVITY";
 
     private final SystemConfigMapper repository;
     private final SecurityProperties securityProperties;
@@ -97,6 +101,13 @@ public class SystemConfigService {
                 .map(SystemConfig::getConfigValue)
                 .filter(v -> !v.isBlank())
                 .orElse(defaultValue);
+    }
+
+    /** 是否在结算中融合重力（仅 VISION_GRAVITY）。默认 VISION=否。 */
+    @Transactional(readOnly = true)
+    public boolean usesGravityFusion() {
+        String mode = getValue(SETTLEMENT_RECOGNITION_MODE, RECOGNITION_MODE_VISION);
+        return RECOGNITION_MODE_VISION_GRAVITY.equalsIgnoreCase(mode.trim());
     }
 
     @Transactional(readOnly = true)
@@ -220,6 +231,10 @@ public class SystemConfigService {
         upsertIfAbsent(CONSUMER_SERVICE_PHONE, "400-888-0018", "C端客服电话");
         upsertIfAbsent(OPS_SUPPORT_EMAIL, "ops@aicabinet.local", "运营支持邮箱");
         upsertIfAbsent(SETTLEMENT_MIN_CONFIDENCE, "0.72", "自动结算最低识别置信度");
+        upsertIfAbsent(SETTLEMENT_RECOGNITION_MODE, RECOGNITION_MODE_VISION,
+                "结算识别方式: VISION=纯视觉(忽略重力), VISION_GRAVITY=视觉+重力融合");
+        upsertIfAbsent(SETTLEMENT_EMPTY_AUTO_NO_GRAVITY, "false",
+                "纯视觉柜空车是否自动零结（无重力字段时）；默认 false 进争议");
         upsertIfAbsent(DISPUTE_AUTO_OPEN, "true", "识别低置信是否自动开争议工单");
         upsertIfAbsent(REFUND_DEFAULT_POLICY, "AUTO_REFUND",
                 "全局默认退款策略: AUTO_REFUND=自助退款, DISPUTE_ONLY=仅申诉");

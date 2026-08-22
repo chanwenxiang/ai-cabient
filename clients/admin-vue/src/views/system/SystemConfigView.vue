@@ -133,7 +133,18 @@
           />
         </el-form-item>
         <el-form-item label="配置值" required>
-          <el-input v-model="form.configValue" type="textarea" :rows="3" />
+          <el-select
+            v-if="valueOptions.length"
+            v-model="form.configValue"
+            filterable
+            allow-create
+            default-first-option
+            style="width: 100%"
+            placeholder="选择或输入"
+          >
+            <el-option v-for="opt in valueOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
+          </el-select>
+          <el-input v-else v-model="form.configValue" type="textarea" :rows="3" />
         </el-form-item>
         <el-form-item label="说明">
           <el-input v-model="form.description" />
@@ -183,6 +194,19 @@ const items = ref<SystemConfigRow[]>([]);
 const dialogVisible = ref(false);
 const creating = ref(false);
 const form = reactive({ configKey: '', configValue: '', description: '' });
+
+const ENUM_VALUE_OPTIONS: Record<string, { value: string; label: string }[]> = {
+  'settlement.recognition_mode': [
+    { value: 'VISION', label: 'VISION — 纯视觉（忽略重力）' },
+    { value: 'VISION_GRAVITY', label: 'VISION_GRAVITY — 视觉+重力融合' }
+  ],
+  'refund.default_policy': [
+    { value: 'AUTO_REFUND', label: 'AUTO_REFUND — 自助退款' },
+    { value: 'DISPUTE_ONLY', label: 'DISPUTE_ONLY — 仅申诉' }
+  ]
+};
+
+const valueOptions = computed(() => ENUM_VALUE_OPTIONS[form.configKey.trim()] || []);
 
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();

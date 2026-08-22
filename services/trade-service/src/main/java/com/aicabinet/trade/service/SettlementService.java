@@ -198,8 +198,10 @@ public class SettlementService {
                 }
                 escalateToDispute(session, recognition, reviewReasonFor(recognition));
             }
-            List<VisionServiceClient.RecognizedItem> cartItems =
-                    gravityHelper.toRecognizedItems(session.getGravityDeltas());
+            List<VisionServiceClient.RecognizedItem> cartItems = List.of();
+            if (systemConfigService.usesGravityFusion()) {
+                cartItems = gravityHelper.toRecognizedItems(session.getGravityDeltas());
+            }
             if (cartItems.isEmpty() && recognition.items() != null && !recognition.items().isEmpty()) {
                 cartItems = recognition.items();
                 log.info("dev mock settle session={} using vision items={}", session.getSessionId(), cartItems.size());
@@ -250,18 +252,20 @@ public class SettlementService {
     /**
      * 视觉无商品时是否自动零结。
      * <ul>
-     *   <li>重力净扣减为空，且会话带重力字段（含 {@code []}）→ 传感器佐证未取货/已放回</li>
-     *   <li>无重力字段 → 仅 mock/staging 自动零结，生产进审单</li>
+     *   <li>VISION_GRAVITY：重力净扣减为空且会话带重力字段（含 {@code []}）→ 传感器佐证未取货</li>
+     *   <li>VISION / 无重力字段 → 看 empty_auto_complete_no_gravity 或 mock/staging，否则进审单</li>
      * </ul>
      */
     private boolean shouldAutoCompleteEmptyCart(ShoppingSession session) {
-        List<VisionServiceClient.RecognizedItem> gravityItems =
-                gravityHelper.toRecognizedItems(session.getGravityDeltas());
-        if (gravityItems != null && !gravityItems.isEmpty()) {
-            return false;
-        }
-        if (session.getGravityDeltas() != null) {
-            return true;
+        if (systemConfigService.usesGravityFusion()) {
+            List<VisionServiceClient.RecognizedItem> gravityItems =
+                    gravityHelper.toRecognizedItems(session.getGravityDeltas());
+            if (gravityItems != null && !gravityItems.isEmpty()) {
+                return false;
+            }
+            if (session.getGravityDeltas() != null) {
+                return true;
+            }
         }
         if (systemConfigService.getBoolean(SystemConfigService.SETTLEMENT_EMPTY_AUTO_NO_GRAVITY, false)) {
             return true;
@@ -273,6 +277,9 @@ public class SettlementService {
 
     /** 预发/沙箱 E2E：有重力扣减信号时优先按重力结算，避免无真实购物视频时误入争议。 */
     private OrderDto tryStagingGravitySettle(ShoppingSession session) {
+        if (!systemConfigService.usesGravityFusion()) {
+            return null;
+        }
         if (!stagingProperties.stagingMode() && !stagingProperties.gravityFallbackSettle()) {
             return null;
         }
@@ -290,6 +297,9 @@ public class SettlementService {
      * gravity-mismatch / 纯 mock 仍须人工审核。
      */
     private boolean allowsSandboxGravityFillSettle(VisionServiceClient.RecognitionResult recognition) {
+        if (!systemConfigService.usesGravityFusion()) {
+            return false;
+        }
         if (!stagingProperties.stagingMode() && !stagingProperties.gravityFallbackSettle()) {
             return false;
         }
@@ -304,6 +314,9 @@ public class SettlementService {
      */
     private OrderDto tryDevMockEvidenceSettle(ShoppingSession session,
                                              VisionServiceClient.RecognitionResult recognition) {
+        if (!systemConfigService.usesGravityFusion()) {
+            return null;
+        }
         if (!securityProperties.mockEnabled()) {
             return null;
         }
@@ -319,7 +332,14 @@ public class SettlementService {
 
     private VisionServiceClient.RecognitionResult withGravityFallback(ShoppingSession session,
                                                                       VisionServiceClient.RecognitionResult recognition) {
+        if (!systemConfigService.usesGravityFusion()) {
+            return recognition;
+        }
         return gravityHelper.reconcileWithGravity(session.getGravityDeltas(), recognition);
+    }
+
+    private String gravityDeltasForInventory(ShoppingSession session) {
+        return systemConfigService.usesGravityFusion() ? session.getGravityDeltas() : null;
     }
 
     /** mock / gravity-mismatch / gravity-fill 不得静默按「生产精度」扣款。 */
@@ -438,7 +458,7 @@ public class SettlementService {
             applyBatchNos(order, adjustedBatches);
         } else {
             var deductedBatches = inventoryService.deductForOrder(
-                    session.getDeviceId(), items, session.getSessionId(), session.getGravityDeltas());
+                    session.getDeviceId(), items, session.getSessionId(), gravityDeltasForInventory(session));
             applyBatchNos(order, deductedBatches);
             order.setInventoryDeducted(true);
         }
@@ -689,7 +709,7 @@ public class SettlementService {
             }
         }
         var batchBySku = inventoryService.deductForOrder(
-                session.getDeviceId(), items, session.getSessionId(), session.getGravityDeltas());
+                session.getDeviceId(), items, session.getSessionId(), gravityDeltasForInventory(session));
         applyBatchNos(order, batchBySku);
         order.setInventoryDeducted(true);
         order.setStatus(unpaid ? "PENDING" : "PAID");
