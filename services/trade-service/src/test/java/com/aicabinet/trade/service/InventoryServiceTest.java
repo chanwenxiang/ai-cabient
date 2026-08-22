@@ -37,7 +37,7 @@ class InventoryServiceTest {
         inventoryService = new InventoryService(
                 inventoryRepository, inventoryLotService, deviceSlotService,
                 gravityHelper, deviceValidationService, lockService);
-        lenient().when(lockService.tryLock(eq("inv:CAB-001"), anyLong(), anyLong())).thenReturn(true);
+        lenient().when(lockService.tryLock(eq(InventoryService.deviceLockKey("CAB-001")), anyLong(), anyLong())).thenReturn(true);
         lenient().when(gravityHelper.parse(any())).thenReturn(List.of());
         lenient().when(gravityHelper.hasSlotSpecificDeltas(any())).thenReturn(false);
         lenient().when(inventoryLotService.hasSellableLots(any(), any())).thenReturn(false);
@@ -55,14 +55,14 @@ class InventoryServiceTest {
         inventoryService.deductForOrder("CAB-001",
                 List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 2, 1f)), "S1");
 
-        verify(lockService).tryLock("inv:CAB-001", 30, 5);
-        verify(lockService).unlock("inv:CAB-001");
+        verify(lockService).tryLock(InventoryService.deviceLockKey("CAB-001"), 30, 5);
+        verify(lockService).unlock(InventoryService.deviceLockKey("CAB-001"));
         assertEquals(3, inv.getQuantity());
     }
 
     @Test
     void deduct_busyLock_throwsConflict() {
-        when(lockService.tryLock(eq("inv:CAB-001"), anyLong(), anyLong())).thenReturn(false);
+        when(lockService.tryLock(eq(InventoryService.deviceLockKey("CAB-001")), anyLong(), anyLong())).thenReturn(false);
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> inventoryService.deductForOrder("CAB-001",
                         List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 1, 1f))));
@@ -81,7 +81,7 @@ class InventoryServiceTest {
                 () -> inventoryService.deductForOrder("CAB-001",
                         List.of(new VisionServiceClient.RecognizedItem("SKU-DEMO-001", 3, 1f)), "S1"));
         assertTrue(ex.getReason().contains("库存不足"));
-        verify(lockService).unlock("inv:CAB-001");
+        verify(lockService).unlock(InventoryService.deviceLockKey("CAB-001"));
     }
 
     @Test

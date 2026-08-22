@@ -35,19 +35,22 @@ public class WarehouseBinService {
     private final WarehouseMapper warehouseRepository;
     private final SkuCatalogMapper skuCatalogRepository;
     private final WarehouseService warehouseService;
+    private final DistributedLockService distributedLockService;
 
     public WarehouseBinService(PermissionService permissionService,
                                WarehouseBinMapper binRepository,
                                WarehouseBinStockMapper binStockRepository,
                                WarehouseMapper warehouseRepository,
                                SkuCatalogMapper skuCatalogRepository,
-                               WarehouseService warehouseService) {
+                               WarehouseService warehouseService,
+                               DistributedLockService distributedLockService) {
         this.permissionService = permissionService;
         this.binRepository = binRepository;
         this.binStockRepository = binStockRepository;
         this.warehouseRepository = warehouseRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.warehouseService = warehouseService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -124,11 +127,14 @@ public class WarehouseBinService {
             throw badRequest("sku not found: " + skuId);
         }
         WarehouseBin bin = requireActiveBin(wh, binCode);
-        warehouseService.binStockChange(wh, skuId, batchNo,
-                request.productionDate(), request.expiryDate(), qty,
-                operatorId, "BIN_INBOUND", String.valueOf(bin.getBinId()));
-        addBinStock(bin.getBinId(), skuId, batchNo,
-                request.productionDate(), request.expiryDate(), qty);
+        runWithBinStockLock(bin.getBinId(), skuId, batchNo, () -> {
+            warehouseService.binStockChange(wh, skuId, batchNo,
+                    request.productionDate(), request.expiryDate(), qty,
+                    operatorId, "BIN_INBOUND", String.valueOf(bin.getBinId()));
+            doAddBinStock(bin.getBinId(), skuId, batchNo,
+                    request.productionDate(), request.expiryDate(), qty);
+            return null;
+        });
     }
 
     @Transactional
@@ -150,22 +156,25 @@ public class WarehouseBinService {
         }
         String skuId = required(request.skuId(), "skuId").trim();
         String batchNo = required(request.batchNo(), "batchNo").trim();
-        WarehouseBinStock fromRow = binStockRepository
-                .findByBinIdAndSkuIdAndBatchNo(from.getBinId(), skuId, batchNo)
-                .orElseThrow(() -> badRequest("source bin has no stock: " + skuId + "/" + batchNo));
-        if (fromRow.getQuantity() < qty) {
-            throw badRequest("source bin insufficient stock");
-        }
-        fromRow.setQuantity(fromRow.getQuantity() - qty);
-        fromRow.setUpdatedAt(Instant.now());
-        binStockRepository.save(fromRow);
-        addBinStock(to.getBinId(), skuId, batchNo,
-                fromRow.getProductionDate(), fromRow.getExpiryDate(), qty);
+        runWithBinStockLocks(request.fromBinId(), request.toBinId(), skuId, batchNo, () -> {
+            WarehouseBinStock fromRow = binStockRepository
+                    .findByBinIdAndSkuIdAndBatchNoForUpdate(from.getBinId(), skuId, batchNo)
+                    .orElseThrow(() -> badRequest("source bin has no stock: " + skuId + "/" + batchNo));
+            if (fromRow.getQuantity() < qty) {
+                throw badRequest("source bin insufficient stock");
+            }
+            fromRow.setQuantity(fromRow.getQuantity() - qty);
+            fromRow.setUpdatedAt(Instant.now());
+            binStockRepository.save(fromRow);
+            doAddBinStock(to.getBinId(), skuId, batchNo,
+                    fromRow.getProductionDate(), fromRow.getExpiryDate(), qty);
+            return null;
+        });
     }
 
-    private void addBinStock(Long binId, String skuId, String batchNo,
-                             LocalDate productionDate, LocalDate expiryDate, int qty) {
-        WarehouseBinStock row = binStockRepository.findByBinIdAndSkuIdAndBatchNo(binId, skuId, batchNo)
+    private void doAddBinStock(Long binId, String skuId, String batchNo,
+                               LocalDate productionDate, LocalDate expiryDate, int qty) {
+        WarehouseBinStock row = binStockRepository.findByBinIdAndSkuIdAndBatchNoForUpdate(binId, skuId, batchNo)
                 .orElseGet(() -> {
                     WarehouseBinStock n = new WarehouseBinStock();
                     n.setBinId(binId);
@@ -243,5 +252,53 @@ public class WarehouseBinService {
 
     private static ResponseStatusException notFound(String name) {
         return new ResponseStatusException(HttpStatus.NOT_FOUND, name + " not found");
+    }
+
+    static String binStockLockKey(Long binId, String skuId, String batchNo) {
+        return "warehouse:bin-stock:" + binId + ":" + skuId + ":" + batchNo;
+    }
+
+    private <T> T runWithBinStockLock(Long binId, String skuId, String batchNo,
+                                      java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(binStockLockKey(binId, skuId, batchNo), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "货位库存处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(binStockLockKey(binId, skuId, batchNo));
+        }
+    }
+
+    private <T> T runWithBinStockLocks(Long binId1, Long binId2, String skuId, String batchNo,
+                                       java.util.function.Supplier<T> action) {
+        long first = Math.min(binId1, binId2);
+        long second = Math.max(binId1, binId2);
+        if (first == second) {
+            return runWithBinStockLock(binId1, skuId, batchNo, action);
+        }
+        if (!distributedLockService.tryLock(binStockLockKey(first, skuId, batchNo), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "货位库存处理中，请稍后重试");
+        }
+        try {
+            if (!distributedLockService.tryLock(binStockLockKey(second, skuId, batchNo), 60, 5)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "货位库存处理中，请稍后重试");
+            }
+            try {
+                return action.get();
+            } finally {
+                distributedLockService.unlock(binStockLockKey(second, skuId, batchNo));
+            }
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(binStockLockKey(first, skuId, batchNo));
+        }
     }
 }

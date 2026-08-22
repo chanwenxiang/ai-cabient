@@ -30,13 +30,18 @@ class OpsExceptionManualResolveTest {
     @Mock SettlementService settlementService;
     @Mock DisputeService disputeService;
     @Mock RepairTicketService repairTicketService;
+    @Mock DistributedLockService distributedLockService;
 
     private OpsExceptionService service;
 
     @BeforeEach
     void setUp() {
         service = new OpsExceptionService(repository, permissionService, auditService, auditRepository,
-                sessionRepository, settlementService, disputeService, repairTicketService);
+                sessionRepository, settlementService, disputeService, repairTicketService, distributedLockService);
+        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
     }
 
     @Test
@@ -51,7 +56,7 @@ class OpsExceptionManualResolveTest {
         session.setSessionId("S-TEST-001");
         session.setState(SessionState.DISPUTED);
 
-        when(repository.findById("EX-TEST-001")).thenReturn(Optional.of(item));
+        when(repository.findByIdForUpdate("EX-TEST-001")).thenReturn(Optional.of(item));
         when(auditRepository.findByTargetTypeAndTargetIdOrderByCreatedAtAsc("OPS_EXCEPTION", "EX-TEST-001"))
                 .thenReturn(List.of());
         when(sessionRepository.findById("S-TEST-001")).thenReturn(Optional.of(session));

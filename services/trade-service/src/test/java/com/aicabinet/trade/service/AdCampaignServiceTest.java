@@ -15,6 +15,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.Instant;
 import java.util.List;
@@ -26,6 +28,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class AdCampaignServiceTest {
 
     @Mock private AdCampaignMapper campaignRepository;
@@ -34,13 +37,18 @@ class AdCampaignServiceTest {
     @Mock private MediaAssetMapper assetRepository;
     @Mock private AdminAuditService auditService;
     @Mock private AdPlayEventMapper playEventRepository;
+    @Mock private DistributedLockService distributedLockService;
 
     private AdCampaignService service;
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
         service = new AdCampaignService(campaignRepository, itemRepository, deviceRepository,
-                assetRepository, auditService, playEventRepository);
+                assetRepository, auditService, playEventRepository, distributedLockService);
     }
 
     private static AdCampaign campaign(Long id, String status, String scope) {

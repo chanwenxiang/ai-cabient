@@ -36,6 +36,7 @@ public class MerchantOnboardingService {
     private final WeChatPayProperties weChatPayProperties;
     private final AlipayProperties alipayProperties;
     private final PayScoreProperties payScoreProperties;
+    private final DistributedLockService distributedLockService;
 
     public MerchantOnboardingService(MerchantPaymentOnboardingMapper onboardingMapper,
                                      MerchantMapper merchantMapper,
@@ -45,7 +46,8 @@ public class MerchantOnboardingService {
                                      SecurityProperties securityProperties,
                                      WeChatPayProperties weChatPayProperties,
                                      AlipayProperties alipayProperties,
-                                     PayScoreProperties payScoreProperties) {
+                                     PayScoreProperties payScoreProperties,
+                                     DistributedLockService distributedLockService) {
         this.onboardingMapper = onboardingMapper;
         this.merchantMapper = merchantMapper;
         this.permissionService = permissionService;
@@ -55,6 +57,7 @@ public class MerchantOnboardingService {
         this.weChatPayProperties = weChatPayProperties;
         this.alipayProperties = alipayProperties;
         this.payScoreProperties = payScoreProperties;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -77,12 +80,18 @@ public class MerchantOnboardingService {
 
     @Transactional
     public MerchantPaymentOnboardingDto upsert(Long operatorId, Long onboardingId, UpsertMerchantOnboardingRequest req) {
-        permissionService.requirePermission(operatorId, "ops:merchant:onboard:edit");
         String mid = req.merchantId().trim();
+        String channel = req.channel().trim().toUpperCase();
+        return runWithOnboardingLock(mid, channel, () -> doUpsert(operatorId, onboardingId, req, mid, channel));
+    }
+
+    private MerchantPaymentOnboardingDto doUpsert(Long operatorId, Long onboardingId,
+                                                  UpsertMerchantOnboardingRequest req,
+                                                  String mid, String channel) {
+        permissionService.requirePermission(operatorId, "ops:merchant:onboard:edit");
         merchantScopeService.requireMerchantAccess(operatorId, mid);
         merchantMapper.findById(mid)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "商户不存在"));
-        String channel = req.channel().trim().toUpperCase();
         if (!CHANNELS.contains(channel)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "channel 仅支持 WECHAT/ALIPAY/PAYSCORE");
         }
@@ -93,12 +102,11 @@ public class MerchantOnboardingService {
 
         MerchantPaymentOnboarding row;
         if (onboardingId != null) {
-            row = onboardingMapper.selectById(onboardingId);
-            if (row == null) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "进件记录不存在");
-            }
+            row = onboardingMapper.findByIdForUpdate(onboardingId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "进件记录不存在"));
         } else {
-            row = onboardingMapper.findByMerchantAndChannel(mid, channel).orElseGet(MerchantPaymentOnboarding::new);
+            row = onboardingMapper.findByMerchantAndChannelForUpdate(mid, channel)
+                    .orElseGet(MerchantPaymentOnboarding::new);
             if (row.getOnboardingId() == null) {
                 row.setCreatedAt(Instant.now());
             }
@@ -151,5 +159,21 @@ public class MerchantOnboardingService {
 
     private static String blankToNull(String v) {
         return v == null || v.isBlank() ? null : v.trim();
+    }
+
+    static String onboardingLockKey(String merchantId, String channel) {
+        return "merchant:onboarding:" + merchantId + ":" + channel;
+    }
+
+    private <T> T runWithOnboardingLock(String merchantId, String channel,
+                                        java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(onboardingLockKey(merchantId, channel), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "商户进件处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(onboardingLockKey(merchantId, channel));
+        }
     }
 }

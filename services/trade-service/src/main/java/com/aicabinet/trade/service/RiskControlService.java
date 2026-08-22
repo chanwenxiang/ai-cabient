@@ -31,17 +31,20 @@ public class RiskControlService {
     private final RiskEventMapper riskEventRepository;
     private final ShoppingSessionMapper sessionRepository;
     private final ObjectMapper objectMapper;
+    private final DistributedLockService distributedLockService;
 
     public RiskControlService(RiskControlProperties properties,
                               UserBlacklistMapper blacklistRepository,
                               RiskEventMapper riskEventRepository,
                               ShoppingSessionMapper sessionRepository,
-                              ObjectMapper objectMapper) {
+                              ObjectMapper objectMapper,
+                              DistributedLockService distributedLockService) {
         this.properties = properties;
         this.blacklistRepository = blacklistRepository;
         this.riskEventRepository = riskEventRepository;
         this.sessionRepository = sessionRepository;
         this.objectMapper = objectMapper;
+        this.distributedLockService = distributedLockService;
     }
 
     public void validateCanOpenDoor(Long userId, String deviceId) {
@@ -80,32 +83,46 @@ public class RiskControlService {
 
     @Transactional
     public void addBlacklist(Long operatorId, Long userId, String reason, Instant expiresAt) {
-        UserBlacklist bl = new UserBlacklist();
-        bl.setUserId(userId);
-        bl.setReason(reason);
-        bl.setSource("MANUAL");
-        bl.setExpiresAt(expiresAt);
-        blacklistRepository.save(bl);
-        recordEvent(userId, null, "BLACKLIST_ADD", "INFO", Map.of("reason", reason, "by", operatorId));
-        log.info("user blacklisted userId={} by={}", userId, operatorId);
+        runWithBlacklistLock(userId, () -> {
+            UserBlacklist bl = blacklistRepository.findByIdForUpdate(userId).orElseGet(UserBlacklist::new);
+            bl.setUserId(userId);
+            bl.setReason(reason);
+            bl.setSource("MANUAL");
+            bl.setExpiresAt(expiresAt);
+            blacklistRepository.save(bl);
+            recordEvent(userId, null, "BLACKLIST_ADD", "INFO", Map.of("reason", reason, "by", operatorId));
+            log.info("user blacklisted userId={} by={}", userId, operatorId);
+            return null;
+        });
     }
 
     @Transactional
     public void removeBlacklist(Long userId) {
-        blacklistRepository.deleteById(userId);
+        runWithBlacklistLock(userId, () -> {
+            blacklistRepository.findByIdForUpdate(userId).ifPresent(blacklistRepository::delete);
+            return null;
+        });
     }
 
     private void autoBlacklist(Long userId, String reason) {
-        if (blacklistRepository.existsById(userId)) {
+        if (!distributedLockService.tryLock(blacklistLockKey(userId), 60, 5)) {
+            log.warn("blacklist auto lock busy userId={}", userId);
             return;
         }
-        UserBlacklist bl = new UserBlacklist();
-        bl.setUserId(userId);
-        bl.setReason(reason);
-        bl.setSource("AUTO");
-        bl.setExpiresAt(Instant.now().plus(30, ChronoUnit.DAYS));
-        blacklistRepository.save(bl);
-        recordEvent(userId, null, "BLACKLIST_AUTO", "BLOCK", Map.of("reason", reason));
+        try {
+            if (blacklistRepository.findByIdForUpdate(userId).isPresent()) {
+                return;
+            }
+            UserBlacklist bl = new UserBlacklist();
+            bl.setUserId(userId);
+            bl.setReason(reason);
+            bl.setSource("AUTO");
+            bl.setExpiresAt(Instant.now().plus(30, ChronoUnit.DAYS));
+            blacklistRepository.save(bl);
+            recordEvent(userId, null, "BLACKLIST_AUTO", "BLOCK", Map.of("reason", reason));
+        } finally {
+            distributedLockService.unlock(blacklistLockKey(userId));
+        }
     }
 
     private void recordEvent(Long userId, String deviceId, String type, String severity, Map<String, ?> detail) {
@@ -120,5 +137,20 @@ public class RiskControlService {
             event.setDetail("{}");
         }
         riskEventRepository.save(event);
+    }
+
+    static String blacklistLockKey(Long userId) {
+        return "risk:blacklist:" + userId;
+    }
+
+    private void runWithBlacklistLock(Long userId, java.util.function.Supplier<Void> action) {
+        if (!distributedLockService.tryLock(blacklistLockKey(userId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "黑名单处理中，请稍后重试");
+        }
+        try {
+            action.get();
+        } finally {
+            distributedLockService.unlock(blacklistLockKey(userId));
+        }
     }
 }

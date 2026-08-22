@@ -12,6 +12,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.util.List;
 import java.util.Optional;
@@ -23,6 +25,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class SkuDelistReviewServiceTest {
 
     @Mock private CabinetOrderLineMapper lineRepository;
@@ -30,10 +33,15 @@ class SkuDelistReviewServiceTest {
     @Mock private SkuCatalogMapper skuCatalogRepository;
     @Mock private SkuDelistReviewMapper reviewRepository;
     @Mock private InventoryLotService inventoryLotService;
+    @Mock private DistributedLockService distributedLockService;
 
     private SkuDelistReviewService service() {
+        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
         return new SkuDelistReviewService(lineRepository, inventoryRepository,
-                skuCatalogRepository, reviewRepository, inventoryLotService);
+                skuCatalogRepository, reviewRepository, inventoryLotService, distributedLockService);
     }
 
     private static SkuCatalog sku(String id, String name, String status) {
@@ -78,7 +86,7 @@ class SkuDelistReviewServiceTest {
         review.setSkuId("SKU-A");
         review.setReviewStatus("PENDING");
         SkuCatalog sku = sku("SKU-A", "可乐", "ACTIVE");
-        when(reviewRepository.findBySkuId("SKU-A")).thenReturn(Optional.of(review));
+        when(reviewRepository.findBySkuIdForUpdate("SKU-A")).thenReturn(Optional.of(review));
         when(skuCatalogRepository.findById("SKU-A")).thenReturn(Optional.of(sku));
         when(skuCatalogRepository.findAllByOrderBySkuIdAsc()).thenReturn(List.of(sku));
 
@@ -98,7 +106,7 @@ class SkuDelistReviewServiceTest {
         review.setSkuId("SKU-A");
         review.setReviewStatus("PENDING");
         SkuCatalog sku = sku("SKU-A", "可乐", "ACTIVE");
-        when(reviewRepository.findBySkuId("SKU-A")).thenReturn(Optional.of(review));
+        when(reviewRepository.findBySkuIdForUpdate("SKU-A")).thenReturn(Optional.of(review));
         when(skuCatalogRepository.findAllByOrderBySkuIdAsc()).thenReturn(List.of(sku));
 
         SkuDelistReviewDto dto = service.decide("SKU-A", "KEEP", null, null, 1L);

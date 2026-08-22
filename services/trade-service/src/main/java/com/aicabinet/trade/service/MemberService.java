@@ -10,8 +10,10 @@ import com.aicabinet.common.dto.MemberLevelRuleDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -38,30 +40,50 @@ public class MemberService {
     @Autowired
     private MemberPointsLogMapper pointsLogRepository;
 
+    @Autowired
+    private DistributedLockService distributedLockService;
+
     @Transactional
     public Member createMember(Long userId) {
-        Member existing = memberRepository.findByUserId(userId).orElse(null);
-        if (existing != null) {
-            return existing;
-        }
+        return runWithMemberUserLock(userId, () -> {
+            Member existing = memberRepository.findByUserIdForUpdate(userId).orElse(null);
+            if (existing != null) {
+                return existing;
+            }
 
-        Member member = new Member();
-        member.setUserId(userId);
-        member.setMemberLevel(LEVEL_NORMAL);
-        member.setTotalSpent(BigDecimal.ZERO);
-        member.setOrderCount(0);
-        member.setCreatedAt(Instant.now());
+            Member member = new Member();
+            member.setUserId(userId);
+            member.setMemberLevel(LEVEL_NORMAL);
+            member.setTotalSpent(BigDecimal.ZERO);
+            member.setOrderCount(0);
+            member.setCreatedAt(Instant.now());
 
-        return memberRepository.save(member);
+            return memberRepository.save(member);
+        });
     }
 
     @Transactional
     public void updateMemberStats(Long memberId, BigDecimal orderAmount) {
-        Member member = memberRepository.findById(memberId).orElse(null);
+        Member preview = memberRepository.findById(memberId).orElse(null);
+        if (preview == null || preview.getUserId() == null) {
+            return;
+        }
+        runWithMemberUserLock(preview.getUserId(), () -> {
+            doUpdateMemberStats(memberId, orderAmount);
+            return null;
+        });
+    }
+
+    private void doUpdateMemberStats(Long memberId, BigDecimal orderAmount) {
+        Member member = memberRepository.findByIdForUpdate(memberId).orElse(null);
         if (member == null) {
             return;
         }
+        applyMemberStatsDelta(member, orderAmount);
+        memberRepository.save(member);
+    }
 
+    private void applyMemberStatsDelta(Member member, BigDecimal orderAmount) {
         member.setTotalSpent(member.getTotalSpent().add(orderAmount));
         member.setOrderCount(member.getOrderCount() + 1);
 
@@ -69,11 +91,10 @@ public class MemberService {
         if (!newLevel.equals(member.getMemberLevel())) {
             member.setMemberLevel(newLevel);
             member.setLevelUpgradeAt(Instant.now());
-            log.info("Member level upgraded: memberId={}, newLevel={}", memberId, newLevel);
+            log.info("Member level upgraded: memberId={}, newLevel={}", member.getMemberId(), newLevel);
         }
 
         member.setUpdatedAt(Instant.now());
-        memberRepository.save(member);
     }
 
     private String calculateMemberLevel(BigDecimal totalSpent) {
@@ -104,9 +125,28 @@ public class MemberService {
         if (userId == null || paidAmountCents <= 0) {
             return;
         }
-        Member member = getMemberByUserId(userId).orElseGet(() -> createMember(userId));
-        updateMemberStats(member.getMemberId(), BigDecimal.valueOf(paidAmountCents, 2));
-        earnPoints(member, paidAmountCents, orderId);
+        runWithMemberUserLock(userId, () -> {
+            Member member = memberRepository.findByUserIdForUpdate(userId)
+                    .orElseGet(() -> createMemberIfAbsent(userId));
+            applyMemberStatsDelta(member, BigDecimal.valueOf(paidAmountCents, 2));
+            memberRepository.save(member);
+            earnPoints(member, paidAmountCents, orderId);
+            return null;
+        });
+    }
+
+    private Member createMemberIfAbsent(Long userId) {
+        Member existing = memberRepository.findByUserId(userId).orElse(null);
+        if (existing != null) {
+            return memberRepository.findByUserIdForUpdate(userId).orElse(existing);
+        }
+        Member member = new Member();
+        member.setUserId(userId);
+        member.setMemberLevel(LEVEL_NORMAL);
+        member.setTotalSpent(BigDecimal.ZERO);
+        member.setOrderCount(0);
+        member.setCreatedAt(Instant.now());
+        return memberRepository.save(member);
     }
 
     /** 按当前等级积分倍率返积分（1 元 = points_rate 积分），积分有效期 365 天。 */
@@ -144,6 +184,60 @@ public class MemberService {
         log.setDescription("购物返积分");
         log.setExpireAt(Instant.now().plus(365, ChronoUnit.DAYS));
         pointsLogRepository.save(log);
+    }
+
+    /**
+     * 退款时按比例扣回积分（幂等：同一退款键只扣一次）。
+     * 多节点：member 行锁 + 流水 source 唯一索引。
+     */
+    @Transactional
+    public void clawbackPointsOnRefund(Long userId, int refundAmountCents, String orderId, String refundKey) {
+        if (userId == null || refundAmountCents <= 0 || orderId == null || orderId.isBlank()) {
+            return;
+        }
+        runWithMemberUserLock(userId, () -> {
+            doClawbackPointsOnRefund(userId, refundAmountCents, orderId, refundKey);
+            return null;
+        });
+    }
+
+    private void doClawbackPointsOnRefund(Long userId, int refundAmountCents, String orderId, String refundKey) {
+        String sourceId = orderId + ":" + (refundKey == null ? "default" : refundKey);
+        Member member = memberRepository.findByUserIdForUpdate(userId).orElse(null);
+        if (member == null) {
+            return;
+        }
+        if (pointsLogRepository.existsByMemberAndSource(member.getMemberId(), "ORDER_REFUND", sourceId)) {
+            return;
+        }
+        MemberLevelRule rule = levelRuleRepository.findByLevelCode(member.getMemberLevel()).orElse(null);
+        BigDecimal rate = rule != null && rule.getPointsRate() != null
+                ? rule.getPointsRate()
+                : BigDecimal.ONE;
+        int clawback = rate.multiply(BigDecimal.valueOf(refundAmountCents, 2))
+                .setScale(0, RoundingMode.DOWN).intValue();
+        if (clawback <= 0) {
+            return;
+        }
+        int available = nz(member.getAvailablePoints());
+        int actual = Math.min(clawback, available);
+        if (actual <= 0) {
+            return;
+        }
+        member.setAvailablePoints(available - actual);
+        member.setUpdatedAt(Instant.now());
+        memberRepository.save(member);
+
+        MemberPointsLog entry = new MemberPointsLog();
+        entry.setMemberId(member.getMemberId());
+        entry.setPoints(-actual);
+        entry.setPointsType("USE");
+        entry.setSourceType("ORDER_REFUND");
+        entry.setSourceId(sourceId);
+        entry.setDescription("退款扣回积分");
+        pointsLogRepository.save(entry);
+        log.info("points clawback memberId={} order={} refund={} points={}",
+                member.getMemberId(), orderId, refundAmountCents, actual);
     }
 
     private static int nz(Integer v) {
@@ -189,5 +283,24 @@ public class MemberService {
         int discounted = BigDecimal.valueOf(unitPriceCents).multiply(factor)
                 .setScale(0, RoundingMode.HALF_UP).intValue();
         return Math.max(0, Math.min(unitPriceCents, discounted));
+    }
+
+    static String memberUserLockKey(long userId) {
+        return "member:user:" + userId;
+    }
+
+    private <T> T runWithMemberUserLock(long userId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(memberUserLockKey(userId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "会员处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(memberUserLockKey(userId));
+        }
     }
 }

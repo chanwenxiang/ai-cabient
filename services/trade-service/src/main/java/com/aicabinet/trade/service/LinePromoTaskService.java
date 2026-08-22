@@ -22,15 +22,18 @@ public class LinePromoTaskService {
     private final LineManagerService lineManagerService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public LinePromoTaskService(LinePromoTaskMapper taskMapper,
                                 LineManagerService lineManagerService,
                                 PermissionService permissionService,
-                                AdminAuditService auditService) {
+                                AdminAuditService auditService,
+                                DistributedLockService distributedLockService) {
         this.taskMapper = taskMapper;
         this.lineManagerService = lineManagerService;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -43,12 +46,17 @@ public class LinePromoTaskService {
     public LinePromoTaskDto upsert(Long operatorId, Long taskId, UpsertLinePromoTaskRequest req) {
         permissionService.requirePermission(operatorId, "ops:line-manager:edit");
         lineManagerService.requireManager(req.managerId());
+        if (taskId != null) {
+            return runWithTaskLock(taskId, () -> doUpsert(operatorId, taskId, req));
+        }
+        return runWithManagerLock(req.managerId(), () -> doUpsert(operatorId, null, req));
+    }
+
+    private LinePromoTaskDto doUpsert(Long operatorId, Long taskId, UpsertLinePromoTaskRequest req) {
         LinePromoTask task;
         if (taskId != null) {
-            task = taskMapper.selectById(taskId);
-            if (task == null) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "地推任务不存在");
-            }
+            task = taskMapper.findByIdForUpdate(taskId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "地推任务不存在"));
         } else {
             task = new LinePromoTask();
             task.setCreatedAt(Instant.now());
@@ -78,6 +86,38 @@ public class LinePromoTaskService {
         }
         auditService.record(operatorId, "LINE_PROMO_TASK", "TASK", String.valueOf(task.getTaskId()), status);
         return toDto(task);
+    }
+
+    static String linePromoTaskLockKey(Long taskId) {
+        return "line-promo:task:" + taskId;
+    }
+
+    static String linePromoManagerLockKey(Long managerId) {
+        return "line-promo:manager:" + managerId;
+    }
+
+    private <T> T runWithTaskLock(Long taskId, java.util.function.Supplier<T> action) {
+        String key = linePromoTaskLockKey(taskId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "地推任务处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
+    }
+
+    private <T> T runWithManagerLock(Long managerId, java.util.function.Supplier<T> action) {
+        String key = linePromoManagerLockKey(managerId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "地推任务处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 
     private LinePromoTaskDto toDto(LinePromoTask t) {

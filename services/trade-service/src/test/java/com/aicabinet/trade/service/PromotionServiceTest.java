@@ -23,11 +23,13 @@ import static org.mockito.Mockito.*;
 class PromotionServiceTest {
 
     @Mock private PromotionActivityMapper repository;
+    @Mock private DistributedLockService distributedLockService;
     private PromotionService promotionService;
 
     @BeforeEach
     void setUp() {
-        promotionService = new PromotionService(repository);
+        promotionService = new PromotionService(repository, distributedLockService);
+        lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
     }
 
     @Test
@@ -82,6 +84,45 @@ class PromotionServiceTest {
         when(repository.findById(999L)).thenReturn(Optional.empty());
         assertThrows(ResponseStatusException.class,
                 () -> promotionService.updateStatus(999L, "ACTIVE"));
+    }
+
+    @Test
+    void reserveBudgetOnClaim_shouldIncrementUsedCents() {
+        var activity = new PromotionActivity();
+        activity.setActivityId(1L);
+        activity.setBudgetCents(1000L);
+        activity.setUsedCents(200L);
+        when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(activity));
+        when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        promotionService.reserveBudgetOnClaim(1L, 300);
+
+        assertEquals(500L, activity.getUsedCents());
+    }
+
+    @Test
+    void reserveBudgetOnClaim_shouldRejectWhenOverBudget() {
+        var activity = new PromotionActivity();
+        activity.setActivityId(1L);
+        activity.setBudgetCents(1000L);
+        activity.setUsedCents(900L);
+        when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(activity));
+
+        assertThrows(ResponseStatusException.class,
+                () -> promotionService.reserveBudgetOnClaim(1L, 200));
+    }
+
+    @Test
+    void releaseBudget_shouldNotGoBelowZero() {
+        var activity = new PromotionActivity();
+        activity.setActivityId(1L);
+        activity.setUsedCents(100L);
+        when(repository.findByIdForUpdate(1L)).thenReturn(Optional.of(activity));
+        when(repository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        promotionService.releaseBudget(1L, 200);
+
+        assertEquals(0L, activity.getUsedCents());
     }
 
     @Test

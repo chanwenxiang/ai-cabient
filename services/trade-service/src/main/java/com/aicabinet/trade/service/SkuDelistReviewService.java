@@ -38,22 +38,36 @@ public class SkuDelistReviewService {
     private final SkuCatalogMapper skuCatalogRepository;
     private final SkuDelistReviewMapper reviewRepository;
     private final InventoryLotService inventoryLotService;
+    private final DistributedLockService distributedLockService;
 
     public SkuDelistReviewService(CabinetOrderLineMapper lineRepository,
                                   DeviceSkuInventoryMapper inventoryRepository,
                                   SkuCatalogMapper skuCatalogRepository,
                                   SkuDelistReviewMapper reviewRepository,
-                                  InventoryLotService inventoryLotService) {
+                                  InventoryLotService inventoryLotService,
+                                  DistributedLockService distributedLockService) {
         this.lineRepository = lineRepository;
         this.inventoryRepository = inventoryRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.reviewRepository = reviewRepository;
         this.inventoryLotService = inventoryLotService;
+        this.distributedLockService = distributedLockService;
     }
 
     /** 基于近 N 天订单生成/刷新全量 SKU 评审行。 */
     @Transactional
     public List<SkuDelistReviewDto> runReview(int days) {
+        if (!distributedLockService.tryLock(reviewBatchLockKey(), 120, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "选品评审刷新中，请稍后重试");
+        }
+        try {
+            return doRunReview(days);
+        } finally {
+            distributedLockService.unlock(reviewBatchLockKey());
+        }
+    }
+
+    private List<SkuDelistReviewDto> doRunReview(int days) {
         int window = Math.min(Math.max(days, 7), 90);
         Instant since = LocalDate.now(ZONE).minusDays(window - 1L).atStartOfDay(ZONE).toInstant();
         Map<String, long[]> sales = new HashMap<>(); // skuId -> [qty, revenueCents]
@@ -147,7 +161,11 @@ public class SkuDelistReviewService {
      */
     @Transactional
     public SkuDelistReviewDto decide(String skuId, String action, String reason, String replaceSkuId, Long operatorId) {
-        SkuDelistReview review = reviewRepository.findBySkuId(skuId)
+        return runWithSkuReviewLock(skuId, () -> doDecide(skuId, action, reason, replaceSkuId, operatorId));
+    }
+
+    private SkuDelistReviewDto doDecide(String skuId, String action, String reason, String replaceSkuId, Long operatorId) {
+        SkuDelistReview review = reviewRepository.findBySkuIdForUpdate(skuId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "该商品暂无诊断记录"));
         String act = action == null ? "" : action.trim().toUpperCase();
         if (!List.of("RECOMMEND_DELIST", "DELIST", "KEEP").contains(act)) {
@@ -227,6 +245,25 @@ public class SkuDelistReviewService {
             return new BigDecimal(String.valueOf(v)).longValue();
         } catch (NumberFormatException e) {
             return 0L;
+        }
+    }
+
+    static String reviewBatchLockKey() {
+        return "sku:delist-review:batch";
+    }
+
+    static String skuReviewLockKey(String skuId) {
+        return "sku:delist-review:" + skuId;
+    }
+
+    private <T> T runWithSkuReviewLock(String skuId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(skuReviewLockKey(skuId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "选品评审处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(skuReviewLockKey(skuId));
         }
     }
 }

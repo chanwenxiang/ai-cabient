@@ -5,13 +5,17 @@ import com.aicabinet.trade.domain.WarehouseOutboundLine;
 import com.aicabinet.trade.mapper.WarehouseInTransitMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 public class InTransitService {
@@ -21,27 +25,51 @@ public class InTransitService {
     private static final String STATUS_RECEIVED = "RECEIVED";
 
     private final WarehouseInTransitMapper transitRepository;
+    private final DistributedLockService distributedLockService;
 
-    public InTransitService(WarehouseInTransitMapper transitRepository) {
+    public InTransitService(WarehouseInTransitMapper transitRepository,
+                            DistributedLockService distributedLockService) {
         this.transitRepository = transitRepository;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
     public void recordFromOutbound(Long outboundId, List<WarehouseOutboundLine> lines) {
+        if (outboundId == null || lines == null || lines.isEmpty()) {
+            return;
+        }
+        Set<String> deviceIds = new HashSet<>();
+        for (WarehouseOutboundLine line : lines) {
+            if (line.getDeviceId() != null && !line.getDeviceId().isBlank() && line.getQuantity() > 0) {
+                deviceIds.add(line.getDeviceId().trim());
+            }
+        }
+        for (String deviceId : deviceIds) {
+            runWithInTransitLock(outboundId, deviceId, () -> {
+                doRecordFromOutboundForDevice(outboundId, deviceId, lines);
+                return null;
+            });
+        }
+    }
+
+    private void doRecordFromOutboundForDevice(Long outboundId, String deviceId, List<WarehouseOutboundLine> lines) {
         for (WarehouseOutboundLine line : lines) {
             if (line.getDeviceId() == null || line.getDeviceId().isBlank() || line.getQuantity() <= 0) {
                 continue;
             }
+            if (!deviceId.equals(line.getDeviceId().trim())) {
+                continue;
+            }
             WarehouseInTransit transit = new WarehouseInTransit();
             transit.setOutboundId(outboundId);
-            transit.setDeviceId(line.getDeviceId().trim());
+            transit.setDeviceId(deviceId);
             transit.setSkuId(line.getSkuId());
             transit.setBatchNo(line.getBatchNo());
             transit.setQuantity(line.getQuantity());
             transit.setStatus(STATUS_IN_TRANSIT);
             transitRepository.save(transit);
         }
-        log.info("in-transit recorded outboundId={} lines={}", outboundId, lines.size());
+        log.info("in-transit recorded outboundId={} deviceId={}", outboundId, deviceId);
     }
 
     @Transactional
@@ -49,8 +77,13 @@ public class InTransitService {
         if (outboundId == null || deviceId == null || deviceId.isBlank()) {
             return 0;
         }
-        List<WarehouseInTransit> rows = transitRepository.findByOutboundIdAndDeviceIdAndStatus(
-                outboundId, deviceId.trim(), STATUS_IN_TRANSIT);
+        return runWithInTransitLock(outboundId, deviceId.trim(),
+                () -> doReceiveForDevice(outboundId, deviceId.trim()));
+    }
+
+    private int doReceiveForDevice(Long outboundId, String deviceId) {
+        List<WarehouseInTransit> rows = transitRepository.findByOutboundIdAndDeviceIdAndStatusForUpdate(
+                outboundId, deviceId, STATUS_IN_TRANSIT);
         Instant now = Instant.now();
         for (WarehouseInTransit row : rows) {
             row.setStatus(STATUS_RECEIVED);
@@ -78,8 +111,13 @@ public class InTransitService {
         if (outboundId == null || deviceId == null || deviceId.isBlank()) {
             return 0;
         }
-        List<WarehouseInTransit> rows = transitRepository.findByOutboundIdAndDeviceIdAndStatus(
-                outboundId, deviceId.trim(), STATUS_IN_TRANSIT);
+        return runWithInTransitLock(outboundId, deviceId.trim(),
+                () -> doCancelOpenForDevice(outboundId, deviceId.trim()));
+    }
+
+    private int doCancelOpenForDevice(Long outboundId, String deviceId) {
+        List<WarehouseInTransit> rows = transitRepository.findByOutboundIdAndDeviceIdAndStatusForUpdate(
+                outboundId, deviceId, STATUS_IN_TRANSIT);
         for (WarehouseInTransit row : rows) {
             row.setStatus("CANCELLED");
             transitRepository.save(row);
@@ -112,6 +150,25 @@ public class InTransitService {
         return transitRepository.findByDeviceIdAndStatus(deviceId.trim(), STATUS_IN_TRANSIT).stream()
                 .map(this::toDto)
                 .toList();
+    }
+
+    static String inTransitLockKey(Long outboundId, String deviceId) {
+        return "in-transit:" + outboundId + ":" + deviceId;
+    }
+
+    private <T> T runWithInTransitLock(Long outboundId, String deviceId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(inTransitLockKey(outboundId, deviceId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "在途库存处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(inTransitLockKey(outboundId, deviceId));
+        }
     }
 
     private com.aicabinet.common.dto.WarehouseInTransitDto toDto(WarehouseInTransit row) {

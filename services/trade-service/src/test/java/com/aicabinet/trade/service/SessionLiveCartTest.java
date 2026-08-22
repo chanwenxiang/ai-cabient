@@ -24,6 +24,7 @@ class SessionLiveCartTest {
 
     @Mock ShoppingSessionMapper repository;
     @Mock ObjectMapper objectMapper;
+    @Mock DistributedLockService distributedLockService;
 
     SessionService sessionService;
 
@@ -31,7 +32,11 @@ class SessionLiveCartTest {
     void setUp() {
         sessionService = new SessionService(
                 repository, null, null, null, null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, distributedLockService);
+        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
         ReflectionTestUtils.setField(sessionService, "objectMapper", new ObjectMapper());
     }
 
@@ -42,7 +47,7 @@ class SessionLiveCartTest {
         session.setUserId(1L);
         session.setDeviceId("CAB-001");
         session.setState(SessionState.SHOPPING);
-        when(repository.findById("S1")).thenReturn(Optional.of(session));
+        when(repository.findByIdForUpdate("S1")).thenReturn(Optional.of(session));
         when(repository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
         var first = sessionService.updateLiveCartFromVision("S1", new LiveCartUpdateRequest(

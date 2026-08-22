@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 @Service
@@ -42,6 +43,7 @@ public class CompetitiveGapService {
     private final DeviceSalesLockService salesLockService;
     private final SecurityProperties securityProperties;
     private final OpsUserRouteScopeMapper routeScopeMapper;
+    private final DistributedLockService distributedLockService;
 
     public CompetitiveGapService(OpsUserDeviceScopeMapper deviceScopeMapper,
                                  OpsUserDeviceScopePrefMapper deviceScopePrefMapper,
@@ -58,7 +60,8 @@ public class CompetitiveGapService {
                                  AdminAuditService auditService,
                                  DeviceSalesLockService salesLockService,
                                  SecurityProperties securityProperties,
-                                 OpsUserRouteScopeMapper routeScopeMapper) {
+                                 OpsUserRouteScopeMapper routeScopeMapper,
+                                 DistributedLockService distributedLockService) {
         this.deviceScopeMapper = deviceScopeMapper;
         this.deviceScopePrefMapper = deviceScopePrefMapper;
         this.opsConfigMapper = opsConfigMapper;
@@ -75,6 +78,7 @@ public class CompetitiveGapService {
         this.salesLockService = salesLockService;
         this.securityProperties = securityProperties;
         this.routeScopeMapper = routeScopeMapper;
+        this.distributedLockService = distributedLockService;
     }
 
     // ---- M2 device scope ----
@@ -100,6 +104,10 @@ public class CompetitiveGapService {
     @Transactional
     public OpsUserDeviceScopeDto assignUserDeviceScope(Long operatorId, Long userId, OpsUserDeviceScopeDto body) {
         permissionService.requireAnyPermission(operatorId, "ops:rbac:assign:device", "ops:rbac:assign");
+        return runWithDeviceScopeLock(userId, () -> doAssignUserDeviceScope(operatorId, userId, body));
+    }
+
+    private OpsUserDeviceScopeDto doAssignUserDeviceScope(Long operatorId, Long userId, OpsUserDeviceScopeDto body) {
         String mode = body.scopeMode() == null || body.scopeMode().isBlank()
                 ? "ALL" : body.scopeMode().trim().toUpperCase();
         if ("PARTIAL".equals(mode)) {
@@ -108,7 +116,7 @@ public class CompetitiveGapService {
         if (!Set.of("ALL", "DEVICE_IDS", "ROUTE").contains(mode)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scopeMode 仅支持 ALL / DEVICE_IDS / ROUTE");
         }
-        OpsUserDeviceScopePref pref = deviceScopePrefMapper.findById(userId).orElseGet(OpsUserDeviceScopePref::new);
+        OpsUserDeviceScopePref pref = deviceScopePrefMapper.findByIdForUpdate(userId).orElseGet(OpsUserDeviceScopePref::new);
         pref.setUserId(userId);
         pref.setScopeMode(mode);
         pref.setUpdatedAt(Instant.now());
@@ -157,7 +165,11 @@ public class CompetitiveGapService {
     public MerchantOpsConfigDto saveOpsConfig(Long operatorId, String merchantId, MerchantOpsConfigDto body) {
         permissionService.requirePermission(operatorId, "ops:merchant:edit");
         merchantScopeService.requireMerchantAccess(operatorId, merchantId);
-        MerchantOpsConfig cfg = opsConfigMapper.findById(merchantId).orElseGet(MerchantOpsConfig::new);
+        return runWithMerchantLock(merchantId, () -> doSaveOpsConfig(merchantId, body));
+    }
+
+    private MerchantOpsConfigDto doSaveOpsConfig(String merchantId, MerchantOpsConfigDto body) {
+        MerchantOpsConfig cfg = opsConfigMapper.findByIdForUpdate(merchantId).orElseGet(MerchantOpsConfig::new);
         cfg.setMerchantId(merchantId);
         cfg.setStockingType(nz(body.stockingType(), "CAPACITY"));
         cfg.setStockoutThresholdPct(body.stockoutThresholdPct() <= 0 ? 50 : Math.min(100, body.stockoutThresholdPct()));
@@ -227,7 +239,11 @@ public class CompetitiveGapService {
     public DevicePolicyDto updateDevicePolicy(Long operatorId, String deviceId, DevicePolicyDto body) {
         permissionService.requirePermission(operatorId, "ops:device:edit");
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
-        DeviceInfo d = deviceInfoMapper.findById(deviceId)
+        return runWithDevicePolicyLock(deviceId, () -> doUpdateDevicePolicy(operatorId, deviceId, body));
+    }
+
+    private DevicePolicyDto doUpdateDevicePolicy(Long operatorId, String deviceId, DevicePolicyDto body) {
+        DeviceInfo d = deviceInfoMapper.findByIdForUpdate(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在"));
         d.setPriceLocked(body.priceLocked());
         d.setSkuEditForbidden(body.skuEditForbidden());
@@ -258,6 +274,10 @@ public class CompetitiveGapService {
                         + ";saleForbidden=" + wantForbidden
                         + ";salesLocked=" + wantLocked);
         return toPolicy(deviceInfoMapper.findById(deviceId).orElse(d));
+    }
+
+    private <T> T runWithDevicePolicyLock(String deviceId, Supplier<T> action) {
+        return runWithLock(DeviceSalesLockService.deviceSalesLockKey(deviceId), action);
     }
 
     // ---- M4 sales reports + phone verify ----
@@ -379,7 +399,11 @@ public class CompetitiveGapService {
     @Transactional
     public PhoneVerifyLogDto updatePhoneVerify(Long operatorId, Long logId, PhoneVerifyLogDto body) {
         permissionService.requireAnyPermission(operatorId, "ops:phone-verify:list", "ops:user:list");
-        PhoneVerifyLog log = phoneVerifyLogMapper.findById(logId)
+        return runWithPhoneVerifyLogLock(logId, () -> doUpdatePhoneVerify(logId, body));
+    }
+
+    private PhoneVerifyLogDto doUpdatePhoneVerify(Long logId, PhoneVerifyLogDto body) {
+        PhoneVerifyLog log = phoneVerifyLogMapper.findByIdForUpdate(logId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "验证记录不存在"));
         if (body.phone() == null || body.phone().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "手机号不能为空");
@@ -396,10 +420,52 @@ public class CompetitiveGapService {
     @Transactional
     public void deletePhoneVerify(Long operatorId, Long logId) {
         permissionService.requireAnyPermission(operatorId, "ops:phone-verify:list", "ops:user:list");
-        if (phoneVerifyLogMapper.findById(logId).isEmpty()) {
+        runWithPhoneVerifyLogLock(logId, () -> {
+            doDeletePhoneVerify(logId);
+            return null;
+        });
+    }
+
+    private void doDeletePhoneVerify(Long logId) {
+        if (phoneVerifyLogMapper.findByIdForUpdate(logId).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "验证记录不存在");
         }
         phoneVerifyLogMapper.deleteById(logId);
+    }
+
+    static String opsDeviceScopeLockKey(long userId) {
+        return "ops:device-scope:" + userId;
+    }
+
+    static String phoneVerifyLogLockKey(long logId) {
+        return "phone-verify:log:" + logId;
+    }
+
+    private <T> T runWithDeviceScopeLock(long userId, Supplier<T> action) {
+        return runWithLock(opsDeviceScopeLockKey(userId), action);
+    }
+
+    private <T> T runWithMerchantLock(String merchantId, Supplier<T> action) {
+        return runWithLock(MerchantService.merchantLockKey(merchantId), action);
+    }
+
+    private <T> T runWithPhoneVerifyLogLock(long logId, Supplier<T> action) {
+        return runWithLock(phoneVerifyLogLockKey(logId), action);
+    }
+
+    private <T> T runWithLock(String lockKey, Supplier<T> action) {
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "配置处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
     }
 
     // ---- helpers ----

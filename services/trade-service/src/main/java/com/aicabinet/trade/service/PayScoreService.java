@@ -12,8 +12,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
+import java.util.function.Supplier;
 
 @Service
 public class PayScoreService {
@@ -27,19 +30,22 @@ public class PayScoreService {
     private final UserInfoMapper userInfoRepository;
     private final AlipayPayClient alipayPayClient;
     private final AgreementChargeClient agreementChargeClient;
+    private final DistributedLockService distributedLockService;
 
     public PayScoreService(PayScoreProperties payScoreProperties,
                            SecurityProperties securityProperties,
                            WeChatPayProperties weChatPayProperties,
                            UserInfoMapper userInfoRepository,
                            AlipayPayClient alipayPayClient,
-                           AgreementChargeClient agreementChargeClient) {
+                           AgreementChargeClient agreementChargeClient,
+                           DistributedLockService distributedLockService) {
         this.payScoreProperties = payScoreProperties;
         this.securityProperties = securityProperties;
         this.weChatPayProperties = weChatPayProperties;
         this.userInfoRepository = userInfoRepository;
         this.alipayPayClient = alipayPayClient;
         this.agreementChargeClient = agreementChargeClient;
+        this.distributedLockService = distributedLockService;
     }
 
     public static boolean isActiveAlipayAgreementId(String agreementId) {
@@ -80,21 +86,25 @@ public class PayScoreService {
         return isPasswordFreeReady(user);
     }
 
+    @Transactional
     public String signWeChatPayScore(Long userId) {
-        UserInfo user = requireUser(userId);
-        if (!payScoreProperties.enabled() && !securityProperties.mockEnabled()) {
-            throw new IllegalStateException("微信支付分未启用");
-        }
-        String contractId = "PSC-" + userId + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
-        user.setPayscoreEnabled(true);
-        user.setPayscoreContractId(contractId);
-        if (!PayChannels.BALANCE.equalsIgnoreCase(
-                user.getPayPreferredChannel() == null ? "" : user.getPayPreferredChannel().trim())) {
-            user.setPayPreferredChannel(PayChannels.WECHAT);
-        }
-        userInfoRepository.save(user);
-        log.info("payscore contract signed user={} contract={}", userId, contractId);
-        return contractId;
+        return runWithPayScoreUserLock(userId, () -> {
+            UserInfo user = userInfoRepository.findByIdForUpdate(userId)
+                    .orElseThrow(() -> new IllegalArgumentException("user not found"));
+            if (!payScoreProperties.enabled() && !securityProperties.mockEnabled()) {
+                throw new IllegalStateException("微信支付分未启用");
+            }
+            String contractId = "PSC-" + userId + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+            user.setPayscoreEnabled(true);
+            user.setPayscoreContractId(contractId);
+            if (!PayChannels.BALANCE.equalsIgnoreCase(
+                    user.getPayPreferredChannel() == null ? "" : user.getPayPreferredChannel().trim())) {
+                user.setPayPreferredChannel(PayChannels.WECHAT);
+            }
+            userInfoRepository.save(user);
+            log.info("payscore contract signed user={} contract={}", userId, contractId);
+            return contractId;
+        });
     }
 
     /**
@@ -106,7 +116,12 @@ public class PayScoreService {
      */
     @Transactional
     public AlipaySignResult signAlipayAgreement(Long userId) {
-        UserInfo user = requireUser(userId);
+        return runWithPayScoreUserLock(userId, () -> doSignAlipayAgreement(userId));
+    }
+
+    private AlipaySignResult doSignAlipayAgreement(Long userId) {
+        UserInfo user = userInfoRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new IllegalArgumentException("user not found"));
         if (isActiveAlipayAgreementId(user.getAlipayAgreementId())) {
             return new AlipaySignResult(true, user.getAlipayAgreementId(), null, false);
         }
@@ -149,22 +164,35 @@ public class PayScoreService {
             return false;
         }
         String pendingKey = ALIPAY_PENDING_PREFIX + externalAgreementNo.trim();
-        UserInfo user = userInfoRepository.findByAlipayAgreementId(pendingKey)
+        UserInfo preview = userInfoRepository.findByAlipayAgreementId(pendingKey)
                 .or(() -> userInfoRepository.findByAlipayAgreementId(externalAgreementNo.trim()))
                 .orElse(null);
-        if (user == null) {
+        if (preview == null) {
             log.warn("alipay agreement notify user not found external={}", externalAgreementNo);
             return false;
         }
-        user.setAlipayAgreementId(agreementNo.trim());
-        if (!PayChannels.BALANCE.equalsIgnoreCase(
-                user.getPayPreferredChannel() == null ? "" : user.getPayPreferredChannel().trim())) {
-            user.setPayPreferredChannel(PayChannels.ALIPAY);
-        }
-        userInfoRepository.save(user);
-        log.info("alipay agreement bound user={} agreement={} external={}",
-                user.getUserId(), agreementNo, externalAgreementNo);
-        return true;
+        return runWithPayScoreUserLock(preview.getUserId(), () -> {
+            UserInfo user = userInfoRepository.findByIdForUpdate(preview.getUserId()).orElse(null);
+            if (user == null) {
+                return false;
+            }
+            String current = user.getAlipayAgreementId();
+            if (current == null || current.isBlank()
+                    || (!current.equals(pendingKey) && !current.equals(externalAgreementNo.trim()))) {
+                log.warn("alipay agreement notify stale external={} user={} current={}",
+                        externalAgreementNo, user.getUserId(), current);
+                return false;
+            }
+            user.setAlipayAgreementId(agreementNo.trim());
+            if (!PayChannels.BALANCE.equalsIgnoreCase(
+                    user.getPayPreferredChannel() == null ? "" : user.getPayPreferredChannel().trim())) {
+                user.setPayPreferredChannel(PayChannels.ALIPAY);
+            }
+            userInfoRepository.save(user);
+            log.info("alipay agreement bound user={} agreement={} external={}",
+                    user.getUserId(), agreementNo, externalAgreementNo);
+            return true;
+        });
     }
 
     public ChargeResult charge(UserInfo user, String orderId, int amountCents, String description) {
@@ -286,6 +314,26 @@ public class PayScoreService {
     private UserInfo requireUser(Long userId) {
         return userInfoRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("user not found"));
+    }
+
+    static String payScoreUserLockKey(long userId) {
+        return "payscore:user:" + userId;
+    }
+
+    private <T> T runWithPayScoreUserLock(long userId, Supplier<T> action) {
+        String lockKey = payScoreUserLockKey(userId);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "免密签约处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
     }
 
     public record ChargeResult(String channel, String tradeNo) {}

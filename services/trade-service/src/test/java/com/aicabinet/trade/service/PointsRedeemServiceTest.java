@@ -26,7 +26,11 @@ import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,8 +44,16 @@ class PointsRedeemServiceTest {
     @Mock private PointsRedeemItemMapper redeemItemRepository;
     @Mock private CouponService couponService;
     @Mock private CouponDefinitionMapper couponDefinitionRepository;
+    @Mock private DistributedLockService distributedLockService;
 
     @InjectMocks private PointsRedeemService service;
+
+    private void stubRedeemLocks(long userId, long itemId) {
+        lenient().when(distributedLockService.tryLock(
+                eq(MemberService.memberUserLockKey(userId)), eq(60L), eq(5L))).thenReturn(true);
+        lenient().when(distributedLockService.tryLock(
+                eq("redeem:item:" + itemId + ":user:" + userId), eq(30L), eq(3L))).thenReturn(true);
+    }
 
     private static Member member(int available, int total, int used) {
         Member m = new Member();
@@ -74,8 +86,11 @@ class PointsRedeemServiceTest {
         PointsRedeemItem item = item(10, 0, 100);
         CouponDto coupon = new CouponDto(9L, "满 20 减 5 券", "AMOUNT_OFF", 500, 0,
                 "UNUSED", null, null, null, "CODE1");
+        stubRedeemLocks(100L, 1L);
         when(memberService.getMemberByUserId(100L)).thenReturn(Optional.of(member));
+        when(memberRepository.findByUserIdForUpdate(100L)).thenReturn(Optional.of(member));
         when(redeemItemRepository.findById(1L)).thenReturn(Optional.of(item));
+        when(redeemItemRepository.tryClaimStock(1L)).thenReturn(1);
         when(couponService.issueToUser(100L, 2L)).thenReturn(coupon);
 
         CouponDto result = service.redeem(100L, 1L);
@@ -84,8 +99,8 @@ class PointsRedeemServiceTest {
         assertEquals(400, member.getAvailablePoints());
         assertEquals(100, member.getUsedPoints());
         verify(memberRepository).save(member);
-        verify(redeemItemRepository).save(item);
-        assertEquals(1, item.getRedeemedCount());
+        verify(redeemItemRepository).tryClaimStock(1L);
+        verify(redeemItemRepository, never()).save(item);
         ArgumentCaptor<MemberPointsLog> logCaptor = ArgumentCaptor.forClass(MemberPointsLog.class);
         verify(pointsLogRepository).save(logCaptor.capture());
         assertEquals(-100, logCaptor.getValue().getPoints());
@@ -97,19 +112,25 @@ class PointsRedeemServiceTest {
     void redeem_shouldRejectInsufficientPoints() {
         Member member = member(50, 50, 0);
         PointsRedeemItem item = item(10, 0, 100);
+        stubRedeemLocks(100L, 1L);
         when(memberService.getMemberByUserId(100L)).thenReturn(Optional.of(member));
+        when(memberRepository.findByUserIdForUpdate(100L)).thenReturn(Optional.of(member));
         when(redeemItemRepository.findById(1L)).thenReturn(Optional.of(item));
 
         assertThrows(ResponseStatusException.class, () -> service.redeem(100L, 1L));
         verify(couponService, never()).issueToUser(anyLong(), anyLong());
+        verify(redeemItemRepository, never()).tryClaimStock(anyLong());
     }
 
     @Test
     void redeem_shouldRejectSoldOut() {
         Member member = member(500, 500, 0);
         PointsRedeemItem item = item(10, 10, 100);
+        stubRedeemLocks(100L, 1L);
         when(memberService.getMemberByUserId(100L)).thenReturn(Optional.of(member));
+        when(memberRepository.findByUserIdForUpdate(100L)).thenReturn(Optional.of(member));
         when(redeemItemRepository.findById(1L)).thenReturn(Optional.of(item));
+        when(redeemItemRepository.tryClaimStock(1L)).thenReturn(0);
 
         assertThrows(ResponseStatusException.class, () -> service.redeem(100L, 1L));
         verify(couponService, never()).issueToUser(anyLong(), anyLong());

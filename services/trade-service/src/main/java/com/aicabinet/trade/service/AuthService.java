@@ -28,6 +28,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.function.Supplier;
+
 @Service
 public class AuthService {
 
@@ -43,6 +45,7 @@ public class AuthService {
     private final AuthProperties authProperties;
     private final LoginThrottleService loginThrottleService;
     private final PhoneVerifyLogMapper phoneVerifyLogMapper;
+    private final DistributedLockService distributedLockService;
 
     public AuthService(UserInfoMapper userInfoRepository,
                        UserAccountMapper userAccountRepository,
@@ -55,7 +58,8 @@ public class AuthService {
                        ServerBootMarker serverBootMarker,
                        AuthProperties authProperties,
                        LoginThrottleService loginThrottleService,
-                       PhoneVerifyLogMapper phoneVerifyLogMapper) {
+                       PhoneVerifyLogMapper phoneVerifyLogMapper,
+                       DistributedLockService distributedLockService) {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.jwtService = jwtService;
@@ -68,6 +72,7 @@ public class AuthService {
         this.authProperties = authProperties;
         this.loginThrottleService = loginThrottleService;
         this.phoneVerifyLogMapper = phoneVerifyLogMapper;
+        this.distributedLockService = distributedLockService;
     }
 
     public void sendSmsCode(String phoneNumber) {
@@ -161,9 +166,14 @@ public class AuthService {
         if (!smsCodeService.verifyCode(phone, request.smsCode())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_CODE);
         }
-        user.setPasswordHash(passwordEncoder.encode(newPassword));
-        userInfoRepository.save(user);
-        auditPhoneVerify(user.getUserId(), phone, "SMS_RESET");
+        runWithUserAccountLock(user.getUserId(), () -> {
+            UserInfo locked = userInfoRepository.findByIdForUpdate(user.getUserId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+            locked.setPasswordHash(passwordEncoder.encode(newPassword));
+            userInfoRepository.save(locked);
+            auditPhoneVerify(locked.getUserId(), phone, "SMS_RESET");
+            return null;
+        });
     }
 
     /** 微信小程序 wx.login：已绑定 openId 直接登录；否则自动建档（竞品扫码免注册） */
@@ -180,36 +190,45 @@ public class AuthService {
         return loginOrCreateByOpenId(session.openId(), phoneNumber);
     }
 
-    private LoginResponse loginOrCreateByOpenId(String openId, String phoneNumber) {
-        var byOpenId = userInfoRepository.findByWxOpenId(openId);
-        if (byOpenId.isPresent()) {
-            return tokenFor(byOpenId.get());
-        }
-        String phone = phoneNumber != null ? normalizePhone(phoneNumber) : "";
-        if (!phone.isBlank()) {
-            if (!phone.matches("1\\d{10}")) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
-            }
-            UserInfo user = requireExistingUser(phone);
-            user.setWxOpenId(openId);
-            userInfoRepository.save(user);
-            return tokenFor(user);
-        }
-        return tokenFor(createWxConsumer(openId));
-    }
-
-    /** 支付宝 H5 授权：已绑定 user_id 直接登录；否则自动建档 */
     @Transactional
     public LoginResponse alipayLogin(AlipayLoginRequest request) {
         String alipayUserId = alipayOauthClient.resolveUserId(request.authCode());
-        var byAlipay = userInfoRepository.findByAlipayUserId(alipayUserId);
-        if (byAlipay.isPresent()) {
-            return tokenFor(byAlipay.get());
-        }
-        return tokenFor(createAlipayConsumer(alipayUserId));
+        return runWithAlipayUserLock(alipayUserId, () -> {
+            var byAlipay = userInfoRepository.findByAlipayUserId(alipayUserId);
+            if (byAlipay.isPresent()) {
+                return tokenFor(byAlipay.get());
+            }
+            return tokenFor(createAlipayConsumer(alipayUserId));
+        });
+    }
+
+    private LoginResponse loginOrCreateByOpenId(String openId, String phoneNumber) {
+        return runWithWxOpenIdLock(openId, () -> {
+            var byOpenId = userInfoRepository.findByWxOpenId(openId);
+            if (byOpenId.isPresent()) {
+                return tokenFor(byOpenId.get());
+            }
+            String phone = phoneNumber != null ? normalizePhone(phoneNumber) : "";
+            if (!phone.isBlank()) {
+                if (!phone.matches("1\\d{10}")) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_PHONE);
+                }
+                UserInfo user = requireExistingUser(phone);
+                UserInfo locked = userInfoRepository.findByIdForUpdate(user.getUserId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+                locked.setWxOpenId(openId);
+                userInfoRepository.save(locked);
+                return tokenFor(locked);
+            }
+            return tokenFor(createWxConsumer(openId));
+        });
     }
 
     private UserInfo createWxConsumer(String openId) {
+        var existing = userInfoRepository.findByWxOpenId(openId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
         Long userId = userInfoRepository.nextConsumerUserId(CabinetConstants.OPERATOR_USER_ID_START);
         UserInfo user = new UserInfo();
         user.setUserId(userId);
@@ -227,6 +246,10 @@ public class AuthService {
     }
 
     private UserInfo createAlipayConsumer(String alipayUserId) {
+        var existing = userInfoRepository.findByAlipayUserId(alipayUserId);
+        if (existing.isPresent()) {
+            return existing.get();
+        }
         Long userId = userInfoRepository.nextConsumerUserId(CabinetConstants.OPERATOR_USER_ID_START);
         UserInfo user = new UserInfo();
         user.setUserId(userId);
@@ -324,5 +347,40 @@ public class AuthService {
             return "";
         }
         return code.trim();
+    }
+
+    static String wxOpenIdLockKey(String openId) {
+        return "auth:wx-openid:" + openId;
+    }
+
+    static String alipayUserLockKey(String alipayUserId) {
+        return "auth:alipay:" + alipayUserId;
+    }
+
+    private <T> T runWithWxOpenIdLock(String openId, Supplier<T> action) {
+        return runWithLock(wxOpenIdLockKey(openId), "登录处理中，请稍后重试", action);
+    }
+
+    private <T> T runWithAlipayUserLock(String alipayUserId, Supplier<T> action) {
+        return runWithLock(alipayUserLockKey(alipayUserId), "登录处理中，请稍后重试", action);
+    }
+
+    private <T> T runWithUserAccountLock(long userId, Supplier<T> action) {
+        return runWithLock(AccountService.userAccountLockKey(userId), "账号处理中，请稍后重试", action);
+    }
+
+    private <T> T runWithLock(String lockKey, String busyMessage, Supplier<T> action) {
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, busyMessage);
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
     }
 }

@@ -48,6 +48,7 @@ public class WarehouseStocktakeService {
     private final SkuCatalogMapper skuCatalogRepository;
     private final WarehouseService warehouseService;
     private final VisionServiceClient visionServiceClient;
+    private final DistributedLockService distributedLockService;
 
     public WarehouseStocktakeService(PermissionService permissionService,
                                      WarehouseStocktakeMapper stocktakeRepository,
@@ -56,7 +57,8 @@ public class WarehouseStocktakeService {
                                      WarehouseInventoryMapper inventoryRepository,
                                      SkuCatalogMapper skuCatalogRepository,
                                      WarehouseService warehouseService,
-                                     VisionServiceClient visionServiceClient) {
+                                     VisionServiceClient visionServiceClient,
+                                     DistributedLockService distributedLockService) {
         this.permissionService = permissionService;
         this.stocktakeRepository = stocktakeRepository;
         this.lineRepository = lineRepository;
@@ -65,6 +67,7 @@ public class WarehouseStocktakeService {
         this.skuCatalogRepository = skuCatalogRepository;
         this.warehouseService = warehouseService;
         this.visionServiceClient = visionServiceClient;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
@@ -132,7 +135,12 @@ public class WarehouseStocktakeService {
     public StocktakeLineDto updateLine(Long operatorId, Long stocktakeId, Long lineId,
                                        UpdateStocktakeLineRequest request) {
         permissionService.requirePermission(operatorId, "ops:warehouse:edit");
-        WarehouseStocktake st = requireStocktake(stocktakeId);
+        return runWithStocktakeLock(stocktakeId,
+                () -> doUpdateLine(stocktakeId, lineId, request));
+    }
+
+    private StocktakeLineDto doUpdateLine(Long stocktakeId, Long lineId, UpdateStocktakeLineRequest request) {
+        WarehouseStocktake st = requireStocktakeForUpdate(stocktakeId);
         if (!"DRAFT".equals(st.getStatus()) && !"IN_PROGRESS".equals(st.getStatus())) {
             throw conflict("stocktake not editable");
         }
@@ -163,7 +171,11 @@ public class WarehouseStocktakeService {
     @Transactional
     public StocktakeDto complete(Long operatorId, Long stocktakeId) {
         permissionService.requirePermission(operatorId, "ops:warehouse:edit");
-        WarehouseStocktake st = requireStocktake(stocktakeId);
+        return runWithStocktakeLock(stocktakeId, () -> doComplete(stocktakeId));
+    }
+
+    private StocktakeDto doComplete(Long stocktakeId) {
+        WarehouseStocktake st = requireStocktakeForUpdate(stocktakeId);
         if (!"DRAFT".equals(st.getStatus()) && !"IN_PROGRESS".equals(st.getStatus())) {
             throw conflict("stocktake cannot be completed");
         }
@@ -186,7 +198,11 @@ public class WarehouseStocktakeService {
     @Transactional
     public StocktakeDto adjust(Long operatorId, Long stocktakeId, AdjustStocktakeRequest request) {
         permissionService.requirePermission(operatorId, "ops:warehouse:edit");
-        WarehouseStocktake st = requireStocktake(stocktakeId);
+        return runWithStocktakeLock(stocktakeId, () -> doAdjust(operatorId, stocktakeId, request));
+    }
+
+    private StocktakeDto doAdjust(Long operatorId, Long stocktakeId, AdjustStocktakeRequest request) {
+        WarehouseStocktake st = requireStocktakeForUpdate(stocktakeId);
         if (!"COMPLETED".equals(st.getStatus())) {
             throw conflict("stocktake must be completed before adjusting");
         }
@@ -223,7 +239,11 @@ public class WarehouseStocktakeService {
     @Transactional
     public StocktakeDto cancel(Long operatorId, Long stocktakeId) {
         permissionService.requirePermission(operatorId, "ops:warehouse:edit");
-        WarehouseStocktake st = requireStocktake(stocktakeId);
+        return runWithStocktakeLock(stocktakeId, () -> doCancel(stocktakeId));
+    }
+
+    private StocktakeDto doCancel(Long stocktakeId) {
+        WarehouseStocktake st = requireStocktakeForUpdate(stocktakeId);
         if (!"DRAFT".equals(st.getStatus())) {
             throw conflict("only draft stocktake can be cancelled");
         }
@@ -240,7 +260,11 @@ public class WarehouseStocktakeService {
     public StocktakeDto applyVisionCounts(Long operatorId, Long stocktakeId,
                                           byte[] image, String filename) {
         permissionService.requirePermission(operatorId, "ops:warehouse:edit");
-        WarehouseStocktake st = requireStocktake(stocktakeId);
+        return runWithStocktakeLock(stocktakeId, () -> doApplyVisionCounts(stocktakeId, image, filename));
+    }
+
+    private StocktakeDto doApplyVisionCounts(Long stocktakeId, byte[] image, String filename) {
+        WarehouseStocktake st = requireStocktakeForUpdate(stocktakeId);
         if (!"DRAFT".equals(st.getStatus()) && !"IN_PROGRESS".equals(st.getStatus())) {
             throw conflict("stocktake not editable");
         }
@@ -310,6 +334,30 @@ public class WarehouseStocktakeService {
     private WarehouseStocktake requireStocktake(Long stocktakeId) {
         return stocktakeRepository.findById(stocktakeId)
                 .orElseThrow(() -> notFound("stocktake"));
+    }
+
+    private WarehouseStocktake requireStocktakeForUpdate(Long stocktakeId) {
+        return stocktakeRepository.findByIdForUpdate(stocktakeId)
+                .orElseThrow(() -> notFound("stocktake"));
+    }
+
+    static String stocktakeLockKey(Long stocktakeId) {
+        return "warehouse:stocktake:" + stocktakeId;
+    }
+
+    private <T> T runWithStocktakeLock(Long stocktakeId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(stocktakeLockKey(stocktakeId), 60, 5)) {
+            throw conflict("盘点单处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(stocktakeLockKey(stocktakeId));
+        }
     }
 
     private StocktakeDto toDto(WarehouseStocktake st) {

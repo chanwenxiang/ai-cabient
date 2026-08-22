@@ -8,9 +8,17 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface DeviceSkuPriceMapper extends BaseTradeMapper<DeviceSkuPrice> {
+
+    DeviceSkuPrice _findByDeviceIdAndSkuIdForUpdateRaw(
+            @Param("deviceId") String deviceId, @Param("skuId") String skuId);
+
+    default Optional<DeviceSkuPrice> findByDeviceIdAndSkuIdForUpdate(String deviceId, String skuId) {
+        return Optional.ofNullable(_findByDeviceIdAndSkuIdForUpdateRaw(deviceId, skuId));
+    }
 
     default List<DeviceSkuPrice> findByIdDeviceIdIn(Collection<String> deviceIds) {
         return selectList(Wrappers.<DeviceSkuPrice>lambdaQuery().in(DeviceSkuPrice::getDeviceId, deviceIds));

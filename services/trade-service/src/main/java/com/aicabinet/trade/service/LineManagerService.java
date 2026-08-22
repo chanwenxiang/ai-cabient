@@ -36,6 +36,7 @@ public class LineManagerService {
     private final LineWalletService lineWalletService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public LineManagerService(LineManagerMapper managerMapper,
                               LineDeviceMapper deviceMapper,
@@ -43,7 +44,8 @@ public class LineManagerService {
                               DeviceInfoMapper deviceInfoMapper,
                               LineWalletService lineWalletService,
                               PermissionService permissionService,
-                              AdminAuditService auditService) {
+                              AdminAuditService auditService,
+                              DistributedLockService distributedLockService) {
         this.managerMapper = managerMapper;
         this.deviceMapper = deviceMapper;
         this.ledgerMapper = ledgerMapper;
@@ -51,6 +53,7 @@ public class LineManagerService {
         this.lineWalletService = lineWalletService;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -208,15 +211,17 @@ public class LineManagerService {
         if (amountCents == 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "调账金额不能为 0");
         }
-        String refId = "ADJ-" + operatorId + "-" + System.currentTimeMillis();
-        if (amountCents > 0) {
-            lineWalletService.credit(managerId, amountCents, "ADJUST", "OPS_ADJUST", refId, remark);
-        } else {
-            lineWalletService.debit(managerId, -amountCents, "ADJUST", "OPS_ADJUST", refId, remark);
-        }
-        auditService.record(operatorId, "LINE_MANAGER_ADJUST", "LINE_MANAGER",
-                String.valueOf(managerId), "金额(分)=" + amountCents + "；备注=" + remark);
-        return toDto(requireManager(managerId));
+        return runWithLineWalletLock(managerId, () -> {
+            String refId = "ADJ-" + operatorId + "-" + System.currentTimeMillis();
+            if (amountCents > 0) {
+                lineWalletService.credit(managerId, amountCents, "ADJUST", "OPS_ADJUST", refId, remark);
+            } else {
+                lineWalletService.debit(managerId, -amountCents, "ADJUST", "OPS_ADJUST", refId, remark);
+            }
+            auditService.record(operatorId, "LINE_MANAGER_ADJUST", "LINE_MANAGER",
+                    String.valueOf(managerId), "金额(分)=" + amountCents + "；备注=" + remark);
+            return toDto(requireManager(managerId));
+        });
     }
 
     @Transactional(readOnly = true)
@@ -321,5 +326,20 @@ public class LineManagerService {
         }
         String s = String.valueOf(value).trim();
         return s.isEmpty() ? defaultValue : Integer.parseInt(s);
+    }
+
+    private <T> T runWithLineWalletLock(long managerId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(LineWithdrawService.lineWalletLockKey(managerId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "钱包处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(LineWithdrawService.lineWalletLockKey(managerId));
+        }
     }
 }

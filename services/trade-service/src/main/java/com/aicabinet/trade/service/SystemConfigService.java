@@ -76,6 +76,7 @@ public class SystemConfigService {
     private final WeChatWebProperties weChatWebProperties;
     private final WeChatMiniAppProperties weChatMiniAppProperties;
     private final QrProperties qrProperties;
+    private final DistributedLockService distributedLockService;
 
     public SystemConfigService(SystemConfigMapper repository,
                                SecurityProperties securityProperties,
@@ -84,7 +85,8 @@ public class SystemConfigService {
                                PayScoreProperties payScoreProperties,
                                WeChatWebProperties weChatWebProperties,
                                WeChatMiniAppProperties weChatMiniAppProperties,
-                               QrProperties qrProperties) {
+                               QrProperties qrProperties,
+                               DistributedLockService distributedLockService) {
         this.repository = repository;
         this.securityProperties = securityProperties;
         this.alipayProperties = alipayProperties;
@@ -93,6 +95,7 @@ public class SystemConfigService {
         this.weChatWebProperties = weChatWebProperties;
         this.weChatMiniAppProperties = weChatMiniAppProperties;
         this.qrProperties = qrProperties;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -204,7 +207,11 @@ public class SystemConfigService {
 
     @Transactional
     public SystemConfigDto upsert(String key, String value, String description) {
-        SystemConfig config = repository.findById(key).orElseGet(SystemConfig::new);
+        return runWithConfigLock(key, () -> doUpsert(key, value, description));
+    }
+
+    private SystemConfigDto doUpsert(String key, String value, String description) {
+        SystemConfig config = repository.findByIdForUpdate(key).orElseGet(SystemConfig::new);
         config.setConfigKey(key);
         config.setConfigValue(value);
         if (description != null && !description.isBlank()) {
@@ -221,10 +228,29 @@ public class SystemConfigService {
         if (configKey == null || configKey.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "配置键不能为空");
         }
-        if (!repository.existsById(configKey)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "参数不存在");
+        runWithConfigLock(configKey, () -> {
+            if (repository.findByIdForUpdate(configKey).isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "参数不存在");
+            }
+            repository.deleteById(configKey);
+            return null;
+        });
+    }
+
+    static String systemConfigLockKey(String configKey) {
+        return "sys:config:" + configKey.trim();
+    }
+
+    private <T> T runWithConfigLock(String configKey, java.util.function.Supplier<T> action) {
+        String key = systemConfigLockKey(configKey);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "系统配置处理中，请稍后重试");
         }
-        repository.deleteById(configKey);
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 
     private void ensureDefaults() {

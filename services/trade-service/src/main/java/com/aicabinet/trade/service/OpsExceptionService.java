@@ -14,6 +14,7 @@ import com.aicabinet.common.enums.SessionState;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.mapper.OpsExceptionMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -34,16 +35,20 @@ public class OpsExceptionService {
     private final SettlementService settlementService;
     private final DisputeService disputeService;
     private final RepairTicketService repairTicketService;
+    private final DistributedLockService distributedLockService;
 
     public OpsExceptionService(OpsExceptionMapper repository, PermissionService permissionService,
                                AdminAuditService auditService, AdminAuditLogMapper auditRepository,
-                               ShoppingSessionMapper sessionRepository, SettlementService settlementService,
-                               DisputeService disputeService, RepairTicketService repairTicketService) {
+                               ShoppingSessionMapper sessionRepository,
+                               @Lazy SettlementService settlementService,
+                               @Lazy DisputeService disputeService, RepairTicketService repairTicketService,
+                               DistributedLockService distributedLockService) {
         this.repository = repository; this.permissionService = permissionService; this.auditService = auditService;
         this.auditRepository = auditRepository;
         this.sessionRepository = sessionRepository; this.settlementService = settlementService;
         this.disputeService = disputeService;
         this.repairTicketService = repairTicketService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -60,7 +65,7 @@ public class OpsExceptionService {
     public OpsExceptionDto report(String type, String severity, String deviceId, String sessionId,
                                   String orderId, Long userId, String title, String detail) {
         String dedup = type + ":" + first(sessionId, orderId, deviceId, String.valueOf(userId));
-        return repository.findFirstByDedupKeyAndStatusIn(dedup, OPEN).map(this::toDto).orElseGet(() -> {
+        return runWithDedupLock(dedup, () -> repository.findFirstByDedupKeyAndStatusIn(dedup, OPEN).map(this::toDto).orElseGet(() -> {
             OpsException item = new OpsException();
             item.setExceptionId(BizIds.nextNumeric());
             item.setExceptionType(type); item.setSeverity(severity); item.setStatus("OPEN");
@@ -68,7 +73,7 @@ public class OpsExceptionService {
             item.setTitle(title); item.setDetail(trim(detail)); item.setDedupKey(dedup);
             item.setSlaDueAt(slaDueFor(severity, Instant.now()));
             return toDto(repository.save(item));
-        });
+        }));
     }
 
     private static Instant slaDueFor(String severity, Instant from) {
@@ -128,54 +133,62 @@ public class OpsExceptionService {
     @Transactional
     public OpsExceptionDto claim(Long operatorId, String exceptionId) {
         requireExceptionHandle(operatorId);
-        OpsException item = require(exceptionId);
-        if ("RESOLVED".equals(item.getStatus())) return toDto(item);
-        item.setAssigneeUserId(operatorId); item.setStatus("PROCESSING"); repository.save(item);
-        auditService.record(operatorId, "OPS_EXCEPTION_CLAIM", "OPS_EXCEPTION", exceptionId, item.getExceptionType());
-        return toDto(item);
+        return runWithExceptionLock(exceptionId, () -> {
+            OpsException item = requireForUpdate(exceptionId);
+            if ("RESOLVED".equals(item.getStatus())) return toDto(item);
+            item.setAssigneeUserId(operatorId); item.setStatus("PROCESSING"); repository.save(item);
+            auditService.record(operatorId, "OPS_EXCEPTION_CLAIM", "OPS_EXCEPTION", exceptionId, item.getExceptionType());
+            return toDto(item);
+        });
     }
 
     @Transactional
     public OpsExceptionDto resolve(Long operatorId, String exceptionId, String resolution) {
         requireExceptionHandle(operatorId);
-        OpsException item = require(exceptionId);
-        item.setAssigneeUserId(operatorId); item.setStatus("RESOLVED"); item.setResolution(trim(resolution));
-        item.setResolvedAt(Instant.now()); repository.save(item);
-        auditService.record(operatorId, "OPS_EXCEPTION_RESOLVE", "OPS_EXCEPTION", exceptionId, trim(resolution));
-        return toDto(item);
+        return runWithExceptionLock(exceptionId, () -> {
+            OpsException item = requireForUpdate(exceptionId);
+            item.setAssigneeUserId(operatorId); item.setStatus("RESOLVED"); item.setResolution(trim(resolution));
+            item.setResolvedAt(Instant.now()); repository.save(item);
+            auditService.record(operatorId, "OPS_EXCEPTION_RESOLVE", "OPS_EXCEPTION", exceptionId, trim(resolution));
+            return toDto(item);
+        });
     }
 
     @Transactional
     public OpsExceptionDto archive(Long operatorId, String exceptionId) {
         requireExceptionHandle(operatorId);
-        OpsException item = require(exceptionId);
-        if (!"RESOLVED".equals(item.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅已解决的异常可归档");
-        }
-        if (Boolean.TRUE.equals(item.getArchived())) {
+        return runWithExceptionLock(exceptionId, () -> {
+            OpsException item = requireForUpdate(exceptionId);
+            if (!"RESOLVED".equals(item.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "仅已解决的异常可归档");
+            }
+            if (Boolean.TRUE.equals(item.getArchived())) {
+                return toDto(item);
+            }
+            item.setArchived(true);
+            item.setArchivedAt(Instant.now());
+            repository.save(item);
+            auditService.record(operatorId, "OPS_EXCEPTION_ARCHIVE", "OPS_EXCEPTION", exceptionId,
+                    "异常已归档：" + item.getExceptionId());
             return toDto(item);
-        }
-        item.setArchived(true);
-        item.setArchivedAt(Instant.now());
-        repository.save(item);
-        auditService.record(operatorId, "OPS_EXCEPTION_ARCHIVE", "OPS_EXCEPTION", exceptionId,
-                "异常已归档：" + item.getExceptionId());
-        return toDto(item);
+        });
     }
 
     @Transactional
     public OpsExceptionDto unarchive(Long operatorId, String exceptionId) {
         requireExceptionHandle(operatorId);
-        OpsException item = require(exceptionId);
-        if (!Boolean.TRUE.equals(item.getArchived())) {
+        return runWithExceptionLock(exceptionId, () -> {
+            OpsException item = requireForUpdate(exceptionId);
+            if (!Boolean.TRUE.equals(item.getArchived())) {
+                return toDto(item);
+            }
+            item.setArchived(false);
+            item.setArchivedAt(null);
+            repository.save(item);
+            auditService.record(operatorId, "OPS_EXCEPTION_UNARCHIVE", "OPS_EXCEPTION", exceptionId,
+                    "异常取消归档：" + item.getExceptionId());
             return toDto(item);
-        }
-        item.setArchived(false);
-        item.setArchivedAt(null);
-        repository.save(item);
-        auditService.record(operatorId, "OPS_EXCEPTION_UNARCHIVE", "OPS_EXCEPTION", exceptionId,
-                "异常取消归档：" + item.getExceptionId());
-        return toDto(item);
+        });
     }
 
     /**
@@ -184,36 +197,38 @@ public class OpsExceptionService {
     @Transactional
     public OpsExceptionDto resolveWithRepair(Long operatorId, String exceptionId, String resolution) {
         requireExceptionHandle(operatorId);
-        OpsException item = require(exceptionId);
-        if ("RESOLVED".equals(item.getStatus())) {
+        return runWithExceptionLock(exceptionId, () -> {
+            OpsException item = requireForUpdate(exceptionId);
+            if ("RESOLVED".equals(item.getStatus())) {
+                return toDto(item);
+            }
+            if (!"DEVICE_FAULT".equalsIgnoreCase(item.getExceptionType())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "仅设备故障异常可一键建维修工单");
+            }
+            if (item.getDeviceId() == null || item.getDeviceId().isBlank()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "异常未关联设备，无法建维修工单");
+            }
+            String title = item.getTitle() == null || item.getTitle().isBlank()
+                    ? "消费者设备报修" : item.getTitle().trim();
+            String remark = (item.getDetail() == null ? "" : item.getDetail().trim() + "; ")
+                    + "来自异常 " + exceptionId;
+            var ticket = repairTicketService.create(
+                    operatorId,
+                    item.getDeviceId(),
+                    title,
+                    "OTHER",
+                    String.valueOf(operatorId),
+                    "HIGH",
+                    remark);
+            String text = trim(resolution) + "; repairTicketId=" + ticket.ticketId();
+            item.setAssigneeUserId(operatorId);
+            item.setStatus("RESOLVED");
+            item.setResolution(text);
+            item.setResolvedAt(Instant.now());
+            repository.save(item);
+            auditService.record(operatorId, "OPS_EXCEPTION_RESOLVE_WITH_REPAIR", "OPS_EXCEPTION", exceptionId, text);
             return toDto(item);
-        }
-        if (!"DEVICE_FAULT".equalsIgnoreCase(item.getExceptionType())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅设备故障异常可一键建维修工单");
-        }
-        if (item.getDeviceId() == null || item.getDeviceId().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "异常未关联设备，无法建维修工单");
-        }
-        String title = item.getTitle() == null || item.getTitle().isBlank()
-                ? "消费者设备报修" : item.getTitle().trim();
-        String remark = (item.getDetail() == null ? "" : item.getDetail().trim() + "; ")
-                + "来自异常 " + exceptionId;
-        var ticket = repairTicketService.create(
-                operatorId,
-                item.getDeviceId(),
-                title,
-                "OTHER",
-                String.valueOf(operatorId),
-                "HIGH",
-                remark);
-        String text = trim(resolution) + "; repairTicketId=" + ticket.ticketId();
-        item.setAssigneeUserId(operatorId);
-        item.setStatus("RESOLVED");
-        item.setResolution(text);
-        item.setResolvedAt(Instant.now());
-        repository.save(item);
-        auditService.record(operatorId, "OPS_EXCEPTION_RESOLVE_WITH_REPAIR", "OPS_EXCEPTION", exceptionId, text);
-        return toDto(item);
+        });
     }
 
     /**
@@ -225,100 +240,118 @@ public class OpsExceptionService {
         if (sessionId == null || sessionId.isBlank()) {
             return;
         }
-        String text = trim(resolution);
-        for (OpsException item : repository.findBySessionIdAndStatusIn(sessionId, OPEN)) {
-            item.setAssigneeUserId(operatorId);
-            item.setStatus("RESOLVED");
-            item.setResolution(text);
-            item.setResolvedAt(Instant.now());
-            repository.save(item);
-            auditService.record(operatorId, "OPS_EXCEPTION_SYNC_FROM_DISPUTE", "OPS_EXCEPTION",
-                    item.getExceptionId(), text);
-        }
+        runWithSessionLock(sessionId, () -> {
+            String text = trim(resolution);
+            for (OpsException item : repository.findBySessionIdAndStatusIn(sessionId, OPEN)) {
+                OpsException locked = requireForUpdate(item.getExceptionId());
+                locked.setAssigneeUserId(operatorId);
+                locked.setStatus("RESOLVED");
+                locked.setResolution(text);
+                locked.setResolvedAt(Instant.now());
+                repository.save(locked);
+                auditService.record(operatorId, "OPS_EXCEPTION_SYNC_FROM_DISPUTE", "OPS_EXCEPTION",
+                        locked.getExceptionId(), text);
+            }
+            return null;
+        });
     }
 
     @Transactional
     public void resolveSystem(String type, String businessKey, String resolution) {
         String dedup = type + ":" + businessKey;
-        repository.findFirstByDedupKeyAndStatusIn(dedup, OPEN).ifPresent(item -> {
-            item.setStatus("RESOLVED");
-            item.setResolution(trim(resolution));
-            item.setResolvedAt(Instant.now());
-            repository.save(item);
-            auditService.record(0L, "OPS_EXCEPTION_AUTO_RESOLVE", "OPS_EXCEPTION",
-                    item.getExceptionId(), trim(resolution));
+        runWithDedupLock(dedup, () -> {
+            repository.findFirstByDedupKeyAndStatusIn(dedup, OPEN).ifPresent(item -> {
+                OpsException locked = requireForUpdate(item.getExceptionId());
+                locked.setStatus("RESOLVED");
+                locked.setResolution(trim(resolution));
+                locked.setResolvedAt(Instant.now());
+                repository.save(locked);
+                auditService.record(0L, "OPS_EXCEPTION_AUTO_RESOLVE", "OPS_EXCEPTION",
+                        locked.getExceptionId(), trim(resolution));
+            });
+            return null;
         });
     }
 
     @Transactional
     public OpsExceptionDto resolveForMerchant(Long merchantUserId, String exceptionId,
                                                Set<String> allowedDeviceIds, String resolution) {
-        OpsException item = requireOpen(exceptionId);
-        if (item.getDeviceId() == null || allowedDeviceIds == null
-                || !allowedDeviceIds.contains(item.getDeviceId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.ACCESS_DENIED);
-        }
-        if (!Set.of("INVENTORY_MISMATCH", "LOW_STOCK", "REPLENISHMENT_REQUIRED")
-                .contains(item.getExceptionType())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "商家只能处理所属设备的库存类异常");
-        }
-        item.setAssigneeUserId(merchantUserId);
-        item.setStatus("RESOLVED");
-        item.setResolution(trim(resolution));
-        item.setResolvedAt(Instant.now());
-        repository.save(item);
-        auditService.record(merchantUserId, "MERCHANT_OPS_EXCEPTION_RESOLVE", "OPS_EXCEPTION",
-                exceptionId, trim(resolution));
-        return toDto(item);
+        return runWithExceptionLock(exceptionId, () -> {
+            OpsException item = requireOpenForUpdate(exceptionId);
+            if (item.getDeviceId() == null || allowedDeviceIds == null
+                    || !allowedDeviceIds.contains(item.getDeviceId())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, ApiMessages.ACCESS_DENIED);
+            }
+            if (!Set.of("INVENTORY_MISMATCH", "LOW_STOCK", "REPLENISHMENT_REQUIRED")
+                    .contains(item.getExceptionType())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "商家只能处理所属设备的库存类异常");
+            }
+            item.setAssigneeUserId(merchantUserId);
+            item.setStatus("RESOLVED");
+            item.setResolution(trim(resolution));
+            item.setResolvedAt(Instant.now());
+            repository.save(item);
+            auditService.record(merchantUserId, "MERCHANT_OPS_EXCEPTION_RESOLVE", "OPS_EXCEPTION",
+                    exceptionId, trim(resolution));
+            return toDto(item);
+        });
     }
 
     @Transactional
     public OpsExceptionDto transfer(Long operatorId, String exceptionId, Long assigneeUserId, String reason) {
         requireExceptionHandle(operatorId);
-        OpsException item = requireOpen(exceptionId);
-        item.setAssigneeUserId(assigneeUserId);
-        item.setStatus("PROCESSING");
-        repository.save(item);
-        auditService.record(operatorId, "OPS_EXCEPTION_TRANSFER", "OPS_EXCEPTION", exceptionId,
-                "接收人：用户 " + assigneeUserId + "；原因：" + trim(reason));
-        return toDto(item);
+        return runWithExceptionLock(exceptionId, () -> {
+            OpsException item = requireOpenForUpdate(exceptionId);
+            item.setAssigneeUserId(assigneeUserId);
+            item.setStatus("PROCESSING");
+            repository.save(item);
+            auditService.record(operatorId, "OPS_EXCEPTION_TRANSFER", "OPS_EXCEPTION", exceptionId,
+                    "接收人：用户 " + assigneeUserId + "；原因：" + trim(reason));
+            return toDto(item);
+        });
     }
 
     @Transactional
     public OpsExceptionDto addNote(Long operatorId, String exceptionId, String note) {
         requireExceptionHandle(operatorId);
-        OpsException item = requireOpen(exceptionId);
-        auditService.record(operatorId, "OPS_EXCEPTION_NOTE", "OPS_EXCEPTION", exceptionId, trim(note));
-        return toDto(item);
+        return runWithExceptionLock(exceptionId, () -> {
+            requireOpenForUpdate(exceptionId);
+            auditService.record(operatorId, "OPS_EXCEPTION_NOTE", "OPS_EXCEPTION", exceptionId, trim(note));
+            return toDto(require(exceptionId));
+        });
     }
 
     @Transactional
     public OpsExceptionDto recordAction(Long operatorId, String exceptionId, String action,
                                         String idempotencyKey, String detail) {
         requireExceptionHandle(operatorId);
-        OpsException item = requireOpen(exceptionId);
-        item.setAssigneeUserId(operatorId);
-        item.setStatus("PROCESSING");
-        repository.save(item);
-        auditService.record(operatorId, action, "OPS_EXCEPTION", exceptionId,
-                "幂等键：" + idempotencyKey + "；" + trim(detail));
-        return toDto(item);
+        return runWithExceptionLock(exceptionId, () -> {
+            OpsException item = requireOpenForUpdate(exceptionId);
+            item.setAssigneeUserId(operatorId);
+            item.setStatus("PROCESSING");
+            repository.save(item);
+            auditService.record(operatorId, action, "OPS_EXCEPTION", exceptionId,
+                    "幂等键：" + idempotencyKey + "；" + trim(detail));
+            return toDto(item);
+        });
     }
 
     @Transactional
     public OpsExceptionDto resolveByAction(Long operatorId, String exceptionId, String action,
                                            String idempotencyKey, String result) {
         requireExceptionHandle(operatorId);
-        OpsException item = require(exceptionId);
-        if ("RESOLVED".equals(item.getStatus())) return toDto(item);
-        item.setAssigneeUserId(operatorId);
-        item.setStatus("RESOLVED");
-        item.setResolution(trim(result));
-        item.setResolvedAt(Instant.now());
-        repository.save(item);
-        auditService.record(operatorId, action, "OPS_EXCEPTION", exceptionId,
-                "幂等键：" + idempotencyKey + "；结果：" + trim(result));
-        return toDto(item);
+        return runWithExceptionLock(exceptionId, () -> {
+            OpsException item = requireForUpdate(exceptionId);
+            if ("RESOLVED".equals(item.getStatus())) return toDto(item);
+            item.setAssigneeUserId(operatorId);
+            item.setStatus("RESOLVED");
+            item.setResolution(trim(result));
+            item.setResolvedAt(Instant.now());
+            repository.save(item);
+            auditService.record(operatorId, action, "OPS_EXCEPTION", exceptionId,
+                    "幂等键：" + idempotencyKey + "；结果：" + trim(result));
+            return toDto(item);
+        });
     }
 
     @Transactional
@@ -327,7 +360,14 @@ public class OpsExceptionService {
                                          String idempotencyKey, String reason) {
         requireExceptionHandle(operatorId);
         permissionService.requirePermission(operatorId, "ops:dispute:resolve");
-        OpsException item = require(exceptionId);
+        return runWithExceptionLock(exceptionId, () -> doManualResolve(operatorId, exceptionId, resolutionType,
+                lines, idempotencyKey, reason));
+    }
+
+    private OpsExceptionDto doManualResolve(Long operatorId, String exceptionId, String resolutionType,
+                                            List<ResolveDisputeRequest.ManualLineItem> lines,
+                                            String idempotencyKey, String reason) {
+        OpsException item = requireForUpdate(exceptionId);
         if (!Set.of("BALANCE_INSUFFICIENT", "RECOGNITION_UNAVAILABLE", "RECOGNITION_FAILED",
                 "SETTLEMENT_FAILED").contains(item.getExceptionType())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该异常类型不支持人工商品或资金处置");
@@ -381,12 +421,80 @@ public class OpsExceptionService {
 
     private OpsException require(String id) { return repository.findById(id).orElseThrow(() ->
             new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST)); }
+    private OpsException requireForUpdate(String id) {
+        return repository.findByIdForUpdate(id).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
+    }
     private OpsException requireOpen(String id) {
         OpsException item = require(id);
         if ("RESOLVED".equals(item.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "异常已解决，不能继续操作");
         }
         return item;
+    }
+    private OpsException requireOpenForUpdate(String id) {
+        OpsException item = requireForUpdate(id);
+        if ("RESOLVED".equals(item.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "异常已解决，不能继续操作");
+        }
+        return item;
+    }
+
+    static String exceptionLockKey(String exceptionId) {
+        return "ops:exception:" + exceptionId;
+    }
+
+    static String exceptionDedupLockKey(String dedupKey) {
+        return "ops:exception:dedup:" + dedupKey;
+    }
+
+    static String exceptionSessionLockKey(String sessionId) {
+        return "ops:exception:session:" + sessionId;
+    }
+
+    private <T> T runWithExceptionLock(String exceptionId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(exceptionLockKey(exceptionId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "异常处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(exceptionLockKey(exceptionId));
+        }
+    }
+
+    private <T> T runWithDedupLock(String dedupKey, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(exceptionDedupLockKey(dedupKey), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "异常上报处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(exceptionDedupLockKey(dedupKey));
+        }
+    }
+
+    private <T> T runWithSessionLock(String sessionId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(exceptionSessionLockKey(sessionId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "会话异常同步处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(exceptionSessionLockKey(sessionId));
+        }
     }
     private OpsExceptionDto toDto(OpsException i) {
         Instant sla = i.getSlaDueAt();

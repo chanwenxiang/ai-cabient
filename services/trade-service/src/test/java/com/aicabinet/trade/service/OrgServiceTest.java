@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.util.List;
 import java.util.Optional;
@@ -24,6 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class OrgServiceTest {
 
     private static final long OPERATOR_ID = 1900000001L;
@@ -32,12 +35,18 @@ class OrgServiceTest {
     @Mock private OpsDeviceOrgMapper deviceOrgRepository;
     @Mock private PermissionService permissionService;
     @Mock private AdminAuditService auditService;
+    @Mock private DistributedLockService distributedLockService;
 
     private OrgService service;
 
     @BeforeEach
     void setUp() {
-        service = new OrgService(nodeRepository, deviceOrgRepository, permissionService, auditService);
+        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
+        service = new OrgService(nodeRepository, deviceOrgRepository, permissionService,
+                auditService, distributedLockService);
     }
 
     private static OpsOrgNode node(Long id, Long parent, String name) {
@@ -71,7 +80,7 @@ class OrgServiceTest {
     @Test
     void assignDevices_shouldRebuildNodeMapping() {
         OpsOrgNode n = node(2L, null, "华南区");
-        when(nodeRepository.findById(2L)).thenReturn(Optional.of(n));
+        when(nodeRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(n));
         when(deviceOrgRepository.findByNodeId(2L)).thenReturn(List.of());
 
         OrgNodeDto dto = service.assignDevices(OPERATOR_ID, 2L, List.of("cab-001", "CAB-002"));

@@ -34,19 +34,22 @@ public class PointsRedeemService {
     private final PointsRedeemItemMapper redeemItemRepository;
     private final CouponService couponService;
     private final CouponDefinitionMapper couponDefinitionRepository;
+    private final DistributedLockService distributedLockService;
 
     public PointsRedeemService(MemberService memberService,
                                MemberMapper memberRepository,
                                MemberPointsLogMapper pointsLogRepository,
                                PointsRedeemItemMapper redeemItemRepository,
                                CouponService couponService,
-                               CouponDefinitionMapper couponDefinitionRepository) {
+                               CouponDefinitionMapper couponDefinitionRepository,
+                               DistributedLockService distributedLockService) {
         this.memberService = memberService;
         this.memberRepository = memberRepository;
         this.pointsLogRepository = pointsLogRepository;
         this.redeemItemRepository = redeemItemRepository;
         this.couponService = couponService;
         this.couponDefinitionRepository = couponDefinitionRepository;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -108,42 +111,53 @@ public class PointsRedeemService {
         if (userId == null || userId <= 0) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
         }
-        Member member = memberService.getMemberByUserId(userId)
-                .orElseGet(() -> memberService.createMember(userId));
-        PointsRedeemItem item = redeemItemRepository.findById(itemId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "兑换商品不存在"));
-        if (!"ACTIVE".equalsIgnoreCase(item.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "该兑换已下架");
+        if (!distributedLockService.tryLock(MemberService.memberUserLockKey(userId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "会员处理中，请稍后重试");
         }
-        if (item.getStockTotal() - nz(item.getRedeemedCount()) <= 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "该兑换已兑完");
+        String lockKey = "redeem:item:" + itemId + ":user:" + userId;
+        if (!distributedLockService.tryLock(lockKey, 30, 3)) {
+            distributedLockService.unlock(MemberService.memberUserLockKey(userId));
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "兑换繁忙，请稍后重试");
         }
-        int cost = item.getPointsCost() == null ? 0 : item.getPointsCost();
-        if (nz(member.getAvailablePoints()) < cost) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "积分不足");
+        try {
+            memberService.getMemberByUserId(userId)
+                    .orElseGet(() -> memberService.createMember(userId));
+            Member member = memberRepository.findByUserIdForUpdate(userId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "会员不存在"));
+            PointsRedeemItem item = redeemItemRepository.findById(itemId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "兑换商品不存在"));
+            if (!"ACTIVE".equalsIgnoreCase(item.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "该兑换已下架");
+            }
+            int cost = item.getPointsCost() == null ? 0 : item.getPointsCost();
+            if (nz(member.getAvailablePoints()) < cost) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "积分不足");
+            }
+            if (redeemItemRepository.tryClaimStock(itemId) <= 0) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "该兑换已兑完");
+            }
+
+            CouponDto coupon = couponService.issueToUser(userId, item.getCouponDefId());
+
+            member.setAvailablePoints(nz(member.getAvailablePoints()) - cost);
+            member.setUsedPoints(nz(member.getUsedPoints()) + cost);
+            member.setUpdatedAt(Instant.now());
+            memberRepository.save(member);
+
+            MemberPointsLog log = new MemberPointsLog();
+            log.setMemberId(member.getMemberId());
+            log.setPoints(-cost);
+            log.setPointsType("USE");
+            log.setSourceType("REDEEM");
+            log.setSourceId("REDEEM-" + itemId);
+            log.setDescription("兑换" + item.getTitle());
+            log.setExpireAt(Instant.now().plus(365, ChronoUnit.DAYS));
+            pointsLogRepository.save(log);
+            return coupon;
+        } finally {
+            distributedLockService.unlock(lockKey);
+            distributedLockService.unlock(MemberService.memberUserLockKey(userId));
         }
-
-        CouponDto coupon = couponService.issueToUser(userId, item.getCouponDefId());
-
-        member.setAvailablePoints(nz(member.getAvailablePoints()) - cost);
-        member.setUsedPoints(nz(member.getUsedPoints()) + cost);
-        member.setUpdatedAt(Instant.now());
-        memberRepository.save(member);
-
-        MemberPointsLog log = new MemberPointsLog();
-        log.setMemberId(member.getMemberId());
-        log.setPoints(-cost);
-        log.setPointsType("USE");
-        log.setSourceType("REDEEM");
-        log.setSourceId("REDEEM-" + itemId);
-        log.setDescription("兑换" + item.getTitle());
-        log.setExpireAt(Instant.now().plus(365, ChronoUnit.DAYS));
-        pointsLogRepository.save(log);
-
-        item.setRedeemedCount(nz(item.getRedeemedCount()) + 1);
-        item.setUpdatedAt(Instant.now());
-        redeemItemRepository.save(item);
-        return coupon;
     }
 
     @Transactional

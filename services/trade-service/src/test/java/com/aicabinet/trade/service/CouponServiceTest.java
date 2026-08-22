@@ -32,16 +32,20 @@ class CouponServiceTest {
     @Mock private UserCouponMapper userCouponRepository;
     @Mock private UserInfoMapper userInfoRepository;
     @Mock private CabinetOrderMapper orderRepository;
+    @Mock private DistributedLockService distributedLockService;
     @Mock private ScheduledTaskService taskService;
+    @Mock private PromotionService promotionService;
 
     private CouponService couponService;
 
     @BeforeEach
     void setUp() {
         couponService = new CouponService(
-                definitionRepository, userCouponRepository, userInfoRepository, orderRepository);
+                definitionRepository, userCouponRepository, userInfoRepository, orderRepository,
+                distributedLockService, promotionService);
         org.springframework.test.util.ReflectionTestUtils.setField(couponService, "taskService", taskService);
         lenient().when(taskService.tryBegin(anyString(), anyLong())).thenReturn(true);
+        lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
     }
 
     @Test
@@ -108,9 +112,10 @@ class CouponServiceTest {
         var user = new com.aicabinet.trade.domain.UserInfo();
         user.setUserId(10001L);
 
-        when(definitionRepository.findById(1L)).thenReturn(Optional.of(def));
+        when(definitionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(def));
         when(userInfoRepository.findById(10001L)).thenReturn(Optional.of(user));
         when(userCouponRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(userCouponRepository.countByCouponDefId(1L)).thenReturn(1L);
 
         var result = couponService.issueToUser(10001L, 1L);
 
@@ -126,7 +131,7 @@ class CouponServiceTest {
         var def = new CouponDefinition();
         def.setCouponDefId(1L);
         def.setStatus("DISABLED");
-        when(definitionRepository.findById(1L)).thenReturn(Optional.of(def));
+        when(definitionRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(def));
 
         assertThrows(ResponseStatusException.class,
                 () -> couponService.issueToUser(10001L, 1L));
@@ -173,7 +178,7 @@ class CouponServiceTest {
         def.setCouponType("AMOUNT_OFF");
         def.setDenominationCents(500);
 
-        when(userCouponRepository.findById(1L)).thenReturn(Optional.of(uc));
+        when(userCouponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(uc));
         when(definitionRepository.findById(1L)).thenReturn(Optional.of(def));
         when(userCouponRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         var order = new CabinetOrder();
@@ -181,7 +186,7 @@ class CouponServiceTest {
         order.setUserId(10001L);
         order.setStatus("PENDING");
         order.setTotalAmountCents(2000);
-        when(orderRepository.findById("O-TEST-001")).thenReturn(Optional.of(order));
+        when(orderRepository.findByIdForUpdate("O-TEST-001")).thenReturn(Optional.of(order));
         when(orderRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         var result = couponService.useCoupon(10001L, 1L, "O-TEST-001", "CAB-001");
@@ -199,27 +204,82 @@ class CouponServiceTest {
         uc.setStatus("UNUSED");
         uc.setExpireAt(Instant.now().plus(30, ChronoUnit.DAYS));
 
-        when(userCouponRepository.findById(1L)).thenReturn(Optional.of(uc));
+        when(userCouponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(uc));
 
         assertThrows(ResponseStatusException.class,
                 () -> couponService.useCoupon(10001L, 1L, "O-TEST", "CAB-001"));
     }
 
     @Test
-    void expireOverdueCoupons_shouldUpdateExpired() {
+    void issueToUser_shouldReservePromotionBudgetWhenLinked() {
+        var def = new CouponDefinition();
+        def.setCouponDefId(10L);
+        def.setStatus("ACTIVE");
+        def.setActivityId(99L);
+        def.setDenominationCents(300);
+        def.setValidityDays(7);
+        def.setMaxIssueCount(0);
+
+        when(definitionRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(def));
+        when(userInfoRepository.findById(10001L)).thenReturn(Optional.of(new com.aicabinet.trade.domain.UserInfo()));
+        when(userCouponRepository.countByCouponDefId(10L)).thenReturn(0L);
+        when(userCouponRepository.save(any())).thenAnswer(i -> {
+            UserCoupon uc = i.getArgument(0);
+            uc.setCouponId(1L);
+            return uc;
+        });
+        when(definitionRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        couponService.issueToUser(10001L, 10L);
+
+        verify(promotionService).reserveBudgetOnClaim(99L, 300);
+    }
+
+    @Test
+    void markUsed_shouldReleaseUnusedPromotionBudget() {
+        var uc = new UserCoupon();
+        uc.setCouponId(1L);
+        uc.setUserId(10001L);
+        uc.setCouponDefId(10L);
+        uc.setStatus("UNUSED");
+        uc.setExpireAt(Instant.now().plus(7, ChronoUnit.DAYS));
+
+        var def = new CouponDefinition();
+        def.setCouponDefId(10L);
+        def.setActivityId(99L);
+        def.setDenominationCents(500);
+
+        when(userCouponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(uc));
+        when(definitionRepository.findById(10L)).thenReturn(Optional.of(def));
+        when(userCouponRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        couponService.markUsed(10001L, 1L, "O-1", "CAB-1", 200);
+
+        verify(promotionService).releaseBudget(99L, 300);
+    }
+
+    @Test
+    void expireOverdueCoupons_shouldReleasePromotionBudget() {
         var expired = new UserCoupon();
         expired.setCouponId(1L);
         expired.setUserId(10001L);
-        expired.setCouponDefId(1L);
+        expired.setCouponDefId(10L);
         expired.setStatus("UNUSED");
         expired.setExpireAt(Instant.now().minus(1, ChronoUnit.DAYS));
 
+        var def = new CouponDefinition();
+        def.setCouponDefId(10L);
+        def.setActivityId(99L);
+        def.setDenominationCents(400);
+
         when(userCouponRepository.findByStatusAndExpireAtBefore(eq("UNUSED"), any()))
                 .thenReturn(List.of(expired));
+        when(definitionRepository.findById(10L)).thenReturn(Optional.of(def));
 
         couponService.expireOverdueCoupons();
 
         assertEquals("EXPIRED", expired.getStatus());
+        verify(promotionService).releaseBudget(99L, 400);
         verify(userCouponRepository).saveAll(anyList());
     }
 }

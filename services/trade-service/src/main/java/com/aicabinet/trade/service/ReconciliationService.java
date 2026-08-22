@@ -8,7 +8,7 @@ import com.aicabinet.trade.domain.PaymentReconciliation;
 import com.aicabinet.trade.reconciliation.PlatformBillLine;
 import com.aicabinet.trade.reconciliation.PlatformBillProviderRegistry;
 import com.aicabinet.trade.metrics.CabinetMetrics;
-import com.aicabinet.trade.mapper.CabinetOrderMapper;
+import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.PaymentPlatformBillLineMapper;
 import com.aicabinet.trade.mapper.PaymentReconciliationMapper;
 import com.aicabinet.trade.mapper.RechargeOrderMapper;
@@ -37,26 +37,29 @@ public class ReconciliationService {
 
     private final PaymentReconciliationMapper reconRepository;
     private final PaymentPlatformBillLineMapper billLineRepository;
-    private final CabinetOrderMapper orderRepository;
+    private final PaymentOperationMapper paymentOperationRepository;
     private final RechargeOrderMapper rechargeRepository;
     private final PlatformBillProviderRegistry billProviderRegistry;
     private final ObjectMapper objectMapper;
     private final CabinetMetrics cabinetMetrics;
+    private final DistributedLockService distributedLockService;
 
     public ReconciliationService(PaymentReconciliationMapper reconRepository,
                                  PaymentPlatformBillLineMapper billLineRepository,
-                                 CabinetOrderMapper orderRepository,
+                                 PaymentOperationMapper paymentOperationRepository,
                                  RechargeOrderMapper rechargeRepository,
                                  PlatformBillProviderRegistry billProviderRegistry,
                                  ObjectMapper objectMapper,
-                                 CabinetMetrics cabinetMetrics) {
+                                 CabinetMetrics cabinetMetrics,
+                                 DistributedLockService distributedLockService) {
         this.reconRepository = reconRepository;
         this.billLineRepository = billLineRepository;
-        this.orderRepository = orderRepository;
+        this.paymentOperationRepository = paymentOperationRepository;
         this.rechargeRepository = rechargeRepository;
         this.billProviderRegistry = billProviderRegistry;
         this.objectMapper = objectMapper;
         this.cabinetMetrics = cabinetMetrics;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -84,12 +87,34 @@ public class ReconciliationService {
     @Transactional
     public PaymentReconciliationDto runDaily(Long operatorId, LocalDate date, String channel) {
         String ch = channel != null ? channel.toUpperCase() : "WECHAT";
-        reconRepository.findByReconDateAndChannel(date, ch).ifPresent(existing -> {
-            billLineRepository.deleteByReconId(existing.getReconId());
-            reconRepository.delete(existing);
-            reconRepository.flush();
+        return runWithDailyLock(date, ch, () -> {
+            reconRepository.findByReconDateAndChannel(date, ch).ifPresent(existing -> {
+                billLineRepository.deleteByReconId(existing.getReconId());
+                reconRepository.delete(existing);
+                reconRepository.flush();
+            });
+            return toDto(doReconcile(date, ch));
         });
-        return toDto(doReconcile(date, ch));
+    }
+
+    static String dailyReconciliationLockKey(LocalDate date, String channel) {
+        return "reconciliation:run:" + date + ":" + channel;
+    }
+
+    private PaymentReconciliationDto runWithDailyLock(LocalDate date, String channel,
+                                                      java.util.function.Supplier<PaymentReconciliationDto> action) {
+        if (!distributedLockService.tryLock(dailyReconciliationLockKey(date, channel), 120, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "对账任务处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(dailyReconciliationLockKey(date, channel));
+        }
     }
 
     private PaymentReconciliation doReconcile(LocalDate date, String channel) {
@@ -184,7 +209,7 @@ public class ReconciliationService {
     }
 
     private long sumLedger(Instant start, Instant end, String channel) {
-        long total = orderRepository.sumTotalAmountBetween(start, end);
+        long total = paymentOperationRepository.sumNetCashflowBetween(start, end, channel);
         if ("WECHAT".equals(channel) || "MOCK".equals(channel) || "ALIPAY".equals(channel)) {
             total += rechargeRepository.sumPaidAmountBetween(start, end);
         }
@@ -192,7 +217,8 @@ public class ReconciliationService {
     }
 
     private Set<String> collectLedgerOrderIds(Instant start, Instant end, String channel) {
-        Set<String> ids = new HashSet<>(orderRepository.findOrderIdsBetween(start, end));
+        Set<String> ids = new HashSet<>(paymentOperationRepository.findDistinctCabinetOrderIdsBetween(
+                start, end, channel));
         if ("WECHAT".equals(channel) || "MOCK".equals(channel) || "ALIPAY".equals(channel)) {
             ids.addAll(rechargeRepository.findPaidOrderIdsBetween(start, end));
         }

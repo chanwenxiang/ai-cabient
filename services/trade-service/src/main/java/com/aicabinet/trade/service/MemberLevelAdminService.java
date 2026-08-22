@@ -18,9 +18,12 @@ import java.util.List;
 public class MemberLevelAdminService {
 
     private final MemberLevelRuleMapper levelRuleRepository;
+    private final DistributedLockService distributedLockService;
 
-    public MemberLevelAdminService(MemberLevelRuleMapper levelRuleRepository) {
+    public MemberLevelAdminService(MemberLevelRuleMapper levelRuleRepository,
+                                   DistributedLockService distributedLockService) {
         this.levelRuleRepository = levelRuleRepository;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -37,10 +40,17 @@ public class MemberLevelAdminService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "等级编码不能为空");
         }
         String code = dto.levelCode().trim().toUpperCase();
+        if (dto.id() != null) {
+            return runWithLevelIdLock(dto.id(), () -> doUpsert(dto, code));
+        }
+        return runWithLevelCodeLock(code, () -> doUpsert(dto, code));
+    }
+
+    private MemberLevelRuleDto doUpsert(MemberLevelRuleDto dto, String code) {
         MemberLevelRule rule = dto.id() != null
-                ? levelRuleRepository.findById(dto.id())
+                ? levelRuleRepository.findByIdForUpdate(dto.id())
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "等级不存在"))
-                : levelRuleRepository.findByLevelCode(code).orElseGet(MemberLevelRule::new);
+                : levelRuleRepository.findByLevelCodeForUpdate(code).orElseGet(MemberLevelRule::new);
         rule.setLevelCode(code);
         rule.setLevelName(dto.levelName() == null ? code : dto.levelName());
         rule.setMinSpent(dto.minSpent());
@@ -56,11 +66,43 @@ public class MemberLevelAdminService {
 
     @Transactional
     public MemberLevelRuleDto setStatus(Long id, String status) {
-        MemberLevelRule rule = levelRuleRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "等级不存在"));
-        rule.setStatus("ACTIVE".equalsIgnoreCase(status) ? "ACTIVE" : "INACTIVE");
-        rule.setUpdatedAt(Instant.now());
-        return toDto(levelRuleRepository.save(rule));
+        return runWithLevelIdLock(id, () -> {
+            MemberLevelRule rule = levelRuleRepository.findByIdForUpdate(id)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "等级不存在"));
+            rule.setStatus("ACTIVE".equalsIgnoreCase(status) ? "ACTIVE" : "INACTIVE");
+            rule.setUpdatedAt(Instant.now());
+            return toDto(levelRuleRepository.save(rule));
+        });
+    }
+
+    static String levelIdLockKey(Long id) {
+        return "member:level:id:" + id;
+    }
+
+    static String levelCodeLockKey(String levelCode) {
+        return "member:level:" + levelCode;
+    }
+
+    private <T> T runWithLevelIdLock(Long id, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(levelIdLockKey(id), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "会员等级规则处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(levelIdLockKey(id));
+        }
+    }
+
+    private <T> T runWithLevelCodeLock(String levelCode, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(levelCodeLockKey(levelCode), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "会员等级规则处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(levelCodeLockKey(levelCode));
+        }
     }
 
     private MemberLevelRuleDto toDto(MemberLevelRule r) {

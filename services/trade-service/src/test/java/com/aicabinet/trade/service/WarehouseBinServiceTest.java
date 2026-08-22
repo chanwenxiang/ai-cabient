@@ -16,6 +16,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
@@ -27,10 +29,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class WarehouseBinServiceTest {
 
     @Mock private PermissionService permissionService;
@@ -39,13 +44,16 @@ class WarehouseBinServiceTest {
     @Mock private WarehouseMapper warehouseRepository;
     @Mock private SkuCatalogMapper skuCatalogRepository;
     @Mock private WarehouseService warehouseService;
+    @Mock private DistributedLockService distributedLockService;
 
     private WarehouseBinService service;
 
     @BeforeEach
     void setUp() {
         service = new WarehouseBinService(permissionService, binRepository,
-                binStockRepository, warehouseRepository, skuCatalogRepository, warehouseService);
+                binStockRepository, warehouseRepository, skuCatalogRepository, warehouseService,
+                distributedLockService);
+        when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }
 
     @Test
@@ -102,7 +110,7 @@ class WarehouseBinServiceTest {
         when(binRepository.findByWarehouseIdAndBinCode("WH-001", "A-01"))
                 .thenReturn(Optional.of(bin));
         when(skuCatalogRepository.existsById("SKU-A")).thenReturn(true);
-        when(binStockRepository.findByBinIdAndSkuIdAndBatchNo(1L, "SKU-A", "B1"))
+        when(binStockRepository.findByBinIdAndSkuIdAndBatchNoForUpdate(1L, "SKU-A", "B1"))
                 .thenReturn(Optional.empty());
         List<WarehouseBinStock> saved = new ArrayList<>();
         when(binStockRepository.save(any())).thenAnswer(a -> {
@@ -143,9 +151,9 @@ class WarehouseBinServiceTest {
         WarehouseBinStock row = binStock(from, "SKU-A", "B1", LocalDate.now().plusDays(30), 10);
         when(binRepository.findById(1L)).thenReturn(Optional.of(from));
         when(binRepository.findById(2L)).thenReturn(Optional.of(to));
-        when(binStockRepository.findByBinIdAndSkuIdAndBatchNo(1L, "SKU-A", "B1"))
+        when(binStockRepository.findByBinIdAndSkuIdAndBatchNoForUpdate(1L, "SKU-A", "B1"))
                 .thenReturn(Optional.of(row));
-        when(binStockRepository.findByBinIdAndSkuIdAndBatchNo(2L, "SKU-A", "B1"))
+        when(binStockRepository.findByBinIdAndSkuIdAndBatchNoForUpdate(2L, "SKU-A", "B1"))
                 .thenReturn(Optional.empty());
         when(binStockRepository.save(any())).thenAnswer(a -> a.getArgument(0));
 
@@ -168,7 +176,7 @@ class WarehouseBinServiceTest {
         WarehouseBinStock row = binStock(from, "SKU-A", "B1", LocalDate.now().plusDays(30), 2);
         when(binRepository.findById(1L)).thenReturn(Optional.of(from));
         when(binRepository.findById(2L)).thenReturn(Optional.of(to));
-        when(binStockRepository.findByBinIdAndSkuIdAndBatchNo(1L, "SKU-A", "B1"))
+        when(binStockRepository.findByBinIdAndSkuIdAndBatchNoForUpdate(1L, "SKU-A", "B1"))
                 .thenReturn(Optional.of(row));
 
         assertThrows(ResponseStatusException.class,

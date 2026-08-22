@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.OpsUserDeviceScopePrefMapper">
+
+  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.OpsUserDeviceScopePref">
+    <![CDATA[
+    SELECT p.* FROM ops_user_device_scope_pref p WHERE p.user_id = #{userId} FOR UPDATE
+    ]]>
+  </select>
+
+</mapper>

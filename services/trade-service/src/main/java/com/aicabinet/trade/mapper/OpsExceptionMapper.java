@@ -7,11 +7,18 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 @Mapper
 public interface OpsExceptionMapper extends BaseTradeMapper<OpsException> {
+
+    OpsException _findByIdForUpdateRaw(@Param("exceptionId") String exceptionId);
+
+    default Optional<OpsException> findByIdForUpdate(String exceptionId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(exceptionId));
+    }
 
     default Optional<OpsException> findFirstByDedupKeyAndStatusIn(String dedupKey, Collection<String> statuses) {
     return Optional.ofNullable(selectOne(Wrappers.<OpsException>lambdaQuery().eq(OpsException::getDedupKey, dedupKey).in(OpsException::getStatus, statuses).last("LIMIT 1")));

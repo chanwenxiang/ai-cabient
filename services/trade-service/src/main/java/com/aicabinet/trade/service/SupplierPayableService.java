@@ -11,6 +11,7 @@ import com.aicabinet.trade.mapper.SupplierMapper;
 import com.aicabinet.trade.mapper.SupplierPayableMapper;
 import com.aicabinet.trade.mapper.SupplierPaymentMapper;
 import com.aicabinet.trade.mapper.WarehouseMapper;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,17 +42,20 @@ public class SupplierPayableService {
     private final SupplierPaymentMapper paymentRepository;
     private final SupplierMapper supplierRepository;
     private final WarehouseMapper warehouseRepository;
+    private final DistributedLockService distributedLockService;
 
     public SupplierPayableService(PermissionService permissionService,
                                   SupplierPayableMapper payableRepository,
                                   SupplierPaymentMapper paymentRepository,
                                   SupplierMapper supplierRepository,
-                                  WarehouseMapper warehouseRepository) {
+                                  WarehouseMapper warehouseRepository,
+                                  DistributedLockService distributedLockService) {
         this.permissionService = permissionService;
         this.payableRepository = payableRepository;
         this.paymentRepository = paymentRepository;
         this.supplierRepository = supplierRepository;
         this.warehouseRepository = warehouseRepository;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -106,14 +110,27 @@ public class SupplierPayableService {
     @Transactional
     public SupplierPayableDto pay(Long operatorId, Long payableId, PaySupplierRequest request) {
         permissionService.requirePermission(operatorId, "ops:procurement:edit");
-        SupplierPayable payable = payableRepository.findById(payableId)
+        if (request.amountCents() == null || request.amountCents() <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amountCents must be positive");
+        }
+        String idemKey = normalizeIdempotencyKey(request.idempotencyKey());
+        if (idemKey != null) {
+            var existingPayment = paymentRepository.findByIdempotencyKey(idemKey);
+            if (existingPayment.isPresent()) {
+                SupplierPayable payable = payableRepository.findById(existingPayment.get().getPayableId())
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "payable not found"));
+                return toDto(payable);
+            }
+        }
+        return runWithPayableLock(payableId, () -> doPay(operatorId, payableId, request, idemKey));
+    }
+
+    private SupplierPayableDto doPay(Long operatorId, Long payableId, PaySupplierRequest request, String idemKey) {
+        SupplierPayable payable = payableRepository.findByIdForUpdate(payableId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "payable not found"));
         long balance = balance(payable);
         if (balance <= 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "payable has no outstanding balance");
-        }
-        if (request.amountCents() == null || request.amountCents() <= 0) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amountCents must be positive");
         }
         if (request.amountCents() > balance) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "amount exceeds payable balance");
@@ -125,8 +142,19 @@ public class SupplierPayableService {
         payment.setAmountCents(request.amountCents());
         payment.setOperatorId(operatorId);
         payment.setNotes(trimToNull(request.notes()));
+        payment.setIdempotencyKey(idemKey);
         payment.setCreatedAt(Instant.now());
-        paymentRepository.save(payment);
+        try {
+            paymentRepository.save(payment);
+        } catch (DuplicateKeyException e) {
+            if (idemKey != null) {
+                return paymentRepository.findByIdempotencyKey(idemKey)
+                        .map(p -> payableRepository.findById(p.getPayableId()).orElse(payable))
+                        .map(this::toDto)
+                        .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "付款幂等冲突"));
+            }
+            throw e;
+        }
 
         payable.setPaidAmountCents(payable.getPaidAmountCents() + request.amountCents());
         long remaining = balance(payable);
@@ -144,10 +172,15 @@ public class SupplierPayableService {
     /** 采购收货后累加应付金额，首次收货按供应商账期生成到期日。 */
     @Transactional
     public void recordReceive(Long operatorId, PurchaseOrder order, long receivedValueCents) {
-        if (receivedValueCents <= 0) {
+        if (receivedValueCents <= 0 || order == null || order.getPurchaseOrderId() == null) {
             return;
         }
-        SupplierPayable payable = payableRepository.findByPurchaseOrderId(order.getPurchaseOrderId())
+        runWithPurchaseOrderLock(order.getPurchaseOrderId(),
+                () -> doRecordReceive(order, receivedValueCents));
+    }
+
+    private void doRecordReceive(PurchaseOrder order, long receivedValueCents) {
+        SupplierPayable payable = payableRepository.findByPurchaseOrderIdForUpdate(order.getPurchaseOrderId())
                 .orElse(null);
         if (payable == null) {
             payable = new SupplierPayable();
@@ -169,10 +202,15 @@ public class SupplierPayableService {
     /** 采购退货冲减应付金额；金额归零后关闭应付单。 */
     @Transactional
     public void recordReturn(Long operatorId, PurchaseOrder order, long returnedValueCents) {
-        if (returnedValueCents <= 0) {
+        if (returnedValueCents <= 0 || order == null || order.getPurchaseOrderId() == null) {
             return;
         }
-        SupplierPayable payable = payableRepository.findByPurchaseOrderId(order.getPurchaseOrderId())
+        runWithPurchaseOrderLock(order.getPurchaseOrderId(),
+                () -> doRecordReturn(order, returnedValueCents));
+    }
+
+    private void doRecordReturn(PurchaseOrder order, long returnedValueCents) {
+        SupplierPayable payable = payableRepository.findByPurchaseOrderIdForUpdate(order.getPurchaseOrderId())
                 .orElse(null);
         if (payable == null) {
             return;
@@ -186,6 +224,59 @@ public class SupplierPayableService {
         }
         payable.setUpdatedAt(Instant.now());
         payableRepository.save(payable);
+    }
+
+    static String payableLockKey(Long payableId) {
+        return "supplier:payable:" + payableId;
+    }
+
+    static String purchaseOrderPayableLockKey(Long purchaseOrderId) {
+        return "supplier:payable:po:" + purchaseOrderId;
+    }
+
+    private <T> T runWithPayableLock(Long payableId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(payableLockKey(payableId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "应付账款处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(payableLockKey(payableId));
+        }
+    }
+
+    private void runWithPurchaseOrderLock(Long purchaseOrderId, Runnable action) {
+        runWithPurchaseOrderLock(purchaseOrderId, () -> {
+            action.run();
+            return null;
+        });
+    }
+
+    private <T> T runWithPurchaseOrderLock(Long purchaseOrderId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(purchaseOrderPayableLockKey(purchaseOrderId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "应付账款处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(purchaseOrderPayableLockKey(purchaseOrderId));
+        }
+    }
+
+    private static String normalizeIdempotencyKey(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        return trimmed.length() > 64 ? trimmed.substring(0, 64) : trimmed;
     }
 
     private void refreshStatus(SupplierPayable payable) {

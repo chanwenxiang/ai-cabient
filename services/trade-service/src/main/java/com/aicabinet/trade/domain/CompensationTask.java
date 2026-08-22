@@ -29,6 +29,8 @@ public class CompensationTask {
     
     private String result;
     
+    private int retryCount = 0;
+
     private Instant createdAt = Instant.now();
     
     

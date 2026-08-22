@@ -44,6 +44,7 @@ public class MerchantService {
     private final RevenueSplitService revenueSplitService;
     private final ProfitSharingProperties profitSharingProperties;
     private final WeChatPayProperties weChatPayProperties;
+    private final DistributedLockService distributedLockService;
 
     public MerchantService(MerchantMapper merchantRepository,
                            DeviceInfoMapper deviceRepository,
@@ -54,7 +55,8 @@ public class MerchantService {
                            WeChatProfitSharingService profitSharingService,
                            RevenueSplitService revenueSplitService,
                            ProfitSharingProperties profitSharingProperties,
-                           WeChatPayProperties weChatPayProperties) {
+                           WeChatPayProperties weChatPayProperties,
+                           DistributedLockService distributedLockService) {
         this.merchantRepository = merchantRepository;
         this.deviceRepository = deviceRepository;
         this.splitRepository = splitRepository;
@@ -65,6 +67,7 @@ public class MerchantService {
         this.revenueSplitService = revenueSplitService;
         this.profitSharingProperties = profitSharingProperties;
         this.weChatPayProperties = weChatPayProperties;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -85,10 +88,14 @@ public class MerchantService {
 
     @Transactional
     public MerchantDto upsertMerchant(Long operatorId, UpsertMerchantRequest request) {
-        permissionService.requirePermission(operatorId, "ops:merchant:edit");
         String merchantId = request.merchantId().trim();
+        return runWithMerchantLock(merchantId, () -> doUpsertMerchant(operatorId, request, merchantId));
+    }
+
+    private MerchantDto doUpsertMerchant(Long operatorId, UpsertMerchantRequest request, String merchantId) {
+        permissionService.requirePermission(operatorId, "ops:merchant:edit");
         merchantScopeService.requireMerchantAccess(operatorId, merchantId);
-        Merchant merchant = merchantRepository.findById(merchantId).orElse(new Merchant());
+        Merchant merchant = merchantRepository.findByIdForUpdate(merchantId).orElse(new Merchant());
         boolean isNew = merchant.getMerchantId() == null;
         merchant.setMerchantId(merchantId);
         merchant.setMerchantName(request.merchantName().trim());
@@ -197,22 +204,25 @@ public class MerchantService {
         permissionService.requirePermission(operatorId, "ops:merchant:split");
         OrderRevenueSplit split = splitRepository.findById(splitId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
-        merchantScopeService.requireMerchantAccess(operatorId, split.getMerchantId());
-        Merchant merchant = merchantRepository.findById(split.getMerchantId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
-        String wxTxn = request != null ? request.wxTransactionId() : null;
-        if (wxTxn == null || wxTxn.isBlank()) {
-            wxTxn = split.getWechatTransactionId();
-        }
-        if (wxTxn == null || wxTxn.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    ApiMessages.INVALID_REQUEST + "：需提供 wxTransactionId（购物订单当前为余额支付）");
-        }
-        OrderRevenueSplit updated = profitSharingService.submitSplit(split, merchant, wxTxn);
-        auditService.record(operatorId, "PROFIT_SHARING_SUBMIT", "SPLIT", splitId,
-                "orderId=" + split.getOrderId() + " status=" + updated.getStatus());
-        String merchantName = merchant.getMerchantName();
-        return toSplitDto(updated, merchantName);
+        return runWithOrderSplitLock(split.getOrderId(), () -> {
+            OrderRevenueSplit locked = splitRepository.findByOrderIdForUpdate(split.getOrderId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
+            merchantScopeService.requireMerchantAccess(operatorId, locked.getMerchantId());
+            Merchant merchant = merchantRepository.findById(locked.getMerchantId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
+            String wxTxn = request != null ? request.wxTransactionId() : null;
+            if (wxTxn == null || wxTxn.isBlank()) {
+                wxTxn = locked.getWechatTransactionId();
+            }
+            if (wxTxn == null || wxTxn.isBlank()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        ApiMessages.INVALID_REQUEST + "：需提供 wxTransactionId（购物订单当前为余额支付）");
+            }
+            OrderRevenueSplit updated = profitSharingService.submitSplit(locked, merchant, wxTxn);
+            auditService.record(operatorId, "PROFIT_SHARING_SUBMIT", "SPLIT", splitId,
+                    "orderId=" + locked.getOrderId() + " status=" + updated.getStatus());
+            return toSplitDto(updated, merchant.getMerchantName());
+        });
     }
 
     @Transactional
@@ -220,14 +230,18 @@ public class MerchantService {
         permissionService.requirePermission(operatorId, "ops:merchant:split");
         OrderRevenueSplit split = splitRepository.findById(splitId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
-        merchantScopeService.requireMerchantAccess(operatorId, split.getMerchantId());
-        OrderRevenueSplit updated = profitSharingService.refreshSplitStatus(split);
-        auditService.record(operatorId, "PROFIT_SHARING_REFRESH", "SPLIT", splitId,
-                "orderId=" + split.getOrderId() + " status=" + updated.getStatus());
-        String merchantName = merchantRepository.findById(split.getMerchantId())
-                .map(Merchant::getMerchantName)
-                .orElse(null);
-        return toSplitDto(updated, merchantName);
+        return runWithOrderSplitLock(split.getOrderId(), () -> {
+            OrderRevenueSplit locked = splitRepository.findByOrderIdForUpdate(split.getOrderId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
+            merchantScopeService.requireMerchantAccess(operatorId, locked.getMerchantId());
+            OrderRevenueSplit updated = profitSharingService.refreshSplitStatus(locked);
+            auditService.record(operatorId, "PROFIT_SHARING_REFRESH", "SPLIT", splitId,
+                    "orderId=" + locked.getOrderId() + " status=" + updated.getStatus());
+            String merchantName = merchantRepository.findById(locked.getMerchantId())
+                    .map(Merchant::getMerchantName)
+                    .orElse(null);
+            return toSplitDto(updated, merchantName);
+        });
     }
 
     /**
@@ -238,20 +252,24 @@ public class MerchantService {
         permissionService.requirePermission(operatorId, "ops:merchant:split");
         OrderRevenueSplit split = splitRepository.findById(splitId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
-        merchantScopeService.requireMerchantAccess(operatorId, split.getMerchantId());
-        OrderRevenueSplit updated;
-        try {
-            updated = revenueSplitService.confirmLedgerOnly(split);
-        } catch (IllegalStateException e) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
-        }
-        String note = (reason == null || reason.isBlank()) ? "ledger-confirmed" : reason.trim();
-        auditService.record(operatorId, "SPLIT_LEDGER_CONFIRM", "SPLIT", splitId,
-                "orderId=" + split.getOrderId() + "; reason=" + note);
-        String merchantName = merchantRepository.findById(split.getMerchantId())
-                .map(Merchant::getMerchantName)
-                .orElse(null);
-        return toSplitDto(updated, merchantName);
+        return runWithOrderSplitLock(split.getOrderId(), () -> {
+            OrderRevenueSplit locked = splitRepository.findByOrderIdForUpdate(split.getOrderId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
+            merchantScopeService.requireMerchantAccess(operatorId, locked.getMerchantId());
+            OrderRevenueSplit updated;
+            try {
+                updated = revenueSplitService.confirmLedgerOnly(locked);
+            } catch (IllegalStateException e) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage());
+            }
+            String note = (reason == null || reason.isBlank()) ? "ledger-confirmed" : reason.trim();
+            auditService.record(operatorId, "SPLIT_LEDGER_CONFIRM", "SPLIT", splitId,
+                    "orderId=" + locked.getOrderId() + "; reason=" + note);
+            String merchantName = merchantRepository.findById(locked.getMerchantId())
+                    .map(Merchant::getMerchantName)
+                    .orElse(null);
+            return toSplitDto(updated, merchantName);
+        });
     }
 
     @Transactional(readOnly = true)
@@ -350,5 +368,31 @@ public class MerchantService {
             return "\"" + value.replace("\"", "\"\"") + "\"";
         }
         return value;
+    }
+
+    static String merchantLockKey(String merchantId) {
+        return "merchant:" + merchantId;
+    }
+
+    private <T> T runWithMerchantLock(String merchantId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(merchantLockKey(merchantId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "商户资料处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(merchantLockKey(merchantId));
+        }
+    }
+
+    private <T> T runWithOrderSplitLock(String orderId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(RevenueSplitService.orderSplitLockKey(orderId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单分账处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(RevenueSplitService.orderSplitLockKey(orderId));
+        }
     }
 }

@@ -15,6 +15,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDate;
@@ -26,10 +28,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class SupplierPayableServiceTest {
 
     private static final ZoneId ZONE = ZoneId.of("Asia/Shanghai");
@@ -39,19 +45,21 @@ class SupplierPayableServiceTest {
     @Mock private SupplierPaymentMapper paymentRepository;
     @Mock private SupplierMapper supplierRepository;
     @Mock private WarehouseMapper warehouseRepository;
+    @Mock private DistributedLockService distributedLockService;
 
     private SupplierPayableService service;
 
     @BeforeEach
     void setUp() {
         service = new SupplierPayableService(permissionService, payableRepository,
-                paymentRepository, supplierRepository, warehouseRepository);
+                paymentRepository, supplierRepository, warehouseRepository, distributedLockService);
+        when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }
 
     @Test
     void recordReceive_shouldCreatePayableWithTermsBasedDueDate() {
         when(supplierRepository.findById("SUP-001")).thenReturn(Optional.of(supplier(30)));
-        when(payableRepository.findByPurchaseOrderId(any())).thenReturn(Optional.empty());
+        when(payableRepository.findByPurchaseOrderIdForUpdate(any())).thenReturn(Optional.empty());
 
         service.recordReceive(1L, order(), 5000L);
 
@@ -67,7 +75,7 @@ class SupplierPayableServiceTest {
     @Test
     void recordReceive_shouldAccumulateOnPartialReceives() {
         SupplierPayable existing = payable(3000L, 0L, "UNPAID");
-        when(payableRepository.findByPurchaseOrderId(any())).thenReturn(Optional.of(existing));
+        when(payableRepository.findByPurchaseOrderIdForUpdate(any())).thenReturn(Optional.of(existing));
 
         service.recordReceive(1L, order(), 2000L);
 
@@ -78,7 +86,7 @@ class SupplierPayableServiceTest {
     @Test
     void recordReturn_shouldReduceAndCloseWhenZero() {
         SupplierPayable existing = payable(3000L, 0L, "UNPAID");
-        when(payableRepository.findByPurchaseOrderId(any())).thenReturn(Optional.of(existing));
+        when(payableRepository.findByPurchaseOrderIdForUpdate(any())).thenReturn(Optional.of(existing));
 
         service.recordReturn(1L, order(), 3000L);
 
@@ -89,9 +97,9 @@ class SupplierPayableServiceTest {
     @Test
     void pay_shouldMarkPaidWhenFullSettlement() {
         SupplierPayable existing = payable(10000L, 0L, "UNPAID");
-        when(payableRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(payableRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
 
-        service.pay(1L, 1L, new PaySupplierRequest(10000L, "对公转账"));
+        service.pay(1L, 1L, new PaySupplierRequest(10000L, "对公转账", null));
 
         assertEquals(10000L, existing.getPaidAmountCents());
         assertEquals("PAID", existing.getStatus());
@@ -104,9 +112,9 @@ class SupplierPayableServiceTest {
     @Test
     void pay_shouldMarkPartialWhenUnderpaying() {
         SupplierPayable existing = payable(10000L, 0L, "UNPAID");
-        when(payableRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(payableRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
 
-        service.pay(1L, 1L, new PaySupplierRequest(4000L, null));
+        service.pay(1L, 1L, new PaySupplierRequest(4000L, null, null));
 
         assertEquals("PARTIAL", existing.getStatus());
         assertEquals(4000L, existing.getPaidAmountCents());
@@ -115,10 +123,26 @@ class SupplierPayableServiceTest {
     @Test
     void pay_shouldRejectAmountAboveBalance() {
         SupplierPayable existing = payable(10000L, 5000L, "PARTIAL");
-        when(payableRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(payableRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(existing));
 
         assertThrows(ResponseStatusException.class,
-                () -> service.pay(1L, 1L, new PaySupplierRequest(6000L, null)));
+                () -> service.pay(1L, 1L, new PaySupplierRequest(6000L, null, null)));
+    }
+
+    @Test
+    void pay_shouldReturnExistingWhenIdempotencyKeyRepeats() {
+        SupplierPayable existing = payable(10000L, 5000L, "PARTIAL");
+        SupplierPayment prior = new SupplierPayment();
+        prior.setPaymentId(9L);
+        prior.setPayableId(1L);
+        prior.setAmountCents(5000L);
+        when(paymentRepository.findByIdempotencyKey("PAY-1")).thenReturn(Optional.of(prior));
+        when(payableRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        var dto = service.pay(1L, 1L, new PaySupplierRequest(5000L, "retry", "PAY-1"));
+
+        assertEquals(5000L, dto.balanceCents());
+        verify(paymentRepository, org.mockito.Mockito.never()).save(any());
     }
 
     @Test
@@ -156,6 +180,7 @@ class SupplierPayableServiceTest {
 
     private static PurchaseOrder order() {
         PurchaseOrder o = new PurchaseOrder();
+        o.setPurchaseOrderId(100L);
         o.setSupplierId("SUP-001");
         o.setWarehouseId("WH-001");
         return o;

@@ -6,9 +6,17 @@ import org.apache.ibatis.annotations.Mapper;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface AdCampaignMapper extends BaseTradeMapper<AdCampaign> {
+
+    AdCampaign _findByIdForUpdateRaw(@Param("campaignId") Long campaignId);
+
+    default Optional<AdCampaign> findByIdForUpdate(Long campaignId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(campaignId));
+    }
 
     default List<AdCampaign> findAllOrderByCreatedDesc() {
         return selectList(Wrappers.<AdCampaign>lambdaQuery()

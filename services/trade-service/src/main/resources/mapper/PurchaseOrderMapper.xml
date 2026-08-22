@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.PurchaseOrderMapper">
+
+  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.PurchaseOrder">
+    <![CDATA[
+    SELECT o.* FROM purchase_order o WHERE o.purchase_order_id = #{purchaseOrderId} FOR UPDATE
+    ]]>
+  </select>
+
+</mapper>

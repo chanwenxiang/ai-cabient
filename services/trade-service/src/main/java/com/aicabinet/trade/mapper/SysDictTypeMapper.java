@@ -5,9 +5,16 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface SysDictTypeMapper extends BaseTradeMapper<SysDictType> {
+
+    SysDictType _findByIdForUpdateRaw(@Param("dictType") String dictType);
+
+    default Optional<SysDictType> findByIdForUpdate(String dictType) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(dictType));
+    }
 
     default List<SysDictType> findAllByOrderBySortOrderAscDictTypeAsc() {
         return selectList(Wrappers.<SysDictType>lambdaQuery().orderByAsc(SysDictType::getSortOrder).orderByAsc(SysDictType::getDictType));

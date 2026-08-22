@@ -22,10 +22,14 @@ public class UserFeedbackService {
 
     private final UserFeedbackMapper repository;
     private final PermissionService permissionService;
+    private final DistributedLockService distributedLockService;
 
-    public UserFeedbackService(UserFeedbackMapper repository, PermissionService permissionService) {
+    public UserFeedbackService(UserFeedbackMapper repository,
+                               PermissionService permissionService,
+                               DistributedLockService distributedLockService) {
         this.repository = repository;
         this.permissionService = permissionService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
@@ -83,11 +87,15 @@ public class UserFeedbackService {
         if (feedbackId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "feedbackId required");
         }
+        return runWithFeedbackLock(feedbackId, () -> doReply(operatorId, feedbackId, body));
+    }
+
+    private UserFeedbackDto doReply(Long operatorId, Long feedbackId, ReplyFeedbackRequest body) {
         String reply = body == null || body.reply() == null ? "" : body.reply().trim();
         if (reply.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "回复内容不能为空");
         }
-        UserFeedback item = repository.findById(feedbackId)
+        UserFeedback item = repository.findByIdForUpdate(feedbackId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "反馈不存在"));
         item.setReply(reply);
         item.setHandlerId(operatorId);
@@ -102,10 +110,29 @@ public class UserFeedbackService {
         if (feedbackId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "feedbackId required");
         }
-        if (repository.findById(feedbackId).isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "反馈不存在");
+        runWithFeedbackLock(feedbackId, () -> {
+            if (repository.findByIdForUpdate(feedbackId).isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "反馈不存在");
+            }
+            repository.deleteById(feedbackId);
+            return null;
+        });
+    }
+
+    static String feedbackLockKey(Long feedbackId) {
+        return "feedback:" + feedbackId;
+    }
+
+    private <T> T runWithFeedbackLock(Long feedbackId, java.util.function.Supplier<T> action) {
+        String key = feedbackLockKey(feedbackId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "用户反馈处理中，请稍后重试");
         }
-        repository.deleteById(feedbackId);
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 
     private UserFeedbackDto toDto(UserFeedback f, boolean includeContact) {

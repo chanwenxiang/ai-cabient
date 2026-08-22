@@ -11,6 +11,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
@@ -22,6 +24,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class WarehouseServiceTest {
 
     @Mock private WarehouseMapper warehouseRepository;
@@ -39,15 +42,17 @@ class WarehouseServiceTest {
     @Mock private SalesVelocityService salesVelocityService;
     @Mock private InTransitService inTransitService;
     @Mock private InventoryLotService inventoryLotService;
+    @Mock private DistributedLockService distributedLockService;
 
     private WarehouseService warehouseService;
 
     @BeforeEach
     void setUp() {
+        when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
         warehouseService = new WarehouseService(warehouseRepository, inventoryRepository,
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
-                deviceSlotService, salesVelocityService, inTransitService, inventoryLotService);
+                deviceSlotService, salesVelocityService, inTransitService, inventoryLotService, distributedLockService);
     }
 
     @Test

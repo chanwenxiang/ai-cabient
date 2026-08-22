@@ -2,6 +2,7 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.InvoiceRequest;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -9,6 +10,18 @@ import java.util.Optional;
 
 @Repository
 public interface InvoiceRequestMapper extends BaseTradeMapper<InvoiceRequest> {
+
+    InvoiceRequest _findByIdForUpdateRaw(@Param("invoiceId") Long invoiceId);
+
+    default Optional<InvoiceRequest> findByIdForUpdate(Long invoiceId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(invoiceId));
+    }
+
+    InvoiceRequest _findActiveByOrderIdForUpdateRaw(@Param("orderId") String orderId);
+
+    default Optional<InvoiceRequest> findActiveByOrderIdForUpdate(String orderId) {
+        return Optional.ofNullable(_findActiveByOrderIdForUpdateRaw(orderId));
+    }
 
     default List<InvoiceRequest> findByUserIdOrderByCreatedAtDesc(Long userId) {
         return selectList(Wrappers.<InvoiceRequest>lambdaQuery()

@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
+import java.util.function.Supplier;
 
 @Service
 public class DeviceFaultReportService {
@@ -20,18 +21,25 @@ public class DeviceFaultReportService {
     private final DeviceFaultReportMapper repository;
     private final DeviceValidationService deviceValidationService;
     private final OpsExceptionService opsExceptionService;
+    private final DistributedLockService distributedLockService;
 
     public DeviceFaultReportService(DeviceFaultReportMapper repository,
                                     DeviceValidationService deviceValidationService,
-                                    OpsExceptionService opsExceptionService) {
+                                    OpsExceptionService opsExceptionService,
+                                    DistributedLockService distributedLockService) {
         this.repository = repository;
         this.deviceValidationService = deviceValidationService;
         this.opsExceptionService = opsExceptionService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
     public Map<String, String> report(Long userId, String deviceId, DeviceFaultReportRequest request) {
         String id = deviceId.trim().toUpperCase();
+        return runWithFaultReportLock(userId, id, () -> doReport(userId, id, request));
+    }
+
+    private Map<String, String> doReport(Long userId, String id, DeviceFaultReportRequest request) {
         deviceValidationService.requireDevice(id);
         DeviceFaultReport row = new DeviceFaultReport();
         row.setUserId(userId);
@@ -51,6 +59,26 @@ public class DeviceFaultReportService {
         );
         log.info("device fault reported user={} device={} type={}", userId, id, row.getIssueType());
         return Map.of("reportId", String.valueOf(row.getId()), "message", "报修已提交，我们会尽快处理");
+    }
+
+    static String faultReportLockKey(Long userId, String deviceId) {
+        return "device:fault-report:" + userId + ":" + deviceId;
+    }
+
+    private <T> T runWithFaultReportLock(Long userId, String deviceId, Supplier<T> action) {
+        String lockKey = faultReportLockKey(userId, deviceId);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "报修处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
     }
 
     private static String normalizeIssue(String raw) {

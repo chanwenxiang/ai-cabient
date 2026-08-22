@@ -76,6 +76,8 @@ private final UserInfoMapper userInfoRepository;
     private final FileAttachmentService fileAttachmentService;
     private final RefundPolicyService refundPolicyService;
     private final VideoArchiveService videoArchiveService;
+    private final OrderPaymentService orderPaymentService;
+    private final DistributedLockService distributedLockService;
 
     public DisputeService(DisputeTicketMapper disputeRepository,
                           DisputeMessageMapper disputeMessageRepository,
@@ -96,7 +98,9 @@ private final UserInfoMapper userInfoRepository;
                           @Lazy OpsExceptionService opsExceptionService,
                           FileAttachmentService fileAttachmentService,
                           RefundPolicyService refundPolicyService,
-                          VideoArchiveService videoArchiveService) {
+                          VideoArchiveService videoArchiveService,
+                          OrderPaymentService orderPaymentService,
+                          DistributedLockService distributedLockService) {
         this.disputeRepository = disputeRepository;
         this.disputeMessageRepository = disputeMessageRepository;
         this.sessionRepository = sessionRepository;
@@ -117,6 +121,8 @@ private final UserInfoMapper userInfoRepository;
         this.fileAttachmentService = fileAttachmentService;
         this.refundPolicyService = refundPolicyService;
         this.videoArchiveService = videoArchiveService;
+        this.orderPaymentService = orderPaymentService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
@@ -199,15 +205,15 @@ private final UserInfoMapper userInfoRepository;
     @Transactional
     public OrderRefundResultDto refundByOperator(Long operatorId, String orderId, OrderRefundRequest request) {
         permissionService.requirePermission(operatorId, "ops:order:refund");
-        CabinetOrder order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        ShoppingSession session = sessionRepository.findById(order.getSessionId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
-        if (request != null && request.lines() != null && !request.lines().isEmpty()) {
-            return executePartialRefund(operatorId, order, request, true);
-        }
-        return executeFullRefund(operatorId, order, request, true);
+        return runWithOrderPaymentLock(orderId, lockedOrder -> {
+            ShoppingSession session = sessionRepository.findById(lockedOrder.getSessionId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+            merchantScopeService.requireDeviceAccess(operatorId, session.getDeviceId());
+            if (request != null && request.lines() != null && !request.lines().isEmpty()) {
+                return executePartialRefund(operatorId, lockedOrder, request, true);
+            }
+            return executeFullRefund(operatorId, lockedOrder, request, true);
+        });
     }
 
     /**
@@ -215,19 +221,19 @@ private final UserInfoMapper userInfoRepository;
      */
     @Transactional
     public OrderRefundResultDto refundByConsumer(Long userId, String orderId, OrderRefundRequest request) {
-        CabinetOrder order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
-        if (!userId.equals(order.getUserId())) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND);
-        }
-        boolean partial = request != null && request.lines() != null && !request.lines().isEmpty();
-        if (partial) {
-            int estimate = settlementService.estimatePartialRefundCents(order, request.lines());
-            refundPolicyService.assertConsumerSelfRefundAllowed(order, estimate, true);
-            return executePartialRefund(userId, order, request, false);
-        }
-        refundPolicyService.assertConsumerSelfRefundAllowed(order, order.getTotalAmountCents(), false);
-        return executeFullRefund(userId, order, request, false);
+        return runWithOrderPaymentLock(orderId, lockedOrder -> {
+            if (!userId.equals(lockedOrder.getUserId())) {
+                throw new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND);
+            }
+            boolean partial = request != null && request.lines() != null && !request.lines().isEmpty();
+            if (partial) {
+                int estimate = settlementService.estimatePartialRefundCents(lockedOrder, request.lines());
+                refundPolicyService.assertConsumerSelfRefundAllowed(lockedOrder, estimate, true);
+                return executePartialRefund(userId, lockedOrder, request, false);
+            }
+            refundPolicyService.assertConsumerSelfRefundAllowed(lockedOrder, lockedOrder.getTotalAmountCents(), false);
+            return executeFullRefund(userId, lockedOrder, request, false);
+        });
     }
 
     private OrderRefundResultDto executePartialRefund(Long actorId, CabinetOrder order, OrderRefundRequest request,
@@ -463,7 +469,11 @@ private final UserInfoMapper userInfoRepository;
     @Transactional(noRollbackFor = {com.aicabinet.trade.service.BalanceInsufficientException.class})
     public ResolveDisputeResultDto resolveTicket(Long operatorId, String ticketId, ResolveDisputeRequest request) {
         permissionService.requirePermission(operatorId, "ops:dispute:resolve");
-        DisputeTicket ticket = disputeRepository.findById(ticketId)
+        return runWithDisputeTicketLock(ticketId, () -> doResolveTicket(operatorId, ticketId, request));
+    }
+
+    private ResolveDisputeResultDto doResolveTicket(Long operatorId, String ticketId, ResolveDisputeRequest request) {
+        DisputeTicket ticket = disputeRepository.findByIdForUpdate(ticketId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
         if (!"OPEN".equals(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.TICKET_ALREADY_RESOLVED);
@@ -498,18 +508,30 @@ private final UserInfoMapper userInfoRepository;
         // 三端一致：结案后订单不得再挂 DISPUTED
         // WAIVE → REFUNDED（免单兜底）；KEEP/CONFIRM/ADJUST → PAID
         final String resolvedType = resolutionType;
-        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
-            if (!"DISPUTED".equals(order.getStatus())) {
-                return;
-            }
-            if ("WAIVE".equals(resolvedType)) {
-                order.setStatus("REFUNDED");
-            } else {
-                order.setStatus("PAID");
-            }
-            orderRepository.save(order);
-        });
+        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order ->
+                alignOrderStatusAfterDisputeResolve(order, resolvedType));
         return result;
+    }
+
+    /** 结案后订单状态与真实入账对齐，避免未支付却被标 PAID。 */
+    private void alignOrderStatusAfterDisputeResolve(CabinetOrder order, String resolutionType) {
+        if (!"DISPUTED".equals(order.getStatus())) {
+            return;
+        }
+        if ("WAIVE".equals(resolutionType)) {
+            order.setStatus("REFUNDED");
+            orderRepository.save(order);
+            return;
+        }
+        int netPaid = orderPaymentService.netCompletedCents(order.getOrderId());
+        if (netPaid <= 0) {
+            order.setStatus(order.getTotalAmountCents() <= 0 ? "PAID" : "PENDING");
+        } else if (order.getRefundedCents() > 0 && netPaid < order.getTotalAmountCents()) {
+            order.setStatus("PARTIAL_REFUNDED");
+        } else {
+            order.setStatus("PAID");
+        }
+        orderRepository.save(order);
     }
 
     /**
@@ -783,7 +805,12 @@ private final UserInfoMapper userInfoRepository;
     public ResolveDisputeResultDto resolveAsMerchant(Long userId, String ticketId, ResolveDisputeRequest request) {
         permissionService.requirePermission(userId, "merchant:disputes:resolve");
         merchantPortalGuard.requireAccess(userId);
-        DisputeTicket ticket = requireTicket(ticketId);
+        return runWithDisputeTicketLock(ticketId, () -> doResolveAsMerchant(userId, ticketId, request));
+    }
+
+    private ResolveDisputeResultDto doResolveAsMerchant(Long userId, String ticketId, ResolveDisputeRequest request) {
+        DisputeTicket ticket = disputeRepository.findByIdForUpdate(ticketId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.TICKET_NOT_FOUND));
         requireTicketDeviceAccess(userId, ticket);
         if (!"OPEN".equals(ticket.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.TICKET_ALREADY_RESOLVED);
@@ -824,17 +851,8 @@ private final UserInfoMapper userInfoRepository;
         session.setState(SessionState.COMPLETED);
         sessionRepository.save(session);
         final String resolvedType = resolutionType;
-        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order -> {
-            if (!"DISPUTED".equals(order.getStatus())) {
-                return;
-            }
-            if ("WAIVE".equals(resolvedType)) {
-                order.setStatus("REFUNDED");
-            } else {
-                order.setStatus("PAID");
-            }
-            orderRepository.save(order);
-        });
+        orderRepository.findBySessionId(session.getSessionId()).ifPresent(order ->
+                alignOrderStatusAfterDisputeResolve(order, resolvedType));
         auditService.record(userId, "MERCHANT_DISPUTE_RESOLVE", "DISPUTE", ticketId,
                 "type=" + resolutionType);
         return result;
@@ -1113,5 +1131,46 @@ private final UserInfoMapper userInfoRepository;
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    static String disputeTicketLockKey(String ticketId) {
+        return "dispute:ticket:" + ticketId;
+    }
+
+    @FunctionalInterface
+    private interface LockedOrderSupplier<T> {
+        T get(CabinetOrder order);
+    }
+
+    private <T> T runWithOrderPaymentLock(String orderId, LockedOrderSupplier<T> action) {
+        if (!distributedLockService.tryLock(OrderPaymentService.orderPaymentLockKey(orderId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单支付处理中，请稍后重试");
+        }
+        try {
+            CabinetOrder locked = orderRepository.findByIdForUpdate(orderId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.ORDER_NOT_FOUND));
+            return action.get(locked);
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(OrderPaymentService.orderPaymentLockKey(orderId));
+        }
+    }
+
+    private <T> T runWithDisputeTicketLock(String ticketId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(disputeTicketLockKey(ticketId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "争议处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(disputeTicketLockKey(ticketId));
+        }
     }
 }

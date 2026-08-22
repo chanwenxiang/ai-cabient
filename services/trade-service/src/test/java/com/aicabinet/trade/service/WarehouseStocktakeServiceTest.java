@@ -30,7 +30,9 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -45,6 +47,7 @@ class WarehouseStocktakeServiceTest {
     @Mock private SkuCatalogMapper skuCatalogRepository;
     @Mock private WarehouseService warehouseService;
     @Mock private VisionServiceClient visionServiceClient;
+    @Mock private DistributedLockService distributedLockService;
 
     private WarehouseStocktakeService service;
 
@@ -52,7 +55,8 @@ class WarehouseStocktakeServiceTest {
     void setUp() {
         service = new WarehouseStocktakeService(permissionService, stocktakeRepository,
                 lineRepository, warehouseRepository, inventoryRepository, skuCatalogRepository,
-                warehouseService, visionServiceClient);
+                warehouseService, visionServiceClient, distributedLockService);
+        lenient().when(distributedLockService.tryLock(any(), anyLong(), anyLong())).thenReturn(true);
     }
 
     @Test
@@ -95,7 +99,7 @@ class WarehouseStocktakeServiceTest {
     void updateLine_shouldMarkDiffAndMoveToInProgress() {
         WarehouseStocktake st = stocktake("DRAFT");
         WarehouseStocktakeLine line = line(st, "SKU-A", "B1", 10, null, "PENDING");
-        when(stocktakeRepository.findById(1L)).thenReturn(Optional.of(st));
+        when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(lineRepository.findById(1L)).thenReturn(Optional.of(line));
         when(lineRepository.findByStocktakeIdOrderByLineIdAsc(1L)).thenReturn(List.of(line));
         when(stocktakeRepository.save(any())).thenAnswer(a -> a.getArgument(0));
@@ -113,7 +117,7 @@ class WarehouseStocktakeServiceTest {
     void complete_shouldRejectWhenLineNotCounted() {
         WarehouseStocktake st = stocktake("IN_PROGRESS");
         WarehouseStocktakeLine line = line(st, "SKU-A", "B1", 10, null, "PENDING");
-        when(stocktakeRepository.findById(1L)).thenReturn(Optional.of(st));
+        when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(lineRepository.findByStocktakeIdOrderByLineIdAsc(1L)).thenReturn(List.of(line));
 
         assertThrows(ResponseStatusException.class, () -> service.complete(1L, 1L));
@@ -123,7 +127,7 @@ class WarehouseStocktakeServiceTest {
     void complete_shouldFinalizeDiff() {
         WarehouseStocktake st = stocktake("IN_PROGRESS");
         WarehouseStocktakeLine line = line(st, "SKU-A", "B1", 10, 7, "PENDING");
-        when(stocktakeRepository.findById(1L)).thenReturn(Optional.of(st));
+        when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(lineRepository.findByStocktakeIdOrderByLineIdAsc(1L)).thenReturn(List.of(line));
         when(stocktakeRepository.save(any())).thenAnswer(a -> a.getArgument(0));
 
@@ -139,7 +143,7 @@ class WarehouseStocktakeServiceTest {
     void adjust_shouldApplyWarehouseAdjustment() {
         WarehouseStocktake st = stocktake("COMPLETED");
         WarehouseStocktakeLine line = line(st, "SKU-A", "B1", 10, 7, "DIFF");
-        when(stocktakeRepository.findById(1L)).thenReturn(Optional.of(st));
+        when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(lineRepository.findByStocktakeIdOrderByLineIdAsc(1L)).thenReturn(List.of(line));
         when(stocktakeRepository.save(any())).thenAnswer(a -> a.getArgument(0));
 
@@ -155,7 +159,7 @@ class WarehouseStocktakeServiceTest {
     @Test
     void adjust_shouldRejectBeforeComplete() {
         WarehouseStocktake st = stocktake("DRAFT");
-        when(stocktakeRepository.findById(1L)).thenReturn(Optional.of(st));
+        when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
 
         assertThrows(ResponseStatusException.class,
                 () -> service.adjust(1L, 1L, new AdjustStocktakeRequest(List.of(1L))));
@@ -164,7 +168,7 @@ class WarehouseStocktakeServiceTest {
     @Test
     void cancel_shouldRejectNonDraft() {
         WarehouseStocktake st = stocktake("COMPLETED");
-        when(stocktakeRepository.findById(1L)).thenReturn(Optional.of(st));
+        when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
 
         assertThrows(ResponseStatusException.class, () -> service.cancel(1L, 1L));
     }
@@ -173,7 +177,7 @@ class WarehouseStocktakeServiceTest {
     void applyVisionCounts_shouldFillCountedFromRecognition() {
         WarehouseStocktake st = stocktake("DRAFT");
         WarehouseStocktakeLine line = line(st, "SKU-A", "B1", 10, null, "PENDING");
-        when(stocktakeRepository.findById(1L)).thenReturn(Optional.of(st));
+        when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(lineRepository.findByStocktakeIdOrderByLineIdAsc(1L)).thenReturn(List.of(line));
         when(stocktakeRepository.save(any())).thenAnswer(a -> a.getArgument(0));
         when(visionServiceClient.recognizeUpload(
@@ -200,7 +204,7 @@ class WarehouseStocktakeServiceTest {
     @Test
     void applyVisionCounts_shouldFailGracefullyWhenVisionDown() {
         WarehouseStocktake st = stocktake("DRAFT");
-        when(stocktakeRepository.findById(1L)).thenReturn(Optional.of(st));
+        when(stocktakeRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(st));
         when(visionServiceClient.recognizeUpload(any(), any(), any()))
                 .thenThrow(new IllegalStateException("vision down"));
 

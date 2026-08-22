@@ -105,6 +105,7 @@ public class ReplenishmentService {
 
     private final MerchantReplenishmentRequestLineMapper merchantRequestLineRepository;
     private final NotificationService notificationService;
+    private final DistributedLockService distributedLockService;
 
 
 
@@ -133,7 +134,8 @@ public class ReplenishmentService {
                                 @org.springframework.context.annotation.Lazy SessionService sessionService,
                                 MerchantReplenishmentRequestMapper merchantRequestRepository,
                                 MerchantReplenishmentRequestLineMapper merchantRequestLineRepository,
-                                NotificationService notificationService) {
+                                NotificationService notificationService,
+                                DistributedLockService distributedLockService) {
 
         this.inventoryRepository = inventoryRepository;
 
@@ -161,6 +163,7 @@ public class ReplenishmentService {
         this.merchantRequestRepository = merchantRequestRepository;
         this.merchantRequestLineRepository = merchantRequestLineRepository;
         this.notificationService = notificationService;
+        this.distributedLockService = distributedLockService;
 
     }
 
@@ -469,8 +472,11 @@ public class ReplenishmentService {
 
     @Transactional
     public ReplenishmentTaskDto checkInTask(Long operatorId, Long taskId, ReplenishmentCheckInRequest request) {
-        ReplenishmentTask task = taskRepository.findById(taskId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_TASK_NOT_FOUND));
+        return runWithTaskLock(taskId, () -> doCheckInTask(operatorId, taskId, request));
+    }
+
+    private ReplenishmentTaskDto doCheckInTask(Long operatorId, Long taskId, ReplenishmentCheckInRequest request) {
+        ReplenishmentTask task = requireTaskForUpdate(taskId);
         if (request != null && request.latitude() != null && request.longitude() != null) {
             validateCheckInLocation(task.getDeviceId(), request.latitude(), request.longitude());
             task.setCheckInLat(request.latitude());
@@ -559,9 +565,14 @@ public class ReplenishmentService {
 
                                                           SubmitReplenishmentLinesRequest request) {
 
-        ReplenishmentTask task = taskRepository.findById(taskId)
+        return runWithTaskLock(taskId, () -> doSubmitTaskLines(operatorId, taskId, request));
 
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_TASK_NOT_FOUND));
+    }
+
+    private List<ReplenishmentTaskLineDto> doSubmitTaskLines(Long operatorId, Long taskId,
+                                                             SubmitReplenishmentLinesRequest request) {
+
+        ReplenishmentTask task = requireTaskForUpdate(taskId);
 
         if ("COMPLETED".equals(task.getStatus())) {
 
@@ -633,9 +644,13 @@ public class ReplenishmentService {
 
     public ReplenishmentTaskDto completeTask(Long operatorId, Long taskId) {
 
-        ReplenishmentTask task = taskRepository.findById(taskId)
+        return runWithTaskLock(taskId, () -> doCompleteTask(operatorId, taskId));
 
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_TASK_NOT_FOUND));
+    }
+
+    private ReplenishmentTaskDto doCompleteTask(Long operatorId, Long taskId) {
+
+        ReplenishmentTask task = requireTaskForUpdate(taskId);
 
         // 未完成任务必须先签到，避免远程误点完成导致库存虚增
         if (!"COMPLETED".equals(task.getStatus()) && task.getCheckInAt() == null) {
@@ -919,7 +934,11 @@ public class ReplenishmentService {
      */
     @Transactional
     public ReplenishmentRouteDto cancelEmptyRoute(Long operatorId, Long routeId) {
-        ReplenishmentRoute route = routeRepository.findById(routeId)
+        return runWithRouteLock(routeId, () -> doCancelEmptyRoute(operatorId, routeId));
+    }
+
+    private ReplenishmentRouteDto doCancelEmptyRoute(Long operatorId, Long routeId) {
+        ReplenishmentRoute route = routeRepository.findByIdForUpdate(routeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.REPLENISHMENT_ROUTE_NOT_FOUND));
         List<ReplenishmentTask> tasks = taskRepository.findByRouteId(routeId);
         // 终态路线仍允许幂等收口脏出库（如历史 SHIPPED + 任务已取消）
@@ -986,9 +1005,16 @@ public class ReplenishmentService {
         if (routeId == null) {
             return;
         }
+        runWithRouteLock(routeId, () -> {
+            doFinalizeRouteIfReady(routeId);
+            return null;
+        });
+    }
+
+    private void doFinalizeRouteIfReady(Long routeId) {
         List<ReplenishmentTask> routeTasks = taskRepository.findByRouteId(routeId);
         if (routeTasks.isEmpty()) {
-            routeRepository.findById(routeId).ifPresent(route -> {
+            routeRepository.findByIdForUpdate(routeId).ifPresent(route -> {
                 if (!"CANCELLED".equals(route.getStatus()) && !"COMPLETED".equals(route.getStatus())) {
                     route.setStatus("CANCELLED");
                     routeRepository.save(route);
@@ -1002,7 +1028,7 @@ public class ReplenishmentService {
             return;
         }
         boolean anyCompleted = routeTasks.stream().anyMatch(item -> "COMPLETED".equals(item.getStatus()));
-        routeRepository.findById(routeId).ifPresent(route -> {
+        routeRepository.findByIdForUpdate(routeId).ifPresent(route -> {
             route.setStatus(anyCompleted ? "COMPLETED" : "CANCELLED");
             routeRepository.save(route);
         });
@@ -1013,13 +1039,20 @@ public class ReplenishmentService {
         if (routeId == null) {
             return;
         }
+        runWithRouteLock(routeId, () -> {
+            doReopenRouteIfActive(routeId);
+            return null;
+        });
+    }
+
+    private void doReopenRouteIfActive(Long routeId) {
         List<ReplenishmentTask> routeTasks = taskRepository.findByRouteId(routeId);
         boolean hasOpen = routeTasks.stream()
                 .anyMatch(item -> !"COMPLETED".equals(item.getStatus()) && !"CANCELLED".equals(item.getStatus()));
         if (!hasOpen) {
             return;
         }
-        routeRepository.findById(routeId).ifPresent(route -> {
+        routeRepository.findByIdForUpdate(routeId).ifPresent(route -> {
             if ("COMPLETED".equals(route.getStatus()) || "CANCELLED".equals(route.getStatus())) {
                 route.setStatus("IN_PROGRESS");
                 routeRepository.save(route);
@@ -1357,6 +1390,50 @@ public class ReplenishmentService {
                 task.getBatchNo(), task.getQuantity(), task.getReason(), task.getStatus(),
                 task.getCreatedAt(), Math.max(0, headroom)
         );
+    }
+
+    private ReplenishmentTask requireTaskForUpdate(Long taskId) {
+        return taskRepository.findByIdForUpdate(taskId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        ApiMessages.REPLENISHMENT_TASK_NOT_FOUND));
+    }
+
+    static String replenishmentTaskLockKey(Long taskId) {
+        return "replenishment:task:" + taskId;
+    }
+
+    static String replenishmentRouteLockKey(Long routeId) {
+        return "replenishment:route:" + routeId;
+    }
+
+    private <T> T runWithRouteLock(Long routeId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(replenishmentRouteLockKey(routeId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "补货路线处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(replenishmentRouteLockKey(routeId));
+        }
+    }
+
+    private <T> T runWithTaskLock(Long taskId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(replenishmentTaskLockKey(taskId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "补货任务处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(replenishmentTaskLockKey(taskId));
+        }
     }
 
 }

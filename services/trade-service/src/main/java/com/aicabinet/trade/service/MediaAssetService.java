@@ -30,13 +30,16 @@ public class MediaAssetService {
     private final MediaAssetMapper assetRepository;
     private final AdCampaignItemMapper campaignItemMapper;
     private final MinioVideoService minioVideoService;
+    private final DistributedLockService distributedLockService;
 
     public MediaAssetService(MediaAssetMapper assetRepository,
                              AdCampaignItemMapper campaignItemMapper,
-                             MinioVideoService minioVideoService) {
+                             MinioVideoService minioVideoService,
+                             DistributedLockService distributedLockService) {
         this.assetRepository = assetRepository;
         this.campaignItemMapper = campaignItemMapper;
         this.minioVideoService = minioVideoService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -82,7 +85,11 @@ public class MediaAssetService {
 
     @Transactional
     public MediaAssetDto update(Long assetId, UpsertMediaAssetRequest request) {
-        MediaAsset asset = requireAsset(assetId);
+        return runWithMediaAssetLock(assetId, () -> doUpdate(assetId, request));
+    }
+
+    private MediaAssetDto doUpdate(Long assetId, UpsertMediaAssetRequest request) {
+        MediaAsset asset = requireAssetForUpdate(assetId);
         asset.setTitle(request.title().trim());
         asset.setDurationSeconds(Math.max(0, request.durationSeconds()));
         if (request.status() != null && !request.status().isBlank()) {
@@ -94,7 +101,14 @@ public class MediaAssetService {
 
     @Transactional
     public void delete(Long assetId) {
-        MediaAsset asset = requireAsset(assetId);
+        runWithMediaAssetLock(assetId, () -> {
+            doDelete(assetId);
+            return null;
+        });
+    }
+
+    private void doDelete(Long assetId) {
+        MediaAsset asset = requireAssetForUpdate(assetId);
         long used = campaignItemMapper.countByAssetId(assetId);
         if (used > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
@@ -112,6 +126,27 @@ public class MediaAssetService {
     private MediaAsset requireAsset(Long assetId) {
         return assetRepository.findById(assetId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "素材不存在"));
+    }
+
+    private MediaAsset requireAssetForUpdate(Long assetId) {
+        return assetRepository.findByIdForUpdate(assetId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "素材不存在"));
+    }
+
+    static String mediaAssetLockKey(Long assetId) {
+        return "media:asset:" + assetId;
+    }
+
+    private <T> T runWithMediaAssetLock(Long assetId, java.util.function.Supplier<T> action) {
+        String key = mediaAssetLockKey(assetId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "素材处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 
     /** 同源流式预览（浏览器不直连 MinIO public endpoint）。 */

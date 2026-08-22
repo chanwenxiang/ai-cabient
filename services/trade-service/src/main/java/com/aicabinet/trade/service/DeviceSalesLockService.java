@@ -8,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
 
@@ -23,13 +25,16 @@ public class DeviceSalesLockService {
     private final DeviceInfoMapper deviceRepository;
     private final DeviceServiceClient deviceClient;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public DeviceSalesLockService(DeviceInfoMapper deviceRepository,
                                   DeviceServiceClient deviceClient,
-                                  AdminAuditService auditService) {
+                                  AdminAuditService auditService,
+                                  DistributedLockService distributedLockService) {
         this.deviceRepository = deviceRepository;
         this.deviceClient = deviceClient;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     /**
@@ -39,6 +44,21 @@ public class DeviceSalesLockService {
     @Transactional
     public String applySalesLock(Long operatorId, DeviceInfo device, boolean locked,
                                  String reason, boolean notifyEdge) {
+        if (device == null || device.getDeviceId() == null || device.getDeviceId().isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "设备不存在");
+        }
+        return runWithDeviceSalesLock(device.getDeviceId(),
+                () -> doApplySalesLock(operatorId, device.getDeviceId(), locked, reason, notifyEdge));
+    }
+
+    static String deviceSalesLockKey(String deviceId) {
+        return "device:sales-lock:" + deviceId;
+    }
+
+    private String doApplySalesLock(Long operatorId, String deviceId, boolean locked,
+                                    String reason, boolean notifyEdge) {
+        DeviceInfo device = deviceRepository.findByIdForUpdate(deviceId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在"));
         String commandId = "LOCAL-" + UUID.randomUUID().toString().substring(0, 8);
         if (notifyEdge) {
             String mqttCmd = locked ? CabinetConstants.MQTT_CMD_LOCK : CabinetConstants.MQTT_CMD_UNLOCK;
@@ -69,5 +89,20 @@ public class DeviceSalesLockService {
                         + "；指令编号=" + commandId
                         + "；是否下发柜机=" + (notifyEdge ? "是" : "否"));
         return commandId;
+    }
+
+    private String runWithDeviceSalesLock(String deviceId, java.util.function.Supplier<String> action) {
+        if (!distributedLockService.tryLock(deviceSalesLockKey(deviceId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备锁机处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(deviceSalesLockKey(deviceId));
+        }
     }
 }

@@ -4,10 +4,18 @@ import com.aicabinet.trade.domain.DataConsistencyRecord;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface DataConsistencyRecordMapper extends BaseTradeMapper<DataConsistencyRecord> {
+
+    DataConsistencyRecord _findByIdForUpdateRaw(@Param("id") Long id);
+
+    default Optional<DataConsistencyRecord> findByIdForUpdate(Long id) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(id));
+    }
 
     default List<DataConsistencyRecord> findByStatus(String status) {
         return findByStatus(status, 200);

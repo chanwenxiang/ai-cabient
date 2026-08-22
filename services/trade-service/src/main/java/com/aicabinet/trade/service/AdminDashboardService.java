@@ -96,6 +96,7 @@ public class AdminDashboardService {
     private final FileAttachmentService fileAttachmentService;
     private final MemberMapper memberRepository;
     private final UserBlacklistMapper blacklistRepository;
+    private final DistributedLockService distributedLockService;
 
     public AdminDashboardService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
@@ -128,7 +129,8 @@ public class AdminDashboardService {
                                  OpsExceptionMapper exceptionRepository,
                                  FileAttachmentService fileAttachmentService,
                                  MemberMapper memberRepository,
-                                 UserBlacklistMapper blacklistRepository) {
+                                 UserBlacklistMapper blacklistRepository,
+                                 DistributedLockService distributedLockService) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -161,6 +163,7 @@ public class AdminDashboardService {
         this.fileAttachmentService = fileAttachmentService;
         this.memberRepository = memberRepository;
         this.blacklistRepository = blacklistRepository;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -1508,14 +1511,35 @@ public class AdminDashboardService {
         if (userId >= CabinetConstants.OPERATOR_USER_ID_START) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.CANNOT_ADJUST_OPERATOR_BALANCE);
         }
-        UserInfo user = userInfoRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
-        var ledger = balanceLedgerService.change(userId, request.deltaCents(), "ADMIN_ADJUST",
-                "ADMIN-" + userId, "ADMIN:" + request.idempotencyKey().trim(), request.reason());
-        auditService.record(operatorId, "BALANCE_ADJUST", "USER", String.valueOf(userId),
-                "delta=" + request.deltaCents() + " balance=" + ledger.getBalanceAfterCents()
-                        + " reason=" + request.reason().trim());
-        return toUserDto(user);
+        return runWithUserBalanceLock(userId, () -> {
+            UserInfo user = userInfoRepository.findById(userId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.USER_NOT_FOUND));
+            var ledger = balanceLedgerService.change(userId, request.deltaCents(), "ADMIN_ADJUST",
+                    "ADMIN-" + userId, "ADMIN:" + request.idempotencyKey().trim(), request.reason());
+            auditService.record(operatorId, "BALANCE_ADJUST", "USER", String.valueOf(userId),
+                    "delta=" + request.deltaCents() + " balance=" + ledger.getBalanceAfterCents()
+                            + " reason=" + request.reason().trim());
+            return toUserDto(user);
+        });
+    }
+
+    static String userBalanceLockKey(long userId) {
+        return "user:balance:" + userId;
+    }
+
+    private <T> T runWithUserBalanceLock(long userId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(userBalanceLockKey(userId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "余额处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(userBalanceLockKey(userId));
+        }
     }
 
     @Transactional
@@ -1621,12 +1645,20 @@ public class AdminDashboardService {
     private AdminUserDto toUserDto(UserInfo u, int balance, Member member, boolean blacklisted) {
         String role = u.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START ? "OPERATOR" : "CONSUMER";
         return new AdminUserDto(
-                u.getUserId(), u.getPhoneNumber(), u.getName(), u.isVerified(),
+                u.getUserId(), u.getPhoneNumber(), resolveUserDisplayName(u), u.isVerified(),
                 balance, role, u.getCreatedAt(),
                 member != null ? member.getMemberLevel() : "NORMAL",
                 member != null && member.getAvailablePoints() != null ? member.getAvailablePoints() : 0,
                 blacklisted
         );
+    }
+
+    /** 列表展示名：优先实名/昵称，空则留 null 由前端显示「暂无」。 */
+    private static String resolveUserDisplayName(UserInfo u) {
+        if (u.getName() != null && !u.getName().isBlank()) {
+            return u.getName().trim();
+        }
+        return null;
     }
 
     private static String csv(String value) {

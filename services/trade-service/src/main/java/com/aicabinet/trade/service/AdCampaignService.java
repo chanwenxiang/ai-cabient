@@ -35,19 +35,22 @@ public class AdCampaignService {
     private final MediaAssetMapper assetRepository;
     private final AdminAuditService auditService;
     private final AdPlayEventMapper playEventRepository;
+    private final DistributedLockService distributedLockService;
 
     public AdCampaignService(AdCampaignMapper campaignRepository,
                              AdCampaignItemMapper itemRepository,
                              AdCampaignDeviceMapper deviceRepository,
                              MediaAssetMapper assetRepository,
                              AdminAuditService auditService,
-                             AdPlayEventMapper playEventRepository) {
+                             AdPlayEventMapper playEventRepository,
+                             DistributedLockService distributedLockService) {
         this.campaignRepository = campaignRepository;
         this.itemRepository = itemRepository;
         this.deviceRepository = deviceRepository;
         this.assetRepository = assetRepository;
         this.auditService = auditService;
         this.playEventRepository = playEventRepository;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -64,6 +67,13 @@ public class AdCampaignService {
 
     @Transactional
     public AdCampaignDto upsert(Long operatorId, Long campaignId, UpsertAdCampaignRequest request) {
+        if (campaignId == null) {
+            return doUpsert(operatorId, null, request);
+        }
+        return runWithCampaignLock(campaignId, () -> doUpsert(operatorId, campaignId, request));
+    }
+
+    private AdCampaignDto doUpsert(Long operatorId, Long campaignId, UpsertAdCampaignRequest request) {
         if (request.assetIds() == null || request.assetIds().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "投放计划至少需要一个素材");
         }
@@ -91,7 +101,8 @@ public class AdCampaignService {
             campaign.setUpdatedAt(Instant.now());
             campaignRepository.insert(campaign);
         } else {
-            campaign = requireCampaign(campaignId);
+            campaign = campaignRepository.findByIdForUpdate(campaignId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "投放计划不存在"));
             campaign.setName(request.name().trim());
             campaign.setDeviceScope(scope);
             campaign.setStartAt(request.startAt());
@@ -108,40 +119,47 @@ public class AdCampaignService {
 
     @Transactional
     public AdCampaignDto launch(Long operatorId, Long campaignId) {
-        AdCampaign campaign = requireCampaign(campaignId);
-        if (itemRepository.findByCampaignId(campaignId).isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "投放计划没有素材，无法上线");
-        }
-        campaign.setStatus("RUNNING");
-        campaign.setUpdatedAt(Instant.now());
-        campaignRepository.updateById(campaign);
-        auditService.record(operatorId, "AD_CAMPAIGN_LAUNCH", "AD_CAMPAIGN",
-                String.valueOf(campaignId), "name=" + campaign.getName());
-        return toDto(campaign);
+        return runWithCampaignLock(campaignId, () -> {
+            AdCampaign campaign = requireCampaignForUpdate(campaignId);
+            if (itemRepository.findByCampaignId(campaignId).isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "投放计划没有素材，无法上线");
+            }
+            campaign.setStatus("RUNNING");
+            campaign.setUpdatedAt(Instant.now());
+            campaignRepository.updateById(campaign);
+            auditService.record(operatorId, "AD_CAMPAIGN_LAUNCH", "AD_CAMPAIGN",
+                    String.valueOf(campaignId), "name=" + campaign.getName());
+            return toDto(campaign);
+        });
     }
 
     @Transactional
     public AdCampaignDto stop(Long operatorId, Long campaignId) {
-        AdCampaign campaign = requireCampaign(campaignId);
-        campaign.setStatus("STOPPED");
-        campaign.setUpdatedAt(Instant.now());
-        campaignRepository.updateById(campaign);
-        auditService.record(operatorId, "AD_CAMPAIGN_STOP", "AD_CAMPAIGN",
-                String.valueOf(campaignId), "name=" + campaign.getName());
-        return toDto(campaign);
+        return runWithCampaignLock(campaignId, () -> {
+            AdCampaign campaign = requireCampaignForUpdate(campaignId);
+            campaign.setStatus("STOPPED");
+            campaign.setUpdatedAt(Instant.now());
+            campaignRepository.updateById(campaign);
+            auditService.record(operatorId, "AD_CAMPAIGN_STOP", "AD_CAMPAIGN",
+                    String.valueOf(campaignId), "name=" + campaign.getName());
+            return toDto(campaign);
+        });
     }
 
     @Transactional
     public void delete(Long operatorId, Long campaignId) {
-        AdCampaign campaign = requireCampaign(campaignId);
-        if ("RUNNING".equalsIgnoreCase(campaign.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "投放中的计划请先停止再删除");
-        }
-        itemRepository.deleteByCampaignId(campaignId);
-        deviceRepository.deleteByCampaignId(campaignId);
-        campaignRepository.deleteById(campaignId);
-        auditService.record(operatorId, "AD_CAMPAIGN_DELETE", "AD_CAMPAIGN",
-                String.valueOf(campaignId), "name=" + campaign.getName());
+        runWithCampaignLock(campaignId, () -> {
+            AdCampaign campaign = requireCampaignForUpdate(campaignId);
+            if ("RUNNING".equalsIgnoreCase(campaign.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "投放中的计划请先停止再删除");
+            }
+            itemRepository.deleteByCampaignId(campaignId);
+            deviceRepository.deleteByCampaignId(campaignId);
+            campaignRepository.deleteById(campaignId);
+            auditService.record(operatorId, "AD_CAMPAIGN_DELETE", "AD_CAMPAIGN",
+                    String.valueOf(campaignId), "name=" + campaign.getName());
+            return null;
+        });
     }
 
     /** 设备屏内容（内部接口）：取当前时间窗口内 RUNNING 的投放计划（全部设备或包含该设备），返回轮播素材。 */
@@ -234,5 +252,25 @@ public class AdCampaignService {
     private AdCampaign requireCampaign(Long campaignId) {
         return campaignRepository.findById(campaignId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "投放计划不存在"));
+    }
+
+    private AdCampaign requireCampaignForUpdate(Long campaignId) {
+        return campaignRepository.findByIdForUpdate(campaignId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "投放计划不存在"));
+    }
+
+    static String campaignLockKey(Long campaignId) {
+        return "ad:campaign:" + campaignId;
+    }
+
+    private <T> T runWithCampaignLock(Long campaignId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(campaignLockKey(campaignId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "广告投放计划处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(campaignLockKey(campaignId));
+        }
     }
 }
