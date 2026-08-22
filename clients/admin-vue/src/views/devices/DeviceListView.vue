@@ -249,7 +249,7 @@
                     ? 'temp-warn'
                     : ''
                 "
-                >{{ row.currentTempC != null ? `${row.currentTempC}°C` : '—' }}</span
+                >{{ row.currentTempC != null ? `${row.currentTempC}°C` : '暂无' }}</span
               >
             </template>
           </el-table-column>
@@ -260,7 +260,7 @@
             class-name="col-text"
             show-overflow-tooltip
           >
-            <template #default="{ row }">{{ row.address || '—' }}</template>
+            <template #default="{ row }">{{ row.address || '暂无' }}</template>
           </el-table-column>
           <el-table-column
             label="IMEI"
@@ -543,11 +543,11 @@ const policyForm = reactive({
 const attentionCount = computed(() => boardCounts.OFFLINE + boardCounts.LOCKED);
 
 function formatBoardCount(key: BoardTab) {
-  return boardHydrated.value ? String(boardCounts[key]) : '—';
+  return boardHydrated.value ? String(boardCounts[key]) : '暂无';
 }
 
 function boardTabLabel(key: BoardTab, label: string) {
-  return boardHydrated.value ? `${label} (${boardCounts[key]})` : `${label} (—)`;
+  return boardHydrated.value ? `${label} (${boardCounts[key]})` : `${label} (…)`;
 }
 
 function boardQuery(tab: BoardTab): { online?: string; salesLocked?: string } {

@@ -27,7 +27,7 @@
           >
             <div class="stat-label">今日营收</div>
             <div class="stat-value">
-              {{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '—' }}
+              {{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '…' }}
             </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
@@ -47,7 +47,7 @@
             @keydown.enter="goPath('/orders')"
           >
             <div class="stat-label">今日订单</div>
-            <div class="stat-value">{{ listHydrated ? stats.orderToday || 0 : '—' }}</div>
+            <div class="stat-value">{{ listHydrated ? stats.orderToday || 0 : '…' }}</div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
               <template v-else>{{
@@ -67,7 +67,7 @@
           >
             <div class="stat-label">24h 开门成功率</div>
             <div class="stat-value">
-              {{ listHydrated ? `${((stats.doorSuccessRate24h || 0) * 100).toFixed(1)}%` : '—' }}
+              {{ listHydrated ? `${((stats.doorSuccessRate24h || 0) * 100).toFixed(1)}%` : '…' }}
             </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
@@ -89,7 +89,7 @@
             <div class="stat-label">24h 自动识别率</div>
             <div class="stat-value">
               {{
-                listHydrated ? `${((stats.recognitionAutoRate24h || 0) * 100).toFixed(1)}%` : '—'
+                listHydrated ? `${((stats.recognitionAutoRate24h || 0) * 100).toFixed(1)}%` : '…'
               }}
             </div>
             <div class="stat-hint">
@@ -276,10 +276,10 @@
             <ul v-if="deviceSvg" class="donut-legend-list">
               <li>
                 <i style="background: #2dd4bf" />在线
-                {{ listHydrated ? stats.deviceOnline || 0 : '—' }}
+                {{ listHydrated ? stats.deviceOnline || 0 : '…' }}
               </li>
               <li>
-                <i style="background: #64748b" />离线 {{ listHydrated ? offlineDevices : '—' }}
+                <i style="background: #64748b" />离线 {{ listHydrated ? offlineDevices : '…' }}
               </li>
             </ul>
           </div>
@@ -288,13 +288,13 @@
         <ChartPanel title="经营快照" compact>
           <el-descriptions :column="1" border size="small" class="snapshot-desc">
             <el-descriptions-item label="累计营收">
-              {{ listHydrated ? `¥${((stats.revenueTotalCents || 0) / 100).toFixed(2)}` : '—' }}
+              {{ listHydrated ? `¥${((stats.revenueTotalCents || 0) / 100).toFixed(2)}` : '…' }}
             </el-descriptions-item>
             <el-descriptions-item label="累计订单">
-              {{ listHydrated ? stats.orderTotal || 0 : '—' }}
+              {{ listHydrated ? stats.orderTotal || 0 : '…' }}
             </el-descriptions-item>
             <el-descriptions-item label="待审争议">
-              <template v-if="!listHydrated">—</template>
+              <template v-if="!listHydrated">暂无</template>
               <el-button
                 v-else-if="(stats.disputeOpen || 0) > 0 && canAccessPath('/disputes')"
                 link
@@ -306,10 +306,10 @@
               <span v-else class="muted">{{ stats.disputeOpen || 0 }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="24h 争议率">
-              {{ listHydrated ? `${((stats.disputeRate24h || 0) * 100).toFixed(1)}%` : '—' }}
+              {{ listHydrated ? `${((stats.disputeRate24h || 0) * 100).toFixed(1)}%` : '…' }}
             </el-descriptions-item>
             <el-descriptions-item label="今日毛利率">
-              <template v-if="!listHydrated">—</template>
+              <template v-if="!listHydrated">暂无</template>
               <el-button
                 v-else-if="canAccessPath('/finance')"
                 link

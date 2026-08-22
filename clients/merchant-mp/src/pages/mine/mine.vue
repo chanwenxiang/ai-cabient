@@ -105,7 +105,7 @@
         </button>
       </view>
       <view v-if="!subscribeReady" class="notify-warn"
-        >未配置订阅消息模板（VITE_WX_SUBSCRIBE_TMPL_IDS），当前仅可保存偏好，无法向微信申请推送授权。</view
+        >未配置订阅消息模板，当前仅可保存偏好，无法向微信申请推送授权。</view
       >
       <view class="notify-types">
         <label v-for="t in alertTypeOptions" :key="t.value" class="notify-type">

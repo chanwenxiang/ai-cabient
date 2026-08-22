@@ -25,14 +25,14 @@ const auth = useAuthStore()
 const loading = ref(false)
 const hydrated = ref(false)
 const rows = ref<InvoiceRow[]>([])
-const statusTab = ref(localStorage.getItem('ops_invoice_status_tab') || 'PENDING')
+const statusTab = ref(localStorage.getItem('ops_invoice_status_tab') ?? '')
 const canEdit = computed(() => auth.hasPerm('ops:invoice:edit'))
 
 const statusOptions = [
+  { value: '', label: '全部' },
   { value: 'PENDING', label: '待开具' },
   { value: 'ISSUED', label: '已开具' },
-  { value: 'REJECTED', label: '已驳回' },
-  { value: '', label: '全部' }
+  { value: 'REJECTED', label: '已驳回' }
 ]
 
 function yuan(cents?: number) {
@@ -48,7 +48,7 @@ function statusLabel(s?: string) {
     case 'REJECTED':
       return '已驳回'
     default:
-      return s || '—'
+      return s || ''
   }
 }
 
@@ -63,6 +63,12 @@ function statusTag(s?: string): 'success' | 'warning' | 'info' {
   }
 }
 
+function emptyHint() {
+  if (!statusTab.value) return '暂无开票申请'
+  const label = statusOptions.find((o) => o.value === statusTab.value)?.label || statusTab.value
+  return `当前「${label}」无数据，可切换状态查看`
+}
+
 function rowActions(row: InvoiceRow): TableAction[] {
   if (row.status !== 'PENDING' || !canEdit.value) return []
   return [
@@ -72,23 +78,27 @@ function rowActions(row: InvoiceRow): TableAction[] {
 }
 
 async function onRowAction(key: string, row: InvoiceRow) {
-  if (key === 'issue') {
-    await ElMessageBox.confirm(`确认开具发票？订单 ${displayBizNo(row.orderId)}`, '开具发票')
-    await api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/issue`, 'POST')
-    ElMessage.success('已开具')
-    await load()
-    return
-  }
-  if (key === 'reject') {
-    const { value } = await ElMessageBox.prompt('驳回原因', '驳回开票', {
-      inputPlaceholder: '不符合开票条件',
-      confirmButtonText: '驳回'
-    })
-    await api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/reject`, 'POST', {
-      reason: value || '不符合开票条件'
-    })
-    ElMessage.success('已驳回')
-    await load()
+  try {
+    if (key === 'issue') {
+      await ElMessageBox.confirm(`确认开具发票？订单 ${displayBizNo(row.orderId)}`, '开具发票')
+      await api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/issue`, 'POST')
+      ElMessage.success('已开具')
+      await load()
+      return
+    }
+    if (key === 'reject') {
+      const { value } = await ElMessageBox.prompt('驳回原因', '驳回开票', {
+        inputPlaceholder: '不符合开票条件',
+        confirmButtonText: '驳回'
+      })
+      await api.request(`/api/v2/ops/admin/invoices/${row.invoiceId}/reject`, 'POST', {
+        reason: value || '不符合开票条件'
+      })
+      ElMessage.success('已驳回')
+      await load()
+    }
+  } catch {
+    /* 用户取消对话框 */
   }
 }
 
@@ -137,7 +147,7 @@ onMounted(load)
 
     <el-table :data="rows" v-loading="loading" stripe border empty-text=" ">
       <template #empty>
-        <el-empty v-if="hydrated && !loading" description="暂无开票申请" />
+        <el-empty v-if="hydrated && !loading" :description="emptyHint()" />
       </template>
       <el-table-column label="申请号" width="100" align="center">
         <template #default="{ row }">{{ row.invoiceId }}</template>
@@ -146,12 +156,14 @@ onMounted(load)
         <template #default="{ row }">{{ displayBizNo(row.orderId) }}</template>
       </el-table-column>
       <el-table-column label="用户" width="90" align="center">
-        <template #default="{ row }">{{ row.userId ?? '—' }}</template>
+        <template #default="{ row }">{{ row.userId ?? '' }}</template>
       </el-table-column>
-      <el-table-column prop="title" label="抬头" min-width="140" />
-      <el-table-column prop="taxNo" label="税号" width="140" />
+      <el-table-column prop="title" label="抬头" min-width="140" show-overflow-tooltip />
+      <el-table-column label="税号" width="140" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.taxNo || '' }}</template>
+      </el-table-column>
       <el-table-column label="邮箱" min-width="140" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.email || '—' }}</template>
+        <template #default="{ row }">{{ row.email || '' }}</template>
       </el-table-column>
       <el-table-column label="金额" width="100" align="right">
         <template #default="{ row }">¥{{ yuan(row.amountCents) }}</template>
@@ -162,14 +174,14 @@ onMounted(load)
         </template>
       </el-table-column>
       <el-table-column label="驳回原因" min-width="120" show-overflow-tooltip>
-        <template #default="{ row }">{{ row.rejectReason || '—' }}</template>
+        <template #default="{ row }">{{ row.rejectReason || '' }}</template>
       </el-table-column>
       <el-table-column label="申请时间" width="150">
-        <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        <template #default="{ row }">{{ formatDateTime(row.createdAt) || '' }}</template>
       </el-table-column>
       <el-table-column label="开票时间" width="150">
         <template #default="{ row }">{{
-          row.issuedAt ? formatDateTime(row.issuedAt) : '—'
+          row.issuedAt ? formatDateTime(row.issuedAt) : ''
         }}</template>
       </el-table-column>
       <el-table-column label="操作" width="140" fixed="right" align="center">

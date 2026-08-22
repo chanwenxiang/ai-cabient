@@ -619,7 +619,15 @@ public class SettlementService {
             }
         }
 
+        int priorRefunded = Math.max(0, order.getRefundedCents());
         orderPaymentService.refundOrder(order, refundCents, reason == null ? "按行部分退款" : reason);
+        // 支付层正常会累加 refundedCents；演示账号早退 / 历史路径漏写时在此兜底，避免 PARTIAL_REFUNDED 金额为 0
+        if (order.getRefundedCents() < priorRefunded + refundCents) {
+            order.setRefundedCents(priorRefunded + refundCents);
+        }
+        if (order.getRefundedAt() == null) {
+            order.setRefundedAt(java.time.Instant.now());
+        }
         boolean full = remaining.isEmpty() || order.getTotalAmountCents() <= 0;
         order.setStatus(full ? "REFUNDED" : "PARTIAL_REFUNDED");
         if (full) {

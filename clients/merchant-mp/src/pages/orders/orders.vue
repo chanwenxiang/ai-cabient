@@ -96,7 +96,7 @@
                   "
                   class="card-discount"
                 >
-                  优惠 -¥{{
+                  优惠减¥{{
                     (
                       (Number(item.couponDiscountCents || 0) +
                         Number(item.memberDiscountCents || 0)) /
@@ -109,15 +109,12 @@
                     item.status === 'REFUNDED' ||
                     item.status === 'PARTIAL_REFUNDED' ||
                     item.refundedAt ||
-                    Number(item.refundedCents || 0) > 0
+                    refundCents(item) > 0
                   "
                   class="card-refund"
                 >
                   {{ item.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
-                  }}{{
-                    Number(item.refundedCents || 0) > 0
-                      ? ` ${money(item.refundedCents)}`
-                      : ''
+                  }}{{ refundCents(item) > 0 ? ` ${money(refundCents(item))}` : ''
                   }}{{ item.refundedAt ? ` · ${formatTime(item.refundedAt)}` : '' }}
                 </text>
                 <text class="card-time">{{ formatTime(item.createdAt) }}</text>
@@ -413,12 +410,19 @@ function channelText(channel?: string) {
         PAYSCORE: '微信支付分',
         UNKNOWN: '未知'
       } as Record<string, string>
-    )[String(channel || '').toUpperCase()] || '—'
+    )[String(channel || '').toUpperCase()] || '其他渠道'
   );
 }
 
 function money(cents?: number) {
   return fmtMoney(cents);
+}
+
+function refundCents(item: MerchantOrderSummary) {
+  const n = Number(item.refundedCents || 0);
+  if (n > 0) return n;
+  if (item.status === 'REFUNDED') return Number(item.totalAmountCents || 0);
+  return 0;
 }
 
 function shortId(id?: string) {

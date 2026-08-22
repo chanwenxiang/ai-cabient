@@ -685,13 +685,13 @@ const emptyHint = computed(() => {
 });
 
 function statusTabLabel(label: string, value: string) {
-  if (!listHydrated.value) return `${label} (—)`;
+  if (!listHydrated.value) return `${label} (…)`;
   const key = value as keyof typeof statusCounts;
   return `${label} (${statusCounts[key] || 0})`;
 }
 
 const archivedTabLabel = computed(() => {
-  if (!listHydrated.value) return '已归档 (—)';
+  if (!listHydrated.value) return '已归档 (…)';
   return `已归档 (${statusCounts.ARCHIVED || 0})`;
 });
 

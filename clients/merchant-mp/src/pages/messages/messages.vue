@@ -135,7 +135,7 @@ async function onOpen(m: MerchantNotificationDto) {
 }
 
 function formatTime(t: string) {
-  return formatDateTimeMinute(t, '—');
+  return formatDateTimeMinute(t, '暂无');
 }
 </script>
 

@@ -229,7 +229,7 @@
             {{ doorOpened ? '再次开门' : detailIsPullOff ? '下架开门' : '补货开门' }}
           </button>
           <text v-if="!canRequest && selected?.status !== 'COMPLETED'" class="door-tip">
-            只读查看 — 需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
+            只读查看，需补货操作权限方可签到/开门/{{ detailIsPullOff ? '下架' : '上架' }}
           </text>
           <text v-if="doorOpened && openSessionId" class="door-tip">
             已开门 · 会话 {{ emptyDisplay(openSessionId, 'session') }} · 关门后继续核对{{
@@ -588,7 +588,7 @@ const deviceSlotsList = ref<DeviceSlot[]>([]);
 
 const heroSubtitle = computed(() => '扫码到柜 → 签到 → 开门 → 核对履约');
 const efficiencyRateText = computed(() =>
-  efficiency.value ? `${efficiency.value.completionRatePercent}%` : '—'
+  efficiency.value ? `${efficiency.value.completionRatePercent}%` : '暂无'
 );
 const detailIsPullOff = computed(() => {
   if (!lines.value.length) {

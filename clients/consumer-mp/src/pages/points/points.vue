@@ -20,7 +20,13 @@
           <view class="summary-meta">
             <view class="meta-row">
               <text class="meta-label">当前等级</text>
-              <text class="meta-value">{{ summary?.levelName || summary?.levelCode || '—' }}</text>
+              <text class="meta-value">{{
+                summary?.levelName ||
+                (summary?.levelCode && !/^[A-Z0-9_]+$/.test(String(summary.levelCode))
+                  ? summary.levelCode
+                  : '') ||
+                '普通会员'
+              }}</text>
             </view>
             <view class="meta-row">
               <text class="meta-label">积分倍率</text>
@@ -115,7 +121,7 @@ function logTypeText(t: string) {
 }
 
 function formatTime(t: string) {
-  return formatDateTimeMinute(t, '—');
+  return formatDateTimeMinute(t, '暂无');
 }
 
 function goRedeem() {

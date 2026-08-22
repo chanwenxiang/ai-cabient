@@ -22,7 +22,7 @@
             <p>
               仓库：{{ nameOf(warehouses, 'warehouseId', 'warehouseName', outbound.warehouseId) }}
             </p>
-            <p>路线：{{ outbound.routeId || '—' }}</p>
+            <p>路线：{{ outbound.routeId || '暂无' }}</p>
             <p>状态：{{ outbound.status }}</p>
           </div>
         </div>
@@ -41,10 +41,10 @@
             <tr v-for="(line, idx) in outbound.lines || []" :key="line.lineId || idx">
               <td>{{ nameOf(devices, 'deviceId', 'deviceName', line.deviceId) }}</td>
               <td>{{ nameOf(skus, 'skuId', 'skuName', line.skuId) }}</td>
-              <td>{{ line.batchNo || '—' }}</td>
+              <td>{{ line.batchNo || '暂无' }}</td>
               <td>{{ line.slotId || '待分配' }}</td>
               <td class="num">{{ line.quantity }}</td>
-              <td>{{ line.expiryDate || '—' }}</td>
+              <td>{{ line.expiryDate || '暂无' }}</td>
             </tr>
           </tbody>
         </table>
@@ -85,11 +85,11 @@
           <tbody>
             <tr v-for="(line, idx) in purchase.lines || []" :key="line.lineId || idx">
               <td>{{ nameOf(skus, 'skuId', 'skuName', line.skuId) }}</td>
-              <td>{{ line.batchNo || '—' }}</td>
+              <td>{{ line.batchNo || '暂无' }}</td>
               <td class="num">{{ line.orderedQty }}</td>
               <td class="num">{{ line.receivedQty }}</td>
               <td class="num">{{ money(line.unitCostCents) }}</td>
-              <td>{{ line.expiryDate || '—' }}</td>
+              <td>{{ line.expiryDate || '暂无' }}</td>
             </tr>
           </tbody>
         </table>
@@ -149,7 +149,7 @@ const pageTitle = computed(() => {
 const printTime = new Date().toLocaleString('zh-CN', { hour12: false });
 
 function nameOf(rows: Row[], keyField: string, nameField: string, id?: string) {
-  if (!id) return '—';
+  if (!id) return '暂无';
   return rows.find((r) => String(r[keyField]) === String(id))?.[nameField] || id;
 }
 function money(cents: number) {

@@ -49,7 +49,7 @@
           </el-table-column>
           <el-table-column label="更新时间" width="150" align="center">
             <template #default="{ row }">{{
-              row.updatedAt ? formatDateTime(row.updatedAt) : '—'
+              row.updatedAt ? formatDateTime(row.updatedAt) : '暂无'
             }}</template>
           </el-table-column>
           <el-table-column label="操作" width="110" align="center" class-name="col-action">
@@ -64,7 +64,7 @@
               >
                 保存
               </el-button>
-              <span v-else class="cell-hint">—</span>
+              <span v-else class="cell-hint">暂无</span>
             </template>
           </el-table-column>
         </el-table>
@@ -163,7 +163,7 @@ function ruleUnitHint(key: string) {
   if (key.includes('webhook')) return 'URL';
   if (key.includes('minutes')) return '分钟';
   if (key.includes('hours')) return '小时';
-  return '—';
+  return '暂无';
 }
 
 onMounted(load);

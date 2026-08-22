@@ -212,7 +212,7 @@ function severityLabel(s?: string) {
 
 /** OBS-023：详情里的 onlineStatus=OFFLINE / lifecycle=DEPLOYED 等键值中文化 */
 function formatEventDetail(detail?: string) {
-  if (!detail) return '—';
+  if (!detail) return '暂无';
   if (!detail.includes('=')) return detail;
   const keyLabels: Record<string, string> = {
     onlineStatus: '在线状态',
@@ -247,9 +247,9 @@ function formatEventDetail(detail?: string) {
 }
 
 function eventAge(createdAt?: string) {
-  if (!createdAt) return '—';
+  if (!createdAt) return '暂无';
   const ms = Date.now() - new Date(createdAt).getTime();
-  if (!Number.isFinite(ms) || ms < 0) return '—';
+  if (!Number.isFinite(ms) || ms < 0) return '暂无';
   const m = Math.floor(ms / 60000);
   if (m < 60) return `${Math.max(0, m)} 分前`;
   const h = Math.floor(m / 60);

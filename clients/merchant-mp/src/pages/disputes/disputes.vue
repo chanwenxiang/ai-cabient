@@ -46,7 +46,7 @@
               item.slaOverdue
                 ? '已超时'
                 : item.slaHoursRemaining != null
-                  ? `剩余 ${item.slaHoursRemaining}h`
+                  ? `剩余 ${item.slaHoursRemaining} 小时`
                   : '处理中'
             }}</text>
           </view>
@@ -130,8 +130,8 @@
                   detail?.slaOverdue
                     ? '已超时'
                     : detail?.slaHoursRemaining != null
-                      ? `剩余 ${detail.slaHoursRemaining}h`
-                      : '—'
+                      ? `剩余 ${detail.slaHoursRemaining} 小时`
+                      : '暂无'
                 }}</text>
               </view>
               <view v-if="detail?.lastMessage" class="detail-row"

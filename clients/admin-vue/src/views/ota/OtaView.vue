@@ -167,7 +167,7 @@ function statusLabel(s?: string) {
     UNPUBLISHED: '已下架',
     ARCHIVED: '已归档'
   };
-  return (s && m[s]) || s || '—';
+  return (s && m[s]) || s || '暂无';
 }
 
 function channelLabel(c?: string) {
@@ -177,7 +177,7 @@ function channelLabel(c?: string) {
     canary: '灰度',
     internal: '内部'
   };
-  return (c && m[c]) || c || '—';
+  return (c && m[c]) || c || '暂无';
 }
 
 interface OtaRelease {

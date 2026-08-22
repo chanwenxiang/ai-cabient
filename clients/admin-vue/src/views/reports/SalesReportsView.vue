@@ -71,7 +71,7 @@
           {{
             Number(row.revenueCents) > 0
               ? `${((Number(row.marginCents || 0) / Number(row.revenueCents)) * 100).toFixed(1)}%`
-              : '—'
+              : '暂无'
           }}
         </template>
       </el-table-column>
@@ -80,7 +80,7 @@
           {{
             Number(row.orderCount) > 0
               ? `¥${(Number(row.revenueCents || 0) / Number(row.orderCount) / 100).toFixed(2)}`
-              : '—'
+              : '暂无'
           }}
         </template>
       </el-table-column>
@@ -89,7 +89,7 @@
           {{
             Number(row.qty) > 0
               ? `¥${(Number(row.revenueCents || 0) / Number(row.qty) / 100).toFixed(2)}`
-              : '—'
+              : '暂无'
           }}
         </template>
       </el-table-column>

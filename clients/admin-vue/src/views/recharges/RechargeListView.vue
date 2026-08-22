@@ -127,7 +127,7 @@
               <span v-if="row.paidAt" class="cell-datetime">{{
                 formatDateTime(String(row.paidAt))
               }}</span>
-              <span v-else class="muted">—</span>
+              <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
           <el-table-column label="退款时间" width="150" align="center" class-name="col-text">
@@ -135,7 +135,7 @@
               <span v-if="row.refundedAt" class="cell-datetime">{{
                 formatDateTime(String(row.refundedAt))
               }}</span>
-              <span v-else class="muted">—</span>
+              <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
           <el-table-column

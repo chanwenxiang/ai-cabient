@@ -27,8 +27,8 @@
     />
 
     <div class="kpi-tags">
-      <el-tag size="small" type="danger">FAIL {{ listHydrated ? failCount : '—' }}</el-tag>
-      <el-tag size="small" type="info">本页 {{ listHydrated ? paged.length : '—' }}</el-tag>
+      <el-tag size="small" type="danger">FAIL {{ listHydrated ? failCount : '…' }}</el-tag>
+      <el-tag size="small" type="info">本页 {{ listHydrated ? paged.length : '…' }}</el-tag>
       <el-tag v-if="lastRunAt" size="small" type="success">上次巡检 {{ lastRunAt }}</el-tag>
     </div>
 
@@ -131,7 +131,7 @@
           >
             <template #default="{ row }">
               <span v-if="row.errorMessage" class="err-msg">{{ row.errorMessage }}</span>
-              <span v-else class="muted">—</span>
+              <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="90" align="center">
@@ -158,7 +158,7 @@
               <span v-else-if="canFix" class="muted" title="该类仅巡检记录，需人工核对处理"
                 >需人工</span
               >
-              <span v-else class="muted">—</span>
+              <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
         </el-table>

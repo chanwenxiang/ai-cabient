@@ -112,7 +112,7 @@
               >{{ r.tempC }}°C</text
             >
             <text class="meta">{{
-              i > 0 ? (r.tempC >= tempHistory[i - 1].tempC ? '↑' : '↓') : '—'
+              i > 0 ? (r.tempC >= tempHistory[i - 1].tempC ? '↑' : '↓') : '起'
             }}</text>
           </view>
         </view>

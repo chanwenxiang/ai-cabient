@@ -67,12 +67,12 @@
           type="button"
           class="stat-tile"
           :aria-label="
-            metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : '填充率 — 加载中…'
+            metricsHydrated ? `填充率 ${metrics?.fillRatePct ?? 0}%` : '填充率 加载中…'
           "
         >
           <div class="stat-label">填充率</div>
           <div class="stat-value">
-            {{ metricsHydrated ? `${metrics?.fillRatePct ?? 0}%` : '—' }}
+            {{ metricsHydrated ? `${metrics?.fillRatePct ?? 0}%` : '暂无' }}
           </div>
           <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
         </button>
@@ -83,11 +83,11 @@
           class="stat-tile"
           :class="{ warn: metricsHydrated && (metrics?.oosSlotCount || 0) > 0 }"
           :aria-label="
-            metricsHydrated ? `缺货货道 ${metrics?.oosSlotCount ?? 0}` : '缺货货道 — 加载中…'
+            metricsHydrated ? `缺货货道 ${metrics?.oosSlotCount ?? 0}` : '缺货货道 加载中…'
           "
         >
           <div class="stat-label">缺货货道</div>
-          <div class="stat-value">{{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '—' }}</div>
+          <div class="stat-value">{{ metricsHydrated ? (metrics?.oosSlotCount ?? 0) : '暂无' }}</div>
           <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
         </button>
       </el-col>
@@ -99,12 +99,12 @@
           :aria-label="
             metricsHydrated
               ? `低库存货道 ${metrics?.lowStockSlotCount ?? 0}`
-              : '低库存货道 — 加载中…'
+              : '低库存货道 加载中…'
           "
         >
           <div class="stat-label">低库存货道</div>
           <div class="stat-value">
-            {{ metricsHydrated ? (metrics?.lowStockSlotCount ?? 0) : '—' }}
+            {{ metricsHydrated ? (metrics?.lowStockSlotCount ?? 0) : '暂无' }}
           </div>
           <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
         </button>
@@ -115,12 +115,12 @@
           class="stat-tile"
           :class="{ warn: metricsHydrated && (metrics?.nearExpiryLotCount || 0) > 0 }"
           :aria-label="
-            metricsHydrated ? `临期批次 ${metrics?.nearExpiryLotCount ?? 0}` : '临期批次 — 加载中…'
+            metricsHydrated ? `临期批次 ${metrics?.nearExpiryLotCount ?? 0}` : '临期批次 加载中…'
           "
         >
           <div class="stat-label">临期批次</div>
           <div class="stat-value">
-            {{ metricsHydrated ? (metrics?.nearExpiryLotCount ?? 0) : '—' }}
+            {{ metricsHydrated ? (metrics?.nearExpiryLotCount ?? 0) : '暂无' }}
           </div>
           <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
         </button>
@@ -132,7 +132,7 @@
           :aria-label="
             metricsHydrated
               ? `柜内温度 ${metrics?.currentTempC != null ? metrics.currentTempC + '°C' : '无'}`
-              : '柜内温度 — 加载中…'
+              : '柜内温度 加载中…'
           "
         >
           <div class="stat-label">柜内温度</div>
@@ -142,7 +142,7 @@
                 ? metrics?.currentTempC != null
                   ? `${metrics.currentTempC}°C`
                   : '无'
-                : '—'
+                : '暂无'
             }}
           </div>
           <div v-if="!metricsHydrated" class="stat-hint">加载中…</div>
@@ -595,14 +595,14 @@
           <template #default="{ row }">{{ repairStatusLabel(row.status) }}</template>
         </el-table-column>
         <el-table-column label="优先级" width="88" align="center">
-          <template #default="{ row }">{{ row.priority || '—' }}</template>
+          <template #default="{ row }">{{ row.priority || '暂无' }}</template>
         </el-table-column>
         <el-table-column prop="createdAt" label="创建" width="150" align="center">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
         <el-table-column label="更新" width="150" align="center">
           <template #default="{ row }">{{
-            row.updatedAt ? formatDateTime(row.updatedAt) : '—'
+            row.updatedAt ? formatDateTime(row.updatedAt) : '暂无'
           }}</template>
         </el-table-column>
       </el-table>
@@ -619,7 +619,7 @@
             <el-descriptions-item label="商户">
               <div class="name-cell inline">
                 <strong>{{
-                  metricsHydrated ? device?.merchantName || device?.merchantId || '无' : '—'
+                  metricsHydrated ? device?.merchantName || device?.merchantId || '无' : '暂无'
                 }}</strong>
                 <small
                   v-if="metricsHydrated && device?.merchantId && device?.merchantName"
@@ -629,13 +629,13 @@
               </div>
             </el-descriptions-item>
             <el-descriptions-item label="地址">{{
-              metricsHydrated ? metrics?.address || '无' : '—'
+              metricsHydrated ? metrics?.address || '无' : '暂无'
             }}</el-descriptions-item>
             <el-descriptions-item label="App 版本">{{
-              metricsHydrated ? metrics?.appVersion || '无' : '—'
+              metricsHydrated ? metrics?.appVersion || '无' : '暂无'
             }}</el-descriptions-item>
             <el-descriptions-item label="固件版本">{{
-              metricsHydrated ? metrics?.firmwareVersion || '无' : '—'
+              metricsHydrated ? metrics?.firmwareVersion || '无' : '暂无'
             }}</el-descriptions-item>
             <el-descriptions-item label="目标温度">
               <div class="temp-set-row">
@@ -661,18 +661,18 @@
             </el-descriptions-item>
             <el-descriptions-item label="温度上报">
               <span class="cell-datetime">{{
-                metricsHydrated ? formatDateTime(metrics?.tempReportedAt) || '无' : '—'
+                metricsHydrated ? formatDateTime(metrics?.tempReportedAt) || '无' : '暂无'
               }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="告警联系人">{{
-              metricsHydrated ? metrics?.alertContactName || '无' : '—'
+              metricsHydrated ? metrics?.alertContactName || '无' : '暂无'
             }}</el-descriptions-item>
             <el-descriptions-item label="联系电话">{{
-              metricsHydrated ? metrics?.alertContactPhone || '无' : '—'
+              metricsHydrated ? metrics?.alertContactPhone || '无' : '暂无'
             }}</el-descriptions-item>
             <el-descriptions-item label="最近会话">
               <span class="cell-id">{{
-                metricsHydrated ? device?.activeSessionId || '无' : '—'
+                metricsHydrated ? device?.activeSessionId || '无' : '暂无'
               }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="会话状态">
@@ -682,7 +682,7 @@
                 </el-tag>
                 <span v-else>-</span>
               </template>
-              <span v-else>—</span>
+              <span v-else>暂无</span>
             </el-descriptions-item>
             <el-descriptions-item label="退款规则">
               <el-tag
@@ -696,7 +696,7 @@
             </el-descriptions-item>
             <el-descriptions-item label="最近补货">
               <span class="cell-datetime">{{
-                metricsHydrated ? formatDateTime(metrics?.lastRestockAt) || '无' : '—'
+                metricsHydrated ? formatDateTime(metrics?.lastRestockAt) || '无' : '暂无'
               }}</span>
             </el-descriptions-item>
             <el-descriptions-item label="库存准确率">
@@ -705,7 +705,7 @@
                   ? metrics?.inventoryAccuracyPct != null
                     ? `${metrics.inventoryAccuracyPct}%`
                     : '无'
-                  : '—'
+                  : '暂无'
               }}
             </el-descriptions-item>
           </el-descriptions>
@@ -885,8 +885,7 @@
               <template #default="{ row }">
                 {{
                   dictLabel('pay_channel', row.entryChannel || row.payChannel) ||
-                  row.entryChannel ||
-                  '—'
+                  row.entryChannel || '暂无'
                 }}
               </template>
             </el-table-column>
@@ -908,7 +907,7 @@
             </el-table-column>
             <el-table-column label="失败原因" min-width="120" align="center" show-overflow-tooltip>
               <template #default="{ row }">
-                {{ row.failReason || row.failureReason || '—' }}
+                {{ row.failReason || row.failureReason || '暂无' }}
               </template>
             </el-table-column>
             <el-table-column label="时间" width="168" align="center" class-name="col-text">
@@ -929,7 +928,7 @@
                       )
                   "
                 />
-                <span v-else class="muted">—</span>
+                <span v-else class="muted">暂无</span>
               </template>
             </el-table-column>
           </el-table>
@@ -967,7 +966,7 @@
             </el-table-column>
             <el-table-column label="渠道" width="88" align="center">
               <template #default="{ row }">
-                {{ dictLabel('pay_channel', row.payChannel) || row.payChannel || '—' }}
+                {{ dictLabel('pay_channel', row.payChannel) || row.payChannel || '暂无' }}
               </template>
             </el-table-column>
             <el-table-column label="金额" width="100" align="center" class-name="col-money">
@@ -990,7 +989,7 @@
                     ).toFixed(2)
                   }}
                 </span>
-                <span v-else class="muted">—</span>
+                <span v-else class="muted">暂无</span>
               </template>
             </el-table-column>
             <el-table-column label="时间" width="168" align="center" class-name="col-text">
@@ -1005,7 +1004,7 @@
                   :actions="[{ key: 'orders', label: '查看', icon: View, type: 'primary' }]"
                   @action="() => goPath('/orders', { deviceId })"
                 />
-                <span v-else class="muted">—</span>
+                <span v-else class="muted">暂无</span>
               </template>
             </el-table-column>
           </el-table>

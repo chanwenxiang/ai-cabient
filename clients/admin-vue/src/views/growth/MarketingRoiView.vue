@@ -144,10 +144,10 @@ function typeLabel(t: string) {
   return displayLabel('promotion_type', t, t || '活动');
 }
 function yuan(cents?: number) {
-  return cents == null ? '—' : (cents / 100).toFixed(2);
+  return cents == null ? '暂无' : (cents / 100).toFixed(2);
 }
 function pct(v?: number) {
-  if (v == null || !Number.isFinite(v)) return '—';
+  if (v == null || !Number.isFinite(v)) return '暂无';
   return `${(v * 100).toFixed(1)}%`;
 }
 </script>

@@ -303,7 +303,7 @@ async function markAllRead() {
 }
 
 function formatTime(t: string) {
-  return formatDateTimeMinute(t, '—');
+  return formatDateTimeMinute(t, '暂无');
 }
 </script>
 

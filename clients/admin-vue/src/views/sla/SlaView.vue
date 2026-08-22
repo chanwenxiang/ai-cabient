@@ -21,11 +21,11 @@
           <button
             type="button"
             class="stat-tile"
-            :aria-label="listHydrated ? `${tile.label} ${tile.value}` : `${tile.label} — 加载中…`"
+            :aria-label="listHydrated ? `${tile.label} ${tile.value}` : `${tile.label} 加载中…`"
             tabindex="-1"
           >
             <div class="stat-label">{{ tile.label }}</div>
-            <div class="stat-value">{{ listHydrated ? tile.value : '—' }}</div>
+            <div class="stat-value">{{ listHydrated ? tile.value : '…' }}</div>
             <div v-if="!listHydrated" class="stat-hint">加载中…</div>
           </button>
         </el-col>
@@ -105,7 +105,7 @@ const statTiles = computed(() => {
     { label: '快照日期', value: d?.snapshotDate || '无' },
     {
       label: '开门成功率',
-      value: (d?.doorOpenAttempts ?? 0) === 0 ? '—' : pct(d?.doorSuccessRate)
+      value: (d?.doorOpenAttempts ?? 0) === 0 ? '暂无' : pct(d?.doorSuccessRate)
     },
     {
       label: '开门成功/尝试',
@@ -113,7 +113,7 @@ const statTiles = computed(() => {
     },
     {
       label: '设备在线率',
-      value: (d?.deviceTotal ?? 0) === 0 ? '—' : pct(d?.deviceOnlineRate)
+      value: (d?.deviceTotal ?? 0) === 0 ? '暂无' : pct(d?.deviceOnlineRate)
     },
     { label: '开门均时长', value: `${d?.avgRecognizeMs ?? 0} ms` },
     { label: '开门时长 P95', value: `${d?.p95RecognizeMs ?? 0} ms` },

@@ -51,13 +51,13 @@
           {{
             Number(row.impressionCount) > 0
               ? `${((Number(row.completeCount || 0) / Number(row.impressionCount)) * 100).toFixed(1)}%`
-              : '—'
+              : '暂无'
           }}
         </template>
       </el-table-column>
       <el-table-column label="柜机数" width="80" align="center">
         <template #default="{ row }">{{
-          Array.isArray(row.deviceIds) ? row.deviceIds.length : '—'
+          Array.isArray(row.deviceIds) ? row.deviceIds.length : '暂无'
         }}</template>
       </el-table-column>
       <el-table-column label="时间窗" min-width="220" align="center">
@@ -327,7 +327,7 @@ function typeLabel(t: string) {
 function formatRange(row: AdCampaignDto) {
   if (!row.startAt && !row.endAt) return '不限';
   const f = (iso?: string) =>
-    iso ? new Date(iso).toLocaleString('zh-CN', { hour12: false }) : '—';
+    iso ? new Date(iso).toLocaleString('zh-CN', { hour12: false }) : '暂无';
   return `${f(row.startAt)} ~ ${f(row.endAt)}`;
 }
 </script>

@@ -41,7 +41,7 @@
       <el-table-column label="券定义" width="90" align="center">
         <template #default="{ row }">
           <span v-if="row.couponDefId" class="cell-id">{{ row.couponDefId }}</span>
-          <span v-else class="muted">—</span>
+          <span v-else class="muted">暂无</span>
         </template>
       </el-table-column>
       <el-table-column label="库存 / 已兑" width="120" align="center">
@@ -64,7 +64,7 @@
       </el-table-column>
       <el-table-column label="创建时间" width="150" align="center">
         <template #default="{ row }">{{
-          row.createdAt ? formatDateTime(row.createdAt) : '—'
+          row.createdAt ? formatDateTime(row.createdAt) : '暂无'
         }}</template>
       </el-table-column>
       <el-table-column label="操作" width="150" align="center">

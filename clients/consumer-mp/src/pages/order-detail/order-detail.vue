@@ -47,11 +47,11 @@
           </view>
           <view v-if="order?.couponDiscountCents" class="discount-row">
             <text class="discount-label">优惠券抵扣</text>
-            <text class="discount-amount">-{{ fmtMoney(order.couponDiscountCents) }}</text>
+            <text class="discount-amount">减{{ fmtMoney(order.couponDiscountCents) }}</text>
           </view>
           <view v-if="Number(order?.memberDiscountCents || 0) > 0" class="discount-row">
             <text class="discount-label">会员优惠</text>
-            <text class="discount-amount">-{{ fmtMoney(order.memberDiscountCents) }}</text>
+            <text class="discount-amount">减{{ fmtMoney(order.memberDiscountCents) }}</text>
           </view>
           <view
             v-if="order?.couponDiscountCents || Number(order?.memberDiscountCents || 0) > 0"
@@ -81,13 +81,20 @@
             }}</text></view
           >
           <view
-            v-if="order?.refundedAt || order?.status === 'REFUNDED' || order?.status === 'PARTIAL_REFUNDED'"
+            v-if="
+              order?.refundedAt ||
+              order?.status === 'REFUNDED' ||
+              order?.status === 'PARTIAL_REFUNDED' ||
+              refundCents > 0
+            "
             class="info-row"
           >
             <text class="info-label">退款</text>
-            <text class="info-value">{{
-              order?.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
-            }}{{ order?.refundedAt ? ` · ${formatTime(order.refundedAt)}` : '' }}</text>
+            <text class="info-value"
+              >{{ order?.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+              }}{{ refundCents > 0 ? ` ${fmtMoney(refundCents)}` : ''
+              }}{{ order?.refundedAt ? ` · ${formatTime(order.refundedAt)}` : '' }}</text
+            >
           </view>
           <view class="info-row"
             ><text class="info-label">订单编号</text
@@ -468,6 +475,15 @@ const statusIcon = computed(() => {
 });
 
 const statusTitle = computed(() => orderStatusLabel(order.value?.status) || '订单详情');
+
+const refundCents = computed(() => {
+  const o = order.value;
+  if (!o) return 0;
+  const n = Number(o.refundedCents || 0);
+  if (n > 0) return n;
+  if (o.status === 'REFUNDED') return Number(o.totalAmountCents || 0);
+  return 0;
+});
 
 const canDispute = computed(() => {
   const s = order.value?.status;

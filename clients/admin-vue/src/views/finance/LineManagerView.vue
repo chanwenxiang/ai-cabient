@@ -303,8 +303,12 @@
           <el-table-column label="奖金(元)" width="100">
             <template #default="{ row }">{{ yuan(row.bountyCents) }}</template>
           </el-table-column>
-          <el-table-column prop="status" label="状态" width="90" />
-          <el-table-column prop="dueDate" label="截止" width="110" />
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }">{{ promoStatusLabel(row.status) }}</template>
+          </el-table-column>
+          <el-table-column label="截止" width="110">
+            <template #default="{ row }">{{ row.dueDate || '' }}</template>
+          </el-table-column>
         </el-table>
       </el-tab-pane>
     </el-tabs>
@@ -412,7 +416,7 @@
               {{
                 row.orderCount > 0
                   ? yuan(Math.round(Number(row.gmvCents || 0) / Number(row.orderCount)))
-                  : '—'
+                  : '暂无'
               }}
             </template>
           </el-table-column>
@@ -421,7 +425,7 @@
               {{
                 Number(row.gmvCents) > 0
                   ? `${((Number(row.commissionCents || 0) / Number(row.gmvCents)) * 100).toFixed(1)}%`
-                  : '—'
+                  : '暂无'
               }}
             </template>
           </el-table-column>
@@ -563,6 +567,15 @@ function yuan(cents?: number) {
 }
 function withdrawStatusLabel(s?: string) {
   return dictLabel('line_withdraw_status', s) || s || '未知状态';
+}
+
+function promoStatusLabel(s?: string) {
+  const code = String(s || '').toUpperCase();
+  return (
+    ({ OPEN: '进行中', DONE: '已完成', CANCELLED: '已取消' } as Record<string, string>)[code] ||
+    s ||
+    ''
+  );
 }
 
 async function loadManagers() {

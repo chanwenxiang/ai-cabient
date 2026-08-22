@@ -259,7 +259,7 @@ function refundStatusLabel(status?: string) {
     case 'FAILED':
       return '失败';
     default:
-      return status || '—';
+      return status ? '处理中' : '暂无';
   }
 }
 

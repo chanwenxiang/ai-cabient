@@ -263,6 +263,6 @@ async function toggleStatus(row: LevelRule) {
 }
 
 function yuan(v?: number) {
-  return v == null ? '—' : `¥${Number(v).toFixed(2)}`;
+  return v == null ? '暂无' : `¥${Number(v).toFixed(2)}`;
 }
 </script>

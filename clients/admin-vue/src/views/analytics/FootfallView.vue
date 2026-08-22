@@ -105,7 +105,7 @@
               {{
                 row.qtySold > 0
                   ? `¥${(row.revenueCents / row.qtySold / 100).toFixed(2)}`
-                  : '—'
+                  : '暂无'
               }}
             </template>
           </el-table-column>
@@ -114,7 +114,7 @@
               {{
                 topSkuRevenueTotal > 0
                   ? `${((row.revenueCents / topSkuRevenueTotal) * 100).toFixed(1)}%`
-                  : '—'
+                  : '暂无'
               }}
             </template>
           </el-table-column>

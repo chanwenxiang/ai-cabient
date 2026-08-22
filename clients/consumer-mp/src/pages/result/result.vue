@@ -71,11 +71,11 @@
         </view>
         <view v-if="Number(order.memberDiscountCents || 0) > 0" class="sum-row discount">
           <text class="sum-label">会员优惠</text>
-          <text class="sum-value">-{{ fmtMoney(order.memberDiscountCents) }}</text>
+          <text class="sum-value">减{{ fmtMoney(order.memberDiscountCents) }}</text>
         </view>
         <view v-if="order.couponDiscountCents" class="sum-row discount">
           <text class="sum-label">优惠券抵扣</text>
-          <text class="sum-value">-{{ fmtMoney(order.couponDiscountCents) }}</text>
+          <text class="sum-value">减{{ fmtMoney(order.couponDiscountCents) }}</text>
         </view>
         <text
           v-if="order.couponDiscountCents || Number(order.memberDiscountCents || 0) > 0"
@@ -101,14 +101,15 @@
           v-if="
             order.refundedAt ||
             order.status === 'REFUNDED' ||
-            order.status === 'PARTIAL_REFUNDED'
+            order.status === 'PARTIAL_REFUNDED' ||
+            refundCents(order) > 0
           "
           class="info-row"
         >
           <text class="info-label">退款</text>
           <text class="info-value warn"
-            >{{
-              order.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+            >{{ order.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+            }}{{ refundCents(order) > 0 ? ` ${fmtMoney(refundCents(order))}` : ''
             }}{{ order.refundedAt ? ` · ${formatPayTime(order.refundedAt)}` : '' }}</text
           >
         </view>
@@ -321,7 +322,15 @@ function lineMeta(line: OrderLineDto) {
 }
 
 function formatPayTime(t?: string) {
-  return formatDateTimeMinute(t, '—');
+  return formatDateTimeMinute(t, '暂无');
+}
+
+function refundCents(o?: OrderDetailDto | null) {
+  if (!o) return 0;
+  const n = Number(o.refundedCents || 0);
+  if (n > 0) return n;
+  if (o.status === 'REFUNDED') return Number(o.totalAmountCents || 0);
+  return 0;
 }
 
 function currentPageOptions(): Record<string, string> {

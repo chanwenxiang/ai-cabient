@@ -359,7 +359,7 @@ const marginRate = computed(() =>
 );
 const money = (cents = 0) => `¥${((Number(cents) || 0) / 100).toFixed(2)}`;
 function formatChange(pct?: number | null) {
-  if (pct == null || Number.isNaN(pct)) return '—';
+  if (pct == null || Number.isNaN(pct)) return '暂无';
   const sign = pct > 0 ? '+' : '';
   return `${sign}${pct.toFixed(1)}%`;
 }
@@ -387,7 +387,7 @@ function performanceLabel(level?: string) {
     HOT: '热销',
     TOP: '爆款'
   };
-  return (level && m[level]) || level || '—';
+  return (level && m[level]) || '暂无';
 }
 function skuMarginRate(sku: MerchantSkuSales) {
   return sku.revenueCents

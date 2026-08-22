@@ -73,7 +73,7 @@
             preview-teleported
           />
           <el-tag v-else-if="row.assetType === 'VIDEO'" size="small">视频</el-tag>
-          <span v-else>—</span>
+          <span v-else>暂无</span>
         </template>
       </el-table-column>
       <el-table-column label="时长(秒)" prop="durationSeconds" width="90" align="center" />
@@ -261,7 +261,7 @@ function typeLabel(type: string) {
 }
 
 function formatDateTime(iso?: string) {
-  if (!iso) return '—';
+  if (!iso) return '暂无';
   return new Date(iso).toLocaleString('zh-CN', { hour12: false });
 }
 </script>

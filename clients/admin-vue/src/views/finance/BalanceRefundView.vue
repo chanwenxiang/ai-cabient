@@ -255,7 +255,7 @@ onMounted(load);
             class-name="col-text"
             show-overflow-tooltip
           >
-            <template #default="{ row }">{{ row.reason || '—' }}</template>
+            <template #default="{ row }">{{ row.reason || '暂无' }}</template>
           </el-table-column>
           <el-table-column
             label="审核备注"
@@ -264,7 +264,7 @@ onMounted(load);
             class-name="col-text"
             show-overflow-tooltip
           >
-            <template #default="{ row }">{{ row.reviewRemark || '—' }}</template>
+            <template #default="{ row }">{{ row.reviewRemark || '暂无' }}</template>
           </el-table-column>
           <el-table-column
             label="失败原因"
@@ -273,7 +273,7 @@ onMounted(load);
             class-name="col-text"
             show-overflow-tooltip
           >
-            <template #default="{ row }">{{ row.failReason || '—' }}</template>
+            <template #default="{ row }">{{ row.failReason || '暂无' }}</template>
           </el-table-column>
           <el-table-column label="申请时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
@@ -293,7 +293,7 @@ onMounted(load);
                 :actions="rowActions(row)"
                 @action="(key) => onRowAction(key, row)"
               />
-              <span v-else class="muted">—</span>
+              <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
         </el-table>

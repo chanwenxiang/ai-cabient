@@ -456,8 +456,10 @@ export declare const DICT: {
         readonly FEE: "手续费";
     };
     readonly session_kind: {
+        readonly CONSUMER: "消费";
         readonly RESTOCK: "补货";
         readonly OPS: "运维";
+        /** 历史值，与 CONSUMER 同义 */
         readonly SHOPPING: "消费";
     };
     readonly restock_line_type: {

@@ -87,6 +87,7 @@ class SettlementPartialRefundTest {
 
         assertEquals(700, result.refundedCents()); // 400 + 300
         assertEquals("PARTIAL_REFUNDED", result.status());
+        assertEquals(700, order.getRefundedCents());
         assertTrue(result.anyInventoryRestored());
         assertEquals(1, order.getLines().size());
         assertEquals("SKU-B", order.getLines().get(0).getSkuId());
@@ -128,6 +129,7 @@ class SettlementPartialRefundTest {
 
         assertEquals(400, result.refundedCents());
         assertEquals("REFUNDED", result.status());
+        assertEquals(400, order.getRefundedCents());
         assertTrue(result.anyInventoryRestored());
         assertTrue(order.getLines().isEmpty());
         assertFalse(order.isInventoryDeducted());

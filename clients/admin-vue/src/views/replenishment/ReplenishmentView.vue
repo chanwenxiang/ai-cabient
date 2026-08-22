@@ -13,46 +13,46 @@
             <button
               type="button"
               class="kpi-tag-btn"
-              :aria-label="listHydrated ? `待执行 ${plannedCount}` : '待执行 — 加载中…'"
+              :aria-label="listHydrated ? `待执行 ${plannedCount}` : '待执行 加载中…'"
             >
               <el-tag size="small" type="info"
-                >待执行 {{ listHydrated ? plannedCount : '—' }}</el-tag
+                >待执行 {{ listHydrated ? plannedCount : '…' }}</el-tag
               >
             </button>
             <button
               type="button"
               class="kpi-tag-btn"
-              :aria-label="listHydrated ? `待处理设备 ${pendingTaskCount}` : '待处理设备 — 加载中…'"
+              :aria-label="listHydrated ? `待处理设备 ${pendingTaskCount}` : '待处理设备 加载中…'"
             >
               <el-tag size="small" type="warning"
-                >待处理设备 {{ listHydrated ? pendingTaskCount : '—' }}</el-tag
+                >待处理设备 {{ listHydrated ? pendingTaskCount : '…' }}</el-tag
               >
             </button>
             <button
               type="button"
               class="kpi-tag-btn"
-              :aria-label="listHydrated ? `已履约 ${fulfilledCount}` : '已履约 — 加载中…'"
+              :aria-label="listHydrated ? `已履约 ${fulfilledCount}` : '已履约 加载中…'"
             >
               <el-tag size="small" type="success"
-                >已履约 {{ listHydrated ? fulfilledCount : '—' }}</el-tag
+                >已履约 {{ listHydrated ? fulfilledCount : '…' }}</el-tag
               >
             </button>
             <button
               type="button"
               class="kpi-tag-btn"
-              :aria-label="listHydrated ? `要货待审 ${pendingRequestCount}` : '要货待审 — 加载中…'"
+              :aria-label="listHydrated ? `要货待审 ${pendingRequestCount}` : '要货待审 加载中…'"
             >
-              <el-tag size="small">要货待审 {{ listHydrated ? pendingRequestCount : '—' }}</el-tag>
+              <el-tag size="small">要货待审 {{ listHydrated ? pendingRequestCount : '…' }}</el-tag>
             </button>
             <button
               type="button"
               class="kpi-tag-btn"
               :aria-label="
-                listHydrated && !expiryLoading ? `临期 ${expiryAlerts.length}` : '临期 — 加载中…'
+                listHydrated && !expiryLoading ? `临期 ${expiryAlerts.length}` : '临期 加载中…'
               "
             >
               <el-tag size="small" type="danger"
-                >临期 {{ listHydrated && !expiryLoading ? expiryAlerts.length : '—' }}</el-tag
+                >临期 {{ listHydrated && !expiryLoading ? expiryAlerts.length : '暂无' }}</el-tag
               >
             </button>
             <el-tag
@@ -458,13 +458,13 @@
               <el-table-column label="要货单" width="90" align="center">
                 <template #default="{ row }">
                   <span v-if="row.requestId" class="cell-id">{{ row.requestId }}</span>
-                  <span v-else class="muted">—</span>
+                  <span v-else class="muted">暂无</span>
                 </template>
               </el-table-column>
               <el-table-column label="出库单" width="90" align="center">
                 <template #default="{ row }">
                   <span v-if="row.outboundId" class="cell-id">{{ row.outboundId }}</span>
-                  <span v-else class="muted">—</span>
+                  <span v-else class="muted">暂无</span>
                 </template>
               </el-table-column>
               <el-table-column
@@ -473,7 +473,7 @@
                 align="center"
                 show-overflow-tooltip
               >
-                <template #default="{ row }">{{ row.notes || '—' }}</template>
+                <template #default="{ row }">{{ row.notes || '暂无' }}</template>
               </el-table-column>
               <el-table-column label="操作" width="120" align="center" class-name="col-action">
                 <template #default="{ row }">

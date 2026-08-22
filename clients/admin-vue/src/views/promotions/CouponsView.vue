@@ -158,7 +158,7 @@
             align="center"
             show-overflow-tooltip
           >
-            <template #default="{ row }">{{ row.description || '—' }}</template>
+            <template #default="{ row }">{{ row.description || '暂无' }}</template>
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">

@@ -38,10 +38,10 @@
         class-name="col-text"
       />
       <el-table-column label="姓名" min-width="110" align="center">
-        <template #default="{ row }">{{ row.name || '—' }}</template>
+        <template #default="{ row }">{{ row.name || '暂无' }}</template>
       </el-table-column>
       <el-table-column label="手机" min-width="130" align="center">
-        <template #default="{ row }">{{ row.phone || '—' }}</template>
+        <template #default="{ row }">{{ row.phone || '暂无' }}</template>
       </el-table-column>
       <el-table-column prop="totalTasks" label="任务数" width="90" align="center" />
       <el-table-column prop="completedTasks" label="已完成" width="90" align="center" />
@@ -50,7 +50,7 @@
       </el-table-column>
       <el-table-column label="平均耗时(分)" width="120" align="center">
         <template #default="{ row }">{{
-          row.avgDurationMinutes != null ? row.avgDurationMinutes.toFixed(0) : '—'
+          row.avgDurationMinutes != null ? row.avgDurationMinutes.toFixed(0) : '暂无'
         }}</template>
       </el-table-column>
       <el-table-column prop="openTasks" label="待办" width="80" align="center">
@@ -129,7 +129,7 @@ async function load() {
 }
 
 function pct(v?: number) {
-  if (v == null || !Number.isFinite(v)) return '—';
+  if (v == null || !Number.isFinite(v)) return '暂无';
   return `${(v * 100).toFixed(1)}%`;
 }
 </script>

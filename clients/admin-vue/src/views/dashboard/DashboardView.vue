@@ -44,7 +44,7 @@
           >
             <div class="stat-label">在售货柜</div>
             <div class="stat-value">
-              {{ listHydrated ? (workbench?.devicesOnSale ?? '无') : '—' }}
+              {{ listHydrated ? (workbench?.devicesOnSale ?? '无') : '暂无' }}
             </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
@@ -65,7 +65,7 @@
             @keydown.enter="goDevicesByOnlineRate"
           >
             <div class="stat-label">设备在线率</div>
-            <div class="stat-value">{{ listHydrated ? `${onlineRate.toFixed(1)}%` : '—' }}</div>
+            <div class="stat-value">{{ listHydrated ? `${onlineRate.toFixed(1)}%` : '…' }}</div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
               <template v-else>
@@ -88,7 +88,7 @@
           >
             <div class="stat-label">今日营收</div>
             <div class="stat-value">
-              {{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '—' }}
+              {{ listHydrated ? `¥${((stats.revenueTodayCents || 0) / 100).toFixed(2)}` : '…' }}
             </div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
@@ -111,7 +111,7 @@
             @keydown.enter="goExceptions"
           >
             <div class="stat-label">待处理异常</div>
-            <div class="stat-value">{{ listHydrated ? openExceptionCount : '—' }}</div>
+            <div class="stat-value">{{ listHydrated ? openExceptionCount : '…' }}</div>
             <div class="stat-hint">
               <template v-if="!listHydrated">加载中…</template>
               <template v-else-if="canAccessPath('/exceptions')">
@@ -155,7 +155,7 @@
               @click="goQuick(item)"
             >
               <span>{{ item.label }}</span>
-              <strong>{{ listHydrated ? item.count : '—' }}</strong>
+              <strong>{{ listHydrated ? item.count : '…' }}</strong>
             </button>
             <p v-if="listHydrated && !zone.items.length" class="zone-empty">无权限或暂无入口</p>
           </div>
@@ -196,8 +196,8 @@
 
       <div class="table-toolbar">
         <span class="table-meta"
-          >待处理明细 {{ listHydrated ? sortedActions.length : '—' }} 条 · 入口合计
-          {{ listHydrated ? totalIssues : '—' }}</span
+          >待处理明细 {{ listHydrated ? sortedActions.length : '…' }} 条 · 入口合计
+          {{ listHydrated ? totalIssues : '…' }}</span
         >
         <el-radio-group v-model="severityFilter" size="small">
           <el-radio-button value="all">全部</el-radio-button>
@@ -257,7 +257,7 @@
                   :actions="[{ key: 'handle', label: '查看', icon: Right, type: 'primary' }]"
                   @action="() => goAction(row)"
                 />
-                <span v-else class="no-perm">—</span>
+                <span v-else class="no-perm">暂无</span>
               </template>
             </el-table-column>
           </el-table>
