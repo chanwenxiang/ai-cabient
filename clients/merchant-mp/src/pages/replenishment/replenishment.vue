@@ -163,6 +163,9 @@
             >无现场照片</text
           >
         </view>
+        <view v-if="lineSummaryOf(task.taskId)" class="task-lines">{{
+          lineSummaryOf(task.taskId)
+        }}</view>
         <view v-if="displayTaskNotes(task.notes)" class="task-note">{{
           displayTaskNotes(task.notes)
         }}</view>
@@ -394,7 +397,19 @@
               <text>货道 {{ line.slotId || '待分配' }}</text>
               <text class="line-type">{{ lineTypeLabel(line.lineType) }}</text>
             </view>
-            <view v-if="stockDeltaText(line)" class="line-stock">{{ stockDeltaText(line) }}</view>
+            <view class="line-meta soft">
+              <text>生产 {{ line.productionDate || '未填' }}</text>
+              <text>到期 {{ line.expiryDate || '未填' }}</text>
+              <text>{{ lineStatusLabel(line) }}</text>
+            </view>
+            <view class="line-stock" :class="{ muted: !stockDeltaText(line) }">{{
+              stockDeltaText(line) ||
+              (line.slotId
+                ? '货道容量待同步'
+                : isPullOffType(line.lineType)
+                  ? '选货道后显示账面 → 下架后数量'
+                  : '选货道后显示账面 → 补后数量')
+            }}</view>
             <view
               v-if="
                 canRequest &&
@@ -418,10 +433,6 @@
                 >
               </view>
               <text v-else class="slot-empty">暂无可用货道，请先腾出容量或将数量调为 0</text>
-            </view>
-            <view class="line-meta">
-              <text>到期 {{ line.expiryDate || '未填' }}</text>
-              <text>{{ lineStatusLabel(line) }}</text>
             </view>
             <view
               v-if="selected?.status !== 'COMPLETED' && line.slotId && slotHint(line)"
@@ -571,6 +582,7 @@ let pendingDeepLink = false;
 const allTasks = ref<Task[]>([]);
 /** taskId → 现场照片张数（列表徽标） */
 const evidenceCountMap = ref<Record<number, number>>({});
+const lineSummaryMap = ref<Record<number, string>>({});
 const devices = ref<Record<string, unknown>[]>([]);
 const skus = ref<Record<string, unknown>[]>([]);
 const detailVisible = ref(false);
@@ -916,6 +928,7 @@ async function load() {
     efficiency.value = eff;
     lowStockList.value = aggregateLowStock(lowStockRows || []);
     void refreshEvidenceCounts(allTasks.value);
+    void refreshLineSummaries(allTasks.value);
 
     // Consume deep link once (扫柜 / 工作台入口)
     let open: Task | undefined;
@@ -1273,6 +1286,26 @@ function evidenceCountOf(taskId?: number) {
   return Number(evidenceCountMap.value[taskId] || 0);
 }
 
+function lineSummaryOf(taskId?: number) {
+  if (!taskId) return '';
+  return String(lineSummaryMap.value[taskId] || '');
+}
+
+function formatLineSummary(rows: Line[]): string {
+  if (!rows.length) return '暂无明细行';
+  const qty = rows.reduce((s, l) => s + Math.max(0, Number(l.quantity) || 0), 0);
+  const pull = rows.filter((l) => isPullOffType(l.lineType)).length;
+  const restock = rows.length - pull;
+  const noExpiry = rows.filter((l) => !String(l.expiryDate || '').trim()).length;
+  const noSlot = rows.filter((l) => !String(l.slotId || '').trim() && !isPullOffType(l.lineType)).length;
+  const parts = [`${rows.length} 行`, `共 ${qty} 件`];
+  if (restock > 0) parts.push(`补货 ${restock}`);
+  if (pull > 0) parts.push(`下架 ${pull}`);
+  if (noSlot > 0) parts.push(`${noSlot} 行待选货道`);
+  if (noExpiry > 0) parts.push(`${noExpiry} 行缺效期`);
+  return parts.join(' · ');
+}
+
 function stockDeltaText(line: Line): string {
   const code = String(line.slotId || '').toUpperCase();
   if (!code) return '';
@@ -1281,14 +1314,38 @@ function stockDeltaText(line: Line): string {
   const qty = Math.max(0, Number(line.quantity) || 0);
   if (isPullOffType(line.lineType)) {
     const after = Math.max(0, cap.bookQty - qty);
-    return `账面 ${cap.bookQty} → 下架后约 ${after}${
+    return `账面 ${cap.bookQty} → 下架后 ${after}${
       cap.maxLevel > 0 ? ` / 容量 ${cap.maxLevel}` : ''
     }`;
   }
   const after = cap.bookQty + qty;
-  return `账面 ${cap.bookQty} → 补后约 ${after}${
+  return `账面 ${cap.bookQty} → 补后 ${after}${
     cap.maxLevel > 0 ? ` / 容量 ${cap.maxLevel}` : ''
   }`;
+}
+
+async function refreshLineSummaries(taskRows: Task[]) {
+  const ids = (taskRows || [])
+    .map((t) => t.taskId)
+    .filter((id) => Number.isFinite(id) && id > 0)
+    .slice(0, 40);
+  if (!ids.length) {
+    lineSummaryMap.value = {};
+    return;
+  }
+  const entries = await Promise.all(
+    ids.map(async (id) => {
+      try {
+        const raw = (await merchantApi.replenishmentTaskLines(id)) as Line[];
+        return [id, formatLineSummary(raw || [])] as const;
+      } catch {
+        return [id, lineSummaryMap.value[id] || ''] as const;
+      }
+    })
+  );
+  const next: Record<number, string> = { ...lineSummaryMap.value };
+  for (const [id, text] of entries) next[id] = text;
+  lineSummaryMap.value = next;
 }
 
 async function refreshEvidenceCounts(taskRows: Task[]) {
@@ -1546,6 +1603,10 @@ async function confirmLines() {
       }))
     )) as Line[];
     linesConfirmed.value = true;
+    lineSummaryMap.value = {
+      ...lineSummaryMap.value,
+      [selected.value.taskId]: formatLineSummary(lines.value)
+    };
     uni.showToast({ title: '清单已确认', icon: 'success' });
   } catch (error) {
     const msg = error instanceof Error ? error.message : '确认失败';
@@ -1944,10 +2005,18 @@ onPullDownRefresh(load);
   justify-content: flex-start;
   flex-wrap: wrap;
 }
+.task-lines {
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: #334155;
+  line-height: 1.45;
+  pointer-events: none;
+}
 .device-name,
 .device-code,
 .status,
 .task-meta,
+.task-lines,
 .task-note {
   pointer-events: none;
 }
@@ -2446,6 +2515,13 @@ onPullDownRefresh(load);
   background: #ecfdf5;
   border-radius: 10rpx;
   padding: 8rpx 12rpx;
+}
+.line-stock.muted {
+  color: #64748b;
+  background: #f8fafc;
+}
+.line-meta.soft {
+  color: #64748b;
 }
 .action-dock {
   position: sticky;

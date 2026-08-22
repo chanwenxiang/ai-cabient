@@ -567,14 +567,14 @@ export function dictLabel(type, code) {
         // 无字典类型时，避免把 SCREAMING_SNAKE 英文码直接露出给用户
         if (code && /^[A-Z][A-Z0-9_]*$/.test(String(code)))
             return '未知';
-        return code || '-';
+        return code || '暂无';
     }
     const hit = map[key] ?? map[code];
     if (hit)
         return hit;
     if (code && /^[A-Z][A-Z0-9_]*$/.test(String(code)))
         return '未知';
-    return code ?? '-';
+    return code ?? '暂无';
 }
 /**
  * 三端 UI 展示用：优先字典中文，绝不把英文枚举码当文案回退（避免 `|| status` 露出 OPEN/PAID）。

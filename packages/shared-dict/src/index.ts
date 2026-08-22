@@ -595,12 +595,12 @@ export function dictLabel(type: DictType | string, code: string | null | undefin
   if (!map) {
     // 无字典类型时，避免把 SCREAMING_SNAKE 英文码直接露出给用户
     if (code && /^[A-Z][A-Z0-9_]*$/.test(String(code))) return '未知';
-    return code || '-';
+    return code || '暂无';
   }
   const hit = map[key] ?? map[code as string];
   if (hit) return hit;
   if (code && /^[A-Z][A-Z0-9_]*$/.test(String(code))) return '未知';
-  return code ?? '-';
+  return code ?? '暂无';
 }
 
 /**

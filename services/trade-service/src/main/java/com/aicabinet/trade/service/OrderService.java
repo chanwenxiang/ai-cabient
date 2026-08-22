@@ -119,8 +119,11 @@ public class OrderService {
                 .limit(2)
                 .map(l -> {
                     String name = l.getSkuName() + " x" + l.getQuantity();
+                    if (l.getSlotId() != null && !l.getSlotId().isBlank()) {
+                        name += " ·货道" + l.getSlotId().trim();
+                    }
                     if (l.getBatchNo() != null && !l.getBatchNo().isBlank()) {
-                        name += " @" + l.getBatchNo();
+                        name += " @" + l.getBatchNo().trim();
                     }
                     return name;
                 })
