@@ -425,13 +425,6 @@ public class OpsExceptionService {
         return repository.findByIdForUpdate(id).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.INVALID_REQUEST));
     }
-    private OpsException requireOpen(String id) {
-        OpsException item = require(id);
-        if ("RESOLVED".equals(item.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "异常已解决，不能继续操作");
-        }
-        return item;
-    }
     private OpsException requireOpenForUpdate(String id) {
         OpsException item = requireForUpdate(id);
         if ("RESOLVED".equals(item.getStatus())) {

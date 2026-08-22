@@ -2,7 +2,6 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.DeviceTempPlanEntryDto;
 import com.aicabinet.trade.client.DeviceServiceClient;
-import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.domain.DeviceTempPlan;
 import com.aicabinet.trade.domain.DeviceTempPlanEntry;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;

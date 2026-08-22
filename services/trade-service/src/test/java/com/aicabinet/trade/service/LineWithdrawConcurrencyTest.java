@@ -2,14 +2,12 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.LineWithdrawRequestDto;
 import com.aicabinet.trade.config.LineWithdrawProperties;
-import com.aicabinet.trade.domain.LineDevice;
 import com.aicabinet.trade.domain.LineManager;
 import com.aicabinet.trade.domain.LineWalletAccount;
 import com.aicabinet.trade.domain.LineWithdrawRequest;
 import com.aicabinet.trade.mapper.LineDeviceMapper;
 import com.aicabinet.trade.mapper.LineManagerMapper;
 import com.aicabinet.trade.mapper.LineWithdrawRequestMapper;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

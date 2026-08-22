@@ -1,6 +1,5 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.domain.OpsException;
 import com.aicabinet.trade.mapper.OpsExceptionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
