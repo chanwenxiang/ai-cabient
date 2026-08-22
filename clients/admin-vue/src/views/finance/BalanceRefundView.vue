@@ -50,7 +50,7 @@ function statusLabel(s?: string) {
     case 'FAILED':
       return '失败';
     default:
-      return s || '未知状态';
+      return '未知状态';
   }
 }
 

@@ -95,7 +95,7 @@
             <el-table-column prop="userId" label="绑定用户" width="110" align="center" />
             <el-table-column
               prop="wxOpenid"
-              label="openid"
+              label="微信 OpenID"
               min-width="140"
               show-overflow-tooltip
               align="center"
@@ -109,7 +109,7 @@
             <el-table-column label="绑柜" min-width="160" show-overflow-tooltip align="center">
               <template #default="{ row }">{{ (row.deviceIds || []).join(', ') || '无' }}</template>
             </el-table-column>
-            <el-table-column prop="commissionRateBps" label="佣金bps" width="90" align="center" />
+            <el-table-column prop="commissionRateBps" label="佣金比例" width="90" align="center" />
             <el-table-column
               prop="commissionFixedCents"
               label="固定分/单"
@@ -119,7 +119,7 @@
             <el-table-column prop="status" label="状态" width="90" align="center">
               <template #default="{ row }">
                 <el-tag size="small" :type="row.status === 'ACTIVE' ? 'success' : 'info'">
-                  {{ dictLabel('line_manager_status', row.status) || row.status || '未知状态' }}
+                  {{ displayLabel('line_manager_status', row.status, '未知状态') }}
                 </el-tag>
               </template>
             </el-table-column>
@@ -139,7 +139,7 @@
                   >调账</el-button
                 >
                 <el-button link @click="showLedgers(row)">流水</el-button>
-                <el-button link @click="showKpi(row)">KPI</el-button>
+                <el-button link @click="showKpi(row)">业绩</el-button>
                 <el-button
                   v-hasPermi="['ops:line-manager:edit']"
                   link
@@ -293,7 +293,7 @@
           <template #empty>
             <el-empty v-if="promoHydrated && !promoLoading" description="暂无地推任务" />
           </template>
-          <el-table-column prop="taskId" label="ID" width="70" />
+          <el-table-column prop="taskId" label="编号" width="70" />
           <el-table-column prop="managerId" label="线长ID" width="90" />
           <el-table-column prop="title" label="任务" min-width="140" show-overflow-tooltip />
           <el-table-column prop="routeCode" label="线路" width="100" />
@@ -318,13 +318,13 @@
         <el-form-item label="姓名" required><el-input v-model="form.managerName" /></el-form-item>
         <el-form-item label="手机" required><el-input v-model="form.phone" /></el-form-item>
         <el-form-item label="组织"><el-input v-model="form.orgName" /></el-form-item>
-        <el-form-item label="openid"
+        <el-form-item label="微信 OpenID"
           ><el-input v-model="form.wxOpenid" placeholder="提现到零钱"
         /></el-form-item>
         <el-form-item label="绑定用户ID"
           ><el-input v-model="form.userId" placeholder="可选，商户小程序 userId"
         /></el-form-item>
-        <el-form-item label="佣金 bps"
+        <el-form-item label="佣金比例（基点）"
           ><el-input-number v-model="form.commissionRateBps" :min="0" :max="5000"
         /></el-form-item>
         <el-form-item label="固定分/单"
@@ -372,7 +372,7 @@
         </template>
         <el-table-column label="类型" width="130" align="center">
           <template #default="{ row }">{{
-            dictLabel('wallet_entry_type', row.entryType) || row.entryType || '未知'
+            displayLabel('wallet_entry_type', row.entryType, '未知')
           }}</template>
         </el-table-column>
         <el-table-column label="变动(元)" width="100" align="center">
@@ -398,13 +398,13 @@
       </el-table>
     </el-drawer>
 
-    <el-drawer v-model="kpiVisible" :title="`线路 KPI · ${kpiTitle}`" size="560px">
+    <el-drawer v-model="kpiVisible" :title="`线路业绩 · ${kpiTitle}`" size="560px">
       <div v-loading="!kpiHydrated" class="kpi-box">
-        <p>GMV ¥{{ yuan(kpi?.gmvCents) }} · 佣金 ¥{{ yuan(kpi?.commissionCents) }}</p>
+        <p>成交总额 ¥{{ yuan(kpi?.gmvCents) }} · 佣金 ¥{{ yuan(kpi?.commissionCents) }}</p>
         <p>绑柜 {{ kpi?.deviceCount ?? 0 }} · 有数天数 {{ kpi?.activeDays ?? 0 }}</p>
         <el-table :data="kpi?.dailies || []" size="small" stripe max-height="360">
           <el-table-column prop="bizDate" label="日期" width="120" />
-          <el-table-column label="GMV" width="100">
+          <el-table-column label="成交总额" width="100">
             <template #default="{ row }">{{ yuan(row.gmvCents) }}</template>
           </el-table-column>
           <el-table-column label="佣金" width="100">
@@ -468,7 +468,7 @@ import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 
@@ -566,7 +566,7 @@ function yuan(cents?: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
 }
 function withdrawStatusLabel(s?: string) {
-  return dictLabel('line_withdraw_status', s) || s || '未知状态';
+  return displayLabel('line_withdraw_status', s, '未知状态');
 }
 
 function promoStatusLabel(s?: string) {

@@ -94,7 +94,7 @@
         <el-form-item label="副标题">
           <el-input v-model="form.subtitle" placeholder="选填，展示在标题下方" />
         </el-form-item>
-        <el-form-item label="图标 emoji">
+        <el-form-item label="图标（表情符号）">
           <el-input v-model="form.coverEmoji" style="width: 120px" />
         </el-form-item>
         <el-form-item label="所需积分" required>

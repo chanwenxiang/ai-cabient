@@ -310,7 +310,7 @@
               :key="e.eventId"
               :timestamp="formatDateTime(e.createdAt)"
             >
-              {{ e.action }}：{{ e.fromStatus || '无' }} → {{ e.toStatus }}
+              {{ eventActionLabel(e.action) }}：{{ eventStatusLabel(e.fromStatus) }} → {{ eventStatusLabel(e.toStatus) }}
               <span v-if="e.remark">（{{ e.remark }}）</span>
             </el-timeline-item>
           </el-timeline>
@@ -359,7 +359,7 @@ import { useNavAccess } from '@/composables/useNavAccess';
 import { useDeviceOptions } from '@/composables/useDeviceOptions';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { displayLabel } from '@aicabinet/shared-dict';
 import { useDictOptions } from '@/composables/useDictOptions';
 
 interface Ticket {
@@ -481,8 +481,29 @@ async function submitAssign() {
   }
 }
 
+const REPAIR_ACTION_LABELS: Record<string, string> = {
+  CREATE: '创建',
+  ASSIGN: '指派',
+  START: '开始处理',
+  UPDATE: '更新',
+  CLOSE: '关闭',
+  CANCEL: '取消',
+  REOPEN: '重开',
+  COMMENT: '备注'
+};
+
+function eventActionLabel(a?: string) {
+  if (!a) return '操作';
+  return REPAIR_ACTION_LABELS[a] || '操作';
+}
+
+function eventStatusLabel(s?: string) {
+  if (!s) return '无';
+  return displayLabel('repair_ticket_status', s, '无');
+}
+
 function statusLabel(s?: string) {
-  return dictLabel('repair_ticket_status', s) || s || '未知状态';
+  return displayLabel('repair_ticket_status', s, '未知状态');
 }
 function statusType(s?: string) {
   return (
@@ -495,10 +516,10 @@ function statusType(s?: string) {
   );
 }
 function priorityLabel(p?: string) {
-  return dictLabel('dispute_priority', p) || p || '未知';
+  return displayLabel('dispute_priority', p, '未知');
 }
 function faultLabel(f?: string) {
-  return dictLabel('repair_fault_type', f) || f || '未知';
+  return displayLabel('repair_fault_type', f, '未知');
 }
 
 async function load() {

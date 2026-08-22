@@ -172,7 +172,7 @@
           <el-table-column label="订单状态" width="90" align="center">
             <template #default="{ row }">
               <el-tag size="small" :type="orderStatusType(row.status)">
-                {{ dictLabel('order_status', row.status) || row.status || '未知状态' }}
+                {{ displayLabel('order_status', row.status, '未知状态') }}
               </el-tag>
             </template>
           </el-table-column>
@@ -193,7 +193,7 @@
           <el-table-column label="支付渠道" width="84" align="center">
             <template #default="{ row }">
               <el-tag size="small" effect="plain">
-                {{ dictLabel('pay_channel', row.payChannel) || row.payChannel || '未知渠道' }}
+                {{ displayLabel('pay_channel', row.payChannel, '未知渠道') }}
               </el-tag>
             </template>
           </el-table-column>
@@ -328,7 +328,7 @@
               >
                 {{ displayBizNo(detail.sessionId, '无') }}
               </button>
-              <span v-else>-</span>
+              <span v-else class="muted">暂无</span>
             </el-descriptions-item>
             <el-descriptions-item label="设备">
               <button
@@ -339,7 +339,7 @@
               >
                 {{ detail.deviceId }}
               </button>
-              <span v-else>-</span>
+              <span v-else class="muted">暂无</span>
             </el-descriptions-item>
             <el-descriptions-item label="状态">
               {{ dictLabel('order_status', detail.status) }}
@@ -361,7 +361,7 @@
               >-¥{{ money(detail.memberDiscountCents) }}</el-descriptions-item
             >
             <el-descriptions-item label="支付渠道">
-              {{ dictLabel('pay_channel', detail.payChannel) || detail.payChannel || '未知渠道' }}
+              {{ displayLabel('pay_channel', detail.payChannel, '未知渠道') }}
             </el-descriptions-item>
             <el-descriptions-item label="流水号">
               <span class="mono">{{
@@ -553,7 +553,7 @@ import {
   Coin
 } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 import { api, downloadAuthFile } from '@/api/client';
 import TableActions, { type TableAction } from '@/components/TableActions.vue';
 import PagePager from '@/components/PagePager.vue';
@@ -674,10 +674,10 @@ const { onExport: exportSelectedCsv } = useListCsv({
       row.userId,
       row.deviceId,
       row.payTradeNo || row.paymentOperationId || '',
-      dictLabel('order_status', row.status) || row.status,
+      displayLabel('order_status', row.status, '未知状态'),
       paymentStatusLabel(row.status),
       refundColumnLabel(row.status),
-      dictLabel('pay_channel', row.payChannel) || row.payChannel || '未知渠道',
+      displayLabel('pay_channel', row.payChannel, '未知渠道'),
       row.inventoryDeducted ? '已扣' : '未扣',
       row.lineSummary || '',
       row.lineCount,
@@ -757,7 +757,7 @@ function refundTagType(s?: string) {
 }
 
 function paymentStatusLabel(s?: string) {
-  return s ? dictLabel('order_status', s) || s : '无';
+  return s ? displayLabel('order_status', s, '未知状态') : '暂无';
 }
 
 function paymentStatusType(s?: string) {

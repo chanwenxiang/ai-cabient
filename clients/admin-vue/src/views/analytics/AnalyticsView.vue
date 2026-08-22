@@ -332,7 +332,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import ChartBox from '@/components/ChartBox.vue';
 import ChartPanel from '@/components/ChartPanel.vue';
@@ -433,7 +433,7 @@ function channelParts(statsList?: ChannelStat[]) {
   return (statsList || []).map((s, i) => {
     const code = String(s.channel || 'UNKNOWN').toUpperCase();
     return {
-      label: dictLabel('pay_channel', code) || CHANNEL_LABELS[code] || code,
+      label: displayLabel('pay_channel', code, CHANNEL_LABELS[code] || '未知'),
       value: s.amountCents || 0,
       count: s.count || 0,
       color: CHANNEL_COLORS[code] || ['#2dd4bf', '#60a5fa', '#a78bfa', '#fbbf24', '#f472b6'][i % 5]

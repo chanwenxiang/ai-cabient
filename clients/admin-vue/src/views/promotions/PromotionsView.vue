@@ -352,7 +352,7 @@ function isEnabled(status?: string) {
   return status === 'ACTIVE';
 }
 function statusLabel(status?: string) {
-  return displayLabel('enable_status', status, '停用');
+  return displayLabel('enable_status', status, '暂无');
 }
 
 function rowActions(row: any): TableAction[] {

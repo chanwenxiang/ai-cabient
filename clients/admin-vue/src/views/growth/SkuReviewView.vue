@@ -74,7 +74,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { useListCsv } from '@/composables/useListCsv';
-import { dictLabel } from '@aicabinet/shared-dict';
+import { dictLabel, displayLabel } from '@aicabinet/shared-dict';
 
 type ReviewRow = {
   id: number;
@@ -194,7 +194,7 @@ async function confirmDelist(row: ReviewRow) {
 }
 
 function perfLabel(level?: string) {
-  return dictLabel('sku_perf_level', level) || '暂无';
+  return displayLabel('sku_perf_level', level, '暂无');
 }
 function perfTag(level?: string) {
   return (
@@ -207,7 +207,7 @@ function perfTag(level?: string) {
   );
 }
 function reviewLabel(status: string) {
-  return dictLabel('sku_review_status', status) || status;
+  return displayLabel('sku_review_status', status, '暂无');
 }
 function reviewTag(status: string) {
   return (

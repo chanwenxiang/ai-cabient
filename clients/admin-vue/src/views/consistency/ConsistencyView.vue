@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">数据一致性</span>
-            <span class="hint">巡检订单金额 / 支付净额 / 柜机库存；FAIL 可显式修复</span>
+            <span class="hint">巡检订单金额 / 支付净额 / 柜机库存；未通过项可显式修复</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -23,11 +23,11 @@
       show-icon
       class="t1-alert"
       title="三端一致性说明"
-      description="默认只记录 FAIL、不自动改数。ORDER_AMOUNT / INVENTORY_MISMATCH 可点「修复」；支付净额偏差请走退款/调账人工处理。"
+      description="默认只记录未通过项、不自动改数。订单金额 / 库存汇总类可点「修复」；支付净额偏差请走退款/调账人工处理。"
     />
 
     <div class="kpi-tags">
-      <el-tag size="small" type="danger">FAIL {{ listHydrated ? failCount : '…' }}</el-tag>
+      <el-tag size="small" type="danger">未通过 {{ listHydrated ? failCount : '…' }}</el-tag>
       <el-tag size="small" type="info">本页 {{ listHydrated ? paged.length : '…' }}</el-tag>
       <el-tag v-if="lastRunAt" size="small" type="success">上次巡检 {{ lastRunAt }}</el-tag>
     </div>
@@ -136,7 +136,7 @@
           </el-table-column>
           <el-table-column label="状态" width="90" align="center">
             <template #default="{ row }">
-              <el-tag size="small" type="danger">{{ row.status }}</el-tag>
+              <el-tag size="small" type="danger">{{ statusLabel(row.status) }}</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="检出时间" width="170" align="center">
@@ -185,7 +185,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
-import { dictLabel, dictOptions } from '@aicabinet/shared-dict';
+import { dictLabel, dictOptions, displayLabel } from '@aicabinet/shared-dict';
 
 type Row = {
   id: number;
@@ -257,8 +257,8 @@ const paged = computed(() => {
 const failCount = computed(() => filtered.value.length);
 
 const emptyText = computed(() => {
-  if (keyword.value.trim() || typeFilter.value.trim()) return '无匹配 FAIL 记录，可清空筛选';
-  return '当前无 FAIL 记录，点击「立即巡检」可再跑一轮';
+  if (keyword.value.trim() || typeFilter.value.trim()) return '无匹配未通过记录，可清空筛选';
+  return '当前无未通过记录，点击「立即巡检」可再跑一轮';
 });
 
 watch([keyword, typeFilter], () => {
@@ -276,7 +276,14 @@ function resetFilters() {
 }
 
 function typeLabel(t: string) {
-  return dictLabel('consistency_check_type', t) || t || '未知';
+  return displayLabel('consistency_check_type', t, '未知类型');
+}
+
+function statusLabel(s: string) {
+  if (s === 'FAIL') return '未通过';
+  if (s === 'PASS') return '通过';
+  if (/^[A-Z][A-Z0-9_]*$/.test(String(s || ''))) return '未知';
+  return s || '暂无';
 }
 
 function typeTag(t: string) {
@@ -340,8 +347,8 @@ async function runCheck() {
     lastRunAt.value = formatDateTime(new Date().toISOString());
     page.value = 1;
     const n = res?.failCount ?? items.value.length;
-    if (n === 0) ElMessage.success('巡检完成：无 FAIL');
-    else ElMessage.warning(`巡检完成：仍有 ${n} 条 FAIL`);
+    if (n === 0) ElMessage.success('巡检完成：全部通过');
+    else ElMessage.warning(`巡检完成：仍有 ${n} 条未通过`);
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : '巡检失败');
   } finally {

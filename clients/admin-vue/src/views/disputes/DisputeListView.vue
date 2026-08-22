@@ -204,7 +204,7 @@
             show-overflow-tooltip
           >
             <template #default="{ row }">
-              {{ dictLabel('dispute_category', row.category) || row.category || '未知' }}
+              {{ displayLabel('dispute_category', row.category, '未知') }}
             </template>
           </el-table-column>
           <el-table-column label="优先级" width="88" align="center">
@@ -214,7 +214,7 @@
                 size="small"
                 :type="row.priority === 'HIGH' || row.priority === 'URGENT' ? 'danger' : 'info'"
               >
-                {{ dictLabel('dispute_priority', row.priority) || row.priority }}
+                {{ displayLabel('dispute_priority', row.priority, '未知') }}
               </el-tag>
               <span v-else class="muted">无</span>
             </template>
@@ -370,7 +370,7 @@
               >
                 {{ displayBizNo(selected.sessionId, '无') }}
               </button>
-              <span v-else>-</span>
+              <span v-else class="muted">暂无</span>
             </el-descriptions-item>
             <el-descriptions-item label="设备">
               <button
@@ -381,7 +381,7 @@
               >
                 {{ selected.deviceId }}
               </button>
-              <span v-else>-</span>
+              <span v-else class="muted">暂无</span>
             </el-descriptions-item>
             <el-descriptions-item label="原因">
               <div class="reason-block">
@@ -651,9 +651,9 @@ const { onExport } = useListCsv({
       row.deviceId,
       row.sessionId,
       row.orderId,
-      dictLabel('dispute_status', row.status),
-      dictLabel('dispute_category', row.category) || row.category,
-      dictLabel('dispute_priority', row.priority) || row.priority,
+      displayLabel('dispute_status', row.status, '未知'),
+      displayLabel('dispute_category', row.category, '未知'),
+      displayLabel('dispute_priority', row.priority, '未知'),
       money(row.billedAmountCents),
       row.reason,
       formatDateTime(row.createdAt),

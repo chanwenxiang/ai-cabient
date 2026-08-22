@@ -376,9 +376,9 @@ const categoryOptions = useDictOptions('category_code');
 const saleTab = ref('ACTIVE');
 
 function categoryLabel(code?: string | null) {
-  if (!code) return '无';
+  if (!code) return '暂无';
   void dictRuntimeEpoch.value;
-  return dictLabel('category_code', code) || code;
+  return displayLabel('category_code', code, '未分类');
 }
 
 /** 下拉值为字典键值（如 FRESH_PRODUCE）；历史数据可能存中文标签「生鲜」 */

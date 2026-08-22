@@ -237,12 +237,12 @@ function resultType(result?: string) {
 }
 
 function resultLabel(result?: string) {
-  return { SUCCESS: '成功', FAILED: '失败', SKIPPED: '跳过' }[result || ''] || result || '暂无';
+  return { SUCCESS: '成功', FAILED: '失败', SKIPPED: '跳过' }[result || ''] || '未知';
 }
 
 function formatDuration(ms: number) {
-  if (ms < 1000) return `${ms} ms`;
-  return `${(ms / 1000).toFixed(1)} s`;
+  if (ms < 1000) return `${ms} 毫秒`;
+  return `${(ms / 1000).toFixed(1)} 秒`;
 }
 
 function search() {

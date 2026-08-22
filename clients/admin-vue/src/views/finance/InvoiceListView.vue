@@ -48,7 +48,7 @@ function statusLabel(s?: string) {
     case 'REJECTED':
       return '已驳回'
     default:
-      return s || ''
+      return s ? '未知状态' : '暂无'
   }
 }
 
