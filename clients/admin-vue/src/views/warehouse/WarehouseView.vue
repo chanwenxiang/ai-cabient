@@ -385,26 +385,26 @@
                         (l: any) =>
                           `${skuName(l.skuId) || l.skuId}×${l.quantity}${l.batchNo ? '(' + l.batchNo + ')' : ''}`
                       )
-                      .join(' · ') || '—'
+                      .join(' · ') || ''
                   }}
                 </template>
               </el-table-column>
               <el-table-column label="发运" width="150" align="center">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{
-                    row.shippedAt ? formatDateTime(row.shippedAt) : '—'
+                    row.shippedAt ? formatDateTime(row.shippedAt) : ''
                   }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="收货" width="150" align="center">
                 <template #default="{ row }">
                   <span class="cell-datetime">{{
-                    row.receivedAt ? formatDateTime(row.receivedAt) : '—'
+                    row.receivedAt ? formatDateTime(row.receivedAt) : ''
                   }}</span>
                 </template>
               </el-table-column>
               <el-table-column label="备注" min-width="100" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.notes || '—' }}</template>
+                <template #default="{ row }">{{ row.notes || '' }}</template>
               </el-table-column>
               <el-table-column v-if="canWarehouseEdit" label="操作" width="200" align="center">
                 <template #default="{ row }">
@@ -678,7 +678,7 @@
                   <span v-else-if="Number(row.trendPerDay ?? 0) < 0" class="trend-down">{{
                     Number(row.trendPerDay).toFixed(2)
                   }}</span>
-                  <span v-else>—</span>
+                  <span v-else>暂无</span>
                 </template>
               </el-table-column>
               <el-table-column label="仓库库存" prop="onHandQty" min-width="88" align="center" />
@@ -845,7 +845,7 @@
                 </template>
               </el-table-column>
               <el-table-column label="到期日" min-width="110" align="center">
-                <template #default="{ row }">{{ row.dueDate || '—' }}</template>
+                <template #default="{ row }">{{ row.dueDate || '暂无' }}</template>
               </el-table-column>
               <el-table-column label="状态" min-width="100" align="center">
                 <template #default="{ row }">
@@ -964,7 +964,7 @@
               </template>
             </el-table-column>
             <el-table-column prop="binName" label="货位名称" min-width="140" align="center">
-              <template #default="{ row }">{{ row.binName || '—' }}</template>
+              <template #default="{ row }">{{ row.binName || '暂无' }}</template>
             </el-table-column>
             <el-table-column label="仓库" min-width="140" align="center">
               <template #default="{ row }">{{ row.warehouseName }}</template>
@@ -1506,7 +1506,7 @@
               size="small"
               controls-position="right"
             />
-            <span v-else>{{ row.countedQty ?? '—' }}</span>
+            <span v-else>{{ row.countedQty ?? '暂无' }}</span>
           </template>
         </el-table-column>
         <el-table-column label="差异" min-width="80" align="center">
@@ -1837,7 +1837,7 @@
           </el-table-column>
           <el-table-column prop="batchNo" label="批次" min-width="120" align="center" />
           <el-table-column prop="expiryDate" label="到期日" width="110" align="center">
-            <template #default="{ row }">{{ row.expiryDate || '—' }}</template>
+            <template #default="{ row }">{{ row.expiryDate || '暂无' }}</template>
           </el-table-column>
           <el-table-column prop="orderedQty" label="采购数" width="90" align="center" />
           <el-table-column label="待收" width="80" align="center">
@@ -1892,7 +1892,7 @@
           </el-select>
         </el-form-item>
         <el-form-item label="SKU" required>
-          <el-input v-model="transferForm.skuId" placeholder="skuId" />
+          <el-input v-model="transferForm.skuId" placeholder="商品 SKU" />
         </el-form-item>
         <el-form-item label="批次">
           <el-input v-model="transferForm.batchNo" placeholder="可空" />
@@ -1949,12 +1949,12 @@
             </el-table-column>
             <el-table-column prop="batchNo" label="批次" min-width="120" align="center" />
             <el-table-column prop="expiryDate" label="到期日" width="110" align="center">
-              <template #default="{ row }">{{ row.expiryDate || '—' }}</template>
+              <template #default="{ row }">{{ row.expiryDate || '暂无' }}</template>
             </el-table-column>
             <el-table-column prop="receivedQty" label="已收" width="80" align="center" />
             <el-table-column prop="returnedQty" label="已退" width="80" align="center" />
             <el-table-column label="可退" width="72" align="center">
-              <template #default="{ row }">{{ row.maxQty ?? '—' }}</template>
+              <template #default="{ row }">{{ row.maxQty ?? '暂无' }}</template>
             </el-table-column>
             <el-table-column label="本次退货" width="150" align="center">
               <template #default="{ row }">
@@ -2889,7 +2889,7 @@ function warehouseName(id: string) {
   return warehouses.value.find((w) => w.warehouseId === id)?.warehouseName || id || '无';
 }
 function transferStatusLabel(status?: string) {
-  if (!status) return '—';
+  if (!status) return '';
   return (
     {
       DRAFT: '草稿',
@@ -2906,10 +2906,10 @@ function skuName(id: string) {
   return skus.value.find((s) => s.skuId === id)?.skuName || id || '无';
 }
 function suggestionReasonText(code: string) {
-  return dictLabel('purchase_suggestion_reason', code) || code || '—';
+  return dictLabel('purchase_suggestion_reason', code) || code || '暂无';
 }
 function payableStatusText(code: string) {
-  return dictLabel('supplier_payable_status', code) || code || '—';
+  return dictLabel('supplier_payable_status', code) || code || '暂无';
 }
 function payableStatusType(code: string) {
   const map: Record<string, string> = {
@@ -2924,7 +2924,7 @@ function stocktakeModeText(mode: string) {
   return dictLabel('stocktake_mode', mode) || mode;
 }
 function stocktakeStatusText(code: string) {
-  return dictLabel('stocktake_status', code) || code || '—';
+  return dictLabel('stocktake_status', code) || code || '暂无';
 }
 function stocktakeStatusType(code: string) {
   const map: Record<string, string> = {
@@ -2937,7 +2937,7 @@ function stocktakeStatusType(code: string) {
   return map[code] || 'info';
 }
 function stocktakeLineStatusText(code: string) {
-  return dictLabel('stocktake_line_status', code) || code || '—';
+  return dictLabel('stocktake_line_status', code) || code || '暂无';
 }
 function stocktakeLineStatusType(code: string) {
   const map: Record<string, string> = {

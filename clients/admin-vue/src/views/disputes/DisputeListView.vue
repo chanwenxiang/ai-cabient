@@ -464,7 +464,7 @@
                 <template #default="{ row }">¥{{ money(row.lineAmountCents) }}</template>
               </el-table-column>
               <el-table-column prop="slotId" label="货道" width="72" align="center">
-                <template #default="{ row }">{{ row.slotId || '—' }}</template>
+                <template #default="{ row }">{{ row.slotId || '暂无' }}</template>
               </el-table-column>
             </el-table>
           </div>

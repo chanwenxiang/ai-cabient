@@ -18,21 +18,21 @@
     <div class="profile-head">
       <el-avatar :size="64" class="avatar">{{ initial }}</el-avatar>
       <div class="name-cell">
-        <strong class="display-name">{{ profileReady ? auth.displayName : '—' }}</strong>
-        <small>{{ profileReady ? auth.phone || '无' : '—' }}</small>
-        <small class="cell-id">ID {{ profileReady ? auth.userId || '无' : '—' }}</small>
+        <strong class="display-name">{{ profileReady ? auth.displayName : '…' }}</strong>
+        <small>{{ profileReady ? auth.phone || '无' : '…' }}</small>
+        <small class="cell-id">ID {{ profileReady ? auth.userId || '无' : '…' }}</small>
       </div>
     </div>
 
     <el-descriptions :column="1" border class="profile-desc">
       <el-descriptions-item label="角色">{{
-        profileReady ? auth.roleText : '—'
+        profileReady ? auth.roleText : '…'
       }}</el-descriptions-item>
       <el-descriptions-item label="数据范围">{{
-        profileReady ? auth.dataScopeText : '—'
+        profileReady ? auth.dataScopeText : '…'
       }}</el-descriptions-item>
       <el-descriptions-item label="权限数">
-        {{ profileReady ? (auth.profile?.permissionCount ?? permissions.length) : '—' }}
+        {{ profileReady ? (auth.profile?.permissionCount ?? permissions.length) : '暂无' }}
       </el-descriptions-item>
       <el-descriptions-item label="主题">
         <el-tag size="small" :type="settings.theme === 'dark' ? 'info' : 'success'" effect="plain">

@@ -19,17 +19,17 @@
     <section class="bs-kpis">
       <div class="bs-kpi">
         <div class="bs-kpi-label">在售柜</div>
-        <div class="bs-kpi-value">{{ workbench?.devicesOnSale ?? '—' }}</div>
+        <div class="bs-kpi-value">{{ workbench?.devicesOnSale ?? '暂无' }}</div>
         <div class="bs-kpi-hint">锁机 {{ workbench?.devicesSalesLocked ?? 0 }}</div>
       </div>
       <div class="bs-kpi">
         <div class="bs-kpi-label">离线柜</div>
-        <div class="bs-kpi-value warn">{{ workbench?.offlineDevices ?? '—' }}</div>
+        <div class="bs-kpi-value warn">{{ workbench?.offlineDevices ?? '暂无' }}</div>
         <div class="bs-kpi-hint">在线率 {{ pct(sla?.deviceOnlineRate) }}</div>
       </div>
       <div class="bs-kpi">
         <div class="bs-kpi-label">今日订单</div>
-        <div class="bs-kpi-value">{{ stats?.orderToday ?? '—' }}</div>
+        <div class="bs-kpi-value">{{ stats?.orderToday ?? '暂无' }}</div>
         <div class="bs-kpi-hint">累计 {{ stats?.orderTotal ?? 0 }}</div>
       </div>
       <div class="bs-kpi">
@@ -54,7 +54,7 @@
       </div>
       <div class="bs-kpi">
         <div class="bs-kpi-label">待处理争议</div>
-        <div class="bs-kpi-value warn">{{ workbench?.openDisputes ?? '—' }}</div>
+        <div class="bs-kpi-value warn">{{ workbench?.openDisputes ?? '暂无' }}</div>
         <div class="bs-kpi-hint">逾期 {{ workbench?.overdueDisputes ?? 0 }}</div>
       </div>
     </section>
@@ -95,9 +95,9 @@
           </svg>
           <div v-else class="bs-empty">暂无趋势数据</div>
           <div class="bs-line-labels">
-            <span>{{ trendDates[0] || '—' }}</span>
+            <span>{{ trendDates[0] || '暂无' }}</span>
             <span>{{ trendDates[Math.floor(trendDates.length / 2)] || '' }}</span>
-            <span>{{ trendDates[trendDates.length - 1] || '—' }}</span>
+            <span>{{ trendDates[trendDates.length - 1] || '暂无' }}</span>
           </div>
         </div>
       </div>
@@ -110,7 +110,7 @@
             <div class="bs-action-main">
               <div class="bs-action-title">{{ item.title }}</div>
               <div class="bs-action-sub">
-                {{ item.deviceId || displayBizNo(item.sessionId, '') || item.detail || '—' }}
+                {{ item.deviceId || displayBizNo(item.sessionId, '') || item.detail || '暂无' }}
               </div>
             </div>
           </div>
@@ -194,7 +194,12 @@
             <span>人工解锁</span><b>{{ kpi?.manualUnlockCount ?? 0 }}</b>
           </div>
           <div class="bs-row">
-            <span>人工介入率</span><b>{{ pct(kpi?.manualInterventionRate) }}</b>
+            <span>人工介入率</span>
+            <b>{{
+              (kpi?.autoUnlockCount ?? 0) + (kpi?.manualUnlockCount ?? 0) > 0
+                ? pct(kpi?.manualInterventionRate ?? 0)
+                : '无解锁'
+            }}</b>
           </div>
           <div class="bs-row">
             <span>平均恢复时长</span><b>{{ hours(kpi?.avgRecoverHours) }}</b>
@@ -448,19 +453,19 @@ const risks = computed(() => [
 ]);
 
 function yuan(cents?: number | null) {
-  if (cents == null) return '—';
+  if (cents == null) return '暂无';
   return `¥${(cents / 100).toFixed(2)}`;
 }
 function pct(v?: number | null) {
-  if (v == null) return '—';
+  if (v == null) return '未统计';
   return `${(v * 100).toFixed(1)}%`;
 }
 function ms(v?: number | null) {
-  if (v == null) return '—';
+  if (v == null) return '未统计';
   return `${v}ms`;
 }
 function hours(v?: number | null) {
-  if (v == null) return '—';
+  if (v == null) return '未统计';
   return `${v.toFixed(1)}h`;
 }
 function barWidth(ch: ChannelStat) {
@@ -673,6 +678,7 @@ onBeforeUnmount(() => {
 }
 .bs-row b {
   color: var(--layout-text);
+  font-variant-numeric: tabular-nums;
 }
 .bs-row b.good {
   color: var(--app-primary, #0f766e);

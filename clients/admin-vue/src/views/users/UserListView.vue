@@ -118,7 +118,7 @@
           <el-table-column label="黑名单" width="96" align="center">
             <template #default="{ row }">
               <el-tag v-if="row.blacklisted" size="small" type="danger">已拉黑</el-tag>
-              <span v-else class="muted">—</span>
+              <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
           <el-table-column label="注册时间" width="168" align="center" class-name="col-text">

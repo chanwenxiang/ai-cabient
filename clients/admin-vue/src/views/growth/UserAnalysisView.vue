@@ -24,32 +24,32 @@
     <div v-loading="loading" class="kpi-grid">
       <div class="kpi-card">
         <text class="kpi-label">活跃用户</text>
-        <text class="kpi-value">{{ s?.activeUsers7d ?? '—' }}</text>
-        <text class="kpi-sub">30 天 {{ s?.activeUsers30d ?? '—' }}</text>
+        <text class="kpi-value">{{ s?.activeUsers7d ?? '暂无' }}</text>
+        <text class="kpi-sub">30 天 {{ s?.activeUsers30d ?? '暂无' }}</text>
       </div>
       <div class="kpi-card">
         <text class="kpi-label">新增用户</text>
-        <text class="kpi-value">{{ s?.newUsers7d ?? '—' }}</text>
-        <text class="kpi-sub">30 天 {{ s?.newUsers30d ?? '—' }}</text>
+        <text class="kpi-value">{{ s?.newUsers7d ?? '暂无' }}</text>
+        <text class="kpi-sub">30 天 {{ s?.newUsers30d ?? '暂无' }}</text>
       </div>
       <div class="kpi-card">
         <text class="kpi-label">复购用户</text>
-        <text class="kpi-value">{{ s?.repeatBuyer7d ?? '—' }}</text>
+        <text class="kpi-value">{{ s?.repeatBuyer7d ?? '暂无' }}</text>
         <text class="kpi-sub">复购率 {{ pct(s?.repeatPurchaseRate7d) }}</text>
       </div>
       <div class="kpi-card">
         <text class="kpi-label">沉睡用户(30-90天)</text>
-        <text class="kpi-value warn">{{ s?.dormantUsers30d ?? '—' }}</text>
+        <text class="kpi-value warn">{{ s?.dormantUsers30d ?? '暂无' }}</text>
         <text class="kpi-sub">近 30 天无消费</text>
       </div>
       <div class="kpi-card">
         <text class="kpi-label">累计用户</text>
-        <text class="kpi-value">{{ s?.totalUsers ?? '—' }}</text>
+        <text class="kpi-value">{{ s?.totalUsers ?? '暂无' }}</text>
         <text class="kpi-sub">有订单用户</text>
       </div>
       <div class="kpi-card">
         <text class="kpi-label">订单 / 营收</text>
-        <text class="kpi-value">{{ s?.totalOrders ?? '—' }}</text>
+        <text class="kpi-value">{{ s?.totalOrders ?? '暂无' }}</text>
         <text class="kpi-sub">{{ yuan(s?.totalRevenueCents) }}</text>
       </div>
       <div class="kpi-card">
@@ -65,7 +65,7 @@
         <el-table :data="s?.topRepeatBuyers || []" size="small" empty-text="暂无数据">
           <el-table-column prop="userId" label="用户ID" width="100" align="center" />
           <el-table-column label="姓名/手机" min-width="120">
-            <template #default="{ row }">{{ row.name || row.phone || '—' }}</template>
+            <template #default="{ row }">{{ row.name || row.phone || '暂无' }}</template>
           </el-table-column>
           <el-table-column prop="orderCount" label="订单数" width="80" align="center" />
           <el-table-column label="累计消费" width="110" align="center">
@@ -100,7 +100,7 @@
         <el-table :data="s?.dormantUsers || []" size="small" empty-text="暂无数据">
           <el-table-column prop="userId" label="用户ID" width="100" align="center" />
           <el-table-column label="姓名/手机" min-width="120">
-            <template #default="{ row }">{{ row.name || row.phone || '—' }}</template>
+            <template #default="{ row }">{{ row.name || row.phone || '暂无' }}</template>
           </el-table-column>
           <el-table-column prop="orderCount" label="累计订单" width="90" align="center" />
           <el-table-column label="上次消费" width="140" align="center">
@@ -283,11 +283,11 @@ async function doRecall() {
 }
 
 function pct(v?: number) {
-  if (v == null || !Number.isFinite(v)) return '—';
+  if (v == null || !Number.isFinite(v)) return '暂无';
   return `${(v * 100).toFixed(1)}%`;
 }
 function yuan(cents?: number) {
-  if (cents == null) return '—';
+  if (cents == null) return '暂无';
   return `¥${(cents / 100).toFixed(2)}`;
 }
 function avgTicket(row: {
@@ -296,7 +296,7 @@ function avgTicket(row: {
   totalSpent?: number;
 }) {
   const n = Number(row.orderCount || 0);
-  if (n <= 0) return '—';
+  if (n <= 0) return '暂无';
   const cents =
     row.totalSpentCents != null
       ? Number(row.totalSpentCents)
@@ -304,9 +304,9 @@ function avgTicket(row: {
   return yuan(Math.round(cents / n));
 }
 function lastTime(value?: string | number | null) {
-  if (value == null || value === '') return '—';
+  if (value == null || value === '') return '暂无';
   const d = typeof value === 'number' ? new Date(value) : new Date(String(value));
-  if (Number.isNaN(d.getTime())) return '—';
+  if (Number.isNaN(d.getTime())) return '暂无';
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate()
   ).padStart(2, '0')}`;

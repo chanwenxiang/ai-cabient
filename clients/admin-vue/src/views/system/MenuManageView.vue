@@ -261,7 +261,7 @@ function typeTag(t: string) {
 
 function parentOptionLabel(p: PermRow) {
   const depth = depthMap.value.get(p.permissionId) ?? 0;
-  return `${'— '.repeat(depth)}[${typeText(p.permType)}] ${p.permName} (${p.permCode})`;
+  return `${'· '.repeat(depth)}[${typeText(p.permType)}] ${p.permName} (${p.permCode})`;
 }
 
 function menuActions(row: PermRow): TableAction[] {

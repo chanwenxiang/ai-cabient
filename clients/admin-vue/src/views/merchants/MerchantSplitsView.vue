@@ -218,16 +218,16 @@
               </el-table-column>
               <el-table-column label="联系人" min-width="100" align="center" show-overflow-tooltip>
                 <template #default="{ row }">{{
-                  row.alertContactName || row.contactName || '—'
+                  row.alertContactName || row.contactName || '暂无'
                 }}</template>
               </el-table-column>
               <el-table-column label="电话" width="120" align="center">
                 <template #default="{ row }">{{
-                  row.contactPhone || row.alertContactPhone || '—'
+                  row.contactPhone || row.alertContactPhone || '暂无'
                 }}</template>
               </el-table-column>
               <el-table-column label="备注" min-width="100" align="center" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.remark || '—' }}</template>
+                <template #default="{ row }">{{ row.remark || '暂无' }}</template>
               </el-table-column>
             </el-table>
           </div>
@@ -337,7 +337,7 @@
         <el-table :data="roleTemplates" stripe border>
           <el-table-column prop="templateName" label="岗位" width="120" align="center" />
           <el-table-column prop="templateCode" label="编码" width="120" align="center">
-            <template #default="{ row }">{{ row.templateCode || row.code || '—' }}</template>
+            <template #default="{ row }">{{ row.templateCode || row.code || '暂无' }}</template>
           </el-table-column>
           <el-table-column prop="description" label="说明" min-width="200" align="center" />
           <el-table-column
@@ -352,7 +352,7 @@
               {{
                 Array.isArray(row.permissions)
                   ? row.permissions.length
-                  : row.permissionCount ?? '—'
+                  : row.permissionCount ?? '暂无'
               }}
             </template>
           </el-table-column>
@@ -486,10 +486,10 @@
                 <template #default="{ row }">¥{{ money(row.grossCents) }}</template>
               </el-table-column>
               <el-table-column label="设备" min-width="100" align="center" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.deviceId || '—' }}</template>
+                <template #default="{ row }">{{ row.deviceId || '暂无' }}</template>
               </el-table-column>
               <el-table-column label="结算批次" min-width="110" align="center" show-overflow-tooltip>
-                <template #default="{ row }">{{ row.settlementBatchNo || '—' }}</template>
+                <template #default="{ row }">{{ row.settlementBatchNo || '暂无' }}</template>
               </el-table-column>
               <el-table-column label="状态" width="120" align="center">
                 <template #default="{ row }">
@@ -517,7 +517,7 @@
                   <span v-if="row.settledAt" class="cell-datetime">{{
                     formatDateTime(row.settledAt)
                   }}</span>
-                  <span v-else class="muted">—</span>
+                  <span v-else class="muted">暂无</span>
                 </template>
               </el-table-column>
               <el-table-column

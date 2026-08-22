@@ -90,11 +90,10 @@ public class DeviceAvailabilityKpiService {
         row.setAvgRecoverHours(exceptionRepository
                 .avgResolutionHoursByExceptionTypeAndCreatedAtBetween("DEVICE_OFFLINE", start, end));
 
-        int auto = row.getAutoUnlockCount();
-        int manual = row.getManualUnlockCount();
-        if (auto + manual > 0) {
-            row.setManualInterventionRate((double) manual / (auto + manual));
-        }
+        int auto = row.getAutoUnlockCount() == null ? 0 : row.getAutoUnlockCount();
+        int manual = row.getManualUnlockCount() == null ? 0 : row.getManualUnlockCount();
+        // 无解锁样本时记 0，避免前端出现空值/破折号；有样本则人工占比
+        row.setManualInterventionRate(auto + manual > 0 ? (double) manual / (auto + manual) : 0d);
         return row;
     }
 

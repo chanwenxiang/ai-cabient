@@ -104,13 +104,13 @@
           <el-table-column prop="address" label="地址" min-width="150" show-overflow-tooltip />
           <el-table-column prop="landlordName" label="场地主" width="100" />
           <el-table-column label="联系电话" width="120" align="center">
-            <template #default="{ row }">{{ row.landlordPhone || '—' }}</template>
+            <template #default="{ row }">{{ row.landlordPhone || '暂无' }}</template>
           </el-table-column>
           <el-table-column label="月费" width="100" align="center">
             <template #default="{ row }">¥{{ (row.monthlyFeeCents / 100).toFixed(2) }}</template>
           </el-table-column>
           <el-table-column label="起租" width="110" align="center">
-            <template #default="{ row }">{{ row.startDate || '—' }}</template>
+            <template #default="{ row }">{{ row.startDate || '暂无' }}</template>
           </el-table-column>
           <el-table-column label="到期" width="110" align="center">
             <template #default="{ row }">{{ row.endDate || '不限' }}</template>
@@ -123,7 +123,7 @@
             </template>
           </el-table-column>
           <el-table-column label="备注" min-width="100" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.remark || '—' }}</template>
+            <template #default="{ row }">{{ row.remark || '暂无' }}</template>
           </el-table-column>
           <el-table-column label="操作" width="220" align="center">
             <template #default="{ row }">
@@ -277,7 +277,7 @@
         type="info"
         :closable="false"
         show-icon
-        title="份额合计须为 10000bps（100%）；可填生效区间与固定金额"
+        title="份额合计须为 100%（按万分比填写，合计 10000）；可填生效区间与固定金额（分）"
         style="margin-bottom: 12px"
       />
       <div v-for="(r, idx) in rentRules" :key="idx" class="rent-row">
@@ -288,17 +288,29 @@
           <el-option label="加盟" value="FRANCHISE" />
           <el-option label="其他" value="OTHER" />
         </el-select>
-        <el-input v-model="r.partyId" placeholder="partyId" style="width: 110px" />
+        <el-input v-model="r.partyId" placeholder="对方 ID" style="width: 110px" />
         <el-input-number v-model="r.shareBps" :min="0" :max="10000" controls-position="right" />
         <el-input-number
           v-model="r.fixedCents"
           :min="0"
           :step="100"
           controls-position="right"
-          placeholder="固定分"
+          placeholder="固定金额(分)"
         />
-        <input v-model="r.effectiveFrom" class="native-date" type="date" title="生效起" />
-        <input v-model="r.effectiveTo" class="native-date" type="date" title="生效止" />
+        <el-date-picker
+          v-model="r.effectiveFrom"
+          type="date"
+          value-format="YYYY-MM-DD"
+          placeholder="生效起"
+          style="width: 130px"
+        />
+        <el-date-picker
+          v-model="r.effectiveTo"
+          type="date"
+          value-format="YYYY-MM-DD"
+          placeholder="生效止"
+          style="width: 130px"
+        />
         <el-select v-model="r.status" style="width: 90px">
           <el-option label="生效" value="ACTIVE" />
           <el-option label="停用" value="INACTIVE" />
@@ -719,13 +731,5 @@ function contractStatusType(s: string) {
   gap: 8px;
   align-items: center;
   margin-bottom: 8px;
-}
-.native-date {
-  height: 32px;
-  padding: 0 8px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 4px;
-  background: var(--el-bg-color);
-  color: inherit;
 }
 </style>

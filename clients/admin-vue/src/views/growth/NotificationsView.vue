@@ -181,7 +181,7 @@ async function doSend() {
 }
 
 function formatTime(t?: string) {
-  if (!t) return '—';
+  if (!t) return '暂无';
   const d = new Date(t);
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(

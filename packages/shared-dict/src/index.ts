@@ -609,12 +609,12 @@ export function dictLabel(type: DictType | string, code: string | null | undefin
 export function displayLabel(
   type: DictType | string,
   code: string | null | undefined,
-  empty = '-'
+  empty = '暂无'
 ): string {
   if (code == null || String(code).trim() === '') return empty;
   const label = dictLabel(type, code);
-  if (!label || label === '-') return empty;
-  if (/^[A-Z][A-Z0-9_]*$/.test(label)) return empty === '-' ? '未知' : empty;
+  if (!label || label === '-' || label === '—') return empty;
+  if (/^[A-Z][A-Z0-9_]*$/.test(label)) return empty === '暂无' || empty === '-' ? '未知' : empty;
   return label;
 }
 
@@ -783,28 +783,28 @@ const AUDIT_DETAIL_KEY_LABELS: Record<string, string> = {
 };
 
 export function auditActionLabel(action?: string | null): string {
-  if (!action) return '-';
+  if (!action) return '暂无';
   const hit = AUDIT_ACTION_LABELS[action];
   if (hit) return hit;
   const ops = (DICT.ops_exception_action as Record<string, string>)[action];
   if (ops) return ops;
-  if (/^[A-Z][A-Z0-9_]*$/.test(action)) return `其他操作（${action}）`;
+  if (/^[A-Z][A-Z0-9_]*$/.test(action)) return '其他操作';
   return action;
 }
 
 export function auditTargetLabel(type?: string | null): string {
-  if (!type) return '-';
+  if (!type) return '暂无';
   const hit = AUDIT_TARGET_LABELS[type];
   if (hit) return hit;
-  if (/^[A-Z][A-Z0-9_]*$/.test(type)) return `其他对象（${type}）`;
+  if (/^[A-Z][A-Z0-9_]*$/.test(type)) return '其他对象';
   return type;
 }
 
 /** 审计/异常操作 detail：英文键值对 → 中文说明 */
 export function formatOpsActionDetail(detail: string | null | undefined): string {
-  if (!detail) return '-';
+  if (!detail) return '暂无';
   let text = detail.trim();
-  if (!text) return '-';
+  if (!text) return '暂无';
 
   text = text.replace(/\bsales-lock\b/gi, '营业锁');
   text = text.replace(/\bops collect\b/gi, '运营代收');

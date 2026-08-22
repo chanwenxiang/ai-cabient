@@ -141,16 +141,20 @@
           <el-table-column label="预授权" width="110" align="center">
             <template #default="{ row }">
               <span v-if="row.preauthCents">¥{{ (Number(row.preauthCents) / 100).toFixed(2) }}</span>
-              <span v-else class="muted">—</span>
-              <div v-if="row.preauthStatus && row.preauthStatus !== 'NONE'" class="muted tiny">
-                {{ row.preauthStatus }}
+              <div
+                v-if="preauthStatusLabel(row.preauthStatus)"
+                class="muted tiny"
+              >
+                {{ preauthStatusLabel(row.preauthStatus) }}
               </div>
             </template>
           </el-table-column>
           <el-table-column label="购物/识别" width="120" align="center">
             <template #default="{ row }">
               <div>{{ formatDurationMs(row.shoppingDurationMs) }}</div>
-              <div class="muted tiny">识 {{ formatDurationMs(row.recognitionDurationMs) }}</div>
+              <div v-if="formatDurationMs(row.recognitionDurationMs)" class="muted tiny">
+                识 {{ formatDurationMs(row.recognitionDurationMs) }}
+              </div>
             </template>
           </el-table-column>
           <el-table-column label="录像" width="88" align="center">
@@ -331,7 +335,7 @@
             {{ formatDateTime(timelineRow.openTime || timelineRow.createdAt) }}
           </el-descriptions-item>
           <el-descriptions-item label="关门">
-            {{ timelineRow.closeTime ? formatDateTime(timelineRow.closeTime) : '—' }}
+            {{ timelineRow.closeTime ? formatDateTime(timelineRow.closeTime) : '' }}
           </el-descriptions-item>
         </el-descriptions>
         <el-timeline>
@@ -599,7 +603,7 @@ function formatAge(ms: number) {
 function formatDuration(row: SessionRow) {
   const start = row.openTime || row.createdAt;
   const end = row.closeTime || row.updatedAt;
-  if (!start || !end) return '—';
+  if (!start || !end) return '';
   const sec = Math.max(0, Math.floor((new Date(end).getTime() - new Date(start).getTime()) / 1000));
   if (sec < 60) return `${sec}s`;
   return `${Math.floor(sec / 60)}m${sec % 60}s`;
@@ -610,8 +614,24 @@ function failReasonText(row: SessionRow) {
   return text || '无';
 }
 
+function preauthStatusLabel(status?: string) {
+  const s = String(status || '').toUpperCase();
+  if (!s || s === 'NONE') return '';
+  return (
+    (
+      {
+        PENDING: '待确认',
+        AUTHORIZED: '已授权',
+        CAPTURED: '已扣款',
+        RELEASED: '已释放',
+        FAILED: '失败'
+      } as Record<string, string>
+    )[s] || s
+  );
+}
+
 function formatDurationMs(ms?: number | null) {
-  if (ms == null || !Number.isFinite(ms) || ms < 0) return '—';
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return '';
   if (ms < 1000) return `${Math.round(ms)}ms`;
   const sec = ms / 1000;
   if (sec < 60) return `${sec.toFixed(1)}s`;

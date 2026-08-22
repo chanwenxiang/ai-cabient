@@ -62,7 +62,7 @@
             }}</template>
           </el-table-column>
           <el-table-column label="调度说明" width="130" align="center">
-            <template #default="{ row }">{{ row.scheduleDesc || '—' }}</template>
+            <template #default="{ row }">{{ row.scheduleDesc || '暂无' }}</template>
           </el-table-column>
           <el-table-column label="状态" width="110" align="center">
             <template #default="{ row }">
@@ -97,10 +97,10 @@
             align="center"
             show-overflow-tooltip
           >
-            <template #default="{ row }">{{ row.lastMessage || '—' }}</template>
+            <template #default="{ row }">{{ row.lastMessage || '暂无' }}</template>
           </el-table-column>
           <el-table-column label="备注" min-width="220" align="center" show-overflow-tooltip>
-            <template #default="{ row }">{{ row.remark || '—' }}</template>
+            <template #default="{ row }">{{ row.remark || '暂无' }}</template>
           </el-table-column>
           <el-table-column label="操作" width="190" align="center" class-name="col-action">
             <template #default="{ row }">
@@ -115,7 +115,7 @@
                 立即执行
               </el-button>
               <el-button v-if="canEdit" size="small" plain @click="openRemark(row)">备注</el-button>
-              <span v-if="!canRun && !canEdit" class="cell-hint">—</span>
+              <span v-if="!canRun && !canEdit" class="cell-hint">暂无</span>
             </template>
           </el-table-column>
         </el-table>
@@ -237,7 +237,7 @@ function resultType(result?: string) {
 }
 
 function resultLabel(result?: string) {
-  return { SUCCESS: '成功', FAILED: '失败', SKIPPED: '跳过' }[result || ''] || result || '—';
+  return { SUCCESS: '成功', FAILED: '失败', SKIPPED: '跳过' }[result || ''] || result || '暂无';
 }
 
 function formatDuration(ms: number) {

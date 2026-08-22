@@ -91,7 +91,7 @@
       :title="
         listHydrated
           ? `本页 ${displayItems.length} 条超时未付（账龄 ≥ 30 分钟，按创建时间新→旧）`
-          : '超时未付 — 加载中…'
+          : '超时未付 加载中…'
       "
     />
 
@@ -234,7 +234,7 @@
                     共 {{ disp.total }} 件
                   </div>
                 </template>
-                <span v-else class="muted">—</span>
+                <span v-else class="muted">暂无</span>
               </div>
             </template>
           </el-table-column>
@@ -261,7 +261,7 @@
                   >含会员</small
                 >
               </template>
-              <span v-else class="muted">—</span>
+              <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
           <el-table-column label="退款策略" width="100" align="center">
@@ -276,7 +276,7 @@
               <span v-if="row.refundedAt" class="cell-datetime">{{
                 formatDateTime(row.refundedAt)
               }}</span>
-              <span v-else class="muted">—</span>
+              <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
           <el-table-column v-if="statusTab === 'PENDING'" label="账龄" width="110" align="center">
@@ -456,10 +456,10 @@
               show-overflow-tooltip
             />
             <el-table-column prop="slotId" label="货道" width="80" align="center">
-              <template #default="{ row }">{{ row.slotId || '—' }}</template>
+              <template #default="{ row }">{{ row.slotId || '暂无' }}</template>
             </el-table-column>
             <el-table-column prop="batchNo" label="批次" width="100" align="center" show-overflow-tooltip>
-              <template #default="{ row }">{{ row.batchNo || '—' }}</template>
+              <template #default="{ row }">{{ row.batchNo || '暂无' }}</template>
             </el-table-column>
             <el-table-column prop="quantity" label="数量" width="70" align="center" />
             <el-table-column label="单价" width="90" align="center">
@@ -731,7 +731,7 @@ function orderDiscountCents(row: {
 }
 
 function refundPolicyLabel(policy?: string | null) {
-  if (!policy) return '—';
+  if (!policy) return '暂无';
   if (policy === 'AUTO_REFUND') return '自助退';
   if (policy === 'DISPUTE_ONLY') return '仅争议';
   return policy;

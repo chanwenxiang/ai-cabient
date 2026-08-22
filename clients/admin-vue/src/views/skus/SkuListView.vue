@@ -130,7 +130,7 @@
             sortable="custom"
           >
             <template #default="{ row }">
-              <span class="cell-id">{{ row.skuCode ?? '—' }}</span>
+              <span class="cell-id">{{ row.skuCode ?? '暂无' }}</span>
             </template>
           </el-table-column>
           <el-table-column label="主图" width="60" align="center">

@@ -77,9 +77,9 @@
     </el-form>
 
     <div class="kpi-tags">
-      <el-tag size="small" type="info">批次 {{ listHydrated ? totalCount : '—' }}</el-tag>
-      <el-tag size="small" type="danger">差异 {{ listHydrated ? mismatchBatchCount : '—' }}</el-tag>
-      <el-tag size="small" type="success">匹配 {{ listHydrated ? matchedBatchCount : '—' }}</el-tag>
+      <el-tag size="small" type="info">批次 {{ listHydrated ? totalCount : '…' }}</el-tag>
+      <el-tag size="small" type="danger">差异 {{ listHydrated ? mismatchBatchCount : '…' }}</el-tag>
+      <el-tag size="small" type="success">匹配 {{ listHydrated ? matchedBatchCount : '…' }}</el-tag>
     </div>
 
     <div class="table-scroll">
@@ -238,12 +238,12 @@
               >
             </el-table-column>
             <el-table-column label="交易类型" width="100" align="center">
-              <template #default="{ row }">{{ row.tradeType || '—' }}</template>
+              <template #default="{ row }">{{ row.tradeType || '暂无' }}</template>
             </el-table-column>
             <el-table-column label="交易时间" width="160" align="center" class-name="col-text">
               <template #default="{ row }">
                 <span class="cell-datetime">{{
-                  row.tradeTime ? formatDateTime(row.tradeTime) : '—'
+                  row.tradeTime ? formatDateTime(row.tradeTime) : '暂无'
                 }}</span>
               </template>
             </el-table-column>

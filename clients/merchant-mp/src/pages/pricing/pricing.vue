@@ -12,7 +12,7 @@
           </picker>
           <view class="history-btn" @click="openHistory">调价历史</view>
           <text v-if="!canEdit" class="meta warn"
-            >定价只读 — 需平台开启「允许商户改价」且具备 pricing:edit 权限</text
+            >定价只读，需平台开启「允许商户改价」且具备改价权限</text
           >
         </view>
 
@@ -84,7 +84,7 @@
             <view v-for="(h, i) in history" :key="i" class="history-row">
               <view class="history-main">
                 <text class="history-sku">{{ h.skuId }}</text>
-                <text class="history-detail">{{ h.detail || '—' }}</text>
+                <text class="history-detail">{{ h.detail || '暂无明细' }}</text>
               </view>
               <text class="meta">{{ formatTime(h.changedAt) }}</text>
             </view>

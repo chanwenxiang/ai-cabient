@@ -93,37 +93,37 @@
       <button
         type="button"
         class="kpi-tile warn"
-        :aria-label="listHydrated ? `断货行 ${countBy('STOCKOUT')}` : '断货行 — 加载中…'"
+        :aria-label="listHydrated ? `断货行 ${countBy('STOCKOUT')}` : '断货行 加载中…'"
       >
         <div class="kpi-label">断货行</div>
-        <div class="kpi-value">{{ listHydrated ? countBy('STOCKOUT') : '—' }}</div>
+        <div class="kpi-value">{{ listHydrated ? countBy('STOCKOUT') : '…' }}</div>
         <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
       </button>
       <button
         type="button"
         class="kpi-tile"
-        :aria-label="listHydrated ? `低库存行 ${countBy('LOW')}` : '低库存行 — 加载中…'"
+        :aria-label="listHydrated ? `低库存行 ${countBy('LOW')}` : '低库存行 加载中…'"
       >
         <div class="kpi-label">低库存行</div>
-        <div class="kpi-value">{{ listHydrated ? countBy('LOW') : '—' }}</div>
+        <div class="kpi-value">{{ listHydrated ? countBy('LOW') : '…' }}</div>
         <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
       </button>
       <button
         type="button"
         class="kpi-tile warn"
-        :aria-label="listHydrated ? `临期行 ${countBy('NEAR_EXPIRY')}` : '临期行 — 加载中…'"
+        :aria-label="listHydrated ? `临期行 ${countBy('NEAR_EXPIRY')}` : '临期行 加载中…'"
       >
         <div class="kpi-label">临期行</div>
-        <div class="kpi-value">{{ listHydrated ? countBy('NEAR_EXPIRY') : '—' }}</div>
+        <div class="kpi-value">{{ listHydrated ? countBy('NEAR_EXPIRY') : '…' }}</div>
         <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
       </button>
       <button
         type="button"
         class="kpi-tile"
-        :aria-label="listHydrated ? `涉及柜机 ${deviceCount}` : '涉及柜机 — 加载中…'"
+        :aria-label="listHydrated ? `涉及柜机 ${deviceCount}` : '涉及柜机 加载中…'"
       >
         <div class="kpi-label">涉及柜机</div>
-        <div class="kpi-value">{{ listHydrated ? deviceCount : '—' }}</div>
+        <div class="kpi-value">{{ listHydrated ? deviceCount : '…' }}</div>
         <div v-if="!listHydrated" class="kpi-hint">加载中…</div>
       </button>
     </div>

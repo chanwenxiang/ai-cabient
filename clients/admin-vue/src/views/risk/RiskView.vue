@@ -86,7 +86,7 @@
                 class-name="col-text"
                 show-overflow-tooltip
               >
-                <template #default="{ row }">{{ row.detail || '—' }}</template>
+                <template #default="{ row }">{{ row.detail || '暂无' }}</template>
               </el-table-column>
               <el-table-column label="级别" width="100" align="center">
                 <template #default="{ row }">
@@ -108,14 +108,14 @@
                 align="center"
                 show-overflow-tooltip
               >
-                <template #default="{ row }">{{ row.dispositionNote || '—' }}</template>
+                <template #default="{ row }">{{ row.dispositionNote || '暂无' }}</template>
               </el-table-column>
               <el-table-column label="处置时间" width="150" align="center" class-name="col-text">
                 <template #default="{ row }">
                   <span v-if="row.dispositionAt" class="cell-datetime">{{
                     formatDateTime(row.dispositionAt)
                   }}</span>
-                  <span v-else class="muted">—</span>
+                  <span v-else class="muted">暂无</span>
                 </template>
               </el-table-column>
               <el-table-column label="时间" width="168" align="center" class-name="col-text">
@@ -177,7 +177,7 @@
                 <template #default="{ row }">{{ row.reason || '无' }}</template>
               </el-table-column>
               <el-table-column label="来源" width="100" align="center">
-                <template #default="{ row }">{{ row.source || '—' }}</template>
+                <template #default="{ row }">{{ row.source || '暂无' }}</template>
               </el-table-column>
               <el-table-column label="到期" width="150" align="center" class-name="col-text">
                 <template #default="{ row }">

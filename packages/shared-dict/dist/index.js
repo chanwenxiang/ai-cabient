@@ -428,7 +428,13 @@ export const DICT = {
         PAYOUT: '打款',
         FEE: '手续费'
     },
-    session_kind: { RESTOCK: '补货', OPS: '运维', SHOPPING: '消费' },
+    session_kind: {
+        CONSUMER: '消费',
+        RESTOCK: '补货',
+        OPS: '运维',
+        /** 历史值，与 CONSUMER 同义 */
+        SHOPPING: '消费'
+    },
     restock_line_type: {
         RESTOCK: '上架',
         PULL_OFF: '下架',
@@ -573,14 +579,14 @@ export function dictLabel(type, code) {
 /**
  * 三端 UI 展示用：优先字典中文，绝不把英文枚举码当文案回退（避免 `|| status` 露出 OPEN/PAID）。
  */
-export function displayLabel(type, code, empty = '-') {
+export function displayLabel(type, code, empty = '暂无') {
     if (code == null || String(code).trim() === '')
         return empty;
     const label = dictLabel(type, code);
-    if (!label || label === '-')
+    if (!label || label === '-' || label === '—')
         return empty;
     if (/^[A-Z][A-Z0-9_]*$/.test(label))
-        return empty === '-' ? '未知' : empty;
+        return empty === '暂无' || empty === '-' ? '未知' : empty;
     return label;
 }
 /** 操作人展示：系统任务 / 无姓名时可读 */
@@ -739,7 +745,7 @@ const AUDIT_DETAIL_KEY_LABELS = {
 };
 export function auditActionLabel(action) {
     if (!action)
-        return '-';
+        return '暂无';
     const hit = AUDIT_ACTION_LABELS[action];
     if (hit)
         return hit;
@@ -747,26 +753,26 @@ export function auditActionLabel(action) {
     if (ops)
         return ops;
     if (/^[A-Z][A-Z0-9_]*$/.test(action))
-        return `其他操作（${action}）`;
+        return '其他操作';
     return action;
 }
 export function auditTargetLabel(type) {
     if (!type)
-        return '-';
+        return '暂无';
     const hit = AUDIT_TARGET_LABELS[type];
     if (hit)
         return hit;
     if (/^[A-Z][A-Z0-9_]*$/.test(type))
-        return `其他对象（${type}）`;
+        return '其他对象';
     return type;
 }
 /** 审计/异常操作 detail：英文键值对 → 中文说明 */
 export function formatOpsActionDetail(detail) {
     if (!detail)
-        return '-';
+        return '暂无';
     let text = detail.trim();
     if (!text)
-        return '-';
+        return '暂无';
     text = text.replace(/\bsales-lock\b/gi, '营业锁');
     text = text.replace(/\bops collect\b/gi, '运营代收');
     text = text.replace(/^idempotencyKey=([^;]+);\s*/i, '幂等键：$1；');

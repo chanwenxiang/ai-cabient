@@ -1,148 +1,148 @@
 <template>
-  <div v-loading="loading" class="page">
-    <el-card shadow="never" class="page-card">
-      <template #header>
-        <div class="page-card-head">
-          <div class="page-card-head__meta">
-            <div class="page-card-head__title">
-              <span class="title">进件工作台</span>
-              <span class="hint">微信 / 支付宝 / 支付分进件状态登记（本波不强制打通生产进件 API）</span>
-            </div>
-          </div>
-          <div class="page-card-head__actions">
-            <el-button :icon="Refresh" @click="load">刷新</el-button>
-            <el-button v-if="canEdit" type="primary" @click="openCreate">新建进件</el-button>
+  <el-card shadow="never" class="page-card">
+    <template #header>
+      <div class="page-card-head">
+        <div class="page-card-head__meta">
+          <div class="page-card-head__title">
+            <span class="title">进件工作台</span>
+            <span class="hint">微信 / 支付宝 / 支付分进件状态登记（本波不强制打通生产进件 API）</span>
           </div>
         </div>
-      </template>
+        <div class="page-card-head__actions">
+          <el-button :icon="Refresh" :loading="loading" @click="load">刷新</el-button>
+          <el-button v-if="canEdit" type="primary" @click="openCreate">新建进件</el-button>
+        </div>
+      </div>
+    </template>
 
-      <el-alert
-        :type="hints?.mockEnabled ? 'warning' : 'success'"
-        :closable="false"
-        show-icon
-        class="mb"
-        :title="hints?.hint || '加载支付模式…'"
-      >
-        <template #default>
-          <span>
-            微信 {{ hints?.wechatPayLive ? 'LIVE' : 'MOCK' }} · 支付宝
-            {{ hints?.alipayPayLive ? 'LIVE' : 'MOCK' }} · 支付分
-            {{ hints?.payScoreLive ? 'LIVE' : 'MOCK' }}
-          </span>
+    <el-alert
+      :type="hints?.mockEnabled ? 'warning' : 'success'"
+      :closable="false"
+      show-icon
+      class="mb"
+      :title="hints?.hint || '加载支付模式…'"
+    >
+      <template #default>
+        <span>
+          微信 {{ hints?.wechatPayLive ? '正式' : '演示' }} · 支付宝
+          {{ hints?.alipayPayLive ? '正式' : '演示' }} · 支付分
+          {{ hints?.payScoreLive ? '正式' : '演示' }}
+        </span>
+      </template>
+    </el-alert>
+
+    <el-form inline class="filter-bar filter-bar--compact">
+      <el-form-item label="商户ID">
+        <el-input v-model="merchantId" clearable placeholder="精确匹配" style="width: 160px" />
+      </el-form-item>
+      <el-form-item label="渠道">
+        <el-select v-model="channel" clearable placeholder="全部" style="width: 120px">
+          <el-option value="WECHAT" label="微信" />
+          <el-option value="ALIPAY" label="支付宝" />
+          <el-option value="PAYSCORE" label="支付分" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="状态">
+        <el-select v-model="status" clearable placeholder="全部" style="width: 120px">
+          <el-option value="DRAFT" label="草稿" />
+          <el-option value="SUBMITTED" label="已提交" />
+          <el-option value="ACTIVE" label="已生效" />
+          <el-option value="REJECTED" label="已驳回" />
+        </el-select>
+      </el-form-item>
+      <el-form-item>
+        <el-button type="primary" @click="load">查询</el-button>
+      </el-form-item>
+    </el-form>
+
+    <el-table :data="rows" v-loading="loading" stripe border empty-text=" ">
+      <template #empty>
+        <el-empty v-if="hydrated && !loading" description="暂无进件记录" />
+      </template>
+      <el-table-column prop="merchantId" label="商户" min-width="140">
+        <template #default="{ row }">
+          <div>{{ row.merchantName || row.merchantId }}</div>
+          <div v-if="row.merchantName" class="muted">{{ row.merchantId }}</div>
         </template>
-      </el-alert>
+      </el-table-column>
+      <el-table-column prop="channel" label="渠道" width="100">
+        <template #default="{ row }">{{ channelLabel(row.channel) }}</template>
+      </el-table-column>
+      <el-table-column prop="status" label="状态" width="110">
+        <template #default="{ row }">
+          <el-tag :type="statusTag(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="外部商户号" min-width="140" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.externalMchId || '' }}</template>
+      </el-table-column>
+      <el-table-column label="外部单号" min-width="120" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.externalRef || '' }}</template>
+      </el-table-column>
+      <el-table-column label="支付模式" width="90">
+        <template #default="{ row }">
+          <el-tag :type="row.payLiveHint ? 'success' : 'info'" size="small">
+            {{ row.payLiveHint ? '正式' : '演示' }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="备注" min-width="120" show-overflow-tooltip>
+        <template #default="{ row }">{{ row.note || '' }}</template>
+      </el-table-column>
+      <el-table-column label="最近同步" width="160">
+        <template #default="{ row }">{{
+          row.lastSyncedAt ? formatDateTime(row.lastSyncedAt) : ''
+        }}</template>
+      </el-table-column>
+      <el-table-column label="创建时间" width="160">
+        <template #default="{ row }">{{ formatDateTime(row.createdAt) || '' }}</template>
+      </el-table-column>
+      <el-table-column label="更新时间" width="160">
+        <template #default="{ row }">{{ formatDateTime(row.updatedAt) || '' }}</template>
+      </el-table-column>
+      <el-table-column v-if="canEdit" label="操作" width="100" fixed="right">
+        <template #default="{ row }">
+          <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
+        </template>
+      </el-table-column>
+    </el-table>
+  </el-card>
 
-      <el-form inline class="filter-row">
-        <el-form-item label="商户ID">
-          <el-input v-model="merchantId" clearable placeholder="精确匹配" style="width: 160px" />
-        </el-form-item>
-        <el-form-item label="渠道">
-          <el-select v-model="channel" clearable placeholder="全部" style="width: 120px">
-            <el-option value="WECHAT" label="微信" />
-            <el-option value="ALIPAY" label="支付宝" />
-            <el-option value="PAYSCORE" label="支付分" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="status" clearable placeholder="全部" style="width: 120px">
-            <el-option value="DRAFT" label="草稿" />
-            <el-option value="SUBMITTED" label="已提交" />
-            <el-option value="ACTIVE" label="已生效" />
-            <el-option value="REJECTED" label="已驳回" />
-          </el-select>
-        </el-form-item>
-        <el-form-item>
-          <el-button type="primary" @click="load">查询</el-button>
-        </el-form-item>
-      </el-form>
-
-      <el-table :data="rows" stripe border>
-        <el-table-column prop="merchantId" label="商户" min-width="140">
-          <template #default="{ row }">
-            <div>{{ row.merchantName || row.merchantId }}</div>
-            <div class="muted">{{ row.merchantId }}</div>
-          </template>
-        </el-table-column>
-        <el-table-column prop="channel" label="渠道" width="100">
-          <template #default="{ row }">{{ channelLabel(row.channel) }}</template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="110">
-          <template #default="{ row }">
-            <el-tag :type="statusTag(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="externalMchId" label="外部商户号" min-width="140" show-overflow-tooltip />
-        <el-table-column
-          prop="externalRef"
-          label="外部单号"
-          min-width="120"
-          show-overflow-tooltip
-        >
-          <template #default="{ row }">{{ row.externalRef || '—' }}</template>
-        </el-table-column>
-        <el-table-column label="支付模式" width="90">
-          <template #default="{ row }">
-            <el-tag :type="row.payLiveHint ? 'success' : 'info'" size="small">
-              {{ row.payLiveHint ? 'LIVE' : 'MOCK' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="note" label="备注" min-width="120" show-overflow-tooltip />
-        <el-table-column label="最近同步" width="160">
-          <template #default="{ row }">{{
-            row.lastSyncedAt ? formatDateTime(row.lastSyncedAt) : '—'
-          }}</template>
-        </el-table-column>
-        <el-table-column label="创建时间" width="160">
-          <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
-        </el-table-column>
-        <el-table-column label="更新时间" width="160">
-          <template #default="{ row }">{{ formatDateTime(row.updatedAt) }}</template>
-        </el-table-column>
-        <el-table-column v-if="canEdit" label="操作" width="100" fixed="right">
-          <template #default="{ row }">
-            <el-button link type="primary" @click="openEdit(row)">编辑</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </el-card>
-
-    <el-dialog v-model="dlg" :title="form.onboardingId ? '编辑进件' : '新建进件'" width="520px" destroy-on-close>
-      <el-form label-width="110px">
-        <el-form-item label="商户ID" required>
-          <el-input v-model="form.merchantId" :disabled="!!form.onboardingId" />
-        </el-form-item>
-        <el-form-item label="渠道" required>
-          <el-select v-model="form.channel" :disabled="!!form.onboardingId" style="width: 100%">
-            <el-option value="WECHAT" label="微信" />
-            <el-option value="ALIPAY" label="支付宝" />
-            <el-option value="PAYSCORE" label="支付分" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-select v-model="form.status" style="width: 100%">
-            <el-option value="DRAFT" label="草稿" />
-            <el-option value="SUBMITTED" label="已提交" />
-            <el-option value="ACTIVE" label="已生效" />
-            <el-option value="REJECTED" label="已驳回" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="外部商户号">
-          <el-input v-model="form.externalMchId" />
-        </el-form-item>
-        <el-form-item label="外部单号/引用">
-          <el-input v-model="form.externalRef" />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="form.note" type="textarea" :rows="2" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dlg = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">保存</el-button>
-      </template>
-    </el-dialog>
-  </div>
+  <el-dialog v-model="dlg" :title="form.onboardingId ? '编辑进件' : '新建进件'" width="520px" destroy-on-close>
+    <el-form label-width="110px">
+      <el-form-item label="商户ID" required>
+        <el-input v-model="form.merchantId" :disabled="!!form.onboardingId" />
+      </el-form-item>
+      <el-form-item label="渠道" required>
+        <el-select v-model="form.channel" :disabled="!!form.onboardingId" style="width: 100%">
+          <el-option value="WECHAT" label="微信" />
+          <el-option value="ALIPAY" label="支付宝" />
+          <el-option value="PAYSCORE" label="支付分" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="状态">
+        <el-select v-model="form.status" style="width: 100%">
+          <el-option value="DRAFT" label="草稿" />
+          <el-option value="SUBMITTED" label="已提交" />
+          <el-option value="ACTIVE" label="已生效" />
+          <el-option value="REJECTED" label="已驳回" />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="外部商户号">
+        <el-input v-model="form.externalMchId" />
+      </el-form-item>
+      <el-form-item label="外部单号/引用">
+        <el-input v-model="form.externalRef" />
+      </el-form-item>
+      <el-form-item label="备注">
+        <el-input v-model="form.note" type="textarea" :rows="2" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="dlg = false">取消</el-button>
+      <el-button type="primary" :loading="saving" @click="save">保存</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup lang="ts">
@@ -162,6 +162,8 @@ interface OnboardRow {
   externalMchId?: string
   externalRef?: string
   note?: string
+  lastSyncedAt?: string
+  createdAt?: string
   updatedAt?: string
   payLiveHint?: boolean
 }
@@ -169,6 +171,7 @@ interface OnboardRow {
 const auth = useAuthStore()
 const canEdit = computed(() => auth.hasPerm('ops:merchant:onboard:edit'))
 const loading = ref(false)
+const hydrated = ref(false)
 const saving = ref(false)
 const rows = ref<OnboardRow[]>([])
 const merchantId = ref('')
@@ -187,12 +190,23 @@ const form = reactive({
 })
 
 function channelLabel(c?: string) {
-  return ({ WECHAT: '微信', ALIPAY: '支付宝', PAYSCORE: '支付分' } as Record<string, string>)[String(c || '')] || c || '—'
+  return (
+    ({ WECHAT: '微信', ALIPAY: '支付宝', PAYSCORE: '支付分' } as Record<string, string>)[
+      String(c || '')
+    ] ||
+    c ||
+    ''
+  )
 }
 function statusLabel(s?: string) {
-  return ({ DRAFT: '草稿', SUBMITTED: '已提交', ACTIVE: '已生效', REJECTED: '已驳回' } as Record<string, string>)[
-    String(s || '')
-  ] || s || '—'
+  return (
+    ({ DRAFT: '草稿', SUBMITTED: '已提交', ACTIVE: '已生效', REJECTED: '已驳回' } as Record<
+      string,
+      string
+    >)[String(s || '')] ||
+    s ||
+    ''
+  )
 }
 function statusTag(s?: string): 'info' | 'warning' | 'success' | 'danger' {
   switch (String(s || '')) {
@@ -216,7 +230,9 @@ async function load() {
     if (status.value) q.set('status', status.value)
     const [list, h] = await Promise.all([
       api.request<OnboardRow[]>(`/api/v2/ops/admin/merchant-onboarding?${q}`, 'GET'),
-      api.request<Record<string, any>>('/api/v2/ops/admin/merchant-onboarding/live-hints', 'GET').catch(() => null)
+      api
+        .request<Record<string, any>>('/api/v2/ops/admin/merchant-onboarding/live-hints', 'GET')
+        .catch(() => null)
     ])
     rows.value = list || []
     hints.value = h
@@ -224,6 +240,7 @@ async function load() {
     ElMessage.error(e instanceof Error ? e.message : '加载失败')
   } finally {
     loading.value = false
+    hydrated.value = true
   }
 }
 
@@ -293,8 +310,5 @@ onMounted(load)
 .muted {
   color: var(--el-text-color-secondary);
   font-size: 12px;
-}
-.filter-row {
-  margin-bottom: 8px;
 }
 </style>

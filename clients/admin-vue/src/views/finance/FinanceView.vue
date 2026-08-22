@@ -119,19 +119,19 @@
         <ChartPanel title="累计快照" fill compact>
           <el-descriptions :column="1" border size="small" class="snapshot-desc">
             <el-descriptions-item label="累计营收">{{
-              listHydrated ? `¥${((stats.revenueTotalCents || 0) / 100).toFixed(2)}` : '—'
+              listHydrated ? `¥${((stats.revenueTotalCents || 0) / 100).toFixed(2)}` : '…'
             }}</el-descriptions-item>
             <el-descriptions-item label="累计成本">{{
-              listHydrated ? `¥${((stats.cogsTotalCents || 0) / 100).toFixed(2)}` : '—'
+              listHydrated ? `¥${((stats.cogsTotalCents || 0) / 100).toFixed(2)}` : '…'
             }}</el-descriptions-item>
             <el-descriptions-item label="累计毛利">{{
-              listHydrated ? `¥${((stats.grossMarginTotalCents || 0) / 100).toFixed(2)}` : '—'
+              listHydrated ? `¥${((stats.grossMarginTotalCents || 0) / 100).toFixed(2)}` : '…'
             }}</el-descriptions-item>
             <el-descriptions-item label="今日报废金额">{{
-              listHydrated ? `¥${((stats.writeOffTodayCents || 0) / 100).toFixed(2)}` : '—'
+              listHydrated ? `¥${((stats.writeOffTodayCents || 0) / 100).toFixed(2)}` : '…'
             }}</el-descriptions-item>
             <el-descriptions-item label="今日报废件数">{{
-              listHydrated ? stats.writeOffTodayQty || 0 : '—'
+              listHydrated ? stats.writeOffTodayQty || 0 : '…'
             }}</el-descriptions-item>
           </el-descriptions>
         </ChartPanel>
@@ -211,7 +211,7 @@
                   {{
                     Number(row.qtySold) > 0
                       ? `¥${(Number(row.revenueCents || 0) / Number(row.qtySold) / 100).toFixed(2)}`
-                      : '—'
+                      : '暂无'
                   }}
                 </template>
               </el-table-column>
@@ -220,7 +220,7 @@
                   {{
                     Number(row.qtySold) > 0
                       ? `¥${(Number(row.cogsCents || 0) / Number(row.qtySold) / 100).toFixed(2)}`
-                      : '—'
+                      : '暂无'
                   }}
                 </template>
               </el-table-column>
@@ -347,41 +347,41 @@ const kpiTiles = computed(() => {
   return [
     {
       label: '今日营收',
-      value: ready ? `¥${((stats.value.revenueTodayCents || 0) / 100).toFixed(2)}` : '—',
+      value: ready ? `¥${((stats.value.revenueTodayCents || 0) / 100).toFixed(2)}` : '…',
       accent: 'accent-teal',
       path: canAnalytics ? '/analytics' : undefined,
       hint: ready ? (canAnalytics ? '查看数据分析' : '今日快照') : '加载中…'
     },
     {
       label: '今日成本',
-      value: ready ? `¥${((stats.value.cogsTodayCents || 0) / 100).toFixed(2)}` : '—',
+      value: ready ? `¥${((stats.value.cogsTodayCents || 0) / 100).toFixed(2)}` : '…',
       accent: 'accent-blue',
       hint: ready ? undefined : '加载中…'
     },
     {
       label: '今日毛利',
-      value: ready ? `¥${(marginCents / 100).toFixed(2)}` : '—',
+      value: ready ? `¥${(marginCents / 100).toFixed(2)}` : '…',
       accent: 'accent-amber',
       warn: ready && marginCents < 0,
       hint: ready ? undefined : '加载中…'
     },
     {
       label: '今日毛利率',
-      value: ready ? `${marginRate.toFixed(1)}%` : '—',
+      value: ready ? `${marginRate.toFixed(1)}%` : '…',
       accent: 'accent-violet',
       warn: ready && marginRate < 0,
       hint: ready ? undefined : '加载中…'
     },
     {
       label: '今日订单',
-      value: ready ? String(stats.value.orderToday || 0) : '—',
+      value: ready ? String(stats.value.orderToday || 0) : '…',
       accent: 'accent-teal',
       path: canOrders ? '/orders' : undefined,
       hint: ready ? (canOrders ? '查看订单' : '今日快照') : '加载中…'
     },
     {
       label: '今日客单',
-      value: ready ? `¥${((stats.value.averageOrderValueTodayCents || 0) / 100).toFixed(2)}` : '—',
+      value: ready ? `¥${((stats.value.averageOrderValueTodayCents || 0) / 100).toFixed(2)}` : '…',
       accent: 'accent-blue',
       hint: ready ? undefined : '加载中…'
     }

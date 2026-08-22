@@ -48,7 +48,7 @@
         <template #default="{ row }">{{ (row.revenueCents / 100).toFixed(2) }}</template>
       </el-table-column>
       <el-table-column prop="stockDays" label="库存天数" width="100" align="center">
-        <template #default="{ row }">{{ row.stockDays ?? '—' }}</template>
+        <template #default="{ row }">{{ row.stockDays ?? '暂无' }}</template>
       </el-table-column>
       <el-table-column label="评审状态" width="130" align="center">
         <template #default="{ row }">
@@ -194,7 +194,7 @@ async function confirmDelist(row: ReviewRow) {
 }
 
 function perfLabel(level?: string) {
-  return dictLabel('sku_perf_level', level) || '—';
+  return dictLabel('sku_perf_level', level) || '暂无';
 }
 function perfTag(level?: string) {
   return (

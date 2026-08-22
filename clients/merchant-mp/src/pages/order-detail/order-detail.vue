@@ -42,11 +42,11 @@
           </view>
           <view v-if="order.couponDiscountCents" class="sum-row">
             <text>券优惠</text>
-            <text>-{{ money(order.couponDiscountCents) }}</text>
+            <text>减{{ money(order.couponDiscountCents) }}</text>
           </view>
           <view v-if="Number(order.memberDiscountCents || 0) > 0" class="sum-row">
             <text>会员优惠</text>
-            <text>-{{ money(order.memberDiscountCents) }}</text>
+            <text>减{{ money(order.memberDiscountCents) }}</text>
           </view>
           <view class="sum-row strong">
             <text>实付</text>
@@ -85,13 +85,18 @@
             ><text class="lbl">创建时间</text
             ><text class="val">{{ formatTime(order.createdAt) }}</text></view
           >
-          <view v-if="order.refundedAt || Number(order.refundedCents || 0) > 0" class="info-row"
+          <view
+            v-if="
+              order.refundedAt ||
+              order.status === 'REFUNDED' ||
+              order.status === 'PARTIAL_REFUNDED' ||
+              refundCents > 0
+            "
+            class="info-row"
             ><text class="lbl">退款</text
             ><text class="val"
-              >{{
-                Number(order.refundedCents || 0) > 0
-                  ? fmtMoney(order.refundedCents)
-                  : '已退款'
+              >{{ order.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+              }}{{ refundCents > 0 ? ` ${fmtMoney(refundCents)}` : ''
               }}{{ order.refundedAt ? ` · ${formatTime(order.refundedAt)}` : '' }}</text
             ></view
           >
@@ -162,6 +167,15 @@ const payChannelText = computed(() =>
   displayLabel('pay_channel', order.value?.payChannel, '未知渠道')
 );
 
+const refundCents = computed(() => {
+  const o = order.value;
+  if (!o) return 0;
+  const n = Number(o.refundedCents || 0);
+  if (n > 0) return n;
+  if (o.status === 'REFUNDED') return Number(o.totalAmountCents || 0);
+  return 0;
+});
+
 onLoad((opt) => {
   const q = (opt || {}) as Record<string, string | undefined>;
   orderId.value = String(q.orderId || q.id || '').trim();
@@ -210,7 +224,9 @@ function statusText(s?: string) {
 function refundPolicyText(policy?: string) {
   if (policy === 'AUTO_REFUND') return '自助退';
   if (policy === 'DISPUTE_ONLY') return '仅争议';
-  return policy || '—';
+  if (!policy) return '默认规则';
+  if (/^[A-Z][A-Z0-9_]*$/.test(policy)) return '默认规则';
+  return policy;
 }
 
 function money(cents?: number) {

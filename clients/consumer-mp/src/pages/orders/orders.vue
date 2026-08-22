@@ -126,7 +126,7 @@
                   >
                   <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
                   <text v-if="discountCents(o) > 0" class="discount"
-                    >优惠 -¥{{ (discountCents(o) / 100).toFixed(2) }}</text
+                    >优惠减¥{{ (discountCents(o) / 100).toFixed(2) }}</text
                   >
                 </view>
               </view>

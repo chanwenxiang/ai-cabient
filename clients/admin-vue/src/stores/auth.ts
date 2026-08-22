@@ -62,16 +62,16 @@ export const useAuthStore = defineStore('auth', () => {
 
   const displayName = computed(() => {
     if (profile.value?.name) return profile.value.name;
-    return profileHydrated.value ? '运营账号' : '—';
+    return profileHydrated.value ? '运营账号' : '…';
   });
   const roleText = computed(() => {
-    if (!profile.value) return profileHydrated.value ? '未分配角色' : '—';
+    if (!profile.value) return profileHydrated.value ? '未分配角色' : '…';
     const names = (profile.value.roleNames || []).filter(Boolean);
     return names.length ? names.join('、') : '未分配角色';
   });
   const dataScopeText = computed(() => {
     const p = profile.value;
-    if (!p) return profileHydrated.value ? '数据范围未知' : '—';
+    if (!p) return profileHydrated.value ? '数据范围未知' : '…';
     if (p.globalDataScope !== false) return '全局数据范围';
     const names = (p.merchantNames || []).filter(Boolean);
     if (names.length) return `商户范围：${names.join('、')}`;
