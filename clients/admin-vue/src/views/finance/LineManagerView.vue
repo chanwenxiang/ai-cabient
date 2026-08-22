@@ -126,7 +126,7 @@
             <el-table-column label="创建时间" width="170" align="center">
               <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
             </el-table-column>
-            <el-table-column label="操作" width="300" align="center" class-name="col-action">
+            <el-table-column label="操作" width="360" align="center" class-name="col-action">
               <template #default="{ row }">
                 <el-button
                   v-hasPermi="['ops:line-manager:edit']"
@@ -139,6 +139,7 @@
                   >调账</el-button
                 >
                 <el-button link @click="showLedgers(row)">流水</el-button>
+                <el-button link @click="showKpi(row)">KPI</el-button>
                 <el-button
                   v-hasPermi="['ops:line-manager:edit']"
                   link
@@ -276,6 +277,36 @@
           @size-change="onWithdrawSizeChange"
         />
       </el-tab-pane>
+
+      <el-tab-pane label="地推任务" name="promo">
+        <div class="org-toolbar" style="margin-bottom: 12px">
+          <el-button
+            v-hasPermi="['ops:line-manager:edit']"
+            type="primary"
+            size="small"
+            @click="openPromoCreate"
+            >新建任务</el-button
+          >
+          <el-button size="small" @click="loadPromoTasks">刷新</el-button>
+        </div>
+        <el-table v-loading="promoLoading" :data="promoTasks" stripe border empty-text=" ">
+          <template #empty>
+            <el-empty v-if="promoHydrated && !promoLoading" description="暂无地推任务" />
+          </template>
+          <el-table-column prop="taskId" label="ID" width="70" />
+          <el-table-column prop="managerId" label="线长ID" width="90" />
+          <el-table-column prop="title" label="任务" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="routeCode" label="线路" width="100" />
+          <el-table-column label="进度" width="110">
+            <template #default="{ row }">{{ row.doneQty }}/{{ row.targetQty }}</template>
+          </el-table-column>
+          <el-table-column label="奖金(元)" width="100">
+            <template #default="{ row }">{{ yuan(row.bountyCents) }}</template>
+          </el-table-column>
+          <el-table-column prop="status" label="状态" width="90" />
+          <el-table-column prop="dueDate" label="截止" width="110" />
+        </el-table>
+      </el-tab-pane>
     </el-tabs>
 
     <el-dialog v-model="createVisible" title="新建线长" width="520px" destroy-on-close>
@@ -362,6 +393,65 @@
         </el-table-column>
       </el-table>
     </el-drawer>
+
+    <el-drawer v-model="kpiVisible" :title="`线路 KPI · ${kpiTitle}`" size="560px">
+      <div v-loading="!kpiHydrated" class="kpi-box">
+        <p>GMV ¥{{ yuan(kpi?.gmvCents) }} · 佣金 ¥{{ yuan(kpi?.commissionCents) }}</p>
+        <p>绑柜 {{ kpi?.deviceCount ?? 0 }} · 有数天数 {{ kpi?.activeDays ?? 0 }}</p>
+        <el-table :data="kpi?.dailies || []" size="small" stripe max-height="360">
+          <el-table-column prop="bizDate" label="日期" width="120" />
+          <el-table-column label="GMV" width="100">
+            <template #default="{ row }">{{ yuan(row.gmvCents) }}</template>
+          </el-table-column>
+          <el-table-column label="佣金" width="100">
+            <template #default="{ row }">{{ yuan(row.commissionCents) }}</template>
+          </el-table-column>
+          <el-table-column prop="orderCount" label="单量" width="80" />
+          <el-table-column label="客单价" width="100">
+            <template #default="{ row }">
+              {{
+                row.orderCount > 0
+                  ? yuan(Math.round(Number(row.gmvCents || 0) / Number(row.orderCount)))
+                  : '—'
+              }}
+            </template>
+          </el-table-column>
+          <el-table-column label="佣金率" width="90">
+            <template #default="{ row }">
+              {{
+                Number(row.gmvCents) > 0
+                  ? `${((Number(row.commissionCents || 0) / Number(row.gmvCents)) * 100).toFixed(1)}%`
+                  : '—'
+              }}
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </el-drawer>
+
+    <el-dialog v-model="promoVisible" title="新建地推任务" width="480px" destroy-on-close>
+      <el-form label-width="100px">
+        <el-form-item label="线长ID" required>
+          <el-input-number v-model="promoForm.managerId" :min="1" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="标题" required>
+          <el-input v-model="promoForm.title" />
+        </el-form-item>
+        <el-form-item label="线路">
+          <el-input v-model="promoForm.routeCode" />
+        </el-form-item>
+        <el-form-item label="目标数">
+          <el-input-number v-model="promoForm.targetQty" :min="0" />
+        </el-form-item>
+        <el-form-item label="奖金(分)">
+          <el-input-number v-model="promoForm.bountyCents" :min="0" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="promoVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="savePromo">创建</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -441,6 +531,21 @@ const { deviceOptions, loadDeviceOptions } = useDeviceOptions();
 const ledgerVisible = ref(false);
 const ledgerHydrated = ref(false);
 const ledgers = ref<any[]>([]);
+const kpiVisible = ref(false);
+const kpiHydrated = ref(false);
+const kpiTitle = ref('');
+const kpi = ref<any>(null);
+const promoTasks = ref<any[]>([]);
+const promoLoading = ref(false);
+const promoHydrated = ref(false);
+const promoVisible = ref(false);
+const promoForm = reactive({
+  managerId: 1,
+  title: '',
+  routeCode: '',
+  targetQty: 10,
+  bountyCents: 0
+});
 const form = reactive({
   managerName: '',
   phone: '',
@@ -517,6 +622,7 @@ function onWithdrawSizeChange() {
 }
 function onTab() {
   if (tab.value === 'managers') loadManagers();
+  else if (tab.value === 'promo') loadPromoTasks();
   else loadWithdraws();
 }
 function reload() {
@@ -623,6 +729,64 @@ async function showLedgers(row: Manager) {
     ledgers.value = [];
   } finally {
     ledgerHydrated.value = true;
+  }
+}
+
+async function showKpi(row: Manager) {
+  kpi.value = null;
+  kpiTitle.value = `${row.managerName || row.managerId}`;
+  kpiVisible.value = true;
+  kpiHydrated.value = false;
+  try {
+    kpi.value = await api.request(
+      `/api/v2/ops/admin/line-managers/${row.managerId}/kpi`,
+      'GET'
+    );
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载 KPI 失败');
+  } finally {
+    kpiHydrated.value = true;
+  }
+}
+
+async function loadPromoTasks() {
+  promoLoading.value = true;
+  try {
+    promoTasks.value = await api.request('/api/v2/ops/admin/line-promo-tasks', 'GET');
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载地推任务失败');
+  } finally {
+    promoHydrated.value = true;
+    promoLoading.value = false;
+  }
+}
+
+function openPromoCreate() {
+  Object.assign(promoForm, {
+    managerId: managers.value[0]?.managerId || 1,
+    title: '',
+    routeCode: '',
+    targetQty: 10,
+    bountyCents: 0
+  });
+  promoVisible.value = true;
+}
+
+async function savePromo() {
+  if (!promoForm.title.trim() || !promoForm.managerId) {
+    ElMessage.warning('请填写线长与标题');
+    return;
+  }
+  saving.value = true;
+  try {
+    await api.request('/api/v2/ops/admin/line-promo-tasks', 'POST', { ...promoForm });
+    ElMessage.success('已创建');
+    promoVisible.value = false;
+    await loadPromoTasks();
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '创建失败');
+  } finally {
+    saving.value = false;
   }
 }
 

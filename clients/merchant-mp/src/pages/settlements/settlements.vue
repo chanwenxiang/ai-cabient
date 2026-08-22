@@ -62,12 +62,20 @@
           <text class="summary-value">¥{{ summary.merchantIncome }}</text>
         </view>
         <view class="summary-row">
+          <text class="summary-label">区间客单</text>
+          <text class="summary-value">¥{{ summary.avgOrder }}</text>
+        </view>
+        <view class="summary-row">
           <text class="summary-label">待分账</text>
           <text class="summary-value">¥{{ summary.pending }}</text>
         </view>
         <view class="summary-row">
           <text class="summary-label">本月已结算</text>
           <text class="summary-value">¥{{ summary.settledMonth }}</text>
+        </view>
+        <view v-if="Number(summary.failedOrders) > 0" class="summary-row">
+          <text class="summary-label">分账失败笔数</text>
+          <text class="summary-value danger">{{ summary.failedOrders }}</text>
         </view>
       </view>
 
@@ -77,6 +85,7 @@
           结算：当日支付流水通常次日完成入账。可提现余额请到「商户钱包」申请提现；线长佣金请走「线长钱包」。</text
         >
         <text v-if="profitNote" class="tip-meta">{{ profitNote }}</text>
+        <text v-if="canViewWallet" class="tip-link" @click="goWallet">去商户钱包提现 ›</text>
         <text v-if="canViewSplits" class="tip-link" @click="goSplits">查看分账明细 ›</text>
       </view>
 
@@ -88,15 +97,17 @@
             <view class="device-info">
               <text class="device-name">{{ d.date }}</text>
               <text class="device-orders">
-                {{ d.orderCount }} 笔 · 实付 ¥{{ (d.grossCents / 100).toFixed(2) }} · 抽成 ¥{{
-                  (d.platformCents / 100).toFixed(2)
+                {{ d.orderCount }} 笔 · 客单 ¥{{
+                  d.orderCount > 0 ? (d.grossCents / d.orderCount / 100).toFixed(2) : '0.00'
                 }}
+                · 抽成 ¥{{ (d.platformCents / 100).toFixed(2) }}
               </text>
               <text class="device-orders"
                 >待分 ¥{{ (d.pendingCents / 100).toFixed(2) }} · 已结 ¥{{
                   (d.settledCents / 100).toFixed(2)
                 }}</text
               >
+              <text v-if="d.failedCount" class="device-fail">失败 {{ d.failedCount }} 笔</text>
             </view>
             <text class="device-amount">¥{{ (d.merchantCents / 100).toFixed(2) }}</text>
           </view>
@@ -122,6 +133,15 @@
               <text class="device-name">{{ b.batchNo }}</text>
               <text class="device-orders"
                 >{{ batchStatusLabel(b.batchStatus) }} · {{ b.orderCount }} 笔</text
+              >
+              <text class="device-orders"
+                >已结 ¥{{ ((b.settledCents || 0) / 100).toFixed(2) }} · 待分 ¥{{
+                  ((b.pendingCents || 0) / 100).toFixed(2)
+                }}</text
+              >
+              <text v-if="b.failedCount" class="device-fail">失败 {{ b.failedCount }} 笔</text>
+              <text v-if="b.settleAfter || b.settledAt" class="device-orders"
+                >{{ b.settledAt ? `入账 ${formatBatchTime(b.settledAt)}` : `计划 ${formatBatchTime(b.settleAfter)}` }}</text
               >
             </view>
             <text class="device-amount">¥{{ (b.merchantCents / 100).toFixed(2) }}</text>
@@ -166,6 +186,7 @@ const { me, refresh: refreshMe } = useMerchantMe();
 const canViewSettlements = computed(() => hasPerm(me.value, 'merchant:settlements:view'));
 const canExport = computed(() => hasPerm(me.value, 'merchant:settlements:export'));
 const canViewSplits = computed(() => hasPerm(me.value, 'merchant:splits:list'));
+const canViewWallet = computed(() => hasPerm(me.value, 'merchant:wallet:view'));
 const isH5 = typeof document !== 'undefined';
 
 function localDateISO(d: Date) {
@@ -179,6 +200,14 @@ function batchStatusLabel(status?: string) {
   return displayLabel('settlement_batch_status', status, '未知状态');
 }
 
+function formatBatchTime(iso?: string) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 const today = localDateISO(new Date());
 const sevenDaysAgo = localDateISO(new Date(Date.now() - 7 * 86400000));
 
@@ -189,7 +218,9 @@ const summary = ref({
   platformFee: '0.00',
   merchantIncome: '0.00',
   pending: '0.00',
-  settledMonth: '0.00'
+  settledMonth: '0.00',
+  avgOrder: '0.00',
+  failedOrders: '0'
 });
 const daily = ref<MerchantDailySettlement[]>([]);
 const batches = ref<MerchantSettlementBatch[]>([]);
@@ -231,7 +262,9 @@ async function load() {
       platformFee: '0.00',
       merchantIncome: '0.00',
       pending: '0.00',
-      settledMonth: '0.00'
+      settledMonth: '0.00',
+      avgOrder: '0.00',
+      failedOrders: '0'
     };
     profitNote.value = '';
     loading.value = false;
@@ -293,12 +326,16 @@ async function load() {
     const gross = days.reduce((s, d) => s + (d.grossCents || 0), 0);
     const platform = days.reduce((s, d) => s + (d.platformCents || 0), 0);
     const merchant = days.reduce((s, d) => s + (d.merchantCents || 0), 0);
+    const orders = days.reduce((s, d) => s + (d.orderCount || 0), 0);
+    const failed = days.reduce((s, d) => s + (d.failedCount || 0), 0);
     summary.value = {
       gross: (gross / 100).toFixed(2),
       platformFee: (platform / 100).toFixed(2),
       merchantIncome: (merchant / 100).toFixed(2),
       pending: ((overview.pendingAmountCents || 0) / 100).toFixed(2),
-      settledMonth: ((overview.settledMonthCents || 0) / 100).toFixed(2)
+      settledMonth: ((overview.settledMonthCents || 0) / 100).toFixed(2),
+      avgOrder: orders > 0 ? (gross / orders / 100).toFixed(2) : '0.00',
+      failedOrders: String(failed || overview.failedSplitCount || 0)
     };
     profitNote.value = overview.profitSharing?.note || '';
   } catch (e: unknown) {
@@ -312,6 +349,10 @@ async function load() {
 
 function goSplits() {
   uni.navigateTo({ url: '/pages/splits/splits' });
+}
+
+function goWallet() {
+  uni.navigateTo({ url: '/pages/wallet/wallet' });
 }
 
 function onExport() {
@@ -414,6 +455,9 @@ function onExport() {
 .summary-value.minus {
   color: rgba(255, 255, 255, 0.7);
 }
+.summary-value.danger {
+  color: #fecaca;
+}
 .tip-card {
   background: #ecfdf5;
   border-radius: 12rpx;
@@ -488,6 +532,13 @@ function onExport() {
 .device-orders {
   font-size: 22rpx;
   color: #999;
+}
+.device-fail {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  color: #dc2626;
+  font-weight: 600;
 }
 .device-amount {
   font-size: 28rpx;

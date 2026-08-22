@@ -195,6 +195,18 @@ const bizChildren: any[] = [
     meta: { title: '余额退款', group: '财务商户' }
   },
   {
+    path: 'invoices',
+    name: 'invoices',
+    component: () => import('@/views/finance/InvoiceListView.vue'),
+    meta: { title: '开票申请', group: '财务商户' }
+  },
+  {
+    path: 'merchant-onboarding',
+    name: 'merchant-onboarding',
+    component: () => import('@/views/merchants/MerchantOnboardingView.vue'),
+    meta: { title: '进件工作台', group: '财务商户' }
+  },
+  {
     path: 'users',
     name: 'users',
     component: () => import('@/views/users/UserListView.vue'),

@@ -307,9 +307,27 @@ public class MerchantFinanceService {
 
     /** lineCount 口径与运营侧一致：商品件数（quantity 合计），非行数。 */
     private MerchantOrderSummaryDto toMerchantOrderSummary(CabinetOrder o, int itemQty, String lineSummary) {
-        return new MerchantOrderSummaryDto(o.getOrderId(), o.getSessionId(), o.getDeviceId(),
-                o.getTotalAmountCents(), o.getStatus(), itemQty, o.getCreatedAt(), lineSummary,
-                resolvePayChannel(o), o.getCouponDiscountCents());
+        int coupon = Math.max(0, o.getCouponDiscountCents());
+        int member = Math.max(0, o.getMemberDiscountCents());
+        int original = o.getOriginalAmountCents() > 0
+                ? o.getOriginalAmountCents()
+                : o.getTotalAmountCents() + coupon + member;
+        return new MerchantOrderSummaryDto(
+                o.getOrderId(),
+                o.getSessionId(),
+                o.getDeviceId(),
+                o.getTotalAmountCents(),
+                o.getStatus(),
+                itemQty,
+                o.getCreatedAt(),
+                lineSummary,
+                resolvePayChannel(o),
+                coupon,
+                member,
+                original,
+                o.getRefundedAt(),
+                Math.max(0, o.getRefundedCents())
+        );
     }
 
     /** 与运营/用户端口径一致：余额账本扣款按 BL- 操作号归一为 BALANCE。 */

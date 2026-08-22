@@ -38,8 +38,21 @@
       </el-table-column>
       <el-table-column prop="pointsCost" label="所需积分" width="100" align="center" />
       <el-table-column prop="couponName" label="兑换优惠券" min-width="130" align="center" />
+      <el-table-column label="券定义" width="90" align="center">
+        <template #default="{ row }">
+          <span v-if="row.couponDefId" class="cell-id">{{ row.couponDefId }}</span>
+          <span v-else class="muted">—</span>
+        </template>
+      </el-table-column>
       <el-table-column label="库存 / 已兑" width="120" align="center">
         <template #default="{ row }">{{ row.stockTotal }} / {{ row.redeemedCount }}</template>
+      </el-table-column>
+      <el-table-column label="可兑" width="80" align="center">
+        <template #default="{ row }">{{
+          row.availableStock != null
+            ? row.availableStock
+            : Math.max(0, Number(row.stockTotal || 0) - Number(row.redeemedCount || 0))
+        }}</template>
       </el-table-column>
       <el-table-column prop="sortOrder" label="排序" width="70" align="center" />
       <el-table-column label="状态" width="90" align="center">
@@ -48,6 +61,11 @@
             row.status === 'ACTIVE' ? '启用' : '停用'
           }}</el-tag>
         </template>
+      </el-table-column>
+      <el-table-column label="创建时间" width="150" align="center">
+        <template #default="{ row }">{{
+          row.createdAt ? formatDateTime(row.createdAt) : '—'
+        }}</template>
       </el-table-column>
       <el-table-column label="操作" width="150" align="center">
         <template #default="{ row }">
@@ -87,7 +105,7 @@
             <el-option
               v-for="c in couponDefs"
               :key="c.couponDefId"
-              :label="`${c.couponName}（${(c.denominationCents / 100).toFixed(0)}元）`"
+              :label="`${c.couponName}（${(c.denominationCents / 100).toFixed(2)}元）`"
               :value="c.couponDefId"
             />
           </el-select>
@@ -117,6 +135,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
 import { useListCsv } from '@/composables/useListCsv';
+import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 type RedeemItem = {
   itemId: number;

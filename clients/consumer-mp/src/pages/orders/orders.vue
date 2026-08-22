@@ -106,19 +106,48 @@
                 aria-hidden="true"
               />
               <view class="order-copy">
-                <text class="order-summary">{{ orderSummaryText(o) }}</text>
-                <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
-                <text v-if="Number(o.couponDiscountCents || 0) > 0" class="discount"
-                  >券 -¥{{ ((o.couponDiscountCents || 0) / 100).toFixed(2) }}</text
-                >
+                <view class="order-copy-main">
+                  <text class="order-summary">{{ orderSummaryText(o) }}</text>
+                  <view class="order-tags">
+                    <text v-if="Number(o.lineCount || 0) > 0" class="order-tag"
+                      >{{ o.lineCount }} 件</text
+                    >
+                    <text class="order-tag">{{ payChannelText(o.payChannel) }}</text>
+                    <text v-if="payTradeShort(o)" class="order-tag mono">{{
+                      payTradeShort(o)
+                    }}</text>
+                  </view>
+                </view>
+                <view class="order-amt-block">
+                  <text
+                    v-if="showOriginal(o)"
+                    class="amt-origin"
+                    >{{ fmtMoney(Number(o.originalAmountCents)) }}</text
+                  >
+                  <text class="amt">{{ fmtMoney(o.totalAmountCents || 0) }}</text>
+                  <text v-if="discountCents(o) > 0" class="discount"
+                    >优惠 -¥{{ (discountCents(o) / 100).toFixed(2) }}</text
+                  >
+                </view>
               </view>
             </view>
             <view class="order-bottom">
               <view class="order-bottom-left">
-                <text class="order-channel">{{ payChannelText(o.payChannel) }}</text>
                 <text class="order-time">{{ formatTime(o.createdAt) }}</text>
+                <text
+                  v-if="refundCents(o) > 0"
+                  class="order-refund-amt"
+                  >已退 {{ fmtMoney(refundCents(o)) }}</text
+                >
               </view>
-              <text v-if="o.status === 'DISPUTED'" class="order-hint">审核中 ›</text>
+              <text
+                v-if="o.status === 'REFUNDED' || o.status === 'PARTIAL_REFUNDED' || o.refundedAt"
+                class="order-hint refund"
+                >{{
+                  o.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
+                }}{{ o.refundedAt ? ` · ${formatTime(o.refundedAt)}` : '' }} ›</text
+              >
+              <text v-else-if="o.status === 'DISPUTED'" class="order-hint">审核中 ›</text>
               <text v-else class="order-hint">查看详情 ›</text>
             </view>
           </view>
@@ -267,6 +296,25 @@ function orderSummaryText(o: OrderSummary) {
 function orderThumb(o: OrderSummary) {
   return skuImageFor('', '', o.lineSummary);
 }
+function discountCents(o: OrderSummary) {
+  return Math.max(0, Number(o.couponDiscountCents || 0) + Number(o.memberDiscountCents || 0));
+}
+function showOriginal(o: OrderSummary) {
+  const origin = Number(o.originalAmountCents || 0);
+  const total = Number(o.totalAmountCents || 0);
+  return origin > total && origin > 0;
+}
+function refundCents(o: OrderSummary) {
+  const n = Number(o.refundedCents || 0);
+  if (n > 0) return n;
+  if (o.status === 'REFUNDED') return Number(o.totalAmountCents || 0);
+  return 0;
+}
+function payTradeShort(o: OrderSummary) {
+  const raw = String(o.payTradeNo || o.paymentOperationId || '').trim();
+  if (!raw) return '';
+  return raw.length > 10 ? `…${raw.slice(-8)}` : raw;
+}
 function formatTime(value?: string) {
   return formatDateTimeShort(value);
 }
@@ -400,10 +448,8 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 
 <style scoped>
 .discount {
-  display: block;
-  margin-top: 2rpx;
   font-size: 20rpx;
-  color: #b91c1c;
+  color: #ea580c;
   font-weight: 600;
 }
 
@@ -743,23 +789,60 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   min-width: 0;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 16rpx;
 }
-.order-summary {
-  font-size: 26rpx;
-  color: #53645b;
+.order-copy-main {
   flex: 1;
   min-width: 0;
+}
+.order-summary {
+  display: block;
+  font-size: 26rpx;
+  color: #53645b;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.order-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8rpx;
+  margin-top: 10rpx;
+}
+.order-tag {
+  font-size: 20rpx;
+  color: #576b95;
+  background: #f2f4f8;
+  padding: 2rpx 10rpx;
+  border-radius: 6rpx;
+  max-width: 220rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.order-tag.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: #64748b;
+}
+.order-amt-block {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4rpx;
+}
+.amt-origin {
+  font-size: 22rpx;
+  color: #a1aaa5;
+  text-decoration: line-through;
 }
 .amt {
   color: var(--brand, #047857);
   font-weight: 800;
   font-size: 40rpx;
   letter-spacing: -1rpx;
+  line-height: 1.1;
 }
 .order-bottom {
   display: flex;
@@ -775,21 +858,22 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   gap: 12rpx;
   flex-wrap: wrap;
 }
-.order-channel {
-  font-size: 22rpx;
-  color: #576b95;
-  background: #f2f4f8;
-  padding: 2rpx 10rpx;
-  border-radius: 6rpx;
-}
 .order-time {
   font-size: 22rpx;
   color: #a1aaa5;
+}
+.order-refund-amt {
+  font-size: 22rpx;
+  color: #b45309;
+  font-weight: 600;
 }
 .order-hint {
   font-size: 24rpx;
   color: var(--brand, #047857);
   font-weight: 600;
+}
+.order-hint.refund {
+  color: #b45309;
 }
 .load-more {
   padding: 20rpx 0 8rpx;

@@ -93,11 +93,36 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
         return ColumnMapRows.toObjectRows(_skuBreakdownSince(since), 6);
     }
 
+    List<LinkedHashMap<String, Object>> _skuBreakdownBetween(
+            @Param("start") Instant start, @Param("end") Instant end);
+
+    default List<Object[]> skuBreakdownBetween(Instant start, Instant end) {
+        return ColumnMapRows.toObjectRows(_skuBreakdownBetween(start, end), 6);
+    }
+
     List<LinkedHashMap<String, Object>> _skuBreakdownByDevicesSince(
             @Param("deviceIds") Collection<String> deviceIds, @Param("since") Instant since);
 
     default List<Object[]> skuBreakdownByDevicesSince(Collection<String> deviceIds, Instant since) {
         return ColumnMapRows.toObjectRows(_skuBreakdownByDevicesSince(deviceIds, since), 6);
+    }
+
+    List<LinkedHashMap<String, Object>> _skuBreakdownByDevicesBetween(
+            @Param("deviceIds") Collection<String> deviceIds,
+            @Param("start") Instant start,
+            @Param("end") Instant end);
+
+    default List<Object[]> skuBreakdownByDevicesBetween(Collection<String> deviceIds, Instant start, Instant end) {
+        return ColumnMapRows.toObjectRows(_skuBreakdownByDevicesBetween(deviceIds, start, end), 6);
+    }
+
+    List<LinkedHashMap<String, Object>> _deviceBreakdownBetween(
+            @Param("deviceIds") Collection<String> deviceIds,
+            @Param("start") Instant start,
+            @Param("end") Instant end);
+
+    default List<Object[]> deviceBreakdownBetween(Collection<String> deviceIds, Instant start, Instant end) {
+        return ColumnMapRows.toObjectRows(_deviceBreakdownBetween(deviceIds, start, end), 5);
     }
 
     long sumCogsByDeviceIdsSince(
@@ -107,6 +132,11 @@ public interface CabinetOrderLineMapper extends BaseTradeMapper<CabinetOrderLine
             @Param("deviceIds") Collection<String> deviceIds, @Param("since") Instant since);
 
     long sumCogsByDeviceIdsBetween(
+            @Param("deviceIds") Collection<String> deviceIds,
+            @Param("start") Instant start,
+            @Param("end") Instant end);
+
+    long sumRevenueByDeviceIdsBetween(
             @Param("deviceIds") Collection<String> deviceIds,
             @Param("start") Instant start,
             @Param("end") Instant end);

@@ -98,12 +98,19 @@
           </el-button>
         </div>
         <el-table v-loading="loading" :data="contracts" stripe border>
-          <el-table-column prop="deviceName" label="柜机" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="siteName" label="场地" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="address" label="地址" min-width="160" show-overflow-tooltip />
+          <el-table-column prop="deviceName" label="柜机" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="deviceId" label="设备ID" min-width="110" show-overflow-tooltip />
+          <el-table-column prop="siteName" label="场地" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="address" label="地址" min-width="150" show-overflow-tooltip />
           <el-table-column prop="landlordName" label="场地主" width="100" />
+          <el-table-column label="联系电话" width="120" align="center">
+            <template #default="{ row }">{{ row.landlordPhone || '—' }}</template>
+          </el-table-column>
           <el-table-column label="月费" width="100" align="center">
-            <template #default="{ row }">¥{{ (row.monthlyFeeCents / 100).toFixed(0) }}</template>
+            <template #default="{ row }">¥{{ (row.monthlyFeeCents / 100).toFixed(2) }}</template>
+          </el-table-column>
+          <el-table-column label="起租" width="110" align="center">
+            <template #default="{ row }">{{ row.startDate || '—' }}</template>
           </el-table-column>
           <el-table-column label="到期" width="110" align="center">
             <template #default="{ row }">{{ row.endDate || '不限' }}</template>
@@ -115,10 +122,16 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="150" align="center">
+          <el-table-column label="备注" min-width="100" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.remark || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="220" align="center">
             <template #default="{ row }">
               <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openContract(row)">
                 编辑
+              </el-button>
+              <el-button v-hasPermi="['ops:org:edit']" size="small" @click="openRentSplit(row)">
+                租金分账
               </el-button>
               <el-button
                 v-hasPermi="['ops:org:edit']"
@@ -253,6 +266,65 @@
         <el-button type="primary" :loading="saving" @click="saveContract">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="rentSplitVisible"
+      :title="`租金分账 · ${rentSplitSiteName}`"
+      width="640px"
+      destroy-on-close
+    >
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        title="份额合计须为 10000bps（100%）；可填生效区间与固定金额"
+        style="margin-bottom: 12px"
+      />
+      <div v-for="(r, idx) in rentRules" :key="idx" class="rent-row">
+        <el-select v-model="r.partyType" style="width: 110px">
+          <el-option label="场地主" value="LANDLORD" />
+          <el-option label="平台" value="PLATFORM" />
+          <el-option label="商户" value="MERCHANT" />
+          <el-option label="加盟" value="FRANCHISE" />
+          <el-option label="其他" value="OTHER" />
+        </el-select>
+        <el-input v-model="r.partyId" placeholder="partyId" style="width: 110px" />
+        <el-input-number v-model="r.shareBps" :min="0" :max="10000" controls-position="right" />
+        <el-input-number
+          v-model="r.fixedCents"
+          :min="0"
+          :step="100"
+          controls-position="right"
+          placeholder="固定分"
+        />
+        <input v-model="r.effectiveFrom" class="native-date" type="date" title="生效起" />
+        <input v-model="r.effectiveTo" class="native-date" type="date" title="生效止" />
+        <el-select v-model="r.status" style="width: 90px">
+          <el-option label="生效" value="ACTIVE" />
+          <el-option label="停用" value="INACTIVE" />
+        </el-select>
+        <el-button link type="danger" @click="rentRules.splice(idx, 1)">删</el-button>
+      </div>
+      <el-button
+        size="small"
+        @click="
+          rentRules.push({
+            partyType: 'LANDLORD',
+            partyId: '',
+            shareBps: 0,
+            fixedCents: 0,
+            effectiveFrom: '',
+            effectiveTo: '',
+            status: 'ACTIVE'
+          })
+        "
+        >加一行</el-button
+      >
+      <template #footer>
+        <el-button @click="rentSplitVisible = false">取消</el-button>
+        <el-button type="primary" :loading="saving" @click="saveRentSplit">保存分账</el-button>
+      </template>
+    </el-dialog>
   </el-card>
 </template>
 
@@ -286,6 +358,20 @@ const assignVisible = ref(false);
 const assignNode = ref<OrgNodeDto | null>(null);
 const assignDeviceIds = ref<string[]>([]);
 const contractVisible = ref(false);
+const rentSplitVisible = ref(false);
+const rentSplitContractId = ref<number | null>(null);
+const rentSplitSiteName = ref('');
+const rentRules = ref<
+  {
+    partyType: string;
+    partyId: string;
+    shareBps: number;
+    fixedCents: number;
+    effectiveFrom: string;
+    effectiveTo: string;
+    status: string;
+  }[]
+>([]);
 const contractForm = ref<{
   contractId: number | null;
   deviceId: string;
@@ -506,6 +592,91 @@ async function removeContract(row: SiteContractDto) {
   }
 }
 
+async function openRentSplit(row: SiteContractDto) {
+  rentSplitContractId.value = row.contractId;
+  rentSplitSiteName.value = row.siteName;
+  rentSplitVisible.value = true;
+  try {
+    const rules = await api.request<
+      {
+        partyType: string;
+        partyId?: string;
+        shareBps: number;
+        fixedCents?: number;
+        effectiveFrom?: string;
+        effectiveTo?: string;
+        status?: string;
+      }[]
+    >(`/api/v2/ops/admin/site-contracts/${row.contractId}/rent-split-rules`, 'GET');
+    rentRules.value = (rules || []).map((r) => ({
+      partyType: r.partyType,
+      partyId: r.partyId || '',
+      shareBps: r.shareBps,
+      fixedCents: Number(r.fixedCents || 0),
+      effectiveFrom: r.effectiveFrom || '',
+      effectiveTo: r.effectiveTo || '',
+      status: r.status || 'ACTIVE'
+    }));
+    if (!rentRules.value.length) {
+      rentRules.value = [
+        {
+          partyType: 'LANDLORD',
+          partyId: '',
+          shareBps: 7000,
+          fixedCents: 0,
+          effectiveFrom: '',
+          effectiveTo: '',
+          status: 'ACTIVE'
+        },
+        {
+          partyType: 'PLATFORM',
+          partyId: '',
+          shareBps: 3000,
+          fixedCents: 0,
+          effectiveFrom: '',
+          effectiveTo: '',
+          status: 'ACTIVE'
+        }
+      ];
+    }
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '加载分账失败');
+  }
+}
+
+async function saveRentSplit() {
+  if (rentSplitContractId.value == null) return;
+  const sum = rentRules.value.reduce((s, r) => s + (Number(r.shareBps) || 0), 0);
+  if (sum !== 10000) {
+    ElMessage.warning(`份额合计 ${sum}，须等于 10000`);
+    return;
+  }
+  saving.value = true;
+  try {
+    await api.request(
+      `/api/v2/ops/admin/site-contracts/${rentSplitContractId.value}/rent-split-rules`,
+      'PUT',
+      {
+        rules: rentRules.value.map((r) => ({
+          partyType: r.partyType,
+          partyId: r.partyId || null,
+          shareBps: Number(r.shareBps) || 0,
+          fixedCents: Number(r.fixedCents) || 0,
+          status: r.status || 'ACTIVE',
+          effectiveFrom: r.effectiveFrom || null,
+          effectiveTo: r.effectiveTo || null
+        }))
+      }
+    );
+    ElMessage.success('租金分账已保存');
+    rentSplitVisible.value = false;
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '保存失败');
+  } finally {
+    saving.value = false;
+  }
+}
+
 function contractStatusLabel(s: string) {
   return dictLabel('site_contract_status', s) || s;
 }
@@ -541,5 +712,20 @@ function contractStatusType(s: string) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0 12px;
+}
+.rent-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.native-date {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 4px;
+  background: var(--el-bg-color);
+  color: inherit;
 }
 </style>

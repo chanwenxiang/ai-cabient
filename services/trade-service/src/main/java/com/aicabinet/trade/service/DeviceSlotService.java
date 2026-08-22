@@ -31,6 +31,7 @@ public class DeviceSlotService {
     private final SalesVelocityService salesVelocityService;
     private final RefundPolicyService refundPolicyService;
     private final InventoryLotService inventoryLotService;
+    private final MerchantOpsPolicyService opsPolicyService;
 
     public DeviceSlotService(DeviceSlotMapper slotRepository,
                              DeviceSkuLotMapper lotRepository,
@@ -42,7 +43,8 @@ public class DeviceSlotService {
                              MerchantScopeService merchantScopeService,
                              SalesVelocityService salesVelocityService,
                              RefundPolicyService refundPolicyService,
-                             InventoryLotService inventoryLotService) {
+                             InventoryLotService inventoryLotService,
+                             MerchantOpsPolicyService opsPolicyService) {
         this.slotRepository = slotRepository;
         this.lotRepository = lotRepository;
         this.deviceRepository = deviceRepository;
@@ -54,6 +56,7 @@ public class DeviceSlotService {
         this.salesVelocityService = salesVelocityService;
         this.refundPolicyService = refundPolicyService;
         this.inventoryLotService = inventoryLotService;
+        this.opsPolicyService = opsPolicyService;
     }
 
     @Transactional(readOnly = true)
@@ -66,8 +69,11 @@ public class DeviceSlotService {
                 .map(s -> toSlotDto(s, bookBySlot.getOrDefault(s.getId().getSlotCode(), 0)))
                 .toList();
         DeviceOpsMetricsDto metrics = computeMetrics(device, slots, bookBySlot);
+        Map<String, Integer> sellableBySku = inventoryLotService.deviceUsesLotLedger(deviceId)
+                ? inventoryLotService.sellableQtyBySku(deviceId)
+                : null;
         List<DeviceInventoryDto> skuInventory = inventoryRepository.findByIdDeviceId(deviceId).stream()
-                .map(this::toInventoryDto)
+                .map(inv -> toInventoryDto(inv, sellableBySku))
                 .toList();
         return new DeviceDetailDto(toAdminDeviceDto(device), metrics, slotDtos, skuInventory);
     }
@@ -379,6 +385,12 @@ public class DeviceSlotService {
     @Transactional(readOnly = true)
     public List<SkuQuantityDto> inventorySnapshot(String deviceId) {
         requireDevice(deviceId);
+        if (inventoryLotService.deviceUsesLotLedger(deviceId)) {
+            return inventoryLotService.sellableQtyBySku(deviceId).entrySet().stream()
+                    .filter(e -> e.getValue() != null && e.getValue() > 0)
+                    .map(e -> new SkuQuantityDto(e.getKey(), e.getValue()))
+                    .toList();
+        }
         return inventoryRepository.findByIdDeviceId(deviceId).stream()
                 .filter(inv -> inv.getQuantity() > 0)
                 .map(inv -> new SkuQuantityDto(inv.getId().getSkuId(), inv.getQuantity()))
@@ -590,6 +602,7 @@ public class DeviceSlotService {
     public DeviceSlotDto stocktakeSlot(Long operatorId, String deviceId, SlotStocktakeRequest request) {
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         requireDevice(deviceId);
+        opsPolicyService.requirePhotoEvidence(deviceId, true, request.photoEvidenceUrl());
         String slotCode = request.slotCode().trim().toUpperCase();
         DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode))
                 .orElseThrow(() -> notFound("slot"));
@@ -829,11 +842,19 @@ public class DeviceSlotService {
         return "OK";
     }
 
-    private DeviceInventoryDto toInventoryDto(DeviceSkuInventory inv) {
+    private DeviceInventoryDto toInventoryDto(DeviceSkuInventory inv, Map<String, Integer> sellableBySku) {
+        String deviceId = inv.getId().getDeviceId();
+        String skuId = inv.getId().getSkuId();
+        int qty = inv.getQuantity();
+        if (sellableBySku != null) {
+            qty = sellableBySku.getOrDefault(skuId, 0);
+        } else if (inventoryLotService.deviceUsesLotLedger(deviceId)) {
+            qty = inventoryLotService.sellableQuantity(deviceId, skuId);
+        }
         return new DeviceInventoryDto(
-                inv.getId().getDeviceId(),
-                inv.getId().getSkuId(),
-                inv.getQuantity(),
+                deviceId,
+                skuId,
+                qty,
                 inv.getCapacity(),
                 inv.getLowThreshold(),
                 inv.getUpdatedAt()

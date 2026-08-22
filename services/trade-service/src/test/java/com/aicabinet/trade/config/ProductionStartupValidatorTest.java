@@ -51,7 +51,9 @@ class ProductionStartupValidatorTest {
         when(authProperties.jwtSecret()).thenReturn("prod-jwt-secret-32bytes-at-least!!!!");
         when(authProperties.cookieEnabled()).thenReturn(true);
         when(authProperties.cookieSecure()).thenReturn(cookieSecure);
-        when(authProperties.sms()).thenReturn(new SmsProperties(smsCode, 300, "https://sms.example.com/send"));
+        when(authProperties.sms()).thenReturn(new SmsProperties(
+                smsCode, 300, "https://sms.example.com/send",
+                "webhook", null, null, null, null, null));
 
         WeChatPayProperties weChatPayProperties = mock(WeChatPayProperties.class);
         when(weChatPayProperties.isConfigured()).thenReturn(true);

@@ -20,6 +20,18 @@
             <view class="item-copy">
               <text class="item-title">{{ item.title }}</text>
               <text class="item-subtitle">{{ item.subtitle || '兑换优惠券，结算自动使用' }}</text>
+              <text v-if="item.denominationCents != null" class="item-coupon"
+                >券面 {{ (item.denominationCents / 100).toFixed(2) }} 元 ·
+                {{
+                  item.minSpendCents && item.minSpendCents > 0
+                    ? `满 ${(item.minSpendCents / 100).toFixed(2)} 可用`
+                    : '无门槛'
+                }}</text
+              >
+              <text v-if="item.validityDays" class="item-coupon"
+                >领后 {{ item.validityDays }} 天有效 ·
+                {{ deviceScopeText(item.deviceScope) }}</text
+              >
               <text class="item-stock">{{
                 item.availableStock > 0 ? `剩余 ${item.availableStock} 份` : '已兑完'
               }}</text>
@@ -81,6 +93,13 @@ async function load() {
   } finally {
     loading.value = false;
   }
+}
+
+function deviceScopeText(scope?: string) {
+  const s = String(scope || 'ALL').toUpperCase();
+  if (s === 'ALL' || !s) return '全柜可用';
+  if (s === 'SELECTED' || s === 'DEVICE' || s === 'DEVICES') return '指定柜可用';
+  return scope || '全柜可用';
 }
 
 async function redeem(item: PointsRedeemItemDto) {
@@ -214,6 +233,12 @@ function goPoints() {
   margin-top: 4rpx;
   font-size: 22rpx;
   color: #8a968e;
+}
+.item-coupon {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 20rpx;
+  color: #64748b;
 }
 .item-stock {
   display: block;

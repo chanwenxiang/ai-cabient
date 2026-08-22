@@ -51,7 +51,20 @@
             <text v-if="c.minSpendCents > 0" class="coupon-limit"
               >满{{ fmtMoney(c.minSpendCents) }}可用</text
             >
-            <text class="coupon-expire">有效期至 {{ formatTime(c.expireAt) }}</text>
+            <text v-else class="coupon-limit">无门槛</text>
+            <text class="coupon-expire"
+              >有效期至 {{ formatTime(c.expireAt)
+              }}{{ expireSoon(c) ? ' · 即将过期' : '' }}</text
+            >
+            <text class="coupon-scope">{{ deviceScopeText(c.deviceScope) }}</text>
+            <text v-if="c.description" class="coupon-desc">{{ c.description }}</text>
+            <text
+              v-if="c.status === 'UNUSED'"
+              class="coupon-pick"
+              :class="{ on: preferredId === c.couponId }"
+              @click.stop="pickForNextOpen(c)"
+              >{{ preferredId === c.couponId ? '已选·下次开门优先用' : '选作下次开门用' }}</text
+            >
           </view>
         </view>
       </view>
@@ -77,6 +90,7 @@ const activeTab = ref('');
 const loading = ref(false);
 const loadError = ref('');
 const list = ref<CouponDto[]>([]);
+const preferredId = ref<number | null>(null);
 
 const emptyTitle = computed(() => {
   if (activeTab.value === 'UNUSED') return '暂无未使用优惠券';
@@ -91,6 +105,9 @@ const emptyHint = computed(() =>
 );
 
 onShow(async () => {
+  const raw = uni.getStorageSync('preferred_coupon_id');
+  const n = Number(raw);
+  preferredId.value = Number.isFinite(n) && n > 0 ? n : null;
   if (!(await ensureConsumerAuth())) {
     uni.navigateTo({
       url: '/pages/login/login?redirect=' + encodeURIComponent('/pages/coupons/coupons')
@@ -121,6 +138,21 @@ function typeText(t: string) {
   return displayLabel('coupon_type', t, '优惠券');
 }
 
+function deviceScopeText(scope?: string) {
+  const s = String(scope || 'ALL').toUpperCase();
+  if (s === 'ALL' || !s) return '全柜可用';
+  if (s === 'SELECTED' || s === 'DEVICE' || s === 'DEVICES') return '指定柜机可用';
+  return `适用范围 ${scope}`;
+}
+
+function expireSoon(c: CouponDto) {
+  if (c.status !== 'UNUSED' || !c.expireAt) return false;
+  const t = new Date(c.expireAt).getTime();
+  if (!Number.isFinite(t)) return false;
+  const days = (t - Date.now()) / 86400000;
+  return days >= 0 && days <= 3;
+}
+
 function formatTime(t?: string) {
   return formatDateTimeMinute(t, '暂无').slice(0, 10);
 }
@@ -131,6 +163,18 @@ function goShop() {
 
 function goMarketing() {
   uni.navigateTo({ url: '/pages/marketing/index' });
+}
+
+function pickForNextOpen(c: CouponDto) {
+  if (preferredId.value === c.couponId) {
+    preferredId.value = null;
+    uni.removeStorageSync('preferred_coupon_id');
+    uni.showToast({ title: '已取消指定券', icon: 'none' });
+    return;
+  }
+  preferredId.value = c.couponId;
+  uni.setStorageSync('preferred_coupon_id', c.couponId);
+  uni.showToast({ title: '下次开门将优先用此券', icon: 'none' });
 }
 </script>
 
@@ -217,6 +261,28 @@ function goMarketing() {
   color: #ccc;
   margin-top: 8rpx;
   display: block;
+}
+.coupon-scope,
+.coupon-desc {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
+}
+.coupon-pick {
+  display: inline-block;
+  margin-top: 12rpx;
+  font-size: 22rpx;
+  color: #064e3b;
+  padding: 4rpx 12rpx;
+  border-radius: 999rpx;
+  background: #ecfdf5;
+  border: 1rpx solid #a7f3d0;
+}
+.coupon-pick.on {
+  background: #064e3b;
+  color: #fff;
+  border-color: #064e3b;
 }
 .coupon-status-badge {
   font-size: 20rpx;

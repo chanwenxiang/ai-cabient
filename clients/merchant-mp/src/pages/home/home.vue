@@ -209,6 +209,10 @@
             <text class="kpi-label">商户收入</text>
             <text class="kpi-value">{{ incomeToday }}</text>
           </view>
+          <view v-if="canFinanceKpi && avgOrderToday !== '暂无'">
+            <text class="kpi-label">近{{ analyticsDays }}日客单</text>
+            <text class="kpi-value">{{ avgOrderToday }}</text>
+          </view>
           <view>
             <text class="kpi-label">在线柜机</text>
             <text class="kpi-value">{{ onlineText }}</text>
@@ -283,6 +287,8 @@ const meName = ref('');
 const merchantNames = ref('');
 const revenueToday = ref('暂无');
 const incomeToday = ref('暂无');
+const avgOrderToday = ref('暂无');
+const analyticsDays = ref(7);
 const trendBars = ref<{ date: string; label: string; height: number }[]>([]);
 const pendingCount = ref(0);
 const offlineCount = ref(0);
@@ -404,7 +410,7 @@ async function load() {
     meName.value = profile.displayName || profile.phoneNumber || '同事';
     merchantNames.value = formatMerchantNames(profile.merchants);
 
-    const [s, trend, workbench, exceptionPage, expiryRows, devices, tasks, announcements] =
+    const [s, trend, workbench, exceptionPage, expiryRows, devices, tasks, announcements, analytics] =
       await Promise.all([
         merchantApi.stats().catch(() => ({}) as Record<string, number>),
         canTrend.value
@@ -441,7 +447,10 @@ async function load() {
         canReplenishment.value
           ? merchantApi.replenishmentTasks().catch(() => [])
           : Promise.resolve([]),
-        merchantApi.listAnnouncements().catch(() => [])
+        merchantApi.listAnnouncements().catch(() => []),
+        canBusiness.value
+          ? merchantApi.analytics(7).catch(() => null)
+          : Promise.resolve(null)
       ]);
     if (seq !== loadSeq) return;
     latestAnnouncement.value = announcements?.[0] || null;
@@ -451,6 +460,11 @@ async function load() {
     stats.value = s;
     revenueToday.value = canFinanceKpi.value ? fmtMoney(s.revenueTodayCents) : '暂无';
     incomeToday.value = canFinanceKpi.value ? fmtMoney(s.merchantIncomeTodayCents) : '暂无';
+    analyticsDays.value = Number(analytics?.days || 7);
+    avgOrderToday.value =
+      canBusiness.value && analytics?.avgOrderValueCents != null
+        ? fmtMoney(analytics.avgOrderValueCents)
+        : '暂无';
     offlineCount.value = canAlerts.value
       ? workbench.offlineDevices || 0
       : Number(s.deviceOffline || 0);

@@ -175,11 +175,20 @@ public class PointsRedeemService {
 
     private PointsRedeemItemDto toDto(PointsRedeemItem item) {
         String couponName = null;
+        Integer denomination = null;
+        Integer minSpend = null;
+        Integer validityDays = null;
+        String deviceScope = null;
         Optional<CouponDefinition> def = item.getCouponDefId() == null
                 ? Optional.empty()
                 : couponDefinitionRepository.findById(item.getCouponDefId());
         if (def.isPresent()) {
-            couponName = def.get().getCouponName();
+            CouponDefinition d = def.get();
+            couponName = d.getCouponName();
+            denomination = d.getDenominationCents();
+            minSpend = d.getMinSpendCents();
+            validityDays = d.getValidityDays();
+            deviceScope = d.getDeviceScope();
         }
         return new PointsRedeemItemDto(
                 item.getItemId(),
@@ -194,7 +203,11 @@ public class PointsRedeemService {
                 Math.max(0, nz(item.getStockTotal()) - nz(item.getRedeemedCount())),
                 nz(item.getSortOrder()),
                 item.getStatus(),
-                item.getCreatedAt()
+                item.getCreatedAt(),
+                denomination,
+                minSpend,
+                validityDays,
+                deviceScope
         );
     }
 

@@ -247,7 +247,7 @@ public class ProcurementService {
             line.setRejectedQty(0);
             purchaseOrderLineRepository.save(line);
             warehouseService.receivePurchaseStock(
-                    order.getWarehouseId(),
+                    resolveReceiveWarehouse(order, request),
                     line.getSkuId(),
                     line.getBatchNo(),
                     line.getProductionDate(),
@@ -272,6 +272,16 @@ public class ProcurementService {
         }
         supplierPayableService.recordReceive(operatorId, order, receivedValueCents);
         return toPurchaseDto(purchaseOrderRepository.save(order));
+    }
+
+    private String resolveReceiveWarehouse(PurchaseOrder order, ReceivePurchaseOrderRequest request) {
+        String target = request.receiveWarehouseId() == null || request.receiveWarehouseId().isBlank()
+                ? order.getWarehouseId()
+                : request.receiveWarehouseId().trim();
+        if (target == null || target.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "收货仓库未指定");
+        }
+        return target;
     }
 
     private PurchaseOrderLine matchLine(List<PurchaseOrderLine> existing, PurchaseOrderLineDto dto) {

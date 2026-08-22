@@ -14,6 +14,9 @@ export type MerchantReplenishmentSuggest = {
   lowThreshold?: number;
   suggestQty: number;
   inTransitQty?: number;
+  soldQty7d?: number;
+  soldQty14d?: number;
+  ropPoint?: number;
   suggestReason?: string;
 };
 
@@ -56,6 +59,10 @@ export type MerchantDeviceReport = {
   revenueTodayCents: number;
   sessionTotal: number;
   sessionActive: number;
+  avgOrderValueTodayCents?: number;
+  avgOrderValueTotalCents?: number;
+  routeCode?: string;
+  address?: string;
 };
 
 export type MerchantProfileUpdate = {
@@ -70,6 +77,7 @@ export type MerchantReplenishmentRequestLine = {
   skuName?: string;
   suggestedQty?: number;
   requestedQty: number;
+  approvedQty?: number;
 };
 
 export type MerchantReplenishmentRequest = {
@@ -85,13 +93,18 @@ export type MerchantReplenishmentRequest = {
   rejectReason?: string;
   replenishmentTaskId?: number;
   outboundId?: number;
+  dueAt?: string;
   lines?: MerchantReplenishmentRequestLine[];
 };
 
 export type WalletLedger = {
-  ledgerId?: string;
+  ledgerId?: string | number;
   entryType?: string;
   amountCents?: number;
+  balanceAfter?: number;
+  frozenAfter?: number;
+  refType?: string;
+  refId?: string;
   remark?: string;
   createdAt?: string;
 };
@@ -100,8 +113,16 @@ export type WithdrawRecord = {
   requestId?: string;
   requestNo?: string;
   amountCents?: number;
+  /** 手续费（分） */
+  feeCents?: number;
   status?: string;
+  payChannel?: string;
+  payoutRef?: string;
+  payoutMessage?: string;
+  reviewRemark?: string;
   createdAt?: string;
+  paidAt?: string;
+  reviewedAt?: string;
 };
 
 export type WalletOverview = {
@@ -455,6 +476,18 @@ export const merchantApi = {
     request<import('@aicabinet/shared-types').MerchantAnalyticsOverview>(
       `/api/v2/merchant/analytics/overview?days=${days}`
     ),
+  salesReports: (dim = 'PRODUCT', fromDate?: string, toDate?: string) =>
+    request<
+      Array<{
+        dimKey: string;
+        dimLabel: string;
+        orderCount: number;
+        qty: number;
+        revenueCents: number;
+        cogsCents: number;
+        marginCents: number;
+      }>
+    >(withQuery('/api/v2/merchant/analytics/sales-reports', { dim, fromDate, toDate })),
   skuSales: (days = 30, deviceId?: string) =>
     request<import('@aicabinet/shared-types').MerchantSkuSales[]>(
       withQuery('/api/v2/merchant/analytics/sku-sales', { days, deviceId })
@@ -512,6 +545,25 @@ export const merchantApi = {
     request<MerchantReplenishmentSuggest[]>(
       `/api/v2/merchant/replenishment/suggestions?deviceId=${encodeURIComponent(deviceId)}`
     ),
+  getTaxProfile: (merchantId: string) =>
+    request<{
+      merchantId: string;
+      companyName: string;
+      taxNo: string;
+      address?: string;
+      bankName?: string;
+      bankAccount?: string;
+      phone?: string;
+    }>(`/api/v2/merchant/tax-profile?merchantId=${encodeURIComponent(merchantId)}`),
+  saveTaxProfile: (body: {
+    merchantId: string;
+    companyName: string;
+    taxNo: string;
+    address?: string;
+    bankName?: string;
+    bankAccount?: string;
+    phone?: string;
+  }) => request('/api/v2/merchant/tax-profile', 'PUT', body),
   myReplenishmentEfficiency: () =>
     request<MerchantReplenishmentEfficiency>('/api/v2/merchant/replenishment/my-efficiency'),
   /** 缺货巡柜：全部低库存 SKU 明细（按柜聚合由页面完成） */
@@ -611,6 +663,19 @@ export const merchantApi = {
       'POST',
       { body }
     ),
+  disputeResolve: (
+    ticketId: string,
+    body: {
+      resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM';
+      restoreInventory?: boolean;
+      items?: { skuId: string; quantity: number }[];
+    }
+  ) =>
+    request<{ message?: string; resolutionType?: string }>(
+      `/api/v2/merchant/disputes/${encodeURIComponent(ticketId)}/resolve`,
+      'POST',
+      body
+    ),
   notifications: (limit = 50) =>
     request<MerchantNotificationDto[]>(`/api/v2/merchant/notifications?limit=${limit}`),
   notificationUnreadCount: () =>
@@ -625,10 +690,15 @@ export type MerchantOrderSummary = {
   deviceId?: string;
   status?: string;
   totalAmountCents?: number;
+  originalAmountCents?: number;
   lineCount?: number;
   lineSummary?: string;
   payChannel?: string;
   couponDiscountCents?: number;
+  memberDiscountCents?: number;
+  refundedAt?: string;
+  /** 累计已退款（分） */
+  refundedCents?: number;
   createdAt?: string;
 };
 
@@ -647,13 +717,18 @@ export type MerchantDisputeTicket = {
   canReply?: boolean;
   orderId?: string;
   billedAmountCents?: number;
+  refundedAmountCents?: number;
   sessionId?: string;
+  videoUri?: string;
+  videoPreviewUrl?: string;
+  suggestedItems?: { skuId?: string; skuName?: string; quantity?: number }[];
 };
 
 export type MerchantDisputeDetail = {
   ticket?: MerchantDisputeTicket;
   messages?: { body?: string; authorType?: string; createdAt?: string }[];
   canReply?: boolean;
+  canResolve?: boolean;
 };
 
 export type MerchantNotificationDto = {

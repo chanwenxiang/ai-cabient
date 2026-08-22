@@ -132,6 +132,13 @@
 
         <view class="btn-ghost" @click="goBack">返回</view>
         <text v-if="err" class="err">{{ err }}</text>
+        <view class="legal-row">
+          <text class="legal-link" @click="goPolicy('agreement')">用户协议</text>
+          <text class="legal-dot">·</text>
+          <text class="legal-link" @click="goPolicy('privacy')">隐私政策</text>
+          <text class="legal-dot">·</text>
+          <text class="legal-link" @click="goPolicy('refund')">退款规则</text>
+        </view>
       </view>
     </view>
   </view>
@@ -239,6 +246,10 @@ function goBack() {
   uni.navigateBack({
     fail: () => uni.switchTab({ url: '/pages/index/index' })
   });
+}
+
+function goPolicy(kind: 'agreement' | 'privacy' | 'refund') {
+  uni.navigateTo({ url: `/pages/policy/detail?type=${kind}` });
 }
 
 async function onWxLogin() {
@@ -844,6 +855,23 @@ async function onLogin() {
   margin-top: 16rpx;
   text-align: center;
   font-size: 26rpx;
+}
+.legal-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8rpx;
+  margin-top: 24rpx;
+}
+.legal-link {
+  font-size: 22rpx;
+  color: #99f6e4;
+  opacity: 0.9;
+}
+.legal-dot {
+  font-size: 22rpx;
+  color: rgba(153, 246, 228, 0.5);
 }
 .dev-hint {
   display: block;

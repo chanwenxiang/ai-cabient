@@ -23,10 +23,13 @@
           <el-table-column label="规则说明" min-width="220" align="center">
             <template #default="{ row }">{{ row.description }}</template>
           </el-table-column>
-          <el-table-column label="配置键" min-width="220" align="center" class-name="col-text">
+          <el-table-column label="配置键" min-width="200" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-id">{{ row.configKey }}</span>
             </template>
+          </el-table-column>
+          <el-table-column label="单位/提示" width="110" align="center">
+            <template #default="{ row }">{{ ruleUnitHint(row.configKey) }}</template>
           </el-table-column>
           <el-table-column label="当前值" min-width="160" align="center">
             <template #default="{ row }">
@@ -43,6 +46,11 @@
                 placeholder="请输入"
               />
             </template>
+          </el-table-column>
+          <el-table-column label="更新时间" width="150" align="center">
+            <template #default="{ row }">{{
+              row.updatedAt ? formatDateTime(row.updatedAt) : '—'
+            }}</template>
           </el-table-column>
           <el-table-column label="操作" width="110" align="center" class-name="col-action">
             <template #default="{ row }">
@@ -71,6 +79,7 @@ import { Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { api } from '@/api/client';
 import { useAuthStore } from '@/stores/auth';
+import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 interface SystemConfigRow {
   configKey: string;
@@ -147,6 +156,14 @@ async function save(row: RuleRow) {
 
 function onToggle(row: RuleRow, v: boolean) {
   row.configValue = String(v);
+}
+
+function ruleUnitHint(key: string) {
+  if (key.endsWith('_enabled')) return '开关';
+  if (key.includes('webhook')) return 'URL';
+  if (key.includes('minutes')) return '分钟';
+  if (key.includes('hours')) return '小时';
+  return '—';
 }
 
 onMounted(load);

@@ -2,21 +2,38 @@
   <view class="page-root">
     <app-nav-bar title="消息中心" />
     <view class="page-body">
+      <view class="filter-row">
+        <text
+          v-for="f in filters"
+          :key="f.key"
+          class="filter-chip"
+          :class="{ active: filter === f.key }"
+          @click="filter = f.key"
+          >{{ f.label }}</text
+        >
+      </view>
       <view v-if="loading && !list.length" class="loading"><text>加载中…</text></view>
-      <view v-else-if="!list.length" class="empty">
-        <text class="empty-title">暂无消息</text>
-        <text class="empty-hint">补货任务指派、结算到账等消息会出现在这里</text>
+      <view v-else-if="!visibleList.length" class="empty">
+        <text class="empty-title">{{ filter === 'unread' ? '暂无未读消息' : '暂无消息' }}</text>
+        <text class="empty-hint"
+          >补货任务指派、结算到账等消息会出现在这里；争议/库存待办请看「待办」页</text
+        >
       </view>
       <view v-else class="msg-list">
         <view
-          v-for="m in list"
+          v-for="m in visibleList"
           :key="m.id"
           class="msg-card"
           :class="{ unread: !m.read }"
           @click="onOpen(m)"
         >
           <view class="msg-head">
-            <text class="msg-title">{{ sanitizeNotifyTitle(m.title) }}</text>
+            <view class="msg-title-row">
+              <text v-if="bizTypeLabel(m.bizType)" class="biz-tag">{{
+                bizTypeLabel(m.bizType)
+              }}</text>
+              <text class="msg-title">{{ sanitizeNotifyTitle(m.title) }}</text>
+            </view>
             <text class="msg-time">{{ formatTime(m.createdAt) }}</text>
           </view>
           <text class="msg-body">{{ rewriteBizNosInText(m.body) }}</text>
@@ -28,7 +45,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { merchantApi, type MerchantNotificationDto } from '@/utils/merchant-api';
 import {
@@ -40,6 +57,15 @@ import {
 
 const loading = ref(false);
 const list = ref<MerchantNotificationDto[]>([]);
+const filter = ref<'all' | 'unread'>('all');
+const filters = [
+  { key: 'all' as const, label: '全部' },
+  { key: 'unread' as const, label: '未读' }
+];
+
+const visibleList = computed(() =>
+  filter.value === 'unread' ? list.value.filter((m) => !m.read) : list.value
+);
 
 onShow(load);
 
@@ -54,17 +80,57 @@ async function load() {
   }
 }
 
+function bizTypeLabel(type?: string) {
+  const t = String(type || '').toUpperCase();
+  if (t === 'REPLENISHMENT') return '补货';
+  if (t === 'DISPUTE') return '争议';
+  if (t === 'ORDER') return '订单';
+  if (t === 'SETTLEMENT' || t === 'SPLIT') return '结算';
+  if (t === 'WALLET' || t === 'WITHDRAW') return '钱包';
+  if (t === 'DEVICE' || t === 'ALERT') return '告警';
+  if (t === 'ANNOUNCEMENT') return '公告';
+  return '';
+}
+
 async function onOpen(m: MerchantNotificationDto) {
-  if (m.read) return;
-  try {
-    await merchantApi.markNotificationRead(m.id);
-    m.read = true;
-  } catch {
-    /* 忽略已读失败 */
+  if (!m.read) {
+    try {
+      await merchantApi.markNotificationRead(m.id);
+      m.read = true;
+    } catch {
+      /* 忽略已读失败 */
+    }
   }
   const id = m.bizId ? encodeURIComponent(m.bizId) : '';
-  if (m.bizType === 'REPLENISHMENT' && id) {
+  const type = String(m.bizType || '').toUpperCase();
+  if (type === 'REPLENISHMENT' && id) {
     uni.navigateTo({ url: `/pages/replenishment/replenishment?taskId=${id}` });
+    return;
+  }
+  if (type === 'DISPUTE') {
+    uni.navigateTo({
+      url: id ? `/pages/disputes/disputes?ticketId=${id}` : '/pages/disputes/disputes'
+    });
+    return;
+  }
+  if (type === 'ORDER' && id) {
+    uni.navigateTo({ url: `/pages/order-detail/order-detail?orderId=${id}` });
+    return;
+  }
+  if (type === 'SETTLEMENT' || type === 'SPLIT') {
+    uni.navigateTo({ url: '/pages/settlements/settlements' });
+    return;
+  }
+  if (type === 'WALLET' || type === 'WITHDRAW') {
+    uni.navigateTo({ url: '/pages/wallet/wallet' });
+    return;
+  }
+  if (type === 'DEVICE' || type === 'ALERT') {
+    uni.switchTab({ url: '/pages/alerts/alerts' });
+    return;
+  }
+  if (type === 'ANNOUNCEMENT' && id) {
+    uni.navigateTo({ url: `/pages/announcements/detail?id=${id}` });
   }
 }
 
@@ -79,6 +145,23 @@ function formatTime(t: string) {
   padding: 0;
   background: #ffffff;
   box-sizing: border-box;
+}
+.filter-row {
+  display: flex;
+  gap: 12rpx;
+  margin-bottom: 8rpx;
+}
+.filter-chip {
+  padding: 10rpx 22rpx;
+  border-radius: 999rpx;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 24rpx;
+}
+.filter-chip.active {
+  background: #ecfdf5;
+  color: #0f766e;
+  font-weight: 600;
 }
 .loading {
   padding: 120rpx 0;
@@ -116,30 +199,44 @@ function formatTime(t: string) {
   align-items: baseline;
   gap: 16rpx;
 }
+.msg-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10rpx;
+  min-width: 0;
+  flex: 1;
+}
+.biz-tag {
+  flex-shrink: 0;
+  font-size: 20rpx;
+  color: #0f766e;
+  background: #ecfdf5;
+  padding: 2rpx 10rpx;
+  border-radius: 8rpx;
+}
 .msg-title {
   font-size: 28rpx;
-  font-weight: 700;
-  color: #1f2a24;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .msg-time {
   flex-shrink: 0;
-  font-size: 20rpx;
-  color: #9aa4a0;
+  font-size: 22rpx;
+  color: #94a3b8;
 }
 .msg-body {
   display: block;
   margin-top: 10rpx;
   font-size: 24rpx;
-  line-height: 1.55;
-  color: #4b5563;
+  color: #64748b;
+  line-height: 1.5;
 }
 .msg-biz {
-  margin-top: 10rpx;
-  font-size: 20rpx;
-  color: #8a968e;
-}
-.page-body {
-  padding: 24rpx 24rpx 48rpx;
-  box-sizing: border-box;
+  margin-top: 8rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
 }
 </style>

@@ -24,6 +24,11 @@ public interface UserInfoMapper extends BaseTradeMapper<UserInfo> {
         return Optional.ofNullable(selectOne(Wrappers.<UserInfo>lambdaQuery().eq(UserInfo::getAlipayUserId, alipayUserId)));
     }
 
+    default Optional<UserInfo> findByAlipayAgreementId(String alipayAgreementId) {
+        return Optional.ofNullable(selectOne(Wrappers.<UserInfo>lambdaQuery()
+                .eq(UserInfo::getAlipayAgreementId, alipayAgreementId)));
+    }
+
     default Page<UserInfo> findAllByOrderByUserIdDesc(Pageable pageable) {
     var mpPage = new com.baomidou.mybatisplus.extension.plugins.pagination.Page<UserInfo>(
             pageable.getPageNumber() + 1L, pageable.getPageSize());

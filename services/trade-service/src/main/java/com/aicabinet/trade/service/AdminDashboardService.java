@@ -1299,8 +1299,9 @@ public class AdminDashboardService {
         Map<String, Integer> qtyByOrder = orderLineRepository.sumQuantityByOrderIds(orderIds);
         Map<String, List<CabinetOrderLine>> linesByOrder = loadOrderLinesByOrderIds(orderIds);
         StringBuilder sb = new StringBuilder(
-                "orderId,sessionId,userId,deviceId,totalAmountCents,status,payChannel,payTradeNo,paymentOperationId,"
-                        + "lineCount,lineSummary,inventoryDeducted,couponDiscountCents,refundedAt,createdAt\n");
+                "orderId,sessionId,userId,deviceId,merchantId,totalAmountCents,originalAmountCents,status,payChannel,"
+                        + "payTradeNo,paymentOperationId,lineCount,lineSummary,inventoryDeducted,"
+                        + "couponDiscountCents,memberDiscountCents,refundPolicy,refundedAt,createdAt\n");
         for (CabinetOrder o : page.getContent()) {
             AdminOrderSummaryDto row = toOrderSummary(
                     o,
@@ -1310,7 +1311,9 @@ public class AdminDashboardService {
                     .append(csv(row.sessionId())).append(',')
                     .append(row.userId()).append(',')
                     .append(csv(row.deviceId())).append(',')
+                    .append(csv(row.merchantId())).append(',')
                     .append(row.totalAmountCents()).append(',')
+                    .append(row.originalAmountCents()).append(',')
                     .append(csv(row.status())).append(',')
                     .append(csv(row.payChannel())).append(',')
                     .append(csv(row.payTradeNo())).append(',')
@@ -1319,6 +1322,8 @@ public class AdminDashboardService {
                     .append(csv(row.lineSummary())).append(',')
                     .append(row.inventoryDeducted()).append(',')
                     .append(row.couponDiscountCents()).append(',')
+                    .append(row.memberDiscountCents()).append(',')
+                    .append(csv(row.refundPolicy())).append(',')
                     .append(csv(row.refundedAt() == null ? "" : String.valueOf(row.refundedAt()))).append(',')
                     .append(csv(String.valueOf(row.createdAt()))).append('\n');
         }
@@ -1342,16 +1347,23 @@ public class AdminDashboardService {
         Pageable pageable = PageRequest.of(0, EXPORT_LIMIT, Sort.by(Sort.Direction.DESC, "createdAt"));
         Page<ShoppingSession> page = querySessions(
                 operatorId, deviceId, state, sessionId, userId, from, to, keyword, pageable);
-        StringBuilder sb = new StringBuilder("sessionId,userId,deviceId,state,orderId,openTime,closeTime,createdAt\n");
+        StringBuilder sb = new StringBuilder(
+                "sessionId,userId,deviceId,state,sessionKind,entryChannel,orderId,uploadStatus,failReason,"
+                        + "openTime,closeTime,createdAt,updatedAt\n");
         for (ShoppingSession s : page.getContent()) {
             sb.append(csv(s.getSessionId())).append(',')
                     .append(s.getUserId()).append(',')
                     .append(csv(s.getDeviceId())).append(',')
                     .append(s.getState()).append(',')
+                    .append(csv(DeviceValidationService.sessionKind(s))).append(',')
+                    .append(csv(s.getEntryChannel())).append(',')
                     .append(csv(s.getOrderId())).append(',')
+                    .append(csv(s.getUploadStatus())).append(',')
+                    .append(csv(s.getFailReason())).append(',')
                     .append(csv(String.valueOf(s.getOpenTime()))).append(',')
                     .append(csv(String.valueOf(s.getCloseTime()))).append(',')
-                    .append(csv(String.valueOf(s.getCreatedAt()))).append('\n');
+                    .append(csv(String.valueOf(s.getCreatedAt()))).append(',')
+                    .append(csv(String.valueOf(s.getUpdatedAt()))).append('\n');
         }
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
@@ -1823,6 +1835,15 @@ public class AdminDashboardService {
 
     private AdminSessionDto toSessionDto(ShoppingSession s) {
         String previewUrl = minioVideoService.presignPlaybackUrl(s.getVideoUri()).orElse(null);
+        Long shoppingMs = null;
+        if (s.getOpenTime() != null && s.getCloseTime() != null) {
+            shoppingMs = Math.max(0L, java.time.Duration.between(s.getOpenTime(), s.getCloseTime()).toMillis());
+        }
+        Long recognitionMs = null;
+        if (s.getCloseTime() != null && s.getUpdatedAt() != null
+                && !s.getUpdatedAt().isBefore(s.getCloseTime())) {
+            recognitionMs = Math.max(0L, java.time.Duration.between(s.getCloseTime(), s.getUpdatedAt()).toMillis());
+        }
         return new AdminSessionDto(
                 s.getSessionId(), s.getUserId(), s.getDeviceId(), s.getState(),
                 s.getOpenTime(), s.getCloseTime(), s.getOrderId(), s.getVideoUri(),
@@ -1830,7 +1851,13 @@ public class AdminDashboardService {
                 s.getFailReason(),
                 s.getCreatedAt(), s.getUpdatedAt(),
                 DeviceValidationService.sessionKind(s),
-                s.getReplenishmentTaskId()
+                s.getReplenishmentTaskId(),
+                s.getEntryChannel(),
+                s.getEntryChannel(),
+                s.getPreauthCents() > 0 ? s.getPreauthCents() : null,
+                s.getPreauthStatus(),
+                shoppingMs,
+                recognitionMs
         );
     }
 
@@ -1840,12 +1867,33 @@ public class AdminDashboardService {
         if (o.getPaymentOperationId() != null && o.getPaymentOperationId().startsWith("BL-")) {
             payChannel = "BALANCE";
         }
+        String merchantId = null;
+        if (o.getDeviceId() != null) {
+            merchantId = deviceRepository.findById(o.getDeviceId())
+                    .map(DeviceInfo::getMerchantId)
+                    .orElse(null);
+        }
+        int coupon = Math.max(0, o.getCouponDiscountCents());
+        int member = Math.max(0, o.getMemberDiscountCents());
+        int original = o.getOriginalAmountCents() > 0
+                ? o.getOriginalAmountCents()
+                : o.getTotalAmountCents() + coupon + member;
+        String refundPolicy = null;
+        try {
+            refundPolicy = refundPolicyService.resolveForDevice(o.getDeviceId()).name();
+        } catch (Exception ignored) {
+            // leave null
+        }
         return new AdminOrderSummaryDto(
                 o.getOrderId(),
                 o.getSessionId(),
                 o.getUserId(),
                 o.getDeviceId(),
+                merchantId,
                 o.getTotalAmountCents(),
+                original,
+                coupon,
+                member,
                 o.getStatus(),
                 payChannel,
                 lineCount,
@@ -1853,8 +1901,8 @@ public class AdminDashboardService {
                 o.getPayTradeNo(),
                 o.getPaymentOperationId(),
                 o.getRefundedAt(),
-                o.getCouponDiscountCents(),
                 o.isInventoryDeducted(),
+                refundPolicy,
                 o.getCreatedAt()
         );
     }

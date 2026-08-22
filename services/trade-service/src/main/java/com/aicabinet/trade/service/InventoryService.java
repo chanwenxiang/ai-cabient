@@ -86,12 +86,14 @@ public class InventoryService {
         if (items == null || items.isEmpty()) {
             return batchBySku;
         }
+        boolean lotLedger = inventoryLotService.deviceUsesLotLedger(deviceId);
         for (VisionServiceClient.RecognizedItem item : items) {
             if (item.quantity() <= 0) {
                 continue;
             }
             skuQtySold.merge(item.skuId(), item.quantity(), Integer::sum);
-            if (inventoryLotService.hasSellableLots(deviceId, item.skuId())) {
+            // 有批次账本时一律 FEFO：可售为 0 时禁止靠汇总表虚扣（会与消费者/货道账面不一致）
+            if (lotLedger || inventoryLotService.hasSellableLots(deviceId, item.skuId())) {
                 InventoryLotService.FefoDeductResult result = inventoryLotService.deductFefo(
                         deviceId, item.skuId(), item.quantity(), "ORDER", refId);
                 batchBySku.put(item.skuId(), result.primaryBatch());
@@ -136,6 +138,7 @@ public class InventoryService {
         }
         Map<String, Integer> slotQtyRestored = new HashMap<>();
         Map<String, Integer> skuQtyRestored = new HashMap<>();
+        boolean lotLedger = inventoryLotService.deviceUsesLotLedger(deviceId);
         for (VisionServiceClient.RecognizedItem item : items) {
             if (item.quantity() <= 0) {
                 continue;
@@ -146,7 +149,7 @@ public class InventoryService {
             if (batch != null && !batch.isBlank()) {
                 slotId = inventoryLotService.restoreToBatch(
                         deviceId, item.skuId(), batch, item.quantity(), "ORDER", null);
-            } else if (inventoryLotService.hasSellableLots(deviceId, item.skuId())) {
+            } else if (lotLedger || inventoryLotService.hasSellableLots(deviceId, item.skuId())) {
                 slotId = inventoryLotService.restoreToBatch(deviceId, item.skuId(),
                         "ADJ-" + item.skuId(), item.quantity(), "ORDER", null);
             } else {
@@ -162,6 +165,28 @@ public class InventoryService {
         } else {
             deviceSlotService.applyPhysicalAfterSkuRestore(deviceId, skuQtyRestored, "REFUND");
         }
+    }
+
+    /**
+     * 仅退款不回库：销售时已 FEFO 扣减，此处只写 {@code REFUND_KEPT} 审计流水（delta=0），
+     * 禁止再走报损扣库，避免账实与财务双重计损。
+     */
+    @Transactional
+    public void recordRefundKeptGoods(String deviceId, List<VisionServiceClient.RecognizedItem> items,
+                                      Map<String, String> batchBySku, String orderId) {
+        if (items == null || items.isEmpty() || orderId == null || orderId.isBlank()) {
+            return;
+        }
+        for (VisionServiceClient.RecognizedItem item : items) {
+            if (item == null || item.quantity() <= 0 || item.skuId() == null || item.skuId().isBlank()) {
+                continue;
+            }
+            String batch = batchBySku != null ? batchBySku.get(item.skuId()) : null;
+            inventoryLotService.recordRefundKeptNote(
+                    deviceId, item.skuId(), batch, item.quantity(), orderId);
+        }
+        log.info("refund kept goods noted device={} order={} skus={}",
+                deviceId, orderId, items.size());
     }
 
     @Transactional

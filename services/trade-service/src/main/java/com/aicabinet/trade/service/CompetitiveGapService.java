@@ -1,6 +1,7 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.*;
+import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -39,6 +40,8 @@ public class CompetitiveGapService {
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
     private final DeviceSalesLockService salesLockService;
+    private final SecurityProperties securityProperties;
+    private final OpsUserRouteScopeMapper routeScopeMapper;
 
     public CompetitiveGapService(OpsUserDeviceScopeMapper deviceScopeMapper,
                                  OpsUserDeviceScopePrefMapper deviceScopePrefMapper,
@@ -53,7 +56,9 @@ public class CompetitiveGapService {
                                  MerchantScopeService merchantScopeService,
                                  PermissionService permissionService,
                                  AdminAuditService auditService,
-                                 DeviceSalesLockService salesLockService) {
+                                 DeviceSalesLockService salesLockService,
+                                 SecurityProperties securityProperties,
+                                 OpsUserRouteScopeMapper routeScopeMapper) {
         this.deviceScopeMapper = deviceScopeMapper;
         this.deviceScopePrefMapper = deviceScopePrefMapper;
         this.opsConfigMapper = opsConfigMapper;
@@ -68,6 +73,8 @@ public class CompetitiveGapService {
         this.permissionService = permissionService;
         this.auditService = auditService;
         this.salesLockService = salesLockService;
+        this.securityProperties = securityProperties;
+        this.routeScopeMapper = routeScopeMapper;
     }
 
     // ---- M2 device scope ----
@@ -78,10 +85,16 @@ public class CompetitiveGapService {
         String mode = deviceScopePrefMapper.findById(userId)
                 .map(OpsUserDeviceScopePref::getScopeMode)
                 .orElse("ALL");
+        if ("PARTIAL".equalsIgnoreCase(mode)) {
+            mode = "DEVICE_IDS";
+        }
         List<String> devices = deviceScopeMapper.findByUserId(userId).stream()
                 .map(OpsUserDeviceScope::getDeviceId)
                 .toList();
-        return new OpsUserDeviceScopeDto(userId, mode, devices);
+        List<String> routes = routeScopeMapper.findByUserId(userId).stream()
+                .map(OpsUserRouteScope::getRouteCode)
+                .toList();
+        return new OpsUserDeviceScopeDto(userId, mode, devices, routes);
     }
 
     @Transactional
@@ -89,8 +102,11 @@ public class CompetitiveGapService {
         permissionService.requireAnyPermission(operatorId, "ops:rbac:assign:device", "ops:rbac:assign");
         String mode = body.scopeMode() == null || body.scopeMode().isBlank()
                 ? "ALL" : body.scopeMode().trim().toUpperCase();
-        if (!"ALL".equals(mode) && !"PARTIAL".equals(mode)) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scopeMode 仅支持 ALL / PARTIAL");
+        if ("PARTIAL".equals(mode)) {
+            mode = "DEVICE_IDS";
+        }
+        if (!Set.of("ALL", "DEVICE_IDS", "ROUTE").contains(mode)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "scopeMode 仅支持 ALL / DEVICE_IDS / ROUTE");
         }
         OpsUserDeviceScopePref pref = deviceScopePrefMapper.findById(userId).orElseGet(OpsUserDeviceScopePref::new);
         pref.setUserId(userId);
@@ -99,7 +115,8 @@ public class CompetitiveGapService {
         deviceScopePrefMapper.save(pref);
 
         deviceScopeMapper.deleteByUserId(userId);
-        if ("PARTIAL".equals(mode) && body.deviceIds() != null) {
+        routeScopeMapper.deleteByUserId(userId);
+        if ("DEVICE_IDS".equals(mode) && body.deviceIds() != null) {
             for (String deviceId : body.deviceIds()) {
                 if (deviceId == null || deviceId.isBlank()) {
                     continue;
@@ -108,6 +125,17 @@ public class CompetitiveGapService {
                 row.setUserId(userId);
                 row.setDeviceId(deviceId.trim());
                 deviceScopeMapper.insert(row);
+            }
+        }
+        if ("ROUTE".equals(mode) && body.routeCodes() != null) {
+            for (String route : body.routeCodes()) {
+                if (route == null || route.isBlank()) {
+                    continue;
+                }
+                OpsUserRouteScope row = new OpsUserRouteScope();
+                row.setUserId(userId);
+                row.setRouteCode(route.trim());
+                routeScopeMapper.insert(row);
             }
         }
         auditService.record(operatorId, "OPS_USER_DEVICE_SCOPE", "USER", String.valueOf(userId), mode);
@@ -164,8 +192,11 @@ public class CompetitiveGapService {
         if (allowed != null && allowed.isEmpty()) {
             return new PageResult<>(List.of(), page, size, 0);
         }
-        ensureSyntheticOfflineEvents(allowed);
-        ensureNoSalesEvents(allowed);
+        // 仅本地 mock：列表为空时补演示事件；生产应由真实心跳/扫描任务写事件，禁止读接口写库
+        if (securityProperties.mockEnabled()) {
+            ensureSyntheticOfflineEvents(allowed);
+            ensureNoSalesEvents(allowed);
+        }
         var result = deviceOpsEventMapper.search(
                 allowed, eventType, Instant.now().minusSeconds(86400L * 14), Instant.now(),
                 page, Math.min(size, 100), eventIdAsc);
@@ -259,9 +290,61 @@ public class CompetitiveGapService {
         return switch (dimension) {
             case "CABINET", "DEVICE" -> aggregateByDevice(deviceIds, start, end);
             case "MERCHANT" -> aggregateByMerchant(deviceIds, start, end);
-            case "MARGIN", "PRODUCT", "SKU" -> aggregateByProduct(deviceIds, start);
+            case "MARGIN", "PRODUCT", "SKU" -> aggregateByProduct(deviceIds, start, end);
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dim 支持 PRODUCT/SKU/CABINET/MERCHANT/MARGIN");
         };
+    }
+
+    /** 商户可读子集：商品 / 货柜 / 毛利（不含跨商户 MERCHANT 维）。 */
+    @Transactional(readOnly = true)
+    public List<SalesReportRowDto> salesReportForDevices(Set<String> deviceIds, String dim,
+                                                         String fromDate, String toDate) {
+        LocalDate from = fromDate == null || fromDate.isBlank()
+                ? LocalDate.now(ZONE).minusDays(7) : LocalDate.parse(fromDate.trim());
+        LocalDate to = toDate == null || toDate.isBlank()
+                ? LocalDate.now(ZONE) : LocalDate.parse(toDate.trim());
+        Instant start = from.atStartOfDay(ZONE).toInstant();
+        Instant end = to.plusDays(1).atStartOfDay(ZONE).toInstant();
+        Set<String> scoped = deviceIds == null ? Set.of() : deviceIds;
+        String dimension = dim == null ? "PRODUCT" : dim.trim().toUpperCase();
+        return switch (dimension) {
+            case "CABINET", "DEVICE" -> aggregateByDevice(scoped, start, end);
+            case "MARGIN", "PRODUCT", "SKU" -> aggregateByProduct(scoped, start, end);
+            default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "商户报表 dim 支持 PRODUCT/CABINET/MARGIN");
+        };
+    }
+
+    /** 短信/渠道验证成功后写入审计流水（无运营权限校验）。 */
+    @Transactional
+    public void auditPhoneVerify(Long userId, String phone, String channel) {
+        if (phone == null || phone.isBlank()) {
+            return;
+        }
+        PhoneVerifyLog log = new PhoneVerifyLog();
+        log.setUserId(userId);
+        log.setPhone(phone.trim());
+        log.setChannel(channel == null || channel.isBlank() ? "SMS" : channel.trim().toUpperCase());
+        log.setVerifiedAt(Instant.now());
+        phoneVerifyLogMapper.insert(log);
+    }
+
+    public String salesReportCsv(List<SalesReportRowDto> rows) {
+        StringBuilder sb = new StringBuilder("dimKey,dimLabel,orderCount,qty,revenueCents,cogsCents,marginCents\n");
+        for (SalesReportRowDto r : rows) {
+            sb.append(csv(r.dimKey())).append(',')
+                    .append(csv(r.dimLabel())).append(',')
+                    .append(r.orderCount()).append(',')
+                    .append(r.qty()).append(',')
+                    .append(r.revenueCents()).append(',')
+                    .append(r.cogsCents()).append(',')
+                    .append(r.marginCents()).append('\n');
+        }
+        return sb.toString();
+    }
+
+    private static String csv(String v) {
+        String s = v == null ? "" : v.replace("\"", "\"\"");
+        return "\"" + s + "\"";
     }
 
     @Transactional(readOnly = true)
@@ -396,10 +479,15 @@ public class CompetitiveGapService {
         }
     }
 
-    private List<SalesReportRowDto> aggregateByProduct(Set<String> deviceIds, Instant since) {
-        List<Object[]> rows = deviceIds == null
-                ? lineMapper.skuBreakdownSince(since)
-                : deviceIds.isEmpty() ? List.of() : lineMapper.skuBreakdownByDevicesSince(deviceIds, since);
+    private List<SalesReportRowDto> aggregateByProduct(Set<String> deviceIds, Instant start, Instant end) {
+        List<Object[]> rows;
+        if (deviceIds == null) {
+            rows = lineMapper.skuBreakdownBetween(start, end);
+        } else if (deviceIds.isEmpty()) {
+            rows = List.of();
+        } else {
+            rows = lineMapper.skuBreakdownByDevicesBetween(deviceIds, start, end);
+        }
         List<SalesReportRowDto> out = new ArrayList<>();
         for (Object[] row : rows) {
             long qty = ((Number) row[2]).longValue();
@@ -420,22 +508,24 @@ public class CompetitiveGapService {
     }
 
     private List<SalesReportRowDto> aggregateByDevice(Set<String> deviceIds, Instant start, Instant end) {
-        List<CabinetOrder> orders = orderMapper.findByCreatedAtBetween(start, end);
-        Map<String, Agg> map = new HashMap<>();
-        for (CabinetOrder o : orders) {
-            if (deviceIds != null && !deviceIds.contains(o.getDeviceId())) {
-                continue;
-            }
-            Agg a = map.computeIfAbsent(o.getDeviceId(), k -> new Agg());
-            a.orderCount++;
-            a.revenue += o.getTotalAmountCents();
+        if (deviceIds != null && deviceIds.isEmpty()) {
+            return List.of();
         }
-        Map<String, String> names = deviceInfoMapper.findByDeviceIdIn(map.keySet()).stream()
+        List<Object[]> rows = lineMapper.deviceBreakdownBetween(deviceIds, start, end);
+        Map<String, String> names = deviceInfoMapper.findByDeviceIdIn(
+                        rows.stream().map(r -> String.valueOf(r[0])).collect(Collectors.toSet())).stream()
                 .collect(Collectors.toMap(DeviceInfo::getDeviceId, DeviceInfo::getDeviceName, (a, b) -> a));
-        return map.entrySet().stream()
-                .map(e -> new SalesReportRowDto(
-                        e.getKey(), names.getOrDefault(e.getKey(), e.getKey()),
-                        e.getValue().orderCount, 0, e.getValue().revenue, 0, e.getValue().revenue))
+        return rows.stream()
+                .map(r -> {
+                    String did = String.valueOf(r[0]);
+                    long qty = ((Number) r[1]).longValue();
+                    long revenue = ((Number) r[2]).longValue();
+                    long cogs = ((Number) r[3]).longValue();
+                    long orderCount = ((Number) r[4]).longValue();
+                    return new SalesReportRowDto(
+                            did, names.getOrDefault(did, did),
+                            orderCount, qty, revenue, cogs, revenue - cogs);
+                })
                 .sorted((a, b) -> Long.compare(b.revenueCents(), a.revenueCents()))
                 .toList();
     }
@@ -449,16 +539,19 @@ public class CompetitiveGapService {
         Map<String, String> deviceMerchant = devices.stream()
                 .collect(Collectors.toMap(DeviceInfo::getDeviceId,
                         d -> d.getMerchantId() == null ? "" : d.getMerchantId(), (a, b) -> a));
-        List<CabinetOrder> orders = orderMapper.findByCreatedAtBetween(start, end);
+        List<Object[]> deviceRows = lineMapper.deviceBreakdownBetween(deviceIds, start, end);
         Map<String, Agg> map = new HashMap<>();
-        for (CabinetOrder o : orders) {
-            if (deviceIds != null && !deviceIds.contains(o.getDeviceId())) {
+        for (Object[] r : deviceRows) {
+            String did = String.valueOf(r[0]);
+            if (deviceIds != null && !deviceIds.contains(did)) {
                 continue;
             }
-            String mid = deviceMerchant.getOrDefault(o.getDeviceId(), "");
+            String mid = deviceMerchant.getOrDefault(did, "");
             Agg a = map.computeIfAbsent(mid, k -> new Agg());
-            a.orderCount++;
-            a.revenue += o.getTotalAmountCents();
+            a.orderCount += ((Number) r[4]).longValue();
+            a.qty += ((Number) r[1]).longValue();
+            a.revenue += ((Number) r[2]).longValue();
+            a.cogs += ((Number) r[3]).longValue();
         }
         Set<String> merchantIds = map.keySet().stream()
                 .filter(id -> id != null && !id.isBlank())
@@ -471,7 +564,8 @@ public class CompetitiveGapService {
                 .map(e -> new SalesReportRowDto(
                         e.getKey(),
                         names.getOrDefault(e.getKey(), e.getKey().isBlank() ? "(未绑定)" : e.getKey()),
-                        e.getValue().orderCount, 0, e.getValue().revenue, 0, e.getValue().revenue))
+                        e.getValue().orderCount, e.getValue().qty, e.getValue().revenue,
+                        e.getValue().cogs, e.getValue().revenue - e.getValue().cogs))
                 .sorted((a, b) -> Long.compare(b.revenueCents(), a.revenueCents()))
                 .toList();
     }
@@ -511,6 +605,8 @@ public class CompetitiveGapService {
 
     private static class Agg {
         long orderCount;
+        long qty;
         long revenue;
+        long cogs;
     }
 }

@@ -29,17 +29,20 @@ public class InventoryOpsService {
     private final SkuCatalogMapper skuCatalogRepository;
     private final DeviceSkuInventoryMapper inventoryRepository;
     private final InventoryWriteOffMapper writeOffRepository;
+    private final MerchantOpsPolicyService opsPolicyService;
 
     public InventoryOpsService(InventoryLotService lotService,
                                DeviceValidationService deviceValidationService,
                                SkuCatalogMapper skuCatalogRepository,
                                DeviceSkuInventoryMapper inventoryRepository,
-                               InventoryWriteOffMapper writeOffRepository) {
+                               InventoryWriteOffMapper writeOffRepository,
+                               MerchantOpsPolicyService opsPolicyService) {
         this.lotService = lotService;
         this.deviceValidationService = deviceValidationService;
         this.skuCatalogRepository = skuCatalogRepository;
         this.inventoryRepository = inventoryRepository;
         this.writeOffRepository = writeOffRepository;
+        this.opsPolicyService = opsPolicyService;
     }
 
     @Transactional
@@ -86,6 +89,7 @@ public class InventoryOpsService {
     @Transactional
     public DeviceSkuInventory stocktakeAdjust(Long operatorId, StocktakeAdjustRequest request) {
         deviceValidationService.requireDevice(request.deviceId());
+        opsPolicyService.requirePhotoEvidence(request.deviceId(), true, request.photoEvidenceUrl());
         skuCatalogRepository.findById(request.skuId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "sku not found"));
 
@@ -99,9 +103,16 @@ public class InventoryOpsService {
             return created;
         });
 
-        int current = inv.getQuantity();
+        // 有批次账本时以可售为基准；即使 delta=0 也 sync，避免汇总表虚库存残留
+        int current = lotService.deviceUsesLotLedger(request.deviceId())
+                ? lotService.sellableQuantity(request.deviceId(), request.skuId())
+                : inv.getQuantity();
         int delta = request.countedQuantity() - current;
         if (delta == 0) {
+            if (lotService.deviceUsesLotLedger(request.deviceId())) {
+                lotService.syncAggregateInventory(request.deviceId(), request.skuId());
+                return inventoryRepository.findById(id).orElse(inv);
+            }
             return inv;
         }
 

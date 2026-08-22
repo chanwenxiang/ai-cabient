@@ -59,6 +59,13 @@
         <text class="card-desc"
           >推荐开通支付分 / 免密代扣；可用余额 ≥ ¥{{ needYuan }} 也可临时开门。</text
         >
+        <view v-if="maskedName || account?.phoneNumber" class="status-row">
+          <text class="status-label">已实名</text>
+          <text class="status-val"
+            >{{ maskedName || '已认证'
+            }}{{ account?.phoneNumber ? ` · ${maskPhone(account.phoneNumber)}` : '' }}</text
+          >
+        </view>
         <view class="status-row">
           <text class="status-label">可用余额</text>
           <text class="status-val">{{ balanceYuan }}</text>
@@ -66,6 +73,14 @@
         <view v-if="frozenYuan !== '¥0.00'" class="status-row">
           <text class="status-label">冻结中</text>
           <text class="status-val">{{ frozenYuan }}</text>
+        </view>
+        <view class="status-row">
+          <text class="status-label">优先支付</text>
+          <text class="status-val">{{ preferredPayText }}</text>
+        </view>
+        <view class="status-row">
+          <text class="status-label">开门预授权</text>
+          <text class="status-val">约 ¥{{ needYuan }}</text>
         </view>
         <view class="status-row">
           <text class="status-label">微信支付分</text>
@@ -102,6 +117,11 @@
         <text class="done-icon">✓</text>
         <text class="done-title">可以开门购物了</text>
         <text class="done-desc">扫柜门二维码即可开门取货</text>
+        <view class="done-meta">
+          <text>优先支付：{{ preferredPayText }}</text>
+          <text v-if="maskedName">实名：{{ maskedName }}</text>
+          <text>可用余额 {{ balanceYuan }}</text>
+        </view>
         <button class="btn-primary btn-block" hover-class="btn-hover" @click="goShop">
           去扫码开门
         </button>
@@ -144,6 +164,30 @@ const frozenYuan = computed(() => fmtMoney(Math.max(0, account.value?.frozenCent
 const payReady = computed(() => isPayReady(account.value, null, preauthCents.value));
 const wechatReady = computed(() => !!account.value?.payscoreEnabled);
 const alipayReady = computed(() => !!account.value?.alipayAgreementEnabled);
+const maskedName = computed(() => maskRealName(account.value?.realName));
+const preferredPayText = computed(() => {
+  const ch = String(account.value?.payPreferredChannel || '').toUpperCase();
+  if (ch === 'WECHAT' || ch === 'WECHAT_PAYSCORE') return '微信支付分';
+  if (ch === 'ALIPAY') return '支付宝免密';
+  if (ch === 'BALANCE') return '账户余额';
+  if (wechatReady.value) return '微信支付分';
+  if (alipayReady.value) return '支付宝免密';
+  return '余额兜底';
+});
+
+function maskRealName(name?: string) {
+  const n = String(name || '').trim();
+  if (!n) return '';
+  if (n.length === 1) return n;
+  if (n.length === 2) return n[0] + '*';
+  return n[0] + '*'.repeat(n.length - 2) + n[n.length - 1];
+}
+
+function maskPhone(phone?: string | number) {
+  const p = String(phone || '').replace(/\D/g, '');
+  if (p.length < 7) return String(phone || '');
+  return p.slice(0, 3) + '****' + p.slice(-4);
+}
 
 onLoad((opts) => {
   fromOpen.value = opts?.from === 'open';
@@ -219,6 +263,24 @@ async function onSignAlipay() {
   err.value = '';
   try {
     const res = await consumerApi.signAlipayAgreement();
+    if (res.pending && res.signFormHtml) {
+      // 生产：支付宝内 H5 自动提交签约表单；微信小程序不内嵌支付宝签约
+      const platform = String((import.meta as any).env?.UNI_PLATFORM || '').toLowerCase();
+      const isH5 = platform === 'h5' || (typeof window !== 'undefined' && !!(window as any).document);
+      if (isH5 && typeof document !== 'undefined') {
+        const blob = new Blob([res.signFormHtml], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        window.location.href = url;
+        return;
+      }
+      uni.showModal({
+        title: '请在支付宝内开通',
+        content: '支付宝免密需在支付宝扫柜码进入后开通（不做支付宝小程序）。当前环境无法跳转签约页。',
+        showCancel: false
+      });
+      account.value = await consumerApi.account();
+      return;
+    }
     account.value = await consumerApi.account();
     uni.showToast({ title: res.message || '开通成功', icon: 'success' });
     if (fromOpen.value) {
@@ -452,7 +514,15 @@ function goShop() {
 .done-desc {
   font-size: 26rpx;
   color: #888;
-  margin: 12rpx 0 32rpx;
+  margin: 12rpx 0 16rpx;
   display: block;
+}
+.done-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  margin-bottom: 28rpx;
+  font-size: 24rpx;
+  color: #64748b;
 }
 </style>

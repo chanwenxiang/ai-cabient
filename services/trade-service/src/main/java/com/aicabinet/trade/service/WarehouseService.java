@@ -37,6 +37,7 @@ public class WarehouseService {
     private final DeviceSlotService deviceSlotService;
     private final SalesVelocityService salesVelocityService;
     private final InTransitService inTransitService;
+    private final InventoryLotService inventoryLotService;
 
     public WarehouseService(WarehouseMapper warehouseRepository,
                             WarehouseInventoryMapper inventoryRepository,
@@ -51,7 +52,8 @@ public class WarehouseService {
                             SkuCatalogMapper skuCatalogRepository,
                             DeviceSlotService deviceSlotService,
                             SalesVelocityService salesVelocityService,
-                            InTransitService inTransitService) {
+                            InTransitService inTransitService,
+                            InventoryLotService inventoryLotService) {
         this.warehouseRepository = warehouseRepository;
         this.inventoryRepository = inventoryRepository;
         this.inboundRepository = inboundRepository;
@@ -66,6 +68,7 @@ public class WarehouseService {
         this.deviceSlotService = deviceSlotService;
         this.salesVelocityService = salesVelocityService;
         this.inTransitService = inTransitService;
+        this.inventoryLotService = inventoryLotService;
     }
 
     @Transactional(readOnly = true)
@@ -261,19 +264,26 @@ public class WarehouseService {
             return suggestForDevice(deviceId, false);
         }
         List<ReplenishmentSuggestDto> lowStock = deviceInventoryRepository.findByIdDeviceId(dev).stream()
-                .filter(i -> i.getQuantity() <= i.getLowThreshold())
                 .map(i -> {
-                    SalesVelocityService.SkuVelocity velocity = velocityBySku.getOrDefault(
-                            i.getId().getSkuId(), new SalesVelocityService.SkuVelocity(0, 0, 0, 0));
                     String skuId = i.getId().getSkuId();
+                    int book = bookQtyForSuggest(dev, skuId, i.getQuantity());
+                    return Map.entry(i, book);
+                })
+                .filter(e -> e.getValue() <= e.getKey().getLowThreshold())
+                .map(e -> {
+                    DeviceSkuInventory i = e.getKey();
+                    int book = e.getValue();
+                    String skuId = i.getId().getSkuId();
+                    SalesVelocityService.SkuVelocity velocity = velocityBySku.getOrDefault(
+                            skuId, new SalesVelocityService.SkuVelocity(0, 0, 0, 0));
                     int inTransit = inTransitBySku.getOrDefault(skuId, 0);
-                    int rawSuggest = Math.max(0, i.getCapacity() - i.getQuantity());
+                    int rawSuggest = Math.max(0, i.getCapacity() - book);
                     // 有货道陈列时按可补容量截断，避免出库远超货道
                     rawSuggest = capSuggestBySlotHeadroom(dev, skuId, rawSuggest);
                     return new ReplenishmentSuggestDto(
                             i.getId().getDeviceId(),
                             skuId,
-                            i.getQuantity(),
+                            book,
                             i.getCapacity(),
                             i.getLowThreshold(),
                             Math.max(0, rawSuggest - inTransit), inTransit,
@@ -290,10 +300,10 @@ public class WarehouseService {
                 .map(e -> {
                     String skuId = e.getKey();
                     SalesVelocityService.SkuVelocity velocity = e.getValue();
-                    int book = deviceInventoryRepository.findByIdDeviceId(dev).stream()
+                    int book = bookQtyForSuggest(dev, skuId, deviceInventoryRepository.findByIdDeviceId(dev).stream()
                             .filter(inv -> skuId.equals(inv.getId().getSkuId()))
                             .mapToInt(DeviceSkuInventory::getQuantity)
-                            .sum();
+                            .sum());
                     if (book > velocity.ropPoint()) {
                         return null;
                     }
@@ -312,6 +322,13 @@ public class WarehouseService {
                 })
                 .filter(java.util.Objects::nonNull)
                 .toList();
+    }
+
+    private int bookQtyForSuggest(String deviceId, String skuId, int inventoryQty) {
+        if (inventoryLotService.deviceUsesLotLedger(deviceId)) {
+            return inventoryLotService.sellableQuantity(deviceId, skuId);
+        }
+        return inventoryQty;
     }
 
     /** 已绑定货道时，建议量不超过货道可补总容量。 */

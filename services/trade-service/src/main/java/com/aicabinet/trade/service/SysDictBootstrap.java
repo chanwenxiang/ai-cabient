@@ -177,7 +177,7 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "RECHARGE", "充值", "RECHARGE_REFUND", "充值退款", "REFUND", "退款",
                 "SETTLE", "结算入账", "PAYOUT", "打款", "FEE", "手续费")));
         map.put("session_kind", t("会话类型", m(
-                "RESTOCK", "补货", "OPS", "运维", "SHOPPING", "消费")));
+                "CONSUMER", "消费", "RESTOCK", "补货", "OPS", "运维", "SHOPPING", "消费")));
         map.put("restock_line_type", t("补货行类型", m(
                 "RESTOCK", "上架", "PULL_OFF", "下架", "REMOVE", "下架", "PULL", "下架")));
         map.put("ops_alert_type", t("运维告警类型", m(
@@ -311,6 +311,8 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "FRAUD", "欺诈嫌疑", "ABNORMAL", "异常行为")));
         map.put("risk_severity", t("风控处置", m(
                 "INFO", "提示", "WARN", "警告", "BLOCK", "已拦截", "HIGH", "高风险", "CRITICAL", "严重")));
+        map.put("risk_disposition_status", t("风控处置状态", m(
+                "OPEN", "待处置", "AUTO_CLEARED", "自动结清", "ACKED", "已确认")));
         map.put("settlement_batch_status", t("结算批次状态", m(
                 "PENDING", "待结算", "PROCESSING", "结算中", "SETTLED", "已结算", "PAID", "已支付",
                 "FAILED", "失败", "PARTIAL_FAILED", "部分失败", "COMPLETED", "已完成")));

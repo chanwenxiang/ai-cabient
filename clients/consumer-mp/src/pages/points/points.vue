@@ -9,7 +9,12 @@
             <text class="summary-label">可用积分</text>
             <text class="summary-value">{{ summary?.availablePoints ?? 0 }}</text>
             <text class="summary-sub"
-              >累计 {{ summary?.totalPoints ?? 0 }} · 已用 {{ summary?.usedPoints ?? 0 }}</text
+              >累计 {{ summary?.totalPoints ?? 0 }} · 已用 {{ summary?.usedPoints ?? 0
+              }}{{
+                summary && summary.expiredPoints > 0
+                  ? ` · 已过期 ${summary.expiredPoints}`
+                  : ''
+              }}</text
             >
           </view>
           <view class="summary-meta">
@@ -24,6 +29,10 @@
             <view v-if="summary && summary.nextLevelPointsGap > 0" class="meta-row">
               <text class="meta-label">升级还差</text>
               <text class="meta-value warn">{{ summary.nextLevelPointsGap }} 积分</text>
+            </view>
+            <view class="meta-row tip">
+              <text class="meta-label">说明</text>
+              <text class="meta-value tip">购物获积分，兑换券有门槛与有效期</text>
             </view>
           </view>
         </view>
@@ -42,6 +51,9 @@
               <view class="log-main">
                 <text class="log-title">{{ l.description || logTypeText(l.pointsType) }}</text>
                 <text class="log-time">{{ formatTime(l.createdAt) }}</text>
+                <text v-if="l.expireAt && l.points > 0" class="log-expire"
+                  >有效至 {{ formatTime(l.expireAt) }}</text
+                >
               </view>
               <text class="log-points" :class="l.points >= 0 ? 'income' : 'outcome'">{{
                 l.points >= 0 ? `+${l.points}` : l.points
@@ -177,6 +189,13 @@ function goRedeem() {
 .meta-value.warn {
   color: #b45309;
 }
+.meta-row.tip .meta-value.tip {
+  color: #849087;
+  font-size: 20rpx;
+  text-align: right;
+  max-width: 140rpx;
+  line-height: 1.35;
+}
 .card {
   margin-top: 24rpx;
   padding: 28rpx 24rpx;
@@ -233,6 +252,12 @@ function goRedeem() {
   margin-top: 6rpx;
   font-size: 22rpx;
   color: #9aa4a0;
+}
+.log-expire {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 20rpx;
+  color: #b45309;
 }
 .log-points {
   font-size: 30rpx;

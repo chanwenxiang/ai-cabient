@@ -40,6 +40,7 @@ class PaymentServiceTest {
     @Mock private BalanceLedgerService balanceLedgerService;
     @Mock private SystemConfigService systemConfigService;
     @Mock private NotificationService notificationService;
+    @Mock private PayScoreService payScoreService;
 
     private PaymentService paymentService;
     private WeChatPayProperties weChatPayProperties;
@@ -54,7 +55,7 @@ class PaymentServiceTest {
                 rechargeOrderRepository, userInfoRepository, userAccountRepository,
                 weChatPayProperties, securityProperties,
                 weChatPayClient, v3Signer, notifyService, alipayPayClient, alipayNotifyService,
-                balanceLedgerService, systemConfigService, notificationService);
+                balanceLedgerService, systemConfigService, notificationService, payScoreService);
     }
 
     @Test

@@ -249,25 +249,96 @@ public class CouponService {
         Instant now = Instant.now();
         BestCoupon best = null;
         for (UserCoupon uc : userCouponRepository.findByUserIdAndStatus(userId, "UNUSED")) {
-            if (uc.getExpireAt() != null && uc.getExpireAt().isBefore(now)) {
+            Optional<BestCoupon> cand = evaluateCoupon(uc, subtotalCents, now);
+            if (cand.isEmpty()) {
                 continue;
             }
-            CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
-            if (def == null || !"ACTIVE".equalsIgnoreCase(def.getStatus())) {
-                continue;
-            }
-            if (subtotalCents < def.getMinSpendCents()) {
-                continue;
-            }
-            int discount = resolveDiscount(def, subtotalCents);
-            if (discount <= 0) {
-                continue;
-            }
-            if (best == null || discount > best.discountCents()) {
-                best = new BestCoupon(uc.getCouponId(), discount, def.getCouponName());
+            BestCoupon c = cand.get();
+            if (best == null || c.discountCents() > best.discountCents()) {
+                best = c;
             }
         }
         return Optional.ofNullable(best);
+    }
+
+    /** 优先使用指定券；不可用则回退自动择优。 */
+    public Optional<BestCoupon> selectPreferredOrBest(Long userId, Long preferredCouponId, int subtotalCents) {
+        if (preferredCouponId != null && userId != null && subtotalCents > 0) {
+            UserCoupon uc = userCouponRepository.findById(preferredCouponId).orElse(null);
+            if (uc != null && userId.equals(uc.getUserId()) && "UNUSED".equalsIgnoreCase(uc.getStatus())) {
+                Optional<BestCoupon> preferred = evaluateCoupon(uc, subtotalCents, Instant.now());
+                if (preferred.isPresent()) {
+                    return preferred;
+                }
+            }
+        }
+        return selectBestCoupon(userId, subtotalCents);
+    }
+
+    private Optional<BestCoupon> evaluateCoupon(UserCoupon uc, int subtotalCents, Instant now) {
+        if (uc.getExpireAt() != null && uc.getExpireAt().isBefore(now)) {
+            return Optional.empty();
+        }
+        CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
+        if (def == null || !"ACTIVE".equalsIgnoreCase(def.getStatus())) {
+            return Optional.empty();
+        }
+        if (subtotalCents < def.getMinSpendCents()) {
+            return Optional.empty();
+        }
+        int discount = resolveDiscount(def, subtotalCents);
+        if (discount <= 0) {
+            return Optional.empty();
+        }
+        return Optional.of(new BestCoupon(uc.getCouponId(), discount, def.getCouponName()));
+    }
+
+    /**
+     * 部分退后：若剩余金额不满足券门槛则退还券；否则按剩余金额重算抵扣。
+     */
+    @Transactional
+    public void recalcOrRestoreAfterPartialRefund(CabinetOrder order, int remainingSubtotalCents) {
+        if (order == null || order.getCouponId() == null) {
+            return;
+        }
+        Long couponId = order.getCouponId();
+        UserCoupon uc = userCouponRepository.findById(couponId).orElse(null);
+        if (uc == null) {
+            order.setCouponId(null);
+            order.setCouponDiscountCents(0);
+            order.setOriginalAmountCents(Math.max(0, remainingSubtotalCents));
+            order.setTotalAmountCents(Math.max(0, remainingSubtotalCents));
+            return;
+        }
+        CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
+        boolean keep = remainingSubtotalCents > 0
+                && def != null
+                && remainingSubtotalCents >= def.getMinSpendCents();
+        if (!keep) {
+            if ("USED".equalsIgnoreCase(uc.getStatus())) {
+                uc.setStatus("UNUSED");
+                uc.setUsedAt(null);
+                uc.setOrderId(null);
+                uc.setDeviceId(null);
+                uc.setDiscountCents(0);
+                userCouponRepository.save(uc);
+                log.info("coupon restored after partial refund order={} couponId={}",
+                        order.getOrderId(), couponId);
+            }
+            order.setCouponId(null);
+            order.setCouponDiscountCents(0);
+            order.setOriginalAmountCents(Math.max(0, remainingSubtotalCents));
+            order.setTotalAmountCents(Math.max(0, remainingSubtotalCents));
+            return;
+        }
+        int discount = Math.min(resolveDiscount(def, remainingSubtotalCents), remainingSubtotalCents);
+        order.setOriginalAmountCents(remainingSubtotalCents);
+        order.setCouponDiscountCents(discount);
+        order.setTotalAmountCents(Math.max(0, remainingSubtotalCents - discount));
+        uc.setDiscountCents(discount);
+        userCouponRepository.save(uc);
+        log.info("coupon recalculated after partial refund order={} couponId={} discount={}",
+                order.getOrderId(), couponId, discount);
     }
 
     @Transactional
@@ -356,7 +427,10 @@ public class CouponService {
                 uc.getExpireAt(),
                 uc.getReceivedAt(),
                 uc.getUsedAt(),
-                uc.getCouponCode());
+                uc.getCouponCode(),
+                def != null ? def.getDeviceScope() : "ALL",
+                def != null ? def.getDescription() : null
+        );
     }
 
     private String generateCouponCode() {

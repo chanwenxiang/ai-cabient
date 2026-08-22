@@ -41,7 +41,11 @@
               <text class="sku-meta">
                 {{ line.skuId }} · 库存 {{ line.currentQty }}/{{ line.capacity }}
                 <text v-if="line.suggestQty > 0"> · 建议 {{ line.suggestQty }}</text>
+                <text v-if="line.soldQty7d > 0"> · 近7日销 {{ line.soldQty7d }}</text>
               </text>
+              <text v-if="line.suggestReason && line.suggestReason !== 'PAR'" class="sku-reason">{{
+                line.suggestReason
+              }}</text>
             </view>
             <view class="qty-box" @click.stop>
               <text class="qty-btn" @click="adjustQty(line, -1)">−</text>
@@ -102,6 +106,7 @@
               {{ l.skuName || l.skuId }} ×{{ l.requestedQty }}
             </text>
           </view>
+          <text v-if="req.reviewedAt" class="sku-meta">审核 {{ formatTime(req.reviewedAt) }}</text>
           <text v-if="req.rejectReason" class="reject">驳回：{{ req.rejectReason }}</text>
           <text v-if="req.notes" class="notes">备注：{{ req.notes }}</text>
           <view v-if="req.status === 'ACCEPTED' && req.replenishmentTaskId" class="detail-btn"
@@ -137,6 +142,8 @@ type DraftLine = {
   currentQty: number;
   capacity: number;
   suggestQty: number;
+  soldQty7d: number;
+  suggestReason: string;
   qty: number;
   selected: boolean;
 };
@@ -286,11 +293,15 @@ async function loadDraft() {
       const book = Number(slot.bookQty) || 0;
       const capacity = Number(slot.maxLevel ?? slot.parLevel) || 0;
       const suggestQty = Number(sug?.suggestQty) || 0;
+      const soldQty7d = Number(sug?.soldQty7d) || 0;
+      const suggestReason = String(sug?.suggestReason || '');
       const existing = bySku.get(skuId);
       if (existing) {
         existing.currentQty += book;
         existing.capacity += capacity;
         existing.suggestQty = Math.max(existing.suggestQty, suggestQty);
+        existing.soldQty7d = Math.max(existing.soldQty7d, soldQty7d);
+        if (suggestReason) existing.suggestReason = suggestReason;
         continue;
       }
       const defaultQty =
@@ -301,9 +312,12 @@ async function loadDraft() {
         currentQty: book,
         capacity,
         suggestQty,
+        soldQty7d,
+        suggestReason,
         qty: defaultQty > 0 ? defaultQty : 1,
         selected: suggestQty > 0 || defaultQty > 0
       });
+      suggestMap.delete(skuId);
     }
     // suggestions without slot binding still show
     for (const [skuId, sug] of suggestMap) {
@@ -315,6 +329,8 @@ async function loadDraft() {
         currentQty: Number(sug.currentQty) || 0,
         capacity: Number(sug.capacity) || 0,
         suggestQty: Number(sug.suggestQty) || 0,
+        soldQty7d: Number(sug.soldQty7d) || 0,
+        suggestReason: String(sug.suggestReason || ''),
         qty,
         selected: (sug.suggestQty || 0) > 0
       });
@@ -531,6 +547,12 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   font-size: 22rpx;
   color: #94a3b8;
   margin-top: 4rpx;
+}
+.sku-reason {
+  display: block;
+  margin-top: 4rpx;
+  color: #0f766e;
+  font-size: 20rpx;
 }
 .qty-box {
   display: flex;

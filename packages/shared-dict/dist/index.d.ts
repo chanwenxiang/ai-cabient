@@ -447,6 +447,9 @@ export declare const DICT: {
         readonly SPLIT_REVERSE: "分账退回";
         readonly RECHARGE: "充值";
         readonly RECHARGE_REFUND: "充值退款";
+        readonly BALANCE_REFUND: "余额退款";
+        readonly BALANCE_REFUND_FREEZE: "退款申请冻结";
+        readonly BALANCE_REFUND_RELEASE: "退款申请解冻";
         readonly REFUND: "退款";
         readonly SETTLE: "结算入账";
         readonly PAYOUT: "打款";

@@ -92,6 +92,22 @@
               </el-tag>
             </template>
           </el-table-column>
+          <el-table-column
+            label="外部单号"
+            min-width="140"
+            align="center"
+            class-name="col-text"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">
+              <span class="mono">{{
+                displayBizNo(
+                  row.wxTransactionId || row.alipayTradeNo || row.wxPrepayId,
+                  '无'
+                )
+              }}</span>
+            </template>
+          </el-table-column>
           <el-table-column label="状态" width="110" align="center">
             <template #default="{ row }">
               <el-tag :type="dictTagType(String(row.status || ''))" size="small">
@@ -101,9 +117,25 @@
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="时间" width="168" align="center" class-name="col-text">
+          <el-table-column label="创建时间" width="150" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(String(row.createdAt || '')) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="支付时间" width="150" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span v-if="row.paidAt" class="cell-datetime">{{
+                formatDateTime(String(row.paidAt))
+              }}</span>
+              <span v-else class="muted">—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="退款时间" width="150" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span v-if="row.refundedAt" class="cell-datetime">{{
+                formatDateTime(String(row.refundedAt))
+              }}</span>
+              <span v-else class="muted">—</span>
             </template>
           </el-table-column>
           <el-table-column

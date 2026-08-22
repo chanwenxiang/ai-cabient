@@ -40,6 +40,26 @@
       <el-table-column label="素材" width="90" align="center">
         <template #default="{ row }">{{ row.assetIds.length }} 个</template>
       </el-table-column>
+      <el-table-column label="曝光" width="80" align="center">
+        <template #default="{ row }">{{ row.impressionCount ?? 0 }}</template>
+      </el-table-column>
+      <el-table-column label="完播" width="80" align="center">
+        <template #default="{ row }">{{ row.completeCount ?? 0 }}</template>
+      </el-table-column>
+      <el-table-column label="完播率" width="90" align="center">
+        <template #default="{ row }">
+          {{
+            Number(row.impressionCount) > 0
+              ? `${((Number(row.completeCount || 0) / Number(row.impressionCount)) * 100).toFixed(1)}%`
+              : '—'
+          }}
+        </template>
+      </el-table-column>
+      <el-table-column label="柜机数" width="80" align="center">
+        <template #default="{ row }">{{
+          Array.isArray(row.deviceIds) ? row.deviceIds.length : '—'
+        }}</template>
+      </el-table-column>
       <el-table-column label="时间窗" min-width="220" align="center">
         <template #default="{ row }">
           {{ formatRange(row) }}

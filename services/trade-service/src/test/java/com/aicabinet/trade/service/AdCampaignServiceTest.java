@@ -8,6 +8,7 @@ import com.aicabinet.trade.domain.MediaAsset;
 import com.aicabinet.trade.mapper.AdCampaignDeviceMapper;
 import com.aicabinet.trade.mapper.AdCampaignItemMapper;
 import com.aicabinet.trade.mapper.AdCampaignMapper;
+import com.aicabinet.trade.mapper.AdPlayEventMapper;
 import com.aicabinet.trade.mapper.MediaAssetMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,13 +33,14 @@ class AdCampaignServiceTest {
     @Mock private AdCampaignDeviceMapper deviceRepository;
     @Mock private MediaAssetMapper assetRepository;
     @Mock private AdminAuditService auditService;
+    @Mock private AdPlayEventMapper playEventRepository;
 
     private AdCampaignService service;
 
     @BeforeEach
     void setUp() {
         service = new AdCampaignService(campaignRepository, itemRepository, deviceRepository,
-                assetRepository, auditService);
+                assetRepository, auditService, playEventRepository);
     }
 
     private static AdCampaign campaign(Long id, String status, String scope) {

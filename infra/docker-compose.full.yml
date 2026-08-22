@@ -162,13 +162,50 @@ services:
       WECHAT_PRIVATE_KEY: ${WECHAT_PRIVATE_KEY:-}
       WECHAT_PLATFORM_CERT: ${WECHAT_PLATFORM_CERT:-}
       WECHAT_PLATFORM_CERT_AUTO_FETCH: ${WECHAT_PLATFORM_CERT_AUTO_FETCH:-true}
-    ports: ["18080:8080"]
+      # 资金/对账类定时任务由 XXL-JOB 调度（多实例）；根目录 .\docker-up.ps1 会一并拉起调度中心
+      XXL_JOB_ENABLED: ${XXL_JOB_ENABLED:-true}
+      XXL_JOB_ADMIN_ADDRESSES: ${XXL_JOB_ADMIN_ADDRESSES:-http://xxl-job-admin:8080/xxl-job-admin}
+      XXL_JOB_ACCESS_TOKEN: ${XXL_JOB_ACCESS_TOKEN:-}
+      XXL_JOB_EXECUTOR_APPNAME: ${XXL_JOB_EXECUTOR_APPNAME:-trade-service}
+      XXL_JOB_EXECUTOR_PORT: ${XXL_JOB_EXECUTOR_PORT:-9999}
+      # 容器内 app 用户对 /app 无写权限，日志落到 /tmp
+      XXL_JOB_EXECUTOR_LOG_PATH: ${XXL_JOB_EXECUTOR_LOG_PATH:-/tmp/xxl-job/jobhandler}
+    ports: ["18080:8080", "${XXL_JOB_EXECUTOR_PORT:-9999}:9999"]
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_started }
       minio-init: { condition: service_completed_successfully }
       redpanda: { condition: service_started }
       vision-service: { condition: service_started }
+      xxl-job-admin: { condition: service_started }
+    restart: unless-stopped
+
+  # XXL-JOB（随根目录 docker-up.ps1 / full 栈启动；控制台 :18090）
+  xxl-job-mysql:
+    image: mysql:8.0
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${XXL_JOB_MYSQL_PASSWORD:-xxljob}
+      MYSQL_DATABASE: xxl_job
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - xxljob-mysql-data:/var/lib/mysql
+      - ./xxl-job/tables_xxl_job.sql:/docker-entrypoint-initdb.d/01_tables_xxl_job.sql:ro
+      - ./xxl-job/seed_aicabinet_jobs.sql:/docker-entrypoint-initdb.d/02_seed_aicabinet_jobs.sql:ro
+    restart: unless-stopped
+
+  xxl-job-admin:
+    image: xuxueli/xxl-job-admin:3.4.2
+    environment:
+      PARAMS: "--spring.datasource.url=jdbc:mysql://xxl-job-mysql:3306/xxl_job?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true --spring.datasource.username=root --spring.datasource.password=${XXL_JOB_MYSQL_PASSWORD:-xxljob} --xxl.job.accessToken=${XXL_JOB_ACCESS_TOKEN:-}"
+    depends_on:
+      xxl-job-mysql: { condition: service_healthy }
+    ports:
+      - "${XXL_JOB_ADMIN_PORT:-18090}:8080"
     restart: unless-stopped
 
   device-service:
@@ -250,3 +287,4 @@ services:
 volumes:
   pgdata:
   miniodata:
+  xxljob-mysql-data:

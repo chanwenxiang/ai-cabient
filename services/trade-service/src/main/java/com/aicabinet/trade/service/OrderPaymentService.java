@@ -150,6 +150,8 @@ public class OrderPaymentService {
             chargeDelta(order, deltaCents);
         } else {
             refundAmount(order, -deltaCents, "争议改单退差");
+            order.setRefundedCents(Math.max(0, order.getRefundedCents()) + (-deltaCents));
+            order.setRefundedAt(Instant.now());
         }
     }
 
@@ -160,6 +162,7 @@ public class OrderPaymentService {
         }
         refundAmount(order, amountCents, reason);
         order.setRefundedAt(Instant.now());
+        order.setRefundedCents(Math.max(0, order.getRefundedCents()) + amountCents);
     }
 
     private void chargeDelta(CabinetOrder order, int deltaCents) {

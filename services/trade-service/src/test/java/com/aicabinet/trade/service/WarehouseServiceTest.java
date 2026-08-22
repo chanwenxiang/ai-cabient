@@ -38,6 +38,7 @@ class WarehouseServiceTest {
     @Mock private DeviceSlotService deviceSlotService;
     @Mock private SalesVelocityService salesVelocityService;
     @Mock private InTransitService inTransitService;
+    @Mock private InventoryLotService inventoryLotService;
 
     private WarehouseService warehouseService;
 
@@ -46,7 +47,7 @@ class WarehouseServiceTest {
         warehouseService = new WarehouseService(warehouseRepository, inventoryRepository,
                 inboundRepository, inboundLineRepository, outboundRepository, outboundLineRepository,
                 movementRepository, deviceInventoryRepository, taskRepository, routeRepository, skuCatalogRepository,
-                deviceSlotService, salesVelocityService, inTransitService);
+                deviceSlotService, salesVelocityService, inTransitService, inventoryLotService);
     }
 
     @Test

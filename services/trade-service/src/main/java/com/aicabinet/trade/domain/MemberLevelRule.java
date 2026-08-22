@@ -28,6 +28,9 @@ public class MemberLevelRule {
 
     private java.math.BigDecimal pointsRate = java.math.BigDecimal.ONE;
 
+    /** 会员价折扣百分比：5 表示 95 折，0 表示无会员价 */
+    private java.math.BigDecimal priceDiscountPct = java.math.BigDecimal.ZERO;
+
     private Integer sortorder;
 
     private String status;

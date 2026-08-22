@@ -505,9 +505,40 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').DeviceProduct[]>(
       `/api/v2/devices/${encodeURIComponent(deviceId)}/products`
     ),
+  nearbyDevices: (q: { lat: number; lng: number; radiusKm?: number; limit?: number }) => {
+    const radiusKm = q.radiusKm ?? 5;
+    const limit = q.limit ?? 20;
+    return request<
+      Array<{
+        deviceId: string;
+        deviceName?: string;
+        address?: string;
+        latitude?: number;
+        longitude?: number;
+        distanceMeters: number;
+        onlineStatus?: string;
+        available: boolean;
+        sellableSkuCount: number;
+        sellableItemCount: number;
+        previewSkus?: Array<{
+          skuId: string;
+          skuName?: string;
+          quantity: number;
+          unitPriceCents: number;
+        }>;
+      }>
+    >(
+      `/api/v2/devices/nearby?lat=${encodeURIComponent(String(q.lat))}&lng=${encodeURIComponent(String(q.lng))}&radiusKm=${radiusKm}&limit=${limit}`
+    );
+  },
   createSession: async (deviceId: string, entryChannel?: string | null) => {
     const attempt = getOrCreateOpenAttempt(deviceId);
-    const body: { deviceId: string; idempotencyKey: string; entryChannel?: string } = {
+    const body: {
+      deviceId: string;
+      idempotencyKey: string;
+      entryChannel?: string;
+      preferredCouponId?: number;
+    } = {
       deviceId: attempt.deviceId,
       idempotencyKey: attempt.idempotencyKey
     };
@@ -516,6 +547,11 @@ export const consumerApi = {
       .toUpperCase();
     if (channel === 'WECHAT' || channel === 'ALIPAY') {
       body.entryChannel = channel;
+    }
+    const preferredRaw = uni.getStorageSync('preferred_coupon_id');
+    const preferred = Number(preferredRaw);
+    if (Number.isFinite(preferred) && preferred > 0) {
+      body.preferredCouponId = preferred;
     }
     try {
       return await request<import('@aicabinet/shared-types').SessionDto>(
@@ -564,6 +600,19 @@ export const consumerApi = {
     request<import('@aicabinet/shared-types').OrderDetailDto>(
       `/api/v2/sessions/${sessionId}/order`
     ),
+  getLiveCart: (sessionId: string) =>
+    request<{
+      sessionId: string;
+      items: Array<{
+        skuId: string;
+        skuName?: string;
+        quantity: number;
+        unitPriceCents: number;
+        lineAmountCents: number;
+      }>;
+      totalQty: number;
+      totalAmountCents: number;
+    }>(`/api/v2/sessions/${encodeURIComponent(sessionId)}/live-cart`),
   listOrders: (page = 0, size = 20) =>
     request<
       import('@aicabinet/shared-types').PageResult<import('@aicabinet/shared-types').OrderSummary>
@@ -597,6 +646,25 @@ export const consumerApi = {
       'POST',
       body
     ),
+  applyInvoice: (
+    orderId: string,
+    body: { title: string; taxNo?: string; email?: string }
+  ) =>
+    request<{ invoiceId: number; status: string }>(
+      `/api/v2/orders/${encodeURIComponent(orderId)}/invoice`,
+      'POST',
+      body
+    ),
+  listMyInvoices: () =>
+    request<
+      Array<{
+        invoiceId: number;
+        orderId: string;
+        title: string;
+        amountCents: number;
+        status: string;
+      }>
+    >('/api/v2/account/invoices'),
   consumerPublicConfig: () =>
     request<Record<string, string>>('/api/v2/public/consumer-config', 'GET', null, false),
   reportDeviceFault: (
@@ -717,6 +785,10 @@ export type PointsRedeemItemDto = {
   sortOrder: number;
   status: string;
   createdAt?: string;
+  denominationCents?: number;
+  minSpendCents?: number;
+  validityDays?: number;
+  deviceScope?: string;
 };
 
 export type NotificationDto = {
@@ -777,4 +849,6 @@ export type CouponDto = {
   receivedAt?: string;
   usedAt?: string;
   couponCode?: string;
+  deviceScope?: string;
+  description?: string;
 };

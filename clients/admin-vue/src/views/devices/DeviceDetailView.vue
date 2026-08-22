@@ -445,6 +445,53 @@
         >
       </div>
 
+      <div class="cmd-section-label">退款规则</div>
+      <el-alert
+        type="info"
+        :closable="false"
+        show-icon
+        class="policy-lock-alert"
+        title="柜机规则优先于全局"
+        :description="refundPriorityHint"
+      />
+      <el-form label-width="120px" class="policy-form" @submit.prevent>
+        <el-form-item label="本柜策略">
+          <el-select
+            v-model="refundPolicyDraft"
+            :disabled="!canEditDevice"
+            placeholder="请选择"
+            style="width: 280px"
+          >
+            <el-option
+              :label="`跟随全局默认（${policyLabel(globalRefundPolicy)}）`"
+              value="INHERIT"
+            />
+            <el-option label="消费者可自助退款" value="AUTO_REFUND" />
+            <el-option label="仅可申诉，运营审核后退款" value="DISPUTE_ONLY" />
+          </el-select>
+          <el-button
+            v-hasPermi="['ops:device:edit']"
+            type="primary"
+            class="refund-save-btn"
+            :disabled="!canEditDevice"
+            :loading="refundPolicySaving"
+            @click="saveRefundPolicy"
+            >保存退款规则</el-button
+          >
+          <div class="field-hint">{{ refundDraftHint }}</div>
+          <div class="field-hint">
+            当前生效：
+            <el-tag
+              size="small"
+              :type="effectiveRefundPolicy === 'DISPUTE_ONLY' ? 'warning' : 'success'"
+            >
+              {{ policyLabel(effectiveRefundPolicy) }}
+            </el-tag>
+            <span v-if="!device?.refundPolicy" class="inherit-hint">（跟随全局）</span>
+          </div>
+        </el-form-item>
+      </el-form>
+
       <div class="cmd-section-label">柜机策略锁</div>
       <el-alert
         type="info"
@@ -547,8 +594,16 @@
         <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">{{ repairStatusLabel(row.status) }}</template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建" width="160" align="center">
+        <el-table-column label="优先级" width="88" align="center">
+          <template #default="{ row }">{{ row.priority || '—' }}</template>
+        </el-table-column>
+        <el-table-column prop="createdAt" label="创建" width="150" align="center">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        </el-table-column>
+        <el-table-column label="更新" width="150" align="center">
+          <template #default="{ row }">{{
+            row.updatedAt ? formatDateTime(row.updatedAt) : '—'
+          }}</template>
         </el-table-column>
       </el-table>
       <div v-else class="muted">{{ repairHydrated ? '暂无最近工单' : '加载中…' }}</div>
@@ -628,6 +683,16 @@
                 <span v-else>-</span>
               </template>
               <span v-else>—</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="退款规则">
+              <el-tag
+                size="small"
+                :type="effectiveRefundPolicy === 'DISPUTE_ONLY' ? 'warning' : 'success'"
+              >
+                {{ policyLabel(effectiveRefundPolicy) }}
+              </el-tag>
+              <span v-if="!device?.refundPolicy" class="inherit-hint">跟随全局</span>
+              <span v-else class="inherit-hint">本柜覆盖</span>
             </el-descriptions-item>
             <el-descriptions-item label="最近补货">
               <span class="cell-datetime">{{
@@ -805,6 +870,31 @@
                 }}</el-tag>
               </template>
             </el-table-column>
+            <el-table-column label="类型" width="88" align="center">
+              <template #default="{ row }">
+                {{
+                  row.sessionKind === 'RESTOCK'
+                    ? '补货'
+                    : row.sessionKind === 'OPS'
+                      ? '运维'
+                      : '消费'
+                }}
+              </template>
+            </el-table-column>
+            <el-table-column label="入口" width="88" align="center">
+              <template #default="{ row }">
+                {{
+                  dictLabel('pay_channel', row.entryChannel || row.payChannel) ||
+                  row.entryChannel ||
+                  '—'
+                }}
+              </template>
+            </el-table-column>
+            <el-table-column label="录像" width="72" align="center">
+              <template #default="{ row }">
+                {{ row.videoUri || row.uploadStatus === 'UPLOADED' ? '有' : '无' }}
+              </template>
+            </el-table-column>
             <el-table-column
               label="订单"
               min-width="120"
@@ -814,6 +904,11 @@
             >
               <template #default="{ row }">
                 <span class="cell-id">{{ displayBizNo(row.orderId, '无') }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="失败原因" min-width="120" align="center" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.failReason || row.failureReason || '—' }}
               </template>
             </el-table-column>
             <el-table-column label="时间" width="168" align="center" class-name="col-text">
@@ -870,10 +965,33 @@
                 }}</el-tag>
               </template>
             </el-table-column>
+            <el-table-column label="渠道" width="88" align="center">
+              <template #default="{ row }">
+                {{ dictLabel('pay_channel', row.payChannel) || row.payChannel || '—' }}
+              </template>
+            </el-table-column>
             <el-table-column label="金额" width="100" align="center" class-name="col-money">
               <template #default="{ row }"
                 >¥{{ ((row.totalAmountCents || 0) / 100).toFixed(2) }}</template
               >
+            </el-table-column>
+            <el-table-column label="优惠" width="88" align="center">
+              <template #default="{ row }">
+                <span
+                  v-if="
+                    Number(row.couponDiscountCents || 0) + Number(row.memberDiscountCents || 0) > 0
+                  "
+                >
+                  -¥{{
+                    (
+                      (Number(row.couponDiscountCents || 0) +
+                        Number(row.memberDiscountCents || 0)) /
+                      100
+                    ).toFixed(2)
+                  }}
+                </span>
+                <span v-else class="muted">—</span>
+              </template>
             </el-table-column>
             <el-table-column label="时间" width="168" align="center" class-name="col-text">
               <template #default="{ row }">
@@ -991,6 +1109,10 @@ interface DeviceRow {
   merchantName?: string;
   activeSessionId?: string;
   activeSessionState?: string;
+  /** 设备覆盖：AUTO_REFUND | DISPUTE_ONLY | null=继承全局 */
+  refundPolicy?: string | null;
+  /** 已解析的生效策略 */
+  effectiveRefundPolicy?: string;
 }
 
 interface LifecycleEventRow {
@@ -1127,6 +1249,34 @@ function envUnit(type: string) {
 }
 const canEditSlots = computed(() => auth.hasPerm('ops:device:edit'));
 const canEditDevice = computed(() => auth.hasPerm('ops:device:edit'));
+const refundPolicyDraft = ref('INHERIT');
+const refundPolicySaving = ref(false);
+const globalRefundPolicy = ref('AUTO_REFUND');
+
+const effectiveRefundPolicy = computed(
+  () => device.value?.effectiveRefundPolicy || device.value?.refundPolicy || globalRefundPolicy.value || 'AUTO_REFUND'
+);
+
+const refundDraftHint = computed(() => {
+  switch (refundPolicyDraft.value) {
+    case 'AUTO_REFUND':
+      return '本柜覆盖全局：消费者可在订单页一键退款，资金即时原路退回。';
+    case 'DISPUTE_ONLY':
+      return '本柜覆盖全局：消费者只能提交申诉，需运营核对录像后再退款。';
+    default:
+      return `不单独设置本柜，沿用参数配置「refund.default_policy」：${policyLabel(globalRefundPolicy.value)}。`;
+  }
+});
+
+const refundPriorityHint = computed(
+  () =>
+    `全局默认「${policyLabel(globalRefundPolicy.value)}」。若本柜选择自助退款或仅申诉，则以本柜为准；选「跟随全局」则继承参数配置。`
+);
+
+function policyLabel(policy?: string | null) {
+  if (policy === 'DISPUTE_ONLY') return '仅申诉审核';
+  return '自助退款';
+}
 const loading = ref(true);
 const metricsHydrated = ref(false);
 const relatedHydrated = ref(false);
@@ -1177,7 +1327,14 @@ const asset = reactive({
 });
 const lifecycleEvents = ref<LifecycleEventRow[]>([]);
 const repairTickets = ref<
-  Array<{ ticketId: number; title: string; status: string; createdAt?: string }>
+  Array<{
+    ticketId: number;
+    title: string;
+    status: string;
+    priority?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  }>
 >([]);
 const slots = ref<DeviceSlot[]>([]);
 const skus = ref<SkuCatalog[]>([]);
@@ -1360,11 +1517,17 @@ async function loadDetail() {
     'GET'
   );
   device.value = detail.device;
+  refundPolicyDraft.value = detail.device?.refundPolicy || 'INHERIT';
   metrics.value = detail.metrics;
   slots.value = detail.slots || [];
   slotsHydrated.value = true;
   tempDraft.value = detail.metrics?.targetTempC != null ? detail.metrics.targetTempC : undefined;
-  await Promise.all([loadAsset(), loadLifecycleEvents(), loadRepairTickets()]);
+  await Promise.all([
+    loadAsset(),
+    loadLifecycleEvents(),
+    loadRepairTickets(),
+    loadGlobalRefundPolicy()
+  ]);
   try {
     policy.value = await api.request(
       `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}/policy`,
@@ -1378,6 +1541,49 @@ async function loadDetail() {
       skuEditForbidden: false,
       saleForbidden: false
     };
+  }
+}
+
+async function loadGlobalRefundPolicy() {
+  try {
+    const rows = await api.request<Array<{ configKey: string; configValue?: string }>>(
+      '/api/v2/ops/admin/system-configs',
+      'GET'
+    );
+    const hit = rows.find((r) => r.configKey === 'refund.default_policy');
+    const v = String(hit?.configValue || '').trim().toUpperCase();
+    if (v === 'DISPUTE_ONLY' || v === 'AUTO_REFUND') {
+      globalRefundPolicy.value = v;
+    }
+  } catch {
+    /* 无权限或失败时沿用默认 AUTO_REFUND */
+  }
+}
+
+async function saveRefundPolicy() {
+  if (!canEditDevice.value) return;
+  refundPolicySaving.value = true;
+  try {
+    const updated = await api.request<DeviceInfo>(
+      `/api/v2/ops/admin/devices/${encodeURIComponent(deviceId)}`,
+      'PATCH',
+      { refundPolicy: refundPolicyDraft.value }
+    );
+    device.value = {
+      ...(device.value || { deviceId }),
+      refundPolicy: updated.refundPolicy ?? null,
+      effectiveRefundPolicy: updated.effectiveRefundPolicy
+    };
+    refundPolicyDraft.value = updated.refundPolicy || 'INHERIT';
+    ElMessage.success(
+      `已保存：${policyLabel(updated.effectiveRefundPolicy || updated.refundPolicy)}${
+        updated.refundPolicy ? '（本柜覆盖）' : '（跟随全局）'
+      }`
+    );
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '退款规则保存失败');
+  } finally {
+    refundPolicySaving.value = false;
   }
 }
 
@@ -1978,6 +2184,14 @@ onActivated(() => {
 }
 .policy-lock-alert {
   margin-bottom: 12px;
+}
+.refund-save-btn {
+  margin-left: 10px;
+}
+.inherit-hint {
+  margin-left: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 .field-hint {
   font-size: 12px;

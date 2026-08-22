@@ -94,6 +94,14 @@
             </template>
           </el-table-column>
           <el-table-column
+            label="操作人ID"
+            width="100"
+            align="center"
+            class-name="col-text"
+          >
+            <template #default="{ row }">{{ row.operatorId ?? '—' }}</template>
+          </el-table-column>
+          <el-table-column
             label="操作人"
             min-width="120"
             align="center"

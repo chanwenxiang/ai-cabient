@@ -31,6 +31,10 @@ public class SystemConfigService {
     public static final String SETTLEMENT_MIN_CONFIDENCE = "settlement.min_confidence";
     public static final String DISPUTE_AUTO_OPEN = "dispute.auto_open";
     public static final String REFUND_DEFAULT_POLICY = "refund.default_policy";
+    public static final String REFUND_SELF_MAX_HOURS = "refund.self.max_hours";
+    public static final String REFUND_SELF_MAX_CENTS = "refund.self.max_cents";
+    public static final String REFUND_SELF_MAX_DAILY = "refund.self.max_daily";
+    public static final String REFUND_SELF_PARTIAL_ENABLED = "refund.self.partial_enabled";
     /** 待支付订单超时自动关单小时数, 0=关闭自动关单. */
     public static final String UNPAID_AUTO_CANCEL_HOURS = "order.unpaid.auto_cancel_hours";
     /** 超时关单时是否自动拉黑用户. */
@@ -56,6 +60,9 @@ public class SystemConfigService {
     public static final String OPS_SCAN_SETTLEMENT_STUCK_MINUTES = "ops.scan.settlement_stuck_minutes";
     /** 消费者开门预授权冻结金额(分), 优先于配置文件, 柜机押金可覆盖. */
     public static final String CHECKOUT_PREAUTH_CENTS = "checkout.preauth_cents";
+    /** 纯视觉柜（会话无重力字段）空车是否自动零结；默认 false 进争议。 */
+    public static final String SETTLEMENT_EMPTY_AUTO_NO_GRAVITY =
+            "settlement.empty_auto_complete_no_gravity";
 
     private final SystemConfigMapper repository;
     private final SecurityProperties securityProperties;
@@ -216,6 +223,11 @@ public class SystemConfigService {
         upsertIfAbsent(DISPUTE_AUTO_OPEN, "true", "识别低置信是否自动开争议工单");
         upsertIfAbsent(REFUND_DEFAULT_POLICY, "AUTO_REFUND",
                 "全局默认退款策略: AUTO_REFUND=自助退款, DISPUTE_ONLY=仅申诉");
+        upsertIfAbsent(REFUND_SELF_MAX_HOURS, "24", "消费者自助退款时限（下单后小时数）");
+        upsertIfAbsent(REFUND_SELF_MAX_CENTS, "5000", "消费者自助单笔退款上限（分），0=不限制");
+        upsertIfAbsent(REFUND_SELF_MAX_DAILY, "3", "消费者每日自助退款次数上限，0=不限制");
+        upsertIfAbsent(REFUND_SELF_PARTIAL_ENABLED, "true", "是否允许消费者按行自助部分退");
+        upsertIfAbsent("debt.block_open_on_pending", "true", "有待支付订单时是否禁止开门");
         upsertIfAbsent(UNPAID_AUTO_CANCEL_HOURS, "48", "待支付订单超时自动关单小时数, 0=关闭");
         upsertIfAbsent(UNPAID_AUTO_BLACKLIST, "false", "待支付超时关单时是否自动拉黑用户");
         upsertIfAbsent(RECHARGE_AUTO_CANCEL_MINUTES, "30", "待支付充值单超时自动取消分钟数, 0=关闭");

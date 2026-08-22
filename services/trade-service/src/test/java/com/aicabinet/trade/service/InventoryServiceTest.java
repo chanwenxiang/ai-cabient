@@ -41,6 +41,7 @@ class InventoryServiceTest {
         lenient().when(gravityHelper.parse(any())).thenReturn(List.of());
         lenient().when(gravityHelper.hasSlotSpecificDeltas(any())).thenReturn(false);
         lenient().when(inventoryLotService.hasSellableLots(any(), any())).thenReturn(false);
+        lenient().when(inventoryLotService.deviceUsesLotLedger(any())).thenReturn(false);
     }
 
     @Test

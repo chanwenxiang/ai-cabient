@@ -31,6 +31,17 @@
         </view>
         <text class="points-action">积分明细 ›</text>
       </view>
+      <view class="hero-meta">
+        <text v-if="currentLevelRate" class="hero-meta-item"
+          >积分倍率 ¥1 = {{ currentLevelRate }} 分</text
+        >
+        <text v-if="profile?.orderCount != null" class="hero-meta-item"
+          >累计订单 {{ profile.orderCount }} 笔</text
+        >
+        <text v-if="expireSoonCoupons > 0" class="hero-meta-item warn"
+          >{{ expireSoonCoupons }} 张券即将过期</text
+        >
+      </view>
     </view>
 
     <view class="quick-grid">
@@ -93,6 +104,7 @@
             >累计消费 {{ formatYuan(Number(lv.minSpent || 0))
             }}{{ lv.maxSpent != null ? ' - ' + formatYuan(Number(lv.maxSpent)) : '+' }}</text
           >
+          <text class="level-rate">积分倍率 ¥1 = {{ lv.pointsRate }} 分</text>
         </view>
         <text v-if="lv.levelCode === profile?.levelCode" class="level-badge">当前</text>
       </view>
@@ -108,15 +120,23 @@ import { menuIcon } from '@/utils/menu-icon';
 
 const profile = ref<MemberProfileDto | null>(null);
 const couponCount = ref(0);
+const expireSoonCoupons = ref(0);
 
 const progressWidth = computed(
   () => `${Math.min(100, Math.max(0, profile.value?.progressPercent || 0))}%`
 );
+const currentLevelRate = computed(() => {
+  const code = profile.value?.levelCode;
+  const lv = (profile.value?.levels || []).find((x) => x.levelCode === code);
+  return lv?.pointsRate ?? null;
+});
 function formatYuan(n: number) {
-  const v = Math.round(Number.isFinite(n) ? n : 0);
+  const v = Number.isFinite(n) ? n : 0;
   const sign = v < 0 ? '-' : '';
-  const digits = String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return sign + '¥' + digits;
+  const abs = Math.abs(v).toFixed(2);
+  const [intPart, dec] = abs.split('.');
+  const digits = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return sign + '¥' + digits + '.' + dec;
 }
 const spentText = computed(() => formatYuan(Number(profile.value?.totalSpent || 0)));
 
@@ -138,9 +158,21 @@ onShow(async () => {
 
 async function load() {
   try {
-    const [p, count] = await Promise.all([consumerApi.memberProfile(), consumerApi.couponCount()]);
+    const [p, count, coupons] = await Promise.all([
+      consumerApi.memberProfile(),
+      consumerApi.couponCount(),
+      consumerApi.myCoupons().catch(() => [])
+    ]);
     profile.value = p;
     couponCount.value = Number(count) || 0;
+    const now = Date.now();
+    const soon = 7 * 24 * 60 * 60 * 1000;
+    expireSoonCoupons.value = (coupons || []).filter((c) => {
+      if (String(c.status || '').toUpperCase() !== 'UNUSED') return false;
+      if (!c.expireAt) return false;
+      const t = new Date(c.expireAt).getTime();
+      return Number.isFinite(t) && t > now && t - now <= soon;
+    }).length;
   } catch (e) {
     uni.showToast({ title: e instanceof Error ? e.message : '加载失败', icon: 'none' });
   }
@@ -312,6 +344,20 @@ function goMessages() {
 .hero.lv-platinum .points-chip {
   background: #e0e7ff;
 }
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx 20rpx;
+  margin-top: 16rpx;
+}
+.hero-meta-item {
+  font-size: 22rpx;
+  color: #64748b;
+}
+.hero-meta-item.warn {
+  color: #b45309;
+  font-weight: 600;
+}
 .points-left {
   display: flex;
   align-items: baseline;
@@ -443,6 +489,12 @@ function goMessages() {
   margin-top: 4rpx;
   font-size: 22rpx;
   color: #849087;
+}
+.level-rate {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 20rpx;
+  color: #059669;
 }
 .level-badge {
   font-size: 24rpx;

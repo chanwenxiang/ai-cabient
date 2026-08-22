@@ -134,6 +134,8 @@ export interface AdCampaignDto {
     deviceIds: string[];
     createdAt?: string;
     updatedAt?: string;
+    impressionCount?: number;
+    completeCount?: number;
 }
 export interface DeviceInfo {
     deviceId: string;
@@ -151,6 +153,8 @@ export interface DeviceInfo {
     effectiveRefundPolicy?: string;
     /** 锁机停售 */
     salesLocked?: boolean;
+    /** 停售原因 */
+    salesLockReason?: string;
     replenishmentInProgress?: boolean;
     /** INBOUND|IDLE|DEPLOYED|RETURNING|RETIRED */
     lifecycleStatus?: string;
@@ -167,6 +171,11 @@ export interface DeviceInfo {
     address?: string;
     deployedAt?: string;
     lifecycleRemark?: string;
+    /** 柜机最近上报温度（℃） */
+    currentTempC?: number | null;
+    /** 商户端列表可选：缺货/低库存货道数 */
+    oosSlotCount?: number | null;
+    lowStockSlotCount?: number | null;
 }
 export interface DeviceSlot {
     deviceId: string;
@@ -264,7 +273,9 @@ export interface OrderSummary {
     sessionId?: string;
     userId?: string | number;
     deviceId?: string;
+    merchantId?: string;
     totalAmountCents: number;
+    originalAmountCents?: number;
     status?: string;
     payChannel?: string;
     lineCount?: number;
@@ -272,8 +283,11 @@ export interface OrderSummary {
     payTradeNo?: string;
     paymentOperationId?: string;
     refundedAt?: string;
+    refundedCents?: number;
     couponDiscountCents?: number;
+    memberDiscountCents?: number;
     inventoryDeducted?: boolean;
+    refundPolicy?: string;
     createdAt?: string;
 }
 export interface DisputeSummary {
@@ -398,6 +412,10 @@ export interface MerchantSkuPricing {
     overridePriceCents?: number | null;
     effectivePriceCents: number;
     quantity?: number;
+    /** 商户可改价下限（分），空表示不限制 */
+    minPriceCents?: number | null;
+    /** 商户可改价上限（分），空表示不限制 */
+    maxPriceCents?: number | null;
 }
 export interface MerchantMe {
     userId: string;
@@ -488,6 +506,24 @@ export interface MerchantAnalyticsOverview {
     grossMarginCents: number;
     writeOffCostCents: number;
     topSkus: MerchantSkuSales[];
+    /** 区间订单数 */
+    orderCount?: number;
+    /** 客单价（订单实付合计/订单数） */
+    avgOrderValueCents?: number;
+    /** 销售件数 */
+    itemQtySold?: number;
+    /** 件均价（行营收/件数） */
+    avgUnitPriceCents?: number;
+    /** 上一同等天数窗口营收 */
+    prevRevenueCents?: number;
+    prevGrossMarginCents?: number;
+    /** 营收环比 %；上一窗为 0 且本期有值时为 null */
+    revenueChangePct?: number | null;
+    marginChangePct?: number | null;
+    /** 当前缺货且窗口内有销量的 SKU 数 */
+    stockoutSkuCount?: number;
+    /** 缺货损失毛利估算（分） */
+    stockoutLossEstimateCents?: number;
 }
 export interface MerchantSettlementOverview {
     pendingAmountCents: number;
@@ -571,6 +607,25 @@ export interface RechargeOrderDto {
     createdAt?: string;
     paidAt?: string;
 }
+export interface BalanceRefundRequestDto {
+    requestId: number;
+    requestNo: string;
+    userId: number;
+    amountCents: number;
+    status: string;
+    reason?: string;
+    reviewRemark?: string;
+    reviewerId?: number;
+    reviewedAt?: string;
+    failReason?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    refundedAt?: string;
+}
+export interface ApplyBalanceRefundRequest {
+    amountCents: number;
+    reason?: string;
+}
 export interface VerifyIdentityRequest {
     realName: string;
     idCardLast4: string;
@@ -580,6 +635,10 @@ export interface PayContractDto {
     active: boolean;
     contractId: string;
     message: string;
+    /** 生产支付宝签约：待异步回调激活 */
+    pending?: boolean;
+    /** 支付宝内自动提交的签约表单 HTML */
+    signFormHtml?: string;
 }
 export interface DeviceStatusDto {
     deviceId: string;
@@ -653,6 +712,14 @@ export interface FileAttachmentDto {
 export interface OrderRefundRequest {
     reason: string;
     evidenceFileIds?: number[];
+    /** true=退货退款回库；false=仅退款不回库；省略则由服务端推断 */
+    restoreInventory?: boolean;
+    /** 按行部分退（运营）；空=全额退 */
+    lines?: Array<{
+        skuId: string;
+        quantity: number;
+        restoreInventory?: boolean;
+    }>;
 }
 export interface OrderRefundResultDto {
     orderId: string;
@@ -662,6 +729,8 @@ export interface OrderRefundResultDto {
     refundedCents: number;
     payChannel?: string;
     message?: string;
+    inventoryRestored?: boolean;
+    partial?: boolean;
 }
 export interface DeviceFaultReportRequest {
     issueType: string;
@@ -708,12 +777,18 @@ export interface DisputeTicketDto {
     status: string;
     createdAt?: string;
     resolvedAt?: string;
+    closedAt?: string;
     orderId?: string;
     billedAmountCents?: number;
+    /** 关联订单累计已退（分） */
+    refundedAmountCents?: number;
     suggestedItems?: OrderLineDto[];
     resolutionItems?: OrderLineDto[];
     category?: string;
     priority?: string;
+    operatorNote?: string;
+    slaOverdue?: boolean;
+    slaHoursRemaining?: number;
     evidence?: FileAttachmentDto[];
     /** LOW_CONF | EMPTY | UNMAPPED | NEED_REVIEW | WHITELIST */
     reviewCode?: string;
@@ -725,14 +800,60 @@ export interface SessionCartRequest {
         qty: number;
     }[];
 }
+/** 开门中第三方识别实时购物车（仅展示） */
+export interface LiveCartDto {
+    sessionId: string;
+    items: Array<{
+        skuId: string;
+        skuName?: string;
+        quantity: number;
+        unitPriceCents: number;
+        lineAmountCents: number;
+    }>;
+    totalQty: number;
+    totalAmountCents: number;
+}
+/** 消费者附近柜机 */
+export interface NearbyDeviceDto {
+    deviceId: string;
+    deviceName?: string;
+    address?: string;
+    latitude?: number;
+    longitude?: number;
+    distanceMeters: number;
+    onlineStatus?: string;
+    available: boolean;
+    sellableSkuCount: number;
+    sellableItemCount: number;
+    previewSkus?: Array<{
+        skuId: string;
+        skuName?: string;
+        quantity: number;
+        unitPriceCents: number;
+    }>;
+}
 export interface SessionDto {
     sessionId: string;
     deviceId: string;
     state: string;
     orderId?: string;
     failureReason?: string;
+    failReason?: string;
     createdAt?: string;
     updatedAt?: string;
+    /** 关门时间（识别计时起点） */
+    closeTime?: string;
+    openTime?: string;
+    videoUri?: string;
+    uploadStatus?: string;
+    videoPreviewUrl?: string;
+    sessionKind?: string;
+    entryChannel?: string;
+    payChannel?: string;
+    preauthCents?: number;
+    preauthStatus?: string;
+    shoppingDurationMs?: number;
+    recognitionDurationMs?: number;
 }
 export interface OrderLineDto {
     skuId: string;
@@ -740,24 +861,32 @@ export interface OrderLineDto {
     quantity: number;
     unitPriceCents: number;
     lineAmountCents: number;
+    batchNo?: string;
+    slotId?: string;
 }
 export interface OrderDetailDto {
     orderId: string;
     sessionId?: string;
     deviceId?: string;
+    merchantId?: string;
     status: string;
     payChannel?: string;
     payTime?: string;
     /** 柜机购物视频地址（可空） */
     videoUri?: string;
     paymentOperationId?: string;
+    payTradeNo?: string;
     balanceBeforeCents?: number;
     balanceAfterCents?: number;
     totalAmountCents: number;
     couponDiscountCents?: number;
+    memberDiscountCents?: number;
     originalAmountCents?: number;
     lines?: OrderLineDto[];
     createdAt?: string;
+    refundedAt?: string;
+    refundedCents?: number;
+    inventoryDeducted?: boolean;
     /** 柜机生效退款策略：AUTO_REFUND | DISPUTE_ONLY */
     refundPolicy?: string;
 }

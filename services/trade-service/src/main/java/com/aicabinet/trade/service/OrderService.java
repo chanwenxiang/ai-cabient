@@ -82,11 +82,32 @@ public class OrderService {
                 order.getTotalAmountCents(),
                 order.getStatus(),
                 payChannel,
-                order.getLines().size(),
+                itemQty(order),
                 buildLineSummary(order),
-                order.getCouponDiscountCents(),
-                order.getCreatedAt()
+                Math.max(0, order.getCouponDiscountCents()),
+                order.getCreatedAt(),
+                Math.max(0, order.getMemberDiscountCents()),
+                originalAmount(order),
+                order.getRefundedAt(),
+                Math.max(0, order.getRefundedCents()),
+                order.getPayTradeNo(),
+                order.getPaymentOperationId()
         );
+    }
+
+    private static int itemQty(CabinetOrder order) {
+        var lines = order.getLines();
+        if (lines == null || lines.isEmpty()) return 0;
+        return lines.stream().mapToInt(l -> Math.max(0, l.getQuantity())).sum();
+    }
+
+    private static int originalAmount(CabinetOrder order) {
+        if (order.getOriginalAmountCents() > 0) {
+            return order.getOriginalAmountCents();
+        }
+        return order.getTotalAmountCents()
+                + Math.max(0, order.getCouponDiscountCents())
+                + Math.max(0, order.getMemberDiscountCents());
     }
 
     private static String buildLineSummary(CabinetOrder order) {

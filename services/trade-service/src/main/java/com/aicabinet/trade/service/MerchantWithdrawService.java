@@ -235,6 +235,7 @@ public class MerchantWithdrawService {
         request.setRequestNo(no);
         request.setMerchantId(merchant.getMerchantId());
         request.setAmountCents(amountCents);
+        request.setFeeCents(0L);
         request.setPayChannel(properties.mockEnabled() ? "MOCK" : "WECHAT");
         request.setCreatedAt(now);
         request.setUpdatedAt(now);
@@ -354,7 +355,8 @@ public class MerchantWithdrawService {
                 request.getPayoutMessage(),
                 request.getPaidAt(),
                 request.getCreatedAt(),
-                request.getUpdatedAt()
+                request.getUpdatedAt(),
+                request.getFeeCents() == null ? 0L : request.getFeeCents()
         );
     }
 

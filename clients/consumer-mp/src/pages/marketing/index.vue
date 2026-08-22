@@ -48,7 +48,12 @@
             <text class="campaign-title">{{ c.title }}</text>
             <text class="campaign-desc">{{ c.description }}</text>
             <view class="campaign-foot">
-              <text class="campaign-time">{{ formatRange(c.startTime, c.endTime) }}</text>
+              <view class="campaign-time-wrap">
+                <text class="campaign-time">{{ formatRange(c.startTime, c.endTime) }}</text>
+                <text v-if="remainText(c.endTime)" class="campaign-remain">{{
+                  remainText(c.endTime)
+                }}</text>
+              </view>
               <text
                 class="campaign-cta"
                 :class="{ muted: c.claimed || !c.claimable || claimingId === c.id }"
@@ -203,6 +208,18 @@ function formatRange(start?: string, end?: string) {
   const e = end ? String(end).substring(5, 10).replace('-', '/') : '';
   if (!s && !e) return '长期有效';
   return `${s} - ${e}`;
+}
+
+function remainText(end?: string) {
+  if (!end) return '';
+  const t = new Date(end).getTime();
+  if (!Number.isFinite(t)) return '';
+  const diff = t - Date.now();
+  if (diff <= 0) return '即将结束';
+  const days = Math.ceil(diff / (24 * 60 * 60 * 1000));
+  if (days <= 1) return '今日截止';
+  if (days <= 7) return `剩 ${days} 天`;
+  return '';
 }
 </script>
 
@@ -383,10 +400,22 @@ function formatRange(start?: string, end?: string) {
   justify-content: space-between;
   align-items: center;
   margin-top: 18rpx;
+  gap: 16rpx;
+}
+.campaign-time-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  min-width: 0;
 }
 .campaign-time {
   font-size: 22rpx;
   color: #94a3b8;
+}
+.campaign-remain {
+  font-size: 20rpx;
+  color: #b45309;
+  font-weight: 600;
 }
 .campaign-cta {
   font-size: 24rpx;

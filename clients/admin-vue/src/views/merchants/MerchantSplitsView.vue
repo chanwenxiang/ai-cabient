@@ -32,7 +32,7 @@
           type="info"
           :closable="false"
           show-icon
-          title="上级商户可见全部下级货柜。运营账号绑定上级后，数据范围自动包含下级组织。"
+          title="上级商户可见全部下级货柜。组织树展示各级平台抽成；子商户结算按自身 platformRateBps，上级通过组织归属汇总经营数据（非自动再抽成）。"
           class="status-banner"
         />
         <div class="org-toolbar">
@@ -56,7 +56,14 @@
             <div class="org-node">
               <div class="org-node__meta">
                 <strong>{{ data.merchantName || data.merchantId }}</strong>
-                <small>{{ data.merchantId }} · 设备 {{ data.deviceCount || 0 }}</small>
+                <small
+                  >{{ data.merchantId }} · 设备 {{ data.deviceCount || 0 }} · 平台抽成
+                  {{ ((data.platformRateBps || 0) / 100).toFixed(1) }}%</small
+                >
+                <small v-if="data.parentMerchantId" class="org-cascade"
+                  >上级 {{ data.parentMerchantId }} · 级联保留
+                  {{ cascadeKeepPct(data) }}%</small
+                >
               </div>
               <div class="org-node__actions">
                 <el-button v-if="canEdit" link type="primary" @click.stop="openOrgEdit(data)"
@@ -202,6 +209,26 @@
                 </template>
               </el-table-column>
               <el-table-column prop="deviceCount" label="设备数" width="90" align="center" />
+              <el-table-column label="商户状态" width="100" align="center">
+                <template #default="{ row }">
+                  <el-tag size="small" effect="plain">{{
+                    dictLabel('merchant_status', row.status) || row.status || '正常'
+                  }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="联系人" min-width="100" align="center" show-overflow-tooltip>
+                <template #default="{ row }">{{
+                  row.alertContactName || row.contactName || '—'
+                }}</template>
+              </el-table-column>
+              <el-table-column label="电话" width="120" align="center">
+                <template #default="{ row }">{{
+                  row.contactPhone || row.alertContactPhone || '—'
+                }}</template>
+              </el-table-column>
+              <el-table-column label="备注" min-width="100" align="center" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.remark || '—' }}</template>
+              </el-table-column>
             </el-table>
           </div>
         </div>
@@ -243,6 +270,15 @@
           </el-form-item>
         </el-form>
         <div v-loading="opsConfigLoading" style="min-height: 120px">
+          <el-alert
+            type="info"
+            :closable="false"
+            show-icon
+            class="mb-12"
+            title="理货策略强校验"
+            description="开启「盘点/补货拍照」后，盘点接口必须带 photoEvidenceUrl；「并发订单上限」>0 时开门建会话会拦截超限。"
+            style="margin-bottom: 12px"
+          />
           <el-form v-if="opsConfig" label-width="140px" style="max-width: 640px">
             <el-form-item label="备货类型">
               <el-radio-group v-model="opsConfig.stockingType">
@@ -300,14 +336,26 @@
         <el-divider content-position="left">商户侧推荐岗位</el-divider>
         <el-table :data="roleTemplates" stripe border>
           <el-table-column prop="templateName" label="岗位" width="120" align="center" />
-          <el-table-column prop="description" label="说明" min-width="220" align="center" />
+          <el-table-column prop="templateCode" label="编码" width="120" align="center">
+            <template #default="{ row }">{{ row.templateCode || row.code || '—' }}</template>
+          </el-table-column>
+          <el-table-column prop="description" label="说明" min-width="200" align="center" />
           <el-table-column
             prop="permissionHint"
             label="权限提示"
-            min-width="240"
+            min-width="200"
             show-overflow-tooltip
             align="center"
           />
+          <el-table-column label="权限数" width="90" align="center">
+            <template #default="{ row }">
+              {{
+                Array.isArray(row.permissions)
+                  ? row.permissions.length
+                  : row.permissionCount ?? '—'
+              }}
+            </template>
+          </el-table-column>
         </el-table>
       </el-tab-pane>
 
@@ -431,6 +479,18 @@
               <el-table-column label="商户收入" width="110" align="center" class-name="col-money">
                 <template #default="{ row }">¥{{ money(row.merchantCents) }}</template>
               </el-table-column>
+              <el-table-column label="平台抽成" width="110" align="center" class-name="col-money">
+                <template #default="{ row }">¥{{ money(row.platformCents) }}</template>
+              </el-table-column>
+              <el-table-column label="订单总额" width="110" align="center" class-name="col-money">
+                <template #default="{ row }">¥{{ money(row.grossCents) }}</template>
+              </el-table-column>
+              <el-table-column label="设备" min-width="100" align="center" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.deviceId || '—' }}</template>
+              </el-table-column>
+              <el-table-column label="结算批次" min-width="110" align="center" show-overflow-tooltip>
+                <template #default="{ row }">{{ row.settlementBatchNo || '—' }}</template>
+              </el-table-column>
               <el-table-column label="状态" width="120" align="center">
                 <template #default="{ row }">
                   <el-tag size="small" :type="splitTagType(row.status)">
@@ -440,12 +500,25 @@
               </el-table-column>
               <el-table-column
                 label="失败原因"
-                min-width="160"
+                min-width="140"
                 align="center"
                 class-name="col-text"
                 show-overflow-tooltip
               >
                 <template #default="{ row }">{{ row.failureReason || '无' }}</template>
+              </el-table-column>
+              <el-table-column label="创建时间" width="150" align="center" class-name="col-text">
+                <template #default="{ row }">
+                  <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="结算时间" width="150" align="center" class-name="col-text">
+                <template #default="{ row }">
+                  <span v-if="row.settledAt" class="cell-datetime">{{
+                    formatDateTime(row.settledAt)
+                  }}</span>
+                  <span v-else class="muted">—</span>
+                </template>
               </el-table-column>
               <el-table-column
                 v-if="showSplitActionColumn"
@@ -611,7 +684,7 @@ import type {
   RevenueSplit
 } from '@aicabinet/shared-types';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
-import { displayBizNo } from '@aicabinet/shared-uni/format';
+import { displayBizNo, formatDateTime } from '@aicabinet/shared-uni/format';
 
 const route = useRoute();
 const { router, goPath } = useNavAccess();
@@ -731,6 +804,11 @@ const merchantTree = computed(() => {
   sortRec(roots);
   return roots;
 });
+
+/** 子商户相对平台：商户侧保留比例 = 100% - 本级平台抽成 */
+function cascadeKeepPct(node: { platformRateBps?: number }) {
+  return ((10000 - (node.platformRateBps || 0)) / 100).toFixed(1);
+}
 
 const parentOptions = computed(() => merchants.value);
 
@@ -1437,6 +1515,9 @@ onActivated(() => {
   color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 1.3;
+}
+.org-node__meta .org-cascade {
+  color: var(--el-color-primary);
 }
 .org-node__actions {
   display: flex;

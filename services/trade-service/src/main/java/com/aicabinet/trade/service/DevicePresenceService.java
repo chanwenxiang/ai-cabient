@@ -147,6 +147,7 @@ public class DevicePresenceService {
                 continue;
             }
             d.setSalesLocked(true);
+            d.setSalesLockReason("离线超时自动停售（超 " + lockAfterMinutes + " 分钟）");
             d.setSalesUnlockedAt(null);
             deviceRepository.save(d);
             deviceRepository.clearSalesUnlockedAt(d.getDeviceId());

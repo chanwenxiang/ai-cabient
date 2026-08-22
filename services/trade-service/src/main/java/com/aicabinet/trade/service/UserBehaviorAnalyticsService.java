@@ -150,15 +150,14 @@ public class UserBehaviorAnalyticsService {
         UserInfo info = userInfoRepository.findById(userId).orElse(null);
         String phone = info != null ? info.getPhoneNumber() : null;
         String name = info != null ? info.getName() : null;
-        BigDecimal last = u.lastOrderAt == null ? null
-                : BigDecimal.valueOf(u.lastOrderAt.toEpochMilli());
         return new UserBehaviorRowDto(
                 userId,
                 phone,
                 name,
                 (int) u.totalOrders,
                 BigDecimal.valueOf(u.totalRevenue).movePointLeft(2),
-                last
+                u.totalRevenue,
+                u.lastOrderAt
         );
     }
 

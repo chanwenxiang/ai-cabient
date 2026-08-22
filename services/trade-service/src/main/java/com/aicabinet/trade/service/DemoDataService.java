@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.common.dto.SkuQuantityDto;
 import com.aicabinet.trade.config.SecurityProperties;
 import com.aicabinet.trade.domain.*;
 import com.aicabinet.trade.mapper.*;
@@ -36,6 +37,7 @@ public class DemoDataService {
     private final UserInfoMapper userInfoRepository;
     private final UserAccountMapper userAccountRepository;
     private final DeviceSlotService deviceSlotService;
+    private final InventoryLotService inventoryLotService;
 
     public DemoDataService(SecurityProperties securityProperties,
                            SkuCatalogMapper skuCatalogRepository,
@@ -46,7 +48,8 @@ public class DemoDataService {
                            SkuVisionMappingMapper skuVisionMappingRepository,
                            UserInfoMapper userInfoRepository,
                            UserAccountMapper userAccountRepository,
-                           DeviceSlotService deviceSlotService) {
+                           DeviceSlotService deviceSlotService,
+                           InventoryLotService inventoryLotService) {
         this.securityProperties = securityProperties;
         this.skuCatalogRepository = skuCatalogRepository;
         this.deviceInfoRepository = deviceInfoRepository;
@@ -57,6 +60,7 @@ public class DemoDataService {
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
         this.deviceSlotService = deviceSlotService;
+        this.inventoryLotService = inventoryLotService;
     }
 
     @Transactional
@@ -83,14 +87,13 @@ public class DemoDataService {
     }
 
     /**
-     * 识别兜底：取柜内首个有库存、可视觉结算的 SKU（与真实业务一致，不再写死 SKU-DEMO-001）。
+     * 识别兜底：取柜内首个有可售库存、可视觉结算的 SKU（与真实业务一致，不再写死 SKU-DEMO-001）。
      */
     @Transactional(readOnly = true)
     public String resolveFallbackSku(String deviceId) {
         String targetDevice = deviceId != null && !deviceId.isBlank() ? deviceId.trim() : DEMO_DEVICE_ID;
-        Optional<String> fromInventory = deviceSkuInventoryRepository.findByIdDeviceId(targetDevice).stream()
-                .filter(inv -> inv.getQuantity() > 0)
-                .map(inv -> inv.getId().getSkuId())
+        Optional<String> fromInventory = deviceSlotService.inventorySnapshot(targetDevice).stream()
+                .map(SkuQuantityDto::skuId)
                 .filter(this::isChargeableSku)
                 .findFirst();
         if (fromInventory.isPresent()) {
@@ -129,11 +132,13 @@ public class DemoDataService {
 
     private void ensureSkus() {
         for (DemoSkuSeed seed : DEMO_SKUS) {
-            SkuCatalog sku = skuCatalogRepository.findById(seed.skuId()).orElse(new SkuCatalog());
-            sku.setSkuId(seed.skuId());
-            if (sku.getSkuCode() == null) {
-                sku.setSkuCode(skuCatalogRepository.nextSkuCode());
+            if (skuCatalogRepository.findById(seed.skuId()).isPresent()) {
+                // 已存在则保留运营改价/改图/下架等，避免每次启动用种子覆盖
+                continue;
             }
+            SkuCatalog sku = new SkuCatalog();
+            sku.setSkuId(seed.skuId());
+            sku.setSkuCode(skuCatalogRepository.nextSkuCode());
             sku.setSkuName(seed.name());
             sku.setPriceCents(seed.priceCents());
             sku.setWeightGrams(seed.weightGrams());
@@ -142,18 +147,14 @@ public class DemoDataService {
             sku.setDescription(seed.description());
             sku.setCategory(seed.category());
             sku.setBarcode(seed.barcode());
-            if (sku.getUnit() == null || sku.getUnit().isBlank()) {
-                sku.setUnit("件");
-            }
+            sku.setUnit("件");
             sku.setStatus("ACTIVE");
             sku.setShelfLifeDays(seed.shelfLifeDays());
             sku.setNearExpiryDays(seed.nearExpiryDays());
             sku.setBlockSaleDaysBeforeExpiry(seed.blockSaleDays());
             sku.setStorageType("AMBIENT");
             sku.setMinChargeConfidence(seed.minChargeConfidence());
-            if (sku.getPurchaseCostCents() == null) {
-                sku.setPurchaseCostCents(seed.purchaseCostCents());
-            }
+            sku.setPurchaseCostCents(seed.purchaseCostCents());
             skuCatalogRepository.save(sku);
         }
     }
@@ -173,23 +174,44 @@ public class DemoDataService {
             return;
         }
         String repaired = DeviceNameSupport.canonicalIfCorrupted(DEMO_DEVICE_ID, device.getDeviceName());
+        boolean dirty = repaired != null;
         if (repaired != null) {
             device.setDeviceName(repaired);
+        }
+        if (device.getLatitude() == null || device.getLongitude() == null) {
+            device.setLatitude(31.2304);
+            device.setLongitude(121.4737);
+            if (device.getAddress() == null || device.getAddress().isBlank()) {
+                device.setAddress("上海市黄浦区演示点位");
+            }
+            dirty = true;
+        }
+        if (dirty) {
             deviceInfoRepository.save(device);
         }
     }
 
     private void ensureDeviceInventory() {
+        boolean lotLedger = inventoryLotService.deviceUsesLotLedger(DEMO_DEVICE_ID);
         for (DemoInvSeed seed : DEMO_INVENTORY) {
             DeviceSkuInventoryId id = new DeviceSkuInventoryId(DEMO_DEVICE_ID, seed.skuId());
-            DeviceSkuInventory inv = deviceSkuInventoryRepository.findById(id).orElse(new DeviceSkuInventory());
-            inv.setId(id);
-            if (inv.getQuantity() <= 0) {
-                inv.setQuantity(seed.quantity());
+            var existing = deviceSkuInventoryRepository.findById(id);
+            if (existing.isPresent()) {
+                // 已有行：不覆盖 quantity/capacity/lowThreshold；有批次账本时只同步可售汇总
+                if (lotLedger) {
+                    inventoryLotService.syncAggregateInventory(DEMO_DEVICE_ID, seed.skuId());
+                }
+                continue;
             }
+            DeviceSkuInventory inv = new DeviceSkuInventory();
+            inv.setId(id);
+            inv.setQuantity(lotLedger ? 0 : seed.quantity());
             inv.setCapacity(seed.capacity());
             inv.setLowThreshold(seed.lowThreshold());
             deviceSkuInventoryRepository.save(inv);
+            if (lotLedger) {
+                inventoryLotService.syncAggregateInventory(DEMO_DEVICE_ID, seed.skuId());
+            }
         }
     }
 

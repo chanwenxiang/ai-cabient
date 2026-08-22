@@ -49,6 +49,12 @@ public class ShoppingSession {
     @TableField(typeHandler = JsonStringTypeHandler.class)
     private String gravityDeltas;
 
+    /**
+     * 开门中实时购物车 JSON（第三方识别推送；仅 C 端展示，结算以最终识别/重力为准）。
+     */
+    @TableField(typeHandler = JsonStringTypeHandler.class)
+    private String liveCart;
+
     /** 扫码入口渠道 WECHAT / ALIPAY */
     private String entryChannel;
 
@@ -58,8 +64,10 @@ public class ShoppingSession {
     /** NONE / FROZEN / CAPTURED / RELEASED */
     private String preauthStatus = "NONE";
 
+    /** 开门前用户指定优惠券 ID（结算优先；无效回退自动择优） */
+    private Long preferredCouponId;
+
     private Instant createdAt;
 
     private Instant updatedAt;
-
 }

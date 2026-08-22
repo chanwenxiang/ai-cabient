@@ -77,6 +77,9 @@
               )
             }}</template>
           </el-table-column>
+          <el-table-column label="客单价" width="100" align="center">
+            <template #default="{ row }">{{ avgTicket(row) }}</template>
+          </el-table-column>
         </el-table>
       </el-card>
 
@@ -103,6 +106,15 @@
           <el-table-column label="上次消费" width="140" align="center">
             <template #default="{ row }">{{ lastTime(row.lastOrderAt) }}</template>
           </el-table-column>
+          <el-table-column label="累计消费" width="110" align="center">
+            <template #default="{ row }">{{
+              yuan(
+                row.totalSpentCents != null
+                  ? row.totalSpentCents
+                  : Math.round(Number(row.totalSpent ?? 0) * 100)
+              )
+            }}</template>
+          </el-table-column>
         </el-table>
       </el-card>
     </div>
@@ -119,7 +131,7 @@
             <el-option
               v-for="c in couponDefs"
               :key="c.couponDefId"
-              :label="`${c.couponName}（${(c.denominationCents / 100).toFixed(0)}元）`"
+              :label="`${c.couponName}（${(c.denominationCents / 100).toFixed(2)}元）`"
               :value="c.couponDefId"
             />
           </el-select>
@@ -278,9 +290,23 @@ function yuan(cents?: number) {
   if (cents == null) return '—';
   return `¥${(cents / 100).toFixed(2)}`;
 }
-function lastTime(epochMs?: number | null) {
-  if (!epochMs) return '—';
-  const d = new Date(epochMs);
+function avgTicket(row: {
+  orderCount?: number;
+  totalSpentCents?: number;
+  totalSpent?: number;
+}) {
+  const n = Number(row.orderCount || 0);
+  if (n <= 0) return '—';
+  const cents =
+    row.totalSpentCents != null
+      ? Number(row.totalSpentCents)
+      : Math.round(Number(row.totalSpent ?? 0) * 100);
+  return yuan(Math.round(cents / n));
+}
+function lastTime(value?: string | number | null) {
+  if (value == null || value === '') return '—';
+  const d = typeof value === 'number' ? new Date(value) : new Date(String(value));
+  if (Number.isNaN(d.getTime())) return '—';
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
     d.getDate()
   ).padStart(2, '0')}`;

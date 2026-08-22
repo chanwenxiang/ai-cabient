@@ -206,7 +206,7 @@
           <ul v-if="orderChannelSvg" class="donut-legend-list">
             <li v-for="p in orderChannelParts" :key="p.label">
               <i :style="{ background: p.color }" />
-              {{ p.label }} ¥{{ ((p.value || 0) / 100).toFixed(p.value >= 10000 ? 0 : 2) }}
+              {{ p.label }} ¥{{ ((p.value || 0) / 100).toFixed(2) }}
               <span class="muted">（{{ p.count }} 单）</span>
             </li>
           </ul>
@@ -220,7 +220,7 @@
           <ul v-if="rechargeChannelSvg" class="donut-legend-list">
             <li v-for="p in rechargeChannelParts" :key="p.label">
               <i :style="{ background: p.color }" />
-              {{ p.label }} ¥{{ ((p.value || 0) / 100).toFixed(p.value >= 10000 ? 0 : 2) }}
+              {{ p.label }} ¥{{ ((p.value || 0) / 100).toFixed(2) }}
               <span class="muted">（{{ p.count }} 笔）</span>
             </li>
           </ul>
@@ -486,7 +486,7 @@ const opsSvg = computed(() => {
 const orderChannelSvg = computed(() =>
   buildDonutChart({
     parts: orderChannelParts.value.map((p) => ({ label: p.label, value: p.value, color: p.color })),
-    formatCenter: (cents) => (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2),
+    formatCenter: (cents) => (cents / 100).toFixed(2),
     formatValue: (cents) => `¥${(cents / 100).toFixed(2)}`,
     valueLabel: '金额'
   })
@@ -499,7 +499,7 @@ const rechargeChannelSvg = computed(() =>
       value: p.value,
       color: p.color
     })),
-    formatCenter: (cents) => (cents / 100).toFixed(cents % 100 === 0 ? 0 : 2),
+    formatCenter: (cents) => (cents / 100).toFixed(2),
     formatValue: (cents) => `¥${(cents / 100).toFixed(2)}`,
     valueLabel: '金额'
   })

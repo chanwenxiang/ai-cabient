@@ -56,6 +56,7 @@ public class PaymentService {
     private final BalanceLedgerService balanceLedgerService;
     private final SystemConfigService systemConfigService;
     private final NotificationService notificationService;
+    private final PayScoreService payScoreService;
 
     public PaymentService(RechargeOrderMapper rechargeOrderRepository,
                           UserInfoMapper userInfoRepository,
@@ -69,7 +70,8 @@ public class PaymentService {
                           AlipayNotifyService alipayNotifyService,
                           BalanceLedgerService balanceLedgerService,
                           SystemConfigService systemConfigService,
-                          NotificationService notificationService) {
+                          NotificationService notificationService,
+                          PayScoreService payScoreService) {
         this.rechargeOrderRepository = rechargeOrderRepository;
         this.userInfoRepository = userInfoRepository;
         this.userAccountRepository = userAccountRepository;
@@ -83,6 +85,7 @@ public class PaymentService {
         this.balanceLedgerService = balanceLedgerService;
         this.systemConfigService = systemConfigService;
         this.notificationService = notificationService;
+        this.payScoreService = payScoreService;
     }
 
     @Transactional
@@ -264,6 +267,14 @@ public class PaymentService {
     @Transactional
     public void handleAlipayNotify(Map<String, String> params) {
         Map<String, String> verified = alipayNotifyService.parseAndVerify(params);
+        if (isAlipayAgreementNotify(verified)) {
+            String external = firstNonBlank(verified.get("external_agreement_no"), verified.get("external_sign_no"));
+            String agreementNo = verified.get("agreement_no");
+            String status = firstNonBlank(verified.get("status"), verified.get("agreement_status"));
+            boolean ok = payScoreService.bindAlipayAgreementFromNotify(external, agreementNo, status);
+            log.info("alipay agreement notify handled ok={} external={} agreement={}", ok, external, agreementNo);
+            return;
+        }
         String tradeStatus = verified.get("trade_status");
         if (!"TRADE_SUCCESS".equals(tradeStatus) && !"TRADE_FINISHED".equals(tradeStatus)) {
             log.info("alipay notify ignored trade_status={}", tradeStatus);
@@ -286,6 +297,38 @@ public class PaymentService {
                 creditRecharge(order);
             }
         });
+    }
+
+    private static boolean isAlipayAgreementNotify(Map<String, String> params) {
+        if (params == null || params.isEmpty()) {
+            return false;
+        }
+        String notifyType = params.get("notify_type");
+        if (notifyType != null && notifyType.toLowerCase().contains("agreement")) {
+            return true;
+        }
+        String agreementNo = params.get("agreement_no");
+        if (agreementNo == null || agreementNo.isBlank()) {
+            return false;
+        }
+        // 签约通知通常无 trade_status / out_trade_no，或带 external_agreement_no
+        String tradeStatus = params.get("trade_status");
+        String outTradeNo = params.get("out_trade_no");
+        String external = params.get("external_agreement_no");
+        if (external != null && !external.isBlank() && (tradeStatus == null || tradeStatus.isBlank())) {
+            return true;
+        }
+        return (outTradeNo == null || outTradeNo.isBlank()) && (tradeStatus == null || tradeStatus.isBlank());
+    }
+
+    private static String firstNonBlank(String a, String b) {
+        if (a != null && !a.isBlank()) {
+            return a;
+        }
+        if (b != null && !b.isBlank()) {
+            return b;
+        }
+        return null;
     }
 
     @Transactional(readOnly = true)

@@ -237,6 +237,16 @@
                 >¥{{ ((row.amountCents || 0) / 100).toFixed(2) }}</template
               >
             </el-table-column>
+            <el-table-column label="交易类型" width="100" align="center">
+              <template #default="{ row }">{{ row.tradeType || '—' }}</template>
+            </el-table-column>
+            <el-table-column label="交易时间" width="160" align="center" class-name="col-text">
+              <template #default="{ row }">
+                <span class="cell-datetime">{{
+                  row.tradeTime ? formatDateTime(row.tradeTime) : '—'
+                }}</span>
+              </template>
+            </el-table-column>
             <el-table-column label="匹配" width="80" align="center">
               <template #default="{ row }">
                 <el-tag size="small" :type="row.matched ? 'success' : 'danger'">

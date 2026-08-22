@@ -222,6 +222,17 @@
           <el-table-column label="已扣金额" width="110" align="center" class-name="col-money">
             <template #default="{ row }">¥{{ money(row.billedAmountCents) }}</template>
           </el-table-column>
+          <el-table-column label="证据" width="88" align="center">
+            <template #default="{ row }">
+              <el-tag
+                size="small"
+                :type="evidenceCount(row) > 0 ? 'success' : 'info'"
+                effect="plain"
+              >
+                {{ evidenceCount(row) > 0 ? `${evidenceCount(row)} 件` : '无' }}
+              </el-tag>
+            </template>
+          </el-table-column>
           <el-table-column label="创建时间" width="168" align="center" class-name="col-text">
             <template #default="{ row }">
               <span class="cell-datetime">{{ formatDateTime(row.createdAt) }}</span>
@@ -448,6 +459,12 @@
               <el-table-column prop="quantity" label="数量" width="72" align="center" />
               <el-table-column label="单价" width="88" align="center">
                 <template #default="{ row }">¥{{ money(row.unitPriceCents) }}</template>
+              </el-table-column>
+              <el-table-column label="小计" width="88" align="center">
+                <template #default="{ row }">¥{{ money(row.lineAmountCents) }}</template>
+              </el-table-column>
+              <el-table-column prop="slotId" label="货道" width="72" align="center">
+                <template #default="{ row }">{{ row.slotId || '—' }}</template>
               </el-table-column>
             </el-table>
           </div>
@@ -733,6 +750,10 @@ async function loadEmbedVideo(sessionId?: string, force = false) {
 
 function money(cents?: number) {
   return ((cents || 0) / 100).toFixed(2);
+}
+
+function evidenceCount(row: { evidence?: unknown[] | null }) {
+  return Array.isArray(row.evidence) ? row.evidence.length : 0;
 }
 
 function disputeStatusType(s?: string) {
@@ -1025,6 +1046,28 @@ async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'A
     ElMessage.error(e instanceof Error ? e.message : '确认失败');
     return;
   }
+  let restoreInventory: boolean | undefined;
+  if (resolutionType === 'WAIVE') {
+    try {
+      await ElMessageBox.confirm(
+        '免单库存处理：\n「退货退款」= 误识别/货仍在柜，回库\n「仅退款」= 顾客已拿走，不回库',
+        '免单是否回库',
+        {
+          distinguishCancelAndClose: true,
+          confirmButtonText: '退货退款（回库）',
+          cancelButtonText: '仅退款（不回库）',
+          type: 'warning'
+        }
+      );
+      restoreInventory = true;
+    } catch (action) {
+      if (action === 'cancel') {
+        restoreInventory = false;
+      } else {
+        return;
+      }
+    }
+  }
   resolving.value = true;
   try {
     const result = await api.request<ResolveDisputeResultDto>(
@@ -1032,6 +1075,7 @@ async function resolveSelected(resolutionType: 'KEEP' | 'WAIVE' | 'CONFIRM' | 'A
       'POST',
       {
         resolutionType,
+        restoreInventory,
         items:
           resolutionType === 'ADJUST' || resolutionType === 'CONFIRM' ? draftConfirmItems.value : []
       }

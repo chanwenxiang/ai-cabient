@@ -44,6 +44,10 @@
         <text class="title">{{ a.title }}</text>
         <text v-if="a.deviceId" class="meta">柜机 {{ a.deviceId }}</text>
         <text v-if="a.detail" class="meta">{{ a.detail }}</text>
+        <text v-if="a.dueAt" class="meta due" :class="{ overdue: isOverdue(a.dueAt) }">{{
+          dueText(a.dueAt)
+        }}</text>
+        <text v-if="a.severity" class="meta sev">优先级 {{ severityText(a.severity) }}</text>
         <text v-if="actionHint(a)" class="action">{{ actionHint(a) }}</text>
         <button
           v-if="canResolveInventory && a.exceptionId && isInventoryException(a.type)"
@@ -111,6 +115,8 @@ const items = ref<
     deviceId?: string;
     ticketId?: string;
     exceptionId?: string;
+    dueAt?: string;
+    severity?: string;
   }[]
 >([]);
 let loadSeq = 0;
@@ -119,6 +125,29 @@ const visibleItems = computed(() => {
   if (!onlyPreferred.value || !preferredId.value) return items.value;
   return items.value.filter((a) => !a.deviceId || a.deviceId === preferredId.value);
 });
+
+function isOverdue(dueAt?: string) {
+  if (!dueAt) return false;
+  const t = new Date(dueAt).getTime();
+  return Number.isFinite(t) && t < Date.now();
+}
+
+function dueText(dueAt?: string) {
+  if (!dueAt) return '';
+  const d = new Date(dueAt);
+  if (Number.isNaN(d.getTime())) return `时限 ${dueAt}`;
+  const p = (n: number) => String(n).padStart(2, '0');
+  const label = `${d.getMonth() + 1}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return isOverdue(dueAt) ? `已超时 · ${label}` : `截止 ${label}`;
+}
+
+function severityText(sev?: string) {
+  const s = String(sev || '').toUpperCase();
+  if (s === 'HIGH' || s === 'CRITICAL') return '高';
+  if (s === 'MEDIUM') return '中';
+  if (s === 'LOW') return '低';
+  return sev || '';
+}
 
 function tagClass(type: string) {
   if (type === 'DISPUTE') return 'dispute';
@@ -196,7 +225,9 @@ async function load() {
         detail: a.detail,
         deviceId: a.deviceId,
         ticketId: a.ticketId,
-        exceptionId: (a as { exceptionId?: string }).exceptionId
+        exceptionId: (a as { exceptionId?: string }).exceptionId,
+        dueAt: (a as { dueAt?: string }).dueAt,
+        severity: (a as { severity?: string }).severity
       })),
       expiryRows: expiryRows || []
     });
@@ -467,6 +498,16 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
   color: #64748b;
   font-size: 24rpx;
   pointer-events: none;
+}
+.meta.due {
+  color: #0f766e;
+}
+.meta.due.overdue {
+  color: #dc2626;
+  font-weight: 600;
+}
+.meta.sev {
+  color: #b45309;
 }
 .action {
   color: var(--brand, #0f766e);

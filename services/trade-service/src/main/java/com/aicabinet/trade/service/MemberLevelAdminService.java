@@ -73,6 +73,7 @@ public class MemberLevelAdminService {
                 r.getMinPoints() != null ? r.getMinPoints() : 0,
                 r.getMaxPoints(),
                 r.getPointsRate() != null ? r.getPointsRate() : BigDecimal.ONE,
+                r.getPriceDiscountPct() != null ? r.getPriceDiscountPct() : BigDecimal.ZERO,
                 r.getSortorder() != null ? r.getSortorder() : 0,
                 r.getStatus()
         );

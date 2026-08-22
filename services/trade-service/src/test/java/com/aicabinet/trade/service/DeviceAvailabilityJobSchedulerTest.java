@@ -17,7 +17,7 @@ import static org.mockito.Mockito.when;
 class DeviceAvailabilityJobSchedulerTest {
 
     @Test
-    void fallbackRunsWhenXxlJobDisabled() {
+    void fallbackRunsWhenTryBeginAllows() {
         DeviceStableOnlineAutoUnlockService autoUnlock = mock(DeviceStableOnlineAutoUnlockService.class);
         DeviceAvailabilityKpiService kpi = mock(DeviceAvailabilityKpiService.class);
         ScheduledTaskService tasks = mock(ScheduledTaskService.class);
@@ -25,7 +25,7 @@ class DeviceAvailabilityJobSchedulerTest {
         when(autoUnlock.autoUnlockStableOnlineDevices()).thenReturn(0);
         when(kpi.snapshotYesterday()).thenReturn(new DeviceAvailabilityKpiDto(
                 LocalDate.parse("2026-08-18"), 3, 1, 0, 0, 0, null, null, null));
-        DeviceAvailabilityJobScheduler scheduler = new DeviceAvailabilityJobScheduler(autoUnlock, kpi, tasks, false);
+        DeviceAvailabilityJobScheduler scheduler = new DeviceAvailabilityJobScheduler(autoUnlock, kpi, tasks);
 
         scheduler.autoUnlockFallback();
         scheduler.kpiSnapshotFallback();
@@ -37,10 +37,12 @@ class DeviceAvailabilityJobSchedulerTest {
     }
 
     @Test
-    void fallbackYieldsWhenXxlJobEnabled() {
+    void fallbackSkipsWhenTryBeginDenies() {
         DeviceStableOnlineAutoUnlockService autoUnlock = mock(DeviceStableOnlineAutoUnlockService.class);
         DeviceAvailabilityKpiService kpi = mock(DeviceAvailabilityKpiService.class);
-        DeviceAvailabilityJobScheduler scheduler = new DeviceAvailabilityJobScheduler(autoUnlock, kpi, mock(ScheduledTaskService.class), true);
+        ScheduledTaskService tasks = mock(ScheduledTaskService.class);
+        when(tasks.tryBegin(anyString(), anyLong())).thenReturn(false);
+        DeviceAvailabilityJobScheduler scheduler = new DeviceAvailabilityJobScheduler(autoUnlock, kpi, tasks);
 
         scheduler.autoUnlockFallback();
         scheduler.kpiSnapshotFallback();

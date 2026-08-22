@@ -58,15 +58,29 @@
             <text class="name">{{ d.deviceName || d.deviceId }}</text>
             <text class="meta">{{ d.deviceId }}</text>
             <text v-if="d.address" class="meta addr">{{ d.address }}</text>
-            <text v-if="lifecycleText(d.lifecycleStatus) || d.currentTempC != null" class="meta">
+            <text
+              v-if="
+                d.routeCode ||
+                lifecycleText(d.lifecycleStatus) ||
+                d.currentTempC != null
+              "
+              class="meta"
+            >
+              <template v-if="d.routeCode">线路 {{ d.routeCode }}</template>
+              <template v-if="d.routeCode && lifecycleText(d.lifecycleStatus)"> · </template>
               <template v-if="lifecycleText(d.lifecycleStatus)">{{
                 lifecycleText(d.lifecycleStatus)
               }}</template>
-              <template v-if="lifecycleText(d.lifecycleStatus) && d.currentTempC != null">
+              <template
+                v-if="
+                  (d.routeCode || lifecycleText(d.lifecycleStatus)) && d.currentTempC != null
+                "
+              >
                 ·
               </template>
               <template v-if="d.currentTempC != null">{{ d.currentTempC }}°C</template>
             </text>
+            <text v-if="stockSummary(d)" class="meta stock-warn">{{ stockSummary(d) }}</text>
           </view>
         </view>
         <view class="device-right">
@@ -79,6 +93,10 @@
             >★</text
           >
           <text v-if="d.salesLocked" class="status-locked">停售</text>
+          <text v-if="d.salesLocked && d.salesLockReason" class="status-lock-reason">{{
+            d.salesLockReason
+          }}</text>
+          <text v-if="d.replenishmentInProgress" class="status-replenish">补货中</text>
           <text :class="d.online ? 'status-on' : 'status-off'">
             {{ d.online ? '在线' : '离线' }}
           </text>
@@ -275,6 +293,18 @@ function lifecycleText(status?: string) {
   if (!status) return '';
   return dictLabel('device_lifecycle', status) || '';
 }
+
+function stockSummary(d: {
+  oosSlotCount?: number | null;
+  lowStockSlotCount?: number | null;
+}) {
+  const oos = Number(d.oosSlotCount || 0);
+  const low = Number(d.lowStockSlotCount || 0);
+  if (oos > 0 && low > 0) return `缺货 ${oos} · 低库存 ${low}`;
+  if (oos > 0) return `缺货货道 ${oos}`;
+  if (low > 0) return `低库存货道 ${low}`;
+  return '';
+}
 </script>
 
 <style scoped>
@@ -455,6 +485,23 @@ function lifecycleText(status?: string) {
   background: #fef3c7;
   padding: 4rpx 12rpx;
   border-radius: 999rpx;
+}
+.status-lock-reason {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 20rpx;
+  color: #b45309;
+  max-width: 200rpx;
+  text-align: right;
+  line-height: 1.3;
+}
+.status-replenish {
+  color: #0f766e;
+  font-weight: 600;
+  font-size: 24rpx;
+}
+.meta.stock-warn {
+  color: #b45309;
 }
 .err {
   color: #ef4444;

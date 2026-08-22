@@ -35,7 +35,11 @@
             <text class="sub"
               >{{ u.phoneNumber || '无手机号' }} · {{ u.roleName || roleLabel(u.roleKey) }}</text
             >
-            <text v-if="u.status === 'INACTIVE'" class="inactive">已停用</text>
+            <text class="sub status-line"
+              >{{ u.status === 'INACTIVE' ? '已停用' : '启用中'
+              }}{{ u.roleKey ? ` · ${u.roleKey}` : '' }}</text
+            >
+            <text v-if="u.status === 'INACTIVE'" class="inactive">点击可重新启用</text>
           </view>
           <text v-if="u.self" class="self-tag">我</text>
           <text v-else-if="canManage" class="more">管理</text>
@@ -415,6 +419,9 @@ async function onEnable() {
   margin-top: 6rpx;
   font-size: 24rpx;
   color: #64748b;
+}
+.status-line {
+  color: #94a3b8;
 }
 .inactive {
   display: block;

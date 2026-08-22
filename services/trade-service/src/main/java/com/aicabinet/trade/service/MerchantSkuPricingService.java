@@ -31,6 +31,7 @@ public class MerchantSkuPricingService {
     private final AdminAuditLogMapper auditLogRepository;
     private final MerchantSelfServiceGate merchantSelfServiceGate;
     private final MerchantFeaturePackService merchantFeaturePackService;
+    private final InventoryLotService inventoryLotService;
 
     public MerchantSkuPricingService(DeviceSkuPriceMapper priceRepository,
                                      DeviceSkuInventoryMapper inventoryRepository,
@@ -41,7 +42,8 @@ public class MerchantSkuPricingService {
                                      AdminAuditService auditService,
                                      AdminAuditLogMapper auditLogRepository,
                                      MerchantSelfServiceGate merchantSelfServiceGate,
-                                     MerchantFeaturePackService merchantFeaturePackService) {
+                                     MerchantFeaturePackService merchantFeaturePackService,
+                                     InventoryLotService inventoryLotService) {
         this.priceRepository = priceRepository;
         this.inventoryRepository = inventoryRepository;
         this.skuCatalogRepository = skuCatalogRepository;
@@ -52,6 +54,7 @@ public class MerchantSkuPricingService {
         this.auditLogRepository = auditLogRepository;
         this.merchantSelfServiceGate = merchantSelfServiceGate;
         this.merchantFeaturePackService = merchantFeaturePackService;
+        this.inventoryLotService = inventoryLotService;
     }
 
     @Transactional(readOnly = true)
@@ -100,8 +103,16 @@ public class MerchantSkuPricingService {
             Map<String, SkuCatalog> skuMap = skuCatalogRepository.findAllById(skuIds).stream()
                     .filter(s -> "ACTIVE".equalsIgnoreCase(s.getStatus()))
                     .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s));
-            Map<String, Integer> qtyBySku = invRows.stream()
-                    .collect(Collectors.toMap(r -> r.getId().getSkuId(), DeviceSkuInventory::getQuantity, Integer::sum));
+            Map<String, Integer> qtyBySku;
+            if (inventoryLotService.deviceUsesLotLedger(devId)) {
+                qtyBySku = new HashMap<>(inventoryLotService.sellableQtyBySku(devId));
+                for (String skuId : skuIds) {
+                    qtyBySku.putIfAbsent(skuId, 0);
+                }
+            } else {
+                qtyBySku = invRows.stream()
+                        .collect(Collectors.toMap(r -> r.getId().getSkuId(), DeviceSkuInventory::getQuantity, Integer::sum));
+            }
             Map<String, DeviceSkuPrice> overrides = overrideByDevice.getOrDefault(devId, Map.of());
             for (String skuId : skuIds) {
                 SkuCatalog sku = skuMap.get(skuId);
@@ -169,10 +180,12 @@ public class MerchantSkuPricingService {
                     "base=" + sku.getPriceCents() + " override " + oldOverride + " -> " + newPrice);
         }
 
-        int qty = inventoryRepository.findByIdDeviceId(deviceId).stream()
-                .filter(r -> skuId.equals(r.getId().getSkuId()))
-                .mapToInt(DeviceSkuInventory::getQuantity)
-                .sum();
+        int qty = inventoryLotService.deviceUsesLotLedger(deviceId)
+                ? inventoryLotService.sellableQuantity(deviceId, skuId)
+                : inventoryRepository.findByIdDeviceId(deviceId).stream()
+                        .filter(r -> skuId.equals(r.getId().getSkuId()))
+                        .mapToInt(DeviceSkuInventory::getQuantity)
+                        .sum();
         Optional<DeviceSkuPrice> saved = priceRepository.findByDeviceIdAndSkuId(deviceId, skuId);
         return new MerchantSkuPricingDto(
                 deviceId,

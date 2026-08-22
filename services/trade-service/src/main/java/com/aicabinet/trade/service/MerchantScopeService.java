@@ -11,6 +11,8 @@ import com.aicabinet.trade.mapper.OpsUserDeviceScopeMapper;
 import com.aicabinet.trade.mapper.OpsUserDeviceScopePrefMapper;
 import com.aicabinet.trade.mapper.OpsUserMerchantMapper;
 import com.aicabinet.trade.mapper.OpsUserRoleMapper;
+import com.aicabinet.trade.mapper.OpsUserRouteScopeMapper;
+import com.aicabinet.trade.domain.OpsUserRouteScope;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.support.ApiMessages;
 import org.springframework.http.HttpStatus;
@@ -43,6 +45,7 @@ public class MerchantScopeService {
     private final MerchantMapper merchantRepository;
     private final OpsUserDeviceScopeMapper deviceScopeMapper;
     private final OpsUserDeviceScopePrefMapper deviceScopePrefMapper;
+    private final OpsUserRouteScopeMapper routeScopeMapper;
     private final CabinetMetrics cabinetMetrics;
 
     public MerchantScopeService(OpsUserMerchantMapper userMerchantRepository,
@@ -52,6 +55,7 @@ public class MerchantScopeService {
                                 MerchantMapper merchantRepository,
                                 OpsUserDeviceScopeMapper deviceScopeMapper,
                                 OpsUserDeviceScopePrefMapper deviceScopePrefMapper,
+                                OpsUserRouteScopeMapper routeScopeMapper,
                                 CabinetMetrics cabinetMetrics) {
         this.userMerchantRepository = userMerchantRepository;
         this.userRoleRepository = userRoleRepository;
@@ -60,6 +64,7 @@ public class MerchantScopeService {
         this.merchantRepository = merchantRepository;
         this.deviceScopeMapper = deviceScopeMapper;
         this.deviceScopePrefMapper = deviceScopePrefMapper;
+        this.routeScopeMapper = routeScopeMapper;
         this.cabinetMetrics = cabinetMetrics;
     }
 
@@ -127,7 +132,7 @@ public class MerchantScopeService {
     }
 
     /**
-     * 货柜级数据范围：pref.scope_mode=PARTIAL 时与勾选柜求交；ALL / 无 pref 不额外限制。
+     * 货柜级数据范围：DEVICE_IDS（含历史 PARTIAL）与勾选柜求交；ROUTE 与路线编码求交；ALL 不额外限制。
      * admin 全局账号不受货柜范围限制。
      */
     @Transactional(readOnly = true)
@@ -138,10 +143,32 @@ public class MerchantScopeService {
         String mode = deviceScopePrefMapper.findById(operatorId)
                 .map(OpsUserDeviceScopePref::getScopeMode)
                 .orElse("ALL");
-        if (!"PARTIAL".equalsIgnoreCase(mode)) {
+        if (mode == null || mode.isBlank() || "ALL".equalsIgnoreCase(mode)) {
             return merchantScopedDevices;
         }
-        Set<String> picked = deviceScopeMapper.findByUserId(operatorId).stream()
+        Set<String> picked;
+        if ("ROUTE".equalsIgnoreCase(mode)) {
+            Set<String> routes = routeScopeMapper.findByUserId(operatorId).stream()
+                    .map(OpsUserRouteScope::getRouteCode)
+                    .filter(r -> r != null && !r.isBlank())
+                    .map(String::trim)
+                    .collect(Collectors.toCollection(HashSet::new));
+            if (routes.isEmpty()) {
+                return Set.of();
+            }
+            List<DeviceInfo> candidates = merchantScopedDevices == null
+                    ? deviceRepository.findAll()
+                    : (merchantScopedDevices.isEmpty()
+                    ? List.of()
+                    : deviceRepository.findByDeviceIdIn(merchantScopedDevices));
+            picked = candidates.stream()
+                    .filter(d -> d.getRouteCode() != null && routes.contains(d.getRouteCode().trim()))
+                    .map(DeviceInfo::getDeviceId)
+                    .collect(Collectors.toCollection(HashSet::new));
+            return picked;
+        }
+        // DEVICE_IDS / PARTIAL
+        picked = deviceScopeMapper.findByUserId(operatorId).stream()
                 .map(OpsUserDeviceScope::getDeviceId)
                 .collect(Collectors.toCollection(HashSet::new));
         if (merchantScopedDevices == null) {

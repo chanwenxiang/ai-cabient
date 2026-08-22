@@ -2,6 +2,7 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.OrderDto;
 import com.aicabinet.common.dto.OrderLineDto;
+import com.aicabinet.common.dto.OrderRefundRequest;
 import com.aicabinet.trade.util.BizIds;
 import com.aicabinet.trade.client.VisionServiceClient;
 import com.aicabinet.trade.config.SecurityProperties;
@@ -52,6 +53,7 @@ public class SettlementService {
     private final NotificationService notificationService;
     private final DeviceSlotMapper slotRepository;
     private final ConsumerPreauthService consumerPreauthService;
+    private final SystemConfigService systemConfigService;
 
     public SettlementService(ShoppingSessionMapper sessionRepository,
                              SkuCatalogMapper skuCatalogRepository,
@@ -77,7 +79,8 @@ public class SettlementService {
                              RefundPolicyService refundPolicyService,
                              NotificationService notificationService,
                              DeviceSlotMapper slotRepository,
-                             ConsumerPreauthService consumerPreauthService) {
+                             ConsumerPreauthService consumerPreauthService,
+                             SystemConfigService systemConfigService) {
         this.sessionRepository = sessionRepository;
         this.skuCatalogRepository = skuCatalogRepository;
         this.orderRepository = orderRepository;
@@ -103,6 +106,7 @@ public class SettlementService {
         this.notificationService = notificationService;
         this.slotRepository = slotRepository;
         this.consumerPreauthService = consumerPreauthService;
+        this.systemConfigService = systemConfigService;
     }
 
     /** 人工审核后确认清单：无订单则首次扣款；有订单则按差额退/补。 */
@@ -210,6 +214,14 @@ public class SettlementService {
             if (stagingOrder != null) {
                 return stagingOrder;
             }
+            // 竞品口径：视觉空 + 重力净零（含显式 []）→ 未取货/拿了又放回，自动零结；
+            // 无重力证据时生产仍进争议（防摄像头静默失败）。
+            if (shouldAutoCompleteEmptyCart(session)) {
+                log.info("empty cart auto-complete session={} device={} gravityPresent={}",
+                        session.getSessionId(), session.getDeviceId(),
+                        session.getGravityDeltas() != null);
+                return finalizeOrder(session, List.of());
+            }
             if (allowDevFallback && securityProperties.mockEnabled()) {
                 log.warn("dev mock: empty recognition, zero-settle session={}", session.getSessionId());
                 return finalizeOrder(session, List.of());
@@ -233,6 +245,30 @@ public class SettlementService {
         }
 
         return finalizeOrder(session, recognition.items());
+    }
+
+    /**
+     * 视觉无商品时是否自动零结。
+     * <ul>
+     *   <li>重力净扣减为空，且会话带重力字段（含 {@code []}）→ 传感器佐证未取货/已放回</li>
+     *   <li>无重力字段 → 仅 mock/staging 自动零结，生产进审单</li>
+     * </ul>
+     */
+    private boolean shouldAutoCompleteEmptyCart(ShoppingSession session) {
+        List<VisionServiceClient.RecognizedItem> gravityItems =
+                gravityHelper.toRecognizedItems(session.getGravityDeltas());
+        if (gravityItems != null && !gravityItems.isEmpty()) {
+            return false;
+        }
+        if (session.getGravityDeltas() != null) {
+            return true;
+        }
+        if (systemConfigService.getBoolean(SystemConfigService.SETTLEMENT_EMPTY_AUTO_NO_GRAVITY, false)) {
+            return true;
+        }
+        return securityProperties.mockEnabled()
+                || stagingProperties.stagingMode()
+                || stagingProperties.gravityFallbackSettle();
     }
 
     /** 预发/沙箱 E2E：有重力扣减信号时优先按重力结算，避免无真实购物视频时误入争议。 */
@@ -421,9 +457,19 @@ public class SettlementService {
         return new ConfirmDisputeResult(toDto(order), original, finalTotal, delta);
     }
 
-    /** 免单：退还该会话已扣款项（原路退回）。 */
+    /** 免单：退还该会话已扣款项（原路退回）；默认回库（兼容历史免单=误识别）。 */
     @Transactional
     public int waiveAndRefund(ShoppingSession session) {
+        return waiveAndRefund(session, true);
+    }
+
+    /**
+     * 免单/全额退款。
+     *
+     * @param restoreInventory true=退货退款回库；false=仅退款不回库（货已离柜）
+     */
+    @Transactional
+    public int waiveAndRefund(ShoppingSession session, boolean restoreInventory) {
         return orderRepository.findBySessionId(session.getSessionId())
                 .map(order -> {
                     hydrateOrderLines(order);
@@ -431,28 +477,187 @@ public class SettlementService {
                         return 0;
                     }
                     int amount = order.getTotalAmountCents();
-                    if (order.isInventoryDeducted()) {
-                        List<VisionServiceClient.RecognizedItem> items = order.getLines().stream()
-                                .map(l -> new VisionServiceClient.RecognizedItem(l.getSkuId(), l.getQuantity(), 1f))
-                                .toList();
-                        var batchBySku = order.getLines().stream()
-                                .filter(l -> l.getBatchNo() != null && !l.getBatchNo().isBlank())
-                                .collect(java.util.stream.Collectors.toMap(
-                                        com.aicabinet.trade.domain.CabinetOrderLine::getSkuId,
-                                        com.aicabinet.trade.domain.CabinetOrderLine::getBatchNo,
-                                        (a, b) -> a));
+                    boolean didRestore = false;
+                    List<VisionServiceClient.RecognizedItem> items = order.getLines().stream()
+                            .map(l -> new VisionServiceClient.RecognizedItem(l.getSkuId(), l.getQuantity(), 1f))
+                            .toList();
+                    var batchBySku = order.getLines().stream()
+                            .filter(l -> l.getBatchNo() != null && !l.getBatchNo().isBlank())
+                            .collect(java.util.stream.Collectors.toMap(
+                                    com.aicabinet.trade.domain.CabinetOrderLine::getSkuId,
+                                    com.aicabinet.trade.domain.CabinetOrderLine::getBatchNo,
+                                    (a, b) -> a));
+                    if (restoreInventory && order.isInventoryDeducted()) {
                         inventoryService.restoreForOrder(order.getDeviceId(), items, batchBySku);
                         order.setInventoryDeducted(false);
+                        didRestore = true;
+                    } else if (!restoreInventory && order.isInventoryDeducted()) {
+                        // 销售时已扣库；仅退款不回库 → 记 REFUND_KEPT 审计流水，禁止二次报损扣库
+                        inventoryService.recordRefundKeptGoods(
+                                order.getDeviceId(), items, batchBySku, order.getOrderId());
                     }
-                    orderPaymentService.refundOrder(order, amount, "争议免单退款");
+                    orderPaymentService.refundOrder(order, amount,
+                            restoreInventory ? "争议免单退款(回库)" : "争议免单退款(不回库)");
                     order.setStatus("REFUNDED");
                     orderRepository.save(order);
                     revenueSplitService.voidSplitOnFullRefund(order.getOrderId());
-                    log.info("争议免单退款 session={} order={} refund={} channel={}",
-                            session.getSessionId(), order.getOrderId(), amount, order.getPayChannel());
+                    log.info("争议免单退款 session={} order={} refund={} channel={} restoreInventory={} didRestore={}",
+                            session.getSessionId(), order.getOrderId(), amount, order.getPayChannel(),
+                            restoreInventory, didRestore);
                     return amount;
                 })
                 .orElse(0);
+    }
+
+    /**
+     * 按行部分退款（竞品口径）：指定 SKU/数量退款；行级或默认决定是否回库。
+     * 退完全部行 → {@code REFUNDED}；否则 → {@code PARTIAL_REFUNDED}。
+     */
+    @Transactional
+    public PartialRefundResult partialRefund(CabinetOrder order,
+                                             List<OrderRefundRequest.PartialRefundLine> refundLines,
+                                             boolean defaultRestore,
+                                             String reason) {
+        if (order == null || refundLines == null || refundLines.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请指定要退款的商品行");
+        }
+        hydrateOrderLines(order);
+        if (order.getLines() == null || order.getLines().isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "订单无商品行，无法按行退款");
+        }
+        Map<String, CabinetOrderLine> bySku = new java.util.LinkedHashMap<>();
+        for (CabinetOrderLine line : order.getLines()) {
+            if (line.getSkuId() == null) {
+                continue;
+            }
+            bySku.merge(line.getSkuId(), line, (a, b) -> {
+                a.setQuantity(a.getQuantity() + b.getQuantity());
+                a.setLineAmountCents(a.getLineAmountCents() + b.getLineAmountCents());
+                return a;
+            });
+        }
+        List<VisionServiceClient.RecognizedItem> restoreItems = new java.util.ArrayList<>();
+        List<VisionServiceClient.RecognizedItem> keptItems = new java.util.ArrayList<>();
+        Map<String, String> batchBySku = new java.util.HashMap<>();
+        int refundCents = 0;
+        boolean anyRestored = false;
+        Map<String, Integer> refundQtyBySku = new java.util.LinkedHashMap<>();
+
+        for (OrderRefundRequest.PartialRefundLine req : refundLines) {
+            if (req == null || req.skuId() == null || req.skuId().isBlank() || req.quantity() <= 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款行 SKU/数量无效");
+            }
+            String sku = req.skuId().trim();
+            CabinetOrderLine line = bySku.get(sku);
+            if (line == null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "订单不含商品：" + sku);
+            }
+            int already = refundQtyBySku.getOrDefault(sku, 0);
+            int need = already + req.quantity();
+            if (need > line.getQuantity()) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "退款数量超过订单行：" + sku + " 可退 " + (line.getQuantity() - already));
+            }
+            refundQtyBySku.put(sku, need);
+            boolean restore = req.restoreInventory() != null ? req.restoreInventory() : defaultRestore;
+            int unit = line.getUnitPriceCents();
+            refundCents += unit * req.quantity();
+            if (line.getBatchNo() != null && !line.getBatchNo().isBlank()) {
+                batchBySku.putIfAbsent(sku, line.getBatchNo());
+            }
+            var item = new VisionServiceClient.RecognizedItem(sku, req.quantity(), 1f);
+            if (restore) {
+                restoreItems.add(item);
+                anyRestored = true;
+            } else {
+                keptItems.add(item);
+            }
+        }
+        if (refundCents <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额为 0");
+        }
+        if (refundCents > order.getTotalAmountCents()) {
+            refundCents = order.getTotalAmountCents();
+        }
+
+        // 按 SKU 合并后缩减订单行（同 SKU 多行数量已合并）
+        List<CabinetOrderLine> remaining = new java.util.ArrayList<>();
+        for (Map.Entry<String, CabinetOrderLine> e : bySku.entrySet()) {
+            CabinetOrderLine src = e.getValue();
+            int cut = refundQtyBySku.getOrDefault(e.getKey(), 0);
+            int left = src.getQuantity() - cut;
+            if (left > 0) {
+                CabinetOrderLine copy = new CabinetOrderLine();
+                copy.setSkuId(src.getSkuId());
+                copy.setSkuName(src.getSkuName());
+                copy.setQuantity(left);
+                copy.setUnitPriceCents(src.getUnitPriceCents());
+                copy.setLineAmountCents(src.getUnitPriceCents() * left);
+                copy.setConfidence(src.getConfidence());
+                copy.setBatchNo(src.getBatchNo());
+                copy.setSlotId(src.getSlotId());
+                copy.setUnitCostCents(src.getUnitCostCents());
+                remaining.add(copy);
+            }
+        }
+        order.setLines(remaining);
+        int newTotal = remaining.stream().mapToInt(CabinetOrderLine::getLineAmountCents).sum();
+        order.setTotalAmountCents(Math.max(0, newTotal));
+        // 优惠券：部分退后重算门槛；不满足则退还券
+        couponService.recalcOrRestoreAfterPartialRefund(order, newTotal);
+
+        if (order.isInventoryDeducted()) {
+            if (!restoreItems.isEmpty()) {
+                inventoryService.restoreForOrder(order.getDeviceId(), restoreItems, batchBySku);
+            }
+            if (!keptItems.isEmpty()) {
+                inventoryService.recordRefundKeptGoods(
+                        order.getDeviceId(), keptItems, batchBySku, order.getOrderId());
+            }
+            if (remaining.isEmpty()) {
+                order.setInventoryDeducted(false);
+            }
+        }
+
+        orderPaymentService.refundOrder(order, refundCents, reason == null ? "按行部分退款" : reason);
+        boolean full = remaining.isEmpty() || order.getTotalAmountCents() <= 0;
+        order.setStatus(full ? "REFUNDED" : "PARTIAL_REFUNDED");
+        if (full) {
+            order.setRefundedAt(java.time.Instant.now());
+            revenueSplitService.voidSplitOnFullRefund(order.getOrderId());
+        } else {
+            revenueSplitService.resyncSplitForOrder(order);
+        }
+        orderRepository.save(order);
+        replaceOrderLines(order);
+        log.info("partial refund order={} refundCents={} status={} restoredLines={} keptLines={}",
+                order.getOrderId(), refundCents, order.getStatus(), restoreItems.size(), keptItems.size());
+        return new PartialRefundResult(refundCents, order.getStatus(), anyRestored);
+    }
+
+    public record PartialRefundResult(int refundedCents, String status, boolean anyInventoryRestored) {}
+
+    @Transactional(readOnly = true)
+    public int estimatePartialRefundCents(CabinetOrder order,
+                                          List<OrderRefundRequest.PartialRefundLine> refundLines) {
+        if (order == null || refundLines == null || refundLines.isEmpty()) {
+            return 0;
+        }
+        hydrateOrderLines(order);
+        Map<String, Integer> unitBySku = new java.util.HashMap<>();
+        for (CabinetOrderLine line : order.getLines()) {
+            if (line.getSkuId() != null) {
+                unitBySku.putIfAbsent(line.getSkuId(), line.getUnitPriceCents());
+            }
+        }
+        int sum = 0;
+        for (OrderRefundRequest.PartialRefundLine req : refundLines) {
+            if (req == null || req.skuId() == null || req.quantity() <= 0) {
+                continue;
+            }
+            sum += unitBySku.getOrDefault(req.skuId().trim(), 0) * req.quantity();
+        }
+        return Math.min(sum, Math.max(0, order.getTotalAmountCents()));
     }
 
     private OrderDto finalizeOrder(ShoppingSession session,
@@ -557,14 +762,20 @@ public class SettlementService {
         return reason != null && (reason.contains("余额") || reason.toLowerCase().contains("insufficient"));
     }
 
-    /** Pick best coupon and rewrite payable; caller must markUsed after order is persisted (FK). */
+    /** Pick preferred or best coupon and rewrite payable; caller must markUsed after order is persisted (FK). */
     private CouponService.BestCoupon selectBestCouponForOrder(CabinetOrder order) {
         int subtotal = order.getTotalAmountCents();
         order.setOriginalAmountCents(subtotal);
         if (subtotal <= 0 || order.getUserId() == null) {
             return null;
         }
-        var best = couponService.selectBestCoupon(order.getUserId(), subtotal);
+        Long preferred = null;
+        if (order.getSessionId() != null) {
+            preferred = sessionRepository.findById(order.getSessionId())
+                    .map(ShoppingSession::getPreferredCouponId)
+                    .orElse(null);
+        }
+        var best = couponService.selectPreferredOrBest(order.getUserId(), preferred, subtotal);
         if (best.isEmpty()) {
             return null;
         }
@@ -573,8 +784,8 @@ public class SettlementService {
         order.setCouponId(pick.couponId());
         order.setCouponDiscountCents(discount);
         order.setTotalAmountCents(Math.max(0, subtotal - discount));
-        log.info("auto applied coupon order={} couponId={} discount={} payable={}",
-                order.getOrderId(), pick.couponId(), discount, order.getTotalAmountCents());
+        log.info("applied coupon order={} couponId={} preferred={} discount={} payable={}",
+                order.getOrderId(), pick.couponId(), preferred, discount, order.getTotalAmountCents());
         return pick;
     }
 
@@ -599,6 +810,7 @@ public class SettlementService {
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
                             ApiMessages.SKU_NOT_FOUND + "：" + item.skuId()));
             int unitPrice = skuPricingService.resolveUnitPriceCents(order.getDeviceId(), sku);
+            unitPrice = memberService.applyMemberPriceDiscount(order.getUserId(), unitPrice);
             int lineAmount = unitPrice * item.quantity();
             total += lineAmount;
 
@@ -715,8 +927,23 @@ public class SettlementService {
                 : order.getLines().stream()
                         .map(l -> new OrderLineDto(
                                 l.getSkuId(), l.getSkuName(), l.getQuantity(),
-                                l.getUnitPriceCents(), l.getLineAmountCents(), l.getBatchNo()))
+                                l.getUnitPriceCents(), l.getLineAmountCents(), l.getBatchNo(), l.getSlotId()))
                         .toList();
+        Integer memberDiscount = order.getMemberDiscountCents() > 0
+                ? Integer.valueOf(order.getMemberDiscountCents())
+                : null;
+        if (originalAmount == null && order.getMemberDiscountCents() > 0) {
+            originalAmount = order.getTotalAmountCents()
+                    + order.getCouponDiscountCents()
+                    + order.getMemberDiscountCents();
+        }
+        String merchantId = null;
+        try {
+            DeviceInfo device = deviceValidationService.requireDevice(order.getDeviceId());
+            merchantId = device.getMerchantId();
+        } catch (Exception ignored) {
+            // 详情仍可返回，商户号留空
+        }
         return new OrderDto(
                 order.getOrderId(),
                 order.getSessionId(),
@@ -732,7 +959,13 @@ public class SettlementService {
                 originalAmount,
                 refundPolicyService != null
                         ? refundPolicyService.resolveForDevice(order.getDeviceId()).name()
-                        : null
+                        : null,
+                memberDiscount,
+                order.getPayTradeNo(),
+                order.getRefundedAt(),
+                order.isInventoryDeducted(),
+                merchantId,
+                Math.max(0, order.getRefundedCents())
         );
     }
 }

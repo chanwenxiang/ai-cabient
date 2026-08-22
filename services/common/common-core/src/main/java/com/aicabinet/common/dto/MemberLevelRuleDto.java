@@ -11,6 +11,7 @@ public record MemberLevelRuleDto(
         int minPoints,
         Integer maxPoints,
         BigDecimal pointsRate,
+        BigDecimal priceDiscountPct,
         int sortOrder,
         String status
 ) {}

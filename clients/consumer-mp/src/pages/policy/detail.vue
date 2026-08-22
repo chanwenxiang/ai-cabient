@@ -3,10 +3,25 @@
     <app-nav-bar :title="navTitle" />
     <view class="page-body">
       <view class="policy-card">
-        <text class="policy-updated">更新日期：2026-08-08</text>
+        <text class="policy-updated">更新日期：2026-08-08 · 版本 V1.2</text>
         <view v-for="section in sections" :key="section.title" class="section">
           <text class="section-title">{{ section.title }}</text>
           <text v-for="(p, i) in section.paragraphs" :key="i" class="section-p">{{ p }}</text>
+        </view>
+        <view class="related">
+          <text class="related-title">相关条款</text>
+          <view class="related-row">
+            <text
+              v-for="link in relatedLinks"
+              :key="link.type"
+              class="related-link"
+              :class="{ on: type === link.type }"
+              @click="switchType(link.type)"
+              >{{ link.label }}</text
+            >
+          </view>
+          <text class="related-hint">如有疑问可前往帮助中心联系客服</text>
+          <text class="related-link help" @click="goHelp">帮助中心 ›</text>
         </view>
       </view>
     </view>
@@ -174,6 +189,23 @@ const CONTENTS: Record<PolicyType, PolicySection[]> = {
 const sections = computed(() => CONTENTS[type.value] || CONTENTS.agreement);
 const navTitle = computed(() => TITLES[type.value] || TITLES.agreement);
 
+const relatedLinks: Array<{ type: PolicyType; label: string }> = [
+  { type: 'agreement', label: '用户协议' },
+  { type: 'privacy', label: '隐私政策' },
+  { type: 'refund', label: '退款规则' },
+  { type: 'billing', label: '账单说明' }
+];
+
+function switchType(next: PolicyType) {
+  if (next === type.value) return;
+  routeType.value = next;
+  uni.setNavigationBarTitle({ title: TITLES[next] });
+}
+
+function goHelp() {
+  uni.navigateTo({ url: '/pages/help/help' });
+}
+
 onLoad((query) => {
   routeType.value = String(query?.type || 'agreement');
 });
@@ -219,5 +251,46 @@ onLoad((query) => {
   color: #4b5563;
   line-height: 1.7;
   margin-bottom: 10rpx;
+}
+.related {
+  margin-top: 12rpx;
+  padding-top: 24rpx;
+  border-top: 1rpx solid #eef2f0;
+}
+.related-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 650;
+  color: #1f2937;
+  margin-bottom: 12rpx;
+}
+.related-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+}
+.related-link {
+  font-size: 24rpx;
+  color: #059669;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  background: #ecfdf5;
+}
+.related-link.on {
+  background: #059669;
+  color: #fff;
+  font-weight: 650;
+}
+.related-link.help {
+  display: inline-block;
+  margin-top: 16rpx;
+  background: transparent;
+  padding: 0;
+}
+.related-hint {
+  display: block;
+  margin-top: 16rpx;
+  font-size: 22rpx;
+  color: #94a3b8;
 }
 </style>

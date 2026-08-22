@@ -22,20 +22,32 @@
         @error="onError"
       />
       <view v-if="src" class="tips">
+        <text v-if="metaLine" class="meta">{{ metaLine }}</text>
         <text class="tip">若无法播放，可复制链接到浏览器打开</text>
         <button class="copy-btn" size="mini" @click="copyUrl">复制链接</button>
+      </view>
+      <view v-if="orderId" class="back-row">
+        <text class="back-link" @click="goOrder">返回订单详情 ›</text>
       </view>
     </view>
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { API_BASE_URL } from '@/config/api';
 
 const src = ref('');
 const error = ref('');
+const orderId = ref('');
+const deviceId = ref('');
+const metaLine = computed(() => {
+  const parts: string[] = [];
+  if (orderId.value) parts.push(`订单 ${orderId.value}`);
+  if (deviceId.value) parts.push(`柜机 ${deviceId.value}`);
+  return parts.join(' · ');
+});
 
 function normalizeVideoUrl(url: string): string {
   const trimmed = String(url || '').trim();
@@ -48,6 +60,8 @@ function normalizeVideoUrl(url: string): string {
 onLoad((opts) => {
   const raw = String(opts?.url || opts?.videoUrl || '').trim();
   src.value = normalizeVideoUrl(raw);
+  orderId.value = String(opts?.orderId || '').trim();
+  deviceId.value = String(opts?.deviceId || '').trim();
   if (!src.value) {
     error.value = '缺少视频地址';
   }
@@ -62,6 +76,13 @@ function copyUrl() {
   uni.setClipboardData({
     data: src.value,
     success: () => uni.showToast({ title: '视频链接已复制', icon: 'none' })
+  });
+}
+
+function goOrder() {
+  if (!orderId.value) return;
+  uni.navigateTo({
+    url: `/pages/order-detail/order-detail?orderId=${encodeURIComponent(orderId.value)}`
   });
 }
 </script>
@@ -112,8 +133,13 @@ function copyUrl() {
 .tips {
   margin-top: 24rpx;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16rpx;
+  gap: 12rpx;
+}
+.meta {
+  color: #cbd5e1;
+  font-size: 22rpx;
 }
 .tip {
   color: #94a3b8;
@@ -125,5 +151,12 @@ function copyUrl() {
   border: 1rpx solid rgba(255, 255, 255, 0.25);
   border-radius: 999rpx;
   font-size: 24rpx;
+}
+.back-row {
+  margin-top: 28rpx;
+}
+.back-link {
+  color: #34d399;
+  font-size: 26rpx;
 }
 </style>

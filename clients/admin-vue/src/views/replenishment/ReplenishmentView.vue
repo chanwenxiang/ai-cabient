@@ -455,6 +455,26 @@
                   }}</span>
                 </template>
               </el-table-column>
+              <el-table-column label="要货单" width="90" align="center">
+                <template #default="{ row }">
+                  <span v-if="row.requestId" class="cell-id">{{ row.requestId }}</span>
+                  <span v-else class="muted">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="出库单" width="90" align="center">
+                <template #default="{ row }">
+                  <span v-if="row.outboundId" class="cell-id">{{ row.outboundId }}</span>
+                  <span v-else class="muted">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column
+                label="备注"
+                min-width="120"
+                align="center"
+                show-overflow-tooltip
+              >
+                <template #default="{ row }">{{ row.notes || '—' }}</template>
+              </el-table-column>
               <el-table-column label="操作" width="120" align="center" class-name="col-action">
                 <template #default="{ row }">
                   <el-button link type="primary" @click="openTaskLines(row)">
@@ -927,9 +947,10 @@
             <el-table-column label="类型" width="88" align="center">
               <template #default="{ row }">{{ lineTypeLabel(row.lineType) }}</template>
             </el-table-column>
-            <el-table-column label="商品" min-width="110" show-overflow-tooltip align="center">
+            <el-table-column label="商品" min-width="140" show-overflow-tooltip align="center">
               <template #default="{ row }">
-                <span class="mono">{{ row.skuId || '无' }}</span>
+                <div>{{ row.skuName || row.skuId || '无' }}</div>
+                <small v-if="row.skuName && row.skuId" class="muted mono">{{ row.skuId }}</small>
               </template>
             </el-table-column>
             <el-table-column prop="quantity" label="数量" width="72" align="center" />

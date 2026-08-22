@@ -124,27 +124,41 @@ public class MerchantFeaturePackService {
     @Transactional(readOnly = true)
     public List<DeviceInfo> allowedDevicesForPack(Long userId, String pack) {
         Set<String> merchantIds = allowedMerchantIdsForPack(userId, pack);
+        Set<String> byMerchant;
         if (merchantIds == null) {
+            byMerchant = null;
+        } else if (merchantIds.isEmpty()) {
+            return List.of();
+        } else {
+            byMerchant = deviceRepository.findByMerchantIdIn(merchantIds).stream()
+                    .map(DeviceInfo::getDeviceId)
+                    .collect(Collectors.toCollection(HashSet::new));
+        }
+        Set<String> scoped = merchantScopeService.intersectDeviceCabinetScope(userId, byMerchant);
+        if (scoped == null) {
             return deviceRepository.findAll();
         }
-        if (merchantIds.isEmpty()) {
+        if (scoped.isEmpty()) {
             return List.of();
         }
-        return deviceRepository.findByMerchantIdIn(merchantIds);
+        return deviceRepository.findByDeviceIdIn(scoped);
     }
 
     @Transactional(readOnly = true)
     public Set<String> allowedDeviceIdsForPack(Long userId, String pack) {
         Set<String> merchantIds = allowedMerchantIdsForPack(userId, pack);
+        Set<String> byMerchant;
         if (merchantIds == null) {
-            return null;
-        }
-        if (merchantIds.isEmpty()) {
+            byMerchant = null;
+        } else if (merchantIds.isEmpty()) {
             return Set.of();
+        } else {
+            byMerchant = deviceRepository.findByMerchantIdIn(merchantIds).stream()
+                    .map(DeviceInfo::getDeviceId)
+                    .collect(Collectors.toCollection(HashSet::new));
         }
-        return deviceRepository.findByMerchantIdIn(merchantIds).stream()
-                .map(DeviceInfo::getDeviceId)
-                .collect(Collectors.toSet());
+        Set<String> scoped = merchantScopeService.intersectDeviceCabinetScope(userId, byMerchant);
+        return scoped == null ? null : scoped;
     }
 
     /** 与 {@link MerchantScopeService#intersectDeviceFilter} 相同语义，但限制在功能包内。 */

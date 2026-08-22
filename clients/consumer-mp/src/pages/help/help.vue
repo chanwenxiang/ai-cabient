@@ -36,6 +36,20 @@
         </view>
         <text class="support-action">去报修</text>
       </view>
+      <view class="support-row" @click="goMessages">
+        <view>
+          <text class="support-label">消息中心</text>
+          <text class="support-value">订单、售后与优惠提醒</text>
+        </view>
+        <text class="support-action">去查看</text>
+      </view>
+      <view class="support-row" @click="goNearby">
+        <view>
+          <text class="support-label">附近柜机</text>
+          <text class="support-value">按距离找可开门的柜</text>
+        </view>
+        <text class="support-action">去找柜</text>
+      </view>
     </view>
 
     <view class="card">
@@ -92,7 +106,15 @@ const faqs = [
   },
   {
     q: '优惠券怎么用？',
-    a: '购物结算时系统会自动选用可用优惠券。具体规则以活动页说明为准。'
+    a: '购物结算时系统会自动选用可用优惠券。券面会标注门槛、有效期与适用柜范围；即将过期的券会在「我的优惠券」中提示。'
+  },
+  {
+    q: '积分怎么获得和兑换？',
+    a: '支付成功后按会员等级倍率返积分。可在「积分明细」查看有效期，在「积分兑换」换券时注意门槛与适用柜说明。'
+  },
+  {
+    q: '附近没有柜机怎么办？',
+    a: '可在「附近柜机」扩大搜索半径，或直接扫描柜门二维码；离线/停售柜会标注状态，请选择在线可开门的柜。'
   }
 ];
 
@@ -130,6 +152,14 @@ function goFeedback() {
 
 function goReport() {
   uni.navigateTo({ url: '/pages/report/report' });
+}
+
+function goMessages() {
+  uni.navigateTo({ url: '/pages/messages/messages' });
+}
+
+function goNearby() {
+  uni.navigateTo({ url: '/pages/nearby/nearby' });
 }
 
 function goOrders() {

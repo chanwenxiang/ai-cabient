@@ -35,6 +35,8 @@ public class AdminDashboardController {
     private final DeviceAssetService deviceAssetService;
     private final FileAttachmentService fileAttachmentService;
     private final com.aicabinet.trade.service.DeviceQrService deviceQrService;
+    private final com.aicabinet.trade.config.SecurityProperties securityProperties;
+    private final com.aicabinet.trade.service.SystemConfigService systemConfigService;
 
     public AdminDashboardController(AdminDashboardService adminService,
                                     CacheService cacheService,
@@ -43,7 +45,9 @@ public class AdminDashboardController {
                                     UnpaidOrderService unpaidOrderService,
                                     DeviceAssetService deviceAssetService,
                                     FileAttachmentService fileAttachmentService,
-                                    com.aicabinet.trade.service.DeviceQrService deviceQrService) {
+                                    com.aicabinet.trade.service.DeviceQrService deviceQrService,
+                                    com.aicabinet.trade.config.SecurityProperties securityProperties,
+                                    com.aicabinet.trade.service.SystemConfigService systemConfigService) {
         this.adminService = adminService;
         this.cacheService = cacheService;
         this.disputeService = disputeService;
@@ -52,6 +56,8 @@ public class AdminDashboardController {
         this.deviceAssetService = deviceAssetService;
         this.fileAttachmentService = fileAttachmentService;
         this.deviceQrService = deviceQrService;
+        this.securityProperties = securityProperties;
+        this.systemConfigService = systemConfigService;
     }
 
     @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
@@ -59,6 +65,19 @@ public class AdminDashboardController {
     public ApiResponse<AdminStatsDto> stats(HttpServletRequest request) {
         Long opId = operatorId(request);
         return ApiResponse.ok(cacheService.get("dashboard:stats", String.valueOf(opId), 30_000L, () -> adminService.stats(opId)));
+    }
+
+    /** 大屏/分析：演示数据口径提示（mock 且配置开启时）。 */
+    @RequiresPermissions(value = {"ops:dashboard:view", "ops:analytics:view"}, logical = RequiresPermissions.Logical.OR)
+    @GetMapping("/data-scope")
+    public ApiResponse<DataScopeDto> dataScope(HttpServletRequest request) {
+        boolean mock = securityProperties.mockEnabled();
+        boolean banner = systemConfigService.getBoolean("ops.demo_data_banner", true);
+        boolean demo = mock && banner;
+        return ApiResponse.ok(new DataScopeDto(
+                demo,
+                mock,
+                demo ? "演示/Mock 数据 · 请勿作为生产口径" : "生产口径"));
     }
 
     @RequiresPermissions("ops:dashboard:view")

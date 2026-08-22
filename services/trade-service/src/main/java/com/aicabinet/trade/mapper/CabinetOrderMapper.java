@@ -101,6 +101,18 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
     return c == null ? 0 : c;
     }
 
+    default long countByDeviceIdInAndCreatedAtBetween(
+            Collection<String> deviceIds, Instant start, Instant end) {
+        if (deviceIds == null || deviceIds.isEmpty()) {
+            return 0;
+        }
+        Long c = selectCount(Wrappers.<CabinetOrder>lambdaQuery()
+                .in(CabinetOrder::getDeviceId, deviceIds)
+                .ge(CabinetOrder::getCreatedAt, start)
+                .lt(CabinetOrder::getCreatedAt, end));
+        return c == null ? 0 : c;
+    }
+
     default List<CabinetOrder> findByDeviceIdInAndCreatedAtAfter(Collection<String> deviceIds, Instant since) {
     return selectList(Wrappers.<CabinetOrder>lambdaQuery().in(CabinetOrder::getDeviceId, deviceIds).gt(CabinetOrder::getCreatedAt, since));
     }

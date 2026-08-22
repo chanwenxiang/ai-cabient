@@ -57,7 +57,23 @@
               <text>¥{{ yuan(w.amountCents) }}</text>
               <text class="status">{{ withdrawStatus(w.status) }}</text>
             </view>
-            <text class="row-sub">{{ emptyDisplay(w.requestNo, 'order') }}</text>
+            <text class="row-sub"
+              >{{ emptyDisplay(w.requestNo, 'order')
+              }}{{ w.payChannel ? ` · ${displayLabel('pay_channel', w.payChannel, w.payChannel)}` : '' }}</text
+            >
+            <text class="row-sub"
+              >手续费 ¥{{ yuan(w.feeCents || 0)
+              }}{{ Number(w.feeCents || 0) === 0 ? '（免收）' : '' }} · 到账 ¥{{
+                yuan(Math.max(0, Number(w.amountCents || 0) - Number(w.feeCents || 0)))
+              }}</text
+            >
+            <text v-if="w.payoutRef || w.payoutMessage" class="row-sub"
+              >回执 {{ w.payoutRef || w.payoutMessage }}</text
+            >
+            <text v-if="w.reviewRemark" class="row-sub fail">备注 {{ w.reviewRemark }}</text>
+            <text v-if="w.paidAt || w.createdAt" class="row-sub">{{
+              formatTime(w.paidAt || w.createdAt)
+            }}</text>
           </view>
           <empty-state
             v-if="!(overview.recentWithdraws || []).length"
@@ -80,6 +96,12 @@
               </text>
             </view>
             <text class="row-sub">{{ emptyDisplay(l.remark, 'text') }}</text>
+            <text v-if="l.refId" class="row-sub"
+              >关联 {{ l.refType || 'REF' }} {{ l.refId }}</text
+            >
+            <text v-if="l.balanceAfter != null" class="row-sub"
+              >余额后 ¥{{ yuan(l.balanceAfter) }} · 冻结后 ¥{{ yuan(l.frozenAfter) }}</text
+            >
           </view>
           <empty-state
             v-if="!(overview.recentLedgers || []).length"
@@ -100,7 +122,7 @@
 import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
-import { emptyDisplay } from '@aicabinet/shared-uni/format';
+import { emptyDisplay, formatDateTimeShort } from '@aicabinet/shared-uni/format';
 import EmptyState from '@/components/empty-state.vue';
 import {
   merchantApi,
@@ -117,6 +139,10 @@ const overview = ref<WalletOverview | null>(null);
 const maxWithdrawYuan = computed(() =>
   overview.value?.availableCents != null ? yuan(overview.value.availableCents) : ''
 );
+
+function formatTime(t?: string) {
+  return formatDateTimeShort(t, '');
+}
 
 function yuan(cents?: number) {
   return ((Number(cents) || 0) / 100).toFixed(2);
@@ -301,6 +327,9 @@ onShow(load);
   color: var(--text-subtle, #94a3b8);
   margin-top: 4rpx;
   display: block;
+}
+.row-sub.fail {
+  color: #b91c1c;
 }
 .status {
   color: var(--brand, #0f766e);

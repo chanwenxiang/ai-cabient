@@ -29,11 +29,15 @@
             >
               {{ priorityLabel(item.priority) }}
             </text>
+            <text v-if="typeLabel(item.announceType)" class="tag type">{{
+              typeLabel(item.announceType)
+            }}</text>
             <text v-if="unread(item.announceId)" class="unread-dot" aria-label="未读">新</text>
             <text class="time">{{ formatTime(item.publishAt) }}</text>
           </view>
           <text class="title">{{ item.title }}</text>
           <text class="preview">{{ previewText(item.content) }}</text>
+          <text v-if="expireHint(item.expireAt)" class="expire">{{ expireHint(item.expireAt) }}</text>
         </view>
       </view>
     </view>
@@ -57,6 +61,26 @@ const {
   priorityLabel,
   priorityClass
 } = useAnnouncementsList(() => consumerApi.listAnnouncements(), { previewMax: 72 });
+
+function typeLabel(t?: string) {
+  const v = String(t || '').toUpperCase();
+  if (v === 'MAINTENANCE') return '维护';
+  if (v === 'ACTIVITY' || v === 'CAMPAIGN') return '活动';
+  if (v === 'RULE' || v === 'POLICY') return '规则';
+  if (v === 'SYSTEM') return '系统';
+  return t ? String(t) : '';
+}
+
+function expireHint(expireAt?: string) {
+  if (!expireAt) return '';
+  const t = new Date(expireAt).getTime();
+  if (!Number.isFinite(t)) return '';
+  const diff = t - Date.now();
+  if (diff <= 0) return '已过展示期';
+  const days = Math.ceil(diff / (24 * 60 * 60 * 1000));
+  if (days <= 3) return `展示至 ${formatTime(expireAt)} · 即将下线`;
+  return `展示至 ${formatTime(expireAt)}`;
+}
 
 onShow(() => {
   void load();
@@ -109,8 +133,8 @@ onShow(() => {
 }
 .card-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 12rpx;
   margin-bottom: 12rpx;
 }
@@ -120,6 +144,10 @@ onShow(() => {
   padding: 8rpx 12rpx;
   border-radius: 999rpx;
   font-weight: 600;
+}
+.tag.type {
+  color: #047857;
+  background: #ecfdf5;
 }
 .tag.high {
   color: #b45309;
@@ -136,7 +164,6 @@ onShow(() => {
   line-height: 1;
   padding: 6rpx 10rpx;
   border-radius: 999rpx;
-  margin-left: 8rpx;
 }
 .time {
   color: #94a3b8;
@@ -156,5 +183,11 @@ onShow(() => {
   font-size: 26rpx;
   color: #64748b;
   line-height: 1.55;
+}
+.expire {
+  display: block;
+  margin-top: 10rpx;
+  font-size: 22rpx;
+  color: #b45309;
 }
 </style>

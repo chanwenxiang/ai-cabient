@@ -126,6 +126,44 @@
               </el-tag>
             </template>
           </el-table-column>
+          <el-table-column label="入口渠道" width="96" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.entryChannel || row.payChannel" size="small" effect="plain">
+                {{
+                  dictLabel('pay_channel', row.entryChannel || row.payChannel) ||
+                  row.entryChannel ||
+                  row.payChannel
+                }}
+              </el-tag>
+              <span v-else class="muted">无</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="预授权" width="110" align="center">
+            <template #default="{ row }">
+              <span v-if="row.preauthCents">¥{{ (Number(row.preauthCents) / 100).toFixed(2) }}</span>
+              <span v-else class="muted">—</span>
+              <div v-if="row.preauthStatus && row.preauthStatus !== 'NONE'" class="muted tiny">
+                {{ row.preauthStatus }}
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="购物/识别" width="120" align="center">
+            <template #default="{ row }">
+              <div>{{ formatDurationMs(row.shoppingDurationMs) }}</div>
+              <div class="muted tiny">识 {{ formatDurationMs(row.recognitionDurationMs) }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="录像" width="88" align="center">
+            <template #default="{ row }">
+              <el-tag
+                size="small"
+                :type="row.videoUri || row.videoPreviewUrl ? 'success' : 'info'"
+                effect="plain"
+              >
+                {{ uploadStatusShort(row) }}
+              </el-tag>
+            </template>
+          </el-table-column>
           <el-table-column label="用户" width="88" align="center" class-name="col-text">
             <template #default="{ row }">{{ row.userId ?? '无' }}</template>
           </el-table-column>
@@ -274,6 +312,27 @@
           <el-descriptions-item label="状态">
             {{ dictLabel('session_state', timelineRow.state) }}
           </el-descriptions-item>
+          <el-descriptions-item label="入口渠道">
+            {{
+              dictLabel('pay_channel', timelineRow.entryChannel || timelineRow.payChannel) ||
+              timelineRow.entryChannel ||
+              timelineRow.payChannel ||
+              '无'
+            }}
+          </el-descriptions-item>
+          <el-descriptions-item label="录像">
+            {{ uploadStatusShort(timelineRow) }}
+            <span v-if="timelineRow.videoUri" class="muted"> · 有文件</span>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="failReasonText(timelineRow) !== '无'" label="失败原因">
+            {{ failReasonText(timelineRow) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="开门">
+            {{ formatDateTime(timelineRow.openTime || timelineRow.createdAt) }}
+          </el-descriptions-item>
+          <el-descriptions-item label="关门">
+            {{ timelineRow.closeTime ? formatDateTime(timelineRow.closeTime) : '—' }}
+          </el-descriptions-item>
         </el-descriptions>
         <el-timeline>
           <el-timeline-item
@@ -353,6 +412,14 @@ interface SessionRow {
   openTime?: string;
   closeTime?: string;
   uploadStatus?: string;
+  videoUri?: string;
+  videoPreviewUrl?: string;
+  entryChannel?: string;
+  payChannel?: string;
+  preauthCents?: number;
+  preauthStatus?: string;
+  shoppingDurationMs?: number;
+  recognitionDurationMs?: number;
   createdAt?: string;
   updatedAt?: string;
   /** CONSUMER / RESTOCK / OPS */
@@ -541,6 +608,25 @@ function formatDuration(row: SessionRow) {
 function failReasonText(row: SessionRow) {
   const text = String(row.failureReason || row.failReason || '').trim();
   return text || '无';
+}
+
+function formatDurationMs(ms?: number | null) {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return '—';
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  const sec = ms / 1000;
+  if (sec < 60) return `${sec.toFixed(1)}s`;
+  const m = Math.floor(sec / 60);
+  const s = Math.round(sec % 60);
+  return `${m}m${s}s`;
+}
+
+function uploadStatusShort(row: SessionRow) {
+  const st = String(row.uploadStatus || '').toUpperCase();
+  if (row.videoUri || row.videoPreviewUrl || st === 'UPLOADED') return '有录像';
+  if (st === 'UPLOADING' || st === 'LOCAL_QUEUED') return '上传中';
+  if (st.includes('FAIL')) return '失败';
+  if (st && st !== 'NONE') return dictLabel('upload_status', row.uploadStatus) || st;
+  return '无';
 }
 
 function sessionDurationMs(row: SessionRow) {
@@ -995,6 +1081,11 @@ onActivated(() => {
 }
 .muted {
   color: var(--el-text-color-secondary);
+}
+.muted.tiny {
+  font-size: 12px;
+  line-height: 1.2;
+  margin-top: 2px;
 }
 .mb12 {
   margin-bottom: 12px;

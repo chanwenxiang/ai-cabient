@@ -2,6 +2,7 @@ package com.aicabinet.trade.api;
 
 import com.aicabinet.common.dto.ApiResponse;
 import com.aicabinet.common.dto.CreateSessionRequest;
+import com.aicabinet.common.dto.LiveCartDto;
 import com.aicabinet.common.dto.OrderDto;
 import com.aicabinet.common.dto.SessionCartRequest;
 import com.aicabinet.common.dto.SessionDto;
@@ -83,5 +84,14 @@ public class SessionController {
             @PathVariable("sessionId") String sessionId) {
         Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
         return ApiResponse.ok(sessionService.getSessionOrder(userId, sessionId));
+    }
+
+    /** 开门中实时购物车（第三方识别推送快照；结算仍以关门识别为准） */
+    @GetMapping("/{sessionId}/live-cart")
+    public ApiResponse<LiveCartDto> liveCart(
+            HttpServletRequest request,
+            @PathVariable("sessionId") String sessionId) {
+        Long userId = (Long) request.getAttribute(AuthInterceptor.ATTR_USER_ID);
+        return ApiResponse.ok(sessionService.getLiveCart(userId, sessionId));
     }
 }

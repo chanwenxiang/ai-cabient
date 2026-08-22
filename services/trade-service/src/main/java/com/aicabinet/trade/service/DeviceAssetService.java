@@ -205,21 +205,24 @@ public class DeviceAssetService {
                 .collect(Collectors.toMap(SkuCatalog::getSkuId, s -> s, (a, b) -> a));
 
         List<StockHealthRowDto> rows = new ArrayList<>();
+        Map<String, Boolean> ledgerByDevice = new HashMap<>();
+        Map<String, Map<String, Integer>> sellableByDevice = new HashMap<>();
         if (!"NEAR_EXPIRY".equals(dim)) {
             List<DeviceSkuInventory> inv = inventoryMapper.selectList(Wrappers.<DeviceSkuInventory>lambdaQuery()
                     .in(DeviceSkuInventory::getDeviceId, devices.keySet()));
             for (DeviceSkuInventory row : inv) {
                 DeviceInfo d = devices.get(row.getDeviceId());
                 if (d == null) continue;
-                boolean stockout = row.getQuantity() <= 0;
-                boolean low = !stockout && row.getQuantity() <= Math.max(row.getLowThreshold(), 0);
+                int qty = effectiveSellableQty(row, ledgerByDevice, sellableByDevice);
+                boolean stockout = qty <= 0;
+                boolean low = !stockout && qty <= Math.max(row.getLowThreshold(), 0);
                 if ("STOCKOUT".equals(dim) && !stockout) continue;
                 if ("LOW".equals(dim) && !low) continue;
                 if ("ALL".equals(dim) && !stockout && !low) continue;
                 String kind = stockout ? "STOCKOUT" : "LOW";
                 int capacity = Math.max(row.getCapacity(), 0);
                 double rate = capacity <= 0 ? (stockout ? 100d : 0d)
-                        : Math.max(0d, (1d - (row.getQuantity() * 1d / capacity)) * 100d);
+                        : Math.max(0d, (1d - (qty * 1d / capacity)) * 100d);
                 Integer daysOut = stockout ? estimateDaysOut(row.getDeviceId(), row.getSkuId(), row.getUpdatedAt()) : null;
                 SkuCatalog sku = skus.get(row.getSkuId());
                 rows.add(new StockHealthRowDto(
@@ -231,7 +234,7 @@ public class DeviceAssetService {
                         normalizeLifecycle(d.getLifecycleStatus()),
                         row.getSkuId(),
                         sku == null ? row.getSkuId() : sku.getSkuName(),
-                        row.getQuantity(),
+                        qty,
                         capacity,
                         row.getLowThreshold(),
                         Math.round(rate * 10d) / 10d,
@@ -307,6 +310,28 @@ public class DeviceAssetService {
         }
         String s = mode.trim().toUpperCase(Locale.ROOT);
         return COOP.contains(s) ? s : null;
+    }
+
+    private int effectiveSellableQty(DeviceSkuInventory row,
+                                     Map<String, Boolean> ledgerByDevice,
+                                     Map<String, Map<String, Integer>> sellableByDevice) {
+        String deviceId = row.getDeviceId();
+        boolean ledger = ledgerByDevice.computeIfAbsent(deviceId,
+                d -> !lotMapper.findByDeviceId(d).isEmpty());
+        if (!ledger) {
+            return row.getQuantity();
+        }
+        Map<String, Integer> bySku = sellableByDevice.computeIfAbsent(deviceId, d -> {
+            Map<String, Integer> map = new HashMap<>();
+            for (Object[] r : lotMapper.sumSellableBySku(d)) {
+                if (r == null || r.length < 2 || r[0] == null || r[1] == null) {
+                    continue;
+                }
+                map.merge(String.valueOf(r[0]), ((Number) r[1]).intValue(), Integer::sum);
+            }
+            return map;
+        });
+        return bySku.getOrDefault(row.getSkuId(), 0);
     }
 
     private Integer estimateDaysOut(String deviceId, String skuId, Instant updatedAt) {
