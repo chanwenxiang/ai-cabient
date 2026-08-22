@@ -14,6 +14,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
@@ -28,6 +30,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class DeviceTempPlanServiceTest {
 
     private static final long OPERATOR_ID = 1900000001L;
@@ -38,13 +41,18 @@ class DeviceTempPlanServiceTest {
     @Mock private DeviceInfoMapper deviceRepository;
     @Mock private DeviceServiceClient deviceClient;
     @Mock private AdminAuditService auditService;
+    @Mock private DistributedLockService distributedLockService;
 
     private DeviceTempPlanService service;
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
         service = new DeviceTempPlanService(permissionService, planRepository, entryRepository,
-                deviceRepository, deviceClient, auditService);
+                deviceRepository, deviceClient, auditService, distributedLockService);
     }
 
     @Test
@@ -78,7 +86,7 @@ class DeviceTempPlanServiceTest {
         when(planRepository.findByDeviceId("CAB-001")).thenReturn(Optional.of(plan));
         when(entryRepository.findByPlanId(10L)).thenReturn(List.of(entry(1L, 0, 5), entry(2L, 480, 4)));
         DeviceInfo device = device("CAB-001", "ONLINE", null);
-        when(deviceRepository.findById("CAB-001")).thenReturn(Optional.of(device));
+        when(deviceRepository.findByIdForUpdate("CAB-001")).thenReturn(Optional.of(device));
         when(deviceClient.requestSetTargetTemp("CAB-001", 4)).thenReturn("CMD-1");
 
         service.applyNow("CAB-001");
@@ -97,7 +105,7 @@ class DeviceTempPlanServiceTest {
         when(planRepository.findByDeviceId("CAB-001")).thenReturn(Optional.of(plan));
         when(entryRepository.findByPlanId(10L)).thenReturn(List.of(entry(1L, 0, 5), entry(2L, 480, 4)));
         DeviceInfo device = device("CAB-001", "ONLINE", 4);
-        when(deviceRepository.findById("CAB-001")).thenReturn(Optional.of(device));
+        when(deviceRepository.findByIdForUpdate("CAB-001")).thenReturn(Optional.of(device));
 
         service.applyNow("CAB-001");
 

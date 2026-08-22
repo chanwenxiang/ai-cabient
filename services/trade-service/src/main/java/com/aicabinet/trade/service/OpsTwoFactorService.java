@@ -38,22 +38,29 @@ public class OpsTwoFactorService {
     private final TotpService totpService;
     private final JwtService jwtService;
     private final AuthService authService;
+    private final DistributedLockService distributedLockService;
 
     public OpsTwoFactorService(UserInfoMapper userInfoRepository,
                                OpsTwoFactorRecoveryCodeMapper recoveryRepository,
                                TotpService totpService,
                                JwtService jwtService,
-                               AuthService authService) {
+                               AuthService authService,
+                               DistributedLockService distributedLockService) {
         this.userInfoRepository = userInfoRepository;
         this.recoveryRepository = recoveryRepository;
         this.totpService = totpService;
         this.jwtService = jwtService;
         this.authService = authService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
     public TwoFactorEnrollDto enroll(Long operatorId) {
-        UserInfo user = requireOperatorUser(operatorId);
+        return runWithTwoFactorLock(operatorId, () -> doEnroll(operatorId));
+    }
+
+    private TwoFactorEnrollDto doEnroll(Long operatorId) {
+        UserInfo user = requireOperatorUserForUpdate(operatorId);
         if (user.isTotpEnabled()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "双因子认证已启用，请先关闭后重新绑定");
         }
@@ -87,7 +94,14 @@ public class OpsTwoFactorService {
 
     @Transactional
     public void confirm(Long operatorId, String code) {
-        UserInfo user = requireOperatorUser(operatorId);
+        runWithTwoFactorLock(operatorId, () -> {
+            doConfirm(operatorId, code);
+            return null;
+        });
+    }
+
+    private void doConfirm(Long operatorId, String code) {
+        UserInfo user = requireOperatorUserForUpdate(operatorId);
         if (user.isTotpEnabled()) {
             return;
         }
@@ -111,7 +125,11 @@ public class OpsTwoFactorService {
     @Transactional
     public LoginResponse verifyRecovery(String challengeToken, String recoveryCode) {
         Long userId = jwtService.validateChallengeToken(challengeToken);
-        requireOperatorUser(userId);
+        return runWithTwoFactorLock(userId, () -> doVerifyRecovery(userId, recoveryCode));
+    }
+
+    private LoginResponse doVerifyRecovery(Long userId, String recoveryCode) {
+        requireOperatorUserForUpdate(userId);
         String hash = hashRecoveryCode(userId, normalizeRecoveryCode(recoveryCode));
         OpsTwoFactorRecoveryCode row = recoveryRepository.findByUserId(userId).stream()
                 .filter(r -> !r.isUsed() && constantTimeEquals(r.getCodeHash(), hash))
@@ -125,7 +143,14 @@ public class OpsTwoFactorService {
 
     @Transactional
     public void disable(Long operatorId, String code) {
-        UserInfo user = requireOperatorUser(operatorId);
+        runWithTwoFactorLock(operatorId, () -> {
+            doDisable(operatorId, code);
+            return null;
+        });
+    }
+
+    private void doDisable(Long operatorId, String code) {
+        UserInfo user = requireOperatorUserForUpdate(operatorId);
         if (!user.isTotpEnabled()) {
             return;
         }
@@ -148,6 +173,34 @@ public class OpsTwoFactorService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "仅运营账号可使用双因子认证");
         }
         return user;
+    }
+
+    private UserInfo requireOperatorUserForUpdate(Long userId) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "请先登录");
+        }
+        UserInfo user = userInfoRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
+        if (userId < CabinetConstants.OPERATOR_USER_ID_START) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "仅运营账号可使用双因子认证");
+        }
+        return user;
+    }
+
+    static String opsTwoFactorLockKey(Long userId) {
+        return "ops:2fa:" + userId;
+    }
+
+    private <T> T runWithTwoFactorLock(Long userId, java.util.function.Supplier<T> action) {
+        String key = opsTwoFactorLockKey(userId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "双因子认证处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 
     private String formatRecoveryCode() {

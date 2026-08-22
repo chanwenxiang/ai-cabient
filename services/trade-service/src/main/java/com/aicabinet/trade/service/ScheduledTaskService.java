@@ -61,7 +61,11 @@ public class ScheduledTaskService {
 
     @Transactional
     public ScheduledTaskDto setEnabled(Long operatorId, String taskKey, boolean enabled) {
-        ScheduledTask row = requireTask(taskKey);
+        return runWithAdminTaskLock(taskKey, () -> doSetEnabled(operatorId, taskKey, enabled));
+    }
+
+    private ScheduledTaskDto doSetEnabled(Long operatorId, String taskKey, boolean enabled) {
+        ScheduledTask row = requireTaskForUpdate(taskKey);
         row.setEnabled(enabled);
         row.setUpdatedAt(Instant.now());
         taskRepository.save(row);
@@ -73,7 +77,11 @@ public class ScheduledTaskService {
     /** 更新任务备注（说明这个任务干嘛的），留审计。 */
     @Transactional
     public ScheduledTaskDto setRemark(Long operatorId, String taskKey, String remark) {
-        ScheduledTask row = requireTask(taskKey);
+        return runWithAdminTaskLock(taskKey, () -> doSetRemark(operatorId, taskKey, remark));
+    }
+
+    private ScheduledTaskDto doSetRemark(Long operatorId, String taskKey, String remark) {
+        ScheduledTask row = requireTaskForUpdate(taskKey);
         row.setRemark(remark == null ? null : remark.trim());
         row.setUpdatedAt(Instant.now());
         taskRepository.save(row);
@@ -108,7 +116,7 @@ public class ScheduledTaskService {
     /** 记录执行结果并释放分布式锁（独立事务，外层异常回滚不影响记录）。 */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void finish(String taskKey, String result, String message, long startNanos) {
-        ScheduledTask row = taskRepository.selectById(taskKey);
+        ScheduledTask row = taskRepository.findByIdForUpdate(taskKey).orElse(null);
         if (row != null) {
             Instant now = Instant.now();
             row.setLastRunAt(now);
@@ -160,6 +168,27 @@ public class ScheduledTaskService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存在: " + taskKey);
         }
         return row;
+    }
+
+    private ScheduledTask requireTaskForUpdate(String taskKey) {
+        return taskRepository.findByIdForUpdate(taskKey)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "任务不存在: " + taskKey));
+    }
+
+    static String scheduledTaskAdminLockKey(String taskKey) {
+        return "scheduled-task:admin:" + taskKey;
+    }
+
+    private <T> T runWithAdminTaskLock(String taskKey, java.util.function.Supplier<T> action) {
+        String key = scheduledTaskAdminLockKey(taskKey);
+        if (!lockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "定时任务配置处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            lockService.unlock(key);
+        }
     }
 
     private static String truncate(String s, int max) {

@@ -5,9 +5,16 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.time.Instant;
 import java.util.List;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface PromotionActivityMapper extends BaseTradeMapper<PromotionActivity> {
+
+    PromotionActivity _findByIdForUpdateRaw(@Param("activityId") Long activityId);
+
+    default java.util.Optional<PromotionActivity> findByIdForUpdate(Long activityId) {
+        return java.util.Optional.ofNullable(_findByIdForUpdateRaw(activityId));
+    }
 
     default List<PromotionActivity> findByStatus(String status) {
     return selectList(Wrappers.<PromotionActivity>lambdaQuery().eq(PromotionActivity::getStatus, status));

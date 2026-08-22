@@ -3,12 +3,19 @@ package com.aicabinet.trade.mapper;
 import com.aicabinet.trade.domain.SkuDelistReview;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 import java.util.Optional;
 
 @Mapper
 public interface SkuDelistReviewMapper extends BaseTradeMapper<SkuDelistReview> {
+
+    SkuDelistReview _findBySkuIdForUpdateRaw(@Param("skuId") String skuId);
+
+    default Optional<SkuDelistReview> findBySkuIdForUpdate(String skuId) {
+        return Optional.ofNullable(_findBySkuIdForUpdateRaw(skuId));
+    }
 
     default Optional<SkuDelistReview> findBySkuId(String skuId) {
         return Optional.ofNullable(selectOne(Wrappers.<SkuDelistReview>lambdaQuery()

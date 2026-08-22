@@ -3,6 +3,7 @@ package com.aicabinet.trade.mapper;
 import com.aicabinet.trade.domain.PointsRedeemItem;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
@@ -21,4 +22,7 @@ public interface PointsRedeemItemMapper extends BaseTradeMapper<PointsRedeemItem
                 .orderByAsc(PointsRedeemItem::getSortOrder)
                 .orderByAsc(PointsRedeemItem::getItemId));
     }
+
+    /** 原子扣减可兑库存，返回受影响行数（0 表示已兑完或已下架）。 */
+    int tryClaimStock(@Param("itemId") Long itemId);
 }

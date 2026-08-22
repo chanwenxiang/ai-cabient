@@ -27,15 +27,18 @@ public class SiteContractService {
     private final DeviceInfoMapper deviceRepository;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public SiteContractService(SiteContractMapper contractRepository,
                                DeviceInfoMapper deviceRepository,
                                PermissionService permissionService,
-                               AdminAuditService auditService) {
+                               AdminAuditService auditService,
+                               DistributedLockService distributedLockService) {
         this.contractRepository = contractRepository;
         this.deviceRepository = deviceRepository;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -53,15 +56,19 @@ public class SiteContractService {
 
     @Transactional
     public SiteContractDto upsert(Long operatorId, String deviceId, UpsertSiteContractRequest request) {
-        permissionService.requirePermission(operatorId, "ops:device:edit");
         String id = deviceId.trim().toUpperCase();
+        return runWithContractLock(id, () -> doUpsert(operatorId, id, request));
+    }
+
+    private SiteContractDto doUpsert(Long operatorId, String id, UpsertSiteContractRequest request) {
+        permissionService.requirePermission(operatorId, "ops:device:edit");
         DeviceInfo device = deviceRepository.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在: " + id));
         if (request.startDate() != null && request.endDate() != null
                 && request.endDate().isBefore(request.startDate())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "合同结束日期不能早于开始日期");
         }
-        SiteContract contract = contractRepository.findByDeviceId(id).orElseGet(SiteContract::new);
+        SiteContract contract = contractRepository.findByDeviceIdForUpdate(id).orElseGet(SiteContract::new);
         boolean created = contract.getContractId() == null;
         contract.setDeviceId(id);
         contract.setSiteName(request.siteName().trim());
@@ -111,10 +118,39 @@ public class SiteContractService {
         return "ACTIVE";
     }
 
-    private SiteContractDto toDto(SiteContract c, String deviceName) {
+    static String contractLockKey(String deviceId) {
+        return "device:contract:" + deviceId;
+    }
+
+    private <T> T runWithContractLock(String deviceId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(contractLockKey(deviceId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "场地合同处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(contractLockKey(deviceId));
+        }
+    }
+
+    private SiteContractDto toDto(SiteContract contract, String deviceName) {
         return new SiteContractDto(
-                c.getContractId(), c.getDeviceId(), deviceName, c.getSiteName(), c.getAddress(),
-                c.getLandlordName(), c.getLandlordPhone(), c.getStartDate(), c.getEndDate(),
-                c.getMonthlyFeeCents(), statusFor(c.getEndDate()), c.getRemark(), c.getUpdatedAt());
+                contract.getContractId(),
+                contract.getDeviceId(),
+                deviceName,
+                contract.getSiteName(),
+                contract.getAddress(),
+                contract.getLandlordName(),
+                contract.getLandlordPhone(),
+                contract.getStartDate(),
+                contract.getEndDate(),
+                contract.getMonthlyFeeCents(),
+                contract.getStatus(),
+                contract.getRemark(),
+                contract.getUpdatedAt());
     }
 }

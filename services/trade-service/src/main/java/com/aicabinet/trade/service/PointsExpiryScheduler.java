@@ -120,7 +120,7 @@ public class PointsExpiryScheduler {
         int affected = 0;
         for (Map.Entry<Long, List<MemberPointsLog>> e : byMember.entrySet()) {
             Long memberId = e.getKey();
-            Member member = memberRepository.findById(memberId).orElse(null);
+            Member member = memberRepository.findByIdForUpdate(memberId).orElse(null);
             if (member == null) {
                 continue;
             }
@@ -130,14 +130,28 @@ public class PointsExpiryScheduler {
             }
             int available = nz(member.getAvailablePoints());
             int actualExpire = Math.min(available, expirePoints);
+            if (actualExpire <= 0) {
+                continue;
+            }
             member.setAvailablePoints(available - actualExpire);
             member.setExpiredPoints(nz(member.getExpiredPoints()) + actualExpire);
             member.setUpdatedAt(now);
             memberRepository.save(member);
 
+            int remaining = actualExpire;
             for (MemberPointsLog l : e.getValue()) {
-                l.setExpiredAt(now);
-                pointsLogRepository.save(l);
+                if (remaining <= 0) {
+                    break;
+                }
+                int pts = nz(l.getPoints());
+                if (pts <= 0 || l.getExpiredAt() != null) {
+                    continue;
+                }
+                if (pts <= remaining) {
+                    l.setExpiredAt(now);
+                    pointsLogRepository.save(l);
+                    remaining -= pts;
+                }
             }
 
             MemberPointsLog expireLog = new MemberPointsLog();

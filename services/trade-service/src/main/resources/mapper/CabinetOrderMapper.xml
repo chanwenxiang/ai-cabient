@@ -66,4 +66,19 @@
     <foreach collection="deviceIds" item="__item" open="(" separator="," close=")">#{__item}</foreach>
     AND o.created_at &gt;= #{start} AND o.created_at &lt; #{end}
   </select>
+
+  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.CabinetOrder">
+    <![CDATA[
+    SELECT o.* FROM cabinet_order o WHERE o.order_id = #{orderId} FOR UPDATE
+    ]]>
+  </select>
+
+  <update id="backfillPayTradeNoIfAbsent">
+    <![CDATA[
+    UPDATE cabinet_order
+    SET pay_trade_no = #{tradeNo}
+    WHERE order_id = #{orderId}
+      AND (pay_trade_no IS NULL OR pay_trade_no = '')
+    ]]>
+  </update>
 </mapper>

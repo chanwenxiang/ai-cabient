@@ -24,6 +24,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.function.Supplier;
 
 @Service
 public class MerchantNotifyService {
@@ -44,6 +45,7 @@ public class MerchantNotifyService {
     private final MerchantNotifyLogMapper notifyLogRepository;
     private final WeChatMiniAppClient weChatMiniAppClient;
     private final WeChatMiniAppProperties weChatMiniAppProperties;
+    private final DistributedLockService distributedLockService;
 
     public MerchantNotifyService(MerchantPortalGuard merchantPortalGuard,
                                  PermissionService permissionService,
@@ -54,7 +56,8 @@ public class MerchantNotifyService {
                                  MerchantSubscribePrefMapper subscribePrefRepository,
                                  MerchantNotifyLogMapper notifyLogRepository,
                                  WeChatMiniAppClient weChatMiniAppClient,
-                                 WeChatMiniAppProperties weChatMiniAppProperties) {
+                                 WeChatMiniAppProperties weChatMiniAppProperties,
+                                 DistributedLockService distributedLockService) {
         this.merchantPortalGuard = merchantPortalGuard;
         this.permissionService = permissionService;
         this.merchantPortalService = merchantPortalService;
@@ -65,6 +68,7 @@ public class MerchantNotifyService {
         this.notifyLogRepository = notifyLogRepository;
         this.weChatMiniAppClient = weChatMiniAppClient;
         this.weChatMiniAppProperties = weChatMiniAppProperties;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -81,17 +85,25 @@ public class MerchantNotifyService {
     @Transactional
     public MerchantNotifyPrefDto bindWxOpenId(Long userId, String wxCode) {
         merchantPortalGuard.requireAccess(userId);
-        UserInfo user = requireUser(userId);
-        var session = weChatMiniAppClient.code2Session(wxCode);
-        user.setWxOpenId(session.openId());
-        userInfoRepository.save(user);
-        return getPrefs(userId);
+        return runWithUserAccountLock(userId, () -> {
+            UserInfo user = userInfoRepository.findByIdForUpdate(userId)
+                    .orElseThrow(() -> new org.springframework.web.server.ResponseStatusException(
+                            org.springframework.http.HttpStatus.NOT_FOUND, "用户不存在"));
+            var session = weChatMiniAppClient.code2Session(wxCode);
+            user.setWxOpenId(session.openId());
+            userInfoRepository.save(user);
+            return getPrefs(userId);
+        });
     }
 
     @Transactional
     public MerchantNotifyPrefDto updateSubscribe(Long userId, MerchantSubscribeRequest request) {
         merchantPortalGuard.requireAccess(userId);
         permissionService.requirePermission(userId, "merchant:alerts:view");
+        return runWithSubscribeLock(userId, () -> doUpdateSubscribe(userId, request));
+    }
+
+    private MerchantNotifyPrefDto doUpdateSubscribe(Long userId, MerchantSubscribeRequest request) {
         List<String> types = request.alertTypes() != null ? request.alertTypes() : List.of();
         subscribePrefRepository.findByIdUserId(userId).forEach(p -> {
             p.setEnabled(false);
@@ -133,6 +145,10 @@ public class MerchantNotifyService {
 
     @Transactional
     public boolean maybeNotifyUser(Long userId) {
+        return runWithNotifyUserLock(userId, () -> doMaybeNotifyUser(userId));
+    }
+
+    private boolean doMaybeNotifyUser(Long userId) {
         UserInfo user = userInfoRepository.findById(userId).orElse(null);
         if (user == null || user.getWxOpenId() == null || user.getWxOpenId().isBlank()) {
             return false;
@@ -253,6 +269,43 @@ public class MerchantNotifyService {
             return sb.toString();
         } catch (Exception e) {
             return input;
+        }
+    }
+
+    static String merchantNotifyUserLockKey(long userId) {
+        return "merchant:notify:user:" + userId;
+    }
+
+    static String merchantNotifySubscribeLockKey(long userId) {
+        return "merchant:notify:subscribe:" + userId;
+    }
+
+    private <T> T runWithNotifyUserLock(long userId, Supplier<T> action) {
+        return runWithLock(merchantNotifyUserLockKey(userId), "通知处理中，请稍后重试", action);
+    }
+
+    private <T> T runWithSubscribeLock(long userId, Supplier<T> action) {
+        return runWithLock(merchantNotifySubscribeLockKey(userId), "订阅设置处理中，请稍后重试", action);
+    }
+
+    private <T> T runWithUserAccountLock(long userId, Supplier<T> action) {
+        return runWithLock(AccountService.userAccountLockKey(userId), "账号处理中，请稍后重试", action);
+    }
+
+    private <T> T runWithLock(String lockKey, String busyMessage, Supplier<T> action) {
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT, busyMessage);
+        }
+        try {
+            return action.get();
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
         }
     }
 }

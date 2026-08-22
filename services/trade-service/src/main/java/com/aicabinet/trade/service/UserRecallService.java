@@ -12,6 +12,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /** 沉睡用户召回：定向发券 + 通知触达，形成「分析→触达→召回」闭环。 */
 @Service
@@ -24,15 +25,18 @@ public class UserRecallService {
     private final CouponService couponService;
     private final CouponDefinitionMapper couponDefinitionRepository;
     private final NotificationService notificationService;
+    private final DistributedLockService distributedLockService;
 
     public UserRecallService(UserBehaviorAnalyticsService behaviorAnalyticsService,
                              CouponService couponService,
                              CouponDefinitionMapper couponDefinitionRepository,
-                             NotificationService notificationService) {
+                             NotificationService notificationService,
+                             DistributedLockService distributedLockService) {
         this.behaviorAnalyticsService = behaviorAnalyticsService;
         this.couponService = couponService;
         this.couponDefinitionRepository = couponDefinitionRepository;
         this.notificationService = notificationService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
@@ -40,7 +44,11 @@ public class UserRecallService {
         if (couponDefId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请选择召回优惠券");
         }
-        CouponDefinition def = couponDefinitionRepository.findById(couponDefId)
+        return runWithRecallCouponLock(couponDefId, () -> doRecall(couponDefId, days, userIds));
+    }
+
+    private UserRecallResult doRecall(Long couponDefId, Integer days, List<Long> userIds) {
+        CouponDefinition def = couponDefinitionRepository.findByIdForUpdate(couponDefId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券不存在"));
         if (!"ACTIVE".equalsIgnoreCase(def.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该优惠券已停用");
@@ -82,5 +90,25 @@ public class UserRecallService {
         }
         log.info("user recall issued coupon={} users={} notified={}", couponDefId, targets.size(), notified);
         return new UserRecallResult(targets.size(), notified);
+    }
+
+    static String recallCouponLockKey(long couponDefId) {
+        return "user-recall:coupon:" + couponDefId;
+    }
+
+    private <T> T runWithRecallCouponLock(long couponDefId, Supplier<T> action) {
+        String lockKey = recallCouponLockKey(couponDefId);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "召回处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
     }
 }

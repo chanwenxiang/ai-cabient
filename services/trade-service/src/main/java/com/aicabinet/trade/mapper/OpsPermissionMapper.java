@@ -10,6 +10,12 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface OpsPermissionMapper extends BaseTradeMapper<OpsPermission> {
 
+    OpsPermission _findByIdForUpdateRaw(@Param("permissionId") Long permissionId);
+
+    default java.util.Optional<OpsPermission> findByIdForUpdate(Long permissionId) {
+        return java.util.Optional.ofNullable(_findByIdForUpdateRaw(permissionId));
+    }
+
     List<String> _findPermCodesByUserId(@Param("userId") Long userId);
 
     default Set<String> findPermCodesByUserId(Long userId) {

@@ -22,6 +22,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,6 +47,8 @@ class ReplenishmentServiceOutboundTest {
     private SessionService sessionService;
     @Mock
     private NotificationService notificationService;
+    @Mock
+    private DistributedLockService distributedLockService;
 
     private ReplenishmentService replenishmentService;
 
@@ -53,7 +57,8 @@ class ReplenishmentServiceOutboundTest {
         replenishmentService = new ReplenishmentService(
                 null, routeRepository, taskRepository, taskLineRepository, null, null, null, pullOffTaskRepository,
                 new ObjectMapper(), warehouseService, null, deviceSlotService, inTransitService,
-                sessionService, null, null, notificationService);
+                sessionService, null, null, notificationService, distributedLockService);
+        lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
     }
 
     @Test
@@ -176,7 +181,7 @@ class ReplenishmentServiceOutboundTest {
         task.setStatus("IN_PROGRESS");
         task.setCheckInAt(null);
 
-        when(taskRepository.findById(21L)).thenReturn(java.util.Optional.of(task));
+        when(taskRepository.findByIdForUpdate(21L)).thenReturn(java.util.Optional.of(task));
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> replenishmentService.completeTask(100000001L, 21L));
@@ -202,7 +207,7 @@ class ReplenishmentServiceOutboundTest {
         line.setSkuId("SKU-DEMO-001");
         line.setQuantity(2);
 
-        when(taskRepository.findById(20L)).thenReturn(java.util.Optional.of(task));
+        when(taskRepository.findByIdForUpdate(20L)).thenReturn(java.util.Optional.of(task));
         when(taskLineRepository.findByTaskIdAndAppliedFalse(20L)).thenReturn(List.of(line));
         when(inTransitService.hasOpenForDevice(200L, "CAB-001")).thenReturn(false);
         when(warehouseService.hasOutboundLinesForDevice(200L, "CAB-001")).thenReturn(true);

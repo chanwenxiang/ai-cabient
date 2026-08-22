@@ -35,6 +35,13 @@ public class OrderRevenueSplit {
     private String wechatTransactionId;
 
     private String failureReason;
+
+    /** 已提交、待微信确认的分账回退单号 */
+    private String wechatPendingReturnNo;
+
+    /** 待确认的分账回退金额（分） */
+    private Long wechatPendingReturnCents;
+
     private String settlementBatchNo;
     private LocalDate settleAfter;
     private Instant settledAt;

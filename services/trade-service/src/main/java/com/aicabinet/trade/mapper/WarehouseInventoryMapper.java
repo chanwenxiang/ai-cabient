@@ -20,8 +20,18 @@ public interface WarehouseInventoryMapper extends BaseTradeMapper<WarehouseInven
     return selectList(Wrappers.<WarehouseInventory>lambdaQuery().eq(WarehouseInventory::getWarehouseId, warehouseId).orderByAsc(WarehouseInventory::getExpiryDate));
     }
 
+    WarehouseInventory _findByWarehouseSkuBatchForUpdateRaw(@Param("warehouseId") String warehouseId,
+                                                            @Param("skuId") String skuId,
+                                                            @Param("batchNo") String batchNo);
+
     default Optional<WarehouseInventory> findByWarehouseIdAndSkuIdAndBatchNo(String warehouseId, String skuId, String batchNo) {
     return Optional.ofNullable(selectOne(Wrappers.<WarehouseInventory>lambdaQuery().eq(WarehouseInventory::getWarehouseId, warehouseId).eq(WarehouseInventory::getSkuId, skuId).eq(WarehouseInventory::getBatchNo, batchNo)));
+    }
+
+    default Optional<WarehouseInventory> findByWarehouseIdAndSkuIdAndBatchNoForUpdate(String warehouseId,
+                                                                                        String skuId,
+                                                                                        String batchNo) {
+        return Optional.ofNullable(_findByWarehouseSkuBatchForUpdateRaw(warehouseId, skuId, batchNo));
     }
 
     default List<WarehouseInventory> findByWarehouseIdAndSkuIdOrderByExpiryDateAsc(String warehouseId, String skuId) {

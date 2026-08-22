@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.WarehouseInTransitMapper">
+
+  <select id="_findByOutboundIdAndDeviceIdAndStatusForUpdateRaw"
+          resultType="com.aicabinet.trade.domain.WarehouseInTransit">
+    <![CDATA[
+    SELECT t.* FROM warehouse_in_transit t
+    WHERE t.outbound_id = #{outboundId}
+      AND t.device_id = #{deviceId}
+      AND t.status = #{status}
+    FOR UPDATE
+    ]]>
+  </select>
+
+</mapper>

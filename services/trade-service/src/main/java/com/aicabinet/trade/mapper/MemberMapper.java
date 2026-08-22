@@ -6,9 +6,22 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface MemberMapper extends BaseTradeMapper<Member> {
+
+    Member _findByUserIdForUpdateRaw(@Param("userId") Long userId);
+
+    Member _findByIdForUpdateRaw(@Param("memberId") Long memberId);
+
+    default Optional<Member> findByUserIdForUpdate(Long userId) {
+        return Optional.ofNullable(_findByUserIdForUpdateRaw(userId));
+    }
+
+    default Optional<Member> findByIdForUpdate(Long memberId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(memberId));
+    }
 
     default List<Member> findByUserIds(Collection<Long> userIds) {
         if (userIds == null || userIds.isEmpty()) {

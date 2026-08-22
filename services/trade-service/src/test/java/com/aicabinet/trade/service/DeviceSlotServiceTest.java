@@ -36,7 +36,7 @@ class DeviceSlotServiceTest {
     void setUp() {
         deviceSlotService = new DeviceSlotService(
                 slotRepository, lotRepository, null, null, null, null, null, null,
-                salesVelocityService, null, null, null);
+                salesVelocityService, null, null, null, null);
     }
 
     @Test

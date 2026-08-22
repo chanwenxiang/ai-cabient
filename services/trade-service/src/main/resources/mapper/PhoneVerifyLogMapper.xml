@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.aicabinet.trade.mapper.PhoneVerifyLogMapper">
+
+  <select id="_findByIdForUpdateRaw" resultType="com.aicabinet.trade.domain.PhoneVerifyLog">
+    <![CDATA[
+    SELECT l.* FROM phone_verify_log l WHERE l.log_id = #{logId} FOR UPDATE
+    ]]>
+  </select>
+
+</mapper>

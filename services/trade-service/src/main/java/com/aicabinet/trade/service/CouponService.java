@@ -33,15 +33,21 @@ public class CouponService {
     private final UserCouponMapper userCouponRepository;
     private final UserInfoMapper userInfoRepository;
     private final CabinetOrderMapper orderRepository;
+    private final DistributedLockService distributedLockService;
+    private final PromotionService promotionService;
 
     public CouponService(CouponDefinitionMapper definitionRepository,
                          UserCouponMapper userCouponRepository,
                          UserInfoMapper userInfoRepository,
-                         CabinetOrderMapper orderRepository) {
+                         CabinetOrderMapper orderRepository,
+                         DistributedLockService distributedLockService,
+                         PromotionService promotionService) {
         this.definitionRepository = definitionRepository;
         this.userCouponRepository = userCouponRepository;
         this.userInfoRepository = userInfoRepository;
         this.orderRepository = orderRepository;
+        this.distributedLockService = distributedLockService;
+        this.promotionService = promotionService;
     }
 
     // ── 优惠券定义管理 ─────────────────────────────────
@@ -106,30 +112,43 @@ public class CouponService {
 
     @Transactional
     public CouponDto issueToUser(Long userId, Long couponDefId) {
-        CouponDefinition def = definitionRepository.findById(couponDefId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券定义不存在"));
-        if (!"ACTIVE".equals(def.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "优惠券已停用");
+        String lockKey = "coupon:issue:" + couponDefId;
+        if (!distributedLockService.tryLock(lockKey, 30, 3)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "发券繁忙，请稍后重试");
         }
-        if (def.getMaxIssueCount() > 0 && def.getIssuedCount() >= def.getMaxIssueCount()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已发完");
+        try {
+            CouponDefinition def = definitionRepository.findByIdForUpdate(couponDefId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券定义不存在"));
+            if (!"ACTIVE".equals(def.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "优惠券已停用");
+            }
+            if (def.getMaxIssueCount() > 0 && userCouponRepository.countByCouponDefId(couponDefId) >= def.getMaxIssueCount()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券已发完");
+            }
+            if (def.getActivityId() != null) {
+                promotionService.reserveBudgetOnClaim(
+                        def.getActivityId(), PromotionService.budgetReserveCents(def));
+            }
+            userInfoRepository.findById(userId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
+
+            UserCoupon uc = new UserCoupon();
+            uc.setUserId(userId);
+            uc.setCouponDefId(couponDefId);
+            uc.setCouponCode(generateCouponCode());
+            uc.setExpireAt(Instant.now().plus(def.getValidityDays(), ChronoUnit.DAYS));
+            uc.setStatus("UNUSED");
+            userCouponRepository.save(uc);
+
+            long issued = userCouponRepository.countByCouponDefId(couponDefId);
+            def.setIssuedCount((int) issued);
+            definitionRepository.save(def);
+
+            log.info("coupon issued userId={} couponId={} code={}", userId, uc.getCouponId(), uc.getCouponCode());
+            return toDto(uc, def);
+        } finally {
+            distributedLockService.unlock(lockKey);
         }
-        userInfoRepository.findById(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "用户不存在"));
-
-        UserCoupon uc = new UserCoupon();
-        uc.setUserId(userId);
-        uc.setCouponDefId(couponDefId);
-        uc.setCouponCode(generateCouponCode());
-        uc.setExpireAt(Instant.now().plus(def.getValidityDays(), ChronoUnit.DAYS));
-        uc.setStatus("UNUSED");
-        userCouponRepository.save(uc);
-
-        def.setIssuedCount(def.getIssuedCount() + 1);
-        definitionRepository.save(def);
-
-        log.info("coupon issued userId={} couponId={} code={}", userId, uc.getCouponId(), uc.getCouponCode());
-        return toDto(uc, def);
     }
 
     @Transactional
@@ -157,7 +176,12 @@ public class CouponService {
 
     @Transactional
     public CouponDto useCoupon(Long userId, Long couponId, String orderId, String deviceId) {
-        UserCoupon uc = userCouponRepository.findById(couponId)
+        return runWithCouponUseLock(couponId,
+                () -> doUseCoupon(userId, couponId, orderId, deviceId));
+    }
+
+    private CouponDto doUseCoupon(Long userId, Long couponId, String orderId, String deviceId) {
+        UserCoupon uc = userCouponRepository.findByIdForUpdate(couponId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券不存在"));
         if (!uc.getUserId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权使用该优惠券");
@@ -174,7 +198,7 @@ public class CouponService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少订单号");
         }
 
-        CabinetOrder order = orderRepository.findById(orderId.trim())
+        CabinetOrder order = orderRepository.findByIdForUpdate(orderId.trim())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在"));
         if (!Objects.equals(order.getUserId(), userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "订单不属于当前用户");
@@ -207,6 +231,8 @@ public class CouponService {
         uc.setDiscountCents(discount);
         userCouponRepository.save(uc);
 
+        reconcilePromotionBudgetOnUse(def, discount);
+
         order.setCouponId(uc.getCouponId());
         order.setCouponDiscountCents(discount);
         order.setTotalAmountCents(Math.max(0, subtotal - discount));
@@ -237,6 +263,22 @@ public class CouponService {
             default -> def.getDenominationCents();
         };
         return Math.max(0, Math.min(raw, cappedSubtotal));
+    }
+
+    /** 争议改单后按已绑券重算抵扣（USED 券仍有效）。 */
+    public int discountForOrderCoupon(Long couponId, int subtotalCents) {
+        if (couponId == null || subtotalCents <= 0) {
+            return 0;
+        }
+        UserCoupon uc = userCouponRepository.findById(couponId).orElse(null);
+        if (uc == null) {
+            return 0;
+        }
+        CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
+        if (def == null || subtotalCents < Math.max(0, def.getMinSpendCents())) {
+            return 0;
+        }
+        return resolveDiscount(def, subtotalCents);
     }
 
     /**
@@ -322,6 +364,7 @@ public class CouponService {
                 uc.setDeviceId(null);
                 uc.setDiscountCents(0);
                 userCouponRepository.save(uc);
+                releasePromotionBudgetIfAny(def);
                 log.info("coupon restored after partial refund order={} couponId={}",
                         order.getOrderId(), couponId);
             }
@@ -332,18 +375,52 @@ public class CouponService {
             return;
         }
         int discount = Math.min(resolveDiscount(def, remainingSubtotalCents), remainingSubtotalCents);
+        int priorDiscount = Math.max(0, order.getCouponDiscountCents());
         order.setOriginalAmountCents(remainingSubtotalCents);
         order.setCouponDiscountCents(discount);
         order.setTotalAmountCents(Math.max(0, remainingSubtotalCents - discount));
         uc.setDiscountCents(discount);
         userCouponRepository.save(uc);
+        if (discount < priorDiscount) {
+            reconcilePromotionBudgetDelta(def, priorDiscount - discount);
+        }
         log.info("coupon recalculated after partial refund order={} couponId={} discount={}",
                 order.getOrderId(), couponId, discount);
     }
 
+    private void releasePromotionBudgetIfAny(CouponDefinition def) {
+        if (def == null || def.getActivityId() == null) {
+            return;
+        }
+        promotionService.releaseBudget(def.getActivityId(), PromotionService.budgetReserveCents(def));
+    }
+
+    /** 核销时释放领券预留与实际抵扣的差额（如折扣券实抵小于面额）。 */
+    private void reconcilePromotionBudgetOnUse(CouponDefinition def, int actualDiscountCents) {
+        if (def == null || def.getActivityId() == null) {
+            return;
+        }
+        int reserved = PromotionService.budgetReserveCents(def);
+        reconcilePromotionBudgetDelta(def, Math.max(0, reserved - actualDiscountCents));
+    }
+
+    private void reconcilePromotionBudgetDelta(CouponDefinition def, int releaseCents) {
+        if (def == null || def.getActivityId() == null || releaseCents <= 0) {
+            return;
+        }
+        promotionService.releaseBudget(def.getActivityId(), releaseCents);
+    }
+
     @Transactional
     public void markUsed(Long userId, Long couponId, String orderId, String deviceId, int discountCents) {
-        UserCoupon uc = userCouponRepository.findById(couponId)
+        runWithCouponUseLock(couponId, () -> {
+            doMarkUsed(userId, couponId, orderId, deviceId, discountCents);
+            return null;
+        });
+    }
+
+    private void doMarkUsed(Long userId, Long couponId, String orderId, String deviceId, int discountCents) {
+        UserCoupon uc = userCouponRepository.findByIdForUpdate(couponId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "优惠券不存在"));
         if (!uc.getUserId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权使用该优惠券");
@@ -362,6 +439,8 @@ public class CouponService {
         uc.setDeviceId(deviceId);
         uc.setDiscountCents(Math.max(0, discountCents));
         userCouponRepository.save(uc);
+        CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
+        reconcilePromotionBudgetOnUse(def, Math.max(0, discountCents));
         log.info("coupon marked used userId={} couponId={} order={} discount={}",
                 userId, couponId, orderId, discountCents);
     }
@@ -383,6 +462,8 @@ public class CouponService {
             List<UserCoupon> expired = userCouponRepository.findByStatusAndExpireAtBefore("UNUSED", Instant.now());
             for (UserCoupon uc : expired) {
                 uc.setStatus("EXPIRED");
+                CouponDefinition def = definitionRepository.findById(uc.getCouponDefId()).orElse(null);
+                releasePromotionBudgetIfAny(def);
             }
             userCouponRepository.saveAll(expired);
             if (!expired.isEmpty()) {
@@ -440,5 +521,24 @@ public class CouponService {
             sb.append(chars.charAt(RANDOM.nextInt(chars.length())));
         }
         return sb.toString();
+    }
+
+    static String couponUseLockKey(Long couponId) {
+        return "coupon:use:" + couponId;
+    }
+
+    private <T> T runWithCouponUseLock(Long couponId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(couponUseLockKey(couponId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "优惠券处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(couponUseLockKey(couponId));
+        }
     }
 }

@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.time.LocalDate;
 import java.util.Optional;
@@ -22,6 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class SiteContractServiceTest {
 
     private static final long OPERATOR_ID = 1900000001L;
@@ -30,13 +33,18 @@ class SiteContractServiceTest {
     @Mock private DeviceInfoMapper deviceRepository;
     @Mock private PermissionService permissionService;
     @Mock private AdminAuditService auditService;
+    @Mock private DistributedLockService distributedLockService;
 
     private SiteContractService service;
 
     @BeforeEach
     void setUp() {
+        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
         service = new SiteContractService(contractRepository, deviceRepository,
-                permissionService, auditService);
+                permissionService, auditService, distributedLockService);
     }
 
     @Test
@@ -54,7 +62,7 @@ class SiteContractServiceTest {
         device.setDeviceId("CAB-001");
         device.setDeviceName("测试柜");
         when(deviceRepository.findById("CAB-001")).thenReturn(Optional.of(device));
-        when(contractRepository.findByDeviceId("CAB-001")).thenReturn(Optional.empty());
+        when(contractRepository.findByDeviceIdForUpdate("CAB-001")).thenReturn(Optional.empty());
 
         SiteContractDto dto = service.upsert(OPERATOR_ID, "CAB-001",
                 new UpsertSiteContractRequest("科技园 A 座", "深圳", "张先生", "13800138000",

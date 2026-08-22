@@ -6,9 +6,16 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface UserCouponMapper extends BaseTradeMapper<UserCoupon> {
+
+    UserCoupon _findByIdForUpdateRaw(@Param("couponId") Long couponId);
+
+    default Optional<UserCoupon> findByIdForUpdate(Long couponId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(couponId));
+    }
 
     default List<UserCoupon> findByUserIdAndStatus(Long userId, String status) {
     return selectList(Wrappers.<UserCoupon>lambdaQuery().eq(UserCoupon::getUserId, userId).eq(UserCoupon::getStatus, status));

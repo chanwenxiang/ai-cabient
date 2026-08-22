@@ -41,6 +41,7 @@ class SessionServiceRecoveryTest {
     @Mock OpsExceptionService opsExceptionService;
     @Mock com.aicabinet.trade.mapper.UserInfoMapper userInfoRepository;
     @Mock com.aicabinet.trade.mapper.CabinetOrderMapper orderRepository;
+    @Mock DistributedLockService distributedLockService;
 
     private SessionService service;
 
@@ -49,7 +50,11 @@ class SessionServiceRecoveryTest {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
                 gravityHelper, restockSnapshotService, null, opsExceptionService, userInfoRepository, orderRepository,
-                null, null, null, null);
+                null, null, null, null, distributedLockService);
+        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
     }
 
     @Test
@@ -86,7 +91,7 @@ class SessionServiceRecoveryTest {
     @Test
     void cancelOpening_isIdempotent() {
         ShoppingSession existing = session("S1", 7L, "CAB-001", SessionState.CANCELLED);
-        when(repository.findById("S1")).thenReturn(Optional.of(existing));
+        when(repository.findByIdForUpdate("S1")).thenReturn(Optional.of(existing));
 
         assertEquals(SessionState.CANCELLED, service.cancelSession(7L, "S1").state());
         verify(repository, never()).save(existing);
@@ -95,7 +100,7 @@ class SessionServiceRecoveryTest {
     @Test
     void recognitionDispute_createsHighPriorityOpsException() {
         ShoppingSession existing = session("S-DISPUTED", 7L, "CAB-001", SessionState.RECOGNIZING);
-        when(repository.findById("S-DISPUTED")).thenReturn(Optional.of(existing));
+        when(repository.findByIdForUpdate("S-DISPUTED")).thenReturn(Optional.of(existing));
         when(visionAsyncProperties.enabled()).thenReturn(false);
         when(settlementService.settle(existing))
                 .thenThrow(new DisputeRequiredException("识别服务暂时不可用，已转人工审核，本次暂未扣款"));

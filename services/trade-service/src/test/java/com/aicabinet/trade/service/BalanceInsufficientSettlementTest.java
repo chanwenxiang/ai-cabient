@@ -40,6 +40,7 @@ class BalanceInsufficientSettlementTest {
     @Mock RestockSnapshotService restockSnapshotService;
     @Mock OpsExceptionService opsExceptionService;
     @Mock CabinetOrderMapper orderRepository;
+    @Mock DistributedLockService distributedLockService;
 
     private SessionService service;
 
@@ -48,13 +49,17 @@ class BalanceInsufficientSettlementTest {
         service = new SessionService(repository, deviceClient, userValidationService, deviceValidationService,
                 settlementService, visionAsyncProperties, cabinetMetrics, domainEventPublisher,
                 gravityHelper, restockSnapshotService, null, opsExceptionService, null, orderRepository,
-                null, null, null, null);
+                null, null, null, null, distributedLockService);
+        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(),
+                org.mockito.ArgumentMatchers.anyLong())).thenReturn(true);
     }
 
     @Test
     void syncSettlement_balanceInsufficient_transitionsToDisputedWithoutOrder() {
         ShoppingSession session = session("S-BAL-01", 13800138000L, "CAB-001", SessionState.RECOGNIZING);
-        when(repository.findById("S-BAL-01")).thenReturn(Optional.of(session));
+        when(repository.findByIdForUpdate("S-BAL-01")).thenReturn(Optional.of(session));
         when(visionAsyncProperties.enabled()).thenReturn(false);
         when(settlementService.settle(session)).thenThrow(
                 new BalanceInsufficientException(ApiMessages.INSUFFICIENT_BALANCE));
@@ -71,7 +76,7 @@ class BalanceInsufficientSettlementTest {
     @Test
     void asyncRecognition_balanceInsufficient_transitionsToDisputedWithoutOrder() {
         ShoppingSession session = session("S-BAL-02", 13800138000L, "CAB-001", SessionState.RECOGNIZING);
-        when(repository.findById("S-BAL-02")).thenReturn(Optional.of(session));
+        when(repository.findByIdForUpdate("S-BAL-02")).thenReturn(Optional.of(session));
         var recognition = new VisionServiceClient.RecognitionResult(
                 "T-1", List.of(), 0.9f, false, "mock", List.of());
         when(settlementService.processRecognitionResult(session, recognition)).thenThrow(
@@ -89,7 +94,7 @@ class BalanceInsufficientSettlementTest {
     @Test
     void syncSettlement_exactBalance_completesNormally() {
         ShoppingSession session = session("S-BAL-03", 13800138000L, "CAB-001", SessionState.RECOGNIZING);
-        when(repository.findById("S-BAL-03")).thenReturn(Optional.of(session));
+        when(repository.findByIdForUpdate("S-BAL-03")).thenReturn(Optional.of(session));
         when(visionAsyncProperties.enabled()).thenReturn(false);
         when(settlementService.settle(session)).thenReturn(new OrderDto(
                 "O-EXACT", "S-BAL-03", 13800138000L, "CAB-001", 600,

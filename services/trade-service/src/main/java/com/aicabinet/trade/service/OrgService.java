@@ -13,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,15 +28,18 @@ public class OrgService {
     private final OpsDeviceOrgMapper deviceOrgRepository;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public OrgService(OpsOrgNodeMapper nodeRepository,
                       OpsDeviceOrgMapper deviceOrgRepository,
                       PermissionService permissionService,
-                      AdminAuditService auditService) {
+                      AdminAuditService auditService,
+                      DistributedLockService distributedLockService) {
         this.nodeRepository = nodeRepository;
         this.deviceOrgRepository = deviceOrgRepository;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -67,6 +71,14 @@ public class OrgService {
 
     @Transactional
     public OrgNodeDto upsertNode(Long operatorId, UpsertOrgNodeRequest request) {
+        if (request.nodeId() != null) {
+            return runWithOrgNodeLock(request.nodeId(),
+                    () -> doUpsertNode(operatorId, request));
+        }
+        return doUpsertNode(operatorId, request);
+    }
+
+    private OrgNodeDto doUpsertNode(Long operatorId, UpsertOrgNodeRequest request) {
         permissionService.requirePermission(operatorId, "ops:device:edit");
         String name = request.name().trim();
         if (name.isBlank()) {
@@ -90,7 +102,7 @@ public class OrgService {
             auditService.record(operatorId, "ORG_NODE_CREATE", "ORG_NODE",
                     String.valueOf(node.getNodeId()), "name=" + name);
         } else {
-            node = nodeRepository.findById(request.nodeId())
+            node = nodeRepository.findByIdForUpdate(request.nodeId())
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "组织不存在"));
             node.setName(name);
             node.setParentId(request.parentId());
@@ -107,24 +119,46 @@ public class OrgService {
 
     @Transactional
     public OrgNodeDto toggleNode(Long operatorId, Long nodeId, boolean enabled) {
-        permissionService.requirePermission(operatorId, "ops:device:edit");
-        OpsOrgNode node = requireNode(nodeId);
-        node.setEnabled(enabled);
-        node.setUpdatedAt(Instant.now());
-        nodeRepository.updateById(node);
-        auditService.record(operatorId, enabled ? "ORG_NODE_ENABLE" : "ORG_NODE_DISABLE",
-                "ORG_NODE", String.valueOf(nodeId), "name=" + node.getName());
-        return toDto(node, deviceOrgRepository.findByNodeId(nodeId));
+        return runWithOrgNodeLock(nodeId, () -> {
+            permissionService.requirePermission(operatorId, "ops:device:edit");
+            OpsOrgNode node = requireNodeForUpdate(nodeId);
+            node.setEnabled(enabled);
+            node.setUpdatedAt(Instant.now());
+            nodeRepository.updateById(node);
+            auditService.record(operatorId, enabled ? "ORG_NODE_ENABLE" : "ORG_NODE_DISABLE",
+                    "ORG_NODE", String.valueOf(nodeId), "name=" + node.getName());
+            return toDto(node, deviceOrgRepository.findByNodeId(nodeId));
+        });
     }
 
     @Transactional
     public OrgNodeDto assignDevices(Long operatorId, Long nodeId, List<String> deviceIds) {
-        permissionService.requirePermission(operatorId, "ops:device:edit");
-        OpsOrgNode node = requireNode(nodeId);
         List<String> normalized = deviceIds == null ? List.of()
                 : deviceIds.stream().filter(d -> d != null && !d.isBlank())
-                .map(d -> d.trim().toUpperCase()).distinct().toList();
-        // 先移出其它节点，再重建当前节点归属
+                .map(d -> d.trim().toUpperCase()).distinct().sorted().toList();
+        List<String> lockKeys = new ArrayList<>();
+        lockKeys.add(orgNodeLockKey(nodeId));
+        normalized.forEach(d -> lockKeys.add(orgDeviceAssignLockKey(d)));
+        lockKeys.sort(Comparator.naturalOrder());
+        List<String> acquired = new ArrayList<>();
+        try {
+            for (String key : lockKeys) {
+                if (!distributedLockService.tryLock(key, 60, 5)) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT, "组织设备归属处理中，请稍后重试");
+                }
+                acquired.add(key);
+            }
+            return doAssignDevices(operatorId, nodeId, normalized);
+        } finally {
+            for (int i = acquired.size() - 1; i >= 0; i--) {
+                distributedLockService.unlock(acquired.get(i));
+            }
+        }
+    }
+
+    private OrgNodeDto doAssignDevices(Long operatorId, Long nodeId, List<String> normalized) {
+        permissionService.requirePermission(operatorId, "ops:device:edit");
+        OpsOrgNode node = requireNodeForUpdate(nodeId);
         deviceOrgRepository.deleteByDeviceIds(normalized);
         deviceOrgRepository.deleteByNodeId(nodeId);
         for (String deviceId : normalized) {
@@ -140,22 +174,49 @@ public class OrgService {
 
     @Transactional
     public void deleteNode(Long operatorId, Long nodeId) {
-        permissionService.requireAnyPermission(operatorId, "ops:org:edit", "ops:device:edit");
-        OpsOrgNode node = requireNode(nodeId);
-        if (nodeRepository.countByParentId(nodeId) > 0) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "请先删除子组织");
-        }
-        if (!deviceOrgRepository.findByNodeId(nodeId).isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "请先解除该组织下的设备归属");
-        }
-        nodeRepository.deleteById(nodeId);
-        auditService.record(operatorId, "ORG_NODE_DELETE", "ORG_NODE",
-                String.valueOf(nodeId), "name=" + node.getName());
+        runWithOrgNodeLock(nodeId, () -> {
+            permissionService.requireAnyPermission(operatorId, "ops:org:edit", "ops:device:edit");
+            OpsOrgNode node = requireNodeForUpdate(nodeId);
+            if (nodeRepository.countByParentId(nodeId) > 0) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "请先删除子组织");
+            }
+            if (!deviceOrgRepository.findByNodeId(nodeId).isEmpty()) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "请先解除该组织下的设备归属");
+            }
+            nodeRepository.deleteById(nodeId);
+            auditService.record(operatorId, "ORG_NODE_DELETE", "ORG_NODE",
+                    String.valueOf(nodeId), "name=" + node.getName());
+            return null;
+        });
     }
 
     private OpsOrgNode requireNode(Long nodeId) {
         return nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "组织不存在"));
+    }
+
+    private OpsOrgNode requireNodeForUpdate(Long nodeId) {
+        return nodeRepository.findByIdForUpdate(nodeId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "组织不存在"));
+    }
+
+    static String orgNodeLockKey(Long nodeId) {
+        return "org:node:" + nodeId;
+    }
+
+    static String orgDeviceAssignLockKey(String deviceId) {
+        return "org:device:" + deviceId;
+    }
+
+    private <T> T runWithOrgNodeLock(Long nodeId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(orgNodeLockKey(nodeId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "组织节点处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(orgNodeLockKey(nodeId));
+        }
     }
 
     private OrgNodeDto toDto(OpsOrgNode node, List<OpsDeviceOrg> mappings) {

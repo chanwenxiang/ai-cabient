@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -47,6 +47,8 @@ class DisputeTicketSyncTest {
     @Mock UserInfoMapper userInfoRepository;
     @Mock OpsExceptionService opsExceptionService;
     @Mock VideoArchiveService videoArchiveService;
+    @Mock OrderPaymentService orderPaymentService;
+    @Mock DistributedLockService distributedLockService;
 
     private DisputeService service;
 
@@ -56,7 +58,9 @@ class DisputeTicketSyncTest {
                 settlementService, new ObjectMapper(), minioVideoService, auditService, riskControlService,
                 permissionService, merchantScopeService, null, merchantPortalGuard, skuCatalogRepository,
                 new DisputeSlaProperties(48, 12, null, false), userInfoRepository, opsExceptionService,
-                null, null, videoArchiveService);
+                null, null, videoArchiveService, orderPaymentService, distributedLockService);
+        org.mockito.Mockito.lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong()))
+                .thenReturn(true);
     }
 
     @Test
@@ -90,9 +94,9 @@ class DisputeTicketSyncTest {
         session.setDeviceId("CAB-001");
         session.setState(SessionState.DISPUTED);
 
-        when(disputeRepository.findById("D-TEST-002")).thenReturn(Optional.of(ticket));
+        when(disputeRepository.findByIdForUpdate("D-TEST-002")).thenReturn(Optional.of(ticket));
         when(sessionRepository.findById("S-TEST-002")).thenReturn(Optional.of(session));
-        when(settlementService.waiveAndRefund(session)).thenReturn(0);
+        when(settlementService.waiveAndRefund(eq(session), anyBoolean())).thenReturn(0);
 
         service.resolveTicket(10001L, "D-TEST-002",
                 new ResolveDisputeRequest(List.of(), "WAIVE"));

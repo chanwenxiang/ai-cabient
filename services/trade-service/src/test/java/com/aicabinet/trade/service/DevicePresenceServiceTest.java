@@ -5,19 +5,33 @@ import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DeviceTemperatureReadingMapper;
 import org.junit.jupiter.api.Test;
-
-import java.time.Instant;
-import java.util.Optional;
-
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import java.time.Instant;
+import java.util.Optional;
+
+@ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class DevicePresenceServiceTest {
+
+    private DistributedLockService lockService() {
+        DistributedLockService lock = mock(DistributedLockService.class);
+        when(lock.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
+        return lock;
+    }
 
     @Test
     void heartbeatFromOfflineRecordsOnlineSince() {
@@ -30,11 +44,11 @@ class DevicePresenceServiceTest {
         DeviceInfo device = new DeviceInfo();
         device.setDeviceId("CAB-002");
         device.setOnlineStatus("OFFLINE");
-        when(devices.findById("CAB-002")).thenReturn(Optional.of(device));
+        when(devices.findByIdForUpdate("CAB-002")).thenReturn(Optional.of(device));
         when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DevicePresenceService service = new DevicePresenceService(
-                devices, temperatures, metrics, exceptions, systemConfig, audit);
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService());
         service.heartbeat("CAB-002", "0.9.0", null, null);
 
         assertNotNull(device.getOnlineSince());
@@ -54,11 +68,11 @@ class DevicePresenceServiceTest {
         device.setDeviceId("CAB-003");
         device.setOnlineStatus("ONLINE");
         device.setOnlineSince(since);
-        when(devices.findById("CAB-003")).thenReturn(Optional.of(device));
+        when(devices.findByIdForUpdate("CAB-003")).thenReturn(Optional.of(device));
         when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DevicePresenceService service = new DevicePresenceService(
-                devices, temperatures, metrics, exceptions, systemConfig, audit);
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService());
         service.heartbeat("CAB-003", "0.9.0", null, null);
 
         assertEquals(since, device.getOnlineSince());
@@ -78,11 +92,11 @@ class DevicePresenceServiceTest {
         device.setDeviceType("AI_CABINET_V1");
         device.setOnlineStatus("ONLINE");
         Instant before = Instant.now();
-        when(devices.findById("CAB-001")).thenReturn(Optional.of(device));
+        when(devices.findByIdForUpdate("CAB-001")).thenReturn(Optional.of(device));
         when(devices.save(any(DeviceInfo.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         DevicePresenceService service = new DevicePresenceService(
-                devices, temperatures, metrics, exceptions, systemConfig, audit);
+                devices, temperatures, metrics, exceptions, systemConfig, audit, lockService());
         service.heartbeat("CAB-001", "0.9.0", null, null);
 
         assertTrue(device.getUpdatedAt() != null && !device.getUpdatedAt().isBefore(before));

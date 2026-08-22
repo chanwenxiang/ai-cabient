@@ -61,15 +61,23 @@ public class InventoryService {
     @Transactional
     public Map<String, String> deductForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items,
                                               String refId, String gravityDeltasJson) {
-        String lockKey = "inv:" + deviceId;
+        return runWithDeviceLock(deviceId, () -> doDeductForOrder(deviceId, items, refId, gravityDeltasJson));
+    }
+
+    private Map<String, String> runWithDeviceLock(String deviceId, java.util.function.Supplier<Map<String, String>> action) {
+        String lockKey = deviceLockKey(deviceId);
         if (!lockService.tryLock(lockKey, INV_LOCK_LEASE_SECONDS, INV_LOCK_WAIT_SECONDS)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "库存繁忙，请稍后重试");
         }
         try {
-            return doDeductForOrder(deviceId, items, refId, gravityDeltasJson);
+            return action.get();
         } finally {
             lockService.unlock(lockKey);
         }
+    }
+
+    static String deviceLockKey(String deviceId) {
+        return "inv:" + deviceId;
     }
 
     private Map<String, String> doDeductForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items,
@@ -133,6 +141,14 @@ public class InventoryService {
     @Transactional
     public void restoreForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items,
                                 Map<String, String> batchBySku) {
+        runWithDeviceLock(deviceId, () -> {
+            doRestoreForOrder(deviceId, items, batchBySku);
+            return Map.<String, String>of();
+        });
+    }
+
+    private void doRestoreForOrder(String deviceId, List<VisionServiceClient.RecognizedItem> items,
+                                   Map<String, String> batchBySku) {
         if (items == null || items.isEmpty()) {
             return;
         }
@@ -174,6 +190,14 @@ public class InventoryService {
     @Transactional
     public void recordRefundKeptGoods(String deviceId, List<VisionServiceClient.RecognizedItem> items,
                                       Map<String, String> batchBySku, String orderId) {
+        runWithDeviceLock(deviceId, () -> {
+            doRecordRefundKeptGoods(deviceId, items, batchBySku, orderId);
+            return Map.<String, String>of();
+        });
+    }
+
+    private void doRecordRefundKeptGoods(String deviceId, List<VisionServiceClient.RecognizedItem> items,
+                                         Map<String, String> batchBySku, String orderId) {
         if (items == null || items.isEmpty() || orderId == null || orderId.isBlank()) {
             return;
         }
@@ -205,6 +229,13 @@ public class InventoryService {
                                List<VisionServiceClient.RecognizedItem> oldItems,
                                List<VisionServiceClient.RecognizedItem> newItems,
                                Map<String, String> batchBySku) {
+        return runWithDeviceLock(deviceId, () -> doAdjustForOrder(deviceId, oldItems, newItems, batchBySku));
+    }
+
+    private Map<String, String> doAdjustForOrder(String deviceId,
+                                                 List<VisionServiceClient.RecognizedItem> oldItems,
+                                                 List<VisionServiceClient.RecognizedItem> newItems,
+                                                 Map<String, String> batchBySku) {
         Map<String, String> resultBatches = new HashMap<>();
         if (batchBySku != null) {
             batchBySku.forEach((sku, batch) -> {
@@ -221,8 +252,8 @@ public class InventoryService {
                 continue;
             }
             if (delta > 0) {
-                Map<String, String> deducted = deductForOrder(
-                        deviceId, List.of(new VisionServiceClient.RecognizedItem(skuId, delta, 1f)));
+                Map<String, String> deducted = doDeductForOrder(
+                        deviceId, List.of(new VisionServiceClient.RecognizedItem(skuId, delta, 1f)), null, null);
                 if (deducted != null) {
                     deducted.forEach(resultBatches::putIfAbsent);
                 }
@@ -234,7 +265,7 @@ public class InventoryService {
                         restoreBatch = Map.of(skuId, batch);
                     }
                 }
-                restoreForOrder(deviceId,
+                doRestoreForOrder(deviceId,
                         List.of(new VisionServiceClient.RecognizedItem(skuId, -delta, 1f)), restoreBatch);
             }
         }

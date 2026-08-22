@@ -50,6 +50,7 @@ public class DeviceAssetService {
     private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public DeviceAssetService(DeviceInfoMapper deviceInfoMapper,
                               DeviceLifecycleEventMapper lifecycleEventMapper,
@@ -59,7 +60,8 @@ public class DeviceAssetService {
                               MerchantMapper merchantMapper,
                               MerchantScopeService merchantScopeService,
                               PermissionService permissionService,
-                              AdminAuditService auditService) {
+                              AdminAuditService auditService,
+                              DistributedLockService distributedLockService) {
         this.deviceInfoMapper = deviceInfoMapper;
         this.lifecycleEventMapper = lifecycleEventMapper;
         this.inventoryMapper = inventoryMapper;
@@ -69,16 +71,21 @@ public class DeviceAssetService {
         this.merchantScopeService = merchantScopeService;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
     public DeviceInfo applyLifecycle(Long operatorId, String deviceId, DeviceLifecycleRequest request) {
+        return runWithDeviceAssetLock(deviceId, () -> doApplyLifecycle(operatorId, deviceId, request));
+    }
+
+    private DeviceInfo doApplyLifecycle(Long operatorId, String deviceId, DeviceLifecycleRequest request) {
         permissionService.requirePermission(operatorId, "ops:device:edit");
         merchantScopeService.requireDeviceAccess(operatorId, deviceId);
         if (request == null || request.action() == null || request.action().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少 action");
         }
-        DeviceInfo device = deviceInfoMapper.findById(deviceId)
+        DeviceInfo device = deviceInfoMapper.findByIdForUpdate(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.DEVICE_NOT_FOUND));
         String action = request.action().trim().toUpperCase(Locale.ROOT);
         String from = normalizeLifecycle(device.getLifecycleStatus());
@@ -362,5 +369,24 @@ public class DeviceAssetService {
         if (v == null) return null;
         String t = v.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    static String deviceAssetLockKey(String deviceId) {
+        return "device:asset:" + deviceId;
+    }
+
+    private <T> T runWithDeviceAssetLock(String deviceId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(deviceAssetLockKey(deviceId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备资产处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(deviceAssetLockKey(deviceId));
+        }
     }
 }

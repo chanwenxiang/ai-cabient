@@ -44,6 +44,7 @@ public class BalanceRefundService {
     private final BalanceLedgerService balanceLedgerService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public BalanceRefundService(BalanceRefundRequestMapper requestMapper,
                                 BalanceRefundAllocationMapper allocationMapper,
@@ -52,7 +53,8 @@ public class BalanceRefundService {
                                 PaymentService paymentService,
                                 BalanceLedgerService balanceLedgerService,
                                 PermissionService permissionService,
-                                AdminAuditService auditService) {
+                                AdminAuditService auditService,
+                                DistributedLockService distributedLockService) {
         this.requestMapper = requestMapper;
         this.allocationMapper = allocationMapper;
         this.accountMapper = accountMapper;
@@ -61,6 +63,7 @@ public class BalanceRefundService {
         this.balanceLedgerService = balanceLedgerService;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -75,6 +78,10 @@ public class BalanceRefundService {
         if (amountCents < 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "退款金额至少 ¥1.00");
         }
+        return runWithBalanceRefundLock(userId, () -> doApply(userId, amountCents, reason));
+    }
+
+    private BalanceRefundRequestDto doApply(Long userId, int amountCents, String reason) {
         if (requestMapper.countByUserIdAndStatus(userId, STATUS_PENDING) > 0) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "已有待审核的退款申请，请等待处理完成");
         }
@@ -139,6 +146,11 @@ public class BalanceRefundService {
         if (req == null) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "退款申请不存在");
         }
+        return runWithBalanceRefundLock(req.getUserId(), () -> doReview(operatorId, req, approve, remark));
+    }
+
+    private BalanceRefundRequestDto doReview(Long operatorId, BalanceRefundRequest req,
+                                             boolean approve, String remark) {
         if (!STATUS_PENDING.equals(req.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可审核");
         }
@@ -153,7 +165,7 @@ public class BalanceRefundService {
             req.setStatus(STATUS_REJECTED);
             requestMapper.updateById(req);
             auditService.record(operatorId, "BALANCE_REFUND_REJECT", "BALANCE_REFUND",
-                    String.valueOf(requestId), "驳回 " + req.getRequestNo());
+                    String.valueOf(req.getRequestId()), "驳回 " + req.getRequestNo());
             return toDto(req);
         }
 
@@ -164,7 +176,7 @@ public class BalanceRefundService {
             req.setFailReason(null);
             requestMapper.updateById(req);
             auditService.record(operatorId, "BALANCE_REFUND_APPROVE", "BALANCE_REFUND",
-                    String.valueOf(requestId), "通过并原路退款 " + req.getRequestNo()
+                    String.valueOf(req.getRequestId()), "通过并原路退款 " + req.getRequestNo()
                             + " ¥" + String.format("%.2f", req.getAmountCents() / 100.0));
         } catch (RuntimeException e) {
             log.warn("balance refund approve failed request={}: {}", req.getRequestNo(), e.getMessage());
@@ -284,5 +296,24 @@ public class BalanceRefundService {
         if (value == null) return null;
         String t = value.trim();
         return t.isEmpty() ? null : t;
+    }
+
+    static String balanceRefundLockKey(Long userId) {
+        return "balance:refund:" + userId;
+    }
+
+    private <T> T runWithBalanceRefundLock(Long userId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(balanceRefundLockKey(userId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "余额退款处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(balanceRefundLockKey(userId));
+        }
     }
 }

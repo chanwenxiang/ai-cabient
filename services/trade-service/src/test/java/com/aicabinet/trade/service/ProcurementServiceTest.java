@@ -39,6 +39,7 @@ class ProcurementServiceTest {
     @Mock private SkuCatalogMapper skuCatalogRepository;
     @Mock private WarehouseService warehouseService;
     @Mock private SupplierPayableService supplierPayableService;
+    @Mock private DistributedLockService distributedLockService;
 
     private ProcurementService service;
 
@@ -47,7 +48,7 @@ class ProcurementServiceTest {
         service = new ProcurementService(permissionService, supplierRepository,
                 purchaseOrderRepository, purchaseOrderLineRepository, purchaseReturnRepository,
                 purchaseReturnLineRepository, warehouseRepository, skuCatalogRepository,
-                warehouseService, supplierPayableService);
+                warehouseService, supplierPayableService, distributedLockService);
     }
 
     @Test

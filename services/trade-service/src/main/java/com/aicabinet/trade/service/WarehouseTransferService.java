@@ -25,19 +25,22 @@ public class WarehouseTransferService {
     private final WarehouseService warehouseService;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public WarehouseTransferService(WarehouseTransferOrderMapper orderMapper,
                                     WarehouseTransferLineMapper lineMapper,
                                     WarehouseMapper warehouseMapper,
                                     WarehouseService warehouseService,
                                     PermissionService permissionService,
-                                    AdminAuditService auditService) {
+                                    AdminAuditService auditService,
+                                    DistributedLockService distributedLockService) {
         this.orderMapper = orderMapper;
         this.lineMapper = lineMapper;
         this.warehouseMapper = warehouseMapper;
         this.warehouseService = warehouseService;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -90,7 +93,11 @@ public class WarehouseTransferService {
     @Transactional
     public WarehouseTransferDto ship(Long operatorId, Long transferId) {
         permissionService.requirePermission(operatorId, "ops:warehouse:edit");
-        WarehouseTransferOrder order = requireOrder(transferId);
+        return runWithTransferLock(transferId, () -> doShip(operatorId, transferId));
+    }
+
+    private WarehouseTransferDto doShip(Long operatorId, Long transferId) {
+        WarehouseTransferOrder order = requireOrderForUpdate(transferId);
         if (!"DRAFT".equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅草稿可发运");
         }
@@ -115,7 +122,11 @@ public class WarehouseTransferService {
     @Transactional
     public WarehouseTransferDto receive(Long operatorId, Long transferId) {
         permissionService.requirePermission(operatorId, "ops:warehouse:edit");
-        WarehouseTransferOrder order = requireOrder(transferId);
+        return runWithTransferLock(transferId, () -> doReceive(operatorId, transferId));
+    }
+
+    private WarehouseTransferDto doReceive(Long operatorId, Long transferId) {
+        WarehouseTransferOrder order = requireOrderForUpdate(transferId);
         if (!"SHIPPED".equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅已发运可收货");
         }
@@ -136,7 +147,11 @@ public class WarehouseTransferService {
     @Transactional
     public WarehouseTransferDto cancel(Long operatorId, Long transferId) {
         permissionService.requirePermission(operatorId, "ops:warehouse:edit");
-        WarehouseTransferOrder order = requireOrder(transferId);
+        return runWithTransferLock(transferId, () -> doCancel(operatorId, transferId));
+    }
+
+    private WarehouseTransferDto doCancel(Long operatorId, Long transferId) {
+        WarehouseTransferOrder order = requireOrderForUpdate(transferId);
         if (!"DRAFT".equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "仅草稿可取消");
         }
@@ -152,6 +167,30 @@ public class WarehouseTransferService {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "调拨单不存在");
         }
         return order;
+    }
+
+    private WarehouseTransferOrder requireOrderForUpdate(Long transferId) {
+        return orderMapper.findByIdForUpdate(transferId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "调拨单不存在"));
+    }
+
+    static String transferLockKey(Long transferId) {
+        return "warehouse:transfer:" + transferId;
+    }
+
+    private <T> T runWithTransferLock(Long transferId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(transferLockKey(transferId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "调拨单处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(transferLockKey(transferId));
+        }
     }
 
     private WarehouseTransferDto toDto(WarehouseTransferOrder order) {

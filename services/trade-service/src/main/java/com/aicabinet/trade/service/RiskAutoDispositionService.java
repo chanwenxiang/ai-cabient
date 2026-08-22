@@ -23,11 +23,14 @@ public class RiskAutoDispositionService {
 
     private final RiskEventMapper riskEventRepository;
     private final SystemConfigService systemConfigService;
+    private final DistributedLockService distributedLockService;
 
     public RiskAutoDispositionService(RiskEventMapper riskEventRepository,
-                                      SystemConfigService systemConfigService) {
+                                      SystemConfigService systemConfigService,
+                                      DistributedLockService distributedLockService) {
         this.riskEventRepository = riskEventRepository;
         this.systemConfigService = systemConfigService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Scheduled(fixedDelayString = "${aicabinet.risk.auto-disposition-ms:900000}", initialDelay = 120_000)
@@ -53,13 +56,13 @@ public class RiskAutoDispositionService {
                 .lt(RiskEvent::getCreatedAt, before)
                 .last("LIMIT 200"));
         Instant now = Instant.now();
+        int cleared = 0;
         for (RiskEvent e : open) {
-            e.setDispositionStatus("AUTO_CLEARED");
-            e.setDispositionAt(now);
-            e.setDispositionNote("INFO 超 " + hours + "h 自动结清");
-            riskEventRepository.updateById(e);
+            if (tryAutoClearInfo(e.getEventId(), now, hours)) {
+                cleared++;
+            }
         }
-        return open.size();
+        return cleared;
     }
 
     /** WARN 超龄 → ACKED（不拉黑，仅留痕） */
@@ -75,12 +78,56 @@ public class RiskAutoDispositionService {
                 .lt(RiskEvent::getCreatedAt, before)
                 .last("LIMIT 200"));
         Instant now = Instant.now();
+        int acked = 0;
         for (RiskEvent e : open) {
-            e.setDispositionStatus("ACKED");
-            e.setDispositionAt(now);
-            e.setDispositionNote("WARN 超 " + hours + "h 自动确认");
-            riskEventRepository.updateById(e);
+            if (tryAutoAckWarn(e.getEventId(), now, hours)) {
+                acked++;
+            }
         }
-        return open.size();
+        return acked;
+    }
+
+    static String riskEventLockKey(Long eventId) {
+        return "risk:event:" + eventId;
+    }
+
+    private boolean tryAutoClearInfo(Long eventId, Instant now, int hours) {
+        if (!distributedLockService.tryLock(riskEventLockKey(eventId), 60, 5)) {
+            log.warn("risk auto-clear lock busy eventId={}", eventId);
+            return false;
+        }
+        try {
+            RiskEvent event = riskEventRepository.findByIdForUpdate(eventId).orElse(null);
+            if (event == null || !"OPEN".equals(event.getDispositionStatus()) || !"INFO".equals(event.getSeverity())) {
+                return false;
+            }
+            event.setDispositionStatus("AUTO_CLEARED");
+            event.setDispositionAt(now);
+            event.setDispositionNote("INFO 超 " + hours + "h 自动结清");
+            riskEventRepository.updateById(event);
+            return true;
+        } finally {
+            distributedLockService.unlock(riskEventLockKey(eventId));
+        }
+    }
+
+    private boolean tryAutoAckWarn(Long eventId, Instant now, int hours) {
+        if (!distributedLockService.tryLock(riskEventLockKey(eventId), 60, 5)) {
+            log.warn("risk auto-ack lock busy eventId={}", eventId);
+            return false;
+        }
+        try {
+            RiskEvent event = riskEventRepository.findByIdForUpdate(eventId).orElse(null);
+            if (event == null || !"OPEN".equals(event.getDispositionStatus()) || !"WARN".equals(event.getSeverity())) {
+                return false;
+            }
+            event.setDispositionStatus("ACKED");
+            event.setDispositionAt(now);
+            event.setDispositionNote("WARN 超 " + hours + "h 自动确认");
+            riskEventRepository.updateById(event);
+            return true;
+        } finally {
+            distributedLockService.unlock(riskEventLockKey(eventId));
+        }
     }
 }

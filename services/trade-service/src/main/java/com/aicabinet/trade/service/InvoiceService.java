@@ -32,19 +32,22 @@ public class InvoiceService {
     private final DeviceInfoMapper deviceRepository;
     private final PermissionService permissionService;
     private final MerchantScopeService merchantScopeService;
+    private final DistributedLockService distributedLockService;
 
     public InvoiceService(InvoiceRequestMapper invoiceRepository,
                           MerchantTaxProfileMapper taxProfileRepository,
                           CabinetOrderMapper orderRepository,
                           DeviceInfoMapper deviceRepository,
                           PermissionService permissionService,
-                          MerchantScopeService merchantScopeService) {
+                          MerchantScopeService merchantScopeService,
+                          DistributedLockService distributedLockService) {
         this.invoiceRepository = invoiceRepository;
         this.taxProfileRepository = taxProfileRepository;
         this.orderRepository = orderRepository;
         this.deviceRepository = deviceRepository;
         this.permissionService = permissionService;
         this.merchantScopeService = merchantScopeService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
@@ -52,6 +55,10 @@ public class InvoiceService {
         if (body == null || body.title() == null || body.title().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "请填写发票抬头");
         }
+        return runWithOrderInvoiceLock(orderId, () -> doApplyByConsumer(userId, orderId, body));
+    }
+
+    private InvoiceRequestDto doApplyByConsumer(Long userId, String orderId, CreateInvoiceRequest body) {
         CabinetOrder order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "订单不存在"));
         if (!userId.equals(order.getUserId())) {
@@ -65,7 +72,7 @@ public class InvoiceService {
         if (amount <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "订单金额为 0，无法开票");
         }
-        if (invoiceRepository.findActiveByOrderId(orderId).isPresent()) {
+        if (invoiceRepository.findActiveByOrderIdForUpdate(orderId).isPresent()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "该订单已有开票申请");
         }
         InvoiceRequest row = new InvoiceRequest();
@@ -95,36 +102,36 @@ public class InvoiceService {
 
     @Transactional
     public InvoiceRequestDto issue(Long operatorId, Long invoiceId) {
-        permissionService.requirePermission(operatorId, "ops:invoice:edit");
-        InvoiceRequest row = invoiceRepository.selectById(invoiceId);
-        if (row == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "开票申请不存在");
-        }
-        if (!"PENDING".equalsIgnoreCase(row.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待处理申请可开具");
-        }
-        row.setStatus("ISSUED");
-        row.setIssuedAt(Instant.now());
-        row.setUpdatedAt(Instant.now());
-        invoiceRepository.updateById(row);
-        return toDto(row);
+        return runWithInvoiceRequestLock(invoiceId, () -> {
+            permissionService.requirePermission(operatorId, "ops:invoice:edit");
+            InvoiceRequest row = invoiceRepository.findByIdForUpdate(invoiceId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "开票申请不存在"));
+            if (!"PENDING".equalsIgnoreCase(row.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待处理申请可开具");
+            }
+            row.setStatus("ISSUED");
+            row.setIssuedAt(Instant.now());
+            row.setUpdatedAt(Instant.now());
+            invoiceRepository.updateById(row);
+            return toDto(row);
+        });
     }
 
     @Transactional
     public InvoiceRequestDto reject(Long operatorId, Long invoiceId, String reason) {
-        permissionService.requirePermission(operatorId, "ops:invoice:edit");
-        InvoiceRequest row = invoiceRepository.selectById(invoiceId);
-        if (row == null) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "开票申请不存在");
-        }
-        if (!"PENDING".equalsIgnoreCase(row.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待处理申请可驳回");
-        }
-        row.setStatus("REJECTED");
-        row.setRejectReason(reason == null || reason.isBlank() ? "不符合开票条件" : reason.trim());
-        row.setUpdatedAt(Instant.now());
-        invoiceRepository.updateById(row);
-        return toDto(row);
+        return runWithInvoiceRequestLock(invoiceId, () -> {
+            permissionService.requirePermission(operatorId, "ops:invoice:edit");
+            InvoiceRequest row = invoiceRepository.findByIdForUpdate(invoiceId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "开票申请不存在"));
+            if (!"PENDING".equalsIgnoreCase(row.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "仅待处理申请可驳回");
+            }
+            row.setStatus("REJECTED");
+            row.setRejectReason(reason == null || reason.isBlank() ? "不符合开票条件" : reason.trim());
+            row.setUpdatedAt(Instant.now());
+            invoiceRepository.updateById(row);
+            return toDto(row);
+        });
     }
 
     @Transactional(readOnly = true)
@@ -142,12 +149,17 @@ public class InvoiceService {
         if (body == null || body.merchantId() == null || body.merchantId().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "缺少商户编号");
         }
-        requireMerchantScope(userId, body.merchantId());
-        MerchantTaxProfile p = taxProfileRepository.selectById(body.merchantId());
+        String merchantId = body.merchantId().trim();
+        return runWithTaxProfileLock(merchantId, () -> doSaveTaxProfile(userId, body, merchantId));
+    }
+
+    private MerchantTaxProfileDto doSaveTaxProfile(Long userId, MerchantTaxProfileDto body, String merchantId) {
+        requireMerchantScope(userId, merchantId);
+        MerchantTaxProfile p = taxProfileRepository.findByIdForUpdate(merchantId).orElse(null);
         boolean insert = p == null;
         if (insert) {
             p = new MerchantTaxProfile();
-            p.setMerchantId(body.merchantId().trim());
+            p.setMerchantId(merchantId);
         }
         p.setCompanyName(body.companyName().trim());
         p.setTaxNo(body.taxNo().trim());
@@ -203,5 +215,50 @@ public class InvoiceService {
 
     private static String blankToNull(String s) {
         return s == null || s.isBlank() ? null : s.trim();
+    }
+
+    static String orderInvoiceLockKey(String orderId) {
+        return "invoice:order:" + orderId;
+    }
+
+    static String invoiceRequestLockKey(Long invoiceId) {
+        return "invoice:request:" + invoiceId;
+    }
+
+    static String taxProfileLockKey(String merchantId) {
+        return "merchant:tax:" + merchantId;
+    }
+
+    private <T> T runWithOrderInvoiceLock(String orderId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(orderInvoiceLockKey(orderId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "开票申请处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(orderInvoiceLockKey(orderId));
+        }
+    }
+
+    private <T> T runWithInvoiceRequestLock(Long invoiceId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(invoiceRequestLockKey(invoiceId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "开票申请处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(invoiceRequestLockKey(invoiceId));
+        }
+    }
+
+    private <T> T runWithTaxProfileLock(String merchantId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(taxProfileLockKey(merchantId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "商户税号资料处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(taxProfileLockKey(merchantId));
+        }
     }
 }

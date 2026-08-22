@@ -36,19 +36,22 @@ public class ConsumerPreauthService {
     private final CheckoutProperties checkoutProperties;
     private final BalanceLedgerService balanceLedgerService;
     private final SystemConfigService systemConfigService;
+    private final DistributedLockService distributedLockService;
 
     public ConsumerPreauthService(UserAccountMapper accountRepository,
                                   ShoppingSessionMapper sessionRepository,
                                   DeviceInfoMapper deviceRepository,
                                   CheckoutProperties checkoutProperties,
                                   BalanceLedgerService balanceLedgerService,
-                                  SystemConfigService systemConfigService) {
+                                  SystemConfigService systemConfigService,
+                                  DistributedLockService distributedLockService) {
         this.accountRepository = accountRepository;
         this.sessionRepository = sessionRepository;
         this.deviceRepository = deviceRepository;
         this.checkoutProperties = checkoutProperties;
         this.balanceLedgerService = balanceLedgerService;
         this.systemConfigService = systemConfigService;
+        this.distributedLockService = distributedLockService;
     }
 
     public int resolvePreauthCents(String deviceId) {
@@ -82,11 +85,20 @@ public class ConsumerPreauthService {
                 || isOpsRemote(session)
                 || session.getUserId() == null
                 || session.getUserId() >= CabinetConstants.OPERATOR_USER_ID_START) {
-            clearSessionPreauth(session);
+            reloadSession(session.getSessionId()).ifPresent(this::clearSessionPreauth);
             return;
         }
         if (passwordFreeReady) {
-            clearSessionPreauth(session);
+            reloadSession(session.getSessionId()).ifPresent(this::clearSessionPreauth);
+            return;
+        }
+        runWithPreauthLock(session.getUserId(),
+                () -> doFreezeForOpen(session.getSessionId()));
+    }
+
+    private void doFreezeForOpen(String sessionId) {
+        ShoppingSession session = reloadSession(sessionId).orElse(null);
+        if (session == null) {
             return;
         }
         if (STATUS_FROZEN.equalsIgnoreCase(blankToNone(session.getPreauthStatus()))
@@ -121,6 +133,23 @@ public class ConsumerPreauthService {
     /** 取消/超时/运维终止：释放冻结。 */
     @Transactional
     public void releaseIfFrozen(ShoppingSession session) {
+        if (session == null || session.getSessionId() == null) {
+            return;
+        }
+        if (session.getUserId() == null) {
+            reloadSession(session.getSessionId()).ifPresent(s -> {
+                if (STATUS_FROZEN.equalsIgnoreCase(blankToNone(s.getPreauthStatus()))) {
+                    s.setPreauthStatus(STATUS_RELEASED);
+                    sessionRepository.save(s);
+                }
+            });
+            return;
+        }
+        runWithPreauthLock(session.getUserId(), () -> doReleaseIfFrozen(session.getSessionId()));
+    }
+
+    private void doReleaseIfFrozen(String sessionId) {
+        ShoppingSession session = reloadSession(sessionId).orElse(null);
         if (session == null || !STATUS_FROZEN.equalsIgnoreCase(blankToNone(session.getPreauthStatus()))) {
             return;
         }
@@ -154,6 +183,18 @@ public class ConsumerPreauthService {
      */
     @Transactional
     public int captureForCharge(ShoppingSession session, int orderAmountCents) {
+        if (session == null || session.getSessionId() == null) {
+            return Math.max(0, orderAmountCents);
+        }
+        if (session.getUserId() == null) {
+            return Math.max(0, orderAmountCents);
+        }
+        return runWithPreauthLock(session.getUserId(),
+                () -> doCaptureForCharge(session.getSessionId(), orderAmountCents));
+    }
+
+    private int doCaptureForCharge(String sessionId, int orderAmountCents) {
+        ShoppingSession session = reloadSession(sessionId).orElse(null);
         if (session == null || !STATUS_FROZEN.equalsIgnoreCase(blankToNone(session.getPreauthStatus()))) {
             return Math.max(0, orderAmountCents);
         }
@@ -218,5 +259,35 @@ public class ConsumerPreauthService {
 
     private static String blankToNone(String status) {
         return status == null || status.isBlank() ? STATUS_NONE : status.trim();
+    }
+
+    static String preauthLockKey(long userId) {
+        return "preauth:user:" + userId;
+    }
+
+    private java.util.Optional<ShoppingSession> reloadSession(String sessionId) {
+        return sessionRepository.findByIdForUpdate(sessionId);
+    }
+
+    private void runWithPreauthLock(long userId, Runnable action) {
+        runWithPreauthLock(userId, () -> {
+            action.run();
+            return null;
+        });
+    }
+
+    private <T> T runWithPreauthLock(long userId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(preauthLockKey(userId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "预授权处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(preauthLockKey(userId));
+        }
     }
 }

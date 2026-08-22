@@ -14,6 +14,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
@@ -30,6 +32,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class OpsTwoFactorServiceTest {
 
     private static final long OPERATOR_ID = 1900000001L;
@@ -40,13 +43,17 @@ class OpsTwoFactorServiceTest {
     @Mock private TotpService totpService;
     @Mock private JwtService jwtService;
     @Mock private AuthService authService;
+    @Mock private DistributedLockService distributedLockService;
 
     private OpsTwoFactorService service;
 
     @BeforeEach
     void setUp() {
+        when(distributedLockService.tryLock(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(true);
         service = new OpsTwoFactorService(userInfoRepository, recoveryRepository,
-                totpService, jwtService, authService);
+                totpService, jwtService, authService, distributedLockService);
     }
 
     private UserInfo operator(boolean enabled, String secret) {
@@ -61,7 +68,7 @@ class OpsTwoFactorServiceTest {
     @Test
     void enroll_shouldGenerateSecretAndRecoveryCodes() {
         UserInfo user = operator(false, null);
-        when(userInfoRepository.findById(OPERATOR_ID)).thenReturn(Optional.of(user));
+        when(userInfoRepository.findByIdForUpdate(OPERATOR_ID)).thenReturn(Optional.of(user));
         when(totpService.generateSecret()).thenReturn(SECRET);
         when(totpService.otpauthUri(SECRET, "13900000001")).thenReturn("otpauth://totp/x?secret=" + SECRET);
 
@@ -78,7 +85,7 @@ class OpsTwoFactorServiceTest {
     @Test
     void confirm_shouldEnableWhenCodeValid() {
         UserInfo user = operator(false, SECRET);
-        when(userInfoRepository.findById(OPERATOR_ID)).thenReturn(Optional.of(user));
+        when(userInfoRepository.findByIdForUpdate(OPERATOR_ID)).thenReturn(Optional.of(user));
         when(totpService.verify(SECRET, "123456")).thenReturn(true);
 
         service.confirm(OPERATOR_ID, "123456");
@@ -90,7 +97,7 @@ class OpsTwoFactorServiceTest {
     @Test
     void confirm_shouldRejectInvalidCode() {
         UserInfo user = operator(false, SECRET);
-        when(userInfoRepository.findById(OPERATOR_ID)).thenReturn(Optional.of(user));
+        when(userInfoRepository.findByIdForUpdate(OPERATOR_ID)).thenReturn(Optional.of(user));
         when(totpService.verify(SECRET, "000000")).thenReturn(false);
 
         assertThrows(ResponseStatusException.class, () -> service.confirm(OPERATOR_ID, "000000"));
@@ -115,7 +122,7 @@ class OpsTwoFactorServiceTest {
     void verifyRecovery_shouldMarkUsedAndFinalize() {
         UserInfo user = operator(true, SECRET);
         when(jwtService.validateChallengeToken("CHAL")).thenReturn(OPERATOR_ID);
-        when(userInfoRepository.findById(OPERATOR_ID)).thenReturn(Optional.of(user));
+        when(userInfoRepository.findByIdForUpdate(OPERATOR_ID)).thenReturn(Optional.of(user));
         String code = "ABCDE-FGHJK-LMNPQ";
         OpsTwoFactorRecoveryCode row = new OpsTwoFactorRecoveryCode();
         row.setUserId(OPERATOR_ID);
@@ -135,7 +142,7 @@ class OpsTwoFactorServiceTest {
     @Test
     void disable_shouldClearSecretWhenCodeValid() {
         UserInfo user = operator(true, SECRET);
-        when(userInfoRepository.findById(OPERATOR_ID)).thenReturn(Optional.of(user));
+        when(userInfoRepository.findByIdForUpdate(OPERATOR_ID)).thenReturn(Optional.of(user));
         when(totpService.verify(SECRET, "123456")).thenReturn(true);
 
         service.disable(OPERATOR_ID, "123456");
@@ -147,7 +154,7 @@ class OpsTwoFactorServiceTest {
 
     @Test
     void enroll_shouldRejectWhenAlreadyEnabled() {
-        when(userInfoRepository.findById(OPERATOR_ID)).thenReturn(Optional.of(operator(true, SECRET)));
+        when(userInfoRepository.findByIdForUpdate(OPERATOR_ID)).thenReturn(Optional.of(operator(true, SECRET)));
 
         assertThrows(ResponseStatusException.class, () -> service.enroll(OPERATOR_ID));
     }

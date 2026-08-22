@@ -9,6 +9,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -24,15 +26,20 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class DeviceEnvServiceTest {
 
     @Mock private DeviceEnvReadingMapper readingRepository;
+    @Mock private DistributedLockService distributedLockService;
 
     private DeviceEnvService service;
 
     @BeforeEach
     void setUp() {
-        service = new DeviceEnvService(readingRepository);
+        when(distributedLockService.tryLock(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyLong()))
+                .thenReturn(true);
+        service = new DeviceEnvService(readingRepository, distributedLockService);
     }
 
     @Test

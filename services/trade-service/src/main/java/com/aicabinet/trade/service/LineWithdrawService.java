@@ -41,6 +41,7 @@ public class LineWithdrawService {
     private final LineWithdrawProperties properties;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public LineWithdrawService(LineWithdrawRequestMapper withdrawMapper,
                                LineManagerMapper managerMapper,
@@ -50,7 +51,8 @@ public class LineWithdrawService {
                                LineWithdrawPayoutService payoutService,
                                LineWithdrawProperties properties,
                                PermissionService permissionService,
-                               AdminAuditService auditService) {
+                               AdminAuditService auditService,
+                               DistributedLockService distributedLockService) {
         this.withdrawMapper = withdrawMapper;
         this.managerMapper = managerMapper;
         this.deviceMapper = deviceMapper;
@@ -60,6 +62,7 @@ public class LineWithdrawService {
         this.properties = properties;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -101,6 +104,12 @@ public class LineWithdrawService {
     public LineWithdrawRequestDto review(Long operatorId, long requestId, boolean approve, String remark) {
         permissionService.requirePermission(operatorId, "ops:line-withdraw:review");
         LineWithdrawRequest request = requireRequest(requestId);
+        return runWithLineWalletLock(request.getManagerId(),
+                () -> doReview(operatorId, request, approve, remark));
+    }
+
+    private LineWithdrawRequestDto doReview(Long operatorId, LineWithdrawRequest request,
+                                            boolean approve, String remark) {
         if (!"PENDING_REVIEW".equals(request.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可审核");
         }
@@ -115,14 +124,14 @@ public class LineWithdrawService {
             lineWalletService.releaseFrozen(request.getManagerId(), request.getAmountCents(),
                     "WITHDRAW", String.valueOf(request.getRequestId()), "提现驳回释放");
             auditService.record(operatorId, "LINE_WITHDRAW_REVIEW", "LINE_WITHDRAW",
-                    String.valueOf(requestId), "驳回；金额(分)=" + request.getAmountCents()
+                    String.valueOf(request.getRequestId()), "驳回；金额(分)=" + request.getAmountCents()
                             + "；备注=" + trim(remark));
             return toDto(request);
         }
         request.setStatus("APPROVED");
         withdrawMapper.updateById(request);
         auditService.record(operatorId, "LINE_WITHDRAW_REVIEW", "LINE_WITHDRAW",
-                String.valueOf(requestId), "通过；金额(分)=" + request.getAmountCents()
+                String.valueOf(request.getRequestId()), "通过；金额(分)=" + request.getAmountCents()
                         + "；备注=" + trim(remark));
         return attemptPayout(request, operatorId);
     }
@@ -131,12 +140,14 @@ public class LineWithdrawService {
     public LineWithdrawRequestDto payout(Long operatorId, long requestId) {
         permissionService.requirePermission(operatorId, "ops:line-withdraw:review");
         LineWithdrawRequest request = requireRequest(requestId);
-        if (!Set.of("APPROVED", "FAILED").contains(request.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打款");
-        }
-        auditService.record(operatorId, "LINE_WITHDRAW_PAYOUT", "LINE_WITHDRAW",
-                String.valueOf(requestId), "打款金额(分)=" + request.getAmountCents());
-        return attemptPayout(request, operatorId);
+        return runWithLineWalletLock(request.getManagerId(), () -> {
+            if (!Set.of("APPROVED", "FAILED").contains(request.getStatus())) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "当前状态不可打款");
+            }
+            auditService.record(operatorId, "LINE_WITHDRAW_PAYOUT", "LINE_WITHDRAW",
+                    String.valueOf(requestId), "打款金额(分)=" + request.getAmountCents());
+            return attemptPayout(request, operatorId);
+        });
     }
 
     @Transactional(readOnly = true)
@@ -165,6 +176,11 @@ public class LineWithdrawService {
     }
 
     private LineWithdrawRequestDto createWithdraw(LineManager manager, long amountCents, String requestNo) {
+        return runWithLineWalletLock(manager.getManagerId(),
+                () -> doCreateWithdraw(manager, amountCents, requestNo));
+    }
+
+    private LineWithdrawRequestDto doCreateWithdraw(LineManager manager, long amountCents, String requestNo) {
         validateAmount(manager.getManagerId(), amountCents);
         String no = normalizeRequestNo(requestNo);
         var existing = withdrawMapper.findByRequestNo(no);
@@ -296,4 +312,22 @@ public class LineWithdrawService {
         return trimmed.isEmpty() ? null : trimmed;
     }
 
+    static String lineWalletLockKey(long managerId) {
+        return "line:wallet:" + managerId;
+    }
+
+    private <T> T runWithLineWalletLock(long managerId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(lineWalletLockKey(managerId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "钱包处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lineWalletLockKey(managerId));
+        }
+    }
 }

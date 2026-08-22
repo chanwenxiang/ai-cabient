@@ -23,6 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
@@ -58,6 +59,7 @@ class SettlementDisputeTest {
     @Mock NotificationService notificationService;
     @Mock ConsumerPreauthService consumerPreauthService;
     @Mock SystemConfigService systemConfigService;
+    @Mock DistributedLockService distributedLockService;
 
     SettlementService settlementService;
 
@@ -69,11 +71,17 @@ class SettlementDisputeTest {
                 securityProperties, stagingProperties, inventoryService, orderPaymentService, confidenceService, gravityHelper,
                 deviceValidationService, skuPricingService, userValidationService, videoArchiveService,
                 skuVisionEnrollmentService, couponService, memberService, null, notificationService, slotRepository,
-                consumerPreauthService, systemConfigService);
+                consumerPreauthService, systemConfigService, distributedLockService);
         lenient().when(systemConfigService.getBoolean(anyString(), anyBoolean()))
                 .thenAnswer(inv -> inv.getArgument(1));
         // 既有重力用例默认按融合模式；纯视觉用例单独 stub usesGravityFusion=false
         lenient().when(systemConfigService.usesGravityFusion()).thenReturn(true);
+        lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
+        lenient().when(sessionRepository.findByIdForUpdate(anyString())).thenAnswer(inv -> {
+            ShoppingSession s = new ShoppingSession();
+            s.setSessionId(inv.getArgument(0));
+            return java.util.Optional.of(s);
+        });
     }
 
     @Test

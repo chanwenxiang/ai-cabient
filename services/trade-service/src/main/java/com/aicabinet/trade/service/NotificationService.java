@@ -20,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * 消息触达：模板渲染 + 落库（IN_APP 消息中心）。
@@ -36,19 +37,22 @@ public class NotificationService {
     private final ConsumerNotifyPrefService notifyPrefService;
     private final ExternalNotificationDispatcher externalDispatcher;
     private final ObjectProvider<NotificationDispatchProducer> producerProvider;
+    private final DistributedLockService distributedLockService;
 
     public NotificationService(NotificationTemplateMapper templateRepository,
                                NotificationLogMapper logRepository,
                                NotificationProperties notificationProperties,
                                ConsumerNotifyPrefService notifyPrefService,
                                ExternalNotificationDispatcher externalDispatcher,
-                               ObjectProvider<NotificationDispatchProducer> producerProvider) {
+                               ObjectProvider<NotificationDispatchProducer> producerProvider,
+                               DistributedLockService distributedLockService) {
         this.templateRepository = templateRepository;
         this.logRepository = logRepository;
         this.notificationProperties = notificationProperties;
         this.notifyPrefService = notifyPrefService;
         this.externalDispatcher = externalDispatcher;
         this.producerProvider = producerProvider;
+        this.distributedLockService = distributedLockService;
     }
 
     public void notifyConsumer(Long userId, String templateCode, Map<String, String> params,
@@ -140,7 +144,14 @@ public class NotificationService {
 
     @Transactional
     public void markConsumerRead(Long userId, Long id) {
-        NotificationLog record = logRepository.findById(id)
+        runWithNotificationLogLock(id, () -> {
+            doMarkConsumerRead(userId, id);
+            return null;
+        });
+    }
+
+    private void doMarkConsumerRead(Long userId, Long id) {
+        NotificationLog record = logRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "消息不存在"));
         if (record.getUserId() == null || !record.getUserId().equals(userId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权操作该消息");
@@ -153,6 +164,13 @@ public class NotificationService {
 
     @Transactional
     public void markConsumerAllRead(Long userId) {
+        runWithConsumerNotificationLock(userId, () -> {
+            doMarkConsumerAllRead(userId);
+            return null;
+        });
+    }
+
+    private void doMarkConsumerAllRead(Long userId) {
         List<NotificationLog> unread = logRepository.findConsumerRecent(userId, 100).stream()
                 .filter(n -> n.getReadAt() == null)
                 .toList();
@@ -174,7 +192,14 @@ public class NotificationService {
 
     @Transactional
     public void markMerchantRead(String merchantId, Long id) {
-        NotificationLog record = logRepository.findById(id)
+        runWithNotificationLogLock(id, () -> {
+            doMarkMerchantRead(merchantId, id);
+            return null;
+        });
+    }
+
+    private void doMarkMerchantRead(String merchantId, Long id) {
+        NotificationLog record = logRepository.findByIdForUpdate(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "消息不存在"));
         if (record.getMerchantId() == null || !record.getMerchantId().equals(merchantId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "无权操作该消息");
@@ -214,6 +239,16 @@ public class NotificationService {
         if ("MERCHANT".equals(audience) && merchantId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "发给商户需填写商户ID");
         }
+        if ("CONSUMER".equals(audience)) {
+            return runWithConsumerNotificationLock(userId, () -> doSendManual(operatorId, body, audience,
+                    title, content, userId, merchantId));
+        }
+        return runWithMerchantNotificationLock(merchantId, () -> doSendManual(operatorId, body, audience,
+                title, content, userId, merchantId));
+    }
+
+    private NotificationDto doSendManual(Long operatorId, AdminManualNotificationRequest body, String audience,
+                                         String title, String content, Long userId, String merchantId) {
         String bizType = body.bizType() == null || body.bizType().isBlank() ? "OPS_MANUAL" : body.bizType().trim();
         String bizId = body.bizId() == null || body.bizId().isBlank()
                 ? "OPS-" + (operatorId == null ? 0 : operatorId) : body.bizId().trim();
@@ -233,6 +268,45 @@ public class NotificationService {
         log.info("manual notification sent by={} audience={} userId={} merchantId={} id={}",
                 operatorId, audience, userId, merchantId, record.getId());
         return toDto(record);
+    }
+
+    static String consumerNotificationLockKey(long userId) {
+        return "notification:consumer:" + userId;
+    }
+
+    static String merchantNotificationLockKey(String merchantId) {
+        return "notification:merchant:" + merchantId;
+    }
+
+    static String notificationLogLockKey(long logId) {
+        return "notification:log:" + logId;
+    }
+
+    private <T> T runWithConsumerNotificationLock(long userId, Supplier<T> action) {
+        return runWithLock(consumerNotificationLockKey(userId), action);
+    }
+
+    private <T> T runWithMerchantNotificationLock(String merchantId, Supplier<T> action) {
+        return runWithLock(merchantNotificationLockKey(merchantId), action);
+    }
+
+    private <T> T runWithNotificationLogLock(long logId, Supplier<T> action) {
+        return runWithLock(notificationLogLockKey(logId), action);
+    }
+
+    private <T> T runWithLock(String lockKey, Supplier<T> action) {
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "消息处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
     }
 
     private NotificationDto toDto(NotificationLog n) {

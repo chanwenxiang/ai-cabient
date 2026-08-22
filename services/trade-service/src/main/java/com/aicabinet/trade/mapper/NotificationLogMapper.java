@@ -2,12 +2,20 @@ package com.aicabinet.trade.mapper;
 
 import com.aicabinet.trade.domain.NotificationLog;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
 
 @Mapper
 public interface NotificationLogMapper extends BaseTradeMapper<NotificationLog> {
+
+    NotificationLog _findByIdForUpdateRaw(@Param("id") Long id);
+
+    default Optional<NotificationLog> findByIdForUpdate(Long id) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(id));
+    }
 
     default List<NotificationLog> findConsumerRecent(Long userId, int limit) {
         return selectList(Wrappers.<NotificationLog>lambdaQuery()

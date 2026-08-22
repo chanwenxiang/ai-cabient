@@ -13,7 +13,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Set;
 
-/** 增长模块日志归档：按保留月数分批清理通知/积分日志，避免表无限增长。 */
+/** 增长模块日志归档：清理通知日志；积分流水为账本组成部分，不在此删除。 */
 @Service
 public class GrowthLogArchiveScheduler {
 
@@ -45,20 +45,16 @@ public class GrowthLogArchiveScheduler {
         String summary = "本次无归档删除";
         try {
             int notifyMonths = systemConfigService.getInt("ops.log_retention.notify_months", 6);
-            int pointsMonths = systemConfigService.getInt("ops.log_retention.points_months", 12);
             int deleted = 0;
             if (notifyMonths > 0) {
                 deleted += deleteInBatches("notification_log",
                         Instant.now().minus(notifyMonths, ChronoUnit.MONTHS), false);
             }
-            if (pointsMonths > 0) {
-                deleted += deleteInBatches("member_points_log",
-                        Instant.now().minus(pointsMonths, ChronoUnit.MONTHS), true);
-            }
+            // member_points_log 与 member.available_points 对账依赖完整流水，禁止 DELETE
             summary = deleted <= 0 ? "本次无归档删除" : "归档删除 " + deleted + " 条";
             if (deleted > 0) {
-                log.info("growth log archive deleted={} notifyMonths={} pointsMonths={}",
-                        deleted, notifyMonths, pointsMonths);
+                log.info("growth log archive deleted={} notifyMonths={}",
+                        deleted, notifyMonths);
             }
         } catch (Exception e) {
             failed = true;

@@ -25,6 +25,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -40,17 +41,20 @@ public class RecognitionTestService {
     private final SettlementService settlementService;
     private final VisionServiceClient visionClient;
     private final SkuCatalogMapper skuCatalogRepository;
+    private final DistributedLockService distributedLockService;
 
     public RecognitionTestService(SessionService sessionService,
                                    ShoppingSessionMapper sessionRepository,
                                    SettlementService settlementService,
                                    VisionServiceClient visionClient,
-                                   SkuCatalogMapper skuCatalogRepository) {
+                                   SkuCatalogMapper skuCatalogRepository,
+                                   DistributedLockService distributedLockService) {
         this.sessionService = sessionService;
         this.sessionRepository = sessionRepository;
         this.settlementService = settlementService;
         this.visionClient = visionClient;
         this.skuCatalogRepository = skuCatalogRepository;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -117,19 +121,21 @@ public class RecognitionTestService {
             default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.INVALID_REQUEST);
         };
 
-        ShoppingSession session = sessionRepository.findById(sessionDto.sessionId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        session.setCloseTime(Instant.now());
-        session.setVideoUri("upload://" + safeName);
-        session.setUploadStatus("UPLOADED");
-        sessionRepository.save(session);
+        return runWithSessionLifeLock(sessionDto.sessionId(), () -> {
+            ShoppingSession session = sessionRepository.findByIdForUpdate(sessionDto.sessionId())
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+            session.setCloseTime(Instant.now());
+            session.setVideoUri("upload://" + safeName);
+            session.setUploadStatus("UPLOADED");
+            sessionRepository.save(session);
 
-        sessionDto = sessionService.completeDevUploadRecognition(session.getSessionId(), recognition);
-        OrderDto order = tryLoadOrder(sessionDto);
-        String hint = buildHint(sessionDto, order, preview);
-        log.info("ops upload recognition session={} state={} items={}",
-                sessionDto.sessionId(), sessionDto.state(), preview.items().size());
-        return new DevRecognitionTestResponse(sessionDto, order, session.getVideoUri(), hint, preview);
+            SessionDto settled = sessionService.completeDevUploadRecognition(session.getSessionId(), recognition);
+            OrderDto order = tryLoadOrder(settled);
+            String hint = buildHint(settled, order, preview);
+            log.info("ops upload recognition session={} state={} items={}",
+                    settled.sessionId(), settled.state(), preview.items().size());
+            return new DevRecognitionTestResponse(settled, order, session.getVideoUri(), hint, preview);
+        });
     }
 
     /** 识别测试结算前校验：模型不可用或未识别到 SKU 时不创建会话、不进申诉。 */
@@ -265,5 +271,21 @@ public class RecognitionTestService {
             return "FULL";
         }
         return mode.trim().toUpperCase();
+    }
+
+    private <T> T runWithSessionLifeLock(String sessionId, Supplier<T> action) {
+        String lockKey = SessionService.sessionLifeLockKey(sessionId);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "识别测试处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
     }
 }

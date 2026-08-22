@@ -24,15 +24,18 @@ public class SiteRentSplitService {
     private final SiteContractMapper contractMapper;
     private final PermissionService permissionService;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public SiteRentSplitService(SiteRentSplitRuleMapper ruleMapper,
                                 SiteContractMapper contractMapper,
                                 PermissionService permissionService,
-                                AdminAuditService auditService) {
+                                AdminAuditService auditService,
+                                DistributedLockService distributedLockService) {
         this.ruleMapper = ruleMapper;
         this.contractMapper = contractMapper;
         this.permissionService = permissionService;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -45,8 +48,14 @@ public class SiteRentSplitService {
     @Transactional
     public List<SiteRentSplitRuleDto> replaceRules(Long operatorId, Long contractId,
                                                    UpsertSiteRentSplitRulesRequest request) {
+        return runWithContractRulesLock(contractId, () -> doReplaceRules(operatorId, contractId, request));
+    }
+
+    private List<SiteRentSplitRuleDto> doReplaceRules(Long operatorId, Long contractId,
+                                                      UpsertSiteRentSplitRulesRequest request) {
         permissionService.requirePermission(operatorId, "ops:org:edit");
-        requireContract(contractId);
+        contractMapper.findByIdForUpdate(contractId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "场地合同不存在"));
         int sumBps = 0;
         for (UpsertSiteRentSplitRulesRequest.Rule r : request.rules()) {
             String party = r.partyType().trim().toUpperCase();
@@ -96,5 +105,20 @@ public class SiteRentSplitService {
 
     private static String blankToNull(String v) {
         return v == null || v.isBlank() ? null : v.trim();
+    }
+
+    static String contractRulesLockKey(Long contractId) {
+        return "site-rent-split:contract:" + contractId;
+    }
+
+    private <T> T runWithContractRulesLock(Long contractId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(contractRulesLockKey(contractId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "场地租金分账规则处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(contractRulesLockKey(contractId));
+        }
     }
 }

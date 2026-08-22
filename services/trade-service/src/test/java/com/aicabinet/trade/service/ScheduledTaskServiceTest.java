@@ -30,13 +30,16 @@ class ScheduledTaskServiceTest {
         ScheduledTask row = new ScheduledTask();
         row.setTaskKey("unpaid-cancel");
         row.setTaskName("未付订单自动取消");
-        when(mapper.selectById("unpaid-cancel")).thenReturn(row);
+        when(locks.tryLock(ScheduledTaskService.scheduledTaskAdminLockKey("unpaid-cancel"), 60, 5))
+                .thenReturn(true);
+        when(mapper.findByIdForUpdate("unpaid-cancel")).thenReturn(java.util.Optional.of(row));
 
         ScheduledTaskDto dto = service(false).setRemark(100L, "unpaid-cancel", " 超时关单并回滚库存 ");
 
         assertEquals("超时关单并回滚库存", dto.remark());
         verify(audit).record(eq(100L), eq("SCHEDULED_TASK_REMARK"),
                 eq("SCHEDULED_TASK"), eq("unpaid-cancel"), anyString());
+        verify(locks).unlock(ScheduledTaskService.scheduledTaskAdminLockKey("unpaid-cancel"));
     }
 
     @Test
@@ -97,7 +100,7 @@ class ScheduledTaskServiceTest {
     void finish_writesProvidedResultMessage() {
         ScheduledTask row = new ScheduledTask();
         row.setTaskKey("coupon-expire");
-        when(mapper.selectById("coupon-expire")).thenReturn(row);
+        when(mapper.findByIdForUpdate("coupon-expire")).thenReturn(java.util.Optional.of(row));
 
         service(false).finish("coupon-expire", "SUCCESS", "过期优惠券 3 张", System.nanoTime());
 

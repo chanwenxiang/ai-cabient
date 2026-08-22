@@ -14,11 +14,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * 设备“稳定在线自动解锁”：离线自动锁机后，设备恢复在线并稳定运行一段时间，
@@ -48,6 +51,7 @@ public class DeviceStableOnlineAutoUnlockService {
     private final DeviceSalesLockService salesLockService;
     private final OpsExceptionService opsExceptionService;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     public DeviceStableOnlineAutoUnlockService(SystemConfigService systemConfigService,
                                                DeviceInfoMapper deviceRepository,
@@ -56,7 +60,8 @@ public class DeviceStableOnlineAutoUnlockService {
                                                OpsExceptionMapper exceptionRepository,
                                                DeviceSalesLockService salesLockService,
                                                OpsExceptionService opsExceptionService,
-                                               AdminAuditService auditService) {
+                                               AdminAuditService auditService,
+                                               DistributedLockService distributedLockService) {
         this.systemConfigService = systemConfigService;
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
@@ -65,6 +70,7 @@ public class DeviceStableOnlineAutoUnlockService {
         this.salesLockService = salesLockService;
         this.opsExceptionService = opsExceptionService;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     /** 扫描锁机中且稳定在线超过配置分钟数的设备并自动解锁，返回本次解锁台数。 */
@@ -85,12 +91,18 @@ public class DeviceStableOnlineAutoUnlockService {
                 .findByOnlineStatusAndSalesLockedTrueAndOnlineSinceBefore("ONLINE", cutoff, BATCH_LIMIT);
         int unlocked = 0;
         for (DeviceInfo device : candidates) {
-            if (!safeToUnlock(device)) {
-                continue;
-            }
             try {
-                unlock(device);
-                unlocked++;
+                Boolean done = runWithDeviceSalesLock(device.getDeviceId(), () -> {
+                    DeviceInfo locked = deviceRepository.findByIdForUpdate(device.getDeviceId()).orElse(null);
+                    if (locked == null || !safeToUnlock(locked)) {
+                        return false;
+                    }
+                    unlock(locked);
+                    return true;
+                });
+                if (Boolean.TRUE.equals(done)) {
+                    unlocked++;
+                }
             } catch (Exception e) {
                 log.warn("stable-online auto unlock failed device={} err={}",
                         device.getDeviceId(), e.toString());
@@ -145,5 +157,21 @@ public class DeviceStableOnlineAutoUnlockService {
         auditService.record(0L, "DEVICE_AUTO_UNLOCK_STABLE_ONLINE", "DEVICE", device.getDeviceId(),
                 "恢复在线超过配置分钟数且无未结算会话/维修工单，自动解锁恢复营业");
         log.info("device auto unlocked after stable online device={}", device.getDeviceId());
+    }
+
+    private <T> T runWithDeviceSalesLock(String deviceId, Supplier<T> action) {
+        String lockKey = DeviceSalesLockService.deviceSalesLockKey(deviceId);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备锁机处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
     }
 }

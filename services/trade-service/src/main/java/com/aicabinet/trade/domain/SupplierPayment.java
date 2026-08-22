@@ -21,6 +21,7 @@ public class SupplierPayment {
     private long amountCents;
     private Long operatorId;
     private String notes;
+    private String idempotencyKey;
     private Instant createdAt;
 
 }

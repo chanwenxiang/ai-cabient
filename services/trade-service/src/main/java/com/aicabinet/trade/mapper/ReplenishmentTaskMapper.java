@@ -12,6 +12,12 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface ReplenishmentTaskMapper extends BaseTradeMapper<ReplenishmentTask> {
 
+    ReplenishmentTask _findByIdForUpdateRaw(@Param("taskId") Long taskId);
+
+    default Optional<ReplenishmentTask> findByIdForUpdate(Long taskId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(taskId));
+    }
+
     default List<ReplenishmentTask> findByRouteId(Long routeId) {
     return selectList(
         Wrappers.<ReplenishmentTask>lambdaQuery()

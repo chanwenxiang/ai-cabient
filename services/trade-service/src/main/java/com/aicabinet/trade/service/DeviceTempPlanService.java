@@ -43,6 +43,7 @@ public class DeviceTempPlanService {
     private final DeviceInfoMapper deviceRepository;
     private final DeviceServiceClient deviceClient;
     private final AdminAuditService auditService;
+    private final DistributedLockService distributedLockService;
 
     @Autowired
     private ScheduledTaskService taskService;
@@ -52,13 +53,15 @@ public class DeviceTempPlanService {
                                  DeviceTempPlanEntryMapper entryRepository,
                                  DeviceInfoMapper deviceRepository,
                                  DeviceServiceClient deviceClient,
-                                 AdminAuditService auditService) {
+                                 AdminAuditService auditService,
+                                 DistributedLockService distributedLockService) {
         this.permissionService = permissionService;
         this.planRepository = planRepository;
         this.entryRepository = entryRepository;
         this.deviceRepository = deviceRepository;
         this.deviceClient = deviceClient;
         this.auditService = auditService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -72,6 +75,11 @@ public class DeviceTempPlanService {
     @Transactional
     public DeviceTempPlanDto upsert(Long operatorId, String deviceId,
                                     boolean enabled, List<DeviceTempPlanEntryDto> entries) {
+        return runWithTempPlanLock(deviceId, () -> doUpsert(operatorId, deviceId, enabled, entries));
+    }
+
+    private DeviceTempPlanDto doUpsert(Long operatorId, String deviceId,
+                                       boolean enabled, List<DeviceTempPlanEntryDto> entries) {
         permissionService.requirePermission(operatorId, "ops:device:edit");
         requireDevice(deviceId);
         if (entries == null || entries.isEmpty()) {
@@ -114,7 +122,7 @@ public class DeviceTempPlanService {
         auditService.record(operatorId, "DEVICE_TEMP_PLAN", "DEVICE", deviceId,
                 "温控计划更新，条目数=" + entries.size() + "，启用=" + enabled);
         if (enabled) {
-            applyNow(deviceId);
+            doApplyNow(deviceId);
         }
         return toDto(plan);
     }
@@ -123,9 +131,11 @@ public class DeviceTempPlanService {
     public DeviceTempPlanDto applyNow(Long operatorId, String deviceId) {
         permissionService.requirePermission(operatorId, "ops:device:edit");
         requireDevice(deviceId);
-        applyNow(deviceId);
-        DeviceTempPlan plan = planRepository.findByDeviceId(deviceId).orElse(null);
-        return plan == null ? new DeviceTempPlanDto(deviceId, false, List.of()) : toDto(plan);
+        return runWithTempPlanLock(deviceId, () -> {
+            doApplyNow(deviceId);
+            DeviceTempPlan plan = planRepository.findByDeviceId(deviceId).orElse(null);
+            return plan == null ? new DeviceTempPlanDto(deviceId, false, List.of()) : toDto(plan);
+        });
     }
 
     /** 当前分钟应执行的目标温度：取最后一个 startMinute <= now 的条目，未到则取当日最后一条（跨日回绕）。 */
@@ -141,6 +151,13 @@ public class DeviceTempPlanService {
 
     @Transactional
     void applyNow(String deviceId) {
+        runWithTempPlanLock(deviceId, () -> {
+            doApplyNow(deviceId);
+            return null;
+        });
+    }
+
+    private void doApplyNow(String deviceId) {
         DeviceTempPlan plan = planRepository.findByDeviceId(deviceId).orElse(null);
         if (plan == null || !plan.isEnabled()) {
             return;
@@ -154,7 +171,7 @@ public class DeviceTempPlanService {
         }
         LocalTime now = LocalTime.now(ZONE);
         int target = targetForMinute(entries, now.getHour() * 60 + now.getMinute());
-        DeviceInfo device = deviceRepository.findById(deviceId).orElse(null);
+        DeviceInfo device = deviceRepository.findByIdForUpdate(deviceId).orElse(null);
         if (device == null) {
             return;
         }
@@ -199,5 +216,24 @@ public class DeviceTempPlanService {
     private DeviceInfo requireDevice(String deviceId) {
         return deviceRepository.findById(deviceId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "设备不存在: " + deviceId));
+    }
+
+    static String tempPlanLockKey(String deviceId) {
+        return "device:temp-plan:" + deviceId;
+    }
+
+    private <T> T runWithTempPlanLock(String deviceId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(tempPlanLockKey(deviceId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "温控计划处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(tempPlanLockKey(deviceId));
+        }
     }
 }

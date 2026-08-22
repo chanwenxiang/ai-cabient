@@ -47,6 +47,7 @@ public class FileAttachmentService {
     private final MinioVideoService minioVideoService;
     private final MinioProperties minioProperties;
     private final Path localRoot;
+    private final DistributedLockService distributedLockService;
 
     /** 集群模式应关闭本地回退：MinIO 不可用时直接报错，避免文件只存在单节点。 */
     @Value("${app.storage.local-fallback-enabled:true}")
@@ -55,10 +56,12 @@ public class FileAttachmentService {
     public FileAttachmentService(FileAttachmentMapper fileAttachmentMapper,
                                  MinioVideoService minioVideoService,
                                  MinioProperties minioProperties,
+                                 DistributedLockService distributedLockService,
                                  @Value("${app.storage.local-dir:./data/attachments}") String localDir) {
         this.fileAttachmentMapper = fileAttachmentMapper;
         this.minioVideoService = minioVideoService;
         this.minioProperties = minioProperties;
+        this.distributedLockService = distributedLockService;
         this.localRoot = Paths.get(localDir).toAbsolutePath().normalize();
     }
 
@@ -108,6 +111,10 @@ public class FileAttachmentService {
         if (fileIds == null || fileIds.isEmpty()) {
             return List.of();
         }
+        return runWithDisputeLock(ticketId, () -> doBindEvidenceToDispute(userId, ticketId, fileIds));
+    }
+
+    private List<FileAttachmentDto> doBindEvidenceToDispute(Long userId, String ticketId, List<Long> fileIds) {
         if (fileIds.size() > MAX_EVIDENCE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "最多上传 " + MAX_EVIDENCE + " 张图片");
         }
@@ -152,6 +159,10 @@ public class FileAttachmentService {
         if (taskId == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "任务不存在");
         }
+        return runWithReplenishmentLock(taskId, () -> doUploadReplenishmentEvidence(userId, taskId, file));
+    }
+
+    private FileAttachmentDto doUploadReplenishmentEvidence(Long userId, Long taskId, MultipartFile file) {
         long existing = fileAttachmentMapper.findByRef(REF_REPLENISHMENT, String.valueOf(taskId)).size();
         if (existing >= MAX_EVIDENCE) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "最多上传 " + MAX_EVIDENCE + " 张现场照片");
@@ -394,6 +405,30 @@ public class FileAttachmentService {
             url = "/api/v2/disputes/evidence/" + row.getFileId();
         }
         return FileAttachmentDto.of(row.getFileId(), row.getFileName(), row.getContentType(), row.getFileSize(), url);
+    }
+
+    private <T> T runWithDisputeLock(String ticketId, java.util.function.Supplier<T> action) {
+        String key = DisputeService.disputeTicketLockKey(ticketId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "争议工单处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
+    }
+
+    private <T> T runWithReplenishmentLock(Long taskId, java.util.function.Supplier<T> action) {
+        String key = ReplenishmentService.replenishmentTaskLockKey(taskId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "补货任务处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
+        }
     }
 
     /** MinIO 不可用时的兜底：允许本地回退时写本地磁盘，否则直接报错（集群模式）。 */

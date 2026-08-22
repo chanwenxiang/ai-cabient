@@ -4,10 +4,18 @@ import com.aicabinet.trade.domain.DeviceInfo;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 
 @Mapper
 public interface DeviceInfoMapper extends BaseTradeMapper<DeviceInfo> {
+
+    DeviceInfo _findByIdForUpdateRaw(@Param("deviceId") String deviceId);
+
+    default Optional<DeviceInfo> findByIdForUpdate(String deviceId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(deviceId));
+    }
 
     default List<DeviceInfo> findAllOrderByDeviceIdAsc() {
         return selectList(Wrappers.<DeviceInfo>lambdaQuery()

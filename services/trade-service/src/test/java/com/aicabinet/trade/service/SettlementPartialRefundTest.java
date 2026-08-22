@@ -24,6 +24,7 @@ import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -50,8 +51,51 @@ class SettlementPartialRefundTest {
                 null, null, inventoryService, orderPaymentService,
                 null, null, null, null, null, null,
                 null, couponService, null, null, null, null,
-                null, null);
+                null, null, null);
         lenient().doNothing().when(couponService).recalcOrRestoreAfterPartialRefund(any(), anyInt());
+    }
+
+    @Test
+    void partialRefund_withCoupon_refundsPayableDeltaNotGross() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-C");
+        order.setSessionId("S-C");
+        order.setDeviceId("CAB-001");
+        order.setUserId(10001L);
+        order.setOriginalAmountCents(1000);
+        order.setCouponId(99L);
+        order.setCouponDiscountCents(200);
+        order.setTotalAmountCents(800);
+        order.setStatus("PAID");
+        order.setInventoryDeducted(false);
+        order.setLines(new ArrayList<>(List.of(
+                line("SKU-A", "A", 1, 400, "B1"),
+                line("SKU-B", "B", 2, 300, "B2"))));
+
+        when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        doNothing().when(orderLineRepository).deleteByOrderId(anyString());
+        doNothing().when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
+        doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
+        doAnswer(inv -> {
+            CabinetOrder o = inv.getArgument(0);
+            int sub = inv.getArgument(1);
+            o.setOriginalAmountCents(sub);
+            o.setCouponDiscountCents(200);
+            o.setTotalAmountCents(Math.max(0, sub - 200));
+            return null;
+        }).when(couponService).recalcOrRestoreAfterPartialRefund(any(), eq(600));
+        when(couponService.discountForOrderCoupon(99L, 600)).thenReturn(200);
+
+        var result = settlementService.partialRefund(
+                order,
+                List.of(new OrderRefundRequest.PartialRefundLine("SKU-A", 1, false)),
+                false,
+                "coupon partial");
+
+        assertEquals(400, result.refundedCents());
+        assertEquals("PARTIAL_REFUNDED", result.status());
+        assertEquals(400, order.getTotalAmountCents());
+        verify(orderPaymentService).refundOrder(order, 400, "coupon partial");
     }
 
     @Test
@@ -73,7 +117,7 @@ class SettlementPartialRefundTest {
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         when(orderLineRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         doNothing().when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
-        doNothing().when(revenueSplitService).resyncSplitForOrder(any());
+        doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(false));
         doNothing().when(inventoryService).restoreForOrder(anyString(), anyList(), anyMap());
         doNothing().when(inventoryService).recordRefundKeptGoods(anyString(), anyList(), anyMap(), anyString());
 
@@ -97,7 +141,29 @@ class SettlementPartialRefundTest {
                 eq("CAB-001"), argThat(list -> list != null && list.size() == 1), anyMap());
         verify(inventoryService).recordRefundKeptGoods(
                 eq("CAB-001"), argThat(list -> list != null && list.size() == 1), anyMap(), eq("O-1"));
-        verify(revenueSplitService, never()).voidSplitOnFullRefund(anyString());
+        verify(revenueSplitService, never()).adjustSplitAfterPartialRefund(any(), eq(true));
+    }
+
+    @Test
+    void estimatePartialRefund_withCoupon_matchesPayableDelta() {
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-E");
+        order.setOriginalAmountCents(1000);
+        order.setCouponId(99L);
+        order.setCouponDiscountCents(200);
+        order.setTotalAmountCents(800);
+        order.setLines(new ArrayList<>(List.of(
+                line("SKU-A", "A", 1, 400, "B1"),
+                line("SKU-B", "B", 2, 300, "B2"))));
+
+        when(couponService.discountForOrderCoupon(99L, 600)).thenReturn(200);
+
+        int estimate = settlementService.estimatePartialRefundCents(
+                order,
+                List.of(new OrderRefundRequest.PartialRefundLine("SKU-A", 1, false)));
+
+        assertEquals(400, estimate);
+        assertEquals(800, order.getTotalAmountCents(), "estimate must not mutate source order");
     }
 
     @Test
@@ -115,7 +181,7 @@ class SettlementPartialRefundTest {
         when(orderRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         doNothing().when(orderLineRepository).deleteByOrderId(anyString());
         doNothing().when(orderPaymentService).refundOrder(any(), anyInt(), anyString());
-        doNothing().when(revenueSplitService).voidSplitOnFullRefund(anyString());
+        doNothing().when(revenueSplitService).adjustSplitAfterPartialRefund(any(), eq(true));
         doNothing().when(inventoryService).restoreForOrder(anyString(), anyList(), anyMap());
 
         var result = settlementService.partialRefund(
@@ -130,7 +196,7 @@ class SettlementPartialRefundTest {
         assertTrue(result.anyInventoryRestored());
         assertTrue(order.getLines().isEmpty());
         assertFalse(order.isInventoryDeducted());
-        verify(revenueSplitService).voidSplitOnFullRefund("O-2");
+        verify(revenueSplitService).adjustSplitAfterPartialRefund(order, true);
     }
 
     private static CabinetOrderLine line(String sku, String name, int qty, int unit, String batch) {

@@ -21,7 +21,6 @@ import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.event.DomainEventPublisher;
 import com.aicabinet.trade.metrics.CabinetMetrics;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
-import com.aicabinet.trade.mapper.DeviceSkuLotMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
@@ -74,10 +73,11 @@ public class SessionService {
     private final OpsExceptionService opsExceptionService;
     private final UserInfoMapper userInfoRepository;
     private final CabinetOrderMapper orderRepository;
-    private final DeviceSkuLotMapper lotRepository;
+    private final InventoryLotService inventoryLotService;
     private final DisputeService disputeService;
     private final ConsumerPreauthService consumerPreauthService;
     private final MerchantOpsPolicyService opsPolicyService;
+    private final DistributedLockService distributedLockService;
 
     @Autowired
     private ScheduledTaskService taskService;
@@ -99,10 +99,11 @@ public class SessionService {
                           OpsExceptionService opsExceptionService,
                           UserInfoMapper userInfoRepository,
                           CabinetOrderMapper orderRepository,
-                          DeviceSkuLotMapper lotRepository,
+                          InventoryLotService inventoryLotService,
                           @Lazy DisputeService disputeService,
                           ConsumerPreauthService consumerPreauthService,
-                          MerchantOpsPolicyService opsPolicyService) {
+                          MerchantOpsPolicyService opsPolicyService,
+                          DistributedLockService distributedLockService) {
         this.repository = repository;
         this.deviceClient = deviceClient;
         this.userValidationService = userValidationService;
@@ -117,10 +118,11 @@ public class SessionService {
         this.opsExceptionService = opsExceptionService;
         this.userInfoRepository = userInfoRepository;
         this.orderRepository = orderRepository;
-        this.lotRepository = lotRepository;
+        this.inventoryLotService = inventoryLotService;
         this.disputeService = disputeService;
         this.consumerPreauthService = consumerPreauthService;
         this.opsPolicyService = opsPolicyService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional
@@ -129,9 +131,10 @@ public class SessionService {
         if (idempotencyKey != null) {
             return repository.findByIdempotencyKey(idempotencyKey)
                     .map(existing -> validateIdempotentReplay(userId, request.deviceId(), existing))
-                    .orElseGet(() -> doCreateSession(userId, request));
+                    .orElseGet(() -> runWithDeviceOpenLock(request.deviceId(),
+                            () -> doCreateSession(userId, request)));
         }
-        return doCreateSession(userId, request);
+        return runWithDeviceOpenLock(request.deviceId(), () -> doCreateSession(userId, request));
     }
 
     private SessionDto doCreateSession(Long userId, CreateSessionRequest request) {
@@ -167,6 +170,10 @@ public class SessionService {
      */
     @Transactional
     public SessionDto createSessionForDevTest(Long userId, CreateSessionRequest request) {
+        return runWithDeviceOpenLock(request.deviceId(), () -> doCreateSessionForDevTest(userId, request));
+    }
+
+    private SessionDto doCreateSessionForDevTest(Long userId, CreateSessionRequest request) {
         String entryChannel = resolveEntryChannel(userId, request.entryChannel());
         userValidationService.validateCanOpenDoor(userId, request.deviceId(), entryChannel);
         deviceValidationService.requireDevice(request.deviceId());
@@ -217,7 +224,12 @@ public class SessionService {
     @Transactional
     public SessionDto completeDevUploadRecognition(String sessionId,
                                                    VisionServiceClient.RecognitionResult recognition) {
-        ShoppingSession session = repository.findById(sessionId)
+        return runWithSessionLifeLock(sessionId, () -> doCompleteDevUploadRecognition(sessionId, recognition));
+    }
+
+    private SessionDto doCompleteDevUploadRecognition(String sessionId,
+                                                      VisionServiceClient.RecognitionResult recognition) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (session.getState() == SessionState.SHOPPING) {
             transition(session, SessionState.RECOGNIZING);
@@ -306,6 +318,10 @@ public class SessionService {
 
     @Transactional
     public SessionDto applyDoorEvent(DoorEventRequest event) {
+        return runWithSessionLifeLock(event.sessionId(), () -> doApplyDoorEvent(event));
+    }
+
+    private SessionDto doApplyDoorEvent(DoorEventRequest event) {
         ShoppingSession session = repository.findByIdForUpdate(event.sessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
 
@@ -334,6 +350,10 @@ public class SessionService {
 
     @Transactional
     public SessionDto attachVideo(VideoAttachRequest request) {
+        return runWithSessionLifeLock(request.sessionId(), () -> doAttachVideo(request));
+    }
+
+    private SessionDto doAttachVideo(VideoAttachRequest request) {
         ShoppingSession session = repository.findByIdForUpdate(request.sessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!session.getDeviceId().equals(request.deviceId())) {
@@ -362,7 +382,11 @@ public class SessionService {
     /** 补货关门后：视觉/重力快照回写货道实测，不创建订单。 */
     @Transactional
     public SessionDto finishRestockSnapshot(String sessionId) {
-        ShoppingSession session = repository.findById(sessionId)
+        return runWithSessionLifeLock(sessionId, () -> doFinishRestockSnapshot(sessionId));
+    }
+
+    private SessionDto doFinishRestockSnapshot(String sessionId) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!isRestockSession(session)) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "not a restock session");
@@ -387,7 +411,11 @@ public class SessionService {
 
     @Transactional
     public SessionDto attachGravityDeltas(GravityDeltaRequest request) {
-        ShoppingSession session = repository.findById(request.sessionId())
+        return runWithSessionLifeLock(request.sessionId(), () -> doAttachGravityDeltas(request));
+    }
+
+    private SessionDto doAttachGravityDeltas(GravityDeltaRequest request) {
+        ShoppingSession session = repository.findByIdForUpdate(request.sessionId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!session.getDeviceId().equals(request.deviceId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, ApiMessages.DEVICE_MISMATCH);
@@ -402,7 +430,11 @@ public class SessionService {
     /** 演示/开发：消费者点选商品同步到会话，关门 mock 结算时按此列表扣款。 */
     @Transactional
     public SessionDto updateSessionCart(Long userId, String sessionId, SessionCartRequest request) {
-        ShoppingSession session = repository.findById(sessionId)
+        return runWithSessionLifeLock(sessionId, () -> doUpdateSessionCart(userId, sessionId, request));
+    }
+
+    private SessionDto doUpdateSessionCart(Long userId, String sessionId, SessionCartRequest request) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         requireSessionOwner(userId, session);
         if (!EnumSet.of(SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING).contains(session.getState())) {
@@ -413,7 +445,8 @@ public class SessionService {
                 .filter(item -> item.qty() > 0)
                 .map(item -> {
                     // 与货道账面同源：可售批次（ON_SALE / NEAR_EXPIRY）
-                    int available = lotRepository.sumSellableQuantity(session.getDeviceId(), item.skuId());
+                    int available = inventoryLotService.availableSellableQuantity(
+                            session.getDeviceId(), item.skuId());
                     if (item.qty() > available) {
                         throw new ResponseStatusException(HttpStatus.CONFLICT,
                                 "库存不足 sku=" + item.skuId() + " 当前=" + available + " 选购=" + item.qty());
@@ -432,7 +465,11 @@ public class SessionService {
      */
     @Transactional
     public LiveCartDto updateLiveCartFromVision(String sessionId, LiveCartUpdateRequest request) {
-        ShoppingSession session = repository.findById(sessionId)
+        return runWithSessionLifeLock(sessionId, () -> doUpdateLiveCartFromVision(sessionId, request));
+    }
+
+    private LiveCartDto doUpdateLiveCartFromVision(String sessionId, LiveCartUpdateRequest request) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!EnumSet.of(SessionState.CREATED, SessionState.OPENING, SessionState.SHOPPING).contains(session.getState())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, ApiMessages.SESSION_STATE_INVALID);
@@ -596,12 +633,14 @@ public class SessionService {
     /** 关门事务提交后再结算，避免 vision 异常回滚门状态。 */
     @Transactional
     public SessionDto settleAfterClose(String sessionId) {
-        ShoppingSession session = repository.findById(sessionId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
-        if (session.getState() != SessionState.RECOGNIZING) {
-            return toDto(session);
-        }
-        return settleSession(session);
+        return runWithSessionLifeLock(sessionId, () -> {
+            ShoppingSession session = repository.findByIdForUpdate(sessionId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
+            if (session.getState() != SessionState.RECOGNIZING) {
+                return toDto(session);
+            }
+            return settleSession(session);
+        });
     }
 
     private SessionDto settleSession(ShoppingSession session) {
@@ -684,7 +723,14 @@ public class SessionService {
 
     @Transactional
     public void completeAsyncRecognition(String sessionId, VisionServiceClient.RecognitionResult recognition) {
-        ShoppingSession session = repository.findById(sessionId)
+        runWithSessionLifeLock(sessionId, () -> {
+            doCompleteAsyncRecognition(sessionId, recognition);
+            return null;
+        });
+    }
+
+    private void doCompleteAsyncRecognition(String sessionId, VisionServiceClient.RecognitionResult recognition) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (session.getState() != SessionState.RECOGNIZING) {
             log.warn("ignore async recognition session={} state={}", sessionId, session.getState());
@@ -786,7 +832,11 @@ public class SessionService {
 
     @Transactional
     public SessionDto cancelSession(Long userId, String sessionId) {
-        ShoppingSession session = repository.findById(sessionId)
+        return runWithSessionLifeLock(sessionId, () -> doCancelSession(userId, sessionId));
+    }
+
+    private SessionDto doCancelSession(Long userId, String sessionId) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         requireSessionOwner(userId, session);
         if (session.getState() == SessionState.CANCELLED) {
@@ -846,7 +896,11 @@ public class SessionService {
     /** 运营兜底：终止异常活跃会话，使设备重新可用。调用方必须完成权限、二次确认和审计。 */
     @Transactional
     public SessionDto forceCancelForOperations(String sessionId, String reason) {
-        ShoppingSession session = repository.findById(sessionId)
+        return runWithSessionLifeLock(sessionId, () -> doForceCancelForOperations(sessionId, reason));
+    }
+
+    private SessionDto doForceCancelForOperations(String sessionId, String reason) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (!ACTIVE_STATES.contains(session.getState())) return toDto(session);
         consumerPreauthService.releaseIfFrozen(session);
@@ -864,7 +918,11 @@ public class SessionService {
     /** 运营重试识别/结算。订单和扣款仍由 SettlementService 的会话幂等约束保护。 */
     @Transactional
     public SessionDto retryForOperations(String sessionId) {
-        ShoppingSession session = repository.findById(sessionId)
+        return runWithSessionLifeLock(sessionId, () -> doRetryForOperations(sessionId));
+    }
+
+    private SessionDto doRetryForOperations(String sessionId) {
+        ShoppingSession session = repository.findByIdForUpdate(sessionId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, ApiMessages.SESSION_NOT_FOUND));
         if (session.getState() == SessionState.COMPLETED) return toDto(session);
         if (!EnumSet.of(SessionState.FAILED, SessionState.DISPUTED, SessionState.RECOGNIZING,
@@ -1128,5 +1186,45 @@ public class SessionService {
         return userInfoRepository.findById(userId)
                 .map(u -> PayChannels.normalizeEntryChannel(u.getPayPreferredChannel()))
                 .orElse(null);
+    }
+
+    static String sessionLifeLockKey(String sessionId) {
+        return "session:life:" + sessionId;
+    }
+
+    static String sessionOpenLockKey(String deviceId) {
+        return "session:open:" + deviceId;
+    }
+
+    private <T> T runWithDeviceOpenLock(String deviceId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(sessionOpenLockKey(deviceId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "设备开门处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(sessionOpenLockKey(deviceId));
+        }
+    }
+
+    private <T> T runWithSessionLifeLock(String sessionId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(sessionLifeLockKey(sessionId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "会话处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (DisputeRequiredException | BalanceInsufficientException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(sessionLifeLockKey(sessionId));
+        }
     }
 }

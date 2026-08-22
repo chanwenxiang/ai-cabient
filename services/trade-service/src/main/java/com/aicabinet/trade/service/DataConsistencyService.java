@@ -8,10 +8,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.util.HashSet;
@@ -69,6 +71,9 @@ private ObjectMapper objectMapper;
 
 @Autowired
 private ScheduledTaskService taskService;
+
+@Autowired
+private DistributedLockService distributedLockService;
 
     /** 记录业务变更（可选审计）；失败不影响主流程。 */
     public void logChange(String tableName, String recordId, String operation,
@@ -128,12 +133,19 @@ private ScheduledTaskService taskService;
         return failed == null ? 0 : failed.size();
     }
 
-    /** PAID 订单头金额 vs 明细行合计（不含 DISPUTED，避免审单中误报）。 */
+    /** PAID 订单头金额 vs 明细折后合计（明细 − 券/会员折扣；不含 DISPUTED）。 */
     void checkOrderConsistency() {
-        String sql = "SELECT o.order_id, o.total_amount_cents, COALESCE(SUM(ol.line_amount_cents), 0) as calculated_total "
+        String sql = "SELECT o.order_id, o.total_amount_cents, "
+                + "COALESCE(SUM(ol.line_amount_cents), 0) AS line_subtotal, "
+                + "COALESCE(o.coupon_discount_cents, 0) AS coupon_discount, "
+                + "COALESCE(o.member_discount_cents, 0) AS member_discount, "
+                + "COALESCE(SUM(ol.line_amount_cents), 0) "
+                + "- COALESCE(o.coupon_discount_cents, 0) - COALESCE(o.member_discount_cents, 0) AS payable_from_lines "
                 + "FROM cabinet_order o LEFT JOIN cabinet_order_line ol ON o.order_id = ol.order_id "
-                + "WHERE o.status = 'PAID' GROUP BY o.order_id, o.total_amount_cents "
-                + "HAVING o.total_amount_cents != COALESCE(SUM(ol.line_amount_cents), 0) "
+                + "WHERE o.status = 'PAID' "
+                + "GROUP BY o.order_id, o.total_amount_cents, o.coupon_discount_cents, o.member_discount_cents "
+                + "HAVING o.total_amount_cents <> COALESCE(SUM(ol.line_amount_cents), 0) "
+                + "- COALESCE(o.coupon_discount_cents, 0) - COALESCE(o.member_discount_cents, 0) "
                 + "LIMIT " + CHECK_BATCH;
 
         Set<String> failing = new HashSet<>();
@@ -142,12 +154,15 @@ private ScheduledTaskService taskService;
             String orderId = String.valueOf(row.get("order_id"));
             failing.add(orderId);
             String expected = String.valueOf(row.get("total_amount_cents"));
-            String actual = String.valueOf(row.get("calculated_total"));
+            String actual = String.valueOf(row.get("payable_from_lines"));
+            String lineSubtotal = String.valueOf(row.get("line_subtotal"));
             recordInconsistency("ORDER_AMOUNT", "cabinet_order",
                     orderId,
                     expected,
                     actual,
-                    "订单头金额 " + expected + " ≠ 明细合计 " + actual);
+                    "订单头 " + expected + " ≠ 明细折后 " + actual
+                            + "（明细 " + lineSubtotal + "，券 " + row.get("coupon_discount")
+                            + "，会员 " + row.get("member_discount") + "）");
         }
         resolveStaleFailuresIfComplete("ORDER_AMOUNT", failing, rows.size());
     }
@@ -223,20 +238,14 @@ private ScheduledTaskService taskService;
     }
 
     /**
-     * 会员可用积分 vs 积分日志（EARN 累加 - USE/EXPIRE 扣减）汇总。
+     * 会员可用积分 vs 积分流水 points 字段合计（EARN 为正、USE/EXPIRE 为负）。
      */
     void checkPointsConsistency() {
         String sql = "SELECT m.member_id, m.available_points AS expected, "
-                + "COALESCE((SELECT SUM(CASE "
-                + "  WHEN l.points_type = 'EARN' THEN l.points "
-                + "  WHEN l.points_type IN ('USE', 'EXPIRE') THEN -l.points "
-                + "  ELSE 0 END) "
+                + "COALESCE((SELECT SUM(l.points) "
                 + "  FROM member_points_log l WHERE l.member_id = m.member_id), 0) AS calculated "
                 + "FROM member m "
-                + "WHERE m.available_points <> COALESCE((SELECT SUM(CASE "
-                + "  WHEN l.points_type = 'EARN' THEN l.points "
-                + "  WHEN l.points_type IN ('USE', 'EXPIRE') THEN -l.points "
-                + "  ELSE 0 END) "
+                + "WHERE m.available_points <> COALESCE((SELECT SUM(l.points) "
                 + "  FROM member_points_log l WHERE l.member_id = m.member_id), 0) "
                 + "LIMIT " + CHECK_BATCH;
 
@@ -324,11 +333,26 @@ private ScheduledTaskService taskService;
 
     void recordInconsistency(String checkType, String tableName,
                              String checkKey, String expected, String actual, String errorMessage) {
+        String lockKey = consistencyCheckLockKey(checkType, checkKey);
+        if (!distributedLockService.tryLock(lockKey, 60, 5)) {
+            log.warn("consistency check lock busy type={} key={}", checkType, checkKey);
+            return;
+        }
+        try {
+            doRecordInconsistency(checkType, tableName, checkKey, expected, actual, errorMessage);
+        } finally {
+            distributedLockService.unlock(lockKey);
+        }
+    }
+
+    private void doRecordInconsistency(String checkType, String tableName,
+                                       String checkKey, String expected, String actual, String errorMessage) {
         try {
             List<DataConsistencyRecord> open = consistencyRepository
                     .findByCheckTypeAndCheckKeyAndStatus(checkType, checkKey, STATUS_FAIL);
             if (open != null && !open.isEmpty()) {
-                DataConsistencyRecord existing = open.get(0);
+                DataConsistencyRecord existing = consistencyRepository.findByIdForUpdate(open.get(0).getId())
+                        .orElse(open.get(0));
                 existing.setExpectedValue(expected);
                 existing.setActualValue(actual);
                 if (errorMessage != null && !errorMessage.isBlank()) {
@@ -356,6 +380,10 @@ private ScheduledTaskService taskService;
                 checkType, checkKey, expected, actual);
     }
 
+    static String consistencyCheckLockKey(String checkType, String checkKey) {
+        return "data-consistency:check:" + checkType + ":" + checkKey;
+    }
+
     /** 人工修复入口：默认仅 ORDER_AMOUNT / INVENTORY_MISMATCH 可修。 */
     @Transactional
     public boolean fixInconsistency(Long recordId) {
@@ -365,7 +393,11 @@ private ScheduledTaskService taskService;
     /** 带说明的修复入口（运营控制台）。 */
     @Transactional
     public FixOutcome fixInconsistencyDetailed(Long recordId) {
-        DataConsistencyRecord record = consistencyRepository.findById(recordId).orElse(null);
+        return runWithConsistencyRecordLock(recordId, () -> doFixInconsistencyDetailed(recordId));
+    }
+
+    private FixOutcome doFixInconsistencyDetailed(Long recordId) {
+        DataConsistencyRecord record = consistencyRepository.findByIdForUpdate(recordId).orElse(null);
         if (record == null) {
             return FixOutcome.fail("记录不存在");
         }
@@ -385,6 +417,22 @@ private ScheduledTaskService taskService;
         } catch (Exception e) {
             log.error("修复一致性问题失败 recordId={}", recordId, e);
             return FixOutcome.fail("修复异常: " + e.getMessage());
+        }
+    }
+
+    static String consistencyRecordLockKey(Long recordId) {
+        return "data-consistency:record:" + recordId;
+    }
+
+    private <T> T runWithConsistencyRecordLock(Long recordId, java.util.function.Supplier<T> action) {
+        String key = consistencyRecordLockKey(recordId);
+        if (!distributedLockService.tryLock(key, 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "一致性记录处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(key);
         }
     }
 
@@ -420,19 +468,33 @@ private ScheduledTaskService taskService;
                 "SELECT COALESCE(SUM(line_amount_cents), 0) FROM cabinet_order_line WHERE order_id = ?",
                 rs -> rs.next() ? rs.getInt(1) : 0,
                 orderId);
+        Integer couponDiscount = jdbcTemplate.query(
+                "SELECT COALESCE(coupon_discount_cents, 0) FROM cabinet_order WHERE order_id = ?",
+                rs -> rs.next() ? rs.getInt(1) : 0,
+                orderId);
+        Integer memberDiscount = jdbcTemplate.query(
+                "SELECT COALESCE(member_discount_cents, 0) FROM cabinet_order WHERE order_id = ?",
+                rs -> rs.next() ? rs.getInt(1) : 0,
+                orderId);
+        int payableFromLines = lineSum - couponDiscount - memberDiscount;
         Integer lineCount = jdbcTemplate.query(
                 "SELECT COUNT(*) FROM cabinet_order_line WHERE order_id = ?",
                 rs -> rs.next() ? rs.getInt(1) : 0,
                 orderId);
 
+        if (header == payableFromLines) {
+            return FixOutcome.ok("头金额已与明细折后一致");
+        }
+
         if (paid != null && paid.equals(header)) {
-            if (lineCount != null && lineCount == 1 && lineSum != null && !lineSum.equals(header)) {
+            if (lineCount != null && lineCount == 1 && lineSum != null && lineSum != header + couponDiscount + memberDiscount) {
+                int targetLine = header + couponDiscount + memberDiscount;
                 jdbcTemplate.update(
                         "UPDATE cabinet_order_line SET line_amount_cents = ?, "
                                 + "unit_price_cents = CASE WHEN quantity > 0 THEN ? / quantity ELSE ? END "
                                 + "WHERE order_id = ?",
-                        header, header, header, orderId);
-                return FixOutcome.ok("已按入账金额对齐单行明细");
+                        targetLine, targetLine, targetLine, orderId);
+                return FixOutcome.ok("已按入账金额对齐单行明细（含折扣）");
             }
             if (lineCount != null && lineCount == 0) {
                 return FixOutcome.fail("无明细行，无法自动补 SKU，请人工补行");
@@ -440,13 +502,13 @@ private ScheduledTaskService taskService;
             return FixOutcome.fail("多行明细与头金额不一致，需人工拆分/改价");
         }
 
-        if (lineSum != null && lineSum > 0) {
+        if (lineSum != null && lineSum > 0 && paid != null && paid == 0) {
             jdbcTemplate.update(
                     "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?",
-                    lineSum, orderId);
-            return FixOutcome.ok("无匹配入账流水，已把头金额改为明细合计 " + lineSum);
+                    payableFromLines, orderId);
+            return FixOutcome.ok("无匹配入账流水，已把头金额改为明细折后 " + payableFromLines);
         }
-        return FixOutcome.fail("明细合计为 0，无法自动修复");
+        return FixOutcome.fail("明细折后为 0 或与入账不一致，无法自动修复");
     }
 
     private FixOutcome fixInventoryMismatch(DataConsistencyRecord record) {

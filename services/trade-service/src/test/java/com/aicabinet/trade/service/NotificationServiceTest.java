@@ -13,6 +13,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.util.Map;
 import java.util.Optional;
@@ -24,6 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class NotificationServiceTest {
 
     @Mock private NotificationTemplateMapper templateRepository;
@@ -32,11 +35,15 @@ class NotificationServiceTest {
     @Mock private ExternalNotificationDispatcher externalDispatcher;
     @Mock private ObjectProvider<NotificationDispatchProducer> producerProvider;
     @Mock private NotificationDispatchProducer producer;
+    @Mock private DistributedLockService distributedLockService;
 
     private NotificationService service(boolean async) {
+        when(distributedLockService.tryLock(org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.eq(60L), org.mockito.ArgumentMatchers.eq(5L)))
+                .thenReturn(true);
         return new NotificationService(templateRepository, logRepository,
                 new NotificationProperties(false, false, async), notifyPrefService,
-                externalDispatcher, producerProvider);
+                externalDispatcher, producerProvider, distributedLockService);
     }
 
     private static NotificationTemplate template(String channels, String category) {

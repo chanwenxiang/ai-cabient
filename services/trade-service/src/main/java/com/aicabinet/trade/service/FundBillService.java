@@ -44,6 +44,7 @@ public class FundBillService {
     private final InventoryWriteOffMapper writeOffMapper;
     private final MerchantScopeService merchantScopeService;
     private final PermissionService permissionService;
+    private final DistributedLockService distributedLockService;
 
     public FundBillService(OrderRevenueSplitMapper splitMapper,
                            MerchantMapper merchantMapper,
@@ -52,7 +53,8 @@ public class FundBillService {
                            CabinetOrderLineMapper lineMapper,
                            InventoryWriteOffMapper writeOffMapper,
                            MerchantScopeService merchantScopeService,
-                           PermissionService permissionService) {
+                           PermissionService permissionService,
+                           DistributedLockService distributedLockService) {
         this.splitMapper = splitMapper;
         this.merchantMapper = merchantMapper;
         this.marginLockMapper = marginLockMapper;
@@ -61,6 +63,7 @@ public class FundBillService {
         this.writeOffMapper = writeOffMapper;
         this.merchantScopeService = merchantScopeService;
         this.permissionService = permissionService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -92,13 +95,17 @@ public class FundBillService {
         record Key(String date, String merchantId) {}
         Map<Key, Agg> aggs = new HashMap<>();
         for (OrderRevenueSplit s : splits) {
+            String status = s.getStatus() == null ? "" : s.getStatus().trim().toUpperCase();
+            if ("VOIDED".equals(status) || "REVERSED".equals(status)) {
+                continue;
+            }
             LocalDate d = LocalDate.ofInstant(s.getCreatedAt(), ZONE);
             Key key = new Key(d.toString(), s.getMerchantId());
             Agg a = aggs.computeIfAbsent(key, k -> new Agg());
             a.orderCount++;
             a.gross += s.getGrossCents();
             a.platform += s.getPlatformCents();
-            if ("SUCCESS".equals(s.getStatus())) {
+            if (isMerchantCreditedStatus(status)) {
                 a.credited += s.getMerchantCents();
             } else {
                 a.pending += s.getMerchantCents();
@@ -206,9 +213,13 @@ public class FundBillService {
         }
         LocalDate day = bizDate != null ? bizDate : LocalDate.now(ZONE).minusDays(1);
         if (!day.isBefore(LocalDate.now(ZONE))) {
-            // 仅允许固化历史日；今日保持实时
             day = LocalDate.now(ZONE).minusDays(1);
         }
+        final LocalDate targetDay = day;
+        return runWithMarginSolidifyLock(targetDay, () -> doSolidifyMargin(operatorId, targetDay));
+    }
+
+    private FinanceMarginLockDto doSolidifyMargin(Long operatorId, LocalDate day) {
         Instant start = day.atStartOfDay(ZONE).toInstant();
         Instant end = day.plusDays(1).atStartOfDay(ZONE).toInstant();
         Set<String> deviceIds = operatorId == null ? null : merchantScopeService.allowedDeviceIds(operatorId);
@@ -345,5 +356,26 @@ public class FundBillService {
         long platform;
         long credited;
         long pending;
+    }
+
+    static String marginSolidifyLockKey(LocalDate bizDate) {
+        return "fund:margin:solidify:" + bizDate;
+    }
+
+    static boolean isMerchantCreditedStatus(String status) {
+        return "SUCCESS".equals(status) || "SETTLED".equals(status) || "LEDGER_ONLY".equals(status);
+    }
+
+    private FinanceMarginLockDto runWithMarginSolidifyLock(LocalDate day,
+                                                           java.util.function.Supplier<FinanceMarginLockDto> action) {
+        if (!distributedLockService.tryLock(marginSolidifyLockKey(day), 120, 5)) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.CONFLICT, "毛利快照固化中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } finally {
+            distributedLockService.unlock(marginSolidifyLockKey(day));
+        }
     }
 }

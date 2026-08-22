@@ -9,6 +9,8 @@ import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DisputeTicketMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.SlaDailySnapshotMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,8 @@ import java.util.Set;
 @Service
 public class SlaMetricsService {
 
+    private static final Logger log = LoggerFactory.getLogger(SlaMetricsService.class);
+
     private static final List<SessionState> DOOR_SUCCESS_STATES =
             List.of(SessionState.COMPLETED, SessionState.DISPUTED);
 
@@ -33,6 +37,7 @@ public class SlaMetricsService {
     private final MerchantScopeService merchantScopeService;
     private final DisputeTicketMapper disputeRepository;
     private final DisputeSlaService disputeSlaService;
+    private final DistributedLockService distributedLockService;
 
     @Autowired
     private ScheduledTaskService taskService;
@@ -42,13 +47,15 @@ public class SlaMetricsService {
                              SlaDailySnapshotMapper snapshotRepository,
                              MerchantScopeService merchantScopeService,
                              DisputeTicketMapper disputeRepository,
-                             DisputeSlaService disputeSlaService) {
+                             DisputeSlaService disputeSlaService,
+                             DistributedLockService distributedLockService) {
         this.sessionRepository = sessionRepository;
         this.deviceRepository = deviceRepository;
         this.snapshotRepository = snapshotRepository;
         this.merchantScopeService = merchantScopeService;
         this.disputeRepository = disputeRepository;
         this.disputeSlaService = disputeSlaService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -94,7 +101,7 @@ public class SlaMetricsService {
         try {
             LocalDate yesterday = LocalDate.now().minusDays(1);
             SlaDailySnapshot snap = buildSnapshot(yesterday);
-            snapshotRepository.save(snap);
+            persistSnapshot(yesterday, snap);
             summary = "已写入 " + yesterday + " SLA 快照，开门成功 "
                     + snap.getDoorOpenSuccess() + "/" + snap.getDoorOpenAttempts();
         } catch (Exception e) {
@@ -133,6 +140,40 @@ public class SlaMetricsService {
         snap.setDeviceOnlinePeak(online);
         snap.setDeviceOnlineRate(deviceTotal == 0 ? 0f : (float) online / deviceTotal);
         return snap;
+    }
+
+    static String slaSnapshotDailyLockKey(LocalDate date) {
+        return "sla:snapshot:daily:" + date;
+    }
+
+    private void persistSnapshot(LocalDate date, SlaDailySnapshot snap) {
+        if (!distributedLockService.tryLock(slaSnapshotDailyLockKey(date), 60, 5)) {
+            log.warn("sla snapshot lock busy date={}", date);
+            return;
+        }
+        try {
+            SlaDailySnapshot row = snapshotRepository.findByIdForUpdate(date).orElseGet(() -> {
+                SlaDailySnapshot fresh = new SlaDailySnapshot();
+                fresh.setSnapshotDate(date);
+                return fresh;
+            });
+            row.setDoorOpenAttempts(snap.getDoorOpenAttempts());
+            row.setDoorOpenSuccess(snap.getDoorOpenSuccess());
+            row.setDoorSuccessRate(snap.getDoorSuccessRate());
+            row.setAvgRecognizeMs(snap.getAvgRecognizeMs());
+            row.setP95RecognizeMs(snap.getP95RecognizeMs());
+            row.setDeviceTotal(snap.getDeviceTotal());
+            row.setDeviceOnlinePeak(snap.getDeviceOnlinePeak());
+            row.setDeviceOnlineRate(snap.getDeviceOnlineRate());
+            row.setCreatedAt(Instant.now());
+            if (snapshotRepository.selectById(date) == null) {
+                snapshotRepository.insert(row);
+            } else {
+                snapshotRepository.updateById(row);
+            }
+        } finally {
+            distributedLockService.unlock(slaSnapshotDailyLockKey(date));
+        }
     }
 
     @Transactional(readOnly = true)

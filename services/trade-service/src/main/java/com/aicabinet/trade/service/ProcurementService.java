@@ -25,6 +25,7 @@ public class ProcurementService {
     private final SkuCatalogMapper skuCatalogRepository;
     private final WarehouseService warehouseService;
     private final SupplierPayableService supplierPayableService;
+    private final DistributedLockService distributedLockService;
 
     public ProcurementService(PermissionService permissionService,
                               SupplierMapper supplierRepository,
@@ -35,7 +36,8 @@ public class ProcurementService {
                               WarehouseMapper warehouseRepository,
                               SkuCatalogMapper skuCatalogRepository,
                               WarehouseService warehouseService,
-                              SupplierPayableService supplierPayableService) {
+                              SupplierPayableService supplierPayableService,
+                              DistributedLockService distributedLockService) {
         this.permissionService = permissionService;
         this.supplierRepository = supplierRepository;
         this.purchaseOrderRepository = purchaseOrderRepository;
@@ -46,6 +48,7 @@ public class ProcurementService {
         this.skuCatalogRepository = skuCatalogRepository;
         this.warehouseService = warehouseService;
         this.supplierPayableService = supplierPayableService;
+        this.distributedLockService = distributedLockService;
     }
 
     @Transactional(readOnly = true)
@@ -145,7 +148,12 @@ public class ProcurementService {
         if (request.lines() == null || request.lines().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "return lines required");
         }
-        PurchaseOrder order = purchaseOrderRepository.findById(request.purchaseOrderId())
+        return runWithPurchaseOrderLock(request.purchaseOrderId(),
+                () -> doCreatePurchaseReturn(operatorId, request));
+    }
+
+    private PurchaseReturnDto doCreatePurchaseReturn(Long operatorId, CreatePurchaseReturnRequest request) {
+        PurchaseOrder order = purchaseOrderRepository.findByIdForUpdate(request.purchaseOrderId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "purchase order not found"));
         if (!"RECEIVED".equals(order.getStatus()) && !"PARTIAL_RECEIVED".equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "purchase order has no receivable stock to return");
@@ -210,7 +218,13 @@ public class ProcurementService {
     public PurchaseOrderDto receivePurchaseOrder(Long operatorId, Long purchaseOrderId,
                                                  ReceivePurchaseOrderRequest request) {
         requireWarehouseWrite(operatorId);
-        PurchaseOrder order = purchaseOrderRepository.findById(purchaseOrderId)
+        return runWithPurchaseOrderLock(purchaseOrderId,
+                () -> doReceivePurchaseOrder(operatorId, purchaseOrderId, request));
+    }
+
+    private PurchaseOrderDto doReceivePurchaseOrder(Long operatorId, Long purchaseOrderId,
+                                                    ReceivePurchaseOrderRequest request) {
+        PurchaseOrder order = purchaseOrderRepository.findByIdForUpdate(purchaseOrderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "purchase order not found"));
         if (!"CREATED".equals(order.getStatus()) && !"PARTIAL_RECEIVED".equals(order.getStatus())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "purchase order state invalid");
@@ -408,5 +422,24 @@ public class ProcurementService {
 
     private void requireWarehouseWrite(Long operatorId) {
         permissionService.requirePermission(operatorId, "ops:procurement:edit");
+    }
+
+    static String purchaseOrderLockKey(Long purchaseOrderId) {
+        return "procurement:po:" + purchaseOrderId;
+    }
+
+    private <T> T runWithPurchaseOrderLock(Long purchaseOrderId, java.util.function.Supplier<T> action) {
+        if (!distributedLockService.tryLock(purchaseOrderLockKey(purchaseOrderId), 60, 5)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "采购单处理中，请稍后重试");
+        }
+        try {
+            return action.get();
+        } catch (ResponseStatusException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage(), e);
+        } finally {
+            distributedLockService.unlock(purchaseOrderLockKey(purchaseOrderId));
+        }
     }
 }

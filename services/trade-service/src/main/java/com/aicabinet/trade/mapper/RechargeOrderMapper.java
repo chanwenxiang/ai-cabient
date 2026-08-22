@@ -7,11 +7,18 @@ import java.util.List;
 import java.util.Optional;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+import org.apache.ibatis.annotations.Param;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 @Mapper
 public interface RechargeOrderMapper extends BaseTradeMapper<RechargeOrder> {
+
+    RechargeOrder _findByIdForUpdateRaw(@Param("orderId") String orderId);
+
+    default Optional<RechargeOrder> findByIdForUpdate(String orderId) {
+        return Optional.ofNullable(_findByIdForUpdateRaw(orderId));
+    }
 
     default Optional<RechargeOrder> findByIdempotencyKey(String idempotencyKey) {
     return Optional.ofNullable(selectOne(Wrappers.<RechargeOrder>lambdaQuery().eq(RechargeOrder::getIdempotencyKey, idempotencyKey)));

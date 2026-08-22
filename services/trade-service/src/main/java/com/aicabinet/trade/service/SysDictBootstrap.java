@@ -185,7 +185,9 @@ public class SysDictBootstrap implements ApplicationRunner {
                 "UPLOAD_STUCK", "录像滞留", "SESSION_STALE", "会话超时",
                 "LOW_STOCK", "库存不足", "REPLENISHMENT", "补货任务",
                 "RECON_MISMATCH", "对账差异", "RECONCILIATION_MISMATCH", "对账差异",
-                "SPLIT_EXCEPTION", "分账异常", "IN_TRANSIT_OVERDUE", "签收超时")));
+                "SPLIT_EXCEPTION", "分账异常", "PROFIT_SHARING_RETURN_FAILED", "分账回退失败",
+                "PROFIT_SHARING_MANUAL_SUPPLEMENT", "分账需人工补账",
+                "IN_TRANSIT_OVERDUE", "签收超时")));
         map.put("ad_asset_type", t("广告素材类型", m(
                 "IMAGE", "图片", "VIDEO", "视频", "H5", "H5")));
         map.put("ad_campaign_status", t("投放计划状态", m(
