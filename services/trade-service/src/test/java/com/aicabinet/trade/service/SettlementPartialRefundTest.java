@@ -8,7 +8,6 @@ import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -19,11 +18,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.lenient;
@@ -94,12 +93,10 @@ class SettlementPartialRefundTest {
         assertEquals(1, order.getLines().get(0).getQuantity());
         assertEquals(300, order.getTotalAmountCents());
 
-        ArgumentCaptor<List> restoreCap = ArgumentCaptor.forClass(List.class);
-        verify(inventoryService).restoreForOrder(eq("CAB-001"), restoreCap.capture(), anyMap());
-        assertEquals(1, restoreCap.getValue().size());
-        ArgumentCaptor<List> keptCap = ArgumentCaptor.forClass(List.class);
-        verify(inventoryService).recordRefundKeptGoods(eq("CAB-001"), keptCap.capture(), anyMap(), eq("O-1"));
-        assertEquals(1, keptCap.getValue().size());
+        verify(inventoryService).restoreForOrder(
+                eq("CAB-001"), argThat(list -> list != null && list.size() == 1), anyMap());
+        verify(inventoryService).recordRefundKeptGoods(
+                eq("CAB-001"), argThat(list -> list != null && list.size() == 1), anyMap(), eq("O-1"));
         verify(revenueSplitService, never()).voidSplitOnFullRefund(anyString());
     }
 
