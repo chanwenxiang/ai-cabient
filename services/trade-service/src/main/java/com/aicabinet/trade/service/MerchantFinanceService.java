@@ -346,7 +346,16 @@ public class MerchantFinanceService {
         }
         String preview = lines.stream()
                 .limit(2)
-                .map(l -> l.getSkuName() + " x" + l.getQuantity())
+                .map(l -> {
+                    String name = l.getSkuName() + " x" + l.getQuantity();
+                    if (l.getSlotId() != null && !l.getSlotId().isBlank()) {
+                        name += " ·货道" + l.getSlotId().trim();
+                    }
+                    if (l.getBatchNo() != null && !l.getBatchNo().isBlank()) {
+                        name += " @" + l.getBatchNo().trim();
+                    }
+                    return name;
+                })
                 .reduce((a, b) -> a + "、" + b)
                 .orElse("");
         if (lines.size() > 2) {

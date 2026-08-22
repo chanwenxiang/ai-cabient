@@ -113,9 +113,19 @@
                       >{{ o.lineCount }} 件</text
                     >
                     <text class="order-tag">{{ payChannelText(o.payChannel) }}</text>
+                    <text v-for="slot in slotTags(o)" :key="slot" class="order-tag slot">{{
+                      slot
+                    }}</text>
+                    <text v-if="Number(o.couponDiscountCents || 0) > 0" class="order-tag soft"
+                      >券减¥{{ (Number(o.couponDiscountCents) / 100).toFixed(2) }}</text
+                    >
+                    <text v-if="Number(o.memberDiscountCents || 0) > 0" class="order-tag soft"
+                      >会员减¥{{ (Number(o.memberDiscountCents) / 100).toFixed(2) }}</text
+                    >
                     <text v-if="payTradeShort(o)" class="order-tag mono">{{
                       payTradeShort(o)
                     }}</text>
+                    <text v-if="canInvoiceHint(o)" class="order-tag soft">可开票</text>
                   </view>
                 </view>
                 <view class="order-amt-block">
@@ -309,6 +319,19 @@ function refundCents(o: OrderSummary) {
   if (n > 0) return n;
   if (o.status === 'REFUNDED') return Number(o.totalAmountCents || 0);
   return 0;
+}
+function slotTags(o: OrderSummary): string[] {
+  const raw = String(o.lineSummary || '');
+  const found = raw.match(/货道\s*([A-Za-z0-9_-]+)/g) || [];
+  const slots = found
+    .map((s) => s.replace(/^货道\s*/, '').trim())
+    .filter(Boolean)
+    .map((s) => `货道${s}`);
+  return [...new Set(slots)].slice(0, 3);
+}
+function canInvoiceHint(o: OrderSummary) {
+  const s = String(o.status || '');
+  return s === 'PAID' || s === 'COMPLETED' || s === 'PARTIAL_REFUNDED';
 }
 function payTradeShort(o: OrderSummary) {
   const raw = String(o.payTradeNo || o.paymentOperationId || '').trim();
@@ -824,6 +847,14 @@ onPullDownRefresh(() => load().finally(() => uni.stopPullDownRefresh()));
 .order-tag.mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color: #64748b;
+}
+.order-tag.slot {
+  color: #0f766e;
+  background: #ecfdf5;
+}
+.order-tag.soft {
+  color: #b45309;
+  background: #fffbeb;
 }
 .order-amt-block {
   flex-shrink: 0;
