@@ -1,6 +1,5 @@
 package com.aicabinet.trade.service;
 
-import com.aicabinet.trade.domain.WarehouseOutbound;
 import com.aicabinet.trade.mapper.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

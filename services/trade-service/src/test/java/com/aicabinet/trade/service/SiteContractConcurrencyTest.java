@@ -1,7 +1,6 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.UpsertSiteContractRequest;
-import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.SiteContractMapper;
 import org.junit.jupiter.api.BeforeEach;

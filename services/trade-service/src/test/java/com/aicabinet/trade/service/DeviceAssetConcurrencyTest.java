@@ -1,7 +1,6 @@
 package com.aicabinet.trade.service;
 
 import com.aicabinet.common.dto.DeviceLifecycleRequest;
-import com.aicabinet.trade.domain.DeviceInfo;
 import com.aicabinet.trade.mapper.DeviceInfoMapper;
 import com.aicabinet.trade.mapper.DeviceLifecycleEventMapper;
 import com.aicabinet.trade.mapper.DeviceSkuInventoryMapper;

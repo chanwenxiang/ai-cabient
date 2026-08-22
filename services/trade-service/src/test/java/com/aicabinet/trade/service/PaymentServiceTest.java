@@ -266,6 +266,55 @@ class PaymentServiceTest {
         verify(alipayPayClient).refund(eq("R-ALI-BF"), anyString(), eq(200), eq("test"));
     }
 
+    @Test
+    void createRechargePrepay_whenIdempotencyLockBusy_rejectsWithConflict() {
+        when(distributedLockService.tryLock(
+                eq(PaymentService.rechargeIdempotencyLockKey("idem-1")), eq(60L), eq(5L)))
+                .thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> paymentService.createRechargePrepay(10001L, "WECHAT", 500, "idem-1", "127.0.0.1"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+    }
+
+    @Test
+    void cancelRecharge_whenOrderLockBusy_rejectsWithConflict() {
+        when(distributedLockService.tryLock(
+                eq(PaymentService.rechargeLockKey("R-BUSY")), eq(60L), eq(5L)))
+                .thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> paymentService.cancelRecharge(10001L, "R-BUSY"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+    }
+
+    @Test
+    void cancelRecharge_whenOrderNotFound_unlocksLock() {
+        when(distributedLockService.tryLock(
+                eq(PaymentService.rechargeLockKey("R-MISS")), eq(60L), eq(5L)))
+                .thenReturn(true);
+        when(rechargeOrderRepository.findByIdForUpdate("R-MISS")).thenReturn(Optional.empty());
+
+        assertThrows(ResponseStatusException.class,
+                () -> paymentService.cancelRecharge(10001L, "R-MISS"));
+
+        verify(distributedLockService).unlock(PaymentService.rechargeLockKey("R-MISS"));
+    }
+
+    @Test
+    void confirmRechargeMock_whenOrderLockBusy_rejectsWithConflict() {
+        when(distributedLockService.tryLock(
+                eq(PaymentService.rechargeLockKey("R-CONF")), eq(60L), eq(5L)))
+                .thenReturn(false);
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class,
+                () -> paymentService.confirmRechargeMock(10001L, "R-CONF"));
+
+        assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
+    }
+
     private static RechargeOrder pendingOrder(String id, Long userId) {
         RechargeOrder order = new RechargeOrder();
         order.setOrderId(id);

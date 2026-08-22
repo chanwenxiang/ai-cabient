@@ -43,7 +43,7 @@ class RestockSnapshotServiceTest {
 
     @BeforeEach
     void setUp() {
-        when(distributedLockService.tryLock(org.mockito.ArgumentMatchers.anyString(), eq(60L), eq(5L)))
+        when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L)))
                 .thenReturn(true);
         restockSnapshotService = new RestockSnapshotService(
                 gravityHelper, deviceSlotService, visionClient, distributedLockService);

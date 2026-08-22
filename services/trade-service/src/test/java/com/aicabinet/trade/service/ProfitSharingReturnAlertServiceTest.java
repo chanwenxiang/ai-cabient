@@ -8,8 +8,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.Map;
-
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -53,7 +52,7 @@ class ProfitSharingReturnAlertServiceTest {
                 eq("PROFIT_SHARING_RETURN_FAILED"),
                 eq("[分账回退补偿失败]"),
                 org.mockito.ArgumentMatchers.contains("O-1"),
-                org.mockito.ArgumentMatchers.any(Map.class));
+                anyMap());
     }
 
     @Test
@@ -80,7 +79,7 @@ class ProfitSharingReturnAlertServiceTest {
                 eq("PROFIT_SHARING_MANUAL_SUPPLEMENT"),
                 eq("[分账需人工补分账]"),
                 org.mockito.ArgumentMatchers.contains("O-2"),
-                org.mockito.ArgumentMatchers.any(Map.class));
+                anyMap());
     }
 
     @Test
@@ -106,7 +105,7 @@ class ProfitSharingReturnAlertServiceTest {
                 eq("PROFIT_SHARING_RETURN_SUBMIT_FAILED"),
                 eq("[分账回退提交失败]"),
                 org.mockito.ArgumentMatchers.contains("O-R"),
-                org.mockito.ArgumentMatchers.any(Map.class));
+                anyMap());
     }
 
     @Test
