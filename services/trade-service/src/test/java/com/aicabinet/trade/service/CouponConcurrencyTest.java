@@ -1,5 +1,6 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.CouponDefinitionMapper;
 import com.aicabinet.trade.mapper.UserCouponMapper;
@@ -25,6 +26,7 @@ class CouponConcurrencyTest {
     @Mock private UserCouponMapper userCouponRepository;
     @Mock private UserInfoMapper userInfoRepository;
     @Mock private CabinetOrderMapper orderRepository;
+    @Mock private CabinetOrderLineMapper orderLineRepository;
     @Mock private DistributedLockService distributedLockService;
     @Mock private PromotionService promotionService;
 
@@ -34,7 +36,7 @@ class CouponConcurrencyTest {
     void setUp() {
         couponService = new CouponService(
                 definitionRepository, userCouponRepository, userInfoRepository, orderRepository,
-                distributedLockService, promotionService);
+                orderLineRepository, distributedLockService, promotionService);
     }
 
     @Test

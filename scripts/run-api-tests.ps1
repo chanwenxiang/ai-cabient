@@ -35,7 +35,10 @@ function Login([string]$phone = "13800138000") {
 }
 
 function OpsLogin([string]$phone = "13900000001") {
-    Invoke-Api POST "/api/v2/auth/admin-password-login" @{} @{ phoneNumber = $phone; password = "123456" }
+    # admin-password-login 需图形验证码；Invoke-E2eApi 会从 Redis 自动补全 captcha 字段
+    Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/auth/admin-password-login" -Body @{
+        phoneNumber = $phone; password = "123456"
+    }
 }
 
 Write-Host "==> API tests against $BaseUrl"
@@ -146,16 +149,16 @@ try {
 }
 
 foreach ($pair in @(
-    @{ Id = "TC-INFRA-002"; Port = 8080; Path = "/actuator/health" },
-    @{ Id = "TC-INFRA-003"; Port = 8081; Path = "/actuator/health" },
-    @{ Id = "TC-INFRA-004"; Port = 8082; Path = "/health" }
+    @{ Id = "TC-INFRA-002"; Url = "http://localhost:18080/actuator/health" },
+    @{ Id = "TC-INFRA-003"; Url = "http://localhost:18081/actuator/health" },
+    @{ Id = "TC-INFRA-004"; Url = "http://localhost:18082/health" }
 )) {
     try {
-        $h = Invoke-RestMethod -Uri "http://localhost:$($pair.Port)$($pair.Path)" -TimeoutSec 5
-        $up = ($h.status -eq "UP") -or ($h.status -eq "ok") -or ($h.recognizer)
-        Record $pair.Id "Health :$($pair.Port)" $up "$($h.status)"
+        $h = Invoke-RestMethod -Uri $pair.Url -TimeoutSec 5
+        $up = ($h.status -eq "UP") -or ($h.status -eq "ok") -or ($h.recognizer_available -eq $true)
+        Record $pair.Id "Health $($pair.Url)" $up "$($h.status)"
     } catch {
-        Record $pair.Id "Health :$($pair.Port)" $false $_.Exception.Message
+        Record $pair.Id "Health $($pair.Url)" $false $_.Exception.Message
     }
 }
 

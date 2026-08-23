@@ -52,11 +52,11 @@ public class VisionAnomalyIngestService {
         String type = normalizeType(event.eventType());
         String severity = severityFor(type);
         String title = titleFor(type);
-        String detail = String.format(
-                "provider=%s confidence=%.2f%s",
-                event.provider() == null || event.provider().isBlank() ? "unknown" : event.provider(),
-                event.confidence(),
-                event.detail() == null || event.detail().isBlank() ? "" : " | " + event.detail());
+        String provider = event.provider() == null || event.provider().isBlank() ? "未知" : event.provider().trim();
+        String detail = String.format("识别来源：%s；置信度：%.2f", provider, event.confidence());
+        if (event.detail() != null && !event.detail().isBlank()) {
+            detail += "；补充说明：" + event.detail().trim();
+        }
         OpsExceptionDto created = opsExceptionService.report(
                 "VISION_ANOMALY", severity, event.deviceId(), event.sessionId(),
                 null, null, title, detail);

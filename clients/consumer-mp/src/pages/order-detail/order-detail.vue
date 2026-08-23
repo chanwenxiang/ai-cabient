@@ -82,7 +82,6 @@
           >
           <view
             v-if="
-              order?.refundedAt ||
               order?.status === 'REFUNDED' ||
               order?.status === 'PARTIAL_REFUNDED' ||
               refundCents > 0
@@ -92,9 +91,17 @@
             <text class="info-label">退款</text>
             <text class="info-value"
               >{{ order?.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款'
-              }}{{ refundCents > 0 ? ` ${fmtMoney(refundCents)}` : ''
-              }}{{ order?.refundedAt ? ` · ${formatTime(order.refundedAt)}` : '' }}</text
+              }}{{ refundCents > 0 ? ` ${fmtMoney(refundCents)}` : '' }}</text
             >
+          </view>
+          <view
+            v-if="order?.status === 'REFUNDED' || order?.status === 'PARTIAL_REFUNDED'"
+            class="info-row"
+          >
+            <text class="info-label">退款时间</text>
+            <text class="info-value">{{
+              order?.refundedAt ? formatTime(order.refundedAt) : '暂无'
+            }}</text>
           </view>
           <view class="info-row"
             ><text class="info-label">订单编号</text

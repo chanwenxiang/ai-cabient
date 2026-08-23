@@ -334,9 +334,9 @@ function canInvoiceHint(o: OrderSummary) {
   return s === 'PAID' || s === 'COMPLETED' || s === 'PARTIAL_REFUNDED';
 }
 function payTradeShort(o: OrderSummary) {
-  const raw = String(o.payTradeNo || o.paymentOperationId || '').trim();
-  if (!raw) return '';
-  return raw.length > 10 ? `…${raw.slice(-8)}` : raw;
+  const id = o.payTradeNo || o.paymentOperationId;
+  if (!id) return '';
+  return shortBizNo(id, 10);
 }
 function formatTime(value?: string) {
   return formatDateTimeShort(value);

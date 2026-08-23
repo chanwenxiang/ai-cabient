@@ -69,6 +69,34 @@ public class SysDictService {
         return buildActiveRuntimeMap();
     }
 
+  public static final String DEVICE_FAULT_ISSUE = "device_fault_issue";
+
+    /** 展示用：含已停用项，便于历史数据仍显示运营配置过的中文。 */
+    @Transactional(readOnly = true)
+    public String labelOf(String dictType, String value, String fallback) {
+        if (value == null || value.isBlank()) {
+            return fallback != null ? fallback : "暂无";
+        }
+        String type = dictType.trim().toLowerCase();
+        String key = value.trim().toUpperCase();
+        return dataRepository.findByDictTypeAndDictValue(type, key)
+                .map(SysDictData::getDictLabel)
+                .filter(label -> label != null && !label.isBlank())
+                .orElse(fallback != null ? fallback : key);
+    }
+
+    @Transactional(readOnly = true)
+    public boolean isActiveDictValue(String dictType, String value) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        String type = dictType.trim().toLowerCase();
+        String key = value.trim().toUpperCase();
+        return dataRepository.findByDictTypeAndDictValue(type, key)
+                .filter(row -> "ACTIVE".equalsIgnoreCase(row.getStatus()))
+                .isPresent();
+    }
+
     private DictDtos.DictRuntimeDto buildActiveRuntimeMap() {
         Map<String, List<DictDtos.DictDataDto>> map = new LinkedHashMap<>();
         for (SysDictData row : dataRepository.findByStatusOrderByDictTypeAscSortOrderAsc("ACTIVE")) {

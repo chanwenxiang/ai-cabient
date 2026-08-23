@@ -176,7 +176,7 @@ public class DevicePresenceService {
                 deviceRepository.clearSalesUnlockedAt(d.getDeviceId());
                 opsExceptionService.report("DEVICE_FAULT", "HIGH", d.getDeviceId(), null,
                         null, null, "离线超时自动停售",
-                        "设备离线超过 " + lockAfterMinutes + " 分钟，已自动锁机（故障码 OFFLINE_TIMEOUT）");
+                        "设备离线超过 " + lockAfterMinutes + " 分钟，已自动锁机（故障码：离线超时）");
                 auditService.record(0L, "DEVICE_AUTO_LOCK_OFFLINE", "DEVICE", d.getDeviceId(),
                         "离线超过 " + lockAfterMinutes + " 分钟，已自动锁机停售");
                 log.info("device auto sales-locked after offline device={} minutes={}",

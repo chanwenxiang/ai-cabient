@@ -23,6 +23,9 @@ public interface CabinetOrderMapper extends BaseTradeMapper<CabinetOrder> {
     /** 仅当 pay_trade_no 为空时写入，避免并发回填覆盖。 */
     int backfillPayTradeNoIfAbsent(@Param("orderId") String orderId, @Param("tradeNo") String tradeNo);
 
+    /** 仅当 payment_operation_id 为空时写入，避免并发回填覆盖。 */
+    int backfillPaymentOperationIdIfAbsent(@Param("orderId") String orderId, @Param("operationId") String operationId);
+
     default Optional<CabinetOrder> findBySessionId(String sessionId) {
     return Optional.ofNullable(selectOne(Wrappers.<CabinetOrder>lambdaQuery().eq(CabinetOrder::getSessionId, sessionId)));
     }

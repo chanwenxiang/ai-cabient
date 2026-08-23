@@ -53,6 +53,23 @@ public interface PaymentOperationMapper extends BaseTradeMapper<PaymentOperation
                 .findFirst();
     }
 
+    /** 购物单最新 CHARGE/ADJUST_CHARGE 操作号（legacy 订单 payment_operation_id 为空时回填）。 */
+    default Optional<String> findLatestChargeOperationId(String orderId) {
+        if (orderId == null || orderId.isBlank()) {
+            return Optional.empty();
+        }
+        return selectList(Wrappers.<PaymentOperation>lambdaQuery()
+                        .eq(PaymentOperation::getOrderId, orderId)
+                        .eq(PaymentOperation::getStatus, "COMPLETED")
+                        .in(PaymentOperation::getOperationType, "CHARGE", "ADJUST_CHARGE")
+                        .orderByDesc(PaymentOperation::getCreatedAt)
+                        .last("LIMIT 1"))
+                .stream()
+                .map(PaymentOperation::getOperationId)
+                .filter(s -> s != null && !s.isBlank())
+                .findFirst();
+    }
+
     /** 充值入账流水 gateway_trade_no（idempotency=recharge-credit:{orderId}）。 */
     default Optional<String> findRechargeCreditGatewayTradeNo(String rechargeOrderId) {
         if (rechargeOrderId == null || rechargeOrderId.isBlank()) {

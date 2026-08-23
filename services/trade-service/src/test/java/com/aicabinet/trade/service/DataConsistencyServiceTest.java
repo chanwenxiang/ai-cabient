@@ -1,6 +1,8 @@
 package com.aicabinet.trade.service;
 
+import com.aicabinet.trade.domain.CabinetOrder;
 import com.aicabinet.trade.domain.DataConsistencyRecord;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DataChangeLogMapper;
 import com.aicabinet.trade.mapper.DataConsistencyRecordMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,6 +37,9 @@ class DataConsistencyServiceTest {
     @Mock DataConsistencyRecordMapper consistencyRepository;
     @Mock JdbcTemplate jdbcTemplate;
     @Mock DistributedLockService distributedLockService;
+    @Mock CouponService couponService;
+    @Mock CabinetOrderMapper cabinetOrderRepository;
+    @Mock OrderPaymentService orderPaymentService;
 
     DataConsistencyService service;
 
@@ -51,6 +56,9 @@ class DataConsistencyServiceTest {
         ReflectionTestUtils.setField(service, "jdbcTemplate", jdbcTemplate);
         ReflectionTestUtils.setField(service, "objectMapper", new ObjectMapper());
         ReflectionTestUtils.setField(service, "distributedLockService", distributedLockService);
+        ReflectionTestUtils.setField(service, "couponService", couponService);
+        ReflectionTestUtils.setField(service, "cabinetOrderRepository", cabinetOrderRepository);
+        ReflectionTestUtils.setField(service, "orderPaymentService", orderPaymentService);
         when(distributedLockService.tryLock(anyString(), eq(60L), eq(5L))).thenReturn(true);
     }
 
@@ -180,13 +188,60 @@ class DataConsistencyServiceTest {
                 .thenReturn(0);
         when(jdbcTemplate.query(startsWith("SELECT COUNT(*)"), anyIntExtractor(), eq("O-FIX")))
                 .thenReturn(1);
-        when(jdbcTemplate.update(startsWith("UPDATE cabinet_order_line"), any(), any(), any(), eq("O-FIX")))
+        when(jdbcTemplate.query(startsWith("SELECT quantity"), anyIntExtractor(), eq("O-FIX")))
+                .thenReturn(1);
+        when(jdbcTemplate.update(startsWith("UPDATE cabinet_order_line SET line_amount_cents = ?, unit_price_cents"),
+                eq(150), eq(150), eq("O-FIX")))
                 .thenReturn(1);
 
         assertTrue(service.fixInconsistency(3L));
         assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
         assertNotNull(record.getFixedAt());
         verify(consistencyRepository).save(record);
+    }
+
+    @Test
+    void fixInconsistency_clearsStaleCouponWhenPaidMatchesLineSubtotal() {
+        DataConsistencyRecord record = new DataConsistencyRecord();
+        record.setId(9L);
+        record.setCheckType("ORDER_AMOUNT");
+        record.setCheckKey("O-STALE");
+        record.setStatus(DataConsistencyService.STATUS_FAIL);
+
+        when(consistencyRepository.findByIdForUpdate(9L)).thenReturn(java.util.Optional.of(record));
+        when(jdbcTemplate.query(startsWith("SELECT total_amount_cents"), anyIntExtractor(), eq("O-STALE")))
+                .thenReturn(150);
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(CASE"), anyIntExtractor(), eq("O-STALE")))
+                .thenReturn(150);
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(line_amount_cents)"), anyIntExtractor(), eq("O-STALE")))
+                .thenReturn(150);
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(coupon_discount_cents"), anyIntExtractor(), eq("O-STALE")))
+                .thenReturn(200);
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(member_discount_cents"), anyIntExtractor(), eq("O-STALE")))
+                .thenReturn(0);
+        when(jdbcTemplate.query(startsWith("SELECT COUNT(*)"), anyIntExtractor(), eq("O-STALE")))
+                .thenReturn(1);
+        when(jdbcTemplate.update(startsWith("UPDATE cabinet_order SET coupon_id"), eq("O-STALE")))
+                .thenReturn(1);
+        when(couponService.releaseStaleUsedCouponsForOrder("O-STALE")).thenReturn(1);
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(9L);
+        assertTrue(outcome.fixed());
+        assertTrue(outcome.message().contains("清除未生效"));
+        assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
+    }
+
+    @Test
+    void buildOrderAmountErrorMessage_flagsStaleCouponHint() {
+        String msg = DataConsistencyService.buildOrderAmountErrorMessage(Map.of(
+                "total_amount_cents", 150,
+                "line_subtotal", 150,
+                "coupon_discount", 200,
+                "member_discount", 0,
+                "payable_from_lines", -50,
+                "net_paid", 150));
+        assertTrue(msg.contains("券抵扣超过明细"));
+        assertTrue(msg.contains("券字段未生效"));
     }
 
     @Test
@@ -221,22 +276,48 @@ class DataConsistencyServiceTest {
     }
 
     @Test
-    void fixInconsistency_paymentAmountNotAutoFixed() {
+    void fixInconsistency_paymentAmount_rejectsWhenUnderpaid() {
         DataConsistencyRecord record = new DataConsistencyRecord();
         record.setId(4L);
         record.setCheckType("PAYMENT_AMOUNT");
         record.setCheckKey("O-PAY");
+        record.setExpectedValue("100");
+        record.setActualValue("50");
         record.setStatus(DataConsistencyService.STATUS_FAIL);
 
         when(consistencyRepository.findByIdForUpdate(4L)).thenReturn(java.util.Optional.of(record));
 
         assertFalse(service.fixInconsistency(4L));
         assertEquals(DataConsistencyService.STATUS_FAIL, record.getStatus());
-        verify(jdbcTemplate, never()).update(anyString(), any(), any());
+        verify(orderPaymentService, never()).refundOrder(any(), anyInt(), anyString());
 
         DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(4L);
         assertFalse(outcome.fixed());
-        assertTrue(outcome.message().contains("退款") || outcome.message().contains("调账"));
+        assertTrue(outcome.message().contains("补扣") || outcome.message().contains("调账"));
+    }
+
+    @Test
+    void fixInconsistency_paymentAmount_refundsOvercharge() {
+        DataConsistencyRecord record = new DataConsistencyRecord();
+        record.setId(12L);
+        record.setCheckType("PAYMENT_AMOUNT");
+        record.setCheckKey("O-SNACK");
+        record.setExpectedValue("1503");
+        record.setActualValue("1504");
+        record.setStatus(DataConsistencyService.STATUS_FAIL);
+
+        CabinetOrder order = new CabinetOrder();
+        order.setOrderId("O-SNACK");
+        order.setStatus("PAID");
+
+        when(consistencyRepository.findByIdForUpdate(12L)).thenReturn(java.util.Optional.of(record));
+        when(cabinetOrderRepository.findByIdForUpdate("O-SNACK")).thenReturn(java.util.Optional.of(order));
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(12L);
+        assertTrue(outcome.fixed());
+        assertTrue(outcome.message().contains("1"));
+        verify(orderPaymentService).refundOrder(order, 1, "一致性修复退多收");
+        assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
     }
 
     @Test
@@ -306,5 +387,133 @@ class DataConsistencyServiceTest {
         assertTrue(outcome.fixed());
         assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
         assertTrue(outcome.message().contains("12"));
+    }
+
+    @Test
+    void checkWalletBalanceConsistency_usesLatestLedger() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkWalletBalanceConsistency();
+
+        ArgumentCaptor<String> sqlCaptor = ArgumentCaptor.forClass(String.class);
+        verify(jdbcTemplate).queryForList(sqlCaptor.capture());
+        String sql = sqlCaptor.getValue();
+        assertTrue(sql.contains("user_account"));
+        assertTrue(sql.contains("balance_after_cents"));
+        assertTrue(sql.contains("WALLET_BALANCE") || sql.contains("BALANCE"));
+    }
+
+    @Test
+    void checkRefundAmountConsistency_recordsMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(
+                Map.of("order_id", "O-R1", "expected", 100, "actual", 80)
+        ));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
+                anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkRefundAmountConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository).save(captor.capture());
+        assertEquals("REFUND_AMOUNT", captor.getValue().getCheckType());
+        assertEquals("O-R1", captor.getValue().getCheckKey());
+    }
+
+    @Test
+    void checkOrderLineSumConsistency_recordsMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(
+                Map.of("line_key", "O-1|SKU-A", "expected", 150, "actual", 140)
+        ));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
+                anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkOrderLineSumConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository).save(captor.capture());
+        assertEquals("ORDER_LINE_SUM", captor.getValue().getCheckType());
+    }
+
+    @Test
+    void checkCouponUsedLinkConsistency_recordsMismatch() {
+        when(jdbcTemplate.queryForList(anyString())).thenReturn(List.of(
+                Map.of("order_id", "O-C1", "order_discount", 0, "coupon_discount", 200,
+                        "order_coupon_id", "", "user_coupon_id", "44")
+        ));
+        when(consistencyRepository.findByCheckTypeAndCheckKeyAndStatus(
+                anyString(), anyString(), anyString())).thenReturn(List.of());
+        when(consistencyRepository.findByCheckTypeAndStatus(anyString(), anyString()))
+                .thenReturn(List.of());
+
+        service.checkCouponUsedLinkConsistency();
+
+        ArgumentCaptor<DataConsistencyRecord> captor = ArgumentCaptor.forClass(DataConsistencyRecord.class);
+        verify(consistencyRepository).save(captor.capture());
+        assertEquals("COUPON_USED_LINK", captor.getValue().getCheckType());
+    }
+
+    @Test
+    void fixInconsistency_orderLineSum_alignsLineToUnitTimesQty() {
+        DataConsistencyRecord record = new DataConsistencyRecord();
+        record.setId(10L);
+        record.setCheckType("ORDER_LINE_SUM");
+        record.setCheckKey("O-L1|SKU-A");
+        record.setStatus(DataConsistencyService.STATUS_FAIL);
+
+        when(consistencyRepository.findByIdForUpdate(10L)).thenReturn(java.util.Optional.of(record));
+        when(jdbcTemplate.queryForList(anyString(), eq("O-L1"), eq("SKU-A")))
+                .thenReturn(List.of(Map.of(
+                        "quantity", 3,
+                        "unit_price_cents", 501,
+                        "line_amount_cents", 1504,
+                        "total_amount_cents", 1504)));
+        when(jdbcTemplate.update(startsWith("UPDATE cabinet_order_line SET line_amount_cents"),
+                eq(1503), eq(501), eq("O-L1"), eq("SKU-A")))
+                .thenReturn(1);
+        when(jdbcTemplate.query(startsWith("SELECT COUNT(*)"), anyIntExtractor(), eq("O-L1")))
+                .thenReturn(1);
+        when(jdbcTemplate.update(startsWith("UPDATE cabinet_order SET total_amount_cents"),
+                eq(1503), eq("O-L1")))
+                .thenReturn(1);
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(SUM(CASE"), anyIntExtractor(), eq("O-L1")))
+                .thenReturn(1504);
+        CabinetOrder paidOrder = new CabinetOrder();
+        paidOrder.setOrderId("O-L1");
+        paidOrder.setStatus("PAID");
+        when(cabinetOrderRepository.findByIdForUpdate("O-L1")).thenReturn(java.util.Optional.of(paidOrder));
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(10L);
+        assertTrue(outcome.fixed());
+        assertTrue(outcome.message().contains("1503"));
+        assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
+    }
+
+    @Test
+    void fixInconsistency_couponUsedLink_releasesStaleCoupons() {
+        DataConsistencyRecord record = new DataConsistencyRecord();
+        record.setId(11L);
+        record.setCheckType("COUPON_USED_LINK");
+        record.setCheckKey("O-COUP");
+        record.setStatus(DataConsistencyService.STATUS_FAIL);
+
+        when(consistencyRepository.findByIdForUpdate(11L)).thenReturn(java.util.Optional.of(record));
+        when(jdbcTemplate.query(startsWith("SELECT COALESCE(coupon_discount_cents"), anyIntExtractor(), eq("O-COUP")))
+                .thenReturn(0);
+        when(jdbcTemplate.query(startsWith("SELECT coupon_id"), any(ResultSetExtractor.class), eq("O-COUP")))
+                .thenReturn(null);
+        when(couponService.releaseStaleUsedCouponsForOrder("O-COUP")).thenReturn(6);
+        when(jdbcTemplate.update(startsWith("UPDATE cabinet_order SET coupon_id = NULL"), eq("O-COUP")))
+                .thenReturn(0);
+
+        DataConsistencyService.FixOutcome outcome = service.fixInconsistencyDetailed(11L);
+        assertTrue(outcome.fixed());
+        assertTrue(outcome.message().contains("6"));
+        assertEquals(DataConsistencyService.STATUS_FIXED, record.getStatus());
     }
 }

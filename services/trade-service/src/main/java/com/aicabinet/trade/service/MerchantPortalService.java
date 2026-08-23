@@ -368,7 +368,8 @@ public class MerchantPortalService {
                 .filter(t -> inDeviceScope(deviceIds, t.getDeviceId()))
                 .forEach(t -> items.add(new OpsActionItemDto(
                         "REPLENISHMENT", "MEDIUM", "补货任务进行中",
-                        "状态 " + t.getStatus() + (t.getNotes() != null ? " · " + t.getNotes() : ""),
+                        "状态 " + replenishmentStatusLabel(t.getStatus())
+                                + (t.getNotes() != null ? " · " + t.getNotes() : ""),
                         t.getDeviceId(), null, null, null, t.getTaskId(), t.getCreatedAt(), null)));
 
         long pendingSplits = merchantIds == null ? 0
@@ -1492,6 +1493,19 @@ public class MerchantPortalService {
     private static String formatDisputeReason(String reason) {
         if (reason == null || reason.isBlank()) return "识别结果需人工审核";
         return reason.trim();
+    }
+
+    private static String replenishmentStatusLabel(String status) {
+        if (status == null || status.isBlank()) {
+            return "未知";
+        }
+        return switch (status.toUpperCase()) {
+            case "PENDING" -> "待处理";
+            case "IN_PROGRESS" -> "进行中";
+            case "COMPLETED" -> "已完成";
+            case "CANCELLED" -> "已取消";
+            default -> status;
+        };
     }
 
     private static String csv(String value) {

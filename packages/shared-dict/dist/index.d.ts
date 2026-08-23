@@ -127,6 +127,16 @@ export declare const DICT: {
         readonly BUG: "缺陷";
         readonly PRAISE: "表扬";
     };
+    /** 消费者故障报修 · 问题类型（运营可在字典管理调整文案/增删选项） */
+    readonly device_fault_issue: {
+        readonly DOOR_OPEN: "打不开门";
+        readonly DOOR_WONT_OPEN: "打不开门";
+        readonly DOOR_CLOSE: "门关不上";
+        readonly DOOR_WONT_CLOSE: "门关不上";
+        readonly PRODUCT: "商品异常";
+        readonly PAYMENT: "扣款问题";
+        readonly OTHER: "其他";
+    };
     readonly feedback_status: {
         readonly PENDING: "待处理";
         readonly HANDLED: "已回复";
@@ -186,6 +196,12 @@ export declare const DICT: {
         readonly ALL: "全部用户";
         readonly MERCHANT: "商户";
         readonly CONSUMER: "消费者";
+    };
+    readonly user_role: {
+        readonly CONSUMER: "消费者";
+        readonly OPERATOR: "运营账号";
+        readonly MERCHANT: "商户";
+        readonly OPS: "运营";
     };
     readonly promotion_type: {
         readonly FULL_REDUCE: "满减";
@@ -496,6 +512,10 @@ export declare const DICT: {
         readonly INVENTORY_MISMATCH: "库存汇总";
         readonly POINTS_BALANCE: "积分余额";
         readonly COUPON_ISSUED: "发券数量";
+        readonly WALLET_BALANCE: "钱包余额";
+        readonly REFUND_AMOUNT: "退款金额";
+        readonly ORDER_LINE_SUM: "订单行金额";
+        readonly COUPON_USED_LINK: "券核销关联";
     };
     readonly sku_perf_level: {
         readonly BEST_SELLER: "畅销";
@@ -606,6 +626,10 @@ export declare const AUDIT_ACTION_LABELS: Record<string, string>;
 export declare const AUDIT_TARGET_LABELS: Record<string, string>;
 export declare function auditActionLabel(action?: string | null): string;
 export declare function auditTargetLabel(type?: string | null): string;
+/** 运营异常 detail：兼容历史枚举码与英文键值，转为中文说明 */
+export declare function formatExceptionDetail(detail: string | null | undefined): string;
+/** 风控事件 detail：JSON 或键值对 → 中文说明 */
+export declare function formatRiskEventDetail(detail: string | null | undefined): string;
 /** 审计/异常操作 detail：英文键值对 → 中文说明 */
 export declare function formatOpsActionDetail(detail: string | null | undefined): string;
 /** @deprecated 使用 formatOpsActionDetail；保留别名便于审计页语义 */

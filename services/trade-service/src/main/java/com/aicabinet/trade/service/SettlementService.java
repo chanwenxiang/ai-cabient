@@ -566,6 +566,9 @@ public class SettlementService {
                     } else {
                         log.warn("waive skip refund: no net charge order={}", order.getOrderId());
                     }
+                    if (order.getRefundedAt() == null) {
+                        order.setRefundedAt(java.time.Instant.now());
+                    }
                     order.setStatus("REFUNDED");
                     orderRepository.save(order);
                     revenueSplitService.voidSplitOnFullRefund(order.getOrderId());

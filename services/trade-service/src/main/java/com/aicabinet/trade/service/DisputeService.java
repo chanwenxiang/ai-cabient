@@ -520,6 +520,9 @@ private final UserInfoMapper userInfoRepository;
         }
         if ("WAIVE".equals(resolutionType)) {
             order.setStatus("REFUNDED");
+            if (order.getRefundedAt() == null) {
+                order.setRefundedAt(Instant.now());
+            }
             orderRepository.save(order);
             return;
         }

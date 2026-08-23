@@ -3,8 +3,10 @@ package com.aicabinet.trade.service;
 import com.aicabinet.common.dto.CreateCouponRequest;
 import com.aicabinet.common.dto.UpdateCouponRequest;
 import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.domain.CabinetOrderLine;
 import com.aicabinet.trade.domain.CouponDefinition;
 import com.aicabinet.trade.domain.UserCoupon;
+import com.aicabinet.trade.mapper.CabinetOrderLineMapper;
 import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.CouponDefinitionMapper;
 import com.aicabinet.trade.mapper.UserCouponMapper;
@@ -32,6 +34,7 @@ class CouponServiceTest {
     @Mock private UserCouponMapper userCouponRepository;
     @Mock private UserInfoMapper userInfoRepository;
     @Mock private CabinetOrderMapper orderRepository;
+    @Mock private CabinetOrderLineMapper orderLineRepository;
     @Mock private DistributedLockService distributedLockService;
     @Mock private ScheduledTaskService taskService;
     @Mock private PromotionService promotionService;
@@ -42,7 +45,7 @@ class CouponServiceTest {
     void setUp() {
         couponService = new CouponService(
                 definitionRepository, userCouponRepository, userInfoRepository, orderRepository,
-                distributedLockService, promotionService);
+                orderLineRepository, distributedLockService, promotionService);
         org.springframework.test.util.ReflectionTestUtils.setField(couponService, "taskService", taskService);
         lenient().when(taskService.tryBegin(anyString(), anyLong())).thenReturn(true);
         lenient().when(distributedLockService.tryLock(anyString(), anyLong(), anyLong())).thenReturn(true);
@@ -188,6 +191,8 @@ class CouponServiceTest {
         order.setTotalAmountCents(2000);
         when(orderRepository.findByIdForUpdate("O-TEST-001")).thenReturn(Optional.of(order));
         when(orderRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(userCouponRepository.findByOrderIdAndStatus("O-TEST-001", "USED")).thenReturn(List.of());
+        when(orderLineRepository.findByOrderId("O-TEST-001")).thenReturn(List.of());
 
         var result = couponService.useCoupon(10001L, 1L, "O-TEST-001", "CAB-001");
 
@@ -252,10 +257,97 @@ class CouponServiceTest {
         when(userCouponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(uc));
         when(definitionRepository.findById(10L)).thenReturn(Optional.of(def));
         when(userCouponRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(userCouponRepository.findByOrderIdAndStatus("O-1", "USED")).thenReturn(List.of());
 
         couponService.markUsed(10001L, 1L, "O-1", "CAB-1", 200);
 
         verify(promotionService).releaseBudget(99L, 300);
+    }
+
+    @Test
+    void markUsed_shouldReject_whenOtherCouponAlreadyUsedOnOrder() {
+        var existing = new UserCoupon();
+        existing.setCouponId(2L);
+        existing.setUserId(10001L);
+        existing.setStatus("USED");
+        existing.setOrderId("O-1");
+
+        var uc = new UserCoupon();
+        uc.setCouponId(1L);
+        uc.setUserId(10001L);
+        uc.setStatus("UNUSED");
+        uc.setExpireAt(Instant.now().plus(7, ChronoUnit.DAYS));
+
+        when(userCouponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(uc));
+        when(userCouponRepository.findByOrderIdAndStatus("O-1", "USED")).thenReturn(List.of(existing));
+
+        assertThrows(ResponseStatusException.class,
+                () -> couponService.markUsed(10001L, 1L, "O-1", "CAB-1", 200));
+    }
+
+    @Test
+    void useCoupon_shouldUseLineSubtotalNotDiscountedHeader() {
+        var uc = new UserCoupon();
+        uc.setCouponId(1L);
+        uc.setUserId(10001L);
+        uc.setCouponDefId(1L);
+        uc.setStatus("UNUSED");
+        uc.setExpireAt(Instant.now().plus(30, ChronoUnit.DAYS));
+
+        var def = new CouponDefinition();
+        def.setCouponDefId(1L);
+        def.setCouponType("AMOUNT_OFF");
+        def.setDenominationCents(200);
+        def.setMinSpendCents(0);
+
+        var line = new CabinetOrderLine();
+        line.setLineAmountCents(2000);
+        var order = new CabinetOrder();
+        order.setOrderId("O-LINE");
+        order.setUserId(10001L);
+        order.setStatus("PENDING");
+        order.setTotalAmountCents(150);
+
+        when(userCouponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(uc));
+        when(definitionRepository.findById(1L)).thenReturn(Optional.of(def));
+        when(userCouponRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(orderRepository.findByIdForUpdate("O-LINE")).thenReturn(Optional.of(order));
+        when(orderRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(userCouponRepository.findByOrderIdAndStatus("O-LINE", "USED")).thenReturn(List.of());
+        when(orderLineRepository.findByOrderId("O-LINE")).thenReturn(List.of(line));
+
+        couponService.useCoupon(10001L, 1L, "O-LINE", "CAB-001");
+
+        assertEquals(1800, order.getTotalAmountCents());
+        assertEquals(200, order.getCouponDiscountCents());
+    }
+
+    @Test
+    void useCoupon_shouldReject_whenOtherCouponAlreadyUsedOnOrder() {
+        var existing = new UserCoupon();
+        existing.setCouponId(2L);
+        existing.setUserId(10001L);
+        existing.setStatus("USED");
+        existing.setOrderId("O-1");
+
+        var uc = new UserCoupon();
+        uc.setCouponId(1L);
+        uc.setUserId(10001L);
+        uc.setStatus("UNUSED");
+        uc.setExpireAt(Instant.now().plus(7, ChronoUnit.DAYS));
+
+        var order = new CabinetOrder();
+        order.setOrderId("O-1");
+        order.setUserId(10001L);
+        order.setStatus("PENDING");
+        order.setTotalAmountCents(2000);
+
+        when(userCouponRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(uc));
+        when(orderRepository.findByIdForUpdate("O-1")).thenReturn(Optional.of(order));
+        when(userCouponRepository.findByOrderIdAndStatus("O-1", "USED")).thenReturn(List.of(existing));
+
+        assertThrows(ResponseStatusException.class,
+                () -> couponService.useCoupon(10001L, 1L, "O-1", "CAB-1"));
     }
 
     @Test

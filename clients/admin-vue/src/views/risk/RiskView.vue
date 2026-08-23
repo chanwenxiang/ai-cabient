@@ -86,7 +86,7 @@
                 class-name="col-text"
                 show-overflow-tooltip
               >
-                <template #default="{ row }">{{ row.detail || '暂无' }}</template>
+                <template #default="{ row }">{{ formatRiskEventDetail(row.detail) }}</template>
               </el-table-column>
               <el-table-column label="级别" width="100" align="center">
                 <template #default="{ row }">
@@ -249,7 +249,7 @@ import { useTableSelection } from '@/composables/useTableSelection';
 import { useAuthStore } from '@/stores/auth';
 import { csvFileName } from '@/utils/csv';
 import type { PageResult } from '@aicabinet/shared-types';
-import { dictLabel, dictTagType, displayLabel } from '@aicabinet/shared-dict';
+import { dictLabel, dictTagType, displayLabel, formatRiskEventDetail } from '@aicabinet/shared-dict';
 import { formatDateTime } from '@aicabinet/shared-uni/format';
 
 function dispositionLabel(s?: string) {

@@ -212,21 +212,35 @@ export function orderStatusLabel(status?: string) {
  * 订单号 / 会话号 / 充值单 / 支付流水 / 异常单 / 分账单等「字母+十六进制」业务编号 → 纯数字展示。
  * 不转换柜机编号、SKU、配置键等业务编码。导航/接口仍用原始 id。
  */
+const LEDGER_OR_PAYMENT_OP_PREFIX =
+  /^(?:MOCK-[A-Z]+-)?(?:BL|MW|LW|RF|ADJ|EX|ADM|CHARGE|REFUND)-?/i;
+
 export function displayBizNo(id?: string | number | null, empty: string = EMPTY.order): string {
   if (id == null) return empty;
   const raw = String(id).trim();
   if (!raw) return empty;
   if (/^\d+$/.test(raw)) return raw;
-  // 柜机 / SKU / 仓库等可读编码原样展示
-  if (/^(CAB|SKU|ORG|WH|BIN|LOT|ROUTE)[-_]/i.test(raw)) return raw;
-  if (/^[A-Z]{2,}[-_][A-Z]*\d/i.test(raw) && /[G-Z]/i.test(raw)) return raw;
 
-  const body = raw
-    .replace(/^MOCK-[A-Z]+-/i, '')
-    .replace(/^(PSC|ALI-AG|PREVIEW)-?/i, '')
-    .replace(/^(BL|MW|LW|RF|ADJ|EX|ADM)-?/i, '')
-    .replace(/^[A-Z]+-?/i, '')
-    .replace(/-/g, '');
+  const isLedgerOrPaymentOp = LEDGER_OR_PAYMENT_OP_PREFIX.test(raw);
+
+  // 柜机 / SKU / 仓库等可读编码原样展示（余额流水 BL- 等须先排除，避免 BL- 里的 L 命中 [G-Z]）
+  if (!isLedgerOrPaymentOp) {
+    if (/^(CAB|SKU|ORG|WH|BIN|LOT|ROUTE)[-_]/i.test(raw)) return raw;
+    if (/^[A-Z]{2,}[-_][A-Z]*\d/i.test(raw) && /[G-Z]/i.test(raw)) return raw;
+  }
+
+  const withoutMock = raw.replace(/^MOCK-[A-Z]+-/i, '');
+  const withoutLedgerPrefix = withoutMock.replace(
+    /^(BL|MW|LW|RF|ADJ|EX|ADM|CHARGE|REFUND)-?/i,
+    ''
+  );
+  const body =
+    withoutLedgerPrefix !== withoutMock
+      ? withoutLedgerPrefix.replace(/-/g, '')
+      : withoutMock
+          .replace(/^(PSC|ALI-AG|PREVIEW)-?/i, '')
+          .replace(/^[A-Z]+-?/i, '')
+          .replace(/-/g, '');
 
   const hex = body.replace(/[^0-9A-Fa-f]/g, '');
   if (hex.length >= 8 && /^[0-9A-Fa-f]+$/i.test(hex)) {

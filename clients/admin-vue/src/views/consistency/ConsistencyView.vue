@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">数据一致性</span>
-            <span class="hint">巡检订单金额 / 支付净额 / 柜机库存；未通过项可显式修复</span>
+            <span class="hint">巡检订单/支付/库存/积分/发券；未通过项可按规则修复</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -22,12 +22,15 @@
       :closable="false"
       show-icon
       class="t1-alert"
-      title="三端一致性说明"
-      description="默认只记录未通过项、不自动改数。订单金额 / 库存汇总类可点「修复」；支付净额偏差请走退款/调账人工处理。"
+      title="一致性巡检说明"
+      description="默认只记录未通过项、不自动改数。覆盖订单/支付/库存/积分/发券/钱包/退款/行金额/券关联九类。订单金额与库存汇总可点「修复」；支付与退款偏差请走退款/调账。"
     />
 
     <div class="kpi-tags">
       <el-tag size="small" type="danger">未通过 {{ listHydrated ? failCount : '…' }}</el-tag>
+      <el-tag v-if="listHydrated && severityCounts.high > 0" size="small" type="danger">
+        高优先级 {{ severityCounts.high }}
+      </el-tag>
       <el-tag size="small" type="info">本页 {{ listHydrated ? paged.length : '…' }}</el-tag>
       <el-tag v-if="lastRunAt" size="small" type="success">上次巡检 {{ lastRunAt }}</el-tag>
     </div>
@@ -114,12 +117,19 @@
             class-name="col-text"
             show-overflow-tooltip
           />
-          <el-table-column label="期望" min-width="100" align="center" class-name="col-text">
-            <template #default="{ row }">{{ row.expectedValue }}</template>
-          </el-table-column>
-          <el-table-column label="实际" min-width="100" align="center" class-name="col-text">
+          <el-table-column label="级别" width="90" align="center">
             <template #default="{ row }">
-              <span class="is-mismatch">{{ row.actualValue }}</span>
+              <el-tag size="small" :type="severityTag(row)">{{ severityLabel(row) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="基准" min-width="90" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span :title="valueHint(row)">{{ row.expectedValue }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="对照" min-width="100" align="center" class-name="col-text">
+            <template #default="{ row }">
+              <span class="is-mismatch" :title="actualHint(row)">{{ row.actualValue }}</span>
             </template>
           </el-table-column>
           <el-table-column
@@ -213,12 +223,7 @@ type FixResult = {
 
 const router = useRouter();
 const auth = useAuthStore();
-const canRun = computed(
-  () =>
-    auth.hasPerm('ops:consistency:run') ||
-    auth.hasPerm('ops:order:list') ||
-    auth.hasPerm('ops:finance:view')
-);
+const canRun = computed(() => auth.hasPerm('ops:consistency:run'));
 const canFix = computed(
   () => auth.hasPerm('ops:consistency:fix') || auth.hasPerm('ops:order:refund')
 );
@@ -256,8 +261,57 @@ const paged = computed(() => {
 
 const failCount = computed(() => filtered.value.length);
 
+const severityCounts = computed(() => {
+  let high = 0;
+  for (const row of filtered.value) {
+    if (rowSeverity(row) === 'high') high++;
+  }
+  return { high };
+});
+
+function rowSeverity(row: Row): 'high' | 'medium' | 'low' {
+  if (row.checkType === 'PAYMENT_AMOUNT' || row.checkType === 'WALLET_BALANCE') return 'high';
+  const msg = String(row.errorMessage || '');
+  if (msg.includes('实付') && msg.includes('均不符')) return 'high';
+  if (msg.includes('券抵扣超过明细') || msg.includes('券字段未生效')) return 'medium';
+  if (row.checkType === 'ORDER_AMOUNT' || row.checkType === 'INVENTORY_MISMATCH') return 'medium';
+  return 'low';
+}
+
+function severityLabel(row: Row) {
+  const s = rowSeverity(row);
+  if (s === 'high') return '高';
+  if (s === 'medium') return '中';
+  return '低';
+}
+
+function severityTag(row: Row) {
+  const s = rowSeverity(row);
+  if (s === 'high') return 'danger';
+  if (s === 'medium') return 'warning';
+  return 'info';
+}
+
+function fixPreview(row: Row): string {
+  if (row.checkType === 'INVENTORY_MISMATCH') {
+    return `将汇总库存改为在架批次合计 ${row.actualValue ?? '—'}`;
+  }
+  if (row.checkType === 'ORDER_AMOUNT') {
+    const msg = String(row.errorMessage || '');
+    if (msg.includes('券字段未生效')) {
+      return '实付与明细一致：清除未生效的券/折扣字段，并尝试退还券占用';
+    }
+    if (msg.includes('实付已与折后入账')) {
+      return `将订单头同步为按明细应收 ${row.actualValue ?? '—'}`;
+    }
+    return '按服务端规则对齐订单头/明细（无匹配策略时将拒绝修复）';
+  }
+  return '按服务端规则修复';
+}
+
 const emptyText = computed(() => {
   if (keyword.value.trim() || typeFilter.value.trim()) return '无匹配未通过记录，可清空筛选';
+  if (!canRun.value) return '当前无未通过记录';
   return '当前无未通过记录，点击「立即巡检」可再跑一轮';
 });
 
@@ -279,6 +333,32 @@ function typeLabel(t: string) {
   return displayLabel('consistency_check_type', t, '未知类型');
 }
 
+function valueHint(row: Row) {
+  switch (row.checkType) {
+    case 'ORDER_AMOUNT':
+      return '订单头金额';
+    case 'PAYMENT_AMOUNT':
+      return '期望净入账';
+    case 'INVENTORY_MISMATCH':
+      return '汇总库存';
+    default:
+      return '期望值';
+  }
+}
+
+function actualHint(row: Row) {
+  switch (row.checkType) {
+    case 'ORDER_AMOUNT':
+      return '按明细折后应收';
+    case 'PAYMENT_AMOUNT':
+      return '实际净入账';
+    case 'INVENTORY_MISMATCH':
+      return '在架批次合计';
+    default:
+      return '实际值';
+  }
+}
+
 function statusLabel(s: string) {
   if (s === 'FAIL') return '未通过';
   if (s === 'PASS') return '通过';
@@ -294,26 +374,44 @@ function typeTag(t: string) {
       return 'danger';
     case 'INVENTORY_MISMATCH':
       return 'info';
+    case 'WALLET_BALANCE':
+    case 'REFUND_AMOUNT':
+      return 'danger';
+    case 'ORDER_LINE_SUM':
+    case 'COUPON_USED_LINK':
+      return 'warning';
     default:
       return '';
   }
 }
 
 function isFixable(t: string) {
-  return t === 'ORDER_AMOUNT' || t === 'INVENTORY_MISMATCH';
+  return t === 'ORDER_AMOUNT' || t === 'INVENTORY_MISMATCH'
+    || t === 'ORDER_LINE_SUM' || t === 'COUPON_USED_LINK' || t === 'PAYMENT_AMOUNT';
 }
 
-function keyLink(row: Row): 'order' | 'device' | null {
+function keyLink(row: Row): 'order' | 'device' | 'member' | 'coupon' | null {
   if (!row.checkKey) return null;
-  if (row.checkType === 'ORDER_AMOUNT' || row.checkType === 'PAYMENT_AMOUNT') return 'order';
+  if (row.checkType === 'ORDER_AMOUNT' || row.checkType === 'PAYMENT_AMOUNT'
+      || row.checkType === 'REFUND_AMOUNT' || row.checkType === 'COUPON_USED_LINK') {
+    return 'order';
+  }
+  if (row.checkType === 'ORDER_LINE_SUM' && row.checkKey.includes('|')) {
+    return 'order';
+  }
   if (row.checkType === 'INVENTORY_MISMATCH' && row.checkKey.includes('|')) return 'device';
+  if (row.checkType === 'POINTS_BALANCE') return 'member';
+  if (row.checkType === 'COUPON_ISSUED') return 'coupon';
   return null;
 }
 
 function openKey(row: Row) {
   const kind = keyLink(row);
   if (kind === 'order') {
-    void router.push({ path: '/orders', query: { orderId: row.checkKey } });
+    const orderId = row.checkType === 'ORDER_LINE_SUM'
+      ? row.checkKey.split('|', 2)[0]
+      : row.checkKey;
+    void router.push({ path: '/orders', query: { orderId } });
     return;
   }
   if (kind === 'device') {
@@ -324,6 +422,14 @@ function openKey(row: Row) {
         query: { id: deviceId }
       });
     }
+    return;
+  }
+  if (kind === 'member') {
+    void router.push({ path: '/member-levels', query: { memberId: row.checkKey } });
+    return;
+  }
+  if (kind === 'coupon') {
+    void router.push({ path: '/coupons', query: { defId: row.checkKey } });
   }
 }
 
@@ -360,7 +466,7 @@ async function runCheck() {
 async function fixRow(row: Row) {
   try {
     await ElMessageBox.confirm(
-      `确认修复 ${typeLabel(row.checkType)}「${row.checkKey}」？将按服务端规则改写期望侧数据。`,
+      `确认修复 ${typeLabel(row.checkType)}「${row.checkKey}」？\n${fixPreview(row)}`,
       '显式修复',
       { type: 'warning', confirmButtonText: '修复', cancelButtonText: '取消' }
     );

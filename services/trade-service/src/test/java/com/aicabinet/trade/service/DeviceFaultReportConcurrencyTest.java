@@ -22,13 +22,14 @@ class DeviceFaultReportConcurrencyTest {
     @Mock private DeviceValidationService deviceValidationService;
     @Mock private OpsExceptionService opsExceptionService;
     @Mock private DistributedLockService distributedLockService;
+    @Mock private SysDictService sysDictService;
 
     private DeviceFaultReportService service;
 
     @BeforeEach
     void setUp() {
         service = new DeviceFaultReportService(repository, deviceValidationService,
-                opsExceptionService, distributedLockService);
+                opsExceptionService, distributedLockService, sysDictService);
     }
 
     @Test

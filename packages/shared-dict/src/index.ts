@@ -157,6 +157,16 @@ export const DICT = {
     BUG: '缺陷',
     PRAISE: '表扬'
   },
+  /** 消费者故障报修 · 问题类型（运营可在字典管理调整文案/增删选项） */
+  device_fault_issue: {
+    DOOR_OPEN: '打不开门',
+    DOOR_WONT_OPEN: '打不开门',
+    DOOR_CLOSE: '门关不上',
+    DOOR_WONT_CLOSE: '门关不上',
+    PRODUCT: '商品异常',
+    PAYMENT: '扣款问题',
+    OTHER: '其他'
+  },
   feedback_status: {
     PENDING: '待处理',
     HANDLED: '已回复',
@@ -490,7 +500,11 @@ export const DICT = {
     PAYMENT_AMOUNT: '支付净额',
     INVENTORY_MISMATCH: '库存汇总',
     POINTS_BALANCE: '积分余额',
-    COUPON_ISSUED: '发券数量'
+    COUPON_ISSUED: '发券数量',
+    WALLET_BALANCE: '钱包余额',
+    REFUND_AMOUNT: '退款金额',
+    ORDER_LINE_SUM: '订单行金额',
+    COUPON_USED_LINK: '券核销关联'
   },
   sku_perf_level: {
     BEST_SELLER: '畅销',
@@ -785,8 +799,33 @@ const AUDIT_DETAIL_KEY_LABELS: Record<string, string> = {
   name: '名称',
   idempotencykey: '幂等键',
   from: '原状态',
-  to: '新状态'
+  to: '新状态',
+  provider: '识别来源',
+  confidence: '置信度',
+  taskid: '任务编号',
+  splitid: '分账单号',
+  merchantid: '商户',
+  outreturnno: '回退单号',
+  repairticketid: '维修工单',
+  pendingreturncents: '待回退金额',
+  retrycount: '重试次数',
+  onlinestatus: '在线状态',
+  lifecycle: '生命周期',
+  lifecyclestatus: '生命周期',
+  issuetype: '问题类型'
 };
+
+const DEVICE_FAULT_ISSUE_ALIASES: Record<string, string> = {
+  DOOR_WONT_OPEN: 'DOOR_OPEN',
+  DOOR_WONT_CLOSE: 'DOOR_CLOSE',
+  DOOR: 'DOOR_OPEN'
+};
+
+function faultIssueLabel(code: string): string {
+  const upper = code.trim().toUpperCase();
+  const key = DEVICE_FAULT_ISSUE_ALIASES[upper] ?? upper;
+  return displayLabel('device_fault_issue', key, '其他');
+}
 
 export function auditActionLabel(action?: string | null): string {
   if (!action) return '暂无';
@@ -804,6 +843,81 @@ export function auditTargetLabel(type?: string | null): string {
   if (hit) return hit;
   if (/^[A-Z][A-Z0-9_]*$/.test(type)) return '其他对象';
   return type;
+}
+
+/** 运营异常 detail：兼容历史枚举码与英文键值，转为中文说明 */
+export function formatExceptionDetail(detail: string | null | undefined): string {
+  if (!detail) return '暂无';
+  let text = detail.trim();
+  if (!text) return '暂无';
+
+  const faultLegacy = text.match(/^问题类型\s*=\s*([A-Za-z_]+)\s*[,;]\s*(.*)$/s);
+  if (faultLegacy) {
+    const label = faultIssueLabel(faultLegacy[1]);
+    const rest = faultLegacy[2]?.trim();
+    text = rest ? `问题类型：${label}；补充说明：${rest}` : `问题类型：${label}`;
+  } else {
+    text = text.replace(/问题类型\s*=\s*([A-Za-z_]+)/g, (_, code: string) => {
+      return `问题类型：${faultIssueLabel(code)}`;
+    });
+  }
+  text = text.replace(/补充说明\s*=/g, '补充说明：');
+
+  text = text.replace(
+    /^provider\s*=\s*(\S+)\s+confidence\s*=\s*([\d.]+)(?:\s*\|\s*(.*))?$/i,
+    (_full, provider: string, conf: string, extra?: string) => {
+      const prov = provider.toLowerCase() === 'unknown' ? '未知' : provider;
+      let s = `识别来源：${prov}；置信度：${conf}`;
+      if (extra?.trim()) s += `；补充说明：${extra.trim()}`;
+      return s;
+    }
+  );
+
+  text = text.replace(/故障码\s+OFFLINE_TIMEOUT/g, '故障码：离线超时');
+
+  if (/^[a-zA-Z]+\s*=\s*[A-Z0-9_]+$/.test(text)) {
+    const eq = text.indexOf('=');
+    const key = text.slice(0, eq).trim();
+    const val = text.slice(eq + 1).trim();
+    const keyLabels: Record<string, string> = {
+      onlineStatus: '在线状态',
+      lifecycle: '生命周期',
+      lifecycleStatus: '生命周期'
+    };
+    const keyLabel = keyLabels[key] || key;
+    let valLabel = val;
+    if (key === 'onlineStatus') valLabel = dictLabel('online_status', val) || val;
+    else if (key === 'lifecycle' || key === 'lifecycleStatus')
+      valLabel = dictLabel('device_lifecycle', val) || val;
+    text = `${keyLabel}：${valLabel}`;
+  }
+
+  return formatOpsActionDetail(text);
+}
+
+/** 风控事件 detail：JSON 或键值对 → 中文说明 */
+export function formatRiskEventDetail(detail: string | null | undefined): string {
+  if (!detail) return '暂无';
+  const text = detail.trim();
+  if (!text) return '暂无';
+  if (text.startsWith('{')) {
+    try {
+      const obj = JSON.parse(text) as Record<string, unknown>;
+      const parts: string[] = [];
+      if (obj.reason != null && String(obj.reason).trim()) {
+        parts.push(`原因：${String(obj.reason).trim()}`);
+      }
+      if (obj.count != null) parts.push(`次数：${obj.count}`);
+      if (obj.sessionId != null && String(obj.sessionId).trim()) {
+        parts.push(`会话：${String(obj.sessionId).trim()}`);
+      }
+      if (obj.by != null) parts.push(`操作人：${obj.by}`);
+      if (parts.length) return parts.join('；');
+    } catch {
+      /* fall through */
+    }
+  }
+  return formatExceptionDetail(text);
 }
 
 /** 审计/异常操作 detail：英文键值对 → 中文说明 */
@@ -843,6 +957,12 @@ export function formatOpsActionDetail(detail: string | null | undefined): string
         return `${label}：${on ? '是' : '否'}`;
       }
       if (k === 'targettempc') return `${label}：${value}℃`;
+      if (k === 'onlinestatus') return `${label}：${dictLabel('online_status', value) || value}`;
+      if (k === 'lifecycle' || k === 'lifecyclestatus') {
+        return `${label}：${dictLabel('device_lifecycle', value) || value}`;
+      }
+      if (k === 'issuetype') return `${label}：${faultIssueLabel(value)}`;
+      if (k === 'provider' && value.toLowerCase() === 'unknown') return `${label}：未知`;
       return `${label}：${value}`;
     }
   );

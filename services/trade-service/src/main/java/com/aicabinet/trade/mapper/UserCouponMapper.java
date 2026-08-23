@@ -69,4 +69,10 @@ public interface UserCouponMapper extends BaseTradeMapper<UserCoupon> {
         return c == null ? 0 : c;
     }
 
+    default List<UserCoupon> findByOrderIdAndStatus(String orderId, String status) {
+        return selectList(Wrappers.<UserCoupon>lambdaQuery()
+                .eq(UserCoupon::getOrderId, orderId)
+                .eq(UserCoupon::getStatus, status));
+    }
+
 }

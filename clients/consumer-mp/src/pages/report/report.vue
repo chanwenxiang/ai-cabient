@@ -74,7 +74,8 @@
 
 <script setup lang="ts">
 import { onLoad } from '@dcloudio/uni-app';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { dictOptions } from '@aicabinet/shared-dict';
 import { consumerApi, ensureConsumerAuth } from '@/utils/consumer-api';
 import { eventInputValue, readDomFieldValue } from '@/utils/form-bind';
 
@@ -85,13 +86,8 @@ const contactPhone = ref('');
 const submitting = ref(false);
 const err = ref('');
 
-const issueOptions = [
-  { value: 'DOOR_OPEN', label: '打不开门' },
-  { value: 'DOOR_CLOSE', label: '门关不上' },
-  { value: 'PRODUCT', label: '商品异常' },
-  { value: 'PAYMENT', label: '扣款问题' },
-  { value: 'OTHER', label: '其他' }
-];
+/** 选项来自字典 device_fault_issue（运营可在后台字典管理调整） */
+const issueOptions = computed(() => dictOptions('device_fault_issue'));
 
 onLoad((opts) => {
   const fromQuery = (opts?.deviceId as string) || '';
