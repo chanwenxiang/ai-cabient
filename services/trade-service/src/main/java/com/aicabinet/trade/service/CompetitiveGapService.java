@@ -489,7 +489,7 @@ public class CompetitiveGapService {
                 e.setEventType("OFFLINE");
                 e.setSeverity("WARN");
                 e.setTitle("设备离线");
-                e.setDetail("onlineStatus=" + d.getOnlineStatus());
+                e.setDetail("在线状态：" + onlineStatusLabel(d.getOnlineStatus()));
                 e.setCreatedAt(Instant.now());
                 deviceOpsEventMapper.insert(e);
             }
@@ -539,7 +539,7 @@ public class CompetitiveGapService {
             e.setEventType("NO_SALES");
             e.setSeverity("WARN");
             e.setTitle("近7日无销售");
-            e.setDetail("lifecycle=DEPLOYED");
+            e.setDetail("生命周期：已部署");
             e.setCreatedAt(Instant.now());
             deviceOpsEventMapper.insert(e);
         }
@@ -667,6 +667,17 @@ public class CompetitiveGapService {
 
     private static String nz(String v, String def) {
         return v == null || v.isBlank() ? def : v.trim();
+    }
+
+    private static String onlineStatusLabel(String status) {
+        if (status == null || status.isBlank()) {
+            return "未知";
+        }
+        return switch (status.toUpperCase()) {
+            case "ONLINE" -> "在线";
+            case "OFFLINE" -> "离线";
+            default -> status;
+        };
     }
 
     private static class Agg {

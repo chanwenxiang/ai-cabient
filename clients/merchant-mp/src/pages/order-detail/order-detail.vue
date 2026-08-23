@@ -74,7 +74,7 @@
           <view v-if="order.payTradeNo || order.paymentOperationId" class="info-row"
             ><text class="lbl">流水号</text
             ><text class="val mono">{{
-              emptyDisplay(order.payTradeNo || order.paymentOperationId, 'order')
+              displayBizNo(order.payTradeNo || order.paymentOperationId)
             }}</text></view
           >
           <view v-if="order.refundPolicy" class="info-row"
@@ -117,6 +117,7 @@ import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { displayLabel } from '@aicabinet/shared-dict';
 import { skuImageFor } from '@aicabinet/shared-uni/product-image';
 import {
+  displayBizNo,
   emptyDisplay,
   formatDateTimeShort,
   orderStatusLabel,

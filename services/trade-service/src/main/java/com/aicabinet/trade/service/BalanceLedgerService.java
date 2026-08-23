@@ -8,13 +8,12 @@ import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.UserAccountMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.util.BizIds;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
-
-import java.util.UUID;
 
 @Service
 public class BalanceLedgerService {
@@ -67,7 +66,7 @@ public class BalanceLedgerService {
         accountRepository.save(account);
 
         PaymentOperation operation = new PaymentOperation();
-        operation.setOperationId("BL-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase());
+        operation.setOperationId(BizIds.nextNumeric());
         operation.setOrderId(resolveCabinetOrderId(businessType, businessId));
         operation.setOperationType(businessType);
         operation.setAmountCents(Math.abs(deltaCents));
@@ -103,7 +102,7 @@ public class BalanceLedgerService {
             return existing.get();
         }
         PaymentOperation operation = new PaymentOperation();
-        operation.setOperationId("BL-" + UUID.randomUUID().toString().replace("-", "").substring(0, 20).toUpperCase());
+        operation.setOperationId(BizIds.nextNumeric());
         operation.setOrderId(null);
         operation.setOperationType(businessType);
         operation.setAmountCents(amountCents);

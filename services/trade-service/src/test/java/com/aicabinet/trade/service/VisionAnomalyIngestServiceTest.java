@@ -48,7 +48,7 @@ class VisionAnomalyIngestServiceTest {
         OpsExceptionDto created = mock(OpsExceptionDto.class);
         when(opsExceptionService.report(
                 eq("VISION_ANOMALY"), eq("HIGH"), eq("CAB-001"), eq("S1"),
-                isNull(), isNull(), eq("防撬告警"), contains("provider=QUECTEL")))
+                isNull(), isNull(), eq("防撬告警"), contains("识别来源：QUECTEL")))
                 .thenReturn(created);
 
         List<OpsExceptionDto> out = service.ingest(List.of(
@@ -59,7 +59,7 @@ class VisionAnomalyIngestServiceTest {
         verify(opsAlertDispatcher).send(
                 eq("VISION_ANOMALY"),
                 contains("防撬告警"),
-                contains("provider=QUECTEL"),
+                contains("识别来源：QUECTEL"),
                 anyMap());
     }
 
@@ -67,7 +67,7 @@ class VisionAnomalyIngestServiceTest {
     void ingest_shouldNotPushMediumSeverity() {
         when(opsExceptionService.report(
                 eq("VISION_ANOMALY"), eq("MEDIUM"), eq("CAB-002"), isNull(),
-                isNull(), isNull(), eq("遮挡识别"), contains("provider=QUECTEL")))
+                isNull(), isNull(), eq("遮挡识别"), contains("识别来源：QUECTEL")))
                 .thenReturn(mock(OpsExceptionDto.class));
 
         service.ingest(List.of(

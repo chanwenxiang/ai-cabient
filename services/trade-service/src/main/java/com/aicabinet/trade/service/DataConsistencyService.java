@@ -2,6 +2,8 @@ package com.aicabinet.trade.service;
 
 import com.aicabinet.trade.domain.DataChangeLog;
 import com.aicabinet.trade.domain.DataConsistencyRecord;
+import com.aicabinet.trade.domain.CabinetOrder;
+import com.aicabinet.trade.mapper.CabinetOrderMapper;
 import com.aicabinet.trade.mapper.DataChangeLogMapper;
 import com.aicabinet.trade.mapper.DataConsistencyRecordMapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -31,7 +33,7 @@ import java.util.Set;
  * 口径说明：
  * <ul>
  *   <li>ORDER_AMOUNT 只扫 {@code PAID}（{@code DISPUTED} 尚在人工审单，故意排除）</li>
- *   <li>PAYMENT_AMOUNT 对 PAID/REFUNDED 用 LEFT JOIN，无流水且应付&gt;0 也会 FAIL</li>
+ *   <li>PAYMENT_AMOUNT 对 PAID/PARTIAL_REFUNDED/REFUNDED 用 LEFT JOIN，无流水且应付&gt;0 也会 FAIL</li>
  *   <li>INVENTORY_MISMATCH 修复时以 ON_SALE 批次合计为准回写汇总表</li>
  * </ul>
  */
@@ -74,6 +76,15 @@ private ScheduledTaskService taskService;
 
 @Autowired
 private DistributedLockService distributedLockService;
+
+@Autowired
+private CouponService couponService;
+
+@Autowired
+private CabinetOrderMapper cabinetOrderRepository;
+
+@Autowired
+private OrderPaymentService orderPaymentService;
 
     /** 记录业务变更（可选审计）；失败不影响主流程。 */
     public void logChange(String tableName, String recordId, String operation,
@@ -125,6 +136,10 @@ private DistributedLockService distributedLockService;
             checkInventoryConsistency();
             checkPointsConsistency();
             checkCouponIssuedConsistency();
+            checkWalletBalanceConsistency();
+            checkRefundAmountConsistency();
+            checkOrderLineSumConsistency();
+            checkCouponUsedLinkConsistency();
             log.info("数据一致性巡检结束");
         } catch (Exception e) {
             log.error("数据一致性巡检中断: {}", e.getMessage());
@@ -140,7 +155,13 @@ private DistributedLockService distributedLockService;
                 + "COALESCE(o.coupon_discount_cents, 0) AS coupon_discount, "
                 + "COALESCE(o.member_discount_cents, 0) AS member_discount, "
                 + "COALESCE(SUM(ol.line_amount_cents), 0) "
-                + "- COALESCE(o.coupon_discount_cents, 0) - COALESCE(o.member_discount_cents, 0) AS payable_from_lines "
+                + "- COALESCE(o.coupon_discount_cents, 0) - COALESCE(o.member_discount_cents, 0) AS payable_from_lines, "
+                + "COALESCE((SELECT SUM(CASE "
+                + "  WHEN po.operation_type IN ('CHARGE', 'ADJUST_CHARGE') THEN po.amount_cents "
+                + "  WHEN po.operation_type = 'REFUND' THEN -po.amount_cents "
+                + "  ELSE 0 END) FROM payment_operation po "
+                + "  WHERE po.order_id = o.order_id AND po.status = 'COMPLETED' "
+                + "  AND po.operation_type IN ('CHARGE', 'ADJUST_CHARGE', 'REFUND')), 0) AS net_paid "
                 + "FROM cabinet_order o LEFT JOIN cabinet_order_line ol ON o.order_id = ol.order_id "
                 + "WHERE o.status = 'PAID' "
                 + "GROUP BY o.order_id, o.total_amount_cents, o.coupon_discount_cents, o.member_discount_cents "
@@ -153,23 +174,59 @@ private DistributedLockService distributedLockService;
         for (Map<String, Object> row : rows) {
             String orderId = String.valueOf(row.get("order_id"));
             failing.add(orderId);
-            String expected = String.valueOf(row.get("total_amount_cents"));
-            String actual = String.valueOf(row.get("payable_from_lines"));
-            String lineSubtotal = String.valueOf(row.get("line_subtotal"));
+            String header = String.valueOf(row.get("total_amount_cents"));
+            String payable = String.valueOf(row.get("payable_from_lines"));
             recordInconsistency("ORDER_AMOUNT", "cabinet_order",
                     orderId,
-                    expected,
-                    actual,
-                    "订单头 " + expected + " ≠ 明细折后 " + actual
-                            + "（明细 " + lineSubtotal + "，券 " + row.get("coupon_discount")
-                            + "，会员 " + row.get("member_discount") + "）");
+                    header,
+                    payable,
+                    buildOrderAmountErrorMessage(row));
         }
         resolveStaleFailuresIfComplete("ORDER_AMOUNT", failing, rows.size());
     }
 
+    static String buildOrderAmountErrorMessage(Map<String, Object> row) {
+        int header = toInt(row.get("total_amount_cents"));
+        int lineSubtotal = toInt(row.get("line_subtotal"));
+        int couponDiscount = toInt(row.get("coupon_discount"));
+        int memberDiscount = toInt(row.get("member_discount"));
+        int payable = toInt(row.get("payable_from_lines"));
+        int netPaid = toInt(row.get("net_paid"));
+        StringBuilder msg = new StringBuilder();
+        msg.append("订单头 ").append(header).append(" ≠ 按明细应收 ").append(payable)
+                .append("（明细 ").append(lineSubtotal)
+                .append("，券 ").append(couponDiscount)
+                .append("，会员 ").append(memberDiscount).append("）");
+        if (couponDiscount > lineSubtotal) {
+            msg.append("；券抵扣超过明细，疑似未封顶");
+        }
+        if (netPaid == header && header == lineSubtotal && payable != header) {
+            msg.append("；实付与明细原价一致，券字段未生效（可尝试「修复」清除脏券）");
+        } else if (netPaid == payable && payable != header) {
+            msg.append("；实付已按折后入账，订单头未同步");
+        } else if (netPaid != header && netPaid != payable) {
+            msg.append("；实付 ").append(netPaid).append(" 与订单头/折后均不符，需人工核对");
+        }
+        return msg.toString();
+    }
+
+    private static int toInt(Object value) {
+        if (value == null) {
+            return 0;
+        }
+        if (value instanceof Number n) {
+            return n.intValue();
+        }
+        try {
+            return Integer.parseInt(String.valueOf(value));
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
     /**
      * 净入账（COMPLETED CHARGE/ADJUST_CHARGE − REFUND）vs 订单应付。
-     * PAID 比对订单头；REFUNDED 期望净额为 0（全额退）。LEFT JOIN 可检出「已付状态却无流水」。
+     * PAID / PARTIAL_REFUNDED 比对订单头；REFUNDED 期望净额为 0（全额退）。LEFT JOIN 可检出「已付状态却无流水」。
      */
     void checkPaymentConsistency() {
         String sql = "SELECT o.order_id, "
@@ -182,7 +239,7 @@ private DistributedLockService distributedLockService;
                 + "LEFT JOIN payment_operation po ON po.order_id = o.order_id "
                 + "AND po.status = 'COMPLETED' "
                 + "AND po.operation_type IN ('CHARGE', 'ADJUST_CHARGE', 'REFUND') "
-                + "WHERE o.status IN ('PAID', 'REFUNDED') "
+                + "WHERE o.status IN ('PAID', 'REFUNDED', 'PARTIAL_REFUNDED') "
                 + "GROUP BY o.order_id, o.status, o.total_amount_cents "
                 + "HAVING CASE WHEN o.status = 'REFUNDED' THEN 0 ELSE o.total_amount_cents END "
                 + "<> COALESCE(SUM(CASE "
@@ -285,6 +342,127 @@ private DistributedLockService distributedLockService;
                     "券定义已发数 " + expected + " ≠ 实际发放 " + actual);
         }
         resolveStaleFailuresIfComplete("COUPON_ISSUED", failing, rows.size());
+    }
+
+    /**
+     * 余额账户 vs 最近一条余额渠道流水的 balance_after（仅有 BALANCE 流水时比对）。
+     */
+    void checkWalletBalanceConsistency() {
+        String sql = "SELECT ua.user_id, ua.balance_cents AS expected, "
+                + "latest.balance_after_cents AS actual "
+                + "FROM user_account ua "
+                + "JOIN LATERAL ( "
+                + "  SELECT po.balance_after_cents "
+                + "  FROM payment_operation po "
+                + "  WHERE po.user_id = ua.user_id AND po.channel = 'BALANCE' "
+                + "  AND po.status = 'COMPLETED' AND po.balance_after_cents IS NOT NULL "
+                + "  ORDER BY po.created_at DESC, po.operation_id DESC "
+                + "  LIMIT 1 "
+                + ") latest ON true "
+                + "WHERE ua.balance_cents <> latest.balance_after_cents "
+                + "LIMIT " + CHECK_BATCH;
+
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String userId = String.valueOf(row.get("user_id"));
+            failing.add(userId);
+            recordInconsistency("WALLET_BALANCE", "user_account",
+                    userId,
+                    String.valueOf(row.get("expected")),
+                    String.valueOf(row.get("actual")),
+                    "账户余额 " + row.get("expected") + " ≠ 最近流水余额 "
+                            + row.get("actual") + "（请人工核对充值/退款/调账）");
+        }
+        resolveStaleFailuresIfComplete("WALLET_BALANCE", failing, rows.size());
+    }
+
+    /**
+     * 订单已退金额字段 vs 已完成 REFUND 流水合计（PARTIAL_REFUNDED / REFUNDED）。
+     */
+    void checkRefundAmountConsistency() {
+        String sql = "SELECT o.order_id, COALESCE(o.refunded_cents, 0) AS expected, "
+                + "COALESCE(SUM(po.amount_cents), 0) AS actual "
+                + "FROM cabinet_order o "
+                + "LEFT JOIN payment_operation po ON po.order_id = o.order_id "
+                + "AND po.operation_type = 'REFUND' AND po.status = 'COMPLETED' "
+                + "WHERE o.status IN ('REFUNDED', 'PARTIAL_REFUNDED') "
+                + "GROUP BY o.order_id, o.refunded_cents "
+                + "HAVING COALESCE(o.refunded_cents, 0) <> COALESCE(SUM(po.amount_cents), 0) "
+                + "LIMIT " + CHECK_BATCH;
+
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String orderId = String.valueOf(row.get("order_id"));
+            failing.add(orderId);
+            recordInconsistency("REFUND_AMOUNT", "cabinet_order",
+                    orderId,
+                    String.valueOf(row.get("expected")),
+                    String.valueOf(row.get("actual")),
+                    "订单已退字段 " + row.get("expected") + " ≠ 退款流水合计 "
+                            + row.get("actual") + "（请走退款/调账）");
+        }
+        resolveStaleFailuresIfComplete("REFUND_AMOUNT", failing, rows.size());
+    }
+
+    /**
+     * 订单行金额 vs 单价×数量（PAID/PENDING/PARTIAL_REFUNDED/DISPUTED）。
+     */
+    void checkOrderLineSumConsistency() {
+        String sql = "SELECT ol.order_id || '|' || ol.sku_id AS line_key, "
+                + "ol.line_amount_cents AS expected, "
+                + "(ol.unit_price_cents * ol.quantity) AS actual "
+                + "FROM cabinet_order_line ol "
+                + "JOIN cabinet_order o ON o.order_id = ol.order_id "
+                + "WHERE o.status IN ('PAID', 'PENDING', 'PARTIAL_REFUNDED', 'DISPUTED') "
+                + "AND ol.line_amount_cents <> (ol.unit_price_cents * ol.quantity) "
+                + "LIMIT " + CHECK_BATCH;
+
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String key = String.valueOf(row.get("line_key"));
+            failing.add(key);
+            recordInconsistency("ORDER_LINE_SUM", "cabinet_order_line",
+                    key,
+                    String.valueOf(row.get("expected")),
+                    String.valueOf(row.get("actual")),
+                    "行金额 " + row.get("expected") + " ≠ 单价×数量 " + row.get("actual"));
+        }
+        resolveStaleFailuresIfComplete("ORDER_LINE_SUM", failing, rows.size());
+    }
+
+    /**
+     * 已核销 user_coupon 与订单券字段不一致（coupon_id / discount_cents）。
+     */
+    void checkCouponUsedLinkConsistency() {
+        String sql = "SELECT uc.order_id, "
+                + "COALESCE(o.coupon_discount_cents, 0) AS order_discount, "
+                + "COALESCE(uc.discount_cents, 0) AS coupon_discount, "
+                + "COALESCE(CAST(o.coupon_id AS VARCHAR), '') AS order_coupon_id, "
+                + "CAST(uc.coupon_id AS VARCHAR) AS user_coupon_id "
+                + "FROM user_coupon uc "
+                + "JOIN cabinet_order o ON o.order_id = uc.order_id "
+                + "WHERE uc.status = 'USED' AND uc.order_id IS NOT NULL "
+                + "AND (o.coupon_id IS DISTINCT FROM uc.coupon_id "
+                + "OR COALESCE(o.coupon_discount_cents, 0) <> COALESCE(uc.discount_cents, 0)) "
+                + "LIMIT " + CHECK_BATCH;
+
+        Set<String> failing = new HashSet<>();
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql);
+        for (Map<String, Object> row : rows) {
+            String orderId = String.valueOf(row.get("order_id"));
+            failing.add(orderId);
+            recordInconsistency("COUPON_USED_LINK", "user_coupon",
+                    orderId,
+                    String.valueOf(row.get("order_discount")),
+                    String.valueOf(row.get("coupon_discount")),
+                    "订单券抵扣 " + row.get("order_discount") + " / 券ID "
+                            + row.get("order_coupon_id") + " ≠ 核销券 "
+                            + row.get("coupon_discount") + " / ID " + row.get("user_coupon_id"));
+        }
+        resolveStaleFailuresIfComplete("COUPON_USED_LINK", failing, rows.size());
     }
 
     /**
@@ -440,7 +618,11 @@ private DistributedLockService distributedLockService;
         return switch (record.getCheckType()) {
             case "ORDER_AMOUNT" -> fixOrderAmount(record);
             case "INVENTORY_MISMATCH" -> fixInventoryMismatch(record);
-            case "PAYMENT_AMOUNT" -> FixOutcome.fail("支付净额偏差不可自动修复，请走退款/调账");
+            case "ORDER_LINE_SUM" -> fixOrderLineSum(record);
+            case "COUPON_USED_LINK" -> fixCouponUsedLink(record);
+            case "PAYMENT_AMOUNT" -> fixPaymentAmount(record);
+            case "REFUND_AMOUNT", "WALLET_BALANCE" ->
+                    FixOutcome.fail("该类仅巡检记录，请人工核对处理");
             default -> FixOutcome.fail("不支持自动修复的类型: " + record.getCheckType());
         };
     }
@@ -486,15 +668,16 @@ private DistributedLockService distributedLockService;
             return FixOutcome.ok("头金额已与明细折后一致");
         }
 
+        if (paid != null && paid.equals(header) && lineSum != null && paid.equals(lineSum)
+                && (couponDiscount > 0 || memberDiscount > 0) && payableFromLines != header) {
+            return clearStaleCouponFields(orderId, couponDiscount, memberDiscount);
+        }
+
         if (paid != null && paid.equals(header)) {
-            if (lineCount != null && lineCount == 1 && lineSum != null && lineSum != header + couponDiscount + memberDiscount) {
-                int targetLine = header + couponDiscount + memberDiscount;
-                jdbcTemplate.update(
-                        "UPDATE cabinet_order_line SET line_amount_cents = ?, "
-                                + "unit_price_cents = CASE WHEN quantity > 0 THEN ? / quantity ELSE ? END "
-                                + "WHERE order_id = ?",
-                        targetLine, targetLine, targetLine, orderId);
-                return FixOutcome.ok("已按入账金额对齐单行明细（含折扣）");
+            if (lineCount != null && lineCount == 1 && lineSum != null
+                    && couponDiscount == 0 && memberDiscount == 0
+                    && lineSum != header) {
+                return alignSingleLineToHeader(orderId, header);
             }
             if (lineCount != null && lineCount == 0) {
                 return FixOutcome.fail("无明细行，无法自动补 SKU，请人工补行");
@@ -508,7 +691,187 @@ private DistributedLockService distributedLockService;
                     payableFromLines, orderId);
             return FixOutcome.ok("无匹配入账流水，已把头金额改为明细折后 " + payableFromLines);
         }
-        return FixOutcome.fail("明细折后为 0 或与入账不一致，无法自动修复");
+        if (lineSum != null && lineSum > 0 && paid != null && paid.equals(payableFromLines) && !paid.equals(header)) {
+            jdbcTemplate.update(
+                    "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?",
+                    payableFromLines, orderId);
+            return FixOutcome.ok("实付已与折后一致，已同步订单头为 " + payableFromLines);
+        }
+        return FixOutcome.fail("明细折后与入账不一致，无法自动修复（请走退款/调账或人工改券）");
+    }
+
+    /** 实付=明细原价但券/会员字段未生效：清除脏元数据并尝试退还券占用。 */
+    private FixOutcome clearStaleCouponFields(String orderId, int couponDiscount, int memberDiscount) {
+        jdbcTemplate.update(
+                "UPDATE cabinet_order SET coupon_id = NULL, coupon_discount_cents = 0, "
+                        + "member_discount_cents = 0 WHERE order_id = ?",
+                orderId);
+        int released = couponService.releaseStaleUsedCouponsForOrder(orderId);
+        return FixOutcome.ok("实付与明细一致，已清除未生效的券/折扣字段"
+                + "（券 " + couponDiscount + "，会员 " + memberDiscount
+                + "；释放错绑核销券 " + released + " 张）");
+    }
+
+    /** 单行订单按单价×数量对齐；头金额不能整除数量时同步头金额为折后行合计。 */
+    private FixOutcome alignSingleLineToHeader(String orderId, int header) {
+        Integer quantity = jdbcTemplate.query(
+                "SELECT quantity FROM cabinet_order_line WHERE order_id = ? LIMIT 1",
+                rs -> rs.next() ? rs.getInt(1) : null,
+                orderId);
+        int qty = quantity != null && quantity > 0 ? quantity : 1;
+        int unit = header / qty;
+        int line = unit * qty;
+        jdbcTemplate.update(
+                "UPDATE cabinet_order_line SET line_amount_cents = ?, unit_price_cents = ? WHERE order_id = ?",
+                line, unit, orderId);
+        if (line != header) {
+            jdbcTemplate.update(
+                    "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?",
+                    line, orderId);
+            String refundMsg = refundOverchargeIfNeeded(orderId, line);
+            return FixOutcome.ok("已按单价×数量对齐明细 " + line + "（原头金额 " + header
+                    + " 含 " + (header - line) + " 分尾差）" + refundMsg);
+        }
+        return FixOutcome.ok("已按入账金额对齐单行明细");
+    }
+
+    /** 订单头下调后，若净入账仍高于新头金额则退多收差额。 */
+    private String refundOverchargeIfNeeded(String orderId, int newHeaderCents) {
+        Integer netPaid = queryNetCompletedCents(orderId);
+        if (netPaid == null || netPaid <= newHeaderCents) {
+            return "";
+        }
+        CabinetOrder order = cabinetOrderRepository.findByIdForUpdate(orderId).orElse(null);
+        if (order == null) {
+            return "";
+        }
+        int over = netPaid - newHeaderCents;
+        orderPaymentService.refundOrder(order, over, "一致性修复退多收");
+        return "，已退多收 " + over + " 分";
+    }
+
+    private Integer queryNetCompletedCents(String orderId) {
+        return jdbcTemplate.query(
+                "SELECT COALESCE(SUM(CASE "
+                        + "WHEN operation_type IN ('CHARGE', 'ADJUST_CHARGE') THEN amount_cents "
+                        + "WHEN operation_type = 'REFUND' THEN -amount_cents "
+                        + "ELSE 0 END), 0) "
+                        + "FROM payment_operation "
+                        + "WHERE order_id = ? AND status = 'COMPLETED' "
+                        + "AND operation_type IN ('CHARGE', 'ADJUST_CHARGE', 'REFUND')",
+                rs -> rs.next() ? rs.getInt(1) : null,
+                orderId);
+    }
+
+    private FixOutcome fixOrderLineSum(DataConsistencyRecord record) {
+        String[] parts = record.getCheckKey().split("\\|", 2);
+        if (parts.length < 2) {
+            return FixOutcome.fail("行键格式无效，期望 orderId|skuId");
+        }
+        String orderId = parts[0];
+        String skuId = parts[1];
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT ol.quantity, ol.unit_price_cents, ol.line_amount_cents, o.total_amount_cents "
+                        + "FROM cabinet_order_line ol "
+                        + "JOIN cabinet_order o ON o.order_id = ol.order_id "
+                        + "WHERE ol.order_id = ? AND ol.sku_id = ?",
+                orderId, skuId);
+        if (rows.isEmpty()) {
+            return FixOutcome.fail("订单行不存在");
+        }
+        Map<String, Object> row = rows.get(0);
+        int qty = ((Number) row.get("quantity")).intValue();
+        if (qty <= 0) {
+            return FixOutcome.fail("行数量无效");
+        }
+        int unit = ((Number) row.get("unit_price_cents")).intValue();
+        int line = ((Number) row.get("line_amount_cents")).intValue();
+        int header = ((Number) row.get("total_amount_cents")).intValue();
+        int computed = unit * qty;
+        if (line == computed) {
+            return FixOutcome.ok("行金额已与单价×数量一致");
+        }
+        int alignedLine;
+        int alignedUnit;
+        if (line % qty == 0) {
+            alignedUnit = line / qty;
+            alignedLine = line;
+        } else {
+            alignedUnit = unit;
+            alignedLine = computed;
+        }
+        jdbcTemplate.update(
+                "UPDATE cabinet_order_line SET line_amount_cents = ?, unit_price_cents = ? "
+                        + "WHERE order_id = ? AND sku_id = ?",
+                alignedLine, alignedUnit, orderId, skuId);
+        Integer lineCount = jdbcTemplate.query(
+                "SELECT COUNT(*) FROM cabinet_order_line WHERE order_id = ?",
+                rs -> rs.next() ? rs.getInt(1) : 0,
+                orderId);
+        if (lineCount != null && lineCount == 1 && header != alignedLine) {
+            jdbcTemplate.update(
+                    "UPDATE cabinet_order SET total_amount_cents = ? WHERE order_id = ?",
+                    alignedLine, orderId);
+            String refundMsg = refundOverchargeIfNeeded(orderId, alignedLine);
+            return FixOutcome.ok("已对齐行金额 " + alignedLine + "（原 " + line + "），并同步订单头" + refundMsg);
+        }
+        return FixOutcome.ok("已对齐行金额 " + alignedLine + "（原 " + line + "）");
+    }
+
+    /** 实付大于订单头时退多收差额（常见于修行金额后遗留尾差）。 */
+    private FixOutcome fixPaymentAmount(DataConsistencyRecord record) {
+        String orderId = record.getCheckKey();
+        int expected = parseRecordCents(record.getExpectedValue());
+        int actual = parseRecordCents(record.getActualValue());
+        if (actual <= expected) {
+            return FixOutcome.fail("仅支持实付大于订单头的多收场景，少收请走补扣/调账");
+        }
+        CabinetOrder order = cabinetOrderRepository.findByIdForUpdate(orderId).orElse(null);
+        if (order == null) {
+            return FixOutcome.fail("订单不存在");
+        }
+        String status = order.getStatus() == null ? "" : order.getStatus();
+        if (!Set.of("PAID", "PARTIAL_REFUNDED").contains(status)) {
+            return FixOutcome.fail("订单状态 " + status + " 不支持自动退多收");
+        }
+        int over = actual - expected;
+        orderPaymentService.refundOrder(order, over, "一致性修复退多收");
+        return FixOutcome.ok("已退多收 " + over + " 分，净入账对齐订单头 " + expected);
+    }
+
+    private static int parseRecordCents(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return 0;
+        }
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
+    private FixOutcome fixCouponUsedLink(DataConsistencyRecord record) {
+        String orderId = record.getCheckKey();
+        Integer orderDiscount = jdbcTemplate.query(
+                "SELECT COALESCE(coupon_discount_cents, 0) FROM cabinet_order WHERE order_id = ?",
+                rs -> rs.next() ? rs.getInt(1) : null,
+                orderId);
+        Long orderCouponId = jdbcTemplate.query(
+                "SELECT coupon_id FROM cabinet_order WHERE order_id = ?",
+                rs -> rs.next() && rs.getObject(1) != null ? rs.getLong(1) : null,
+                orderId);
+        if (orderCouponId != null && orderDiscount != null && orderDiscount > 0) {
+            return FixOutcome.fail("订单已绑券且抵扣生效，请人工核对券字段与核销记录");
+        }
+        int released = couponService.releaseStaleUsedCouponsForOrder(orderId);
+        if (released <= 0) {
+            return FixOutcome.fail("未找到可释放的错绑核销券");
+        }
+        jdbcTemplate.update(
+                "UPDATE cabinet_order SET coupon_id = NULL, coupon_discount_cents = 0 "
+                        + "WHERE order_id = ? AND coupon_id IS NOT NULL",
+                orderId);
+        return FixOutcome.ok("已释放 " + released + " 张错绑核销券");
     }
 
     private FixOutcome fixInventoryMismatch(DataConsistencyRecord record) {

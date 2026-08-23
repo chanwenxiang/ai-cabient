@@ -36,11 +36,20 @@ try {
     Clear-E2eDeviceBlockingSessions -DeviceId $DeviceId | Out-Null
     $mqtt = Invoke-E2eMqttShopping -BaseUrl $BaseUrl -DeviceId $DeviceId -Auth $auth `
         -RepoRoot $Root -InternalApiKey "dev-internal-key-change-me" -KeepSimulator
-    Start-Sleep -Seconds 2
-    $orders = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
-        -Path ("/api/v2/orders?page=0" + [char]38 + "size=10") -Headers $auth
-    $hit = @($orders.items) | Where-Object { $_.sessionId -eq $mqtt.SessionId } | Select-Object -First 1
-    if (-not $hit) { throw ("no order for session " + $mqtt.SessionId) }
+    if ($mqtt.FinalState -eq "DISPUTED") {
+        Write-Host "DISPUTED -> ops CONFIRM sku=$sku qty=2"
+        $disp = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET `
+            -Path ("/api/v2/ops/disputes?status=OPEN&sessionId=" + $mqtt.SessionId + "&page=0&size=5") -Headers $ops
+        $t = @($disp.items) | Select-Object -First 1
+        if (-not $t) { throw ("DISPUTED session " + $mqtt.SessionId + " has no OPEN dispute ticket") }
+        $null = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST `
+            -Path ("/api/v2/ops/disputes/" + $t.ticketId + "/resolve") -Headers $ops -Body @{
+            resolutionType = "CONFIRM"
+            videoReviewed  = $true
+            items          = @(@{ skuId = $sku; quantity = 2 })
+        }
+    }
+    $hit = Wait-E2eSessionOrder -BaseUrl $BaseUrl -SessionId $mqtt.SessionId -Auth $auth
     $q1 = Get-Qty $sku
     Write-Host ("order=" + $hit.orderId + " status=" + $hit.status + " total=" + $hit.totalAmountCents + " stock " + $q0 + "->" + $q1)
 

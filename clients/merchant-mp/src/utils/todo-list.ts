@@ -1,3 +1,4 @@
+import { formatExceptionDetail } from '@aicabinet/shared-dict';
 import { alertTypeLabel, merchantAlertTitle } from '@/utils/merchant-api';
 
 export type TodoSourceException = {
@@ -59,7 +60,7 @@ export function mergeTodoItems(input: {
     type: a.exceptionType,
     typeLabel: alertTypeLabel(a.exceptionType),
     title: merchantAlertTitle(a.exceptionType, a.title),
-    detail: merchantAlertTitle(a.exceptionType, a.detail || ''),
+    detail: formatExceptionDetail(a.detail || ''),
     deviceId: a.deviceId,
     exceptionId: a.exceptionId
   }));

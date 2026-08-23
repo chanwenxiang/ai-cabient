@@ -276,7 +276,12 @@
               <span v-if="row.refundedAt" class="cell-datetime">{{
                 formatDateTime(row.refundedAt)
               }}</span>
-              <span v-else class="muted">暂无</span>
+              <span
+                v-else-if="row.status === 'REFUNDED' || row.status === 'PARTIAL_REFUNDED'"
+                class="muted"
+                >暂无</span
+              >
+              <span v-else class="muted">—</span>
             </template>
           </el-table-column>
           <el-table-column v-if="statusTab === 'PENDING'" label="账龄" width="110" align="center">
@@ -378,9 +383,17 @@
             <el-descriptions-item label="创建时间">{{
               formatDateTime(detail.createdAt)
             }}</el-descriptions-item>
-            <el-descriptions-item v-if="detail.refundedAt" label="退款时间">{{
-              formatDateTime(detail.refundedAt)
-            }}</el-descriptions-item>
+            <el-descriptions-item
+              v-if="
+                detail.refundedAt ||
+                detail.status === 'REFUNDED' ||
+                detail.status === 'PARTIAL_REFUNDED'
+              "
+              label="退款时间"
+              >{{
+                detail.refundedAt ? formatDateTime(detail.refundedAt) : '暂无'
+              }}</el-descriptions-item
+            >
           </el-descriptions>
 
           <div class="drawer-actions">
@@ -487,7 +500,11 @@
             >
             <el-timeline-item
               v-if="detail.status === 'REFUNDED' || detail.status === 'PARTIAL_REFUNDED'"
-              :timestamp="formatDateTime(detail.updatedAt)"
+              :timestamp="
+                detail.refundedAt
+                  ? formatDateTime(detail.refundedAt)
+                  : '暂无'
+              "
               type="warning"
               >{{ detail.status === 'PARTIAL_REFUNDED' ? '部分退款' : '已退款' }}</el-timeline-item
             >
@@ -673,7 +690,7 @@ const { onExport: exportSelectedCsv } = useListCsv({
       row.sessionId,
       row.userId,
       row.deviceId,
-      row.payTradeNo || row.paymentOperationId || '',
+      displayBizNo(row.payTradeNo || row.paymentOperationId, ''),
       displayLabel('order_status', row.status, '未知状态'),
       paymentStatusLabel(row.status),
       refundColumnLabel(row.status),

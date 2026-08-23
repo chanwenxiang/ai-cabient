@@ -276,15 +276,28 @@ public class UnpaidOrderService {
         if (order.getUserId() == null || order.getTotalAmountCents() <= 0) {
             return null;
         }
-        if (order.getCouponId() != null && order.getCouponDiscountCents() > 0) {
-            // 兼容旧数据：PENDING 上已带券字段则沿用
-            return new CouponService.BestCoupon(
-                    order.getCouponId(), order.getCouponDiscountCents(), null);
+        hydrate(order);
+        int subtotal = order.getLines().stream()
+                .mapToInt(CabinetOrderLine::getLineAmountCents)
+                .sum();
+        if (subtotal <= 0) {
+            subtotal = order.getOriginalAmountCents() > 0
+                    ? order.getOriginalAmountCents()
+                    : order.getTotalAmountCents();
         }
-        int subtotal = order.getOriginalAmountCents() > 0
-                ? order.getOriginalAmountCents()
-                : order.getTotalAmountCents();
         order.setOriginalAmountCents(subtotal);
+        if (order.getCouponId() != null) {
+            int discount = couponService.discountForOrderCoupon(order.getCouponId(), subtotal);
+            if (discount <= 0) {
+                order.setCouponId(null);
+                order.setCouponDiscountCents(0);
+                order.setTotalAmountCents(subtotal);
+                return null;
+            }
+            order.setCouponDiscountCents(discount);
+            order.setTotalAmountCents(Math.max(0, subtotal - discount));
+            return new CouponService.BestCoupon(order.getCouponId(), discount, null);
+        }
         order.setTotalAmountCents(subtotal);
         var best = couponService.selectBestCoupon(order.getUserId(), subtotal);
         if (best.isEmpty()) {

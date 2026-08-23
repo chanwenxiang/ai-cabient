@@ -86,7 +86,7 @@
           <text class="nearby-link" role="button" @click="goNearby">附近找柜</text>
         </view>
 
-        <view v-if="showManualEntry" class="landing-foot">
+        <view v-if="showManualEntry && !showManual" class="landing-foot">
           <text
             class="manual-link"
             role="button"
@@ -122,7 +122,7 @@
             placeholder-class="sheet-ph"
           />
           <button
-            class="btn-primary"
+            class="btn-primary btn-block"
             hover-class="btn-hover"
             role="button"
             data-testid="open-door-confirm"
@@ -132,7 +132,9 @@
           >
             {{ opening ? '开门中…' : '确认并开门' }}
           </button>
-          <text class="landing-sheet-cancel" @click="showManual = false">取消</text>
+          <view class="landing-sheet-cancel-wrap">
+            <text class="landing-sheet-cancel" @click="showManual = false">取消</text>
+          </view>
         </view>
       </view>
     </view>
@@ -1831,19 +1833,21 @@ function stopDevicePoll() {
   padding: 16rpx 20rpx;
   border: 1rpx solid rgba(255, 255, 255, 0.28);
   box-sizing: border-box;
-  text-align: left;
+  text-align: center;
 }
 .resume-title {
   font-size: 26rpx;
   font-weight: 600;
   color: #ffffff;
   display: block;
+  text-align: center;
 }
 .resume-sub {
   font-size: 22rpx;
   color: rgba(255, 255, 255, 0.78);
   margin-top: 2rpx;
   display: block;
+  text-align: center;
 }
 
 .landing-action {
@@ -1936,6 +1940,7 @@ function stopDevicePoll() {
 }
 .btn-primary {
   margin: 0;
+  width: 100%;
   background: linear-gradient(135deg, var(--brand, #047857), var(--brand, #047857));
   color: #fff;
   border-radius: 44rpx;
@@ -2749,17 +2754,23 @@ function stopDevicePoll() {
 .landing-sheet {
   width: 100%;
   max-width: 520rpx;
+  margin-left: auto;
+  margin-right: auto;
   padding: 28rpx 24rpx 24rpx;
   border-radius: 20rpx;
   background: var(--brand-deep, #064e3b);
   border: 1rpx solid rgba(255, 255, 255, 0.16);
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
 }
 .landing-sheet-title {
   display: block;
   font-size: 30rpx;
   font-weight: 700;
   color: #ffffff;
+  text-align: center;
 }
 .landing-sheet-body {
   display: block;
@@ -2774,6 +2785,7 @@ function stopDevicePoll() {
   margin-bottom: 8rpx;
   font-size: 24rpx;
   color: rgba(255, 255, 255, 0.78);
+  text-align: center;
 }
 .sheet-input {
   display: block;
@@ -2797,6 +2809,15 @@ function stopDevicePoll() {
   gap: 16rpx;
   margin-top: 24rpx;
 }
+.landing-sheet .btn-primary,
+.landing-sheet uni-button.btn-primary {
+  width: 100% !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  align-self: stretch !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
 .landing-sheet-btn {
   padding: 10rpx 22rpx;
   border-radius: 999rpx;
@@ -2810,13 +2831,21 @@ function stopDevicePoll() {
   background: var(--brand, #047857);
   font-weight: 600;
 }
+.landing-sheet-cancel-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin-top: 16rpx;
+}
 .landing-sheet-cancel {
   display: block;
-  margin-top: 16rpx;
+  width: 100%;
   text-align: center;
   color: rgba(255, 255, 255, 0.78);
   font-size: 26rpx;
-  padding: 8rpx;
+  padding: 8rpx 0;
+  box-sizing: border-box;
 }
 .device-bar {
   margin: 18rpx 20rpx 0;

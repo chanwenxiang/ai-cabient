@@ -369,7 +369,7 @@
                   detail.exception.title
                 }}</el-descriptions-item>
                 <el-descriptions-item label="详细信息">{{
-                  detail.exception.detail || '无'
+                  formatExceptionDetail(detail.exception.detail)
                 }}</el-descriptions-item>
                 <el-descriptions-item label="关联设备">
                   <button
@@ -553,6 +553,7 @@ import {
   dictOptions,
   dictTagType,
   displayLabel,
+  formatExceptionDetail,
   formatOpsActionDetail
 } from '@aicabinet/shared-dict';
 import type { PageResult } from '@aicabinet/shared-types';

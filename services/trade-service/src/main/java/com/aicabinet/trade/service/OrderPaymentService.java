@@ -16,6 +16,7 @@ import com.aicabinet.trade.mapper.PaymentOperationMapper;
 import com.aicabinet.trade.mapper.ShoppingSessionMapper;
 import com.aicabinet.trade.mapper.UserInfoMapper;
 import com.aicabinet.trade.support.ApiMessages;
+import com.aicabinet.trade.util.BizIds;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -91,6 +92,7 @@ public class OrderPaymentService {
         }
         runWithOrderPaymentLock(order.getOrderId(), locked -> {
             chargeOrderUnderLock(locked);
+            cabinetOrderRepository.updateById(locked);
             syncPaymentFields(order, locked);
         });
     }
@@ -101,6 +103,7 @@ public class OrderPaymentService {
             order.setPayChannel(paymentOperationRepository.findByIdempotencyKey(idemKey)
                     .map(PaymentOperation::getChannel).orElse(PayChannels.BALANCE));
             ensurePayTradeNo(order);
+            ensurePaymentOperationId(order);
             return;
         }
         UserInfo user = userInfoRepository.findById(order.getUserId())
@@ -160,6 +163,7 @@ public class OrderPaymentService {
             }
         }
         order.setPayChannel(PayChannels.BALANCE);
+        ensurePaymentOperationId(order);
     }
 
     /** 订单已完成支付流水的净入账（分），供争议免单等场景使用。 */
@@ -324,7 +328,7 @@ public class OrderPaymentService {
             return;
         }
         PaymentOperation op = new PaymentOperation();
-        op.setOperationId(type + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase());
+        op.setOperationId(resolveOperationId(type, channel));
         op.setOrderId(order.getOrderId());
         op.setOperationType(type);
         op.setAmountCents(amountCents);
@@ -346,6 +350,35 @@ public class OrderPaymentService {
             return "DEFAULT";
         }
         return Integer.toUnsignedString(reason.hashCode(), 36).toUpperCase();
+    }
+
+    private static String resolveOperationId(String type, String channel) {
+        if (PayChannels.BALANCE.equalsIgnoreCase(channel)) {
+            return BizIds.nextNumeric();
+        }
+        return type + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 18).toUpperCase();
+    }
+
+    /**
+     * Legacy 订单可能未写入 payment_operation_id，但 CHARGE 流水已落库。
+     */
+    private void ensurePaymentOperationId(CabinetOrder order) {
+        if (order.getPaymentOperationId() != null && !order.getPaymentOperationId().isBlank()) {
+            return;
+        }
+        paymentOperationRepository.findLatestChargeOperationId(order.getOrderId())
+                .ifPresent(opId -> {
+                    int updated = cabinetOrderRepository.backfillPaymentOperationIdIfAbsent(order.getOrderId(), opId);
+                    if (updated > 0) {
+                        order.setPaymentOperationId(opId);
+                        log.info("backfilled paymentOperationId order={} opId={}", order.getOrderId(), opId);
+                    } else {
+                        cabinetOrderRepository.findById(order.getOrderId())
+                                .map(CabinetOrder::getPaymentOperationId)
+                                .filter(s -> s != null && !s.isBlank())
+                                .ifPresent(order::setPaymentOperationId);
+                    }
+                });
     }
 
     /**
@@ -405,6 +438,9 @@ public class OrderPaymentService {
     private static void syncPaymentFields(CabinetOrder target, CabinetOrder locked) {
         target.setPayChannel(locked.getPayChannel());
         target.setPayTradeNo(locked.getPayTradeNo());
+        target.setPaymentOperationId(locked.getPaymentOperationId());
+        target.setBalanceBeforeCents(locked.getBalanceBeforeCents());
+        target.setBalanceAfterCents(locked.getBalanceAfterCents());
         target.setRefundedCents(locked.getRefundedCents());
         target.setRefundedAt(locked.getRefundedAt());
     }

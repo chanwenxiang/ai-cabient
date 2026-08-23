@@ -216,12 +216,14 @@ uni-button.btn-block {
   align-self: stretch !important;
 }
 
-/* 纵向操作区：通栏等宽 + 文字居中（订单详情 / 账单结果 / 争议等） */
+/* 纵向操作区：通栏等宽 + 文字居中（订单详情 / 账单结果 / 争议 / 手动输入柜机等） */
 .actions,
 .btn-stack,
 .detail-actions,
 .footer-actions,
-.error-card {
+.error-card,
+.landing-sheet,
+.drawer-body {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -267,7 +269,11 @@ uni-button.btn-block {
 .btn-stack > uni-button,
 .detail-actions > uni-button,
 .footer-actions > uni-button,
-.error-card > uni-button {
+.error-card > uni-button,
+.landing-sheet > uni-button,
+.landing-sheet > button,
+.drawer-body > uni-button,
+.drawer-body > button {
   width: 100% !important;
   max-width: none !important;
   min-width: 0 !important;

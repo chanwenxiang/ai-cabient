@@ -108,7 +108,7 @@ try {
 }
 
 try {
-    $ops = Invoke-GrayApi POST "/api/v2/auth/admin-password-login" @{} @{
+    $ops = Invoke-E2eApi -BaseUrl $BaseUrl -Method POST -Path "/api/v2/auth/admin-password-login" -Body @{
         phoneNumber = $OperatorPhone; password = "123456"
     }
     $opsAuth = @{ Authorization = "Bearer $($ops.token)" }

@@ -81,4 +81,13 @@
       AND (pay_trade_no IS NULL OR pay_trade_no = '')
     ]]>
   </update>
+
+  <update id="backfillPaymentOperationIdIfAbsent">
+    <![CDATA[
+    UPDATE cabinet_order
+    SET payment_operation_id = #{operationId}
+    WHERE order_id = #{orderId}
+      AND (payment_operation_id IS NULL OR payment_operation_id = '')
+    ]]>
+  </update>
 </mapper>
