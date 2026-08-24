@@ -428,6 +428,7 @@ public class InventoryLotService {
             return;
         }
         String slot = slotCode.trim().toUpperCase();
+        ensureSlotBookTarget(deviceId, slot, countedQuantity);
         List<DeviceSkuLot> lots = lotRepository
                 .findByDeviceIdAndSkuIdAndSlotIdOrderByExpiryDateAsc(deviceId, skuId, slot);
         int current = lots.stream().mapToInt(DeviceSkuLot::getQuantity).sum();
@@ -616,6 +617,75 @@ public class InventoryLotService {
                     log.info("ensure pull-off task lot={} reason={} qty={}", lot.getLotId(), reason, lot.getQuantity());
                     return task;
                 });
+    }
+
+    /**
+     * 货道间挪货（容量校正：溢出货道 → 同 SKU 尚有容量的货道）。
+     */
+    @Transactional
+    public void transferBetweenSlots(String deviceId, String skuId, String fromSlotCode, String toSlotCode,
+                                     int quantity, Long operatorId, String refId) {
+        if (quantity <= 0) {
+            return;
+        }
+        runWithDeviceLotLock(deviceId, () -> {
+            doTransferBetweenSlots(deviceId, skuId, fromSlotCode, toSlotCode, quantity, operatorId, refId);
+            return null;
+        });
+    }
+
+    private void doTransferBetweenSlots(String deviceId, String skuId, String fromSlotCode, String toSlotCode,
+                                        int quantity, Long operatorId, String refId) {
+        String from = fromSlotCode.trim().toUpperCase();
+        String to = toSlotCode.trim().toUpperCase();
+        ensureSlotCapacity(deviceId, to, quantity);
+        List<DeviceSkuLot> lots = lotRepository
+                .findByDeviceIdAndSkuIdAndSlotIdOrderByExpiryDateAsc(deviceId, skuId, from);
+        int remaining = quantity;
+        for (DeviceSkuLot lot : lots) {
+            if (remaining <= 0) {
+                break;
+            }
+            if (lot.getQuantity() <= 0) {
+                continue;
+            }
+            int take = Math.min(lot.getQuantity(), remaining);
+            String batch = lot.getBatchNo();
+            LocalDate production = lot.getProductionDate();
+            LocalDate expiry = lot.getExpiryDate();
+            lot.setQuantity(lot.getQuantity() - take);
+            if (lot.getQuantity() == 0) {
+                lot.setStatus("DEPLETED");
+            }
+            lotRepository.save(lot);
+            recordMovement(deviceId, skuId, batch, "ADJ", -take, "SLOT_TRANSFER", refId, operatorId);
+            doAddRestock(deviceId, skuId, batch, production, expiry, take, to, operatorId, refId);
+            remaining -= take;
+        }
+        if (remaining > 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "货道 " + from + " 可挪库存不足，还差 " + remaining);
+        }
+        syncAggregateInventory(deviceId, skuId);
+    }
+
+    /** 盘点/实盘目标数量不得超过货道容量。 */
+    private void ensureSlotBookTarget(String deviceId, String slotCode, int targetQty) {
+        if (targetQty < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "数量不能为负");
+        }
+        DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode.trim().toUpperCase()))
+                .orElse(null);
+        if (slot == null) {
+            return;
+        }
+        int cap = slot.getMaxLevel() > 0 ? slot.getMaxLevel()
+                : (slot.getParLevel() > 0 ? slot.getParLevel() : 0);
+        if (cap > 0 && targetQty > cap) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    String.format(com.aicabinet.trade.support.ApiMessages.SLOT_QTY_OVER_CAPACITY,
+                            slotCode, cap, targetQty));
+        }
     }
 
     /** 有货道时校验补货后账面不超过 maxLevel / parLevel。 */

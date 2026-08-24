@@ -722,6 +722,8 @@ public class ReplenishmentService {
 
         }
 
+        deviceSlotService.clampDeviceOverCapacity(task.getDeviceId());
+
         task.setStatus("COMPLETED");
 
         task.setCompletedAt(Instant.now());
