@@ -120,6 +120,27 @@ export const DICT = {
     URGENT: '紧急'
   },
   pay_channel: { WECHAT: '微信', ALIPAY: '支付宝', MOCK: '其他', BALANCE: '余额', UNKNOWN: '未知' },
+  /** 手机验证流水 · 验证渠道（与 pay_channel 不同，含 SMS 等） */
+  verify_channel: {
+    SMS: '短信验证码',
+    SMS_RESET: '短信重置密码',
+    WECHAT: '微信',
+    ALIPAY: '支付宝'
+  },
+  /** 站内信 / notification_log.biz_type */
+  notification_biz_type: {
+    ORDER: '订单',
+    RECHARGE: '充值',
+    REPLENISHMENT: '补货',
+    DISPUTE: '争议/售后',
+    COUPON: '优惠券',
+    POINTS: '积分',
+    RECALL: '用户召回',
+    MERCHANT: '商户通知',
+    SETTLEMENT: '结算',
+    SESSION: '购物会话',
+    OPS_MANUAL: '运营手工'
+  },
   recharge_status: {
     CREATED: '已创建',
     PENDING: '待支付',
@@ -244,7 +265,22 @@ export const DICT = {
     ACTIVE: '启用',
     INACTIVE: '停用',
     DISABLED: '停用',
-    ENDED: '已结束'
+    ENDED: '已结束',
+    DRAFT: '草稿',
+    STOPPED: '已停止'
+  },
+  /** 商户/线长钱包流水 · 关联业务类型 */
+  wallet_ref_type: {
+    ORDER: '订单',
+    WITHDRAW: '提现',
+    OPS_ADJUST: '运营调账',
+    COMMISSION_DAILY: '日结佣金',
+    SPLIT: '分账',
+    SPLIT_PARTIAL: '分账增额',
+    SPLIT_PARTIAL_REV: '分账冲正',
+    RECHARGE: '充值',
+    REFUND: '退款',
+    SEED: '演示初始'
   },
   sku_enrollment_status: {
     DRAFT: '草稿',

@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">线长钱包</span>
-            <span class="hint">线长可自主提现 · 与商户平台分账解耦 · 默认 Mock 打款</span>
+            <span class="hint">线长可自主提现 · 与商户平台分账解耦 · 默认模拟打款</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -215,7 +215,11 @@
             <el-table-column prop="status" label="状态" width="120" align="center">
               <template #default="{ row }">{{ withdrawStatusLabel(row.status) }}</template>
             </el-table-column>
-            <el-table-column prop="payChannel" label="通道" width="120" align="center" />
+            <el-table-column label="通道" width="120" align="center">
+              <template #default="{ row }">{{
+                displayLabel('pay_channel', row.payChannel, '未知')
+              }}</template>
+            </el-table-column>
             <el-table-column
               prop="payoutRef"
               label="回执"
@@ -384,7 +388,11 @@
         <el-table-column label="冻结后" width="100" align="center">
           <template #default="{ row }">{{ yuan(row.frozenAfter) }}</template>
         </el-table-column>
-        <el-table-column prop="refType" label="关联" width="110" align="center" />
+        <el-table-column label="关联" width="110" align="center">
+          <template #default="{ row }">{{
+            displayLabel('wallet_ref_type', row.refType, '未知')
+          }}</template>
+        </el-table-column>
         <el-table-column
           prop="remark"
           label="备注"

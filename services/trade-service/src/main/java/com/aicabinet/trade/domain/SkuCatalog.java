@@ -33,6 +33,9 @@ public class SkuCatalog {
 
     private String category;
 
+    @TableField("category_id")
+    private String categoryId;
+
     private String barcode;
 
     private String brand;

@@ -12,6 +12,7 @@ import com.aicabinet.trade.domain.RechargeOrder;
 import com.aicabinet.trade.domain.ReplenishmentTask;
 import com.aicabinet.trade.domain.ShoppingSession;
 import com.aicabinet.trade.domain.SkuCatalog;
+import com.aicabinet.trade.domain.AliyunCategoryMapping;
 import com.aicabinet.trade.domain.UserAccount;
 import com.aicabinet.trade.domain.UserInfo;
 import com.aicabinet.trade.mapper.*;
@@ -97,6 +98,7 @@ public class AdminDashboardService {
     private final MemberMapper memberRepository;
     private final UserBlacklistMapper blacklistRepository;
     private final DistributedLockService distributedLockService;
+    private final AliyunCategoryMappingMapper aliyunCategoryMappingRepository;
 
     public AdminDashboardService(DeviceInfoMapper deviceRepository,
                                  ShoppingSessionMapper sessionRepository,
@@ -130,7 +132,8 @@ public class AdminDashboardService {
                                  FileAttachmentService fileAttachmentService,
                                  MemberMapper memberRepository,
                                  UserBlacklistMapper blacklistRepository,
-                                 DistributedLockService distributedLockService) {
+                                 DistributedLockService distributedLockService,
+                                 AliyunCategoryMappingMapper aliyunCategoryMappingRepository) {
         this.deviceRepository = deviceRepository;
         this.sessionRepository = sessionRepository;
         this.orderRepository = orderRepository;
@@ -164,6 +167,7 @@ public class AdminDashboardService {
         this.memberRepository = memberRepository;
         this.blacklistRepository = blacklistRepository;
         this.distributedLockService = distributedLockService;
+        this.aliyunCategoryMappingRepository = aliyunCategoryMappingRepository;
     }
 
     @Transactional(readOnly = true)
@@ -1025,6 +1029,7 @@ public class AdminDashboardService {
         sku.setSkuId(skuId);
         sku.setSkuCode(code);
         applySkuRequest(sku, request);
+        syncSkuCategoryId(sku);
         touchSkuUpdater(sku, operatorId);
         if (sku.getCreatedAt() == null) {
             sku.setCreatedAt(Instant.now());
@@ -1045,6 +1050,7 @@ public class AdminDashboardService {
         assertBarcodeUnique(barcode, skuId);
         assertSkuNameUnique(request.skuName(), skuId);
         applySkuRequest(sku, request);
+        syncSkuCategoryId(sku);
         touchSkuUpdater(sku, operatorId);
         skuCatalogRepository.save(sku);
         String newImageUrl = trimToNull(request.imageUrl());
@@ -1119,6 +1125,19 @@ public class AdminDashboardService {
             name = phone != null && !phone.isBlank() ? phone : ("账号 " + operatorId);
         }
         sku.setUpdatedByName(name);
+    }
+
+    private void syncSkuCategoryId(SkuCatalog sku) {
+        String category = sku.getCategory();
+        if (category == null || category.isBlank()) {
+            sku.setCategoryId(null);
+            return;
+        }
+        AliyunCategoryMapping mapping = aliyunCategoryMappingRepository.selectOne(
+                Wrappers.<AliyunCategoryMapping>lambdaQuery()
+                        .eq(AliyunCategoryMapping::getCategoryName, category.trim())
+                        .last("LIMIT 1"));
+        sku.setCategoryId(mapping != null ? mapping.getCategoryId() : null);
     }
 
     private static String trimToNull(String value) {

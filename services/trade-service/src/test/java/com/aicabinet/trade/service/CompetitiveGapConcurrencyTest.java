@@ -98,7 +98,7 @@ class CompetitiveGapConcurrencyTest {
 
         ResponseStatusException ex = assertThrows(ResponseStatusException.class,
                 () -> service.updatePhoneVerify(1L, 66L,
-                        new PhoneVerifyLogDto(66L, 1L, "13800000000", "SMS", null, null)));
+                        new PhoneVerifyLogDto(66L, 1L, "13800000000", "SMS", null, null, null)));
 
         assertEquals(HttpStatus.CONFLICT, ex.getStatusCode());
     }

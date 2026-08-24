@@ -32,7 +32,7 @@
     </el-alert>
 
     <el-form inline class="filter-bar filter-bar--compact">
-      <el-form-item label="商户ID">
+      <el-form-item label="商户编号">
         <el-input v-model="merchantId" clearable placeholder="精确匹配" style="width: 160px" />
       </el-form-item>
       <el-form-item label="渠道">
@@ -110,7 +110,7 @@
 
   <el-dialog v-model="dlg" :title="form.onboardingId ? '编辑进件' : '新建进件'" width="520px" destroy-on-close>
     <el-form label-width="110px">
-      <el-form-item label="商户ID" required>
+      <el-form-item label="商户编号" required>
         <el-input v-model="form.merchantId" :disabled="!!form.onboardingId" />
       </el-form-item>
       <el-form-item label="渠道" required>

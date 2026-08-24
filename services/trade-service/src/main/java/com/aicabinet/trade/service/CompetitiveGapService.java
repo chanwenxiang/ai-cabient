@@ -372,11 +372,31 @@ public class CompetitiveGapService {
                                                          int page, int size) {
         permissionService.requireAnyPermission(operatorId, "ops:phone-verify:list", "ops:risk:list", "ops:user:list");
         var result = phoneVerifyLogMapper.search(phone, channel, null, null, page, Math.min(size, 100));
+        Map<String, String> merchantNames = merchantNamesForLogs(result.getRecords());
         List<PhoneVerifyLogDto> items = result.getRecords().stream()
-                .map(l -> new PhoneVerifyLogDto(l.getLogId(), l.getUserId(), l.getPhone(),
-                        l.getChannel(), l.getMerchantId(), l.getVerifiedAt()))
+                .map(l -> toPhoneVerifyDto(l, merchantNames))
                 .toList();
         return new PageResult<>(items, page, size, result.getTotal());
+    }
+
+    private Map<String, String> merchantNamesForLogs(List<PhoneVerifyLog> logs) {
+        Set<String> ids = logs.stream()
+                .map(PhoneVerifyLog::getMerchantId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return merchantMapper.selectBatchIds(ids).stream()
+                .collect(Collectors.toMap(Merchant::getMerchantId, Merchant::getMerchantName, (a, b) -> a));
+    }
+
+    private PhoneVerifyLogDto toPhoneVerifyDto(PhoneVerifyLog log, Map<String, String> merchantNames) {
+        String merchantId = log.getMerchantId();
+        String merchantName = merchantId != null && !merchantId.isBlank()
+                ? merchantNames.get(merchantId) : null;
+        return new PhoneVerifyLogDto(log.getLogId(), log.getUserId(), log.getPhone(),
+                log.getChannel(), merchantId, merchantName, log.getVerifiedAt());
     }
 
     @Transactional
@@ -392,8 +412,7 @@ public class CompetitiveGapService {
         log.setMerchantId(body.merchantId());
         log.setVerifiedAt(Instant.now());
         phoneVerifyLogMapper.insert(log);
-        return new PhoneVerifyLogDto(log.getLogId(), log.getUserId(), log.getPhone(),
-                log.getChannel(), log.getMerchantId(), log.getVerifiedAt());
+        return toPhoneVerifyDto(log, merchantNamesForLogs(List.of(log)));
     }
 
     @Transactional
@@ -413,8 +432,7 @@ public class CompetitiveGapService {
         log.setChannel(body.channel() == null || body.channel().isBlank() ? log.getChannel() : body.channel().trim());
         log.setMerchantId(body.merchantId());
         phoneVerifyLogMapper.updateById(log);
-        return new PhoneVerifyLogDto(log.getLogId(), log.getUserId(), log.getPhone(),
-                log.getChannel(), log.getMerchantId(), log.getVerifiedAt());
+        return toPhoneVerifyDto(log, merchantNamesForLogs(List.of(log)));
     }
 
     @Transactional

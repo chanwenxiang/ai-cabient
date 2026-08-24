@@ -5,7 +5,7 @@
         <div class="page-card-head__meta">
           <div class="page-card-head__title">
             <span class="title">商户提现</span>
-            <span class="hint">商户可提现余额 · LEDGER_ONLY 分账自动入账 · 默认 Mock 打款</span>
+            <span class="hint">商户可提现余额 · 仅记账分账自动入账 · 默认模拟打款</span>
           </div>
         </div>
         <div class="page-card-head__actions">
@@ -48,7 +48,7 @@
             <template #empty
               ><el-empty v-if="walletsHydrated && !walletsLoading" description="暂无商户钱包"
             /></template>
-            <el-table-column prop="merchantId" label="商户ID" min-width="120" align="center" />
+            <el-table-column prop="merchantId" label="商户编号" min-width="120" align="center" />
             <el-table-column
               prop="merchantName"
               label="名称"
@@ -56,7 +56,9 @@
               show-overflow-tooltip
               align="center"
             />
-            <el-table-column prop="contactPhone" label="联系电话" width="130" align="center" />
+            <el-table-column label="联系电话" width="130" align="center">
+              <template #default="{ row }">{{ row.contactPhone || '暂无' }}</template>
+            </el-table-column>
             <el-table-column label="余额(元)" width="110" align="center">
               <template #default="{ row }">{{ yuan(row.balanceCents) }}</template>
             </el-table-column>
@@ -148,7 +150,7 @@
               show-overflow-tooltip
               align="center"
             />
-            <el-table-column prop="merchantId" label="商户ID" width="120" align="center" />
+            <el-table-column prop="merchantId" label="商户编号" width="120" align="center" />
             <el-table-column
               prop="merchantName"
               label="商户"
@@ -162,7 +164,11 @@
             <el-table-column prop="status" label="状态" width="120" align="center">
               <template #default="{ row }">{{ withdrawStatusLabel(row.status) }}</template>
             </el-table-column>
-            <el-table-column prop="payChannel" label="通道" width="100" align="center" />
+            <el-table-column label="通道" width="100" align="center">
+              <template #default="{ row }">{{
+                displayLabel('pay_channel', row.payChannel, '未知')
+              }}</template>
+            </el-table-column>
             <el-table-column
               prop="payoutRef"
               label="回执"
@@ -247,7 +253,9 @@
         <el-table-column label="关联单号" min-width="140" show-overflow-tooltip align="center">
           <template #default="{ row }">
             <span v-if="row.refId">
-              <small class="muted">{{ row.refType || 'REF' }}</small>
+              <small class="muted">{{
+                displayLabel('wallet_ref_type', row.refType, '关联')
+              }}</small>
               {{ row.refId }}
             </span>
             <span v-else class="muted">暂无</span>

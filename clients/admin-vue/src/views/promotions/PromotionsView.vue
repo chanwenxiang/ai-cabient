@@ -135,9 +135,7 @@
             <template #default="{ row }">{{ row.userLimit || '不限' }}</template>
           </el-table-column>
           <el-table-column label="适用柜" min-width="120" align="center" show-overflow-tooltip>
-            <template #default="{ row }">{{
-              row.deviceScope === 'ALL' || !row.deviceScope ? '全部' : row.deviceScope
-            }}</template>
+            <template #default="{ row }">{{ deviceScopeLabel(row) }}</template>
           </el-table-column>
           <el-table-column label="状态" width="88" align="center">
             <template #default="{ row }">
@@ -236,6 +234,30 @@
             controls-position="right"
             style="width: 100%"
         /></el-form-item>
+        <el-form-item label="适用柜">
+          <el-radio-group v-model="form.deviceScope">
+            <el-radio value="ALL">全部设备</el-radio>
+            <el-radio value="SPECIFIC">指定设备</el-radio>
+          </el-radio-group>
+        </el-form-item>
+        <el-form-item v-if="form.deviceScope === 'SPECIFIC'" label="选择设备">
+          <el-select
+            v-model="form.deviceIds"
+            multiple
+            filterable
+            collapse-tags
+            collapse-tags-tooltip
+            placeholder="选择柜机"
+            style="width: 100%"
+          >
+            <el-option
+              v-for="d in deviceOptions"
+              :key="d.deviceId"
+              :label="d.deviceName || d.deviceId"
+              :value="d.deviceId"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="描述"
           ><el-input v-model="form.description" type="textarea"
         /></el-form-item>
@@ -278,6 +300,7 @@ const selectedIds = ref<number[]>([]);
 const showDialog = ref(false);
 const editingId = ref<number | null>(null);
 const importInput = ref<HTMLInputElement | null>(null);
+const deviceOptions = ref<{ deviceId: string; deviceName?: string }[]>([]);
 
 const filtered = computed(() => {
   const q = keyword.value.trim().toLowerCase();
@@ -324,6 +347,8 @@ const emptyForm = () => ({
   endTime: '' as string | Date,
   budgetYuan: 0,
   userLimit: 1,
+  deviceScope: 'ALL',
+  deviceIds: [] as string[],
   description: ''
 });
 const form = ref(emptyForm());
@@ -353,6 +378,41 @@ function isEnabled(status?: string) {
 }
 function statusLabel(status?: string) {
   return displayLabel('enable_status', status, '暂无');
+}
+
+function parseRuleDeviceIds(ruleConfig?: string | Record<string, unknown> | null): string[] {
+  if (!ruleConfig) return [];
+  try {
+    const obj =
+      typeof ruleConfig === 'string'
+        ? (JSON.parse(ruleConfig) as Record<string, unknown>)
+        : ruleConfig;
+    const ids = obj.deviceIds;
+    return Array.isArray(ids) ? ids.map(String).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function deviceScopeLabel(row: { deviceScope?: string; ruleConfig?: string }) {
+  if (!row.deviceScope || row.deviceScope === 'ALL') return '全部';
+  if (row.deviceScope === 'SPECIFIC') {
+    const n = parseRuleDeviceIds(row.ruleConfig).length;
+    return n ? `${n} 台定向` : '指定设备';
+  }
+  return row.deviceScope;
+}
+
+async function loadDevices() {
+  try {
+    deviceOptions.value =
+      (await api.request<{ deviceId: string; deviceName?: string }[]>(
+        '/api/v2/ops/admin/devices/ref',
+        'GET'
+      )) || [];
+  } catch {
+    deviceOptions.value = [];
+  }
 }
 
 function rowActions(row: any): TableAction[] {
@@ -403,6 +463,7 @@ function openCreate() {
 
 function openEdit(row: any) {
   editingId.value = row.activityId;
+  const deviceIds = parseRuleDeviceIds(row.ruleConfig);
   form.value = {
     activityName: row.activityName,
     activityType: row.activityType,
@@ -410,6 +471,8 @@ function openEdit(row: any) {
     endTime: row.endTime ? new Date(row.endTime) : '',
     budgetYuan: (Number(row.budgetCents) || 0) / 100,
     userLimit: row.userLimit ?? 1,
+    deviceScope: row.deviceScope === 'SPECIFIC' ? 'SPECIFIC' : 'ALL',
+    deviceIds: deviceIds.length ? deviceIds : row.deviceScope && row.deviceScope !== 'ALL' && row.deviceScope !== 'SPECIFIC' ? [row.deviceScope] : [],
     description: row.description || ''
   };
   showDialog.value = true;
@@ -424,6 +487,9 @@ async function onSubmit() {
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()))
     return ElMessage.warning('活动时间无效');
   if (end <= start) return ElMessage.warning('结束时间需晚于开始时间');
+  if (f.deviceScope === 'SPECIFIC' && !f.deviceIds.length) {
+    return ElMessage.warning('指定设备时请至少选择一台柜机');
+  }
   const body = {
     activityName: f.activityName.trim(),
     activityType: f.activityType,
@@ -431,6 +497,10 @@ async function onSubmit() {
     endTime: end.toISOString(),
     budgetCents: Math.round((Number(f.budgetYuan) || 0) * 100),
     userLimit: f.userLimit,
+    deviceScope: f.deviceScope,
+    ruleConfig: JSON.stringify({
+      deviceIds: f.deviceScope === 'SPECIFIC' ? f.deviceIds : []
+    }),
     description: f.description
   };
   saving.value = true;
@@ -635,6 +705,7 @@ watch(
 
 onMounted(() => {
   applyRouteQuery();
+  void loadDevices();
   load();
 });
 onActivated(() => {

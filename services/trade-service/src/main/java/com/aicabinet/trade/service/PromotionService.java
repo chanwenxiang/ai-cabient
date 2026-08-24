@@ -190,6 +190,6 @@ public class PromotionService {
                 a.getActivityId(), a.getActivityName(), a.getActivityType(),
                 a.getStatus(), a.getStartTime(), a.getEndTime(),
                 a.getBudgetCents(), a.getUsedCents(), a.getUserLimit(),
-                a.getDeviceScope(), a.getDescription());
+                a.getDeviceScope(), a.getRuleConfig(), a.getDescription());
     }
 }

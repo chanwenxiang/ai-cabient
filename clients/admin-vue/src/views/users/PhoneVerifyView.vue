@@ -20,11 +20,9 @@
         <el-input v-model="phone" clearable placeholder="模糊搜索" style="width: 160px" />
       </el-form-item>
       <el-form-item label="渠道">
-        <el-select v-model="channel" clearable placeholder="全部" style="width: 120px">
+        <el-select v-model="channel" clearable placeholder="全部" style="width: 140px">
           <el-option
-            v-for="item in dictOptions('pay_channel').filter((o) =>
-              ['WECHAT', 'ALIPAY'].includes(o.value)
-            )"
+            v-for="item in dictOptions('verify_channel')"
             :key="item.value"
             :label="item.label"
             :value="item.value"
@@ -52,10 +50,18 @@
       <el-table-column prop="logId" label="记录ID" width="100" align="center" sortable="custom" />
       <el-table-column prop="phone" label="手机号" width="140" align="center" />
       <el-table-column prop="userId" label="用户ID" width="120" align="center" />
-      <el-table-column prop="channel" label="渠道" width="100" align="center">
-        <template #default="{ row }">{{ dictLabel('pay_channel', row.channel) }}</template>
+      <el-table-column prop="channel" label="渠道" width="120" align="center">
+        <template #default="{ row }">{{ dictLabel('verify_channel', row.channel) }}</template>
       </el-table-column>
-      <el-table-column prop="merchantId" label="商户" min-width="140" align="center" />
+      <el-table-column prop="merchantId" label="商户" min-width="160" align="center" show-overflow-tooltip>
+        <template #default="{ row }">{{
+          row.merchantId
+            ? row.merchantName
+              ? `${row.merchantName}（${row.merchantId}）`
+              : row.merchantId
+            : '—'
+        }}</template>
+      </el-table-column>
       <el-table-column label="验证时间" width="170" align="center">
         <template #default="{ row }">{{
           String(row.verifiedAt || '')
@@ -87,16 +93,14 @@
         <el-form-item label="渠道">
           <el-select v-model="form.channel" style="width: 100%">
             <el-option
-              v-for="item in dictOptions('pay_channel').filter((o) =>
-                ['WECHAT', 'ALIPAY'].includes(o.value)
-              )"
+              v-for="item in dictOptions('verify_channel')"
               :key="item.value"
               :label="item.label"
               :value="item.value"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="商户ID">
+        <el-form-item label="商户编号">
           <el-input v-model="form.merchantId" />
         </el-form-item>
       </el-form>
@@ -130,7 +134,7 @@ const {
 const displayItems = computed(() => sortById(items.value));
 const dlg = ref(false);
 const editingId = ref<number | null>(null);
-const form = reactive({ phone: '', userId: '', channel: 'WECHAT', merchantId: '' });
+const form = reactive({ phone: '', userId: '', channel: 'SMS', merchantId: '' });
 
 async function load() {
   loading.value = true;
@@ -155,7 +159,7 @@ function openCreate() {
   editingId.value = null;
   form.phone = '';
   form.userId = '';
-  form.channel = 'WECHAT';
+  form.channel = 'SMS';
   form.merchantId = '';
   dlg.value = true;
 }
@@ -164,7 +168,7 @@ function openEdit(row: any) {
   editingId.value = row.logId;
   form.phone = row.phone || '';
   form.userId = row.userId != null ? String(row.userId) : '';
-  form.channel = row.channel || 'WECHAT';
+  form.channel = row.channel || 'SMS';
   form.merchantId = row.merchantId || '';
   dlg.value = true;
 }
