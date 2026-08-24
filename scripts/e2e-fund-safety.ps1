@@ -63,10 +63,19 @@ try {
 
     if (-not $SkipBalanceTest) {
         Write-Host "`n--- TC-5.9-01 No silent charge when held (DISPUTED) ---"
-        Set-E2eConsumerBalance -BalanceCents 600 | Out-Null
+        # 开门预授权默认 2000 分；余额须 >= preauth 才能创建会话，再验证 DISPUTED 时不静默扣款。
+        $preauthCents = 2000
+        try {
+            $cfg = Invoke-E2eApi -BaseUrl $BaseUrl -Method GET -Path "/api/v2/ops/system-config" -Headers $ops
+            if ($cfg.checkout -and $cfg.checkout.preauthCents) {
+                $preauthCents = [int]$cfg.checkout.preauthCents
+            }
+        } catch { }
+        $pinBalance = $preauthCents + 600
+        Set-E2eConsumerBalance -BalanceCents $pinBalance | Out-Null
         $pinned = (docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c `
             "SELECT balance_cents FROM user_account WHERE user_id=10001;").Trim()
-        if ($pinned -ne "600") { throw "Failed to pin balance at 600, got $pinned" }
+        if ($pinned -ne "$pinBalance") { throw "Failed to pin balance at $pinBalance, got $pinned" }
         & (Join-Path $RepoRoot "scripts\set-simulator-cart.ps1") -Items @("SKU-DEMO-001:2") -ShoppingSeconds 8
 
         $result = Invoke-E2eMqttShopping -BaseUrl $BaseUrl -DeviceId $DeviceId -Auth $auth `
@@ -95,10 +104,10 @@ WHERE ss.session_id = '$sessionId' AND ua.user_id = 10001;
         }
         $afterBalance = (docker exec ai-cabinet-postgres-1 psql -U aicabinet -d aicabinet -t -A -c `
             "SELECT balance_cents FROM user_account WHERE user_id=10001;").Trim()
-        if ($afterBalance -ne "600") {
-            throw "Balance changed unexpectedly: before=600 after=$afterBalance"
+        if ($afterBalance -ne "$pinBalance") {
+            throw "Balance changed unexpectedly: before=$pinBalance after=$afterBalance"
         }
-        Write-Host "PASS TC-5.9-01: session=$sessionId no order, balance unchanged at 600 cents"
+        Write-Host "PASS TC-5.9-01: session=$sessionId no order, balance unchanged at $pinBalance cents (preauth=$preauthCents + surplus 600)"
     }
 
     if (-not $SkipOutageTest) {
