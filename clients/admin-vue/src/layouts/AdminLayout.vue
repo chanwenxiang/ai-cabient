@@ -804,6 +804,11 @@ onUnmounted(() => {
   min-width: 0;
   box-sizing: border-box;
 }
+/* 客流坪效：不许撑开主区，否则白卡片整页横滑、左右边「缺一截」 */
+.layout-main-scroll > .footfall-page,
+.layout-main-scroll > .page-fill > .footfall-page {
+  max-width: 100% !important;
+}
 .color-dot {
   display: inline-block;
   width: 10px;

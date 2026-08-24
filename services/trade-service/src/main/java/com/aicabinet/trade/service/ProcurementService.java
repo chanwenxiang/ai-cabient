@@ -113,6 +113,10 @@ public class ProcurementService {
         order.setNotes(trimToNull(request.notes()));
         order.setOperatorId(operatorId);
         order = purchaseOrderRepository.save(order);
+        if (order.getRefNo() == null || order.getRefNo().isBlank()) {
+            order.setRefNo("PO-" + order.getPurchaseOrderId());
+            order = purchaseOrderRepository.save(order);
+        }
 
         for (PurchaseOrderLineDto lineDto : request.lines()) {
             validatePurchaseLine(lineDto, false);

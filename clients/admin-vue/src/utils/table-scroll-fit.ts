@@ -8,6 +8,7 @@
  *   用容器 scrollWidth/clientWidth 会误判，并与 .table-scroll--h 的
  *   width:max-content 形成正反馈，把表格越撑越宽。
  * - 同步期间断开 MutationObserver，且不监听 style（EP 写列宽会连环触发）。
+ * - 浏览器缩放会改 clientWidth/列宽亚像素；用回滞避免 --h 反复开关导致白框右边「断掉」。
  */
 let rafId = 0;
 let observer: MutationObserver | null = null;
@@ -43,6 +44,7 @@ function columnSumWidth(table: HTMLElement | null): number {
 
 /**
  * 在非 --h 布局下测量：临时去掉 max-content，避免把已膨胀的宽度当成「需要横滚」。
+ * 带回滞：已是 --h 时略放宽「仍超宽」判定，减轻缩放时边框/滚动条闪断。
  */
 function measureOverflow(el: HTMLElement): boolean {
   const table = el.querySelector<HTMLElement>('.el-table');
@@ -56,10 +58,15 @@ function measureOverflow(el: HTMLElement): boolean {
   const bodyW = table?.querySelector('.el-table__body table')?.scrollWidth ?? 0;
   // 不用 el.scrollWidth：overflow:visible 时会跟着子项一起涨，形成反馈环
   const contentW = Math.max(colsW, headerW, bodyW, table?.scrollWidth ?? 0);
-  const overflow = contentW > el.clientWidth + 1;
+  const clientW = el.clientWidth;
+  // 缩放亚像素约 1～3px；回滞避免 100% / 90% / 110% 来回切换布局
+  const enterPx = 2;
+  const leavePx = 6;
 
-  // 由 sync 统一写回 class；此处若曾去掉 --h，不在这里恢复
-  return overflow;
+  if (hadH) {
+    return contentW > clientW - leavePx;
+  }
+  return contentW > clientW + enterPx;
 }
 
 function attachObserver(): void {
@@ -74,6 +81,11 @@ export function syncTableScrollFit(): void {
   observer?.disconnect();
   try {
     document.querySelectorAll<HTMLElement>('.table-scroll').forEach((el) => {
+      // 客流坪效等「卡片内嵌多表」页：禁止 --h（fit-content 会把整页撑出横向滚动，白框跟着滑）
+      if (el.closest('.footfall-page')) {
+        el.classList.remove('table-scroll--h');
+        return;
+      }
       el.classList.toggle('table-scroll--h', measureOverflow(el));
     });
   } finally {
@@ -93,6 +105,8 @@ export function observeTableScrollFit(root: HTMLElement): void {
   observer = new MutationObserver(scheduleSync);
   syncTableScrollFit();
   window.addEventListener('resize', scheduleSync);
+  window.visualViewport?.addEventListener('resize', scheduleSync);
+  window.visualViewport?.addEventListener('scroll', scheduleSync);
 }
 
 export function stopTableScrollFit(): void {
@@ -100,6 +114,8 @@ export function stopTableScrollFit(): void {
   observer = null;
   observedRoot = null;
   window.removeEventListener('resize', scheduleSync);
+  window.visualViewport?.removeEventListener('resize', scheduleSync);
+  window.visualViewport?.removeEventListener('scroll', scheduleSync);
   if (rafId) cancelAnimationFrame(rafId);
   rafId = 0;
   syncing = false;
