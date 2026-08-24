@@ -122,6 +122,62 @@
               </button>
             </template>
           </el-table-column>
+          <el-table-column
+            label="商品"
+            min-width="140"
+            align="center"
+            class-name="col-goods"
+            label-class-name="col-goods"
+          >
+            <template #default="{ row }">
+              <div
+                v-for="(disp, idx) in [goodsDisplay(row)]"
+                :key="`${row.orderId}-${idx}`"
+                class="goods-cell"
+              >
+                <template v-if="disp.lines.length">
+                  <div v-for="(g, i) in disp.lines" :key="`${row.orderId}-${i}`" class="goods-line">
+                    <img class="goods-thumb" :src="goodsThumb(g.title)" alt="" />
+                    <span class="goods-name">{{ g.title }}</span>
+                    <span v-if="g.qty" class="goods-qty">×{{ g.qty }}</span>
+                  </div>
+                  <div v-if="disp.extraKinds != null" class="goods-meta">
+                    等 {{ disp.extraKinds }} 种 · 共 {{ disp.total }} 件
+                  </div>
+                  <div v-else-if="disp.total > 1 || disp.lines.length > 1" class="goods-meta">
+                    共 {{ disp.total }} 件
+                  </div>
+                </template>
+                <span v-else class="muted">暂无</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="金额" width="100" align="center">
+            <template #default="{ row }">
+              <div class="amount-cell">
+                <span>¥{{ money(row.totalAmountCents) }}</span>
+                <small
+                  v-if="
+                    Number(row.originalAmountCents || 0) >
+                    Number(row.totalAmountCents || 0)
+                  "
+                  class="muted"
+                  >原 ¥{{ money(row.originalAmountCents) }}</small
+                >
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="优惠" width="110" align="center">
+            <template #default="{ row }">
+              <template v-if="orderDiscountCents(row) > 0">
+                <span class="discount">-¥{{ money(orderDiscountCents(row)) }}</span>
+                <small v-if="Number(row.memberDiscountCents || 0) > 0" class="muted"
+                  >含会员</small
+                >
+              </template>
+              <span v-else class="muted">暂无</span>
+            </template>
+          </el-table-column>
           <el-table-column label="会话" min-width="110" align="center" show-overflow-tooltip>
             <template #default="{ row }">
               <button
@@ -206,62 +262,6 @@
               >
                 {{ row.inventoryDeducted ? '已扣' : '未扣' }}
               </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column
-            label="商品"
-            min-width="140"
-            align="center"
-            class-name="col-goods"
-            label-class-name="col-goods"
-          >
-            <template #default="{ row }">
-              <div
-                v-for="(disp, idx) in [goodsDisplay(row)]"
-                :key="`${row.orderId}-${idx}`"
-                class="goods-cell"
-              >
-                <template v-if="disp.lines.length">
-                  <div v-for="(g, i) in disp.lines" :key="`${row.orderId}-${i}`" class="goods-line">
-                    <img class="goods-thumb" :src="goodsThumb(g.title)" alt="" />
-                    <span class="goods-name">{{ g.title }}</span>
-                    <span v-if="g.qty" class="goods-qty">×{{ g.qty }}</span>
-                  </div>
-                  <div v-if="disp.extraKinds != null" class="goods-meta">
-                    等 {{ disp.extraKinds }} 种 · 共 {{ disp.total }} 件
-                  </div>
-                  <div v-else-if="disp.total > 1 || disp.lines.length > 1" class="goods-meta">
-                    共 {{ disp.total }} 件
-                  </div>
-                </template>
-                <span v-else class="muted">暂无</span>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column label="金额" width="100" align="center">
-            <template #default="{ row }">
-              <div class="amount-cell">
-                <span>¥{{ money(row.totalAmountCents) }}</span>
-                <small
-                  v-if="
-                    Number(row.originalAmountCents || 0) >
-                    Number(row.totalAmountCents || 0)
-                  "
-                  class="muted"
-                  >原 ¥{{ money(row.originalAmountCents) }}</small
-                >
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column label="优惠" width="110" align="center">
-            <template #default="{ row }">
-              <template v-if="orderDiscountCents(row) > 0">
-                <span class="discount">-¥{{ money(orderDiscountCents(row)) }}</span>
-                <small v-if="Number(row.memberDiscountCents || 0) > 0" class="muted"
-                  >含会员</small
-                >
-              </template>
-              <span v-else class="muted">暂无</span>
             </template>
           </el-table-column>
           <el-table-column label="退款策略" width="100" align="center">
