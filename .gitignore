@@ -34,6 +34,11 @@ infra/.env
 # Local Cursor MCP config (may contain DB URLs / keys); keep shared rules tracked
 .cursor/mcp.json
 
+# Cursor agent scratch (tokens, audits, FK scripts, session dumps — never commit)
+.cursor/tmp-*
+.cursor/tmp_*
+.cursor/gen_service_audit.py
+
 # Local IDE / editor
 .idea/
 *.iml
@@ -131,5 +136,6 @@ edge/device-simulator/sim-*/
 # Local scratch / leaked tokens / unpack leftovers
 .tmp/
 .tmp-*.png
+tmp-tsc-out.txt
 BOOT-INF/
 clients/admin-vue/eyJhbGciOiJIUzI1NiJ9.*
