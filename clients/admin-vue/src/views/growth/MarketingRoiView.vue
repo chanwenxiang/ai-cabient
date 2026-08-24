@@ -39,7 +39,7 @@
       <el-table-column label="状态" width="80" align="center">
         <template #default="{ row }">
           <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'">{{
-            row.status === 'ACTIVE' ? '进行中' : row.status
+            displayLabel('enable_status', row.status, '未知')
           }}</el-tag>
         </template>
       </el-table-column>
@@ -113,7 +113,7 @@ const { onExport } = useListCsv({
     list.value.map((r) => [
       r.activityName,
       typeLabel(r.activityType),
-      r.status,
+      displayLabel('enable_status', r.status, '未知'),
       yuan(r.budgetCents),
       yuan(r.usedCents),
       r.claimedCount,

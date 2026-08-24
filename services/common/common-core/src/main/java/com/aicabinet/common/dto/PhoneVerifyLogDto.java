@@ -8,5 +8,6 @@ public record PhoneVerifyLogDto(
         String phone,
         String channel,
         String merchantId,
+        String merchantName,
         Instant verifiedAt
 ) {}

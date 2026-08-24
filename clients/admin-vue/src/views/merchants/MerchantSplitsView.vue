@@ -583,15 +583,18 @@
         上级商户可见全部下级货柜。抽成单位为 bps：1000 = 10%，按订单实付计入平台。
       </p>
       <el-form label-position="top">
-        <el-form-item label="商户 ID" required>
+        <el-form-item label="商户编号" required>
           <el-input
             v-model="orgForm.merchantId"
             :disabled="orgForm.editing"
-            placeholder="如 MCH-EAST"
+            placeholder="业务编号，如 MCH-EAST"
           />
         </el-form-item>
         <el-form-item label="名称" required>
           <el-input v-model="orgForm.merchantName" placeholder="组织 / 商户名称" />
+        </el-form-item>
+        <el-form-item label="联系电话">
+          <el-input v-model="orgForm.contactPhone" placeholder="如 0755-88880001" maxlength="32" />
         </el-form-item>
         <el-form-item label="上级商户">
           <el-select
@@ -762,6 +765,7 @@ const orgForm = ref({
   editing: false,
   merchantId: '',
   merchantName: '',
+  contactPhone: '',
   parentMerchantId: '' as string | null,
   platformRateBps: 1000
 });
@@ -1231,6 +1235,7 @@ function openOrgEdit(row?: MerchantDto) {
       editing: true,
       merchantId: row.merchantId,
       merchantName: row.merchantName || '',
+      contactPhone: row.contactPhone || '',
       parentMerchantId: row.parentMerchantId || '',
       platformRateBps: row.platformRateBps ?? 1000
     };
@@ -1239,6 +1244,7 @@ function openOrgEdit(row?: MerchantDto) {
       editing: false,
       merchantId: '',
       merchantName: '',
+      contactPhone: '',
       parentMerchantId: '',
       platformRateBps: 1000
     };
@@ -1249,7 +1255,7 @@ function openOrgEdit(row?: MerchantDto) {
 async function saveOrg() {
   const f = orgForm.value;
   if (!f.merchantId.trim() || !f.merchantName.trim()) {
-    ElMessage.warning('请填写商户 ID 与名称');
+    ElMessage.warning('请填写商户编号与名称');
     return;
   }
   orgSaving.value = true;
@@ -1258,7 +1264,7 @@ async function saveOrg() {
     await api.request('/api/v2/ops/admin/merchants', 'POST', {
       merchantId: f.merchantId.trim(),
       merchantName: f.merchantName.trim(),
-      contactPhone: existing?.contactPhone,
+      contactPhone: f.contactPhone.trim() || null,
       platformRateBps: f.platformRateBps,
       wechatReceiverId: existing?.wechatReceiverId,
       status: existing?.status || 'ACTIVE',

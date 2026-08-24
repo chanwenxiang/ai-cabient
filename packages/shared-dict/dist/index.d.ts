@@ -90,6 +90,27 @@ export declare const DICT: {
         readonly BALANCE: "余额";
         readonly UNKNOWN: "未知";
     };
+    /** 手机验证流水 · 验证渠道（与 pay_channel 不同，含 SMS 等） */
+    readonly verify_channel: {
+        readonly SMS: "短信验证码";
+        readonly SMS_RESET: "短信重置密码";
+        readonly WECHAT: "微信";
+        readonly ALIPAY: "支付宝";
+    };
+    /** 站内信 / notification_log.biz_type */
+    readonly notification_biz_type: {
+        readonly ORDER: "订单";
+        readonly RECHARGE: "充值";
+        readonly REPLENISHMENT: "补货";
+        readonly DISPUTE: "争议/售后";
+        readonly COUPON: "优惠券";
+        readonly POINTS: "积分";
+        readonly RECALL: "用户召回";
+        readonly MERCHANT: "商户通知";
+        readonly SETTLEMENT: "结算";
+        readonly SESSION: "购物会话";
+        readonly OPS_MANUAL: "运营手工";
+    };
     readonly recharge_status: {
         readonly CREATED: "已创建";
         readonly PENDING: "待支付";
@@ -223,6 +244,21 @@ export declare const DICT: {
         readonly INACTIVE: "停用";
         readonly DISABLED: "停用";
         readonly ENDED: "已结束";
+        readonly DRAFT: "草稿";
+        readonly STOPPED: "已停止";
+    };
+    /** 商户/线长钱包流水 · 关联业务类型 */
+    readonly wallet_ref_type: {
+        readonly ORDER: "订单";
+        readonly WITHDRAW: "提现";
+        readonly OPS_ADJUST: "运营调账";
+        readonly COMMISSION_DAILY: "日结佣金";
+        readonly SPLIT: "分账";
+        readonly SPLIT_PARTIAL: "分账增额";
+        readonly SPLIT_PARTIAL_REV: "分账冲正";
+        readonly RECHARGE: "充值";
+        readonly REFUND: "退款";
+        readonly SEED: "演示初始";
     };
     readonly sku_enrollment_status: {
         readonly DRAFT: "草稿";

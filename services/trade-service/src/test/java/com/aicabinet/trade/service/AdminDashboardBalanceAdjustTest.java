@@ -85,7 +85,7 @@ class AdminDashboardBalanceAdjustTest {
                 disputeSlaService, inventoryLotService, deviceSlotService, replenishmentTaskRepository,
                 reconciliationRepository, inTransitRepository, balanceLedgerService, refundPolicyService,
                 exceptionRepository, fileAttachmentService, memberRepository, blacklistRepository,
-                distributedLockService);
+                distributedLockService, null);
     }
 
     @Test

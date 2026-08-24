@@ -236,7 +236,8 @@ public class ReconciliationService {
         return new PaymentReconciliationDto(
                 r.getReconId(), r.getReconDate(), r.getChannel(),
                 r.getPlatformTotal(), r.getLedgerTotal(), r.getDiffCents(),
-                r.getMatchedCount(), r.getUnmatchedCount(), r.getStatus(), r.getCompletedAt()
+                r.getMatchedCount(), r.getUnmatchedCount(), r.getStatus(),
+                r.getCreatedAt(), r.getCompletedAt()
         );
     }
 }

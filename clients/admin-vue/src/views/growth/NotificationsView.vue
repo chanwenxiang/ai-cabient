@@ -51,7 +51,9 @@
       <el-table-column label="内容" min-width="240" show-overflow-tooltip>
         <template #default="{ row }">{{ rewriteBizNosInText(row.body) }}</template>
       </el-table-column>
-      <el-table-column prop="bizType" label="业务" width="110" align="center" />
+      <el-table-column label="业务" width="100" align="center" show-overflow-tooltip>
+        <template #default="{ row }">{{ dictLabel('notification_biz_type', row.bizType) }}</template>
+      </el-table-column>
       <el-table-column label="关联单号" width="150" align="center" class-name="col-text">
         <template #default="{ row }">{{ displayBizNo(row.bizId, '无') }}</template>
       </el-table-column>
@@ -68,7 +70,7 @@
         <el-form-item v-if="sendForm.audience === 'CONSUMER'" label="用户ID" required>
           <el-input v-model="sendForm.userId" placeholder="如 10001" />
         </el-form-item>
-        <el-form-item v-else label="商户ID" required>
+        <el-form-item v-else label="商户编号" required>
           <el-input v-model="sendForm.merchantId" placeholder="如 MCH-DEFAULT" />
         </el-form-item>
         <el-form-item label="标题" required>
@@ -96,6 +98,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { Refresh } from '@element-plus/icons-vue';
+import { dictLabel } from '@aicabinet/shared-dict';
 import { api } from '@/api/client';
 import { displayBizNo, rewriteBizNosInText } from '@aicabinet/shared-uni/format';
 import { useIdColumnSort } from '@/composables/useIdColumnSort';
@@ -158,7 +161,7 @@ async function doSend() {
     return;
   }
   if (sendForm.audience === 'MERCHANT' && !sendForm.merchantId.trim()) {
-    ElMessage.warning('请填写商户ID');
+    ElMessage.warning('请填写商户编号');
     return;
   }
   sending.value = true;
