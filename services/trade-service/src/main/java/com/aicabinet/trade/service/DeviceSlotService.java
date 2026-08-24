@@ -137,6 +137,9 @@ public class DeviceSlotService {
             if (allowed != null && !allowed.contains(deviceId)) {
                 continue;
             }
+            if (!deviceRepository.existsById(deviceId)) {
+                continue;
+            }
             alerts.addAll(buildDiscrepancyForSlot(slot, loadBookQtyBySlot(deviceId), deviceNames));
         }
         alerts.sort(Comparator
@@ -637,6 +640,7 @@ public class DeviceSlotService {
         String slotCode = request.slotCode().trim().toUpperCase();
         DeviceSlot slot = slotRepository.findById(new DeviceSlotId(deviceId, slotCode))
                 .orElseThrow(() -> notFound("slot"));
+        assertQuantityWithinSlotCapacity(slot, slotCode, request.physicalQty());
         slot.setLastPhysicalQty(request.physicalQty());
         slot.setLastPhysicalAt(Instant.now());
         slotRepository.save(slot);
@@ -667,6 +671,69 @@ public class DeviceSlotService {
             doRecordRestock(deviceId, slotCode);
             return null;
         });
+    }
+
+    /**
+     * 校正账面/实盘：超 max_level 的货道优先挪到同 SKU 空位，仍放不下则盘亏到上限。
+     */
+    @Transactional
+    public int clampDeviceOverCapacity(String deviceId) {
+        return runWithDeviceSlotLock(deviceId, () -> doClampDeviceOverCapacity(deviceId));
+    }
+
+    private int doClampDeviceOverCapacity(String deviceId) {
+        requireDevice(deviceId);
+        int slotsFixed = 0;
+        String refId = "CLAMP-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
+        for (DeviceSlot slot : slotRepository.findByIdDeviceIdOrderByRowNoAscColNoAsc(deviceId)) {
+            if (!slot.isEnabled()) {
+                continue;
+            }
+            String slotCode = slot.getId().getSlotCode();
+            int cap = resolveSlotCapacity(slot);
+            if (cap <= 0) {
+                continue;
+            }
+            String skuId = slot.getAssignedSkuId();
+            if (skuId == null || skuId.isBlank()) {
+                continue;
+            }
+            int book = loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
+            if (book <= cap) {
+                continue;
+            }
+            int surplus = book - cap;
+            for (SlotRestockAllocation alloc : allocateRestockQuantity(deviceId, skuId, surplus)) {
+                inventoryLotService.transferBetweenSlots(
+                        deviceId, skuId, slotCode, alloc.slotCode(), alloc.quantity(), null, refId);
+                surplus -= alloc.quantity();
+            }
+            book = loadBookQtyBySlot(deviceId).getOrDefault(slotCode, 0);
+            if (book > cap) {
+                inventoryLotService.stocktakeAdjustForSlot(deviceId, skuId, slotCode, cap, null, refId);
+            }
+            slotsFixed++;
+            log.warn("clamp over-capacity slot device={} slot={} cap={} ref={}", deviceId, slotCode, cap, refId);
+        }
+        if (slotsFixed > 0) {
+            syncPhysicalFromBook(deviceId, refId);
+        }
+        return slotsFixed;
+    }
+
+    private static int resolveSlotCapacity(DeviceSlot slot) {
+        if (slot.getMaxLevel() > 0) {
+            return slot.getMaxLevel();
+        }
+        return slot.getParLevel() > 0 ? slot.getParLevel() : 0;
+    }
+
+    private static void assertQuantityWithinSlotCapacity(DeviceSlot slot, String slotCode, int qty) {
+        int cap = resolveSlotCapacity(slot);
+        if (cap > 0 && qty > cap) {
+            throw badRequest(String.format(
+                    com.aicabinet.trade.support.ApiMessages.SLOT_QTY_OVER_CAPACITY, slotCode, cap, qty));
+        }
     }
 
     private void doRecordRestock(String deviceId, String slotCode) {
