@@ -761,6 +761,51 @@ select {
   flex-shrink: 0;
 }
 
+/*
+ * 客流坪效（对齐用户红笔画的左右缺边）：
+ * 根因是 .layout-main-scroll { overflow:auto } + 子项 max-width:none，
+ * 内容一超宽就「整页横滑」，白卡片跟着动，左右外边框滑出视口只剩灰底。
+ * 本页禁止主区横滑，白卡片锁死 100% 宽，左右边永远在。
+ */
+.layout-main-scroll:has(> .footfall-page),
+.layout-main-scroll:has(> .page-fill > .footfall-page) {
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+.layout-main-scroll > .page-card.footfall-page,
+.layout-main-scroll > .page-fill > .page-card.footfall-page {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+  /* 覆盖全局 .page-card { overflow:visible !important } */
+  overflow-x: hidden !important;
+  overflow-y: visible !important;
+  border: 1px solid var(--layout-border) !important;
+  background: var(--layout-card, #fff) !important;
+}
+.layout-main-scroll > .page-card.footfall-page > .el-card__body,
+.layout-main-scroll > .page-fill > .page-card.footfall-page > .el-card__body {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow-x: hidden !important;
+  box-sizing: border-box !important;
+}
+.layout-main-scroll > .page-card.footfall-page .footfall-stack,
+.layout-main-scroll > .page-fill > .page-card.footfall-page .footfall-stack,
+.layout-main-scroll > .page-card.footfall-page .footfall-table-wrap,
+.layout-main-scroll > .page-fill > .page-card.footfall-page .footfall-table-wrap {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box !important;
+}
+.layout-main-scroll > .page-card.footfall-page .footfall-table-wrap,
+.layout-main-scroll > .page-fill > .page-card.footfall-page .footfall-table-wrap {
+  overflow-x: auto !important;
+}
+
 .layout-main-scroll > .page-card > .el-card__body > .table-scroll,
 .layout-main-scroll > .page-fill > .page-card > .el-card__body > .table-scroll {
   flex: 1 1 auto;
@@ -1126,7 +1171,12 @@ select {
   min-width: 100% !important;
 }
 
-/* 超宽横滚：外壳按内容撑开；内层 table 继续用 EP 的列宽总和，勿改成 auto */
+/* 超宽横滚：外壳保持父宽（边框全包）；仅内层 table 按列宽撑开，由外壳横滚 */
+.table-scroll.table-scroll--h {
+  width: 100% !important;
+  max-width: 100% !important;
+  overflow-x: auto !important;
+}
 .table-scroll.table-scroll--h .el-table,
 .table-scroll.table-scroll--h .el-table__inner-wrapper {
   width: fit-content !important;

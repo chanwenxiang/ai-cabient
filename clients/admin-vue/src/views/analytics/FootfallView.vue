@@ -1,5 +1,5 @@
 <template>
-  <el-card class="page-card" shadow="never">
+  <el-card class="page-card report-page footfall-page" shadow="never">
     <template #header>
       <div class="page-card-head">
         <div class="page-card-head__meta">
@@ -19,93 +19,91 @@
       </div>
     </template>
 
-    <div v-loading="loading">
+    <div v-loading="loading" class="footfall-stack">
       <div v-if="data" class="kpi-grid">
         <div class="kpi-card">
-          <text class="kpi-n">{{ data.overview.totalOpens }}</text
-          ><text class="kpi-l">开门次数（客流）</text>
+          <div class="kpi-n">{{ data.overview.totalOpens }}</div>
+          <div class="kpi-l">开门次数（客流）</div>
         </div>
         <div class="kpi-card">
-          <text class="kpi-n">{{ data.overview.totalPaidOrders }}</text
-          ><text class="kpi-l">支付订单</text>
+          <div class="kpi-n">{{ data.overview.totalPaidOrders }}</div>
+          <div class="kpi-l">支付订单</div>
         </div>
         <div class="kpi-card">
-          <text class="kpi-n">{{ (data.overview.conversionRate ?? 0).toFixed(1) }}%</text
-          ><text class="kpi-l">开门转化率</text>
+          <div class="kpi-n">{{ (data.overview.conversionRate ?? 0).toFixed(1) }}%</div>
+          <div class="kpi-l">开门转化率</div>
         </div>
         <div class="kpi-card">
-          <text class="kpi-n"
-            >¥{{ ((data.overview.avgOrderValueCents ?? 0) / 100).toFixed(2) }}</text
-          ><text class="kpi-l">客单价</text>
+          <div class="kpi-n">¥{{ ((data.overview.avgOrderValueCents ?? 0) / 100).toFixed(2) }}</div>
+          <div class="kpi-l">客单价</div>
         </div>
         <div class="kpi-card">
-          <text class="kpi-n">{{ data.overview.repeatBuyers }}</text
-          ><text class="kpi-l">复购用户</text>
+          <div class="kpi-n">{{ data.overview.repeatBuyers }}</div>
+          <div class="kpi-l">复购用户</div>
         </div>
         <div class="kpi-card">
-          <text class="kpi-n">{{ data.overview.deviceCount }}</text
-          ><text class="kpi-l">柜机数</text>
+          <div class="kpi-n">{{ data.overview.deviceCount }}</div>
+          <div class="kpi-l">柜机数</div>
         </div>
       </div>
 
-      <div class="panel">
-        <div class="panel-head"><h4>时段热区（订单量 / 24h）</h4></div>
-        <div class="hour-bars">
-          <div v-for="h in data?.hourly || []" :key="h.hour" class="hour-bar-col">
-            <div
-              class="hour-bar"
-              :style="{ height: barHeight(h.orders) }"
-              :title="`${h.hour} 时：${h.orders} 单 · ¥${(h.revenueCents / 100).toFixed(2)}`"
-            />
-            <span class="hour-label">{{ h.hour }}</span>
-          </div>
+      <h4 class="section-title">时段热区（订单量 / 24h）</h4>
+      <div class="hour-bars">
+        <div v-for="h in data?.hourly || []" :key="h.hour" class="hour-bar-col">
+          <div
+            class="hour-bar"
+            :style="{ height: barHeight(h.orders) }"
+            :title="`${h.hour} 时：${h.orders} 单 · ¥${(h.revenueCents / 100).toFixed(2)}`"
+          />
+          <span class="hour-label">{{ h.hour }}</span>
         </div>
       </div>
 
-      <div class="panel">
-        <div class="panel-head"><h4>柜机坪效排行（营收/开门/转化）</h4></div>
+      <h4 class="section-title">柜机坪效排行（营收/开门/转化）</h4>
+      <!-- 不要再套带白底/边框的 table-scroll：边框就是 el-table 自己的 border，不会和内容脱节 -->
+      <div class="footfall-table-wrap">
         <el-table
           :data="data?.devices || []"
           size="small"
           border
           stripe
+          class="report-table"
           style="width: 100%"
-          max-height="360"
+          empty-text="暂无柜机数据"
         >
           <el-table-column prop="deviceName" label="柜机" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="opens" label="开门" width="88" align="center" />
-          <el-table-column prop="orders" label="订单" width="88" align="center" />
-          <el-table-column label="转化率" width="100" align="center">
+          <el-table-column prop="opens" label="开门" width="96" align="center" />
+          <el-table-column prop="orders" label="订单" width="96" align="center" />
+          <el-table-column label="转化率" width="110" align="center">
             <template #default="{ row }">{{ row.conversionRate.toFixed(1) }}%</template>
           </el-table-column>
-          <el-table-column label="营收" min-width="120" align="center">
+          <el-table-column label="营收" width="120" align="center">
             <template #default="{ row }">¥{{ (row.revenueCents / 100).toFixed(2) }}</template>
           </el-table-column>
         </el-table>
       </div>
 
-      <div class="panel">
-        <div class="panel-head"><h4>商品热区（TOP 20）</h4></div>
+      <h4 class="section-title">商品热区（TOP 20）</h4>
+      <div class="footfall-table-wrap">
         <el-table
           :data="data?.topSkus || []"
           size="small"
           border
           stripe
+          class="report-table"
           style="width: 100%"
-          max-height="360"
+          empty-text="暂无商品数据"
         >
-          <el-table-column prop="skuName" label="商品" min-width="180" show-overflow-tooltip />
-          <el-table-column prop="skuId" label="SKU" width="110" show-overflow-tooltip />
+          <el-table-column prop="skuName" label="商品" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="skuId" label="SKU" min-width="120" show-overflow-tooltip />
           <el-table-column prop="qtySold" label="销量" width="88" align="center" />
-          <el-table-column label="营收" min-width="110" align="center">
+          <el-table-column label="营收" width="110" align="center">
             <template #default="{ row }">¥{{ (row.revenueCents / 100).toFixed(2) }}</template>
           </el-table-column>
           <el-table-column label="件均价" width="100" align="center">
             <template #default="{ row }">
               {{
-                row.qtySold > 0
-                  ? `¥${(row.revenueCents / row.qtySold / 100).toFixed(2)}`
-                  : '暂无'
+                row.qtySold > 0 ? `¥${(row.revenueCents / row.qtySold / 100).toFixed(2)}` : '暂无'
               }}
             </template>
           </el-table-column>
@@ -121,46 +119,42 @@
         </el-table>
       </div>
 
-      <div class="panel">
-        <div class="panel-head">
-          <h4>货道热区（选择柜机）</h4>
-          <div class="slot-controls">
-            <el-select
-              v-model="slotDeviceId"
-              filterable
-              placeholder="选择柜机"
-              style="width: 220px"
-              @change="loadSlotHeat"
-            >
-              <el-option
-                v-for="d in data?.devices || []"
-                :key="d.deviceId"
-                :label="`${d.deviceName}（${d.deviceId}）`"
-                :value="d.deviceId"
-              />
-            </el-select>
-            <span class="legend"
-              ><i class="dot h3" />热 <i class="dot h2" /><i class="dot h1" /><i
-                class="dot h0"
-              />冷</span
-            >
-          </div>
-        </div>
-        <div v-if="slotHeat.length" class="slot-grid">
-          <div
-            v-for="s in slotHeat"
-            :key="s.slotId"
-            class="slot-cell"
-            :class="`heat-${s.heatLevel}`"
-            :title="`${s.slotId} · ${s.skuName} · ${s.qtySold} 件 · ¥${(s.revenueCents / 100).toFixed(2)}`"
+      <div class="section-head">
+        <h4 class="section-title section-title--inline">货道热区（选择柜机）</h4>
+        <div class="slot-controls">
+          <el-select
+            v-model="slotDeviceId"
+            filterable
+            placeholder="选择柜机"
+            style="width: 220px"
+            @change="loadSlotHeat"
           >
-            <span class="slot-code">{{ s.slotId }}</span>
-            <span class="slot-sku">{{ s.skuName }}</span>
-            <span class="slot-qty">{{ s.qtySold }} 件</span>
-          </div>
+            <el-option
+              v-for="d in data?.devices || []"
+              :key="d.deviceId"
+              :label="`${d.deviceName}（${d.deviceId}）`"
+              :value="d.deviceId"
+            />
+          </el-select>
+          <span class="legend"
+            ><i class="dot h3" />热 <i class="dot h2" /><i class="dot h1" /><i class="dot h0" />冷</span
+          >
         </div>
-        <p v-else class="muted">选择柜机查看货道热区；暂无带货道明细的订单</p>
       </div>
+      <div v-if="slotHeat.length" class="slot-grid">
+        <div
+          v-for="s in slotHeat"
+          :key="s.slotId"
+          class="slot-cell"
+          :class="`heat-${s.heatLevel}`"
+          :title="`${s.slotId} · ${s.skuName} · ${s.qtySold} 件 · ¥${(s.revenueCents / 100).toFixed(2)}`"
+        >
+          <span class="slot-code">{{ s.slotId }}</span>
+          <span class="slot-sku">{{ s.skuName }}</span>
+          <span class="slot-qty">{{ s.qtySold }} 件</span>
+        </div>
+      </div>
+      <p v-else class="muted">选择柜机查看货道热区；暂无带货道明细的订单</p>
     </div>
   </el-card>
 </template>
@@ -182,7 +176,9 @@ const topSkuRevenueTotal = computed(() =>
   (data.value?.topSkus || []).reduce((sum, row) => sum + Number(row.revenueCents || 0), 0)
 );
 
-onMounted(load);
+onMounted(() => {
+  load();
+});
 
 async function load() {
   loading.value = true;
@@ -222,21 +218,28 @@ function barHeight(orders: number) {
 </script>
 
 <style scoped>
+/*
+ * 白底 = 本页卡片，禁止被内容撑出整页横滑（否则左右边框会「缺一块」且白底会跟着动）。
+ * 表只用 el-table 自带 border，不再套独立白壳。
+ */
+.footfall-stack {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 .kpi-card {
   padding: 14px;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 10px;
   background: var(--el-fill-color-blank);
-}
-.kpi-n,
-.kpi-l {
-  display: block;
 }
 .kpi-n {
   font-size: 24px;
@@ -248,45 +251,46 @@ function barHeight(orders: number) {
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
-.panel {
-  width: 100%;
-  box-sizing: border-box;
-  margin-bottom: 14px;
-  padding: 14px;
-  border: 1px solid var(--layout-border, var(--el-border-color-lighter));
-  border-radius: 10px;
-  background: var(--layout-card, var(--el-bg-color, #fff));
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+.section-title {
+  margin: 16px 0 10px;
+  font-size: 15px;
+  font-weight: 600;
 }
-.panel :deep(.el-table) {
-  width: 100% !important;
-  --el-table-border-color: var(--layout-border, var(--el-border-color-lighter));
+.section-title--inline {
+  margin: 0;
 }
-.panel :deep(.el-table__inner-wrapper),
-.panel :deep(.el-table__header),
-.panel :deep(.el-table__body) {
-  width: 100% !important;
-}
-.panel-head {
+.section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
+  margin: 16px 0 10px;
 }
-.panel-head h4 {
-  margin: 0;
-  font-size: 15px;
+.footfall-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  /* 透明：没有自己的白底/边框，避免和表格「两层皮」 */
+  background: transparent;
+  border: none;
+}
+.footfall-table-wrap :deep(.el-table) {
+  width: 100% !important;
 }
 .hour-bars {
   display: flex;
   align-items: flex-end;
   gap: 4px;
   height: 150px;
+  width: 100%;
+  min-width: 0;
+  margin-bottom: 4px;
 }
 .hour-bar-col {
   flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -308,6 +312,7 @@ function barHeight(orders: number) {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
 }
 .legend {
   font-size: 12px;
@@ -337,6 +342,8 @@ function barHeight(orders: number) {
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 10px;
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 .slot-cell {
   display: flex;
@@ -345,6 +352,7 @@ function barHeight(orders: number) {
   padding: 8px;
   border-radius: 8px;
   border: 1px solid var(--el-border-color-lighter);
+  min-width: 0;
 }
 .slot-cell.heat-3 {
   background: #fee2e2;

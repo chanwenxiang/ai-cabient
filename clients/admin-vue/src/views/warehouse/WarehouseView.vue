@@ -585,7 +585,12 @@
                 min-width="140"
                 show-overflow-tooltip
                 align="center"
-              />
+              >
+                <template #default="{ row }">
+                  <span v-if="row.refNo">{{ row.refNo }}</span>
+                  <span v-else class="muted">未填写</span>
+                </template>
+              </el-table-column>
               <el-table-column label="供应商" min-width="160" align="center">
                 <template #default="{ row }">
                   {{ supplierName(row.supplierId) }}
@@ -606,7 +611,7 @@
               <el-table-column
                 v-if="canEdit"
                 label="操作"
-                width="180"
+                min-width="220"
                 class-name="col-action"
                 align="center"
               >
@@ -618,12 +623,13 @@
                     @click="openPrint('purchase', { purchaseOrderId: row.purchaseOrderId })"
                     >打印收货单</el-button
                   >
-                  <TableActions
+                  <el-button
                     v-if="['CREATED', 'PARTIAL_RECEIVED'].includes(row.status)"
-                    :actions="[{ key: 'receive', label: '采购收货', icon: Box, type: 'primary' }]"
-                    @action="() => openReceive(row)"
-                  />
-                  <span v-else class="muted">已完成</span>
+                    link
+                    type="primary"
+                    @click="openReceive(row)"
+                    >采购收货</el-button
+                  >
                 </template>
               </el-table-column>
               <template #empty
@@ -1741,7 +1747,13 @@
               />
             </el-select>
           </el-form-item>
-          <el-form-item label="外部单号"><el-input v-model="purchaseForm.refNo" /></el-form-item>
+          <el-form-item label="外部单号">
+            <el-input
+              v-model="purchaseForm.refNo"
+              placeholder="选填：供应商合同号 / ERP 单号，留空则自动生成"
+              maxlength="64"
+            />
+          </el-form-item>
           <el-form-item label="备注"><el-input v-model="purchaseForm.notes" /></el-form-item>
         </div>
         <div class="section-title">
@@ -2721,7 +2733,7 @@ const { onExport: exportPurchase } = useListCsv({
   toRows: () =>
     pickSelected(filteredPurchaseOrders.value).map((row) => [
       row.purchaseOrderId,
-      row.refNo || '',
+      row.refNo || '未填写',
       supplierName(row.supplierId),
       warehouseName(row.warehouseId),
       dictLabel('purchase_order_status', row.status)
@@ -2952,6 +2964,14 @@ function localDate() {
   const now = new Date();
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
 }
+
+/** 未手填外部单号时，创建采购单用时间戳单号。 */
+function defaultPurchaseRefNo() {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `PO-${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+}
+
 function newLine() {
   return {
     skuId: skus.value[0]?.skuId || '',
@@ -3369,7 +3389,7 @@ async function openPurchase() {
   Object.assign(purchaseForm, {
     supplierId: '',
     warehouseId: '',
-    refNo: '',
+    refNo: defaultPurchaseRefNo(),
     notes: '',
     lines: [newLine()]
   });
@@ -3391,7 +3411,7 @@ async function openPurchaseFromSuggestions() {
   Object.assign(purchaseForm, {
     supplierId: '',
     warehouseId: filterWarehouseId.value || '',
-    refNo: '',
+    refNo: defaultPurchaseRefNo(),
     notes: `由采购建议生成（覆盖 ${suggestionCoverageDays.value} 天）`,
     lines: rows.map((r: Row) => ({
       skuId: r.skuId,
@@ -3766,10 +3786,11 @@ async function savePurchase() {
   }
   saving.value = true;
   try {
+    const refNo = String(purchaseForm.refNo || '').trim() || defaultPurchaseRefNo();
     const body = {
       supplierId: purchaseForm.supplierId,
       warehouseId: purchaseForm.warehouseId,
-      refNo: purchaseForm.refNo,
+      refNo,
       notes: purchaseForm.notes,
       lines: purchaseForm.lines.map((l: Row) => ({
         skuId: l.skuId,

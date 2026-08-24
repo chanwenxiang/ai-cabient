@@ -43,8 +43,8 @@
                 <text v-if="line.suggestQty > 0"> · 建议 {{ line.suggestQty }}</text>
                 <text v-if="line.soldQty7d > 0"> · 近7日销 {{ line.soldQty7d }}</text>
               </text>
-              <text v-if="line.suggestReason && line.suggestReason !== 'PAR'" class="sku-reason">{{
-                line.suggestReason
+              <text v-if="suggestReasonLabel(line.suggestReason)" class="sku-reason">{{
+                suggestReasonLabel(line.suggestReason)
               }}</text>
             </view>
             <view class="qty-box" @click.stop>
@@ -65,9 +65,15 @@
           />
         </view>
 
-        <view class="btn-primary" :class="{ disabled: submitting || !canSubmit }" @click="submit">{{
-          submitting ? '提交中…' : `提交要货（${selectedCount} 种）`
-        }}</view>
+        <view
+          class="btn-primary btn-block"
+          :class="{ disabled: submitting || !canSubmit }"
+          @click="submit"
+        >
+          <text class="btn-label">{{
+            submitting ? '提交中…' : `提交要货（${selectedCount} 种）`
+          }}</text>
+        </view>
         <text v-if="!canRequest" class="err">当前账号无要货权限</text>
       </view>
 
@@ -94,7 +100,7 @@
           @click="onRequestCard(req)"
         >
           <view class="row-between">
-            <text class="req-id">#{{ req.requestId }}</text>
+            <text class="req-id">申请号 {{ req.requestId }}</text>
             <text class="status" :class="(req.status || '').toLowerCase()">
               {{ displayLabel('replenishment_request_status', req.status) }}
             </text>
@@ -189,6 +195,15 @@ const selectedCount = computed(
 const canSubmit = computed(
   () => canRequest.value && !!selectedDeviceId.value && selectedCount.value > 0
 );
+
+/** 补货建议理由：PAR=目标库存，ROP=销量再订货点 */
+function suggestReasonLabel(code?: string) {
+  const c = String(code || '').toUpperCase();
+  if (!c || c === 'PAR') return '';
+  if (c === 'ROP') return '按销量补货';
+  if (c === 'PAR+ROP') return '目标库存+销量';
+  return code || '';
+}
 
 onLoad((opts) => {
   if (!uni.getStorageSync('merchant_token')) {
@@ -591,11 +606,11 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   color: #0f172a;
 }
 .btn-primary {
-  margin-top: 8rpx;
+  margin-top: 16rpx;
   background: linear-gradient(135deg, #134e4a, #0f766e);
   color: #fff;
   border-radius: 44rpx;
-  padding: 0;
+  padding: 0 40rpx;
   min-height: 88rpx;
   line-height: 1.2;
   text-align: center;
@@ -606,6 +621,15 @@ function goReplenish(req: MerchantReplenishmentRequest) {
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+}
+.btn-primary .btn-label {
+  display: block;
+  width: 100%;
+  text-align: center;
+  color: #fff;
+  font-weight: 600;
+  font-size: 30rpx;
+  line-height: 1.2;
 }
 .btn-primary::after {
   border: none;

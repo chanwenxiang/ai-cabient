@@ -220,6 +220,13 @@
                       >超 {{ formatDurationSince(row.slaDueAt) }}</small
                     >
                   </template>
+                  <template v-else-if="isSlaPastDue(row.slaDueAt)">
+                    <el-tag type="info" size="small">时限已过</el-tag>
+                    <span class="cell-datetime">{{ formatDateTime(row.slaDueAt) }}</span>
+                    <small class="sla-meta danger"
+                      >超 {{ formatDurationSince(row.slaDueAt) }}</small
+                    >
+                  </template>
                   <template v-else-if="row.slaDueAt">
                     <el-tag v-if="isSlaDueSoon(row.slaDueAt)" type="warning" size="small"
                       >即将到期</el-tag
@@ -408,6 +415,13 @@
                   <div class="sla-cell">
                     <template v-if="detail.exception.slaOverdue">
                       <el-tag type="danger" size="small">已超时</el-tag>
+                      <small class="sla-meta danger"
+                        >超 {{ formatDurationSince(detail.exception.slaDueAt) }}</small
+                      >
+                    </template>
+                    <template v-else-if="isSlaPastDue(detail.exception.slaDueAt)">
+                      <el-tag type="info" size="small">时限已过</el-tag>
+                      <span>{{ formatDateTime(detail.exception.slaDueAt) }}</span>
                       <small class="sla-meta danger"
                         >超 {{ formatDurationSince(detail.exception.slaDueAt) }}</small
                       >
@@ -707,6 +721,14 @@ function isSlaDueSoon(dueAt?: string) {
   return left > 0 && left <= DUE_SOON_MS;
 }
 
+/** 截止时间已过（含已结案：后端此时 slaOverdue=false，需前端单独识别） */
+function isSlaPastDue(dueAt?: string) {
+  if (!dueAt) return false;
+  const due = Date.parse(dueAt);
+  if (Number.isNaN(due)) return false;
+  return Date.now() > due;
+}
+
 function formatDurationParts(ms: number) {
   const abs = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(abs / 3600);
@@ -721,7 +743,9 @@ function formatDurationUntil(dueAt?: string) {
   if (!dueAt) return '无';
   const due = Date.parse(dueAt);
   if (Number.isNaN(due)) return '无';
-  return formatDurationParts(due - Date.now());
+  const left = due - Date.now();
+  if (left <= 0) return '已过期';
+  return formatDurationParts(left);
 }
 
 function formatDurationSince(dueAt?: string) {
