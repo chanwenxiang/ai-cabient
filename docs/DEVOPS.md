@@ -71,6 +71,27 @@ docker compose -f docker-compose.full.yml -f docker-compose.devops.yml --profile
 
 Jenkins / SonarQube / Runner 容器默认 `TZ=Asia/Shanghai`（Jenkins 另设 `-Duser.timezone=Asia/Shanghai`），构建历史显示北京时间。
 
+### 质量门禁（AI Cabinet）
+
+内置 **Sonar way**（新违规必须为 0、覆盖率 ≥80%）对本仓「新代码」窗口过严。项目已绑定自定义门禁 **AI Cabinet**：
+
+| 条件 | 要求 |
+|------|------|
+| 新漏洞 | = 0 |
+| 新 BLOCKER | = 0 |
+| 安全热点审查 | = 100% |
+| 新重复率 | ≤ 3% |
+| 新覆盖率 | ≥ 40% |
+
+本地重建门禁（幂等）：
+
+```powershell
+$env:SONAR_TOKEN = "<token>"
+.\scripts\ci\setup-sonar-quality-gate.ps1
+```
+
+覆盖率依赖 Jacoco：`mvn test jacoco:report` 后由 `run-sonar.ps1` / Jenkins `ai-cabinet-sonar-dev-local` 上报 `**/target/site/jacoco/jacoco.xml`。
+
 ## 运营后台集成
 
 路径：**系统 → DevOps 中心**（权限 `ops:devops:view`）
