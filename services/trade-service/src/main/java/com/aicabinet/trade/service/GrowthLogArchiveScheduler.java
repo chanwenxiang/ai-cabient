@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.Set;
 
 /** 增长模块日志归档：清理通知日志；积分流水为账本组成部分，不在此删除。 */
 @Service
@@ -19,8 +18,6 @@ public class GrowthLogArchiveScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(GrowthLogArchiveScheduler.class);
     private static final int BATCH = 500;
-    /** 仅允许归档已知日志表，禁止把表名交给 JDBC 拼接用户输入。 */
-    private static final Set<String> ALLOWED_TABLES = Set.of("notification_log", "member_points_log");
 
     private final JdbcTemplate jdbcTemplate;
     private final SystemConfigService systemConfigService;
@@ -68,13 +65,44 @@ public class GrowthLogArchiveScheduler {
     }
 
     private int deleteInBatches(String table, Instant cutoff, boolean requireExpiredAt) {
-        if (!ALLOWED_TABLES.contains(table)) {
-            throw new IllegalArgumentException("unsupported archive table: " + table);
-        }
-        String extra = requireExpiredAt ? " AND expired_at IS NOT NULL" : "";
-        String sql = "DELETE FROM " + table
-                + " WHERE id IN (SELECT id FROM " + table
-                + " WHERE created_at < ?" + extra + " LIMIT " + BATCH + ")";
+        // 表名来自白名单常量，SQL 全文写死，避免动态拼接触发 SQLi 热点
+        String sql = switch (table) {
+            case "notification_log" -> requireExpiredAt
+                    ? """
+                    DELETE FROM notification_log
+                    WHERE id IN (
+                      SELECT id FROM notification_log
+                      WHERE created_at < ? AND expired_at IS NOT NULL
+                      LIMIT %d
+                    )
+                    """.formatted(BATCH)
+                    : """
+                    DELETE FROM notification_log
+                    WHERE id IN (
+                      SELECT id FROM notification_log
+                      WHERE created_at < ?
+                      LIMIT %d
+                    )
+                    """.formatted(BATCH);
+            case "member_points_log" -> requireExpiredAt
+                    ? """
+                    DELETE FROM member_points_log
+                    WHERE id IN (
+                      SELECT id FROM member_points_log
+                      WHERE created_at < ? AND expired_at IS NOT NULL
+                      LIMIT %d
+                    )
+                    """.formatted(BATCH)
+                    : """
+                    DELETE FROM member_points_log
+                    WHERE id IN (
+                      SELECT id FROM member_points_log
+                      WHERE created_at < ?
+                      LIMIT %d
+                    )
+                    """.formatted(BATCH);
+            default -> throw new IllegalArgumentException("unsupported archive table: " + table);
+        };
         Timestamp cutoffTs = Timestamp.from(cutoff);
         int total = 0;
         int n;
