@@ -194,6 +194,7 @@ import { computed, ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { consumerApi, ensureConsumerAuth, get } from '@/utils/consumer-api';
 import { resumePendingRechargeIfAny, runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
+import { secureRandomToken } from '@/utils/secure-id';
 import { shortBizNo, formatDateTimeMinute, fmtMoney } from '@aicabinet/shared-uni/format';
 import { displayLabel } from '@aicabinet/shared-dict';
 import type {
@@ -496,7 +497,7 @@ async function onRecharge() {
   }
   loading.value = true;
   try {
-    const key = `recharge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const key = `recharge-${Date.now()}-${secureRandomToken(6)}`;
     const prepay = await consumerApi.createMockRecharge(selectedAmount.value, key);
     await consumerApi.confirmMockRecharge(prepay.orderId);
     uni.showToast({ title: '充值成功', icon: 'success' });
@@ -513,7 +514,7 @@ async function onWeChatRecharge() {
   if (!selectedAmount.value || loading.value) return;
   loading.value = true;
   try {
-    const key = `wechat-recharge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const key = `wechat-recharge-${Date.now()}-${secureRandomToken(6)}`;
     const { mode } = await runWeChatRecharge(selectedAmount.value, key);
     uni.showToast({
       title: mode === 'live' ? '充值已到账' : '微信模拟充值成功',
@@ -532,7 +533,7 @@ async function onAlipayRecharge() {
   if (!selectedAmount.value || loading.value) return;
   loading.value = true;
   try {
-    const key = `alipay-recharge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const key = `alipay-recharge-${Date.now()}-${secureRandomToken(6)}`;
     const { mode } = await runAlipayRecharge(selectedAmount.value, key);
     if (mode === 'live') {
       uni.showToast({ title: '请在支付宝完成支付', icon: 'none' });

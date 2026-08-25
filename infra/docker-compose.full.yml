@@ -126,6 +126,10 @@ services:
       DEVOPS_PROMETHEUS_HEALTH_URL: http://prometheus:9090
       DEVOPS_JENKINS_URL: ${DEVOPS_JENKINS_URL:-http://localhost:19081}
       DEVOPS_JENKINS_HEALTH_URL: http://jenkins:8080
+      DEVOPS_JENKINS_API_URL: http://jenkins:8080
+      DEVOPS_JENKINS_USER: ${DEVOPS_JENKINS_USER:-admin}
+      DEVOPS_JENKINS_PASSWORD: ${JENKINS_ADMIN_PASSWORD:-changeme}
+      DEVOPS_SONAR_JENKINS_JOB: ${DEVOPS_SONAR_JENKINS_JOB:-ai-cabinet-sonar-dev-local}
       DEVOPS_SONAR_URL: ${DEVOPS_SONAR_URL:-http://localhost:19002}
       DEVOPS_SONAR_HEALTH_URL: http://sonarqube:9000
       DEVOPS_GITHUB_URL: ${DEVOPS_GITHUB_URL:-https://github.com}

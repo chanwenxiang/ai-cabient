@@ -124,6 +124,7 @@ import {
   handleUnauthorized,
   type LineWalletOverview
 } from '@/utils/merchant-api';
+import { secureRandomToken } from '@/utils/secure-id';
 
 const loading = ref(false);
 const submitting = ref(false);
@@ -185,7 +186,7 @@ async function submitWithdraw() {
     await merchantApi.lineWalletWithdraw({
       amountCents: Math.round(yuanNum * 100),
       // 客户端请求号：时间戳 + 随机段，降低同毫秒重复请求的幂等碰撞风险
-      requestNo: 'MP-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10)
+      requestNo: 'MP-' + Date.now() + '-' + secureRandomToken(5)
     });
     uni.showToast({ title: '已提交', icon: 'success' });
     amountYuan.value = '';

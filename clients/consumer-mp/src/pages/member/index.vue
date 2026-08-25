@@ -132,11 +132,13 @@ const currentLevelRate = computed(() => {
 });
 function formatYuan(n: number) {
   const v = Number.isFinite(n) ? n : 0;
-  const sign = v < 0 ? '-' : '';
-  const abs = Math.abs(v).toFixed(2);
-  const [intPart, dec] = abs.split('.');
-  const digits = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return sign + '¥' + digits + '.' + dec;
+  return (
+    '¥' +
+    new Intl.NumberFormat('zh-CN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(v)
+  );
 }
 const spentText = computed(() => formatYuan(Number(profile.value?.totalSpent || 0)));
 

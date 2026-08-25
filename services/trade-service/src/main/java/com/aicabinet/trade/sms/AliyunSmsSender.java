@@ -105,6 +105,7 @@ public class AliyunSmsSender implements SmsSender {
     }
 
     private static String sign(String stringToSign, String key) throws Exception {
+        // 阿里云 OpenAPI RPC 签名算法规定 HmacSHA1，不可换用更强摘要
         Mac mac = Mac.getInstance("HmacSHA1");
         mac.init(new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA1"));
         return Base64.getEncoder().encodeToString(mac.doFinal(stringToSign.getBytes(StandardCharsets.UTF_8)));

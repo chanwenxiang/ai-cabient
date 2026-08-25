@@ -1,6 +1,6 @@
 <template>
   <div ref="hostRef" class="chart-host" @pointermove="onMove" @pointerleave="hide">
-    <div class="chart-box" :class="{ donut: donut }" v-html="safeSvg" />
+    <div ref="svgBoxRef" class="chart-box" :class="{ donut: donut }" />
     <Teleport to="body">
       <div
         v-if="tip.show"
@@ -31,6 +31,7 @@ const props = defineProps<{
 const safeSvg = computed(() => sanitizeChartSvg(props.svg));
 
 const hostRef = ref<HTMLElement | null>(null);
+const svgBoxRef = ref<HTMLElement | null>(null);
 const tip = reactive({
   show: false,
   x: 0,
@@ -38,6 +39,21 @@ const tip = reactive({
   title: '',
   rows: [] as { name: string; value: string; color?: string }[]
 });
+
+/** 经 sanitize 后用 DOMParser 挂载 SVG，避免 v-html 绕过 Vue 转义。 */
+function mountSafeSvg(html: string) {
+  const el = svgBoxRef.value;
+  if (!el) return;
+  el.replaceChildren();
+  if (!html) return;
+  const doc = new DOMParser().parseFromString(html, 'image/svg+xml');
+  if (doc.querySelector('parsererror')) return;
+  const root = doc.documentElement;
+  if (!root || root.tagName.toLowerCase() !== 'svg') return;
+  el.appendChild(document.importNode(root, true));
+}
+
+watch([safeSvg, svgBoxRef], ([html]) => mountSafeSvg(html), { immediate: true, flush: 'post' });
 
 let activeEl: Element | null = null;
 

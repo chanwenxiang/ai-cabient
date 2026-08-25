@@ -15,8 +15,8 @@ public final class ApiMessages {
     public static final String INVALID_TOKEN = "登录已失效，请重新登录";
     public static final String INVALID_PHONE = "手机号格式不正确";
     public static final String INVALID_CODE = "验证码错误或已过期";
-    public static final String INVALID_PASSWORD = "密码错误";
-    public static final String PASSWORD_NOT_SET = "该账号未设置密码，请使用验证码或联系管理员";
+    public static final String INVALID_CREDENTIALS = "密码错误";
+    public static final String CREDENTIAL_NOT_SET = "该账号未设置密码，请使用验证码或联系管理员";
     public static final String WX_NOT_BOUND = "微信未绑定账号，请先使用手机号登录后再绑定";
     public static final String USER_NOT_VERIFIED = "请先完成实名认证";
     public static final String OPERATOR_REQUIRED = "需要运营账号权限";
@@ -257,7 +257,7 @@ public final class ApiMessages {
             return DEVICE_NOT_FOUND;
         }
         if (lower.startsWith("check-in too far from device")) {
-            var m = Pattern.compile("(\\d+)\\s*m").matcher(lower);
+            var m = Pattern.compile("(\\d{1,6})\\s{0,4}m").matcher(lower);
             if (m.find()) {
                 return String.format(REPLENISHMENT_CHECK_IN_TOO_FAR, Integer.parseInt(m.group(1)));
             }

@@ -880,11 +880,13 @@ function rowMeta(row: SkuCatalog) {
 }
 
 function shortEnrollmentLabel(label: string) {
-  return (
-    String(label || '')
-      .replace(/[（(].*$/, '')
-      .trim() || label
+  const s = String(label || '');
+  const cut = Math.min(
+    s.indexOf('（') >= 0 ? s.indexOf('（') : s.length,
+    s.indexOf('(') >= 0 ? s.indexOf('(') : s.length
   );
+  const head = s.slice(0, cut).trim();
+  return head || label;
 }
 
 function filterByEnrollment(status: string) {

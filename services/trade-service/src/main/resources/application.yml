@@ -193,6 +193,11 @@ aicabinet:
     prometheus-health-url: ${DEVOPS_PROMETHEUS_HEALTH_URL:${DEVOPS_PROMETHEUS_URL:http://localhost:9090}}
     jenkins-url: ${DEVOPS_JENKINS_URL:http://localhost:19081}
     jenkins-health-url: ${DEVOPS_JENKINS_HEALTH_URL:${DEVOPS_JENKINS_URL:http://localhost:19081}}
+    # 服务端调 Jenkins API（Docker 内多为 http://jenkins:8080；本机 IDEA 默认跟 jenkins-url）
+    jenkins-api-url: ${DEVOPS_JENKINS_API_URL:${DEVOPS_JENKINS_HEALTH_URL:${DEVOPS_JENKINS_URL:http://localhost:19081}}}
+    jenkins-user: ${DEVOPS_JENKINS_USER:admin}
+    jenkins-password: ${DEVOPS_JENKINS_PASSWORD:${JENKINS_ADMIN_PASSWORD:changeme}}
+    sonar-jenkins-job: ${DEVOPS_SONAR_JENKINS_JOB:ai-cabinet-sonar-dev-local}
     sonar-url: ${DEVOPS_SONAR_URL:http://localhost:19002}
     sonar-health-url: ${DEVOPS_SONAR_HEALTH_URL:${DEVOPS_SONAR_URL:http://localhost:19002}}
     github-url: ${DEVOPS_GITHUB_URL:https://github.com}

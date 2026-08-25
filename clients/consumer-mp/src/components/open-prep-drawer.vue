@@ -143,6 +143,7 @@ import {
   type EntryChannel
 } from '@/utils/account';
 import { runAlipayRecharge, runWeChatRecharge } from '@/utils/recharge';
+import { secureRandomToken } from '@/utils/secure-id';
 import {
   resolveMockEnabled,
   resolveSandboxRecharge,
@@ -318,7 +319,7 @@ async function onWeChatRecharge() {
   busy.value = true;
   err.value = '';
   try {
-    const key = `prep-wechat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const key = `prep-wechat-${Date.now()}-${secureRandomToken(6)}`;
     await runWeChatRecharge(2000, key);
     account.value = await consumerApi.account();
     uni.showToast({ title: '充值成功', icon: 'success' });
@@ -334,7 +335,7 @@ async function onAlipayRecharge() {
   busy.value = true;
   err.value = '';
   try {
-    const key = `prep-alipay-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const key = `prep-alipay-${Date.now()}-${secureRandomToken(6)}`;
     const { mode } = await runAlipayRecharge(2000, key);
     if (mode === 'live') {
       uni.showToast({ title: '请在支付宝完成支付', icon: 'none' });
@@ -364,7 +365,7 @@ async function onMockRecharge() {
   busy.value = true;
   err.value = '';
   try {
-    const key = `prep-recharge-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const key = `prep-recharge-${Date.now()}-${secureRandomToken(6)}`;
     const order = await consumerApi.createMockRecharge(2000, key);
     await consumerApi.confirmMockRecharge(order.orderId);
     account.value = await consumerApi.account();

@@ -69,6 +69,8 @@ docker compose -f docker-compose.full.yml -f docker-compose.devops.yml --profile
 | Jenkins | http://localhost:19081 | CasC 预配置流水线（勿与 device-service 18081 冲突） |
 | GitHub | 见 `infra/.env` 中 `DEVOPS_GITHUB_URL` | 源码与 PR |
 
+Jenkins / SonarQube / Runner 容器默认 `TZ=Asia/Shanghai`（Jenkins 另设 `-Duser.timezone=Asia/Shanghai`），构建历史显示北京时间。
+
 ## 运营后台集成
 
 路径：**系统 → DevOps 中心**（权限 `ops:devops:view`）
@@ -118,6 +120,9 @@ Runner 标签：`self-hosted`, `linux`, `ai-cabinet`（与 `.github/workflows/ci
 | `ai-cabinet-release-local` | 本机完整构建；可试 `DEPLOY_MODE=compose-local` |
 | `ai-cabinet-sonar-dev` | 正式：GitHub `dev`（需已推送 `Jenkinsfile.sonar-dev`） |
 | `ai-cabinet-release` | 正式：GitHub → 部署（需已推送 `Jenkinsfile`） |
+
+运营后台 **系统 → DevOps 中心 → SonarQube 卡片「重跑 Sonar」** 会调用  
+`POST /api/v2/ops/admin/devops/sonar/scan`，排队 Jenkins 任务 `ai-cabinet-sonar-dev-local`（需 `ops:devops:scan` 权限）。
 
 **部署参数 `DEPLOY_MODE`：** `none` / `compose-local`（Jenkins 与业务同机）/ `ssh`（凭据 id=`deploy-ssh-key`）。
 

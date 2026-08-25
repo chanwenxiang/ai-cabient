@@ -26,6 +26,16 @@
               新窗口打开
             </el-button>
             <el-button
+              v-if="tool.id === 'sonarqube'"
+              type="warning"
+              link
+              :loading="sonarScanning"
+              :disabled="!tool.online || sonarScanning"
+              @click="triggerSonarScan"
+            >
+              重跑 Sonar
+            </el-button>
+            <el-button
               v-if="tool.id === 'grafana' && grafanaEmbedPath"
               type="primary"
               link
@@ -83,6 +93,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { Refresh } from '@element-plus/icons-vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { api } from '@/api/client';
 
 interface DevOpsTool {
@@ -99,6 +110,15 @@ interface DevOpsHub {
   tools: DevOpsTool[];
   githubUrl: string;
   grafanaEmbedPath?: string | null;
+}
+
+interface SonarScanResult {
+  accepted: boolean;
+  jobName: string;
+  queueUrl?: string | null;
+  jenkinsUrl?: string | null;
+  sonarDashboardUrl?: string | null;
+  message: string;
 }
 
 const NAME_ZH: Record<string, string> = {
@@ -121,6 +141,7 @@ const promQueries = [
 ];
 
 const loading = ref(false);
+const sonarScanning = ref(false);
 const hub = ref<DevOpsHub | null>(null);
 const grafanaSection = ref<{ $el?: HTMLElement } | null>(null);
 
@@ -139,6 +160,40 @@ async function load() {
     hub.value = await api.request<DevOpsHub>('/api/v2/ops/admin/devops/hub', 'GET');
   } finally {
     loading.value = false;
+  }
+}
+
+async function triggerSonarScan() {
+  try {
+    await ElMessageBox.confirm(
+      '将通过 Jenkins 任务排队一次本机 Sonar 扫描（ai-cabinet-dev）。扫描需数分钟，期间可继续使用后台。',
+      '重跑 Sonar 扫描',
+      { type: 'warning', confirmButtonText: '开始扫描', cancelButtonText: '取消' }
+    );
+  } catch {
+    return;
+  }
+  sonarScanning.value = true;
+  try {
+    const result = await api.request<SonarScanResult>('/api/v2/ops/admin/devops/sonar/scan', 'POST');
+    ElMessage.success(
+      result.accepted
+        ? `已提交 Jenkins 任务「${result.jobName || 'ai-cabinet-sonar-dev-local'}」，完成后可在 SonarQube 查看`
+        : result.message || '已提交扫描任务'
+    );
+    if (result.jenkinsUrl) {
+      await ElMessageBox.confirm('是否打开 Jenkins 任务页查看进度？', '已提交', {
+        confirmButtonText: '打开 Jenkins',
+        cancelButtonText: '稍后再看',
+        type: 'success'
+      })
+        .then(() => openExternal(result.jenkinsUrl!))
+        .catch(() => undefined);
+    }
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '触发扫描失败');
+  } finally {
+    sonarScanning.value = false;
   }
 }
 
